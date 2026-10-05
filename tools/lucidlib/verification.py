@@ -18,6 +18,8 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "MeshGeometryMatchesNativeStoresAndIndexBlob",
     "StateMachinePrimitivesMatchNativeHashAndIdentitySemantics",
     "StateMachineTransitionsPreserveNativeUpdateAndCallbackOrder",
+    "StateMachineComponentsRetainOriginalUserAndLifecycleOrder",
+    "StateMachineCompletionRetainsOriginalEndAndFinishedRules",
     "LocalStoragePersistsAndRecoversWithoutCloudNotifications",
     "CloudFacadePreservesOriginalCallbacksKeysAndConflictLifecycle",
     "SavePropertiesPreserveNativeIdentityAndCultureSemantics",

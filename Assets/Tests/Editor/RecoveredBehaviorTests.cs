@@ -23,6 +23,18 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void StateMachineComponentsRetainOriginalUserAndLifecycleOrder()
+        {
+            FSMBehaviourVerification.Run();
+        }
+
+        [Test]
+        public void StateMachineCompletionRetainsOriginalEndAndFinishedRules()
+        {
+            FSMCompletionVerification.Run();
+        }
+
+        [Test]
         public void LocalStoragePersistsAndRecoversWithoutCloudNotifications()
         {
             LocalCloudVerification.Run();
