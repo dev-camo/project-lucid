@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -9,6 +10,7 @@ from pathlib import Path
 import platform
 import re
 import subprocess
+import uuid
 import xml.etree.ElementTree as ET
 
 from .bootstrap import managed_path, write_json
@@ -195,22 +197,167 @@ def verified_receipt(work_dir, mode, identity):
     return verdict
 
 
-def run_audit(repo_root, work_dir):
-    editor = find_editor()
-    output = managed_path(work_dir, "reports", "unity-reference-audit.json")
-    log = managed_path(work_dir, "reports", "unity-reference-audit.log")
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.unlink(missing_ok=True)
-    command = [str(editor), "-batchmode", "-quit", "-projectPath", str(Path(repo_root).resolve()),
-               "-executeMethod", "ProjectLucid.Editor.LucidReferenceAudit.Run",
-               "-lucidAuditOutput", str(output), "-logFile", str(log)]
-    result = subprocess.run(command, timeout=1800)
-    if result.returncode or not output.is_file():
-        return {"status": "failed", "exit_code": result.returncode, "log": str(log),
-                "errors": ["Unity reference audit did not complete"]}
-    report = json.loads(output.read_text())
-    identity = current_identity(repo_root)
-    if report.get("unity_version") != UNITY_VERSION or any(report.get(key) != value for key, value in identity.items()):
+def _audit_context_bytes(root, identity, nonce):
+    """Small exact-format context, parsed independently by the matching Editor."""
+    if not isinstance(nonce, str) or re.fullmatch(r"[0-9a-f]{32}", nonce) is None or any(
+            not isinstance(identity.get(key), str) or re.fullmatch(r"[0-9a-f]{64}", identity[key]) is None
+            for key in ("source_fingerprint", "prepared_asset_fingerprint")):
+        raise ValueError("Invalid reference audit content identity")
+    encoded = base64.b64encode(str(root).encode("utf-8")).decode("ascii")
+    value = ("ProjectLucid.audit-identity-context-v1\nalgorithm=sha256-path-content-v1\n"
+             "nonce=" + nonce + "\nproject_root_base64=" + encoded + "\nunity_version=" + UNITY_VERSION +
+             "\nsource_fingerprint=" + identity["source_fingerprint"] +
+             "\nprepared_asset_fingerprint=" + identity["prepared_asset_fingerprint"] + "\n").encode("utf-8")
+    if len(value) > 16384:
+        raise ValueError("Reference audit identity context exceeds its supported size")
+    return value
+
+
+def _audit_wrapper_paths_supported(root):
+    """UTF16 Ordinal and Python path order agree for these prepared paths.
+
+    Preserve the existing algorithms: unusual paths use direct Editor hashing,
+    whose result must still equal the wrapper's native content fingerprint.
+    """
+    for base in ("Assets/Recovered", "Assets/StreamingAssets"):
+        for parent, directories, names in os.walk(Path(root) / base):
+            directories[:] = [name for name in directories if name not in ("obj", "bin", "__pycache__")
+                              and not name.startswith(".")]
+            for name in names:
+                if name.endswith((".pyc", ".pyo", ".tmp")) or name == ".DS_Store":
+                    continue
+                relative = (Path(parent) / name).relative_to(root).as_posix()
+                if "\\" in relative or any(ord(char) > 0xffff for char in relative):
+                    return False
+    return True
+
+
+def _audit_read_bytes(work_dir, path, limit):
+    """Read only owned, bounded evidence; reject changes during the read."""
+    path = managed_path(work_dir, *path.relative_to(Path(work_dir)).parts)
+    if not path.is_file() or path.stat().st_size > limit:
+        raise ValueError("Reference audit evidence is absent or exceeds its supported size")
+    before = path.stat()
+    data = path.read_bytes()
+    after = path.stat()
+    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if not data or len(data) > limit or any(getattr(before, key) != getattr(after, key) for key in fields):
+        raise ValueError("Reference audit evidence changed while reading")
+    return data
+
+
+def _audit_json_pairs(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError("Duplicate reference audit JSON field")
+        value[key] = item
+    return value
+
+
+def _audit_invalid_constant(value):
+    raise ValueError("Invalid reference audit JSON constant: " + value)
+
+
+def _audit_check_report(report, identity, *, nonce=None, context_digest=None):
+    if not isinstance(report, dict) or report.get("unity_version") != UNITY_VERSION or any(
+            report.get(key) != value for key, value in identity.items()):
         raise ValueError("Unity reference audit does not match the current project content")
-    return {"status": report["status"], "unresolved_references": report["unresolved_references"],
-            "scanned_assets": report["scanned_assets"], "report_path": str(output), "log": str(log)}
+    expected = {"identity_mode": "wrapper-prepost-v1", "identity_status": "pending-wrapper",
+                "status": "pending-identity-verification", "identity_nonce": nonce,
+                "identity_context_sha256": context_digest} if nonce is not None else {
+                    "identity_mode": "editor-content-sha256-v1", "identity_status": "complete"}
+    if any(report.get(key) != value for key, value in expected.items()):
+        raise ValueError("Unity reference audit identity handshake is incomplete or stale")
+    if nonce is None and (report.get("identity_nonce") not in (None, "") or report.get("identity_context_sha256") not in (None, "")):
+        raise ValueError("Direct reference audit unexpectedly contains supplied identity evidence")
+    for key in ("scanned_assets", "unresolved_references"):
+        if type(report.get(key)) is not int or not 0 <= report[key] <= 0x7fffffff:
+            raise ValueError("Invalid reference audit count: " + key)
+    for key in ("missing_guids", "invalid_script_bindings", "shader_errors"):
+        if not isinstance(report.get(key), list):
+            raise ValueError("Invalid reference audit diagnostics: " + key)
+    for item in report["missing_guids"]:
+        if (not isinstance(item, dict) or not isinstance(item.get("guid"), str) or re.fullmatch(r"[0-9a-f]{32}", item["guid"]) is None or
+                not isinstance(item.get("examples"), list) or not 0 < len(item["examples"]) <= 8 or
+                any(not isinstance(value, str) or not value for value in item["examples"])):
+            raise ValueError("Invalid missing reference diagnostic")
+    for key in ("invalid_script_bindings", "shader_errors"):
+        if any(not isinstance(value, str) or not value for value in report[key]):
+            raise ValueError("Invalid reference audit diagnostic text")
+    unresolved = sum(len(report[key]) for key in ("missing_guids", "invalid_script_bindings", "shader_errors"))
+    reference_status = "complete" if unresolved == 0 else "incomplete"
+    if report["unresolved_references"] != unresolved or report.get("reference_status") != reference_status or (
+            nonce is None and report.get("status") != reference_status):
+        raise ValueError("Reference audit status differs from its diagnostics")
+
+
+def _audit_require_current_source(root, identity, phase):
+    # current_identity hashes source before its much larger prepared-data pass.
+    # Recheck the small source tree after that pass and before publication.
+    if artifact_fingerprint(root) != identity["source_fingerprint"]:
+        raise ValueError("Maintained source changed " + phase)
+
+
+def run_audit(repo_root, work_dir):
+    """Publish an Editor audit only after native pre/post hashes agree."""
+    root, work = Path(repo_root).resolve(strict=True), Path(os.path.abspath(os.fspath(work_dir)))
+    editor = find_editor()
+    output = managed_path(work, "reports", "unity-reference-audit.json")
+    lock = managed_path(work, "locks", "reference-audit.lock")
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        lock.mkdir()
+    except FileExistsError as error:
+        raise ValueError("Another reference audit owns the generated audit lock") from error
+    try:
+        before = current_identity(root)
+        _audit_require_current_source(root, before, "while preparing the reference audit")
+        nonce = uuid.uuid4().hex
+        run = managed_path(work, "reports", "audit-runs", nonce)
+        run.mkdir(parents=True, exist_ok=False)
+        pending = managed_path(work, "reports", "audit-runs", nonce, "pending-audit.json")
+        log = managed_path(work, "reports", "audit-runs", nonce, "editor.log")
+        command = [str(editor), "-batchmode", "-quit", "-projectPath", str(root),
+                   "-executeMethod", "ProjectLucid.Editor.LucidReferenceAudit.Run",
+                   "-lucidAuditOutput", str(pending), "-logFile", str(log)]
+        context = context_bytes = digest = None
+        fast = _audit_wrapper_paths_supported(root)
+        if fast:
+            context = managed_path(work, "reports", "audit-runs", nonce, "identity-context.txt")
+            context_bytes = _audit_context_bytes(root, before, nonce)
+            with context.open("xb") as stream:
+                stream.write(context_bytes)
+                stream.flush()
+                os.fsync(stream.fileno())
+            digest = hashlib.sha256(context_bytes).hexdigest()
+            command.extend(["-lucidAuditIdentityContext", str(context), "-lucidAuditIdentityDigest", digest,
+                            "-lucidAuditIdentityNonce", nonce])
+        result = subprocess.run(command, timeout=1800)
+        if result.returncode or not pending.is_file():
+            return {"status": "failed", "exit_code": result.returncode, "log": str(log),
+                    "errors": ["Unity reference audit did not complete"]}
+        raw = _audit_read_bytes(work, pending, 32 * 1024 * 1024)
+        report = json.loads(raw, object_pairs_hook=_audit_json_pairs, parse_constant=_audit_invalid_constant)
+        after = current_identity(root)
+        _audit_require_current_source(root, after, "during post-audit identity verification")
+        if before != after:
+            raise ValueError("Project content changed during the Unity reference audit; rerun with stable imported content")
+        if fast and _audit_read_bytes(work, context, 16384) != context_bytes:
+            raise ValueError("Reference audit identity context changed during the Editor invocation")
+        _audit_check_report(report, after, nonce=nonce if fast else None, context_digest=digest)
+        # Recheck destinations/evidence immediately before the only authoritative
+        # write. A failed or interrupted run never replaces the previous audit.
+        output = managed_path(work, "reports", "unity-reference-audit.json")
+        if _audit_read_bytes(work, pending, 32 * 1024 * 1024) != raw or (
+                fast and _audit_read_bytes(work, context, 16384) != context_bytes):
+            raise ValueError("Reference audit evidence changed before publication")
+        _audit_require_current_source(root, after, "before reference audit publication")
+        report.update(status=report["reference_status"], identity_status="complete",
+                      generated_by="ProjectLucid.run_audit", identity_verified_by="native-python-prepost-v1",
+                      staged_report_sha256=hashlib.sha256(raw).hexdigest(), staged_report_path=str(pending))
+        write_json(output, report)
+        return {"status": report["status"], "unresolved_references": report["unresolved_references"],
+                "scanned_assets": report["scanned_assets"], "report_path": str(output), "log": str(log)}
+    finally:
+        lock.rmdir()

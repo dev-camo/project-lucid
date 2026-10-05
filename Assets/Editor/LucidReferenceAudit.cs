@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
@@ -22,6 +24,11 @@ namespace ProjectLucid.Editor
             public string unity_version;
             public string source_fingerprint;
             public string prepared_asset_fingerprint;
+            public string reference_status;
+            public string identity_mode;
+            public string identity_status;
+            public string identity_nonce;
+            public string identity_context_sha256;
             public int scanned_assets;
             public int unresolved_references;
             public MissingReference[] missing_guids;
@@ -42,6 +49,18 @@ namespace ProjectLucid.Editor
         public static void Run()
         {
             string root = Directory.GetParent(Application.dataPath).FullName;
+            string[] arguments = Environment.GetCommandLineArgs();
+            string output = ReadOption(arguments, "-lucidAuditOutput") ??
+                Path.Combine(root, ".cache", "project-lucid", "reports", "unity-reference-audit.json");
+            output = CheckedCachePath(root, output);
+            IdentityContext context = ReadIdentityContext(root, arguments, output);
+            string sourceBefore = LucidArtifactIdentity.Fingerprint(root, false);
+            if (context != null)
+            {
+                if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+                    throw new InvalidOperationException("Reference audit requires a stable imported project.");
+                context.CheckSourceFingerprint(sourceBefore);
+            }
             string recovered = Path.Combine(Application.dataPath, "Recovered");
             if (!Directory.Exists(recovered)) throw new InvalidOperationException("Prepare supplied assets before auditing references.");
             var resolved = new Dictionary<string, string>();
@@ -100,12 +119,29 @@ namespace ProjectLucid.Editor
                 foreach (var message in ShaderUtil.GetShaderMessages(shader))
                     if (message.severity.ToString() == "Error") shaderErrors.Add(path + ": " + message.message);
             }
+            string sourceFingerprint = LucidArtifactIdentity.Fingerprint(root, false);
+            if (sourceFingerprint != sourceBefore) throw new InvalidOperationException("Maintained source changed during reference audit.");
+            if (context != null)
+            {
+                context.CheckSourceFingerprint(sourceFingerprint);
+                if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+                    throw new InvalidOperationException("Project import changed during reference audit.");
+                context.CheckUnchanged(root);
+            }
+            string referenceStatus = missing.Count == 0 && badScripts.Count == 0 && shaderErrors.Count == 0 ? "complete" : "incomplete";
             var audit = new Audit
             {
-                status = missing.Count == 0 && badScripts.Count == 0 && shaderErrors.Count == 0 ? "complete" : "incomplete",
+                // Supplied hashes remain non-authoritative until the CLI checks
+                // all current bytes again after this Editor process exits.
+                status = context == null ? referenceStatus : "pending-identity-verification",
                 unity_version = Application.unityVersion,
-                source_fingerprint = LucidArtifactIdentity.Fingerprint(root, false),
-                prepared_asset_fingerprint = LucidArtifactIdentity.Fingerprint(root, true),
+                source_fingerprint = sourceFingerprint,
+                prepared_asset_fingerprint = context == null ? LucidArtifactIdentity.Fingerprint(root, true) : context.PreparedFingerprint,
+                reference_status = referenceStatus,
+                identity_mode = context == null ? "editor-content-sha256-v1" : "wrapper-prepost-v1",
+                identity_status = context == null ? "complete" : "pending-wrapper",
+                identity_nonce = context == null ? null : context.Nonce,
+                identity_context_sha256 = context == null ? null : context.Digest,
                 scanned_assets = scanned,
                 unresolved_references = missing.Count + badScripts.Count + shaderErrors.Count,
                 missing_guids = missing.OrderBy(pair => pair.Key, StringComparer.Ordinal)
@@ -113,16 +149,6 @@ namespace ProjectLucid.Editor
                 invalid_script_bindings = badScripts.OrderBy(s => s, StringComparer.Ordinal).ToArray(),
                 shader_errors = shaderErrors.ToArray()
             };
-            string output = Path.Combine(root, ".cache", "project-lucid", "reports", "unity-reference-audit.json");
-            string[] arguments = Environment.GetCommandLineArgs();
-            int outputIndex = Array.IndexOf(arguments, "-lucidAuditOutput");
-            if (outputIndex >= 0)
-            {
-                if (outputIndex + 1 >= arguments.Length) throw new ArgumentException("Missing audit output path");
-                output = Path.GetFullPath(arguments[outputIndex + 1]);
-            }
-            string cache = Path.Combine(root, ".cache", "project-lucid") + Path.DirectorySeparatorChar;
-            if (!output.StartsWith(cache, StringComparison.Ordinal)) throw new IOException("Audit output must be inside the generated cache");
             string directory = Path.GetDirectoryName(output);
             EnsureNoSymlinks(root, directory);
             Directory.CreateDirectory(directory);
@@ -136,6 +162,89 @@ namespace ProjectLucid.Editor
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
             Debug.Log("Project Lucid reference audit: " + scanned + " assets, " + audit.unresolved_references + " unresolved references. " + output);
+        }
+
+        private static string ReadOption(string[] arguments, string name)
+        {
+            string value = null;
+            for (int i = 0; i < arguments.Length; i++)
+            {
+                if (arguments[i] != name) continue;
+                if (value != null || i + 1 >= arguments.Length || String.IsNullOrEmpty(arguments[i + 1]) || arguments[i + 1].StartsWith("-", StringComparison.Ordinal))
+                    throw new ArgumentException("Missing or duplicate reference audit option: " + name);
+                value = arguments[++i];
+            }
+            return value;
+        }
+
+        private static string CheckedCachePath(string root, string path)
+        {
+            string full = Path.GetFullPath(path);
+            string cache = Path.Combine(root, ".cache", "project-lucid") + Path.DirectorySeparatorChar;
+            if (!full.StartsWith(cache, StringComparison.Ordinal)) throw new IOException("Audit evidence must be inside the generated cache.");
+            EnsureNoSymlinks(root, full);
+            return full;
+        }
+
+        private sealed class IdentityContext
+        {
+            public readonly string Path, Digest, Nonce, SourceFingerprint, PreparedFingerprint;
+            public IdentityContext(string path, string digest, string nonce, string source, string prepared)
+            { Path = path; Digest = digest; Nonce = nonce; SourceFingerprint = source; PreparedFingerprint = prepared; }
+            public void CheckSourceFingerprint(string current)
+            { if (current != SourceFingerprint) throw new InvalidOperationException("Maintained source differs from the audit identity context."); }
+            public void CheckUnchanged(string root)
+            { if (HashContext(CheckedCachePath(root, Path)) != Digest) throw new IOException("Audit identity context changed during scanning."); }
+        }
+
+        private static byte[] ReadContextBytes(string path)
+        {
+            if (!File.Exists(path) || new FileInfo(path).Length > 16384)
+                throw new IOException("Audit identity context is missing or exceeds its supported size.");
+            byte[] bytes = File.ReadAllBytes(path);
+            if (bytes.Length == 0 || bytes.Length > 16384) throw new IOException("Invalid audit identity context size.");
+            return bytes;
+        }
+
+        private static string HashBytes(byte[] bytes)
+        {
+            using (var sha = SHA256.Create())
+                return BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", "").ToLowerInvariant();
+        }
+        private static string HashContext(string path) { return HashBytes(ReadContextBytes(path)); }
+
+        private static IdentityContext ReadIdentityContext(string root, string[] arguments, string output)
+        {
+            string path = ReadOption(arguments, "-lucidAuditIdentityContext");
+            string digest = ReadOption(arguments, "-lucidAuditIdentityDigest");
+            string nonce = ReadOption(arguments, "-lucidAuditIdentityNonce");
+            if (path == null && digest == null && nonce == null) return null;
+            if (path == null || digest == null || nonce == null ||
+                !Regex.IsMatch(digest, @"\A[0-9a-f]{64}\z") || !Regex.IsMatch(nonce, @"\A[0-9a-f]{32}\z"))
+                throw new ArgumentException("Incomplete or invalid audit identity options.");
+            path = CheckedCachePath(root, path);
+            if (System.IO.Path.GetFileName(path) != "identity-context.txt" ||
+                System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(path)) != nonce ||
+                output != System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path), "pending-audit.json"))
+                throw new IOException("Audit identity context must use its own pending run output.");
+            byte[] bytes = ReadContextBytes(path);
+            if (HashBytes(bytes) != digest) throw new IOException("Audit identity context digest differs from this invocation.");
+            string[] lines = new UTF8Encoding(false, true).GetString(bytes).Split('\n');
+            if (lines.Length != 8 || lines[0] != "ProjectLucid.audit-identity-context-v1" ||
+                lines[1] != "algorithm=sha256-path-content-v1" || lines[2] != "nonce=" + nonce ||
+                !lines[3].StartsWith("project_root_base64=", StringComparison.Ordinal) ||
+                lines[4] != "unity_version=2022.3.54f1" || lines[7] != "" ||
+                !Regex.IsMatch(lines[5], @"\Asource_fingerprint=[0-9a-f]{64}\z") ||
+                !Regex.IsMatch(lines[6], @"\Aprepared_asset_fingerprint=[0-9a-f]{64}\z"))
+                throw new ArgumentException("Unsupported audit identity context format.");
+            if (Application.unityVersion != "2022.3.54f1") throw new InvalidOperationException("Audit identity requires the matching Unity Editor.");
+            string encoded = lines[3].Substring("project_root_base64=".Length);
+            byte[] rootBytes = Convert.FromBase64String(encoded);
+            string suppliedRoot = new UTF8Encoding(false, true).GetString(rootBytes);
+            if (Convert.ToBase64String(rootBytes) != encoded || suppliedRoot != root || System.IO.Path.GetFullPath(suppliedRoot) != root)
+                throw new IOException("Audit identity context belongs to another project.");
+            return new IdentityContext(path, digest, nonce,
+                lines[5].Substring("source_fingerprint=".Length), lines[6].Substring("prepared_asset_fingerprint=".Length));
         }
 
         // Resolve the complete PPtr, including a signed 64-bit local identifier.
