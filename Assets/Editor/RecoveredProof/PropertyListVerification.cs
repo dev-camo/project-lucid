@@ -89,7 +89,10 @@ namespace ProjectLucid
                 Require(((string)null).MakeAlphanumeric() == null && " \t".MakeAlphanumeric() == " \t" && "".MakeAlphanumeric() == "", "blank text passed through");
                 list.Properties.Insert(0, null);
                 RequireThrows<NullReferenceException>(() => list.GetProperty(5u), "null collection element stays an error");
-                RequireThrows<NotSupportedException>(() => new HLPropertyStore("key", 1, "unused"), "unresolved store cannot silently initialize");
+                var store = new HLPropertyStore("key", 1, "unused");
+                Require(!store.IsLoaded && store.CanSave && store.UnencryptedSaveVersion == 2,
+                    "store construction leaves explicit loading for its caller");
+                store.Shutdown();
                 Debug.Log("[Project Lucid] Original property-list checks passed: " + checks);
             }
             finally { CultureInfo.CurrentCulture = previous; }

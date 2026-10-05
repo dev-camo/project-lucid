@@ -35,6 +35,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void PropertyStoreRetainsNativeLifecycleAndRecoversLocalFiles()
+        {
+            PropertyStoreVerification.Run();
+        }
+
+        [Test]
         public void SkyCubemapGpuOutputMatchesDecodedMetalCases()
         {
             SkyCubemapVerification.Run();
