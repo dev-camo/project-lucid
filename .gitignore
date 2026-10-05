@@ -23,6 +23,7 @@
 /MemoryCaptures/
 /Recordings/
 *.csproj
+!/tools/player-schema/PlayerSchema.csproj
 !/tools/native-recovery/NativeRecovery.csproj
 /tools/native-recovery/obj/
 /tools/native-recovery/bin/

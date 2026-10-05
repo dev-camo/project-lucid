@@ -72,6 +72,13 @@ To check standalone source compilation before the complete game is ready, run
 This records compiled assemblies in the cache without packaging a game. Passing
 this check does not establish working assets, startup, or gameplay.
 
+For asset-import diagnostics, `python3 tools/lucid.py player-schema --target macos`
+inspects a bounded group of serialized types from the compiled player assemblies.
+Run `player-code` for the same target first, and rerun it after changing source.
+The resulting metadata report is stored in the cache; it does not approve asset
+bindings or establish that the game is playable. Other targets use `windows` or
+`linux`.
+
 Validation uses generated asset audits and test reports. Changing code or assets
 requires fresh checks. The current implementation has passing subsystem tests;
 full startup and gameplay checks are still being restored, so release builds

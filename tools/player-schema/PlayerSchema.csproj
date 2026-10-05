@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType>
+    <AssemblyName>ProjectLucid.PlayerSchema</AssemblyName><ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Reference Include="Unity.Cecil"><HintPath>$(UnityManagedRoot)/Unity.Cecil.dll</HintPath></Reference>
+    <Reference Include="Unity.SerializationLogic"><HintPath>$(UnityManagedRoot)/Unity.SerializationLogic.dll</HintPath></Reference>
+  </ItemGroup>
+  <Target Name="RequireInstalledMetadataReader" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(UnityManagedRoot)/Unity.Cecil.dll') Or !Exists('$(UnityManagedRoot)/Unity.SerializationLogic.dll')" Text="Installed Unity metadata reader and serializer are required." />
+  </Target>
+</Project>
