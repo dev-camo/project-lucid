@@ -23,6 +23,7 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "PropertyStoreRetainsNativeLifecycleAndRecoversLocalFiles",
     "ScriptPointersRequireExactLoadedAssetAndComponentIdentities",
     "OriginalPipelineMarkerRetainsEngineFieldsAfterScriptBinding",
+    "TimeConversionsRetainOriginalUnitsRoundingAndDateKinds",
     "SkyCubemapGpuOutputMatchesDecodedMetalCases",
     "EggmanLogoGpuOutputMatchesDecodedColorBlendAndLayerCases"))
 PLAYMODE_TESTS = (

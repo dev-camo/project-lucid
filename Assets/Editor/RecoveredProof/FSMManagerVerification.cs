@@ -18,6 +18,7 @@ namespace ProjectLucid
             VerifyManagers();
             VerifyDiagnostics();
             ProcessUnregistrationVerification.Run();
+            ProcessActionVerification.Run();
         }
 
         private static void VerifyFastActions()

@@ -53,6 +53,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void TimeConversionsRetainOriginalUnitsRoundingAndDateKinds()
+        {
+            TimeUtilsVerification.Run();
+        }
+
+        [Test]
         public void SkyCubemapGpuOutputMatchesDecodedMetalCases()
         {
             SkyCubemapVerification.Run();

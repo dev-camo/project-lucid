@@ -39,7 +39,7 @@ namespace ProjectLucid
                 OwnedNames.Clear();
                 Directory.Delete(directory, true);
             }
-            UnityEngine.Debug.Log("Original asynchronous FSM construction/file source verification passed. ScriptableObject acquisition and authored gameplay remain unresolved.");
+            UnityEngine.Debug.Log("Original asynchronous FSM construction/file source verification passed. Authored gameplay remains unresolved.");
         }
 
         private static void VerifyURIHelpers()

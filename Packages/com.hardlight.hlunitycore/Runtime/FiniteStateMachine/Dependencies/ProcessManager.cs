@@ -11,8 +11,8 @@ namespace Hardlight
         void InternalRevokeSystem();
     }
 
-    // Original registry and unregistration subset. Engine action subscription,
-    // dispatch and registry query/enumeration APIs remain unrecovered.
+    // Original registry/actions/query behavior. HLUnityCore diagnostic routing
+    // through null or incompatible checked getters remains unresolved.
     public enum SystemAction { Configure, Initialise, Shutdown, AppInitialise, AppShutdown, Update }
     // Original metadata contract contains no members (type 0x02000057).
     public interface IConditionalLogger { }
@@ -44,7 +44,7 @@ namespace Hardlight
         private static readonly ProcessManagerLogger s_logger;
 
         // Original token 0x06000e4e; arm64 0x1b1a328. Preserve initialization
-        // order and the explicit default enum comparer; dispatch is unrecovered.
+        // order and the explicit default enum comparer.
         static ProcessManager()
         {
             s_systemDictionary = new Dictionary<string, SystemInfo>();
@@ -180,6 +180,120 @@ namespace Hardlight
             if (reference.IsNull())
                 throw new NotSupportedException("Original ProcessManager null-system HLUnityCore diagnostic routing is not recovered.");
             return reference.Get<T>();
+        }
+
+        // Original token 0x06000e2e; arm64 0x1b16984. One callback per
+        // system/action, overwritten through the ordinary dictionary indexer.
+        public static void SubscribeToAction(this ISystem system, SystemAction action, Action<object> callback) =>
+            s_systemActionLookup.TryGetOrNew(action)[system] = callback;
+
+        // Original tokens 0x06000e3a/0x06000e3b; arm64 0x1b19224/0x974c70.
+        public static bool IsSystemValid(string systemName) =>
+            s_systemDictionary.TryGetValue(systemName, out SystemInfo info) && info.SystemRef.IsValid();
+        public static bool IsSystemValid<T>(string systemName = null) where T : class, ISystem => IsSystemValid(systemName ?? GetDefaultName<T>());
+
+        // Original token 0x06000e41; shared arm64 0x9748c0. Retrieve the
+        // cached typed reference, including its original incompatible-null rules.
+        public static T GetSystemSafe<T>(string systemName = null, bool autoRegister = true) where T : class, ISystem =>
+            GetSystemRef<T>(systemName ?? GetDefaultName<T>(), autoRegister).GetSafe();
+
+        // Original token 0x06000e42; shared arm64 0x973dd4. The existing
+        // system branch calls GetSystem<T>() with its default name, even when
+        // this method received a custom name. Preserve that retail behavior.
+        public static T GetSystemAutoCreate<T>(string systemName = null) where T : class, ISystem, new()
+        {
+            if (systemName == null) systemName = GetDefaultName<T>();
+            if (IsSystemNull(systemName)) return RegisterSystem<T>(systemName).Get<T>();
+            return GetSystem<T>();
+        }
+
+        // Original token 0x06000e43; arm64 0x1b195a4. Live enumeration
+        // includes empty references; callback exceptions propagate.
+        public static void ForEachSystem(Action<ISystem, SystemRef> callback)
+        {
+            foreach (SystemInfo info in s_systemDictionary.Values) callback(info.SystemRef.GetSafe(), info.SystemRef);
+        }
+        // Original token 0x06000e44; arm64 0x1b197bc. Safe means skip null
+        // system values, not snapshot enumeration or swallowed callbacks.
+        public static void ForEachSystemSafe(Action<ISystem, SystemRef> callback)
+        {
+            foreach (SystemInfo info in s_systemDictionary.Values)
+            {
+                ISystem system = info.SystemRef.GetSafe();
+                if (system != null) callback(system, info.SystemRef);
+            }
+        }
+        // Original token 0x06000e45; arm64 0x1b199e0.
+        public static SystemRef FindSystemRef(Func<ISystem, SystemRef, bool> callback)
+        {
+            foreach (SystemInfo info in s_systemDictionary.Values)
+                if (callback(info.SystemRef.GetSafe(), info.SystemRef)) return info.SystemRef;
+            return null;
+        }
+        // Original token 0x06000e46; arm64 0x1b19c24.
+        public static SystemRef FindSystemRefSafe(Func<ISystem, SystemRef, bool> callback)
+        {
+            foreach (SystemInfo info in s_systemDictionary.Values)
+            {
+                ISystem system = info.SystemRef.GetSafe();
+                if (system != null && callback(system, info.SystemRef)) return info.SystemRef;
+            }
+            return null;
+        }
+
+        // Original token 0x06000e47, closure 0x06000e58; shared arm64
+        // 0x974784/0xaf6bd8. Retain every matching registry alias.
+        public static List<SystemRef> GetSystemRefsOfType<T>() where T : class, ISystem
+        {
+            var references = new List<SystemRef>();
+            ForEachSystemSafe((system, reference) => { if (system is T) references.Add(reference); });
+            return references;
+        }
+        // Original token 0x06000e48, closure 0x06000e5a; shared arm64
+        // 0x974a10/0xaf6d14. Checked reference conversion is the observed call.
+        public static List<T> GetSystemsOfType<T>() where T : class, ISystem
+        {
+            var systems = new List<T>();
+            ForEachSystemSafe((system, reference) => { if (system is T) systems.Add(reference.Get<T>()); });
+            return systems;
+        }
+        // Original token 0x06000e49, predicate 0x06000e53; shared arm64
+        // 0x974544/0xaf14e8. Cast the actual untyped reference; do not create a
+        // typed cache here. This cast normally returns null for T != ISystem.
+        public static SystemRef<T> GetSystemRefOfType<T>() where T : class, ISystem =>
+            FindSystemRefSafe((system, reference) => system is T) as SystemRef<T>;
+        // Original token 0x06000e4a, predicate 0x06000e56; shared arm64
+        // 0x973f5c/0xaf169c. No matching system returns null.
+        public static T GetSystemOfType<T>() where T : class, ISystem =>
+            FindSystemRefSafe((system, reference) => system is T)?.Get<T>();
+
+        // Original token 0x06000e4b; arm64 0x1b19e74. Missing action rows
+        // are created. A stored null callback throws when that system is found.
+        public static void ProcessSystemAction(this ISystem system, SystemAction action, object context = null)
+        {
+            if (s_systemActionLookup.TryGetOrNew(action).TryGetValue(system, out Action<object> callback)) callback(context);
+        }
+        // Original token 0x06000e4c; arm64 0x1b19f98. No reentrancy guard or
+        // finally resets the progress flag. Shared list snapshot isolates later
+        // subscription edits; nested dispatch can invalidate its live enumerator.
+        public static void ProcessSystemAction(SystemAction action, object context = null)
+        {
+            s_systemActionInProgress = true;
+            Dictionary<ISystem, Action<object>> callbacks = s_systemActionLookup.TryGetOrNew(action);
+            s_actionList.Clear();
+            s_actionList.AddRange(callbacks.Values);
+            foreach (Action<object> callback in s_actionList) callback(context);
+            s_systemActionInProgress = false;
+        }
+        // Original token 0x06000e4d; arm64 0x1b1a208. A shutdown callback
+        // exception aborts before clearing dictionaries/list and resetting flag.
+        public static void ForceReset()
+        {
+            UnregisterAllSystems();
+            s_systemDictionary.Clear();
+            s_systemActionLookup.Clear();
+            s_actionList.Clear();
+            s_systemActionInProgress = false;
         }
     }
 }

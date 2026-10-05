@@ -1,7 +1,9 @@
 {
   "name": "Game.Runtime",
   "rootNamespace": "HardlightProject",
-  "references": [],
+  "references": [
+    "HLUnityCore.Runtime"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,
