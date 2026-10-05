@@ -5,6 +5,24 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalBindableRetainsNativeNotificationBindingAndComparisonOrder()
+        {
+            BindableVerification.Run();
+        }
+
+        [Test]
+        public void OriginalProgressionWidgetRetainsRealBaseFieldsAndCallbacks()
+        {
+            UIWidgetProgressionVerification.Run();
+        }
+
+        [Test]
+        public void OriginalProgressionWidgetRetainsGenuineUnitySerializationAndRuntimeFields()
+        {
+            UIWidgetProgressionSerializationVerification.Run();
+        }
+
+        [Test]
         public void OriginalManagedAssetRetainsNativeClosureAndReferenceCounting()
         {
             ManagedAddressableVerification.Run();

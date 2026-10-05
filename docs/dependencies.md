@@ -17,3 +17,7 @@ Extraction and analysis use separate tools downloaded into the local cache:
 Download locations and SHA256 hashes are recorded in `tools/tool-lock.json`.
 Downloaded distributions retain their own licenses. Game assets are supplied
 by the user and are not distributed in this repository.
+
+The embedded Hardlight packages retain the original game’s assembly identities.
+Their implementations are recovered from the supplied bundle and maintained
+locally rather than downloaded from a public package registry.
