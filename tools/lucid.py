@@ -20,7 +20,7 @@ def write_report(work_dir, name, report):
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     commands = result.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build"):
+    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "player-code", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build"):
         command = commands.add_parser(name)
         command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "project-lucid")
         command.add_argument("--json", action="store_true", help="print a compact JSON result")
@@ -42,7 +42,7 @@ def parser():
             command.add_argument("--stage", choices=("extraction", "release"), default="release")
         if name == "test":
             command.add_argument("--mode", choices=("editmode", "playmode"), required=True)
-        if name == "build":
+        if name in ("build", "player-code"):
             command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
     return result
 
@@ -84,6 +84,9 @@ def main(argv=None):
         elif args.command == "script-layouts":
             from lucidlib.bindings import run_layout_inventory
             report = run_layout_inventory(ROOT, work_dir, args.schema)
+        elif args.command == "player-code":
+            from lucidlib.playercode import run_player_code
+            report = run_player_code(ROOT, work_dir, args.target)
         elif args.command == "extract-assets":
             from lucidlib.assets import extract_assets
             report = extract_assets(args.input, work_dir)

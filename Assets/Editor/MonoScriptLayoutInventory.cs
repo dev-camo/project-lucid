@@ -159,12 +159,18 @@ namespace ProjectLucid.Editor
                 ["attributes"] = (int)type.Attributes, ["is_value_type"] = type.IsValueType,
                 ["is_enum"] = type.IsEnum, ["is_abstract"] = type.IsAbstract,
                 ["declaring_type"] = type.DeclaringType?.FullName,
-                ["generic_parameters"] = type.IsGenericTypeDefinition ? type.GetGenericArguments().Select(p => new Dictionary<string, object>
-                    { ["name"] = p.Name, ["index"] = p.GenericParameterPosition, ["attributes"] = (int)p.GenericParameterAttributes }).ToArray() : new object[0],
+                ["generic_parameters"] = new object[0],
                 ["schema_complete"] = true, ["custom_attributes_complete"] = false
             };
             try
             {
+                result["generic_parameters"] = type.IsGenericTypeDefinition ? type.GetGenericArguments().Select(p => new Dictionary<string, object>
+                {
+                    ["name"] = p.Name, ["index"] = p.GenericParameterPosition,
+                    ["attributes"] = (int)p.GenericParameterAttributes,
+                    ["constraints"] = p.GetGenericParameterConstraints().Select(c => TypeReference(c)).ToArray(),
+                    ["constraints_complete"] = true
+                }).ToArray() : new object[0];
                 result["custom_attributes"] = Attributes(type.GetCustomAttributesData());
                 result["custom_attributes_complete"] = true;
                 result["base_type"] = type.BaseType == null ? null : TypeReference(type.BaseType);

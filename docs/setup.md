@@ -67,6 +67,11 @@ Use `windows` or `linux` to select the other build targets. Outputs go into
 `LUCID_UNITY_EDITOR` to its executable path if you use a custom installation.
 Close other Editors using the project before running these commands.
 
+To check standalone source compilation before the complete game is ready, run
+`python3 tools/lucid.py player-code --target macos` (or `windows` or `linux`).
+This records compiled assemblies in the cache without packaging a game. Passing
+this check does not establish working assets, startup, or gameplay.
+
 Validation uses generated asset audits and test reports. Changing code or assets
 requires fresh checks. The current implementation has passing subsystem tests;
 full startup and gameplay checks are still being restored, so release builds

@@ -112,6 +112,29 @@ class NativeRecoveryIntegrationTests(unittest.TestCase):
         self.assertFalse(report["managed_semantics_recovered"])
         self.assertFalse(report["native_addresses_verified"])
 
+    def test_real_generic_constraint_graphs_distinguish_unconstrained_and_unity_object(self):
+        for assembly, type_name, parameter_name, expected in (
+                ("HLBinders.Runtime", "Hardlight.UI.Binding.Bindable`1", "T", []),
+                ("Unity.Addressables", "UnityEngine.AddressableAssets.AssetReferenceT`1", "TObject",
+                 [("UnityEngine.CoreModule", "UnityEngine.Object")])):
+            self.output = self.directory / (assembly + "-constraints")
+            result = self.invoke(assembly=assembly)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            report = json.loads((self.output / "report.json").read_text())
+            types = [t for a in report["assemblies"] for t in a["types"] if t["full_name"] == type_name]
+            self.assertEqual(len(types), 1)
+            self.assertTrue(types[0]["schema_complete"])
+            self.assertEqual(len(types[0]["generic_parameters"]), 1)
+            parameter = types[0]["generic_parameters"][0]
+            self.assertEqual(parameter["name"], parameter_name)
+            self.assertEqual(parameter["index"], 0)
+            self.assertTrue(parameter["constraints_complete"])
+            constraints = parameter["constraints"]
+            self.assertEqual([(c["assembly"], c["reflection_full_name"]) for c in constraints], expected)
+            for constraint in constraints:
+                self.assertEqual(constraint["kind"], "named")
+                self.assertEqual(constraint["canonical_name"], constraint["reflection_full_name"])
+
     def recovered_threshold(self, binary):
         result = self.invoke("recover-method", assembly="HLUnityCore.Runtime", token="0x06001006", binary=binary)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

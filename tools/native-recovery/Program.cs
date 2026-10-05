@@ -253,14 +253,20 @@ internal static class Program
             ["attributes"] = (int)type.DefaultAttributes, ["is_value_type"] = type.IsValueType,
             ["is_enum"] = type.IsEnumType, ["is_abstract"] = (type.DefaultAttributes & TypeAttributes.Abstract) != 0,
             ["declaring_type"] = type.DeclaringType?.DefaultFullName,
-            ["generic_parameters"] = type.GenericParameters.Select(p => new
-            {
-                name = p.DefaultName, index = p.Index, attributes = (int)p.DefaultAttributes
-            }).ToArray(),
+            ["generic_parameters"] = Array.Empty<object>(),
             ["schema_complete"] = true, ["custom_attributes_complete"] = false
         };
         try
         {
+            // Constraints are separate metadata from generic parameter flags.
+            // Keep the full referenced type graph; flags alone cannot prove an
+            // unconstrained parameter or a UnityEngine.Object constraint.
+            record["generic_parameters"] = type.GenericParameters.Select(p => new
+            {
+                name = p.DefaultName, index = p.Index, attributes = (int)p.DefaultAttributes,
+                constraints = p.ConstraintTypes.Select(c => TypeReference(c)).ToArray(),
+                constraints_complete = true
+            }).ToArray();
             record["custom_attributes"] = Attributes(type);
             record["custom_attributes_complete"] = true;
             record["base_type"] = type.BaseType is null ? null : TypeReference(type.BaseType);
