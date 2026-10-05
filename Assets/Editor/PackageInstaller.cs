@@ -17,7 +17,9 @@ namespace ProjectLucid.Editor
             "com.unity.shadergraph@14.0.11",
             "com.unity.textmeshpro@3.2.0-pre.4",
             "com.unity.ugui@1.0.0",
-            "com.unity.cinemachine@2.9.7",
+            // Native Confiner padding, exact transform equality and
+            // GetPositionAndRotation calls match the 2.10.3 runtime source.
+            "com.unity.cinemachine@2.10.3",
             // The original contains Unity.Timeline. Patch provenance remains
             // under comparison; this compatible candidate enables its shipped
             // Cinemachine Timeline branch for field and behavior verification.
