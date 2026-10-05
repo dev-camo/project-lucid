@@ -22,7 +22,8 @@ namespace ProjectLucid
             FSMManagerVerification.Run();
             FSMStateVerification.Run();
             JSONClassFactoryVerification.Run();
-            Debug.Log("FSM interpreter, manager, base-state and JSON factory source-based verification passed. Loader and game-specific states remain unresolved.");
+            FSMConstructionVerification.Run();
+            Debug.Log("FSM interpreter, manager, base-state and synchronous construction source-based verification passed. Asynchronous loading and game-specific states remain unresolved.");
         }
 
         private static void VerifyStorage()
