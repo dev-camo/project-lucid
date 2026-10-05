@@ -50,4 +50,22 @@ public class OpString
         }
         return t;
     }
+
+    // 0x0600001d: retain signed log10/floor/power digit extraction and its
+    // unchecked Int32.MinValue / NaN-to-int backend boundary.
+    public static OpString operator +(OpString t, int v)
+    {
+        if (v == 0) { t.sb.Append('0'); return t; }
+        int remaining = v < 0 ? unchecked(-v) : v;
+        int exponent = (int)Math.Floor(Math.Log10(remaining));
+        if (v < 0) t.sb.Append('-');
+        for (; exponent >= 0; --exponent)
+        {
+            int divisor = (int)Math.Pow(10, exponent);
+            int digit = remaining / divisor;
+            remaining -= digit * divisor;
+            t.sb.Append((char)(digit + '0'));
+        }
+        return t;
+    }
 }

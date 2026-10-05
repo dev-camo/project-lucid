@@ -46,6 +46,37 @@ namespace ProjectLucid
             return checks;
         }
 
+        public static int RunLoadedTypes()
+        {
+            checks = 0;
+            var scope = new LoadedAttributeBlobEvidence.TypeModuleScope();
+            try
+            {
+                foreach (Type type in new[] { typeof(ZoneThemeOverride), typeof(UnityEngine.Color),
+                    typeof(UnityEngine.Sprite), typeof(UnityEngine.AddressableAssets.AssetReference),
+                    typeof(UnityEngine.AddressableAssets.AssetReferenceT<>), typeof(Hardlight.ShowIfAttribute), typeof(object) })
+                {
+                    var evidence = scope.Capture(type);
+                    Require((string)evidence["path"] == Path.GetFullPath(type.Module.FullyQualifiedName), "Loaded type disk path");
+                    Require((string)evidence["mvid"] == type.Module.ModuleVersionId.ToString("D"), "Loaded type module MVID");
+                    Require((string)evidence["assembly_identity"] == type.Assembly.FullName, "Loaded type full assembly");
+                    Require(((string)evidence["sha256"]).Length == 64, "Loaded type module content hash");
+                }
+                foreach (Type rejected in new[] { typeof(List<int>), typeof(List<>).GetGenericArguments()[0] })
+                {
+                    bool failed = false;
+                    try { scope.Capture(rejected); } catch (InvalidDataException) { failed = true; }
+                    Require(failed, "Constructed or parameter type lacks a declaration token");
+                }
+                scope.VerifyUnchanged();
+            }
+            finally { scope.Dispose(); }
+            bool disposed = false;
+            try { scope.Capture(typeof(UnityEngine.Color)); } catch (ObjectDisposedException) { disposed = true; }
+            Require(disposed, "Disposed module scope rejects reuse");
+            return checks;
+        }
+
         public static int RunLoaded()
         {
             int managed = RunManaged();

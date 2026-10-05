@@ -35,6 +35,7 @@ namespace ProjectLucid.Editor
             public string project_root, work_root, run, source_fingerprint_before, source_fingerprint_after;
             public string inputs_fingerprint_before, inputs_fingerprint_after;
             public EngineRecord[] engine_before, engine_after;
+            public PlayerMonoContractSelection.Receipt native_profile_queries_before, native_profile_queries_after;
             public InputRecord[] inputs;
             public ModuleRecord[] modules;
             public OutputRecord[] files;
@@ -94,6 +95,8 @@ namespace ProjectLucid.Editor
                 if (report.source_fingerprint_before != context.Source) throw new InvalidDataException("Maintained source differs from the player context.");
                 report.engine_before = Engine(context);
                 CheckEngine(context.Engine, report.engine_before);
+                EngineRecord editorCore = context.Engine.Single(e => e.name == "editor_core");
+                report.native_profile_queries_before = PlayerMonoContractSelection.Capture(target, editorCore.path, editorCore.sha256, editorCore.mvid);
                 report.inputs = Inputs(root);
                 report.inputs_fingerprint_before = InputFingerprint(report.inputs);
                 CompilationPipeline.assemblyCompilationFinished += handler;
@@ -117,6 +120,9 @@ namespace ProjectLucid.Editor
                     throw new InvalidDataException("Player source or precompiled references changed during compilation.");
                 report.source_fingerprint_after = LucidArtifactIdentity.Fingerprint(root, false);
                 if (report.source_fingerprint_after != context.Source) throw new InvalidDataException("Maintained source changed during player compilation.");
+                report.native_profile_queries_after = PlayerMonoContractSelection.Capture(target, editorCore.path, editorCore.sha256, editorCore.mvid);
+                if (JsonUtility.ToJson(report.native_profile_queries_before) != JsonUtility.ToJson(report.native_profile_queries_after))
+                    throw new InvalidDataException("Native runtime/profile query results changed during player compilation.");
                 report.engine_after = Engine(context);
                 CheckEngine(context.Engine, report.engine_after);
                 if (LucidArtifactIdentity.Fingerprint(root, false) != context.Source)

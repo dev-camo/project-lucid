@@ -78,6 +78,25 @@ class PlayerCodeTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         for p in self.patches: self.addCleanup(p.stop)
 
+    def native_queries(self, engine, target):
+        core = next(e for e in engine if e["name"] == "editor_core")
+        directory = self.editor.parents[1] / "MonoBleedingEdge/EmbedRuntime"
+        directory.mkdir(parents=True, exist_ok=True)
+        declarations = [("UnityEditor.BuildPipeline", "GetMonoRuntimeLibDirectory", "0x06002264", 147, "UnityEditor.BuildTarget"),
+                        ("UnityEditor.BuildPipeline", "CompatibilityProfileToClassLibFolder", "0x06002265", 147, "UnityEditor.ApiCompatibilityLevel"),
+                        ("UnityEditor.BuildTargetDiscovery", "GetPlatformProfileSuffix", "0x0600237b", 150, "UnityEditor.BuildTarget")]
+        return {"unity_version": "2022.3.54f1", "target": playercode.TARGETS[target][1],
+                "module_path": core["path"], "module_sha256": core["sha256"], "module_mvid": core["mvid"],
+                "module_assembly": "UnityEditor.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+                "api_compatibility_value": 6, "api_compatibility_name": "NET_Standard_2_0",
+                "scripting_backend_value": 0, "scripting_backend_name": "Mono2x",
+                "compatibility_profile_folder": "observed-profile", "mono_runtime_lib_directory": str(directory),
+                "platform_profile_suffix": "observed-target", "runtime_selection_verified": False,
+                "runtime_assemblies_loaded": False, "build_player_called": False, "layout_approved": False, "gameplay_verified": False,
+                "methods": [{"declaring_type": owner, "method": name, "token": token, "attributes": flags,
+                             "implementation_attributes": 4096, "parameter_type": parameter, "return_type": "System.String"}
+                            for owner, name, token, flags, parameter in declarations]}
+
     def emit(self, command, target="macos", change=None):
         option = lambda name: command[command.index(name)+1]
         context_path = Path(option("-lucidPlayerContext"))
@@ -107,6 +126,8 @@ class PlayerCodeTests(unittest.TestCase):
                   "inputs_fingerprint_before": playercode._input_identity(inputs), "inputs_fingerprint_after": playercode._input_identity(inputs),
                   "modules": modules, "returned_assemblies": returned, "files": files,
                   "player_schema_verified": False, "gameplay_verified": False}
+        report["native_profile_queries_before"] = self.native_queries(engine, target)
+        report["native_profile_queries_after"] = json.loads(json.dumps(report["native_profile_queries_before"]))
         if change: change(report, run)
         (run / "pending.json").write_text(json.dumps(report))
         return subprocess.CompletedProcess(command, 0)
@@ -302,3 +323,41 @@ class PlayerCodeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NativeQueryGuards(unittest.TestCase):
+    setUp = PlayerCodeTests.setUp
+    native_queries = PlayerCodeTests.native_queries
+    emit = PlayerCodeTests.emit
+    run_fake = PlayerCodeTests.run_fake
+    assert_rejected = PlayerCodeTests.assert_rejected
+    # Mutation tests change sealed native evidence, never invoke runtime libraries.
+    def test_missing_native_query_rejected(self):
+        self.assert_rejected(lambda r, run: r.pop("native_profile_queries_before"))
+
+    def test_native_query_drift_rejected(self):
+        self.assert_rejected(lambda r, run: r["native_profile_queries_after"].update(platform_profile_suffix="different"))
+
+    def test_native_query_module_rejected(self):
+        self.assert_rejected(lambda r, run: [r[k].update(module_mvid=str(uuid.uuid4())) for k in ("native_profile_queries_before", "native_profile_queries_after")])
+
+    def test_native_query_approval_rejected(self):
+        self.assert_rejected(lambda r, run: [r[k].update(runtime_selection_verified=True) for k in ("native_profile_queries_before", "native_profile_queries_after")])
+
+    def test_native_query_backend_rejected(self):
+        self.assert_rejected(lambda r, run: [r[k].update(scripting_backend_value=1) for k in ("native_profile_queries_before", "native_profile_queries_after")])
+
+    def test_native_query_api_rejected(self):
+        self.assert_rejected(lambda r, run: [r[k].update(api_compatibility_value=3) for k in ("native_profile_queries_before", "native_profile_queries_after")])
+
+    def test_native_query_directory_rejected(self):
+        self.assert_rejected(lambda r, run: [r[k].update(mono_runtime_lib_directory=str(self.work)) for k in ("native_profile_queries_before", "native_profile_queries_after")])
+
+    def test_native_query_method_rejected(self):
+        def mutate(r, run):
+            for k in ("native_profile_queries_before", "native_profile_queries_after"):
+                r[k]["methods"][0]["token"] = "0x06002265"
+        self.assert_rejected(mutate)
+
+    def test_native_query_profile_path_rejected(self):
+        self.assert_rejected(lambda r, run: [r[k].update(compatibility_profile_folder="../profile") for k in ("native_profile_queries_before", "native_profile_queries_after")])

@@ -206,6 +206,44 @@ def _input_identity(records):
     return result.hexdigest()
 
 
+def _check_native_queries(report, target, engine):
+    """Verify observed native query provenance without approving runtime contracts."""
+    before = report.get("native_profile_queries_before")
+    after = report.get("native_profile_queries_after")
+    core = next(e for e in engine if e["name"] == "editor_core")
+    expected = {"unity_version": UNITY_VERSION, "target": TARGETS[target][1],
+                "module_path": core["path"], "module_sha256": core["sha256"], "module_mvid": core["mvid"],
+                "module_assembly": "UnityEditor.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null",
+                "api_compatibility_value": 6, "api_compatibility_name": "NET_Standard_2_0",
+                "scripting_backend_value": 0, "scripting_backend_name": "Mono2x",
+                "runtime_selection_verified": False, "runtime_assemblies_loaded": False,
+                "build_player_called": False, "layout_approved": False, "gameplay_verified": False}
+    if (not isinstance(before, dict) or before != after or
+            any(type(before.get(k)) is not type(v) or before.get(k) != v for k, v in expected.items())):
+        raise ValueError("Native Mono query identity/settings changed or incorrectly claimed approval")
+    declarations = [("UnityEditor.BuildPipeline", "GetMonoRuntimeLibDirectory", "0x06002264", 147, "UnityEditor.BuildTarget"),
+                    ("UnityEditor.BuildPipeline", "CompatibilityProfileToClassLibFolder", "0x06002265", 147, "UnityEditor.ApiCompatibilityLevel"),
+                    ("UnityEditor.BuildTargetDiscovery", "GetPlatformProfileSuffix", "0x0600237b", 150, "UnityEditor.BuildTarget")]
+    methods = [{"declaring_type": owner, "method": name, "token": token, "attributes": attributes,
+                "implementation_attributes": 4096, "parameter_type": parameter, "return_type": "System.String"}
+               for owner, name, token, attributes, parameter in declarations]
+    if before.get("methods") != methods:
+        raise ValueError("Native Mono query declarations differ from the pinned installed API")
+    for key, limit in (("compatibility_profile_folder", 256), ("platform_profile_suffix", 64)):
+        value = before.get(key)
+        if not isinstance(value, str) or not 1 <= len(value) <= limit or any(c in value for c in "/\\\0"):
+            raise ValueError("Native Mono profile query value is incomplete or unsafe")
+    directory = before.get("mono_runtime_lib_directory")
+    contents = Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent.parent
+    if not isinstance(directory, str) or not directory or len(directory) > 4096:
+        raise ValueError("Native Mono runtime directory is absent")
+    path = Path(directory)
+    if (not path.is_absolute() or str(path) != os.path.abspath(path) or
+            contents not in path.parents or not path.is_dir() or any(p.is_symlink() for p in (path, *path.parents))):
+        raise ValueError("Native Mono query directory is outside the installed Editor or has changed")
+    return before
+
+
 def _check_report(report, root, work, run, target, nonce, source, engine, digest):
     expected = {"schema_version": 1, "command": "player-code", "status": "pending-identity-verification",
                 "identity_status": "pending-wrapper", "compilation_status": "compiled", "unity_version": UNITY_VERSION,
@@ -219,6 +257,7 @@ def _check_report(report, root, work, run, target, nonce, source, engine, digest
         raise ValueError("Player compilation identity/settings are stale, failed or incomplete")
     if report.get("engine_before") != engine or report.get("engine_after") != engine:
         raise ValueError("Player evidence differs from the actual installed Editor identity")
+    _check_native_queries(report, target, engine)
     diagnostics = report.get("diagnostics")
     if not isinstance(diagnostics, list) or len(diagnostics) > 10000 or any(
             not isinstance(d, dict) or d.get("type") not in ("Warning", "Info") or

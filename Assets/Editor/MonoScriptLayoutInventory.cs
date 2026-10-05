@@ -63,6 +63,7 @@ namespace ProjectLucid.Editor
                 throw new InvalidDataException("Original schema Unity version differs from the running Editor.");
             var names = new HashSet<string>(schema.assemblies.Select(a => a.name), StringComparer.Ordinal);
             var assemblies = new List<Dictionary<string, object>>();
+            using var modules = new LoadedAttributeBlobEvidence.TypeModuleScope();
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies().Where(a => names.Contains(a.GetName().Name))
                          .OrderBy(a => a.GetName().Name, StringComparer.Ordinal))
             {
@@ -74,7 +75,7 @@ namespace ProjectLucid.Editor
                     loaded = error.Types.Where(t => t != null).ToArray();
                     AddError(assembly.GetName().Name, "", "", "Assembly types could not be loaded completely.");
                 }
-                foreach (Type type in loaded.OrderBy(t => t.FullName, StringComparer.Ordinal)) types.Add(TypeSchema(type));
+                foreach (Type type in loaded.OrderBy(t => t.FullName, StringComparer.Ordinal)) types.Add(TypeSchema(type, modules));
                 string location = assembly.IsDynamic ? null : assembly.Location;
                 assemblies.Add(new Dictionary<string, object>
                 {
@@ -129,6 +130,7 @@ namespace ProjectLucid.Editor
             };
             if (sourceIdentity != LucidArtifactIdentity.Fingerprint(root, false))
                 throw new IOException("Maintained source changed while inventorying loaded declarations.");
+            modules.VerifyUnchanged();
             string output = Path.Combine(cache, "reports", "monoscript-layout-inventory.json");
             string selectedOutput = Environment.GetEnvironmentVariable("LUCID_LAYOUT_INVENTORY_PATH");
             if (!String.IsNullOrEmpty(selectedOutput)) output = Path.GetFullPath(selectedOutput);
@@ -140,6 +142,7 @@ namespace ProjectLucid.Editor
             {
                 var json = new StringBuilder();
                 WriteJson(json, report);
+                modules.VerifyUnchanged();
                 File.WriteAllText(temporary, json + "\n");
                 if (File.Exists(output)) File.Replace(temporary, output, null);
                 else File.Move(temporary, output);
@@ -150,7 +153,7 @@ namespace ProjectLucid.Editor
             if (Errors.Count != 0) throw new InvalidDataException("Loaded declaration inventory is incomplete; see generated report.");
         }
 
-        private static Dictionary<string, object> TypeSchema(Type type)
+        private static Dictionary<string, object> TypeSchema(Type type, LoadedAttributeBlobEvidence.TypeModuleScope modules)
         {
             var result = new Dictionary<string, object>
             {
@@ -164,6 +167,9 @@ namespace ProjectLucid.Editor
             };
             try
             {
+                result["loaded_module"] = modules.Capture(type);
+                result["loaded_module_identity_verified"] = true;
+                result["loaded_module_reader"] = modules.ReaderEvidence();
                 result["generic_parameters"] = type.IsGenericTypeDefinition ? type.GetGenericArguments().Select(p => new Dictionary<string, object>
                 {
                     ["name"] = p.Name, ["index"] = p.GenericParameterPosition,

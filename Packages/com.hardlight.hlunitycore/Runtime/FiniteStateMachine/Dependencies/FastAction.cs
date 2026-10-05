@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
@@ -11,6 +12,8 @@ namespace Hardlight
 
     // Original Hardlight.FastActionBase`2. Named arm64 generic functions
     // establish mutation queues, duplicate handling and null operator results.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public abstract class FastActionBase<TFastAction, TAction> : IFastAction
         where TFastAction : FastActionBase<TFastAction, TAction>, new()
         where TAction : Delegate
@@ -104,6 +107,8 @@ namespace Hardlight
 
     // This is the recovered one-argument original type. Other arities and
     // extension methods are separate, unresolved types rather than substitutes.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class FastAction<T1> : FastActionBase<FastAction<T1>, Action<T1>>
     {
         // 0x06000df3; arm64 reference instantiation 0x1347fcc. There is no

@@ -94,6 +94,66 @@ namespace ProjectLucid
         private static string[] ParameterNames(object constructor) => Items(constructor, "Parameters")
             .Select(p => Text(Property(p, "ParameterType"), "FullName")).ToArray();
 
+        // Keep one disk reader per loaded module, then recheck the complete set
+        // before publishing an inventory. Type lookup uses the loaded token.
+        public sealed class TypeModuleScope : IDisposable
+        {
+            private readonly Dictionary<Module, PinnedModule> modules = new Dictionary<Module, PinnedModule>();
+            private readonly PinnedModule readerModule;
+            private readonly MethodInfo read;
+            private bool disposed;
+
+            public TypeModuleScope()
+            {
+                string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(EditorApplication.applicationContentsPath, "Managed", "Unity.Cecil.dll"));
+                string before = Hash(File.ReadAllBytes(path));
+                Assembly reader = Assembly.LoadFrom(path);
+                if (System.IO.Path.GetFullPath(reader.Location) != path || Hash(File.ReadAllBytes(path)) != before)
+                    throw new InvalidDataException("Loaded type reader differs from the installed module.");
+                read = reader.GetType("Mono.Cecil.ModuleDefinition", true).GetMethod("ReadModule", new[] { typeof(string) });
+                if (read == null) throw new InvalidDataException("Installed type reader lacks ReadModule.");
+                readerModule = new PinnedModule(reader.ManifestModule, read);
+            }
+
+            public Dictionary<string, object> Capture(Type type)
+            {
+                if (disposed) throw new ObjectDisposedException(nameof(TypeModuleScope));
+                if (type == null || type.IsGenericParameter || (type.IsGenericType && !type.IsGenericTypeDefinition))
+                    throw new InvalidDataException("Loaded type evidence requires a real declared type.");
+                if (!modules.TryGetValue(type.Module, out PinnedModule module))
+                {
+                    module = new PinnedModule(type.Module, read);
+                    modules.Add(type.Module, module);
+                }
+                object definition = module.Lookup(type);
+                if (Text(definition, "FullName").Replace('/', '+') != type.FullName ||
+                    Convert.ToInt32(Property(definition, "Attributes"), CultureInfo.InvariantCulture) != (int)type.Attributes)
+                    throw new InvalidDataException("Loaded type name/flags differ from its exact disk token.");
+                return module.Evidence();
+            }
+
+            public Dictionary<string, object> ReaderEvidence() => readerModule.Evidence();
+
+            public void VerifyUnchanged()
+            {
+                if (disposed) throw new ObjectDisposedException(nameof(TypeModuleScope));
+                readerModule.CheckUnchanged();
+                foreach (PinnedModule module in modules.Values) module.CheckUnchanged();
+            }
+
+            public void Dispose()
+            {
+                if (disposed) return;
+                try { VerifyUnchanged(); }
+                finally
+                {
+                    disposed = true;
+                    foreach (PinnedModule module in modules.Values) module.Dispose();
+                    readerModule.Dispose();
+                }
+            }
+        }
+
         // This decoder intentionally admits only ShowIf(String,Object) with a boxed
         // String null and no named arguments. Other shapes retain their own evidence.
         public static void VerifyBoxedStringNull(byte[] blob, string expectedFirstArgument)

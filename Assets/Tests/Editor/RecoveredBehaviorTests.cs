@@ -5,6 +5,36 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalFastActionRetainsExactClassCompilerOptions()
+        {
+            Assert.That(FastActionClassOptionsVerification.RunManaged(), Is.EqualTo(38));
+        }
+
+        [Test]
+        public void OriginalMovementUtilitiesRetainNativeMathAndEngineConversions()
+        {
+            Assert.That(MovementFoundationVerification.Run(), Is.EqualTo(178));
+        }
+
+        [Test]
+        public void LoadedTypeModulesRetainExactDiskAndTokenIdentity()
+        {
+            Assert.That(LoadedAttributeBlobVerification.RunLoadedTypes(), Is.EqualTo(31));
+        }
+
+        [Test]
+        public void OriginalVersionRetainsNativeParsingComparisonAndSerializedCache()
+        {
+            VersionVerification.Run();
+        }
+
+        [Test]
+        public void OriginalStateMachineDefinitionsRetainObjectNameKeysAndFailures()
+        {
+            StateMachinesGroupVerification.Run();
+        }
+
+        [Test]
         public void OriginalDefinitionGroupsRetainNativeMergeAndSerializationOrder()
         {
             DefinitionDataVerification.Run();
