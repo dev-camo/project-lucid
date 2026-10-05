@@ -12,7 +12,7 @@ PlayerSettings:
   targetDevice: 2
   useOnDemandResources: 0
   accelerometerFrequency: 60
-  companyName: Camo
+  companyName: Project Lucid
   productName: Project Lucid
   defaultCursor: {fileID: 0}
   cursorHotspot: {x: 0, y: 0}
@@ -79,7 +79,7 @@ PlayerSettings:
   androidAutoRotationBehavior: 1
   defaultIsNativeResolution: 1
   macRetinaSupport: 1
-  runInBackground: 0
+  runInBackground: 1
   captureSingleScreen: 0
   muteOtherAudioSources: 0
   Prepare IOS For Recording: 0
@@ -162,7 +162,7 @@ PlayerSettings:
   androidSupportedAspectRatio: 1
   androidMaxAspectRatio: 2.1
   applicationIdentifier:
-    Standalone: dev.camo.projectlucid
+    Standalone: com.project.lucid
   buildNumber:
     Standalone: 0
     VisionOS: 0

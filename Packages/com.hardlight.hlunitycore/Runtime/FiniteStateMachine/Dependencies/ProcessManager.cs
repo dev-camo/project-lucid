@@ -11,10 +11,19 @@ namespace Hardlight
         void InternalRevokeSystem();
     }
 
-    // Partial original registry API. Engine system-action dispatch, enumeration
-    // and unregistration have not been promoted without native body recovery.
+    // Original registry and unregistration subset. Engine action subscription,
+    // dispatch and registry query/enumeration APIs remain unrecovered.
+    public enum SystemAction { Configure, Initialise, Shutdown, AppInitialise, AppShutdown, Update }
+    // Original metadata contract contains no members (type 0x02000057).
+    public interface IConditionalLogger { }
+
     public static class ProcessManager
     {
+        private class ProcessManagerLogger : IConditionalLogger
+        {
+            // Original token 0x06000e4f; arm64 0x1b1a4dc delegates Object.
+            public ProcessManagerLogger() { }
+        }
         private class SystemInfo
         {
             public readonly SystemRef SystemRef;
@@ -28,9 +37,33 @@ namespace Hardlight
             }
         }
 
-        // Relevant original static initializer field, token 0x06000e4e.
-        // Other action-dispatch/logger fields are outside this recovered subset.
-        private static readonly Dictionary<string, SystemInfo> s_systemDictionary = new Dictionary<string, SystemInfo>();
+        private static readonly Dictionary<string, SystemInfo> s_systemDictionary;
+        private static readonly Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> s_systemActionLookup;
+        private static readonly List<Action<object>> s_actionList;
+        private static bool s_systemActionInProgress;
+        private static readonly ProcessManagerLogger s_logger;
+
+        // Original token 0x06000e4e; arm64 0x1b1a328. Preserve initialization
+        // order and the explicit default enum comparer; dispatch is unrecovered.
+        static ProcessManager()
+        {
+            s_systemDictionary = new Dictionary<string, SystemInfo>();
+            s_systemActionLookup = new Dictionary<SystemAction, Dictionary<ISystem, Action<object>>>(EqualityComparer<SystemAction>.Default);
+            s_actionList = new List<Action<object>>();
+            s_logger = new ProcessManagerLogger();
+        }
+
+        // Original token 0x06000e2f; arm64 0x1b187c4. Empty action rows stay.
+        public static bool UnsubscribeFromAction(this ISystem system, SystemAction action) =>
+            s_systemActionLookup.TryGetValue(action, out Dictionary<ISystem, Action<object>> callbacks) && callbacks.Remove(system);
+
+        // Original token 0x06000e30; arm64 0x1b188b4. No callbacks, row pruning,
+        // action-list changes or dispatch-state guard occur during removal.
+        public static void UnsubscribeFromAllActions(ISystem system)
+        {
+            foreach (KeyValuePair<SystemAction, Dictionary<ISystem, Action<object>>> entry in s_systemActionLookup)
+                entry.Value.Remove(system);
+        }
 
         // 0x06000e31/0x06000e32. Native virtual slot 3 is Type.ToString,
         // not Type.Name or Type.FullName; use the observed call itself.
@@ -65,6 +98,44 @@ namespace Hardlight
             info = new SystemInfo(new SystemRef(systemName, system));
             s_systemDictionary[systemName] = info;
             return info.SystemRef;
+        }
+
+        // Original token 0x06000e35; shared arm64 0x974ee4.
+        public static void UnregisterSystem<T>() where T : class, ISystem => UnregisterSystem(GetDefaultName<T>());
+
+        // Original token 0x06000e36; arm64 0x1b18b48. Rows and cached
+        // references survive unregistration, so later registration reuses them.
+        public static void UnregisterSystem(string systemName)
+        {
+            if (s_systemDictionary.TryGetValue(systemName, out SystemInfo info)) UnregisterSystemInternal(info);
+        }
+
+        // Original token 0x06000e37; arm64 0x1b161f4. Enumerate live values
+        // and process every identity match, including null matches. Reentrant
+        // additions can invalidate this ordinary managed enumerator.
+        public static void UnregisterSystem(ISystem system)
+        {
+            foreach (SystemInfo info in s_systemDictionary.Values)
+                if (ReferenceEquals(info.SystemRef.GetSafe(), system)) UnregisterSystemInternal(info);
+        }
+
+        // Original token 0x06000e38; arm64 0x1b18eb4. Snapshot rows before
+        // callbacks; newly registered rows are outside this teardown operation.
+        public static void UnregisterAllSystems()
+        {
+            var snapshot = new List<SystemInfo>(s_systemDictionary.Values);
+            foreach (SystemInfo info in snapshot) UnregisterSystemInternal(info);
+        }
+
+        // Original token 0x06000e39; arm64 0x1b18c24. Unsubscribe first,
+        // revoke untyped then typed. Exceptions retain preceding mutations and
+        // stop later revokes; ordinary foreach disposal does not swallow them.
+        private static void UnregisterSystemInternal(SystemInfo existingSystemInfo)
+        {
+            ISystem system = existingSystemInfo.SystemRef.GetSafe();
+            if (system != null) UnsubscribeFromAllActions(system);
+            ((ISystemRef)existingSystemInfo.SystemRef).InternalRevokeSystem();
+            foreach (ISystemRef reference in existingSystemInfo.SystemRefDictionary.Values) reference.InternalRevokeSystem();
         }
 
         // 0x06000e3c; arm64 0x1b19314. Missing rows are null without creation.
