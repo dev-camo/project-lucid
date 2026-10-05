@@ -5,6 +5,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalMissionFieldLeavesRetainKeysListsAndUnitySerialization()
+        {
+            MissionFieldLeavesVerification.Run();
+        }
+
+        [Test]
+        public void OriginalHashEnumAttributeRetainsPlayerConstructorContract()
+        {
+            Assert.That(HashEnumAttributeVerification.RunManaged(), Is.EqualTo(12));
+        }
+
+        [Test]
         public void OriginalBindableRetainsNativeNotificationBindingAndComparisonOrder()
         {
             BindableVerification.Run();
