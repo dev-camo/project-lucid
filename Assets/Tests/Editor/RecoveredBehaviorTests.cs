@@ -5,6 +5,40 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalLoggingHostRetainsNativeRoutingAndEngineLifecycle()
+        {
+            Assert.That(LoggingHostVerification.RunManaged(), Is.EqualTo(137));
+            Assert.That(LoggingHostVerification.RunEngine(), Is.EqualTo(41));
+        }
+
+        [Test]
+        public void OriginalLoggingSingletonRetainsRegistrationAndCallbackOrder()
+        {
+            Assert.That(LoggingSingletonVerification.RunManaged(), Is.EqualTo(75));
+        }
+
+        [Test]
+        public void OriginalLoggingConfigurationRetainsFieldsAndUnityObjectLifetimes()
+        {
+            LoggingConfigurationVerification.Run();
+            var count = typeof(LoggingConfigurationVerification).GetField("checks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(count.GetValue(null), Is.EqualTo(65));
+        }
+
+        [Test]
+        public void OriginalBugInfoRetainsIdentifierEqualityAndNullFailures()
+        {
+            Assert.That(BugInfoVerification.RunManaged(), Is.EqualTo(35));
+        }
+
+        [Test]
+        public void OriginalFastActionsRetainDelegateMutationAndExceptionOrder()
+        {
+            Assert.That(FastActionDispatchVerification.RunManaged(), Is.EqualTo(82));
+        }
+
+        [Test]
         public void OriginalSaveRecordsRetainNativeMergeCopyAndUnitySerialization()
         {
             Assert.That(SaveRecordProgressionVerification.Run(), Is.EqualTo(126));
