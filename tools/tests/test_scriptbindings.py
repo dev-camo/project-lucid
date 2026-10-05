@@ -67,6 +67,64 @@ class ScriptBindingTests(unittest.TestCase):
             self.assertEqual("b" * 32, result["bindings"][0]["target_guid"])
             self.assertEqual(before, artifact_fingerprint(root))
 
+    def two_rule_fixture(self, directory):
+        root, work, export, mapping, comparison, path, summary = self.fixture(directory)
+        rule = RULES[1]
+        for base, relative, guid in ((root, rule["maintained_path"], "d" * 32),
+                                     (export, rule["export_path"], "c" * 32)):
+            source = base / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text("source evidence")
+            Path(str(source) + ".meta").write_text("fileFormatVersion: 2\nguid: " + guid + "\n")
+        for relative in rule["runtime_sources"]:
+            source = root / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_bytes((Path(__file__).resolve().parents[2] / relative).read_bytes())
+        mapping["assets"].append({"path": rule["export_path"], "guid": "c" * 32, "code_quarantined": True})
+        comparison["candidates"].append({
+            "assembly": rule["assembly"], "full_name": rule["full_name"],
+            "status": "compatible_layout", "issues": [], "original_token": "0x02000423",
+            "loaded_scripts": [{"path": rule["maintained_path"], "guid": "d" * 32,
+                "file_id": 11500000, "class_resolved": True,
+                "source_sha256": hashlib.sha256((root / rule["maintained_path"]).read_bytes()).hexdigest()}]})
+        comparison["source_fingerprint"] = summary["source_fingerprint"] = artifact_fingerprint(root)
+        path.write_text(json.dumps(comparison))
+        return root, work, export, mapping, comparison, path, summary
+
+    def test_two_approved_types_keep_distinct_script_and_authored_identities(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary = self.two_rule_fixture(directory)
+            before = artifact_fingerprint(root)
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                result = resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+            self.assertEqual(2, len(result["bindings"]))
+            raw = ("--- !u!114 &11400000\nMonoBehaviour:\n"
+                   "  m_Script: {fileID: 11500000, guid: " + "a" * 32 + ", type: 3}\n"
+                   "  m_guid: " + "a" * 32 + "\n"
+                   "--- !u!114 &11400001\nMonoBehaviour:\n"
+                   "  m_Script: {fileID: 11500000, guid: " + "c" * 32 + ", type: 3}\n"
+                   "  m_guid: " + "c" * 32 + "\n  m_sceneName: s_boot\n").encode()
+            rewritten, count = rewrite_script_pointers(raw, result["bindings"])
+            prefix = "  m_Script: {fileID: 11500000, guid: "
+            expected = raw.replace((prefix + "a" * 32).encode(), (prefix + "b" * 32).encode())
+            expected = expected.replace((prefix + "c" * 32).encode(), (prefix + "d" * 32).encode())
+            self.assertEqual(2, count)
+            self.assertEqual(expected, rewritten)
+            self.assertIn(("  m_guid: " + "a" * 32 + "\n").encode(), rewritten)
+            self.assertIn(("  m_guid: " + "c" * 32 + "\n").encode(), rewritten)
+            self.assertEqual(before, artifact_fingerprint(root))
+
+    def test_one_unverified_type_aborts_a_multi_type_binding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary = self.two_rule_fixture(directory)
+            comparison["candidates"][1].update(status="blocked", issues=[{"reason": "field mismatch"}])
+            path.write_text(json.dumps(comparison))
+            before = artifact_fingerprint(root)
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                with self.assertRaisesRegex(ValueError, "layout is unresolved"):
+                    resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+            self.assertEqual(before, artifact_fingerprint(root))
+
     def test_unrelated_export_does_not_launch_editor(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work, export, mapping, comparison, path, summary = self.fixture(directory)

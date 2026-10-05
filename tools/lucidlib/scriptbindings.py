@@ -24,6 +24,19 @@ RULES = ({
         "Packages/com.hardlight.hlunitycore/Runtime/ScriptableObjectWithGuid.cs": "befb87c3cc9068308cfa3e8965ceb82602974ffcb6380a894cd68d03e364629a",
         "Packages/com.hardlight.hlunitycore/Runtime/InspectorReadOnlyAttribute.cs": "d6e24d4d94dfd222ae920e83600d518ed8fd17286532771ae9570fdefe52feed",
     },
+}, {
+    "assembly": "Game.Runtime",
+    "full_name": "HardlightProject.LevelDefinition",
+    "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/LevelDefinition.cs",
+    "maintained_path": "Assets/Scripts/Definitions/LevelDefinition.cs",
+    "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
+    "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+    "runtime_sources": {
+        "Assets/Scripts/Definitions/LevelDefinition.cs": "e1789c615fe0c7d6156d6ea84a355afb270706e274647fda8d9737c4668d3774",
+        "Assets/Scripts/Definitions/ILevelDefinition.cs": "a3fb7c57bad19ec9224b97ba969c03e72cd72b84adfc1e92e6b9b9ec1ac8aec9",
+        "Packages/com.hardlight.hlunitycore/Runtime/ScriptableObjectWithGuid.cs": "befb87c3cc9068308cfa3e8965ceb82602974ffcb6380a894cd68d03e364629a",
+        "Packages/com.hardlight.hlunitycore/Runtime/InspectorReadOnlyAttribute.cs": "d6e24d4d94dfd222ae920e83600d518ed8fd17286532771ae9570fdefe52feed",
+    },
 },)
 
 GUID = re.compile(r"^guid:\s*([0-9a-f]{32})\s*$", re.MULTILINE)

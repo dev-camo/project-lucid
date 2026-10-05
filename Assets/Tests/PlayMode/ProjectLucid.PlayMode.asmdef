@@ -1,7 +1,8 @@
 {
   "name": "ProjectLucid.PlayMode",
   "references": [
-    "HLUnityCore.Runtime"
+    "HLUnityCore.Runtime",
+    "Game.Runtime"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

@@ -4,6 +4,14 @@
 /Assets/Recovered.meta
 /Assets/StreamingAssets/
 /Assets/StreamingAssets.meta
+/Assets/.lucid-assets-*/
+/Assets/.lucid-assets-*.meta
+/Assets/.Recovered.backup-*/
+/Assets/.StreamingAssets.backup-*/
+/Assets/LucidStartingPointProof_*/
+/Assets/LucidStartingPointProof_*.meta
+/Assets/LucidLevelDefinitionProof_*/
+/Assets/LucidLevelDefinitionProof_*.meta
 /Library/
 /Temp/
 /Obj/

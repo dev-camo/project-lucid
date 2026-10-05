@@ -5,6 +5,24 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalSystemSceneDefinitionsBindAndRoundtripWithoutIdentityChanges()
+        {
+            LevelDefinitionAssetVerification.Run();
+        }
+
+        [Test]
+        public void OriginalBootSceneUnloadRetainsFactoryAndNativeOperation()
+        {
+            BootSceneUnloadVerification.Run();
+        }
+
+        [Test]
+        public void OriginalLevelDefinitionsRetainSceneNameAndNativeRuntimeContract()
+        {
+            LevelDefinitionVerification.Run();
+        }
+
+        [Test]
         public void StackableConfigurationPreservesNativeOrderCacheAndOperations()
         {
             StackablePrimitiveVerification.Run();
