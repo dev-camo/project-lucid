@@ -15,6 +15,9 @@ from .bootstrap import managed_path, write_json
 
 UNITY_VERSION = "2022.3.54f1"
 EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
+    "ReadOnlyListsPreserveNativeComparisonMutationAndEnumerationOrder",
+    "OriginalGameplayUiDefinitionRetainsAbstractContractsAndGuidBase",
+    "OriginalSceneAuthoringAttributesRetainInheritedUsageAndValues",
     "OriginalSystemSceneDefinitionsBindAndRoundtripWithoutIdentityChanges",
     "OriginalBootSceneUnloadRetainsFactoryAndNativeOperation",
     "OriginalLevelDefinitionsRetainSceneNameAndNativeRuntimeContract",

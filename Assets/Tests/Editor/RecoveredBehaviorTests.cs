@@ -5,6 +5,24 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void ReadOnlyListsPreserveNativeComparisonMutationAndEnumerationOrder()
+        {
+            ReadOnlyListVerification.Run();
+        }
+
+        [Test]
+        public void OriginalGameplayUiDefinitionRetainsAbstractContractsAndGuidBase()
+        {
+            GameplayLevelUIEntryVerification.Run();
+        }
+
+        [Test]
+        public void OriginalSceneAuthoringAttributesRetainInheritedUsageAndValues()
+        {
+            SceneAuthoringAttributeVerification.Run();
+        }
+
+        [Test]
         public void OriginalSystemSceneDefinitionsBindAndRoundtripWithoutIdentityChanges()
         {
             LevelDefinitionAssetVerification.Run();
