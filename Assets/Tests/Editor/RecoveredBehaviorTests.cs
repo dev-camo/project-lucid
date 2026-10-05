@@ -5,6 +5,12 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalTimeSchedulerRetainsCategoryPauseCallbackAndEngineOrder()
+        {
+            Assert.That(TimeSchedulerVerification.Run(), Is.EqualTo(532));
+        }
+
+        [Test]
         public void OriginalSerializableDictionaryRetainsCallbackAndUnitySerializationOrder()
         {
             Assert.That(SerializableDictionaryVerification.Run(), Is.EqualTo(146));
