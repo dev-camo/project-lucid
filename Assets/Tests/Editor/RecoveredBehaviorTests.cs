@@ -5,6 +5,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalDefinitionGroupsRetainNativeMergeAndSerializationOrder()
+        {
+            DefinitionDataVerification.Run();
+        }
+
+        [Test]
+        public void LoadedAttributeBlobsPreserveBoxedStringNullAndModuleIdentity()
+        {
+            Assert.That(LoadedAttributeBlobVerification.RunLoaded(), Is.EqualTo(50));
+        }
+
+        [Test]
         public void OriginalMusicAndOrnamentsRetainSerializationAndAssetOwnership()
         {
             MissionDisplayDefinitionVerification.Run();

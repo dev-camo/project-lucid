@@ -171,7 +171,7 @@ namespace ProjectLucid.Editor
                     ["constraints"] = p.GetGenericParameterConstraints().Select(c => TypeReference(c)).ToArray(),
                     ["constraints_complete"] = true
                 }).ToArray() : new object[0];
-                result["custom_attributes"] = Attributes(type.GetCustomAttributesData());
+                result["custom_attributes"] = Attributes(type.GetCustomAttributesData(), type);
                 result["custom_attributes_complete"] = true;
                 result["base_type"] = type.BaseType == null ? null : TypeReference(type.BaseType);
                 result["unity_component"] = typeof(MonoBehaviour).IsAssignableFrom(type);
@@ -200,7 +200,7 @@ namespace ProjectLucid.Editor
                     bool reference = attributes.Any(a => a.AttributeType.FullName == "UnityEngine.SerializeReference");
                     bool nonSerialized = (field.Attributes & (FieldAttributes)128) != 0 || attributes.Any(a => a.AttributeType.FullName == "System.NonSerializedAttribute");
                     record["field_type"] = TypeReference(field.FieldType);
-                    record["custom_attributes"] = Attributes(attributes);
+                    record["custom_attributes"] = Attributes(attributes, field);
                     record["custom_attributes_complete"] = true;
                     record["is_public"] = field.IsPublic; record["serialize_field"] = serialize;
                     record["serialize_reference"] = reference; record["non_serialized"] = nonSerialized;
@@ -265,17 +265,27 @@ namespace ProjectLucid.Editor
             return result;
         }
 
-        private static object[] Attributes(IList<CustomAttributeData> attributes)
+        private static object[] Attributes(IList<CustomAttributeData> attributes, MemberInfo member)
         {
-            return attributes.Select(attribute => (object)new Dictionary<string, object>
+            return attributes.Select(attribute =>
             {
+                var arguments = attribute.ConstructorArguments.Select(AttributeValue).ToArray();
+                if (attribute.AttributeType.FullName == "Hardlight.ShowIfAttribute" &&
+                    attribute.AttributeType.Assembly.GetName().Name == "HLUnityCore.Runtime" &&
+                    attribute.Constructor.GetParameters().Select(p => p.ParameterType).SequenceEqual(new[] { typeof(string), typeof(object) }) &&
+                    attribute.ConstructorArguments.Count == 2 &&
+                    attribute.ConstructorArguments[1].ArgumentType == typeof(object) && attribute.ConstructorArguments[1].Value == null)
+                    arguments[1] = LoadedAttributeBlobEvidence.ReadBoxedStringNull(member, attribute);
+                return (object)new Dictionary<string, object>
+                {
                 ["assembly"] = attribute.AttributeType.Assembly.GetName().Name, ["full_name"] = attribute.AttributeType.FullName,
                 ["constructor_token"] = Hex(attribute.Constructor.MetadataToken),
-                ["arguments"] = attribute.ConstructorArguments.Select(AttributeValue).ToArray(),
+                ["arguments"] = arguments,
                 ["fields"] = attribute.NamedArguments.Where(n => n.IsField).Select(n => new Dictionary<string, object>
                     { ["name"] = n.MemberName, ["value"] = AttributeValue(n.TypedValue) }).ToArray(),
                 ["properties"] = attribute.NamedArguments.Where(n => !n.IsField).Select(n => new Dictionary<string, object>
                     { ["name"] = n.MemberName, ["value"] = AttributeValue(n.TypedValue) }).ToArray()
+                };
             }).ToArray();
         }
 
