@@ -25,6 +25,7 @@ namespace ProjectLucid
             FSMConstructionVerification.Run();
             FSMFileLoadingVerification.Run();
             FSMScriptableLoadingVerification.Run();
+            FSMCompositionVerification.Run();
             Debug.Log("FSM interpreter, manager, construction and scriptable/file loading source-based verification passed. Concrete game-specific states and full startup remain unresolved.");
         }
 
