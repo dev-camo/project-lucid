@@ -53,9 +53,11 @@ def type_identity(record: dict) -> Tuple[Any, ...]:
     raise LayoutError("Unsupported type reference kind: " + str(kind))
 
 
-def _attribute_value(value: dict) -> Any:
+def _attribute_value(value: dict, *, require_string_evidence=False) -> Any:
     if not isinstance(value, dict):
         raise LayoutError("Incomplete custom attribute value")
+    if value.get("value_complete") is False:
+        raise LayoutError("Custom attribute value is explicitly incomplete")
     kind = value.get("kind")
     if kind == "primitive":
         primitive, data = value.get("type"), value.get("value")
@@ -65,9 +67,22 @@ def _attribute_value(value: dict) -> Any:
             data = ord(data)
         if not isinstance(primitive, str) or "value" not in value:
             raise LayoutError("Incomplete primitive attribute")
+        if primitive == "IL2CPP_TYPE_STRING":
+            if data is not None and not isinstance(data, str):
+                raise LayoutError("Custom attribute string value is invalid")
+            # The pinned native reader previously collapsed zero-length strings
+            # and null strings. Loaded Reflection values preserve the distinction;
+            # original ambiguous values require a bounded raw-blob decode receipt.
+            if require_string_evidence and (data is None or data == ""):
+                expected_length = -1 if data is None else 0
+                digest = value.get("raw_encoding_sha256")
+                if (value.get("value_complete") is not True or type(value.get("string_length")) is not int or
+                        value["string_length"] != expected_length or not isinstance(digest, str) or
+                        re.fullmatch(r"[a-f0-9]{64}", digest) is None):
+                    raise LayoutError("Original attribute string has unverified empty/null encoding")
         return kind, primitive, data
     if kind == "enum":
-        return kind, type_identity(value.get("type")), _attribute_value(value.get("value"))
+        return kind, type_identity(value.get("type")), _attribute_value(value.get("value"), require_string_evidence=require_string_evidence)
     if kind == "type":
         return kind, None if value.get("value") is None else type_identity(value["value"])
     if kind == "null":
@@ -78,11 +93,11 @@ def _attribute_value(value: dict) -> Any:
             raise LayoutError("Incomplete attribute array")
         enum = value.get("enum_type")
         return kind, value.get("element_type"), None if enum is None else type_identity(enum), \
-            None if values is None else tuple(_attribute_value(v) for v in values)
+            None if values is None else tuple(_attribute_value(v, require_string_evidence=require_string_evidence) for v in values)
     raise LayoutError("Unsupported custom attribute value kind")
 
 
-def _attributes(record: dict) -> Tuple[Any, ...]:
+def _attributes(record: dict, *, require_string_evidence=False) -> Tuple[Any, ...]:
     if record.get("custom_attributes_complete") is not True or not isinstance(record.get("custom_attributes"), list):
         raise LayoutError("Custom attributes are incomplete")
     result = []
@@ -94,13 +109,13 @@ def _attributes(record: dict) -> Tuple[Any, ...]:
             continue
         if not isinstance(name, str) or not isinstance(attribute.get("assembly"), str):
             raise LayoutError("Custom attribute identity is incomplete")
-        arguments = tuple(_attribute_value(v) for v in attribute.get("arguments", []))
+        arguments = tuple(_attribute_value(v, require_string_evidence=require_string_evidence) for v in attribute.get("arguments", []))
         named = []
         for group in ("fields", "properties"):
             entries = attribute.get(group)
             if not isinstance(entries, list):
                 raise LayoutError("Custom attribute named arguments are incomplete")
-            named.extend((group, p["name"], _attribute_value(p["value"])) for p in entries)
+            named.extend((group, p["name"], _attribute_value(p["value"], require_string_evidence=require_string_evidence)) for p in entries)
         result.append((attribute["assembly"], name, arguments, tuple(sorted(named, key=repr))))
     return tuple(sorted(result, key=repr))
 
@@ -129,10 +144,10 @@ def _index(report: dict) -> Dict[Tuple[str, str], dict]:
     return index
 
 
-def _candidate_fields(record: dict) -> list:
+def _candidate_fields(record: dict, *, require_string_evidence=False) -> list:
     if record.get("schema_complete") is not True:
         raise LayoutError("Type schema is incomplete")
-    _attributes(record)
+    _attributes(record, require_string_evidence=require_string_evidence)
     if not isinstance(record.get("fields"), list):
         raise LayoutError("Field inventory is missing")
     names, result = set(), []
@@ -141,7 +156,7 @@ def _candidate_fields(record: dict) -> list:
         if not isinstance(name, str) or name in names or field.get("schema_complete") is not True:
             raise LayoutError("Ambiguous or incomplete declared field")
         names.add(name)
-        _attributes(field)
+        _attributes(field, require_string_evidence=require_string_evidence)
         flags = field.get("attributes")
         if type(flags) is not int:
             raise LayoutError("Field flags are incomplete")
@@ -213,7 +228,8 @@ class _Comparison:
                 return
             active.add(owner)
             try:
-                lfields, rfields = _candidate_fields(left), _candidate_fields(right)
+                lfields = _candidate_fields(left, require_string_evidence=True)
+                rfields = _candidate_fields(right)
                 for label in ("is_value_type", "is_enum", "is_abstract", "declaring_type", "generic_parameters", "unity_component", "unity_scriptable_object"):
                     if left.get(label) != right.get(label):
                         issue("type_shape_mismatch", owner, label)
@@ -221,7 +237,7 @@ class _Comparison:
                 # storage. Visibility and BeforeFieldInit do not define fields.
                 if (left.get("attributes", 0) & 0x2038) != (right.get("attributes", 0) & 0x2038):
                     issue("type_flags_mismatch", owner)
-                if _attributes(left) != _attributes(right):
+                if _attributes(left, require_string_evidence=True) != _attributes(right):
                     issue("type_attributes_mismatch", owner)
                 lbase, rbase = left.get("base_type"), right.get("base_type")
                 if lbase is None or rbase is None:
@@ -271,7 +287,7 @@ class _Comparison:
                     other = lookup.get(field["name"])
                     if other is None:
                         continue
-                    if field["attributes"] != other["attributes"] or _attributes(field) != _attributes(other):
+                    if field["attributes"] != other["attributes"] or _attributes(field, require_string_evidence=True) != _attributes(other):
                         issue("field_flags_or_attributes_mismatch", owner, field["name"])
                     if field["serialize_reference"] or other["serialize_reference"]:
                         issue("managed_reference_subtypes_unverified", owner, field["name"])

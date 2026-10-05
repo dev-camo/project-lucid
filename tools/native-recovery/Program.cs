@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using AssetRipper.Primitives;
 using Cpp2IL.Core;
+using Cpp2IL.Core.Extensions;
 using Cpp2IL.Core.Model.Contexts;
 using Cpp2IL.Core.Model.CustomAttributes;
 using Cpp2IL.Core.Utils;
@@ -60,6 +61,7 @@ internal static class Program
                 ["metadata"] = metadata, ["metadata_sha256"] = HashFile(metadata),
                 ["unity_version"] = version.ToString(), ["metadata_header_version"] = rawMetadataVersion,
                 ["metadata_interpreted_version"] = app.MetadataVersion,
+                ["custom_attribute_string_encoding"] = "metadata-v29-utf8-length-preserved",
                 ["instruction_set"] = app.Binary.InstructionSetId.ToString(),
                 ["output_dir"] = output, ["managed_semantics_recovered"] = false,
                 ["native_addresses_verified"] = false, ["limitations"] = Limitations
@@ -339,34 +341,127 @@ internal static class Program
         // Header version >=29 was checked before initialization: attributes are
         // read directly from metadata, without analyzing native cache generators.
         member.AnalyzeCustomAttributeData(false);
+        var strings = AttributeStrings(member);
         return (member.CustomAttributes ?? []).Select(a => new Dictionary<string, object?>
         {
             ["assembly"] = a.Constructor.DeclaringType!.DeclaringAssembly.DefaultName,
             ["full_name"] = a.Constructor.DeclaringType.DefaultFullName,
             ["constructor_token"] = Hex(a.Constructor.Token),
-            ["arguments"] = a.ConstructorParameters.Select(AttributeParameter).ToArray(),
+            ["arguments"] = a.ConstructorParameters.Select(p => AttributeParameter(p, strings)).ToArray(),
             ["fields"] = a.Fields.Select(f => new
             {
-                name = f.Field.DefaultName, token = Hex(f.Field.Token), value = AttributeParameter(f.Value)
+                name = f.Field.DefaultName, token = Hex(f.Field.Token), value = AttributeParameter(f.Value, strings)
             }).ToArray(),
             ["properties"] = a.Properties.Select(p => new
             {
-                name = p.Property.DefaultName, token = Hex(p.Property.Token), value = AttributeParameter(p.Value)
+                name = p.Property.DefaultName, token = Hex(p.Property.Token), value = AttributeParameter(p.Value, strings)
             }).ToArray()
         }).ToList();
     }
 
-    private static object AttributeParameter(BaseCustomAttributeParameter parameter) => parameter switch
+    private sealed record AttributeString(string? Value, int Length, long BlobOffset, string EncodingSha256);
+
+    private static Dictionary<BaseCustomAttributeParameter, AttributeString> AttributeStrings(HasCustomAttributes member)
     {
+        // Original metadata v29+ distinguishes length 0 (empty) from -1 (null).
+        // The pinned Core reader collapses both to null. Replay the same bounded
+        // blob and preserve strings without changing the verified upstream source.
+        var result = new Dictionary<BaseCustomAttributeParameter, AttributeString>();
+        byte[] bytes = member.RawIl2CppCustomAttributeData.ToArray();
+        if (bytes.Length == 0) return result;
+        using var stream = new MemoryStream(bytes, false);
+        using var reader = new BinaryReader(stream, Encoding.Unicode, true);
+        uint count = stream.ReadUnityCompressedUint();
+        var attributes = member.CustomAttributes ?? [];
+        if (count != attributes.Count || count > bytes.Length / 4)
+            throw new InvalidDataException("Custom attribute blob constructor count differs from decoded attributes.");
+        var constructors = V29AttributeUtils.ReadConstructors(stream, count, member.AppContext);
+        for (int index = 0; index < attributes.Count; index++)
+        {
+            var attribute = attributes[index];
+            if (!ReferenceEquals(constructors[index], attribute.Constructor))
+                throw new InvalidDataException("Custom attribute blob constructor identity differs.");
+            if (stream.ReadUnityCompressedUint() != attribute.ConstructorParameters.Count ||
+                stream.ReadUnityCompressedUint() != attribute.Fields.Count ||
+                stream.ReadUnityCompressedUint() != attribute.Properties.Count)
+                throw new InvalidDataException("Custom attribute blob parameter counts differ.");
+            foreach (var parameter in attribute.ConstructorParameters) ReadParameter(parameter);
+            foreach (var field in attribute.Fields) { ReadParameter(field.Value); SkipMemberIndex(); }
+            foreach (var property in attribute.Properties) { ReadParameter(property.Value); SkipMemberIndex(); }
+        }
+        if (stream.Position != stream.Length)
+            throw new InvalidDataException("Custom attribute blob was not consumed completely.");
+        return result;
+
+        void SkipMemberIndex()
+        {
+            if (stream.ReadUnityCompressedInt() < 0) stream.ReadUnityCompressedUint();
+        }
+
+        void ReadParameter(BaseCustomAttributeParameter parameter, Il2CppTypeEnum? arrayType = null, int depth = 0)
+        {
+            if (depth > 64) throw new InvalidDataException("Custom attribute parameter nesting exceeds the limit.");
+            var rawType = arrayType ?? (Il2CppTypeEnum)reader.ReadByte();
+            var decoded = V29AttributeUtils.ConstructParameterForType(reader, member.AppContext, rawType,
+                parameter.Owner, parameter.Kind, parameter.Index);
+            if (decoded.GetType() != parameter.GetType())
+                throw new InvalidDataException("Custom attribute blob parameter shape differs.");
+            if (decoded is CustomAttributePrimitiveParameter primitive && primitive.PrimitiveType == Il2CppTypeEnum.IL2CPP_TYPE_STRING)
+            {
+                long start = stream.Position;
+                int length = stream.ReadUnityCompressedInt();
+                if (length < -1 || length > stream.Length - stream.Position)
+                    throw new InvalidDataException("Custom attribute string length is invalid or truncated.");
+                string? value = length == -1 ? null : new UTF8Encoding(false, true).GetString(reader.ReadBytes(length));
+                int encodedSize = checked((int)(stream.Position - start));
+                result.Add(parameter, new(value, length, start,
+                    Convert.ToHexString(SHA256.HashData(bytes.AsSpan((int)start, encodedSize))).ToLowerInvariant()));
+            }
+            else if (decoded is CustomAttributeArrayParameter && parameter is CustomAttributeArrayParameter array)
+            {
+                int length = stream.ReadUnityCompressedInt();
+                if (length == -1)
+                {
+                    if (!array.IsNullArray) throw new InvalidDataException("Custom attribute array null state differs.");
+                    return;
+                }
+                if (length < 0 || length > stream.Length - stream.Position || array.IsNullArray || length != array.ArrayElements.Count)
+                    throw new InvalidDataException("Custom attribute array length differs or is invalid.");
+                var elementType = (Il2CppTypeEnum)reader.ReadByte();
+                if (elementType == Il2CppTypeEnum.IL2CPP_TYPE_ENUM)
+                {
+                    var enumParameter = (CustomAttributeEnumParameter)V29AttributeUtils.ConstructParameterForType(reader,
+                        member.AppContext, elementType, parameter.Owner, CustomAttributeParameterKind.ArrayElement, 0);
+                    elementType = enumParameter.UnderlyingPrimitiveParameter.PrimitiveType;
+                }
+                bool prefixed = reader.ReadBoolean();
+                if (elementType != array.ArrType || (prefixed && elementType != Il2CppTypeEnum.IL2CPP_TYPE_OBJECT))
+                    throw new InvalidDataException("Custom attribute array element type differs.");
+                foreach (var element in array.ArrayElements) ReadParameter(element, prefixed ? null : elementType, depth + 1);
+            }
+            else decoded.ReadFromV29Blob(reader, member.AppContext);
+        }
+    }
+
+    private static object AttributeParameter(BaseCustomAttributeParameter parameter,
+        Dictionary<BaseCustomAttributeParameter, AttributeString> strings) => parameter switch
+    {
+        CustomAttributePrimitiveParameter p when p.PrimitiveType == Il2CppTypeEnum.IL2CPP_TYPE_STRING =>
+            strings.TryGetValue(p, out var value) ? new
+            {
+                kind = "primitive", type = p.PrimitiveType.ToString(), value = value.Value,
+                value_complete = true, string_length = value.Length, blob_offset = value.BlobOffset,
+                raw_encoding_sha256 = value.EncodingSha256
+            } : throw new InvalidDataException("Custom attribute string has no verified original encoding."),
         CustomAttributePrimitiveParameter p => new { kind = "primitive", type = p.PrimitiveType.ToString(), value = (object?)p.PrimitiveValue },
-        CustomAttributeEnumParameter p => new { kind = "enum", type = TypeReference(p.EnumTypeContext), value = AttributeParameter(p.UnderlyingPrimitiveParameter) },
+        CustomAttributeEnumParameter p => new { kind = "enum", type = TypeReference(p.EnumTypeContext), value = AttributeParameter(p.UnderlyingPrimitiveParameter, strings) },
         BaseCustomAttributeTypeParameter p => new { kind = "type", value = p.TypeContext is null ? null : TypeReference(p.TypeContext) },
         CustomAttributeNullParameter => new { kind = "null", value = (object?)null },
         CustomAttributeArrayParameter p => new
         {
             kind = "array", element_type = p.ArrType.ToString(),
             enum_type = p.EnumType is null ? null : TypeReference(p.Owner.Constructor.AppContext.ResolveIl2CppType(p.EnumType)),
-            value = p.IsNullArray ? null : p.ArrayElements.Select(AttributeParameter).ToArray()
+            value = p.IsNullArray ? null : p.ArrayElements.Select(v => AttributeParameter(v, strings)).ToArray()
         },
         _ => throw new InvalidDataException("Unsupported custom attribute parameter: " + parameter.GetType().Name)
     };

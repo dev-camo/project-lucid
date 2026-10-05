@@ -108,6 +108,43 @@ class BindingTests(unittest.TestCase):
         inventory["assemblies"][0]["types"][0]["custom_attributes_complete"] = False
         self.assertEqual("blocked", self.result(original, inventory)["status"])
 
+    def string_attribute_fixture(self, original_value, loaded_value, *, verified=True):
+        original, inventory = self.fixture()
+        left = {"kind": "primitive", "type": "IL2CPP_TYPE_STRING", "value": original_value}
+        right = {"kind": "primitive", "type": "IL2CPP_TYPE_STRING", "value": loaded_value}
+        if verified:
+            left.update(value_complete=True, string_length=-1 if original_value is None else 0,
+                        raw_encoding_sha256=hashlib.sha256(b"\x01" if original_value is None else b"\x00").hexdigest())
+        original["assemblies"][0]["types"][0]["custom_attributes"] = [attribute("UnityEngine.AddComponentMenu", [left])]
+        inventory["assemblies"][0]["types"][0]["custom_attributes"] = [attribute("UnityEngine.AddComponentMenu", [right])]
+        return original, inventory
+
+    def test_verified_original_empty_and_null_strings_remain_distinct(self):
+        for value in (None, ""):
+            original, inventory = self.string_attribute_fixture(value, value)
+            self.assertEqual("compatible_layout", self.result(original, inventory)["status"])
+        original, inventory = self.string_attribute_fixture("", None)
+        self.assertIn("type_attributes_mismatch", [i["reason"] for i in self.result(original, inventory)["issues"]])
+
+    def test_legacy_or_inconsistent_original_string_encoding_blocks(self):
+        for value in (None, ""):
+            original, inventory = self.string_attribute_fixture(value, value, verified=False)
+            self.assertIn("unverified empty/null", self.result(original, inventory)["issues"][0]["detail"])
+        original, inventory = self.string_attribute_fixture(None, None)
+        original["assemblies"][0]["types"][0]["custom_attributes"][0]["arguments"][0]["string_length"] = 0
+        self.assertEqual("blocked", self.result(original, inventory)["status"])
+
+    def test_nested_and_named_incomplete_attribute_values_block(self):
+        for group in ("arguments", "fields", "properties"):
+            original, inventory = self.fixture()
+            value = {"kind": "array", "element_type": "IL2CPP_TYPE_STRING", "value": [
+                {"kind": "primitive", "type": "IL2CPP_TYPE_STRING", "value": None, "value_complete": False}]}
+            custom = attribute("Example.CustomAttribute")
+            custom[group] = [value] if group == "arguments" else [{"name": "text", "value": value}]
+            original["assemblies"][0]["types"][0]["custom_attributes"] = [custom]
+            inventory["assemblies"][0]["types"][0]["custom_attributes"] = [copy.deepcopy(custom)]
+            self.assertEqual("blocked", self.result(original, inventory)["status"])
+
     def test_unresolved_dependency_and_managed_reference_are_blocked(self):
         original, inventory = self.fixture()
         for report in (original, inventory):

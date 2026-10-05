@@ -64,7 +64,8 @@ class NativeHelpersTests(unittest.TestCase):
                   "native_binary_sha256": hashlib.sha256(self.binary.read_bytes()).hexdigest(),
                   "metadata_sha256": hashlib.sha256(self.metadata_file.read_bytes()).hexdigest(),
                   "unity_version": "2022.3.54f1", "managed_semantics_recovered": False,
-                  "native_addresses_verified": False}
+                  "native_addresses_verified": False,
+                  "custom_attribute_string_encoding": "metadata-v29-utf8-length-preserved"}
         if command == "schemas":
             result.update(assemblies=[{"name": "Game.Runtime", "types": [{"schema_complete": True, "fields": []}]}],
                           assembly_count=1, type_count=1, field_count=0, errors=[])
@@ -143,7 +144,8 @@ class NativeHelpersTests(unittest.TestCase):
 
     def test_wrong_fingerprint_or_behavior_claim_is_rejected(self):
         for mutation in ({"metadata_sha256": "wrong"}, {"managed_semantics_recovered": True},
-                         {"native_addresses_verified": True}):
+                         {"native_addresses_verified": True}, {"custom_attribute_string_encoding": None},
+                         {"custom_attribute_string_encoding": "unverified"}):
             with self.subTest(mutation=mutation):
                 def runner(command, *args, **kwargs):
                     output = Path(command[command.index("--output") + 1])

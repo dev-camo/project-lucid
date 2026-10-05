@@ -29,7 +29,11 @@ METADATA = ROOT / "input/SonicDreamTeam.app/Contents/Resources/Data/il2cpp_data/
 class NativeRecoveryIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        for file in (HARNESS, DOTNET, METADATA):
+        pointer = CACHE / "native-recovery/latest-build.json"
+        cls.harness = Path(json.loads(pointer.read_text())["path"]) if pointer.is_file() else HARNESS
+        if not cls.harness.resolve().is_relative_to(CACHE.resolve()):
+            raise RuntimeError("Native integration harness must remain in the generated cache")
+        for file in (cls.harness, DOTNET, METADATA):
             if not file.is_file():
                 raise RuntimeError(f"Required integration input is absent: {file}")
         candidates = sorted((CACHE / "recovery/inputs").glob("*.x86_64.dylib"))
@@ -55,7 +59,7 @@ class NativeRecoveryIntegrationTests(unittest.TestCase):
         if token is not None:
             options["token"] = token
         options.update(overrides)
-        args = [str(DOTNET), str(HARNESS), command]
+        args = [str(DOTNET), str(self.harness), command]
         for key, value in options.items():
             args.extend(["--" + key, str(value)])
         result = subprocess.run(args, env=self.environment, capture_output=True, text=True, timeout=120)
@@ -141,6 +145,62 @@ class NativeRecoveryIntegrationTests(unittest.TestCase):
 
     def test_unknown_assembly_is_rejected(self):
         self.assert_failed_without_output(self.invoke(assembly="Game.Runtime.dll"), "exact original assembly name")
+
+    def cinemachine_menu(self, report):
+        type_ = next(t for t in report["assemblies"][0]["types"] if t["full_name"] == "Cinemachine.CinemachineConfiner2D")
+        menu = next(a for a in type_["custom_attributes"] if a["full_name"] == "UnityEngine.AddComponentMenu")
+        return menu["arguments"][0]
+
+    def mutated_menu_metadata(self, encoded_length):
+        # Original CinemachineConfiner2D token0x0200001d has five attributes.
+        # Its first string is AddComponentMenu: blob-relative offset25, where
+        # compressed byte0 encodes empty and byte1 encodes null. Preserve size.
+        data = bytearray(METADATA.read_bytes())
+        strings, _ = struct.unpack_from("<II", data, 8 + 2 * 8)
+        images, images_size = struct.unpack_from("<II", data, 8 + 20 * 8)
+        attributes, _ = struct.unpack_from("<II", data, 8 + 24 * 8)
+        ranges, _ = struct.unpack_from("<II", data, 8 + 25 * 8)
+        image = next(row for row in struct.iter_unpack("<10i", data[images:images + images_size])
+                     if data[strings + row[0]:].split(b"\0", 1)[0] == b"Cinemachine.dll")
+        selected = next(row for row in struct.iter_unpack("<II", data[ranges + image[8] * 8:ranges + (image[8] + image[9]) * 8])
+                        if row[0] == 0x0200001d)
+        position = attributes + selected[1] + 25
+        self.assertEqual(data[position - 1:position + 1], b"\x0e\x00")
+        data[position] = encoded_length
+        path = self.directory / "menu-metadata.dat"
+        path.write_bytes(data)
+        return path
+
+    def test_original_cinemachine_empty_menu_string_is_byte_corroborated(self):
+        result = self.invoke(assembly="Cinemachine")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        report = json.loads((self.output / "report.json").read_text())
+        menu = self.cinemachine_menu(report)
+        self.assertEqual(menu["value"], "")
+        self.assertEqual(menu["string_length"], 0)
+        self.assertTrue(menu["value_complete"])
+        self.assertEqual(menu["blob_offset"], 25)
+        self.assertEqual(menu["raw_encoding_sha256"], hashlib.sha256(b"\x00").hexdigest())
+        self.assertEqual(report["errors"], [])
+
+    def test_original_blob_null_menu_string_remains_distinct(self):
+        result = self.invoke(assembly="Cinemachine", metadata=self.mutated_menu_metadata(1))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        menu = self.cinemachine_menu(json.loads((self.output / "report.json").read_text()))
+        self.assertIsNone(menu["value"])
+        self.assertEqual(menu["string_length"], -1)
+        self.assertTrue(menu["value_complete"])
+        self.assertEqual(menu["raw_encoding_sha256"], hashlib.sha256(b"\x01").hexdigest())
+
+    def test_invalid_negative_attribute_string_length_is_incomplete(self):
+        result = self.invoke(assembly="Cinemachine", metadata=self.mutated_menu_metadata(3))
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        report = json.loads((self.output / "report.json").read_text())
+        self.assertEqual(report["status"], "incomplete")
+        self.assertTrue(any(e["type"] == "Cinemachine.CinemachineConfiner2D" and "string length" in e["error"] for e in report["errors"]))
+        type_ = next(t for t in report["assemblies"][0]["types"] if t["full_name"] == "Cinemachine.CinemachineConfiner2D")
+        self.assertFalse(type_["schema_complete"])
+        self.assertFalse(type_["custom_attributes_complete"])
 
     def test_unknown_method_token_is_rejected(self):
         self.assert_failed_without_output(self.invoke("method", token="0x06ffffff"), "match one method")

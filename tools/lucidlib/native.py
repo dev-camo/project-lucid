@@ -196,6 +196,7 @@ def _validate_evidence(evidence: dict, command: str, source: dict, assembly: str
                 "native_binary_sha256": source["analysis_binary_sha256"],
                 "metadata_sha256": source["metadata_sha256"],
                 "unity_version": source["unity_version"], "managed_semantics_recovered": False,
+                "custom_attribute_string_encoding": "metadata-v29-utf8-length-preserved",
                 "native_addresses_verified": False}
     for key, value in expected.items():
         if evidence.get(key) != value or (value is False and evidence.get(key) is not False):
