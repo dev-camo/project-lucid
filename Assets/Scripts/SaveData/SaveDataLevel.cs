@@ -92,6 +92,27 @@ namespace HardlightProject
             m_guid = levelGuid;
         }
 
+        // Game.Runtime.dll 0x06002c4c; ARM640x5be0b4. New keys retain incoming
+        // object identities; direct field/dictionary merges do not mark dirty.
+        public void ResolveNewData(SaveDataLevel newSaveDataLevel)
+        {
+            foreach (var pair in newSaveDataLevel.m_missionsByGuid)
+            {
+                if (m_missionsByGuid.TryGetValue(pair.Key, out var current)) current.ResolveNewData(pair.Value);
+                else m_missionsByGuid[pair.Key] = pair.Value;
+            }
+            foreach (var pair in newSaveDataLevel.m_persistentObjectsById)
+            {
+                if (m_persistentObjectsById.TryGetValue(pair.Key, out var current)) current.ResolveNewData(pair.Value);
+                else m_persistentObjectsById[pair.Key] = pair.Value;
+            }
+            m_missionIntrosSeen |= newSaveDataLevel.m_missionIntrosSeen;
+            Hardlight.ListExtensions.AddUniqueFromRange(m_cutscenesSeen, newSaveDataLevel.m_cutscenesSeen);
+            Hardlight.ListExtensions.AddUniqueFromRange(m_missionGroupsUnlockSeen, newSaveDataLevel.m_missionGroupsUnlockSeen);
+            m_unlockSeen |= newSaveDataLevel.m_unlockSeen;
+            // Original m_levelSelectUnlockSeen is not merged.
+        }
+
         // Game.Runtime.dll 0x06002c4d.
         public override void Initialise()
         {
@@ -111,6 +132,64 @@ namespace HardlightProject
             foreach (var pair in m_persistentObjectsById) action(pair.Value);
         }
 
+        // Game.Runtime.dll 0x06002c4f; ARM640x5c17b4.
+        public SaveDataLevelMission GetOrCreateMissionData(string missionGuid)
+        {
+            if (!m_missionsByGuid.TryGetValue(missionGuid, out var mission))
+            {
+                mission = new SaveDataLevelMission(missionGuid);
+                m_missionsByGuid[missionGuid] = mission;
+                MarkDirty();
+            }
+            return mission;
+        }
+
+        // Game.Runtime.dll 0x06002c50; Boolean shared ARM640x9a0b24. Value-type
+        // computation precedes dictionary lookup; existing type is not asserted.
+        private bool InternalGetOrCreatePersistentObjectData<T>(PersistentObjectIdentifierType id,
+            out SaveDataLevelPersistentObject persistentObject)
+        {
+            ValueType valueType = SaveDataLevelPersistentObject.GetValueType<T>();
+            bool existed = m_persistentObjectsById.TryGetValue(id, out persistentObject);
+            if (!existed)
+            {
+                persistentObject = new SaveDataLevelPersistentObject(id, valueType);
+                m_persistentObjectsById[id] = persistentObject;
+                MarkDirty();
+            }
+            return existed;
+        }
+
+        // Game.Runtime.dll 0x06002c51; ARM640x5c18ec: applies default only new.
+        public SaveDataLevelPersistentObject GetOrCreatePersistentObjectData(
+            PersistentObjectIdentifierType id, bool defaultValue)
+        {
+            bool existed = InternalGetOrCreatePersistentObjectData<bool>(id, out var persistentObject);
+            if (!existed) persistentObject.Set(defaultValue);
+            return persistentObject;
+        }
+
+        // Game.Runtime.dll 0x06002c52; ARM640x5c19a8: even duplicate marks dirty.
+        public void AddSeenCutsceneGuid(string seenCutsceneGUID)
+        {
+            Hardlight.ListExtensions.AddUnique(m_cutscenesSeen, seenCutsceneGUID);
+            MarkDirty();
+        }
+
+        // Game.Runtime.dll 0x06002c53; ARM640x5c1a10: even empty marks dirty.
+        public void ClearAllSeenCutsceneGuids()
+        {
+            m_cutscenesSeen.Clear();
+            MarkDirty();
+        }
+
+        // Game.Runtime.dll 0x06002c54; ARM640x5c1a7c: even duplicate marks dirty.
+        public void AddMissionGroupUnlockSeen(string missionGroupGUID)
+        {
+            Hardlight.ListExtensions.AddUnique(m_missionGroupsUnlockSeen, missionGroupGUID);
+            MarkDirty();
+        }
+
         // Game.Runtime.dll 0x06002c55.
         public void OnBeforeSerialize()
         {
@@ -126,5 +205,22 @@ namespace HardlightProject
             ListToDictionary(m_persistentObjects, m_persistentObjectsById, entry => entry.ID);
         }
 
+        // Game.Runtime.dll 0x06002c57; ARM640x5c1d78: dictionary, not list.
+        public int GetCompleteMissionCount()
+        {
+            int complete = 0;
+            foreach (var pair in m_missionsByGuid) if (pair.Value.Complete) ++complete;
+            return complete;
+        }
+
+        // Game.Runtime.dll 0x06002c58; ARM640x5c1eec. Contains executes before
+        // checking IsNewState; malformed collections/errors retain that order.
+        public bool HasAnyNewContent(IReadOnlyList<string> validMissionGUIDs)
+        {
+            foreach (var pair in m_missionsByGuid)
+                if (Hardlight.ReadOnlyListExtensions.Contains(validMissionGUIDs, pair.Value.GUID) &&
+                    pair.Value.IsNewState == MissionIsNewState.IsNew) return true;
+            return false;
+        }
     }
 }

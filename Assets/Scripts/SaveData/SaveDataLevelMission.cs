@@ -57,6 +57,13 @@ namespace HardlightProject
             get { return m_completedObjectiveIndices; }
         }
 
+        // Game.Runtime.dll 0x06002c5f.
+        public SaveDataLevelMission(string guid)
+        {
+            m_guid = guid;
+            m_isNewState = MissionIsNewState.None;
+        }
+
         // Game.Runtime.dll 0x06002c60.
         public bool Complete
         {
@@ -165,17 +172,73 @@ namespace HardlightProject
             }
         }
 
-        // Game.Runtime.dll 0x06002c5f.
-        public SaveDataLevelMission(string guid)
+        // Game.Runtime.dll 0x06002c72; ARM640x5c223c. Already complete is a no-op.
+        public void MarkComplete(int progress)
         {
-            m_guid = guid;
-            m_isNewState = MissionIsNewState.None;
+            if (m_complete) return;
+            m_completedAtTime = DateTime.Now;
+            m_complete = true;
+            m_progress = progress;
+            MarkDirty();
+        }
+
+        // Game.Runtime.dll 0x06002c73; ARM640x5c22d8; wrap int32 attempts.
+        public void MarkNewAttempt()
+        {
+            m_attempts = unchecked(m_attempts + 1);
+            MarkDirty();
+        }
+
+        // Game.Runtime.dll 0x06002c74; ARM640x5c22f0.
+        public bool IsObjectiveComplete(int objectiveIndex)
+        {
+            return m_complete || (m_completedObjectiveIndices != null &&
+                m_completedObjectiveIndices.Contains(objectiveIndex));
+        }
+
+        // Game.Runtime.dll 0x06002c75; ARM640x5c236c.
+        public void MarkObjectiveComplete(int objectiveIndex)
+        {
+            if (m_complete) return;
+            if (m_completedObjectiveIndices == null) m_completedObjectiveIndices = new List<int>();
+            if (Hardlight.ListExtensions.AddUnique(m_completedObjectiveIndices, objectiveIndex)) MarkDirty();
+        }
+
+        // Game.Runtime.dll 0x06002c76; ARM640x5c2464.
+        public void MarkObjectiveIncomplete(int objectiveIndex)
+        {
+            if (m_complete) return;
+            if (m_completedObjectiveIndices == null) return;
+            if (m_completedObjectiveIndices.Remove(objectiveIndex)) MarkDirty();
         }
 
         // Game.Runtime.dll 0x06002c77.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {
             // Original ARM64 body is a single RET: this record has no children.
+        }
+
+        // Game.Runtime.dll 0x06002c78; ARM640x5c0f40. Deliberately does not mark
+        // dirty for direct field merges or synchronize the cached DateTime.
+        public void ResolveNewData(SaveDataLevelMission newSaveDataLevelMission)
+        {
+            foreach (int objective in newSaveDataLevelMission.m_completedObjectiveIndices)
+                MarkObjectiveComplete(objective);
+            m_complete |= newSaveDataLevelMission.m_complete;
+            m_levelSelectUnlockSeen |= newSaveDataLevelMission.m_levelSelectUnlockSeen;
+            m_timeTrialUnlockSeen |= newSaveDataLevelMission.m_timeTrialUnlockSeen;
+            m_completedAt = Math.Min(m_completedAt, newSaveDataLevelMission.m_completedAt);
+            m_progress = m_completedObjectiveIndices.Count;
+            if (newSaveDataLevelMission.m_isNewState == MissionIsNewState.Seen)
+                m_isNewState = MissionIsNewState.Seen;
+            else if (newSaveDataLevelMission.m_isNewState == MissionIsNewState.IsNew &&
+                m_isNewState == MissionIsNewState.None) m_isNewState = MissionIsNewState.IsNew;
+            m_attempts = Math.Max(m_attempts, newSaveDataLevelMission.m_attempts);
+            m_xpEarned = Math.Max(m_xpEarned, newSaveDataLevelMission.m_xpEarned);
+            if (newSaveDataLevelMission.m_bestTimeSeconds > 0f)
+                m_bestTimeSeconds = m_bestTimeSeconds > 0f
+                    ? Math.Min(m_bestTimeSeconds, newSaveDataLevelMission.m_bestTimeSeconds)
+                    : newSaveDataLevelMission.m_bestTimeSeconds;
         }
 
         // Game.Runtime.dll 0x06002c79.
@@ -191,5 +254,25 @@ namespace HardlightProject
             m_completedAtTime = Hardlight.TimeUtils.FromUnixTime(m_completedAt);
         }
 
+        // Game.Runtime.dll 0x06002c7b; ARM640x5c2634. XP/dirty/disabled saving are
+        // intentionally not copied; objective indices get an independent list.
+        public SaveDataLevelMission CreateCopy()
+        {
+            return new SaveDataLevelMission(m_guid)
+            {
+                m_complete = m_complete,
+                m_completedAt = m_completedAt,
+                m_attempts = m_attempts,
+                m_guid = m_guid,
+                m_progress = m_progress,
+                m_isNewState = m_isNewState,
+                m_completedAtTime = m_completedAtTime,
+                m_levelSelectUnlockSeen = m_levelSelectUnlockSeen,
+                m_timeTrialUnlockSeen = m_timeTrialUnlockSeen,
+                m_completedObjectiveIndices = m_completedObjectiveIndices == null
+                    ? new List<int>() : new List<int>(m_completedObjectiveIndices),
+                m_bestTimeSeconds = m_bestTimeSeconds
+            };
+        }
     }
 }

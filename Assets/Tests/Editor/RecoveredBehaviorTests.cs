@@ -5,6 +5,12 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalSaveRecordsRetainNativeMergeCopyAndUnitySerialization()
+        {
+            Assert.That(SaveRecordProgressionVerification.Run(), Is.EqualTo(126));
+        }
+
+        [Test]
         public void OriginalMathUtilitiesRetainNativeArithmeticAndGenericConversions()
         {
             Assert.That(MathFoundationVerification.Run(), Is.EqualTo(294));
