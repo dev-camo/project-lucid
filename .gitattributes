@@ -1,0 +1,3 @@
+# Unity's serializers retain a space after empty YAML values.
+*.meta whitespace=-blank-at-eol
+*.asset whitespace=-blank-at-eol

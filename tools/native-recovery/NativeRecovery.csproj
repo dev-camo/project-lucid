@@ -1,0 +1,45 @@
+<Project>
+  <PropertyGroup>
+    <NativeRecoveryBuildRoot Condition="'$(NativeRecoveryBuildRoot)' == ''">$(MSBuildThisFileDirectory)../../.cache/project-lucid/native-recovery/build/</NativeRecoveryBuildRoot>
+    <BaseOutputPath>$(NativeRecoveryBuildRoot)bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(NativeRecoveryBuildRoot)obj/</BaseIntermediateOutputPath>
+    <MSBuildProjectExtensionsPath>$(BaseIntermediateOutputPath)</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ProjectLucid.NativeRecovery</AssemblyName>
+    <Cpp2ILPin>b5ad444b82267cb1e4b88b8b373c008105bdea52</Cpp2ILPin>
+    <Cpp2ILArchiveSHA256>e396fc9a5321a121458b261d6a164945b916c9d024bf2cc96e2953dfe7d4069f</Cpp2ILArchiveSHA256>
+    <Cpp2ILArchive Condition="'$(Cpp2ILArchive)' == ''">$(Cpp2ILSource)/../../downloads/Cpp2IL-$(Cpp2ILPin).tar.gz</Cpp2ILArchive>
+    <NuGetLockFilePath>$(BaseIntermediateOutputPath)packages.lock.json</NuGetLockFilePath>
+    <PublishTrimmed>false</PublishTrimmed>
+    <SourceRevisionId>$(Cpp2ILPin)</SourceRevisionId>
+  </PropertyGroup>
+  <Import Project="SourcePin.props" />
+  <ItemGroup>
+    <ProjectReference Include="$(Cpp2ILSource)/Cpp2IL.Core/Cpp2IL.Core.csproj" />
+  </ItemGroup>
+  <Target Name="VerifyCpp2ILSource" BeforeTargets="CollectPackageReferences;ResolveProjectReferences;PrepareForBuild">
+    <Error Condition="'$(NETCoreSdkVersion)' != '10.0.401'" Text="Use the pinned .NET SDK 10.0.401 from the recovery cache." />
+    <Error Condition="'$(Cpp2ILSource)' == ''" Text="Pass -p:Cpp2ILSource=&lt;hash-verified cached pinned source directory&gt;." />
+    <Error Condition="!Exists('$(Cpp2ILArchive)')" Text="The pinned Cpp2IL source archive is required for build verification." />
+    <GetFileHash Files="$(Cpp2ILArchive)" Algorithm="SHA256">
+      <Output TaskParameter="Hash" PropertyName="ActualCpp2ILArchiveHash" />
+    </GetFileHash>
+    <Error Condition="'$(ActualCpp2ILArchiveHash)' != '$(Cpp2ILArchiveSHA256)'" Text="Cpp2IL source archive hash differs from the required pin." />
+    <GetFileHash Files="@(PinnedCpp2ILSource)" Algorithm="SHA256">
+      <Output TaskParameter="Items" ItemName="HashedCpp2ILSource" />
+    </GetFileHash>
+    <Error Condition="'%(HashedCpp2ILSource.FileHash)' != '%(HashedCpp2ILSource.ExpectedHash)'" Text="Cpp2IL source differs from the pinned archive: %(HashedCpp2ILSource.Identity)" />
+    <ItemGroup>
+      <UnexpectedCpp2ILSource Include="$(Cpp2ILSource)/Cpp2IL.Core/**/*.cs;$(Cpp2ILSource)/LibCpp2IL/**/*.cs;$(Cpp2ILSource)/StableNameDotNet/**/*.cs;$(Cpp2ILSource)/WasmDisassembler/**/*.cs"
+                             Exclude="$(Cpp2ILSource)/**/bin/**;$(Cpp2ILSource)/**/obj/**;@(PinnedCpp2ILSource)" />
+    </ItemGroup>
+    <Error Condition="'@(UnexpectedCpp2ILSource)' != ''" Text="Additional unpinned Cpp2IL source files would enter the build: @(UnexpectedCpp2ILSource)" />
+  </Target>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>

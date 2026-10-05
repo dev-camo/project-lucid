@@ -1,0 +1,6 @@
+{
+  "name": "ProjectLucid.Verification",
+  "references": ["Game.Runtime", "HLUnityCore.Runtime"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

@@ -1,0 +1,7 @@
+{
+  "name": "com.hardlight.hlunitycore",
+  "displayName": "Hardlight Core Reconstruction",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Locally maintained recovery of required Hardlight core behavior and portable service replacements."
+}

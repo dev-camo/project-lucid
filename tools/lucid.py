@@ -20,11 +20,11 @@ def write_report(work_dir, name, report):
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     commands = result.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "bootstrap", "inspect", "recover-code", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build"):
+    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build"):
         command = commands.add_parser(name)
         command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "project-lucid")
         command.add_argument("--json", action="store_true", help="print a compact JSON result")
-        if name in ("inspect", "recover-code", "extract-assets"):
+        if name in ("inspect", "recover-code", "native-schema", "native-method", "extract-assets"):
             command.add_argument("--input", type=Path, default=ROOT / "input" / "SonicDreamTeam.app")
         if name == "shader-evidence":
             command.add_argument("--input", type=Path, required=True, help="an exported Shader .asset or export asset directory")
@@ -32,6 +32,12 @@ def parser():
             command.add_argument("--tool", action="append", choices=("assetripper", "cpp2il", "dumper"))
         if name == "recover-code":
             command.add_argument("--mode", choices=("schemas", "bodies", "analysis"), default="schemas")
+        if name in ("native-schema", "native-method"):
+            command.add_argument("--assembly", required=name == "native-method", help="exact original assembly name")
+        if name == "native-method":
+            command.add_argument("--token", required=True, help="original MethodDef token, e.g. 0x060039b9")
+        if name == "script-layouts":
+            command.add_argument("--schema", type=Path, help="generated native schema; defaults to the latest successful run")
         if name == "validate":
             command.add_argument("--stage", choices=("extraction", "release"), default="release")
         if name == "test":
@@ -66,6 +72,18 @@ def main(argv=None):
         elif args.command == "recover-code":
             from lucidlib.recovery import recover_code
             report = recover_code(args.input, work_dir, mode=args.mode)
+        elif args.command == "native-build":
+            from lucidlib.native import build_native_harness
+            report = build_native_harness(work_dir)
+        elif args.command == "native-schema":
+            from lucidlib.native import native_schema
+            report = native_schema(args.input, work_dir, args.assembly)
+        elif args.command == "native-method":
+            from lucidlib.native import native_method
+            report = native_method(args.input, work_dir, args.assembly, args.token)
+        elif args.command == "script-layouts":
+            from lucidlib.bindings import run_layout_inventory
+            report = run_layout_inventory(ROOT, work_dir, args.schema)
         elif args.command == "extract-assets":
             from lucidlib.assets import extract_assets
             report = extract_assets(args.input, work_dir)
@@ -97,7 +115,7 @@ def main(argv=None):
             print(json.dumps(report, indent=2, sort_keys=True))
         else:
             print("{}: {}".format(args.command, report.get("status", "unknown")))
-            for key in ("message", "output_dir", "project_path", "log", "log_path"):
+            for key in ("message", "error", "output_dir", "project_path", "log", "log_path"):
                 if report.get(key):
                     print("{}: {}".format(key, report[key]))
             for item in report.get("errors", []):

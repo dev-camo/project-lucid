@@ -1,0 +1,113 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - DevOnly
+  - GUIRoot
+  - GUICamera
+  - CameraCollisionIgnore
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - 
+  - BackgroundUI
+  - MenuUI
+  - DialogUI
+  - ForegroundUI
+  - PostProcessing
+  - Character
+  - Track
+  - CharacterCollision
+  - Enemy
+  - PhysicsBody
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0
+  - name: FX Background effects
+    uniqueID: 5
+    locked: 0
+  - name: FX final effects
+    uniqueID: 6
+    locked: 0
+  - name: Background
+    uniqueID: 7
+    locked: 0
+  - name: Background PFX
+    uniqueID: 8
+    locked: 0
+  - name: Menu Background
+    uniqueID: 9
+    locked: 0
+  - name: Menu Background PFX
+    uniqueID: 10
+    locked: 0
+  - name: Menu Midground
+    uniqueID: 11
+    locked: 0
+  - name: Menu Midground PFX
+    uniqueID: 12
+    locked: 0
+  - name: Menu Foreground
+    uniqueID: 13
+    locked: 0
+  - name: Menu Foreground PFX
+    uniqueID: 14
+    locked: 0
+  - name: Overlay Menu
+    uniqueID: 15
+    locked: 0
+  - name: Dialog Background
+    uniqueID: 16
+    locked: 0
+  - name: Dialog Background PFX
+    uniqueID: 17
+    locked: 0
+  - name: Dialog Midground
+    uniqueID: 18
+    locked: 0
+  - name: Dialog Midground PFX
+    uniqueID: 19
+    locked: 0
+  - name: Dialog Foreground
+    uniqueID: 20
+    locked: 0
+  - name: Dialog Foreground PFX
+    uniqueID: 21
+    locked: 0
+  - name: Overlay Dialog
+    uniqueID: 22
+    locked: 0
+  - name: Foreground
+    uniqueID: 23
+    locked: 0
+  - name: Foreground PFX
+    uniqueID: 24
+    locked: 0
+  - name: Overlay Foreground
+    uniqueID: 25
+    locked: 0
+  - name: Above All
+    uniqueID: 26
+    locked: 0
