@@ -22,6 +22,7 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "CloudFacadePreservesOriginalCallbacksKeysAndConflictLifecycle",
     "SavePropertiesPreserveNativeIdentityAndCultureSemantics",
     "PropertyStoreRetainsNativeLifecycleAndRecoversLocalFiles",
+    "SaveDataRetainsOriginalDefaultsDirtyChildrenAndJson",
     "ScriptPointersRequireExactLoadedAssetAndComponentIdentities",
     "OriginalPipelineMarkerRetainsEngineFieldsAfterScriptBinding",
     "TimeConversionsRetainOriginalUnitsRoundingAndDateKinds",

@@ -47,6 +47,13 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void SaveDataRetainsOriginalDefaultsDirtyChildrenAndJson()
+        {
+            SaveDataVerification.Run();
+            SaveDataSerializationVerification.Run();
+        }
+
+        [Test]
         public void ScriptPointersRequireExactLoadedAssetAndComponentIdentities()
         {
             ScriptReferenceVerification.Run();
