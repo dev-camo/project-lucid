@@ -4,8 +4,8 @@ using UnityEngine;
 
 namespace Hardlight.Utils
 {
-    // Original coroutine host lifecycle/start/stop subset. Other scheduled
-    // utility callbacks and delay/predicate iterators remain unresolved.
+    // Original coroutine host lifecycle/start/stop and next-frame subset. Other
+    // scheduled utility callbacks and delay/predicate iterators remain unresolved.
     public partial class CoroutineUtils : MonoBehaviour, ISystem
     {
         private static CoroutineUtils s_instance;
@@ -31,6 +31,25 @@ namespace Hardlight.Utils
 
         // Original token 0x06001172; arm64 0x1b1f090.
         public static Coroutine RunCoroutine(IEnumerator coroutine) => s_instance.StartCoroutine(coroutine);
+
+        // HLUnityCore.Runtime.dll:Hardlight.Utils.CoroutineUtils:0x06001175;
+        // arm64 0x1b381c4. Capture the existing host before constructing the
+        // iterator. An absent host fails here; this does not create one lazily.
+        public static void OnNextFrame(Action action)
+        {
+            CoroutineUtils host = s_instance;
+            host.StartCoroutine(host.NextFrameCoroutine(action));
+        }
+
+        // Original token 0x06001176; arm64 0x1b38278. MoveNext 0x060011b5
+        // at 0x1b39bf0 yields null exactly once, then invokes the retained action
+        // without a null guard. State is completed before invoking user code,
+        // so reentrant MoveNext and a throwing callback cannot execute it again.
+        private IEnumerator NextFrameCoroutine(Action action)
+        {
+            yield return null;
+            action();
+        }
 
         // Original token 0x06001181; arm64 0x1b38a20. An absent host leaves
         // the handle unchanged, as does a failed StopCoroutine call.

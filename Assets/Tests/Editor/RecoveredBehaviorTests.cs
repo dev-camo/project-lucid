@@ -5,6 +5,31 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void CoroutineCallbacksRetainOriginalNextFrameOrdering()
+        {
+            CoroutineCallbackVerification.Run();
+        }
+
+        [Test]
+        public void EnumComparersRetainNativeHashesAndStaticIdentities()
+        {
+            EnumComparerVerification.Run();
+        }
+
+        [Test]
+        public void ProgressRecordsRetainOriginalGraphAndUnityJson()
+        {
+            SaveProgressRecordVerification.Run();
+            SaveProgressSerializationVerification.Run();
+        }
+
+        [Test]
+        public void StateMachineStorageConditionsPreserveNativeTypeAndTimingSemantics()
+        {
+            FSMStorageConditionVerification.Run();
+        }
+
+        [Test]
         public void MeshGeometryMatchesNativeStoresAndIndexBlob()
         {
             MeshGenerationUtilitiesVerification.Run();

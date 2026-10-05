@@ -35,6 +35,16 @@ namespace ProjectLucid.Tests
                 Assert.AreSame(first, untyped.GetSafe());
                 Assert.AreSame(first, typed.GetSafe());
 
+                int scheduledFrame = Time.frameCount;
+                int callbackFrame = -1;
+                int callbackCalls = 0;
+                CoroutineUtils.OnNextFrame(() => { callbackFrame = Time.frameCount; ++callbackCalls; });
+                Assert.AreEqual(0, callbackCalls, "Next-frame callbacks remain pending during the scheduling call.");
+                yield return null;
+                yield return null;
+                Assert.AreEqual(scheduledFrame + 1, callbackFrame, "The callback runs on the following Unity frame.");
+                Assert.AreEqual(1, callbackCalls);
+
                 var trace = new List<string>();
                 Coroutine stopped = CoroutineUtils.RunCoroutine(TraceFrames(trace));
                 Assert.IsNotNull(stopped);
@@ -66,8 +76,12 @@ namespace ProjectLucid.Tests
 
                 Coroutine stale = CoroutineUtils.RunCoroutine(EndlessFrames());
                 Coroutine captured = stale;
+                bool destroyedHostCallback = false;
+                CoroutineUtils.OnNextFrame(() => destroyedHostCallback = true);
                 UnityEngine.Object.Destroy(firstObject);
                 yield return null;
+                yield return null;
+                Assert.IsFalse(destroyedHostCallback, "Host destruction cancels its pending next-frame callback.");
                 Assert.IsTrue(CoroutineUtils.Instance == null);
                 Assert.IsTrue(untyped.IsNull() && typed.IsNull());
                 CollectionAssert.AreEqual(new[] { "untyped", "typed" }, shutdown, "Registry revokes untyped before typed cached references.");
