@@ -133,6 +133,12 @@ namespace ProjectLucid
             damped = QuaternionExtensions.SmoothDamp(new Quaternion(1, 2, 3, 4), new Quaternion(2, 3, 4, 5), ref velocity, 0.2f, 20, 0.016f);
             Require(Near(Quaternion.Dot(velocity, damped), 0, 0.00005f), "velocity projected tangent to unnormalized output");
             Require(Quaternion.Dot(damped, damped) > 20f, "output length is intentionally not forced to one");
+            velocity = default;
+            damped = QuaternionExtensions.SmoothDamp(new Quaternion(1, 2, 3, 4), new Quaternion(5, 6, 7, 8), ref velocity, 0.2f, 0, 0.016f);
+            Require(Same(damped, new Quaternion(1, 2, 3, 4)) && Same(velocity, default), "zero maximum speed holds every nonunit component");
+            velocity = new Quaternion(4, 3, 2, 1);
+            damped = QuaternionExtensions.SmoothDamp(new Quaternion(1, 2, 3, 4), new Quaternion(5, 6, 7, 8), ref velocity, 0.2f, 20, 0);
+            Require(Same(damped, new Quaternion(1, 2, 3, 4)) && Near(velocity.x, 10f / 3f) && Near(velocity.y, 5f / 3f) && Near(velocity.z, 0) && Near(velocity.w, -5f / 3f), "zero elapsed time still projects the initial velocity");
 
             CultureInfo original = CultureInfo.CurrentCulture;
             try
@@ -196,6 +202,9 @@ namespace ProjectLucid
             Require(Near(QuaternionExtensions.SignedAngle(Quaternion.Euler(0, 45, 0), Quaternion.Euler(0, 135, 0), Vector3.up), 90), "actual offset relative rotations");
             Require(Near(QuaternionExtensions.SignedAngle(Quaternion.Euler(0, 45, 0), Quaternion.identity, Vector3.up), -45), "actual reverse relative rotations");
             Require(Near(QuaternionExtensions.SignedAngle(yaw, yaw, Vector3.up), 0), "actual matching rotations");
+            Quaternion pitch = Quaternion.AngleAxis(90, Vector3.right);
+            Require(Near(QuaternionExtensions.SignedAngle(pitch, yaw, Vector3.forward), 120), "noncommuting rotations preserve B times inverse A order");
+            Require(Near(QuaternionExtensions.SignedAngle(yaw, pitch, Vector3.forward), -120), "reversing noncommuting rotations reverses the axis sign");
             Quaternion intended = Quaternion.Euler(20, 40, 15);
             Matrix4x4 matrix = Matrix4x4.TRS(new Vector3(6, -3, 8), intended, new Vector3(2, 3, 4));
             Matrix4x4 before = matrix;

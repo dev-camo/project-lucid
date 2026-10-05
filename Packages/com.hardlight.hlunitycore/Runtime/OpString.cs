@@ -68,4 +68,7 @@ public class OpString
         }
         return t;
     }
+    // 0x0600001b: call virtual ToString, retaining original null failure and
+    // virtual dispatch rather than reading the builder directly.
+    public static implicit operator string(OpString t) { return t.ToString(); }
 }

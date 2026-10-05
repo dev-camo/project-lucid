@@ -5,6 +5,21 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalPhysicsUtilitiesRetainPickingAndCapsuleSweepGeometry()
+        {
+            // CompareTag reports one error for each of the two fixture hits.
+            UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Error, "Tag: tag name is null or empty.");
+            UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Error, "Tag: tag name is null or empty.");
+            Assert.That(PhysicsFoundationVerification.Run(), Is.EqualTo(82));
+        }
+
+        [Test]
+        public void OriginalVector3UtilitiesRetainGeometryAndEngineInterpolation()
+        {
+            Assert.That(Vector3FoundationVerification.Run(), Is.EqualTo(317));
+        }
+
+        [Test]
         public void OriginalFastActionRetainsExactClassCompilerOptions()
         {
             Assert.That(FastActionClassOptionsVerification.RunManaged(), Is.EqualTo(38));
@@ -13,7 +28,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void OriginalMovementUtilitiesRetainNativeMathAndEngineConversions()
         {
-            Assert.That(MovementFoundationVerification.Run(), Is.EqualTo(178));
+            Assert.That(MovementFoundationVerification.Run(), Is.EqualTo(182));
         }
 
         [Test]
