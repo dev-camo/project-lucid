@@ -25,6 +25,9 @@
 *.csproj
 !/tools/player-schema/PlayerSchema.csproj
 !/tools/native-recovery/NativeRecovery.csproj
+!/tools/code-progress/CodeProgress.csproj
+/tools/code-progress/obj/
+/tools/code-progress/bin/
 /tools/native-recovery/obj/
 /tools/native-recovery/bin/
 *.sln

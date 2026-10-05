@@ -20,11 +20,11 @@ def write_report(work_dir, name, report):
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     commands = result.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "player-code", "player-schema", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build"):
+    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "player-code", "player-schema", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build", "progress"):
         command = commands.add_parser(name)
         command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "project-lucid")
         command.add_argument("--json", action="store_true", help="print a compact JSON result")
-        if name in ("inspect", "recover-code", "native-schema", "native-method", "extract-assets"):
+        if name in ("inspect", "recover-code", "native-schema", "native-method", "extract-assets", "progress"):
             command.add_argument("--input", type=Path, default=ROOT / "input" / "SonicDreamTeam.app")
         if name == "shader-evidence":
             command.add_argument("--input", type=Path, required=True, help="an exported Shader .asset or export asset directory")
@@ -44,12 +44,27 @@ def parser():
             command.add_argument("--mode", choices=("editmode", "playmode"), required=True)
         if name in ("build", "player-code", "player-schema"):
             command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
+        if name == "progress":
+            command.add_argument("--target", choices=("macos", "windows", "linux"), default="macos")
+            mode = command.add_mutually_exclusive_group()
+            mode.add_argument("--check", action="store_true", help="check the generated table without game input or Unity")
+            mode.add_argument("--stage", action="store_true", help="refresh and stage progress for the exact Git source index")
     return result
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        if args.command == "progress" and args.check:
+            from lucidlib.progressreport import check_progress
+            report = check_progress(ROOT)
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                totals = report["totals"]
+                print("progress: {} / {} original methods have maintained source bodies".format(
+                    totals["implemented_source_bodies"], totals["original_native_bodies"]))
+            return 0
         from lucidlib.bootstrap import validate_work_dir
         work_dir = validate_work_dir(args.work_dir)
         if args.command == "inspect":
@@ -90,6 +105,16 @@ def main(argv=None):
         elif args.command == "player-schema":
             from lucidlib.playerschema import run_player_schema
             report = run_player_schema(ROOT, work_dir, args.target)
+        elif args.command == "progress":
+            from lucidlib.progressreport import generate_progress
+            report = generate_progress(ROOT, work_dir, args.input, args.target, args.stage)
+            if args.json:
+                print(json.dumps(report, indent=2, sort_keys=True))
+            else:
+                totals = report["totals"]
+                print("progress: {} / {} original methods have maintained source bodies".format(
+                    totals["implemented_source_bodies"], totals["original_native_bodies"]))
+            return 0
         elif args.command == "extract-assets":
             from lucidlib.assets import extract_assets
             report = extract_assets(args.input, work_dir)

@@ -588,14 +588,14 @@ PlayerSettings:
   apiCompatibilityLevelPerPlatform: {}
   m_RenderingPath: 1
   m_MobileRenderingPath: 1
-  metroPackageName: SDT-Decompilation
+  metroPackageName: com.project.lucid
   metroPackageVersion: 
   metroCertificatePath: 
   metroCertificatePassword: 
   metroCertificateSubject: 
   metroCertificateIssuer: 
   metroCertificateNotAfter: 0000000000000000
-  metroApplicationDescription: SDT-Decompilation
+  metroApplicationDescription: Project Lucid
   wsaImages: {}
   metroTileShortName: 
   metroTileShowName: 0

@@ -79,6 +79,17 @@ The resulting metadata report is stored in the cache; it does not approve asset
 bindings or establish that the game is playable. Other targets use `windows` or
 `linux`.
 
+The README's code progress is generated from the supplied bundle and fresh
+compiled source with `python3 tools/lucid.py progress`. It updates the table and
+`docs/code-progress.json`; detailed method inventories remain in the local cache.
+Use `python3 tools/lucid.py progress --check` to check the published table without
+the game bundle, Unity, or downloads.
+
+To refresh progress before each local commit, run
+`git config core.hooksPath tools/hooks`. The hook requires all source edits to be
+staged and a fresh `player-code` result. Automatic pushing is opt-in:
+`git config lucid.pushOnCommit true` pushes each successful commit to `origin`.
+
 Validation uses generated asset audits and test reports. Changing code or assets
 requires fresh checks. The current implementation has passing subsystem tests;
 full startup and gameplay checks are still being restored, so release builds

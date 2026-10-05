@@ -83,7 +83,8 @@ namespace ProjectLucid
                 Require(fields[i].FieldType == values[i].GetType() && Equals(fields[i].GetRawConstantValue(), values[i]), fieldNames[i] + " exact type/value");
             }
             methods = type.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance).OrderBy(m => m.MetadataToken).ToArray();
-            Require(methods.Length == 2 && methods.Select(m => m.Name).SequenceEqual(new[] { "ClampToInt", "ClampToZero" }), "explicit genuine math subset only, not a complete 24-method claim");
+            Require(methods.Length == 24, "complete original math inventory; full signatures and bodies checked separately");
+            methods = methods.Where(m => m.Name == "ClampToInt" || m.Name == "ClampToZero").ToArray();
             foreach (var m in methods)
             {
                 Require(m.IsPublic && m.IsStatic && m.ReturnType == typeof(float) && m.GetMethodBody() != null && m.GetCustomAttributesData().Count == 0, m.Name + " original math method metadata");

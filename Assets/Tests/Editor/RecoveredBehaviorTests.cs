@@ -5,6 +5,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalMathUtilitiesRetainNativeArithmeticAndGenericConversions()
+        {
+            Assert.That(MathFoundationVerification.Run(), Is.EqualTo(294));
+        }
+
+        [Test]
+        public void OriginalFormTraitsRetainNativeGeometryDefaultsAndSerialization()
+        {
+            Assert.That(FormTraitsVerification.Run(), Is.EqualTo(35));
+        }
+
+        [Test]
         public void OriginalPhysicsUtilitiesRetainPickingAndCapsuleSweepGeometry()
         {
             // CompareTag reports one error for each of the two fixture hits.

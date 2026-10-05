@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+if [ "$(git config --bool --get lucid.pushOnCommit || true)" = "true" ]; then
+    git push origin HEAD
+fi

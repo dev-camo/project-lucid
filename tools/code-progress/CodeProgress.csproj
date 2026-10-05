@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ProjectLucid.CodeProgress</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Cpp2IL.Core" HintPath="$(NativeDependencyRoot)/Cpp2IL.Core.dll" />
+    <Reference Include="LibCpp2IL" HintPath="$(NativeDependencyRoot)/LibCpp2IL.dll" />
+    <Reference Include="AssetRipper.Primitives" HintPath="$(NativeDependencyRoot)/AssetRipper.Primitives.dll" />
+    <Reference Include="Unity.Cecil" HintPath="$(UnityManagedRoot)/Unity.Cecil.dll" />
+    <Content Include="$(NativeDependencyRoot)/*.dll" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(NativeDependencyRoot)/runtimes/**/*" Link="runtimes/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
