@@ -5,6 +5,36 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalManagedAssetRetainsNativeClosureAndReferenceCounting()
+        {
+            ManagedAddressableVerification.Run();
+        }
+
+        [Test]
+        public void OriginalManagedAssetUsesGenuineEngineCompletionAndRelease()
+        {
+            ManagedAddressableUnityVerification.Run();
+        }
+
+        [Test]
+        public void OriginalInspectorConditionsRetainAttributesAndComparisonOrder()
+        {
+            InspectorConditionVerification.Run();
+        }
+
+        [Test]
+        public void OriginalZoneThemeRetainsUnityLifecycleAndAssignmentOrder()
+        {
+            ZoneThemeVerification.Run();
+        }
+
+        [Test]
+        public void OriginalRewardRequirementRetainsFieldAndJsonIdentity()
+        {
+            RewardRequirementVerification.Run();
+        }
+
+        [Test]
         public void ReadOnlyListsPreserveNativeComparisonMutationAndEnumerationOrder()
         {
             ReadOnlyListVerification.Run();
