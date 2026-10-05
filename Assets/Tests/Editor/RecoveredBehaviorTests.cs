@@ -5,6 +5,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalMusicAndOrnamentsRetainSerializationAndAssetOwnership()
+        {
+            MissionDisplayDefinitionVerification.Run();
+        }
+
+        [Test]
+        public void OriginalRankDefinitionRetainsIconLifecycleAndSerialization()
+        {
+            RankDefinitionVerification.Run();
+        }
+
+        [Test]
         public void OriginalMissionFieldLeavesRetainKeysListsAndUnitySerialization()
         {
             MissionFieldLeavesVerification.Run();
