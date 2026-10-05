@@ -5,6 +5,12 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalSerializableDictionaryRetainsCallbackAndUnitySerializationOrder()
+        {
+            Assert.That(SerializableDictionaryVerification.Run(), Is.EqualTo(146));
+        }
+
+        [Test]
         public void OriginalActorCollisionLeavesRetainMovementCacheAndTransformOrder()
         {
             Assert.That(ActorCollisionLeavesVerification.RunManaged(), Is.EqualTo(171));
