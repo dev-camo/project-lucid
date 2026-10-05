@@ -8,6 +8,10 @@ root. The supplied bundle remains unchanged. Inspection reads its metadata and
 hashes files; subsequent operations write only to generated directories.
 
 `bootstrap` installs pinned recovery tools into `.cache/project-lucid/tools/`.
+It also installs their required .NET versions: .NET 6 for Il2CppDumper and
+.NET 10 for the pinned Cpp2IL source. These run the recovery tools; Unity
+2022.3.54f1 compiles and runs the game. No separate Microsoft .NET runtime is
+required to play the resulting desktop builds.
 `recover-code` defaults to declarations and serialization schemas. Experimental
 body recovery is a separate mode and must be audited before its output is used.
 `extract-assets` exports to a new staging directory, verifies it, and records a
