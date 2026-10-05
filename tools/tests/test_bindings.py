@@ -16,6 +16,13 @@ def named(assembly, name):
     return {"kind": "named", "assembly": assembly, "canonical_name": name, "reflection_full_name": name}
 
 
+def container(kind, element):
+    if kind == "array":
+        return {"kind": "array", "assembly": element["assembly"], "element": element, "rank": 1, "vector_array": True}
+    return {"kind": "generic_instance", "assembly": "mscorlib", "definition": "System.Collections.Generic.List`1",
+            "arguments": [element]}
+
+
 def attribute(name, arguments=None):
     return {"assembly": "UnityEngine.CoreModule", "full_name": name, "arguments": arguments or [], "fields": [], "properties": []}
 
@@ -153,6 +160,45 @@ class BindingTests(unittest.TestCase):
         self.assertIn("missing_layout_dependency", reasons)
         self.assertIn("managed_reference_subtypes_unverified", reasons)
 
+    def test_matching_nested_containers_are_rejected_but_single_containers_are_supported(self):
+        for outer in ("array", "list"):
+            with self.subTest(outer=outer):
+                original, inventory = self.fixture()
+                flat = container(outer, named("mscorlib", "System.Int32"))
+                for report in (original, inventory):
+                    report["assemblies"][0]["types"][0]["fields"] = [field("values", flat)]
+                self.assertEqual("compatible_layout", self.result(original, inventory)["status"])
+            for inner in ("array", "list"):
+                with self.subTest(outer=outer, inner=inner):
+                    original, inventory = self.fixture()
+                    nested = container(outer, container(inner, named("mscorlib", "System.Int32")))
+                    for report in (original, inventory):
+                        report["assemblies"][0]["types"][0]["fields"] = [field("values", nested)]
+                    self.assertIn("unsupported_nested_serialized_container",
+                                  [i["reason"] for i in self.result(original, inventory)["issues"]])
+
+    def test_serializable_wrappers_can_own_their_own_containers(self):
+        for outer in ("array", "list"):
+            for inner in ("array", "list"):
+                with self.subTest(outer=outer, inner=inner):
+                    original, inventory = self.fixture()
+                    wrapper = record("Example", "Example.Row", [field("values", container(inner, named("mscorlib", "System.Int32")))],
+                                     named("mscorlib", "System.Object"), flags=0x2001)
+                    for report in (original, inventory):
+                        report["assemblies"][0]["types"].append(copy.deepcopy(wrapper))
+                        report["assemblies"][0]["types"][0]["fields"] = [field("rows", container(outer, named("Example", "Example.Row")))]
+                    self.assertEqual("compatible_layout", self.result(original, inventory)["status"])
+
+    def test_matching_multidimensional_arrays_and_invalid_list_arity_remain_blocked(self):
+        invalid = [dict(container("array", named("mscorlib", "System.Int32")), rank=2, vector_array=False),
+                   dict(container("list", named("mscorlib", "System.Int32")), arguments=[named("mscorlib", "System.Int32")] * 2)]
+        for reference, reason in zip(invalid, ("unsupported_serialized_array", "unsupported_serialized_generic")):
+            with self.subTest(reason=reason):
+                original, inventory = self.fixture()
+                for report in (original, inventory):
+                    report["assemblies"][0]["types"][0]["fields"] = [field("values", reference)]
+                self.assertIn(reason, [i["reason"] for i in self.result(original, inventory)["issues"]])
+
     def enum_fixture(self):
         original, inventory = self.fixture()
         enum = record("Example", "Example.Mode", [field("value__"), field("Enabled", named("Example", "Example.Mode"), 32854)],
@@ -173,6 +219,21 @@ class BindingTests(unittest.TestCase):
         original, inventory = self.enum_fixture()
         del original["assemblies"][0]["types"][1]["enum_underlying_type"]
         self.assertIn("enum_values_unverified", [i["reason"] for i in self.result(original, inventory)["issues"]])
+
+    def test_matching_enum_storage_must_be_supported_even_for_small_constants(self):
+        for name in ("Byte", "SByte", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64", "Boolean", "Char"):
+            with self.subTest(underlying=name):
+                original, inventory = self.enum_fixture()
+                for report in (original, inventory):
+                    enum = report["assemblies"][0]["types"][1]
+                    enum["enum_underlying_type"] = named("mscorlib", "System." + name)
+                    enum["fields"][0]["field_type"] = named("mscorlib", "System." + name)
+                    enum["fields"][1]["default_value_type"] = named("mscorlib", "System." + name)
+                candidate = self.result(original, inventory)
+                if name in ("Int64", "UInt64", "Boolean", "Char"):
+                    self.assertIn("unsupported_serialized_enum_underlying_type", [i["reason"] for i in candidate["issues"]])
+                else:
+                    self.assertEqual("compatible_layout", candidate["status"])
 
     def test_ambiguous_types_or_script_identities_are_never_accepted(self):
         original, inventory = self.fixture()

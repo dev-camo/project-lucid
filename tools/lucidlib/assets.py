@@ -46,6 +46,78 @@ EXPORT_SETTINGS = {
     "ImageExportFormat": "Png",
     "PreferOriginalTextureExtension": "on",
 }
+# Unity 2022.3.54f1 PluginImporter output after disabling every platform.
+# UnityFS files remain raw StreamingAssets data; only importer metadata changes.
+_DISABLED_BUNDLE_PLUGIN_META = """fileFormatVersion: 2
+guid: {guid}
+PluginImporter:
+  externalObjects: {{}}
+  serializedVersion: 2
+  iconMap: {{}}
+  executionOrder: {{}}
+  defineConstraints: []
+  isPreloaded: 0
+  isOverridable: 1
+  isExplicitlyReferenced: 1
+  validateReferences: 1
+  platformData:
+  - first:
+      : Any
+    second:
+      enabled: 0
+      settings:
+        Exclude Editor: 0
+        Exclude Linux64: 0
+        Exclude OSXUniversal: 0
+        Exclude Win: 0
+        Exclude Win64: 0
+  - first:
+      Any:
+    second:
+      enabled: 0
+      settings: {{}}
+  - first:
+      Editor: Editor
+    second:
+      enabled: 0
+      settings:
+        CPU: AnyCPU
+        DefaultValueInitialized: true
+        OS: AnyOS
+  - first:
+      Standalone: Linux64
+    second:
+      enabled: 0
+      settings:
+        CPU: AnyCPU
+  - first:
+      Standalone: OSXUniversal
+    second:
+      enabled: 0
+      settings:
+        CPU: x86_64
+  - first:
+      Standalone: Win
+    second:
+      enabled: 0
+      settings:
+        CPU: x86
+  - first:
+      Standalone: Win64
+    second:
+      enabled: 0
+      settings:
+        CPU: x86_64
+  - first:
+      Windows Store Apps: WindowsStoreApps
+    second:
+      enabled: 0
+      settings:
+        CPU: AnyCPU
+  userData:
+  assetBundleName:
+  assetBundleVariant:
+"""
 
 
 def fingerprint_manifest(manifest: list[dict]) -> dict:
@@ -131,6 +203,91 @@ def _is_compiled_shader(path: Path) -> bool:
     with asset.open("rb") as stream:
         prefix = stream.read(4096)
     return prefix.startswith(b"%YAML") and b"--- !u!48 " in prefix
+
+
+def _validate_streaming_bundle(path: Path) -> None:
+    """Recognize the supplied UnityFS v8 header without changing bundle data."""
+    with path.open("rb") as stream:
+        header = stream.read(512)
+    if not header.startswith(b"UnityFS\0"):
+        raise ValueError(f"Unsupported StreamingAssets .bundle format: {path}")
+    if len(header) < 12 or struct.unpack_from(">I", header, 8)[0] != 8:
+        raise ValueError(f"Unsupported or truncated UnityFS bundle version: {path}")
+    offset = 12
+    for _ in range(2):
+        end = header.find(b"\0", offset)
+        if end < offset + 1 or end - offset > 128:
+            raise ValueError(f"Invalid UnityFS bundle version string: {path}")
+        try:
+            header[offset:end].decode("ascii")
+        except UnicodeDecodeError as exc:
+            raise ValueError(f"Invalid UnityFS bundle version string: {path}") from exc
+        offset = end + 1
+    if offset + 20 > len(header):
+        raise ValueError(f"Truncated UnityFS bundle header: {path}")
+    size, compressed_size, uncompressed_size, _ = struct.unpack_from(">QIII", header, offset)
+    if size != path.stat().st_size or not compressed_size or not uncompressed_size or compressed_size > size - offset - 20:
+        raise ValueError(f"Invalid UnityFS bundle size or block-info bounds: {path}")
+
+
+def _bundle_meta_guid(path: Path) -> str | None:
+    if path.is_symlink():
+        raise ValueError(f"Refusing symlink in StreamingAssets bundle metadata: {path}")
+    if not path.exists():
+        return None
+    if not path.is_file() or path.stat().st_size > 1024 * 1024:
+        raise ValueError(f"Invalid StreamingAssets bundle metadata: {path}")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"Invalid StreamingAssets bundle metadata: {path}") from exc
+    matches = list(GUID.finditer(text))
+    if not re.search(r"^fileFormatVersion: 2\s*$", text, re.MULTILINE) or len(re.findall(r"^guid:", text, re.MULTILINE)) != 1 or len(matches) != 1 or matches[0][1] == "0" * 32:
+        raise ValueError(f"Invalid StreamingAssets bundle GUID metadata: {path}")
+    return matches[0][1]
+
+
+def _normalize_streaming_bundles(stage: Path, previous: Path) -> dict:
+    """Disable native-plugin loading for recognized data bundles in staging."""
+    result = {"policy": "unityfs-v8-disable-plugin-platforms-v1", "bundle_count": 0,
+              "normalized_plugin_importers": 0, "rewritten_meta_files": 0,
+              "preserved_export_guids": 0, "preserved_prepared_guids": 0, "generated_guids": 0}
+    guids = {}
+    # Prior Unity-created metas can be reused, but never follow a generated symlink.
+    if previous.exists():
+        _assert_no_symlinks(previous)
+    for bundle in sorted(stage.rglob("*")):
+        if bundle.suffix.lower() != ".bundle":
+            continue
+        if not bundle.is_file() or bundle.is_symlink():
+            raise ValueError(f"Invalid StreamingAssets bundle path: {bundle}")
+        _validate_streaming_bundle(bundle)
+        relative = bundle.relative_to(stage)
+        meta = bundle.with_name(bundle.name + ".meta")
+        exported_guid = _bundle_meta_guid(meta)
+        prior_guid = _bundle_meta_guid(previous / relative.parent / (relative.name + ".meta"))
+        if exported_guid and prior_guid and exported_guid.lower() != prior_guid.lower():
+            raise ValueError(f"Conflicting StreamingAssets bundle GUIDs: {relative}")
+        if exported_guid:
+            guid = exported_guid
+            result["preserved_export_guids"] += 1
+        elif prior_guid:
+            guid = prior_guid
+            result["preserved_prepared_guids"] += 1
+        else:
+            identity = "ProjectLucid/StreamingAssets/" + relative.as_posix()
+            guid = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:32]
+            result["generated_guids"] += 1
+        if guid.lower() in guids:
+            raise ValueError(f"Duplicate StreamingAssets bundle GUID: {relative} and {guids[guid.lower()]}")
+        guids[guid.lower()] = relative
+        normalized = _DISABLED_BUNDLE_PLUGIN_META.format(guid=guid).encode("utf-8")
+        if not meta.exists() or meta.read_bytes() != normalized:
+            meta.write_bytes(normalized)
+            result["rewritten_meta_files"] += 1
+        result["bundle_count"] += 1
+        result["normalized_plugin_importers"] += 1
+    return result
 
 
 def _exported_project(stage: Path) -> Path:
@@ -530,6 +687,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     staging.mkdir()
     replacements = []
     audio_reports = {}
+    bundle_report = {}
     copied = skipped_code = skipped_shader = 0
     try:
         for destination, source_dir in targets:
@@ -554,6 +712,8 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                     shutil.copy2(path, output)
                     copied += 1
             audio_reports[destination.name] = normalize_audio(stage)
+            if destination.name == "StreamingAssets":
+                bundle_report = _normalize_streaming_bundles(stage, destination)
             _json_write(stage / MARKER, {"owner": OWNER, "run_id": report["run_id"]})
             replacements.append((destination, stage))
         backups = _replace_owned_directories(replacements)
@@ -570,6 +730,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                   "recovered_path": str(assets / "Recovered"), "streaming_assets_path": str(assets / "StreamingAssets"),
                   "copied_files": copied, "skipped_code_files": skipped_code, "skipped_shader_files": skipped_shader,
                   "input_fingerprint": report["input_fingerprint"], "tool": report["tool"], "audio_normalization": audio_reports,
+                  "streaming_bundle_normalization": bundle_report,
                   "backup_paths": [str(path) for path in backups], "quarantined_script_guids": dangling,
                   "quarantined_shader_guids": sorted(shader_guids),
                   "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",

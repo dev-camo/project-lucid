@@ -31,6 +31,8 @@ namespace ProjectLucid.Editor
         }
 
         private static readonly Regex GuidReference = new Regex(@"guid:\s*([0-9a-fA-F]{32})", RegexOptions.Compiled);
+        private static readonly Regex ScriptReference = new Regex(@"^\s*m_Script:\s*\{fileID:\s*(-?\d+),\s*guid:\s*([0-9a-fA-F]{32}),\s*type:\s*(\d+)\}\s*$", RegexOptions.Compiled);
+        private static readonly Regex NullScriptReference = new Regex(@"^\s*m_Script:\s*\{fileID:\s*0\}\s*$", RegexOptions.Compiled);
         private static readonly HashSet<string> SerializedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".unity", ".prefab", ".asset", ".mat", ".controller", ".overridecontroller", ".playable",
@@ -45,6 +47,7 @@ namespace ProjectLucid.Editor
             var resolved = new Dictionary<string, string>();
             var missing = new Dictionary<string, HashSet<string>>();
             var badScripts = new HashSet<string>();
+            var scriptResults = new Dictionary<string, string>();
             var shaderErrors = new List<string>();
             int scanned = 0;
             foreach (string file in Directory.EnumerateFiles(recovered, "*", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal))
@@ -58,6 +61,16 @@ namespace ProjectLucid.Editor
                     string relative = "Assets/" + file.Substring(Application.dataPath.Length + 1).Replace('\\', '/');
                     while ((line = reader.ReadLine()) != null)
                     {
+                        if (line.TrimStart().StartsWith("m_Script:", StringComparison.Ordinal))
+                        {
+                            string error;
+                            if (!scriptResults.TryGetValue(line, out error))
+                            {
+                                error = GetScriptBindingError(line);
+                                scriptResults.Add(line, error);
+                            }
+                            if (error != null) badScripts.Add(relative + ": " + error);
+                        }
                         if (line.IndexOf("guid:", StringComparison.Ordinal) < 0) continue;
                         foreach (Match match in GuidReference.Matches(line))
                         {
@@ -74,11 +87,6 @@ namespace ProjectLucid.Editor
                                 HashSet<string> examples;
                                 if (!missing.TryGetValue(guid, out examples)) missing.Add(guid, examples = new HashSet<string>());
                                 if (examples.Count < 8) examples.Add(relative);
-                            }
-                            else if (line.IndexOf("m_Script:", StringComparison.Ordinal) >= 0)
-                            {
-                                MonoScript script = AssetDatabase.LoadAssetAtPath<MonoScript>(destination);
-                                if (script == null || script.GetClass() == null) badScripts.Add(relative + " -> " + destination);
                             }
                         }
                     }
@@ -128,6 +136,40 @@ namespace ProjectLucid.Editor
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
             Debug.Log("Project Lucid reference audit: " + scanned + " assets, " + audit.unresolved_references + " unresolved references. " + output);
+        }
+
+        // Resolve the complete PPtr, including a signed 64-bit local identifier.
+        // A matching GUID alone can select a different subasset in a DLL or an
+        // unrelated script. This checks loaded class eligibility; original type
+        // equivalence and runtime behavior remain separate reconstruction gates.
+        public static string GetScriptBindingError(string line)
+        {
+            if (NullScriptReference.IsMatch(line)) return null;
+            Match pointer = ScriptReference.Match(line);
+            if (!pointer.Success || !long.TryParse(pointer.Groups[1].Value, out long fileID))
+                return "Unsupported or invalid MonoScript pointer: " + line.Trim();
+            if (pointer.Groups[3].Value != "3") return "Unsupported MonoScript pointer type: " + line.Trim();
+            string guid = pointer.Groups[2].Value.ToLowerInvariant();
+            string path = AssetDatabase.GUIDToAssetPath(guid);
+            if (string.IsNullOrEmpty(path)) return "MonoScript GUID is unresolved: " + guid;
+            UnityEngine.Object selected = null;
+            foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                string actualGuid;
+                long actualID;
+                if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out actualGuid, out actualID) ||
+                    !string.Equals(actualGuid, guid, StringComparison.OrdinalIgnoreCase) || actualID != fileID) continue;
+                if (selected != null) return "Duplicate MonoScript local identifier at " + path;
+                selected = asset;
+            }
+            MonoScript script = selected as MonoScript;
+            if (script == null) return "MonoScript local identifier does not resolve at " + path + ": " + fileID;
+            Type type = script.GetClass();
+            if (type == null) return "MonoScript class is unresolved at " + path;
+            if (type.IsAbstract || type.ContainsGenericParameters ||
+                (!typeof(MonoBehaviour).IsAssignableFrom(type) && !typeof(ScriptableObject).IsAssignableFrom(type)))
+                return "MonoScript class is not a concrete component or data asset at " + path;
+            return null;
         }
 
         private static bool IsBuiltinGuid(string guid)

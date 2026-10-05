@@ -8,6 +8,7 @@ import unittest
 from unittest import mock
 import sys
 import struct
+import hashlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -19,6 +20,20 @@ def write_asset(root, path, guid, contents="data"):
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(contents)
     target.with_name(target.name + ".meta").write_text("fileFormatVersion: 2\nguid: " + guid + "\n")
+
+
+def unityfs_bundle(payload=b"synthetic data", version=8):
+    header = b"UnityFS\0" + struct.pack(">I", version) + b"5.x.x\0" + b"2022.3.54f1\0"
+    return header + struct.pack(">QIII", len(header) + 20 + len(payload), 1, 1, 579) + payload
+
+
+def write_bundle(project, path, data=None, guid=None):
+    target = project / "Assets/StreamingAssets" / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(unityfs_bundle() if data is None else data)
+    if guid is not None:
+        target.with_name(target.name + ".meta").write_text("fileFormatVersion: 2\nguid: " + guid + "\nDefaultImporter:\n  externalObjects: {}\n")
+    return target
 
 
 class AssetTests(unittest.TestCase):
@@ -88,6 +103,129 @@ class AssetTests(unittest.TestCase):
         self.assertEqual(prepared[44:], raw[44:])
         self.assertEqual(struct.unpack_from("<I", prepared, 40)[0], 4)
         self.assertEqual(result["audio_normalization"]["Recovered"]["repaired_pcm_headers"], 1)
+
+    def test_prepare_bundle_bytes_export_guids_and_disabled_importer_shape(self):
+        project = self.make_export()
+        first = write_bundle(project, "aa/first/zone1.bundle", unityfs_bundle(b"first"), "1" * 32)
+        second = write_bundle(project, "aa/second/zone1.BUNDLE", unityfs_bundle(b"second"), "2" * 32)
+        raw = {path: path.read_bytes() for path in [first, second]}
+        raw_metas = {path: path.with_name(path.name + ".meta").read_bytes() for path in [first, second]}
+        input_before = assets.fingerprint_manifest(assets._manifest(self.root / "Game.app"))
+        result = assets.prepare_assets(self.repo, self.work)
+        normalization = result["streaming_bundle_normalization"]
+        self.assertEqual(normalization["bundle_count"], 2)
+        self.assertEqual(normalization["normalized_plugin_importers"], 2)
+        self.assertEqual(normalization["preserved_export_guids"], 2)
+        self.assertEqual(normalization["generated_guids"], 0)
+        for path, expected_guid in [(first, "1" * 32), (second, "2" * 32)]:
+            output = self.repo / path.relative_to(project)
+            self.assertEqual(output.read_bytes(), raw[path])
+            self.assertEqual(path.read_bytes(), raw[path])
+            self.assertEqual(path.with_name(path.name + ".meta").read_bytes(), raw_metas[path])
+            text = output.with_name(output.name + ".meta").read_text()
+            self.assertEqual(assets.GUID.search(text)[1], expected_guid)
+            # Hash of actual Unity 2022.3.54f1 API-produced all-disabled meta,
+            # with its original probe GUID restored and trailing blanks removed.
+            canonical = text.replace(expected_guid, "d8156e626c814a8fa2e6b2ddc6a7cc64")
+            self.assertEqual(hashlib.sha256(canonical.encode()).hexdigest(),
+                             "43e46dde270d69ca0f7e153e95cb2abc082317431108c560883b4fc757dda50f")
+            self.assertNotIn("enabled: 1", text)
+        self.assertEqual(assets.fingerprint_manifest(assets._manifest(self.root / "Game.app")), input_before)
+
+    def test_prepare_missing_bundle_meta_is_deterministic_and_reuses_owned_guid(self):
+        project = self.make_export()
+        source = write_bundle(project, "aa/zone1.bundle")
+        first = assets.prepare_assets(self.repo, self.work)
+        output_meta = self.repo / "Assets/StreamingAssets/aa/zone1.bundle.meta"
+        initial = output_meta.read_bytes()
+        self.assertEqual(first["streaming_bundle_normalization"]["generated_guids"], 1)
+        other_repo = self.root / "other-repo"
+        other_repo.mkdir()
+        assets.prepare_assets(other_repo, self.work)
+        self.assertEqual((other_repo / "Assets/StreamingAssets/aa/zone1.bundle.meta").read_bytes(), initial)
+        # Reuse a GUID Unity assigned before this normalizer existed.
+        output_meta.write_text("fileFormatVersion: 2\nguid: " + "3" * 32 + "\nDefaultImporter:\n  externalObjects: {}\n")
+        second = assets.prepare_assets(self.repo, self.work)
+        self.assertEqual(assets.GUID.search(output_meta.read_text())[1], "3" * 32)
+        self.assertEqual(second["streaming_bundle_normalization"]["preserved_prepared_guids"], 1)
+        self.assertEqual(second["streaming_bundle_normalization"]["generated_guids"], 0)
+        self.assertFalse(source.with_name(source.name + ".meta").exists())
+        normalized_meta = output_meta.read_bytes()
+        third = assets.prepare_assets(self.repo, self.work)
+        self.assertEqual(third["streaming_bundle_normalization"]["preserved_prepared_guids"], 1)
+        self.assertEqual(output_meta.read_bytes(), normalized_meta)
+        self.assertEqual(third["streaming_bundle_normalization"]["rewritten_meta_files"], 1)
+
+    def test_unsupported_bundle_headers_abort_staging_without_replacing_owned_assets(self):
+        project = self.make_export()
+        write_bundle(project, "aa/a.bundle", guid="1" * 32)
+        assets.prepare_assets(self.repo, self.work)
+        recovered = self.repo / "Assets/Recovered/keep.txt"
+        recovered.write_bytes(b"previous recovered")
+        streaming = self.repo / "Assets/StreamingAssets/keep.txt"
+        streaming.write_bytes(b"previous streaming")
+        previous_meta = (self.repo / "Assets/StreamingAssets/aa/a.bundle.meta").read_bytes()
+        pointer = self.work / "assets/latest-prepare.json"
+        previous_pointer = pointer.read_bytes()
+        valid = unityfs_bundle()
+        size_offset = valid.index(b"2022.3.54f1\0") + len(b"2022.3.54f1\0")
+        bad_size = bytearray(valid)
+        struct.pack_into(">Q", bad_size, size_offset, len(valid) + 1)
+        bad_bounds = bytearray(valid)
+        struct.pack_into(">I", bad_bounds, size_offset + 8, len(valid))
+        cases = {"native": b"\xcf\xfa\xed\xfe" + bytes(64), "other-unity": b"UnityRaw\0" + bytes(64),
+                 "future-version": unityfs_bundle(version=9), "truncated": b"UnityFS\0\0",
+                 "truncated-header": valid[:size_offset + 19], "wrong-size": bytes(bad_size),
+                 "bad-block-bounds": bytes(bad_bounds), "bad-string": b"UnityFS\0" + struct.pack(">I", 8) + b"x" * 500}
+        for label, data in cases.items():
+            with self.subTest(label=label):
+                source = write_bundle(project, "aa/z.bundle", data)
+                with self.assertRaises(ValueError):
+                    assets.prepare_assets(self.repo, self.work)
+                self.assertEqual(recovered.read_bytes(), b"previous recovered")
+                self.assertEqual(streaming.read_bytes(), b"previous streaming")
+                self.assertEqual((self.repo / "Assets/StreamingAssets/aa/a.bundle.meta").read_bytes(), previous_meta)
+                self.assertEqual(pointer.read_bytes(), previous_pointer)
+                self.assertEqual(source.read_bytes(), data)
+                self.assertFalse(source.with_name(source.name + ".meta").exists())
+                self.assertEqual(list((self.repo / "Assets").glob(".lucid-assets-*")), [])
+
+    def test_bundle_metadata_conflicts_and_duplicate_guids_fail_before_promotion(self):
+        project = self.make_export()
+        source = write_bundle(project, "aa/a.bundle", guid="1" * 32)
+        assets.prepare_assets(self.repo, self.work)
+        output_meta = self.repo / "Assets/StreamingAssets/aa/a.bundle.meta"
+        previous = output_meta.read_bytes()
+        meta = source.with_name(source.name + ".meta")
+        for value in ["fileFormatVersion: 2\nguid: " + "2" * 32 + "\n", "fileFormatVersion: 2\n",
+                      "fileFormatVersion: 2\nguid: " + "0" * 32 + "\n",
+                      "fileFormatVersion: 2\nguid: " + "1" * 32 + "\nguid: invalid\n",
+                      "fileFormatVersion: 2\nguid: " + "1" * 32 + "\nguid: " + "1" * 32 + "\n"]:
+            with self.subTest(meta=value):
+                meta.write_text(value)
+                with self.assertRaisesRegex(ValueError, "GUID"):
+                    assets.prepare_assets(self.repo, self.work)
+                self.assertEqual(output_meta.read_bytes(), previous)
+        meta.write_text("fileFormatVersion: 2\nguid: " + "1" * 32 + "\n")
+        write_bundle(project, "aa/b.bundle", guid="1" * 32)
+        with self.assertRaisesRegex(ValueError, "Duplicate.*GUID"):
+            assets.prepare_assets(self.repo, self.work)
+        self.assertEqual(output_meta.read_bytes(), previous)
+        self.assertFalse((self.repo / "Assets/StreamingAssets/aa/b.bundle").exists())
+
+    def test_previous_bundle_meta_symlink_is_rejected_without_following_it(self):
+        project = self.make_export()
+        write_bundle(project, "aa/a.bundle")
+        assets.prepare_assets(self.repo, self.work)
+        outside = self.root / "outside.meta"
+        outside.write_text("fileFormatVersion: 2\nguid: " + "4" * 32 + "\n")
+        meta = self.repo / "Assets/StreamingAssets/aa/a.bundle.meta"
+        meta.unlink()
+        meta.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "symlink"):
+            assets.prepare_assets(self.repo, self.work)
+        self.assertTrue(meta.is_symlink())
+        self.assertEqual(assets.GUID.search(outside.read_text())[1], "4" * 32)
 
     def test_fingerprint_ignores_input_location_and_detects_same_size_change(self):
         left, right = self.root / "left.app", self.root / "right.app"

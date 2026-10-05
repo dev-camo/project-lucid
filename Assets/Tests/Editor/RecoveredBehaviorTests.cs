@@ -41,6 +41,18 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void ScriptPointersRequireExactLoadedAssetAndComponentIdentities()
+        {
+            ScriptReferenceVerification.Run();
+        }
+
+        [Test]
+        public void OriginalPipelineMarkerRetainsEngineFieldsAfterScriptBinding()
+        {
+            CinemachinePipelineVerification.Run();
+        }
+
+        [Test]
         public void SkyCubemapGpuOutputMatchesDecodedMetalCases()
         {
             SkyCubemapVerification.Run();

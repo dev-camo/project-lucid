@@ -192,22 +192,27 @@ class _Comparison:
         def issue(reason, owner, detail=""):
             issues.append({"reason": reason, "type": list(owner), "detail": detail})
 
-        def reference(left, right, owner, detail):
+        def reference(left, right, owner, detail, container_depth=0):
             if type_identity(left) != type_identity(right):
                 issue("type_identity_mismatch", owner, detail)
                 return
             kind = left["kind"]
             if kind == "array":
+                if container_depth:
+                    issue("unsupported_nested_serialized_container", owner, detail)
                 if left["rank"] != 1 or not left["vector_array"]:
                     issue("unsupported_serialized_array", owner, detail)
-                reference(left["element"], right["element"], owner, detail)
+                reference(left["element"], right["element"], owner, detail, container_depth + 1)
             elif kind == "generic_instance":
                 # Unity 2022 permits List<T>; arbitrary generic data requires
                 # additional serializer evidence and is deliberately blocked.
-                if left["assembly"] != "mscorlib" or left["definition"] != "System.Collections.Generic.List`1":
+                is_list = left["assembly"] == "mscorlib" and left["definition"] == "System.Collections.Generic.List`1"
+                if not is_list or len(left["arguments"]) != 1:
                     issue("unsupported_serialized_generic", owner, detail)
+                if is_list and container_depth:
+                    issue("unsupported_nested_serialized_container", owner, detail)
                 for l_arg, r_arg in zip(left["arguments"], right["arguments"]):
-                    reference(l_arg, r_arg, owner, detail)
+                    reference(l_arg, r_arg, owner, detail, container_depth + 1)
             elif kind in ("generic_parameter", "pointer", "by_reference"):
                 issue("unsupported_serialized_type", owner, detail)
             elif kind == "named":
@@ -256,6 +261,13 @@ class _Comparison:
                         issue("enum_values_unverified", owner, "missing enum underlying/default constants")
                     elif type_identity(left["enum_underlying_type"]) != type_identity(right["enum_underlying_type"]):
                         issue("enum_underlying_mismatch", owner)
+                    elif type_identity(left["enum_underlying_type"]) not in {
+                        ("named", "mscorlib", "System." + name)
+                        for name in ("Byte", "SByte", "Int16", "UInt16", "Int32", "UInt32")
+                    }:
+                        # Unity 2022 supports enum storage up to 32 bits, even
+                        # when a matching 64-bit enum's current values are small.
+                        issue("unsupported_serialized_enum_underlying_type", owner)
                     lconstants = [f for f in left["fields"] if f.get("is_const")]
                     rconstants = [f for f in right["fields"] if f.get("is_const")]
                     if any(f.get("has_default_value") is not True or f.get("default_value_complete") is not True for f in lconstants + rconstants):
