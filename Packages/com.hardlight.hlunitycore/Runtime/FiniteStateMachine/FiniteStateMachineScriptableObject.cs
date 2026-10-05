@@ -3,9 +3,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [CreateAssetMenu(fileName = "FSM", menuName = "Hardlight/HLUnityCore/Finite State Machine", order = 0)]
     public class FiniteStateMachineScriptableObject : ScriptableObject
     {

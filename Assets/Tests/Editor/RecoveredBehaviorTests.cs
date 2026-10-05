@@ -5,6 +5,37 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void StackableConfigurationPreservesNativeOrderCacheAndOperations()
+        {
+            StackablePrimitiveVerification.Run();
+            StackableDataVerification.Run();
+        }
+
+        [Test]
+        public void OriginalConfigurationProviderRetainsUnityConstructionAndLookup()
+        {
+            SystemConfigurationVerification.Run();
+        }
+
+        [Test]
+        public void EnumStringRegistryRetainsCompleteNativeTablesAndMutableMisses()
+        {
+            HardlightEnumStringsVerification.Run();
+        }
+
+        [Test]
+        public void OriginalBootPersistenceStatesRetainKeysSaveAndShutdownOrder()
+        {
+            BootPersistenceStateVerification.Run();
+        }
+
+        [Test]
+        public void OriginalRuntimeDelegatesStayOutsideUnitySerialization()
+        {
+            DelegateSerializationVerification.Run();
+        }
+
+        [Test]
         public void OriginalStartingPointDefinitionsBindToMaintainedGuidType()
         {
             StartingPointAssetVerification.Run();

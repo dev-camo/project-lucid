@@ -115,6 +115,41 @@ class BindingTests(unittest.TestCase):
             guid="d" * 32, path="Assets/Scripts/Widget.cs"))
         self.assertIn("ambiguous_monoscript_identity", [issue["reason"] for issue in self.result(original, inventory)["issues"]])
 
+    def delegate_fixture(self, attributes=None):
+        original, inventory = self.fixture()
+        reference = {"kind": "generic_instance", "assembly": "mscorlib", "definition": "System.Action`1",
+                     "arguments": [named("Example", "Example.Widget")]}
+        for report in (original, inventory):
+            report["assemblies"][0]["types"][0]["fields"].append(field("callback", copy.deepcopy(reference), attributes=attributes))
+            report["assemblies"].append({"name": "mscorlib", "types": [
+                record("mscorlib", "System.Action`1", base=named("mscorlib", "System.MulticastDelegate")),
+                record("mscorlib", "System.MulticastDelegate", base=named("mscorlib", "System.Delegate")),
+                record("mscorlib", "System.Delegate", base=named("mscorlib", "System.Object"))]})
+        return original, inventory
+
+    def test_matching_proven_delegates_are_excluded_without_changing_native_field_flags(self):
+        for attributes in ([], [attribute("UnityEngine.SerializeReference")]):
+            with self.subTest(attributes=attributes):
+                original, inventory = self.delegate_fixture(attributes)
+                self.assertEqual("compatible_layout", self.result(original, inventory)["status"])
+                callback = original["assemblies"][0]["types"][0]["fields"][1]
+                self.assertTrue(callback["unity_serialization_candidate"])
+                self.assertFalse(callback["non_serialized"])
+
+    def test_unknown_or_changed_delegate_contracts_do_not_bypass_layout_checks(self):
+        for change in ("missing-base", "different-base", "different-argument", "field-flags", "nonserialized", "cycle"):
+            with self.subTest(change=change):
+                original, inventory = self.delegate_fixture()
+                loaded = inventory["assemblies"][-1]["types"]
+                callback = inventory["assemblies"][0]["types"][0]["fields"][1]
+                if change == "missing-base": loaded.pop(2)
+                if change == "different-base": loaded[0]["base_type"] = named("mscorlib", "System.Object")
+                if change == "different-argument": callback["field_type"]["arguments"] = [named("mscorlib", "System.String")]
+                if change == "field-flags": callback.update(attributes=7, is_public=False, unity_serialization_candidate=False)
+                if change == "nonserialized": callback.update(attributes=134, non_serialized=True, unity_serialization_candidate=False)
+                if change == "cycle": loaded[1]["base_type"] = named("mscorlib", "System.Action`1")
+                self.assertEqual("blocked", self.result(original, inventory)["status"])
+
     def test_inherited_private_serialized_field_change_blocks(self):
         original, inventory = self.fixture()
         attrs = [attribute("UnityEngine.SerializeField")]

@@ -186,6 +186,25 @@ class _Comparison:
         self.original = _index(original)
         self.loaded = _index(loaded)
 
+    @staticmethod
+    def _is_delegate(reference, index):
+        """Prove delegate ancestry; names/generic arguments alone are insufficient."""
+        seen = set()
+        while reference and reference.get("kind") in ("named", "generic_instance"):
+            type_identity(reference)
+            name = reference.get("reflection_full_name") if reference["kind"] == "named" else reference["definition"]
+            key = reference["assembly"], name
+            if key in seen:
+                raise LayoutError("Cyclic delegate ancestry")
+            seen.add(key)
+            record = index.get(key)
+            if record is None or record.get("schema_complete") is not True:
+                return False
+            if key == ("mscorlib", "System.Delegate"):
+                return True
+            reference = record.get("base_type")
+        return False
+
     def layout(self, key: Tuple[str, str]) -> list:
         issues, active, checked = [], set(), set()
 
@@ -235,6 +254,24 @@ class _Comparison:
             try:
                 lfields = _candidate_fields(left, require_string_evidence=True)
                 rfields = _candidate_fields(right)
+                # Unity2022 WillUnitySerialize excludes types assignable to
+                # System.Delegate, including public/SerializeReference fields.
+                # Keep coarse field-visibility evidence intact. Exclude only a
+                # matching field proven delegate on BOTH complete type graphs;
+                # changed types/attributes/visibility still block compatibility.
+                rlookup = {f["name"]: f for f in rfields}
+                excluded_delegates = set()
+                for field in lfields:
+                    other = rlookup.get(field["name"])
+                    if not other or not self._is_delegate(field["field_type"], self.original):
+                        continue
+                    if (type_identity(field["field_type"]) == type_identity(other["field_type"]) and
+                            self._is_delegate(other["field_type"], self.loaded) and
+                            field["attributes"] == other["attributes"] and
+                            _attributes(field, require_string_evidence=True) == _attributes(other)):
+                        excluded_delegates.add(field["name"])
+                lfields = [f for f in lfields if f["name"] not in excluded_delegates]
+                rfields = [f for f in rfields if f["name"] not in excluded_delegates]
                 for label in ("is_value_type", "is_enum", "is_abstract", "declaring_type", "generic_parameters", "unity_component", "unity_scriptable_object"):
                     if left.get(label) != right.get(label):
                         issue("type_shape_mismatch", owner, label)
