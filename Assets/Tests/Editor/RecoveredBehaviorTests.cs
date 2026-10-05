@@ -29,6 +29,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void CloudFacadePreservesOriginalCallbacksKeysAndConflictLifecycle()
+        {
+            CloudFacadeVerification.Run();
+        }
+
+        [Test]
         public void SavePropertiesPreserveNativeIdentityAndCultureSemantics()
         {
             PropertyListVerification.Run();
