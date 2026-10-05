@@ -8,8 +8,8 @@ import struct
 import tempfile
 import unittest
 
-from tools.sdtlib.bootstrap import CACHE_ROOT, REPO_ROOT
-from tools.sdtlib.shaders import (MAX_SEGMENT_BYTES, PROGRAM_VERSION, decode_lz4_block,
+from tools.lucidlib.bootstrap import CACHE_ROOT, REPO_ROOT
+from tools.lucidlib.shaders import (MAX_SEGMENT_BYTES, PROGRAM_VERSION, decode_lz4_block,
                                  extract_shader_evidence, metal_program, parse_shader_yaml,
                                  program_entries)
 

@@ -27,8 +27,8 @@ from .inspection import _manifest, sha256_file
 
 
 SCHEMA_VERSION = 1
-OWNER = "sdt-recovery-assets-v1"
-MARKER = ".sdt-recovery-owner.json"
+OWNER = "project-lucid-assets-v1"
+MARKER = ".lucid-owner.json"
 GUID = re.compile(r"^guid:\s*([0-9a-fA-F]{32})\s*$", re.MULTILINE)
 REFERENCE = re.compile(r"guid:\s*([0-9a-fA-F]{32})")
 SCRIPT_REFERENCE = re.compile(r"m_Script:\s*\{[^}]*guid:\s*([0-9a-fA-F]{32})")
@@ -526,7 +526,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     targets = [(assets / "Recovered", source), (assets / "StreamingAssets", source / "StreamingAssets")]
     for destination, _ in targets:
         _owned_directory(destination)
-    staging = assets / (".sdt-assets-" + uuid.uuid4().hex)
+    staging = assets / (".lucid-assets-" + uuid.uuid4().hex)
     staging.mkdir()
     replacements = []
     audio_reports = {}

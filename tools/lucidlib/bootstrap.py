@@ -24,7 +24,7 @@ except ImportError:  # Inspection/validation must still import on Windows.
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CACHE_ROOT = REPO_ROOT / ".cache" / "sdt-recovery"
+CACHE_ROOT = REPO_ROOT / ".cache" / "project-lucid"
 LOCK_FILE = REPO_ROOT / "tools" / "tool-lock.json"
 
 
@@ -108,7 +108,7 @@ def download_artifact(artifact: dict, work_dir: Path) -> Path:
         return path
     temporary = managed_path(work_dir, "downloads", f".{filename}.{uuid.uuid4().hex}.part")
     try:
-        request = urllib.request.Request(artifact["url"], headers={"User-Agent": "SDT-Recovery/1.0"})
+        request = urllib.request.Request(artifact["url"], headers={"User-Agent": "ProjectLucid-Recovery/1.0"})
         checksum = hashlib.new(algorithm)
         with urllib.request.urlopen(request, timeout=60) as source, temporary.open("xb") as output:
             for block in iter(lambda: source.read(1024 * 1024), b""):
@@ -246,7 +246,7 @@ def dotnet_environment(work_dir: Path, dotnet_root: Path | None = None) -> dict:
 def _install(name: str, lock: dict, work_dir: Path) -> Path:
     artifact = lock["artifacts"][name]
     destination = managed_path(work_dir, "tools", name)
-    marker = managed_path(work_dir, "tools", name, "sdt-install.json")
+    marker = managed_path(work_dir, "tools", name, "lucid-install.json")
     identity = {key: artifact[key] for key in ("version", "sha256", "sha512") if key in artifact}
     entry = managed_path(work_dir, "tools", name, artifact["entrypoint"])
     if marker.is_file() and entry.is_file():
@@ -267,7 +267,7 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
             configuration = json.loads((stage / "config.json").read_text(encoding="utf-8"))
             configuration["RequireAnyKey"] = False
             write_json(stage / "config.json", configuration)
-        write_json(stage / "sdt-install.json", identity)
+        write_json(stage / "lucid-install.json", identity)
         stage.replace(destination)
     finally:
         if stage.exists():
@@ -279,7 +279,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
     dotnet_root = _install("dotnet", lock, work_dir)
     source = _install("cpp2il-source", lock, work_dir)
     output = managed_path(work_dir, "tools", "cpp2il")
-    marker = managed_path(work_dir, "tools", "cpp2il", "sdt-build.json")
+    marker = managed_path(work_dir, "tools", "cpp2il", "lucid-build.json")
     identity = {"commit": lock["artifacts"]["cpp2il-source"]["version"],
                 "sdk": lock["artifacts"]["dotnet"]["version"], "runtime": "osx-arm64",
                 "build_schema": 2}
@@ -308,7 +308,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
         for filename in ("LICENSE", "nuget.config"):
             if (source / filename).is_file():
                 shutil.copyfile(source / filename, stage / filename)
-        write_json(stage / "sdt-build.json", identity)
+        write_json(stage / "lucid-build.json", identity)
         backup = None
         if replacing_owned_build:
             backup = managed_path(work_dir, "tools", f".superseded-cpp2il-{uuid.uuid4().hex}")

@@ -6,9 +6,9 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sdtlib.project import build_project, validate_project
-from sdtlib.assets import EXPORT_SETTINGS, fingerprint_manifest, _tool_lock
-from sdtlib.inspection import _manifest
+from lucidlib.project import build_project, validate_project
+from lucidlib.assets import EXPORT_SETTINGS, fingerprint_manifest, _tool_lock
+from lucidlib.inspection import _manifest
 
 
 class ProjectTests(unittest.TestCase):
@@ -31,16 +31,12 @@ class ProjectTests(unittest.TestCase):
             "status": "exported", "project_path": str(export), "asset_map_path": str(mapping),
             "input_path": str(app), "input_fingerprint": fingerprint_manifest(_manifest(app)),
             "tool": _tool_lock(), "settings": EXPORT_SETTINGS}))
-        (root / "reconstruction-status.json").write_text(json.dumps({
-            "release_ready": False, "behaviors": {"movement": "unresolved"}}))
         return work, player, mapping
 
     def test_release_build_never_runs_editor_when_game_unresolved(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / "reconstruction-status.json").write_text(json.dumps({
-                "release_ready": False, "behaviors": {"movement": "unresolved"}}))
-            with patch("sdtlib.project.subprocess.run") as run:
+            with patch("lucidlib.project.subprocess.run") as run:
                 result = build_project(root, root / "cache", "macos")
             self.assertEqual("blocked", result["status"])
             run.assert_not_called()

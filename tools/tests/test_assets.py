@@ -11,7 +11,7 @@ import struct
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sdtlib import assets
+from lucidlib import assets
 
 
 def write_asset(root, path, guid, contents="data"):

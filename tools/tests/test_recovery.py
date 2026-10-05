@@ -13,10 +13,10 @@ import unittest
 from unittest import mock
 import zipfile
 
-from tools.sdtlib.bootstrap import (CACHE_ROOT, REPO_ROOT, ToolError, bootstrap,
+from tools.lucidlib.bootstrap import (CACHE_ROOT, REPO_ROOT, ToolError, bootstrap,
                                    download_artifact, managed_path, run_logged,
                                    unpack_archive, validate_work_dir)
-from tools.sdtlib.recovery import _managed_files, classify_il, recover_code
+from tools.lucidlib.recovery import _managed_files, classify_il, recover_code
 
 
 class RecoverySafetyTests(unittest.TestCase):
@@ -55,7 +55,7 @@ class RecoverySafetyTests(unittest.TestCase):
 
     def test_selected_tool_names_are_validated_before_any_download(self):
         for selected in ([], ["unknown"], "../input"):
-            with self.subTest(selected=selected), mock.patch("tools.sdtlib.bootstrap.download_artifact") as download:
+            with self.subTest(selected=selected), mock.patch("tools.lucidlib.bootstrap.download_artifact") as download:
                 with self.assertRaises(ValueError):
                     bootstrap(self.work, selected)
                 download.assert_not_called()
@@ -129,12 +129,12 @@ class RecoverySafetyTests(unittest.TestCase):
         failed = {"tool": "cpp2il", "status": "failed", "assembly_files": []}
         fallback = {"tool": "dumper", "status": "ready", "output_dir": str(self.work / "fallback"),
                     "assembly_files": ["Game.Runtime.dll"], "process": {"log": "fallback.log"}}
-        with mock.patch("tools.sdtlib.recovery._resolve_input", return_value=(app, binary, metadata, "2022.3.54f1")), \
-             mock.patch("tools.sdtlib.recovery.parse_metadata", return_value=empty), \
-             mock.patch("tools.sdtlib.recovery.sha256_file", return_value="source-hash"), \
-             mock.patch("tools.sdtlib.recovery._thin_binary", return_value=(binary, {"name": "x86_64"})), \
-             mock.patch("tools.sdtlib.recovery._cpp2il", return_value=failed), \
-             mock.patch("tools.sdtlib.recovery._dumper", return_value=fallback):
+        with mock.patch("tools.lucidlib.recovery._resolve_input", return_value=(app, binary, metadata, "2022.3.54f1")), \
+             mock.patch("tools.lucidlib.recovery.parse_metadata", return_value=empty), \
+             mock.patch("tools.lucidlib.recovery.sha256_file", return_value="source-hash"), \
+             mock.patch("tools.lucidlib.recovery._thin_binary", return_value=(binary, {"name": "x86_64"})), \
+             mock.patch("tools.lucidlib.recovery._cpp2il", return_value=failed), \
+             mock.patch("tools.lucidlib.recovery._dumper", return_value=fallback):
             report = recover_code(app, self.work, mode="bodies")
         self.assertEqual(report["status"], "failed")
         self.assertFalse(report["playable_game"])
@@ -149,12 +149,12 @@ class RecoverySafetyTests(unittest.TestCase):
         succeeded = {"tool": "cpp2il", "status": "ready", "output_dir": str(self.work),
                      "assembly_files": [str(self.work / "__Generated.dll")], "process": {"log": "schema.log"}}
         quality = {"assemblies": [{"types": 1, "methods": 1}], "counts": {"schema_placeholder": 1}}
-        with mock.patch("tools.sdtlib.recovery._resolve_input", return_value=(app, binary, metadata, "2022.3.54f1")), \
-             mock.patch("tools.sdtlib.recovery.parse_metadata", return_value=fixture), \
-             mock.patch("tools.sdtlib.recovery.sha256_file", return_value="source-hash"), \
-             mock.patch("tools.sdtlib.recovery._thin_binary", return_value=(binary, {"name": "x86_64"})), \
-             mock.patch("tools.sdtlib.recovery._cpp2il", return_value=succeeded), \
-             mock.patch("tools.sdtlib.recovery._inspect_managed_output", return_value=quality) as inspect:
+        with mock.patch("tools.lucidlib.recovery._resolve_input", return_value=(app, binary, metadata, "2022.3.54f1")), \
+             mock.patch("tools.lucidlib.recovery.parse_metadata", return_value=fixture), \
+             mock.patch("tools.lucidlib.recovery.sha256_file", return_value="source-hash"), \
+             mock.patch("tools.lucidlib.recovery._thin_binary", return_value=(binary, {"name": "x86_64"})), \
+             mock.patch("tools.lucidlib.recovery._cpp2il", return_value=succeeded), \
+             mock.patch("tools.lucidlib.recovery._inspect_managed_output", return_value=quality) as inspect:
             report = recover_code(app, self.work)
         self.assertEqual(report["status"], "ready")
         self.assertEqual(report["missing_assemblies"], [])

@@ -6,6 +6,8 @@ import platform
 import shutil
 import subprocess
 import sys
+from .verification import current_identity, find_editor, verified_receipt
+from .bootstrap import managed_path, write_json
 
 UNITY_VERSION = "2022.3.54f1"
 
@@ -81,13 +83,9 @@ def validate_project(repo_root, work_dir, stage="release"):
         catalog_hash = inspection.get("addressables", {}).get("catalog_sha256")
         if not catalog_hash or mapping.get("catalog_sha256") != catalog_hash:
             errors.append("Asset map and inspected catalog differ")
-    state = _read_json(repo_root / "reconstruction-status.json", errors, "Reconstruction ledger")
-    unresolved = sorted(name for name, status in state.get("behaviors", {}).items() if status != "verified")
+    identity = {}
+    checks = {}
     if stage == "release":
-        if state.get("release_ready") is not True:
-            errors.append("Full game reconstruction is not release ready")
-        if not state.get("behaviors") or unresolved:
-            errors.append("Unverified behavior: " + ", ".join(unresolved or ["missing behavior inventory"]))
         if not (repo_root / "Assets" / "Recovered").is_dir():
             errors.append("Extracted content has not been prepared in the Unity project")
         version_path = repo_root / "ProjectSettings" / "ProjectVersion.txt"
@@ -98,28 +96,45 @@ def validate_project(repo_root, work_dir, stage="release"):
         audit = _read_json(work_dir / "reports" / "unity-reference-audit.json", errors, "Unity reference audit")
         if audit.get("status") != "complete" or audit.get("unresolved_references", 1) != 0:
             errors.append("Required asset and script references remain unresolved")
-    return {"status": "failed" if errors else "complete", "stage": stage, "errors": errors,
-            "unverified_behaviors": unresolved, "verified_methods": len(state.get("verified_methods", {})),
+        try:
+            identity = current_identity(repo_root)
+            if audit.get("unity_version") != UNITY_VERSION or any(audit.get(key) != value for key, value in identity.items()):
+                errors.append("Unity reference audit is stale for the current project")
+            for mode in ("editmode", "playmode"):
+                try:
+                    checks[mode] = verified_receipt(work_dir, mode, identity)
+                except (ValueError, OSError) as error:
+                    errors.append("Required " + mode + " verification unavailable: " + str(error))
+        except (ValueError, OSError) as error:
+            errors.append("Project identity could not be verified: " + str(error))
+    return {"schema_version": 1, "generated_by": "ProjectLucid.validate_project",
+            "status": "failed" if errors else "complete", "stage": stage, "errors": errors,
+            "automated_checks": checks, **identity,
             "asset_inventory": mapping.get("summary", {}),
             "message": "Extraction readiness and verified gameplay are separate results."}
 
 
 def build_project(repo_root, work_dir, target):
+    if target not in ("macos", "windows", "linux"):
+        raise ValueError("Build target must be macos, windows, or linux")
     validation = validate_project(repo_root, work_dir)
     if validation["status"] != "complete":
         return {"status": "blocked", "target": target, "errors": validation["errors"],
                 "message": "Release build blocked: required reconstruction is incomplete."}
-    executable = shutil.which("unity")
-    if not executable:
-        return {"status": "blocked", "errors": ["Unity CLI is missing"]}
+    try:
+        executable = find_editor()
+    except ValueError as error:
+        return {"status": "blocked", "errors": [str(error)]}
+    receipt = managed_path(work_dir, "reports", "release-validation.json")
+    write_json(receipt, validation)
     outputs = {"macos": "macOS/ProjectLucid.app", "windows": "Windows/ProjectLucid.exe",
                "linux": "Linux/ProjectLucid.x86_64"}
     destination = Path(repo_root) / "Builds" / outputs[target]
     destination.parent.mkdir(parents=True, exist_ok=True)
-    log = work_dir / "reports" / ("build-" + target + ".log")
-    command = [executable, "run", str(repo_root), "--editor-version", UNITY_VERSION,
-               "--log-file", str(log), "--", "-executeMethod", "SDT.Reconstruction.Editor.ReconstructionBuild.Build",
-               "-sdtTarget", target, "-sdtOutput", str(destination)]
+    log = managed_path(work_dir, "reports", "build-" + target + ".log")
+    command = [str(executable), "-batchmode", "-quit", "-projectPath", str(repo_root),
+               "-logFile", str(log), "-executeMethod", "ProjectLucid.Editor.LucidBuild.Build",
+               "-lucidTarget", target, "-lucidOutput", str(destination), "-lucidValidation", str(receipt)]
     process = subprocess.run(command, timeout=1800)
     success = process.returncode == 0 and destination.exists()
     return {"status": "complete" if success else "failed", "target": target,

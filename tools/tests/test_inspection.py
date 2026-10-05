@@ -11,9 +11,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sdtlib.inspection import inspect_bundle, inspect_catalog
-from sdtlib.macho import inspect_macho
-from sdtlib.metadata import parse_metadata
+from lucidlib.inspection import inspect_bundle, inspect_catalog
+from lucidlib.macho import inspect_macho
+from lucidlib.metadata import parse_metadata
 
 
 def metadata_fixture():

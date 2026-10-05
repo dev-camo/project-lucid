@@ -159,7 +159,7 @@ def _inspect_managed_output(directory: Path, work_dir: Path, run_id: str, *, sch
     helper = managed_path(work_dir, "tools", "il-inspector")
     helper.mkdir(parents=True, exist_ok=True)
     source_hash = hashlib.sha256(_INSPECTOR_SOURCE.encode()).hexdigest()
-    marker = managed_path(work_dir, "tools", "il-inspector", "sdt-inspector.json")
+    marker = managed_path(work_dir, "tools", "il-inspector", "lucid-inspector.json")
     assembly = managed_path(work_dir, "tools", "il-inspector", "bin/Release/net10.0/RecoveryInspector.dll")
     project = managed_path(work_dir, "tools", "il-inspector", "RecoveryInspector.csproj")
     source_file = managed_path(work_dir, "tools", "il-inspector", "Program.cs")

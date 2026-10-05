@@ -37,7 +37,7 @@ def repair_pcm_header(path):
     fixed = bytearray(header)
     struct.pack_into("<I", fixed, 4, size - 8)
     struct.pack_into("<I", fixed, 40, size - 44)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=".sdt-audio-", dir=path.parent)
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".lucid-audio-", dir=path.parent)
     temporary = Path(temporary_name)
     samples = hashlib.sha256()
     try:

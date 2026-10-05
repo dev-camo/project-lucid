@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def write_report(work_dir, name, report):
-    from sdtlib.bootstrap import managed_path, write_json
+    from lucidlib.bootstrap import managed_path, write_json
     destination = managed_path(work_dir, "reports", name)
     write_json(destination, report)
     return destination
@@ -20,9 +20,9 @@ def write_report(work_dir, name, report):
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     commands = result.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "bootstrap", "inspect", "recover-code", "extract-assets", "shader-evidence", "prepare", "validate", "build"):
+    for name in ("doctor", "bootstrap", "inspect", "recover-code", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build"):
         command = commands.add_parser(name)
-        command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "sdt-recovery")
+        command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "project-lucid")
         command.add_argument("--json", action="store_true", help="print a compact JSON result")
         if name in ("inspect", "recover-code", "extract-assets"):
             command.add_argument("--input", type=Path, default=ROOT / "input" / "SonicDreamTeam.app")
@@ -34,6 +34,8 @@ def parser():
             command.add_argument("--mode", choices=("schemas", "bodies", "analysis"), default="schemas")
         if name == "validate":
             command.add_argument("--stage", choices=("extraction", "release"), default="release")
+        if name == "test":
+            command.add_argument("--mode", choices=("editmode", "playmode"), required=True)
         if name == "build":
             command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
     return result
@@ -42,10 +44,10 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
-        from sdtlib.bootstrap import validate_work_dir
+        from lucidlib.bootstrap import validate_work_dir
         work_dir = validate_work_dir(args.work_dir)
         if args.command == "inspect":
-            from sdtlib.inspection import inspect_bundle
+            from lucidlib.inspection import inspect_bundle
             report = inspect_bundle(args.input)
             destination = write_report(work_dir, "inspection.json", report)
             present = report["addressables"]["bundle_count"]
@@ -59,28 +61,36 @@ def main(argv=None):
                       identity["version"], identity["unity_version"], present, missing, destination))
             return 1 if missing else 0
         if args.command == "bootstrap":
-            from sdtlib.bootstrap import bootstrap
+            from lucidlib.bootstrap import bootstrap
             report = bootstrap(work_dir, selected=args.tool)
         elif args.command == "recover-code":
-            from sdtlib.recovery import recover_code
+            from lucidlib.recovery import recover_code
             report = recover_code(args.input, work_dir, mode=args.mode)
         elif args.command == "extract-assets":
-            from sdtlib.assets import extract_assets
+            from lucidlib.assets import extract_assets
             report = extract_assets(args.input, work_dir)
         elif args.command == "shader-evidence":
-            from sdtlib.shaders import extract_shader_evidence
+            from lucidlib.shaders import extract_shader_evidence
             report = extract_shader_evidence(args.input, work_dir)
         elif args.command == "prepare":
-            from sdtlib.assets import prepare_assets
+            from lucidlib.assets import prepare_assets
             report = prepare_assets(ROOT, work_dir)
         elif args.command == "validate":
-            from sdtlib.project import validate_project
+            from lucidlib.project import validate_project
             report = validate_project(ROOT, work_dir, stage=args.stage)
+            if args.stage == "release":
+                write_report(work_dir, "release-validation.json", report)
+        elif args.command == "test":
+            from lucidlib.verification import run_tests
+            report = run_tests(ROOT, work_dir, args.mode)
+        elif args.command == "audit":
+            from lucidlib.verification import run_audit
+            report = run_audit(ROOT, work_dir)
         elif args.command == "build":
-            from sdtlib.project import build_project
+            from lucidlib.project import build_project
             report = build_project(ROOT, work_dir, args.target)
         else:
-            from sdtlib.project import doctor
+            from lucidlib.project import doctor
             report = doctor(ROOT, work_dir)
         destination = write_report(work_dir, args.command + ".json", report)
         if args.json:

@@ -15,6 +15,9 @@
 /MemoryCaptures/
 /Recordings/
 *.csproj
+!/tools/native-recovery/NativeRecovery.csproj
+/tools/native-recovery/obj/
+/tools/native-recovery/bin/
 *.sln
 *.slnx
 *.pidb

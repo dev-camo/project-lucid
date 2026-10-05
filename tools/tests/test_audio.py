@@ -8,7 +8,7 @@ from unittest.mock import patch
 import wave
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from sdtlib.audio import normalize_audio, repair_pcm_header
+from lucidlib.audio import normalize_audio, repair_pcm_header
 
 
 def exported_pcm(samples):
@@ -48,7 +48,7 @@ class AudioTests(unittest.TestCase):
             path = Path(directory) / "clip.wav"
             original = exported_pcm(b"\x00" * 4)
             path.write_bytes(original)
-            with patch("sdtlib.audio.os.replace", side_effect=OSError("interrupted")):
+            with patch("lucidlib.audio.os.replace", side_effect=OSError("interrupted")):
                 with self.assertRaises(OSError):
                     repair_pcm_header(path)
             self.assertEqual(original, path.read_bytes())
