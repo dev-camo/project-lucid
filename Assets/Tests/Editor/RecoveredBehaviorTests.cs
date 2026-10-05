@@ -5,6 +5,13 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalActorCollisionLeavesRetainMovementCacheAndTransformOrder()
+        {
+            Assert.That(ActorCollisionLeavesVerification.RunManaged(), Is.EqualTo(171));
+            Assert.That(ActorCollisionLeavesVerification.RunEngine(), Is.EqualTo(13));
+        }
+
+        [Test]
         public void OriginalLoggingHostRetainsNativeRoutingAndEngineLifecycle()
         {
             Assert.That(LoggingHostVerification.RunManaged(), Is.EqualTo(137));
