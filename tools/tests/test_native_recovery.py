@@ -15,6 +15,7 @@ import struct
 import subprocess
 import unittest
 import uuid
+from xml.sax.saxutils import escape
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -40,6 +41,27 @@ class NativeRecoveryIntegrationTests(unittest.TestCase):
         if len(candidates) != 1:
             raise RuntimeError("Integration checks need one hash-verified x86_64 analysis slice")
         cls.binary = candidates[0]
+        original = ROOT / "input/SonicDreamTeam.app/Contents/Frameworks/GameAssembly.dylib"
+        # Extract the original ARM64 slice to a fresh cache child; never rewrite
+        # the supplied universal binary or depend on an agent-generated probe.
+        cls.architecture_dir = CACHE / "native-recovery/tests" / uuid.uuid4().hex
+        cls.architecture_dir.mkdir(parents=True)
+        cls.arm64 = cls.architecture_dir / "GameAssembly.arm64.dylib"
+        with original.open("rb") as stream:
+            magic, count = struct.unpack(">II", stream.read(8))
+            if magic != 0xcafebabe or not 1 <= count <= 64:
+                raise RuntimeError("Integration release requires the original FAT32 Mach-O")
+            rows = [struct.unpack(">iiIII", stream.read(20)) for _ in range(count)]
+            arm = next(row for row in rows if row[0] == 0x0100000c)
+            stream.seek(arm[2])
+            with cls.arm64.open("wb") as output:
+                remaining = arm[3]
+                while remaining:
+                    block = stream.read(min(1024 * 1024, remaining))
+                    if not block:
+                        raise RuntimeError("Truncated ARM64 input")
+                    output.write(block)
+                    remaining -= len(block)
         cls.environment = os.environ.copy()
         cls.environment.update(DOTNET_ROOT=str(DOTNET.parent), DOTNET_NOLOGO="1",
                                DOTNET_TieredCompilation="0", COMPlus_TieredCompilation="0",
@@ -89,6 +111,154 @@ class NativeRecoveryIntegrationTests(unittest.TestCase):
         self.assertFalse(report["analysis_pipeline_invoked"])
         self.assertFalse(report["managed_semantics_recovered"])
         self.assertFalse(report["native_addresses_verified"])
+
+    def recovered_threshold(self, binary):
+        result = self.invoke("recover-method", assembly="HLUnityCore.Runtime", token="0x06001006", binary=binary)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        report = json.loads((self.output / "report.json").read_text())
+        self.assertTrue(report["experimental"])
+        self.assertTrue(report["native_addresses_verified"])
+        self.assertTrue(report["analysis_pipeline_invoked"])
+        self.assertFalse(report["managed_semantics_recovered"])
+        self.assertFalse(report["generated_runtime_installation"])
+        self.assertFalse(report["original_native_body_executed"])
+        self.assertEqual(report["counts"], {"declarations": 1, "il_emitted": 1, "executable": 1,
+                                         "bounded_behavior_verified": 1, "maintained_implementations": 0})
+        self.assertTrue(all(report["recovery_stages"].values()))
+        variants = {row["variant"]: row for row in report["variants"]}
+        baseline, corrected = variants["baseline"], variants["corrected"]
+        self.assertEqual(baseline["max_stack"], 0)
+        self.assertFalse(baseline["executable"])
+        self.assertEqual(baseline["exception_type"], "System.InvalidProgramException")
+        self.assertEqual(corrected["max_stack"], 2)
+        self.assertTrue(corrected["initialized_locals"])
+        self.assertTrue(corrected["executable"])
+        self.assertEqual(corrected["execution_status"], "passed")
+        self.assertEqual(corrected["checks"], 10343)
+        for variant in variants.values():
+            artifact = Path(variant["assembly"])
+            self.assertTrue(artifact.resolve().is_relative_to(self.output.resolve()))
+            self.assertEqual(hashlib.sha256(artifact.read_bytes()).hexdigest(), variant["assembly_sha256"])
+        correction = report["emission_corrections"]
+        self.assertFalse(correction["upstream_source_modified"])
+        self.assertTrue(correction["initialized_typed_zero"])
+        self.assertEqual(correction["int64_subtraction_temporaries"], 2)
+        self.assertGreater(correction["int64_comparison_zero_operands"], 0)
+        return report, variants
+
+    def test_x64_threshold_baseline_and_corrected_execution_are_distinct(self):
+        report, variants = self.recovered_threshold(self.binary)
+        self.assertEqual(report["native_symbol"]["address"], "0x1b20ac0")
+        self.assertEqual(report["native_symbol"]["native_sha256"], "58275e261cf2c9bde993c15a82dc3e41d0e0fc9b7d9dbe498303e575a5e6fbcb")
+        self.assertEqual(variants["maxstack-only"]["checks"], 10343)
+        self.assertEqual(variants["maxstack-only"]["execution_status"], "passed")
+        self.assertEqual(report["emission_corrections"]["boolean_temporaries"], 1)
+
+    def test_arm64_threshold_requires_boolean_propagation_as_well_as_maxstack(self):
+        report, variants = self.recovered_threshold(self.arm64)
+        self.assertEqual(report["native_symbol"]["address"], "0x1b25ba8")
+        self.assertEqual(report["native_symbol"]["native_sha256"], "3411df1222f5da945c4fdbdfd68dd6959e16ec98a6392cf761e1eab456d7e510")
+        wrong = variants["maxstack-only"]
+        self.assertTrue(wrong["executable"])
+        self.assertEqual(wrong["execution_status"], "failed")
+        self.assertEqual(wrong["counterexample"], {"previous": -(2**63), "threshold": -(2**63) + 1,
+                                                 "current": -(2**63) + 1, "actual": False, "expected": True})
+        self.assertEqual(report["emission_corrections"]["boolean_temporaries"], 3)
+
+    def test_experimental_recovery_rejects_unproven_mesh_selection(self):
+        self.assert_failed_without_output(self.invoke("recover-method", token="0x060039b9"), "supports only the original static TimeUtils threshold")
+
+    def test_experimental_recovery_refuses_changed_native_bytes(self):
+        binary = self.directory / "changed.dylib"
+        shutil.copyfile(self.binary, binary)
+        with binary.open("r+b") as stream:
+            stream.seek(0x1b20ac0)
+            stream.write(b"\x90")
+        result = self.invoke("recover-method", assembly="HLUnityCore.Runtime", token="0x06001006", binary=binary)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        report = json.loads((self.output / "report.json").read_text())
+        self.assertEqual(report["status"], "incomplete")
+        self.assertIn("native body differs", report["recovery_error"])
+        self.assertFalse(report["recovery_stages"]["il_emitted"])
+        self.assertEqual(list(self.output.rglob("*.dll")), [])
+
+    def test_experimental_recovery_requires_the_exact_native_symbol(self):
+        data = self.binary.read_bytes()
+        symbol = b"_TimeUtils_HasTimePassedThresholdSinceLastCheck_mA1AF9ACB8472CCE7736F80B11BB3ECBA9344A729\0"
+        self.assertEqual(data.count(symbol), 1)
+        binary = self.directory / "renamed-symbol.dylib"
+        binary.write_bytes(data.replace(symbol, b"_X" + symbol[2:]))
+        result = self.invoke("recover-method", assembly="HLUnityCore.Runtime", token="0x06001006", binary=binary)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        report = json.loads((self.output / "report.json").read_text())
+        self.assertEqual(report["status"], "incomplete")
+        self.assertIn("exact original Mach-O symbol", report["recovery_error"])
+        self.assertFalse(report["analysis_pipeline_invoked"])
+        self.assertFalse(report["native_addresses_verified"])
+        self.assertEqual(list(self.output.rglob("*.dll")), [])
+
+    def test_boolean_inference_and_unsupported_graph_guards(self):
+        # Compile a cache-only runner against the actual pinned harness API. The
+        # synthetic graph checks exercise inference/refusal, independently of
+        # the positive native threshold graph and its expected output.
+        source = r'''
+using System.Reflection;
+using AssetRipper.Primitives;
+using Cpp2IL.Core;
+using Cpp2IL.Core.ISIL;
+new Cpp2IlCorePlugin().OnLoad();
+Cpp2IlApi.InitializeLibCpp2Il(args[0], args[1], UnityVersion.Parse("2022.3.54f1"), false);
+var types = Cpp2IlApi.CurrentAppContext!.SystemTypes;
+var helper = Assembly.LoadFrom(args[2]).GetType("ProjectLucid.NativeRecovery.ExperimentalRecovery")!;
+var flags = BindingFlags.Static | BindingFlags.NonPublic;
+object? Invoke(string name, params object[] values) => helper.GetMethod(name, flags)!.Invoke(null, values);
+void Reject(string name, params object[] values) {
+    try { Invoke(name, values); } catch (TargetInvocationException e) when (e.InnerException is InvalidDataException) { return; }
+    throw new Exception("Expected refusal: " + name);
+}
+LocalVariable Local(string name, Cpp2IL.Core.Model.Contexts.TypeAnalysisContext? type = null) => new(name, new Register(null, name), type);
+var b = Local("knownBool", types.SystemBooleanType);
+var i = Local("knownInt64", types.SystemInt64Type);
+LocalVariable first = Local("first"), second = Local("second"), both = Local("both"), mixed = Local("mixed"), untyped = Local("untyped"),
+    bothOr = Local("bothOr"), bothXor = Local("bothXor"), difference = Local("difference");
+Instruction[] chain = [new(0, OpCode.Not, second, first), new(1, OpCode.Not, first, b),
+    new(2, OpCode.And, both, second, b), new(3, OpCode.Xor, mixed, b, i), new(4, OpCode.Not, untyped, i),
+    new(5, OpCode.Or, bothOr, second, b), new(6, OpCode.Xor, bothXor, second, b)];
+if ((int)Invoke("PropagateBooleans", chain, types.SystemBooleanType)! != 5 || first.Type != types.SystemBooleanType ||
+    second.Type != types.SystemBooleanType || both.Type != types.SystemBooleanType || bothOr.Type != types.SystemBooleanType ||
+    bothXor.Type != types.SystemBooleanType || mixed.Type != null || untyped.Type != null)
+    throw new Exception("Boolean fixed point or narrow inference failed");
+if ((int)Invoke("PropagateInt64Subtractions", new Instruction[] { new(0, OpCode.Subtract, difference, i, i) }, types.SystemInt64Type)! != 1 ||
+    difference.Type != types.SystemInt64Type) throw new Exception("Exact Int64 subtraction inference failed");
+Reject("PropagateInt64Subtractions", new Instruction[] { new(0, OpCode.Subtract, b, i, i) }, types.SystemInt64Type);
+Reject("PropagateBooleans", new Instruction[] { new(0, OpCode.Not, i, b) }, types.SystemBooleanType);
+Reject("GuardGraph", (object)new Instruction[] { new(0, OpCode.CallVoid, new Immediate(0)) });
+Reject("GuardGraph", (object)new Instruction[] { new(0, OpCode.Return, new Register(null, "rawRegister")) });
+Reject("GuardGraph", (object)new Instruction[] { new(0, OpCode.Not, b) });
+Reject("GuardGraph", (object)new Instruction[] { new(0, OpCode.Move, b, new Immediate(2)) });
+Reject("GuardTypedGraph", (object)new Instruction[] { new(0, OpCode.And, b, b, i) });
+Reject("GuardTypedGraph", (object)new Instruction[] { new(0, OpCode.Return, Local("unknown")) });
+var loop = new Cpp2IL.Core.Graphs.Block(); loop.Successors.Add(loop);
+Reject("GuardAcyclic", loop, new HashSet<Cpp2IL.Core.Graphs.Block>(), new HashSet<Cpp2IL.Core.Graphs.Block>());
+Console.WriteLine("guard_checks=11");
+'''
+        (self.directory / "Program.cs").write_text(source)
+        references = "".join(f'<Reference Include="{escape(file.stem)}"><HintPath>{escape(str(file))}</HintPath></Reference>'
+                             for file in sorted(self.harness.parent.glob("*.dll")))
+        (self.directory / "GuardTests.csproj").write_text(
+            '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType>'
+            '<TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>'
+            '</PropertyGroup><ItemGroup>' + references + '</ItemGroup></Project>')
+        build = subprocess.run([str(DOTNET), "build", str(self.directory / "GuardTests.csproj"), "-c", "Release"],
+                               env=self.environment, capture_output=True, text=True, timeout=60)
+        (self.directory / "guard-build.log").write_text(build.stdout + build.stderr)
+        self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
+        run = subprocess.run([str(DOTNET), str(self.directory / "bin/Release/net10.0/GuardTests.dll"),
+                              str(self.binary), str(METADATA), str(self.harness)],
+                             env=self.environment, capture_output=True, text=True, timeout=120)
+        (self.directory / "guard-run.log").write_text(run.stdout + run.stderr)
+        self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+        self.assertIn("guard_checks=11", run.stdout)
 
     def test_real_game_schema_preserves_identity_and_serialization_candidates(self):
         result = self.invoke()

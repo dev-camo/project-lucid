@@ -42,7 +42,9 @@ internal static class Program
             UnityVersion version = UnityVersion.Parse(args["--unity-version"]);
             uint? token = args.TryGetValue("--token", out string? tokenText) ? ParseMethodToken(tokenText) : null;
             int rawMetadataVersion = MetadataVersion(metadata);
-            Console.Error.WriteLine("Initializing exact pinned Cpp2IL Core; no method Analyze/StackAnalyzer pipeline will be invoked.");
+            Console.Error.WriteLine(args["command"] == "recover-method"
+                ? "Initializing exact pinned Core for one experimental, bounded method recovery."
+                : "Initializing exact pinned Cpp2IL Core; no method Analyze/StackAnalyzer pipeline will be invoked.");
             new Cpp2IlCorePlugin().OnLoad();
             Cpp2IlApi.InitializeLibCpp2Il(binary, metadata, version, false);
             var app = Cpp2IlApi.CurrentAppContext!;
@@ -66,13 +68,14 @@ internal static class Program
                 ["output_dir"] = output, ["managed_semantics_recovered"] = false,
                 ["native_addresses_verified"] = false, ["limitations"] = Limitations
             };
-            if (args["command"] == "method")
+            if (args["command"] is "method" or "recover-method")
             {
                 var matches = assemblies[0].Types.SelectMany(t => t.Methods)
                     .Where(m => m.Definition is not null && m.Token == token!.Value).ToList();
                 if (matches.Count != 1)
                     throw new ArgumentException("Method token must match one method in the selected assembly: " + Hex(token!.Value));
                 var method = matches[0];
+                if (args["command"] == "recover-method") ExperimentalRecovery.ValidateSelection(method);
                 if (method.UnderlyingPointer == 0 || method.IsAbstract || method.RawBytes.Length == 0)
                     throw new ArgumentException("Selected method has no concrete native body.");
                 if (method.RawBytes.Length > 30000)
@@ -96,6 +99,22 @@ internal static class Program
                 report["isil_instruction_count"] = isil.Count;
                 report["analysis_pipeline_invoked"] = false;
                 report["status"] = "ready";
+                if (args["command"] == "recover-method")
+                {
+                    report["status"] = "pending";
+                    report["experimental"] = true;
+                    WriteReport(output, report);
+                    try
+                    {
+                        ExperimentalRecovery.Recover(method, binary, output, report);
+                        report["status"] = "ready";
+                    }
+                    catch (Exception error)
+                    {
+                        report["status"] = "incomplete";
+                        report["recovery_error"] = error.Message;
+                    }
+                }
             }
             else
             {
@@ -121,8 +140,8 @@ internal static class Program
 
     private static Dictionary<string, string> Parse(string[] arguments)
     {
-        if (arguments.Length == 0 || arguments[0] is not ("schemas" or "method"))
-            throw new ArgumentException("Usage: schemas|method --binary FILE --metadata FILE --unity-version VERSION --output FRESH_CACHE_DIR [--assembly EXACT_NAME] [--token 0x06xxxxxx]");
+        if (arguments.Length == 0 || arguments[0] is not ("schemas" or "method" or "recover-method"))
+            throw new ArgumentException("Usage: schemas|method|recover-method --binary FILE --metadata FILE --unity-version VERSION --output FRESH_CACHE_DIR [--assembly EXACT_NAME] [--token 0x06xxxxxx]. recover-method is an experimental threshold-only cache proof.");
         var result = new Dictionary<string, string>(StringComparer.Ordinal) { ["command"] = arguments[0] };
         string[] options = ["--binary", "--metadata", "--unity-version", "--output", "--assembly", "--token"];
         for (int i = 1; i < arguments.Length; i += 2)
@@ -133,10 +152,10 @@ internal static class Program
         }
         foreach (string required in new[] { "--binary", "--metadata", "--unity-version", "--output" })
             if (!result.ContainsKey(required)) throw new ArgumentException("Missing required option: " + required);
-        if (arguments[0] == "method" && (!result.ContainsKey("--assembly") || !result.ContainsKey("--token")))
-            throw new ArgumentException("method requires exact --assembly and --token selections.");
+        if (arguments[0] is "method" or "recover-method" && (!result.ContainsKey("--assembly") || !result.ContainsKey("--token")))
+            throw new ArgumentException(arguments[0] + " requires exact --assembly and --token selections.");
         if (arguments[0] == "schemas" && result.ContainsKey("--token"))
-            throw new ArgumentException("--token is only valid with the method command.");
+            throw new ArgumentException("--token is only valid with a method command.");
         return result;
     }
 

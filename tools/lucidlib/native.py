@@ -127,8 +127,8 @@ def build_native_harness(work_dir: Path) -> dict:
             source = _install("cpp2il-source", lock, work_dir)
             archive = download_artifact(lock["artifacts"]["cpp2il-source"], work_dir)
             _verify_cpp2il_source(source, work_dir)
-            identity["harness_sources"] = {path.name: sha256_file(path) for path in
-                                            (_PROJECT, _MANIFEST, _PROJECT.with_name("Program.cs"))}
+            harness_sources = [_PROJECT, _MANIFEST, *sorted(_PROJECT.parent.glob("*.cs"))]
+            identity["harness_sources"] = {path.name: sha256_file(path) for path in harness_sources}
             identity["dotnet_host_sha256"] = sha256_file(dotnet)
             fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
             report.update(identity, fingerprint=fingerprint)

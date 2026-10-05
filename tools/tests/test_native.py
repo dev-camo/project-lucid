@@ -231,6 +231,25 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertFalse((self.work / "native-recovery/latest-build.json").exists())
         self.assertEqual(list((self.work / "native-recovery/builds").glob(".stage-*")), [])
 
+    def test_all_harness_sources_invalidate_the_build_cache(self):
+        experimental = self.project_dir / "ExperimentalRecovery.cs"
+        experimental.write_text("// initial independent emitter\n")
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], mock.patch.object(native, "run_logged", side_effect=self.build_runner) as run:
+            first = native.build_native_harness(self.work)
+            self.assertEqual(list(first["harness_sources"]),
+                             ["NativeRecovery.csproj", "SourcePin.props", "ExperimentalRecovery.cs", "Program.cs"])
+            self.assertTrue(native.build_native_harness(self.work)["reused"])
+            experimental.write_text("// corrected independent emitter\n")
+            changed = native.build_native_harness(self.work)
+            self.assertFalse(changed["reused"])
+            self.assertNotEqual(first["fingerprint"], changed["fingerprint"])
+            self.assertEqual(run.call_count, 2)
+            experimental.unlink()
+            removed = native.build_native_harness(self.work)
+            self.assertNotEqual(changed["fingerprint"], removed["fingerprint"])
+            self.assertEqual(run.call_count, 3)
+
     def test_work_dir_and_symlink_boundaries_are_enforced(self):
         with self.assertRaises(ValueError):
             native.build_native_harness(self.directory.parents[1])
