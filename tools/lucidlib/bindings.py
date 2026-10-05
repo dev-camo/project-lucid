@@ -1,4 +1,4 @@
-"""Strict, read-only comparisons of original schemas and loaded MonoScript layouts.
+"""Strict, read-only comparisons of original and maintained MonoScript layouts.
 
 This module never edits references or imports generated declarations. A matching
 layout is evidence for a later binding decision, not recovered method behavior.
@@ -7,7 +7,7 @@ layout is evidence for a later binding decision, not recovered method behavior.
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import struct
 import subprocess
@@ -329,7 +329,7 @@ class _Comparison:
 
 
 def compare_layouts(schema_report: dict, reflection_inventory: dict, *, schema_sha256=None) -> dict:
-    """Compare exact upstream package MonoScripts; produce evidence, never edits."""
+    """Compare maintained game and package MonoScripts; produce evidence only."""
     for report in (schema_report, reflection_inventory):
         if report.get("schema_version") != 1 or report.get("status") != "ready":
             raise LayoutError("Unsupported or incomplete schema report")
@@ -347,7 +347,7 @@ def compare_layouts(schema_report: dict, reflection_inventory: dict, *, schema_s
     for script in scripts:
         key = script.get("assembly"), script.get("full_name")
         guid, local_id, path = script.get("guid"), script.get("file_id"), script.get("path")
-        if not isinstance(path, str) or not path.startswith("Packages/") or script.get("class_resolved") is not True:
+        if not _maintained_script_path(path) or script.get("class_resolved") is not True:
             continue
         if not isinstance(guid, str) or re.fullmatch(r"[a-f0-9]{32}", guid) is None or type(local_id) is not int or not local_id:
             raise LayoutError("Invalid MonoScript GUID/fileID identity")
@@ -377,6 +377,18 @@ def compare_layouts(schema_report: dict, reflection_inventory: dict, *, schema_s
             "references_modified": False, "managed_semantics_verified": False,
             "limitations": ["Declaration compatibility does not prove method behavior or original MonoScript GUID identity.",
                             "Unsupported generic, managed-reference and unverified enum layouts remain blocked."]}
+
+
+def _maintained_script_path(path):
+    """Exclude generated exports and noncanonical paths from binding evidence."""
+    if not isinstance(path, str) or "\\" in path:
+        return False
+    parsed = PurePosixPath(path)
+    if parsed.is_absolute() or str(parsed) != path or any(part in (".", "..") for part in parsed.parts):
+        return False
+    if path.startswith("Assets/Scripts/"):
+        return path.endswith(".cs")
+    return path.startswith("Packages/") and len(parsed.parts) >= 3 and parsed.suffix in (".cs", ".dll")
 
 
 def compare_layout_files(schema_path: Path, inventory_path: Path, output_path: Path, *, repo_root=None) -> dict:

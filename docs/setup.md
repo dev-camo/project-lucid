@@ -14,6 +14,9 @@ body recovery is a separate mode and must be audited before its output is used.
 manifest. `prepare` promotes generated content without overwriting maintained
 source. None of these steps alone restores playable game behavior.
 
+Preparation requires the matching Unity Editor to check restored script bindings.
+Install the Editor and recover the code schemas before running `prepare`.
+
 Run `python3 tools/lucid.py --help` for commands and options. `--work-dir` is limited
 to generated subdirectories of `.cache/project-lucid/`. Reports and full tool logs
 are stored there; failed operations return a nonzero exit status.

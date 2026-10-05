@@ -8,7 +8,7 @@ The original game is not yet playable from this project.
 
 ## Getting started
 
-Install Python 3.9 or newer. Place `SonicDreamTeam.app` inside `input/`, then run
+Install Python 3.9 or newer and Unity 2022.3.54f1. Place `SonicDreamTeam.app` inside `input/`, then run
 these commands from the project folder:
 
 ```sh

@@ -315,6 +315,48 @@ class AssetTests(unittest.TestCase):
         self.assertTrue(any((path / "old.txt").is_file() for path in retained))
         self.assertTrue(all(self.work.resolve() in path.parents for path in retained))
 
+    def test_verified_script_binding_preserves_asset_identity_and_input_bytes(self):
+        project = self.make_export()
+        text = ("%YAML 1.1\n--- !u!114 &11400000\nMonoBehaviour:\n"
+                "  m_Script: {fileID: 11500000, guid: " + "a" * 32 + ", type: 3}\n"
+                "  m_guid: " + "d" * 32 + "\n  m_Name: Starting point\n")
+        write_asset(project, "Data/start.asset", "e" * 32, text)
+        assets._json_write(project.parent / "asset-map.json", assets.build_asset_map(project))
+        binding = {"exported_guid": "a" * 32, "exported_file_id": 11500000,
+                   "target_guid": "c" * 32, "target_file_id": 11500000}
+        proof = {"status": "verified_layout", "bindings": [binding], "references_modified": False}
+        raw = project / "Assets/Data/start.asset"
+        original_meta = raw.with_name(raw.name + ".meta").read_bytes()
+        input_before = assets.fingerprint_manifest(assets._manifest(self.root / "Game.app"))
+        with mock.patch("lucidlib.scriptbindings.resolve_bindings", return_value=proof):
+            result = assets.prepare_assets(self.repo, self.work)
+        output = self.repo / "Assets/Recovered/Data/start.asset"
+        self.assertEqual(text.replace("guid: " + "a" * 32, "guid: " + "c" * 32), output.read_text())
+        self.assertEqual(original_meta, output.with_name(output.name + ".meta").read_bytes())
+        self.assertEqual(text, raw.read_text())
+        self.assertEqual(input_before, assets.fingerprint_manifest(assets._manifest(self.root / "Game.app")))
+        self.assertEqual([], result["quarantined_script_guids"])
+        recorded = next(a for a in result["script_bindings"]["assets"] if a["path"] == "Assets/Data/start.asset")
+        self.assertEqual("e" * 32, recorded["guid"])
+        self.assertEqual(1, recorded["pointers_rewritten"])
+        self.assertEqual(hashlib.sha256(text.encode()).hexdigest(), recorded["exported_sha256"])
+        self.assertEqual(hashlib.sha256(output.read_bytes()).hexdigest(), recorded["prepared_sha256"])
+
+        prior = output.read_bytes()
+        pointer = self.work / "assets/latest-prepare.json"
+        prior_pointer = pointer.read_bytes()
+        for failure in ("metadata", "pointer"):
+            with self.subTest(failure=failure):
+                raw.write_text(text.replace("fileID: 11500000", "fileID: 1") if failure == "pointer" else text)
+                raw.with_name(raw.name + ".meta").write_bytes(
+                    original_meta.replace(b"e" * 32, b"f" * 32) if failure == "metadata" else original_meta)
+                with mock.patch("lucidlib.scriptbindings.resolve_bindings", return_value=proof):
+                    with self.assertRaisesRegex(ValueError, "metadata|pointer"):
+                        assets.prepare_assets(self.repo, self.work)
+                self.assertEqual(prior, output.read_bytes())
+                self.assertEqual(prior_pointer, pointer.read_bytes())
+                self.assertEqual(list((self.repo / "Assets").glob(".lucid-assets-*")), [])
+
     def test_prepare_refuses_unowned_destination(self):
         self.make_export()
         destination = self.repo / "Assets/Recovered"

@@ -15,6 +15,8 @@ from .bootstrap import managed_path, write_json
 
 UNITY_VERSION = "2022.3.54f1"
 EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
+    "OriginalStartingPointDefinitionsBindToMaintainedGuidType",
+    "ScriptableGuidRetainsOriginalSerializationAndUnityNullRules",
     "CoroutineCallbacksRetainOriginalNextFrameOrdering",
     "EnumComparersRetainNativeHashesAndStaticIdentities",
     "ProgressRecordsRetainOriginalGraphAndUnityJson",
@@ -138,7 +140,9 @@ def run_tests(repo_root, work_dir, mode):
     command = [str(editor), "-batchmode", "-projectPath", str(Path(repo_root).resolve()),
                "-runTests", "-testPlatform", "EditMode" if mode == "editmode" else "PlayMode",
                "-testResults", str(xml), "-logFile", str(log)]
-    result = subprocess.run(command, timeout=1800)
+    environment = os.environ.copy()
+    environment["LUCID_RECOVERY_WORK_DIR"] = str(Path(work_dir).resolve())
+    result = subprocess.run(command, env=environment, timeout=1800)
     after = current_identity(repo_root)
     errors = []
     version_match = re.search(r"Unity Editor version:\s+(\S+)", log.read_text(errors="replace")) if log.is_file() else None

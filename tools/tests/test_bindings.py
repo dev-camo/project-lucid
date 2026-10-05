@@ -88,6 +88,33 @@ class BindingTests(unittest.TestCase):
         inventory["monoscripts"][0]["assembly"] = "Unity.Example"
         self.assertEqual(0, compare_layouts(original, inventory)["candidate_count"])
 
+    def test_maintained_game_scripts_require_the_same_exact_layout(self):
+        original, inventory = self.fixture()
+        inventory["monoscripts"][0]["path"] = "Assets/Scripts/Definitions/Widget.cs"
+        candidate = self.result(original, inventory)
+        self.assertEqual("compatible_layout", candidate["status"])
+        self.assertFalse(candidate["remap_eligible"])
+        inventory["assemblies"][0]["types"][0]["fields"][0]["field_type"] = named("mscorlib", "System.String")
+        self.assertIn("type_identity_mismatch", [issue["reason"] for issue in self.result(original, inventory)["issues"]])
+
+    def test_generated_and_escaped_paths_do_not_supply_binding_evidence(self):
+        paths = ("Assets/Recovered/Scripts/Widget.cs", "Assets/StreamingAssets/Widget.cs",
+                 "Assets/Editor/Widget.cs", "input/Widget.cs", "/Packages/com.example/Widget.cs",
+                 "Packages/com.example/../Widget.cs", "Packages//com.example/Widget.cs",
+                 "Assets/Scripts/../Recovered/Widget.cs", "Assets/Scripts/Widget.dll",
+                 "Assets\\Scripts\\Widget.cs", "./Assets/Scripts/Widget.cs")
+        for path in paths:
+            with self.subTest(path=path):
+                original, inventory = self.fixture()
+                inventory["monoscripts"][0]["path"] = path
+                self.assertEqual(0, compare_layouts(original, inventory)["candidate_count"])
+
+    def test_package_and_maintained_aliases_of_a_type_are_ambiguous(self):
+        original, inventory = self.fixture()
+        inventory["monoscripts"].append(dict(inventory["monoscripts"][0],
+            guid="d" * 32, path="Assets/Scripts/Widget.cs"))
+        self.assertIn("ambiguous_monoscript_identity", [issue["reason"] for issue in self.result(original, inventory)["issues"]])
+
     def test_inherited_private_serialized_field_change_blocks(self):
         original, inventory = self.fixture()
         attrs = [attribute("UnityEngine.SerializeField")]

@@ -672,10 +672,15 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     source = project / "Assets"
     _assert_no_symlinks(source)
     mapping = json.loads(Path(report["asset_map_path"]).read_text())
+    from .scriptbindings import resolve_bindings, rewrite_script_pointers
+    script_bindings = resolve_bindings(repo, work, project, mapping, input_fingerprint=report["input_fingerprint"])
+    bindings = script_bindings["bindings"]
+    bound_guids = {row["exported_guid"] for row in bindings}
+    mapped_assets = {row["path"]: row for row in mapping["assets"]}
     quarantined_guids = {row["guid"] for row in mapping["assets"] if row["code_quarantined"]}
     shader_guids = {row["guid"] for row in mapping["assets"] if row.get("shader_quarantined")}
     dangling = sorted({guid for row in mapping["assets"] if not row["code_quarantined"]
-                       for guid in row["script_references"] if guid in quarantined_guids})
+                       for guid in row["script_references"] if guid in quarantined_guids and guid not in bound_guids})
     assets = repo / "Assets"
     if assets.is_symlink():
         raise ValueError("Refusing a symlinked Assets directory")
@@ -689,6 +694,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     audio_reports = {}
     bundle_report = {}
     copied = skipped_code = skipped_shader = 0
+    rebound_assets = []
     try:
         for destination, source_dir in targets:
             stage = staging / destination.name
@@ -710,6 +716,17 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                     output = stage / relative
                     output.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(path, output)
+                    row = mapped_assets.get("Assets/" + relative.as_posix()) if destination.name == "Recovered" else None
+                    if row and bound_guids.intersection(row.get("script_references", [])):
+                        meta_guids = GUID.findall(path.with_name(path.name + ".meta").read_text(encoding="utf-8"))
+                        if meta_guids != [row["guid"]]:
+                            raise ValueError("Rebound asset metadata differs from its asset map: " + row["path"])
+                        rewritten, count = rewrite_script_pointers(output.read_bytes(), bindings)
+                        if not count:
+                            raise ValueError("Mapped script reference is absent from exported asset: " + row["path"])
+                        output.write_bytes(rewritten)
+                        rebound_assets.append({"path": row["path"], "guid": row["guid"], "pointers_rewritten": count,
+                                               "exported_sha256": sha256_file(path), "prepared_sha256": sha256_file(output)})
                     copied += 1
             audio_reports[destination.name] = normalize_audio(stage)
             if destination.name == "StreamingAssets":
@@ -732,10 +749,11 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                   "input_fingerprint": report["input_fingerprint"], "tool": report["tool"], "audio_normalization": audio_reports,
                   "streaming_bundle_normalization": bundle_report,
                   "backup_paths": [str(path) for path in backups], "quarantined_script_guids": dangling,
+                  "script_bindings": {**script_bindings, "references_modified": bool(rebound_assets), "assets": rebound_assets},
                   "quarantined_shader_guids": sorted(shader_guids),
                   "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",
                                "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",
-                               "Preparation preserves exported GUIDs; it does not repair package script references or recreate gameplay."]}
+                               "Preparation preserves asset GUIDs and restores only approved, layout-verified script pointers; gameplay remains unresolved."]}
         _json_write(work / "assets/latest-prepare.json", result)
         return result
     finally:

@@ -5,6 +5,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalStartingPointDefinitionsBindToMaintainedGuidType()
+        {
+            StartingPointAssetVerification.Run();
+        }
+
+        [Test]
+        public void ScriptableGuidRetainsOriginalSerializationAndUnityNullRules()
+        {
+            ScriptableGuidVerification.Run();
+        }
+
+        [Test]
         public void CoroutineCallbacksRetainOriginalNextFrameOrdering()
         {
             CoroutineCallbackVerification.Run();
