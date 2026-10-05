@@ -29,6 +29,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void SavePropertiesPreserveNativeIdentityAndCultureSemantics()
+        {
+            PropertyListVerification.Run();
+        }
+
+        [Test]
         public void SkyCubemapGpuOutputMatchesDecodedMetalCases()
         {
             SkyCubemapVerification.Run();
