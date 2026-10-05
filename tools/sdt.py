@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Recover user-supplied game content and assess reconstruction readiness."""
+
+import argparse
+import json
+from pathlib import Path
+import sys
+import subprocess
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def write_report(work_dir, name, report):
+    from sdtlib.bootstrap import managed_path, write_json
+    destination = managed_path(work_dir, "reports", name)
+    write_json(destination, report)
+    return destination
+
+
+def parser():
+    result = argparse.ArgumentParser(description=__doc__)
+    commands = result.add_subparsers(dest="command", required=True)
+    for name in ("doctor", "bootstrap", "inspect", "recover-code", "extract-assets", "shader-evidence", "prepare", "validate", "build"):
+        command = commands.add_parser(name)
+        command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "sdt-recovery")
+        command.add_argument("--json", action="store_true", help="print a compact JSON result")
+        if name in ("inspect", "recover-code", "extract-assets"):
+            command.add_argument("--input", type=Path, default=ROOT / "input" / "SonicDreamTeam.app")
+        if name == "shader-evidence":
+            command.add_argument("--input", type=Path, required=True, help="an exported Shader .asset or export asset directory")
+        if name == "bootstrap":
+            command.add_argument("--tool", action="append", choices=("assetripper", "cpp2il", "dumper"))
+        if name == "recover-code":
+            command.add_argument("--mode", choices=("schemas", "bodies", "analysis"), default="schemas")
+        if name == "validate":
+            command.add_argument("--stage", choices=("extraction", "release"), default="release")
+        if name == "build":
+            command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
+    return result
+
+
+def main(argv=None):
+    args = parser().parse_args(argv)
+    try:
+        from sdtlib.bootstrap import validate_work_dir
+        work_dir = validate_work_dir(args.work_dir)
+        if args.command == "inspect":
+            from sdtlib.inspection import inspect_bundle
+            report = inspect_bundle(args.input)
+            destination = write_report(work_dir, "inspection.json", report)
+            present = report["addressables"]["bundle_count"]
+            missing = len(report["addressables"]["missing_bundles"])
+            identity = report["identity"]
+            summary = {"status": "failed" if missing else "complete", "version": identity["version"],
+                       "unity_version": identity["unity_version"], "bundles_present": present,
+                       "bundles_missing": missing, "report": str(destination)}
+            print(json.dumps(summary, indent=2) if args.json else
+                  "Sonic Dream Team {} / Unity {}\nbundles: {} present, {} missing\nreport: {}".format(
+                      identity["version"], identity["unity_version"], present, missing, destination))
+            return 1 if missing else 0
+        if args.command == "bootstrap":
+            from sdtlib.bootstrap import bootstrap
+            report = bootstrap(work_dir, selected=args.tool)
+        elif args.command == "recover-code":
+            from sdtlib.recovery import recover_code
+            report = recover_code(args.input, work_dir, mode=args.mode)
+        elif args.command == "extract-assets":
+            from sdtlib.assets import extract_assets
+            report = extract_assets(args.input, work_dir)
+        elif args.command == "shader-evidence":
+            from sdtlib.shaders import extract_shader_evidence
+            report = extract_shader_evidence(args.input, work_dir)
+        elif args.command == "prepare":
+            from sdtlib.assets import prepare_assets
+            report = prepare_assets(ROOT, work_dir)
+        elif args.command == "validate":
+            from sdtlib.project import validate_project
+            report = validate_project(ROOT, work_dir, stage=args.stage)
+        elif args.command == "build":
+            from sdtlib.project import build_project
+            report = build_project(ROOT, work_dir, args.target)
+        else:
+            from sdtlib.project import doctor
+            report = doctor(ROOT, work_dir)
+        destination = write_report(work_dir, args.command + ".json", report)
+        if args.json:
+            print(json.dumps(report, indent=2, sort_keys=True))
+        else:
+            print("{}: {}".format(args.command, report.get("status", "unknown")))
+            for key in ("message", "output_dir", "project_path", "log", "log_path"):
+                if report.get(key):
+                    print("{}: {}".format(key, report[key]))
+            for item in report.get("errors", []):
+                print("error: " + str(item))
+            for item in report.get("limitations", []):
+                print("limitation: " + str(item))
+            print("report: " + str(destination))
+        return 1 if report.get("status") in ("failed", "error", "blocked", "incomplete") else 0
+    except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired) as error:
+        print("error: " + str(error), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

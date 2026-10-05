@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "platform": "darwin-arm64",
+  "artifacts": {
+    "assetripper": {
+      "version": "2.0.0",
+      "license": "GPL-3.0",
+      "source": "https://github.com/AssetRipper/AssetRipper/tree/2.0.0",
+      "url": "https://github.com/AssetRipper/AssetRipper/releases/download/2.0.0/AssetRipper_mac_arm64.tar.xz",
+      "filename": "AssetRipper_mac_arm64-2.0.0.tar.xz",
+      "sha256": "237a6da404bf089c5e5c71a5a9a698c2ea580872292dfa5ce21e25fd1dbe9045",
+      "format": "tar",
+      "strip_components": 0,
+      "max_unpacked_bytes": 300000000,
+      "entrypoint": "AssetRipper.GUI.Free"
+    },
+    "assetripper-license": {
+      "version": "2.0.0",
+      "url": "https://raw.githubusercontent.com/AssetRipper/AssetRipper/2.0.0/LICENSE.md",
+      "filename": "AssetRipper-2.0.0-LICENSE.md",
+      "sha256": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b"
+    },
+    "dotnet": {
+      "version": "10.0.401",
+      "license": "MIT and component notices",
+      "source": "https://github.com/dotnet/sdk",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.401/dotnet-sdk-10.0.401-osx-arm64.tar.gz",
+      "filename": "dotnet-sdk-10.0.401-osx-arm64.tar.gz",
+      "sha512": "69f64eb00dc045398755c440b152225d544301a345a146a16e86a56a0c52b7c94b2c331520e976dbb821f18d31930aafbd25bb85961e3517e0665414ce0cbcff",
+      "format": "tar",
+      "strip_components": 0,
+      "max_unpacked_bytes": 2000000000,
+      "entrypoint": "dotnet"
+    },
+    "runtime6": {
+      "version": "6.0.36",
+      "license": "MIT and component notices",
+      "source": "https://github.com/dotnet/runtime",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/6.0.36/dotnet-runtime-6.0.36-osx-arm64.tar.gz",
+      "filename": "dotnet-runtime-6.0.36-osx-arm64.tar.gz",
+      "sha512": "d13fa060270c376307c7086da52cff71a02f8550a3a21812e25127308970c99a32d3c4834e342f23365869600c0b51fce03236906e13fe76456fc78964c531d4",
+      "format": "tar",
+      "strip_components": 0,
+      "max_unpacked_bytes": 300000000,
+      "entrypoint": "dotnet"
+    },
+    "cpp2il-source": {
+      "version": "b5ad444b82267cb1e4b88b8b373c008105bdea52",
+      "license": "MIT",
+      "source": "https://github.com/SamboyCoding/Cpp2IL/tree/b5ad444b82267cb1e4b88b8b373c008105bdea52",
+      "url": "https://codeload.github.com/SamboyCoding/Cpp2IL/tar.gz/b5ad444b82267cb1e4b88b8b373c008105bdea52",
+      "filename": "Cpp2IL-b5ad444b82267cb1e4b88b8b373c008105bdea52.tar.gz",
+      "sha256": "e396fc9a5321a121458b261d6a164945b916c9d024bf2cc96e2953dfe7d4069f",
+      "format": "tar",
+      "strip_components": 1,
+      "max_unpacked_bytes": 1200000000,
+      "entrypoint": "Cpp2IL/Cpp2IL.csproj"
+    },
+    "dumper": {
+      "version": "6.7.46",
+      "license": "MIT",
+      "source": "https://github.com/Perfare/Il2CppDumper/tree/v6.7.46",
+      "url": "https://github.com/Perfare/Il2CppDumper/releases/download/v6.7.46/Il2CppDumper-net6-v6.7.46.zip",
+      "filename": "Il2CppDumper-net6-v6.7.46.zip",
+      "sha256": "db9bbbc538e33abfb057c7757ae5d6c1f16a05fdc0d13af8a5a67ea31faaba0c",
+      "format": "zip",
+      "strip_components": 0,
+      "max_unpacked_bytes": 10000000,
+      "entrypoint": "Il2CppDumper.dll"
+    },
+    "dumper-license": {
+      "version": "6.7.46",
+      "url": "https://raw.githubusercontent.com/Perfare/Il2CppDumper/v6.7.46/LICENSE",
+      "filename": "Il2CppDumper-6.7.46-LICENSE.txt",
+      "sha256": "373bd2ed813eaa8245d1290138985c6fb025d588db254602720697455ae36c6c"
+    }
+  },
+  "optional_analysis": {
+    "ghidra": {
+      "version": "12.1.4",
+      "license": "Apache-2.0 and component notices",
+      "requires": "JDK 21",
+      "url": "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.4_build/ghidra_12.1.4_PUBLIC_20260921.zip",
+      "sha256": "ddac49f903da9d5bac833e5cc79395098b9c33cfd3279be5f31bd00387d2d4db"
+    },
+    "unitypy": {
+      "version": "1.25.4",
+      "license": "MIT",
+      "source": "https://github.com/K0lb3/UnityPy",
+      "role": "Optional targeted inspection; not used by the default pipeline."
+    }
+  }
+}

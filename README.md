@@ -1,10 +1,10 @@
-# Sonic Dream Team reconstruction
+# Project Lucid
 
 An in-progress reconstruction of Sonic Dream Team for macOS, Windows, and Linux.
 You must supply your own macOS game bundle. Game assets are not included.
 
-**Current status:** recovery tooling is being developed. The original game is not
-yet playable from this project.
+**Current status:** extraction tooling has been exercised with release 1.10.1.
+The original game is not yet playable from this project.
 
 ## Getting started
 
