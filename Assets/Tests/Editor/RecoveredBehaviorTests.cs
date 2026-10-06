@@ -5,6 +5,19 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalFullscreenDefinitionsRetainCurveWeightsLimitsAndTextureOverrides()
+        {
+            Assert.That(FullscreenDefinitionVerification.RunManaged(), Is.EqualTo(70));
+            Assert.That(FullscreenDefinitionVerification.RunEngine(), Is.EqualTo(20));
+        }
+
+        [Test]
+        public void OriginalCollectableStateAndTierRetainWrappedCountsClampsAndDefaults()
+        {
+            Assert.That(CollectableStateTierVerification.RunManaged(), Is.EqualTo(66));
+        }
+
+        [Test]
         public void OriginalUIBackedDefinitionsRetainAtlasReferencesCacheCountsAndReleaseOrder()
         {
             Assert.That(UIBackedDefinitionVerification.RunManaged(), Is.EqualTo(29));
