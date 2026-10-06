@@ -5,6 +5,27 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalGravityDescriptionRetainsAuthoredLimitsAndQueryOrder()
+        {
+            Assert.That(ProjectLucid.Editor.GravityDescriptionVerification.RunManaged(), Is.EqualTo(26));
+            Assert.That(ProjectLucid.Editor.GravityDescriptionVerification.RunEngine(), Is.EqualTo(74));
+        }
+
+        [Test]
+        public void OriginalGravitySurfacesRetainTypedKeysAndUnitySerialization()
+        {
+            Assert.That(ProjectLucid.Editor.GravitySurfaceDefinitionVerification.RunManaged(), Is.EqualTo(43));
+            Assert.That(ProjectLucid.Editor.GravitySurfaceDefinitionVerification.RunEngine(), Is.EqualTo(24));
+        }
+
+        [Test]
+        public void OriginalSurfaceTrackingRetainsCallbackAndMeshBoundsOrder()
+        {
+            Assert.That(ProjectLucid.Editor.TrackerSurfaceVerification.RunManaged(), Is.EqualTo(92));
+            Assert.That(ProjectLucid.Editor.TrackerSurfaceVerification.RunEngine(), Is.EqualTo(39));
+        }
+
+        [Test]
         public void OriginalColliderQueriesRetainProjectionFilteringAndWorldGeometry()
         {
             Assert.That(ProjectLucid.ColliderExtensionsVerification.RunManaged(), Is.EqualTo(65));
