@@ -11,8 +11,8 @@ namespace Hardlight
         void InternalRevokeSystem();
     }
 
-    // Original registry/actions/query behavior. HLUnityCore diagnostic routing
-    // through null or incompatible checked getters remains unresolved.
+    // Original registry/actions/query behavior, including diagnostic callbacks
+    // and the captured system reference used by checked getters.
     public enum SystemAction { Configure, Initialise, Shutdown, AppInitialise, AppShutdown, Update }
     // Original metadata contract contains no members (type 0x02000057).
     public interface IConditionalLogger { }
@@ -172,13 +172,14 @@ namespace Hardlight
             return reference;
         }
 
-        // 0x06000e40; arm64 generic 0x973c10. Diagnostic/exception routing
-        // through HLUnityCore remains an explicit unresolved null-system branch.
+        // 0x06000e40; ARM64 shared 0x973c10. Keep the captured reference
+        // across diagnostics. If callbacks leave it null, its own Get<T>()
+        // diagnoses a second time; callbacks can replace it between the checks.
         public static T GetSystem<T>(string systemName = null, bool autoRegister = true) where T : class, ISystem
         {
             SystemRef reference = GetSystemRef(systemName ?? GetDefaultName<T>(), autoRegister);
             if (reference.IsNull())
-                throw new NotSupportedException("Original ProcessManager null-system HLUnityCore diagnostic routing is not recovered.");
+                HLUnityCore.LogOrThrowException("System '" + reference.SystemName() + "' is null");
             return reference.Get<T>();
         }
 

@@ -1,69 +1,20 @@
 using System;
 using System.Collections;
-using System.Threading;
 
 namespace Hardlight
 {
-    // Original reference lifecycle, including deferred callbacks and coroutine
-    // waiting. The engine diagnostic branches remain explicitly unresolved.
+    // Original six fields begin with these compiler-generated event backing
+    // fields. Their declaration order also preserves <WaitOnSystem>d__14.
     public class SystemRef<T> : ISystemRef where T : class, ISystem
     {
+        public event Action<T> OnSystemStartup;
+        public event Action<T> OnSystemShutdown;
+        private FastAction<T> m_actionOnSystemValid;
         private readonly string m_systemName;
         private T m_system;
         private ISystem m_isystem;
-        private FastAction<T> m_actionOnSystemValid;
-        private Action<T> m_OnSystemStartup;
-        private Action<T> m_OnSystemShutdown;
 
-        // 0x06000e15..0x06000e18: standard native delegate add/remove accessors.
-        public event Action<T> OnSystemStartup
-        {
-            add
-            {
-                Action<T> current = m_OnSystemStartup, previous;
-                do
-                {
-                    previous = current;
-                    var next = (Action<T>)Delegate.Combine(previous, value);
-                    current = Interlocked.CompareExchange(ref m_OnSystemStartup, next, previous);
-                } while (!ReferenceEquals(current, previous));
-            }
-            remove
-            {
-                Action<T> current = m_OnSystemStartup, previous;
-                do
-                {
-                    previous = current;
-                    var next = (Action<T>)Delegate.Remove(previous, value);
-                    current = Interlocked.CompareExchange(ref m_OnSystemStartup, next, previous);
-                } while (!ReferenceEquals(current, previous));
-            }
-        }
-        public event Action<T> OnSystemShutdown
-        {
-            add
-            {
-                Action<T> current = m_OnSystemShutdown, previous;
-                do
-                {
-                    previous = current;
-                    var next = (Action<T>)Delegate.Combine(previous, value);
-                    current = Interlocked.CompareExchange(ref m_OnSystemShutdown, next, previous);
-                } while (!ReferenceEquals(current, previous));
-            }
-            remove
-            {
-                Action<T> current = m_OnSystemShutdown, previous;
-                do
-                {
-                    previous = current;
-                    var next = (Action<T>)Delegate.Remove(previous, value);
-                    current = Interlocked.CompareExchange(ref m_OnSystemShutdown, next, previous);
-                } while (!ReferenceEquals(current, previous));
-            }
-        }
-
-        // 0x06000e19; arm64 generic 0xbf3fd4: direct stores, no notifications.
+        // 0x06000e19; ARM64 shared 0xbf3fd4.
         public SystemRef(string systemName, T system)
         {
             m_systemName = systemName;
@@ -71,68 +22,80 @@ namespace Hardlight
             m_isystem = system;
         }
 
-        // 0x06000e1a..0x06000e1c; arm64 0xbf4034, 0xbf4044, 0xbf4054.
+        // 0x06000e1a..0x06000e1c; ARM64 0xbf4034/0xbf4044/0xbf4054.
         public bool IsNull() => m_isystem == null;
         public bool IsValid() => m_isystem != null;
         public string SystemName() => m_systemName;
 
-        // 0x06000e1d; arm64 0xbf405c; iterator MoveNext 0xb19058.
-        // The original yields null repeatedly while the untyped reference is null.
+        // 0x06000e1d and original <WaitOnSystem>d__14 (0x06000e27..2c).
         public IEnumerator WaitOnSystem()
         {
             while (IsNull()) yield return null;
         }
 
-        // 0x06000e1e; arm64 generic 0x79924c. Conversion uses the typed
-        // system reference; incompatible types enter the original diagnostic path.
+        // 0x06000e1e; ARM64 shared 0x79924c. The untyped null predicate
+        // precedes diagnosis. A failed T2 cast of a valid system returns null.
+        // The typed field is reloaded after the diagnostic callback returns.
         public T2 Get<T2>() where T2 : class, ISystem
         {
-            T2 result = m_system as T2;
-            if (result == null)
-                throw new NotSupportedException("Original SystemRef typed-get HLUnityCore diagnostic routing is not recovered.");
-            return result;
+            if (m_isystem == null)
+                HLUnityCore.LogOrThrowException("System '" + m_systemName + "' is null");
+            return m_system as T2;
         }
-        // 0x06000e1f; arm64 generic 0x799374.
-        public T2 GetSafe<T2>() where T2 : class, ISystem => m_system as T2;
-        // 0x06000e20: original non-generic TryGet uses GetSafe.
-        public bool TryGet(out T system) { system = GetSafe(); return system != null; }
-        // 0x06000e21; arm64 generic 0x79943c.
-        public bool TryGet<T2>(out T2 system) where T2 : class, ISystem { system = GetSafe<T2>(); return system != null; }
 
-        // 0x06000e22; arm64 generic 0xbf4114.
+        // 0x06000e1f; ARM64 shared 0x799374.
+        public T2 GetSafe<T2>() where T2 : class, ISystem => m_system as T2;
+
+        // 0x06000e20; ARM64 shared 0xbf40d8.
+        public bool TryGet(out T system)
+        {
+            system = GetSafe();
+            return system != null;
+        }
+
+        // 0x06000e21; ARM64 shared 0x79943c.
+        public bool TryGet<T2>(out T2 system) where T2 : class, ISystem
+        {
+            system = GetSafe<T2>();
+            return system != null;
+        }
+
+        // 0x06000e22; ARM64 shared 0xbf4114. Typed and untyped references
+        // deliberately remain independent; diagnosis reloads the typed field.
         public T Get()
         {
-            if (IsNull())
-                throw new NotSupportedException("Original SystemRef null-get HLUnityCore diagnostic routing is not recovered.");
+            if (m_isystem == null)
+                HLUnityCore.LogOrThrowException("System '" + m_systemName + "' is null");
             return m_system;
         }
-        // 0x06000e23; arm64 generic 0xbf41ac: direct typed reference.
+
+        // 0x06000e23; ARM64 shared 0xbf41ac.
         public T GetSafe() => m_system;
 
-        // 0x06000e24; arm64 generic 0xbf41b4. Validity uses the untyped field;
-        // a callback on an incompatible typed reference receives null.
+        // 0x06000e24; ARM64 shared 0xbf41b4. Incompatible untyped systems
+        // still count as valid and pass null to the typed callback.
         public void InvokeOnValid(Action<T> action)
         {
             if (m_isystem != null) action(m_isystem as T);
             else m_actionOnSystemValid += action;
         }
 
-        // 0x06000e25; arm64 generic 0xbf42a4. Replacement does not send a
-        // shutdown event. Startup happens before deferred-valid callbacks, and
-        // a callback exception prevents the deferred list from being cleared.
+        // 0x06000e25; ARM64 shared 0xbf42a4. Startup runs before the
+        // deferred list is re-read; its callback may replace or revoke refs.
+        // Exceptions propagate and prevent the final deferred-list clear.
         void ISystemRef.InternalReplaceSystem(ISystem newSystem)
         {
             m_system = newSystem as T;
             m_isystem = newSystem;
-            m_OnSystemStartup?.Invoke(m_system);
-            if (m_actionOnSystemValid != null) FastAction<T>.Invoke(m_actionOnSystemValid, m_system);
+            OnSystemStartup?.Invoke(m_system);
+            if (m_actionOnSystemValid != null) m_actionOnSystemValid.Invoke(m_system);
             m_actionOnSystemValid = null;
         }
 
-        // 0x06000e26; arm64 generic 0xbf4434: notify before clearing both refs.
+        // 0x06000e26; ARM64 shared 0xbf4434. Notify before clearing refs.
         void ISystemRef.InternalRevokeSystem()
         {
-            if (m_isystem != null) m_OnSystemShutdown?.Invoke(m_system);
+            if (m_isystem != null) OnSystemShutdown?.Invoke(m_system);
             m_system = null;
             m_isystem = null;
         }
@@ -140,7 +103,7 @@ namespace Hardlight
 
     public class SystemRef : SystemRef<ISystem>
     {
-        // 0x06000e2d: original derived constructor delegates both arguments.
+        // 0x06000e2d; ARM64 0x1b18758. Existing base-only context, no new credit.
         public SystemRef(string systemName, ISystem system) : base(systemName, system) { }
     }
 }

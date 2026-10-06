@@ -5,6 +5,45 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalSystemReferencesRetainStartupCallbacksAndUnityNullRules()
+        {
+            SystemRefVerification.Run();
+            var count = typeof(SystemRefVerification).GetField("checks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(count.GetValue(null), Is.EqualTo(83));
+        }
+
+        [Test]
+        public void OriginalCheckedSystemLookupRetainsCapturedReferenceAndDiagnosticOrder()
+        {
+            ProcessManagerCheckedGetVerification.Run();
+            var count = typeof(ProcessManagerCheckedGetVerification).GetField("checks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(count.GetValue(null), Is.EqualTo(55));
+        }
+
+        [Test]
+        public void OriginalMessageExchangeRetainsWeakIdentityMutationAndEngineReferences()
+        {
+            Assert.That(MessageExchangeVerification.RunManaged(), Is.EqualTo(125));
+            Assert.That(MessageExchangeVerification.RunActualUnityObjects(), Is.EqualTo(9));
+        }
+
+        [Test]
+        public void OriginalCharacterBrainRetainsDeferredActionsImpulseAndTimestampOrder()
+        {
+            Assert.That(CharacterBrainVerification.RunManaged(), Is.EqualTo(725));
+            Assert.That(CharacterBrainVerification.RunEngineJson(), Is.EqualTo(4));
+        }
+
+        [Test]
+        public void OriginalActorAnimationDefinitionsRetainParameterAndIntervalSemantics()
+        {
+            Assert.That(ActorAnimationVerification.RunManaged(), Is.EqualTo(358));
+            Assert.That(ActorAnimationVerification.RunEngine(), Is.EqualTo(23));
+        }
+
+        [Test]
         public void OriginalStringTableRetainsLoadingCallbacksAndUnityLifecycle()
         {
             StringTableVerification.Run();
