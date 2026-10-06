@@ -5,6 +5,27 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalTerrainMetadataRetainsKeysRawEnumsAndUnitySerialization()
+        {
+            Assert.That(ProjectLucid.Editor.TerrainMetadataDefinitionVerification.RunManaged(), Is.EqualTo(32));
+            Assert.That(ProjectLucid.Editor.TerrainMetadataDefinitionVerification.RunEngine(), Is.EqualTo(16));
+        }
+
+        [Test]
+        public void OriginalTrackerDefinitionsRetainInheritedKeysCurveAndUnitySerialization()
+        {
+            Assert.That(ProjectLucid.Editor.TrackerMetadataDefinitionsVerification.RunManaged(), Is.EqualTo(123));
+            Assert.That(ProjectLucid.Editor.TrackerMetadataDefinitionsVerification.RunEngine(), Is.EqualTo(58));
+        }
+
+        [Test]
+        public void OriginalTrackerGroupsRetainTypedKeysComparersAndAuthoredArrays()
+        {
+            Assert.That(ProjectLucid.Editor.TrackerDefinitionGroupsVerification.RunManaged(), Is.EqualTo(92));
+            Assert.That(ProjectLucid.Editor.TrackerDefinitionGroupsVerification.RunEngine(), Is.EqualTo(48));
+        }
+
+        [Test]
         public void OriginalUIVisibilityOverridesRetainRegistryRowsAndHandleCallbackOrder()
         {
             Assert.That(UIVisibilityGroupOverriderVerification.RunManaged(), Is.EqualTo(38));

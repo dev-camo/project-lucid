@@ -10,7 +10,8 @@
     "HLModernUI.Runtime",
     "HLInput.Runtime",
     "Unity.RenderPipelines.Core.Runtime",
-    "Unity.RenderPipelines.Universal.Runtime"
+    "Unity.RenderPipelines.Universal.Runtime",
+    "HLSplines.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
