@@ -5,6 +5,27 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalRibbonBoundsRetainCornerOrderScratchTailAndTransforms()
+        {
+            Assert.That(ProjectLucid.Editor.RibbonBoundsAlignmentVerification.RunManaged(), Is.EqualTo(130));
+            Assert.That(ProjectLucid.Editor.RibbonBoundsAlignmentVerification.RunEngine(), Is.EqualTo(29));
+        }
+
+        [Test]
+        public void OriginalCameraAxisAndRecenterRetainLookupDefaultsAndInitialization()
+        {
+            Assert.That(ProjectLucid.Editor.CameraAxisRecenterVerification.RunManaged(), Is.EqualTo(199));
+            Assert.That(ProjectLucid.Editor.CameraAxisRecenterVerification.RunEngine(), Is.EqualTo(95));
+        }
+
+        [Test]
+        public void OriginalSplineMathRetainsCachingApproximationAndAliasedOutputs()
+        {
+            Assert.That(ProjectLucid.Editor.SplineMathVerification.RunManaged(), Is.EqualTo(197));
+            Assert.That(ProjectLucid.Editor.SplineMathVerification.RunEngine(), Is.EqualTo(26));
+        }
+
+        [Test]
         public void OriginalRibbonPrerequisitesRetainTransformsContractsAndMarkerOrder()
         {
             Assert.That(ProjectLucid.Editor.RibbonPrerequisitesVerification.RunManaged(), Is.EqualTo(96));
