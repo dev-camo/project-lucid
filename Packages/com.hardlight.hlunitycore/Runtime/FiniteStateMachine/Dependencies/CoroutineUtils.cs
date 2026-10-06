@@ -5,8 +5,8 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight.Utils
 {
-    // Original coroutine host lifecycle/start/stop and next-frame subset. Other
-    // scheduled utility callbacks and delay/predicate iterators remain unresolved.
+    // Original coroutine host lifecycle/start/stop, next-frame and delay subset.
+    // Other scheduled callbacks and predicate iterators remain unresolved.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public partial class CoroutineUtils : MonoBehaviour, ISystem

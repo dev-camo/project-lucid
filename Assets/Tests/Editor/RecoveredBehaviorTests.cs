@@ -5,6 +5,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalUIManagersRetainIdentifierGuardsAndCloseDispatch()
+        {
+            Assert.That(UIManagerFamilyVerification.RunManaged(), Is.EqualTo(34));
+        }
+
+        [Test]
+        public void OriginalActorFSMKeysRetainStorageLiteralsAndAliases()
+        {
+            Assert.That(ActorFSMKeyVerification.RunManaged(), Is.EqualTo(1217));
+        }
+
+        [Test]
         public void OriginalAudioSourcesRetainClipStateFadeAndDelayOrder()
         {
             Assert.That(AudioSourceRuntimeVerification.RunManaged(), Is.EqualTo(63));
