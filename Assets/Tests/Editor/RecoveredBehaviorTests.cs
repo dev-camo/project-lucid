@@ -5,6 +5,19 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalUIBackedDefinitionsRetainAtlasReferencesCacheCountsAndReleaseOrder()
+        {
+            Assert.That(UIBackedDefinitionVerification.RunManaged(), Is.EqualTo(29));
+            Assert.That(UIBackedDefinitionVerification.RunEngine(), Is.EqualTo(27));
+        }
+
+        [Test]
+        public void OriginalCameraDefinitionsRetainRecenterDefaultsCachedAnglesAndTypedOverrides()
+        {
+            Assert.That(CharacterCameraDefinitionsVerification.Run(), Is.EqualTo(187));
+        }
+
+        [Test]
         public void OriginalRenderAndTargetDefinitionsRetainDefaultsDrawOrderAndMaterialQuirks()
         {
             Assert.That(RenderTargetDefinitionVerification.RunManaged(), Is.EqualTo(39));
