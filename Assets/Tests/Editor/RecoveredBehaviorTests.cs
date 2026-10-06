@@ -248,6 +248,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void OriginalTimeScaledComponentRetainsCallbacksAndTimingPhases()
+        {
+            Assert.That(TimeScaledComponentVerification.Run(), Is.EqualTo(72));
+        }
+
+        [Test]
         public void OriginalTimeSchedulerRetainsCategoryPauseCallbackAndEngineOrder()
         {
             Assert.That(TimeSchedulerVerification.Run(), Is.EqualTo(532));
