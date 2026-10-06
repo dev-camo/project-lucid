@@ -5,6 +5,13 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalBlobShadowRetainsGravityRaycastAndEnableOrder()
+        {
+            Assert.That(BlobShadowVerification.RunManaged(), Is.EqualTo(21));
+            Assert.That(BlobShadowVerification.RunUnityEngine(), Is.EqualTo(24));
+        }
+
+        [Test]
         public void OriginalPerformanceProfilesRetainFeatureAndThresholdRules()
         {
             Assert.That(PerformanceStartupVerification.RunManaged(), Is.EqualTo(184));

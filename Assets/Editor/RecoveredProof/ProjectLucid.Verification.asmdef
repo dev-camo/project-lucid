@@ -11,7 +11,9 @@
     "HLNetworking.Runtime",
     "HLLocalisation.Runtime",
     "Unity.Timeline",
-    "HLInput.Runtime"
+    "HLInput.Runtime",
+    "Unity.RenderPipelines.Core.Runtime",
+    "Unity.RenderPipelines.Universal.Runtime"
   ],
   "includePlatforms": [
     "Editor"
