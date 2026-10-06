@@ -5,6 +5,13 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalDataManagerDefinitionsRetainKeysDefaultsAndUnitySerialization()
+        {
+            Assert.That(DataManagerDefinitionVerification.RunManaged(), Is.EqualTo(32));
+            Assert.That(DataManagerDefinitionVerification.RunEngine(), Is.EqualTo(21));
+        }
+
+        [Test]
         public void OriginalTouchLayoutsRetainLookupFallbackAndSerializedDefaults()
         {
             Assert.That(TouchLayoutVerification.RunManaged(), Is.EqualTo(36));
