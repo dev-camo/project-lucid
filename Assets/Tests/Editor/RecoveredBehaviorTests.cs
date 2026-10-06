@@ -5,6 +5,19 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalSequenceDefinitionsRetainKeysDefaultsAndUnitySerialization()
+        {
+            Assert.That(SequenceDefinitionVerification.RunManaged(), Is.EqualTo(32));
+            Assert.That(SequenceDefinitionVerification.RunEngine(), Is.EqualTo(18));
+        }
+
+        [Test]
+        public void OriginalCharacterDamageDefinitionsRetainDefaultsContractsAndCollectableChanges()
+        {
+            Assert.That(CharacterDamagePrerequisitesVerification.Run(), Is.EqualTo(184));
+        }
+
+        [Test]
         public void OriginalProgressionDefinitionsRetainStreaksGuidLookupAndWaypointSettings()
         {
             Assert.That(ProgressionDefinitionVerification.RunManaged(), Is.EqualTo(57));
