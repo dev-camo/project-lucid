@@ -5,6 +5,13 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalProgressionDefinitionsRetainStreaksGuidLookupAndWaypointSettings()
+        {
+            Assert.That(ProgressionDefinitionVerification.RunManaged(), Is.EqualTo(57));
+            Assert.That(ProgressionDefinitionVerification.RunEngine(), Is.EqualTo(26));
+        }
+
+        [Test]
         public void OriginalDataManagerDefinitionsRetainKeysDefaultsAndUnitySerialization()
         {
             Assert.That(DataManagerDefinitionVerification.RunManaged(), Is.EqualTo(32));
