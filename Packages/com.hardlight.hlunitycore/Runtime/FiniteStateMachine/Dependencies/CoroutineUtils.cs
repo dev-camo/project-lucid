@@ -1,11 +1,14 @@
 using System;
 using System.Collections;
 using UnityEngine;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight.Utils
 {
     // Original coroutine host lifecycle/start/stop and next-frame subset. Other
     // scheduled utility callbacks and delay/predicate iterators remain unresolved.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public partial class CoroutineUtils : MonoBehaviour, ISystem
     {
         private static CoroutineUtils s_instance;
@@ -62,5 +65,20 @@ namespace Hardlight.Utils
 
         // Original token 0x06001194; arm64 0x1b39550 delegates MonoBehaviour.
         public CoroutineUtils() { }
+
+        // HLUnityCore.Runtime:Hardlight.Utils.CoroutineUtils:0x06001179; arm64 0x1b383ac.
+        // Original iterator 0x060011e9..11ee, MoveNext arm64 0x1b3a688.
+        // Nonpositive counts invoke immediately on first MoveNext. The callback
+        // runs after the state becomes terminal, without a null guard.
+        public static IEnumerator WaitNumberOfFramesCoroutine(Action action, int numberOfFramesToWait)
+        {
+            int frameCount = 0;
+            while (frameCount < numberOfFramesToWait)
+            {
+                yield return null;
+                frameCount++;
+            }
+            action();
+        }
     }
 }

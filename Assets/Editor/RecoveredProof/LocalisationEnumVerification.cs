@@ -1,0 +1,193 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
+using Hardlight.Enums;
+using UnityEngine;
+
+namespace ProjectLucid
+{
+    // Checks original localisation registries, comparers and mutable cache behavior.
+    public static partial class LocalisationEnumVerification
+    {
+        private static int checks;
+        private const BindingFlags Own = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        private static void Check(bool ok, string message) { ++checks; if (!ok) throw new InvalidOperationException(message); }
+        private static FieldInfo Field(Type type, string name) => type.GetField(name, Own);
+        private sealed class Instruction { public OpCode Code; public object Operand; }
+        private static readonly Dictionary<ushort, OpCode> Codes = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static).Where(f => f.FieldType == typeof(OpCode)).Select(f => (OpCode)f.GetValue(null)).ToDictionary(c => unchecked((ushort)c.Value));
+        private static List<Instruction> IL(MethodBase method)
+        {
+            byte[] data = method.GetMethodBody().GetILAsByteArray();
+            var result = new List<Instruction>();
+            for (int p = 0; p < data.Length;)
+            {
+                ushort value = data[p++]; if (value == 0xfe) value = (ushort)(0xfe00 | data[p++]);
+                OpCode code = Codes[value]; object operand = null;
+                switch (code.OperandType)
+                {
+                    case OperandType.InlineNone: break;
+                    case OperandType.ShortInlineI: operand = (int)(sbyte)data[p++]; break;
+                    case OperandType.ShortInlineVar: operand = data[p++]; break;
+                    case OperandType.InlineVar: operand = BitConverter.ToUInt16(data, p); p += 2; break;
+                    case OperandType.ShortInlineBrTarget: p++; break;
+                    case OperandType.InlineBrTarget: p += 4; break;
+                    case OperandType.InlineI: operand = BitConverter.ToInt32(data, p); p += 4; break;
+                    case OperandType.InlineI8: operand = BitConverter.ToInt64(data, p); p += 8; break;
+                    case OperandType.ShortInlineR: p += 4; break;
+                    case OperandType.InlineR: p += 8; break;
+                    case OperandType.InlineSwitch: int n = BitConverter.ToInt32(data, p); p += 4 + n * 4; break;
+                    case OperandType.InlineMethod: operand = method.Module.ResolveMethod(BitConverter.ToInt32(data, p)); p += 4; break;
+                    case OperandType.InlineField: operand = method.Module.ResolveField(BitConverter.ToInt32(data, p)); p += 4; break;
+                    case OperandType.InlineString: operand = method.Module.ResolveString(BitConverter.ToInt32(data, p)); p += 4; break;
+                    case OperandType.InlineType: operand = method.Module.ResolveType(BitConverter.ToInt32(data, p)); p += 4; break;
+                    case OperandType.InlineTok: operand = method.Module.ResolveMember(BitConverter.ToInt32(data, p)); p += 4; break;
+                    default: throw new InvalidOperationException("unsupported proof IL operand " + code.OperandType);
+                }
+                result.Add(new Instruction { Code = code, Operand = operand });
+            }
+            return result;
+        }
+        private static int? Constant(Instruction i)
+        {
+            if (i.Code == OpCodes.Ldc_I4 || i.Code == OpCodes.Ldc_I4_S) return (int)i.Operand;
+            if (i.Code == OpCodes.Ldc_I4_M1) return -1;
+            OpCode[] small = { OpCodes.Ldc_I4_0, OpCodes.Ldc_I4_1, OpCodes.Ldc_I4_2, OpCodes.Ldc_I4_3, OpCodes.Ldc_I4_4, OpCodes.Ldc_I4_5, OpCodes.Ldc_I4_6, OpCodes.Ldc_I4_7, OpCodes.Ldc_I4_8 };
+            for (int n = 0; n < small.Length; ++n) if (i.Code == small[n]) return n;
+            return null;
+        }
+        public static void Run() => Debug.Log("Project Lucid localisation enum registry checks: " + RunManaged() + "; original localisation/network/engine loading unrun.");
+        public static int RunManaged()
+        {
+            checks = 0;
+            Metadata(); Comparers();
+            Registry(NativeLanguages, EnumComparers.LanguagesComparer, "LanguagesEnumToString", "GenerateDefaultLanguagesEnumStrings", value => value.GetString());
+            Registry(NativeStrings, EnumComparers.StringsComparer, "StringsEnumToString", "GenerateDefaultStringsEnumStrings", value => value.GetString());
+            return checks;
+        }
+        private static void Metadata()
+        {
+            Type[] ordinary = { typeof(EnumComparers), typeof(LanguagesEqualityComparer), typeof(StringsEqualityComparer) };
+            foreach (Type type in ordinary)
+            {
+                Check(type.Assembly.GetName().Name == "HLAutoGenerated" && type.Namespace == "Hardlight.Enums", "original comparer assembly/namespace");
+                Check(type.IsPublic && !type.IsSealed && !type.IsAbstract && type.BaseType == typeof(object) && (type.Attributes & TypeAttributes.BeforeFieldInit) != 0, "original normal public beforefieldinit class");
+                Check(type.GetCustomAttributesData().Count == 0, "no original comparer type attributes");
+                Check(type.GetConstructors(Own).Count(c => !c.IsStatic) == 1 && type.GetConstructor(Type.EmptyTypes).IsPublic, "genuine public instance constructor");
+                Check(type.GetConstructor(Type.EmptyTypes).GetCustomAttributesData().Count == 0, "constructor no attrs");
+                foreach (MethodInfo method in type.GetMethods(Own)) Check(method.GetCustomAttributesData().Count == 0, "comparer method no attrs");
+            }
+            Check(typeof(LanguagesEqualityComparer).GetFields(Own).Length == 0 && typeof(StringsEqualityComparer).GetFields(Own).Length == 0, "complete fieldless comparer types");
+            Check(typeof(LanguagesEqualityComparer).GetInterfaces().SequenceEqual(new[] { typeof(IEqualityComparer<Languages>) }) && typeof(StringsEqualityComparer).GetInterfaces().SequenceEqual(new[] { typeof(IEqualityComparer<Strings>) }), "real complete BCL comparer interfaces");
+            foreach (Type type in ordinary.Skip(1))
+            {
+                Check(type.GetMethods(Own).Length == 2 && type.TypeInitializer == null, "exact two comparer methods/no static ctor");
+                foreach (MethodInfo method in type.GetMethods(Own)) Check(method.IsPublic && method.IsFinal && method.IsVirtual && (method.Attributes & MethodAttributes.NewSlot) != 0, "original final virtual newslot comparer flags");
+            }
+            Type comparers = typeof(EnumComparers);
+            Check(comparers.GetMethods(Own).Length == 0 && comparers.TypeInitializer != null, "helper complete constructor pair/no ordinary methods");
+            FieldInfo[] fields = comparers.GetFields(Own).OrderBy(f => f.MetadataToken).ToArray();
+            Check(fields.Select(f => f.Name).SequenceEqual(new[] { "LanguagesComparer", "StringsComparer" }), "original comparer fields/order");
+            Check(fields.Select(f => f.FieldType).SequenceEqual(new[] { typeof(LanguagesEqualityComparer), typeof(StringsEqualityComparer) }), "exact concrete comparer field types");
+            foreach (FieldInfo field in fields) Check(field.IsPublic && field.IsStatic && field.IsInitOnly && field.GetCustomAttributesData().Count == 0, "original comparer field flags/no attrs");
+            var init = IL(comparers.TypeInitializer);
+            Check(init.Where(i => i.Code == OpCodes.Newobj).Select(i => ((MethodBase)i.Operand).DeclaringType).SequenceEqual(new[] { typeof(LanguagesEqualityComparer), typeof(StringsEqualityComparer) }), "native comparator allocation order");
+            Check(init.Where(i => i.Code == OpCodes.Stsfld).Select(i => ((FieldInfo)i.Operand).Name).SequenceEqual(new[] { "LanguagesComparer", "StringsComparer" }), "native comparator store order");
+            Check(new EnumComparers() != null && !ReferenceEquals(new LanguagesEqualityComparer(), EnumComparers.LanguagesComparer) && !ReferenceEquals(new StringsEqualityComparer(), EnumComparers.StringsComparer), "real independent public constructors");
+            Type extension = typeof(EnumExtentions);
+            Check(extension.Assembly.GetName().Name == "HLAutoGenerated" && extension.IsAbstract && extension.IsSealed && extension.IsPublic && (extension.Attributes & TypeAttributes.BeforeFieldInit) != 0, "original extension type flags/assembly");
+            Check(extension.GetCustomAttributesData().Count == 1 && extension.IsDefined(typeof(ExtensionAttribute), false), "genuine extension class attribute");
+            FieldInfo[] dictionaries = extension.GetFields(Own).OrderBy(f => f.MetadataToken).ToArray();
+            Check(dictionaries.Select(f => f.Name).SequenceEqual(new[] { "LanguagesEnumToString", "StringsEnumToString" }), "full original dictionary field order");
+            Check(dictionaries.Select(f => f.FieldType).SequenceEqual(new[] { typeof(Dictionary<Languages, string>), typeof(Dictionary<Strings, string>) }), "full original dictionary field types");
+            foreach (FieldInfo field in dictionaries) Check(field.IsPrivate && field.IsStatic && field.IsInitOnly && field.GetCustomAttributesData().Count == 0, "exact dictionary visibility/mutability/attrs");
+            Check(extension.GetMethods(Own).Length == 4 && extension.GetConstructors(Own).Count(c => !c.IsStatic) == 0 && extension.TypeInitializer != null, "exact full5 own methods inclcctor");
+            foreach (MethodInfo method in extension.GetMethods(Own))
+            {
+                Check(method.IsStatic && !method.IsVirtual && !method.IsFinal, "original static nonvirtual registry method flags");
+                Check(method.Name == "GetString" ? method.IsPublic && method.IsDefined(typeof(ExtensionAttribute), false) && method.GetCustomAttributesData().Count == 1 : method.IsPrivate && method.GetCustomAttributesData().Count == 0, "original lookup/generator access and extension attrs");
+            }
+            var cctor = IL(extension.TypeInitializer);
+            Check(cctor.Where(i => i.Code == OpCodes.Call).Select(i => ((MethodBase)i.Operand).Name).SequenceEqual(new[] { "GenerateDefaultLanguagesEnumStrings", "GenerateDefaultStringsEnumStrings" }), "language generator before strings generator");
+            Check(cctor.Where(i => i.Code == OpCodes.Stsfld).Select(i => ((FieldInfo)i.Operand).Name).SequenceEqual(new[] { "LanguagesEnumToString", "StringsEnumToString" }), "native dictionary store order");
+        }
+        private static void Comparers()
+        {
+            var language = EnumComparers.LanguagesComparer; var strings = EnumComparers.StringsComparer;
+            foreach (int bits in new[] { int.MinValue, int.MinValue + 1, -1884417163, -1, 0, 1, 127, 65535, int.MaxValue })
+            {
+                Check(language.GetHashCode((Languages)bits) == bits && strings.GetHashCode((Strings)bits) == bits, "raw signed Int32 hashes");
+                Check(language.Equals((Languages)bits, (Languages)bits) && strings.Equals((Strings)bits, (Strings)bits), "identity equality");
+                Check(!language.Equals((Languages)bits, (Languages)unchecked(bits + 1)) && !strings.Equals((Strings)bits, (Strings)unchecked(bits + 1)), "adjacent/wrapped values unequal");
+                Check(((IEqualityComparer<Languages>)language).Equals((Languages)bits, (Languages)bits) && ((IEqualityComparer<Strings>)strings).GetHashCode((Strings)bits) == bits, "genuine interface dispatch");
+            }
+            foreach (var pair in NativeLanguages) Check(language.GetHashCode(pair.Key) == (int)pair.Key, "every original language hash");
+            foreach (var pair in NativeStrings) Check(strings.GetHashCode(pair.Key) == (int)pair.Key, "every original string hash");
+        }
+        private static void Registry<T>(KeyValuePair<T, string>[] expected, IEqualityComparer<T> comparer, string fieldName, string generatorName, Func<T, string> lookup) where T : struct
+        {
+            MethodInfo generator = typeof(EnumExtentions).GetMethod(generatorName, Own);
+            var a = (Dictionary<T, string>)generator.Invoke(null, null); var b = (Dictionary<T, string>)generator.Invoke(null, null);
+            var shared = (Dictionary<T, string>)Field(typeof(EnumExtentions), fieldName).GetValue(null);
+            var before = shared.ToArray(); CultureInfo previousCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                Check(a.Count == expected.Length && b.Count == expected.Length && !ReferenceEquals(a, b) && !ReferenceEquals(a, shared), "complete fresh generator dictionaries");
+                Check(ReferenceEquals(a.Comparer, comparer) && ReferenceEquals(b.Comparer, comparer) && ReferenceEquals(shared.Comparer, comparer), "original concrete singleton comparer preserved");
+                Check(a.SequenceEqual(expected), "native full registration order on actual bounded CLR");
+                foreach (var pair in expected)
+                {
+                    Check(a.TryGetValue(pair.Key, out string value) && value == pair.Value, "native full key/literal map");
+                    Check(lookup(pair.Key) == pair.Value && shared.ContainsKey(pair.Key), "all original known extension values");
+                }
+                // Inspect actual compiled key/literal Add sequence, independently of
+                // dictionary enumeration and runtime hash-table capacity choices.
+                int? key = null; string literal = null; int count = 0;
+                var instructions = IL(generator);
+                foreach (var i in instructions)
+                {
+                    int? constant = Constant(i); if (constant.HasValue) key = constant;
+                    if (i.Code == OpCodes.Ldstr) literal = (string)i.Operand;
+                    if ((i.Code == OpCodes.Callvirt || i.Code == OpCodes.Call) && i.Operand is MethodBase method && method.Name == "Add")
+                    {
+                        Check(key.HasValue && key.Value == Convert.ToInt32(expected[count].Key) && literal == expected[count].Value, "actual compiled native Add key/literal order"); ++count;
+                    }
+                }
+                Check(count == expected.Length, "complete compiled registration count");
+                Check(instructions.Count(i => i.Code == OpCodes.Newobj && i.Operand is ConstructorInfo c && c.DeclaringType == typeof(Dictionary<T, string>) && c.GetParameters().Select(p => p.ParameterType).SequenceEqual(new[] { typeof(IEqualityComparer<T>) })) == 1, "exact Dictionary(comparer) constructor overload");
+                Check(instructions.Where(i => i.Code == OpCodes.Ldsfld).Select(i => ((FieldInfo)i.Operand).Name).SequenceEqual(new[] { typeof(T) == typeof(Languages) ? "LanguagesComparer" : "StringsComparer" }), "actual original comparer load");
+                T known = expected[0].Key; int sameCount = shared.Count;
+                shared[known] = "fixture override"; Check(lookup(known) == "fixture override" && shared.Count == sameCount, "known hit returns current dictionary payload");
+                shared[known] = null; Check(lookup(known) == null && shared.Count == sameCount, "existing null mapping is a hit, no fallback");
+                shared.Remove(known); string hex = "0x" + unchecked((uint)Convert.ToInt32(known)).ToString("X8", CultureInfo.InvariantCulture);
+                Check(lookup(known) == hex && shared[known] == hex, "removed named enum uses hexadecimal underlying bits then caches");
+                Check(ReferenceEquals(lookup(known), shared[known]), "return retained cached string identity");
+                shared[known] = expected[0].Value;
+                a[known] = "independent"; Check(lookup(known) == expected[0].Value && b[known] == expected[0].Value, "fresh generator is independently owned");
+                foreach (int bits in new[] { int.MinValue, -1, 0, 1, int.MaxValue })
+                {
+                    T value = (T)Enum.ToObject(typeof(T), bits);
+                    if (expected.Any(p => EqualityComparer<T>.Default.Equals(p.Key, value))) continue;
+                    shared.Remove(value); int priorCount = shared.Count;
+                    CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
+                    string first = lookup(value); string expectedHex = "0x" + unchecked((uint)bits).ToString("X8", CultureInfo.InvariantCulture);
+                    Check(first == expectedHex && shared.Count == priorCount + 1 && shared[value] == first, "unknown boxed enum X format padded/full bits + indexer cache");
+                    CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+                    Check(ReferenceEquals(first, lookup(value)) && shared.Count == priorCount + 1, "unknown second lookup hits cached identity without growth");
+                    shared[value] = "custom cached"; Check(lookup(value) == "custom cached", "later hits read cached value rather than reformat");
+                    shared[value] = null; Check(lookup(value) == null, "unknown cached null remains hit");
+                }
+                Check(((Dictionary<T, string>)generator.Invoke(null, null)).Count == expected.Length, "new generator ignores live shared unknown cache");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = previousCulture;
+                shared.Clear(); foreach (var pair in before) shared.Add(pair.Key, pair.Value);
+            }
+            Check(shared.SequenceEqual(before) && ReferenceEquals(shared, Field(typeof(EnumExtentions), fieldName).GetValue(null)) && ReferenceEquals(shared.Comparer, comparer), "finally restored all original entries/order/static identity/comparer");
+        }
+    }
+}

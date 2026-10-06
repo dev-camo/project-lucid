@@ -8,6 +8,15 @@
         "com.hardlight.hlunitycore": "0.1.0"
       }
     },
+    "com.hardlight.hllocalisation": {
+      "version": "file:com.hardlight.hllocalisation",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.hardlight.hlunitycore": "0.1.0",
+        "com.hardlight.hlnetworking": "0.1.0"
+      }
+    },
     "com.hardlight.hlmodernui": {
       "version": "file:com.hardlight.hlmodernui",
       "depth": 0,

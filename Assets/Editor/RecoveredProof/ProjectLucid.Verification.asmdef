@@ -8,7 +8,8 @@
     "Unity.ResourceManager",
     "HLBinders.Runtime",
     "HLModernUI.Runtime",
-    "HLNetworking.Runtime"
+    "HLNetworking.Runtime",
+    "HLLocalisation.Runtime"
   ],
   "includePlatforms": [
     "Editor"

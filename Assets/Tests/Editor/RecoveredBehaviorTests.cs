@@ -5,6 +5,48 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalStringTableRetainsLoadingCallbacksAndUnityLifecycle()
+        {
+            StringTableVerification.Run();
+            var count = typeof(StringTableVerification).GetField("checks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(count.GetValue(null), Is.EqualTo(169));
+        }
+
+        [Test]
+        public void SuppliedLanguagesLoadThroughOriginalTableAndCallbacks()
+        {
+            Assert.That(BundledStringTableVerification.Run(), Is.EqualTo(17));
+        }
+
+        [Test]
+        public void OriginalLanguageRetainsSavedOverridesAndUnityLifecycle()
+        {
+            LanguageVerification.Run();
+            var count = typeof(LanguageVerification).GetField("checks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(count.GetValue(null), Is.EqualTo(193));
+        }
+
+        [Test]
+        public void OriginalLocalisationConfigurationRetainsFieldsAndValidationOrder()
+        {
+            Assert.That(LocalisationFoundationVerification.RunManaged(), Is.EqualTo(93));
+        }
+
+        [Test]
+        public void OriginalLocalisationEnumsRetainRegistriesComparersAndMutableMisses()
+        {
+            Assert.That(LocalisationEnumVerification.RunManaged(), Is.EqualTo(8110));
+        }
+
+        [Test]
+        public void OriginalStringTablePrerequisitesRetainVersionAndCoroutineOrder()
+        {
+            Assert.That(StringTablePrerequisitesVerification.RunManaged(), Is.EqualTo(137));
+        }
+
+        [Test]
         public void SuppliedLanguageFilesRoundtripThroughOriginalCodecs()
         {
             Assert.That(ClientDataAPIVerification.RunBundledData(), Is.EqualTo(17));
@@ -25,8 +67,9 @@ namespace ProjectLucid.Tests
         [Test]
         public void CodecMethodFlagsAreRestoredByTheActualUnityCompilerPipeline()
         {
-            // Unity adds two MonoScript generator methods to the complete module.
-            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(650));
+            // Preserve the complete module, including thirteen localisation
+            // registry methods and Unity's two MonoScript generator methods.
+            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(663));
         }
 
         [Test]

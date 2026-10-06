@@ -55,22 +55,37 @@ namespace ProjectLucid
             }
         }
 
+        // Verification uses fresh pool arrays so decoded authored data cannot
+        // acquire or overwrite entries owned by another test or game system.
+        // The lease restores every prior reference, count and captured payload.
+        internal static IDisposable IsolatePools()
+        {
+            Type[] types = { typeof(LocalisedString), typeof(ClientDataAPI.StringTable), typeof(SupportedLanguage), typeof(LocalisationDefinitions) };
+            var state = new State(types);
+            try
+            {
+                foreach (Type type in types)
+                {
+                    Field(type, "s_poolSize").SetValue(null, 20);
+                    Field(type, "s_poolNumAcquired").SetValue(null, 0);
+                    Field(type, "s_poolInstances").SetValue(null, Array.CreateInstance(type, 20));
+                }
+                return state;
+            }
+            catch
+            {
+                state.Dispose();
+                throw;
+            }
+        }
+
         public static int RunBundledData()
         {
             string directory = System.IO.Path.Combine(Application.streamingAssetsPath, "LanguageStrings");
             string[] files = System.IO.Directory.GetFiles(directory, "*.bytes").OrderBy(p => p, StringComparer.Ordinal).ToArray();
             if (files.Length == 0) throw new InvalidOperationException("No extracted language data is present.");
-            Type[] types = { typeof(LocalisedString), typeof(ClientDataAPI.StringTable), typeof(SupportedLanguage), typeof(LocalisationDefinitions) };
-            using (new State(types))
+            using (IsolatePools())
             {
-                foreach (Type type in types)
-                {
-                    // Fresh arrays keep the shared pool entries untouched; State
-                    // restores the original references and counters even on failure.
-                    Field(type, "s_poolSize").SetValue(null, 20);
-                    Field(type, "s_poolNumAcquired").SetValue(null, 0);
-                    Field(type, "s_poolInstances").SetValue(null, Array.CreateInstance(type, 20));
-                }
                 int strings = 0;
                 foreach (string file in files)
                 {

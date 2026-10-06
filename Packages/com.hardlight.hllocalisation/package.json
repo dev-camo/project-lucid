@@ -1,0 +1,11 @@
+{
+  "name": "com.hardlight.hllocalisation",
+  "displayName": "Hardlight Localisation",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Maintained original language selection and bundled localisation loading.",
+  "dependencies": {
+    "com.hardlight.hlunitycore": "0.1.0",
+    "com.hardlight.hlnetworking": "0.1.0"
+  }
+}
