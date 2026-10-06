@@ -17,6 +17,8 @@ from .bootstrap import managed_path, write_json
 
 UNITY_VERSION = "2022.3.54f1"
 EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
+    "OriginalActorDefinitionsRetainCachesWeightedAudioAndUnityDefaults",
+    "OriginalSplashScreenRetainsSelectionTimelineAndCallbackOrder",
     "OriginalSystemReferencesRetainStartupCallbacksAndUnityNullRules",
     "OriginalCheckedSystemLookupRetainsCapturedReferenceAndDiagnosticOrder",
     "OriginalMessageExchangeRetainsWeakIdentityMutationAndEngineReferences",
@@ -96,6 +98,8 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "TimeConversionsRetainOriginalUnitsRoundingAndDateKinds",
     "SkyCubemapGpuOutputMatchesDecodedMetalCases",
     "EggmanLogoGpuOutputMatchesDecodedColorBlendAndLayerCases"))
+EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
@@ -121,8 +125,8 @@ def artifact_fingerprint(repo_root, prepared=False):
             for name in directories:
                 if (Path(parent) / name).is_symlink():
                     raise ValueError("Refusing a symlinked project directory: " + str(Path(parent) / name))
-            directories[:] = [name for name in directories if name not in ("obj", "bin", "__pycache__")
-                              and not name.startswith(".")]
+            directories[:] = [name for name in directories if not name.startswith(".")
+                              and (prepared or name not in ("obj", "bin", "__pycache__"))]
             if not prepared and Path(parent) == root / "Assets":
                 directories[:] = [name for name in directories if name not in ("Recovered", "StreamingAssets")]
                 names = [name for name in names if name not in ("Recovered.meta", "StreamingAssets.meta")]
@@ -268,8 +272,7 @@ def _audit_wrapper_paths_supported(root):
     """
     for base in ("Assets/Recovered", "Assets/StreamingAssets"):
         for parent, directories, names in os.walk(Path(root) / base):
-            directories[:] = [name for name in directories if name not in ("obj", "bin", "__pycache__")
-                              and not name.startswith(".")]
+            directories[:] = [name for name in directories if not name.startswith(".")]
             for name in names:
                 if name.endswith((".pyc", ".pyo", ".tmp")) or name == ".DS_Store":
                     continue

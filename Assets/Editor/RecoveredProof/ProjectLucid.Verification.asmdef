@@ -9,7 +9,8 @@
     "HLBinders.Runtime",
     "HLModernUI.Runtime",
     "HLNetworking.Runtime",
-    "HLLocalisation.Runtime"
+    "HLLocalisation.Runtime",
+    "Unity.Timeline"
   ],
   "includePlatforms": [
     "Editor"

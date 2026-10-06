@@ -44,7 +44,7 @@ namespace ProjectLucid.Editor
             {
                 RejectSymlink(child);
                 string name = Path.GetFileName(child);
-                if (name.StartsWith(".", StringComparison.Ordinal) || name == "obj" || name == "bin" || name == "__pycache__") continue;
+                if (name.StartsWith(".", StringComparison.Ordinal) || (!prepared && (name == "obj" || name == "bin" || name == "__pycache__"))) continue;
                 if (!prepared && Relative(root, directory) == "Assets" && (name == "Recovered" || name == "StreamingAssets")) continue;
                 Collect(root, child, prepared, files);
             }

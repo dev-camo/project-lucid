@@ -28,6 +28,25 @@ class VerificationTests(unittest.TestCase):
             (root / "Assets/Source.cs").write_text("changed code")
             self.assertNotEqual(source, artifact_fingerprint(root))
 
+    def test_prepared_identity_includes_asset_directories_named_like_build_caches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for base in ("Assets/Recovered", "Assets/StreamingAssets"):
+                for name in ("obj", "bin", "__pycache__"):
+                    path = root / base / name / "mesh.bundle"
+                    path.parent.mkdir(parents=True)
+                    path.write_bytes(b"original bundle")
+                    before = artifact_fingerprint(root, True)
+                    path.write_bytes(b"changed bundle")
+                    self.assertNotEqual(before, artifact_fingerprint(root, True))
+            source_before = artifact_fingerprint(root)
+            for base in ("Assets", "Packages", "tools"):
+                for name in ("obj", "bin", "__pycache__"):
+                    path = root / base / name / "temporary.cs"
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text("build cache")
+            self.assertEqual(source_before, artifact_fingerprint(root))
+
     def test_identity_rejects_symlink_instead_of_hashing_outside_project(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

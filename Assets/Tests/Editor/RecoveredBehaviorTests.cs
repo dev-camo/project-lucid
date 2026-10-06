@@ -5,6 +5,22 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalActorDefinitionsRetainCachesWeightedAudioAndUnityDefaults()
+        {
+            Assert.That(ActorDefinitionVerification.RunManaged(), Is.EqualTo(100));
+            Assert.That(ActorDefinitionVerification.RunEngine(), Is.EqualTo(38));
+        }
+
+        [Test]
+        public void OriginalSplashScreenRetainsSelectionTimelineAndCallbackOrder()
+        {
+            SplashScreenVerification.Run();
+            var count = typeof(SplashScreenVerification).GetField("checks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(count.GetValue(null), Is.EqualTo(50));
+        }
+
+        [Test]
         public void OriginalSystemReferencesRetainStartupCallbacksAndUnityNullRules()
         {
             SystemRefVerification.Run();
