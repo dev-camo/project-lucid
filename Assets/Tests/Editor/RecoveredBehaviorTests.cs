@@ -5,6 +5,13 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalCharacterConstantsAndControlsRetainDefaultsAndCallbackOrder()
+        {
+            Assert.That(CharacterControlsVerification.RunManaged(), Is.EqualTo(60));
+            Assert.That(CharacterControlsVerification.RunEngine(), Is.EqualTo(18));
+        }
+
+        [Test]
         public void OriginalGlyphMapsRetainFallbacksAndSerializedCallbacks()
         {
             Assert.That(GlyphStartupVerification.RunManaged(), Is.EqualTo(110));
