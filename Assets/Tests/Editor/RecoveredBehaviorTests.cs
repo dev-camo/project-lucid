@@ -5,6 +5,25 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalRibbonPrerequisitesRetainTransformsContractsAndMarkerOrder()
+        {
+            Assert.That(ProjectLucid.Editor.RibbonPrerequisitesVerification.RunManaged(), Is.EqualTo(96));
+            Assert.That(ProjectLucid.Editor.RibbonPrerequisitesVerification.RunEngine(), Is.EqualTo(26));
+        }
+
+        [Test]
+        public void OriginalSurfacePhysicsAndResolverRetainOrderedQueriesAndProfilerConstruction()
+        {
+            Assert.That(ProjectLucid.Editor.SurfaceResolverVerification.Run(), Is.EqualTo(91));
+        }
+
+        [Test]
+        public void RibbonAccessorMarkersAreRestoredByTheActualUnityCompilerPipeline()
+        {
+            Assert.That(RibbonPipelineVerification.Run(), Is.EqualTo(47));
+        }
+
+        [Test]
         public void OriginalGravityDescriptionRetainsAuthoredLimitsAndQueryOrder()
         {
             Assert.That(ProjectLucid.Editor.GravityDescriptionVerification.RunManaged(), Is.EqualTo(26));
