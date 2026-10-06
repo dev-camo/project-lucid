@@ -5,6 +5,27 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalColliderQueriesRetainProjectionFilteringAndWorldGeometry()
+        {
+            Assert.That(ProjectLucid.ColliderExtensionsVerification.RunManaged(), Is.EqualTo(65));
+            Assert.That(ProjectLucid.ColliderExtensionsVerification.RunEngine(), Is.EqualTo(61));
+        }
+
+        [Test]
+        public void OriginalInstancedPoolsRetainMeshCloningRoutingAndManagerLifecycle()
+        {
+            Assert.That(ProjectLucid.Editor.InstancedPoolingVerification.RunManaged(), Is.EqualTo(42));
+            Assert.That(ProjectLucid.Editor.InstancedPoolingVerification.RunEngine(), Is.EqualTo(27));
+        }
+
+        [Test]
+        public void OriginalHalfPipeTrajectoryRetainsAuthoredCurveAndUnitySerialization()
+        {
+            Assert.That(ProjectLucid.HalfPipeTrajectoryVerification.RunManaged(), Is.EqualTo(19));
+            Assert.That(ProjectLucid.HalfPipeTrajectoryVerification.RunEngine(), Is.EqualTo(22));
+        }
+
+        [Test]
         public void OriginalTerrainMetadataRetainsKeysRawEnumsAndUnitySerialization()
         {
             Assert.That(ProjectLucid.Editor.TerrainMetadataDefinitionVerification.RunManaged(), Is.EqualTo(32));
