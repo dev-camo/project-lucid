@@ -42,7 +42,7 @@ namespace ProjectLucid
             foreach (object element in elements) list.Add(element);
             Field(typeof(ActorParticleEffectLookup), "m_elements").SetValue(lookup, list);
             Field(typeof(ActorParticleEffectLookup), "<Lookup>k__BackingField").SetValue(lookup,
-                new Dictionary<ActorParticleTriggerType, ParticleEffectType>(HardlightEnumComparers.ActorParticleTriggerTypeComparer));
+                new Dictionary<ActorParticleTriggerType, ParticleEffectType>(HardlightProject.HardlightEnumComparers.ActorParticleTriggerTypeComparer));
             return lookup;
         }
         public static int RunManaged()
@@ -106,7 +106,7 @@ namespace ProjectLucid
             var lookup = new ActorAudioLookup(); var a = new ActorAudioReference { AudioType = (ActorAudioTypes)17, WeightedClips = new[] { Clip(3) } };
             var b = new ActorAudioReference { AudioType = (ActorAudioTypes)17, WeightedClips = new[] { Clip(9) } };
             var c = new ActorAudioReference { AudioType = (ActorAudioTypes)23, WeightedClips = new[] { Clip(0) } };
-            Require(ReferenceEquals(lookup.AudioDictionary.Comparer, HardlightEnumComparers.ActorAudioTypesComparer), ref checks, "audio original comparer");
+            Require(ReferenceEquals(lookup.AudioDictionary.Comparer, HardlightProject.HardlightEnumComparers.ActorAudioTypesComparer), ref checks, "audio original comparer");
             lookup.CompileLookup(new[] { a, b }); Require(lookup.AudioDictionary.Count == 1 && ReferenceEquals(lookup.AudioDictionary[(ActorAudioTypes)17], b), ref checks, "last audio reference wins");
             lookup.CompileLookup(new[] { c }); Require(lookup.AudioDictionary.Count == 2 && ReferenceEquals(lookup.AudioDictionary[(ActorAudioTypes)17], b), ref checks, "compile lookup adds without clearing");
             Require(lookup.TryGet((ActorAudioTypes)17, out HLAudioClipIdentifier? result, (LevelSetupTypes)19) && (int)result.Value == 9, ref checks, "audio successful selection");
@@ -169,7 +169,7 @@ namespace ProjectLucid
             Require((string)Field(e1.GetType(), "Name").GetValue(e1) == ((ActorParticleTriggerType)17).GetString() + " -> " + ((ParticleEffectType)23).GetString(), ref checks, "particle nonzero registry display");
             var particles = ParticleLookup(e0, e1, e2); particles.Lookup[(ActorParticleTriggerType)37] = (ParticleEffectType)41;
             particles.UpdateCachedValues(); Require(particles.Lookup.Count == 2 && (int)particles.Lookup[(ActorParticleTriggerType)17] == 29 && !particles.Lookup.ContainsKey((ActorParticleTriggerType)37), ref checks, "particle refresh clears and last entry wins");
-            Require(ReferenceEquals(particles.Lookup.Comparer, HardlightEnumComparers.ActorParticleTriggerTypeComparer), ref checks, "particle original comparer");
+            Require(ReferenceEquals(particles.Lookup.Comparer, HardlightProject.HardlightEnumComparers.ActorParticleTriggerTypeComparer), ref checks, "particle original comparer");
             particles = ParticleLookup(e1, null);
             Require(ThrowsNull(particles.UpdateCachedValues) && particles.Lookup.Count == 1 && (int)particles.Lookup[(ActorParticleTriggerType)17] == 23, ref checks, "particle refresh partial failure preserves prefix");
             var actor = Raw<ActorDefinition>(); var pfx = new Dictionary<ActorParticleTriggerType, ParticleEffectType>(); pfx[(ActorParticleTriggerType)17] = (ParticleEffectType)23;
@@ -240,7 +240,7 @@ namespace ProjectLucid
                 audio1 = ScriptableObject.CreateInstance<ActorAudioDefinition>(); audio2 = ScriptableObject.CreateInstance<ActorAudioDefinition>();
                 pfx1 = ScriptableObject.CreateInstance<ActorParticleEffectLookup>(); pfx2 = ScriptableObject.CreateInstance<ActorParticleEffectLookup>();
                 Require(actor.FSMMovement == null && actor.Settings == null && actor.AudioDefinitions == null && actor.PFXLookups == null && (int)actor.Name == 0, ref checks, "real actor definition constructor reference defaults");
-                Require(actor.PFXDefinitionsDictionary.Count == 0 && ReferenceEquals(actor.PFXDefinitionsDictionary.Comparer, HardlightEnumComparers.ActorParticleTriggerTypeComparer) && actor.ActorAudioLookup.AudioDictionary.Count == 0, ref checks, "real actor definition constructor dictionaries");
+                Require(actor.PFXDefinitionsDictionary.Count == 0 && ReferenceEquals(actor.PFXDefinitionsDictionary.Comparer, HardlightProject.HardlightEnumComparers.ActorParticleTriggerTypeComparer) && actor.ActorAudioLookup.AudioDictionary.Count == 0, ref checks, "real actor definition constructor dictionaries");
                 Require(ReferenceEquals(audio1.ActorAudioReferences, Array.Empty<ActorAudioReference>()) && ReferenceEquals(audio2.ActorAudioReferences, audio1.ActorAudioReferences) && pfx1.Lookup.Count == 0, ref checks, "real child definition constructor defaults");
                 Field(typeof(ActorParticleEffectLookup), "m_elements").SetValue(pfx1, Field(typeof(ActorParticleEffectLookup), "m_elements").GetValue(ParticleLookup(Element((ActorParticleTriggerType)17, (ParticleEffectType)23))));
                 Field(typeof(ActorParticleEffectLookup), "m_elements").SetValue(pfx2, Field(typeof(ActorParticleEffectLookup), "m_elements").GetValue(ParticleLookup(Element((ActorParticleTriggerType)17, (ParticleEffectType)29))));

@@ -37,7 +37,7 @@ namespace ProjectLucid
             MethodBase dictionary = ctor.Module.ResolveMethod(BitConverter.ToInt32(body, 7));
             FieldInfo stored = ctor.Module.ResolveField(BitConverter.ToInt32(body, 12));
             MethodBase baseCtor = ctor.Module.ResolveMethod(BitConverter.ToInt32(body, 18));
-            return comparer.DeclaringType == typeof(HardlightEnumComparers) && comparer.Name == "HLAudioMixerGroupIdentifierComparer"
+            return comparer.DeclaringType == typeof(HardlightProject.HardlightEnumComparers) && comparer.Name == "HLAudioMixerGroupIdentifierComparer"
                 && dictionary.IsConstructor && dictionary.DeclaringType == typeof(SerializableDictionary<HLAudioMixerGroupIdentifier, AudioMixerGroup>)
                 && dictionary.GetParameters().Length == 1 && dictionary.GetParameters()[0].ParameterType == typeof(IEqualityComparer<HLAudioMixerGroupIdentifier>)
                 && stored.DeclaringType == typeof(HLAudioMixerDefinition) && stored.Name == "m_mixerGroups"
@@ -83,7 +83,7 @@ namespace ProjectLucid
                 Require((int)mixer.Identifier == identifier, ref checks, "mixer enum identity");
             }
             Require(mixer.MixerGroups == null, ref checks, "raw fixture bypasses constructor explicitly");
-            var groups = new SerializableDictionary<HLAudioMixerGroupIdentifier, AudioMixerGroup>(HardlightEnumComparers.HLAudioMixerGroupIdentifierComparer);
+            var groups = new SerializableDictionary<HLAudioMixerGroupIdentifier, AudioMixerGroup>(HardlightProject.HardlightEnumComparers.HLAudioMixerGroupIdentifierComparer);
             Field(typeof(HLAudioMixerDefinition), "m_mixerGroups").SetValue(mixer, groups);
             Require(ReferenceEquals(groups, mixer.MixerGroups), ref checks, "genuine dictionary getter aliases exact instance");
             groups.Add((HLAudioMixerGroupIdentifier)19, null);
@@ -122,7 +122,7 @@ namespace ProjectLucid
                 Require((int)music.Identifier == 0 && music.AudioClipReference == null && music.StartTimes == null, ref checks, "real music constructor retains null serialized list/reference");
                 Require((int)sfx.Identifier == 0 && sfx.AudioClipReference == null && !sfx.DampenRepeatedOneShotVolume && sfx.Dampening == null, ref checks, "real sfx constructor defaults");
                 Require(mixer.MixerGroups != null && mixer.MixerGroups.Count == 0, ref checks, "real mixer constructor makes complete original dictionary");
-                Require(ReferenceEquals(((Dictionary<HLAudioMixerGroupIdentifier, AudioMixerGroup>)Field(mixer.MixerGroups.GetType().BaseType, "m_dictionary").GetValue(mixer.MixerGroups)).Comparer, HardlightEnumComparers.HLAudioMixerGroupIdentifierComparer), ref checks, "real mixer original comparer");
+                Require(ReferenceEquals(((Dictionary<HLAudioMixerGroupIdentifier, AudioMixerGroup>)Field(mixer.MixerGroups.GetType().BaseType, "m_dictionary").GetValue(mixer.MixerGroups)).Comparer, HardlightProject.HardlightEnumComparers.HLAudioMixerGroupIdentifierComparer), ref checks, "real mixer original comparer");
                 Require(!ReferenceEquals(mixer.MixerGroups, secondMixer.MixerGroups), ref checks, "mixer dictionaries are per-instance");
                 JsonUtility.FromJsonOverwrite("{\"m_identifier\":17,\"m_alternativeStartTimesInSeconds\":[0,2.5,-1]}", music);
                 Require((int)music.Identifier == 17 && music.StartTimes.Count == 3 && music.StartTimes[1] == 2.5f && music.StartTimes[2] == -1f, ref checks, "music authored JSON field identities");

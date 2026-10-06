@@ -713,7 +713,7 @@ namespace ProjectLucid
             Throws<NullReferenceException>(()=>TimeSetting.Clone(null),"null clone uses original copy boundary");
 
             var translated=new TimeSettings_SDT();var enums=(SerializableDictionary<TimeCategory,float>)Read(translated,"m_overrides");
-            Check(ReferenceEquals(((Dictionary<TimeCategory,float>)Read(enums,"m_dictionary")).Comparer,HardlightEnumComparers.TimeCategoryComparer),"original generated enum comparer is retained");
+            Check(ReferenceEquals(((Dictionary<TimeCategory,float>)Read(enums,"m_dictionary")).Comparer,HardlightProject.HardlightEnumComparers.TimeCategoryComparer),"original generated enum comparer is retained");
             Write(translated,"m_overridesDictionary",new SerializableDictionary<TimeCategoryObject,float>(new ReferenceKeys()));
             enums.Add(TimeCategory.PlayerMovement,0.4f);enums.Add(TimeCategory.PlayerPhysics,0.8f);
             var lookup=new Dictionary<TimeCategory,TimeCategoryObject>{{TimeCategory.PlayerMovement,a}};
@@ -924,7 +924,7 @@ namespace ProjectLucid
                 Write(config,"m_categoriesPrioritised",new List<TimeCategoryObject>{a,b});Write(config,"m_unityGlobalTime",g);
                 config.Validate();Check(config.PrioritisedCategories.Count()==2,"genuine empty validation does not rewrite categories");
                 lookup=ScriptableObject.CreateInstance<TimeCategoryLookup>();
-                Check(lookup.Dictionary.Count==0 && ReferenceEquals(((Dictionary<TimeCategory,TimeCategoryObject>)Read(lookup.Dictionary,"m_dictionary")).Comparer,HardlightEnumComparers.TimeCategoryComparer),"real enum lookup constructor retains original generated comparer");
+                Check(lookup.Dictionary.Count==0 && ReferenceEquals(((Dictionary<TimeCategory,TimeCategoryObject>)Read(lookup.Dictionary,"m_dictionary")).Comparer,HardlightProject.HardlightEnumComparers.TimeCategoryComparer),"real enum lookup constructor retains original generated comparer");
                 lookup.Dictionary.Add(TimeCategory.PlayerMovement,a);lookup.Dictionary.Add(TimeCategory.PlayerPhysics,b);lookup.Dictionary.Add(TimeCategory.UnityGlobal,g);lookup.Validate();
                 if(!hadSystem)ProcessManager.RegisterSystem(new SystemConfiguration());
                 system=ProcessManager.GetSystem<SystemConfiguration>();

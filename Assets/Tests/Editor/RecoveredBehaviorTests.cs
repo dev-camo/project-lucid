@@ -5,6 +5,12 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalUIStartupRetainsRegistryVisibilityAndTransitionOrder()
+        {
+            Assert.That(UIStartupVerification.RunManaged(), Is.EqualTo(115));
+        }
+
+        [Test]
         public void OriginalUICollectionsRetainIterationLookupAndCleanupQuirks()
         {
             Assert.That(UICollectionsVerification.RunManaged(), Is.EqualTo(89));
@@ -173,8 +179,9 @@ namespace ProjectLucid.Tests
         public void CodecMethodFlagsAreRestoredByTheActualUnityCompilerPipeline()
         {
             // Preserve the complete module, including thirteen localisation
-            // registry methods and Unity's two MonoScript generator methods.
-            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(663));
+            // registry methods, thirty-five original UI registry/comparer methods,
+            // and Unity's two MonoScript generator methods.
+            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(698));
         }
 
         [Test]

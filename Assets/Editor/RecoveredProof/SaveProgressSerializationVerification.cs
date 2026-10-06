@@ -55,7 +55,7 @@ namespace ProjectLucid
             Require(loaded.CompletedObjectiveIndices.Count == 2 && loaded.CompletedObjectiveIndices[1] == 5 && loaded.TimeTrialUnlockSeen, "mission objective and unlock fields survive JSON");
             var persistentMap = Get<Dictionary<PersistentObjectIdentifierType, SaveDataLevelPersistentObject>>(restored, "m_persistentObjectsById");
             Require(persistentMap.Count == 1 && Get<bool>(persistentMap[objectId], "m_boolValue"), "undefined signed enum identity and persistent object payload survive JSON");
-            Require(ReferenceEquals(persistentMap.Comparer, HardlightEnumComparers.PersistentObjectIdentifierTypeComparer), "after-deserialize repair restores the original persistent-object comparer");
+            Require(ReferenceEquals(persistentMap.Comparer, HardlightProject.HardlightEnumComparers.PersistentObjectIdentifierTypeComparer), "after-deserialize repair restores the original persistent-object comparer");
             Require(!SavingEnabled(restored) && !SavingEnabled(loaded), "parameterized-only constructors retain matching Unity's zero runtime flags after JSON");
             loaded.Progress = 9;
             Require(!loaded.HasChangesToSave() && !restored.HasChangesToSave(), "original disabled record flags remain visible at dirty traversal boundary");

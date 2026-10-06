@@ -62,7 +62,7 @@ namespace ProjectLucid
             Put(d,"m_pfxParameters",Array.Empty<ActorAnimationDefinition.PFXParameter>());
             Put(d,"m_pfxParametersLeaveState",Array.Empty<ActorAnimationDefinition.PFXParameterLeaveState>());
             Put(d,"m_fullscreenEffectParameters",Array.Empty<ActorAnimationDefinition.FullscreenEffectParameter>());
-            Put(d,"m_parametersLookup",new Dictionary<ActorAnimationType,List<AnimationParameterWrapper>>(HardlightEnumComparers.ActorAnimationTypeComparer));
+            Put(d,"m_parametersLookup",new Dictionary<ActorAnimationType,List<AnimationParameterWrapper>>(HardlightProject.HardlightEnumComparers.ActorAnimationTypeComparer));
             return d;
         }
         private static Dictionary<ActorAnimationType,List<AnimationParameterWrapper>> Lookup(ActorAnimationDefinition d) => Get<Dictionary<ActorAnimationType,List<AnimationParameterWrapper>>>(d,"m_parametersLookup");
@@ -512,7 +512,7 @@ namespace ProjectLucid
                 d=ScriptableObject.CreateInstance<ActorAnimationDefinition>();
                 group=ScriptableObject.CreateInstance<ActorAnimationDefinitionGroup>();
                 Check(d.Audio.Count==0&&d.PFXParameters.Count==0&&d.PFXParametersLeaveState.Count==0&&d.FullscreenEffectParameters.Count==0&&Lookup(d).Count==0,"genuine definition constructor/lifecycle defaults");
-                Check(ReferenceEquals(Lookup(d).Comparer,HardlightEnumComparers.ActorAnimationTypeComparer),"constructor uses original generated comparer");
+                Check(ReferenceEquals(Lookup(d).Comparer,HardlightProject.HardlightEnumComparers.ActorAnimationTypeComparer),"constructor uses original generated comparer");
                 var wrapper=new AnimationParameterWrapper();Put(wrapper,"m_parameterName","Speed");int hash;
                 Check(wrapper.TryGetAnimationHash(out hash)&&hash==Animator.StringToHash("Speed")&&Get<int>(wrapper,"m_parameterHash")==hash,"real engine hashes and stores first name");
                 Put(wrapper,"m_parameterName","Changed");Check(wrapper.TryGetAnimationHash(out hash)&&hash==Animator.StringToHash("Speed"),"real hash cache survives name changes");
