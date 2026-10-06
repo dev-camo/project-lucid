@@ -80,5 +80,22 @@ namespace Hardlight.Utils
             }
             action();
         }
+
+        // Original 0x0600117a / arm64 0x1b384f0. The original host is captured
+        // before creating the iterator; this does not construct or wait for a host.
+        public static Coroutine Delay(Action action, float seconds)
+        {
+            CoroutineUtils host = s_instance;
+            return host.StartCoroutine(host.DelayCoroutine(action, seconds));
+        }
+
+        // Original 0x0600117b; natural <DelayCoroutine>d__12 0x06001195..119a.
+        // Even nonpositive/NaN durations yield a WaitForSeconds object once.
+        // Completion becomes terminal before the unguarded action invocation.
+        private IEnumerator DelayCoroutine(Action action, float seconds)
+        {
+            yield return new WaitForSeconds(seconds);
+            action();
+        }
     }
 }
