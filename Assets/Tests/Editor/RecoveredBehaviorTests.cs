@@ -5,6 +5,19 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalCharacterSkinDefinitionsRetainRenderWrappersAndOverrideDefaults()
+        {
+            Assert.That(CharacterSkinVerification.RunAll(), Is.EqualTo(50));
+        }
+
+        [Test]
+        public void OriginalCharacterArchetypeDefinitionsRetainAtlasWrappersGroupKeysAndCallbacks()
+        {
+            Assert.That(CharacterArchetypeDefinitionVerification.RunManaged(), Is.EqualTo(60));
+            Assert.That(CharacterArchetypeDefinitionVerification.RunEngine(), Is.EqualTo(16));
+        }
+
+        [Test]
         public void OriginalFullscreenDefinitionsRetainCurveWeightsLimitsAndTextureOverrides()
         {
             Assert.That(FullscreenDefinitionVerification.RunManaged(), Is.EqualTo(70));
