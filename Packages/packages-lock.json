@@ -39,6 +39,14 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.hardlight.hlsplines": {
+      "version": "file:com.hardlight.hlsplines",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.hardlight.hlunitycore": "0.1.0"
+      }
+    },
     "com.hardlight.hlunitycore": {
       "version": "file:com.hardlight.hlunitycore",
       "depth": 0,

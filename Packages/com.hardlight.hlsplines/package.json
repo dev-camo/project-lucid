@@ -1,0 +1,10 @@
+{
+  "name": "com.hardlight.hlsplines",
+  "displayName": "Hardlight Splines",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Locally maintained original metadata lookup and interpolation behavior.",
+  "dependencies": {
+    "com.hardlight.hlunitycore": "0.1.0"
+  }
+}

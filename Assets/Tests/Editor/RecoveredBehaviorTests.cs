@@ -5,6 +5,27 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalUIVisibilityOverridesRetainRegistryRowsAndHandleCallbackOrder()
+        {
+            Assert.That(UIVisibilityGroupOverriderVerification.RunManaged(), Is.EqualTo(38));
+            Assert.That(UIVisibilityGroupOverriderVerification.RunEngine(), Is.EqualTo(9));
+        }
+
+        [Test]
+        public void OriginalTerrainEffectsRetainAnimationReferencesSquareCacheAndCallbacks()
+        {
+            Assert.That(TerrainEffectsDefinitionVerification.RunManaged(), Is.EqualTo(31));
+            Assert.That(TerrainEffectsDefinitionVerification.RunEngine(), Is.EqualTo(17));
+        }
+
+        [Test]
+        public void OriginalSplineMetadataRetainsLookupInterpolationAndPartialCacheRules()
+        {
+            Assert.That(ProjectLucid.Editor.MetadataCollisionVerification.RunManaged(), Is.EqualTo(119));
+            Assert.That(ProjectLucid.Editor.MetadataCollisionVerification.RunEngine(), Is.EqualTo(30));
+        }
+
+        [Test]
         public void OriginalCharacterSkinDefinitionsRetainRenderWrappersAndOverrideDefaults()
         {
             Assert.That(CharacterSkinVerification.RunAll(), Is.EqualTo(50));

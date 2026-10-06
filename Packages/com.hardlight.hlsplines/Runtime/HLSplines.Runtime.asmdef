@@ -1,0 +1,16 @@
+{
+  "name": "HLSplines.Runtime",
+  "rootNamespace": "Hardlight",
+  "references": [
+    "HLUnityCore.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
