@@ -1,7 +1,14 @@
 {
   "name": "ProjectLucid.EditMode",
-  "references": ["ProjectLucid.Verification"],
-  "includePlatforms": ["Editor"],
-  "optionalUnityReferences": ["TestAssemblies"],
+  "references": [
+    "ProjectLucid.Verification",
+    "Unity.ProjectLucid.CodeGen.Tests"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
   "autoReferenced": false
 }

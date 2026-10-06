@@ -5,6 +5,31 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void SuppliedLanguageFilesRoundtripThroughOriginalCodecs()
+        {
+            Assert.That(ClientDataAPIVerification.RunBundledData(), Is.EqualTo(17));
+        }
+
+        [Test]
+        public void OriginalClientDataAPIRetainsNativeCodecPoolsAndPartialFailures()
+        {
+            Assert.That(ClientDataAPIVerification.RunManaged(), Is.EqualTo(300));
+        }
+
+        [Test]
+        public void OriginalNetworkBufferRetainsCursorVarintAndUtf8Failures()
+        {
+            Assert.That(NetworkBufferVerification.RunManaged(), Is.EqualTo(165));
+        }
+
+        [Test]
+        public void CodecMethodFlagsAreRestoredByTheActualUnityCompilerPipeline()
+        {
+            // Unity adds two MonoScript generator methods to the complete module.
+            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(650));
+        }
+
+        [Test]
         public void OriginalTimeSchedulerRetainsCategoryPauseCallbackAndEngineOrder()
         {
             Assert.That(TimeSchedulerVerification.Run(), Is.EqualTo(532));

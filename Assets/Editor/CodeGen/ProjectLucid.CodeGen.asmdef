@@ -1,0 +1,14 @@
+{
+  "name": "Unity.ProjectLucid.CodeGen",
+  "references": [],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "Unity.Burst.Cecil.dll"
+  ],
+  "autoReferenced": false
+}

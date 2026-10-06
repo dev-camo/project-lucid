@@ -16,6 +16,12 @@
         "com.hardlight.hlunitycore": "0.1.0"
       }
     },
+    "com.hardlight.hlnetworking": {
+      "version": "file:com.hardlight.hlnetworking",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hlunitycore": {
       "version": "file:com.hardlight.hlunitycore",
       "depth": 0,
@@ -38,7 +44,7 @@
     },
     "com.unity.burst": {
       "version": "1.8.18",
-      "depth": 1,
+      "depth": 0,
       "source": "registry",
       "dependencies": {
         "com.unity.mathematics": "1.2.1",
