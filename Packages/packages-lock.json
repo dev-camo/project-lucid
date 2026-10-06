@@ -8,6 +8,14 @@
         "com.hardlight.hlunitycore": "0.1.0"
       }
     },
+    "com.hardlight.hlinput": {
+      "version": "file:com.hardlight.hlinput",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.hardlight.hlunitycore": "0.1.0"
+      }
+    },
     "com.hardlight.hllocalisation": {
       "version": "file:com.hardlight.hllocalisation",
       "depth": 0,
