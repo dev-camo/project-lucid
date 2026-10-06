@@ -14,6 +14,9 @@ class ProgressIndexTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.git("init", "-q")
+        # Disposable repositories must not spawn maintenance that can race cleanup.
+        self.git("config", "maintenance.auto", "false")
+        self.git("config", "gc.auto", "0")
         self.git("config", "user.name", "Progress test")
         self.git("config", "user.email", "test@example.invalid")
         (self.root / "Assets").mkdir()
