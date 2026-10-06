@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><OutputType>Exe</OutputType>
+    <AssemblyName>ProjectLucid.ThemeContracts</AssemblyName><ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" /><Compile Include="LoadedDeclarations.cs" />
+    <Reference Include="Unity.Cecil"><HintPath>$(UnityManagedRoot)/Unity.Cecil.dll</HintPath></Reference>
+  </ItemGroup>
+  <Target Name="RequireInstalledReader" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('$(UnityManagedRoot)/Unity.Cecil.dll')" Text="Installed Unity Cecil is required." />
+  </Target>
+</Project>

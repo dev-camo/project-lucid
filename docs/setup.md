@@ -79,6 +79,17 @@ The resulting metadata report is stored in the cache; it does not approve asset
 bindings or establish that the game is playable. Other targets use `windows` or
 `linux`.
 
+For the current theme import diagnostics, `runtime-contracts --target macos`
+reads exact contract metadata from the installed Editor and compiled player modules.
+Run `native-schema` and use its `evidence_report` path as `--schema PATH`.
+Run `script-layouts --schema PATH` and use its `inventory_path` as
+`--inventory PATH`. First run
+`player-code` and `player-schema` for each desktop target, then `runtime-contracts`
+for `macos`, `windows`, and `linux`. `theme-evidence` accepts the same schema and
+inventory paths and rechecks all three targets. These checks use Unity 2022.3.54f1
+on macOS and store reports in the cache. They establish compatibility evidence;
+asset bindings still require separate import and roundtrip validation.
+
 The README's code progress is generated from the supplied bundle and fresh
 compiled source with `python3 tools/lucid.py progress`. It updates the table and
 `docs/code-progress.json`; detailed method inventories remain in the local cache.

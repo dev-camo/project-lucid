@@ -24,6 +24,9 @@
 /Recordings/
 *.csproj
 !/tools/player-schema/PlayerSchema.csproj
+!/tools/theme-contracts/ThemeContracts.csproj
+/tools/theme-contracts/obj/
+/tools/theme-contracts/bin/
 !/tools/native-recovery/NativeRecovery.csproj
 !/tools/code-progress/CodeProgress.csproj
 /tools/code-progress/obj/

@@ -20,7 +20,7 @@ def write_report(work_dir, name, report):
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     commands = result.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "player-code", "player-schema", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build", "progress"):
+    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "player-code", "player-schema", "runtime-contracts", "theme-evidence", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build", "progress"):
         command = commands.add_parser(name)
         command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "project-lucid")
         command.add_argument("--json", action="store_true", help="print a compact JSON result")
@@ -42,7 +42,10 @@ def parser():
             command.add_argument("--stage", choices=("extraction", "release"), default="release")
         if name == "test":
             command.add_argument("--mode", choices=("editmode", "playmode"), required=True)
-        if name in ("build", "player-code", "player-schema"):
+        if name in ("runtime-contracts", "theme-evidence"):
+            command.add_argument("--schema", type=Path, required=True, help="complete original constrained native schema")
+            command.add_argument("--inventory", type=Path, required=True, help="current loaded Editor inventory against that schema")
+        if name in ("build", "player-code", "player-schema", "runtime-contracts"):
             command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
         if name == "progress":
             command.add_argument("--target", choices=("macos", "windows", "linux"), default="macos")
@@ -105,6 +108,12 @@ def main(argv=None):
         elif args.command == "player-schema":
             from lucidlib.playerschema import run_player_schema
             report = run_player_schema(ROOT, work_dir, args.target)
+        elif args.command == "runtime-contracts":
+            from lucidlib.runtimecontracts import run_runtime_contracts
+            report = run_runtime_contracts(ROOT, work_dir, args.target, args.schema, args.inventory)
+        elif args.command == "theme-evidence":
+            from lucidlib.runtimecontracts import compare_verified_theme_planes
+            report = compare_verified_theme_planes(ROOT, work_dir, args.schema, args.inventory)
         elif args.command == "progress":
             from lucidlib.progressreport import generate_progress
             report = generate_progress(ROOT, work_dir, args.input, args.target, args.stage)
