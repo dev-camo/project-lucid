@@ -5,6 +5,20 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalPerformanceProfilesRetainFeatureAndThresholdRules()
+        {
+            Assert.That(PerformanceStartupVerification.RunManaged(), Is.EqualTo(184));
+            Assert.That(PerformanceStartupVerification.RunEngine(), Is.EqualTo(12));
+        }
+
+        [Test]
+        public void OriginalDeviceProfilesRetainPlatformMatchingAndFallbacks()
+        {
+            Assert.That(DevicePlatformVerification.RunManaged(), Is.EqualTo(305));
+            Assert.That(DevicePlatformVerification.RunEngine(), Is.EqualTo(27));
+        }
+
+        [Test]
         public void OriginalCharacterConstantsAndControlsRetainDefaultsAndCallbackOrder()
         {
             Assert.That(CharacterControlsVerification.RunManaged(), Is.EqualTo(60));
