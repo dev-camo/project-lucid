@@ -5,6 +5,22 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalAudioDefinitionsRetainClipDefaultsMixerConversionAndJson()
+        {
+            Assert.That(ActorAudioDefinitionVerification.RunManaged(), Is.EqualTo(52));
+            Assert.That(ActorAudioDefinitionVerification.RunEngine(), Is.EqualTo(13));
+        }
+
+        [Test]
+        public void OriginalAnalyticsDefinitionsRetainBandsEventsAndResourceOrder()
+        {
+            AnalyticsDefinitionVerification.Run();
+            var count = typeof(AnalyticsDefinitionVerification).GetField("checks",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(count.GetValue(null), Is.EqualTo(79));
+        }
+
+        [Test]
         public void OriginalActorDefinitionsRetainCachesWeightedAudioAndUnityDefaults()
         {
             Assert.That(ActorDefinitionVerification.RunManaged(), Is.EqualTo(100));
