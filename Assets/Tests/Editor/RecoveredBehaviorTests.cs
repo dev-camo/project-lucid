@@ -5,6 +5,12 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalUICollectionsRetainIterationLookupAndCleanupQuirks()
+        {
+            Assert.That(UICollectionsVerification.RunManaged(), Is.EqualTo(89));
+        }
+
+        [Test]
         public void OriginalUIManagersRetainIdentifierGuardsAndCloseDispatch()
         {
             Assert.That(UIManagerFamilyVerification.RunManaged(), Is.EqualTo(34));
