@@ -5,6 +5,13 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalRenderAndTargetDefinitionsRetainDefaultsDrawOrderAndMaterialQuirks()
+        {
+            Assert.That(RenderTargetDefinitionVerification.RunManaged(), Is.EqualTo(39));
+            Assert.That(RenderTargetDefinitionVerification.RunEngine(), Is.EqualTo(25));
+        }
+
+        [Test]
         public void OriginalSequenceDefinitionsRetainKeysDefaultsAndUnitySerialization()
         {
             Assert.That(SequenceDefinitionVerification.RunManaged(), Is.EqualTo(32));
