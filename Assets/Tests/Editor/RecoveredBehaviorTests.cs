@@ -5,6 +5,20 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalTouchLayoutsRetainLookupFallbackAndSerializedDefaults()
+        {
+            Assert.That(TouchLayoutVerification.RunManaged(), Is.EqualTo(36));
+            Assert.That(TouchLayoutVerification.RunEngine(), Is.EqualTo(20));
+        }
+
+        [Test]
+        public void OriginalVisualProxiesRetainRotationGatesAndSpacingOrder()
+        {
+            Assert.That(ActorVisualProxyVerification.RunManaged(), Is.EqualTo(314));
+            Assert.That(ActorVisualProxyVerification.RunEngine(), Is.EqualTo(91));
+        }
+
+        [Test]
         public void OriginalBlobShadowRetainsGravityRaycastAndEnableOrder()
         {
             Assert.That(BlobShadowVerification.RunManaged(), Is.EqualTo(21));

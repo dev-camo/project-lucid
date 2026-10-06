@@ -20,12 +20,12 @@
     },
     {
       "assembly": "Game.Runtime",
-      "implemented_source_bodies": 549,
-      "not_implemented": 14835,
+      "implemented_source_bodies": 610,
+      "not_implemented": 14768,
       "original_declarations": 16004,
       "original_native_bodies": 15624,
-      "unresolved_identities": 84,
-      "withheld_bodies": 156
+      "unresolved_identities": 85,
+      "withheld_bodies": 161
     },
     {
       "assembly": "HLAnalytics.Runtime",
@@ -182,8 +182,8 @@
     },
     {
       "assembly": "HLUnityCore.Runtime",
-      "implemented_source_bodies": 817,
-      "not_implemented": 2768,
+      "implemented_source_bodies": 818,
+      "not_implemented": 2767,
       "original_declarations": 4718,
       "original_native_bodies": 4200,
       "unresolved_identities": 265,
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "e3d190c865d9a2e2b029e1c4e9664e63fa68f832532a563fc3f67ca9b29ee305",
+  "compiler_receipt_sha256": "5fc98cefa9b15c62008f16f246fb4f2f6a641582e84aefeb50971882c6448376",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "9f41094c56f3a8565e12c98e44265ffbafcf77c4651422037b4a680866dc263c",
+  "source_fingerprint": "6bec2c30031396998b9f0a542c75889180ec006396be2ab75d90230137221024",
   "totals": {
-    "implemented_source_bodies": 1878,
-    "not_implemented": 22781,
+    "implemented_source_bodies": 1940,
+    "not_implemented": 22713,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 397,
-    "withheld_bodies": 841
+    "unresolved_identities": 398,
+    "withheld_bodies": 846
   }
 }
