@@ -7,6 +7,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalInputBindingsRetainModifierNamesAndProviderContracts()
+        {
+            Assert.That(ProjectLucid.Editor.InputBindingVerification.Run(), Is.EqualTo(114));
+        }
+
+        [Test]
+        public void OriginalSplineRuntimeRetainsNativeProjectionAndUnorderedDistanceRules()
+        {
+            Assert.That(ProjectLucid.Editor.SplineSharedRuntimeVerification.RunManaged(), Is.EqualTo(201));
+        }
+
+        [Test]
         public void OriginalInputDebounceRetainsThresholdDirectionAndCrossingTiming()
         {
             Assert.That(ProjectLucid.Editor.InputDebounceVerification.Run(), Is.EqualTo(338));
