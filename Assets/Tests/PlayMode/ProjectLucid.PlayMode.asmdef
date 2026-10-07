@@ -2,6 +2,7 @@
   "name": "ProjectLucid.PlayMode",
   "references": [
     "HLUnityCore.Runtime",
+    "HLSplines.Runtime",
     "Game.Runtime",
     "HLModernUI.Runtime",
     "HLLocalisation.Runtime",

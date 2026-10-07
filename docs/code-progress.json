@@ -173,21 +173,21 @@
     },
     {
       "assembly": "HLSplines.Runtime",
-      "implemented_source_bodies": 353,
-      "not_implemented": 858,
+      "implemented_source_bodies": 355,
+      "not_implemented": 855,
       "original_declarations": 1457,
       "original_native_bodies": 1299,
       "unresolved_identities": 36,
-      "withheld_bodies": 52
+      "withheld_bodies": 53
     },
     {
       "assembly": "HLUnityCore.Runtime",
-      "implemented_source_bodies": 858,
-      "not_implemented": 2710,
+      "implemented_source_bodies": 892,
+      "not_implemented": 2659,
       "original_declarations": 4718,
       "original_native_bodies": 4200,
-      "unresolved_identities": 269,
-      "withheld_bodies": 363
+      "unresolved_identities": 272,
+      "withheld_bodies": 377
     },
     {
       "assembly": "HLUnityUI.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "84f3b701681b9cc3874f6e95cda114ac5d8f247b1c6f2d7cd0eaad9bf8fdc4f6",
+  "compiler_receipt_sha256": "29b06319fa487249735d3b874dab3b7a365445265a201b6c7a05593cf76b9be3",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "a7afa5f6a4e349d12967e823d3659543584e21e908dca18b15683c857779a8dc",
+  "source_fingerprint": "88460b2ac4468df0b95d81e0ec5e0d72cbbde47cf8e7e991a536e7b78fc9fad9",
   "totals": {
-    "implemented_source_bodies": 2578,
-    "not_implemented": 21831,
+    "implemented_source_bodies": 2614,
+    "not_implemented": 21777,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 467,
-    "withheld_bodies": 1021
+    "unresolved_identities": 470,
+    "withheld_bodies": 1036
   }
 }

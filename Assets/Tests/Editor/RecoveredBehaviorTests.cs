@@ -7,6 +7,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalPrefabPoolValuesRetainContractsAndDefaults()
+        {
+            Assert.That(ProjectLucid.Editor.PrefabPoolVerification.RunManaged(), Is.EqualTo(39));
+        }
+
+        [Test]
+        public void OriginalPrefabPoolRetainsReuseResizeAndDeferredReturnOrder()
+        {
+            Assert.That(ProjectLucid.Editor.PrefabPoolVerification.RunEngine(), Is.EqualTo(39));
+        }
+
+        [Test]
         public void OriginalEditableRibbonKnotsRetainInitializationAndCacheRules()
         {
             Assert.That(ProjectLucid.Editor.EditableRibbonProviderVerification.RunManaged(), Is.EqualTo(153));
