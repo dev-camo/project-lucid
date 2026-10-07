@@ -7,6 +7,12 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalRibbonRuntimeRetainsEdgeRulesAndNaturalDistanceComparer()
+        {
+            Assert.That(ProjectLucid.Editor.RibbonSharedRuntimeVerification.RunManaged(), Is.EqualTo(177));
+        }
+
+        [Test]
         public void OriginalInputBindingsRetainModifierNamesAndProviderContracts()
         {
             Assert.That(ProjectLucid.Editor.InputBindingVerification.Run(), Is.EqualTo(114));
