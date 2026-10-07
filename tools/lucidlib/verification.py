@@ -209,6 +209,10 @@ PLAYMODE_TESTS = (
     "ProjectLucid.Tests.ControlAndCameraTests.OriginalMovementAndCameraMatchReference")
 
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalMissionRingRewardPreservationTests.OriginalMissionRingRewardsPreserveAuthoredOrderAndInclusiveSignedThresholds",
+)
+
 def artifact_fingerprint(repo_root, prepared=False):
     """Canonical path/content hash, shared with LucidArtifactIdentity in Unity."""
     root = Path(repo_root).resolve()
