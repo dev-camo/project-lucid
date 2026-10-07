@@ -186,6 +186,16 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalTransformNullAndDestroyedObjectsRetainBranchBoundaries",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalAnimationCurvePreservationTests.OriginalCurveHelperRetainsBothDeclarationsAndDefaults",
+    "ProjectLucid.Tests.OriginalAnimationCurvePreservationTests.OriginalCurveHelperRetainsNullFailureOrdering",
+    "ProjectLucid.Tests.OriginalAnimationCurvePreservationTests.OriginalCurveHelperRetainsCurrentFinalKeyTimes",
+    "ProjectLucid.Tests.OriginalAnimationCurvePreservationTests.OriginalCurveAreaRetainsStepFormulaAndBoundaryDecisions",
+    "ProjectLucid.Tests.OriginalStartingPositionPreservationTests.OriginalStartingPositionRetainsCompleteSerializedShape",
+    "ProjectLucid.Tests.OriginalStartingPositionPreservationTests.OriginalStartingPositionRetainsDefaultReferences",
+    "ProjectLucid.Tests.OriginalStartingPositionPreservationTests.OriginalStartingPositionRetainsAuthoredReferencesAcrossSetData",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
