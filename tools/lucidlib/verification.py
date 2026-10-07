@@ -172,6 +172,20 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalMacCooldownRetainsRealSuppliedWaitIterator",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalAddressableManagerBehaviorTests.OriginalAddressableManagerRetainsManagedCacheAndIteratorContracts",
+    "ProjectLucid.Tests.OriginalAddressableManagerBehaviorTests.OriginalAddressableManagerRetainsRealPackageHandleAndCallbackContracts",
+    "ProjectLucid.Tests.OriginalAddressableManagerBehaviorTests.OriginalAddressableManagerRetainsRealComponentCloneAndFailureContracts",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalReversalPredicatesRetainStrictNegativeMath",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalReversalChunkRetainsDocumentedDeclarationScope",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalTransformUtilityRetainsAllElevenDeclarations",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalTransformLocalOperationsRetainCopyResetAndParentValues",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalTransformHierarchyRetainsAncestorPathsAndWholeVectorScale",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalTransformGeometryRetainsLocalRectsAndFourScreenCorners",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalTransformChildrenRetainCollectionAndSiblingSortOrdering",
+    "ProjectLucid.Tests.OriginalCharacterTransformPreservationTests.OriginalTransformNullAndDestroyedObjectsRetainBranchBoundaries",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
