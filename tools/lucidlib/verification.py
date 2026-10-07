@@ -262,6 +262,16 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArrayValidityRetainsDestroyedUnityWrappers",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalObjectExtensionsRetainCompleteDeclarations",
+    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalComponentQueriesRetainMissingAndInactiveResults",
+    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalGameObjectQueriesRetainCreationAndExistingIdentity",
+    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalImmediateObjectDestructionRetainsUnityWrappers",
+    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalChildRemovalRetainsReverseHierarchyBehavior",
+    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalComponentRemovalRetainsRequirementsAndExclusions",
+    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalHierarchyPathRetainsNamesAndCurrentParents",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
@@ -270,6 +280,12 @@ PLAYMODE_TESTS = (
     "ProjectLucid.Tests.DesktopServiceTests.PlatformCallbacksCompleteOffline",
     "ProjectLucid.Tests.ControlAndCameraTests.OriginalMovementAndCameraMatchReference")
 
+
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalObjectDestructionLifecycleTests.OriginalComponentAndGameObjectDestroyRetainDeferredFrames",
+    "ProjectLucid.Tests.OriginalObjectDestructionLifecycleTests.OriginalChildRemovalRetainsReverseCallbacksAndDeferredFrames",
+    "ProjectLucid.Tests.OriginalObjectDestructionLifecycleTests.OriginalComponentRemovalRetainsDeferredExclusionsAndTransform",
+)
 
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMissionRingRewardPreservationTests.OriginalMissionRingRewardsPreserveAuthoredOrderAndInclusiveSignedThresholds",
