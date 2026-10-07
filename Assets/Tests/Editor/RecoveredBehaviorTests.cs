@@ -7,6 +7,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalLevelManagedSystemsRetainOwnershipAndCallbackOrder()
+        {
+            Assert.That(ProjectLucid.Editor.LevelManagerSystemsVerification.RunManaged(), Is.EqualTo(81));
+        }
+
+        [Test]
+        public void OriginalSurfaceEventsRetainPersistentCallbacksAndIteratorOrder()
+        {
+            Assert.That(ProjectLucid.Verification.SurfaceEventVerification.Run(), Is.EqualTo(42));
+        }
+
+        [Test]
         public void OriginalPrefabPoolValuesRetainContractsAndDefaults()
         {
             Assert.That(ProjectLucid.Editor.PrefabPoolVerification.RunManaged(), Is.EqualTo(39));
