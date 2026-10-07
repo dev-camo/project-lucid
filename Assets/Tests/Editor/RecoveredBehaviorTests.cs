@@ -1,9 +1,24 @@
+using System.Collections;
 using NUnit.Framework;
+using UnityEngine.TestTools;
 
 namespace ProjectLucid.Tests
 {
     public sealed class RecoveredBehaviorTests
     {
+        [Test]
+        public void OriginalSplineRenderDefinitionsRetainQualitySelectionAndUnitySerialization()
+        {
+            Assert.That(ProjectLucid.Editor.RibbonEditorDefinitionVerification.RunManaged(), Is.EqualTo(82));
+            Assert.That(ProjectLucid.Editor.RibbonEditorDefinitionVerification.RunEngine(), Is.EqualTo(27));
+        }
+
+        [UnityTest]
+        public IEnumerator OriginalSurfaceEditorStylesCopyTheGenuineSkinInOnGUI()
+        {
+            yield return ProjectLucid.Editor.RibbonEditorDefinitionGUIFixture.VerifyGUI();
+        }
+
         [Test]
         public void OriginalRibbonBoundsRetainCornerOrderScratchTailAndTransforms()
         {
