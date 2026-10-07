@@ -272,6 +272,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalHierarchyPathRetainsNamesAndCurrentParents",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalGameCenterLocalPlayerPreservationTests.OriginalShippingGameCenterStubRetainsIdentityAndCallbackRules",
+    "ProjectLucid.Tests.OriginalGameCenterLocalPlayerPreservationTests.OriginalGameCenterPlayerRetainsParsingAndIdentifierRules",
+    "ProjectLucid.Tests.OriginalGameCenterLocalPlayerPreservationTests.OriginalGameCenterLocalPlayerRetainsAuthenticationAndCacheOrder",
+    "ProjectLucid.Tests.OriginalGameCenterLocalPlayerPreservationTests.OriginalShippingGameCenterPhotoCoroutineRetainsWhiteTextureAndCleanup",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
