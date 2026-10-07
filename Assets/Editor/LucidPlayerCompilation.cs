@@ -22,11 +22,15 @@ namespace ProjectLucid.Editor
         [Serializable] private sealed class EngineRecord : FileRecord { public string name, assembly_name, mvid; }
         [Serializable] private sealed class InputRecord : FileRecord { public string kind; }
         [Serializable] private class OutputRecord : FileRecord { public string relative_path; }
-        [Serializable] private sealed class ModuleRecord : OutputRecord { public string returned_path, assembly_name, mvid; }
+        [Serializable] private sealed class ModuleRecord : OutputRecord
+        {
+            public string returned_path, assembly_name, mvid;
+            public FileRecord compiler_file;
+        }
         [Serializable] private sealed class Diagnostic { public string type, message, file; public int line, column; }
         [Serializable] private sealed class Report
         {
-            public int schema_version = 1;
+            public int schema_version = 2;
             public string command = "player-code", status = "failed", identity_status = "pending-wrapper", compilation_status = "failed";
             public string unity_version, target, active_target, build_target, build_group = "Standalone", options = "None";
             public int subtarget = 0;
@@ -39,6 +43,8 @@ namespace ProjectLucid.Editor
             public InputRecord[] inputs;
             public ModuleRecord[] modules;
             public OutputRecord[] files;
+            public string compiler_output, snapshot_policy = "separate-compiler-output-exact-snapshot-v1";
+            public OutputRecord[] compiler_files;
             public Diagnostic[] diagnostics;
             public string[] returned_assemblies;
             public string error;
@@ -62,15 +68,18 @@ namespace ProjectLucid.Editor
             string root = Path.GetFullPath(Directory.GetParent(Application.dataPath).FullName);
             Context context = ReadContext(root, Environment.GetCommandLineArgs());
             string output = Path.Combine(context.Run, "assemblies");
+            string compilerOutput = CheckedPath(Path.Combine(context.Work, "player-code", "compiler-runs", context.Nonce));
             string pending = Path.Combine(context.Run, "pending.json");
-            if (Directory.Exists(output) || File.Exists(output) || File.Exists(pending) || Directory.Exists(pending))
+            if (Directory.Exists(output) || File.Exists(output) || File.Exists(pending) || Directory.Exists(pending)
+                || Directory.Exists(compilerOutput) || File.Exists(compilerOutput))
                 throw new IOException("Player compilation requires a fresh owned destination.");
             foreach (string entry in Directory.GetFileSystemEntries(context.Run))
                 if (Path.GetFileName(entry) != "context.txt" && Path.GetFileName(entry) != "editor.log")
                     throw new IOException("Unexpected files in fresh player compilation run.");
             var diagnostics = new List<Diagnostic>();
             var report = new Report { project_root = root, work_root = context.Work, run = context.Run, target = context.Target,
-                unity_version = Application.unityVersion, identity_nonce = context.Nonce, identity_context_sha256 = context.Digest };
+                unity_version = Application.unityVersion, identity_nonce = context.Nonce, identity_context_sha256 = context.Digest,
+                compiler_output = compilerOutput };
             TypeDB typeDb = null;
             Action<string, CompilerMessage[]> handler = (assembly, messages) =>
             {
@@ -100,21 +109,26 @@ namespace ProjectLucid.Editor
                 report.inputs = Inputs(root);
                 report.inputs_fingerprint_before = InputFingerprint(report.inputs);
                 CompilationPipeline.assemblyCompilationFinished += handler;
-                Directory.CreateDirectory(output);
+                Directory.CreateDirectory(compilerOutput);
                 var settings = new ScriptCompilationSettings { target = target, group = BuildTargetGroup.Standalone,
                     subtarget = (int)StandaloneBuildSubtarget.Player, options = ScriptCompilationOptions.None, extraScriptingDefines = new string[0] };
-                ScriptCompilationResult result = PlayerBuildInterface.CompilePlayerScripts(settings, output);
+                ScriptCompilationResult result = PlayerBuildInterface.CompilePlayerScripts(settings, compilerOutput);
                 typeDb = result.typeDB;
                 if (result.assemblies == null || result.assemblies.Count == 0 || typeDb == null)
                     throw new InvalidOperationException("CompilePlayerScripts returned no complete assembly/type information.");
                 report.returned_assemblies = result.assemblies.ToArray();
                 if (report.returned_assemblies.Length > 4096 || diagnostics.Any(d => d.type == "Error"))
                     throw new InvalidOperationException("Player compiler failed or returned too many assemblies.");
-                report.modules = ReadModules(output, report.returned_assemblies, context);
+                // Unity owns its compiler destination. Preserve a separate byte-for-byte
+                // snapshot before sealing evidence so a later compile cannot remove it.
+                report.compiler_files = OutputFiles(compilerOutput);
+                SnapshotOutputs(compilerOutput, output, report.compiler_files);
+                report.modules = ReadModules(compilerOutput, output, report.returned_assemblies, context);
                 var required = new HashSet<string>(new[] { "Game.Runtime", "HLUnityCore.Runtime", "Unity.Addressables", "Unity.ResourceManager" });
                 required.ExceptWith(report.modules.Select(m => m.assembly_name));
                 if (required.Count != 0) throw new InvalidDataException("Required player game/package assemblies were not compiled.");
                 report.files = OutputFiles(output);
+                CheckSnapshot(compilerOutput, output, report.compiler_files, report.files);
                 report.inputs_fingerprint_after = InputFingerprint(Inputs(root));
                 if (report.inputs_fingerprint_before != report.inputs_fingerprint_after)
                     throw new InvalidDataException("Player source or precompiled references changed during compilation.");
@@ -128,6 +142,7 @@ namespace ProjectLucid.Editor
                 if (LucidArtifactIdentity.Fingerprint(root, false) != context.Source)
                     throw new InvalidDataException("Maintained source changed during the final Editor identity check.");
                 if (!ReadBytes(context.Path, 16384).SequenceEqual(context.Bytes)) throw new InvalidDataException("Player context changed during compilation.");
+                CheckSnapshot(compilerOutput, output, report.compiler_files, OutputFiles(output));
                 report.status = "pending-identity-verification";
                 report.compilation_status = "compiled";
             }
@@ -182,7 +197,7 @@ namespace ProjectLucid.Editor
             var expected = new HashSet<string>(new[] { "schema", "kind", "nonce", "project_root_base64", "work_root_base64", "run_base64", "target", "unity_version", "source_fingerprint" });
             foreach (string name in new[] { "editor", "editor_core", "engine_core", "cecil", "serialization" })
                 foreach (string field in new[] { "path_base64", "sha256", "size", "mvid", "assembly_name" }) expected.Add(name + "_" + field);
-            if (!expected.SetEquals(values.Keys) || values["schema"] != "1" || values["kind"] != "project-lucid-player-code-v1" ||
+            if (!expected.SetEquals(values.Keys) || values["schema"] != "2" || values["kind"] != "project-lucid-player-code-v2" ||
                 values["nonce"] != nonce || values["unity_version"] != Version || !Hex.IsMatch(values["source_fingerprint"]))
                 throw new InvalidDataException("Unsupported or incomplete player context.");
             string Decode(string encoded)
@@ -351,23 +366,77 @@ namespace ProjectLucid.Editor
             if (!full.StartsWith(output + Path.DirectorySeparatorChar, StringComparison.Ordinal)) throw new InvalidDataException("Returned player assembly is outside the fresh output.");
             return full;
         }
-        private static ModuleRecord[] ReadModules(string output, string[] returned, Context context)
+        private static ModuleRecord[] ReadModules(string compilerOutput, string output, string[] returned, Context context)
         {
             var names = new HashSet<string>(StringComparer.Ordinal);
             var paths = new HashSet<string>(StringComparer.Ordinal);
             var records = new List<ModuleRecord>();
             foreach (string supplied in returned)
             {
-                string path = OutputPath(output, supplied);
+                string origin = OutputPath(compilerOutput, supplied);
+                string relative = origin.Substring(compilerOutput.Length + 1);
+                string path = CheckedPath(Path.Combine(output, relative));
+                var compilerFile = Record<FileRecord>(origin);
                 var record = Record<ModuleRecord>(path);
                 var identity = Metadata(path, context);
-                record.returned_path = supplied; record.relative_path = path.Substring(output.Length + 1).Replace('\\', '/');
+                var originalIdentity = Metadata(origin, context);
+                if (compilerFile.size != record.size || compilerFile.sha256 != record.sha256
+                    || identity.Item1 != originalIdentity.Item1 || identity.Item2 != originalIdentity.Item2)
+                    throw new InvalidDataException("Player snapshot differs from the genuine returned compiler module.");
+                record.compiler_file = compilerFile;
+                record.returned_path = supplied; record.relative_path = relative.Replace('\\', '/');
                 record.assembly_name = identity.Item1; record.mvid = identity.Item2;
                 if (Path.GetFileName(path) != record.assembly_name + ".dll" || !names.Add(record.assembly_name) || !paths.Add(path))
                     throw new InvalidDataException("Duplicate or incorrectly named player assembly output.");
                 records.Add(record);
             }
             return records.ToArray();
+        }
+        private static void SnapshotOutputs(string compilerOutput, string output, OutputRecord[] files)
+        {
+            CheckedPath(output);
+            if (File.Exists(output) || Directory.Exists(output)) throw new IOException("Player snapshot destination is not fresh.");
+            Directory.CreateDirectory(output);
+            foreach (OutputRecord file in files)
+            {
+                string origin = OutputPath(compilerOutput, file.relative_path);
+                if (origin != file.path) throw new InvalidDataException("Compiler manifest path differs.");
+                string destination = OutputPath(output, file.relative_path);
+                Directory.CreateDirectory(CheckedPath(Path.GetDirectoryName(destination)));
+                using (var source = new FileStream(origin, FileMode.Open, FileAccess.Read, FileShare.Read))
+                using (var target = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                {
+                    byte[] buffer = new byte[65536];
+                    long remaining = file.size;
+                    while (remaining != 0)
+                    {
+                        int read = source.Read(buffer, 0, (int)Math.Min(buffer.Length, remaining));
+                        if (read == 0) throw new IOException("Compiler output was truncated during snapshot copy.");
+                        target.Write(buffer, 0, read);
+                        remaining -= read;
+                    }
+                    if (source.ReadByte() != -1) throw new IOException("Compiler output grew during snapshot copy.");
+                    target.Flush(true);
+                }
+                FileRecord copied = Record<FileRecord>(destination);
+                if (copied.sha256 != file.sha256 || copied.size != file.size)
+                    throw new IOException("Compiler output changed while creating the player snapshot.");
+            }
+        }
+        private static void CheckSnapshot(string compilerOutput, string output, OutputRecord[] expected, OutputRecord[] snapshot)
+        {
+            OutputRecord[] current = OutputFiles(compilerOutput);
+            if (expected.Length != current.Length || expected.Length != snapshot.Length)
+                throw new InvalidDataException("Player snapshot file population changed.");
+            for (int i = 0; i < expected.Length; i++)
+            {
+                OutputRecord e = expected[i], c = current[i], s = snapshot[i];
+                if (e.relative_path != c.relative_path || e.relative_path != s.relative_path
+                    || e.path != c.path || c.path != OutputPath(compilerOutput, e.relative_path)
+                    || s.path != OutputPath(output, e.relative_path)
+                    || e.size != c.size || e.size != s.size || e.sha256 != c.sha256 || e.sha256 != s.sha256)
+                    throw new InvalidDataException("Player compiler output and immutable snapshot differ.");
+            }
         }
         private static OutputRecord[] OutputFiles(string output)
         {

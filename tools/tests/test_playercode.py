@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import struct
 import subprocess
@@ -104,18 +105,24 @@ class PlayerCodeTests(unittest.TestCase):
         run = context_path.parent
         output = run / "assemblies"
         output.mkdir()
-        files, modules, returned = [], [], []
+        compiler = self.work / "player-code/compiler-runs" / run.name
+        compiler.mkdir(parents=True)
+        files, modules, returned, compiler_files = [], [], [], []
         for name in sorted(playercode.REQUIRED_ASSEMBLIES):
             path = output / (name + ".dll")
             path.write_bytes(managed_fixture(name)[0])
+            origin = compiler / path.name
+            origin.write_bytes(path.read_bytes())
+            compiler_file = playercode._file_record(origin)
+            compiler_files.append(dict(relative_path=path.name, **compiler_file))
             record = dict(relative_path=path.name, **playercode._file_record(path))
             files.append(record)
-            modules.append(dict(record, returned_path=path.name, **playercode._pe_identity(path)))
+            modules.append(dict(record, returned_path=path.name, compiler_file=compiler_file, **playercode._pe_identity(path)))
             returned.append(path.name)
         engine = playercode._engine_identity(self.editor)
         inputs = [dict(kind="source", **playercode._file_record(self.source))]
         source = context["source_fingerprint"]
-        report = {"schema_version": 1, "command": "player-code", "status": "pending-identity-verification",
+        report = {"schema_version": 2, "command": "player-code", "status": "pending-identity-verification",
                   "identity_status": "pending-wrapper", "compilation_status": "compiled", "unity_version": "2022.3.54f1",
                   "target": target, "active_target": playercode.TARGETS[target][1], "build_target": playercode.TARGETS[target][1],
                   "build_group": "Standalone", "subtarget": 0, "options": "None", "extra_scripting_defines": [],
@@ -125,12 +132,102 @@ class PlayerCodeTests(unittest.TestCase):
                   "engine_before": engine, "engine_after": engine, "diagnostics": [], "inputs": inputs,
                   "inputs_fingerprint_before": playercode._input_identity(inputs), "inputs_fingerprint_after": playercode._input_identity(inputs),
                   "modules": modules, "returned_assemblies": returned, "files": files,
+                  "compiler_output": str(compiler), "compiler_files": compiler_files,
+                  "snapshot_policy": "separate-compiler-output-exact-snapshot-v1",
                   "player_schema_verified": False, "gameplay_verified": False}
         report["native_profile_queries_before"] = self.native_queries(engine, target)
         report["native_profile_queries_after"] = json.loads(json.dumps(report["native_profile_queries_before"]))
         if change: change(report, run)
         (run / "pending.json").write_text(json.dumps(report))
         return subprocess.CompletedProcess(command, 0)
+
+    def recheck(self, receipt, **options):
+        run = Path(receipt["run"])
+        staged = json.loads((run / "pending.json").read_bytes())
+        playercode._check_report(staged, self.root, self.work, run, receipt["target"], run.name,
+                                receipt["source_fingerprint_before"], receipt["engine_before"],
+                                receipt["identity_context_sha256"], **options)
+
+    def test_archive_replay_survives_deleted_compiler_working_folder(self):
+        self.run_fake()
+        receipt = json.loads(self.latest.read_bytes())
+        original = [Path(m["path"]).read_bytes() for m in receipt["modules"]]
+        shutil.rmtree(receipt["compiler_output"])
+        self.recheck(receipt)
+        self.assertEqual(original, [Path(m["path"]).read_bytes() for m in receipt["modules"]])
+
+    def test_archive_replay_survives_later_compiler_working_bytes(self):
+        self.run_fake()
+        receipt = json.loads(self.latest.read_bytes())
+        Path(receipt["modules"][0]["compiler_file"]["path"]).write_bytes(b"later compiler scratch")
+        self.recheck(receipt)
+        with self.assertRaises(ValueError): self.recheck(receipt, require_compiler_output=True)
+
+    def test_live_origin_byte_change_prevents_publication(self):
+        self.assert_rejected(lambda r, run: Path(r["compiler_files"][0]["path"]).write_bytes(b"changed during copy"))
+
+    def test_live_origin_removal_prevents_publication(self):
+        self.assert_rejected(lambda r, run: shutil.rmtree(r["compiler_output"]))
+
+    def test_live_origin_extra_file_prevents_publication(self):
+        self.assert_rejected(lambda r, run: (Path(r["compiler_output"]) / "unreported.pdb").write_bytes(b"extra"))
+
+    def test_live_origin_symlink_prevents_publication(self):
+        def mutate(r, run):
+            p = Path(r["compiler_files"][0]["path"]);p.unlink();p.symlink_to(Path(r["files"][0]["path"]))
+        self.assert_rejected(mutate)
+
+    def test_missing_snapshot_policy_prevents_publication(self):
+        self.assert_rejected(lambda r, run: r.pop("snapshot_policy"))
+
+    def test_unowned_compiler_directory_prevents_publication(self):
+        self.assert_rejected(lambda r, run: r.update(compiler_output=str(run / "assemblies")))
+
+    def test_missing_compiler_manifest_prevents_publication(self):
+        self.assert_rejected(lambda r, run: r.pop("compiler_files"))
+
+    def test_duplicate_origin_manifest_prevents_publication(self):
+        self.assert_rejected(lambda r, run: r["compiler_files"].__setitem__(1, r["compiler_files"][0]))
+
+    def test_nonscalar_origin_relative_paths_fail_with_controlled_errors(self):
+        for value in ({}, [], None, 1, True):
+            self.assert_rejected(lambda r, run: r["compiler_files"][0].update(relative_path=value))
+
+    def test_changed_origin_association_prevents_publication(self):
+        self.assert_rejected(lambda r, run: r["modules"][0]["compiler_file"].update(path=r["files"][0]["path"]))
+
+    def test_rewritten_returned_path_to_archive_prevents_publication(self):
+        def mutate(r, run):
+            r["returned_assemblies"][0] = r["modules"][0]["returned_path"] = r["modules"][0]["path"]
+        self.assert_rejected(mutate)
+
+    def test_new_publication_rejects_legacy_schema(self):
+        self.assert_rejected(lambda r, run: r.update(schema_version=1))
+
+    def test_historical_schema_one_retains_exact_archive_path_contract(self):
+        self.run_fake()
+        receipt = json.loads(self.latest.read_bytes());run = Path(receipt["run"])
+        staged = json.loads((run / "pending.json").read_bytes())
+        staged["schema_version"] = 1
+        for key in ("compiler_output", "compiler_files", "snapshot_policy"): staged.pop(key)
+        for item in staged["modules"]: item.pop("compiler_file")
+        for raw, item in zip(staged["returned_assemblies"], staged["modules"]): self.assertEqual(raw, Path(item["path"]).name)
+        context = playercode._context(self.root, self.work, run, "macos", staged["source_fingerprint_before"], run.name,
+                                      staged["engine_before"], schema_version=1)
+        (run / "context.txt").write_bytes(context)
+        staged["identity_context_sha256"] = hashlib.sha256(context).hexdigest()
+        (run / "pending.json").write_text(json.dumps(staged))
+        receipt.update(staged, status="compiled", identity_status="complete",
+                       staged_report_sha256=hashlib.sha256((run / "pending.json").read_bytes()).hexdigest())
+        self.recheck(receipt)
+        from lucidlib import playerschema
+        self.latest.write_text(json.dumps(receipt))
+        playerschema._player_evidence(self.root, self.work, "macos", receipt["source_fingerprint_before"], receipt["engine_before"])
+
+    def test_context_version_rejects_noninteger_or_unsupported_values(self):
+        for value in (True, 2.0, "2", 0, 3, None):
+            with self.assertRaises(ValueError): playercode._context(self.root, self.work, self.work / "run", "macos", "a" * 64,
+                                                                    "b" * 32, [], schema_version=value)
 
     def run_fake(self, change=None, target="macos"):
         with patch.object(playercode.subprocess, "run", side_effect=lambda args, timeout: self.emit(args, target, change)) as invoke:

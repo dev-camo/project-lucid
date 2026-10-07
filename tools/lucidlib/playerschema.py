@@ -105,7 +105,7 @@ def _player_evidence(root, work, target, source, engine):
             any(receipt.get(k) != v for k, v in staged.items() if k not in ("status", "identity_status"))):
         raise ValueError("Published player evidence differs from its genuine staged report")
     context_raw = playercode._regular(context, 16384).read_bytes()
-    if context_raw != playercode._context(root, work, run, target, source, nonce, engine):
+    if context_raw != playercode._context(root, work, run, target, source, nonce, engine, schema_version=staged.get("schema_version")):
         raise ValueError("Player compiler identity context is stale or altered")
     digest = hashlib.sha256(context_raw).hexdigest()
     playercode._check_report(staged, root, work, run, target, nonce, source, engine, digest)

@@ -169,9 +169,11 @@ def _engine_identity(editor):
     return records
 
 
-def _context(root, work, run, target, source, nonce, engine):
+def _context(root, work, run, target, source, nonce, engine, *, schema_version=2):
     encode = lambda value: base64.b64encode(str(value).encode("utf-8")).decode("ascii")
-    values = {"schema": "1", "kind": "project-lucid-player-code-v1", "nonce": nonce,
+    if type(schema_version) is not int or schema_version not in (1, 2):
+        raise ValueError("Unsupported player compilation context version")
+    values = {"schema": str(schema_version), "kind": "project-lucid-player-code-v" + str(schema_version), "nonce": nonce,
               "project_root_base64": encode(root), "work_root_base64": encode(work), "run_base64": encode(run), "target": target,
               "unity_version": UNITY_VERSION, "source_fingerprint": source}
     for entry in engine:
@@ -244,8 +246,11 @@ def _check_native_queries(report, target, engine):
     return before
 
 
-def _check_report(report, root, work, run, target, nonce, source, engine, digest):
-    expected = {"schema_version": 1, "command": "player-code", "status": "pending-identity-verification",
+def _check_report(report, root, work, run, target, nonce, source, engine, digest, *, require_schema=None, require_compiler_output=False):
+    version = report.get("schema_version") if isinstance(report, dict) else None
+    if type(version) is not int or version not in (1, 2) or (require_schema is not None and version != require_schema):
+        raise ValueError("Unsupported player compilation evidence version")
+    expected = {"schema_version": version, "command": "player-code", "status": "pending-identity-verification",
                 "identity_status": "pending-wrapper", "compilation_status": "compiled", "unity_version": UNITY_VERSION,
                 "target": target, "active_target": TARGETS[target][1], "build_target": TARGETS[target][1],
                 "build_group": "Standalone", "subtarget": 0, "options": "None", "extra_scripting_defines": [],
@@ -312,12 +317,45 @@ def _check_report(report, root, work, run, target, nonce, source, engine, digest
         for name in names: disk_files.add((Path(parent) / name).relative_to(output).as_posix())
     if set(file_records) != disk_files: raise ValueError("Player output manifest does not account for every file")
     names, paths = set(), set()
+    compiler = run / "assemblies" if version == 1 else work / "player-code" / "compiler-runs" / nonce
+    compiler_files = {}
+    if version == 2:
+        if (report.get("compiler_output") != str(compiler) or
+                report.get("snapshot_policy") != "separate-compiler-output-exact-snapshot-v1" or
+                not isinstance(report.get("compiler_files"), list) or len(report["compiler_files"]) != len(files)):
+            raise ValueError("Player snapshot/compiler association is incomplete")
+        for item in report["compiler_files"]:
+            if not isinstance(item, dict) or set(item) != {"path", "relative_path", "sha256", "size"}:
+                raise ValueError("Invalid original compiler file record")
+            relative = item["relative_path"]
+            if not isinstance(relative, str) or relative not in file_records or relative in compiler_files:
+                raise ValueError("Compiler snapshot file associations are incomplete or duplicated")
+            archived = file_records[relative]
+            if (item["path"] != str(compiler / relative) or
+                    any(type(item[k]) is not type(archived[k]) or item[k] != archived[k] for k in ("sha256", "size"))):
+                raise ValueError("Original compiler bytes differ from the archived snapshot")
+            compiler_files[relative] = item
+            if require_compiler_output:
+                actual = _file_record(compiler / relative)
+                if any(type(item[k]) is not type(v) or item[k] != v for k, v in actual.items()):
+                    raise ValueError("Live compiler output changed before snapshot publication")
+        if require_compiler_output:
+            actual_names = set()
+            _regular_directory = managed_path(work, "player-code", "compiler-runs", nonce)
+            if not _regular_directory.is_dir(): raise ValueError("Fresh compiler output is absent")
+            for parent, directories, entries in os.walk(_regular_directory):
+                if any((Path(parent) / name).is_symlink() for name in directories):
+                    raise ValueError("Symlink in live compiler output")
+                actual_names.update((Path(parent) / name).relative_to(compiler).as_posix() for name in entries)
+            if actual_names != set(compiler_files):
+                raise ValueError("Live compiler manifest does not account for every output")
     for raw, item in zip(returned, modules):
         if not isinstance(raw, str) or not raw or not isinstance(item, dict) or item.get("returned_path") != raw:
             raise ValueError("Invalid actual compiler-returned assembly path")
         path = _owned_file(work, run, item.get("relative_path"))
-        raw_path = Path(raw) if os.path.isabs(raw) else output / raw
-        if ".." in raw_path.parts or "\\" in raw and os.name != "nt" or os.path.abspath(raw_path) != str(path):
+        raw_path = Path(raw) if os.path.isabs(raw) else compiler / raw
+        origin = compiler / item["relative_path"]
+        if ".." in raw_path.parts or "\\" in raw and os.name != "nt" or os.path.abspath(raw_path) != str(origin):
             raise ValueError("Compiler-returned assembly escapes the fresh output directory")
         if path.suffix != ".dll" or str(path) in paths: raise ValueError("Invalid or duplicate returned assembly")
         paths.add(str(path))
@@ -328,6 +366,14 @@ def _check_report(report, root, work, run, target, nonce, source, engine, digest
         names.add(identity["assembly_name"])
         if item.get("relative_path") not in file_records or any(item.get(k) != file_records[item["relative_path"]][k] for k in ("path", "size", "sha256")):
             raise ValueError("Returned module is not sealed by the output manifest")
+        if version == 2:
+            original = item.get("compiler_file")
+            captured = compiler_files.get(item["relative_path"])
+            if (not isinstance(original, dict) or set(original) != {"path", "sha256", "size"} or captured is None or
+                    any(type(original[k]) is not type(captured[k]) or original[k] != captured[k] for k in original)):
+                raise ValueError("Returned module lacks its exact original compiler-file association")
+            if require_compiler_output and _pe_identity(origin) != identity:
+                raise ValueError("Live returned compiler module identity differs from the archived PE")
     if not REQUIRED_ASSEMBLIES <= names: raise ValueError("Required maintained/package player assemblies are missing")
 
 
@@ -376,10 +422,10 @@ def run_player_code(repo_root, work_dir, target):
         if _regular(context, 16384).read_bytes() != raw_context: raise ValueError("Player identity context changed")
         if artifact_fingerprint(root) != source or _engine_identity(editor) != engine:
             raise ValueError("Source or installed Editor changed during player compilation")
-        _check_report(report, root, work, run, target, nonce, source, engine, digest)
+        _check_report(report, root, work, run, target, nonce, source, engine, digest, require_schema=2, require_compiler_output=True)
         if _regular(pending, MAX_REPORT).read_bytes() != raw or _regular(context, 16384).read_bytes() != raw_context:
             raise ValueError("Player evidence changed before publication")
-        _check_report(report, root, work, run, target, nonce, source, engine, digest)
+        _check_report(report, root, work, run, target, nonce, source, engine, digest, require_schema=2, require_compiler_output=True)
         if artifact_fingerprint(root) != source or _engine_identity(editor) != engine:
             raise ValueError("Source or installed Editor changed before player evidence publication")
         if artifact_fingerprint(root) != source:
@@ -389,7 +435,7 @@ def run_player_code(repo_root, work_dir, target):
         latest = managed_path(work, "player-code", "latest-" + target + ".json")
         if latest.exists(): _regular(latest, MAX_REPORT)
         report.update(status="compiled", identity_status="complete", generated_by="ProjectLucid.run_player_code",
-                      identity_verified_by="native-python-prepost-and-pe-metadata-v1", staged_report_path=str(pending),
+                      identity_verified_by="native-python-prepost-exact-snapshot-and-pe-metadata-v2", staged_report_path=str(pending),
                       staged_report_sha256=hashlib.sha256(raw).hexdigest(), log=str(log),
                       limitation="Script compilation and sealed metadata do not prove player layout compatibility, authored assets, startup or gameplay.")
         if artifact_fingerprint(root) != source:
