@@ -33,15 +33,23 @@ namespace HardlightProject
             }
         }
 
-        // Game.Runtime.dll 0x06002bbe.
-        public SaveDataCollectable()
+        // Game.Runtime.dll 0x06002bbc.
+        public void ResolveNewData(SaveDataCollectable newSaveData)
         {
+            int spent = m_spent;
+            int newSpent = newSaveData.m_spent;
+            m_spent = spent > newSpent ? spent : newSpent;
         }
 
         // Game.Runtime.dll 0x06002bbd.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {
             // Original ARM64 body is a single RET: this record has no children.
+        }
+
+        // Game.Runtime.dll 0x06002bbe.
+        public SaveDataCollectable()
+        {
         }
 
     }

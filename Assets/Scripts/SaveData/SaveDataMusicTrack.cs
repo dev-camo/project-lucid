@@ -39,6 +39,12 @@ namespace HardlightProject
             m_guid = musicTrackGUID;
         }
 
+        // Game.Runtime.dll 0x06002c8a.
+        public void ResolveNewData(SaveDataMusicTrack newSaveData)
+        {
+            m_seen |= newSaveData.m_seen;
+        }
+
         // Game.Runtime.dll 0x06002c8b.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {

@@ -54,6 +54,13 @@ namespace HardlightProject
             m_guid = ornamentGUID;
         }
 
+        // Game.Runtime.dll 0x06002ca6.
+        public void ResolveNewData(SaveDataOrnament newSaveData)
+        {
+            m_unlocked |= newSaveData.m_unlocked;
+            m_unlockSeen |= newSaveData.m_unlockSeen;
+        }
+
         // Game.Runtime.dll 0x06002ca7.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {

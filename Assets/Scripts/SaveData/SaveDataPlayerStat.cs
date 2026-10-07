@@ -42,6 +42,20 @@ namespace HardlightProject
             m_playerStatType = statType;
         }
 
+        // Game.Runtime.dll 0x06002cad.
+        public void IncrementCounter(long value = 1)
+        {
+            if (value == 0) return;
+            m_playerStatCounter = unchecked(m_playerStatCounter + value);
+            MarkDirty();
+        }
+
+        // Game.Runtime.dll 0x06002cae.
+        public void ResolveNewData(SaveDataPlayerStat newSaveData)
+        {
+            m_playerStatCounter = Math.Max(m_playerStatCounter, newSaveData.m_playerStatCounter);
+        }
+
         // Game.Runtime.dll 0x06002caf.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {

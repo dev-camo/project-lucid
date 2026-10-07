@@ -39,6 +39,12 @@ namespace HardlightProject
             m_guid = guid;
         }
 
+        // Game.Runtime.dll 0x06002beb.
+        public void ResolveNewData(SaveDataDreamPowerStoreItem newSaveData)
+        {
+            m_bought |= newSaveData.m_bought;
+        }
+
         // Game.Runtime.dll 0x06002bec.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {

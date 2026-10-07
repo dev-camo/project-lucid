@@ -33,6 +33,19 @@ namespace HardlightProject
             m_characterId = characterId;
         }
 
+        // Game.Runtime.dll 0x06002bac.
+        public void ResolveNewData(SaveDataCharacterCustomisation newSaveData)
+        {
+            m_skinGUID = newSaveData.m_skinGUID;
+        }
+
+        // Game.Runtime.dll 0x06002bad.
+        public void Set(CharacterSkinDefinition skinDefinition)
+        {
+            m_skinGUID = skinDefinition.GetGUID();
+            MarkDirty();
+        }
+
         // Game.Runtime.dll 0x06002bae.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {

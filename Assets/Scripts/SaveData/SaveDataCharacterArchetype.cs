@@ -54,6 +54,13 @@ namespace HardlightProject
             m_characterArchetype = characterArchetype;
         }
 
+        // Game.Runtime.dll 0x06002ba5.
+        public void ResolveNewData(SaveDataCharacterArchetype newSaveData)
+        {
+            m_unlocked |= newSaveData.m_unlocked;
+            m_unlockSeen |= newSaveData.m_unlockSeen;
+        }
+
         // Game.Runtime.dll 0x06002ba6.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {

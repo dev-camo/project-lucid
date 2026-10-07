@@ -239,6 +239,19 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalUnknownComparisonsRetainTypedErrorsAndMessages",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalSaveRecordsRetainCompleteDeclarationsAndSignedDefault",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalUnlockAndSeenMergesRetainFlagsAndRawDirtyState",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalStatsRetainZeroSignedOverflowAndMaximumMerge",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalBonusAndStoreStatesRetainUnknownEnumTransitions",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalCustomisationRetainsManagedGUIDFaultOrdering",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalCustomisationRetainsActualUnityDestroyedObjectGUIDPath",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalStoreCreationRetainsIdentityNullKeysAndDirtyState",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalStoreMergeRetainsAliasingSelfMergeAndPartialFaults",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalStoreCallbacksRetainDuplicatesAndFailurePrefixes",
+    "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalSaveRecordsRetainActualUnitySerializationBoundaries",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",

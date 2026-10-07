@@ -36,9 +36,23 @@ namespace HardlightProject
             }
         }
 
-        // Game.Runtime.dll 0x06002be3.
-        public SaveDataDreamPowerStore()
+        // Game.Runtime.dll 0x06002bdd.
+        public void ResolveNewData(SaveDataDreamPowerStore newSaveData)
         {
+            foreach (var (dreamPowerGuid, newDreamPowerData) in newSaveData.m_dreamPowersByGuid)
+            {
+                if (m_dreamPowersByGuid.TryGetValue(dreamPowerGuid, out var current))
+                    current.ResolveNewData(newDreamPowerData);
+                else
+                    m_dreamPowersByGuid[dreamPowerGuid] = newDreamPowerData;
+            }
+            if (newSaveData.m_isNewState == DreamPowerStoreIsNewState.IsNew)
+            {
+                if (m_isNewState == DreamPowerStoreIsNewState.None)
+                    m_isNewState = DreamPowerStoreIsNewState.IsNew;
+            }
+            else if (newSaveData.m_isNewState == DreamPowerStoreIsNewState.Seen)
+                m_isNewState = DreamPowerStoreIsNewState.Seen;
         }
 
         // Game.Runtime.dll 0x06002bde.
@@ -55,6 +69,18 @@ namespace HardlightProject
             foreach (var pair in m_dreamPowersByGuid) action(pair.Value);
         }
 
+        // Game.Runtime.dll 0x06002be0.
+        public SaveDataDreamPowerStoreItem GetOrCreateDreamPowerData(string dreamPowerGuid)
+        {
+            if (!m_dreamPowersByGuid.TryGetValue(dreamPowerGuid, out var dreamPowerData))
+            {
+                dreamPowerData = new SaveDataDreamPowerStoreItem(dreamPowerGuid);
+                m_dreamPowersByGuid[dreamPowerGuid] = dreamPowerData;
+                MarkDirty();
+            }
+            return dreamPowerData;
+        }
+
         // Game.Runtime.dll 0x06002be1.
         public void OnBeforeSerialize()
         {
@@ -65,7 +91,12 @@ namespace HardlightProject
         public void OnAfterDeserialize()
         {
             Initialise();
-            ListToDictionary(m_dreamPowers, m_dreamPowersByGuid, entry => entry.GUID);
+            ListToDictionary(m_dreamPowers, m_dreamPowersByGuid, dreamPower => dreamPower.GUID);
+        }
+
+        // Game.Runtime.dll 0x06002be3.
+        public SaveDataDreamPowerStore()
+        {
         }
 
     }

@@ -54,6 +54,13 @@ namespace HardlightProject
             m_guid = skinGUID;
         }
 
+        // Game.Runtime.dll 0x06002bb5.
+        public void ResolveNewData(SaveDataCharacterSkin newSaveData)
+        {
+            m_unlocked |= newSaveData.m_unlocked;
+            m_unlockSeen |= newSaveData.m_unlockSeen;
+        }
+
         // Game.Runtime.dll 0x06002bb6.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {
