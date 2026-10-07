@@ -3,17 +3,30 @@ using System.Collections.Generic;
 
 namespace HLCloud.Plugin
 {
+    /// <summary>
+    /// Reconstructed shipped plugin boundary. Genuine Cloud_MacOS source is preserved beside
+    /// this factory; its original native import module is still unresolved.
+    /// The offline port must select its separate adapter instead of this path.
+    /// </summary>
     public abstract class Cloud
     {
-        protected static Action<string> m_onConnect;
+        protected static Action<string> m_onConnect = message => { };
         protected ICloud cloudObject;
-        private static readonly object NotificationGate = new object();
 
-        // Original C5369EA842965B759669FB711DF450C136176D37 constructs Cloud_MacOS.
-        // Intentional platform replacement: every target uses the same local store.
         public static Cloud NativePluginInstance(ICloud cloudObject, bool useFindGameObject)
         {
-            return new Cloud_Editor(Cloud_Editor.DefaultSavePath, cloudObject, useFindGameObject);
+#if PROJECT_LUCID_ORIGINAL_APPLE_SERVICES
+            // Original C5369EA842965B759669FB711DF450C136176D37: retained for research.
+            // Its native import module remains unresolved; this opt-in path
+            // cannot supply Apple's service in the portable game.
+            Cloud_MacOS plugin = new Cloud_MacOS();
+            Cloud_MacOS.UseFindGameObject = useFindGameObject;
+            plugin.cloudObject = cloudObject;
+            return plugin;
+#else
+            // Intentional offline port selection at the shipped factory boundary.
+            return ProjectLucid.Offline.OfflineProviders.CreateCloud(cloudObject, useFindGameObject);
+#endif
         }
 
         public abstract void InitializeWithGameObjectName(string gameObjectName, bool useGamePlayerID);
@@ -30,27 +43,9 @@ namespace HLCloud.Plugin
         public abstract void RemoveForKey(string key);
         public abstract void CloudDidChange(string message);
 
-        // Recovered 735C2876B9E895F7C27510061FE1D0F4489D6A3B / 63EEF075986807E00B3298E3786EB738B8948843:
-        // Delegate.Combine / Delegate.Remove, with no subscription-time replay.
-        public static void SubscribeOnConnect(Action<string> callback)
-        {
-            lock (NotificationGate) m_onConnect += callback;
-        }
-
-        public static void UnsubscribeOnConnect(Action<string> callback)
-        {
-            lock (NotificationGate) m_onConnect -= callback;
-        }
-
-        protected static void DispatchNativeNotification(string message)
-        {
-            Action<string> callback;
-            lock (NotificationGate) callback = m_onConnect;
-            callback?.Invoke(message);
-        }
-
-        // Original 2FFDE96FF85FD4262B9531EC076AC1AA8F226B72 is RET.
-        // Local Synchronize is synchronous, so there is no delayed cloud operation.
+        public static void SubscribeOnConnect(Action<string> callback) => m_onConnect += callback;
+        public static void UnsubscribeOnConnect(Action<string> callback) => m_onConnect -= callback;
         public virtual void SetSynchronisationCooldown(float seconds) { }
+        protected Cloud() { }
     }
 }

@@ -183,11 +183,11 @@ namespace ProjectLucid
             string directory = Path.Combine(Path.GetTempPath(), "ProjectLucidPropertyProof-" + Guid.NewGuid().ToString("N"));
             try
             {
-                var adapter = new HLSaveMethodEncrypted("unused", "save-", directory);
+                var adapter = new ProjectLucid.Offline.LocalPropertySave("unused", "save-", directory);
                 Require(adapter.LoadData(HLPropertyStore.FileType.Primary, "slot") == null && !Directory.Exists(directory), "loading absent data creates no directory");
                 var builder = new StringBuilder(Text("value", "first"));
                 Require(adapter.SaveData(HLPropertyStore.FileType.Primary, builder, "slot") && adapter.BackupData("slot"), "atomic local primary and backup writes");
-                var restarted = new HLSaveMethodEncrypted("unused", "save-", directory);
+                var restarted = new ProjectLucid.Offline.LocalPropertySave("unused", "save-", directory);
                 Require(restarted.LoadData(HLPropertyStore.FileType.Primary, "slot") == builder.ToString() && restarted.TryGetSaveVersion("slot", out long version) && version > 0,
                     "fresh adapter reads disk payload/version");
                 string primary = Path.Combine(directory, "save-slot"), backup = primary + "-backup";

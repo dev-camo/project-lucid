@@ -22,7 +22,7 @@ namespace ProjectLucid
                 CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("fr-FR");
                 string path = Path.Combine(directory, "properties.json");
                 Receiver receiver = new Receiver();
-                Cloud_Editor cloud = new Cloud_Editor(path, receiver);
+                ProjectLucid.Offline.LocalCloud cloud = new ProjectLucid.Offline.LocalCloud(path, receiver);
                 receiver.plugin = cloud;
                 int delivered = 0;
                 Action<string> callback = message => { delivered++; receiver.Native_CloudDidChange(message); };
@@ -39,19 +39,19 @@ namespace ProjectLucid
                     Require(File.Exists(path) && !File.Exists(path + ".bak"), "first-save file state");
                     Require(delivered == 0 && receiver.changes == 0, "local writes fabricated a conflict notification");
 
-                    Cloud_Editor reopened = new Cloud_Editor(path);
+                    ProjectLucid.Offline.LocalCloud reopened = new ProjectLucid.Offline.LocalCloud(path);
                     VerifyFixture(reopened);
                     var keys = reopened.RetrieveAllCloudKeys("|");
                     keys.Clear();
                     Require(reopened.RetrieveAllCloudKeys("|").Count == 8, "caller mutated internal keys");
                     cloud.SetStringForKey("unflushed", "string");
-                    Require(new Cloud_Editor(path).StringForKey("string") == "Sonic \"dream\"\n\u2605", "saved snapshot changed after a setter");
+                    Require(new ProjectLucid.Offline.LocalCloud(path).StringForKey("string") == "Sonic \"dream\"\n\u2605", "saved snapshot changed after a setter");
                     cloud.RemoveForKey("nullable");
                     cloud.RemoveForKey("missing");
                     Require(cloud.Synchronize(), "second save failed");
-                    Require(!new Cloud_Editor(path).RetrieveAllCloudKeys("").Contains("nullable"), "removal did not persist");
+                    Require(!new ProjectLucid.Offline.LocalCloud(path).RetrieveAllCloudKeys("").Contains("nullable"), "removal did not persist");
                     Require(File.Exists(path + ".bak"), "last-good backup missing");
-                    VerifyFixture(new Cloud_Editor(path + ".bak"));
+                    VerifyFixture(new ProjectLucid.Offline.LocalCloud(path + ".bak"));
 
                     string message = "{\"NSUbiquitousKeyValueStoreChangeReasonKey\":3,\"NSUbiquitousKeyValueStoreChangedKeysKey\":[\"string\",\"int\"]}";
                     cloud.ReceiveNativeNotification(message);
@@ -60,7 +60,7 @@ namespace ProjectLucid
                     Cloud.UnsubscribeOnConnect(callback);
                     cloud.ReceiveNativeNotification(message);
                     Require(delivered == 1 && receiver.changes == 1, "unsubscribe did not remove callback");
-                    Cloud_Editor direct = new Cloud_Editor(Path.Combine(directory, "direct.json"), receiver, true);
+                    ProjectLucid.Offline.LocalCloud direct = new ProjectLucid.Offline.LocalCloud(Path.Combine(directory, "direct.json"), receiver, true);
                     receiver.plugin = direct;
                     direct.ReceiveNativeNotification(message);
                     Require(receiver.changes == 2 && delivered == 1, "direct ICloud notification route");
@@ -71,30 +71,30 @@ namespace ProjectLucid
                 File.Copy(path + ".bak", checksumPath);
                 File.Copy(path + ".bak", checksumPath + ".bak");
                 File.WriteAllText(checksumPath, File.ReadAllText(checksumPath).Replace("1234.125", "1234.126"));
-                Cloud_Editor checksumRecovery = new Cloud_Editor(checksumPath);
+                ProjectLucid.Offline.LocalCloud checksumRecovery = new ProjectLucid.Offline.LocalCloud(checksumPath);
                 VerifyFixture(checksumRecovery);
                 Require(!String.IsNullOrEmpty(checksumRecovery.RecoveryNotice), "valid JSON with a bad checksum was accepted");
                 File.Delete(checksumPath);
-                Cloud_Editor missingPrimary = new Cloud_Editor(checksumPath);
+                ProjectLucid.Offline.LocalCloud missingPrimary = new ProjectLucid.Offline.LocalCloud(checksumPath);
                 VerifyFixture(missingPrimary);
                 Require(!String.IsNullOrEmpty(missingPrimary.RecoveryNotice) && !File.Exists(checksumPath), "missing-primary load changed disk");
 
                 byte[] bad = new byte[] { 0x7b, 0x62, 0x61, 0x64 };
                 File.WriteAllBytes(path, bad);
-                Cloud_Editor recovered = new Cloud_Editor(path);
+                ProjectLucid.Offline.LocalCloud recovered = new ProjectLucid.Offline.LocalCloud(path);
                 VerifyFixture(recovered);
                 Require(!String.IsNullOrEmpty(recovered.RecoveryNotice), "corrupt primary recovery was silent");
                 Require(Equal(File.ReadAllBytes(path), bad), "load modified corrupt primary");
                 recovered.SetIntForKey(9, "generation");
                 Require(recovered.Synchronize(), "explicit backup recovery save failed: " + recovered.LastError);
-                Require(new Cloud_Editor(path).IntForKey("generation") == 9, "recovery save not readable");
-                VerifyFixture(new Cloud_Editor(path + ".bak"));
+                Require(new ProjectLucid.Offline.LocalCloud(path).IntForKey("generation") == 9, "recovery save not readable");
+                VerifyFixture(new ProjectLucid.Offline.LocalCloud(path + ".bak"));
                 string[] corruptFiles = Directory.GetFiles(directory, "properties.json.corrupt-*");
                 Require(corruptFiles.Length == 1 && Equal(File.ReadAllBytes(corruptFiles[0]), bad), "corrupt evidence was not preserved");
 
                 File.WriteAllBytes(path, bad);
                 File.WriteAllBytes(path + ".bak", bad);
-                Cloud_Editor invalid = new Cloud_Editor(path);
+                ProjectLucid.Offline.LocalCloud invalid = new ProjectLucid.Offline.LocalCloud(path);
                 bool rejected = false;
                 try { invalid.InitializeWithGameObjectName("Verification", false); }
                 catch (InvalidDataException) { rejected = true; }
@@ -103,12 +103,12 @@ namespace ProjectLucid
 
                 string blocked = Path.Combine(directory, "blocked");
                 File.WriteAllText(blocked, "retain");
-                Cloud_Editor failedSave = new Cloud_Editor(Path.Combine(blocked, "properties.json"));
+                ProjectLucid.Offline.LocalCloud failedSave = new ProjectLucid.Offline.LocalCloud(Path.Combine(blocked, "properties.json"));
                 failedSave.SetIntForKey(1, "value");
                 Require(!failedSave.Synchronize() && !String.IsNullOrEmpty(failedSave.LastError) && File.ReadAllText(blocked) == "retain",
                     "I/O failure was hidden or damaged existing data");
                 Cloud factory = Cloud.NativePluginInstance(new Receiver(), false);
-                Require(factory is Cloud_Editor && ((Cloud_Editor)factory).SavePath == Path.GetFullPath(Cloud_Editor.DefaultSavePath), "factory did not choose local store");
+                Require(factory is ProjectLucid.Offline.LocalCloud && ((ProjectLucid.Offline.LocalCloud)factory).SavePath == Path.GetFullPath(ProjectLucid.Offline.LocalCloud.DefaultSavePath), "factory did not choose local store");
                 Debug.Log("Project Lucid local storage verification passed: " + checks + " checks. SaveManager integration remains unverified.");
             }
             finally
@@ -122,7 +122,7 @@ namespace ProjectLucid
         // LUCID_LOCAL_CLOUD_TEST_PATH set to an isolated absolute fixture path.
         public static void WriteRestartFixture()
         {
-            Cloud_Editor cloud = new Cloud_Editor(RestartPath());
+            ProjectLucid.Offline.LocalCloud cloud = new ProjectLucid.Offline.LocalCloud(RestartPath());
             WriteFixture(cloud);
             Require(cloud.Synchronize(), "restart fixture save failed: " + cloud.LastError);
             Debug.Log("Project Lucid local storage restart fixture written.");
@@ -130,7 +130,7 @@ namespace ProjectLucid
 
         public static void ReadRestartFixture()
         {
-            VerifyFixture(new Cloud_Editor(RestartPath()));
+            VerifyFixture(new ProjectLucid.Offline.LocalCloud(RestartPath()));
             Debug.Log("Project Lucid local storage separate-process restart verification passed.");
         }
 
@@ -142,7 +142,7 @@ namespace ProjectLucid
             return path;
         }
 
-        private static void WriteFixture(Cloud_Editor cloud)
+        private static void WriteFixture(ProjectLucid.Offline.LocalCloud cloud)
         {
             cloud.SetStringForKey("Sonic \"dream\"\n\u2605", "string");
             cloud.SetStringForKey("", "empty");
@@ -154,7 +154,7 @@ namespace ProjectLucid
             cloud.SetIntForKey(1, "generation");
         }
 
-        private static void VerifyFixture(Cloud_Editor cloud)
+        private static void VerifyFixture(ProjectLucid.Offline.LocalCloud cloud)
         {
             Require(cloud.StringForKey("string") == "Sonic \"dream\"\n\u2605" && cloud.StringForKey("empty") == "" &&
                 cloud.StringForKey("nullable") == null, "string/empty/null values did not survive restart");
@@ -177,7 +177,7 @@ namespace ProjectLucid
 
         private sealed class Receiver : ICloud
         {
-            public Cloud_Editor plugin;
+            public ProjectLucid.Offline.LocalCloud plugin;
             public int changes;
             public ChangeReason reason;
             public string[] keys;

@@ -3,236 +3,225 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 
 namespace Hardlight
 {
-    // Deliberately replaced at the original IHLSaveMethod boundary. Keep the
-    // original game-facing class/interface and slot filename convention, with a new
-    // checksummed local envelope. The original encrypted-save format is not
-    // migrated. HLPropertyStore still creates/parses the original property text.
+    // Genuine original HLUnityCore.Runtime 0x02000204, 0x06000d4c..0x06000d58.
+    // Reconstructed from both native architectures. The offline provider selects
+    // ProjectLucid.Offline.LocalPropertySave instead. Crypto vectors validate the
+    // format; native retry/disposal fault equivalence remains unverified.
     public class HLSaveMethodEncrypted : IHLSaveMethod
     {
         private const string BackupSuffix = "-backup";
         private readonly string OutputFileName;
+        private readonly string Key;
+        private readonly byte[] EncryptionKey;
+        private readonly byte[] InitialisationVector = Encoding.UTF8.GetBytes("7%o18m'b~)mQD%o1");
         private readonly List<string> SaveIdentifiers = new List<string>();
-        private readonly string directory;
-        private readonly object gate = new object();
-        private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false, true);
-
-        public string LastError { get; private set; }
 
         public HLSaveMethodEncrypted(string key, string fileName)
-            : this(key, fileName, Application.persistentDataPath) { }
-
-        // Explicit directory injection permits isolated persistence verification.
-        // The key remains an argument at the shipped boundary; local saves do
-        // not need the original Apple application's encryption secrets.
-        public HLSaveMethodEncrypted(string key, string fileName, string directory)
         {
-            ValidateFilePart(fileName, false);
-            if (string.IsNullOrEmpty(directory)) throw new ArgumentException("A local save directory is required.", nameof(directory));
+            Key = key;
             OutputFileName = fileName;
-            this.directory = Path.GetFullPath(directory);
+            byte[] keyBytes = Encoding.UTF8.GetBytes(Key);
+            char[] encodedKey = Convert.ToBase64String(keyBytes).ToCharArray();
+            EncryptionKey = Encoding.UTF8.GetBytes(encodedKey, 0, 16);
         }
 
         public IReadOnlyList<string> GetAllSaveIdentifiers()
         {
-            lock (gate)
+            string directory = Path.GetDirectoryName(GetFilePath(HLPropertyStore.FileType.Primary,
+                HLPropertyStore.DefaultSaveIdentifier));
+            if (string.IsNullOrEmpty(directory)) return null;
+            SaveIdentifiers.Clear();
+            foreach (string file in Directory.GetFiles(directory))
             {
-                SaveIdentifiers.Clear();
-                if (!Directory.Exists(directory)) return SaveIdentifiers.ToArray();
-                var identifiers = new SortedSet<string>(StringComparer.Ordinal);
-                foreach (string path in Directory.EnumerateFiles(directory))
-                {
-                    string fileName = Path.GetFileName(path);
-                    if (!fileName.StartsWith(OutputFileName, StringComparison.Ordinal)) continue;
-                    string id = GetSaveIdentifierFromFileName(fileName);
-                    // Include a backup-only slot so a lost primary can recover.
-                    // Temp/corrupt files begin with '.' and never match the prefix.
-                    identifiers.Add(id);
-                }
-                SaveIdentifiers.AddRange(identifiers);
-                return SaveIdentifiers.ToArray();
+                string fileName = Path.GetFileNameWithoutExtension(file);
+                if (!fileName.Contains(OutputFileName)) continue;
+                string saveIdentifier = GetSaveIdentifierFromFileName(fileName);
+                if (!SaveIdentifiers.Contains(saveIdentifier)) SaveIdentifiers.Add(saveIdentifier);
             }
+            return SaveIdentifiers;
         }
 
         public bool TryGetSaveVersion(string saveIdentifier, out long version)
         {
-            lock (gate)
+            version = 0;
+            // Native LSDA excludes path construction from the catch.
+            string filePath = GetFilePath(HLPropertyStore.FileType.Primary, saveIdentifier);
+            try
             {
-                version = 0L;
-                try
-                {
-                    string path = GetFilePath(HLPropertyStore.FileType.Primary, saveIdentifier);
-                    // Preserve the original adapter's timestamp-version boundary.
-                    version = File.GetLastWriteTime(path).Ticks;
-                    LastError = null;
-                    return true;
-                }
-                catch (Exception error) when (IsStorageFailure(error)) { LastError = error.Message; return false; }
+                version = File.GetLastWriteTime(filePath).Ticks;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                HLOutput.LogError(string.Format(
+                    "Save version for save identifier '{0}' at path '{1}' threw the exception: {2}",
+                    saveIdentifier, filePath, exception));
+                return false;
             }
         }
 
-        public bool SaveData(HLPropertyStore.FileType fileType, StringBuilder contentBuilder, string saveIdentifier)
+        private byte[] Encrypt(string abtest)
         {
-            lock (gate)
+            using (Aes aes = Aes.Create())
+            {
+                aes.Mode = CipherMode.CBC;
+                aes.BlockSize = 128;
+                aes.Padding = PaddingMode.Zeros;
+                aes.Key = EncryptionKey;
+                aes.IV = InitialisationVector;
+                ICryptoTransform encryptor = aes.CreateEncryptor();
+                byte[] plaintext = Encoding.UTF8.GetBytes(abtest);
+                // The native original disposes the Aes instance only.
+                return encryptor.TransformFinalBlock(plaintext, 0, plaintext.Length);
+            }
+        }
+
+        private string Decrypt(byte[] ciphertext)
+        {
+            using (Aes aes = Aes.Create())
+            {
+                aes.Mode = CipherMode.CBC;
+                aes.BlockSize = 128;
+                aes.Padding = PaddingMode.Zeros;
+                aes.Key = EncryptionKey;
+                aes.IV = InitialisationVector;
+                ICryptoTransform decryptor = aes.CreateDecryptor();
+                Encoding encoding = Encoding.UTF8;
+                // Configuration/CreateDecryptor/UTF8 retrieval are outside this catch.
+                try
+                {
+                    return encoding.GetString(decryptor.TransformFinalBlock(ciphertext, 0,
+                        ciphertext.Length));
+                }
+                catch (Exception)
+                {
+                    return string.Empty;
+                }
+            }
+        }
+
+        public bool SaveData(HLPropertyStore.FileType fileType, StringBuilder contentBuilder,
+            string saveIdentifier)
+        {
+            string filePath = GetFilePath(fileType, saveIdentifier);
+            byte[] encrypted = Encrypt(contentBuilder.ToString());
+            for (int attempt = 0; attempt < 5; attempt++)
             {
                 try
                 {
-                    string payload = contentBuilder.ToString();
-                    string json = JsonUtility.ToJson(new Envelope { formatVersion = 1, payload = payload, sha256 = Hash(payload) });
-                    string path = GetFilePath(fileType, saveIdentifier);
-                    // Only a valid old primary may replace the last-good backup.
-                    string backup = null;
-                    if (fileType == HLPropertyStore.FileType.Primary && File.Exists(path))
+                    // The original owns the stream through BinaryWriter alone. A failed
+                    // writer constructor does not acquire an additional stream finally.
+                    using (BinaryWriter writer = new BinaryWriter(File.Open(filePath, FileMode.Create)))
                     {
-                        string previous;
-                        backup = TryRead(path, out previous) ? GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier)
-                            : Path.Combine(directory, "." + Path.GetFileName(path) + ".corrupt-" + Guid.NewGuid().ToString("N"));
+                        writer.Write(encrypted.Length);
+                        writer.Write(encrypted, 0, encrypted.Length);
                     }
-                    AtomicWrite(path, Utf8.GetBytes(json), backup);
-                    LastError = null;
                     return true;
                 }
-                catch (Exception error) when (IsStorageFailure(error)) { LastError = error.Message; return false; }
+                catch (Exception exception)
+                {
+                    HLOutput.LogError(string.Format("Exception occurred during saving {0}", exception)
+                        + exception.ToString());
+                    Resources.UnloadUnusedAssets();
+                    PlatformUtils.ClearCache();
+                    GC.Collect();
+                    Thread.Sleep(10);
+                }
             }
+            return false;
         }
 
         public bool BackupData(string saveIdentifier)
         {
-            lock (gate)
+            try
             {
-                try
-                {
-                    string path = GetFilePath(HLPropertyStore.FileType.Primary, saveIdentifier);
-                    string payload;
-                    if (!TryRead(path, out payload)) return false;
-                    AtomicWrite(GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier), File.ReadAllBytes(path), null);
-                    LastError = null;
-                    return true;
-                }
-                catch (Exception error) when (IsStorageFailure(error)) { LastError = error.Message; return false; }
+                string primary = GetFilePath(HLPropertyStore.FileType.Primary, saveIdentifier);
+                string backup = GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier);
+                File.Copy(primary, backup, true);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 
         public void WipeSaveFile(string saveIdentifier)
         {
-            lock (gate)
-            {
-                // An explicit game slot deletion removes both known copies.
-                // Stale temporary/diagnostic files are never mistaken for slots.
-                File.Delete(GetFilePath(HLPropertyStore.FileType.Primary, saveIdentifier));
-                File.Delete(GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier));
-            }
+            File.Delete(GetFilePath(HLPropertyStore.FileType.Primary, saveIdentifier));
+            File.Delete(GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier));
         }
 
         public void WipeAllSaveFiles()
         {
-            lock (gate)
-                foreach (string id in GetAllSaveIdentifiers()) WipeSaveFile(id);
+            string directory = Path.GetDirectoryName(GetFilePath(HLPropertyStore.FileType.Primary,
+                HLPropertyStore.DefaultSaveIdentifier));
+            if (string.IsNullOrEmpty(directory)) return;
+            SaveIdentifiers.Clear();
+            foreach (string file in Directory.GetFiles(directory))
+            {
+                string fileName = Path.GetFileNameWithoutExtension(file);
+                if (!fileName.Contains(OutputFileName)) continue;
+                // Original LSDA covers File.Delete only, not enumeration/filtering.
+                try
+                {
+                    File.Delete(file);
+                }
+                catch (Exception exception)
+                {
+                    HLOutput.LogError("HLSaveMethodEncrypted failed to delete a save file with the following exception"
+                        + exception.Message);
+                }
+            }
         }
 
         public string LoadData(HLPropertyStore.FileType fileType, string saveIdentifier)
         {
-            lock (gate)
+            string content = null;
+            string filePath = GetFilePath(fileType, saveIdentifier);
+            if (File.Exists(filePath))
             {
-                string payload;
-                if (TryRead(GetFilePath(fileType, saveIdentifier), out payload)) return payload;
-                if (fileType == HLPropertyStore.FileType.Backup)
+                try
                 {
-                    string primary = GetFilePath(HLPropertyStore.FileType.Primary, saveIdentifier);
-                    string backup = GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier);
-                    // Both absent means a new slot. Both unreadable is a usable
-                    // error, preserving the files instead of initializing empty
-                    // progress which the next save could overwrite.
-                    if ((File.Exists(primary) || File.Exists(backup)) && !TryRead(primary, out payload))
-                        throw new InvalidDataException("Local property save and backup are unreadable; both files were preserved.");
+                    using (FileStream stream = File.OpenRead(filePath))
+                    {
+                        using (BinaryReader reader = new BinaryReader(stream))
+                        {
+                            int length = reader.ReadInt32();
+                            content = Decrypt(reader.ReadBytes(length));
+                        }
+                    }
                 }
-                return null;
-            }
-        }
-
-        private bool TryRead(string path, out string payload)
-        {
-            payload = null;
-            if (!File.Exists(path)) return false;
-            try
-            {
-                Envelope envelope = JsonUtility.FromJson<Envelope>(File.ReadAllText(path, Utf8));
-                if (envelope == null || envelope.formatVersion != 1 || envelope.payload == null ||
-                    !string.Equals(envelope.sha256, Hash(envelope.payload), StringComparison.Ordinal))
-                    throw new InvalidDataException("Invalid local property-save envelope: " + path);
-                payload = envelope.payload;
-                LastError = null;
-                return true;
-            }
-            catch (Exception error) when (IsStorageFailure(error)) { LastError = error.Message; return false; }
-        }
-
-        private void AtomicWrite(string path, byte[] bytes, string backup)
-        {
-            Directory.CreateDirectory(directory);
-            string temporary = Path.Combine(directory, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
-            try
-            {
-                using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                catch (Exception)
                 {
-                    stream.Write(bytes, 0, bytes.Length);
-                    stream.Flush(true);
+                    // Preserve already assigned content when reader/stream disposal fails.
                 }
-                if (File.Exists(path)) File.Replace(temporary, path, backup, true);
-                else File.Move(temporary, path);
             }
-            finally
-            {
-                // No delete-then-move fallback: failed writes retain the old file.
-                if (File.Exists(temporary)) File.Delete(temporary);
-            }
+            return content;
         }
 
         private string GetFilePath(HLPropertyStore.FileType fileType, string saveIdentifier)
         {
-            return Path.Combine(directory, GetFileName(fileType, saveIdentifier));
+            string fileName = GetFileName(fileType, saveIdentifier);
+            return Application.persistentDataPath + "/" + fileName;
         }
 
         private string GetFileName(HLPropertyStore.FileType fileType, string saveIdentifier)
         {
-            saveIdentifier = saveIdentifier ?? string.Empty;
-            ValidateFilePart(saveIdentifier, true);
-            if (fileType != HLPropertyStore.FileType.Primary && fileType != HLPropertyStore.FileType.Backup)
-                throw new ArgumentOutOfRangeException(nameof(fileType));
-            return OutputFileName + saveIdentifier + (fileType == HLPropertyStore.FileType.Backup ? BackupSuffix : string.Empty);
+            return fileType == HLPropertyStore.FileType.Primary
+                ? OutputFileName + saveIdentifier
+                : OutputFileName + saveIdentifier + BackupSuffix;
         }
 
         private string GetSaveIdentifierFromFileName(string fileName)
         {
-            string id = fileName.Substring(OutputFileName.Length);
-            return id.EndsWith(BackupSuffix, StringComparison.Ordinal) ? id.Substring(0, id.Length - BackupSuffix.Length) : id;
+            if (string.IsNullOrEmpty(fileName)) return null;
+            return fileName.Replace(OutputFileName, string.Empty).Replace(BackupSuffix, string.Empty);
         }
-
-        private static void ValidateFilePart(string value, bool allowEmpty)
-        {
-            if (value == null || (!allowEmpty && value.Length == 0) || value.StartsWith(".", StringComparison.Ordinal) ||
-                value.EndsWith(BackupSuffix, StringComparison.Ordinal))
-                throw new ArgumentException("Invalid local save filename or identifier.");
-            foreach (char character in value)
-                if (character < 32 || "<>:\"/\\|?*".IndexOf(character) >= 0)
-                    throw new ArgumentException("Local save filenames and identifiers must be portable file components.");
-        }
-
-        private static bool IsStorageFailure(Exception error)
-        {
-            return error is IOException || error is UnauthorizedAccessException || error is ArgumentException ||
-                error is NotSupportedException || error is CryptographicException;
-        }
-
-        private static string Hash(string payload)
-        {
-            using (SHA256 sha256 = SHA256.Create())
-                return BitConverter.ToString(sha256.ComputeHash(Utf8.GetBytes(payload))).Replace("-", string.Empty).ToLowerInvariant();
-        }
-
-        [Serializable] private sealed class Envelope { public int formatVersion; public string payload; public string sha256; }
     }
 }

@@ -172,7 +172,7 @@ namespace ProjectLucid
             foreach (string name in StoreStatics) StoreField(name).SetValue(null, null);
             var store = new HLPropertyStore("fixture-only", 0, "Primary");
             typeof(HLPropertyStore).GetField("m_propertyFileStorage", BindingFlags.Instance | BindingFlags.NonPublic)
-                .SetValue(store, new HLSaveMethodEncrypted("fixture-only", "Primary", directory));
+                .SetValue(store, new ProjectLucid.Offline.LocalPropertySave("fixture-only", "Primary", directory));
             return store;
         }
         private static FieldInfo StoreField(string name) => typeof(HLPropertyStore).GetField(name, BindingFlags.Static | BindingFlags.NonPublic);

@@ -159,6 +159,19 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "EggmanLogoGpuOutputMatchesDecodedColorBlendAndLayerCases"))
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsIndependentCbcZeroPaddingVectors",
+    "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsUtf8ConstructorBoundaries",
+    "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsDecryptCatchBoundaries",
+    "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalPropertyStoreDefaultConstructorSelectsOfflineStorage",
+    "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalEditorCloudRetainsConstantGettersAndDiscardedWrites",
+    "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalEditorCloudRetainsLiveKeysAndStaleCaptures",
+    "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalCloudNotificationsUseRealUserInfoJsonAndReceiverOrder",
+    "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalCloudConnectCallbacksRetainDelegateCombineRemoveOrder",
+    "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalCloudFactorySelectsOfflineWithoutConstructingAppleProvider",
+    "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalMacCooldownRetainsRealSuppliedWaitIterator",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
