@@ -252,6 +252,16 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSaveRecordMergePreservationTests.OriginalSaveRecordsRetainActualUnitySerializationBoundaries",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArrayExtensionsRetainCompleteDeclarations",
+    "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArrayValidityAndContainsRetainNullAndEqualityRules",
+    "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArrayDelegateConversionsRetainOrderAndFailurePrefixes",
+    "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArrayImplicitConversionsRetainEnumAndCultureRules",
+    "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArrayTryConversionsRetainFailureAndOutputRules",
+    "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArraySwapsRetainEqualIndexAndFaultOrdering",
+    "ProjectLucid.Tests.OriginalArrayExtensionsPreservationTests.OriginalArrayValidityRetainsDestroyedUnityWrappers",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
