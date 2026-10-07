@@ -44,6 +44,8 @@ namespace ProjectLucid.Editor
             public ModuleRecord[] modules;
             public OutputRecord[] files;
             public string compiler_output, snapshot_policy = "separate-compiler-output-exact-snapshot-v1";
+            public string compilation_cache_policy = "engine-clean-player-cache-v1";
+            public LucidCleanPlayerCompilation.Receipt clean_compilation;
             public OutputRecord[] compiler_files;
             public Diagnostic[] diagnostics;
             public string[] returned_assemblies;
@@ -112,7 +114,16 @@ namespace ProjectLucid.Editor
                 Directory.CreateDirectory(compilerOutput);
                 var settings = new ScriptCompilationSettings { target = target, group = BuildTargetGroup.Standalone,
                     subtarget = (int)StandaloneBuildSubtarget.Player, options = ScriptCompilationOptions.None, extraScriptingDefines = new string[0] };
+                // Unity's preliminary Editor compile can consume a queued clean
+                // request. Prime the exact installed player backend with its real
+                // clean option, then obtain outputs through the public player API.
+                report.clean_compilation = LucidCleanPlayerCompilation.Prime(target, compilerOutput,
+                    editorCore.path, editorCore.sha256, editorCore.mvid);
+                if (report.clean_compilation.status != "completed" ||
+                    report.clean_compilation.terminal_status_value != 4 || !report.clean_compilation.output_restored)
+                    throw new InvalidOperationException("Clean player compilation failed: " + report.clean_compilation.error);
                 ScriptCompilationResult result = PlayerBuildInterface.CompilePlayerScripts(settings, compilerOutput);
+                report.clean_compilation.public_player_compile_called = true;
                 typeDb = result.typeDB;
                 if (result.assemblies == null || result.assemblies.Count == 0 || typeDb == null)
                     throw new InvalidOperationException("CompilePlayerScripts returned no complete assembly/type information.");

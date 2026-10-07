@@ -20,12 +20,16 @@ def write_report(work_dir, name, report):
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     commands = result.add_subparsers(dest="command", required=True)
-    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "player-code", "player-schema", "runtime-contracts", "theme-evidence", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build", "progress"):
+    for name in ("doctor", "bootstrap", "inspect", "recover-code", "native-build", "native-schema", "native-method", "script-layouts", "player-code", "player-schema", "runtime-contracts", "theme-evidence", "extract-assets", "shader-evidence", "prepare", "audit", "validate", "test", "build", "progress", "port"):
         command = commands.add_parser(name)
         command.add_argument("--work-dir", type=Path, default=ROOT / ".cache" / "project-lucid")
         command.add_argument("--json", action="store_true", help="print a compact JSON result")
         if name in ("inspect", "recover-code", "native-schema", "native-method", "extract-assets", "progress"):
             command.add_argument("--input", type=Path, default=ROOT / "input" / "SonicDreamTeam.app")
+        if name == "port":
+            command.add_argument("--input", type=Path, default=ROOT / "input")
+            command.add_argument("--output", type=Path, default=ROOT / "output")
+            command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
         if name == "shader-evidence":
             command.add_argument("--input", type=Path, required=True, help="an exported Shader .asset or export asset directory")
         if name == "bootstrap":
@@ -144,6 +148,9 @@ def main(argv=None):
         elif args.command == "audit":
             from lucidlib.verification import run_audit
             report = run_audit(ROOT, work_dir)
+        elif args.command == "port":
+            from lucidlib.port import run_port
+            report = run_port(ROOT, work_dir, args.input, args.target, args.output)
         elif args.command == "build":
             from lucidlib.project import build_project
             report = build_project(ROOT, work_dir, args.target)
@@ -163,6 +170,8 @@ def main(argv=None):
             for item in report.get("limitations", []):
                 print("limitation: " + str(item))
             print("report: " + str(destination))
+        if args.command == "port":
+            return int(report.get("exit_code", 1))
         return 1 if report.get("status") in ("failed", "error", "blocked", "incomplete") else 0
     except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         print("error: " + str(error), file=sys.stderr)

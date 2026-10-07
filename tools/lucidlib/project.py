@@ -114,7 +114,7 @@ def validate_project(repo_root, work_dir, stage="release"):
             "message": "Extraction readiness and verified gameplay are separate results."}
 
 
-def build_project(repo_root, work_dir, target):
+def build_project(repo_root, work_dir, target, *, destination=None):
     if target not in ("macos", "windows", "linux"):
         raise ValueError("Build target must be macos, windows, or linux")
     validation = validate_project(repo_root, work_dir)
@@ -129,7 +129,17 @@ def build_project(repo_root, work_dir, target):
     write_json(receipt, validation)
     outputs = {"macos": "macOS/ProjectLucid.app", "windows": "Windows/ProjectLucid.exe",
                "linux": "Linux/ProjectLucid.x86_64"}
-    destination = Path(repo_root) / "Builds" / outputs[target]
+    if destination is None:
+        destination = Path(repo_root) / "Builds" / outputs[target]
+    else:
+        from .port import _physical, _overlap, OUTPUTS
+        destination = _physical(destination)
+        root = _physical(repo_root)
+        protected = [root / name for name in ("input", "Assets", "Packages", "ProjectSettings", "tools", ".cache", "Library", "Temp")]
+        if destination.name != OUTPUTS[target] or any(_overlap(destination.parent, path) for path in protected):
+            raise ValueError("Custom build destination overlaps protected project content")
+        if destination.exists() or destination.is_symlink() or not destination.parent.is_dir() or any(destination.parent.iterdir()):
+            raise ValueError("Custom build output requires a fresh physical staging directory")
     destination.parent.mkdir(parents=True, exist_ok=True)
     log = managed_path(work_dir, "reports", "build-" + target + ".log")
     command = [str(executable), "-batchmode", "-quit", "-projectPath", str(repo_root),

@@ -134,7 +134,32 @@ class PlayerCodeTests(unittest.TestCase):
                   "modules": modules, "returned_assemblies": returned, "files": files,
                   "compiler_output": str(compiler), "compiler_files": compiler_files,
                   "snapshot_policy": "separate-compiler-output-exact-snapshot-v1",
+                  "compilation_cache_policy": "engine-clean-player-cache-v1",
                   "player_schema_verified": False, "gameplay_verified": False}
+        core = next(e for e in engine if e["name"] == "editor_core")
+        api = "UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface"
+        options = "UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions"
+        status = "UnityEditor.Scripting.ScriptCompilation.EditorCompilation+CompileStatus"
+        parameters = options + ",UnityEditor.BuildTargetGroup,UnityEditor.BuildTarget,System.Int32,System.String[]"
+        report["clean_compilation"] = {
+            "status": "completed", "error": "", "unity_version": "2022.3.54f1",
+            "module_path": core["path"], "module_sha256_before": core["sha256"],
+            "module_sha256_after": core["sha256"], "module_mvid": core["mvid"],
+            "interface_type": api, "options_type": options, "status_type": status,
+            "compile_method": api + ".CompileScripts(" + parameters + ")->" + status,
+            "tick_method": api + ".TickCompilationPipeline(" + parameters + ",System.Boolean)->" + status,
+            "get_output_method": api + ".GetCompileScriptsOutputDirectory()->System.String",
+            "set_output_method": api + ".SetCompileScriptsOutputDirectory(System.String)->System.Void",
+            "options_names": "BuildingCleanCompilation, BuildingExtractTypeDB, BuildingUseDeterministicCompilation",
+            "options_value": 20992, "target_name": playercode.TARGETS[target][1],
+            "target_value": {"macos": 2, "windows": 19, "linux": 24}[target],
+            "group_name": "Standalone", "group_value": 1, "subtarget": 0,
+            "extra_scripting_defines": [], "building_for_editor": False,
+            "output_path": str(compiler), "output_restored": True, "public_player_compile_called": True,
+            "terminal_status": "CompilationComplete", "terminal_status_value": 4,
+            "start_status": "CompilationStarted", "start_status_value": 2,
+            "tick_count": 1, "elapsed_milliseconds": 10, "observed_statuses": ["CompilationStarted", "CompilationComplete"],
+            "previous_output_path": "Library/ScriptAssemblies", "restored_output_path": "Library/ScriptAssemblies"}
         report["native_profile_queries_before"] = self.native_queries(engine, target)
         report["native_profile_queries_after"] = json.loads(json.dumps(report["native_profile_queries_before"]))
         if change: change(report, run)
@@ -179,6 +204,24 @@ class PlayerCodeTests(unittest.TestCase):
 
     def test_missing_snapshot_policy_prevents_publication(self):
         self.assert_rejected(lambda r, run: r.pop("snapshot_policy"))
+
+    def test_clean_player_receipt_required_before_publication(self):
+        self.assert_rejected(lambda r, run: r.pop("clean_compilation"))
+
+    def test_failed_editor_or_incomplete_clean_player_receipt_rejected(self):
+        for changed in ({"status": "failed"}, {"building_for_editor": True},
+                        {"terminal_status_value": 3}, {"output_restored": False},
+                        {"public_player_compile_called": False}, {"options_value": 20994},
+                        {"restored_output_path": "another/output"}, {"target_name": "StandaloneWindows64"},
+                        {"module_mvid": "00000000-0000-0000-0000-000000000000"},
+                        {"observed_statuses": ["CompilationStarted"]}, {"tick_count": True},
+                        {"elapsed_milliseconds": 120001}):
+            with self.subTest(changed=changed):
+                self.assert_rejected(lambda r, run: r["clean_compilation"].update(changed))
+
+    def test_missing_or_reused_compiler_cache_policy_prevents_publication(self):
+        self.assert_rejected(lambda r, run: r.pop("compilation_cache_policy"))
+        self.assert_rejected(lambda r, run: r.update(compilation_cache_policy="reuse-build-cache"))
 
     def test_unowned_compiler_directory_prevents_publication(self):
         self.assert_rejected(lambda r, run: r.update(compiler_output=str(run / "assemblies")))

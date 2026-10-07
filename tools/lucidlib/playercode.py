@@ -246,6 +246,51 @@ def _check_native_queries(report, target, engine):
     return before
 
 
+def _check_clean_compilation(report, target, engine):
+    """Require the installed player backend to complete a clean compilation."""
+    receipt = report.get("clean_compilation")
+    core = next(e for e in engine if e["name"] == "editor_core")
+    api = "UnityEditor.Scripting.ScriptCompilation.EditorCompilationInterface"
+    options = "UnityEditor.Scripting.ScriptCompilation.EditorScriptCompilationOptions"
+    status = "UnityEditor.Scripting.ScriptCompilation.EditorCompilation+CompileStatus"
+    parameters = options + ",UnityEditor.BuildTargetGroup,UnityEditor.BuildTarget,System.Int32,System.String[]"
+    expected = {"status": "completed", "unity_version": UNITY_VERSION,
+                "module_path": core["path"], "module_sha256_before": core["sha256"],
+                "module_sha256_after": core["sha256"], "module_mvid": core["mvid"],
+                "interface_type": api, "options_type": options, "status_type": status,
+                "compile_method": api + ".CompileScripts(" + parameters + ")->" + status,
+                "tick_method": api + ".TickCompilationPipeline(" + parameters + ",System.Boolean)->" + status,
+                "get_output_method": api + ".GetCompileScriptsOutputDirectory()->System.String",
+                "set_output_method": api + ".SetCompileScriptsOutputDirectory(System.String)->System.Void",
+                "options_names": "BuildingCleanCompilation, BuildingExtractTypeDB, BuildingUseDeterministicCompilation",
+                "options_value": 20992, "target_name": TARGETS[target][1],
+                "target_value": {"macos": 2, "windows": 19, "linux": 24}[target],
+                "group_name": "Standalone", "group_value": 1, "subtarget": 0,
+                "extra_scripting_defines": [], "building_for_editor": False,
+                "output_path": report.get("compiler_output"), "output_restored": True,
+                "public_player_compile_called": True,
+                "terminal_status": "CompilationComplete", "terminal_status_value": 4}
+    if (not isinstance(receipt, dict) or report.get("compilation_cache_policy") != "engine-clean-player-cache-v1" or
+            any(type(receipt.get(k)) is not type(v) or receipt.get(k) != v for k, v in expected.items()) or
+            receipt.get("error") not in (None, "")):
+        raise ValueError("Clean player compilation receipt is missing, failed or differs from the installed player backend")
+    start = receipt.get("start_status_value")
+    ticks = receipt.get("tick_count")
+    elapsed = receipt.get("elapsed_milliseconds")
+    names = {1: "Compiling", 2: "CompilationStarted", 4: "CompilationComplete"}
+    previous = receipt.get("previous_output_path")
+    states = receipt.get("observed_statuses")
+    if (type(start) is not int or start not in names or receipt.get("start_status") != names[start] or
+            type(ticks) is not int or not 0 <= ticks <= 64 or (ticks == 0) != (start == 4) or
+            type(elapsed) is not int or not 0 <= elapsed <= 120000 or
+            not isinstance(previous, str) or not previous or len(previous) > 4096 or
+            receipt.get("restored_output_path") != previous or
+            not isinstance(states, list) or len(states) != ticks + 1 or
+            states[0] != names[start] or states[-1] != names[4] or
+            any(s not in (names[1], names[2]) for s in states[:-1])):
+        raise ValueError("Clean player compilation status/output restoration is incomplete")
+
+
 def _check_report(report, root, work, run, target, nonce, source, engine, digest, *, require_schema=None, require_compiler_output=False):
     version = report.get("schema_version") if isinstance(report, dict) else None
     if type(version) is not int or version not in (1, 2) or (require_schema is not None and version != require_schema):
@@ -260,6 +305,8 @@ def _check_report(report, root, work, run, target, nonce, source, engine, digest
                 "gameplay_verified": False}
     if not isinstance(report, dict) or any(type(report.get(k)) is not type(v) or report.get(k) != v for k, v in expected.items()):
         raise ValueError("Player compilation identity/settings are stale, failed or incomplete")
+    if version == 2:
+        _check_clean_compilation(report, target, engine)
     if report.get("engine_before") != engine or report.get("engine_after") != engine:
         raise ValueError("Player evidence differs from the actual installed Editor identity")
     _check_native_queries(report, target, engine)
