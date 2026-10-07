@@ -204,6 +204,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMessageCompletionPreservationTests.FullOriginalCompletionApiRetainsSignaturesFieldsFlagsAndReadonlyArguments",
     "ProjectLucid.Tests.OriginalMessageCompletionPreservationTests.OriginalCallbacksPoolingMutationFaultsAndAllAritiesArePreserved",
     "ProjectLucid.Tests.OriginalMessageCompletionPreservationTests.OriginalTimeoutsCompleteWithoutBlockingTheUnitySynchronizationContext",
+    "ProjectLucid.Tests.OriginalWaypointPreservationTests.OriginalWaypointDeclarationsPreserveFieldsOptionsAndCallbackContract",
+    "ProjectLucid.Tests.OriginalWaypointPreservationTests.OriginalWaypointsPreserveOverridesDeferredLifecycleAndFailureOrdering",
+)
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalSerializedDictionaryFamilyPreservationTests.OriginalDictionaryGenericShapeAndAttributesRemainComplete",
+    "ProjectLucid.Tests.OriginalSerializedDictionaryFamilyPreservationTests.OriginalReferenceDictionaryConversionsPreserveNullsAndValueTypes",
+    "ProjectLucid.Tests.OriginalSerializedDictionaryFamilyPreservationTests.OriginalListPairRetainsMutationOrderAndCopyBoundaries",
+    "ProjectLucid.Tests.OriginalSerializedDictionaryFamilyPreservationTests.OriginalListDictionaryPreservesCopiesAndPartialFailureState",
 )
 
 PLAYMODE_TESTS = (
