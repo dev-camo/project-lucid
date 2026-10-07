@@ -20,8 +20,8 @@
     },
     {
       "assembly": "Game.Runtime",
-      "implemented_source_bodies": 888,
-      "not_implemented": 14307,
+      "implemented_source_bodies": 890,
+      "not_implemented": 14305,
       "original_declarations": 16004,
       "original_native_bodies": 15624,
       "unresolved_identities": 124,
@@ -182,12 +182,12 @@
     },
     {
       "assembly": "HLUnityCore.Runtime",
-      "implemented_source_bodies": 942,
-      "not_implemented": 2556,
+      "implemented_source_bodies": 947,
+      "not_implemented": 2529,
       "original_declarations": 4718,
       "original_native_bodies": 4200,
-      "unresolved_identities": 313,
-      "withheld_bodies": 389
+      "unresolved_identities": 317,
+      "withheld_bodies": 407
     },
     {
       "assembly": "HLUnityUI.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "0daa15019556910cef6aedee1223abcf7dc0da4910fe8181194ce067d98dd1af",
+  "compiler_receipt_sha256": "27395a94298401a1c3199dd18e4aac9c7ec8bedd20e1c90498939803d4ec93fb",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "db99a073d279b68badf089af146087de86f4dcc08c95469df0f8a27e8deb31bf",
+  "source_fingerprint": "ebecbff6e76b65ed0cc09581e7443adc9e9f674c08292b85f11fe6b361d0c12d",
   "totals": {
-    "implemented_source_bodies": 2728,
-    "not_implemented": 21542,
+    "implemented_source_bodies": 2735,
+    "not_implemented": 21513,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 530,
-    "withheld_bodies": 1097
+    "unresolved_identities": 534,
+    "withheld_bodies": 1115
   }
 }

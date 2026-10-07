@@ -225,6 +225,20 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalFrustumQueriesRetainGeometryAndPartialResults",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingDeclarationsAbsentManagerAndDelayedActionsRemainPreserved",
+    "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingPresentManagerRetainsInactiveAndUnorderedDurationOrdering",
+    "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingFixedYieldsRetainCapturedManagerAndActualCategoryScales",
+    "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingFrameYieldsUseActualUnityDeltaAndUnorderedTimerSemantics",
+    "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingPredicateAndNestedDelayFaultsPreserveReentryAndEmptyDispose",
+    "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalLayerAndComparisonOwnersRetainAllDeclarations",
+    "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalLayerOperationsRetainSignedAndWrappedBits",
+    "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalLayerObjectOverloadReadsRealAuthoredLayers",
+    "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalFloatComparisonsRetainApproximationAndExceptionalValues",
+    "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalIntegerComparisonsRetainSignedEndpoints",
+    "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalUnknownComparisonsRetainTypedErrorsAndMessages",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
