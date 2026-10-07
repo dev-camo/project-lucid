@@ -155,12 +155,12 @@
     },
     {
       "assembly": "HLPhysics.Runtime",
-      "implemented_source_bodies": 0,
-      "not_implemented": 24,
+      "implemented_source_bodies": 13,
+      "not_implemented": 1,
       "original_declarations": 24,
       "original_native_bodies": 24,
-      "unresolved_identities": 0,
-      "withheld_bodies": 0
+      "unresolved_identities": 4,
+      "withheld_bodies": 6
     },
     {
       "assembly": "HLRTLTextMeshPro.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "031a4ff689eee84c957d4043776b89f12beb4f4285f6d01f71450b0d8f589b17",
+  "compiler_receipt_sha256": "0daa15019556910cef6aedee1223abcf7dc0da4910fe8181194ce067d98dd1af",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "f59132a42dd4a3a71a2516f18299fffa928d5b9cd130e570873eba64ebd22c3c",
+  "source_fingerprint": "db99a073d279b68badf089af146087de86f4dcc08c95469df0f8a27e8deb31bf",
   "totals": {
-    "implemented_source_bodies": 2715,
-    "not_implemented": 21565,
+    "implemented_source_bodies": 2728,
+    "not_implemented": 21542,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 526,
-    "withheld_bodies": 1091
+    "unresolved_identities": 530,
+    "withheld_bodies": 1097
   }
 }

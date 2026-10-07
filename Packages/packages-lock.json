@@ -39,6 +39,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.hardlight.hlphysics": {
+      "version": "file:com.hardlight.hlphysics",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hlsplines": {
       "version": "file:com.hardlight.hlsplines",
       "depth": 0,

@@ -15,7 +15,8 @@
     "Unity.RenderPipelines.Core.Runtime",
     "Unity.RenderPipelines.Universal.Runtime",
     "HLSplines.Runtime",
-    "Cinemachine"
+    "Cinemachine",
+    "HLPhysics.Runtime"
   ],
   "includePlatforms": [
     "Editor"

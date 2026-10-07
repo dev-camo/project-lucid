@@ -215,6 +215,16 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSerializedDictionaryFamilyPreservationTests.OriginalListDictionaryPreservesCopiesAndPartialFailureState",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalOctreeDeclarationsRemainComplete",
+    "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalOctantsRetainEqualityAndUnorderedChoices",
+    "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalConstructionRetainsBoundsAndChildAliases",
+    "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalInsertionAndCollisionQueriesRetainOrderingAndFaults",
+    "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalReverseMigrationRetainsEqualityFailureState",
+    "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalGrowthRetainsObjectsAndBoundedAbortMutations",
+    "ProjectLucid.Tests.OriginalBoundsOctreePreservationTests.OriginalFrustumQueriesRetainGeometryAndPartialResults",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
