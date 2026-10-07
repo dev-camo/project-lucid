@@ -7,6 +7,18 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalEditableRibbonKnotsRetainInitializationAndCacheRules()
+        {
+            Assert.That(ProjectLucid.Editor.EditableRibbonProviderVerification.RunManaged(), Is.EqualTo(153));
+        }
+
+        [Test]
+        public void OriginalEditableRibbonProviderRetainsGeometryAndSurfaceQueries()
+        {
+            Assert.That(ProjectLucid.Editor.EditableRibbonProviderVerification.RunEngine(), Is.EqualTo(39));
+        }
+
+        [Test]
         public void OriginalRibbonRuntimeRetainsEdgeRulesAndNaturalDistanceComparer()
         {
             Assert.That(ProjectLucid.Editor.RibbonSharedRuntimeVerification.RunManaged(), Is.EqualTo(177));
