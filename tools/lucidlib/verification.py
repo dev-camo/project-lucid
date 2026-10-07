@@ -196,6 +196,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalStartingPositionPreservationTests.OriginalStartingPositionRetainsAuthoredReferencesAcrossSetData",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLedgeBrakePreservationTests.OriginalLedgeBrakingCachesRetainAuthoredAnglesAndExceptionalValues",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
