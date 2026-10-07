@@ -7,6 +7,24 @@ namespace ProjectLucid.Tests
     public sealed class RecoveredBehaviorTests
     {
         [Test]
+        public void OriginalInputDebounceRetainsThresholdDirectionAndCrossingTiming()
+        {
+            Assert.That(ProjectLucid.Editor.InputDebounceVerification.Run(), Is.EqualTo(338));
+        }
+
+        [Test]
+        public void OriginalSplinePrerequisitesRetainRecordsComparersAndCallbacks()
+        {
+            Assert.That(ProjectLucid.Editor.InertSplinePrerequisiteVerification.RunManaged(), Is.EqualTo(81));
+        }
+
+        [Test]
+        public void OriginalKnotRuntimePrerequisitesRetainContractsAndReceiverFaults()
+        {
+            Assert.That(ProjectLucid.Editor.KnotRuntimePrerequisiteVerification.RunManaged(), Is.EqualTo(6));
+        }
+
+        [Test]
         public void OriginalSplineRenderDefinitionsRetainQualitySelectionAndUnitySerialization()
         {
             Assert.That(ProjectLucid.Editor.RibbonEditorDefinitionVerification.RunManaged(), Is.EqualTo(82));
