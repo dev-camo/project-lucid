@@ -702,3 +702,5 @@ def run_audit(repo_root, work_dir):
                 "scanned_assets": report["scanned_assets"], "report_path": str(output), "log": str(log)}
     finally:
         lock.rmdir()
+
+EDITMODE_TESTS += ('ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.CopyPreservesAliasesAndDestinationCallbacks', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.DelegateAccessorsPreserveDuplicatesAndCapturedOrder', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ComparisonsPreserveThresholdsAndMissingFeatureFallback', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ProfileCallbacksPreserveReentryAndFaultPrefixes', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ProfileSubscriptionsPreserveDuplicateAndFaultState')
