@@ -20,12 +20,12 @@
     },
     {
       "assembly": "Game.Runtime",
-      "implemented_source_bodies": 918,
-      "not_implemented": 14274,
+      "implemented_source_bodies": 929,
+      "not_implemented": 14261,
       "original_declarations": 16004,
       "original_native_bodies": 15624,
-      "unresolved_identities": 124,
-      "withheld_bodies": 308
+      "unresolved_identities": 125,
+      "withheld_bodies": 309
     },
     {
       "assembly": "HLAnalytics.Runtime",
@@ -128,12 +128,12 @@
     },
     {
       "assembly": "HLModernUI.Runtime",
-      "implemented_source_bodies": 102,
-      "not_implemented": 314,
+      "implemented_source_bodies": 183,
+      "not_implemented": 198,
       "original_declarations": 486,
       "original_native_bodies": 475,
-      "unresolved_identities": 27,
-      "withheld_bodies": 32
+      "unresolved_identities": 36,
+      "withheld_bodies": 58
     },
     {
       "assembly": "HLNetworking.Runtime",
@@ -182,12 +182,12 @@
     },
     {
       "assembly": "HLUnityCore.Runtime",
-      "implemented_source_bodies": 1284,
-      "not_implemented": 1892,
+      "implemented_source_bodies": 1299,
+      "not_implemented": 1869,
       "original_declarations": 4718,
       "original_native_bodies": 4200,
-      "unresolved_identities": 500,
-      "withheld_bodies": 524
+      "unresolved_identities": 506,
+      "withheld_bodies": 526
     },
     {
       "assembly": "HLUnityUI.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "4b08bd0f5f1acb143b548490bc0801f8bcbab4d9aef4933343edf467fcaa1bea",
+  "compiler_receipt_sha256": "acc1d21538a214d4da621ebde354c7602e6ac8274d7cc81f17189ad8e1feb1d6",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "66c6361565cb2900449e8264c8cd740c64a2f074c63c6044e27d0298b4b9ec04",
+  "source_fingerprint": "c2015981145c7e56a34cbe7adf2f36291b09de3b420f5fcc0c43880df649c440",
   "totals": {
-    "implemented_source_bodies": 3102,
-    "not_implemented": 20832,
+    "implemented_source_bodies": 3209,
+    "not_implemented": 20680,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 728,
-    "withheld_bodies": 1235
+    "unresolved_identities": 744,
+    "withheld_bodies": 1264
   }
 }

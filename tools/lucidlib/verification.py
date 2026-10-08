@@ -303,6 +303,22 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCharacterRigPreservationTests.OriginalPersistentSubstitutionRetainsParentAndBypassesRestoration",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalBoundMessagingTests.OriginalBoundMessageOrderFlagsAndMissingKeys",
+    "ProjectLucid.Tests.OriginalBoundMessagingTests.OriginalBoundMessageDuplicatesNullAndFaultPrefixes",
+    "ProjectLucid.Tests.OriginalBoundMessagingTests.OriginalBoundMessageLiveMutationAndNestedPublish",
+    "ProjectLucid.Tests.OriginalBoundMessagingTests.OriginalBoundMessageInvalidationAndNullKeyState",
+    "ProjectLucid.Tests.OriginalBoundMessagingTests.OriginalBoundMessageReadonlyHandlesAndParameterCasts",
+    "ProjectLucid.Tests.OriginalBoundMessagingTests.OriginalBoundMessageExchangeApisRestoreProcessActions",
+    "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUICanvasAndUnconditionalSetter",
+    "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUITogglePointerAndFreshGroupCallbacks",
+    "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUIMembershipAndSignedSelectionFaults",
+    "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUILiveMutationAndSwitchOffFaults",
+    "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUIElementLifecycleMembership",
+    "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUIAnimationQueueCallbackAndDisableFaults",
+    "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUIAnimationPointerAndSettingFaultPrefixes",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
