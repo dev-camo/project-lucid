@@ -295,6 +295,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.OriginalJsonContainersRetainOwnershipReuseAndReleaseOrder",
     "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.OriginalHttpNullRequestBoundariesRetainCallbacksAndIteratorFaults",
     "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.JsonHttpPreservationFixturesRetainExistingStateAcrossRepeatsAndFaults",
+    "ProjectLucid.Tests.OriginalCharacterRigPreservationTests.OriginalRigCacheRetainsExactTypesDuplicateOrderAndPartialFailures",
+    "ProjectLucid.Tests.OriginalCharacterRigPreservationTests.OriginalRigAttachmentsRetainWorldPoseAndReverseSiblingOrder",
+    "ProjectLucid.Tests.OriginalCharacterRigPreservationTests.OriginalRigPositionsRetainLocalPoseScaleAndAnimatorOrder",
+    "ProjectLucid.Tests.OriginalCharacterRigPreservationTests.OriginalRigGhostMaterialsRetainNamesIndexedListsAndPartialFailures",
+    "ProjectLucid.Tests.OriginalCharacterRigPreservationTests.OriginalSubstitutionRetainsWorldPoseActivationAndFaultOrder",
+    "ProjectLucid.Tests.OriginalCharacterRigPreservationTests.OriginalPersistentSubstitutionRetainsParentAndBypassesRestoration",
 )
 
 PLAYMODE_TESTS = (
