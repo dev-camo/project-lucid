@@ -1,6 +1,8 @@
 {
   "name": "HLNetworking.Runtime",
-  "references": [],
+  "references": [
+    "HLUnityCore.Runtime"
+  ],
   "autoReferenced": true,
-  "noEngineReferences": true
+  "noEngineReferences": false
 }

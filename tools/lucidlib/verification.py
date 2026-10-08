@@ -288,6 +288,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLeaderboardPreservationTests.OriginalShippingLeaderboardImageRequestRetainsWhiteTextureAndCleanup",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.OriginalJsonScalarConversionsRetainTypesDefaultsAndPoolSizes",
+    "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.OriginalJsonParserRetainsCursorsPermissiveInputAndFaults",
+    "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.OriginalJsonSerializationRetainsOrderingEscapesAndDisposal",
+    "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.OriginalJsonContainersRetainOwnershipReuseAndReleaseOrder",
+    "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.OriginalHttpNullRequestBoundariesRetainCallbacksAndIteratorFaults",
+    "ProjectLucid.Tests.OriginalJsonHttpPreservationTests.JsonHttpPreservationFixturesRetainExistingStateAcrossRepeatsAndFaults",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
