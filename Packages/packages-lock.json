@@ -45,6 +45,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.hardlight.hlnotifications": {
+      "version": "file:com.hardlight.hlnotifications",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hlphysics": {
       "version": "file:com.hardlight.hlphysics",
       "depth": 0,

@@ -20,7 +20,8 @@
     "HLUnityUI.Runtime",
     "HLEventSystems.Runtime",
     "Unity.ugui",
-    "ProjectLucid.CoroutineScroll.EngineVerification"
+    "ProjectLucid.CoroutineScroll.EngineVerification",
+    "HLNotifications.Runtime"
   ],
   "includePlatforms": [
     "Editor"
