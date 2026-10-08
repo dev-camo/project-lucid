@@ -319,6 +319,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalUITogglePreservationTests.OriginalUIAnimationPointerAndSettingFaultPrefixes",
 )
 
+EDITMODE_TESTS += ('ProjectLucid.Tests.OriginalEnumerablePreservationTests.DeepEqualityPreservesNullFaultAndDisposalOrder', 'ProjectLucid.Tests.OriginalEnumerablePreservationTests.DeepHashPreservesSignedOrderedValuesAndCleanup', 'ProjectLucid.Tests.OriginalEnumerablePreservationTests.JoinPreservesBuilderAliasAndFaultPrefixes', 'ProjectLucid.Tests.OriginalEnumerablePreservationTests.CountPreservesCallbackReceiverMutationAndReentry', 'ProjectLucid.Tests.OriginalEnumerablePreservationTests.ZipPreservesDeferredAcquisitionAndAsymmetricCleanup')
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
