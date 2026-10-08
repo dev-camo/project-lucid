@@ -362,6 +362,24 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalRectTransformPreservationTests.RectTransformEdgePointsRetainOriginalLocalGeometry',
 )
 
+EDITMODE_TESTS += (
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalInertCapturedCurveGeometry',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalSegmentedCapturedCurveGeometry',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalInertCachesAndDistinctIndexRules',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalSegmentedCachesAndDistinctIndexRules',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalInertSerializedAndActualTransforms',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalSegmentedSerializedAndActualTransforms',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalInertNotificationPublicationOrder',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalSegmentedNotificationPublicationOrder',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalFacadeSelectsStoredVariant',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalFacadeCreatesAndRetainsOriginalChild',
+    'ProjectLucid.Verification.OriginalRibbonVariantsTests.OriginalFacadePublishesBeforeOldCallback',
+    'ProjectLucid.EditMode.OriginalInertRibbonManagedTests.InertLutRetainsNullBoundaryAndLengthNoOps',
+    'ProjectLucid.EditMode.OriginalInertRibbonManagedTests.AlignmentCacheRetainsFirstMatchMissesFaultsAndCenterForwarding',
+    'ProjectLucid.EditMode.OriginalInertRibbonManagedTests.SetTransformRetainsRawRotationAndOtherCapturedFields',
+    'ProjectLucid.EditMode.OriginalInertRibbonManagedTests.SubSplineCopyRetainsBoundsReciprocalAndOriginalThrow',
+)
+
 PLAYMODE_TESTS += (
     'ProjectLucid.Tests.OriginalCoroutineSchedulingPlayTests.OriginalCoroutineActualScheduledFramesStopAndDuplicateLifetime',
 )
