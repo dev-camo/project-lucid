@@ -92,8 +92,8 @@
     },
     {
       "assembly": "HLEventSystems.Runtime",
-      "implemented_source_bodies": 0,
-      "not_implemented": 16,
+      "implemented_source_bodies": 16,
+      "not_implemented": 0,
       "original_declarations": 22,
       "original_native_bodies": 16,
       "unresolved_identities": 0,
@@ -182,25 +182,25 @@
     },
     {
       "assembly": "HLUnityCore.Runtime",
-      "implemented_source_bodies": 1299,
-      "not_implemented": 1869,
+      "implemented_source_bodies": 1328,
+      "not_implemented": 1718,
       "original_declarations": 4718,
       "original_native_bodies": 4200,
-      "unresolved_identities": 506,
-      "withheld_bodies": 526
+      "unresolved_identities": 532,
+      "withheld_bodies": 622
     },
     {
       "assembly": "HLUnityUI.Runtime",
-      "implemented_source_bodies": 0,
-      "not_implemented": 1724,
+      "implemented_source_bodies": 48,
+      "not_implemented": 1629,
       "original_declarations": 1818,
       "original_native_bodies": 1724,
-      "unresolved_identities": 0,
-      "withheld_bodies": 0
+      "unresolved_identities": 10,
+      "withheld_bodies": 37
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "acc1d21538a214d4da621ebde354c7602e6ac8274d7cc81f17189ad8e1feb1d6",
+  "compiler_receipt_sha256": "47c8a62e1ecbbb5d9de1dd289ed3cc88015d02f342e34a5415b627de56efd15a",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "c2015981145c7e56a34cbe7adf2f36291b09de3b420f5fcc0c43880df649c440",
+  "source_fingerprint": "82c68bfb866cf4c172e4c20c41b50e12c55e2e1698b46b64e7b9143dc2cbd8fc",
   "totals": {
-    "implemented_source_bodies": 3209,
-    "not_implemented": 20680,
+    "implemented_source_bodies": 3302,
+    "not_implemented": 20418,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 744,
-    "withheld_bodies": 1264
+    "unresolved_identities": 780,
+    "withheld_bodies": 1397
   }
 }

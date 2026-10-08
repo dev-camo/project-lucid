@@ -16,7 +16,11 @@
     "Unity.RenderPipelines.Universal.Runtime",
     "HLSplines.Runtime",
     "Cinemachine",
-    "HLPhysics.Runtime"
+    "HLPhysics.Runtime",
+    "HLUnityUI.Runtime",
+    "HLEventSystems.Runtime",
+    "Unity.ugui",
+    "ProjectLucid.CoroutineScroll.EngineVerification"
   ],
   "includePlatforms": [
     "Editor"

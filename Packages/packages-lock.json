@@ -8,6 +8,12 @@
         "com.hardlight.hlunitycore": "0.1.0"
       }
     },
+    "com.hardlight.hleventsystems": {
+      "version": "file:com.hardlight.hleventsystems",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hlinput": {
       "version": "file:com.hardlight.hlinput",
       "depth": 0,
@@ -55,6 +61,12 @@
     },
     "com.hardlight.hlunitycore": {
       "version": "file:com.hardlight.hlunitycore",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
+    "com.hardlight.hlunityui": {
+      "version": "file:com.hardlight.hlunityui",
       "depth": 0,
       "source": "embedded",
       "dependencies": {}

@@ -2,7 +2,8 @@
   "name": "ProjectLucid.EditMode",
   "references": [
     "ProjectLucid.Verification",
-    "Unity.ProjectLucid.CodeGen.Tests"
+    "Unity.ProjectLucid.CodeGen.Tests",
+    "ProjectLucid.CoroutineScroll.EngineVerification"
   ],
   "includePlatforms": [
     "Editor"

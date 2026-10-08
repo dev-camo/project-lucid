@@ -338,6 +338,48 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMissionRingRewardPreservationTests.OriginalMissionRingRewardsPreserveAuthoredOrderAndInclusiveSignedThresholds",
 )
 
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalCoroutineEngineTests.OriginalCoroutineActualScaledUnscaledAndRealtimeGetters',
+    'ProjectLucid.Tests.OriginalCoroutineEngineTests.OriginalCoroutineActualRegistrationPublicationFaultPrefix',
+    'ProjectLucid.Tests.OriginalCoroutineEngineTests.OriginalCoroutineActualDestroyedHostRetainsUnityNullReference',
+    'ProjectLucid.Tests.OriginalScrollSelectionEngineTests.OriginalScrollSelectionActualConstructorsPoliciesAndNullSelection',
+    'ProjectLucid.Tests.OriginalScrollSelectionEngineTests.OriginalScrollSelectionActualSignedGeometryAndAlignmentCases',
+    'ProjectLucid.Tests.OriginalScrollSelectionEngineTests.OriginalScrollSelectionActualInstantCallbackAndPartialFailureOrder',
+    'ProjectLucid.Tests.OriginalCoroutinePreservationTests.OriginalCoroutineWholeDeclarations',
+    'ProjectLucid.Tests.OriginalCoroutinePreservationTests.OriginalCoroutineSingleYieldFaultAndDisposalOrder',
+    'ProjectLucid.Tests.OriginalCoroutinePreservationTests.OriginalCoroutineSignedFrameCountsAndResumeOverflow',
+    'ProjectLucid.Tests.OriginalCoroutinePreservationTests.OriginalCoroutinePredicateOrderAndPartialFailures',
+    'ProjectLucid.Tests.OriginalCoroutinePreservationTests.OriginalCoroutineCachedWaitAndStartPredicatePolarity',
+    'ProjectLucid.Tests.OriginalCoroutinePreservationTests.OriginalCoroutineLazyTimeAndNullHostBranches',
+    'ProjectLucid.Verification.Tests.OriginalScrollRectPreservationTests.OriginalScrollRectDeclarationsAndMarker',
+    'ProjectLucid.Verification.Tests.OriginalScrollRectPreservationTests.OriginalScrollRectRubberDeltaFixedVectors',
+    'ProjectLucid.Verification.Tests.OriginalScrollRectPreservationTests.OriginalScrollRectSmallContentTruthTable',
+    'ProjectLucid.Verification.Tests.OriginalScrollRectPreservationTests.OriginalScrollRectClampAndFailurePrefixes',
+    'ProjectLucid.Tests.OriginalRectTransformPreservationTests.RectTransformOriginalDeclarationsAndNullFailurePrefixes',
+    'ProjectLucid.Tests.OriginalRectTransformPreservationTests.RectTransformImmediateChildrenRetainsAllOriginalSiblingSlots',
+    'ProjectLucid.Tests.OriginalRectTransformPreservationTests.RectTransformFullscreenResetRetainsOriginalUnwrittenProperties',
+    'ProjectLucid.Tests.OriginalRectTransformPreservationTests.RectTransformEdgePointsRetainOriginalLocalGeometry',
+)
+
+PLAYMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalCoroutineSchedulingPlayTests.OriginalCoroutineActualScheduledFramesStopAndDuplicateLifetime',
+)
+
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalEventSystemPreservationTests.OriginalEventSystemDeclarationsCachesAndDataBits',
+    'ProjectLucid.Tests.OriginalEventSystemPreservationTests.OriginalEventSystemValidationForwardingAndFaultOrder',
+)
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Verification.OriginalVisualQualityPreservationTests.OriginalConfigurationConstructorsPreserveAuthoredDefaults",
+    "ProjectLucid.Verification.OriginalVisualQualityPreservationTests.OriginalConfigurationSelectionPreservesFirstFallbackAndFaultOrder",
+    "ProjectLucid.Verification.OriginalVisualQualityPreservationTests.OriginalProfilesPreserveGuidEqualityAndLiveAliases",
+    "ProjectLucid.Verification.OriginalVisualQualityPreservationTests.OriginalProfilesPreserveNestedCallbackSnapshotsAndLiveIdentity",
+    "ProjectLucid.Verification.OriginalVisualQualityPreservationTests.OriginalProfilesPreserveCallbackAndNullTransitionFaultPrefixes",
+)
+
 def artifact_fingerprint(repo_root, prepared=False):
     """Canonical path/content hash, shared with LucidArtifactIdentity in Unity."""
     root = Path(repo_root).resolve()

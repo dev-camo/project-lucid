@@ -1,0 +1,17 @@
+{
+  "name": "HLEventSystems.Runtime",
+  "rootNamespace": "Hardlight",
+  "references": [
+    "HLUnityCore.Runtime",
+    "Unity.ugui"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

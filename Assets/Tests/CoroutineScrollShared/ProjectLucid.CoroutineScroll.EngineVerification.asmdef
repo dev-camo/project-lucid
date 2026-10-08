@@ -1,0 +1,13 @@
+{
+  "name": "ProjectLucid.CoroutineScroll.EngineVerification",
+  "references": [
+    "HLUnityCore.Runtime",
+    "HLUnityUI.Runtime",
+    "HLEventSystems.Runtime",
+    "Unity.ugui"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

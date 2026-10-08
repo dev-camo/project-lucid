@@ -1,0 +1,7 @@
+{
+  "name": "com.hardlight.hleventsystems",
+  "displayName": "Hardlight Event Systems Reconstruction",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Locally maintained recovery of original Hardlight runtime behavior."
+}
