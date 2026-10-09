@@ -763,3 +763,12 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.EditMode.AnalyticsConsentStateHelpersTests.OriginalLabelsComparersAndMutableCacheBehavior',
     'ProjectLucid.Tests.EditMode.AnalyticsMissionTypeHelpersTests.OriginalLabelsComparersAndMutableCacheBehavior',
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.DeadZoneHysteresisAndRadialCacheResetRemainOriginal",
+    "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.CooldownScalarVectorTimingAndDebounceInputStateRemainOriginal",
+    "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.CurveXYSignZAndScalarModifierBranchesRemainOriginal",
+    "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.RepeatUsesRealPerInputStateAndUnityTimeWithoutRepairingScalarFault",
+    "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.TriggerRegistersAndCallsBackBeforeDownAndResetStateStores",
+    "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.TriggerFaultsAndHeldCallbacksPreserveOriginalStateAndRegistration",
+)

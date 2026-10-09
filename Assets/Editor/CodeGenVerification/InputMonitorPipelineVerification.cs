@@ -20,7 +20,7 @@ namespace ProjectLucid
             var compiled = CompilationPipeline.GetAssemblies(AssembliesType.Editor).Single(a => a.name == "HLInput.Runtime");
             var loaded = AppDomain.CurrentDomain.GetAssemblies().Single(a => a.GetName().Name == "HLInput.Runtime");
             Type owner = loaded.GetType("Hardlight.InputMonitor", true), marker = loaded.GetType("Hardlight.IInputMonitor", true), baseMarker = loaded.GetType("Hardlight.IBaseInputMonitor", true);
-            Require(compiled.sourceFiles.Length == 63, "Expected complete actual Input63 source roster; promotion is not eligible from the small input package.");
+            Require(compiled.sourceFiles.Length == 86, "Expected complete actual Input86 source roster; promotion is not eligible from the small input package.");
             Require(loaded.FullName == "HLInput.Runtime, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null", "Changed actual loaded assembly identity.");
             string installed = Path.GetFullPath(loaded.Location);
             Require(installed == Path.GetFullPath(compiled.outputPath), "Loaded input module differs from current compilation output.");
