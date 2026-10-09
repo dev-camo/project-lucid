@@ -772,3 +772,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.TriggerRegistersAndCallsBackBeforeDownAndResetStateStores",
     "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.TriggerFaultsAndHeldCallbacksPreserveOriginalStateAndRegistration",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EditMode.InputRemainingOriginalBehaviorTests.OriginalConfigurationPathsAndInactiveProvidersRemainIntact",
+    "ProjectLucid.Tests.EditMode.InputRemainingOriginalBehaviorTests.OriginalGameInputTriggerControlledCallbacksPreserveSubscriptionAndUnityEventOrder",
+    "ProjectLucid.Tests.EditMode.InputRemainingOriginalBehaviorTests.OriginalGameInputTriggerControlledCallbacksPreserveNullAndCallbackFaultOrdering",
+    "ProjectLucid.Tests.EditMode.InputRemainingOriginalBehaviorTests.OriginalGlyphDisplayUsesGenuineTextAndRawImageSetterOrdering",
+)
