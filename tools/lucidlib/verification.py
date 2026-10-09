@@ -725,3 +725,10 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalResourceEngineTests.CurrentSceneNameReadsOwnedActiveScene',
     'ProjectLucid.Tests.OriginalResourceEngineTests.UnityShuffleConsumesOneDrawBeforeReadsAndRestoresState',
 )
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalEntityActivationStateTests.ActivationTransitionOrderAndFirstTime',
+    'ProjectLucid.Tests.OriginalEntityActivationStateTests.ActivationCallbackFaultAndLiveOppositeList',
+    'ProjectLucid.Tests.OriginalEntityActivationStateTests.ActivationPredicateShortCircuitAndLiveMutation',
+    'ProjectLucid.Tests.OriginalEntityActivationStateTests.ActivationShutdownAndClearFaultPrefix',
+)
