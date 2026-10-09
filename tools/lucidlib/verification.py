@@ -712,3 +712,16 @@ EDITMODE_TESTS += ('ProjectLucid.Tests.OriginalDelayModifierPreservationTests.Sc
 EDITMODE_TESTS += ('ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineKnotsPreserveSerializedFieldsAndSignedLUTQueries', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineKnotsRetainEightOriginalNotImplementedBodies', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineComponentsRetainDefaultsIndexFaultsAndParentCaching', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineCopiesEvaluateAnalyticStraightGeometryAndWorldTransforms', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineBoundsCacheAndLocalZDistanceRemainOriginal', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineEventsRetainTimestampAndDelegateFailurePrefixes', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineFacadePublishesReplacementBeforeOriginalCallback', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineTrackerUsesTrueResolverAndRetainsCallbackFailureState', 'ProjectLucid.Tests.EditMode.OriginalSplineFamilyTests.SplineSamplingCacheRestoresEveryPriorBitAfterOwnedFaults')
 
 EDITMODE_TESTS += ('ProjectLucid.Tests.EditMode.OriginalEnumPreservationTests.ParseRetainsCaseSensitiveNamesAndNumericValues', 'ProjectLucid.Tests.EditMode.OriginalEnumPreservationTests.SafeParseRetainsFallbackAcrossParseAndTypeFaults', 'ProjectLucid.Tests.EditMode.OriginalEnumPreservationTests.NamesAndValuesRetainAliasesAndIndependentArrays', 'ProjectLucid.Tests.EditMode.OriginalEnumPreservationTests.IntegerValuesRetainSignedConversionAndOverflow', 'ProjectLucid.Tests.EditMode.OriginalEnumPreservationTests.MembershipRequiresDefinedEnumValues', 'ProjectLucid.Tests.EditMode.OriginalEnumPreservationTests.ConversionRetainsOutValueAndFaultPrefixes', 'ProjectLucid.Tests.EditMode.OriginalEnumPreservationTests.OriginalConstraintsRemainObservable')
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.OpStringCreationMutationAndOverloads',
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.OpStringCultureFormattingAndOriginalTrim',
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.OpStringThreadCacheAndExceptionalRestoration',
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.ListSearchLiveAliasAndOutFaults',
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.ListUniqueRangeCallbacksAndDisposal',
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.SeededShuffleSnapshotCallbacksAndPartialWrites',
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.ResourcePathStringsAndOutFaultPrefixes',
+    'ProjectLucid.Tests.OriginalCoreHelperPreservationTests.ResourceCombineCacheAliasesAndRestoration',
+    'ProjectLucid.Tests.OriginalResourceEngineTests.CurrentSceneNameReadsOwnedActiveScene',
+    'ProjectLucid.Tests.OriginalResourceEngineTests.UnityShuffleConsumesOneDrawBeforeReadsAndRestoresState',
+)
