@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -8,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lucidlib.scriptbindings import RULES, resolve_bindings, rewrite_script_pointers
+from lucidlib.scriptbindings import RULES, PACKAGE_RULES, GUID, resolve_bindings, rewrite_script_pointers
 from lucidlib.verification import artifact_fingerprint
 
 
@@ -258,6 +259,204 @@ class ScriptBindingTests(unittest.TestCase):
                      '--- !u!114 &1\nMonoBehaviour:\n  m_Name: "multiline\n  ' + pointer + '\n  rest"\n'):
             with self.subTest(text=text), self.assertRaisesRegex(ValueError, "document|quoted"):
                 rewrite_script_pointers(text.encode(), [binding])
+
+
+class UguiScriptBindingTests(unittest.TestCase):
+    def fixture(self, directory):
+        root, work, export, mapping, comparison, path, summary = ScriptBindingTests.fixture(self, directory)
+        package = root / "Library/PackageCache/com.unity.ugui@1.0.0"
+        # Test resolver failures without downloading package or game content.
+        # Actual package/native/Unity compatibility has separate integration gates.
+        (root / "Packages").mkdir(exist_ok=True)
+        (root / "Packages/manifest.json").write_text(json.dumps({"dependencies": {"com.unity.ugui": "1.0.0"}}))
+        lock = {"version": "1.0.0", "depth": 0, "source": "builtin",
+                "dependencies": {"com.unity.modules.ui": "1.0.0", "com.unity.modules.imgui": "1.0.0"}}
+        (root / "Packages/packages-lock.json").write_text(json.dumps({"dependencies": {"com.unity.ugui": lock}}))
+        hashes = {}
+        for relative in PACKAGE_RULES[0]["runtime_sources"]:
+            suffix = relative[len("Packages/com.unity.ugui/"):]
+            target = package / suffix
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = ("// Distinct resolver fixture " + suffix + "\n").encode()
+            target.write_bytes(data)
+            hashes[relative] = hashlib.sha256(data).hexdigest()
+        descriptor = json.dumps({"name": "com.unity.ugui", "version": "1.0.0"}).encode()
+        (package / "package.json").write_bytes(descriptor)
+        for index, rule in enumerate(PACKAGE_RULES):
+            suffix = rule["maintained_path"][len("Packages/com.unity.ugui/"):]
+            (package / (suffix + ".meta")).write_text("fileFormatVersion: 2\nguid: " + hashlib.sha256(suffix.encode()).hexdigest()[:32] + "\n")
+        patches = [patch.dict("lucidlib.scriptbindings.UGUI_RUNTIME_SOURCES", hashes, clear=True),
+                   patch("lucidlib.scriptbindings.UGUI_PACKAGE_SHA256", hashlib.sha256(descriptor).hexdigest())]
+        for guard in patches:
+            guard.start()
+            self.addCleanup(guard.stop)
+        for index, rule in enumerate(PACKAGE_RULES):
+            guid = str(index + 1) * 32
+            original = export / rule["export_path"]
+            original.parent.mkdir(parents=True, exist_ok=True)
+            original.write_text("// Original export declaration fixture\n")
+            original.with_name(original.name + ".meta").write_text("fileFormatVersion: 2\nguid: " + guid + "\n")
+            mapping["assets"].append({"path": rule["export_path"], "guid": guid, "code_quarantined": True})
+            suffix = rule["maintained_path"][len("Packages/com.unity.ugui/"):]
+            source = package / suffix
+            target_guid = GUID.findall(source.with_name(source.name + ".meta").read_text())[0]
+            comparison["candidates"].append({"assembly": rule["assembly"], "full_name": rule["full_name"],
+                "status": "compatible_layout", "issues": [], "original_token": "0x02000001",
+                "loaded_scripts": [{"path": rule["maintained_path"], "guid": target_guid, "file_id": 11500000,
+                    "class_resolved": True, "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                    "source_path": str(source), "package_name": "com.unity.ugui", "package_version": "1.0.0",
+                    "package_builtin": True, "package_resolved_path": str(package)}]})
+        comparison["source_fingerprint"] = summary["source_fingerprint"] = artifact_fingerprint(root)
+        path.write_text(json.dumps(comparison))
+        return root, work, export, mapping, comparison, path, summary, package
+
+    def component_document(self, index):
+        own = (
+            "  m_IgnoreLayout: 0\n  m_MinWidth: -1\n  m_MinHeight: -1\n  m_PreferredWidth: 120\n  m_PreferredHeight: 60\n  m_FlexibleWidth: -1\n  m_FlexibleHeight: -1\n  m_LayoutPriority: 1\n",
+            "  m_HorizontalFit: 0\n  m_VerticalFit: 2\n",
+            "  m_AspectMode: 4\n  m_AspectRatio: 1.77\n")[index]
+        return ("--- !u!114 &" + str(index + 1) + "\nMonoBehaviour:\n"
+                "  m_ObjectHideFlags: 0\n  m_CorrespondingSourceObject: {fileID: 0}\n"
+                "  m_PrefabInstance: {fileID: 0}\n  m_PrefabAsset: {fileID: 0}\n"
+                "  m_GameObject: {fileID: 100}\n  m_Enabled: 1\n  m_EditorHideFlags: 0\n"
+                "  m_Script: {fileID: 11500000, guid: " + str(index + 1) * 32 + ", type: 3}\n"
+                "  m_Name:\n  m_EditorClassIdentifier:\n" + own).encode()
+
+    def test_corrupt_package_component_fields_abort_even_beside_valid_documents(self):
+        bindings = [{**rule, "exported_guid": str(i + 1) * 32, "exported_file_id": 11500000,
+                     "target_guid": str(i + 4) * 32, "target_file_id": 11500000} for i, rule in enumerate(PACKAGE_RULES)]
+        cases = []
+        for i in range(3):
+            valid = self.component_document(i)
+            cases += [valid + b"  unknown: 1\n", valid + b"  m_Enabled: 1\n",
+                      valid.replace(b"  m_Enabled: 1", b"  m_Enabled: 2"),
+                      valid.replace(b"  m_GameObject: {fileID: 100}", b"  m_GameObject: {fileID: 0}"),
+                      valid.replace(b"  m_Script:", b"    m_Script:")]
+        cases += [self.component_document(0).replace(b"m_MinWidth: -1", b"m_MinWidth: " + value)
+                  for value in (b"Infinity", b"NaN", b"1e100", b"nope", b"1_0", "١".encode())]
+        cases += [self.component_document(0).replace(b"m_LayoutPriority: 1", b"m_LayoutPriority: 2147483648"),
+                  self.component_document(1).replace(b"m_VerticalFit: 2", b"m_VerticalFit: 99"),
+                  self.component_document(2).replace(b"m_AspectMode: 4", b"m_AspectMode: -1")]
+        cases += [self.component_document(0).replace(b"m_LayoutPriority: 1", "m_LayoutPriority: ١".encode()),
+                  self.component_document(0).replace(b"fileID: 100", "fileID: ١".encode()),
+                  self.component_document(0).replace(b"fileID: 11500000", "fileID: ١١٥٠٠٠٠٠".encode()),
+                  self.component_document(0).replace(b"--- !u!114 &1", b"--- !u!114 &1 stripped"),
+                  self.component_document(0).replace(b"MonoBehaviour:", b"MonoBehaviour: ")]
+        for corrupt in cases:
+            with self.subTest(document=corrupt):
+                with self.assertRaises(ValueError):
+                    rewrite_script_pointers(self.component_document(0) + corrupt, bindings)
+
+    def test_all_three_package_scripts_use_loaded_identity_and_preserve_authored_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            before = artifact_fingerprint(root)
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                result = resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+            self.assertEqual(4, len(result["bindings"]))
+            raw = b""
+            for index in range(3):
+                raw += self.component_document(index)
+            actual, count = rewrite_script_pointers(raw, result["bindings"])
+            expected = raw
+            for binding in result["bindings"][1:]:
+                expected = expected.replace(("  m_Script: {fileID: 11500000, guid: " + binding["exported_guid"]).encode(),
+                    ("  m_Script: {fileID: 11500000, guid: " + binding["target_guid"]).encode())
+            self.assertEqual(3, count)
+            self.assertEqual(expected, actual)
+            self.assertEqual((actual, 0), rewrite_script_pointers(actual, result["bindings"]))
+            self.assertEqual(before, artifact_fingerprint(root))
+
+    def test_package_resolution_source_descriptor_and_meta_changes_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            files = [root / "Packages/manifest.json", root / "Packages/packages-lock.json", package / "package.json"]
+            files += [package / relative[len("Packages/com.unity.ugui/"):] for relative in PACKAGE_RULES[0]["runtime_sources"]]
+            files += [package / (rule["maintained_path"][len("Packages/com.unity.ugui/"):] + ".meta") for rule in PACKAGE_RULES]
+            for source in files:
+                original = source.read_bytes()
+                if source.name in ("manifest.json", "packages-lock.json"):
+                    value = json.loads(original)
+                    if source.name == "manifest.json": value["dependencies"]["com.unity.ugui"] = "2.0.0"
+                    else: value["dependencies"]["com.unity.ugui"]["source"] = "local"
+                    source.write_text(json.dumps(value))
+                elif source.suffix == ".meta": source.write_text("guid: " + "f" * 32 + "\n")
+                else: source.write_bytes(original + b"\n// changed package input\n")
+                with self.subTest(path=source), patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                    with self.assertRaises(ValueError):
+                        resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+                source.write_bytes(original)
+
+    def test_relative_project_root_joins_absolute_loaded_package_identity(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            previous = Path.cwd()
+            try:
+                os.chdir(root.parent)
+                with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                    result = resolve_bindings(Path(root.name), work, export, mapping, input_fingerprint=self.input_fingerprint)
+                self.assertEqual(4, len(result["bindings"]))
+            finally:
+                os.chdir(previous)
+
+    def test_symlinked_project_root_is_rejected_before_editor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            alias = root.with_name("aliased project")
+            alias.symlink_to(root, target_is_directory=True)
+            with patch("lucidlib.scriptbindings.run_layout_inventory") as run:
+                with self.assertRaisesRegex(ValueError, "symlinked project root"):
+                    resolve_bindings(alias, work, export, mapping, input_fingerprint=self.input_fingerprint)
+            run.assert_not_called()
+
+    def test_loaded_package_must_be_the_pinned_physical_builtin_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            original = copy.deepcopy(comparison)
+            mutations = {"source_path": str(root / "Packages/com.unity.ugui/Runtime/UI/Core/Layout/LayoutElement.cs"),
+                         "package_resolved_path": str(root / "Packages/com.unity.ugui"),
+                         "package_name": "com.example.ugui", "package_version": "2.0.0", "package_builtin": False}
+            for key, value in mutations.items():
+                for missing in (False, True):
+                    altered = copy.deepcopy(original)
+                    script = altered["candidates"][1]["loaded_scripts"][0]
+                    if missing: script.pop(key)
+                    else: script[key] = value
+                    path.write_text(json.dumps(altered))
+                    with self.subTest(field=key, missing=missing), patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                        with self.assertRaisesRegex(ValueError, "physical source"):
+                            resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+
+    def test_ambiguous_package_json_keys_are_rejected_before_editor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            manifest = root / "Packages/manifest.json"
+            lock = root / "Packages/packages-lock.json"
+            builtin = json.dumps(json.loads(lock.read_text())["dependencies"]["com.unity.ugui"])
+            cases = [(manifest, '{"dependencies": {}, "dependencies": {"com.unity.ugui": "1.0.0"}}'),
+                     (manifest, '{"dependencies": {"com.unity.ugui": "2.0.0", "com.unity.ugui": "1.0.0"}}'),
+                     (lock, '{"dependencies": {}, "dependencies": {"com.unity.ugui": ' + builtin + '}}'),
+                     (lock, '{"dependencies": {"com.unity.ugui": {}, "com.unity.ugui": ' + builtin + '}}'),
+                     (lock, '{"dependencies": {"com.unity.ugui": ' + builtin.replace('"source": "builtin"', '"source": "local", "source": "builtin"') + '}}')]
+            for source, content in cases:
+                before = source.read_bytes()
+                source.write_text(content)
+                with self.subTest(source=source, content=content), patch("lucidlib.scriptbindings.run_layout_inventory") as run:
+                    with self.assertRaisesRegex(ValueError, "Duplicate key"):
+                        resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+                run.assert_not_called()
+                source.write_bytes(before)
+
+    def test_package_cache_symlink_is_rejected_before_editor(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            target = package.with_name("other-package")
+            package.rename(target)
+            package.symlink_to(target, target_is_directory=True)
+            with patch("lucidlib.scriptbindings.run_layout_inventory") as run:
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+            run.assert_not_called()
 
 
 if __name__ == "__main__":

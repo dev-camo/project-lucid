@@ -153,6 +153,8 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "PropertyStoreRetainsNativeLifecycleAndRecoversLocalFiles",
     "SaveDataRetainsOriginalDefaultsDirtyChildrenAndJson",
     "ScriptPointersRequireExactLoadedAssetAndComponentIdentities",
+    "SuppliedLayoutComponentsRetainAuthoredScalarsAfterScriptBinding",
+    "UpstreamLayoutSizingPreservesPriorityFitAndAspectRules",
     "OriginalPipelineMarkerRetainsEngineFieldsAfterScriptBinding",
     "TimeConversionsRetainOriginalUnitsRoundingAndDateKinds",
     "SkyCubemapGpuOutputMatchesDecodedMetalCases",

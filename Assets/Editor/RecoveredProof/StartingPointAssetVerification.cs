@@ -99,7 +99,7 @@ namespace ProjectLucid
             Preparation prepare = JsonUtility.FromJson<Preparation>(File.ReadAllText(CheckedPath(cache, Path.Combine(cache, "assets/latest-prepare.json"))));
             Check(export != null && export.status == "exported" && prepare != null && prepare.status == "prepared", "complete extraction and preparation");
             Bindings proof = prepare.script_bindings;
-            Check(proof != null && proof.status == "verified_layout" && proof.references_modified && proof.bindings != null && proof.bindings.Length == 2, "exact two approved maintained definition bindings");
+            Check(proof != null && proof.status == "verified_layout" && proof.references_modified && proof.bindings != null && proof.bindings.All(b => b != null) && proof.bindings.Count(b => b.assembly == "Game.Runtime") == 2, "exact two approved maintained definition bindings");
             Check(proof.source_fingerprint == ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false), "fresh maintained source binding evidence");
             Check(Hash(File.ReadAllBytes(CheckedPath(cache, proof.comparison_path))) == proof.comparison_sha256, "unchanged exact layout proof");
             Binding[] selectedBindings = proof.bindings.Where(b => b != null && b.assembly == "Game.Runtime" &&
@@ -120,10 +120,13 @@ namespace ProjectLucid
             Map mapping = JsonUtility.FromJson<Map>(File.ReadAllText(CheckedPath(cache, export.asset_map_path)));
             Asset[] originals = mapping.assets.Where(a => a.script_references != null && a.script_references.Contains(binding.exported_guid)).ToArray();
             Asset[] levels = mapping.assets.Where(a => a.script_references != null && a.script_references.Contains(levelBindings[0].exported_guid)).ToArray();
-            Check(originals.Length == 21 && levels.Length == 26 && proof.assets != null && proof.assets.Length == 47, "all supplied starting-point and level definitions accounted for");
-            Check(originals.Concat(levels).Select(a => a.path).OrderBy(p => p).SequenceEqual(proof.assets.Select(a => a.path).OrderBy(p => p)), "no omitted or extra rebound definitions across both approved groups");
+            Check(proof.assets != null, "prepared asset evidence exists");
+            var definitionPaths = new HashSet<string>(originals.Concat(levels).Select(a => a.path), StringComparer.Ordinal);
+            BoundAsset[] definitionAssets = proof.assets.Where(a => a != null && definitionPaths.Contains(a.path)).ToArray();
+            Check(originals.Length == 21 && levels.Length == 26 && definitionAssets.Length == 47, "all supplied starting-point and level definitions accounted for");
+            Check(originals.Concat(levels).Select(a => a.path).OrderBy(p => p).SequenceEqual(definitionAssets.Select(a => a.path).OrderBy(p => p)), "no omitted or extra rebound definitions across both approved groups");
             var originalPaths = new HashSet<string>(originals.Select(a => a.path), StringComparer.Ordinal);
-            BoundAsset[] selectedAssets = proof.assets.Where(a => a != null && originalPaths.Contains(a.path)).ToArray();
+            BoundAsset[] selectedAssets = definitionAssets.Where(a => a != null && originalPaths.Contains(a.path)).ToArray();
             Check(selectedAssets.Length == 21 && originals.Select(a => a.path).OrderBy(p => p).SequenceEqual(selectedAssets.Select(a => a.path).OrderBy(p => p)), "all21 starting-point owners remain individually accounted for");
             string runId = Guid.NewGuid().ToString("N");
             string run = CheckedPath(cache, Path.Combine(cache, "proof/starting-points", runId));

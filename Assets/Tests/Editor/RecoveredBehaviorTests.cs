@@ -895,6 +895,18 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void SuppliedLayoutComponentsRetainAuthoredScalarsAfterScriptBinding()
+        {
+            UguiLayoutBindingVerification.RunAuthored();
+        }
+
+        [Test]
+        public void UpstreamLayoutSizingPreservesPriorityFitAndAspectRules()
+        {
+            UguiLayoutBindingVerification.RunGeometry();
+        }
+
+        [Test]
         public void OriginalPipelineMarkerRetainsEngineFieldsAfterScriptBinding()
         {
             CinemachinePipelineVerification.Run();

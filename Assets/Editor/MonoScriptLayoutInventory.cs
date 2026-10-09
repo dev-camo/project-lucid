@@ -99,9 +99,10 @@ namespace ProjectLucid.Editor
                 if (identity && !seen.Add(guid + ":" + identifier.ToString(CultureInfo.InvariantCulture))) continue;
                 if (type != null && !names.Contains(type.Assembly.GetName().Name)) continue;
                 string resolved = Path.Combine(root, path);
+                UnityEditor.PackageManager.PackageInfo package = null;
                 if (path.StartsWith("Packages/", StringComparison.Ordinal))
                 {
-                    var package = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(path);
+                    package = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(path);
                     int separator = path.IndexOf('/', 9);
                     resolved = package == null || separator < 0 ? null : package.resolvedPath + path.Substring(separator);
                 }
@@ -111,6 +112,11 @@ namespace ProjectLucid.Editor
                     ["file_id"] = identity ? (object)identifier : null,
                     ["class_resolved"] = type != null,
                     ["assembly"] = type?.Assembly.GetName().Name, ["full_name"] = type?.FullName,
+                    ["source_path"] = resolved == null ? null : Path.GetFullPath(resolved),
+                    ["package_name"] = package?.name,
+                    ["package_version"] = package?.version,
+                    ["package_builtin"] = package != null && package.source == UnityEditor.PackageManager.PackageSource.BuiltIn,
+                    ["package_resolved_path"] = package == null ? null : Path.GetFullPath(package.resolvedPath),
                     ["source_sha256"] = resolved != null && File.Exists(resolved) ? Hash(File.ReadAllBytes(resolved)) : null
                 });
             }
