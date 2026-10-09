@@ -732,3 +732,8 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalEntityActivationStateTests.ActivationPredicateShortCircuitAndLiveMutation',
     'ProjectLucid.Tests.OriginalEntityActivationStateTests.ActivationShutdownAndClearFaultPrefix',
 )
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalUIInputComparerTests.InputOverridesSurviveSerializedRoundTrip',
+    'ProjectLucid.Tests.OriginalUIInputComparerTests.UnknownSignedKeysRemainDistinct',
+)
