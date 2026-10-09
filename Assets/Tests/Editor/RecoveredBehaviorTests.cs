@@ -513,8 +513,9 @@ namespace ProjectLucid.Tests
         {
             // Preserve the complete module, including thirteen localisation
             // registry methods, thirty-five original UI registry/comparer methods,
-            // and Unity's two MonoScript generator methods.
-            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(698));
+            // eleven original analytics helper methods, and Unity's two
+            // MonoScript generator methods.
+            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(709));
         }
 
         [Test]

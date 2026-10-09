@@ -746,3 +746,8 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalMessageManagerPreservationTests.RealFiveProvidersInvalidateOldHandlesAndAllowFreshHandlesAfterRepeatedShutdown',
     'ProjectLucid.Tests.OriginalMessageManagerPreservationTests.FiveProvidersReceiveOrderedNullContextAndFaultPrefixRetries',
 )
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.EditMode.AnalyticsConsentStateHelpersTests.OriginalLabelsComparersAndMutableCacheBehavior',
+    'ProjectLucid.Tests.EditMode.AnalyticsMissionTypeHelpersTests.OriginalLabelsComparersAndMutableCacheBehavior',
+)
