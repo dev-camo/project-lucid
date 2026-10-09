@@ -328,6 +328,8 @@ EDITMODE_TESTS += ('ProjectLucid.Tests.OriginalEnumerablePreservationTests.DeepE
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.InputUtilitiesMappingTests.OriginalJoystickAxisAndMouseMappingsRemainIntact",
     "ProjectLucid.Tests.EditMode.InputUtilitiesTrackingTests.TrackingCachesPreservePublicationReentrancyAndFailureOrder",
+    "ProjectLucid.Tests.EditMode.InputTypeResolverTouchTests.OriginalTouchFlagResolvesWithoutAddingPlatformDetection",
+    "ProjectLucid.Tests.EditMode.InputTypeResolverButtonTests.OriginalOverridesAndSignedJoystickFallbacksRemainIntact",
     "ProjectLucid.Tests.EditMode.AppRatingBehaviorTests.UnsupportedProviderRemainsSelectedAndSilent",
     "ProjectLucid.Tests.EditMode.AppRatingNativeBindingTests.MacOSNativeBindingDeclarationRemainsPreserved",
 )
