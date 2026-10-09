@@ -609,5 +609,135 @@ public static class OriginalTimeScaledUtilitiesVerification
             return checks.Count;
         }
     }
+    // Game.Runtime 06002e69: drive the authentic enum wrapper around the real
+    // Core iterator. Its lookup belongs to first MoveNext, and a live cached
+    // lookup persists until Unity destroyed-object equality invalidates it.
+    public static int RunOriginalGameWaitConfigurationBoundaries()
+    {
+        lock (FixtureLock)
+        using (var scope = new EngineScope())
+        {
+            var checks = new Checks();
+            FieldInfo cache = Field(typeof(HardlightProject.TimeScaledUtilities_SDT), "s_config_Internal");
+            object priorCache = cache.GetValue(null);
+            HardlightProject.TimeCategoryLookup first = null, second = null;
+            try
+            {
+                cache.SetValue(null, null);
+                int predicates = 0;
+                IEnumerator outer = HardlightProject.TimeScaledUtilities_SDT.WaitForFixedSeconds(
+                    0.01f, HardlightProject.TimeCategory.Effects, () => { ++predicates; return false; });
+                checks.That(cache.GetValue(null) == null && outer.Current == null && predicates == 0,
+                    "Constructing game wait neither looks up configuration nor invokes predicate");
+                first = ScriptableObject.CreateInstance<HardlightProject.TimeCategoryLookup>();
+                first.Dictionary.Add(HardlightProject.TimeCategory.Effects, scope.Category);
+                SystemConfiguration.AddConfig<SystemConfigurationAsset>(first);
+                checks.That(outer.MoveNext(), "First game step yields the real Core iterator");
+                checks.That(ReferenceEquals(cache.GetValue(null), first), "First step resolves the newly supplied lookup");
+                checks.That(predicates == 0, "Outer lookup does not run the inner predicate");
+                IEnumerator inner = outer.Current as IEnumerator;
+                checks.That(inner != null, "Current contains a real nested iterator");
+                checks.That(inner.MoveNext(), "Real category scale advances the nested timer");
+                checks.That(predicates == 1, "Predicate first runs when nested iterator advances");
+                checks.That(inner.Current is WaitForFixedUpdate, "Nested wait publishes the real fixed-update object");
+                checks.That(!inner.MoveNext(), "Actual fixed delta overshoots the supplied duration");
+                checks.That(predicates == 1, "Completed timer bypasses subsequent predicate calls");
+                checks.That(!outer.MoveNext(), "Game wrapper completes after its one nested yield");
+                checks.That(ReferenceEquals(outer.Current, inner), "Terminal wrapper retains original Current");
+                checks.Throws<NotSupportedException>(() => outer.Reset(), "Original iterator Reset remains unsupported");
+                checks.That(!outer.MoveNext(), "Failed Reset does not restart the terminal wrapper");
+
+                second = ScriptableObject.CreateInstance<HardlightProject.TimeCategoryLookup>();
+                second.Dictionary.Add(HardlightProject.TimeCategory.Effects, scope.MissingCategory);
+                SystemConfiguration.AddConfig<SystemConfigurationAsset>(second);
+                IEnumerator cached = HardlightProject.TimeScaledUtilities_SDT.WaitForFixedSeconds(
+                    0.01f, HardlightProject.TimeCategory.Effects);
+                checks.That(cached.MoveNext() && ReferenceEquals(cache.GetValue(null), first),
+                    "A live cached lookup survives a newer configuration override");
+                IEnumerator cachedInner = (IEnumerator)cached.Current;
+                checks.That(cachedInner.MoveNext(), "Live old lookup supplies the valid old category");
+                checks.That(!cachedInner.MoveNext(), "Retained category finishes at the original delta");
+                checks.That(!cached.MoveNext(), "Cached wrapper still yields only once");
+
+                UnityEngine.Object.DestroyImmediate(first);
+                checks.That(first == null && ReferenceEquals(cache.GetValue(null), first),
+                    "Destroyed cached asset retains its managed identity and Unity null semantics");
+                int stopped = 0;
+                IEnumerator refreshed = HardlightProject.TimeScaledUtilities_SDT.WaitForFixedSeconds(
+                    1f, HardlightProject.TimeCategory.Effects, () => { ++stopped; return true; });
+                checks.That(refreshed.MoveNext(), "Destroyed-cache path still yields a real nested wait");
+                checks.That(ReferenceEquals(cache.GetValue(null), second), "Unity equality retrieves the replacement lookup");
+                checks.That(stopped == 0, "Replacement lookup precedes inner predicate execution");
+                IEnumerator refreshedInner = (IEnumerator)refreshed.Current;
+                checks.That(!refreshedInner.MoveNext(), "Early out precedes the deliberately missing timescale key");
+                checks.That(stopped == 1, "Original predicate executes exactly once at the nested boundary");
+                checks.That(!refreshed.MoveNext(), "Replacement wrapper becomes terminal after one yield");
+                checks.That(ReferenceEquals(refreshed.Current, refreshedInner), "Replacement Current remains retained");
+                return checks.Count;
+            }
+            finally
+            {
+                cache.SetValue(null, priorCache);
+                if (first != null) UnityEngine.Object.DestroyImmediate(first);
+                if (second != null) UnityEngine.Object.DestroyImmediate(second);
+            }
+        }
+    }
+
+    // Game.Runtime 06002e68/2e69: null dictionary faults occur at immediate
+    // delay entry or deferred wait entry, before host or callback execution.
+    public static int RunOriginalGameTimingFaultPrefixes()
+    {
+        lock (FixtureLock)
+        using (var scope = new EngineScope())
+        {
+            var checks = new Checks();
+            FieldInfo cache = Field(typeof(HardlightProject.TimeScaledUtilities_SDT), "s_config_Internal");
+            FieldInfo host = Field(typeof(Hardlight.Utils.CoroutineUtils), "s_instance");
+            object priorCache = cache.GetValue(null), priorHost = host.GetValue(null);
+            var lookup = ScriptableObject.CreateInstance<HardlightProject.TimeCategoryLookup>();
+            var dictionary = lookup.Dictionary;
+            try
+            {
+                SystemConfiguration.AddConfig<SystemConfigurationAsset>(lookup);
+                lookup.Dictionary = null;
+                cache.SetValue(null, null);
+                int predicates = 0, actions = 0;
+                IEnumerator failed = HardlightProject.TimeScaledUtilities_SDT.WaitForFixedSeconds(
+                    0f, HardlightProject.TimeCategory.Effects, () => { ++predicates; return true; });
+                checks.That(failed.Current == null && predicates == 0, "Malformed lookup is not inspected at construction");
+                checks.That(cache.GetValue(null) == null, "Construction leaves the game configuration cache untouched");
+                checks.Throws<NullReferenceException>(() => failed.MoveNext(), "Deferred dictionary fault occurs before nested wait creation");
+                checks.That(ReferenceEquals(cache.GetValue(null), lookup), "Configuration publication precedes dictionary failure");
+                checks.That(predicates == 0, "Dictionary failure precedes predicate invocation");
+                checks.That(!failed.MoveNext(), "Faulted game iterator remains terminal");
+                checks.That(failed.Current == null, "Faulted lookup never publishes Current");
+                checks.Throws<NullReferenceException>(() => HardlightProject.TimeScaledUtilities_SDT.DelayFixedSeconds(
+                    0f, HardlightProject.TimeCategory.Effects, () => ++actions), "Delay dictionary lookup faults immediately");
+                checks.That(actions == 0 && predicates == 0, "Immediate lookup failure invokes neither user callback");
+                lookup.Dictionary = dictionary;
+                host.SetValue(null, null);
+                checks.Throws<NullReferenceException>(() => HardlightProject.TimeScaledUtilities_SDT.DelayFixedSeconds(
+                    0f, HardlightProject.TimeCategory.Effects, () => ++actions), "Valid game lookup reaches the absent genuine coroutine host");
+                checks.That(actions == 0, "Missing host leaves the delayed action uninvoked");
+                checks.That(ReferenceEquals(cache.GetValue(null), lookup), "Host failure retains the original cached lookup");
+                IEnumerator missing = HardlightProject.TimeScaledUtilities_SDT.WaitForFixedSeconds(
+                    0f, HardlightProject.TimeCategory.Effects, () => { ++predicates; return true; });
+                checks.That(missing.MoveNext(), "Absent enum key still yields the genuine Core iterator before zero-duration completion");
+                IEnumerator missingInner = (IEnumerator)missing.Current;
+                checks.That(!missingInner.MoveNext(), "Zero duration completes before category or predicate access");
+                checks.That(!missing.MoveNext(), "Missing-key wrapper completes after its nested yield");
+                checks.That(ReferenceEquals(missing.Current, missingInner), "Missing-key terminal retains Current");
+                checks.That(predicates == 0, "Inactive duration never invokes the supplied predicate");
+                return checks.Count;
+            }
+            finally
+            {
+                host.SetValue(null, priorHost);
+                cache.SetValue(null, priorCache);
+                UnityEngine.Object.DestroyImmediate(lookup);
+            }
+        }
+    }
 }
 }

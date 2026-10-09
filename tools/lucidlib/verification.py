@@ -231,6 +231,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingFixedYieldsRetainCapturedManagerAndActualCategoryScales",
     "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingFrameYieldsUseActualUnityDeltaAndUnorderedTimerSemantics",
     "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingPredicateAndNestedDelayFaultsPreserveReentryAndEmptyDispose",
+    "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests.OriginalGameWaitDefersLookupAndRefreshesDestroyedConfiguration",
+    "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests.OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes",
     "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalLayerAndComparisonOwnersRetainAllDeclarations",
     "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalLayerOperationsRetainSignedAndWrappedBits",
     "ProjectLucid.Tests.OriginalLayerComparisonPreservationTests.OriginalLayerObjectOverloadReadsRealAuthoredLayers",
