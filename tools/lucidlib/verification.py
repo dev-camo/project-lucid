@@ -876,3 +876,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.InitialiseWritesTheSameOwnedExclusionListAndRetainsNullFaults",
     "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.GenuineOwnedAppKeysRetainSuppliedDummyConstantForEverySerializedKey",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.MissionStringsFormattingTests.MissionTimer_NonpositiveMissingAndCustomFormats",
+    "ProjectLucid.Tests.MissionStringsFormattingTests.MissionTimer_FiniteFractionalFloorAndTruncation",
+    "ProjectLucid.Tests.MissionStringsFormattingTests.MissionDescription_PositiveArgumentsAndNaNDistinction",
+    "ProjectLucid.Tests.MissionStringsFormattingTests.MissionFormats_OrdinaryFaultsAndPositiveTimerEvaluationOrder",
+)
