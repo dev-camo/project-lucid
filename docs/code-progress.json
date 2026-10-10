@@ -29,12 +29,12 @@
     },
     {
       "assembly": "HLAnalytics.Runtime",
-      "implemented_source_bodies": 0,
-      "not_implemented": 102,
+      "implemented_source_bodies": 61,
+      "not_implemented": 20,
       "original_declarations": 126,
       "original_native_bodies": 102,
-      "unresolved_identities": 0,
-      "withheld_bodies": 0
+      "unresolved_identities": 16,
+      "withheld_bodies": 5
     },
     {
       "assembly": "HLAppleInput.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "6acc27751b439c11df27c2dfd076fd48960aa8488d14094ddd3780aedf36996a",
+  "compiler_receipt_sha256": "63372634954bde060375ae065e17d7b107900804f579c2f8db53c8317e1893af",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "a0491f9806d4b2d8ac8a6345e747f67503f22bb90ace88fa273e9bbc144c0dc8",
+  "source_fingerprint": "7117d7dfd94a01d6e5d21e4ef260a8495b4f1b552024e7a855ce1c9bdf68a98a",
   "totals": {
-    "implemented_source_bodies": 4328,
-    "not_implemented": 18942,
+    "implemented_source_bodies": 4389,
+    "not_implemented": 18860,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 932,
-    "withheld_bodies": 1695
+    "unresolved_identities": 948,
+    "withheld_bodies": 1700
   }
 }

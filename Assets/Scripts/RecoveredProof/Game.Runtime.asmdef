@@ -13,7 +13,8 @@
     "Unity.RenderPipelines.Core.Runtime",
     "Unity.RenderPipelines.Universal.Runtime",
     "HLSplines.Runtime",
-    "Cinemachine"
+    "Cinemachine",
+    "HLAnalytics.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

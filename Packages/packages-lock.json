@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.hardlight.hlanalytics": {
+      "version": "file:com.hardlight.hlanalytics",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hlbinders": {
       "version": "file:com.hardlight.hlbinders",
       "depth": 0,

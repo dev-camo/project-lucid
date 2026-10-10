@@ -901,3 +901,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalChallengeRewardSaveTests.OriginalRewardSettersAndEmptyHooksKeepSaveSemantics",
     "ProjectLucid.Tests.OriginalChallengeRewardSaveTests.RealUnityRewardSerializationKeepsOriginalDataAndRuntimeFlags",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.Tests.OfflineAnalyticsTests.DefaultFacadeUsesOfflineProviderAndCompletesLifecycleLocally",
+    "ProjectLucid.Editor.Tests.OfflineAnalyticsTests.DiscardReleasesOriginalEventCallbacksWithoutCollectingLateData",
+    "ProjectLucid.Editor.Tests.OfflineAnalyticsTests.UnsupportedOriginalEventReusesItsStubWithoutInitialisingThePool",
+    "ProjectLucid.Editor.Tests.OfflineAnalyticsTests.GenuineAnalyticsConfigurationRetainsItsAuthoredInspectorDefault",
+)
