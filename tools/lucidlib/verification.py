@@ -797,3 +797,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.UIConcreteInputTests.GenuineTypedCallbacksAndLastInputMapping",
     "ProjectLucid.Tests.UIConcreteInputTests.OriginalLatchAndShutdownRemovalOrder",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.ControllerActionTests.GenuineConstructorsAndPersistentSystemCache",
+    "ProjectLucid.Tests.ControllerActionTests.HeldUpAndDisabledPublishBeforeBrainFaults",
+    "ProjectLucid.Tests.ControllerActionTests.RejectedModifiersAndValidatorsRetainFlags",
+    "ProjectLucid.Tests.ControllerActionTests.PrimarySecondaryMappingCallsAndRealClosures",
+    "ProjectLucid.Tests.ControllerActionTests.NeverActiveInputSystemUsesExplicitOriginalCallbacks",
+)
