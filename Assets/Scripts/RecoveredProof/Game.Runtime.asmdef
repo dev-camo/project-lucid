@@ -14,7 +14,8 @@
     "Unity.RenderPipelines.Universal.Runtime",
     "HLSplines.Runtime",
     "Cinemachine",
-    "HLAnalytics.Runtime"
+    "HLAnalytics.Runtime",
+    "HLAppleInput.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

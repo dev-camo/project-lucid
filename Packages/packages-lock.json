@@ -6,6 +6,15 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.hardlight.hlappleinput": {
+      "version": "file:com.hardlight.hlappleinput",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.hardlight.hlunitycore": "0.1.0",
+        "com.hardlight.hlinput": "0.1.0"
+      }
+    },
     "com.hardlight.hlbinders": {
       "version": "file:com.hardlight.hlbinders",
       "depth": 0,

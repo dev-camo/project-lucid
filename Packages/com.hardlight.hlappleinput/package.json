@@ -1,0 +1,11 @@
+{
+  "name": "com.hardlight.hlappleinput",
+  "displayName": "Hardlight Apple Input",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Locally maintained original Apple input declarations and managed behavior.",
+  "dependencies": {
+    "com.hardlight.hlunitycore": "0.1.0",
+    "com.hardlight.hlinput": "0.1.0"
+  }
+}

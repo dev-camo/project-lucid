@@ -20,7 +20,16 @@ namespace ProjectLucid
             var compiled = CompilationPipeline.GetAssemblies(AssembliesType.Editor).Single(a => a.name == "HLInput.Runtime");
             var loaded = AppDomain.CurrentDomain.GetAssemblies().Single(a => a.GetName().Name == "HLInput.Runtime");
             Type owner = loaded.GetType("Hardlight.InputMonitor", true), marker = loaded.GetType("Hardlight.IInputMonitor", true), baseMarker = loaded.GetType("Hardlight.IBaseInputMonitor", true);
-            Require(compiled.sourceFiles.Length == 86, "Expected complete actual Input86 source roster; promotion is not eligible from the small input package.");
+            // Preserve the complete original Input86 roster and account explicitly
+            // for the separate portable selection adapter in the same assembly.
+            string sourceRoot = Path.GetFullPath("Packages/com.hardlight.hlinput/Runtime");
+            string adapter = Path.GetFullPath("Packages/com.hardlight.hlinput/Runtime/Offline/PortableControllerSelection.cs");
+            string[] actualSources = compiled.sourceFiles.Select(Path.GetFullPath).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            string[] originalSources = Directory.GetFiles(sourceRoot, "*.cs", SearchOption.AllDirectories)
+                .Select(Path.GetFullPath).Where(p => p != adapter).OrderBy(p => p, StringComparer.Ordinal).ToArray();
+            Require(originalSources.Length == 86 && !originalSources.Any(p => p.StartsWith(Path.GetDirectoryName(adapter) + Path.DirectorySeparatorChar, StringComparison.Ordinal)), "Expected complete original Input86 sources outside the offline adapter directory.");
+            Require(actualSources.Length == 87 && actualSources.Distinct(StringComparer.Ordinal).Count() == 87 && actualSources.Count(p => p == adapter) == 1, "Expected original Input86 and exactly one separate portable selection source.");
+            Require(actualSources.Where(p => p != adapter).SequenceEqual(originalSources), "Actual compiled input sources differ from the complete maintained original roster.");
             Require(loaded.FullName == "HLInput.Runtime, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null", "Changed actual loaded assembly identity.");
             string installed = Path.GetFullPath(loaded.Location);
             Require(installed == Path.GetFullPath(compiled.outputPath), "Loaded input module differs from current compilation output.");

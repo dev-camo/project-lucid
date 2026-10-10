@@ -908,3 +908,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.Tests.OfflineAnalyticsTests.UnsupportedOriginalEventReusesItsStubWithoutInitialisingThePool",
     "ProjectLucid.Editor.Tests.OfflineAnalyticsTests.GenuineAnalyticsConfigurationRetainsItsAuthoredInspectorDefault",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.Tests.PortableControllerSelectionTests.DefaultSelectionUsesOriginalUnityProviderWithIndependentNotifications",
+    "ProjectLucid.Editor.Tests.PortableControllerSelectionTests.ConnectionNotificationWorksBeforeSubscriptionAndAfterUnsubscription",
+)
