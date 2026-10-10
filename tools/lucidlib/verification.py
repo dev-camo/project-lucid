@@ -779,3 +779,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.InputRemainingOriginalBehaviorTests.OriginalGameInputTriggerControlledCallbacksPreserveNullAndCallbackFaultOrdering",
     "ProjectLucid.Tests.EditMode.InputRemainingOriginalBehaviorTests.OriginalGlyphDisplayUsesGenuineTextAndRawImageSetterOrdering",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EditMode.AbilityLeafDefinitionTests.OriginalDefinitionDeclarationsAndBaseOnlyBodiesRemainIntact",
+    "ProjectLucid.Tests.EditMode.AbilityLeafDefinitionTests.OwnedCameraCachesPreserveGetterAliasesAndAsymmetricNullFaultOrder",
+    "ProjectLucid.Tests.EditMode.AbilityLeafDefinitionTests.OriginalRestoreRecordDefaultsAndMutableFieldValuesRemainIntact",
+)
