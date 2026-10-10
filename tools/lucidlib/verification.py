@@ -823,3 +823,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.BootTransitionTests.NullMachineFactoryFaults",
     "ProjectLucid.Tests.BootTransitionTests.ShippingEditorPredicateAndIgnoredJson",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.ExclusionListTests.ConstructorDefaultsAndWriteOnlyEnabled",
+    "ProjectLucid.Tests.ExclusionListTests.DisabledShortCircuitBeforeNullInputs",
+    "ProjectLucid.Tests.ExclusionListTests.EnabledArrayAndMessageFaultBoundaries",
+    "ProjectLucid.Tests.ExclusionListTests.PartialCaseSensitiveAndEmptyNeedles",
+    "ProjectLucid.Tests.ExclusionListTests.IndexedShortCircuitAndNullNeedleOrder",
+    "ProjectLucid.Tests.ExclusionListTests.LiveArrayReplacementAndIndependentInstances",
+    "ProjectLucid.Tests.ExclusionListTests.OriginalPublicFieldJsonOverwrite",
+)
