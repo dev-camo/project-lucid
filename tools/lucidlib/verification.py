@@ -805,3 +805,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.ControllerActionTests.PrimarySecondaryMappingCallsAndRealClosures",
     "ProjectLucid.Tests.ControllerActionTests.NeverActiveInputSystemUsesExplicitOriginalCallbacks",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CameraInputDisablerTests.OriginalAxesThresholdsAndSnapArguments",
+    "ProjectLucid.Tests.CameraInputDisablerTests.OriginalCaptureAndRealDebounceRetainFaultOrder",
+    "ProjectLucid.Tests.CameraInputDisablerTests.OriginalCameraSubscriptionsRetainForeignCallbacks",
+    "ProjectLucid.Tests.CameraInputDisablerTests.OriginalDisablerGuardAndInactiveEnableCallbacks",
+    "ProjectLucid.Tests.CameraInputDisablerTests.OriginalDisablerCapturedArrayAndPartialFault",
+    "ProjectLucid.Tests.CameraInputDisablerTests.OriginalDisablerReentrancyAndLiveReleaseFaults",
+)
