@@ -15,7 +15,12 @@
     "HLSplines.Runtime",
     "Cinemachine",
     "HLAnalytics.Runtime",
-    "HLAppleInput.Runtime"
+    "HLAppleInput.Runtime",
+    "HLNotifications.Runtime",
+    "HLPhysics.Runtime",
+    "HLUnityUI.Runtime",
+    "Unity.Timeline",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
