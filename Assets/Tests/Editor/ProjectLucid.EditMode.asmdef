@@ -4,7 +4,8 @@
     "ProjectLucid.Verification",
     "Unity.ProjectLucid.CodeGen.Tests",
     "ProjectLucid.CoroutineScroll.EngineVerification",
-    "ProjectLucid.Haptics.EngineVerification"
+    "ProjectLucid.Haptics.EngineVerification",
+    "Game.Runtime"
   ],
   "includePlatforms": [
     "Editor"

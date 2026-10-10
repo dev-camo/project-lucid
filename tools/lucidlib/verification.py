@@ -847,3 +847,16 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.HLHapticsPlayTests.NaturalIteratorFinitePositiveWaitRepeatCounts",
     "ProjectLucid.Tests.HLHapticsPlayTests.NaturalIteratorLiveOwnedArrayAfterPositiveWait",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalConeVolumeTests.OrdinaryDescriptionRetainsZeroInitializationAndValueCopies",
+    "ProjectLucid.Tests.OriginalConeVolumeTests.EllipseRetainsInclusiveBoundariesAndIgnoresLocalDepth",
+    "ProjectLucid.Tests.OriginalConeVolumeTests.AngleTableRetainsEveryOriginalBitAndMutableArrayIdentity",
+    "ProjectLucid.Tests.OriginalConeVolumeTests.CacheReplacesWrongSizesAndRetainsArbitrarySixteenEntries",
+    "ProjectLucid.Tests.OriginalConeVolumeTests.BoundsRetainAxisHalfTurnNegativeDistanceAndIgnoredStep",
+    "ProjectLucid.Tests.OriginalConeVolumeTests.BoundsConsumeCallerMutationsOfTheActualCachedArray",
+    "ProjectLucid.Tests.OriginalConeVolumeTests.BoundsRetainNonunitQuaternionWithoutNormalization",
+    "ProjectLucid.Tests.OriginalMissionScorerComboStagePreservationTests.OrdinaryConstructorPreservesAllFourDefaults",
+    "ProjectLucid.Tests.OriginalMissionScorerComboStagePreservationTests.GenuineUnitySerializationPopulatesPrivateFieldsAndRoundTripsTheirOrder",
+    "ProjectLucid.Tests.OriginalMissionScorerComboStagePreservationTests.IndependentlyConstructedInstancesKeepTheirOwnSerializedState",
+)
