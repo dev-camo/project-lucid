@@ -895,3 +895,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
     "ProjectLucid.Tests.SequencedEffectTests.RejectedCallbackReentryAndFaultKeepLatestCompletion",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalChallengeRewardSaveTests.OriginalRewardMergeRetainsAllFlagsAndRawDirtyStates",
+    "ProjectLucid.Tests.OriginalChallengeRewardSaveTests.OriginalRewardSettersAndEmptyHooksKeepSaveSemantics",
+    "ProjectLucid.Tests.OriginalChallengeRewardSaveTests.RealUnityRewardSerializationKeepsOriginalDataAndRuntimeFlags",
+)

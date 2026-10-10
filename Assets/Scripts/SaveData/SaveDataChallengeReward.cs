@@ -49,6 +49,12 @@ namespace HardlightProject
             m_rewardGUID = rewardGUID;
         }
 
+        // 0x06002b52: direct OR of the saved flags; no dirty marking or GUID validation.
+        public void ResolveNewData(SaveDataChallengeReward newSaveDataReward)
+        {
+            m_collected = m_collected | newSaveDataReward.m_collected;
+        }
+
         // Game.Runtime.dll 0x06002b53.
         protected override void IterateChildren(Action<SaveDataItem> action)
         {
