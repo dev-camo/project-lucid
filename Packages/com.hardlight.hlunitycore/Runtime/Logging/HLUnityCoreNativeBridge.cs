@@ -10,25 +10,32 @@ namespace Hardlight
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class HLUnityCoreNativeBridge : IHLUnityCoreNativeBridge
     {
-        // Explicit local desktop boundary adaptations for the five original
-        // studio-plugin imports 0x06000913..17. These managed implementations
-        // preserve signatures/identities, but remove the original P/Invoke flag.
-        // They are not counted as recovered original native behavior. There is
-        // no studio callback target, client identity or remote-service session.
+        // Preserve original import signatures for research. Exact shipping
+        // import descriptors are unresolved; the portable build keeps their
+        // managed forwarding signatures and selects separate offline policies.
+#if PROJECT_LUCID_ORIGINAL_UNITY_CORE_NATIVE_BRIDGE
+#error Exact original native import descriptors are required before enabling this branch.
+        [PreserveSig] private static extern void Unity_CoreInitialise(string gameObjectName);
+        [PreserveSig] private static extern string Unity_GetLocaleString();
+        [PreserveSig] private static extern string Unity_GetLanguageCode();
+        [PreserveSig] private static extern string Unity_GetISO2CountryCode();
+        [PreserveSig] private static extern string Unity_GetClientCode();
+#else
         [PreserveSig]
-        private static void Unity_CoreInitialise(string gameObjectName) { }
+        private static void Unity_CoreInitialise(string gameObjectName) => ProjectLucid.Offline.LocalCoreNativeCalls.Initialise(gameObjectName);
 
         [PreserveSig]
-        private static string Unity_GetLocaleString() => CultureInfo.CurrentCulture.Name.Replace('-', '_');
+        private static string Unity_GetLocaleString() => ProjectLucid.Offline.LocalCoreNativeCalls.GetLocaleString();
 
         [PreserveSig]
-        private static string Unity_GetLanguageCode() => CultureInfo.CurrentCulture.TwoLetterISOLanguageName;
+        private static string Unity_GetLanguageCode() => ProjectLucid.Offline.LocalCoreNativeCalls.GetLanguageCode();
 
         [PreserveSig]
-        private static string Unity_GetISO2CountryCode() => RegionInfo.CurrentRegion.TwoLetterISORegionName;
+        private static string Unity_GetISO2CountryCode() => ProjectLucid.Offline.LocalCoreNativeCalls.GetISO2CountryCode();
 
         [PreserveSig]
-        private static string Unity_GetClientCode() => "0";
+        private static string Unity_GetClientCode() => ProjectLucid.Offline.LocalCoreNativeCalls.GetClientCode();
+#endif
 
         // Original 0x06000918; ARM64 0x1af5b1c evaluates owner object/name before
         // crossing the adapted import boundary.
@@ -41,11 +48,13 @@ namespace Hardlight
         public string GetDeviceLanguageCode() => Unity_GetLanguageCode();
         public string GetDeviceISO2CountryCode() => Unity_GetISO2CountryCode();
 
-        // 0x0600091e; ARM64 0x1af5c48. Parse success is ignored; original return
-        // is one even when parsing fails and the out value becomes zero.
+        // 0x0600091e; ARM64 0x1af5c48. Return status is one regardless of
+        // parse success; failure writes zero. Success preserves signed bits.
         public int GetClientCode(out uint clientCode)
         {
-            uint.TryParse(Unity_GetClientCode(), out clientCode);
+            int parsed;
+            bool success = int.TryParse(Unity_GetClientCode(), out parsed);
+            clientCode = success ? unchecked((uint)parsed) : 0u;
             return 1;
         }
 

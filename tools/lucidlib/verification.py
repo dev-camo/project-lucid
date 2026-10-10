@@ -913,3 +913,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.Tests.PortableControllerSelectionTests.DefaultSelectionUsesOriginalUnityProviderWithIndependentNotifications",
     "ProjectLucid.Editor.Tests.PortableControllerSelectionTests.ConnectionNotificationWorksBeforeSubscriptionAndAfterUnsubscription",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.LocalCoreNativeBridgeTests.LocalePolicyTracksTwoOwnedCultureScopes",
+    "ProjectLucid.Tests.LocalCoreNativeBridgeTests.OfflineClientCodeReturnsOneAndWritesZero",
+    "ProjectLucid.Tests.LocalCoreNativeBridgeTests.MissingOwnerFaultsBeforeTheOfflineInitialiseBoundary",
+)
