@@ -814,3 +814,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CameraInputDisablerTests.OriginalDisablerCapturedArrayAndPartialFault",
     "ProjectLucid.Tests.CameraInputDisablerTests.OriginalDisablerReentrancyAndLiveReleaseFaults",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.BootTransitionTests.JsonDefaultsAndOriginalFactories",
+    "ProjectLucid.Tests.BootTransitionTests.SaveLoadedTruthTableAndNoDefaultInsertion",
+    "ProjectLucid.Tests.BootTransitionTests.UserAndTypedNullStorageFaults",
+    "ProjectLucid.Tests.BootTransitionTests.ConstructorRegistrationBeforeJsonFault",
+    "ProjectLucid.Tests.BootTransitionTests.NullMachineFactoryFaults",
+    "ProjectLucid.Tests.BootTransitionTests.ShippingEditorPredicateAndIgnoredJson",
+)
