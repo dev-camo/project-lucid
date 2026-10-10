@@ -1,0 +1,7 @@
+{
+  "name": "com.hardlight.hlcrashreport",
+  "displayName": "Hardlight Crash Reporting",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Locally maintained original crash-report configuration, logging and macOS service bridge source."
+}

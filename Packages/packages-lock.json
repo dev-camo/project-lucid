@@ -8,6 +8,12 @@
         "com.hardlight.hlunitycore": "0.1.0"
       }
     },
+    "com.hardlight.hlcrashreport": {
+      "version": "file:com.hardlight.hlcrashreport",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hleventsystems": {
       "version": "file:com.hardlight.hleventsystems",
       "depth": 0,

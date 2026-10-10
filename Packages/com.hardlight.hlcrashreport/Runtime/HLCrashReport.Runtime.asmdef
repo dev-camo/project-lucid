@@ -1,0 +1,8 @@
+{
+  "name": "HLCrashReport.Runtime",
+  "references": [
+    "HLUnityCore.Runtime"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": false
+}
