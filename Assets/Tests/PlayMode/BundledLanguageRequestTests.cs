@@ -11,7 +11,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.TestTools;
-using Table = Hardlight.Localisation.StringTable;
+using ProjectLucid.Offline;
 
 namespace ProjectLucid.Tests
 {
@@ -29,8 +29,6 @@ namespace ProjectLucid.Tests
             Type[] models = { typeof(LocalisedString), typeof(ClientDataAPI.StringTable),
                 typeof(SupportedLanguage), typeof(LocalisationDefinitions) };
             var saved = new List<KeyValuePair<FieldInfo, object>>();
-            MethodInfo loader = typeof(Table).GetMethod("LoadLocalisationDefinitions", Own);
-            Assert.That(loader, Is.Not.Null);
             IEnumerator active = null;
             try
             {
@@ -57,7 +55,7 @@ namespace ProjectLucid.Tests
                         ++callbacks;
                         Assert.That(definition, Is.Not.Null);
                         Assert.That(definition.StringTable.Language, Is.EqualTo((int)language));
-                        // The actual original iterator owns a real live request
+                        // The offline adapter iterator owns a real live request
                         // throughout decoding and delivery to its caller.
                         var request = (UnityWebRequest)active.GetType().GetFields(Own)
                             .Single(f => f.FieldType == typeof(UnityWebRequest)).GetValue(active);
@@ -71,9 +69,9 @@ namespace ProjectLucid.Tests
                         CollectionAssert.AreEqual(bytes, definition.encode());
                         entries += definition.StringTable.Strings.Length;
                     };
-                    active = (IEnumerator)loader.Invoke(null, new object[] { language, "LanguageStrings", callback });
+                    active = LocalFileLocalisationLoader.LoadLocalisationDefinitions(language, "LanguageStrings", callback);
                     yield return active;
-                    Assert.That(callbacks, Is.EqualTo(1), "The original async loader must complete its supplied-file callback once.");
+                    Assert.That(callbacks, Is.EqualTo(1), "The offline local-file loader must complete its supplied-file callback once.");
                     (active as IDisposable)?.Dispose();
                     active = null;
                     CollectionAssert.AreEqual(bytes, File.ReadAllBytes(path));

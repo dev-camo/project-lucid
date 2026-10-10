@@ -310,11 +310,7 @@ namespace Hardlight.Localisation
         private static IEnumerator LoadLocalisationDefinitions(Languages language, string directory, Action<ClientDataAPI.LocalisationDefinitions> callback)
         {
             string filePath = GetStreamingAssetsLanguagePath(language, directory);
-            // Desktop streaming assets are filesystem paths. Unity's string
-            // overload resolves "/..." against localhost HTTPS; the Uri overload
-            // preserves the authored path as a local file request. This is the
-            // portable request boundary; coroutine/callback order stays original.
-            using (UnityWebRequest webRequest = UnityWebRequest.Get(new Uri(filePath)))
+            using (UnityWebRequest webRequest = UnityWebRequest.Get(filePath))
             {
                 yield return webRequest.SendWebRequest();
                 if (string.IsNullOrEmpty(webRequest.error))
