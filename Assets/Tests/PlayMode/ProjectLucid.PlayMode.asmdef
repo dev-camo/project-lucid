@@ -12,7 +12,8 @@
     "HLUnityUI.Runtime",
     "HLEventSystems.Runtime",
     "Unity.ugui",
-    "ProjectLucid.CoroutineScroll.EngineVerification"
+    "ProjectLucid.CoroutineScroll.EngineVerification",
+    "ProjectLucid.Haptics.EngineVerification"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

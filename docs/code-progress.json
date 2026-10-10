@@ -101,12 +101,12 @@
     },
     {
       "assembly": "HLHaptics.Runtime",
-      "implemented_source_bodies": 0,
-      "not_implemented": 24,
+      "implemented_source_bodies": 9,
+      "not_implemented": 0,
       "original_declarations": 24,
       "original_native_bodies": 24,
-      "unresolved_identities": 0,
-      "withheld_bodies": 0
+      "unresolved_identities": 2,
+      "withheld_bodies": 13
     },
     {
       "assembly": "HLInput.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "afaaaf923ec416deb15e57f63f98a1fe0b46c770c6545dcf1a6b77128aa26e9a",
+  "compiler_receipt_sha256": "32ac8e7c8cfbfb2bbd3fb9354457c2d211c6882bc941f9f1ab7f5cb0d2daace9",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "83dddc3c7423fc95141a0aef84ae97db5431f981fe2c080b08636588463eec06",
+  "source_fingerprint": "d31dce9a8a976b477936f319fd02dbb294942825da73e51d4b09e873a3fc28e2",
   "totals": {
-    "implemented_source_bodies": 4246,
-    "not_implemented": 19068,
+    "implemented_source_bodies": 4255,
+    "not_implemented": 19044,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
-    "unresolved_identities": 928,
-    "withheld_bodies": 1655
+    "unresolved_identities": 930,
+    "withheld_bodies": 1668
   }
 }

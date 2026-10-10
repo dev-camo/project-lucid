@@ -833,3 +833,17 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.ExclusionListTests.LiveArrayReplacementAndIndependentInstances",
     "ProjectLucid.Tests.ExclusionListTests.OriginalPublicFieldJsonOverwrite",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.HLHapticsTests.ConfigurationDefaultsAndLiteralNativeFiles",
+    "ProjectLucid.Tests.HLHapticsTests.ConfigurationJsonDuplicatesAndPrivateSerializedPath",
+    "ProjectLucid.Tests.HLHapticsTests.EventDataAndNestedVibrationsJsonRoundTrip",
+    "ProjectLucid.Tests.HLHapticsTests.InactiveManagerOwnedLifecycleDefaults",
+    "ProjectLucid.Tests.HLHapticsTests.NaturalIteratorNonpositiveAndNullBoundaries",
+)
+
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.HLHapticsPlayTests.ManagerAwakeDebugSnapshotAndSafeTriggerOrder",
+    "ProjectLucid.Tests.HLHapticsPlayTests.NaturalIteratorFinitePositiveWaitRepeatCounts",
+    "ProjectLucid.Tests.HLHapticsPlayTests.NaturalIteratorLiveOwnedArrayAfterPositiveWait",
+)

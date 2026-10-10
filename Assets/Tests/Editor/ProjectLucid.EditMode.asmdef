@@ -3,7 +3,8 @@
   "references": [
     "ProjectLucid.Verification",
     "Unity.ProjectLucid.CodeGen.Tests",
-    "ProjectLucid.CoroutineScroll.EngineVerification"
+    "ProjectLucid.CoroutineScroll.EngineVerification",
+    "ProjectLucid.Haptics.EngineVerification"
   ],
   "includePlatforms": [
     "Editor"

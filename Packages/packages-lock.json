@@ -14,6 +14,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.hardlight.hlhaptics": {
+      "version": "file:com.hardlight.hlhaptics",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hlinput": {
       "version": "file:com.hardlight.hlinput",
       "depth": 0,
