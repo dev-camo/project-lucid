@@ -865,3 +865,14 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.Tests.OriginalHashedGroupConfigurationPreservationTests.GenuineOwnedCreationAndDestruction",
     "ProjectLucid.Editor.Tests.OriginalHashedGroupConfigurationPreservationTests.TwoGenuineOwnedInstancesKeepIndependentEngineState",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.TrimRemovesOnlyLeadingIgnoredLinesWithInvariantCaseMatching",
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.FirstFunctionRetainsLiteralFirstLineAndDoesNotTrimPrefixes",
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.ReadonlyLogDataConstructorRetainsEverySuppliedIdentityAndInteger",
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.GenuineConfigurationCreationKeepsDefaultsAndIndependentOwnedAllocations",
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.RequiredNativeFilesDeduplicateWithoutEditingOwnedInputArrays",
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.NativePathsKeepAllThreeLiteralSuffixesAndUnsupportedValueFaults",
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.InitialiseWritesTheSameOwnedExclusionListAndRetainsNullFaults",
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.GenuineOwnedAppKeysRetainSuppliedDummyConstantForEverySerializedKey",
+)
