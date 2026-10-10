@@ -889,3 +889,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.UniqueCollectableStateDataTests.ResetRetainsRegisteredIdsForRepeatedCollectionCycles",
     "ProjectLucid.Tests.UniqueCollectableStateDataTests.NullKeyFaultsRetainDistinctOutputWriteOrderAndExistingState",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
+    "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
+    "ProjectLucid.Tests.SequencedEffectTests.RejectedCallbackReentryAndFaultKeepLatestCompletion",
+)
