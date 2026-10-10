@@ -25,6 +25,7 @@ namespace Hardlight.Utils
         }
 
         // Original06001115 with original two captured callbacks06001119/111a.
+        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void Initialise(object _)
         {
             if (Social.localUser.authenticated)
@@ -71,8 +72,15 @@ namespace Hardlight.Utils
                 OnPlatformSyncComplete();
             }
         }
+#else
+        private void Initialise(object _)
+        {
+            ProjectLucid.Offline.LocalAchievementRuntime.Initialise(this, m_achievements, () => OnPlatformSyncComplete());
+        }
+#endif
 
         // Original06001116 deliberately reads the readonly-dictionary indexer twice.
+        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void AddBehaviour(string achievementID, int target, ref Action evaluateOn,
             Func<int> trackerFunction, int prerequisiteTarget = 0)
         {
@@ -86,8 +94,16 @@ namespace Hardlight.Utils
             if (!Achievements[achievementID].ReportedComplete)
                 Achievements[achievementID].AddBehaviour(target, ref evaluateOn, trackerFunction, prerequisiteTarget);
         }
+#else
+        public void AddBehaviour(string achievementID, int target, ref Action evaluateOn,
+            Func<int> trackerFunction, int prerequisiteTarget = 0)
+        {
+            ProjectLucid.Offline.LocalAchievementRuntime.AddBehaviour(this, m_achievements, achievementID, target, ref evaluateOn, trackerFunction, prerequisiteTarget);
+        }
+#endif
 
         // Original06001117 logs at error level before routing to the original GameCenter provider.
+        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void IssueChallenge(string achievementKey, string message,
             UnityHLAchievementChallengeIssuedCallback callback)
         {
@@ -97,11 +113,25 @@ namespace Hardlight.Utils
                 player.IssueAchievementChallenge(achievementKey, message, callback);
             }
         }
+#else
+        public void IssueChallenge(string achievementKey, string message,
+            UnityHLAchievementChallengeIssuedCallback callback)
+        {
+            callback?.Invoke(false, "Platform achievement challenges are unavailable offline.");
+        }
+#endif
 
         // Original06001118 clears only the achievement dictionary.
+        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void Shutdown(object objectContext)
         {
             m_achievements.Clear();
         }
+#else
+        private void Shutdown(object objectContext)
+        {
+            ProjectLucid.Offline.LocalAchievementRuntime.Shutdown(this, m_achievements);
+        }
+#endif
     }
 }

@@ -60,6 +60,7 @@ namespace Hardlight.Utils
         }
 
         // Original06001106 and natural0600110f/110: queue, callback state and retry order.
+        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         protected void ReportProgress()
         {
             if (m_currentlyReporting)
@@ -90,6 +91,20 @@ namespace Hardlight.Utils
                 m_reportedComplete = (int)completionProgress == 1;
             }
         }
+#else
+        protected void ReportProgress()
+        {
+            if (m_currentlyReporting)
+            {
+                m_reportIsQueued = true;
+                return;
+            }
+            float completionProgress = Mathf.Clamp01(m_target == 0f ? 1f : m_progress / m_target);
+            if (m_prerequisiteTarget != 0f && m_progress < m_prerequisiteTarget)
+                return;
+            m_reportedComplete = ProjectLucid.Offline.LocalAchievementRuntime.ReportCompletion(this, m_platformID, (int)completionProgress == 1);
+        }
+#endif
 
         // Original06001107 retains virtual tracking and target fallback.
         protected virtual void TrackProgress()

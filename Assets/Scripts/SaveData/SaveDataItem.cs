@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Hardlight;
 using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
@@ -9,11 +10,12 @@ namespace HardlightProject
     public abstract class SaveDataItem
     {
         private bool m_dirty;
-        private bool m_savingEnabled;
+        private bool m_savingEnabled = true;
         // Game.Runtime.dll 0x06002c3c.
         protected SaveDataItem()
         {
-            m_savingEnabled = true;
+            // Both original architectures set the field before Object..ctor;
+            // the field initializer above preserves that ordering.
         }
 
         // Game.Runtime.dll 0x06002c33.
@@ -23,7 +25,7 @@ namespace HardlightProject
                 return;
             // 0x06002c33 clears the parent before invoking each child.
             m_dirty = false;
-            IterateChildren(child => child.MarkSaved());
+            IterateChildren(childItem => childItem.MarkSaved());
         }
 
         // Game.Runtime.dll 0x06002c34.
@@ -45,37 +47,48 @@ namespace HardlightProject
                 return false;
             if (m_dirty)
                 return true;
-            bool hasChanges = false;
+            bool dirty = false;
             // 0x06002c36 queries every child, even after a true result.
-            IterateChildren(child => hasChanges |= child.HasChangesToSave());
-            m_dirty = hasChanges;
-            return hasChanges;
+            IterateChildren(childItem => dirty |= childItem.HasChangesToSave());
+            m_dirty = dirty;
+            return dirty;
         }
 
         protected abstract void IterateChildren(Action<SaveDataItem> action);
         // Game.Runtime.dll 0x06002c38.
         public virtual void Initialise()
         {
-            IterateChildren(child => child.Initialise());
+            IterateChildren(childItem => childItem.Initialise());
+        }
+
+        // Original 0x06002c39, ARM 0x5c0cc8; the saving-enabled test
+        // precedes registry lookup. The missing system is not guarded.
+        public void RequestSave()
+        {
+            if (!m_savingEnabled) return;
+            ProcessManager.GetSystem<SaveManager>().RequestSave();
         }
 
         // Game.Runtime.dll 0x06002c3a.
-        protected static void ListToDictionary<TKey, TValue>(List<TValue> list, Dictionary<TKey, TValue> dict, Func<TValue, TKey> keyGetter)
+        protected static void ListToDictionary<TKey, TValue>(List<TValue> sourceList, Dictionary<TKey, TValue> targetDictionary, Func<TValue, TKey> keyFunc)
         {
-            dict.Clear();
-            foreach (TValue item in list)
-                dict[keyGetter(item)] = item;
+            targetDictionary.Clear();
+            foreach (TValue item in sourceList)
+                targetDictionary[keyFunc(item)] = item;
         }
 
         // Game.Runtime.dll 0x06002c3b.
-        protected static void DictionaryToList<TKey, TValue>(Dictionary<TKey, TValue> dict, ref List<TValue> list)
+        protected static void DictionaryToList<TKey, TValue>(Dictionary<TKey, TValue> sourceDictionary, ref List<TValue> targetList)
         {
-            if (list == null)
-                list = new List<TValue>(dict.Count);
+            if (targetList == null)
+                targetList = new List<TValue>(sourceDictionary.Count);
             else
-                list.Clear();
-            foreach (KeyValuePair<TKey, TValue> pair in dict)
-                list.Add(pair.Value);
+                targetList.Clear();
+            foreach (KeyValuePair<TKey, TValue> pair in sourceDictionary)
+            {
+                pair.Deconstruct(out TKey key, out TValue value);
+                targetList.Add(value);
+            }
         }
     }
 }

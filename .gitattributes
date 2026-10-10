@@ -4,3 +4,7 @@
 # Unity's serializers retain a space after empty YAML values.
 *.meta whitespace=-blank-at-eol
 *.asset whitespace=-blank-at-eol
+
+# Preserve recovered Actor source bytes across desktop checkouts.
+Assets/Scripts/Game/Actor/Actor.cs -text whitespace=cr-at-eol
+Assets/Scripts/Game/Enemy/EnemyManager.cs whitespace=-blank-at-eof

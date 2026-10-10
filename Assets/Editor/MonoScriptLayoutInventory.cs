@@ -89,7 +89,13 @@ namespace ProjectLucid.Editor
             }
             var scripts = new List<Dictionary<string, object>>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (MonoScript script in MonoImporter.GetAllRuntimeMonoScripts())
+            // The runtime list can omit generic source assets. Include imported
+            // scripts so unresolved classes still retain their real asset identity.
+            var allScripts = MonoImporter.GetAllRuntimeMonoScripts().Concat(
+                AssetDatabase.FindAssets("t:MonoScript").Select(identifier =>
+                    AssetDatabase.LoadAssetAtPath<MonoScript>(AssetDatabase.GUIDToAssetPath(identifier))))
+                .Where(script => script != null);
+            foreach (MonoScript script in allScripts)
             {
                 string path = AssetDatabase.GetAssetPath(script);
                 Type type = script.GetClass();

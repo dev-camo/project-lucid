@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 import struct
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -273,7 +274,7 @@ class PlayerCodeTests(unittest.TestCase):
                                                                     "b" * 32, [], schema_version=value)
 
     def run_fake(self, change=None, target="macos"):
-        with patch.object(playercode.subprocess, "run", side_effect=lambda args, timeout: self.emit(args, target, change)) as invoke:
+        with patch.object(playercode.subprocess, "run", side_effect=lambda args, timeout, stdout, stderr: self.emit(args, target, change)) as invoke:
             result = playercode.run_player_code(self.root, self.work, target)
         return result, invoke
 
@@ -287,6 +288,52 @@ class PlayerCodeTests(unittest.TestCase):
         self.assertTrue(reached, "Failure fixture must reach the actual guarded mutation")
         self.assertEqual(self.old, self.latest.read_bytes())
         self.assertFalse((self.work / "locks/player-code.lock").exists())
+
+    def run_noisy_editor(self, exit_code):
+        actual_run = subprocess.run
+        def noisy(command, **options):
+            self.assertEqual(1800, options["timeout"])
+            self.assertEqual("editor-stdout.log", Path(options["stdout"].name).name)
+            self.assertEqual("editor-stderr.log", Path(options["stderr"].name).name)
+            self.assertNotEqual(options["stdout"].name, options["stderr"].name)
+            context = Path(command[command.index("-lucidPlayerContext") + 1])
+            console = self.work / "player-code/console-runs" / context.parent.name
+            self.assertEqual(console, Path(options["stdout"].name).parent)
+            self.assertEqual(console, Path(options["stderr"].name).parent)
+            # Match the Editor's fresh-run contract before any compiler output.
+            self.assertEqual({"context.txt"}, {p.name for p in context.parent.iterdir()})
+            child = actual_run([sys.executable, "-c",
+                                "import sys; sys.stdout.write('Unity console output\\n'); "
+                                "sys.stderr.write('Unity console error\\n'); sys.exit(" + str(exit_code) + ")"],
+                               **options)
+            if child.returncode:
+                return subprocess.CompletedProcess(command, child.returncode)
+            return self.emit(command)
+        with patch.object(playercode.subprocess, "run", side_effect=noisy):
+            return playercode.run_player_code(self.root, self.work, "macos")
+
+    def assert_console_retained(self, result):
+        run = Path(result["run"])
+        console = self.work / "player-code/console-runs" / run.name
+        self.assertEqual(b"Unity console output\n", (console / "editor-stdout.log").read_bytes())
+        self.assertEqual(b"Unity console error\n", (console / "editor-stderr.log").read_bytes())
+        self.assertFalse((run / "editor-stdout.log").exists())
+        self.assertFalse((run / "editor-stderr.log").exists())
+        self.assertEqual(result, json.loads(json.dumps(result)))
+        self.assertFalse((self.work / "locks/player-code.lock").exists())
+
+    def test_noisy_successful_editor_retains_console_in_owned_logs(self):
+        result = self.run_noisy_editor(0)
+        self.assertEqual("compiled", result["status"])
+        self.assert_console_retained(result)
+        self.assertEqual("complete", json.loads(self.latest.read_bytes())["identity_status"])
+
+    def test_noisy_failed_editor_retains_logs_and_previous_receipt(self):
+        result = self.run_noisy_editor(7)
+        self.assertEqual("failed", result["status"])
+        self.assertEqual(7, result["exit_code"])
+        self.assert_console_retained(result)
+        self.assertEqual(self.old, self.latest.read_bytes())
 
     def test_publish_only_after_metadata_and_identity_checks(self):
         result, invoke = self.run_fake()

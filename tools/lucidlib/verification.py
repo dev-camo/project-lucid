@@ -337,6 +337,17 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.AppRatingNativeBindingTests.MacOSNativeBindingDeclarationRemainsPreserved",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.FailedCompletionDetachesOwnedEvaluatorAndPreservesThePrimaryError",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.FailedCompletionRetainsBothPrimaryAndRollbackErrorsWhileRevokingReadiness",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.RealLocalCompletionSurvivesDisposalAndAStoreReloadWithoutAnOpenGameplaySlot",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.MalformedOwnedCompletionValueFailsBeforePublishingEntriesOrReadiness",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OwnedDisposalPreservesASeparatelyNamedRegistrationOfTheSameManager",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OwnedCompletionFaultPreservesTheSameManagerAliasAndThePrimaryError",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineLeaderboardStartupFaultPreservesItsSameObjectAliasAndPrimaryError",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineLeaderboardSubscribedShutdownPreservesItsSameObjectNamedAlias",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",

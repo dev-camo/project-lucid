@@ -10,8 +10,9 @@ using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Editor
 {
-    // These checks call the genuine two-method movement chunk and the complete
-    // original TransformUtils. Engine cases own and destroy every Unity object.
+    // These checks retain the two genuine reversal math APIs and bind the whole
+    // seventeen-method movement owner plus complete original TransformUtils.
+    // Engine cases own and destroy every Unity object.
     public static class OriginalCharacterTransformVerification
     {
         private const BindingFlags Own = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;
@@ -50,26 +51,84 @@ namespace ProjectLucid.Editor
             Type type = typeof(CharacterMovementUtilities);
             Require(type.FullName == "HardlightProject.CharacterMovementUtilities" && type.Assembly.GetName().Name == "Game.Runtime" && (int)type.Attributes == 1048961, "original movement utility identity and flags", ref checks);
             Require(type.GetFields(Own).Length == 0, "original fieldless utility", ref checks);
+            Require(type.BaseType == typeof(object) && !type.IsGenericType && type.GetConstructors(Own).Length == 0 && type.GetProperties(Own).Length == 0 && type.GetEvents(Own).Length == 0 && type.GetNestedTypes(Own).Length == 0 && type.GetInterfaces().Length == 0, "original whole utility has no additional declaration categories", ref checks);
             MethodInfo[] methods = type.GetMethods(Own);
-            Require(methods.Length == 2 && methods.Select(x => x.Name).OrderBy(x => x).SequenceEqual(new[] { "AreDirectionsReversed", "AreRotationsReversed" }), "scope is exactly the two recovered ordinary predicates", ref checks);
+            var signatures = new Dictionary<string, string>
+            {
+                { "ProcessTurningMovement#7", "System.Void|0|HardlightProject.TurningMovementInput:input:0;UnityEngine.Vector3&:forwardVelocity:2;UnityEngine.Vector3&:tangentVelocity:2;UnityEngine.Vector3&:planeVelocity:0;UnityEngine.Vector3&:inputDirection:2;System.Single&:effectiveInputMagnitude:2;UnityEngine.Quaternion&:inputRotation:2" },
+                { "UpdateStickyControls#2", "System.Void|0|HardlightProject.Character:character:0;System.Single&:turnAngle:0" },
+                { "UpdateStickyInput#6", "System.Void|0|HardlightProject.Character:character:0;System.Single&:turnAngle:0;System.Boolean&:turnInputInverted:0;System.Single:inputMagnitude:0;System.Single:upDeg:0;System.Single:forwardDeg:0" },
+                { "UpdateStickyCamera#6", "System.Void|0|HardlightProject.Character:character:0;System.Boolean&:turnCameraActive:0;UnityEngine.Quaternion&:turnCameraRotation:0;UnityEngine.Quaternion:cameraRotation:0;System.Single:inputMagnitude:0;System.Single:upDeg:0" },
+                { "ProcessAirControl#6", "System.Void|1|HardlightProject.Character:character:0;HardlightProject.CharacterAbility_Movement`1<T>:ability:0;HardlightProject.CharacterAbilityDefinition_MovementAir:abilityDef:0;System.Boolean:maintainHeading:0;System.Single:deltaTime:0;System.Boolean:applyDeceleration:0" },
+                { "CalculateIntendedTurnDelta#3", "System.Single|0|HardlightProject.Character:character:0;UnityEngine.Vector3:characterForward:0;System.Single&:turnAngle:0" },
+                { "CalculateEffectiveInputMagnitude#3", "System.Single|0|System.Single:intendedMagnitude:0;System.Single:intendedTurnDelta:0;HardlightProject.CharacterTraits+TurnTraits:turnTraits:0" },
+                { "ProcessDecelerationCurve#6", "System.Void|0|System.Single&:forwardSpeed:0;HardlightProject.CharacterAbilityDefinition+Motion:motion:0;UnityEngine.AnimationCurve:curve:0;System.Single:progress:0;System.Single:deltaTime:0;System.Single:motionMultiplier:4112" },
+                { "AreDirectionsReversed#2", "System.Boolean|0|UnityEngine.Vector3:fromDirection:0;UnityEngine.Vector3:toDirection:0" },
+                { "AreRotationsReversed#2", "System.Boolean|0|UnityEngine.Quaternion:fromRotation:0;UnityEngine.Quaternion:toRotation:0" },
+                { "GetIntendedTurnAngle#2", "System.Single|0|HardlightProject.Character:character:0;UnityEngine.Vector2:intendedTurnVector:0" },
+                { "GetIntendedTurnRotation#1", "UnityEngine.Quaternion|0|HardlightProject.Character:character:0" },
+                { "GetIntendedTurnRotation#2", "UnityEngine.Quaternion|0|HardlightProject.Character:character:0;System.Single:intendedTurnAngle:0" },
+                { "TryGetIntendedTurnRotation#4", "System.Boolean|0|HardlightProject.Character:character:0;System.Single&:intendedTurnAngle:2;UnityEngine.Quaternion&:intendedTurnRotation:2;System.Boolean:useRawInput:4112" },
+                { "GetIntendedToCurrentForwardAngle#1", "System.Single|0|HardlightProject.Character:character:0" },
+                { "GetIntendedToCameraForwardAngle#1", "System.Single|0|HardlightProject.Character:character:0" },
+                { "GetIntendedForward#2", "UnityEngine.Vector3|0|HardlightProject.Character:character:0;UnityEngine.Vector2:intendedTurnVector:0" },
+            };
+            Require(methods.Length == 17 && methods.Select(x => x.Name + "#" + x.GetParameters().Length).OrderBy(x => x, StringComparer.Ordinal).SequenceEqual(signatures.Keys.OrderBy(x => x, StringComparer.Ordinal)), "all seventeen original declarations including both rotation overloads", ref checks);
             IList<CustomAttributeData> attributes = type.GetCustomAttributesData();
-            // The original full type has seventeen methods and ExtensionAttribute.
-            // The two ordinary methods cannot honestly supply that full type shape.
-            Require(attributes.Count == 2 && !type.IsDefined(typeof(ExtensionAttribute), false), "the documented original type ExtensionAttribute gap remains visible", ref checks);
-            for (int i = 0; i < attributes.Count; i++)
+            // Shipping metadata orders options2/1 then ExtensionAttribute. Genuine
+            // managed extension compilation emits ExtensionAttribute first. Bind
+            // this exact observed managed order; original order parity stays held.
+            Require(attributes.Count == 3 && attributes[0].AttributeType == typeof(ExtensionAttribute) && attributes[0].AttributeType.Assembly.GetName().Name == "mscorlib" && attributes[0].Constructor.DeclaringType == typeof(ExtensionAttribute) && attributes[0].ConstructorArguments.Count == 0 && attributes[0].NamedArguments.Count == 0 && type.IsDefined(typeof(ExtensionAttribute), false), "complete natural extension type attribute in observed managed order", ref checks);
+            for (int i = 1; i < attributes.Count; i++)
             {
                 CustomAttributeData attribute = attributes[i];
-                Require(attribute.AttributeType.FullName == "Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute" && attribute.AttributeType.Assembly.GetName().Name == "HLUnityCore.Runtime", "original option attribute provider", ref checks);
-                Require(attribute.ConstructorArguments.Count == 2 && (int)attribute.ConstructorArguments[0].Value == (i == 0 ? 2 : 1) && !(bool)attribute.ConstructorArguments[1].Value, "ordered ArrayBoundsChecks and NullChecks options", ref checks);
+                ParameterInfo[] constructor = attribute.Constructor.GetParameters();
+                Require(attribute.AttributeType == typeof(Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute) && attribute.AttributeType.Assembly.GetName().Name == "HLUnityCore.Runtime" && constructor.Length == 2 && constructor[0].ParameterType == typeof(Unity.IL2CPP.CompilerServices.Option) && constructor[1].ParameterType == typeof(object), "original option attribute provider and declared constructor", ref checks);
+                Require(attribute.ConstructorArguments.Count == 2 && attribute.ConstructorArguments[0].ArgumentType == typeof(Unity.IL2CPP.CompilerServices.Option) && (int)attribute.ConstructorArguments[0].Value == (i == 1 ? 2 : 1) && attribute.ConstructorArguments[1].ArgumentType == typeof(bool) && !(bool)attribute.ConstructorArguments[1].Value && attribute.NamedArguments.Count == 0, "ordered ArrayBoundsChecks and NullChecks options", ref checks);
             }
+            var simpleTypes = new Dictionary<string, Type>
+            {
+                { "System.Void", typeof(void) }, { "System.Boolean", typeof(bool) }, { "System.Single", typeof(float) },
+                { "UnityEngine.Vector2", typeof(Vector2) }, { "UnityEngine.Vector3", typeof(Vector3) }, { "UnityEngine.Quaternion", typeof(Quaternion) },
+                { "UnityEngine.AnimationCurve", typeof(AnimationCurve) }, { "HardlightProject.Character", typeof(Character) },
+                { "HardlightProject.TurningMovementInput", typeof(TurningMovementInput) },
+                { "HardlightProject.CharacterTraits+TurnTraits", typeof(CharacterTraits.TurnTraits) },
+                { "HardlightProject.CharacterAbilityDefinition+Motion", typeof(CharacterAbilityDefinition.Motion) },
+                { "HardlightProject.CharacterAbilityDefinition_MovementAir", typeof(CharacterAbilityDefinition_MovementAir) }
+            };
             foreach (MethodInfo method in methods)
             {
-                Require((int)method.Attributes == 150 && method.ReturnType == typeof(bool) && method.GetCustomAttributesData().Count == 0 && !method.IsDefined(typeof(ExtensionAttribute), false), method.Name + " original nonextension method flags", ref checks);
                 ParameterInfo[] parameters = method.GetParameters();
-                bool direction = method.Name == "AreDirectionsReversed";
-                Type parameterType = direction ? typeof(Vector3) : typeof(Quaternion);
-                string suffix = direction ? "Direction" : "Rotation";
-                Require(parameters.Length == 2 && parameters[0].ParameterType == parameterType && parameters[1].ParameterType == parameterType && parameters[0].Name == "from" + suffix && parameters[1].Name == "to" + suffix && parameters.All(x => (int)x.Attributes == 0 && !x.HasDefaultValue), method.Name + " exact original parameters", ref checks);
+                string key = method.Name + "#" + parameters.Length;
+                bool privateMethod = method.Name == "UpdateStickyInput" || method.Name == "UpdateStickyCamera" || method.Name == "CalculateIntendedTurnDelta" || method.Name == "CalculateEffectiveInputMagnitude";
+                bool extension = method.Name == "GetIntendedTurnAngle" || method.Name == "GetIntendedTurnRotation" || method.Name == "TryGetIntendedTurnRotation" || method.Name == "GetIntendedToCurrentForwardAngle" || method.Name == "GetIntendedToCameraForwardAngle" || method.Name == "GetIntendedForward";
+                IList<CustomAttributeData> methodAttributes = method.GetCustomAttributesData();
+                Require((int)method.Attributes == (privateMethod ? 145 : 150) && (int)method.GetMethodImplementationFlags() == 0 && method.ReturnParameter.GetCustomAttributesData().Count == 0 && methodAttributes.Count == (extension ? 1 : 0) && method.IsDefined(typeof(ExtensionAttribute), false) == extension && (!extension || (methodAttributes[0].AttributeType == typeof(ExtensionAttribute) && methodAttributes[0].AttributeType.Assembly.GetName().Name == "mscorlib" && methodAttributes[0].ConstructorArguments.Count == 0 && methodAttributes[0].NamedArguments.Count == 0)), method.Name + " original access, implementation and exact extension attributes", ref checks);
+                Type[] generics = method.GetGenericArguments();
+                Func<Type, bool> exactType = parameterType =>
+                {
+                    Type expected;
+                    if (parameterType.IsByRef)
+                    {
+                        Type element = parameterType.GetElementType();
+                        return simpleTypes.TryGetValue(element.FullName, out expected) && parameterType == expected.MakeByRefType();
+                    }
+                    if (parameterType.IsGenericType)
+                        return parameterType.GetGenericTypeDefinition() == typeof(CharacterAbility_Movement<>) && parameterType.GetGenericArguments().SequenceEqual(generics);
+                    return simpleTypes.TryGetValue(parameterType.FullName, out expected) && parameterType == expected;
+                };
+                string actual = TypeName(method.ReturnType) + "|" + generics.Length + "|" + string.Join(";", parameters.Select(x => TypeName(x.ParameterType) + ":" + x.Name + ":" + (int)x.Attributes));
+                // Mono synthesizes one flag-derived Out or Optional attribute;
+                // the recorded stored parameter custom-attribute rows are zero.
+                bool parameterProjection = parameters.All(x =>
+                {
+                    IList<CustomAttributeData> projected = x.GetCustomAttributesData();
+                    Type expected = x.Attributes == ParameterAttributes.Out ? typeof(System.Runtime.InteropServices.OutAttribute) : x.Attributes == (ParameterAttributes.Optional | ParameterAttributes.HasDefault) ? typeof(System.Runtime.InteropServices.OptionalAttribute) : null;
+                    return expected == null ? projected.Count == 0 : projected.Count == 1 && projected[0].AttributeType == expected && expected.Assembly.GetName().Name == "mscorlib" && projected[0].Constructor.DeclaringType == expected && projected[0].Constructor.GetParameters().Length == 0 && projected[0].ConstructorArguments.Count == 0 && projected[0].NamedArguments.Count == 0;
+                });
+                bool parameterDefaults = parameters.All(x => x.HasDefaultValue ? ((key == "ProcessDecelerationCurve#6" && x.Name == "motionMultiplier" && x.DefaultValue is float && (float)x.DefaultValue == 1f) || (key == "TryGetIntendedTurnRotation#4" && x.Name == "useRawInput" && x.DefaultValue is bool && (bool)x.DefaultValue)) : (x.Name != "motionMultiplier" && x.Name != "useRawInput"));
+                Require(signatures.ContainsKey(key) && signatures[key] == actual && exactType(method.ReturnType) && parameters.All(x => exactType(x.ParameterType)) && parameterProjection && parameterDefaults, method.Name + " exact original typed signature, all parameter rows and two defaults", ref checks);
+                Require(method.Name == "ProcessAirControl" ? (method.IsGenericMethodDefinition && generics.Length == 1 && generics[0].Name == "T" && generics[0].GenericParameterPosition == 0 && generics[0].GenericParameterAttributes == GenericParameterAttributes.None && generics[0].GetCustomAttributesData().Count == 0 && generics[0].GetGenericParameterConstraints().SequenceEqual(new[] { typeof(CharacterAbilityDefinition_Movement) })) : (!method.IsGenericMethod && generics.Length == 0), method.Name + " original generic declaration and constraint", ref checks);
             }
             return checks;
         }

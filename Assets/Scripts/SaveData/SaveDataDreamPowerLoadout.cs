@@ -36,12 +36,35 @@ namespace HardlightProject
             m_archetype = characterArchetype;
         }
 
+        // Game.Runtime.dll 0x06002bd1.
+        public void ResolveNewData(SaveDataDreamPowerLoadout newLoadoutSaveData, bool cloudIsLatest)
+        {
+            if (!cloudIsLatest) return;
+            m_slotsByIndex.Clear();
+            m_slotsByIndex = new Dictionary<int, string>(newLoadoutSaveData.m_slotsByIndex);
+        }
+
         // Game.Runtime.dll 0x06002bd2.
         public override void Initialise()
         {
             if (m_slotsByIndex == null) m_slotsByIndex = new Dictionary<int,string>();
             if (m_slots == null) m_slots = new List<string>();
             base.Initialise();
+        }
+
+        // Game.Runtime.dll 0x06002bd3.
+        public void Set(int index, string dreamPowerGUID)
+        {
+            m_slotsByIndex[index] = dreamPowerGUID;
+            MarkDirty();
+        }
+
+        // Game.Runtime.dll 0x06002bd4.
+        public void Remove(int index)
+        {
+            if (!m_slotsByIndex.ContainsKey(index)) return;
+            m_slotsByIndex.Remove(index);
+            MarkDirty();
         }
 
         // Game.Runtime.dll 0x06002bd5.
@@ -60,8 +83,18 @@ namespace HardlightProject
         public void OnAfterDeserialize()
         {
             Initialise();
-            ListToDictionary(m_slots, m_slotsByIndex, entry => m_slots.IndexOf(entry));
+            ListToDictionary(m_slots, m_slotsByIndex, dreamPowerGUID => m_slots.IndexOf(dreamPowerGUID));
         }
 
+        // Game.Runtime.dll 0x06002bd8.
+        public int EquippedSlot(DreamPowerDefinition definition)
+        {
+            string dreamPowerGUID = definition.GetGUID();
+            foreach (var (index, equippedDreamPowerGUID) in m_slotsByIndex)
+            {
+                if (dreamPowerGUID == equippedDreamPowerGUID) return index;
+            }
+            return -1;
+        }
     }
 }

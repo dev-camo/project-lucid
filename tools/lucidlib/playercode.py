@@ -460,7 +460,13 @@ def run_player_code(repo_root, work_dir, target):
                    "-executeMethod", "ProjectLucid.Editor.LucidPlayerCompilation.Run",
                    "-lucidPlayerContext", str(context), "-lucidPlayerDigest", digest,
                    "-lucidPlayerNonce", nonce, "-logFile", str(log)]
-        result = subprocess.run(command, timeout=1800)
+        # Unity can write fatal diagnostics to its console even with -logFile.
+        # Keep the CLI stdout available for its single machine-readable result.
+        console = managed_path(work, "player-code", "console-runs", nonce)
+        console.mkdir(parents=True, exist_ok=False)
+        with (console / "editor-stdout.log").open("xb") as stdout, \
+                (console / "editor-stderr.log").open("xb") as stderr:
+            result = subprocess.run(command, timeout=1800, stdout=stdout, stderr=stderr)
         if result.returncode or not pending.is_file():
             return {"status": "failed", "exit_code": result.returncode or 1, "log": str(log),
                     "errors": ["Unity player script compilation did not complete"], "run": str(run)}

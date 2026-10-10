@@ -8,7 +8,7 @@ namespace ProjectLucid.Tests
         { Assert.That(ProjectLucid.Editor.OriginalCharacterTransformVerification.RunReversalMath(), Is.EqualTo(22)); }
 
         [Test] public void OriginalReversalChunkRetainsDocumentedDeclarationScope()
-        { Assert.That(ProjectLucid.Editor.OriginalCharacterTransformVerification.RunReversalDeclarations(), Is.EqualTo(12)); }
+        { Assert.That(ProjectLucid.Editor.OriginalCharacterTransformVerification.RunReversalDeclarations(), Is.EqualTo(60)); }
 
         [Test] public void OriginalTransformUtilityRetainsAllElevenDeclarations()
         { Assert.That(ProjectLucid.Editor.OriginalCharacterTransformVerification.RunTransformDeclarations(), Is.EqualTo(28)); }
