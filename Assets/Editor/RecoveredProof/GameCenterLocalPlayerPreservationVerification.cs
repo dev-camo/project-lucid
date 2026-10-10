@@ -123,7 +123,7 @@ namespace ProjectLucid.Verification
             int count = 0;
             using (new ActionSnapshot())
             {
-                var holder = new GameCenterLocalPlayer(true);
+                var holder = ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer();
                 string[] joins = { null, "", "one", "one|two|three", "|", "one|", "|two", "one|two" };
                 bool[] valid = { false, false, false, false, true, true, true, true };
                 for (int i = 0; i < joins.Length; ++i)
@@ -166,7 +166,7 @@ namespace ProjectLucid.Verification
             int count = 0;
             using (new ActionSnapshot())
             {
-                var local = new GameCenterLocalPlayer(true);
+                var local = ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer();
                 var refs = (IGameCenterLocalPlayerReferencesHolder)local;
                 var listener = (GameCenterLocalPlayerListenerStub)refs.GameCenterLocalPlayerListener;
                 var trace = new List<string>();
@@ -208,7 +208,7 @@ namespace ProjectLucid.Verification
             int count = 0;
             using (new ActionSnapshot())
             {
-                var local = new GameCenterLocalPlayer(true);
+                var local = ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer();
                 var refs = (IGameCenterLocalPlayerReferencesHolder)local;
                 var listener = (GameCenterLocalPlayerListenerStub)refs.GameCenterLocalPlayerListener;
                 Check(local.TryGetPlayer(refs.NativeGameCenterLocalPlayer.GamePlayerID, out Player player), "Original player parse must succeed before photo request.", ref count);

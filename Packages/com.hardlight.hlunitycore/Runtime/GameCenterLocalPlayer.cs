@@ -36,6 +36,16 @@ namespace Hardlight
             ProcessManager.SubscribeToAction(this, SystemAction.AppShutdown, OnAppShutdown);
         }
 
+        // Project Lucid preservation-only construction. Both providers are
+        // genuine shipping Stub owners; the default bool constructor is unchanged.
+        internal GameCenterLocalPlayer(GameCenterLocalPlayerListenerStub listener)
+        {
+            m_gameCenterLocalPlayerListener = listener;
+            m_nativeGameCenterLocalPlayer = new GameCenterLocalPlayerStub(listener);
+            ProcessManager.SubscribeToAction(this, SystemAction.AppInitialise, OnAppInitialise);
+            ProcessManager.SubscribeToAction(this, SystemAction.AppShutdown, OnAppShutdown);
+        }
+
         // Original 0x06000705; no native Initialise call occurs here.
         private void OnAppInitialise(object context = null)
         {

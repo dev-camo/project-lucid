@@ -72,7 +72,7 @@ namespace ProjectLucid.Verification
             try
             {
                 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-                var playerHolder = new GameCenterLocalPlayer(true);
+                var playerHolder = ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer();
                 var service = new GameCenterLeaderboard(playerHolder, forceStub: true);
                 var holder = (IGameCenterLeaderboardReferencesHolder)service;
                 var data = BoardData(); var board = new Leaderboard(in data, holder);
@@ -149,7 +149,7 @@ namespace ProjectLucid.Verification
             int count = 0;
             using (new ActionSnapshot())
             {
-                var players = new GameCenterLocalPlayer(true);
+                var players = ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer();
                 var service = new GameCenterLeaderboard(players, forceStub: true);
                 var refs = (IGameCenterLeaderboardReferencesHolder)service;
                 var listener = (GameCenterLeaderboardListenerStub)refs.GameCenterLeaderboardListener;
@@ -200,7 +200,7 @@ namespace ProjectLucid.Verification
             int count = 0;
             using (new ActionSnapshot())
             {
-                var service = new GameCenterLeaderboard(new GameCenterLocalPlayer(true), forceStub: true);
+                var service = new GameCenterLeaderboard(ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer(), forceStub: true);
                 var refs = (IGameCenterLeaderboardReferencesHolder)service;
                 var listener = (GameCenterLeaderboardListenerStub)refs.GameCenterLeaderboardListener;
                 var boards = new List<Leaderboard>(); service.LoadLeaderboards(new[] { "board" }, boards, null).MoveNext();
@@ -247,7 +247,7 @@ namespace ProjectLucid.Verification
             int count = 0;
             using (new ActionSnapshot())
             {
-                var service = new GameCenterLeaderboard(new GameCenterLocalPlayer(true), forceStub: true);
+                var service = new GameCenterLeaderboard(ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer(), forceStub: true);
                 var listener = (GameCenterLeaderboardListenerStub)((IGameCenterLeaderboardReferencesHolder)service).GameCenterLeaderboardListener;
                 int completions = 0;
                 IEnumerator faulted = service.LoadLeaderboards(new[] { "board" }, null, value => ++completions);
@@ -257,7 +257,7 @@ namespace ProjectLucid.Verification
                 ((IDisposable)faulted).Dispose();
                 Check(SubscriberCount(listener, "OnLoadLeaderboardsStarted") == 1 && SubscriberCount(listener, "OnLoadLeaderboardsCompleted") == 1,
                     "Original empty Dispose must not add fault cleanup.", ref count);
-                var fresh = new GameCenterLeaderboard(new GameCenterLocalPlayer(true), forceStub: true);
+                var fresh = new GameCenterLeaderboard(ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer(), forceStub: true);
                 var refs = (IGameCenterLeaderboardReferencesHolder)fresh;
                 var data = BoardData(); data.BaseLeaderboardID = "uncached";
                 var missing = new Leaderboard(in data, refs);
@@ -332,7 +332,7 @@ namespace ProjectLucid.Verification
             int count = 0;
             using (new ActionSnapshot())
             {
-                var service = new GameCenterLeaderboard(new GameCenterLocalPlayer(true), forceStub: true);
+                var service = new GameCenterLeaderboard(ProjectLucid.Preservation.ShippingGameCenterObjects.CreateLocalPlayer(), forceStub: true);
                 var refs = (IGameCenterLeaderboardReferencesHolder)service;
                 var listener = (GameCenterLeaderboardListenerStub)refs.GameCenterLeaderboardListener;
                 var data = BoardData(); var board = new Leaderboard(in data, refs);

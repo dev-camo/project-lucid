@@ -919,3 +919,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.OfflineClientCodeReturnsOneAndWritesZero",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.MissingOwnerFaultsBeforeTheOfflineInitialiseBoundary",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.LocalAccountTests.BothFactoryFlagsKeepIdentitySeparateFromAuthentication",
+    "ProjectLucid.Tests.LocalAccountTests.RealCallbacksPreserveOrderPayloadAndClear",
+    "ProjectLucid.Tests.LocalAccountTests.CallbackFaultStopsLaterPhotoCompletionAndOwnedClearRecovers",
+    "ProjectLucid.Tests.LocalAccountTests.GenuineFacadeDefaultsKeepFailedAuthenticationAndShutdownCleanup",
+    "ProjectLucid.Tests.LocalAccountTests.GenuinePlayerPhotoIteratorCompletesWithoutYieldThroughLocalCallbacks",
+)
