@@ -1,0 +1,7 @@
+{
+  "name": "FairPlay.Runtime",
+  "rootNamespace": "Apple.Arcade",
+  "references": [],
+  "autoReferenced": true,
+  "noEngineReferences": false
+}

@@ -1235,3 +1235,14 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.FindValueVisitsTheObservedValueOrderAndStopsAtItsFirstMatch',
     'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.FindValueLeavesAnEmptyNullPredicateUncalledAndPropagatesRealCallbackFaults',
 )
+
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalSplashBoundaryTests.BootAndUnloadKeepTheirOriginalSceneJsonAndStateContracts',
+    'ProjectLucid.Tests.OriginalSplashBoundaryTests.IntroAndFairplayStatesKeepOriginalInheritanceAndRefDeclarations',
+    'ProjectLucid.Tests.OriginalSplashBoundaryTests.ScenePredicatesKeepDistinctOriginalJsonAndStorageMethodContracts',
+    'ProjectLucid.Tests.OriginalSplashBoundaryTests.FairPlayKeepsItsOriginalAssemblyImportAndExceptionClauseWithoutInvocation',
+    'ProjectLucid.Tests.OriginalSplashBoundaryTests.BootFactoryOwnsItsOriginalSceneDataWithoutEnteringPlatformOrLoadCode',
+    'ProjectLucid.Tests.OriginalSplashBoundaryTests.UnloadAbsentSceneKeyLeavesNormallyOwnedTablesAndUnrelatedValuesUntouched',
+    'ProjectLucid.Tests.OriginalSplashBoundaryTests.UnloadMissingTableStoresOriginalNullDefaultBeforeItsManagedDictionaryFault',
+)

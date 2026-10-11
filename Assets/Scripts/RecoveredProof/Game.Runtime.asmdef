@@ -22,7 +22,8 @@
     "Unity.Timeline",
     "UnityEngine.UI",
     "Unity.TextMeshPro",
-    "HLRTLTextMeshPro.Runtime"
+    "HLRTLTextMeshPro.Runtime",
+    "FairPlay.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

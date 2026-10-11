@@ -20,7 +20,8 @@
     "Unity.TextMeshPro",
     "Unity.Addressables",
     "Unity.ResourceManager",
-    "HLBinders.Runtime"
+    "HLBinders.Runtime",
+    "FairPlay.Runtime"
   ],
   "includePlatforms": [
     "Editor"
