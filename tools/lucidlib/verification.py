@@ -368,6 +368,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGuiPageLoaderTests.WholeOriginalDeclarationRetainsAllFifteenMethodsAndRealEnumProviders",
 )
 
+# Owned local access-point boundary through the preserved original facade.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OfflineAccessPointTests.DefaultFacadeReportsUnavailableHiddenUnfocusedAndNotPresenting",
+    "ProjectLucid.Tests.OfflineAccessPointTests.ShowHideFocusAndHighlightsCannotAcquirePlatformState",
+    "ProjectLucid.Tests.OfflineAccessPointTests.UnavailableGeometryRemainsStableAfterRepeatedPresentationRequests",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",

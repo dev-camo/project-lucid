@@ -20,12 +20,12 @@
     },
     {
       "assembly": "Game.Runtime",
-      "implemented_source_bodies": 4897,
-      "not_implemented": 7966,
+      "implemented_source_bodies": 4915,
+      "not_implemented": 7946,
       "original_declarations": 16004,
       "original_native_bodies": 15624,
       "unresolved_identities": 630,
-      "withheld_bodies": 2131
+      "withheld_bodies": 2133
     },
     {
       "assembly": "HLAnalytics.Runtime",
@@ -182,12 +182,12 @@
     },
     {
       "assembly": "HLUnityCore.Runtime",
-      "implemented_source_bodies": 1409,
-      "not_implemented": 1600,
+      "implemented_source_bodies": 1448,
+      "not_implemented": 1560,
       "original_declarations": 4718,
       "original_native_bodies": 4200,
       "unresolved_identities": 544,
-      "withheld_bodies": 647
+      "withheld_bodies": 648
     },
     {
       "assembly": "HLUnityUI.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "fe2a5baa8823c7253015ab810497fcd90e387db5227d3b9605e6dfec353c8e25",
+  "compiler_receipt_sha256": "bdbd6bef24416ed26d6dcbfa1443e58262ff9f93df9eedff63ecccf96044fe9d",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "f9767077000cb01daa5bc72f2df68c475fb2c78953c10977d1a5d57e880768b4",
+  "source_fingerprint": "9d842e95c8ffb6b958eeb1ab3608bf27898f4f6c30d97865c2a2d239a868e186",
   "totals": {
-    "implemented_source_bodies": 8454,
-    "not_implemented": 12448,
+    "implemented_source_bodies": 8511,
+    "not_implemented": 12388,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
     "unresolved_identities": 1479,
-    "withheld_bodies": 3516
+    "withheld_bodies": 3519
   }
 }
