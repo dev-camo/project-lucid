@@ -1002,3 +1002,10 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.PositiveFadeHoldsLastRisingSampleAndCompletesAfterRelease",
     "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.StoppingTheOwnedCoroutineDoesNotInventCancellationCleanup",
 )
+
+# Original mutable Pair generic helper: owned declarations and behavior.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalPairPreservationTests.OriginalOwnerRetainsUnconstrainedMutableStaticAndGeneratedProperties",
+    "ProjectLucid.Tests.OriginalPairPreservationTests.ConstructorsAndPropertiesRetainDefaultAndSuppliedValues",
+    "ProjectLucid.Tests.OriginalPairPreservationTests.InstanceReusesOneMutablePairForEachOwnedClosedType",
+)
