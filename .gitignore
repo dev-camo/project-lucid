@@ -48,3 +48,7 @@ __pycache__/
 .venv/
 .idea/
 .vs/
+
+!/tools/tests/ArtifactIdentity/ArtifactIdentity.csproj
+/tools/tests/ArtifactIdentity/bin/
+/tools/tests/ArtifactIdentity/obj/
