@@ -1246,3 +1246,11 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalSplashBoundaryTests.UnloadAbsentSceneKeyLeavesNormallyOwnedTablesAndUnrelatedValuesUntouched',
     'ProjectLucid.Tests.OriginalSplashBoundaryTests.UnloadMissingTableStoresOriginalNullDefaultBeforeItsManagedDictionaryFault',
 )
+
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalLinkedLevelTestsBoundaryTests.OriginalDeclarationsKeepScopedAuthoredRecordsAndAnnotations',
+    'ProjectLucid.Tests.OriginalLinkedLevelTestsBoundaryTests.OwnedConstructorsAndCallbacksKeepOriginalNamesAndReferences',
+    'ProjectLucid.Tests.OriginalLinkedLevelTestsBoundaryTests.NonCycleSearchSkipsUnmatchedDataAndContinuesAfterEmptyMatches',
+    'ProjectLucid.Tests.OriginalLinkedLevelTestsBoundaryTests.OwnedJsonRoundTripKeepsNestedDataAndNullScene',
+)
