@@ -1045,3 +1045,9 @@ EDITMODE_TESTS += (
     "OriginalHLCurveTests.OriginalRawTimeSamplesPreserveOwnedLoopWrappingWithoutClamp",
     "OriginalHLCurveTests.OriginalCollectionSerializesSixOwnedCurvesAndDirectionThroughGetters",
 )
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Editor.OriginalUISoundEffectManagerTests.OriginalGlobalSoundManagerRetainsCompleteDeclarations',
+    'ProjectLucid.Editor.OriginalUISoundEffectManagerTests.OriginalInactiveSoundManagerWithNullSourceSuppressesPlaybackRoutes',
+    'ProjectLucid.Editor.OriginalUISoundEffectManagerTests.OriginalSoundManagerForwardsPitchVolumeToOwnedMutedAudioSource',
+)
