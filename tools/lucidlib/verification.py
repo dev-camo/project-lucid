@@ -1218,3 +1218,7 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     'OriginalStringFormatterOwnedBindingTests.InactiveOriginalFormatterReadsSerializedOutputReferencesAndPublicRetarget',
 )
+
+EDITMODE_TESTS += (
+    'OriginalStringFormatterVector2SerializationTests.InactiveOriginalFormatterPreservesVector2PayloadThroughEditorJson',
+)

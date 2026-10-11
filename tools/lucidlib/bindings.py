@@ -185,6 +185,7 @@ class _Comparison:
     def __init__(self, original: dict, loaded: dict):
         self.original = _index(original)
         self.loaded = _index(loaded)
+        self.unity_versions = original.get("unity_version"), loaded.get("unity_version")
 
     @staticmethod
     def _is_delegate(reference, index):
@@ -284,6 +285,8 @@ class _Comparison:
                     issue("type_flags_mismatch", owner)
                 if _attributes(left, require_string_evidence=True) != _attributes(right):
                     issue("type_attributes_mismatch", owner)
+                if as_field and owner == ("UnityEngine.CoreModule", "UnityEngine.Vector2"):
+                    self._vector2_data_contract(owner)
                 # PPtr storage ends at the reference boundary. Prove both
                 # complete, closed, scoped ancestry graphs before traversing
                 # an inherited component's payload as inline serialized data.
@@ -329,7 +332,8 @@ class _Comparison:
                         if constants(lconstants) != constants(rconstants):
                             issue("enum_constants_mismatch", owner)
                     return
-                if as_field and not (left.get("attributes", 0) & 0x2000) and not self._unity_object(owner):
+                if (as_field and not (left.get("attributes", 0) & 0x2000) and
+                        not self._unity_2022_builtin_value(owner) and not self._unity_object(owner)):
                     issue("field_type_eligibility_unverified", owner, "not a serializable data type or Unity object")
                 if [f["name"] for f in lfields] != [f["name"] for f in rfields]:
                     issue("serialized_field_order_or_names_mismatch", owner,
@@ -354,6 +358,100 @@ class _Comparison:
         # Sort/deduplicate diagnostics without changing field comparison order.
         return sorted({json.dumps(item, sort_keys=True): item for item in issues}.values(), key=lambda item: json.dumps(item, sort_keys=True))
 
+    def _vector2_data_contract(self, key):
+        """Prove the complete literal Vector2 declaration on both graphs.
+
+        This proves a non-PPtr value type, not serializer eligibility. Unity
+        2022's explicit builtin rule is a separate obligation below. Preserve
+        all raw declaration evidence, including its absent Serializable bit.
+        Unknown structs and lookalike assembly scopes retain their old holds.
+        """
+        if key != ("UnityEngine.CoreModule", "UnityEngine.Vector2"):
+            return False
+        left, right = self.original.get(key), self.loaded.get(key)
+        if left is None or right is None:
+            raise LayoutError("Missing dual Vector2 declaration")
+        static_names = ("zeroVector", "oneVector", "upVector", "downVector",
+                        "leftVector", "rightVector", "positiveInfinityVector", "negativeInfinityVector")
+        names = ("x", "y") + static_names + ("kEpsilon", "kEpsilonNormalSqrt")
+        single = ("named", "mscorlib", "System.Single")
+        vector = ("named",) + key
+        expected_attributes = (
+            ("UnityEngine.SharedInternalsModule", "UnityEngine.NativeClassAttribute",
+             (("primitive", "IL2CPP_TYPE_STRING", "Vector2f"),), ()),
+            ("UnityEngine.CoreModule", "Unity.IL2CPP.CompilerServices.Il2CppEagerStaticClassConstructionAttribute", (), ()),
+            ("UnityEngine.SharedInternalsModule", "UnityEngine.Scripting.RequiredByNativeCodeAttribute", (),
+             (("properties", "Optional", ("primitive", "IL2CPP_TYPE_BOOLEAN", True)),
+              ("properties", "GenerateProxy", ("primitive", "IL2CPP_TYPE_BOOLEAN", True)))),
+            ("mscorlib", "System.Reflection.DefaultMemberAttribute",
+             (("primitive", "IL2CPP_TYPE_STRING", "Item"),), ()))
+        for record, original in ((left, True), (right, False)):
+            if (record.get("assembly"), record.get("full_name")) != key:
+                raise LayoutError("Vector2 declaration identity differs")
+            if (record.get("namespace"), record.get("name")) != ("UnityEngine", "Vector2"):
+                raise LayoutError("Vector2 declaration name/namespace differs")
+            # 0x100109 is the actual shipping/installed flag value. In particular
+            # it does not contain Serializable (0x2000); do not project that bit.
+            if type(record.get("attributes")) is not int or record["attributes"] != 0x100109:
+                raise LayoutError("Vector2 declaration flags differ")
+            if (record.get("is_value_type") is not True or record.get("is_enum") is not False or
+                    record.get("is_abstract") is not False or "declaring_type" not in record or record["declaring_type"] is not None or
+                    record.get("unity_component") is not False or record.get("unity_scriptable_object") is not False or
+                    record.get("generic_parameters") != [] or "enum_underlying_type" not in record or record["enum_underlying_type"] is not None):
+                raise LayoutError("Vector2 declaration shape differs")
+            if type_identity(record.get("base_type")) != ("named", "mscorlib", "System.ValueType"):
+                raise LayoutError("Vector2 declaration has an invalid scoped ValueType base")
+            candidates = _candidate_fields(record, require_string_evidence=original)
+            # Type and named CAD order is explicit here. The shared general CAD
+            # comparator remains unchanged; every physical/raw CAD stays stored.
+            ordered_attributes = []
+            for attribute in record["custom_attributes"]:
+                normalized = _attributes(dict(record, custom_attributes=[attribute]), require_string_evidence=original)
+                if len(normalized) != 1:
+                    raise LayoutError("Vector2 attribute is not the observed complete CAD")
+                for group in ("fields", "properties"):
+                    for value in attribute[group]:
+                        if (value["value"].get("type") == "IL2CPP_TYPE_BOOLEAN" and
+                                type(value["value"].get("value")) is not bool):
+                            raise LayoutError("Vector2 named Boolean attribute is not an exact Boolean")
+                ordered_named = tuple((group, value["name"], _attribute_value(value["value"], require_string_evidence=original))
+                                      for group in ("fields", "properties") for value in attribute[group])
+                ordered_attributes.append(normalized[0][:3] + (ordered_named,))
+            if tuple(ordered_attributes) != expected_attributes:
+                raise LayoutError("Vector2 ordered type attributes differ")
+            fields = record["fields"]
+            if tuple(field["name"] for field in fields) != names or [field["name"] for field in candidates] != ["x", "y"]:
+                raise LayoutError("Vector2 complete declared field order differs")
+            for index, field in enumerate(fields):
+                expected_flags = 6 if index < 2 else 49 if index < 10 else 32854
+                expected_type = vector if 2 <= index < 10 else single
+                if field["attributes"] != expected_flags or type_identity(field["field_type"]) != expected_type:
+                    raise LayoutError("Vector2 declared field flags/type differ: " + field["name"])
+                if field["custom_attributes"] != [] or field["serialize_reference"] is not False:
+                    raise LayoutError("Vector2 declared field attributes differ: " + field["name"])
+                constant = index >= 10
+                if field.get("has_default_value") is not constant or field.get("default_value_complete") is not True:
+                    raise LayoutError("Vector2 declared field default evidence is incomplete: " + field["name"])
+                if constant:
+                    value = 1e-5 if index == 10 else 1e-15
+                    if (type(field.get("default_value")) is not float or field["default_value"] != value or
+                            type_identity(field.get("default_value_type")) != single):
+                        raise LayoutError("Vector2 constant differs: " + field["name"])
+                elif ("default_value" not in field or "default_value_type" not in field or
+                      field["default_value"] is not None or field["default_value_type"] is not None):
+                    raise LayoutError("Vector2 nonconstant has an unexpected default: " + field["name"])
+        return True
+
+    def _unity_2022_builtin_value(self, key):
+        """Apply only Unity 2022.3.54f1's observed explicit Vector2 rule.
+
+        UnityEngineTypePredicates lists Vector2 under types that should have
+        had Serializable; UnitySerializationLogic separately uses that list
+        for inline value eligibility. Do not infer eligibility for other structs.
+        This predicate never alters fields, flags, references or input records.
+        """
+        return self.unity_versions == ("2022.3.54f1", "2022.3.54f1") and self._vector2_data_contract(key)
+
     def _unity_object(self, key):
         """Prove a closed PPtr ancestry on BOTH complete declaration graphs.
 
@@ -361,6 +459,11 @@ class _Comparison:
         A named reference stores identity; payload eligibility belongs to the
         pointed-to MonoScript's separate full layout comparison.
         """
+        # A literal, complete Vector2 value declaration is outside PPtr.
+        # This initial-key check does not run while proving Object ancestry;
+        # a malformed reference class inheriting Vector2 remains rejected.
+        if self._vector2_data_contract(key):
+            return False
         seen = set()
         while key not in {
             ("mscorlib", "System.Object"), ("mscorlib", "System.ValueType"), ("mscorlib", "System.Enum")
