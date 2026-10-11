@@ -947,3 +947,18 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalUIHighlightTests.ListenerExceptionEscapesShowSynchronouslyAndLaterOwnedListenerRemainsRegistered',
     'ProjectLucid.Tests.OriginalUIHighlightTests.TwoNormallyOwnedComponentsKeepDistinctEventAndDefinitionObjectIdentities',
 )
+
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalNumericFSMTests.SetFloatCapturesArgumentsAndPerformsSingleArithmetic',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.InvalidSetOperationsInsertZeroBeforeTheirOriginalFault',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.SetIntRetainsSignedUncheckedArithmeticAndCapturedValues',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.CheckFloatUsesStrictToleranceAndOrderedComparisonsWithoutInsertion',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.CheckFloatRangeKeepsInclusiveBoundsNaNAndMissingReadSemantics',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.CheckIntUsesSignedComparisonsAndMissingZeroWithoutInsertion',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.DiceRollUsesGenuineRangeBeforeStorageAndRestoresOwnedRandomState',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.GenuineFactoriesRetainKeysCaseInsensitiveEnumsAndJsonRoundTrips',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.NullSetArgumentsRetainNormalBaseRegistrationBeforeFailure',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.ShortcutConstructorsRetainOriginalDefaultIdentifierRoles',
+    'ProjectLucid.Tests.OriginalNumericFSMTests.NumericFamiliesAndTooltipKeepGenuineMetadataContracts',
+)
