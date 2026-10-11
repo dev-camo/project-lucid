@@ -1037,3 +1037,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSelectableBasePreservationTests.OriginalEventInterfacesBindToDeclaredAbstractHandlers",
     "ProjectLucid.Tests.OriginalSelectableBasePreservationTests.DestructionParameterRetainsOriginalOptionalFalseDefault",
 )
+
+EDITMODE_TESTS += (
+    "OriginalHLCurveTests.OriginalCurveAndCollectionRetainCompleteDeclarationContracts",
+    "OriginalHLCurveTests.OriginalFreshCurveOwnsEmptyAnimationCurveAndPositiveZeroEnd",
+    "OriginalHLCurveTests.OriginalNormalisedSamplesUseZeroToLastKeyAndAllThreeRoutes",
+    "OriginalHLCurveTests.OriginalRawTimeSamplesPreserveOwnedLoopWrappingWithoutClamp",
+    "OriginalHLCurveTests.OriginalCollectionSerializesSixOwnedCurvesAndDirectionThroughGetters",
+)
