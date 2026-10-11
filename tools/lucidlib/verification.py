@@ -1222,3 +1222,16 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     'OriginalStringFormatterVector2SerializationTests.InactiveOriginalFormatterPreservesVector2PayloadThroughEditorJson',
 )
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalApplicationReadinessTests.AppReadinessPreservesItsOriginalFactoryAndOverrideDeclarations',
+    'ProjectLucid.Tests.OriginalApplicationReadinessTests.GuiReadinessPreservesItsOriginalStorageSelectionAndJsonDeclarations',
+    'ProjectLucid.Tests.OriginalApplicationReadinessTests.OpenUiContainerPreservesItsOriginalFieldsFactoriesAndJsonDeclarations',
+    'ProjectLucid.Tests.OriginalApplicationReadinessTests.AppReadinessEarlyPathsRetainOwnedStorageAndTheOriginalNullFault',
+    'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.MissingLookupInsertsOneFreshValuePerKeyOnlyInDictionaryWithNew',
+    'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.ExistingNullAndExistingValueRemainPresentWithoutReplacement',
+    'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.OriginalUnsupportedObjectOperationsThrowWithoutChangingOwnedContents',
+    'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.NongenericEnumerationWorksForNewButRemainsUnsupportedForDefault',
+    'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.FindValueVisitsTheObservedValueOrderAndStopsAtItsFirstMatch',
+    'ProjectLucid.Tests.OriginalDefaultAndNewDictionaryOwnedBehaviorTests.FindValueLeavesAnEmptyNullPredicateUncalledAndPropagatesRealCallbackFaults',
+)
