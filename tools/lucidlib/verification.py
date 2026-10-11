@@ -1031,3 +1031,9 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     'ProjectLucid.Tests.OriginalScreenManagerPlayModeTests.GenuinePlayLifecycleSavesOwnedPropertiesAndTearsDown',
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalSelectableBasePreservationTests.CompleteOriginalBasesRetainAbstractSlotsAndEmptyInstanceShape",
+    "ProjectLucid.Tests.OriginalSelectableBasePreservationTests.OriginalEventInterfacesBindToDeclaredAbstractHandlers",
+    "ProjectLucid.Tests.OriginalSelectableBasePreservationTests.DestructionParameterRetainsOriginalOptionalFalseDefault",
+)

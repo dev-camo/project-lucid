@@ -14,7 +14,8 @@
     "HLInput.Runtime",
     "HLModernUI.Runtime",
     "HLUnityUI.Runtime",
-    "ProjectLucid.Screen.EngineVerification"
+    "ProjectLucid.Screen.EngineVerification",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [
     "Editor"
