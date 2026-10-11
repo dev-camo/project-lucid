@@ -348,6 +348,18 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineLeaderboardSubscribedShutdownPreservesItsSameObjectNamedAlias",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.SaveLoadFactoryIgnoresJsonAndRegistersAnOwnedOrdinaryState",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.SaveLoadNullUserFaultsBeforeTheSaveAndCoroutineBoundary",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.PublisherKeepsOwnedListIdentityOrderNullAndGenuineGuidEquality",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.PublisherInsertsDefaultNullBeforeItsOriginalListFault",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.AudioFactoriesCaptureEnumsFlagsAndTheOriginalReplayInitializer",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.AudioEnumParseFailuresPrecedeOwnedStateRegistration",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.UIFactoriesRetainNullLookupsAndTheRealGraphUserCastFault",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.MainMenuFamiliesRetainOriginalDeclarationsAndJsonFieldContracts",
+    "ProjectLucid.Tests.OriginalMainMenuFSMTests.SaveCoroutineRetainsTheOriginalNaturalDeclarationShape",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
