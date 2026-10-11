@@ -7,7 +7,9 @@
     "Unity.Addressables",
     "Unity.ResourceManager",
     "HLBinders.Runtime",
-    "HLLocalisation.Runtime"
+    "HLLocalisation.Runtime",
+    "HLInput.Runtime",
+    "HLUnityUI.Runtime"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

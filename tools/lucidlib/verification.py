@@ -938,3 +938,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.LocalAccountTests.GenuineFacadeDefaultsKeepFailedAuthenticationAndShutdownCleanup",
     "ProjectLucid.Tests.LocalAccountTests.GenuinePlayerPhotoIteratorCompletesWithoutYieldThroughLocalCallbacks",
 )
+
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalUIHighlightTests.WholeOwnersRetainSerializedFieldsAndPublicShowContract',
+    'ProjectLucid.Tests.OriginalUIHighlightTests.NormalOwnedAttachmentKeepsReferenceGettersAndNaturallyObservedShowBranch',
+    'ProjectLucid.Tests.OriginalUIHighlightTests.GenuineEventRunsOwnedListenersSynchronouslyAndRemovesOnlyThoseListeners',
+    'ProjectLucid.Tests.OriginalUIHighlightTests.ListenerExceptionEscapesShowSynchronouslyAndLaterOwnedListenerRemainsRegistered',
+    'ProjectLucid.Tests.OriginalUIHighlightTests.TwoNormallyOwnedComponentsKeepDistinctEventAndDefinitionObjectIdentities',
+)
