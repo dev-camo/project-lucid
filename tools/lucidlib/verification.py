@@ -360,6 +360,14 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMainMenuFSMTests.SaveCoroutineRetainsTheOriginalNaturalDeclarationShape",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalGuiPageLoaderTests.NormalInitialisationKeepsExactlyTheTwoShippedOverlayMappings",
+    "ProjectLucid.Tests.OriginalGuiPageLoaderTests.MissingNumericRoutesReturnBeforeAnySceneRequest",
+    "ProjectLucid.Tests.OriginalGuiPageLoaderTests.UnconstrainedGenericConversionFaultsPrecedeSceneLookup",
+    "ProjectLucid.Tests.OriginalGuiPageLoaderTests.PermanentUnmappedIdentifierAppendsOnceAndRetainsItsOriginalRecord",
+    "ProjectLucid.Tests.OriginalGuiPageLoaderTests.WholeOriginalDeclarationRetainsAllFifteenMethodsAndRealEnumProviders",
+)
+
 PLAYMODE_TESTS = (
     "ProjectLucid.Tests.OfflineStartupTests.ReachesOriginalMainMenu",
     "ProjectLucid.Tests.LocalSaveSlotTests.CreateCopyDeleteAndRestart",
