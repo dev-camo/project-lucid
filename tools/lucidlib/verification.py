@@ -1009,3 +1009,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalPairPreservationTests.ConstructorsAndPropertiesRetainDefaultAndSuppliedValues",
     "ProjectLucid.Tests.OriginalPairPreservationTests.InstanceReusesOneMutablePairForEachOwnedClosedType",
 )
+
+# Original screen orientation and enum-obsolescence helpers with owned genuine reflection.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalScreenOrientationExtensionsPreservationTests.OriginalDeclarationsRetainStaticExtensionsAndEnumOnlyConstraint',
+    'ProjectLucid.Tests.OriginalScreenOrientationExtensionsPreservationTests.LandscapeAcceptsOnlyTheTwoOriginalUnderlyingValues',
+    'ProjectLucid.Tests.OriginalScreenOrientationExtensionsPreservationTests.ObsoleteAliasesRetainAnyNonobsoleteEquivalentValue',
+    'ProjectLucid.Tests.OriginalScreenOrientationExtensionsPreservationTests.EnumBaseConstraintUsesTheActualBoxedEnumType',
+    'ProjectLucid.Tests.OriginalScreenOrientationExtensionsPreservationTests.NullAndUndefinedValuesKeepManagedReflectionFaults',
+)
