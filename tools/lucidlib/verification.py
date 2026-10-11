@@ -989,3 +989,16 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalNumericFSMTests.ShortcutConstructorsRetainOriginalDefaultIdentifierRoles',
     'ProjectLucid.Tests.OriginalNumericFSMTests.NumericFamiliesAndTooltipKeepGenuineMetadataContracts',
 )
+
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalMenuBloomPreservationTests.OriginalOwnerRetainsFieldsAttributesDefaultAndNaturalIteratorContract",
+    "ProjectLucid.Tests.OriginalMenuBloomPreservationTests.NormalInactiveAttachmentRetainsConstructorDefaultAndRequiredComponents",
+)
+
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.NonpositiveAndNaNDurationsCompleteSynchronouslyWithoutFading",
+    "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.StallRetainsEntryAlphaRejectsReentryAndFinishOnlyReleasesIt",
+    "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.PositiveFadeHoldsLastRisingSampleAndCompletesAfterRelease",
+    "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.StoppingTheOwnedCoroutineDoesNotInventCancellationCleanup",
+)
