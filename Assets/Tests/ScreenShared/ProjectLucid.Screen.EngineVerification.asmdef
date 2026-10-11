@@ -1,0 +1,10 @@
+{
+  "name": "ProjectLucid.Screen.EngineVerification",
+  "references": [
+    "HLUnityCore.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

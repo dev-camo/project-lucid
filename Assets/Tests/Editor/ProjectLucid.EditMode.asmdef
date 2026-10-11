@@ -13,7 +13,8 @@
     "HLAnalytics.Runtime",
     "HLInput.Runtime",
     "HLModernUI.Runtime",
-    "HLUnityUI.Runtime"
+    "HLUnityUI.Runtime",
+    "ProjectLucid.Screen.EngineVerification"
   ],
   "includePlatforms": [
     "Editor"

@@ -1018,3 +1018,16 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalScreenOrientationExtensionsPreservationTests.EnumBaseConstraintUsesTheActualBoxedEnumType',
     'ProjectLucid.Tests.OriginalScreenOrientationExtensionsPreservationTests.NullAndUndefinedValuesKeepManagedReflectionFaults',
 )
+
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.CompleteDeclaredManagerAndEnumShapes',
+    'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.TwoNaturalIteratorsHaveTwelveManagedRoles',
+    'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactiveAttachmentRetainsOriginalConstructorDefaults',
+    'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactiveNoChangeSuppressesCompletion',
+    'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactivePublicSubscriptionsRetainOwnedMembership',
+    'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactiveLockAndTogglePreserveOriginalGate',
+)
+
+PLAYMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalScreenManagerPlayModeTests.GenuinePlayLifecycleSavesOwnedPropertiesAndTearsDown',
+)
