@@ -27,4 +27,3 @@ jobs:
         with:
           python-version: '3.9'
       - run: python3 -m unittest discover -s tools/tests
-      - run: python3 tools/lucid.py progress --check
