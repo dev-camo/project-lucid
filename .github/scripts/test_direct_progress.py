@@ -126,6 +126,38 @@ class DirectProgressTests(unittest.TestCase):
                 self.assertIsNone(direct.gate(self.api, {"workflow_run": {"event": event}}, self.http.head))
         self.assertFalse(self.http.calls)
 
+    def test_authenticated_bot_trigger_is_ignored_without_reading_or_blessing_report(self):
+        event={"workflow_run":{"name":"Code progress","event":"pull_request",
+               "repository":{"full_name":direct.REPOSITORY},"head_sha":self.http.head,
+               "pull_requests":[{"number":7}],"actor":{"login":direct.BOT}}}
+        self.assertIsNone(direct.gate(self.api,event,self.http.head))
+        self.assertFalse(self.http.calls)
+
+    def test_forged_bot_report_cannot_skip_real_compilation(self):
+        forged=copy.deepcopy(self.http.report)
+        for rows in (forged["assemblies"], [forged["totals"]]):
+            row=next(row for row in rows if row["not_implemented"])
+            row["implemented_source_bodies"] += 1
+            row["not_implemented"] -= 1
+        forged["compiler_receipt_sha256"]="0" * 64
+        # This reproduces the self-consistent forgery accepted by the old shortcut.
+        direct.reporting_tools(ROOT)[0](forged, ROOT)
+        event={"workflow_run":{"name":"Code progress","event":"pull_request",
+               "repository":{"full_name":direct.REPOSITORY},"head_sha":self.http.head,
+               "pull_requests":[{"number":7}]}}
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/"event.json"
+            output=Path(directory)/"output"
+            path.write_text(json.dumps(event))
+            with mock.patch.dict(os.environ,{"GITHUB_EVENT_PATH":str(path),"GITHUB_OUTPUT":str(output)}), \
+                 mock.patch.object(sys,"argv",["direct_progress","gate"]):
+                direct.main()
+            self.assertIn("run=true\n",output.read_text())
+        self.assertFalse(any(c["path"].endswith("/commits/"+self.http.head) for c in self.http.calls))
+        workflow=(ROOT/".github/workflows/native-progress.yml").read_text()
+        self.assertIn("compile: ${{ steps.gate.outputs.run }}",workflow)
+        self.assertNotIn("recheck",workflow)
+
     def test_owner_current_head_gate_and_stale_or_contributor_skips(self):
         event = {"workflow_run": {"name": "Code progress", "repository": {"full_name": direct.REPOSITORY},
                                   "event": "pull_request", "head_sha": self.http.head, "pull_requests": [{"number": 7}]}}
@@ -206,21 +238,30 @@ class DirectProgressTests(unittest.TestCase):
             self.publish()
         self.assertFalse(any(c["path"].endswith("/dispatches") for c in self.http.calls))
 
-    def test_bot_commit_requires_exact_identity_allowlist_and_fresh_outputs(self):
-        validate, render, _ = direct.reporting_tools(ROOT)
-        original_read = Path.read_bytes
-        def read_fixture(path):
-            return self.http.raw if path == ROOT / "docs/code-progress.json" else original_read(path)
-        with mock.patch.object(direct, "reporting_tools", return_value=(validate, render, lambda _: ("", render(self.http.report).rstrip("\n"), ""))), \
-             mock.patch.object(Path, "read_bytes", read_fixture):
-            self.assertTrue(direct.fresh_bot_output(self.api, ROOT, ROOT, self.http.head))
-        for field in ("author", "committer"):
-            saved = self.http.commit[field]
-            self.http.commit[field] = {"login": "dev-camo"}
-            self.assertFalse(direct.fresh_bot_output(self.api, ROOT, ROOT, self.http.head))
-            self.http.commit[field] = saved
-        self.http.commit["files"].append({"filename": "Assets/Code.cs", "status": "modified"})
-        self.assertFalse(direct.fresh_bot_output(self.api, ROOT, ROOT, self.http.head))
+    def test_pr_metadata_can_lag_only_while_published_ref_stays_exact(self):
+        head="2"*40
+        self.http.reference=head
+        clock=[0]
+        def catch_up(seconds):
+            clock[0]+=seconds
+            self.http.pr["head"]["sha"]=head
+        direct.wait_for_published_head(self.api,self.http.request,"owner-progress",head,
+                                      sleep=catch_up,monotonic=lambda:clock[0],seconds=10)
+        self.assertEqual(2,clock[0])
+        self.http.pr["head"]["sha"]=self.http.head
+        self.http.reference="3"*40
+        with self.assertRaisesRegex(ValueError,"published ref changed"):
+            direct.wait_for_published_head(self.api,self.http.request,"owner-progress",head,
+                                          sleep=catch_up,monotonic=lambda:clock[0])
+
+    def test_pr_metadata_timeout_never_dispatches_or_repushes(self):
+        self.http.reference="2"*40
+        clock=[0]
+        with self.assertRaisesRegex(ValueError,"did not catch up"):
+            direct.wait_for_published_head(self.api,self.http.request,"owner-progress","2"*40,
+                sleep=lambda seconds:clock.__setitem__(0,clock[0]+seconds),monotonic=lambda:clock[0],seconds=3)
+        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
+
 
     def test_failed_owner_preflight_never_fetches_or_invokes_compiler(self):
         self.http.pr["user"]["login"] = "KyleO6"
@@ -299,13 +340,6 @@ class DirectProgressTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "still active"):
                 direct.require_stopped_marker(marker)
 
-    def test_bot_stale_report_is_rejected_instead_of_skipping_compilation(self):
-        stale = json.dumps(dict(self.http.report, source_fingerprint="a" * 64)).encode()
-        original_read = Path.read_bytes
-        def read_fixture(path):
-            return stale if path == ROOT / "docs/code-progress.json" else original_read(path)
-        with mock.patch.object(Path, "read_bytes", read_fixture), self.assertRaisesRegex(ValueError, "stale"):
-            direct.fresh_bot_output(self.api, ROOT, ROOT, self.http.head)
 
     def test_bounded_report_and_bot_identity_do_not_allow_publication(self):
         with self.assertRaisesRegex(ValueError, "exceeds bound"):

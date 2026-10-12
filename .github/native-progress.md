@@ -38,11 +38,12 @@ running on Ubuntu. No Windows/macOS runtime or gameplay proof is implied.
 
 Native refresh observes Code progress completion on PR heads, including failed
 freshness checks. Push and dispatched-check completions are ignored, preventing
-loops. A fresh, output-only github-actions commit skips recompilation. If check
+loops. Authenticated workflow events initiated by github-actions are ignored;
+that is an event filter, not approval of their report or receipt. Every admitted request compiles; bot labels and a self-consistent report do
+not establish genuine compiler authority and cannot skip compilation. If check
 dispatch failed after a successful output push, manually dispatch native refresh
-from main with the current PR number and bot head; it verifies the output-only
-commit and requests the checks without another compilation. An uncertain dispatch
-is never automatically retried. A queued run whose head or control has changed
+from main with the current PR number and head; it performs another genuine build.
+An uncertain dispatch is never automatically retried. A queued run whose head or control has changed
 fails closed. Repository-wide concurrency serializes native compilation.
 
 The driver is capped at38minutes within a40minute compile job. Cleanup is eligible

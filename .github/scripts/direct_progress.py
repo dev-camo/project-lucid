@@ -18,6 +18,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import urllib.error
 
 import native_compilation as driver
 
@@ -73,15 +74,19 @@ def validate_request(request):
 def require_current_owner(api, request):
     validate_request(request)
     pr = api.request(f"/repos/{REPOSITORY}/pulls/{request['pr']}")
-    if (pr.get("state") != "open" or pr.get("draft") or pr.get("user", {}).get("login") != "dev-camo"
-            or pr.get("head", {}).get("sha") != request["head"]
-            or (pr.get("head", {}).get("repo") or {}).get("full_name") != REPOSITORY
-            or (pr.get("base", {}).get("repo") or {}).get("full_name") != REPOSITORY):
-        raise ValueError("Contributor, stale, draft, closed or foreign PR rejected")
+    require_owner_metadata(pr, request["head"])
     branch, head = default_head(api)
     if head != request["control_commit"] or pr["head"]["ref"] == branch:
         raise ValueError("Control changed or PR targets the default-branch ref")
     return pr
+
+
+def require_owner_metadata(pr, head):
+    if (pr.get("state") != "open" or pr.get("draft") or pr.get("user", {}).get("login") != "dev-camo"
+            or pr.get("head", {}).get("sha") != head
+            or (pr.get("head", {}).get("repo") or {}).get("full_name") != REPOSITORY
+            or (pr.get("base", {}).get("repo") or {}).get("full_name") != REPOSITORY):
+        raise ValueError("Contributor, stale, draft, closed or foreign PR rejected")
 
 
 def require_workflow_context(request):
@@ -95,7 +100,8 @@ def gate(api, event, control_commit, manual_pr=0, manual_head=""):
     run = event.get("workflow_run")
     if run:
         if (run.get("repository", {}).get("full_name") != REPOSITORY or run.get("event") != "pull_request"
-                or run.get("name") != "Code progress" or len(run.get("pull_requests", [])) != 1):
+                or run.get("name") != "Code progress" or len(run.get("pull_requests", [])) != 1
+                or run.get("actor", {}).get("login") == BOT):
             return None
         number, head = run["pull_requests"][0]["number"], run["head_sha"]
     else:
@@ -116,22 +122,6 @@ def reporting_tools(control):
     return validate_public_counts, render_readme_section, split_readme
 
 
-def fresh_bot_output(api, source, control, head):
-    commit = api.request(f"/repos/{REPOSITORY}/commits/{head}")
-    files = commit.get("files", [])
-    if (any((commit.get(field) or {}).get("login") != BOT for field in ("author", "committer"))
-            or len(commit.get("parents", [])) != 1 or not files
-            or any(row["filename"] not in {"README.md", "docs/code-progress.json"}
-                   or row.get("status") != "modified" for row in files)):
-        return False
-    driver.require_control_reporting_tools(source, control)
-    validate, render, split = reporting_tools(control)
-    report = json.loads((source / "docs/code-progress.json").read_bytes())
-    validate(report, source)
-    driver.require_approved_original(report, json.loads((control / "docs/code-progress.json").read_bytes()))
-    if split((source / "README.md").read_text())[1] + "\n" != render(report):
-        raise ValueError("Bot README differs from fresh report")
-    return True
 
 
 def verify_report(raw, producer, request, run_id, control, source=None):
@@ -337,6 +327,26 @@ def dispatch_checks(api, request, head):
     return runs
 
 
+def wait_for_published_head(api, request, branch, head, sleep=time.sleep,
+                            monotonic=time.monotonic, seconds=240):
+    """Wait only for lagging PR metadata while the exact published ref is stable."""
+    deadline=monotonic()+seconds
+    ref=f"/repos/{REPOSITORY}/git/refs/heads/"+urllib.parse.quote(branch,safe="")
+    while True:
+        pr=api.request(f"/repos/{REPOSITORY}/pulls/{request['pr']}")
+        actual=pr.get("head",{}).get("sha")
+        if actual not in {request["head"],head} or pr.get("head",{}).get("ref") != branch:
+            raise ValueError("Concurrent head or branch change after publication")
+        require_owner_metadata(pr,actual)
+        if default_head(api)[1] != request["control_commit"] or api.request(ref)["object"]["sha"] != head:
+            raise ValueError("Control or published ref changed during PR metadata wait")
+        if monotonic() >= deadline:
+            raise ValueError("PR metadata did not catch up; published ref retained, no automatic retry")
+        if actual == head:
+            return
+        sleep(min(2, max(0,deadline-monotonic())))
+
+
 def publish(api, request, raw, producer, control, source):
     require_workflow_context(request)
     pr = require_current_owner(api, request)
@@ -376,6 +386,7 @@ def publish(api, request, raw, producer, control, source):
     if api.request(ref)["object"]["sha"] != head:
         raise ValueError("Concurrent commit; refuse publication")
     api.request(ref, "PATCH", {"sha": created, "force": False})
+    wait_for_published_head(api,request,pr["head"]["ref"],created)
     return created, dispatch_checks(api, request, created)
 
 
@@ -394,7 +405,7 @@ def write_outputs(values):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("mode", choices=("gate", "admit", "compile", "seal", "cleanup", "publish"))
+    parser.add_argument("mode", choices=("gate", "compile", "seal", "cleanup", "publish"))
     mode = parser.parse_args().mode
     api = GitHub()
     if mode == "cleanup":
@@ -410,20 +421,10 @@ def main():
         return
     request = json.loads(base64.b64decode(os.environ["REQUEST_BASE64"], validate=True))
     require_workflow_context(request)
-    if mode == "admit":
-        require_current_owner(api, request)
-        skip = fresh_bot_output(api, Path("source"), Path("control"), request["head"])
-        write_outputs({"compile": str(not skip).lower(), "recheck": str(skip).lower()})
-    elif mode == "compile":
+    if mode == "compile":
         compile_job(api, request)
     elif mode == "seal":
         seal_job(api, request, json.loads(os.environ["COMPILE_OUTPUTS"]))
-    elif os.environ.get("RECHECK_ONLY") == "true":
-        require_current_owner(api, request)
-        if not fresh_bot_output(api, Path("source"), Path("control"), request["head"]):
-            raise ValueError("Check-only recovery requires a fresh output-only bot commit")
-        for url in dispatch_checks(api, request, request["head"]):
-            print("Required checks requested: " + url)
     else:
         head, runs = publish(api, request, base64.b64decode(os.environ["REPORT_BASE64"], validate=True),
             json.loads(base64.b64decode(os.environ["PRODUCER_BASE64"], validate=True)), Path("control"), Path("source"))
@@ -435,6 +436,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception:
-        print("Native progress failed; inspect sanitized run state or private VM diagnostics", file=sys.stderr)
+    except Exception as error:
+        detail="HTTP " + str(error.code) if isinstance(error,urllib.error.HTTPError) else type(error).__name__
+        print("Native progress failed ("+detail+"); inspect sanitized run state or private VM diagnostics", file=sys.stderr)
         sys.exit(1)

@@ -27,8 +27,7 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      compile: ${{ steps.admit.outputs.compile }}
-      recheck: ${{ steps.admit.outputs.recheck }}
+      compile: ${{ steps.gate.outputs.run }}
       head: ${{ steps.gate.outputs.head }}
       request_base64: ${{ steps.gate.outputs.request_base64 }}
     steps:
@@ -43,18 +42,6 @@ jobs:
           PR_NUMBER: ${{ inputs.pr }}
           EXPECTED_HEAD: ${{ inputs.expected_head }}
         run: python3 control/.github/scripts/direct_progress.py gate
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        if: steps.gate.outputs.run == 'true'
-        with:
-          ref: ${{ steps.gate.outputs.head }}
-          path: source
-          persist-credentials: false
-      - id: admit
-        if: steps.gate.outputs.run == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REQUEST_BASE64: ${{ steps.gate.outputs.request_base64 }}
-        run: python3 control/.github/scripts/direct_progress.py admit
 
   compile:
     name: Native compilation and evidence
@@ -99,7 +86,7 @@ jobs:
     needs: [gate, compile]
     if: >-
       always() && !cancelled() && needs.gate.result == 'success' &&
-      (needs.compile.result == 'success' || needs.gate.outputs.recheck == 'true')
+      needs.compile.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -121,7 +108,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
-          RECHECK_ONLY: ${{ needs.gate.outputs.recheck }}
           PRODUCER_BASE64: ${{ needs.compile.outputs.producer_base64 }}
           REPORT_BASE64: ${{ needs.compile.outputs.report_base64 }}
         run: python3 control/.github/scripts/direct_progress.py publish
