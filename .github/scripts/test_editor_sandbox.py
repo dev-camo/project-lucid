@@ -113,6 +113,15 @@ class EditorSandboxTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux namespace boundary')
     def test_real_sandbox_cannot_overwrite_controller_or_seal_channels_or_read_host_processes(self):
+        # Hosted Ubuntu restricts unprivileged namespace setup. Elevate only
+        # this harmless fixture in CI; keep the production sandbox arguments
+        # and all assertions identical. Native tests use the runner account.
+        if os.environ.get('LUCID_CI_SANDBOX_ROOT') == '1' and os.geteuid() != 0:
+            result = subprocess.run(['sudo', '-n', sys.executable, str(Path(__file__).resolve()),
+                                     'EditorSandboxTests.' + self._testMethodName],
+                                    capture_output=True, text=True, timeout=30)
+            self.assertEqual(0, result.returncode, result.stderr)
+            return
         self.assertTrue(shutil.which('bwrap'), 'Install bubblewrap to run the enforced-boundary regression')
         with tempfile.TemporaryDirectory() as directory, socket.socket() as network:
             root = Path(directory).resolve()

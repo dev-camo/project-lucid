@@ -40,6 +40,8 @@ jobs:
       - name: Install the Editor sandbox test dependency
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
       - run: python -m unittest discover -s .github/scripts -p 'test_*.py' -v
+        env:
+          LUCID_CI_SANDBOX_ROOT: '1'
 
   artifact-identity:
     name: C# identity (${{ matrix.os }})
