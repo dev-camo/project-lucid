@@ -44,7 +44,7 @@ records. Original cloud saves and global rankings are not included.
 <!-- LUCID_CODE_PROGRESS:START -->
 ## Progress
 
-**9,682 of 25,897 original methods have maintained source implementations (37.39%).**
+**9,702 of 25,897 original methods have maintained source implementations (37.46%).**
 
 | Assembly | Methods with source | Original methods | Progress |
 |---|---:|---:|---:|
@@ -57,7 +57,7 @@ records. Original cloud saves and global rankings are not included.
 | HLAutoPlay.Runtime | 0 | 18 | 0.00% |
 | HLBinders.Runtime | 45 | 382 | 11.78% |
 | HLCrashReport.Runtime | 50 | 70 | 71.43% |
-| HLCrossPromo.Runtime | 0 | 235 | 0.00% |
+| HLCrossPromo.Runtime | 13 | 235 | 5.53% |
 | HLEventSystems.Runtime | 16 | 16 | 100.00% |
 | HLHaptics.Runtime | 9 | 24 | 37.50% |
 | HLInput.Runtime | 351 | 575 | 61.04% |
@@ -67,10 +67,10 @@ records. Original cloud saves and global rankings are not included.
 | HLNotifications.Runtime | 18 | 32 | 56.25% |
 | HLPhysics.Runtime | 13 | 24 | 54.17% |
 | HLRTLTextMeshPro.Runtime | 101 | 109 | 92.66% |
-| HLSplines.Runtime | 786 | 1,299 | 60.51% |
+| HLSplines.Runtime | 793 | 1,299 | 61.05% |
 | HLUnityCore.Runtime | 1,592 | 4,200 | 37.90% |
 | HLUnityUI.Runtime | 607 | 1,724 | 35.21% |
-| **Total** | **9,682** | **25,897** | **37.39%** |
+| **Total** | **9,702** | **25,897** | **37.46%** |
 
 Generated from original method signatures and compiled source. Counts are conservative: ambiguous signatures and recognized trivial or placeholder patterns are excluded, including some genuine trivial methods. These counts cover methods with original native bodies; the game is not yet playable.
 <!-- LUCID_CODE_PROGRESS:END -->

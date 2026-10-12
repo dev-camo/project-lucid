@@ -83,12 +83,12 @@
     },
     {
       "assembly": "HLCrossPromo.Runtime",
-      "implemented_source_bodies": 0,
-      "not_implemented": 235,
+      "implemented_source_bodies": 13,
+      "not_implemented": 219,
       "original_declarations": 279,
       "original_native_bodies": 235,
       "unresolved_identities": 0,
-      "withheld_bodies": 0
+      "withheld_bodies": 3
     },
     {
       "assembly": "HLEventSystems.Runtime",
@@ -173,12 +173,12 @@
     },
     {
       "assembly": "HLSplines.Runtime",
-      "implemented_source_bodies": 786,
-      "not_implemented": 343,
+      "implemented_source_bodies": 793,
+      "not_implemented": 335,
       "original_declarations": 1457,
       "original_native_bodies": 1299,
       "unresolved_identities": 72,
-      "withheld_bodies": 98
+      "withheld_bodies": 99
     },
     {
       "assembly": "HLUnityCore.Runtime",
@@ -200,7 +200,7 @@
     }
   ],
   "behavior_parity_verified": false,
-  "compiler_receipt_sha256": "b6e2e700cd42fb27211fa3e55fc1e6a3c17b7c4b1638e556da5fadd406735415",
+  "compiler_receipt_sha256": "c5bfaedb717bc7c5a567cd8fc9d1b5d51227cb9f82e87f7480d248b552bb021e",
   "generated_by": "ProjectLucid.code_progress",
   "input_binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
   "input_metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
@@ -208,13 +208,13 @@
   "native_byte_matching_verified": false,
   "schema_version": 1,
   "scope_sha256": "e7dfba0c3ea54180ebbe8684c7b9068f14c82f530be9f7547a88c2610fc38c9a",
-  "source_fingerprint": "11be36051ef9c2bfe04fe65259c84ca6ddc058825d335f5fa02a66bb4e2c82bd",
+  "source_fingerprint": "5ab6021e221f6fb3856595004ea72b0a5b9a7a0272dff76db813cfad2fd59eeb",
   "totals": {
-    "implemented_source_bodies": 9682,
-    "not_implemented": 10535,
+    "implemented_source_bodies": 9702,
+    "not_implemented": 10511,
     "original_declarations": 27332,
     "original_native_bodies": 25897,
     "unresolved_identities": 1666,
-    "withheld_bodies": 4014
+    "withheld_bodies": 4018
   }
 }
