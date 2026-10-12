@@ -10,8 +10,9 @@ No GitHub App, extra token, cross-repository dispatch, package or input artifact
 required. There are no project-specific Actions secrets or variables to configure.
 
 The runner is `lucid-builder-native`, registered directly to this public repository
-as non-sudo `lucid-runner`. The user's approved fork workflow policy is now approval
-for all outside collaborators. A repository runner can accept any matching workflow;
+as non-sudo `lucid-runner`. The user's approved fork workflow policy is
+**Require approval for first-time contributors**. Preserve that exact setting.
+A repository runner can accept any matching workflow;
 that policy must be preserved and approvals must consider the readable persistent
 runner account's Unity licensing state, runner credentials and private game input.
 Our source gate does not sandbox other workflows. Contributor compilation and fork
@@ -53,12 +54,32 @@ the exact run is terminal and no compiler is running, remove only its matching
 checkouts under `/home/lucid-runner/lucid-jobs/direct-<run>-1`. Preserve inputs,
 licensing state, unrelated runs and small private diagnostics. No broad prune.
 
-This remains a local candidate until reviewed and published. Real Actions PR update,
-all seven checks, bot recovery/skip and stale-head acceptance are not yet qualified.
-The local report now comes from genuine Linux compilation and measurement, validated
-against sealed DLL/PDB evidence and the previously approved Linux input hashes.
-Never substitute its receipt for a new source/tool fingerprint. Keep manual totals
-until the complete actual automation is verified. Test locally with:
+The workflow is deployed. PR31 exercised genuine native compilation, sealed report
+publication and a generated `github-actions[bot]` commit, followed by all seven
+protected checks on the exact published head. Automatic PR checks on that bot commit
+required normal run approval under the preserved contributor policy; after approval,
+both workflows passed. Explicit dispatched checks also passed. This qualifies the
+owner PR compilation/publication/check path. Stale-head rejection and bot-event
+filtering have regression coverage; concurrent-head recovery and contributor
+compilation/publication are not qualified by this acceptance run.
+
+The published report uses the approved stripped CDN input for Sonic Dream Team
+1.10.1, build 1022527550. Its universal Mach-O contains x86_64 and arm64; measurement
+selects x86_64. The complete binary SHA-256 is
+`e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987`,
+the selected slice is
+`8c80e6a4a3d75419548b288fac14680858a2b7ccd6fc55fb7c9fc38198de39c3`,
+and metadata version31 has SHA-256
+`88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837`.
+Keep separate Mac original-input provenance; its different binary/metadata bytes
+must not be relabeled as this input. For reviewed contributor source, use an
+owner-authored same-repository integration PR and regenerate against the existing
+canonical runner input. Dispatch from main with the current PR and exact head,
+then verify the generated head and all seven checks before merging. Never substitute
+a receipt for a new source/tool fingerprint. Generated totals come from that fresh
+report; gameplay and original-code byte parity remain unqualified.
+
+Test locally with:
 
     python3 -m unittest discover -s .github/scripts -p 'test_*.py'
 
