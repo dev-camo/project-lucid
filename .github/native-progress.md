@@ -54,8 +54,9 @@ licensing state, unrelated runs and small private diagnostics. No broad prune.
 
 This remains a local candidate until reviewed and published. Real Actions PR update,
 all seven checks, bot recovery/skip and stale-head acceptance are not yet qualified.
-The current main report is retained as historical evidence until fresh compilation;
-never substitute its receipt for a new source/tool fingerprint. Keep manual totals
+The local report now comes from genuine Linux compilation and measurement, validated
+against sealed DLL/PDB evidence and the previously approved Linux input hashes.
+Never substitute its receipt for a new source/tool fingerprint. Keep manual totals
 until the complete actual automation is verified. Test locally with:
 
     python3 -m unittest discover -s .github/scripts -p 'test_*.py'

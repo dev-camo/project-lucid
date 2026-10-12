@@ -12,8 +12,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
 
@@ -168,12 +170,65 @@ def job_root():
     return Path("/home/lucid-runner/lucid-jobs") / ("direct-" + run + "-" + attempt)
 
 
+def group_running(group):
+    # Inspect only group IDs/states, never process commands or credentials.
+    rows = subprocess.check_output(["ps", "-axo", "pgid=,stat="], text=True).splitlines()
+    return any(int(fields[0]) == group and fields[1][0] not in "ZX"
+               for row in rows if len(fields := row.split()) == 2)
+
+
+def stop_compiler_group(process):
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(process.pid, sig)
+        except ProcessLookupError:
+            pass
+        if sig == signal.SIGTERM:
+            try:
+                process.communicate(timeout=15)
+            except subprocess.TimeoutExpired:
+                pass
+    process.communicate(timeout=10)
+    deadline = time.monotonic() + 10
+    while group_running(process.pid):
+        if time.monotonic() >= deadline:
+            raise ValueError("Compiler group did not stop; preserve checkout and refuse next compilation")
+        time.sleep(0.05)
+
+
+def run_compiler(command, source, errors, marker, timeout=38 * 60):
+    process = subprocess.Popen(command, cwd=source, stdout=subprocess.PIPE, stderr=errors, start_new_session=True)
+    marker.write_text(json.dumps({"group": process.pid}) + "\n")
+    try:
+        output, _ = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        stop_compiler_group(process)
+        raise
+    if group_running(process.pid):
+        stop_compiler_group(process)
+    if process.returncode:
+        raise subprocess.CalledProcessError(process.returncode, command)
+    return output
+
+
+def require_stopped_marker(marker):
+    if not marker.exists():
+        return
+    if marker.is_symlink() or marker.parent.is_symlink():
+        raise ValueError("Symlinked compiler marker rejected")
+    group = json.loads(marker.read_bytes()).get("group")
+    if type(group) is not int or group <= 0 or group_running(group):
+        raise ValueError("Compiler group still active; refuse compilation or cleanup")
+
+
 def compile_job(api, request):
     require_workflow_context(request)
     require_current_owner(api, request)
     root = job_root()
     if root.parent.is_symlink():
         raise ValueError("Symlinked job parent rejected")
+    for marker in root.parent.glob("direct-*/compiler-group.json"):
+        require_stopped_marker(marker)
     root.mkdir(mode=0o700)
     control, source = root / "control", root / "source"
     checkout(control, request["control_commit"])
@@ -188,8 +243,8 @@ def compile_job(api, request):
         "--expected-head", request["head"], "--expected-source", artifact_fingerprint(source),
         "--image", EDITOR, "--control-commit", request["control_commit"], "--run-id", os.environ["GITHUB_RUN_ID"]]
     with (root / "private-driver-stderr.log").open("wb") as errors:
-        result = subprocess.run(command, cwd=source, check=True, stdout=subprocess.PIPE, stderr=errors, timeout=38 * 60)
-    producer = json.loads(result.stdout)
+        output = run_compiler(command, source, errors, root / "compiler-group.json")
+    producer = json.loads(output)
     raw = (source / "docs/code-progress.json").read_bytes()
     verify_report(raw, producer, request, os.environ["GITHUB_RUN_ID"], control, source)
     require_current_owner(api, request)
@@ -218,6 +273,7 @@ def cleanup_job():
     root = job_root()
     if root.is_symlink() or root.parent.is_symlink():
         raise ValueError("Refusing cleanup through symlinked job root")
+    require_stopped_marker(root / "compiler-group.json")
     for name in ("source", "control"):
         path = root / name
         if path.is_symlink():

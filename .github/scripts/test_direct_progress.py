@@ -268,6 +268,33 @@ class DirectProgressTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Foreign API"):
             self.api.request("/repos/dev-camo/other/git/refs/heads/main", "PATCH", {})
 
+    def test_timeout_stops_wrapper_and_ignored_term_child_before_cleanup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            child_pid = root / "child.pid"
+            child = "import os,signal,time; from pathlib import Path; signal.signal(signal.SIGTERM,signal.SIG_IGN); Path(" + repr(str(child_pid)) + ").write_text(str(os.getpid())); time.sleep(60)"
+            wrapper = "import subprocess,time; subprocess.Popen([" + repr(sys.executable) + ",'-c'," + repr(child) + "],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); time.sleep(60)"
+            marker = root / "compiler-group.json"
+            with (root / "errors").open("wb") as errors, self.assertRaises(subprocess.TimeoutExpired):
+                direct.run_compiler([sys.executable, "-c", wrapper], root, errors, marker, timeout=0.5)
+            group = json.loads(marker.read_bytes())["group"]
+            self.assertTrue(child_pid.exists(), "The actual child must have started before timeout")
+            self.assertFalse(direct.group_running(group))
+            direct.require_stopped_marker(marker)
+
+    def test_active_compiler_marker_blocks_checkout_cleanup_and_next_compiler(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "source").mkdir()
+            (root / "control").mkdir()
+            marker = root / "compiler-group.json"
+            marker.write_text(json.dumps({"group": os.getpgrp()}))
+            with mock.patch.object(direct, "job_root", return_value=root), self.assertRaisesRegex(ValueError, "still active"):
+                direct.cleanup_job()
+            self.assertTrue((root / "source").exists())
+            with self.assertRaisesRegex(ValueError, "still active"):
+                direct.require_stopped_marker(marker)
+
     def test_bot_stale_report_is_rejected_instead_of_skipping_compilation(self):
         stale = json.dumps(dict(self.http.report, source_fingerprint="a" * 64)).encode()
         original_read = Path.read_bytes
