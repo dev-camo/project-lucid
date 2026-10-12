@@ -207,7 +207,34 @@ class MainProgressTests(unittest.TestCase):
         check_index = next(i for i, call in enumerate(self.api.calls) if '/check-runs?' in call['path'])
         self.assertLess(check_index, merge_index)
         self.assertFalse(any(call['path'].endswith('/git/refs/heads/main') and call['method'] == 'PATCH' for call in self.api.calls))
-        self.cleanup.assert_called_once_with(self.api, self.api.branch, self.api.generated)
+        self.cleanup.assert_called_once_with(self.api, self.api.branch, self.api.generated, self.control)
+
+    def test_cleanup_failure_cannot_mask_publication_failure(self):
+        import urllib.error
+        denied = urllib.error.HTTPError('https://example.invalid', 405, 'inert denial', {}, None)
+        def fail_merge(call):
+            if call['path'].endswith('/merge'):
+                raise denied
+        self.api.hook = fail_merge
+        self.cleanup.side_effect = subprocess.CalledProcessError(128, ['git'])
+        with mock.patch('sys.stderr', new_callable=io.StringIO) as errors:
+            with self.assertRaises(urllib.error.HTTPError) as result:
+                self.publish()
+        self.assertIs(denied, result.exception)
+        self.assertIn('Generated ref cleanup failed (CalledProcessError)', errors.getvalue())
+        self.assertEqual('closed', self.api.pr['state'])
+
+    def test_ref_cleanup_still_runs_when_pr_cleanup_fails(self):
+        def fail_pr_cleanup(call):
+            if call['method'] == 'PATCH':
+                raise ValueError('inert PR cleanup failure')
+        self.api.hook = fail_pr_cleanup
+        self.api.checks = []
+        original = main.wait_for_checks
+        with mock.patch.object(main, 'wait_for_checks', side_effect=lambda *args: original(*args, seconds=0)), \
+                mock.patch('sys.stderr', new_callable=io.StringIO), self.assertRaisesRegex(ValueError, 'checks did not finish'):
+            self.publish()
+        self.cleanup.assert_called_once_with(self.api, self.api.branch, self.api.generated, self.control)
 
     def test_incomplete_failed_wrong_app_and_wrong_sha_checks_cannot_publish(self):
         states = ([*self.api.checks[:-1]],
@@ -281,17 +308,59 @@ class CleanupTests(unittest.TestCase):
         branch = 'lucid/progress-checks-456-' + api.generated[:12]
         api.refs[branch] = api.generated
         with mock.patch.dict(os.environ, {'GH_TOKEN': 'inert-fixture'}), mock.patch.object(main.subprocess, 'run') as push:
-            main.cleanup_check_ref(api, branch, api.generated)
+            main.cleanup_check_ref(api, branch, api.generated, Path('control'))
             command = push.call_args.args[0]
+            self.assertEqual(Path('control'), push.call_args.kwargs['cwd'])
             self.assertIn('--force-with-lease=refs/heads/' + branch + ':' + api.generated, command)
             self.assertIn(':refs/heads/' + branch, command)
             self.assertIn('core.hooksPath=/dev/null', command)
             push.reset_mock()
             api.refs[branch] = '9' * 40
-            main.cleanup_check_ref(api, branch, api.generated)
+            main.cleanup_check_ref(api, branch, api.generated, Path('control'))
             push.assert_not_called()
             with self.assertRaises(ValueError):
-                main.cleanup_check_ref(api, 'main', api.generated)
+                main.cleanup_check_ref(api, 'main', api.generated, Path('control'))
+
+    def test_offline_git_deletion_from_nonrepository_workspace_and_ref_race(self):
+        real_run = subprocess.run
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control, remote = root / 'control', root / 'remote.git'
+            def git(*args, cwd=root, check=True):
+                return real_run(['git', '-c', 'core.hooksPath=/dev/null', *args], cwd=cwd,
+                                check=check, capture_output=True, text=True)
+            git('init', '--bare', str(remote))
+            git('init', str(control))
+            git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                'commit', '--allow-empty', '-m', 'inert fixture', cwd=control)
+            expected = git('rev-parse', 'HEAD', cwd=control).stdout.strip()
+            api = API()
+            branch = 'lucid/progress-checks-456-' + expected[:12]
+            ref = 'refs/heads/' + branch
+            api.refs[branch] = expected
+            git('push', str(remote), 'HEAD:' + ref, cwd=control)
+            git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                'commit', '--allow-empty', '-m', 'concurrent inert fixture', cwd=control)
+            changed = git('rev-parse', 'HEAD', cwd=control).stdout.strip()
+            git('push', str(remote), 'HEAD:refs/heads/fixture', cwd=control)
+            racing = False
+            def offline_push(command, **kwargs):
+                self.assertEqual(control, kwargs['cwd'])
+                command = list(command)
+                index = command.index('https://github.com/' + main.REPOSITORY + '.git')
+                command[index] = str(remote)
+                if racing:
+                    git('--git-dir=' + str(remote), 'update-ref', ref, changed)
+                return real_run(command, **kwargs)
+            with mock.patch.dict(os.environ, {'GH_TOKEN': 'inert-fixture', 'HOME': str(root)}), \
+                    mock.patch.object(main.subprocess, 'run', side_effect=offline_push):
+                main.cleanup_check_ref(api, branch, expected, control)
+                self.assertNotEqual(0, git('--git-dir=' + str(remote), 'show-ref', '--verify', ref, check=False).returncode)
+                git('--git-dir=' + str(remote), 'update-ref', ref, expected)
+                racing = True
+                with self.assertRaises(subprocess.CalledProcessError):
+                    main.cleanup_check_ref(api, branch, expected, control)
+            self.assertEqual(changed, git('--git-dir=' + str(remote), 'rev-parse', ref).stdout.strip())
 
 
 class WorkflowTests(unittest.TestCase):

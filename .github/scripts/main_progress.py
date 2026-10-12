@@ -218,7 +218,7 @@ def wait_for_checks(api, request, branch, head, *, sleep=time.sleep, monotonic=t
         sleep(min(2, max(0, deadline - monotonic())))
 
 
-def cleanup_check_ref(api, branch, expected):
+def cleanup_check_ref(api, branch, expected, control):
     if not re.fullmatch(r'lucid/progress-checks-[1-9][0-9]*-[0-9a-f]{12}', branch):
         raise ValueError('Ref is not owned by this publisher')
     path = f'/repos/{REPOSITORY}/git/refs/heads/' + urllib.parse.quote(branch, safe='')
@@ -239,7 +239,8 @@ def cleanup_check_ref(api, branch, expected):
     subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'credential.helper=',
                     '-c', 'credential.helper=' + helper, 'push', '--force-with-lease=' + ref + ':' + expected,
                     'https://github.com/' + REPOSITORY + '.git', ':' + ref],
-                   env=environment, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                   cwd=control, env=environment, check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def require_generated_pr(api, number, branch, head, bot_id):
@@ -336,11 +337,25 @@ def publish(api, request, raw, producer, control, source):
                         {'ref': MAIN, 'inputs': {'expected_head': published}})
         return published
     finally:
-        if number is not None and not merged:
-            pr = require_generated_pr(api, number, branch, created, user['id'])
-            if pr.get('state') == 'open':
-                api.request(f'/repos/{REPOSITORY}/pulls/{number}', 'PATCH', {'state': 'closed'})
-        cleanup_check_ref(api, branch, created)
+        # Attempt both cleanups, retaining the publication error if one fails.
+        original_error = sys.exc_info()[1]
+        cleanup_errors = []
+        try:
+            if number is not None and not merged:
+                pr = require_generated_pr(api, number, branch, created, user['id'])
+                if pr.get('state') == 'open':
+                    api.request(f'/repos/{REPOSITORY}/pulls/{number}', 'PATCH', {'state': 'closed'})
+        except Exception as error:
+            cleanup_errors.append(('PR', error))
+        try:
+            cleanup_check_ref(api, branch, created, control)
+        except Exception as error:
+            cleanup_errors.append(('ref', error))
+        for stage, error in cleanup_errors:
+            print('Generated ' + stage + ' cleanup failed (' + type(error).__name__
+                  + '); preserve remaining owned resources for inspection', file=sys.stderr)
+        if cleanup_errors and original_error is None:
+            raise cleanup_errors[0][1]
 
 
 def main():
