@@ -173,6 +173,56 @@ class ConfigurationResolverTests(unittest.TestCase):
                     scriptbindings.resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
             run.assert_not_called()
 
+    def test_changed_category_getter_aborts_gamelevels_binding_before_layout(self):
+        relative = "Assets/Scripts/Game/Configuration/GameplayLevelCategory.cs"
+        with tempfile.TemporaryDirectory(prefix="Lucid category dependency ") as directory:
+            root, work, export, mapping, comparison, path, summary = self.fixture(directory)
+            source = root / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            original = (Path(__file__).resolve().parents[2] / relative).read_bytes()
+            getter = b"public List<GameplayLevelUIEntry> GameplayEntries => m_gameplayEntries;"
+            self.assertEqual(1, original.count(getter))
+            source.write_bytes(original.replace(getter, b"public List<GameplayLevelUIEntry> GameplayEntries => null;"))
+            comparison["source_fingerprint"] = summary["source_fingerprint"] = artifact_fingerprint(root)
+            path.write_text(json.dumps(comparison))
+            game_rule = scriptbindings.CONFIGURATION_RULES[2]
+            selected = {"assets": [row for row in mapping["assets"] if row["path"] == game_rule["export_path"]]}
+            before = copy.deepcopy(selected)
+            exported = export / game_rule["export_path"]
+            exported_before = exported.read_bytes()
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary) as run:
+                with self.assertRaisesRegex(ValueError, "Maintained script behavior changed") as error:
+                    scriptbindings.resolve_bindings(root, work, export, selected, input_fingerprint=self.input_fingerprint)
+            run.assert_not_called()
+            self.assertIn(relative, str(error.exception))
+            self.assertEqual(before, selected)
+            self.assertEqual(exported_before, exported.read_bytes())
+
+    def test_changed_addunique_aborts_gamelevels_binding_before_layout(self):
+        relative = "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/ListExtensions.cs"
+        with tempfile.TemporaryDirectory(prefix="Lucid list dependency ") as directory:
+            root, work, export, mapping, comparison, path, summary = self.fixture(directory)
+            source = root / relative
+            source.parent.mkdir(parents=True, exist_ok=True)
+            original = (Path(__file__).resolve().parents[2] / relative).read_bytes()
+            contains = b"bool contains = list.Contains(entry);"
+            self.assertEqual(1, original.count(contains))
+            source.write_bytes(original.replace(contains, b"bool contains = true;"))
+            comparison["source_fingerprint"] = summary["source_fingerprint"] = artifact_fingerprint(root)
+            path.write_text(json.dumps(comparison))
+            game_rule = scriptbindings.CONFIGURATION_RULES[2]
+            selected = {"assets": [row for row in mapping["assets"] if row["path"] == game_rule["export_path"]]}
+            before = copy.deepcopy(selected)
+            exported = export / game_rule["export_path"]
+            exported_before = exported.read_bytes()
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary) as run:
+                with self.assertRaisesRegex(ValueError, "Maintained script behavior changed") as error:
+                    scriptbindings.resolve_bindings(root, work, export, selected, input_fingerprint=self.input_fingerprint)
+            run.assert_not_called()
+            self.assertIn(relative, str(error.exception))
+            self.assertEqual(before, selected)
+            self.assertEqual(exported_before, exported.read_bytes())
+
     def test_configuration_release_layout_source_and_meta_failures_remain_strict(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work, export, mapping, comparison, path, summary = self.fixture(directory)

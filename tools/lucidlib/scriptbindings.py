@@ -99,6 +99,7 @@ CONFIGURATION_RUNTIME_SOURCES = {
     "Assets/Scripts/Definitions/GameplayLevelUIEntry.cs": "a5e2245b1950df317b94aef300d63b818082ddd001c0d409f8b9b1a8b2e1ff51",
     "Assets/Scripts/Definitions/LevelDefinition.cs": "e1789c615fe0c7d6156d6ea84a355afb270706e274647fda8d9737c4668d3774",
     "Assets/Scripts/Game/Configuration/GameLevels.cs": "55a168c5e6a679435ed2d7235b9fc239a7603e4e07f251cdd2c8ba38594f4386",
+    "Assets/Scripts/Game/Configuration/GameplayLevelCategory.cs": "f57167732a9d48844f1654cea80e3f93707ae7cc71161ac8930cfdbc283e51e2",
     "Assets/Scripts/Game/Configuration/GameplayLevelDefinition.cs": "1de517a38abdf1b8077111a18aa7fdc02c15d895aa08ffd666b0c72c32f80f15",
     "Assets/Scripts/RecoveredProof/Game.Runtime.asmdef": "6dd36d13364c94e3b1032e5527f13e42e6d8de394b707e1ab85280101e1cc121",
     "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/ActiveRuntimeConfiguration.cs": "45529ea0e694140c3ae5df3fc1a883e02ad0cf0706ff19fcf65d2539bcf086c5",
@@ -107,6 +108,7 @@ CONFIGURATION_RUNTIME_SOURCES = {
     "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/RuntimeConfiguration.cs": "88474b08663263a5f872627e80c14a70e2b1e0975e5c412a128f049908b915e6",
     "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/SingleScriptableObject.cs": "a05fe680aef655cbb22c836db8ded4d5314217f4d514f81f2aa5a77915635dd5",
     "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/SystemConfigurationAsset.cs": "3f5bf61bfcf1952ce2aa3cc44ad258b839b1fdb0ed3d2ad81983c907d05f4904",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/ListExtensions.cs": "ced7f28b5b7ad774fb81a8e36ab9c32ccf9c54f781c5292e7a000de8832ccf63",
     "Packages/com.hardlight.hlunitycore/Runtime/HLUnityCore.Runtime.asmdef": "b9f3210d5cca9f7b7cc5bc458defe0e14e8df1486a17b29e517332c476347973",
     "Packages/com.hardlight.hlunitycore/Runtime/ScriptableObjectWithGuid.cs": "befb87c3cc9068308cfa3e8965ceb82602974ffcb6380a894cd68d03e364629a"
 }
