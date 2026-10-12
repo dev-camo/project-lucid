@@ -651,10 +651,12 @@ class DirectProgressTests(unittest.TestCase):
             with mock.patch.object(direct, "job_root", return_value=linked), self.assertRaises(ValueError):
                 direct.cleanup_job()
 
-    def test_no_deleted_repository_or_app_reference_in_active_path(self):
+    def test_no_deleted_repository_or_app_credential_in_contributor_controller(self):
         for name in ("scripts/direct_progress.py", "workflows/native-progress.yml"):
             text = (ROOT / ".github" / name).read_text()
             self.assertNotIn("project-lucid-build", text)
+            if name == "workflows/native-progress.yml":
+                text = text.split("  publish:", 1)[0]
             self.assertNotIn("create-github-app-token", text)
             self.assertNotIn("LUCID_PROGRESS_APP", text)
 

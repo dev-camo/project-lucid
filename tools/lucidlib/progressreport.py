@@ -48,14 +48,33 @@ def check_progress(repo_root):
             "totals": report["totals"]}
 
 
-def _require_readme_index(root, original):
-    process = subprocess.run(["git", "show", ":README.md"], cwd=root, capture_output=True)
-    if process.returncode:
-        raise ValueError("Stage README.md before generating commit progress")
-    staged = split_readme(process.stdout.decode("utf-8"))
-    working = split_readme(original.decode("utf-8"))
-    if (staged[0], staged[2]) != (working[0], working[2]):
-        raise ValueError("Stage README edits before generating commit progress")
+def check_staged_progress(repo_root):
+    """Validate a commit without measuring or staging main-owned progress."""
+    from .codeprogress import render_readme_section, validate_public_counts
+    from .progressgit import require_matching_source_index
+    root = Path(repo_root).resolve()
+    require_matching_source_index(root)
+    def read(ref, path):
+        return subprocess.check_output(['git', 'show', ref + ':' + path], cwd=root)
+    # Read the index tree once. Its identity must remain stable throughout the
+    # check; unstaged README edits are never copied into the index or workspace.
+    index = subprocess.check_output(['git', 'write-tree'], cwd=root).decode().strip()
+    head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root).decode().strip()
+    raw = read(index, SNAPSHOT)
+    if raw != read(head, SNAPSHOT):
+        raise ValueError('Generated progress snapshot is owned by main Actions; retain the published snapshot')
+    report = json.loads(raw)
+    validate_public_counts(report)  # Source freshness belongs to merged-main measurement.
+    base = split_readme(read(head, 'README.md').decode('utf-8'))[1]
+    section = split_readme(read(index, 'README.md').decode('utf-8'))[1]
+    if not base or section != base or section + '\n' != render_readme_section(report):
+        raise ValueError('Generated README section is owned by main Actions; retain the published section')
+    if (subprocess.check_output(['git', 'write-tree'], cwd=root).decode().strip() != index
+            or subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root).decode().strip() != head):
+        raise ValueError('Commit index or HEAD changed during progress validation')
+    require_matching_source_index(root)
+    return {'status': 'complete', 'source_fingerprint': report['source_fingerprint'],
+            'totals': report['totals'], 'snapshot': SNAPSHOT, 'staged': False}
 
 
 def _replace(path, content):
@@ -72,6 +91,8 @@ def _replace(path, content):
 
 
 def generate_progress(repo_root, work_dir, input_path, target="macos", stage=False):
+    if stage:
+        return check_staged_progress(repo_root)
     from .bootstrap import managed_path, validate_work_dir
     work = validate_work_dir(work_dir)
     lock = managed_path(work, "locks", "progress-publication.lock")
@@ -87,8 +108,9 @@ def generate_progress(repo_root, work_dir, input_path, target="macos", stage=Fal
 
 
 def _generate_progress(repo_root, work_dir, input_path, target, stage):
+    if stage:
+        raise ValueError('Main Actions owns staging generated totals; use check_staged_progress')
     from .codeprogress import run_code_progress, render_readme_section, validate_public_counts
-    from .progressgit import require_matching_source_index
     root = Path(repo_root).resolve()
     readme_path, snapshot_path = root / "README.md", root / SNAPSHOT
     original_readme = _regular(readme_path)
@@ -96,17 +118,11 @@ def _generate_progress(repo_root, work_dir, input_path, target, stage):
         raise ValueError("README.md is missing")
     original_snapshot = _regular(snapshot_path)
     before, _, after = split_readme(original_readme.decode("utf-8"))
-    if stage:
-        require_matching_source_index(root)
-        _require_readme_index(root, original_readme)
     result = run_code_progress(root, work_dir, input_path, target)
     report = result["public"]
     validate_public_counts(report, root)
     if _regular(readme_path) != original_readme or _regular(snapshot_path) != original_snapshot:
         raise ValueError("Progress outputs changed during measurement")
-    if stage:
-        require_matching_source_index(root)
-        _require_readme_index(root, original_readme)
     readme = (before + render_readme_section(report).rstrip("\n") + after).encode("utf-8")
     if not readme.endswith(b"\n"):
         readme += b"\n"
@@ -117,11 +133,6 @@ def _generate_progress(repo_root, work_dir, input_path, target, stage):
         if artifact_fingerprint(root) != report["source_fingerprint"]:
             raise ValueError("Source changed while publishing progress")
         check_progress(root)
-        if stage:
-            require_matching_source_index(root)
-            _require_readme_index(root, original_readme)
-            subprocess.run(["git", "add", "--", "README.md", SNAPSHOT], cwd=root, check=True)
-            require_matching_source_index(root)
     except BaseException:
         if original_snapshot is None:
             snapshot_path.unlink(missing_ok=True)

@@ -77,14 +77,13 @@ jobs:
     needs: [gate, compile]
     if: >-
       always() && !cancelled() && needs.gate.result == 'success' &&
-      needs.compile.result == 'success'
+      needs.compile.result == 'success' && github.repository == 'dev-camo/project-lucid' &&
+      github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
+    environment: lucid-progress-publish
     permissions:
-      contents: write
-      pull-requests: write
-      actions: write
-      checks: read
+      contents: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -96,9 +95,25 @@ jobs:
           ref: ${{ needs.gate.outputs.head }}
           path: source
           persist-credentials: false
-      - name: Publish generated main data through protected rebase integration
+      - name: Validate sealed main evidence before minting a write token
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
+          PRODUCER_BASE64: ${{ needs.compile.outputs.producer_base64 }}
+          REPORT_BASE64: ${{ needs.compile.outputs.report_base64 }}
+        run: python3 control/.github/scripts/main_progress.py validate
+      - name: Mint repository-scoped publisher token
+        id: publisher
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.LUCID_PROGRESS_APP_CLIENT_ID }}
+          private-key: ${{ secrets.LUCID_PROGRESS_APP_PRIVATE_KEY }}
+          owner: dev-camo
+          repositories: project-lucid
+          permission-contents: write
+      - name: Fast-forward only verified generated main data
+        env:
+          GH_TOKEN: ${{ steps.publisher.outputs.token }}
           REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
           PRODUCER_BASE64: ${{ needs.compile.outputs.producer_base64 }}
           REPORT_BASE64: ${{ needs.compile.outputs.report_base64 }}

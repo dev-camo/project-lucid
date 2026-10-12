@@ -55,7 +55,7 @@ def parser():
             command.add_argument("--target", choices=("macos", "windows", "linux"), default="macos")
             mode = command.add_mutually_exclusive_group()
             mode.add_argument("--check", action="store_true", help="check the generated table without game input or Unity")
-            mode.add_argument("--stage", action="store_true", help="refresh and stage progress for the exact Git source index")
+            mode.add_argument("--stage", action="store_true", help="validate the staged source and preserve main Actions-owned generated progress")
     return result
 
 
@@ -71,6 +71,12 @@ def main(argv=None):
                 totals = report["totals"]
                 print("progress: {} / {} original methods have maintained source bodies".format(
                     totals["implemented_source_bodies"], totals["original_native_bodies"]))
+            return 0
+        if args.command == "progress" and args.stage:
+            from lucidlib.progressreport import check_staged_progress
+            report = check_staged_progress(ROOT)
+            print(json.dumps(report, indent=2, sort_keys=True) if args.json else
+                  "progress: staged source validated; generated totals remain owned by main Actions")
             return 0
         from lucidlib.bootstrap import validate_work_dir
         work_dir = validate_work_dir(args.work_dir)

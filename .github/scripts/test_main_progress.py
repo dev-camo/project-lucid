@@ -22,16 +22,11 @@ class API:
         self.parent = 'a' * 40
         self.head = self.parent
         self.generated = 'b' * 40
-        self.published = 'c' * 40
         self.calls = []
-        self.refs = {'main': self.head}
-        self.branch = None
-        self.pr = None
         self.hook = None
-        self.checks = [{'name': name, 'head_sha': self.generated, 'status': 'completed', 'conclusion': 'success',
-                        'app': {'id': main.CHECK_APP}} for name in sorted(main.CHECKS)]
         self.identity = {'name': main.shared.BOT, 'email': '41898282+github-actions[bot]@users.noreply.github.com'}
         self.tree = None
+        self.commit = None
 
     def request(self, path, method='GET', body=None):
         call = {'path': path, 'method': method, 'body': copy.deepcopy(body)}
@@ -53,42 +48,18 @@ class API:
             self.tree = body
             return {'sha': 'f' * 40}
         if path == repo + '/git/commits' and method == 'POST':
+            self.commit = body
             return {'sha': self.generated}
-        if path == repo + '/git/refs' and method == 'POST':
-            self.branch = body['ref'][len('refs/heads/'):]
-            self.refs[self.branch] = body['sha']
-            return {'object': {'sha': body['sha']}}
-        if '/git/refs/heads/' in path:
-            import urllib.parse
-            branch = urllib.parse.unquote(path.split('/git/refs/heads/', 1)[1])
-            if method != 'GET':
-                raise AssertionError('Never force/direct-update protected main or use a racy API ref deletion')
-            return {'object': {'sha': self.refs[branch]}}
-        if path == repo + '/pulls' and method == 'POST':
-            self.pr = {'number': 12, 'state': 'open', 'user': {'login': main.shared.BOT, 'id': 41898282},
-                       'head': {'sha': self.generated, 'ref': self.branch, 'repo': {'full_name': main.REPOSITORY}},
-                       'base': {'sha': self.parent, 'ref': 'main', 'repo': {'full_name': main.REPOSITORY}}}
-            return copy.deepcopy(self.pr)
-        if path == repo + '/pulls/12':
-            if method == 'PATCH':
-                self.pr.update(body)
-            return copy.deepcopy(self.pr)
-        if path == repo + '/pulls/12/merge':
+        if path == repo + '/git/commits/' + self.generated:
+            return {'tree': {'sha': self.commit['tree']}, 'parents': [{'sha': p} for p in self.commit['parents']],
+                    'author': self.commit['author'], 'committer': self.commit['committer']}
+        if path == repo + '/git/refs/heads/main' and method == 'PATCH':
+            if body != {'sha': self.generated, 'force': False}:
+                raise AssertionError('Only a non-force update of generated main is permitted')
             if self.head != self.parent:
-                raise ValueError('Protected strict checks reject a behind PR')
-            if body != {'sha': self.generated, 'merge_method': 'rebase'}:
-                raise AssertionError('Only exact-head rebase publication')
-            self.head = self.published
-            self.refs['main'] = self.published
-            self.pr.update(state='closed', merged=True)
-            return {'merged': True, 'sha': self.published}
-        if path == repo + '/git/commits/' + self.published:
-            return {'tree': {'sha': 'f' * 40}, 'parents': [{'sha': self.parent}],
-                    'author': self.identity, 'committer': self.identity}
-        if '/actions/workflows/' in path and path.endswith('/dispatches'):
-            return None  # Normal GitHub 204; dispatch success is not test success.
-        if path == repo + '/commits/' + self.generated + '/check-runs?per_page=100':
-            return {'check_runs': copy.deepcopy(self.checks)}
+                raise ValueError('Atomic non-fast-forward rejection')
+            self.head = self.generated
+            return {'object': {'sha': self.generated}}
         raise AssertionError('Unexpected API operation: ' + method + ' ' + path)
 
 
@@ -105,7 +76,7 @@ class MainProgressTests(unittest.TestCase):
                        'input_binary_sha256': '3' * 64, 'input_metadata_sha256': '4' * 64}
         (self.control / 'docs/code-progress.json').write_text(json.dumps(self.report))
         (self.source / 'docs/code-progress.json').write_bytes(b'old snapshot')
-        (self.source / 'README.md').write_text('human before\nOLD\nhuman after\n')
+        (self.source / 'README.md').write_text('human before\n<!-- LUCID_CODE_PROGRESS:START -->OLD<!-- LUCID_CODE_PROGRESS:END -->\nhuman after\n')
         self.raw = json.dumps(self.report).encode()
         self.request = {'head': self.api.parent, 'control_commit': self.api.parent}
         self.producer = {**self.request, 'image': main.shared.EDITOR, 'run_id': '456',
@@ -119,9 +90,12 @@ class MainProgressTests(unittest.TestCase):
             'GITHUB_SHA': self.api.parent, 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_RUN_ID': '456', 'GH_TOKEN': 'inert-fixture'}))
         self.stack.enter_context(mock.patch.object(main.shared, 'git_head', return_value=self.api.parent))
         self.reporting = self.stack.enter_context(mock.patch.object(main.shared, 'reporting_tools', return_value=(
-            self.validate, lambda report: 'NEW\n', lambda text: ('human before\n', 'OLD', '\nhuman after\n'))))
+            self.validate, lambda report: '<!-- LUCID_CODE_PROGRESS:START -->NEW<!-- LUCID_CODE_PROGRESS:END -->\n',
+            lambda text: (text.split('<!-- LUCID_CODE_PROGRESS:START -->')[0], '', text.split('<!-- LUCID_CODE_PROGRESS:END -->')[1]))))
         self.control_check = self.stack.enter_context(mock.patch.object(main.shared.driver, 'require_control_reporting_tools'))
-        self.cleanup = self.stack.enter_context(mock.patch.object(main, 'cleanup_check_ref'))
+        self.clean = self.stack.enter_context(mock.patch.object(main, 'require_clean_checkout'))
+        self.expected = self.stack.enter_context(mock.patch.object(main, 'expected_tree', return_value='f' * 40))
+        self.stack.enter_context(mock.patch.object(main, 'git', return_value=('d' * 40 + '\n').encode()))
 
     def validate(self, report, source):
         if set(report) != set(self.report) or report['source_fingerprint'] != self.report['source_fingerprint']:
@@ -188,99 +162,97 @@ class MainProgressTests(unittest.TestCase):
         checkout.assert_not_called()
         self.assertFalse(self.mutations())
 
-    def test_bot_generated_only_pr_and_real_checks_precede_protected_rebase(self):
-        self.assertEqual(self.api.published, self.publish())
-        tree = self.api.tree['tree']
-        self.assertEqual(['README.md', 'docs/code-progress.json'], [entry['path'] for entry in tree])
-        commit = next(call['body'] for call in self.api.calls if call['path'].endswith('/git/commits') and call['method'] == 'POST')
-        self.assertEqual([self.api.parent], commit['parents'])
-        self.assertEqual(self.api.identity, commit['author'])
-        self.assertEqual(self.api.identity, commit['committer'])
+    def test_generated_only_child_fast_forward_and_bot_attribution(self):
+        self.assertEqual(self.api.generated, self.publish())
+        self.assertEqual(['README.md', 'docs/code-progress.json'], [entry['path'] for entry in self.api.tree['tree']])
+        self.assertEqual([self.api.parent], self.api.commit['parents'])
+        self.assertEqual(self.api.identity, self.api.commit['author'])
+        self.assertEqual(self.api.identity, self.api.commit['committer'])
         blobs = [base64.b64decode(call['body']['content']) for call in self.api.calls if call['path'].endswith('/git/blobs')]
-        self.assertEqual(b'human before\nNEW\nhuman after\n', blobs[0])
+        self.assertEqual(b'human before\n<!-- LUCID_CODE_PROGRESS:START -->NEW<!-- LUCID_CODE_PROGRESS:END -->\nhuman after\n', blobs[0])
         self.assertEqual(self.report, json.loads(blobs[1]))
-        dispatches = [call['body'] for call in self.api.calls if call['path'].endswith('/dispatches')]
-        self.assertEqual(4, len(dispatches))
-        self.assertTrue(all(body['inputs']['expected_head'] == self.api.generated and body['ref'] == self.api.branch for body in dispatches[:2]))
-        self.assertTrue(all(body['inputs']['expected_head'] == self.api.published and body['ref'] == 'main' for body in dispatches[2:]))
-        merge_index = next(i for i, call in enumerate(self.api.calls) if call['path'].endswith('/merge'))
-        check_index = next(i for i, call in enumerate(self.api.calls) if '/check-runs?' in call['path'])
-        self.assertLess(check_index, merge_index)
-        self.assertFalse(any(call['path'].endswith('/git/refs/heads/main') and call['method'] == 'PATCH' for call in self.api.calls))
-        self.cleanup.assert_called_once_with(self.api, self.api.branch, self.api.generated, self.control)
+        patches = [call for call in self.api.calls if call['method'] == 'PATCH']
+        self.assertEqual([{'path': '/repos/' + main.REPOSITORY + '/git/refs/heads/main', 'method': 'PATCH',
+                           'body': {'sha': self.api.generated, 'force': False}}], patches)
+        self.assertFalse(any('/pulls' in call['path'] or '/actions/' in call['path'] for call in self.api.calls))
+        self.assertFalse(any(call['method'] == 'DELETE' for call in self.api.calls))
 
-    def test_cleanup_failure_cannot_mask_publication_failure(self):
-        import urllib.error
-        denied = urllib.error.HTTPError('https://example.invalid', 405, 'inert denial', {}, None)
-        def fail_merge(call):
-            if call['path'].endswith('/merge'):
-                raise denied
-        self.api.hook = fail_merge
-        self.cleanup.side_effect = subprocess.CalledProcessError(128, ['git'])
-        with mock.patch('sys.stderr', new_callable=io.StringIO) as errors:
-            with self.assertRaises(urllib.error.HTTPError) as result:
-                self.publish()
-        self.assertIs(denied, result.exception)
-        self.assertIn('Generated ref cleanup failed (CalledProcessError)', errors.getvalue())
-        self.assertEqual('closed', self.api.pr['state'])
-
-    def test_ref_cleanup_still_runs_when_pr_cleanup_fails(self):
-        def fail_pr_cleanup(call):
-            if call['method'] == 'PATCH':
-                raise ValueError('inert PR cleanup failure')
-        self.api.hook = fail_pr_cleanup
-        self.api.checks = []
-        original = main.wait_for_checks
-        with mock.patch.object(main, 'wait_for_checks', side_effect=lambda *args: original(*args, seconds=0)), \
-                mock.patch('sys.stderr', new_callable=io.StringIO), self.assertRaisesRegex(ValueError, 'checks did not finish'):
+    def test_dirty_checkout_rejected_before_writes(self):
+        self.clean.side_effect = ValueError('unexpected content')
+        with self.assertRaises(ValueError):
             self.publish()
-        self.cleanup.assert_called_once_with(self.api, self.api.branch, self.api.generated, self.control)
+        self.assertFalse(self.mutations())
 
-    def test_incomplete_failed_wrong_app_and_wrong_sha_checks_cannot_publish(self):
-        states = ([*self.api.checks[:-1]],
-                  [{**check, 'conclusion': 'failure'} for check in self.api.checks],
-                  [{**check, 'app': {'id': 999}} for check in self.api.checks],
-                  [{**check, 'head_sha': self.api.parent} for check in self.api.checks])
-        for checks in states:
-            with self.subTest(checks=checks):
-                api = API(); api.checks = checks
-                clock = [0]
-                original = main.wait_for_checks
-                def wait(*args):
-                    return original(*args, seconds=0, sleep=lambda _: None, monotonic=lambda: clock[0])
-                with mock.patch.object(main, 'wait_for_checks', side_effect=wait), self.assertRaises(ValueError):
+    def test_missing_duplicate_or_reversed_markers_rejected_before_writes(self):
+        for content in ('human text', '<!-- LUCID_CODE_PROGRESS:START -->' * 2,
+                        '<!-- LUCID_CODE_PROGRESS:END --><!-- LUCID_CODE_PROGRESS:START -->'):
+            (self.source / 'README.md').write_text(content)
+            # Real marker ordering validation is exercised by split_readme in
+            # the offline tests; this synthetic split rejects reversed input.
+            with mock.patch.object(main.shared, 'reporting_tools', return_value=(self.validate, lambda r: 'NEW', real_split)):
+                with self.assertRaises(ValueError):
+                    self.publish()
+        self.assertFalse(self.mutations())
+
+    def test_human_suffix_without_final_newline_preserved(self):
+        readme = self.source / 'README.md'
+        readme.write_bytes(readme.read_bytes().rstrip(b'\n'))
+        self.publish()
+        blob = next(base64.b64decode(c['body']['content']) for c in self.api.calls if c['path'].endswith('/git/blobs'))
+        self.assertTrue(blob.endswith(b'human after'))
+
+    def test_noop_makes_no_mutations(self):
+        payload = main.generated_payload(self.api, self.request, self.raw, self.producer, self.control, self.source)
+        for path, data in payload.items():
+            (self.source / path).write_bytes(data)
+        self.api.calls.clear()
+        self.assertEqual(self.api.parent, self.publish())
+        self.assertFalse(self.mutations())
+
+    def test_server_tree_or_commit_tamper_never_updates_main(self):
+        for kind in ('tree', 'parent', 'author', 'committer'):
+            api = API()
+            def tamper(call):
+                if kind != 'tree' and call['path'].endswith('/git/commits/' + api.generated):
+                    if kind == 'parent':
+                        api.commit['parents'] = ['9' * 40]
+                    else:
+                        api.commit[kind] = {'name': 'other', 'email': 'other@example.invalid'}
+            api.hook = tamper
+            with self.subTest(kind=kind), mock.patch.object(main, 'expected_tree', return_value=('9' if kind == 'tree' else 'f') * 40):
+                with self.assertRaises(ValueError):
                     main.publish(api, self.request, self.raw, self.producer, self.control, self.source)
-                self.assertEqual(api.parent, api.head)
-                self.assertFalse(any(call['path'].endswith('/merge') for call in api.calls))
-                self.assertEqual('closed', api.pr['state'])
+            self.assertEqual(api.parent, api.head)
+            self.assertFalse(any(c['method'] == 'PATCH' for c in api.calls))
 
-    def test_newer_failed_check_cannot_be_hidden_by_older_success(self):
-        check = self.api.checks[0]
-        self.api.checks.insert(0, {**check, 'conclusion': 'failure'})
-        with self.assertRaises(ValueError):
-            self.publish()
-        self.assertEqual(self.api.parent, self.api.head)
-
-    def test_concurrent_main_commit_during_checks_is_preserved(self):
+    def test_main_advance_during_construction_discards_stale_measurement(self):
         def advance(call):
-            if '/check-runs?' in call['path']:
-                self.api.head = '9' * 40
-                self.api.refs['main'] = self.api.head
-        self.api.hook = advance
-        with self.assertRaises(ValueError):
-            self.publish()
-        self.assertEqual('9' * 40, self.api.head)
-        self.assertFalse(any(call['path'].endswith('/merge') for call in self.api.calls))
-
-    def test_concurrent_main_commit_at_merge_is_rejected_by_strict_protection(self):
-        def advance(call):
-            if call['path'].endswith('/merge'):
+            if call['path'].endswith('/git/commits') and call['method'] == 'POST':
                 self.api.head = '9' * 40
         self.api.hook = advance
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, 'Main advanced'):
             self.publish()
         self.assertEqual('9' * 40, self.api.head)
-        self.assertFalse(any(call['body'] == {'force': True} for call in self.api.calls))
+        self.assertFalse(any(c['method'] == 'PATCH' for c in self.api.calls))
+
+    def test_main_race_at_update_is_atomically_rejected_without_retry(self):
+        def advance(call):
+            if call['method'] == 'PATCH':
+                self.api.head = '9' * 40
+        self.api.hook = advance
+        with self.assertRaisesRegex(ValueError, 'non-fast-forward'):
+            self.publish()
+        self.assertEqual('9' * 40, self.api.head)
+        self.assertEqual(1, len([c for c in self.api.calls if c['method'] == 'PATCH']))
+
+    def test_uncertain_update_never_retries(self):
+        def uncertain(call):
+            if call['method'] == 'PATCH':
+                raise TimeoutError('inert transport uncertainty')
+        self.api.hook = uncertain
+        with self.assertRaises(TimeoutError):
+            self.publish()
+        self.assertEqual(1, len([c for c in self.api.calls if c['method'] == 'PATCH']))
 
     def test_compiler_command_has_original_inputs_only_for_main_measurement(self):
         main_command = main.compiler_command(self.control, self.source, self.api.parent, self.api.parent, '1' * 64)
@@ -302,65 +274,58 @@ class MainProgressTests(unittest.TestCase):
 
 
 
-class CleanupTests(unittest.TestCase):
-    def test_exact_lease_deletion_and_changed_ref_preservation(self):
-        api = API()
-        branch = 'lucid/progress-checks-456-' + api.generated[:12]
-        api.refs[branch] = api.generated
-        with mock.patch.dict(os.environ, {'GH_TOKEN': 'inert-fixture'}), mock.patch.object(main.subprocess, 'run') as push:
-            main.cleanup_check_ref(api, branch, api.generated, Path('control'))
-            command = push.call_args.args[0]
-            self.assertEqual(Path('control'), push.call_args.kwargs['cwd'])
-            self.assertIn('--force-with-lease=refs/heads/' + branch + ':' + api.generated, command)
-            self.assertIn(':refs/heads/' + branch, command)
-            self.assertIn('core.hooksPath=/dev/null', command)
-            push.reset_mock()
-            api.refs[branch] = '9' * 40
-            main.cleanup_check_ref(api, branch, api.generated, Path('control'))
-            push.assert_not_called()
-            with self.assertRaises(ValueError):
-                main.cleanup_check_ref(api, 'main', api.generated, Path('control'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+from lucidlib.progressreport import split_readme as real_split
 
-    def test_offline_git_deletion_from_nonrepository_workspace_and_ref_race(self):
-        real_run = subprocess.run
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            control, remote = root / 'control', root / 'remote.git'
-            def git(*args, cwd=root, check=True):
-                return real_run(['git', '-c', 'core.hooksPath=/dev/null', *args], cwd=cwd,
-                                check=check, capture_output=True, text=True)
-            git('init', '--bare', str(remote))
-            git('init', str(control))
-            git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
-                'commit', '--allow-empty', '-m', 'inert fixture', cwd=control)
-            expected = git('rev-parse', 'HEAD', cwd=control).stdout.strip()
-            api = API()
-            branch = 'lucid/progress-checks-456-' + expected[:12]
-            ref = 'refs/heads/' + branch
-            api.refs[branch] = expected
-            git('push', str(remote), 'HEAD:' + ref, cwd=control)
-            git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
-                'commit', '--allow-empty', '-m', 'concurrent inert fixture', cwd=control)
-            changed = git('rev-parse', 'HEAD', cwd=control).stdout.strip()
-            git('push', str(remote), 'HEAD:refs/heads/fixture', cwd=control)
-            racing = False
-            def offline_push(command, **kwargs):
-                self.assertEqual(control, kwargs['cwd'])
-                command = list(command)
-                index = command.index('https://github.com/' + main.REPOSITORY + '.git')
-                command[index] = str(remote)
-                if racing:
-                    git('--git-dir=' + str(remote), 'update-ref', ref, changed)
-                return real_run(command, **kwargs)
-            with mock.patch.dict(os.environ, {'GH_TOKEN': 'inert-fixture', 'HOME': str(root)}), \
-                    mock.patch.object(main.subprocess, 'run', side_effect=offline_push):
-                main.cleanup_check_ref(api, branch, expected, control)
-                self.assertNotEqual(0, git('--git-dir=' + str(remote), 'show-ref', '--verify', ref, check=False).returncode)
-                git('--git-dir=' + str(remote), 'update-ref', ref, expected)
-                racing = True
-                with self.assertRaises(subprocess.CalledProcessError):
-                    main.cleanup_check_ref(api, branch, expected, control)
-            self.assertEqual(changed, git('--git-dir=' + str(remote), 'rev-parse', ref).stdout.strip())
+
+class OfflineTreeTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        subprocess.run(['git', 'init', '-q', str(self.root)], check=True)
+        (self.root / 'docs').mkdir()
+        (self.root / 'README.md').write_bytes(b'Human prefix\n<!-- LUCID_CODE_PROGRESS:START -->old<!-- LUCID_CODE_PROGRESS:END -->human suffix')
+        (self.root / 'docs/code-progress.json').write_text('{}\n')
+        (self.root / 'human.txt').write_bytes(b'must stay identical\n')
+        subprocess.run(['git', 'add', '.'], cwd=self.root, check=True)
+        subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'inert fixture'], cwd=self.root, check=True)
+        self.head = main.shared.git_head(self.root)
+
+    def test_real_tree_replaces_only_two_regular_blobs_and_preserves_index(self):
+        main.require_clean_checkout(self.root, self.head)
+        index = main.git(self.root, 'write-tree')
+        payload = {'README.md': b'Human prefix\n<!-- LUCID_CODE_PROGRESS:START -->new<!-- LUCID_CODE_PROGRESS:END -->human suffix',
+                   'docs/code-progress.json': b'{"fixture":true}\n'}
+        tree = main.expected_tree(self.root, self.head, payload)
+        self.assertEqual(index, main.git(self.root, 'write-tree'))
+        self.assertEqual(b'README.md\ndocs/code-progress.json\n', main.git(self.root, 'diff-tree', '--no-commit-id', '--name-only', '-r', self.head, tree))
+        for path, data in payload.items():
+            self.assertEqual(data, main.git(self.root, 'show', tree + ':' + path))
+        self.assertEqual(b'must stay identical\n', main.git(self.root, 'show', tree + ':human.txt'))
+        self.assertEqual(b'', main.git(self.root, 'status', '--porcelain'))
+        with self.assertRaisesRegex(ValueError, 'Unexpected generated path'):
+            main.expected_tree(self.root, self.head, {**payload, 'human.txt': b'attack'})
+
+    def test_real_checkout_rejects_untracked_staged_and_human_edits(self):
+        for kind in ('untracked', 'human', 'staged'):
+            path = self.root / ('untracked' if kind == 'untracked' else 'human.txt')
+            path.write_text('changed')
+            if kind == 'staged':
+                subprocess.run(['git', 'add', str(path)], cwd=self.root, check=True)
+            with self.subTest(kind=kind), self.assertRaisesRegex(ValueError, 'unexpected path/content'):
+                main.require_clean_checkout(self.root, self.head)
+            if kind == 'untracked':
+                path.unlink()
+            else:
+                subprocess.run(['git', 'reset', '-q', '--hard', self.head], cwd=self.root, check=True)
+
+    def test_git_subprocess_never_inherits_token_or_workflow_channels(self):
+        with mock.patch.dict(os.environ, {'GH_TOKEN': 'inert', 'LUCID_PROGRESS_APP_PRIVATE_KEY': 'inert', 'GITHUB_OUTPUT': 'inert'}), mock.patch.object(main.subprocess, 'check_output', return_value=b'') as run:
+            main.git(self.root, 'status')
+        env = run.call_args.kwargs['env']
+        for name in ('GH_TOKEN', 'LUCID_PROGRESS_APP_PRIVATE_KEY', 'GITHUB_OUTPUT'):
+            self.assertNotIn(name, env)
 
 
 class WorkflowTests(unittest.TestCase):
@@ -386,8 +351,20 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn('cancel-in-progress: false', text)
         self.assertIn('python -m unittest discover -s tools/tests', tests)
         self.assertIn('dotnet run --project ArtifactIdentity.csproj', tests)
-        self.assertIn('pull-requests: write', native)
-        self.assertIn('checks: read', native)
+        self.assertNotIn('pull-requests: write', native)
+        self.assertNotIn('checks: read', native)
+        self.assertNotIn('actions: write', native)
+        self.assertNotIn('\n      contents: write', native)
+        publish = native.split('  publish:', 1)[1]
+        self.assertNotIn('secrets.', native.split('  publish:', 1)[0])
+        self.assertIn('environment: lucid-progress-publish', publish)
+        self.assertIn('runs-on: ubuntu-24.04', publish)
+        self.assertIn('repositories: project-lucid', publish)
+        self.assertIn('permission-contents: write', publish)
+        self.assertIn('GH_TOKEN: ${{ steps.publisher.outputs.token }}', publish)
+        self.assertLess(publish.index('main_progress.py validate'), publish.index('uses: actions/create-github-app-token@'))
+        self.assertNotIn('skip-token-revoke', publish)
+        self.assertNotIn('self-hosted', publish)
 
 
 if __name__ == '__main__':
