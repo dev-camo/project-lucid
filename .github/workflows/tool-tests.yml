@@ -37,6 +37,7 @@ jobs:
           python-version: '3.13'
       - run: echo 'Required context is a compatibility alias; this job runs on Ubuntu, not the named legacy OS.' >> "$GITHUB_STEP_SUMMARY"
       - run: python -m unittest discover -s tools/tests -v
+      - run: python -m unittest discover -s .github/scripts -p 'test_*.py' -v
 
   artifact-identity:
     name: C# identity (${{ matrix.os }})

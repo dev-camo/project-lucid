@@ -24,10 +24,19 @@ from lucidlib.verification import artifact_fingerprint
 class HTTPSFixture:
     def __init__(self):
         self.head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
-        self.request = {"pr": 7, "head": self.head, "control_commit": self.head}
+        self.request = {"pr": 7, "head": self.head, "control_commit": self.head,
+                        "head_repository": direct.REPOSITORY, "head_ref": "owner-progress", "upstream_run": 123}
         self.pr = {"number": 7, "state": "open", "draft": False, "user": {"login": "dev-camo"},
                    "head": {"sha": self.head, "ref": "owner-progress", "repo": {"full_name": direct.REPOSITORY}},
                    "base": {"repo": {"full_name": direct.REPOSITORY}}}
+        self.upstream = {"id": 123, "workflow_id": 9, "name": "Code progress", "event": "pull_request",
+                         "repository": {"full_name": direct.REPOSITORY}, "head_sha": self.head,
+                         "head_repository": {"full_name": direct.REPOSITORY}, "head_branch": "owner-progress",
+                         "status": "completed", "conclusion": "success", "pull_requests": []}
+        self.statuses = []
+        self.fork_checks = []
+        self.native_run = {"path": ".github/workflows/native-progress.yml", "head_sha": self.head,
+                           "event": "workflow_run", "conclusion": "success"}
         self.report = json.loads((ROOT / "docs/code-progress.json").read_bytes())
         # Deliberately mocked new receipt/source identity, never written to production files.
         self.report["compiler_receipt_sha256"] = "e" * 64
@@ -62,6 +71,22 @@ class HTTPSFixture:
             value = {"full_name": direct.REPOSITORY, "default_branch": "main"}
         elif path == repo + "/commits/main":
             value = {"sha": self.default}
+        elif path == repo + "/actions/runs/123":
+            value = self.upstream
+        elif path == repo + "/actions/runs/456":
+            value = self.native_run
+        elif path == repo + "/actions/workflows/code-progress.yml":
+            value = {"id": 9}
+        elif path.endswith("/runs") and "/actions/workflows/" in path:
+            value = {"workflow_runs": self.fork_checks or [self.upstream]}
+        elif path == repo + "/commits/" + self.head + "/pulls":
+            value = [self.pr]
+        elif path == repo + "/commits/" + self.head + "/statuses":
+            value = self.statuses
+        elif path.startswith(repo + "/statuses/"):
+            value = {}
+        elif path == "/repos/KyleO6/project-lucid/git/refs/heads/owner-progress":
+            value = {"object": {"sha": self.reference}}
         elif path == repo + "/pulls/7":
             value = self.pr
         elif path == repo + "/commits/" + self.head:
@@ -126,12 +151,186 @@ class DirectProgressTests(unittest.TestCase):
                 self.assertIsNone(direct.gate(self.api, {"workflow_run": {"event": event}}, self.http.head))
         self.assertFalse(self.http.calls)
 
-    def test_authenticated_bot_trigger_is_ignored_without_reading_or_blessing_report(self):
-        event={"workflow_run":{"name":"Code progress","event":"pull_request",
-               "repository":{"full_name":direct.REPOSITORY},"head_sha":self.http.head,
-               "pull_requests":[{"number":7}],"actor":{"login":direct.BOT}}}
-        self.assertIsNone(direct.gate(self.api,event,self.http.head))
-        self.assertFalse(self.http.calls)
+    def event(self):
+        return {"workflow_run": copy.deepcopy(self.http.upstream)}
+
+    def fork(self):
+        self.http.pr["user"]["login"] = "KyleO6"
+        self.http.pr["head"]["repo"]["full_name"] = "KyleO6/project-lucid"
+        self.http.pr["maintainer_can_modify"] = True
+        self.http.upstream["head_repository"]["full_name"] = "KyleO6/project-lucid"
+        self.http.request["head_repository"] = "KyleO6/project-lucid"
+
+    def test_bot_actor_without_protected_publication_proof_still_compiles(self):
+        event = self.event()
+        event["workflow_run"]["actor"] = {"login": direct.BOT}
+        self.assertEqual(self.http.request, direct.gate(self.api, event, self.http.head))
+
+    def test_fork_with_empty_pr_payload_runs_without_extra_contributor_policy(self):
+        self.fork()
+        event = self.event()
+        self.assertEqual([], event["workflow_run"]["pull_requests"])
+        self.assertEqual(self.http.request, direct.gate(self.api, event, self.http.head))
+        # The PR author's name/association is deliberately not an admission gate.
+        self.http.pr["user"]["login"] = "first-time-author"
+        self.http.pr["author_association"] = "NONE"
+        self.assertEqual(self.http.request, direct.gate(self.api, event, self.http.head))
+
+    def test_platform_run_must_be_completed_for_exact_head_including_manual_dispatch(self):
+        self.fork()
+        for key, value in (("status", "waiting"), ("conclusion", "action_required"),
+                           ("event", "push"), ("workflow_id", 10), ("head_sha", "a" * 40),
+                           ("head_branch", "other"), ("head_repository", {"full_name": "other/repo"})):
+            event = self.event()
+            saved = copy.deepcopy(self.http.upstream)
+            self.http.upstream[key] = value
+            with self.subTest(key=key):
+                self.assertIsNone(direct.gate(self.api, event, self.http.head))
+                self.assertIsNone(direct.gate(self.api, {}, self.http.head, 7, self.http.head))
+            self.http.upstream = saved
+        self.http.upstream["conclusion"] = "failure"
+        self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
+        self.assertEqual(self.http.request, direct.gate(self.api, {}, self.http.head, 7, self.http.head))
+
+    def test_unapproved_platform_run_never_fetches_or_compiles(self):
+        self.fork()
+        self.http.upstream["status"] = "waiting"
+        with mock.patch.object(direct, "checkout") as fetch, mock.patch.object(direct, "run_compiler") as run:
+            with self.assertRaisesRegex(ValueError, "Completed exact-head"):
+                direct.compile_job(self.api, self.http.request)
+        fetch.assert_not_called()
+        run.assert_not_called()
+
+    def test_generated_loop_requires_base_bot_provenance_and_successful_trusted_run(self):
+        status = {"context": direct.PUBLICATION_CONTEXT, "state": "success", "creator": {"login": direct.BOT},
+                  "target_url": f"https://github.com/{direct.REPOSITORY}/actions/runs/456"}
+        self.http.statuses = [status]
+        self.assertIsNone(direct.gate(self.api, self.event(), self.http.head))
+        for key, value in (("creator", {"login": "KyleO6"}), ("state", "failure"),
+                           ("target_url", "https://github.com/KyleO6/project-lucid/actions/runs/456")):
+            self.http.statuses = [dict(status, **{key: value})]
+            with self.subTest(key=key):
+                self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
+        self.http.statuses = [status]
+        for key, value in (("path", ".github/workflows/other.yml"), ("head_sha", "a" * 40),
+                           ("conclusion", "failure"), ("event", "pull_request")):
+            saved = copy.deepcopy(self.http.native_run)
+            self.http.native_run[key] = value
+            with self.subTest(key=key):
+                self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
+            self.http.native_run = saved
+
+    def test_fork_missing_publisher_access_fails_before_any_write(self):
+        self.fork()
+        for token, allow in (("", True), ("publisher-only-fixture", False)):
+            self.http.pr["maintainer_can_modify"] = allow
+            with self.subTest(token=bool(token)), mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": token}), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO):
+                with self.assertRaisesRegex(PermissionError, "original contributor head retained"):
+                    self.publish()
+            self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
+
+    def checks(self, head):
+        return [dict(self.http.upstream, id=800, head_sha=head,
+                     html_url=f"https://github.com/{direct.REPOSITORY}/actions/runs/800")]
+
+    def test_fork_publish_preserves_original_parent_and_observes_actual_pr_checks(self):
+        self.fork()
+        head = "2" * 40
+        self.http.fork_checks = self.checks(head)
+        def push(api, request, source, created):
+            self.assertEqual(head, created)
+            self.assertEqual(self.http.head, request["head"])
+            self.http.reference = created
+            self.http.pr["head"]["sha"] = created
+        with mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": "publisher-only-fixture"}), \
+             mock.patch.object(direct, "push_fork", side_effect=push) as pushed:
+            published, runs = self.publish()
+        self.assertEqual(head, published)
+        self.assertEqual(2, len(runs))
+        pushed.assert_called_once()
+        created = next(c for c in self.http.calls if c["path"].endswith("/git/commits") and c["method"] == "POST")
+        self.assertEqual([self.http.head], created["body"]["parents"])
+        self.assertEqual(direct.BOT, created["body"]["author"]["name"])
+        self.assertFalse(any(c["path"].endswith("/dispatches") for c in self.http.calls))
+        self.assertFalse(any(c["method"] == "PATCH" for c in self.http.calls))
+        fork_reads = [c for c in self.http.calls if c["path"].startswith("/repos/KyleO6/")]
+        self.assertTrue(fork_reads)
+        self.assertTrue(all("Authorization" not in c["headers"] for c in fork_reads))
+
+    def test_fork_checks_cannot_claim_default_branch_or_stale_head_runs(self):
+        self.fork()
+        self.http.fork_checks = self.checks("a" * 40)
+        with self.assertRaisesRegex(ValueError, "checks not observed"):
+            direct.wait_for_fork_checks(self.api, self.http.request, self.http.head, seconds=0)
+        self.http.fork_checks = self.checks(self.http.head)
+        self.http.fork_checks[0]["head_repository"]["full_name"] = direct.REPOSITORY
+        with self.assertRaisesRegex(ValueError, "checks not observed"):
+            direct.wait_for_fork_checks(self.api, self.http.request, self.http.head, seconds=0)
+        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
+
+    def test_fork_push_uses_only_hosted_credential_and_atomic_exact_parent_lease(self):
+        self.fork()
+        with mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": "publisher-only-fixture", "GITHUB_TOKEN": "never-child"}), \
+             mock.patch.object(direct.subprocess, "run") as git:
+            direct.push_fork(self.api, self.http.request, ROOT, "2" * 40)
+        push = git.call_args_list[-1]
+        command = push.args[0]
+        self.assertIn("--force-with-lease=refs/heads/owner-progress:" + self.http.head, command)
+        self.assertIn("https://github.com/KyleO6/project-lucid.git", command)
+        self.assertIn("2" * 40 + ":refs/heads/owner-progress", command)
+        self.assertNotIn("publisher-only-fixture", " ".join(command))
+        self.assertEqual("publisher-only-fixture", push.kwargs["env"]["LUCID_FORK_TOKEN"])
+        self.assertNotIn("GH_TOKEN", push.kwargs["env"])
+        self.assertNotIn("GITHUB_TOKEN", push.kwargs["env"])
+
+    def test_real_git_fork_push_preserves_concurrent_contributor_commit(self):
+        self.fork()
+        execute = subprocess.run
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            control, source, remote = root / "control", root / "source", root / "fork.git"
+            execute(["git", "clone", "-q", "--shared", str(ROOT), str(control)], check=True)
+            execute(["git", "clone", "-q", "--shared", str(control), str(source)], check=True)
+            execute(["git", "clone", "-q", "--bare", str(control), str(remote)], check=True)
+            ref = "refs/heads/owner-progress"
+            execute(["git", "update-ref", ref, self.http.head], cwd=remote, check=True)
+            (control / "README.md").write_text("Generated-only fixture\n")
+            execute(["git", "add", "README.md"], cwd=control, check=True)
+            execute(["git", "-c", "user.name=" + direct.BOT, "-c", "user.email=fixture@example.invalid",
+                     "commit", "-qm", "Generated fixture"], cwd=control, check=True)
+            created = direct.git_head(control)
+            def local_git(command, **kwargs):
+                command = [str(remote) if item == "https://github.com/KyleO6/project-lucid.git" else item
+                           for item in command]
+                return execute(command, **kwargs)
+            with mock.patch.dict(os.environ, {"LUCID_FORK_TOKEN": "publisher-only-fixture"}), \
+                 mock.patch.object(direct.subprocess, "run", side_effect=local_git):
+                direct.push_fork(self.api, self.http.request, source, created)
+                self.assertEqual(created, subprocess.check_output(["git", "rev-parse", ref], cwd=remote, text=True).strip())
+                # A contributor advances the actual remote after our API read.
+                (control / "README.md").write_text("Concurrent contributor fixture\n")
+                execute(["git", "add", "README.md"], cwd=control, check=True)
+                execute(["git", "-c", "user.name=Contributor", "-c", "user.email=fixture@example.invalid",
+                         "commit", "-qm", "Concurrent fixture"], cwd=control, check=True)
+                concurrent = direct.git_head(control)
+                execute(["git", "push", "-q", str(remote), "HEAD:" + ref], cwd=control, check=True)
+                with self.assertRaises(subprocess.CalledProcessError):
+                    direct.push_fork(self.api, self.http.request, source, created)
+                self.assertEqual(concurrent, subprocess.check_output(["git", "rev-parse", ref], cwd=remote, text=True).strip())
+
+    def test_compiler_environment_excludes_controller_tokens_and_output_channels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            process = mock.Mock(pid=987, returncode=0)
+            process.communicate.return_value = (b"fixture", None)
+            with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": "never-child", "LUCID_FORK_TOKEN": "never-child"}), \
+                 mock.patch.object(direct.subprocess, "Popen", return_value=process) as spawn, \
+                 mock.patch.object(direct, "group_running", return_value=False):
+                self.assertEqual(b"fixture", direct.run_compiler(["fixture"], root, None, root / "marker"))
+            environment = spawn.call_args.kwargs["env"]
+            for key in ("GH_TOKEN", "GITHUB_OUTPUT", "REQUEST_BASE64", "LUCID_FORK_TOKEN"):
+                self.assertNotIn(key, environment)
 
     def test_forged_bot_report_cannot_skip_real_compilation(self):
         forged=copy.deepcopy(self.http.report)
@@ -142,9 +341,7 @@ class DirectProgressTests(unittest.TestCase):
         forged["compiler_receipt_sha256"]="0" * 64
         # This reproduces the self-consistent forgery accepted by the old shortcut.
         direct.reporting_tools(ROOT)[0](forged, ROOT)
-        event={"workflow_run":{"name":"Code progress","event":"pull_request",
-               "repository":{"full_name":direct.REPOSITORY},"head_sha":self.http.head,
-               "pull_requests":[{"number":7}]}}
+        event = self.event()
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/"event.json"
             output=Path(directory)/"output"
@@ -158,12 +355,10 @@ class DirectProgressTests(unittest.TestCase):
         self.assertIn("compile: ${{ steps.gate.outputs.run }}",workflow)
         self.assertNotIn("recheck",workflow)
 
-    def test_owner_current_head_gate_and_stale_or_contributor_skips(self):
-        event = {"workflow_run": {"name": "Code progress", "repository": {"full_name": direct.REPOSITORY},
-                                  "event": "pull_request", "head_sha": self.http.head, "pull_requests": [{"number": 7}]}}
+    def test_current_head_gate_and_stale_or_changed_identity_skips(self):
+        event = self.event()
         self.assertEqual(self.http.request, direct.gate(self.api, event, self.http.head))
-        for mutate in (lambda: self.http.pr["user"].update(login="KyleO6"),
-                       lambda: self.http.pr["head"].update(sha="a" * 40),
+        for mutate in (lambda: self.http.pr["head"].update(sha="a" * 40),
                        lambda: self.http.pr["head"]["repo"].update(full_name="KyleO6/project-lucid"),
                        lambda: self.http.pr.update(draft=True), lambda: self.http.pr.update(state="closed")):
             saved = copy.deepcopy(self.http.pr)
@@ -263,8 +458,8 @@ class DirectProgressTests(unittest.TestCase):
         self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
 
 
-    def test_failed_owner_preflight_never_fetches_or_invokes_compiler(self):
-        self.http.pr["user"]["login"] = "KyleO6"
+    def test_failed_pr_preflight_never_fetches_or_invokes_compiler(self):
+        self.http.pr["draft"] = True
         with mock.patch.object(direct, "checkout") as fetch, mock.patch.object(direct.subprocess, "run") as run, self.assertRaises(ValueError):
             direct.compile_job(self.api, self.http.request)
         fetch.assert_not_called()

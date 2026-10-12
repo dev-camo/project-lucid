@@ -26,6 +26,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
       compile: ${{ steps.gate.outputs.run }}
       head: ${{ steps.gate.outputs.head }}
@@ -52,6 +53,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     env:
       REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
       LUCID_UNITY_EDITOR: /opt/unity/Editor/Unity
@@ -88,11 +90,12 @@ jobs:
       always() && !cancelled() && needs.gate.result == 'success' &&
       needs.compile.result == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: write
       pull-requests: read
       actions: write
+      statuses: write
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -107,6 +110,9 @@ jobs:
       - name: Publish generated outputs and start required checks
         env:
           GH_TOKEN: ${{ github.token }}
+          # This optional credential is used only by trusted hosted publication.
+          # It must support maintainer edits to contributor forks and trigger PR checks.
+          LUCID_FORK_TOKEN: ${{ secrets.LUCID_FORK_TOKEN }}
           REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
           PRODUCER_BASE64: ${{ needs.compile.outputs.producer_base64 }}
           REPORT_BASE64: ${{ needs.compile.outputs.report_base64 }}

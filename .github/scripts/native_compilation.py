@@ -1,8 +1,8 @@
 """Trusted-source Linux driver for a native VM or a prepared container.
 
 No activation, credentials, runner registration or publication is performed.
-Run with xvfb-run -a if no display server is available. Contributor execution is
-not qualified: the calling controller must admit only trusted maintainer source.
+Run with xvfb-run -a if no display server is available. The calling controller
+requires a completed PR workflow admitted by GitHub's contributor approval policy.
 """
 import argparse
 import contextlib
