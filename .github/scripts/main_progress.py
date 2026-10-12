@@ -1,7 +1,7 @@
 """Compile admitted PRs without original inputs; generate progress from merged main.
 
-Only hosted publication writes generated main data. It dispatches the real
-required checks for the generated SHA and never bypasses branch protection.
+Only hosted publication holds the dedicated app token. It may bypass PR/check
+requirements, but can only fast-forward a validated generated-only child of main.
 """
 import argparse
 import base64
@@ -11,9 +11,7 @@ import os
 from pathlib import Path
 import sys
 import subprocess
-import re
-import time
-import urllib.parse
+import tempfile
 import urllib.error
 
 import direct_progress as shared
@@ -21,10 +19,7 @@ import direct_progress as shared
 REPOSITORY = shared.REPOSITORY
 MAIN = 'main'
 REQUEST_FIELDS = {'head', 'control_commit'}
-CHECKS = {'check', 'Python (ubuntu-24.04, 3.13)', 'Python (macos-15, 3.13)',
-          'C# identity (ubuntu-24.04)', 'C# identity (windows-2025)',
-          'C# identity (macos-15)', 'C# identity (macos-15-intel)'}
-CHECK_APP = 15368
+GENERATED_PATHS = ('README.md', 'docs/code-progress.json')
 
 
 def require_main_context(request=None):
@@ -191,176 +186,132 @@ def pr_compile_job(api, request):
     print('Exact-head PR compilation verified')
 
 
-def check_ref(api, branch, expected):
-    path = f'/repos/{REPOSITORY}/git/refs/heads/' + urllib.parse.quote(branch, safe='')
-    if api.request(path)['object']['sha'] != expected:
-        raise ValueError('Generated check ref changed')
-    return path
+def git(source, *arguments, data=None, index=None):
+    # Neither the app token nor any workflow output channel reaches git.
+    environment = {key: value for key, value in os.environ.items()
+                   if key in {'PATH', 'HOME', 'LANG', 'LC_ALL'}}
+    if index is not None:
+        environment['GIT_INDEX_FILE'] = str(index)
+    return subprocess.check_output(['git', '-c', 'core.hooksPath=/dev/null', *arguments],
+                                   cwd=source, env=environment, input=data)
 
 
-def wait_for_checks(api, request, branch, head, *, sleep=time.sleep, monotonic=time.monotonic, seconds=600):
-    deadline = monotonic() + seconds
-    while True:
-        require_main_head(api, request)
-        check_ref(api, branch, head)
-        checks = api.request(f'/repos/{REPOSITORY}/commits/{head}/check-runs?per_page=100')['check_runs']
-        found = {}
-        for check in checks:
-            if check.get('name') in CHECKS and check.get('app', {}).get('id') == CHECK_APP and check.get('head_sha') == head:
-                # The API is newest first; never let an older success hide a newer failure.
-                found.setdefault(check['name'], check)
-        if any(check.get('status') == 'completed' and check.get('conclusion') != 'success' for check in found.values()):
-            raise ValueError('Generated commit required checks failed')
-        if set(found) == CHECKS and all(check.get('status') == 'completed' and check.get('conclusion') == 'success' for check in found.values()):
-            return
-        if monotonic() >= deadline:
-            raise ValueError('Generated commit required checks did not finish; main retained')
-        sleep(min(2, max(0, deadline - monotonic())))
+def require_clean_checkout(source, head):
+    if git(source, 'rev-parse', 'HEAD').decode().strip() != head:
+        raise ValueError('Checkout identity differs')
+    if git(source, 'status', '--porcelain', '--untracked-files=all'):
+        raise ValueError('Publisher checkout contains unexpected path/content changes')
+    for path in GENERATED_PATHS:
+        entry = git(source, 'ls-tree', head, '--', path).decode().strip()
+        if not entry.startswith('100644 blob ') or entry.split('\t')[-1] != path:
+            raise ValueError('Generated outputs must be tracked regular files')
+        target = source / path
+        if any(part.is_symlink() for part in (target, *target.parents)) or not target.is_file():
+            raise ValueError('Generated output is missing or symlinked')
 
 
-def cleanup_check_ref(api, branch, expected, control):
-    if not re.fullmatch(r'lucid/progress-checks-[1-9][0-9]*-[0-9a-f]{12}', branch):
-        raise ValueError('Ref is not owned by this publisher')
-    path = f'/repos/{REPOSITORY}/git/refs/heads/' + urllib.parse.quote(branch, safe='')
-    try:
-        current = api.request(path)['object']['sha']
-    except urllib.error.HTTPError as error:
-        if error.code == 404:
-            return
-        raise
-    if current != expected:
-        return
-    # Git's lease makes deletion atomic; GET followed by API DELETE would lose
-    # a concurrent writer between the read and deletion.
-    helper = '!f() { printf "username=x-access-token\\npassword=%s\\n" "$GH_TOKEN"; }; f'
-    environment = {key: value for key, value in os.environ.items() if key in {'PATH', 'HOME', 'LANG', 'LC_ALL'}}
-    environment.update(GH_TOKEN=os.environ['GH_TOKEN'], GIT_TERMINAL_PROMPT='0')
-    ref = 'refs/heads/' + branch
-    subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-c', 'credential.helper=',
-                    '-c', 'credential.helper=' + helper, 'push', '--force-with-lease=' + ref + ':' + expected,
-                    'https://github.com/' + REPOSITORY + '.git', ':' + ref],
-                   cwd=control, env=environment, check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def require_generated_pr(api, number, branch, head, bot_id):
-    pr = api.request(f'/repos/{REPOSITORY}/pulls/{number}')
-    if (pr.get('user', {}).get('login') != shared.BOT or pr.get('user', {}).get('id') != bot_id
-            or pr.get('head', {}).get('sha') != head or pr.get('head', {}).get('ref') != branch
-            or pr.get('head', {}).get('repo', {}).get('full_name') != REPOSITORY
-            or pr.get('base', {}).get('ref') != MAIN
-            or pr.get('base', {}).get('repo', {}).get('full_name') != REPOSITORY):
-        raise ValueError('Generated PR ownership changed; preserve it for inspection')
-    return pr
-
-
-def publish(api, request, raw, producer, control, source):
+def generated_payload(api, request, raw, producer, control, source):
     require_main_head(api, request)
     if shared.git_head(control) != request['control_commit'] or shared.git_head(source) != request['head']:
         raise ValueError('Publisher source/control checkout differs')
+    require_clean_checkout(control, request['control_commit'])
+    require_clean_checkout(source, request['head'])
     shared.driver.require_control_reporting_tools(source, control)
     report = verify_report(raw, producer, request, control, source)
     _, render, split = shared.reporting_tools(control)
-    readme = source / 'README.md'
-    if readme.is_symlink() or not readme.is_file() or readme.stat().st_size > 1024 * 1024:
+    original = (source / 'README.md').read_bytes()
+    if len(original) > 1024 * 1024:
         raise ValueError('Invalid README')
-    before, _, after = split(readme.read_text())
-    updated = (before + render(report).rstrip('\n') + after).encode()
-    updated += b'' if updated.endswith(b'\n') else b'\n'
+    # split_readme's missing-marker fallback normalizes human text. Never use
+    # that fallback with a branch bypass; the generated section must exist.
+    text = original.decode('utf-8')
+    if text.count('<!-- LUCID_CODE_PROGRESS:START -->') != 1 or text.count('<!-- LUCID_CODE_PROGRESS:END -->') != 1:
+        raise ValueError('README requires exactly one generated section')
+    before, _, after = split(text)
+    updated = (before + render(report).rstrip('\n') + after).encode('utf-8')
+    # Preserve human prefix/suffix, including a missing final newline, exactly.
+    new_before, _, new_after = split(updated.decode('utf-8'))
+    if (before, after) != (new_before, new_after):
+        raise ValueError('Generated README changed human content')
     payload = (json.dumps(report, indent=2, sort_keys=True) + '\n').encode()
-    if readme.read_bytes() == updated and (source / 'docs/code-progress.json').read_bytes() == payload:
+    return {'README.md': updated, 'docs/code-progress.json': payload}
+
+
+def expected_tree(source, head, payload):
+    if set(payload) != set(GENERATED_PATHS):
+        raise ValueError('Unexpected generated path')
+    # Build the expected Git tree using a separate index and explicit paths.
+    # This cannot absorb staged, untracked, human or mode changes.
+    with tempfile.TemporaryDirectory(prefix='lucid-progress-index-') as directory:
+        index = Path(directory) / 'index'
+        git(source, 'read-tree', head, index=index)
+        for path in GENERATED_PATHS:
+            blob = git(source, 'hash-object', '-w', '--stdin', data=payload[path]).decode().strip()
+            git(source, 'update-index', '--cacheinfo', '100644,' + blob + ',' + path, index=index)
+        tree = git(source, 'write-tree', index=index).decode().strip()
+        changed = git(source, 'diff-tree', '--no-commit-id', '--name-only', '-r', '-z', head, tree).split(b'\0')
+        if not {path.decode() for path in changed if path} <= set(GENERATED_PATHS):
+            raise ValueError('Generated tree changed an unexpected path')
+        return tree
+
+
+def require_created_commit(api, created, head, tree, identity):
+    commit = api.request(f'/repos/{REPOSITORY}/git/commits/{created}')
+    if (commit.get('tree', {}).get('sha') != tree
+            or [parent.get('sha') for parent in commit.get('parents', [])] != [head]
+            or any(commit.get(field, {}).get('name') != identity['name']
+                   or commit.get(field, {}).get('email') != identity['email']
+                   for field in ('author', 'committer'))):
+        raise ValueError('Generated commit tree, parent or bot identity differs')
+
+
+def publish(api, request, raw, producer, control, source):
+    payload = generated_payload(api, request, raw, producer, control, source)
+    if all((source / path).read_bytes() == data for path, data in payload.items()):
         return request['head']
+    expected = expected_tree(source, request['head'], payload)
     user = api.request('/users/github-actions%5Bbot%5D')
     if user.get('login') != shared.BOT or user.get('type') != 'Bot' or type(user.get('id')) is not int or user['id'] <= 0:
         raise ValueError('GitHub Actions bot identity differs')
     identity = {'name': shared.BOT, 'email': f"{user['id']}+{shared.BOT}@users.noreply.github.com"}
     commit = api.request(f"/repos/{REPOSITORY}/git/commits/{request['head']}")
+    if commit.get('tree', {}).get('sha') != git(source, 'rev-parse', request['head'] + '^{tree}').decode().strip():
+        raise ValueError('Main base tree differs from clean checkout')
     tree = []
-    for path, data in (('README.md', updated), ('docs/code-progress.json', payload)):
+    for path in GENERATED_PATHS:
         require_main_head(api, request)
-        blob = api.request(f'/repos/{REPOSITORY}/git/blobs', 'POST', {'content': base64.b64encode(data).decode(), 'encoding': 'base64'})['sha']
+        blob = api.request(f'/repos/{REPOSITORY}/git/blobs', 'POST',
+                           {'content': base64.b64encode(payload[path]).decode(), 'encoding': 'base64'})['sha']
         tree.append({'path': path, 'mode': '100644', 'type': 'blob', 'sha': blob})
     require_main_head(api, request)
     tree_sha = api.request(f'/repos/{REPOSITORY}/git/trees', 'POST', {'base_tree': commit['tree']['sha'], 'tree': tree})['sha']
+    if tree_sha != expected:
+        raise ValueError('Generated tree differs from the two validated outputs')
     created = api.request(f'/repos/{REPOSITORY}/git/commits', 'POST', {'message': 'Update verified main code progress',
                           'tree': tree_sha, 'parents': [request['head']], 'author': identity, 'committer': identity})['sha']
     if not isinstance(created, str) or not shared.SHA.fullmatch(created):
         raise ValueError('Generated commit identity differs')
-    branch = 'lucid/progress-checks-' + os.environ['GITHUB_RUN_ID'] + '-' + created[:12]
+    require_created_commit(api, created, request['head'], expected, identity)
+    # Revalidate sealed bytes and clean checkout immediately before publication.
+    # A newer main push gets its own measurement; never rebase a stale receipt.
+    if generated_payload(api, request, raw, producer, control, source) != payload:
+        raise ValueError('Generated payload changed before publication')
     require_main_head(api, request)
-    api.request(f'/repos/{REPOSITORY}/git/refs', 'POST', {'ref': 'refs/heads/' + branch, 'sha': created})
-    number = None
-    merged = False
-    try:
-        created_pr = api.request(f'/repos/{REPOSITORY}/pulls', 'POST',
-                                {'head': branch, 'base': MAIN, 'title': 'Update main code progress', 'body': ''})
-        number = created_pr.get('number')
-        if type(number) is not int or number <= 0:
-            raise ValueError('Generated PR creation unconfirmed; no automatic retry')
-        require_generated_pr(api, number, branch, created, user['id'])
-        for workflow in shared.CHECK_WORKFLOWS:
-            require_main_head(api, request)
-            check_ref(api, branch, created)
-            # A 204 response is normal. Observe actual exact-SHA check runs; an
-            # uncertain dispatch is never automatically repeated.
-            api.request(f'/repos/{REPOSITORY}/actions/workflows/{workflow}/dispatches', 'POST',
-                        {'ref': branch, 'inputs': {'expected_head': created}})
-        wait_for_checks(api, request, branch, created)
-        require_main_head(api, request)
-        pr = require_generated_pr(api, number, branch, created, user['id'])
-        if pr.get('state') != 'open' or pr.get('base', {}).get('sha') != request['head']:
-            raise ValueError('Generated PR no longer targets this measured main head')
-        # Required reviews/checks/strict freshness remain GitHub's decision.
-        # Never use an admin bypass, force update or automatic rebase retry.
-        result = api.request(f'/repos/{REPOSITORY}/pulls/{number}/merge', 'PUT',
-                             {'sha': created, 'merge_method': 'rebase'})
-        if result.get('merged') is not True or not shared.SHA.fullmatch(result.get('sha', '')):
-            raise ValueError('Protected rebase publication unavailable; no permission or rule changes attempted')
-        merged = True
-        published = result['sha']
-        actual_commit = api.request(f'/repos/{REPOSITORY}/git/commits/{published}')
-        if (actual_commit.get('tree', {}).get('sha') != tree_sha
-                or [parent.get('sha') for parent in actual_commit.get('parents', [])] != [request['head']]
-                or actual_commit.get('author', {}).get('name') != shared.BOT
-                or actual_commit.get('author', {}).get('email') != identity['email']
-                or actual_commit.get('committer', {}).get('name') != shared.BOT
-                or actual_commit.get('committer', {}).get('email') != identity['email']):
-            raise ValueError('Published tree, parent or bot identity differs; inspect without rewriting history')
-        branch_name, actual = shared.default_head(api)
-        if branch_name != MAIN or actual != published:
-            raise ValueError('Main publication superseded or unconfirmed; no automatic retry')
-        # Rebase changes the SHA. Bind the ordinary checks to the actual main
-        # commit as well; GITHUB_TOKEN writes do not trigger ordinary push runs.
-        for workflow in shared.CHECK_WORKFLOWS:
-            check_ref(api, MAIN, published)
-            api.request(f'/repos/{REPOSITORY}/actions/workflows/{workflow}/dispatches', 'POST',
-                        {'ref': MAIN, 'inputs': {'expected_head': published}})
-        return published
-    finally:
-        # Attempt both cleanups, retaining the publication error if one fails.
-        original_error = sys.exc_info()[1]
-        cleanup_errors = []
-        try:
-            if number is not None and not merged:
-                pr = require_generated_pr(api, number, branch, created, user['id'])
-                if pr.get('state') == 'open':
-                    api.request(f'/repos/{REPOSITORY}/pulls/{number}', 'PATCH', {'state': 'closed'})
-        except Exception as error:
-            cleanup_errors.append(('PR', error))
-        try:
-            cleanup_check_ref(api, branch, created, control)
-        except Exception as error:
-            cleanup_errors.append(('ref', error))
-        for stage, error in cleanup_errors:
-            print('Generated ' + stage + ' cleanup failed (' + type(error).__name__
-                  + '); preserve remaining owned resources for inspection', file=sys.stderr)
-        if cleanup_errors and original_error is None:
-            raise cleanup_errors[0][1]
+    # GitHub atomically rejects a concurrent divergent main update. No force,
+    # lease override, retry, temporary ref, PR or workflow dispatch is needed.
+    result = api.request(f'/repos/{REPOSITORY}/git/refs/heads/main', 'PATCH', {'sha': created, 'force': False})
+    if result.get('object', {}).get('sha') != created:
+        raise ValueError('Main update unconfirmed; inspect without retrying')
+    branch, actual = shared.default_head(api)
+    if branch != MAIN or actual != created:
+        raise ValueError('Main publication superseded or unconfirmed; inspect without retrying')
+    print('Generated-only main fast-forward verified; ordinary push tests will run')
+    return created
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=('gate', 'compile', 'seal', 'cleanup', 'publish', 'pr-gate', 'pr-compile'))
+    parser.add_argument('mode', choices=('gate', 'compile', 'seal', 'cleanup', 'publish', 'validate', 'pr-gate', 'pr-compile'))
     mode = parser.parse_args().mode
     if mode == 'cleanup':
         shared.cleanup_job()
@@ -380,9 +331,13 @@ def main():
     elif mode == 'seal':
         seal_job(api, request, json.loads(os.environ['COMPILE_OUTPUTS']))
     else:
-        created = publish(api, request, base64.b64decode(os.environ['REPORT_BASE64'], validate=True),
+        operation = generated_payload if mode == 'validate' else publish
+        created = operation(api, request, base64.b64decode(os.environ['REPORT_BASE64'], validate=True),
                           json.loads(base64.b64decode(os.environ['PRODUCER_BASE64'], validate=True)), Path('control'), Path('source'))
-        print('Verified merged-main generated commit: ' + created)
+        if mode == 'publish':
+            print('Verified merged-main generated commit: ' + created)
+        else:
+            print('Main report, receipt, freshness and generated-only payload validated')
 
 
 if __name__ == '__main__':

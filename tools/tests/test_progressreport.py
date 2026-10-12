@@ -141,29 +141,53 @@ class ProgressPublicationTests(unittest.TestCase):
                 self.generate()
         self.assert_preserved()
 
-    def test_unstaged_readme_edits_are_not_absorbed_by_hook(self):
-        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
-        subprocess.run(["git", "add", "README.md", "Assets"], cwd=self.root, check=True)
-        self.readme.write_text("Unstaged user instruction\n")
-        with self.assertRaisesRegex(ValueError, "Stage README edits"):
-            self.generate(stage=True)
-        self.assertEqual("Unstaged user instruction\n", self.readme.read_text())
+    def init_commit(self):
+        self.generate()
+        subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
+        subprocess.run(['git', 'add', 'README.md', 'docs', 'Assets'], cwd=self.root, check=True)
+        subprocess.run(['git', '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+                        'commit', '-qm', 'inert published fixture'], cwd=self.root, check=True)
 
-    def test_staged_readme_only_race_is_not_overwritten(self):
-        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
-        subprocess.run(["git", "add", "README.md", "Assets"], cwd=self.root, check=True)
-        def edit_index(*args):
-            oid = subprocess.check_output(["git", "hash-object", "-w", "--stdin"],
-                                          cwd=self.root, input=b"Staged-only human instructions\n").decode().strip()
-            subprocess.run(["git", "update-index", "--cacheinfo", "100644," + oid + ",README.md"],
-                           cwd=self.root, check=True)
-            return {"public": self.report}
-        with patch("lucidlib.codeprogress.run_code_progress", side_effect=edit_index):
-            with self.assertRaisesRegex(ValueError, "Stage README edits"):
-                self.generate(stage=True)
-        self.assert_preserved()
-        self.assertEqual(b"Staged-only human instructions\n", subprocess.check_output(
-            ["git", "show", ":README.md"], cwd=self.root))
+    def test_stage_validates_changed_source_without_generation_or_writes(self):
+        self.init_commit()
+        (self.root / 'Assets/Runtime.cs').write_text('// changed maintained source\n')
+        subprocess.run(['git', 'add', 'Assets'], cwd=self.root, check=True)
+        self.readme.write_text(self.readme.read_text().replace('User instructions.', 'Staged human instructions.'))
+        subprocess.run(['git', 'add', 'README.md'], cwd=self.root, check=True)
+        self.readme.write_text(self.readme.read_text() + '\nUnstaged human instructions.\n')
+        before = (self.readme.read_bytes(), self.snapshot.read_bytes(), subprocess.check_output(['git', 'write-tree'], cwd=self.root))
+        with patch('lucidlib.codeprogress.run_code_progress', side_effect=AssertionError('Hook must not measure')), \
+             patch('lucidlib.bootstrap.validate_work_dir', side_effect=AssertionError('Hook must not access cache')):
+            report = progressreport.generate_progress(self.root, self.root / 'cache', self.root / 'input', stage=True)
+        self.assertFalse(report['staged'])
+        self.assertEqual(before, (self.readme.read_bytes(), self.snapshot.read_bytes(), subprocess.check_output(['git', 'write-tree'], cwd=self.root)))
+
+    def test_stage_rejects_generated_snapshot_or_section_edits(self):
+        self.init_commit()
+        for path in (self.snapshot, self.readme):
+            original = path.read_bytes()
+            path.write_text(path.read_text().replace('One sealed', 'Guessed') if path == self.readme else '{}\n')
+            subprocess.run(['git', 'add', str(path)], cwd=self.root, check=True)
+            with self.subTest(path=path), self.assertRaisesRegex(ValueError, 'owned by main Actions'):
+                progressreport.check_staged_progress(self.root)
+            path.write_bytes(original)
+            subprocess.run(['git', 'add', str(path)], cwd=self.root, check=True)
+
+    def test_stage_retains_matching_source_index_validation(self):
+        self.init_commit()
+        (self.root / 'Assets/Runtime.cs').write_text('// unstaged source\n')
+        with self.assertRaisesRegex(ValueError, 'Stage all maintained source'):
+            progressreport.check_staged_progress(self.root)
+
+    def test_cli_stage_never_measures_stages_or_validates_cache(self):
+        spec = importlib.util.spec_from_file_location('lucid_cli_hook_test', Path(__file__).resolve().parents[1] / 'lucid.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with patch.object(progressreport, 'check_staged_progress', return_value={'status': 'complete'}) as check, \
+             patch('lucidlib.bootstrap.validate_work_dir', side_effect=AssertionError('Hook accessed cache')), \
+             patch.object(progressreport, 'generate_progress', side_effect=AssertionError('Hook generated totals')), redirect_stdout(io.StringIO()):
+            self.assertEqual(0, module.main(['progress', '--stage', '--work-dir', str(self.root / 'unused-cache')]))
+        check.assert_called_once_with(module.ROOT)
 
     def test_cli_offline_check_never_uses_cache_validation(self):
         spec = importlib.util.spec_from_file_location("lucid_cli_progress_test", Path(__file__).resolve().parents[1] / "lucid.py")
