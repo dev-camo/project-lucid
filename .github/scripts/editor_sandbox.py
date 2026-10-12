@@ -15,7 +15,8 @@ LICENSE_CLIENT = EDITOR.parent / 'Data/Resources/Licensing/Client/Unity.Licensin
 RUNTIME_PATHS = ('/usr', '/bin', '/sbin', '/lib', '/lib64', '/opt/unity/Editor',
                  '/opt/dotnet', '/opt/lucid/compat-jammy')
 SYSTEM_FILES = ('/etc/ld.so.cache', '/etc/ld.so.conf', '/etc/passwd', '/etc/group',
-                '/etc/nsswitch.conf', '/etc/localtime', '/etc/machine-id')
+                '/etc/nsswitch.conf', '/etc/localtime', '/etc/machine-id',
+                '/etc/os-release', '/etc/lsb-release')
 
 
 def licensing_sockets(pipe):
@@ -29,6 +30,14 @@ def licensing_sockets(pipe):
     return sockets
 
 
+def cached_license_files():
+    directory = Path.home() / '.config/unity3d/Unity/licenses'
+    files = sorted(directory.glob('*.xml'))
+    if any(path.is_symlink() for path in (directory, *directory.parents, *files)):
+        raise ValueError('Symlinked cached licensing input rejected')
+    return [str(path) for path in files if path.is_file()]
+
+
 @contextlib.contextmanager
 def licensing_broker(root):
     # Normal installed licensing client, with no activation/login credentials or
@@ -38,8 +47,14 @@ def licensing_broker(root):
     environment = {key: value for key, value in os.environ.items()
                    if key in {'PATH', 'HOME', 'LANG', 'LD_LIBRARY_PATH'}}
     sockets = []
+    command = [str(LICENSE_CLIENT), '--namedPipe', pipe, '--disable-auto-shutdown']
+    files = cached_license_files()
+    if files:
+        # The installed CLI's --license option loads existing files. Only this
+        # trusted host process sees them; they are never mounted for the Editor.
+        command.extend(['--license', *files])
     with (root / 'private-licensing-client.log').open('xb') as log:
-        process = subprocess.Popen([str(LICENSE_CLIENT), '--namedPipe', pipe, '--disable-auto-shutdown'],
+        process = subprocess.Popen(command,
                                    stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                    env=environment, close_fds=True, start_new_session=True)
         try:
@@ -108,7 +123,19 @@ def sandbox_command(source, home, command, sockets):
     for path in RUNTIME_PATHS + SYSTEM_FILES:
         if Path(path).exists():
             args.extend(['--ro-bind', path, path])
-    args.extend(['--ro-bind', str(source), str(source), '--chdir', str(source)])
+    # Unity rejects a read-only project directory before compiling. A private
+    # tmpfs root lets it create root markers without changing the host checkout
+    # or planting host-executed MSBuild configuration. Existing entries stay RO.
+    args.extend(['--tmpfs', str(source), '--chdir', str(source)])
+    for entry in sorted(source.iterdir()):
+        if entry.is_symlink():
+            # Reproduce links in the sandbox; never follow a PR-controlled link
+            # on the host while constructing a bind mount.
+            args.extend(['--symlink', os.readlink(entry), str(entry)])
+        elif entry.is_file() or entry.is_dir():
+            args.extend(['--ro-bind', str(entry), str(entry)])
+        else:
+            raise ValueError('Unexpected project-root entry type')
     for path in writable:
         args.extend(['--bind', str(path), str(path)])
     for path in sockets:
@@ -134,7 +161,8 @@ class EditorProcess:
     def run(self, command, **kwargs):
         if Path(command[0]) != EDITOR or set(kwargs) != {'timeout', 'stdout', 'stderr'}:
             raise ValueError('Only the pinned Editor invocation may use the sandbox launcher')
-        command = [command[0], '-nographics', '-licensingIpc', self.pipe, *command[1:]]
+        # The Editor adds "Unity-" when resolving /tmp/Unity-%s.sock.
+        command = [command[0], '-nographics', '-licensingIpc', self.pipe.removeprefix('Unity-'), *command[1:]]
         return subprocess.run(sandbox_command(self.source, self.home, command, self.sockets),
                               stdin=subprocess.DEVNULL, close_fds=True, env={}, **kwargs)
 

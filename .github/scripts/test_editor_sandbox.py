@@ -1,6 +1,7 @@
 """Real namespace regressions use harmless fixtures, never Unity or credentials."""
 import contextlib
 import os
+import platform
 from pathlib import Path
 import shutil
 import socket
@@ -39,12 +40,14 @@ class EditorSandboxTests(unittest.TestCase):
             with mock.patch.object(sandbox.subprocess, 'Popen', return_value=process) as spawn, \
                  mock.patch.object(sandbox.os, 'killpg') as stop, \
                  mock.patch.object(sandbox, 'licensing_sockets', return_value=[Path('/fixture/socket')]), \
+                 mock.patch.object(sandbox, 'cached_license_files', return_value=['/private/license.xml']), \
                  mock.patch.dict(os.environ, {'GH_TOKEN': 'never-broker', 'GITHUB_OUTPUT': 'never-broker'}):
                 with sandbox.licensing_broker(root) as (pipe, sockets):
                     self.assertTrue(pipe.startswith('Unity-LicenseClient-lucid-job-'))
                     self.assertEqual([Path('/fixture/socket')], sockets)
                 command = spawn.call_args.args[0]
-                self.assertEqual([str(sandbox.LICENSE_CLIENT), '--namedPipe', pipe, '--disable-auto-shutdown'], command)
+                self.assertEqual([str(sandbox.LICENSE_CLIENT), '--namedPipe', pipe, '--disable-auto-shutdown',
+                                  '--license', '/private/license.xml'], command)
                 self.assertNotIn('GH_TOKEN', spawn.call_args.kwargs['env'])
                 self.assertNotIn('GITHUB_OUTPUT', spawn.call_args.kwargs['env'])
                 self.assertEqual([mock.call(12345, sandbox.signal.SIGTERM), mock.call(12345, sandbox.signal.SIGKILL)],
@@ -57,11 +60,30 @@ class EditorSandboxTests(unittest.TestCase):
             process = mock.Mock(pid=12345)
             process.poll.return_value = 1
             with mock.patch.object(sandbox.subprocess, 'Popen', return_value=process), \
-                 mock.patch.object(sandbox.os, 'killpg') as stop:
+                 mock.patch.object(sandbox.os, 'killpg') as stop, \
+                 mock.patch.object(sandbox, 'cached_license_files', return_value=[]):
                 with self.assertRaisesRegex(ValueError, 'refuse unsandboxed'):
                     with sandbox.licensing_broker(root):
                         self.fail('A failed broker cannot admit the Editor')
                 self.assertEqual(2, stop.call_count)
+
+    def test_cached_license_paths_are_selected_without_reading_contents(self):
+        with tempfile.TemporaryDirectory() as directory:
+            home = Path(directory).resolve()
+            cache = home / '.config/unity3d/Unity/licenses'
+            cache.mkdir(parents=True)
+            license_file = cache / 'existing.xml'
+            license_file.write_text('private fixture; not parsed by the controller')
+            (cache / 'packages').mkdir()
+            (cache / 'packages/acl.xml').write_text('not a license')
+            with mock.patch.object(sandbox.Path, 'home', return_value=home), \
+                 mock.patch.object(sandbox.Path, 'read_bytes', side_effect=AssertionError('contents must stay private')), \
+                 mock.patch.object(sandbox.Path, 'read_text', side_effect=AssertionError('contents must stay private')):
+                self.assertEqual([str(license_file)], sandbox.cached_license_files())
+                license_file.unlink()
+                license_file.symlink_to(home / 'outside')
+                with self.assertRaisesRegex(ValueError, 'Symlinked'):
+                    sandbox.cached_license_files()
 
     def test_editor_launcher_closes_channels_and_clears_environment(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -69,7 +91,7 @@ class EditorSandboxTests(unittest.TestCase):
             home = source / 'home'
             home.mkdir()
             with mock.patch.object(sandbox.subprocess, 'run') as invoke:
-                launcher = sandbox.EditorProcess(source, home, [], 'fixture-pipe')
+                launcher = sandbox.EditorProcess(source, home, [], 'Unity-fixture-pipe')
                 launcher.run([str(sandbox.EDITOR), '-batchmode'], timeout=1800, stdout=None, stderr=None)
                 call = invoke.call_args
                 self.assertEqual({}, call.kwargs['env'])
@@ -79,6 +101,8 @@ class EditorSandboxTests(unittest.TestCase):
                 self.assertIn('--disable-userns', call.args[0])
                 self.assertIn('-nographics', call.args[0])
                 self.assertIn('-licensingIpc', call.args[0])
+                index = call.args[0].index('-licensingIpc')
+                self.assertEqual('fixture-pipe', call.args[0][index + 1])
                 with self.assertRaises(ValueError):
                     launcher.run(['/bin/sh'], timeout=1, stdout=None, stderr=None)
                 with self.assertRaises(ValueError):
@@ -135,22 +159,31 @@ class EditorSandboxTests(unittest.TestCase):
             cached_tool.parent.mkdir(parents=True)
             cached_tool.write_text('trusted executable fixture')
             (source / 'escape').symlink_to(controller)
+            (source / 'credential-link').symlink_to(credential)
             network.bind(('127.0.0.1', 0))
             network.listen()
-            code = '''import os,socket
+            os_release = platform.freedesktop_os_release()
+            expected_release = {key: os_release[key] for key in ('ID', 'VERSION_ID') if key in os_release}
+            code = '''import os,socket,platform
 from pathlib import Path
 for name in PATHS:
     try: Path(name).write_text('forged fixture')
     except OSError: pass
 assert not Path(CREDENTIAL).exists()
+assert not Path(CREDENTIAL_LINK).exists()
 assert not Path('/proc/'+str(HOST_PID)+'/environ').exists()
 assert 'GITHUB_OUTPUT' not in os.environ and 'GH_TOKEN' not in os.environ
+assert {key:platform.freedesktop_os_release()[key] for key in EXPECTED_RELEASE} == EXPECTED_RELEASE
+Path(PRIVATE_ROOT_FILE).write_text('namespace-only MSBuild fixture')
 connection=socket.socket()
 assert connection.connect_ex(('127.0.0.1',HOST_PORT)) != 0
 Path(RESULT).write_text('isolated fixture passed')
 '''
             code = ('PATHS=' + repr([str(controller), str(output), str(source / 'escape'), str(cached_tool)]) + '\n'
                     'CREDENTIAL=' + repr(str(credential)) + '\nHOST_PID=' + str(os.getpid()) + '\n'
+                    'CREDENTIAL_LINK=' + repr(str(source / 'credential-link')) + '\n'
+                    'PRIVATE_ROOT_FILE=' + repr(str(source / 'Directory.Build.props')) + '\n'
+                    'EXPECTED_RELEASE=' + repr(expected_release) + '\n'
                     'HOST_PORT=' + str(network.getsockname()[1]) + '\nRESULT=' + repr(str(home / 'result')) + '\n' + code)
             command = sandbox.sandbox_command(source, home, ['/usr/bin/python3', '-c', code], [])
             with mock.patch.dict(os.environ, {'GITHUB_OUTPUT': str(output), 'GH_TOKEN': 'private fixture'}):
@@ -160,6 +193,7 @@ Path(RESULT).write_text('isolated fixture passed')
             for path in (controller, output, credential):
                 self.assertEqual('protected fixture', path.read_text())
             self.assertEqual('trusted executable fixture', cached_tool.read_text())
+            self.assertFalse((source / 'Directory.Build.props').exists())
             self.assertEqual('isolated fixture passed', (home / 'result').read_text())
 
 
