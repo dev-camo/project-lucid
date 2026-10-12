@@ -446,6 +446,11 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
             configuration = json.loads((stage / "config.json").read_text(encoding="utf-8"))
             configuration["RequireAnyKey"] = False
             write_json(stage / "config.json", configuration)
+        if name == "dotnet":
+            # MSBuild initializes this empty SDK directory on first publish.
+            # Reserve it before sealing; subsequent files/links/children still
+            # change the exact verified closure and are rejected.
+            (stage / "metadata").mkdir(mode=0o755, exist_ok=True)
         write_json(stage / "lucid-install.json", identity)
         expected = tree_seal(stage)
         if destination.exists():

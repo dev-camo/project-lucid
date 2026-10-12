@@ -51,6 +51,20 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.archive("dotnet", {"dotnet": b"inert verified host", "shared/runtime.dll": b"inert verified dependency"}, "dotnet")
         return bootstrap._install("dotnet", self.lock, self.work)
 
+    def test_sdk_runtime_empty_metadata_directory_is_reserved_before_sealing(self):
+        sdk = self.install_fixture()
+        metadata = sdk / "metadata"
+        self.assertTrue(metadata.is_dir())
+        self.assertEqual([], list(metadata.iterdir()))
+        expected = bootstrap.tree_seal(sdk)
+        metadata.mkdir(exist_ok=True)  # Inert stand-in for the observed MSBuild mkdir.
+        self.assertEqual(expected, bootstrap.tree_seal(sdk))
+        self.assertEqual(sdk, bootstrap._install("dotnet", self.lock, self.work))
+        (metadata / "substituted-task.dll").write_bytes(b"inert untrusted SDK dependency")
+        with self.assertRaisesRegex(bootstrap.ToolError, "closure changed"):
+            bootstrap._install("dotnet", self.lock, self.work)
+        self.spawn.assert_not_called()
+
     def test_matching_public_marker_cannot_authorize_fake_sdk(self):
         artifact = self.archive("dotnet", {"dotnet": b"verified host", "runtime.dll": b"verified runtime"}, "dotnet")
         cached = self.work / "tools/dotnet"
