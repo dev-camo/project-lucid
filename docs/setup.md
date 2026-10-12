@@ -110,3 +110,60 @@ second test run against the imported project.
 If a download or extraction fails, inspect its report/log and rerun the command.
 Each export uses a fresh staging directory, and failed runs retain earlier valid
 content. Do not point an exporter at the repository root or your input bundle.
+
+## PR progress refreshes
+
+The `Progress refresh request` workflow records the PR number and exact source
+commit whenever a PR opens, reopens, or receives new commits, including fork PRs.
+Its artifact is a request, not compiler evidence. The workflow runs no checkout or
+PR code, has no write permission, and cannot update contributor branches. Fork
+workflow approval may still be required by the repository's existing policy.
+The seven existing required checks, including `Code progress`, remain unchanged.
+A request needs no action if Code progress already passes for the current head.
+
+For a stale receipt, first verify the artifact's head against the current PR on
+GitHub. Review the complete source and tooling before executing it. Use an
+isolated checkout and build environment with no GitHub write credentials; never
+run unreviewed fork code with game inputs on a persistent privileged runner.
+A clean tracked checkout, licensed matching Unity Editor, restored project
+packages, original macOS game input, and supported pinned recovery tools are
+needed. Apple silicon is the default tool host, not a universal requirement;
+bootstrap also provides other host variants and Windows file locking. Host
+support for extraction alone does not establish complete progress generation
+support on that host.
+
+In the reviewed checkout, run (replace SHA with the full reviewed commit ID):
+
+```sh
+python3 tools/lucid.py progress --refresh --expected-head SHA --target macos --input /path/to/SonicDreamTeam.app
+python3 tools/lucid.py progress --check
+git diff -- README.md docs/code-progress.json
+```
+
+`--refresh` runs a new player compilation before the existing evidence-validated
+measurement and publication. It rejects tracked edits and a different or changing
+local HEAD. It does not commit, push, upload logs, or claim runtime/gameplay
+validation. Ordinary `progress` can reuse matching compiler evidence and
+`--check` only validates the sanitized report and source freshness offline;
+neither alone establishes a new build. Keep detailed inventories, compiler logs,
+inputs and caches private. Only the generated README section and sanitized
+`docs/code-progress.json` belong in the contribution.
+
+Before publishing, recheck the PR head on GitHub: a local head guard cannot detect
+a concurrent remote push. If it moved, discard this refresh and review/build the
+new head. The contributor can commit the two generated files and push normally.
+A maintainer with existing permission to the source branch may do the same using
+a separate credentialed checkout, with a normal fast-forward push (never force
+push). Otherwise return those two public files or their patch to the contributor.
+Do not apply a patch to a different head or copy only hashes. Do not transfer
+credentials into the build environment.
+
+There are no automatic source-branch commits, bot loops, new credentials or
+privileged runners in this workflow. An ordinary contributor/maintainer push
+triggers the existing CI checks for the updated head. A future GitHub-token
+writer would need to account for token-trigger restrictions and workflow
+approval; it must not assume a bot push has rerun required checks. Fully automatic
+fork writes and trusted unattended compilation need separately designed disposable
+build isolation and branch authorization. Request artifacts can be superseded:
+concurrency cancels older running requests, but always compare the head because
+already uploaded artifacts remain available until expiry.

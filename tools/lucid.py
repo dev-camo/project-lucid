@@ -56,11 +56,15 @@ def parser():
             mode = command.add_mutually_exclusive_group()
             mode.add_argument("--check", action="store_true", help="check the generated table without game input or Unity")
             mode.add_argument("--stage", action="store_true", help="refresh and stage progress for the exact Git source index")
+            mode.add_argument("--refresh", action="store_true", help="compile first, then publish progress for a reviewed commit")
+            command.add_argument("--expected-head", help="full reviewed Git commit ID required by --refresh")
     return result
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == "progress" and bool(args.expected_head) != args.refresh:
+        parser().error("--refresh and --expected-head must be used together")
     try:
         if args.command == "progress" and args.check:
             from lucidlib.progressreport import check_progress
@@ -119,8 +123,11 @@ def main(argv=None):
             from lucidlib.runtimecontracts import compare_verified_theme_planes
             report = compare_verified_theme_planes(ROOT, work_dir, args.schema, args.inventory)
         elif args.command == "progress":
-            from lucidlib.progressreport import generate_progress
-            report = generate_progress(ROOT, work_dir, args.input, args.target, args.stage)
+            from lucidlib.progressreport import generate_progress, refresh_progress
+            if args.refresh:
+                report = refresh_progress(ROOT, work_dir, args.input, args.target, args.expected_head)
+            else:
+                report = generate_progress(ROOT, work_dir, args.input, args.target, args.stage)
             if args.json:
                 print(json.dumps(report, indent=2, sort_keys=True))
             else:

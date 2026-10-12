@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import uuid
@@ -72,6 +73,29 @@ def _replace(path, content):
 
 
 def generate_progress(repo_root, work_dir, input_path, target="macos", stage=False):
+    return _publish_progress(repo_root, work_dir, input_path, target, stage)
+
+
+def _require_head(root, expected_head, clean=False):
+    if not isinstance(expected_head, str) or re.fullmatch(r"[0-9a-f]{40}", expected_head) is None:
+        raise ValueError("Progress refresh requires a full reviewed Git commit ID")
+    actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root).decode().strip()
+    if actual != expected_head:
+        raise ValueError("Progress refresh head changed; review the newest commit and retry")
+    if clean and subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root):
+        raise ValueError("Progress refresh requires a clean tracked checkout")
+    if clean:
+        from .progressgit import require_matching_source_index
+        require_matching_source_index(root)
+
+
+def refresh_progress(repo_root, work_dir, input_path, target, expected_head):
+    """Only an explicitly reviewed, isolated checkout may run this build path."""
+    _require_head(repo_root, expected_head, clean=True)
+    return _publish_progress(repo_root, work_dir, input_path, target, False, expected_head)
+
+
+def _publish_progress(repo_root, work_dir, input_path, target, stage, expected_head=None):
     from .bootstrap import managed_path, validate_work_dir
     work = validate_work_dir(work_dir)
     lock = managed_path(work, "locks", "progress-publication.lock")
@@ -81,12 +105,19 @@ def generate_progress(repo_root, work_dir, input_path, target="macos", stage=Fal
     except FileExistsError as error:
         raise ValueError("Another progress publication owns the lock") from error
     try:
-        return _generate_progress(repo_root, work, input_path, target, stage)
+        if expected_head is not None:
+            from .playercode import run_player_code
+            _require_head(repo_root, expected_head, clean=True)
+            compiled = run_player_code(repo_root, work, target)
+            if compiled.get("status") != "compiled":
+                raise ValueError("Fresh player compilation did not complete; progress was not published")
+            _require_head(repo_root, expected_head, clean=True)
+        return _generate_progress(repo_root, work, input_path, target, stage, expected_head)
     finally:
         lock.rmdir()
 
 
-def _generate_progress(repo_root, work_dir, input_path, target, stage):
+def _generate_progress(repo_root, work_dir, input_path, target, stage, expected_head=None):
     from .codeprogress import run_code_progress, render_readme_section, validate_public_counts
     from .progressgit import require_matching_source_index
     root = Path(repo_root).resolve()
@@ -100,6 +131,8 @@ def _generate_progress(repo_root, work_dir, input_path, target, stage):
         require_matching_source_index(root)
         _require_readme_index(root, original_readme)
     result = run_code_progress(root, work_dir, input_path, target)
+    if expected_head is not None:
+        _require_head(root, expected_head, clean=True)
     report = result["public"]
     validate_public_counts(report, root)
     if _regular(readme_path) != original_readme or _regular(snapshot_path) != original_snapshot:
@@ -117,6 +150,8 @@ def _generate_progress(repo_root, work_dir, input_path, target, stage):
         if artifact_fingerprint(root) != report["source_fingerprint"]:
             raise ValueError("Source changed while publishing progress")
         check_progress(root)
+        if expected_head is not None:
+            _require_head(root, expected_head)
         if stage:
             require_matching_source_index(root)
             _require_readme_index(root, original_readme)

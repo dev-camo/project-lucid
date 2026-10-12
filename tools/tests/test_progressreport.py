@@ -177,3 +177,115 @@ class ProgressPublicationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ProgressRefreshTests(unittest.TestCase):
+    validate = ProgressPublicationTests.validate
+    assert_preserved = ProgressPublicationTests.assert_preserved
+
+    def setUp(self):
+        ProgressPublicationTests.setUp(self)
+        self.git('init', '-q')
+        self.git('config', 'user.name', 'Test')
+        self.git('config', 'user.email', 'test@example.invalid')
+        self.git('add', '.')
+        self.git('commit', '-qm', 'Initial source')
+        self.head = self.git('rev-parse', 'HEAD').strip()
+        self.build = patch('lucidlib.playercode.run_player_code', return_value={'status': 'compiled'})
+        self.compiler = self.build.start()
+        self.addCleanup(self.build.stop)
+        self.work = self.root / '.cache/project-lucid/refresh'
+        for name, value in [('REPO_ROOT', self.root), ('CACHE_ROOT', self.root / '.cache/project-lucid')]:
+            item = patch('lucidlib.bootstrap.' + name, value)
+            item.start()
+            self.addCleanup(item.stop)
+
+    def git(self, *args):
+        return subprocess.check_output(['git', *args], cwd=self.root).decode()
+
+    def refresh(self, head=None):
+        return progressreport.refresh_progress(self.root, self.work, self.root / 'input',
+                                              'macos', head or self.head)
+
+    def test_refresh_compiles_before_measurement(self):
+        order = []
+        self.compiler.side_effect = lambda *args: order.append('compile') or {'status': 'compiled'}
+        with patch('lucidlib.codeprogress.run_code_progress',
+                   side_effect=lambda *args: order.append('measure') or {'public': self.report}):
+            self.refresh()
+        self.assertEqual(order, ['compile', 'measure'])
+        self.assertEqual(self.git('rev-parse', 'HEAD').strip(), self.head)
+        self.assertIn('One sealed method', self.readme.read_text())
+
+    def test_wrong_or_abbreviated_head_does_not_build(self):
+        for head in ('0' * 40, self.head[:12], '--help'):
+            with self.assertRaises(ValueError):
+                self.refresh(head)
+        self.compiler.assert_not_called()
+        self.assert_preserved()
+
+    def test_staged_and_unstaged_edits_do_not_build(self):
+        (self.root / 'Assets/Runtime.cs').write_text('changed source')
+        with self.assertRaisesRegex(ValueError, 'clean tracked'):
+            self.refresh()
+        self.git('add', 'Assets/Runtime.cs')
+        with self.assertRaisesRegex(ValueError, 'clean tracked'):
+            self.refresh()
+        self.compiler.assert_not_called()
+        self.assert_preserved()
+
+    def test_failed_build_does_not_measure_or_publish(self):
+        for outcome in ({'status': 'failed'}, ValueError('compiler failed')):
+            self.compiler.side_effect = outcome if isinstance(outcome, Exception) else None
+            self.compiler.return_value = outcome
+            with patch('lucidlib.codeprogress.run_code_progress') as measure:
+                with self.assertRaises(ValueError):
+                    self.refresh()
+                measure.assert_not_called()
+            self.assert_preserved()
+
+    def test_head_changed_during_compilation_does_not_measure(self):
+        def compile(*args):
+            self.git('commit', '--allow-empty', '-qm', 'Concurrent commit')
+            return {'status': 'compiled'}
+        self.compiler.side_effect = compile
+        with patch('lucidlib.codeprogress.run_code_progress') as measure:
+            with self.assertRaisesRegex(ValueError, 'head changed'):
+                self.refresh()
+            measure.assert_not_called()
+        self.assert_preserved()
+
+    def test_source_changed_during_compilation_does_not_measure(self):
+        def compile(*args):
+            (self.root / 'Assets/Runtime.cs').write_text('concurrent edit')
+            return {'status': 'compiled'}
+        self.compiler.side_effect = compile
+        with patch('lucidlib.codeprogress.run_code_progress') as measure:
+            with self.assertRaisesRegex(ValueError, 'clean tracked'):
+                self.refresh()
+            measure.assert_not_called()
+        self.assert_preserved()
+
+    def test_head_changed_during_measurement_does_not_publish(self):
+        def measure(*args):
+            self.git('commit', '--allow-empty', '-qm', 'Concurrent commit')
+            return {'public': self.report}
+        with patch('lucidlib.codeprogress.run_code_progress', side_effect=measure):
+            with self.assertRaisesRegex(ValueError, 'head changed'):
+                self.refresh()
+        self.assert_preserved()
+
+    def test_final_head_change_rolls_back_publication(self):
+        def check(*args):
+            self.git('commit', '--allow-empty', '-qm', 'Concurrent commit')
+        with patch('lucidlib.progressreport.check_progress', side_effect=check):
+            with self.assertRaisesRegex(ValueError, 'head changed'):
+                self.refresh()
+        self.assert_preserved()
+
+    def test_untracked_maintained_source_does_not_build(self):
+        (self.root / 'Assets/Untracked.cs').write_text('not part of reviewed commit')
+        with self.assertRaisesRegex(ValueError, 'absent from the index'):
+            self.refresh()
+        self.compiler.assert_not_called()
+        self.assert_preserved()

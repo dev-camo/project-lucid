@@ -1,0 +1,54 @@
+name: Progress refresh request
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: progress-refresh-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  request:
+    name: Record progress refresh request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # No checkout: fork source must never run alongside game inputs or write credentials.
+      - name: Record exact PR head
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())
+          pr = event['pull_request']
+          head = pr['head']['sha']
+          number = event['number']
+          if not re.fullmatch(r'[0-9a-f]{40}', head) or type(number) is not int or number < 1:
+              raise ValueError('Invalid PR identity')
+          request = {'schema_version': 1, 'kind': 'progress-refresh-request',
+                     'pull_request': number, 'head_sha': head,
+                     'build_performed': False}
+          Path('request').mkdir()
+          Path('request/progress-refresh.json').write_text(json.dumps(request, indent=2) + '\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write(f'PR #{number}, head `{head}`: refresh request recorded.\n\n')
+              summary.write('This request is not a build receipt or a passing Code progress check. '
+                            'Check the current PR head and review its complete source before '
+                            'running `progress --refresh --expected-head SHA` in an isolated '
+                            'build environment. See docs/setup.md. If Code progress already '
+                            'passes for the current head, no refresh is needed.\n')
+          PY
+      - name: Upload request only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: progress-refresh-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: request/progress-refresh.json
+          if-no-files-found: error
+          retention-days: 7
