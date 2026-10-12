@@ -109,7 +109,11 @@ namespace ProjectLucid
                   Regex.IsMatch(export.input_fingerprint.sha256 ?? "", "^[0-9a-f]{64}$") &&
                   export.input_fingerprint.sha256 == prepare.input_fingerprint.sha256, "preparation retains the same immutable supplied bundle fingerprint");
             Bindings proof = prepare.script_bindings;
-            Check(proof != null && proof.status == "verified_layout" && proof.references_modified && proof.bindings != null && proof.bindings.All(b => b != null) && proof.bindings.Count(b => b.assembly == "Game.Runtime") == 2, "exact two approved maintained definition bindings");
+            Check(proof != null && proof.status == "verified_layout" && proof.references_modified && proof.bindings != null && proof.bindings.All(b => b != null) &&
+                  proof.bindings.Count(b => b.assembly == "Game.Runtime") == 3 &&
+                  proof.bindings.Where(b => b.assembly == "Game.Runtime").Select(b => b.full_name).OrderBy(name => name, StringComparer.Ordinal).SequenceEqual(
+                      new[] { "HardlightProject.GameLevels", "HardlightProject.LevelDefinition", "HardlightProject.LevelStartPositionDefinition" }, StringComparer.Ordinal),
+                  "exact three approved maintained Game.Runtime bindings");
             Check(proof.source_fingerprint == ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false), "fresh maintained source binding evidence");
             Check(Hash(File.ReadAllBytes(CheckedPath(cache, proof.comparison_path))) == proof.comparison_sha256, "unchanged exact layout proof");
             Binding[] selectedBindings = proof.bindings.Where(b => b != null && b.assembly == "Game.Runtime" &&
