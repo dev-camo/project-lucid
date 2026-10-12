@@ -177,20 +177,55 @@ def group_running(group):
                for row in rows if len(fields := row.split()) == 2)
 
 
-def stop_compiler_group(process):
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        try:
-            os.killpg(process.pid, sig)
-        except ProcessLookupError:
-            pass
-        if sig == signal.SIGTERM:
-            try:
-                process.communicate(timeout=15)
-            except subprocess.TimeoutExpired:
-                pass
+def signal_group(group, sig):
+    try:
+        os.killpg(group, sig)
+    except ProcessLookupError:
+        pass
+
+
+def freeze_compiler_groups(root):
+    # Bootstrap intentionally creates nested sessions. Freeze the tree before
+    # killing its parents so those compiler groups cannot escape by reparenting.
+    signal_group(root, signal.SIGSTOP)
+    known, groups = {root}, {root}
+    while True:
+        rows = subprocess.check_output(["ps", "-axo", "pid=,ppid=,pgid="], text=True).splitlines()
+        changed = False
+        for row in rows:
+            fields = row.split()
+            if len(fields) != 3:
+                continue
+            pid, parent, group = map(int, fields)
+            if pid in known or parent in known or group == root:
+                if pid not in known:
+                    known.add(pid)
+                    changed = True
+                if group not in groups:
+                    if group == os.getpgrp():
+                        raise ValueError("Compiler escaped into controller group; refuse cleanup")
+                    signal_group(group, signal.SIGSTOP)
+                    groups.add(group)
+                    changed = True
+        if not changed:
+            return sorted(groups)
+
+
+def stop_compiler_group(process, marker):
+    groups = freeze_compiler_groups(process.pid)
+    marker.write_text(json.dumps({"group": process.pid, "groups": groups}) + "\n")
+    for group in groups:
+        signal_group(group, signal.SIGTERM)
+        signal_group(group, signal.SIGCONT)
+    try:
+        process.communicate(timeout=15)
+    except subprocess.TimeoutExpired:
+        pass
+    for group in groups:
+        signal_group(group, signal.SIGKILL)
     process.communicate(timeout=10)
     deadline = time.monotonic() + 10
-    while group_running(process.pid):
+    while any(group_running(group) for group in groups):
         if time.monotonic() >= deadline:
             raise ValueError("Compiler group did not stop; preserve checkout and refuse next compilation")
         time.sleep(0.05)
@@ -202,10 +237,10 @@ def run_compiler(command, source, errors, marker, timeout=38 * 60):
     try:
         output, _ = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        stop_compiler_group(process)
+        stop_compiler_group(process, marker)
         raise
     if group_running(process.pid):
-        stop_compiler_group(process)
+        stop_compiler_group(process, marker)
     if process.returncode:
         raise subprocess.CalledProcessError(process.returncode, command)
     return output
@@ -216,8 +251,10 @@ def require_stopped_marker(marker):
         return
     if marker.is_symlink() or marker.parent.is_symlink():
         raise ValueError("Symlinked compiler marker rejected")
-    group = json.loads(marker.read_bytes()).get("group")
-    if type(group) is not int or group <= 0 or group_running(group):
+    value = json.loads(marker.read_bytes())
+    groups = value.get("groups", [value.get("group")])
+    if (not isinstance(groups, list) or not groups
+            or any(type(group) is not int or group <= 0 or group_running(group) for group in groups)):
         raise ValueError("Compiler group still active; refuse compilation or cleanup")
 
 
