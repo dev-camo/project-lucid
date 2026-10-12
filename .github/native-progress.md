@@ -72,12 +72,15 @@ the selected slice is
 and metadata version31 has SHA-256
 `88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837`.
 Keep separate Mac original-input provenance; its different binary/metadata bytes
-must not be relabeled as this input. For reviewed contributor source, use an
-owner-authored same-repository integration PR and regenerate against the existing
-canonical runner input. Dispatch from main with the current PR and exact head,
-then verify the generated head and all seven checks before merging. Never substitute
-a receipt for a new source/tool fingerprint. Generated totals come from that fresh
-report; gameplay and original-code byte parity remain unqualified.
+must not be relabeled as this input. This controller rejects contributor/fork PRs;
+review does not enable that execution path. Preserve the original contributor PR,
+authorship and separately qualified report provenance. Contributor publication must
+use an authorized qualification route, without moving source into an owner PR to
+evade an execution denial. For an admitted owner PR, dispatch from main with its
+current PR number and exact head, then verify the generated head and all seven
+checks before merging. Never substitute a receipt for a new source/tool fingerprint.
+Generated totals come from that fresh report; gameplay and original-code byte parity
+remain unqualified.
 
 Test locally with:
 
