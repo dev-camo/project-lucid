@@ -236,7 +236,7 @@ class DirectProgressTests(unittest.TestCase):
 
     def test_seal_binds_report_to_actual_compiler_step_outputs_and_rejects_tampering(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             # These are fixture checkouts, not compiler results or production evidence.
             for name in ("source", "control"):
                 subprocess.run(["git", "clone", "-q", "--shared", str(ROOT), str(root / name)], check=True)
@@ -269,7 +269,11 @@ class DirectProgressTests(unittest.TestCase):
             self.api.request("/repos/dev-camo/other/git/refs/heads/main", "PATCH", {})
 
     def test_bot_stale_report_is_rejected_instead_of_skipping_compilation(self):
-        with self.assertRaisesRegex(ValueError, "stale"):
+        stale = json.dumps(dict(self.http.report, source_fingerprint="a" * 64)).encode()
+        original_read = Path.read_bytes
+        def read_fixture(path):
+            return stale if path == ROOT / "docs/code-progress.json" else original_read(path)
+        with mock.patch.object(Path, "read_bytes", read_fixture), self.assertRaisesRegex(ValueError, "stale"):
             direct.fresh_bot_output(self.api, ROOT, ROOT, self.http.head)
 
     def test_bounded_report_and_bot_identity_do_not_allow_publication(self):
