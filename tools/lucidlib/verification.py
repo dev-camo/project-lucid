@@ -1288,3 +1288,14 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += ("OriginalFontReferenceConversionTests.PythonConverterProducedFontCollectionOwnersImportTheirExactBytes",)
+
+# Owned original procedural-mesh and CrossPromo configuration controls.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.ProceduralMesh_DefaultsRemainDistinctFromAuthoredSettings',
+    'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.CrossPromo_DefaultsRetainOriginalStringsWidthsAndUnwrittenFields',
+    'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.AllSeventeenDirectGettersProjectGenuineSerializedTransactions',
+    'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.AuthoredScalarSettingsRoundTripThroughOnlyFreshOwnedAssets',
+    'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.ServerSelectsDevOnlyForZeroAndProdForEveryTestedNonzero',
+    'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.EmptyValidatePreservesCompleteOwnedStateAndOriginalBaseReferences',
+    'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.CompleteDeclaredContractAndOrderedAttributesRemainOriginal',
+)

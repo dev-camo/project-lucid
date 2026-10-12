@@ -21,7 +21,9 @@
     "Unity.Addressables",
     "Unity.ResourceManager",
     "HLBinders.Runtime",
-    "FairPlay.Runtime"
+    "FairPlay.Runtime",
+    "HLSplines.Runtime",
+    "HLCrossPromo.Runtime"
   ],
   "includePlatforms": [
     "Editor"

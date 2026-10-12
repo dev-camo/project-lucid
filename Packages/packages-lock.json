@@ -29,6 +29,14 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.hardlight.hlcrosspromo": {
+      "version": "file:com.hardlight.hlcrosspromo",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.hardlight.hlunitycore": "0.1.0"
+      }
+    },
     "com.hardlight.hleventsystems": {
       "version": "file:com.hardlight.hleventsystems",
       "depth": 0,
