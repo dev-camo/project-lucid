@@ -37,6 +37,9 @@ class HTTPSFixture:
         self.fork_checks = []
         self.native_run = {"path": ".github/workflows/native-progress.yml", "head_sha": self.head,
                            "event": "workflow_run", "conclusion": "success"}
+        self.native_jobs = [{"name": "Native compilation and evidence", "status": "completed",
+                             "conclusion": "success"}]
+        self.candidates = None
         self.report = json.loads((ROOT / "docs/code-progress.json").read_bytes())
         # Deliberately mocked new receipt/source identity, never written to production files.
         self.report["compiler_receipt_sha256"] = "e" * 64
@@ -57,10 +60,12 @@ class HTTPSFixture:
         self.dispatch_response = True
 
     def urlopen(self, request, timeout):
-        path = urllib.parse.urlsplit(request.full_url).path
+        url = urllib.parse.urlsplit(request.full_url)
+        path = url.path
         method = request.get_method()
         body = json.loads(request.data) if request.data else None
-        call = {"path": path, "method": method, "body": body, "headers": dict(request.header_items())}
+        call = {"path": path, "query": urllib.parse.parse_qs(url.query), "method": method,
+                "body": body, "headers": dict(request.header_items())}
         self.calls.append(call)
         if self.on_call:
             self.on_call(call)
@@ -75,12 +80,14 @@ class HTTPSFixture:
             value = self.upstream
         elif path == repo + "/actions/runs/456":
             value = self.native_run
+        elif path == repo + "/actions/runs/456/jobs":
+            value = {"jobs": self.native_jobs}
         elif path == repo + "/actions/workflows/code-progress.yml":
             value = {"id": 9}
         elif path.endswith("/runs") and "/actions/workflows/" in path:
             value = {"workflow_runs": self.fork_checks or [self.upstream]}
-        elif path == repo + "/commits/" + self.head + "/pulls":
-            value = [self.pr]
+        elif path == repo + "/pulls":
+            value = [self.pr] if self.candidates is None else self.candidates
         elif path == repo + "/commits/" + self.head + "/statuses":
             value = self.statuses
         elif path.startswith(repo + "/statuses/"):
@@ -171,10 +178,34 @@ class DirectProgressTests(unittest.TestCase):
         event = self.event()
         self.assertEqual([], event["workflow_run"]["pull_requests"])
         self.assertEqual(self.http.request, direct.gate(self.api, event, self.http.head))
+        discovery = next(call for call in self.http.calls if call["path"].endswith("/pulls"))
+        self.assertEqual({"state": ["open"], "head": ["KyleO6:owner-progress"], "per_page": ["100"]},
+                         discovery["query"])
         # The PR author's name/association is deliberately not an admission gate.
         self.http.pr["user"]["login"] = "first-time-author"
         self.http.pr["author_association"] = "NONE"
         self.assertEqual(self.http.request, direct.gate(self.api, event, self.http.head))
+
+    def test_branch_discovery_rejects_ambiguous_stale_or_foreign_matches(self):
+        self.fork()
+        original = copy.deepcopy(self.http.pr)
+        for key, value in (("sha", "a" * 40), ("ref", "other"),
+                           ("repo", {"full_name": "KyleO6/other"})):
+            candidate = copy.deepcopy(original)
+            candidate["head"][key] = value
+            self.http.candidates = [candidate]
+            with self.subTest(key=key):
+                self.assertIsNone(direct.gate(self.api, self.event(), self.http.head))
+        self.http.candidates = [original, copy.deepcopy(original)]
+        self.assertIsNone(direct.gate(self.api, self.event(), self.http.head))
+
+    def test_branch_discovery_rejects_invalid_advertised_repository_or_ref(self):
+        for key, value in (("head_repository", {"full_name": "invalid"}), ("head_branch", None)):
+            event = self.event()
+            event["workflow_run"][key] = value
+            with self.subTest(key=key):
+                self.assertIsNone(direct.gate(self.api, event, self.http.head))
+        self.assertFalse(self.http.calls)
 
     def test_platform_run_must_be_completed_for_exact_head_including_manual_dispatch(self):
         self.fork()
@@ -201,7 +232,7 @@ class DirectProgressTests(unittest.TestCase):
         fetch.assert_not_called()
         run.assert_not_called()
 
-    def test_generated_loop_requires_base_bot_provenance_and_successful_trusted_run(self):
+    def test_generated_loop_requires_base_bot_provenance_and_successful_trusted_compilation(self):
         status = {"context": direct.PUBLICATION_CONTEXT, "state": "success", "creator": {"login": direct.BOT},
                   "target_url": f"https://github.com/{direct.REPOSITORY}/actions/runs/456"}
         self.http.statuses = [status]
@@ -213,12 +244,24 @@ class DirectProgressTests(unittest.TestCase):
                 self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
         self.http.statuses = [status]
         for key, value in (("path", ".github/workflows/other.yml"), ("head_sha", "a" * 40),
-                           ("conclusion", "failure"), ("event", "pull_request")):
+                           ("event", "pull_request")):
             saved = copy.deepcopy(self.http.native_run)
             self.http.native_run[key] = value
             with self.subTest(key=key):
                 self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
             self.http.native_run = saved
+        for conclusion in (None, "failure", "cancelled"):
+            self.http.native_run["conclusion"] = conclusion
+            with self.subTest(publisher_conclusion=conclusion):
+                self.assertIsNone(direct.gate(self.api, self.event(), self.http.head))
+        for jobs in ([], [{"name": "Native compilation and evidence", "status": "completed",
+                          "conclusion": "failure"}],
+                     [{"name": "Native compilation and evidence", "status": "in_progress",
+                       "conclusion": None}],
+                     [{"name": "other", "status": "completed", "conclusion": "success"}]):
+            self.http.native_jobs = jobs
+            with self.subTest(jobs=jobs):
+                self.assertEqual(self.http.request, direct.gate(self.api, self.event(), self.http.head))
 
     def test_fork_missing_publisher_access_fails_before_any_write(self):
         self.fork()
@@ -268,6 +311,16 @@ class DirectProgressTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "checks not observed"):
             direct.wait_for_fork_checks(self.api, self.http.request, self.http.head, seconds=0)
         self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
+
+    def test_failed_fork_checks_are_observed_without_rewriting_their_results(self):
+        self.fork()
+        self.http.fork_checks = self.checks(self.http.head)
+        self.http.fork_checks[0]["conclusion"] = "failure"
+        before = copy.deepcopy(self.http.fork_checks)
+        runs = direct.wait_for_fork_checks(self.api, self.http.request, self.http.head)
+        self.assertEqual(2, len(runs))
+        self.assertEqual(before, self.http.fork_checks)
+        self.assertFalse(any(call["method"] != "GET" for call in self.http.calls))
 
     def test_fork_push_uses_only_hosted_credential_and_atomic_exact_parent_lease(self):
         self.fork()
@@ -455,6 +508,35 @@ class DirectProgressTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"did not catch up"):
             direct.wait_for_published_head(self.api,self.http.request,"owner-progress","2"*40,
                 sleep=lambda seconds:clock.__setitem__(0,clock[0]+seconds),monotonic=lambda:clock[0],seconds=3)
+        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
+
+    def test_fork_ref_and_pr_api_can_each_lag_after_atomic_push(self):
+        self.fork()
+        head = "2" * 40
+        for first in ("ref", "pr"):
+            self.http.reference = self.http.head
+            self.http.pr["head"]["sha"] = self.http.head
+            clock = [0]
+            def catch_up(seconds):
+                clock[0] += seconds
+                if first == "ref" or clock[0] >= 4:
+                    self.http.reference = head
+                if first == "pr" or clock[0] >= 4:
+                    self.http.pr["head"]["sha"] = head
+            with self.subTest(first=first):
+                direct.wait_for_published_head(self.api, self.http.request, "owner-progress", head,
+                    sleep=catch_up, monotonic=lambda: clock[0], seconds=10)
+                self.assertEqual(4, clock[0])
+        self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
+
+    def test_fork_ref_api_staying_at_parent_times_out_without_writes(self):
+        self.fork()
+        self.http.pr["head"]["sha"] = "2" * 40
+        clock = [0]
+        with self.assertRaisesRegex(ValueError, "did not catch up"):
+            direct.wait_for_published_head(self.api, self.http.request, "owner-progress", "2" * 40,
+                sleep=lambda seconds: clock.__setitem__(0, clock[0] + seconds),
+                monotonic=lambda: clock[0], seconds=3)
         self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
 
 

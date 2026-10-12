@@ -137,8 +137,17 @@ def gate(api, event, control_commit, manual_pr=0, manual_head=""):
         head = run.get("head_sha", "")
         if not isinstance(head, str) or not SHA.fullmatch(head):
             return None
-        # Fork workflow_run payloads can have an empty pull_requests array.
-        candidates = api.request(f"/repos/{REPOSITORY}/commits/{head}/pulls?per_page=100")
+        # Both workflow_run.pull_requests and commit-to-PR associations can be
+        # empty for forks. Query the advertised fork branch, then bind the
+        # returned PR to its exact repository/ref/head below.
+        repository = (run.get("head_repository") or {}).get("full_name")
+        branch = run.get("head_branch")
+        if (not isinstance(repository, str) or not REPO_NAME.fullmatch(repository)
+                or not isinstance(branch, str) or not branch):
+            return None
+        query = urllib.parse.urlencode({"state": "open", "head": repository.split("/")[0] + ":" + branch,
+                                       "per_page": 100})
+        candidates = api.request(f"/repos/{REPOSITORY}/pulls?" + query)
         candidates = [pr for pr in candidates if pr.get("state") == "open"
                       and pr.get("head", {}).get("sha") == head
                       and pr.get("head", {}).get("ref") == run.get("head_branch")
@@ -183,9 +192,16 @@ def published_head(api, request):
         run = api.request(f"/repos/{REPOSITORY}/actions/runs/{match[1]}")
         if (run.get("path") == ".github/workflows/native-progress.yml"
                 and run.get("head_sha") == request["control_commit"]
-                and run.get("event") in {"workflow_run", "workflow_dispatch"}
-                and run.get("conclusion") == "success"):
-            return True
+                and run.get("event") in {"workflow_run", "workflow_dispatch"}):
+            # The protected publisher issues this marker only after verifying
+            # the sealed report. A later publication/check-observation failure
+            # must not recompile its generated child, nor must pending publisher
+            # completion race the child's check workflow.
+            jobs = api.request(f"/repos/{REPOSITORY}/actions/runs/{match[1]}/jobs?per_page=100")
+            if any(job.get("name") == "Native compilation and evidence"
+                   and job.get("status") == "completed" and job.get("conclusion") == "success"
+                   for job in jobs["jobs"]):
+                return True
     return False
 
 
@@ -473,7 +489,7 @@ def push_fork(api, request, source, created):
 
 def wait_for_published_head(api, request, branch, head, sleep=time.sleep,
                             monotonic=time.monotonic, seconds=240):
-    """Wait only for lagging PR metadata while the exact published ref is stable."""
+    """Bound API propagation after the atomic push; never repush or overwrite."""
     deadline=monotonic()+seconds
     ref_api = api if request["head_repository"] == REPOSITORY else head_api(request)
     ref=f"/repos/{request['head_repository']}/git/refs/heads/"+urllib.parse.quote(branch,safe="")
@@ -483,11 +499,12 @@ def wait_for_published_head(api, request, branch, head, sleep=time.sleep,
         if actual not in {request["head"],head} or pr.get("head",{}).get("ref") != branch:
             raise ValueError("Concurrent head or branch change after publication")
         require_pr_metadata(pr,dict(request, head=actual))
-        if default_head(api)[1] != request["control_commit"] or ref_api.request(ref)["object"]["sha"] != head:
+        reference = ref_api.request(ref)["object"]["sha"]
+        if default_head(api)[1] != request["control_commit"] or reference not in {request["head"], head}:
             raise ValueError("Control or published ref changed during PR metadata wait")
         if monotonic() >= deadline:
             raise ValueError("PR metadata did not catch up; published ref retained, no automatic retry")
-        if actual == head:
+        if actual == head and reference == head:
             return
         sleep(min(2, max(0,deadline-monotonic())))
 

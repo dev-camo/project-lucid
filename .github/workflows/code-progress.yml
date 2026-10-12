@@ -26,4 +26,5 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.9'
-      - run: python3 -m unittest discover -s tools/tests
+      - name: Run tool tests
+        run: python3 -m unittest discover -s tools/tests
