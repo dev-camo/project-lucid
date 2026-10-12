@@ -1,17 +1,12 @@
 name: Refresh native progress
 
 on:
-  workflow_run:
-    workflows: [Code progress]
-    types: [completed]
+  push:
+    branches: [main]
+    paths-ignore:
+      - README.md
+      - docs/code-progress.json
   workflow_dispatch:
-    inputs:
-      pr:
-        required: true
-        type: number
-      expected_head:
-        required: true
-        type: string
 
 permissions: {}
 
@@ -25,8 +20,6 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      pull-requests: read
-      actions: read
     outputs:
       compile: ${{ steps.gate.outputs.run }}
       head: ${{ steps.gate.outputs.head }}
@@ -40,20 +33,16 @@ jobs:
       - id: gate
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ inputs.pr }}
-          EXPECTED_HEAD: ${{ inputs.expected_head }}
-        run: python3 control/.github/scripts/direct_progress.py gate
+        run: python3 control/.github/scripts/main_progress.py gate
 
   compile:
-    name: Native compilation and evidence
+    name: Merged main compilation and progress
     needs: gate
     if: needs.gate.outputs.compile == 'true'
     runs-on: [self-hosted, Linux, X64, lucid-native]
     timeout-minutes: 40
     permissions:
       contents: read
-      pull-requests: read
-      actions: read
     env:
       REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
       LUCID_UNITY_EDITOR: /opt/unity/Editor/Unity
@@ -73,16 +62,16 @@ jobs:
       - id: compile
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 controller/.github/scripts/direct_progress.py compile
+        run: python3 controller/.github/scripts/main_progress.py compile
       - id: seal
         env:
           GH_TOKEN: ${{ github.token }}
           COMPILE_OUTPUTS: ${{ toJSON(steps.compile.outputs) }}
-        run: python3 controller/.github/scripts/direct_progress.py seal
+        run: python3 controller/.github/scripts/main_progress.py seal
       - name: Dispose this run's compilation checkouts
         if: always()
         timeout-minutes: 3
-        run: python3 controller/.github/scripts/direct_progress.py cleanup
+        run: python3 controller/.github/scripts/main_progress.py cleanup
 
   publish:
     needs: [gate, compile]
@@ -90,12 +79,12 @@ jobs:
       always() && !cancelled() && needs.gate.result == 'success' &&
       needs.compile.result == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
-      pull-requests: read
+      pull-requests: write
       actions: write
-      statuses: write
+      checks: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -107,13 +96,10 @@ jobs:
           ref: ${{ needs.gate.outputs.head }}
           path: source
           persist-credentials: false
-      - name: Publish generated outputs and start required checks
+      - name: Publish generated main data through protected rebase integration
         env:
           GH_TOKEN: ${{ github.token }}
-          # This optional credential is used only by trusted hosted publication.
-          # It must support maintainer edits to contributor forks and trigger PR checks.
-          LUCID_FORK_TOKEN: ${{ secrets.LUCID_FORK_TOKEN }}
           REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
           PRODUCER_BASE64: ${{ needs.compile.outputs.producer_base64 }}
           REPORT_BASE64: ${{ needs.compile.outputs.report_base64 }}
-        run: python3 control/.github/scripts/direct_progress.py publish
+        run: python3 control/.github/scripts/main_progress.py publish

@@ -1,0 +1,65 @@
+name: PR compilation
+
+on:
+  workflow_run:
+    workflows: [Code progress]
+    types: [completed]
+
+permissions: {}
+
+concurrency:
+  group: native-progress-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    outputs:
+      compile: ${{ steps.gate.outputs.run }}
+      request_base64: ${{ steps.gate.outputs.request_base64 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 control/.github/scripts/main_progress.py pr-gate
+
+  compile:
+    name: Native compilation and evidence
+    needs: gate
+    if: needs.gate.outputs.compile == 'true'
+    runs-on: [self-hosted, Linux, X64, lucid-native]
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+    env:
+      REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
+      LUCID_UNITY_EDITOR: /opt/unity/Editor/Unity
+      DOTNET_ROOT: /opt/dotnet
+      LD_LIBRARY_PATH: /opt/lucid/compat-jammy/usr/lib/x86_64-linux-gnu
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - name: Use installed native toolchains
+        run: echo '/opt/dotnet' >> "$GITHUB_PATH"
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 controller/.github/scripts/main_progress.py pr-compile
+      - name: Dispose this run's compilation checkouts
+        if: always()
+        timeout-minutes: 3
+        run: python3 controller/.github/scripts/main_progress.py cleanup

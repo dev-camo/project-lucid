@@ -227,6 +227,27 @@ class ToolCacheTrustTests(unittest.TestCase):
             self.assertEqual(6, len(calls))
         self.spawn.assert_not_called()
 
+    def test_private_failure_logs_survive_host_cache_disposal_without_symlink_reads(self):
+        with bootstrap.isolated_host_cache(self.directory, diagnostics=True) as host:
+            log = host / "reports/native-build.log"
+            log.parent.mkdir()
+            log.write_bytes(b"inert private failure log")
+            report = bootstrap.retain_failure("failure.json", {"status": "failed"}, [log])
+            diagnostics = Path(report).parent
+            self.assertNotIn(host, diagnostics.parents)
+            outside = self.directory / "outside-log"
+            outside.write_bytes(b"must not be copied")
+            redirect = host / "reports/redirect.log"
+            redirect.symlink_to(outside)
+            with self.assertRaises(ValueError):
+                bootstrap.retain_failure("redirect.json", {"status": "failed"}, [redirect])
+        self.assertFalse(host.exists())
+        self.assertTrue(Path(report).is_file())
+        self.assertEqual(0o700, diagnostics.stat().st_mode & 0o777)
+        self.assertEqual(0o600, (diagnostics / "failure-0.log").stat().st_mode & 0o777)
+        self.assertEqual(b"inert private failure log", (diagnostics / "failure-0.log").read_bytes())
+        self.assertIsNone(bootstrap.DIAGNOSTICS_ROOT)
+
     def test_host_scope_rejects_symlinked_parent(self):
         link = self.directory / "redirect"
         link.symlink_to(self.work, target_is_directory=True)

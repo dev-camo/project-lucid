@@ -34,6 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CACHE_ROOT = REPO_ROOT / ".cache" / "project-lucid"
 LOCK_FILE = REPO_ROOT / "tools" / "tool-lock.json"
 HOST_CACHE_ROOT: Path | None = None
+DIAGNOSTICS_ROOT: Path | None = None
 _BUILD_SEALS: dict[Path, tuple[dict, dict]] = {}
 _INSTALL_SEALS: dict[Path, tuple[dict, dict]] = {}
 
@@ -45,7 +46,7 @@ class ToolError(RuntimeError):
 def validate_work_dir(work_dir: Path) -> Path:
     """Allow generated cache directories only; reject source paths and symlinks."""
     requested = Path(os.path.abspath(os.fspath(work_dir)))
-    roots = [CACHE_ROOT] + ([HOST_CACHE_ROOT] if HOST_CACHE_ROOT is not None else [])
+    roots = [CACHE_ROOT] + [root for root in (HOST_CACHE_ROOT, DIAGNOSTICS_ROOT) if root is not None]
     if not any(requested == root or root in requested.parents for root in roots):
         raise ValueError(f"Work directory must be {CACHE_ROOT} or a child directory")
     current = Path(requested.anchor)
@@ -59,9 +60,9 @@ def validate_work_dir(work_dir: Path) -> Path:
 
 
 @contextmanager
-def isolated_host_cache(parent: Path):
+def isolated_host_cache(parent: Path, *, diagnostics: bool = False):
     """Reserve a fresh controller-owned tool tree outside either checkout."""
-    global HOST_CACHE_ROOT
+    global HOST_CACHE_ROOT, DIAGNOSTICS_ROOT
     if HOST_CACHE_ROOT is not None:
         raise ToolError("A host cache scope is already active")
     parent = Path(parent)
@@ -70,6 +71,10 @@ def isolated_host_cache(parent: Path):
     with tempfile.TemporaryDirectory(prefix="host-tools-", dir=parent) as directory:
         HOST_CACHE_ROOT = Path(directory)
         try:
+            if diagnostics:
+                DIAGNOSTICS_ROOT = parent / "private-native-diagnostics"
+                validate_work_dir(DIAGNOSTICS_ROOT)
+                DIAGNOSTICS_ROOT.mkdir(mode=0o700, exist_ok=False)
             yield HOST_CACHE_ROOT
         finally:
             for seals in (_BUILD_SEALS, _INSTALL_SEALS):
@@ -77,6 +82,7 @@ def isolated_host_cache(parent: Path):
                     if HOST_CACHE_ROOT in path.parents:
                         del seals[path]
             HOST_CACHE_ROOT = None
+            DIAGNOSTICS_ROOT = None
 
 
 def tool_work_dir(work_dir: Path) -> Path:
@@ -123,6 +129,35 @@ def verify_built_tool(directory: Path, identity: dict) -> bool:
 
 def seal_built_tool(directory: Path, identity: dict) -> None:
     _BUILD_SEALS[directory] = (dict(identity), tree_seal(directory))
+
+
+def retain_failure(name: str, report: dict, logs: list[Path]) -> str | None:
+    """Retain only known diagnostics privately; never upload native logs or inputs."""
+    if DIAGNOSTICS_ROOT is None:
+        return None
+    if Path(name).name != name or not name.endswith(".json"):
+        raise ToolError("Diagnostic report name must be one JSON filename")
+    copied = []
+    for index, log in enumerate(logs):
+        log = Path(log)
+        root = next((root for root in (HOST_CACHE_ROOT, CACHE_ROOT) if root is not None
+                     and root in log.parents), None)
+        if root is None:
+            raise ToolError("Diagnostic log is outside this run's owned tool/data trees")
+        checked = managed_path(root, *log.relative_to(root).parts)
+        if checked.exists():
+            info = checked.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ToolError("Diagnostic log must be one regular owned file")
+            destination = managed_path(DIAGNOSTICS_ROOT, f"{name[:-5]}-{index}.log")
+            with checked.open("rb") as source, destination.open("xb") as output:
+                shutil.copyfileobj(source, output)
+            destination.chmod(0o600)
+            copied.append(destination.name)
+    destination = managed_path(DIAGNOSTICS_ROOT, name)
+    write_json(destination, {**report, "retained_log_files": copied})
+    destination.chmod(0o600)
+    return str(destination)
 
 
 def managed_path(work_dir: Path, *parts: str) -> Path:

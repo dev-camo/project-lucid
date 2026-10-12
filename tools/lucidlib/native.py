@@ -13,7 +13,7 @@ import xml.etree.ElementTree as ET
 from .bootstrap import (REPO_ROOT, ToolError, _install, bootstrap, download_artifact,
                         dotnet_environment, fcntl, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json, tool_work_dir,
-                        seal_built_tool, verify_built_tool)
+                        seal_built_tool, verify_built_tool, retain_failure)
 from .inspection import sha256_file
 from .metadata import parse_metadata
 from .recovery import _resolve_input, _thin_binary
@@ -168,6 +168,20 @@ def build_native_harness(work_dir: Path) -> dict:
             return report
     except (ToolError, OSError, ValueError, KeyError, ET.ParseError) as error:
         report["error"] = str(error)
+        report["error_type"] = type(error).__name__
+        process = report.get("process", {})
+        if process.get("timed_out"):
+            report["failure_category"] = "native-build-timeout"
+        elif type(process.get("returncode")) is int and process["returncode"] != 0:
+            report["failure_category"] = "native-build-process-failure"
+        elif "closure" in str(error) or "pinned archive" in str(error):
+            report["failure_category"] = "dependency-integrity-failure"
+        else:
+            report["failure_category"] = "pinned-dependency-setup-failure"
+        logs = [Path(process["log"])] if process.get("log") else []
+        retained = retain_failure(f"native-build-{run_id}.json", report, logs)
+        if retained:
+            report["private_diagnostic_report"] = retained
         write_json(report_path, report)
         return report
     finally:

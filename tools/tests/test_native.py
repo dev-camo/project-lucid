@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.lucidlib import native
+from tools.lucidlib import native, bootstrap as bootstrap_module
 from tools.lucidlib.bootstrap import CACHE_ROOT, ToolError, load_lock
 
 
@@ -230,6 +230,39 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertTrue(Path(result["report_path"]).is_file())
         self.assertFalse((self.work / "native-recovery/latest-build.json").exists())
         self.assertEqual(list((self.work / "native-recovery/builds").glob(".stage-*")), [])
+
+    def test_failed_dependency_build_retains_private_report_and_log_outside_deleted_work(self):
+        diagnostics = self.directory / "private-native-diagnostics"
+        diagnostics.mkdir(mode=0o700)
+        def fail(command, work, log_name, **kwargs):
+            log = work / "reports" / log_name
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text("synthetic private dependency failure\n")
+            return {"returncode": 1, "timed_out": False, "log": str(log)}
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(bootstrap_module, "DIAGNOSTICS_ROOT", diagnostics), \
+             mock.patch.object(native, "run_logged", side_effect=fail):
+            report = native.build_native_harness(self.work)
+        self.assertEqual("failed", report["status"])
+        self.assertEqual("native-build-process-failure", report["failure_category"])
+        retained = Path(report["private_diagnostic_report"])
+        evidence = json.loads(retained.read_text())
+        self.assertEqual(1, evidence["process"]["returncode"])
+        self.assertIn("Native harness build failed", evidence["error"])
+        shutil.rmtree(self.work)
+        self.assertTrue(retained.is_file())
+        self.assertEqual(0o600, retained.stat().st_mode & 0o777)
+        self.assertEqual("synthetic private dependency failure\n", (diagnostics / evidence["retained_log_files"][0]).read_text())
+
+    def test_sdk_closure_rejection_is_not_silenced_or_rebuilt_with_untrusted_bytes(self):
+        with mock.patch.object(native, "bootstrap", return_value={"status": "failed", "tools": {"dotnet": {
+                "status": "failed", "error": "Cached dotnet executable/dependency closure changed"}}}), \
+             mock.patch.object(native, "run_logged") as run:
+            report = native.build_native_harness(self.work)
+        self.assertEqual("failed", report["status"])
+        self.assertEqual("dependency-integrity-failure", report["failure_category"])
+        run.assert_not_called()
 
     def test_all_harness_sources_invalidate_the_build_cache(self):
         experimental = self.project_dir / "ExperimentalRecovery.cs"

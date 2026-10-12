@@ -1,8 +1,9 @@
 """Trusted-source Linux driver for a native VM or a prepared container.
 
 No activation, credentials, runner registration or publication is performed.
-The Editor runs headlessly inside the namespace sandbox. The calling controller
-requires a completed PR workflow admitted by GitHub's contributor approval policy.
+The Editor runs headlessly inside the namespace sandbox. Controllers accept
+reviewed main or an admitted PR workflow; compilation-only PRs receive no
+original game inputs and generate no progress files.
 """
 import argparse
 import contextlib
@@ -92,20 +93,25 @@ def project_cache_scope(bootstrap_module, source, work):
         if work.exists():
             raise ValueError('Fresh project data cache required; contributor cache is not trusted')
         work.mkdir(parents=True, mode=0o700, exist_ok=False)
-        with bootstrap_module.isolated_host_cache(source.parent):
+        with bootstrap_module.isolated_host_cache(source.parent, diagnostics=True):
             yield
     finally:
         bootstrap_module.CACHE_ROOT = original
 
 
 def run(source, control, input_path, work, expected_head, expected_source, image,
-        control_commit, run_id):
+        control_commit, run_id, *, compile_only=False):
     source = source.resolve(strict=True)
     control = control.resolve(strict=True)
-    input_path = input_path.resolve(strict=True)
+    if compile_only and input_path is not None:
+        raise ValueError('Compilation-only mode cannot receive original game inputs')
+    if not compile_only:
+        if input_path is None:
+            raise ValueError('Progress generation requires original game inputs')
+        input_path = input_path.resolve(strict=True)
     work = Path(os.path.abspath(work))
     require_control_reporting_tools(source, control)
-    approved = json.loads((control / 'docs/code-progress.json').read_bytes())
+    approved = None if compile_only else json.loads((control / 'docs/code-progress.json').read_bytes())
     sys.path.insert(0, str(control / 'tools'))
     from lucidlib import bootstrap as bootstrap_module
     from lucidlib.bootstrap import bootstrap, host_name
@@ -131,6 +137,17 @@ def run(source, control, input_path, work, expected_head, expected_source, image
             return playercode.run_player_code(source, work, 'linux')
 
     with project_cache_scope(bootstrap_module, source, work), source_working_directory(source):
+        if compile_only:
+            unchanged()
+            result = compile_player()
+            require_phase_success('player-code', result)
+            unchanged()
+            receipt = _player_evidence(source, work, 'linux', expected_source,
+                                       _engine_identity(find_editor()))
+            unchanged()
+            return {'head': expected_head, 'image': image, 'control_commit': control_commit,
+                    'run_id': str(run_id), 'source_fingerprint': expected_source,
+                    'compiler_receipt_sha256': receipt['receipt_sha256']}
         logs = work / 'private-driver-logs'
         logs.mkdir(parents=True, exist_ok=True)
         phases = [('bootstrap', lambda: bootstrap(work, selected=['cpp2il'])),
@@ -138,11 +155,17 @@ def run(source, control, input_path, work, expected_head, expected_source, image
                   ('progress', lambda: generate_progress(source, work, input_path, 'linux'))]
         for name, phase in phases:
             unchanged()
-            with (logs / (name + '.log')).open('w') as log:
-                with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
-                    result = phase()
-                    log.write(json.dumps(result, sort_keys=True) + '\n')
-            require_phase_success(name, result)
+            path = logs / (name + '.log')
+            try:
+                with path.open('w') as log:
+                    with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+                        result = phase()
+                        log.write(json.dumps(result, sort_keys=True) + '\n')
+                require_phase_success(name, result)
+            except Exception as error:
+                bootstrap_module.retain_failure('driver-' + name + '.json',
+                                               {'phase': name, 'error_type': type(error).__name__}, [path])
+                raise
         unchanged()
         check_progress(source)
         raw = (source / 'docs/code-progress.json').read_bytes()
@@ -164,7 +187,9 @@ def run(source, control, input_path, work, expected_head, expected_source, image
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('source', 'control', 'input', 'work-dir'):
+    parser.add_argument('--compile-only', action='store_true')
+    parser.add_argument('--input', type=Path)
+    for name in ('source', 'control', 'work-dir'):
         parser.add_argument('--' + name, type=Path, required=True)
     for name in ('expected-head', 'expected-source', 'image', 'control-commit', 'run-id'):
         parser.add_argument('--' + name, required=True)
@@ -174,7 +199,7 @@ def main():
         raise ValueError('Invalid source/control identity')
     record = run(args.source, args.control, args.input, args.work_dir,
                  args.expected_head, args.expected_source, args.image,
-                 args.control_commit, args.run_id)
+                 args.control_commit, args.run_id, compile_only=args.compile_only)
     print(json.dumps(record, sort_keys=True))
 
 

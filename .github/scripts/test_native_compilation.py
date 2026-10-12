@@ -2,6 +2,8 @@
 import sys
 import tempfile
 import unittest
+from unittest import mock
+from contextlib import nullcontext
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import native_compilation
@@ -28,7 +30,8 @@ class NativeCompilationTests(unittest.TestCase):
         from lucidlib import bootstrap
         original = bootstrap.REPO_ROOT, bootstrap.CACHE_ROOT, bootstrap.LOCK_FILE
         with tempfile.TemporaryDirectory() as directory:
-            source = Path(directory).resolve()
+            source = Path(directory).resolve() / 'source'
+            source.mkdir()
             work = source / '.cache/project-lucid'
             with native_compilation.project_cache_scope(bootstrap, source, work):
                 self.assertEqual(work, bootstrap.validate_work_dir(work))
@@ -111,6 +114,45 @@ class NativeCompilationTests(unittest.TestCase):
             (source / 'tools').symlink_to(outside, target_is_directory=True)
             with self.assertRaisesRegex(ValueError, 'regular files'):
                 native_compilation.reporting_files(source)
+
+    def test_compile_only_refuses_original_input_before_resolving_or_reading_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            forbidden = mock.Mock(resolve=mock.Mock(side_effect=AssertionError("Original input must not be read")))
+            with self.assertRaisesRegex(ValueError, 'cannot receive original'):
+                native_compilation.run(root, root, forbidden, root / '.cache/project-lucid',
+                                       'a' * 40, 'b' * 64, 'native@sha256:' + 'c' * 64, 'd' * 40, '123', compile_only=True)
+            forbidden.resolve.assert_not_called()
+
+    def test_compile_only_runs_editor_and_receipt_checks_without_bootstrap_or_progress(self):
+        from lucidlib import bootstrap, playercode, playerschema, verification, progressreport
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve(); source = base / 'source'; control = base / 'control'
+            for root in (source, control):
+                (root / 'tools').mkdir(parents=True); (root / 'tools/helper.py').write_text('trusted=True\n')
+                (root / 'Assets/Editor').mkdir(parents=True)
+                for name in ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'):
+                    (root / 'Assets/Editor' / name).write_text('// trusted\n')
+            engine = [{'name': 'editor', 'sha256': 'c' * 64}]
+            with mock.patch.object(bootstrap, 'host_name', return_value='linux-x86_64'), \
+                 mock.patch.object(bootstrap, 'bootstrap', side_effect=AssertionError('No native dependency bootstrap for PRs')), \
+                 mock.patch.object(verification, 'artifact_fingerprint', return_value='b' * 64), \
+                 mock.patch.object(verification, 'find_editor', return_value=Path('/inert/editor')), \
+                 mock.patch.object(playercode, '_engine_identity', return_value=engine), \
+                 mock.patch.object(playercode, 'run_player_code', return_value={'status': 'compiled'}) as compile, \
+                 mock.patch.object(playerschema, '_player_evidence', return_value={'receipt_sha256': 'e' * 64}) as receipt, \
+                 mock.patch.object(progressreport, 'generate_progress', side_effect=AssertionError('No PR progress')), \
+                 mock.patch.object(native_compilation, 'git_head', side_effect=lambda root: 'a' * 40 if root == source else 'd' * 40), \
+                 mock.patch.object(native_compilation, 'isolated_editor', return_value=nullcontext()):
+                result = native_compilation.run(source, control, None, source / '.cache/project-lucid',
+                                               'a' * 40, 'b' * 64, 'native@sha256:' + 'c' * 64, 'd' * 40, '123', compile_only=True)
+            self.assertEqual('e' * 64, result['compiler_receipt_sha256'])
+            self.assertNotIn('report_sha256', result)
+            self.assertFalse((source / 'docs/code-progress.json').exists())
+            compile.assert_called_once()
+            receipt.assert_called_once()
+            self.assertIsNone(bootstrap.DIAGNOSTICS_ROOT)
+            self.assertTrue((base / 'private-native-diagnostics').is_dir())
 
     def test_native_identity_is_bound_to_actual_editor_bytes(self):
         engine = [{'name': 'editor', 'sha256': 'a' * 64}]

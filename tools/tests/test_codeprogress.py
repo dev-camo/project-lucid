@@ -238,6 +238,21 @@ class PublicSnapshotTests(unittest.TestCase):
                 with self.assertRaises(ValueError): codeprogress.validate_public_counts(report, Path("/example"))
 
 
+class DependencyFailureTests(unittest.TestCase):
+    def test_public_failure_is_bounded_category_without_private_report_or_log_payload(self):
+        with patch.object(codeprogress, "reader_build_paths", return_value=(Path("/trusted"), Path("/host"), Path("/run"))), \
+             patch.object(codeprogress.native, "build_native_harness", return_value={
+                 "status": "failed", "failure_category": "native-build-process-failure",
+                 "error": "synthetic private credential", "private_diagnostic_report": "/private/report.json"}), \
+             patch.object(codeprogress.subprocess, "run") as run:
+            with self.assertRaises(ValueError) as error:
+                codeprogress._build_reader(Path("/source"), Path("/data"), Path("/run"), [])
+        self.assertIn("native-build-process-failure", str(error.exception))
+        self.assertNotIn("synthetic private credential", str(error.exception))
+        self.assertNotIn("/private/report.json", str(error.exception))
+        run.assert_not_called()
+
+
 class SourcePlanTests(unittest.TestCase):
     def test_generated_hidden_and_nonruntime_documents_rejected(self):
         for relative in ("Assets/Recovered/Raw.cs", "Assets/StreamingAssets/Raw.cs", "Assets/.generated/Raw.cs", "Assets/Scripts/bin/Raw.cs",

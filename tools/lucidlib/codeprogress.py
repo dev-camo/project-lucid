@@ -279,7 +279,12 @@ def render_readme_section(report):
 def _build_reader(root, work, run, engine):
     project_root, work, run = reader_build_paths(root, work, run, "code-progress")
     built = native.build_native_harness(work)
-    if built.get("status") != "ready": raise ValueError("Pinned native dependency build is unavailable")
+    if built.get("status") != "ready":
+        category = built.get("failure_category", "pinned-dependency-setup-failure")
+        if category not in {"native-build-timeout", "native-build-process-failure",
+                            "dependency-integrity-failure", "pinned-dependency-setup-failure"}:
+            category = "pinned-dependency-setup-failure"
+        raise ValueError("Pinned native dependency build is unavailable [" + category + "]; inspect private native diagnostics")
     dependency = Path(built["path"]).parent
     playercode._regular(dependency / "Cpp2IL.Core.dll")
     project = playercode._regular(project_root / "CodeProgress.csproj", 65536)
