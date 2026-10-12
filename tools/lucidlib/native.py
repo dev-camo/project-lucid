@@ -12,7 +12,8 @@ import xml.etree.ElementTree as ET
 
 from .bootstrap import (REPO_ROOT, ToolError, _install, bootstrap, download_artifact,
                         dotnet_environment, fcntl, host_lock, load_lock, managed_path,
-                        run_logged, validate_work_dir, write_json)
+                        run_logged, validate_work_dir, write_json, tool_work_dir,
+                        seal_built_tool, verify_built_tool)
 from .inspection import sha256_file
 from .metadata import parse_metadata
 from .recovery import _resolve_input, _thin_binary
@@ -91,9 +92,10 @@ def _cached_build(pointer: Path, work_dir: Path, fingerprint: str) -> dict | Non
             return None
         directory = managed_path(work_dir, *Path(report["output_dir"]).relative_to(work_dir).parts)
         binary = managed_path(work_dir, *Path(report["path"]).relative_to(work_dir).parts)
-        if binary.name != _HARNESS or not binary.is_file():
+        if binary != directory / _HARNESS or not binary.is_file():
             return None
-        if not report.get("file_hashes") or _file_hashes(directory, work_dir) != report["file_hashes"]:
+        if (not verify_built_tool(directory, {"fingerprint": fingerprint}) or
+                not report.get("file_hashes") or _file_hashes(directory, work_dir) != report["file_hashes"]):
             return None
         return dict(report, reused=True)
     except (OSError, ValueError, KeyError, ToolError):
@@ -102,7 +104,7 @@ def _cached_build(pointer: Path, work_dir: Path, fingerprint: str) -> dict | Non
 
 def build_native_harness(work_dir: Path) -> dict:
     """Build/reuse the exact Core harness; all generated files stay in the cache."""
-    work_dir = validate_work_dir(work_dir)
+    work_dir = tool_work_dir(work_dir)
     run_id = uuid.uuid4().hex
     report_path = managed_path(work_dir, "reports", f"native-build-{run_id}.json")
     report = {"schema_version": 1, "status": "failed", "tool": "project-lucid-native",
@@ -116,7 +118,7 @@ def build_native_harness(work_dir: Path) -> dict:
         sdk = installed.get("tools", {}).get("dotnet", {})
         if installed.get("status") != "ready" or sdk.get("status") != "ready":
             raise ToolError(sdk.get("error", "Pinned SDK bootstrap failed"))
-        dotnet = managed_path(work_dir, "tools", "dotnet", "dotnet")
+        dotnet = managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet")
         source_lock = managed_path(work_dir, "tools", ".cpp2il-source.lock")
         build_lock = managed_path(work_dir, "native-recovery", ".build.lock")
         build_lock.parent.mkdir(parents=True, exist_ok=True)
@@ -140,10 +142,12 @@ def build_native_harness(work_dir: Path) -> dict:
             stage = managed_path(work_dir, "native-recovery", "builds", f".stage-{run_id}")
             destination = managed_path(work_dir, "native-recovery", "builds", run_id)
             stage.mkdir(parents=True, exist_ok=False)
+            build_source = stage / "source"
+            shutil.copytree(source, build_source)
             process = run_logged([
                 str(dotnet), "build", str(_PROJECT), "-c", "Release", "-p:TargetFramework=net10.0",
                 "-p:GeneratePackageOnBuild=false", "-p:RestorePackagesWithLockFile=true",
-                "-p:Cpp2ILSource=" + str(source), "-p:Cpp2ILArchive=" + str(archive),
+                "-p:Cpp2ILSource=" + str(build_source), "-p:Cpp2ILArchive=" + str(archive),
                 "-p:NativeRecoveryBuildRoot=" + str(stage / "build") + "/",
             ], work_dir, f"native-build-{run_id}.log", timeout=600,
                 env=dotnet_environment(work_dir, dotnet.parent))
@@ -156,6 +160,7 @@ def build_native_harness(work_dir: Path) -> dict:
             stage.replace(destination)
             stage = None
             final_output = destination / "build/bin/Release/net10.0"
+            seal_built_tool(final_output, {"fingerprint": fingerprint})
             report.update(status="ready", path=str(final_output / _HARNESS), output_dir=str(final_output),
                           file_hashes=hashes)
             write_json(report_path, report)
@@ -265,9 +270,9 @@ def _native_evidence(input_path: Path, work_dir: Path, command: str, assembly: s
     try:
         if build.get("status") != "ready":
             raise ToolError(build.get("error", "Pinned native harness build failed"))
-        environment = dotnet_environment(work_dir, managed_path(work_dir, "tools", "dotnet"))
+        environment = dotnet_environment(work_dir, managed_path(tool_work_dir(work_dir), "tools", "dotnet"))
         environment.update(DOTNET_TieredCompilation="0", COMPlus_TieredCompilation="0", DOTNET_TieredPGO="0")
-        args = [str(managed_path(work_dir, "tools", "dotnet", "dotnet")), build["path"], command,
+        args = [str(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet")), build["path"], command,
                 "--binary", str(thin), "--metadata", str(metadata_path), "--unity-version", version,
                 "--output", str(evidence_dir)]
         if assembly is not None:

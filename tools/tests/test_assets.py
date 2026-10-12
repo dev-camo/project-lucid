@@ -415,7 +415,8 @@ class AssetTests(unittest.TestCase):
         assets._json_write(pointer, {"status": "exported", "run_id": "previous"})
         console = mock.Mock()
         process = mock.Mock()
-        with mock.patch.object(assets, "_start_ripper", return_value=(process, "http://127.0.0.1:1", console)), \
+        with mock.patch.object(assets, "verified_tool_path", return_value=tool), \
+             mock.patch.object(assets, "_start_ripper", return_value=(process, "http://127.0.0.1:1", console)), \
              mock.patch.object(assets, "_request", side_effect=RuntimeError("synthetic export failure")), \
              mock.patch.object(assets, "_stop_ripper"):
             with self.assertRaisesRegex(RuntimeError, "synthetic"):

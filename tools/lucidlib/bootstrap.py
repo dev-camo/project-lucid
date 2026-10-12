@@ -14,6 +14,7 @@ import signal
 import stat
 import subprocess
 import tarfile
+import tempfile
 import time
 import urllib.request
 import uuid
@@ -32,6 +33,9 @@ except ImportError:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CACHE_ROOT = REPO_ROOT / ".cache" / "project-lucid"
 LOCK_FILE = REPO_ROOT / "tools" / "tool-lock.json"
+HOST_CACHE_ROOT: Path | None = None
+_BUILD_SEALS: dict[Path, tuple[dict, dict]] = {}
+_INSTALL_SEALS: dict[Path, tuple[dict, dict]] = {}
 
 
 class ToolError(RuntimeError):
@@ -41,18 +45,84 @@ class ToolError(RuntimeError):
 def validate_work_dir(work_dir: Path) -> Path:
     """Allow generated cache directories only; reject source paths and symlinks."""
     requested = Path(os.path.abspath(os.fspath(work_dir)))
-    try:
-        requested.relative_to(CACHE_ROOT)
-    except ValueError as exc:
-        raise ValueError(f"Work directory must be {CACHE_ROOT} or a child directory") from exc
-    current = REPO_ROOT
-    for part in requested.relative_to(REPO_ROOT).parts:
+    roots = [CACHE_ROOT] + ([HOST_CACHE_ROOT] if HOST_CACHE_ROOT is not None else [])
+    if not any(requested == root or root in requested.parents for root in roots):
+        raise ValueError(f"Work directory must be {CACHE_ROOT} or a child directory")
+    current = Path(requested.anchor)
+    for part in requested.parts[1:]:
         current /= part
         if current.is_symlink():
             raise ValueError(f"Work directory cannot contain a symbolic link: {current}")
         if current.exists() and not current.is_dir():
             raise ValueError(f"Work directory component is not a directory: {current}")
     return requested
+
+
+@contextmanager
+def isolated_host_cache(parent: Path):
+    """Reserve a fresh controller-owned tool tree outside either checkout."""
+    global HOST_CACHE_ROOT
+    if HOST_CACHE_ROOT is not None:
+        raise ToolError("A host cache scope is already active")
+    parent = Path(parent)
+    if any(path.is_symlink() for path in (parent, *parent.parents)):
+        raise ToolError("Host cache parent cannot contain a symbolic link")
+    with tempfile.TemporaryDirectory(prefix="host-tools-", dir=parent) as directory:
+        HOST_CACHE_ROOT = Path(directory)
+        try:
+            yield HOST_CACHE_ROOT
+        finally:
+            for seals in (_BUILD_SEALS, _INSTALL_SEALS):
+                for path in list(seals):
+                    if HOST_CACHE_ROOT in path.parents:
+                        del seals[path]
+            HOST_CACHE_ROOT = None
+
+
+def tool_work_dir(work_dir: Path) -> Path:
+    """Keep executable dependencies separate from contributor data outputs."""
+    if HOST_CACHE_ROOT is None:
+        return Path(work_dir)
+    validate_work_dir(work_dir)
+    return validate_work_dir(HOST_CACHE_ROOT)
+
+
+def reader_build_paths(root: Path, work: Path, run: Path, name: str) -> tuple[Path, Path, Path]:
+    """Select control projects and fresh host outputs when running the CI driver."""
+    host_work = tool_work_dir(work)
+    if HOST_CACHE_ROOT is None:
+        return root / "tools" / name, work, run
+    project = LOCK_FILE.parent / name
+    build = managed_path(host_work, "readers", name, run.name)
+    build.mkdir(parents=True, exist_ok=False)
+    return project, host_work, build
+
+
+def tree_seal(directory: Path) -> dict:
+    """Seal the complete file/directory closure, rejecting links and special files."""
+    if directory.is_symlink() or not directory.is_dir():
+        raise ToolError(f"Tool tree must be a physical directory: {directory}")
+    result = {}
+    for path in sorted(directory.rglob("*")):
+        info = path.lstat()
+        relative = path.relative_to(directory).as_posix()
+        if stat.S_ISDIR(info.st_mode):
+            result[relative] = {"mode": stat.S_IMODE(info.st_mode), "directory": True}
+        elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+            result[relative] = {"mode": stat.S_IMODE(info.st_mode), "sha256": _digest(path, "sha256")}
+        else:
+            raise ToolError(f"Tool tree contains a link or special file: {path}")
+    return result
+
+
+def verify_built_tool(directory: Path, identity: dict) -> bool:
+    """Public build markers cannot create the process-owned execution seal."""
+    recorded = _BUILD_SEALS.get(directory)
+    return recorded is not None and recorded == (identity, tree_seal(directory))
+
+
+def seal_built_tool(directory: Path, identity: dict) -> None:
+    _BUILD_SEALS[directory] = (dict(identity), tree_seal(directory))
 
 
 def managed_path(work_dir: Path, *parts: str) -> Path:
@@ -257,7 +327,7 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
     """Bound a child process and its descendants; keep evidence in the cache."""
     log = managed_path(work_dir, "reports", log_name)
     log.parent.mkdir(parents=True, exist_ok=True)
-    location = validate_work_dir(cwd or work_dir)
+    location = validate_work_dir(cwd or tool_work_dir(work_dir))
     location.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
     with log.open("w", encoding="utf-8") as stream:
@@ -295,7 +365,14 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
 
 
 def dotnet_environment(work_dir: Path, dotnet_root: Path | None = None) -> dict:
+    work_dir = tool_work_dir(work_dir)
     env = os.environ.copy()
+    if HOST_CACHE_ROOT is not None:
+        env = {key: value for key, value in env.items()
+               if key in {"PATH", "LANG", "LC_ALL", "LD_LIBRARY_PATH"}}
+        home = managed_path(work_dir, "host-home")
+        home.mkdir(parents=True, exist_ok=True)
+        env.update(HOME=str(home), USERPROFILE=str(home), XDG_CONFIG_HOME=str(home / ".config"))
     for key, path in [("DOTNET_CLI_HOME", managed_path(work_dir, "dotnet-home")),
                       ("NUGET_PACKAGES", managed_path(work_dir, "nuget-packages")),
                       ("DOTNET_BUNDLE_EXTRACT_BASE_DIR", managed_path(work_dir, "dotnet-bundles"))]:
@@ -303,21 +380,24 @@ def dotnet_environment(work_dir: Path, dotnet_root: Path | None = None) -> dict:
         env[key] = str(path)
     if dotnet_root:
         env["DOTNET_ROOT"] = str(dotnet_root)
-    env.update(DOTNET_SKIP_FIRST_TIME_EXPERIENCE="1", DOTNET_CLI_TELEMETRY_OPTOUT="1", DOTNET_NOLOGO="1")
+    env.update(DOTNET_SKIP_FIRST_TIME_EXPERIENCE="1", DOTNET_CLI_TELEMETRY_OPTOUT="1",
+               DOTNET_NOLOGO="1", DOTNET_MULTILEVEL_LOOKUP="0")
     return env
 
 
 def _install(name: str, lock: dict, work_dir: Path) -> Path:
+    work_dir = tool_work_dir(work_dir)
     artifact = host_lock(lock)["artifacts"][name]
     destination = managed_path(work_dir, "tools", name)
-    marker = managed_path(work_dir, "tools", name, "lucid-install.json")
     identity = {key: artifact[key] for key in ("version", "sha256", "sha512") if key in artifact}
-    entry = managed_path(work_dir, "tools", name, artifact["entrypoint"])
-    if marker.is_file() and entry.is_file():
-        if json.loads(marker.read_text(encoding="utf-8")) == identity:
-            return destination
-    if destination.exists():
-        raise ToolError(f"Unrecognized or incomplete cached tool directory: {destination}; move it aside and retry")
+    managed_path(work_dir, "tools", name, artifact["entrypoint"])
+    recorded = _INSTALL_SEALS.get(destination)
+    if recorded is not None and recorded[0] == identity:
+        if recorded[1] != tree_seal(destination):
+            raise ToolError(f"Cached {name} executable/dependency closure changed")
+        return destination
+    # Reconstruct the expected tree from the pinned archive. A marker stored
+    # alongside untrusted files supplies no integrity or provenance evidence.
     archive = download_artifact(artifact, work_dir)
     stage = managed_path(work_dir, "tools", f".install-{name}-{uuid.uuid4().hex}")
     unpack_archive(archive, stage, artifact)
@@ -332,14 +412,28 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
             configuration["RequireAnyKey"] = False
             write_json(stage / "config.json", configuration)
         write_json(stage / "lucid-install.json", identity)
-        stage.replace(destination)
+        expected = tree_seal(stage)
+        if destination.exists():
+            if tree_seal(destination) != expected:
+                raise ToolError(f"Cached {name} executable/dependency closure differs from the pinned archive")
+        else:
+            stage.replace(destination)
+        _INSTALL_SEALS[destination] = (identity, expected)
     finally:
         if stage.exists():
             shutil.rmtree(stage)
     return destination
 
 
+def verified_tool_path(work_dir: Path, name: str) -> Path:
+    """Verify an installed tool's entire closure before selecting its executable."""
+    lock = load_lock()
+    directory = _install(name, lock, work_dir)
+    return directory / host_lock(lock)["artifacts"][name]["entrypoint"]
+
+
 def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
+    work_dir = tool_work_dir(work_dir)
     dotnet_root = _install("dotnet", lock, work_dir)
     source = _install("cpp2il-source", lock, work_dir)
     output = managed_path(work_dir, "tools", "cpp2il")
@@ -349,52 +443,41 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
                 "sdk": lock["artifacts"]["dotnet"]["version"], "runtime": rid,
                 "build_schema": 2}
     program = executable(managed_path(work_dir, "tools", "cpp2il", "Cpp2IL"))
-    if marker.is_file() and program.is_file() and json.loads(marker.read_text()) == identity:
+    if verify_built_tool(output, identity):
         return {"status": "ready", "path": str(program), "version": identity["commit"]}
-    replacing_owned_build = False
     if output.exists():
-        previous = json.loads(marker.read_text()) if marker.is_file() else {}
-        replacing_owned_build = (previous.get("commit") == identity["commit"] and
-                                 previous.get("sdk") == identity["sdk"])
-        if not replacing_owned_build:
-            raise ToolError(f"Incomplete cached Cpp2IL build: {output}; move it aside and retry")
+        raise ToolError(f"Unverified cached Cpp2IL build: {output}; use a fresh host cache")
     stage = managed_path(work_dir, "tools", f".build-cpp2il-{uuid.uuid4().hex}")
+    build_source = managed_path(work_dir, "tools", f".cpp2il-source-{uuid.uuid4().hex}")
     try:
+        shutil.copytree(source, build_source)
         process = run_logged([
-            str(executable(dotnet_root / "dotnet")), "publish", str(source / "Cpp2IL" / "Cpp2IL.csproj"),
+            str(executable(dotnet_root / "dotnet")), "publish", str(build_source / "Cpp2IL" / "Cpp2IL.csproj"),
             "-c", "Release", "-f", "net10.0", "-r", rid, "--self-contained", "true",
             "-p:PublishSingleFile=true", "-p:PublishTrimmed=false", "-p:RestorePackagesWithLockFile=true",
             "-p:SourceRevisionId=" + identity["commit"],
             "-o", str(stage),
         ], work_dir, "cpp2il-build.log", timeout=1200,
-            env=dotnet_environment(work_dir, dotnet_root), cwd=source)
+            env=dotnet_environment(work_dir, dotnet_root), cwd=build_source)
         if process["returncode"] or process["timed_out"] or not executable(stage / "Cpp2IL").is_file():
             raise ToolError(f"Pinned Cpp2IL build failed; inspect {process['log']}")
         for filename in ("LICENSE", "nuget.config"):
             if (source / filename).is_file():
                 shutil.copyfile(source / filename, stage / filename)
         write_json(stage / "lucid-build.json", identity)
-        backup = None
-        if replacing_owned_build:
-            backup = managed_path(work_dir, "tools", f".superseded-cpp2il-{uuid.uuid4().hex}")
-            output.replace(backup)
-        try:
-            stage.replace(output)
-        except Exception:
-            if backup is not None:
-                backup.replace(output)
-            raise
-        if backup is not None:
-            shutil.rmtree(backup)
+        stage.replace(output)
+        seal_built_tool(output, identity)
         return {"status": "ready", "path": str(program), "version": identity["commit"], "build": process}
     finally:
         if stage.exists():
             shutil.rmtree(stage)
+        if build_source.exists():
+            shutil.rmtree(build_source)
 
 
 def bootstrap(work_dir: Path, selected=None) -> dict:
     """Install selected pinned tools. Defaults to AssetRipper and Cpp2IL."""
-    work_dir = validate_work_dir(work_dir)
+    work_dir = tool_work_dir(work_dir)
     lock = load_lock()
     selection = [selected] if isinstance(selected, str) else list(["assetripper", "cpp2il"] if selected is None else selected)
     if selection == ["all"]:

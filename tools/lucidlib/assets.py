@@ -23,7 +23,8 @@ from urllib import error, parse, request
 import uuid
 
 from .audio import normalize_audio
-from .bootstrap import ToolError, executable as native_executable, host_lock
+from .bootstrap import (ToolError, executable as native_executable, host_lock,
+                        tool_work_dir, verified_tool_path)
 from .inspection import _manifest, sha256_file
 
 
@@ -568,9 +569,10 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
     """Run a full-app export in fresh quarantine; publish a pointer on success."""
     app = _resolve_app(input_path)
     work = _safe_work_dir(work_dir, app)
-    executable = native_executable(work / "tools/assetripper/AssetRipper.GUI.Free")
+    executable = native_executable(tool_work_dir(work) / "tools/assetripper/AssetRipper.GUI.Free")
     if not executable.is_file():
         raise FileNotFoundError(f"AssetRipper is missing at {executable}; run the bootstrap command first")
+    executable = verified_tool_path(work, "assetripper")
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     run = work / "assets/runs" / run_id
     run.mkdir(parents=True, exist_ok=False)

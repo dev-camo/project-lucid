@@ -11,7 +11,8 @@ import re
 import uuid
 
 from .bootstrap import (ToolError, bootstrap, dotnet_environment, executable, managed_path,
-                        run_logged, validate_work_dir, write_json)
+                        run_logged, validate_work_dir, write_json, tool_work_dir,
+                        seal_built_tool, verify_built_tool, verified_tool_path)
 from .inspection import sha256_file
 from .macho import inspect_macho
 from .metadata import parse_metadata
@@ -156,19 +157,26 @@ File.WriteAllText(args[1], JsonSerializer.Serialize(new { assemblies, methods })
 
 def _inspect_managed_output(directory: Path, work_dir: Path, run_id: str, *, schemas: bool = False) -> dict:
     """Inspect actual emitted IL using .NET's metadata reader, not tool counters."""
-    helper = managed_path(work_dir, "tools", "il-inspector")
+    host_work = tool_work_dir(work_dir)
+    helper = managed_path(host_work, "tools", "il-inspector")
+    existed = helper.exists()
     helper.mkdir(parents=True, exist_ok=True)
     source_hash = hashlib.sha256(_INSPECTOR_SOURCE.encode()).hexdigest()
-    marker = managed_path(work_dir, "tools", "il-inspector", "lucid-inspector.json")
-    assembly = managed_path(work_dir, "tools", "il-inspector", "bin/Release/net10.0/RecoveryInspector.dll")
-    project = managed_path(work_dir, "tools", "il-inspector", "RecoveryInspector.csproj")
-    source_file = managed_path(work_dir, "tools", "il-inspector", "Program.cs")
-    dotnet_root = managed_path(work_dir, "tools", "dotnet")
+    marker = managed_path(tool_work_dir(work_dir), "tools", "il-inspector", "lucid-inspector.json")
+    assembly = managed_path(tool_work_dir(work_dir), "tools", "il-inspector", "bin/Release/net10.0/RecoveryInspector.dll")
+    project = managed_path(tool_work_dir(work_dir), "tools", "il-inspector", "RecoveryInspector.csproj")
+    source_file = managed_path(tool_work_dir(work_dir), "tools", "il-inspector", "Program.cs")
+    dotnet_root = managed_path(tool_work_dir(work_dir), "tools", "dotnet")
     dotnet = executable(dotnet_root / "dotnet")
     if not dotnet.is_file():
         raise ToolError("Native .NET 10 SDK is missing for managed-output inspection")
     env = dotnet_environment(work_dir, dotnet_root)
-    if not marker.is_file() or not assembly.is_file() or json.loads(marker.read_text()).get("source_sha256") != source_hash:
+    identity = {"source_sha256": source_hash}
+    verified = verify_built_tool(helper, identity)
+    if not verified and existed:
+        raise ToolError("Unverified cached managed-output inspector; use a fresh host cache")
+    dotnet = verified_tool_path(work_dir, "dotnet")
+    if not verified:
         project.write_text(
             '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework>'
             '<OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings>'
@@ -178,7 +186,8 @@ def _inspect_managed_output(directory: Path, work_dir: Path, run_id: str, *, sch
                            work_dir, "il-inspector-build.log", timeout=120, env=env, cwd=helper)
         if built["returncode"] or built["timed_out"]:
             raise ToolError(f"Could not build the managed-output inspector: {built['log']}")
-        write_json(marker, {"source_sha256": source_hash})
+        write_json(marker, identity)
+        seal_built_tool(helper, identity)
     output = managed_path(work_dir, "recovery", run_id, "managed-methods.json")
     executed = run_logged([str(dotnet), str(assembly), str(directory), str(output)], work_dir,
                           f"il-inspection-{run_id}.log", timeout=120, env=env)
@@ -202,7 +211,7 @@ def _cpp2il(thin: Path, metadata: Path, version: str, work_dir: Path, mode: str,
         return {"tool": "cpp2il", "status": "failed", "error": item.get("error", "Bootstrap failed")}
     output = managed_path(work_dir, "recovery", run_id, "cpp2il")
     output.parent.mkdir(parents=True, exist_ok=True)
-    dotnet_root = managed_path(work_dir, "tools", "dotnet")
+    dotnet_root = managed_path(tool_work_dir(work_dir), "tools", "dotnet")
     environment = dotnet_environment(work_dir, dotnet_root)
     # The selected upstream build has intermittently crashed during parallel
     # emission/analysis on the Mac host. Keep this experimental process bounded
@@ -256,7 +265,7 @@ def _dumper(thin: Path, metadata: Path, work_dir: Path, run_id: str) -> dict:
         return {"tool": "dumper", "status": "failed", "error": item.get("error", "Bootstrap failed")}
     output = managed_path(work_dir, "recovery", run_id, "dumper")
     output.mkdir(parents=True, exist_ok=False)
-    runtime = managed_path(work_dir, "tools", "runtime6")
+    runtime = managed_path(tool_work_dir(work_dir), "tools", "runtime6")
     process = run_logged([str(executable(runtime / "dotnet")), item["path"], str(thin), str(metadata), str(output)],
                          work_dir, f"dumper-{run_id}.log", timeout=300,
                          env=dotnet_environment(work_dir, runtime))

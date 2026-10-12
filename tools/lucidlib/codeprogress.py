@@ -17,7 +17,9 @@ import subprocess
 import uuid
 
 from . import native, playercode, playerschema, recovery
-from .bootstrap import dotnet_environment, host_lock, load_lock, managed_path, validate_work_dir, write_json
+from .bootstrap import (dotnet_environment, host_lock, load_lock, managed_path,
+                        validate_work_dir, write_json, reader_build_paths, tool_work_dir,
+                        verified_tool_path)
 from .inspection import sha256_file
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
@@ -275,18 +277,19 @@ def render_readme_section(report):
 
 
 def _build_reader(root, work, run, engine):
+    project_root, work, run = reader_build_paths(root, work, run, "code-progress")
     built = native.build_native_harness(work)
     if built.get("status") != "ready": raise ValueError("Pinned native dependency build is unavailable")
     dependency = Path(built["path"]).parent
     playercode._regular(dependency / "Cpp2IL.Core.dll")
-    project = playercode._regular(root / "tools/code-progress/CodeProgress.csproj", 65536)
+    project = playercode._regular(project_root / "CodeProgress.csproj", 65536)
     program = playercode._regular(project.with_name("Program.cs"), 1024 * 1024)
-    host = managed_path(work, "tools", "dotnet", "dotnet")
+    host = verified_tool_path(work, "dotnet")
     environment = dotnet_environment(work, host.parent)
     sdk = host_lock(load_lock())["artifacts"].get("dotnet", {})
     if sdk.get("version") != native._SDK: raise ValueError("Code progress requires the pinned SDK")
     host_seal = playercode._file_record(host)
-    version = subprocess.run([str(host), "--version"], capture_output=True, text=True, env=environment, timeout=30)
+    version = subprocess.run([str(host), "--version"], capture_output=True, text=True, env=environment, timeout=30, cwd=work)
     if version.returncode or version.stdout.strip() != sdk["version"]: raise ValueError("Code progress SDK version differs")
     output = run / "reader"
     command = [str(host), "build", str(project), "-c", "Release", "-o", str(output),
@@ -294,7 +297,7 @@ def _build_reader(root, work, run, engine):
                "-p:NativeDependencyRoot=" + str(dependency),
                "-p:UnityManagedRoot=" + str(Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent)]
     with (run / "build.log").open("xb") as log:
-        process = subprocess.run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=300)
+        process = subprocess.run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=300, cwd=work)
     reader = output / "ProjectLucid.CodeProgress.dll"
     if process.returncode or not reader.is_file(): raise ValueError("Code progress reader build failed")
     if playercode._file_record(host) != host_seal: raise ValueError("Code progress host changed during build")
@@ -388,7 +391,7 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
             pending = run / (mode + ".json")
             with (run / (mode + ".log")).open("xb") as log:
                 process = subprocess.run([reader["host"]["path"], reader["path"], mode, str(context_path), str(pending)],
-                                         env=dotnet_environment(work, Path(reader["host"]["path"]).parent), stdout=log, stderr=subprocess.STDOUT, timeout=300)
+                                         env=dotnet_environment(work, Path(reader["host"]["path"]).parent), cwd=tool_work_dir(work), stdout=log, stderr=subprocess.STDOUT, timeout=300)
             if process.returncode or not pending.is_file(): raise ValueError("Code progress metadata reader failed")
             raw, report = _json(pending); _check_reader(report, context_raw, context, reader)
             cecil = next(e for e in engine if e["name"] == "cecil")

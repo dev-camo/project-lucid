@@ -9,7 +9,9 @@ import subprocess
 import uuid
 
 from . import bindings, playercode
-from .bootstrap import dotnet_environment, host_lock, load_lock, managed_path, validate_work_dir, write_json
+from .bootstrap import (dotnet_environment, host_lock, load_lock, managed_path,
+                        validate_work_dir, write_json, reader_build_paths, tool_work_dir,
+                        verified_tool_path)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 PROFILE = "zone-theme-v1"
@@ -137,6 +139,9 @@ def _modules(evidence):
 
 
 def _tree_records(directory, work):
+    host_work = tool_work_dir(work)
+    if directory == host_work or host_work in directory.parents:
+        work = host_work
     result = []
     for parent, directories, names in os.walk(directory):
         for name in directories:
@@ -148,17 +153,18 @@ def _tree_records(directory, work):
 
 
 def _build_reader(root, work, run, engine):
-    project = playercode._regular(root / "tools/player-schema/PlayerSchema.csproj", 65536)
+    project_root, work, run = reader_build_paths(root, work, run, "player-schema")
+    project = playercode._regular(project_root / "PlayerSchema.csproj", 65536)
     code = playercode._regular(project.with_name("Program.cs"), 1024 * 1024)
     sources = [playercode._file_record(project), playercode._file_record(code)]
     lock = load_lock()
     sdk = host_lock(lock)["artifacts"].get("dotnet", {})
     if sdk.get("version") != "10.0.401" or not isinstance(sdk.get("sha512"), str) or re.fullmatch(r"[a-f0-9]{128}", sdk["sha512"]) is None:
         raise ValueError("Player metadata reader requires the pinned .NET SDK")
-    host = managed_path(work, "tools", "dotnet", "dotnet")
+    host = verified_tool_path(work, "dotnet")
     host_seal = playercode._file_record(host)
     env = dotnet_environment(work, host.parent)
-    version = subprocess.run([str(host), "--version"], capture_output=True, text=True, timeout=30, env=env)
+    version = subprocess.run([str(host), "--version"], capture_output=True, text=True, timeout=30, env=env, cwd=work)
     if version.returncode or version.stdout.strip() != sdk["version"]:
         raise ValueError("Installed metadata SDK version differs from tool lock")
     managed = Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent
@@ -169,7 +175,7 @@ def _build_reader(root, work, run, engine):
                "-p:UnityManagedRoot=" + str(managed), "-p:BaseIntermediateOutputPath=" + str(intermediate) + os.sep,
                "-p:OutputPath=" + str(output) + os.sep, "-p:GeneratePackageOnBuild=false"]
     with log.open("xb") as stream:
-        result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=env)
+        result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=env, cwd=work)
     if result.returncode: raise ValueError("Player metadata reader compilation failed; inspect its build log")
     binary = playercode._regular(output / "ProjectLucid.PlayerSchema.dll")
     for entry in sources: _same_file(entry["path"], entry)
@@ -301,7 +307,7 @@ def run_player_schema(repo_root, work_dir, target, profile=PROFILE):
         log = managed_path(work, *run.relative_to(work).parts, "reader.log")
         with log.open("xb") as stream:
             process = subprocess.run([reader["host"]["path"], reader["binary"]["path"], str(manifest_path), str(pending)],
-                                     stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=reader["env"])
+                                     stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=reader["env"], cwd=tool_work_dir(work))
         if process.returncode: raise ValueError("Player metadata reader failed; inspect its run log")
         pending_raw, report = _read_json(pending)
         _schema_check(report, manifest, manifest_raw, reader)

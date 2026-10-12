@@ -9,7 +9,9 @@ import subprocess
 import uuid
 
 from . import bindings, playercode, playerschema, themebindings, themecontracts
-from .bootstrap import dotnet_environment, host_lock, load_lock, managed_path, validate_work_dir, write_json
+from .bootstrap import (dotnet_environment, host_lock, load_lock, managed_path,
+                        validate_work_dir, write_json, reader_build_paths, tool_work_dir,
+                        verified_tool_path)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 PROFILE = "zone-theme-v1"
@@ -201,23 +203,24 @@ def _contract_modules(player,engine):
 
 
 def _build_reader(root,work,run,engine):
-    project=playercode._regular(root/"tools/theme-contracts/ThemeContracts.csproj",65536)
+    project_root,work,run=reader_build_paths(root,work,run,"theme-contracts")
+    project=playercode._regular(project_root/"ThemeContracts.csproj",65536)
     code=playercode._regular(project.with_name("Program.cs"),1024*1024)
     declarations=playercode._regular(project.with_name("LoadedDeclarations.cs"),1024*1024)
     sources=[playercode._file_record(project),playercode._file_record(code),playercode._file_record(declarations)]
     sdk=host_lock(load_lock())["artifacts"].get("dotnet",{})
     if sdk.get("version")!="10.0.401" or re.fullmatch(r"[a-f0-9]{128}",sdk.get("sha512","")) is None:
         raise ValueError("Contract reader requires the pinned SDK")
-    host=managed_path(work,"tools","dotnet","dotnet");host_seal=playercode._file_record(host)
+    host=verified_tool_path(work,"dotnet");host_seal=playercode._file_record(host)
     env=dotnet_environment(work,host.parent)
-    version=subprocess.run([str(host),"--version"],capture_output=True,text=True,timeout=30,env=env)
+    version=subprocess.run([str(host),"--version"],capture_output=True,text=True,timeout=30,env=env,cwd=work)
     if version.returncode or version.stdout.strip()!=sdk["version"]:raise ValueError("Contract SDK version changed")
     output,intermediate=run/"reader",run/"obj";output.mkdir(exist_ok=False);intermediate.mkdir(exist_ok=False)
     managed=Path(next(r["path"] for r in engine if r["name"]=="cecil")).parent
     log=run/"build.log"
     command=[str(host),"build",str(project),"--nologo","-c","Release","-p:UnityManagedRoot="+str(managed),
              "-p:BaseIntermediateOutputPath="+str(intermediate)+os.sep,"-p:OutputPath="+str(output)+os.sep,"-p:GeneratePackageOnBuild=false"]
-    with log.open("xb") as stream:result=subprocess.run(command,stdout=stream,stderr=subprocess.STDOUT,timeout=180,env=env)
+    with log.open("xb") as stream:result=subprocess.run(command,stdout=stream,stderr=subprocess.STDOUT,timeout=180,env=env,cwd=work)
     if result.returncode:raise ValueError("Contract reader compilation failed; inspect its build log")
     binary=playercode._regular(output/"ProjectLucid.ThemeContracts.dll")
     for seal in [host_seal,*sources]:playerschema._same_file(seal["path"],seal)
@@ -229,7 +232,7 @@ def _attest_loaded(reader,manifest):
     """Read exact disk declarations again; caller JSON flags are insufficient."""
     path=Path(manifest["run"])/"manifest.json"
     result=subprocess.run([reader["host"]["path"],reader["binary"]["path"],"--attest-loaded",str(path)],
-      capture_output=True,timeout=180,env=reader.get("env") or dotnet_environment(Path(manifest["work_root"]),Path(reader["host"]["path"]).parent))
+      capture_output=True,timeout=180,cwd=Path(reader["binary"]["path"]).parent,env=reader.get("env") or dotnet_environment(Path(manifest["work_root"]),Path(reader["host"]["path"]).parent))
     if result.returncode:
         raise ValueError("Loaded disk declaration attestation failed: "+result.stderr.decode("utf-8",errors="replace")[:2048])
     if len(result.stdout)>MAX_REPORT:raise ValueError("Loaded declaration evidence exceeds bound")
@@ -287,8 +290,16 @@ def _reader_check(root, work, run, reader):
         re.fullmatch(r"[a-f0-9]{128}",sdk.get("sha512","")) is None):
         raise ValueError("Contract reader SDK provenance differs")
     host=reader.get("host");sources=reader.get("sources");binary=reader.get("binary");output=reader.get("output")
+    host_work=tool_work_dir(work)
+    if host_work != work:
+        from .bootstrap import LOCK_FILE
+        project_root=LOCK_FILE.parent/"theme-contracts"
+        run=managed_path(host_work,"readers","theme-contracts",run.name)
+        work=host_work
+    else:
+        project_root=root/"tools/theme-contracts"
     expected_host=managed_path(work,"tools","dotnet","dotnet")
-    expected_sources=[root/"tools/theme-contracts/ThemeContracts.csproj",root/"tools/theme-contracts/Program.cs",root/"tools/theme-contracts/LoadedDeclarations.cs"]
+    expected_sources=[project_root/name for name in ("ThemeContracts.csproj","Program.cs","LoadedDeclarations.cs")]
     expected_binary=run/"reader/ProjectLucid.ThemeContracts.dll"
     if (not isinstance(host,dict) or host.get("path")!=str(expected_host) or
         not isinstance(sources,list) or len(sources)!=3 or any(not isinstance(s,dict) for s in sources) or
@@ -466,7 +477,7 @@ def run_runtime_contracts(repo_root,work_dir,target,original_schema,loaded_inven
         log=run/"reader.log"
         with log.open("xb") as stream:
             result=subprocess.run([reader["host"]["path"],reader["binary"]["path"],str(context),str(pending)],
-                                  stdout=stream,stderr=subprocess.STDOUT,timeout=180,env=reader["env"])
+                                  stdout=stream,stderr=subprocess.STDOUT,timeout=180,env=reader["env"],cwd=tool_work_dir(work))
         if result.returncode:raise ValueError("Contract metadata reader failed; inspect its log")
         pending_raw,report=_json(pending);contract_rows=_report_check(report,manifest,mraw,reader,layouts)
         for _ in range(2):

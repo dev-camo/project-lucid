@@ -22,13 +22,22 @@ def git_head(root):
 
 
 def reporting_files(root):
-    paths = [p for p in (root / 'tools').rglob('*') if p.is_file()
-             and '__pycache__' not in p.parts and p.suffix != '.pyc']
+    root = Path(root).resolve(strict=True)
+    tools = root / 'tools'
+    if any(path.is_symlink() for path in (tools, *tools.parents)):
+        raise ValueError('Reporting code must be regular files')
+    paths = []
+    for parent, directories, files in os.walk(tools, followlinks=False):
+        for name in [*directories, *files]:
+            if (Path(parent) / name).is_symlink():
+                raise ValueError('Reporting code must be regular files')
+        directories[:] = [name for name in directories if name != '__pycache__']
+        paths.extend(Path(parent) / name for name in files if not name.endswith('.pyc'))
     paths.extend(root / 'Assets/Editor' / name for name in
                  ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'))
     result = {}
     for path in paths:
-        if path.is_symlink():
+        if any(part.is_symlink() for part in (path, *path.parents)) or not path.is_file():
             raise ValueError('Reporting code must be regular files')
         result[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
     return result
@@ -73,19 +82,20 @@ def source_working_directory(source):
 
 @contextlib.contextmanager
 def project_cache_scope(bootstrap_module, source, work):
-    """Keep existing cache/symlink guards bound to the compiled project.
-
-    Implementations and the pinned download lock still come from control. Only
-    the owned output root follows source, matching the Editor's context checks.
-    """
-    original = bootstrap_module.REPO_ROOT, bootstrap_module.CACHE_ROOT
-    bootstrap_module.REPO_ROOT = source
+    """Reserve fresh data outputs and separate tools from contributor checkout."""
+    original = bootstrap_module.CACHE_ROOT
     bootstrap_module.CACHE_ROOT = source / '.cache/project-lucid'
     try:
-        bootstrap_module.validate_work_dir(work)
-        yield
+        work = bootstrap_module.validate_work_dir(work)
+        if work != bootstrap_module.CACHE_ROOT:
+            raise ValueError('Driver requires the exact project data cache')
+        if work.exists():
+            raise ValueError('Fresh project data cache required; contributor cache is not trusted')
+        work.mkdir(parents=True, mode=0o700, exist_ok=False)
+        with bootstrap_module.isolated_host_cache(source.parent):
+            yield
     finally:
-        bootstrap_module.REPO_ROOT, bootstrap_module.CACHE_ROOT = original
+        bootstrap_module.CACHE_ROOT = original
 
 
 def run(source, control, input_path, work, expected_head, expected_source, image,
@@ -93,7 +103,7 @@ def run(source, control, input_path, work, expected_head, expected_source, image
     source = source.resolve(strict=True)
     control = control.resolve(strict=True)
     input_path = input_path.resolve(strict=True)
-    work = work.resolve()
+    work = Path(os.path.abspath(work))
     require_control_reporting_tools(source, control)
     approved = json.loads((control / 'docs/code-progress.json').read_bytes())
     sys.path.insert(0, str(control / 'tools'))
