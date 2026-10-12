@@ -147,6 +147,9 @@ def build_native_harness(work_dir: Path) -> dict:
             process = run_logged([
                 str(dotnet), "build", str(_PROJECT), "-c", "Release", "-p:TargetFramework=net10.0",
                 "-p:GeneratePackageOnBuild=false", "-p:RestorePackagesWithLockFile=true",
+                # Disarm's pinned prerelease comes from the verified source's
+                # SamboyDev feed; isolated HOME must not supply restore config.
+                "-p:RestoreAdditionalProjectSources=https://nuget.samboy.dev/v3/index.json",
                 "-p:Cpp2ILSource=" + str(build_source), "-p:Cpp2ILArchive=" + str(archive),
                 "-p:NativeRecoveryBuildRoot=" + str(stage / "build") + "/",
             ], work_dir, f"native-build-{run_id}.log", timeout=600,

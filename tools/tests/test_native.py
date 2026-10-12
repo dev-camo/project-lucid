@@ -231,6 +231,22 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertFalse((self.work / "native-recovery/latest-build.json").exists())
         self.assertEqual(list((self.work / "native-recovery/builds").glob(".stage-*")), [])
 
+    def test_pinned_disarm_feed_is_explicit_with_isolated_home_and_packages(self):
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(bootstrap_module, "HOST_CACHE_ROOT", self.work), \
+             mock.patch.object(native, "run_logged", side_effect=self.build_runner) as run:
+            result = native.build_native_harness(self.work)
+        self.assertEqual("ready", result["status"])
+        command = run.call_args.args[0]
+        self.assertIn("-p:RestoreAdditionalProjectSources=https://nuget.samboy.dev/v3/index.json", command)
+        environment = run.call_args.kwargs["env"]
+        self.assertEqual(str(self.work / "host-home"), environment["HOME"])
+        self.assertEqual(str(self.work / "nuget-packages"), environment["NUGET_PACKAGES"])
+        self.assertEqual(str(self.work / "dotnet-home"), environment["DOTNET_CLI_HOME"])
+        self.assertNotIn("GH_TOKEN", environment)
+        self.assertNotIn("LUCID_FORK_TOKEN", environment)
+
     def test_failed_dependency_build_retains_private_report_and_log_outside_deleted_work(self):
         diagnostics = self.directory / "private-native-diagnostics"
         diagnostics.mkdir(mode=0o700)
