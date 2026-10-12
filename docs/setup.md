@@ -1,11 +1,18 @@
 # Setup and recovery
 
-Use Python 3.9+ and Unity 2022.3.54f1. The currently supported extraction host is
-macOS; recovered source and rebuilt content target macOS, Windows, and Linux.
+Use Python 3.9+ and Unity 2022.3.54f1. Recovery-tool downloads are pinned for
+macOS ARM64, Windows AMD64, and Linux x86_64. Linux source compilation and code
+progress regeneration have been exercised with the matching licensed Editor;
+complete Linux asset extraction and gameplay remain unqualified. Recovered
+source and rebuilt content target macOS, Windows, and Linux.
 
 Place a macOS `SonicDreamTeam.app` in `input/`. Run commands from the repository
 root. The supplied bundle remains unchanged. Inspection reads its metadata and
 hashes files; subsequent operations write only to generated directories.
+
+The recovery tools inspect and slice universal Mach-O binaries directly in
+Python. `doctor` reports whether `lipo` is present, but recovery does not require
+installing it on Linux or Windows.
 
 `bootstrap` installs pinned recovery tools into `.cache/project-lucid/tools/`.
 `recover-code` defaults to declarations and serialization schemas. Experimental

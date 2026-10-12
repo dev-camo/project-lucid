@@ -8,7 +8,7 @@ import threading
 import unittest
 from unittest import mock
 
-from tools.lucidlib import assets, bootstrap
+from tools.lucidlib import assets, bootstrap, native
 from tools.lucidlib.bootstrap import CACHE_ROOT, ToolError, exclusive_lock, host_lock, load_lock
 
 
@@ -47,17 +47,35 @@ class HostLockTests(unittest.TestCase):
                     self.assertEqual(64 if algorithm == "sha256" else 128, len(artifact[algorithm]))
 
     def test_unsupported_host_names_supported_hosts(self):
-        with self._on("Linux", "x86_64"), self.assertRaisesRegex(ToolError, "darwin-arm64, windows-amd64"):
+        with self._on("Linux", "aarch64"), self.assertRaisesRegex(ToolError, "linux-x86_64"):
             host_lock(self.lock)
 
     def test_unsupported_host_fails_before_download(self):
         CACHE_ROOT.mkdir(parents=True, exist_ok=True)
         work = Path(tempfile.mkdtemp(prefix="test-hosts-", dir=CACHE_ROOT))
         self.addCleanup(shutil.rmtree, work)
-        with self._on("Linux", "x86_64"), mock.patch.object(bootstrap, "download_artifact") as download:
+        with self._on("Linux", "aarch64"), mock.patch.object(bootstrap, "download_artifact") as download:
             with self.assertRaises(ToolError):
                 bootstrap.bootstrap(work, ["assetripper"])
         download.assert_not_called()
+
+    def test_linux_selects_native_tools_and_retains_shared_source_pins(self):
+        with self._on("Linux", "x86_64"):
+            pinned = host_lock(self.lock)
+        self.assertEqual("linux-x64", pinned["rid"])
+        for name in ("assetripper", "dotnet", "runtime6"):
+            self.assertIn("linux", pinned["artifacts"][name]["url"])
+            self.assertEqual(self.lock["artifacts"][name]["version"], pinned["artifacts"][name]["version"])
+        for name in ("cpp2il-source", "dumper", "assetripper-license", "dumper-license"):
+            self.assertEqual(self.lock["artifacts"][name], pinned["artifacts"][name])
+
+    def test_native_build_records_the_host_sdk_archive(self):
+        with self._on("Linux", "x86_64"):
+            identity = native._lock_identity(self.lock)
+        self.assertEqual(self.lock["hosts"]["linux-x86_64"]["artifacts"]["dotnet"]["sha512"],
+                         identity["sdk_archive_sha512"])
+        self.assertNotEqual(self.lock["artifacts"]["dotnet"]["sha512"],
+                            identity["sdk_archive_sha512"])
 
     def test_executable_names_follow_the_host(self):
         path = Path("tools/dotnet/dotnet")
@@ -81,8 +99,8 @@ class ExportIdentityTests(unittest.TestCase):
 
     def test_exports_from_either_pinned_host_build_are_accepted(self):
         lock = load_lock()
-        for archive in (lock["artifacts"]["assetripper"]["sha256"],
-                        lock["hosts"]["windows-amd64"]["artifacts"]["assetripper"]["sha256"]):
+        for archive in [lock["artifacts"]["assetripper"]["sha256"],
+                        *[host["artifacts"]["assetripper"]["sha256"] for host in lock["hosts"].values()]]:
             with self.subTest(archive=archive):
                 self.assertEqual(Path("Game.app"), self._validate(self._report(archive)))
 

@@ -9,7 +9,7 @@ import subprocess
 import uuid
 
 from . import bindings, playercode
-from .bootstrap import dotnet_environment, load_lock, managed_path, validate_work_dir, write_json
+from .bootstrap import dotnet_environment, host_lock, load_lock, managed_path, validate_work_dir, write_json
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 PROFILE = "zone-theme-v1"
@@ -152,7 +152,7 @@ def _build_reader(root, work, run, engine):
     code = playercode._regular(project.with_name("Program.cs"), 1024 * 1024)
     sources = [playercode._file_record(project), playercode._file_record(code)]
     lock = load_lock()
-    sdk = lock.get("artifacts", {}).get("dotnet", {})
+    sdk = host_lock(lock)["artifacts"].get("dotnet", {})
     if sdk.get("version") != "10.0.401" or not isinstance(sdk.get("sha512"), str) or re.fullmatch(r"[a-f0-9]{128}", sdk["sha512"]) is None:
         raise ValueError("Player metadata reader requires the pinned .NET SDK")
     host = managed_path(work, "tools", "dotnet", "dotnet")

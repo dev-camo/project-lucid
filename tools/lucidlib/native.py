@@ -11,7 +11,7 @@ import uuid
 import xml.etree.ElementTree as ET
 
 from .bootstrap import (REPO_ROOT, ToolError, _install, bootstrap, download_artifact,
-                        dotnet_environment, fcntl, load_lock, managed_path,
+                        dotnet_environment, fcntl, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json)
 from .inspection import sha256_file
 from .metadata import parse_metadata
@@ -43,7 +43,8 @@ def _load_json(path: Path, limit: int) -> dict:
 
 
 def _lock_identity(lock: dict) -> dict:
-    source, sdk = lock["artifacts"]["cpp2il-source"], lock["artifacts"]["dotnet"]
+    artifacts = host_lock(lock)["artifacts"]
+    source, sdk = artifacts["cpp2il-source"], artifacts["dotnet"]
     if (source.get("version"), source.get("sha256"), sdk.get("version")) != (_PIN, _ARCHIVE_HASH, _SDK):
         raise ToolError("Native harness requires the exact pinned Cpp2IL source and .NET SDK")
     return {"cpp2il_pin": _PIN, "cpp2il_source_archive_sha256": _ARCHIVE_HASH,

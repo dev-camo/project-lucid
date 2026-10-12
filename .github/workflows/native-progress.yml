@@ -1,0 +1,127 @@
+name: Refresh native progress
+
+on:
+  workflow_run:
+    workflows: [Code progress]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        required: true
+        type: number
+      expected_head:
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: native-progress-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      compile: ${{ steps.admit.outputs.compile }}
+      recheck: ${{ steps.admit.outputs.recheck }}
+      head: ${{ steps.gate.outputs.head }}
+      request_base64: ${{ steps.gate.outputs.request_base64 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr }}
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: python3 control/.github/scripts/direct_progress.py gate
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        if: steps.gate.outputs.run == 'true'
+        with:
+          ref: ${{ steps.gate.outputs.head }}
+          path: source
+          persist-credentials: false
+      - id: admit
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_BASE64: ${{ steps.gate.outputs.request_base64 }}
+        run: python3 control/.github/scripts/direct_progress.py admit
+
+  compile:
+    name: Native compilation and evidence
+    needs: gate
+    if: needs.gate.outputs.compile == 'true'
+    runs-on: [self-hosted, Linux, X64, lucid-native]
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
+      LUCID_UNITY_EDITOR: /opt/unity/Editor/Unity
+      DOTNET_ROOT: /opt/dotnet
+      LD_LIBRARY_PATH: /opt/lucid/compat-jammy/usr/lib/x86_64-linux-gnu
+    outputs:
+      producer_base64: ${{ steps.seal.outputs.producer_base64 }}
+      report_base64: ${{ steps.seal.outputs.report_base64 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: controller
+          persist-credentials: false
+      - name: Use installed native toolchains
+        run: echo '/opt/dotnet' >> "$GITHUB_PATH"
+      - id: compile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 controller/.github/scripts/direct_progress.py compile
+      - id: seal
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPILE_OUTPUTS: ${{ toJSON(steps.compile.outputs) }}
+        run: python3 controller/.github/scripts/direct_progress.py seal
+      - name: Dispose this run's compilation checkouts
+        if: always()
+        timeout-minutes: 3
+        run: python3 controller/.github/scripts/direct_progress.py cleanup
+
+  publish:
+    needs: [gate, compile]
+    if: >-
+      always() && !cancelled() && needs.gate.result == 'success' &&
+      (needs.compile.result == 'success' || needs.gate.outputs.recheck == 'true')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: read
+      actions: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ needs.gate.outputs.head }}
+          path: source
+          persist-credentials: false
+      - name: Publish generated outputs and start required checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
+          RECHECK_ONLY: ${{ needs.gate.outputs.recheck }}
+          PRODUCER_BASE64: ${{ needs.compile.outputs.producer_base64 }}
+          REPORT_BASE64: ${{ needs.compile.outputs.report_base64 }}
+        run: python3 control/.github/scripts/direct_progress.py publish

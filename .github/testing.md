@@ -1,6 +1,6 @@
 # Automated checks
 
-Pushes and pull requests, including forks, run the Python tooling suite on Ubuntu and macOS with Python 3.13. The existing Code progress check retains Ubuntu and the minimum supported Python 3.9. Hosted C# checks run the maintained content identity implementation against fixed shared vectors on Ubuntu, Windows, and macOS ARM64 and Intel with .NET SDK 10.0.401.
+Pushes and pull requests, including forks, run the input-free tooling and content identity checks on Ubuntu 24.04. Existing macOS and Windows matrix names are compatibility aliases preserving the seven required check contexts; they do not represent execution on those operating systems. Tool tests use Python 3.13 and .NET SDK 10.0.401; Code progress retains its minimum supported Python 3.9 freshness check.
 
 The Python suite uses synthetic files and controlled process fixtures. Its 21 opt-in native recovery checks require a supplied game bundle and pinned recovery tools and remain visibly skipped. Hosted checks do not run Unity compilation, EditMode or PlayMode tests, desktop game builds, or game fidelity checks. Full Windows Python testing remains pending because extraction-host orchestration currently requires POSIX file locks.
 

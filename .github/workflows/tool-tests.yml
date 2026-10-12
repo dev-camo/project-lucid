@@ -1,6 +1,13 @@
 name: Tool tests
 
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      expected_head:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -8,7 +15,7 @@ permissions:
 jobs:
   python:
     name: Python (${{ matrix.os }}, 3.13)
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -16,18 +23,24 @@ jobs:
         os: [ubuntu-24.04, macos-15]
     env:
       PYTHONUTF8: '1'
+    # Legacy OS names preserve the seven required contexts; execution is Ubuntu only.
     steps:
+      - name: Require the requested commit for explicit checks
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: test -z "$EXPECTED_HEAD" || test "$GITHUB_SHA" = "$EXPECTED_HEAD"
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.13'
+      - run: echo 'Required context is a compatibility alias; this job runs on Ubuntu, not the named legacy OS.' >> "$GITHUB_STEP_SUMMARY"
       - run: python -m unittest discover -s tools/tests -v
 
   artifact-identity:
     name: C# identity (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -36,13 +49,19 @@ jobs:
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: '1'
+    # Legacy OS names preserve the seven required contexts; execution is Ubuntu only.
     steps:
+      - name: Require the requested commit for explicit checks
+        env:
+          EXPECTED_HEAD: ${{ inputs.expected_head }}
+        run: test -z "$EXPECTED_HEAD" || test "$GITHUB_SHA" = "$EXPECTED_HEAD"
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
         with:
           dotnet-version: '10.0.401'
+      - run: echo 'Identity vectors execute on Ubuntu; no Windows or macOS runtime qualification is claimed.' >> "$GITHUB_STEP_SUMMARY"
       - name: Run maintained C# content identity vectors
         working-directory: tools/tests/ArtifactIdentity
         run: dotnet run --project ArtifactIdentity.csproj --configuration Release

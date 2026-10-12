@@ -9,7 +9,7 @@ import subprocess
 import uuid
 
 from . import bindings, playercode, playerschema, themebindings, themecontracts
-from .bootstrap import dotnet_environment, load_lock, managed_path, validate_work_dir, write_json
+from .bootstrap import dotnet_environment, host_lock, load_lock, managed_path, validate_work_dir, write_json
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 PROFILE = "zone-theme-v1"
@@ -205,7 +205,7 @@ def _build_reader(root,work,run,engine):
     code=playercode._regular(project.with_name("Program.cs"),1024*1024)
     declarations=playercode._regular(project.with_name("LoadedDeclarations.cs"),1024*1024)
     sources=[playercode._file_record(project),playercode._file_record(code),playercode._file_record(declarations)]
-    sdk=load_lock().get("artifacts",{}).get("dotnet",{})
+    sdk=host_lock(load_lock())["artifacts"].get("dotnet",{})
     if sdk.get("version")!="10.0.401" or re.fullmatch(r"[a-f0-9]{128}",sdk.get("sha512","")) is None:
         raise ValueError("Contract reader requires the pinned SDK")
     host=managed_path(work,"tools","dotnet","dotnet");host_seal=playercode._file_record(host)
@@ -281,7 +281,7 @@ def _reader_check(root, work, run, reader):
     """Recheck the exact current tool build, not only its installed Cecil copy."""
     _keys(reader, {"host","sdk_version","sdk_archive_sha512","sources","binary","output","log"},
           "Contract reader build")
-    sdk=load_lock().get("artifacts",{}).get("dotnet",{})
+    sdk=host_lock(load_lock())["artifacts"].get("dotnet",{})
     if (sdk.get("version")!="10.0.401" or reader.get("sdk_version")!=sdk.get("version") or
         reader.get("sdk_archive_sha512")!=sdk.get("sha512") or
         re.fullmatch(r"[a-f0-9]{128}",sdk.get("sha512","")) is None):

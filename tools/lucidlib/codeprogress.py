@@ -17,7 +17,7 @@ import subprocess
 import uuid
 
 from . import native, playercode, playerschema, recovery
-from .bootstrap import dotnet_environment, load_lock, managed_path, validate_work_dir, write_json
+from .bootstrap import dotnet_environment, host_lock, load_lock, managed_path, validate_work_dir, write_json
 from .inspection import sha256_file
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
@@ -283,7 +283,7 @@ def _build_reader(root, work, run, engine):
     program = playercode._regular(project.with_name("Program.cs"), 1024 * 1024)
     host = managed_path(work, "tools", "dotnet", "dotnet")
     environment = dotnet_environment(work, host.parent)
-    sdk = load_lock().get("artifacts", {}).get("dotnet", {})
+    sdk = host_lock(load_lock())["artifacts"].get("dotnet", {})
     if sdk.get("version") != native._SDK: raise ValueError("Code progress requires the pinned SDK")
     host_seal = playercode._file_record(host)
     version = subprocess.run([str(host), "--version"], capture_output=True, text=True, env=environment, timeout=30)

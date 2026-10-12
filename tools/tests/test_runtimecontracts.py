@@ -491,7 +491,8 @@ class RuntimeContractReaderBuildTests(unittest.TestCase):
         }
         for patch in [mock.patch.object(bootstrap, 'REPO_ROOT', self.root),
                       mock.patch.object(bootstrap, 'CACHE_ROOT', self.work),
-                      mock.patch.object(rc, 'load_lock', return_value={'artifacts': {'dotnet': {
+                      mock.patch.object(rc, 'load_lock', return_value={'platform': bootstrap.host_name(),
+                          'rid': 'fixture-host', 'artifacts': {'dotnet': {
                           'version': '10.0.401', 'sha512': 'a' * 128}}}),
                       mock.patch.object(rc, '_seal', return_value=self.module),
                       mock.patch.object(rc.playerschema, '_tree_records', return_value=self.output)]:
