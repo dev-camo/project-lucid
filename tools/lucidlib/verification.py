@@ -1254,3 +1254,5 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalLinkedLevelTestsBoundaryTests.NonCycleSearchSkipsUnmatchedDataAndContinuesAfterEmptyMatches',
     'ProjectLucid.Tests.OriginalLinkedLevelTestsBoundaryTests.OwnedJsonRoundTripKeepsNestedDataAndNullScene',
 )
+
+EDITMODE_TESTS += ('OriginalFontReferenceConversionTests.OwnedOriginalAndExplicitConvertedFontCollectionReferencesImportWithOriginalKeys',)
