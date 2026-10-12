@@ -685,7 +685,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     source = project / "Assets"
     _assert_no_symlinks(source)
     mapping = json.loads(Path(report["asset_map_path"]).read_text())
-    from .scriptbindings import resolve_bindings, rewrite_script_pointers
+    from .scriptbindings import resolve_bindings, rewrite_prepared_script_pointers
     script_bindings = resolve_bindings(repo, work, project, mapping, input_fingerprint=report["input_fingerprint"])
     bindings = script_bindings["bindings"]
     bound_guids = {row["exported_guid"] for row in bindings}
@@ -734,7 +734,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                         meta_guids = GUID.findall(path.with_name(path.name + ".meta").read_text(encoding="utf-8"))
                         if meta_guids != [row["guid"]]:
                             raise ValueError("Rebound asset metadata differs from its asset map: " + row["path"])
-                        rewritten, count = rewrite_script_pointers(output.read_bytes(), bindings)
+                        rewritten, count = rewrite_prepared_script_pointers(output.read_bytes(), bindings)
                         if not count:
                             raise ValueError("Mapped script reference is absent from exported asset: " + row["path"])
                         output.write_bytes(rewritten)

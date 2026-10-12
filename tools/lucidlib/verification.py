@@ -1271,6 +1271,14 @@ EDITMODE_TESTS += (
 
 EDITMODE_TESTS += ('OriginalFontReferenceConversionTests.OwnedOriginalAndExplicitConvertedFontCollectionReferencesImportWithOriginalKeys',)
 
+# Genuine owned configuration serialization; bootstrap and payload readiness remain separate.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.ActiveConfigurationPreservesItsSerializedRuntimeReferenceAndGetter',
+    'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.RuntimeConfigurationKeepsTwelveOrderedSlotsAndCreatesReadonlyWrappers',
+    'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.GameLevelsPreservesBaseOverridesAndAuthoredReferenceOrderWithoutCaching',
+    'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.ActualPreparedConfigurationOwnersRetainOriginalPointersAndScopedLoadedFields',
+)
+
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalGameConfigurationTests.OriginalConfigurationDeclarationsRetainScopedFieldsMethodsAndAnnotations',
     'ProjectLucid.Tests.OriginalGameConfigurationTests.OwnedSeverityLookupKeepsFirstMatchFallbackAndPublicFailureLevels',

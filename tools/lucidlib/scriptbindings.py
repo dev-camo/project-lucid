@@ -92,6 +92,56 @@ UGUI_PACKAGE_SHA256 = "6830b8501f301344de9feab76c65d1d9339b496c55cb16f9827658e78
 UGUI_LOCK = {"version": "1.0.0", "depth": 0, "source": "builtin",
              "dependencies": {"com.unity.modules.ui": "1.0.0", "com.unity.modules.imgui": "1.0.0"}}
 
+# Configuration assets have qualified ordered arrays and authored override names.
+# Keep their complete source closure pinned; the resolver still requires the
+# exact supplied release and a fresh compatible loaded MonoScript layout.
+CONFIGURATION_RUNTIME_SOURCES = {
+    "Assets/Scripts/Definitions/GameplayLevelUIEntry.cs": "a5e2245b1950df317b94aef300d63b818082ddd001c0d409f8b9b1a8b2e1ff51",
+    "Assets/Scripts/Definitions/LevelDefinition.cs": "e1789c615fe0c7d6156d6ea84a355afb270706e274647fda8d9737c4668d3774",
+    "Assets/Scripts/Game/Configuration/GameLevels.cs": "55a168c5e6a679435ed2d7235b9fc239a7603e4e07f251cdd2c8ba38594f4386",
+    "Assets/Scripts/Game/Configuration/GameplayLevelDefinition.cs": "1de517a38abdf1b8077111a18aa7fdc02c15d895aa08ffd666b0c72c32f80f15",
+    "Assets/Scripts/RecoveredProof/Game.Runtime.asmdef": "6dd36d13364c94e3b1032e5527f13e42e6d8de394b707e1ab85280101e1cc121",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/ActiveRuntimeConfiguration.cs": "45529ea0e694140c3ae5df3fc1a883e02ad0cf0706ff19fcf65d2539bcf086c5",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/IActiveConfiguration.cs": "ba5a828b8a3dc13f21060e92ebee6f452e40be3e82706e0e77957efeb9f6f534",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/ISystemConfigurationAssetCollection.cs": "e5dcacd89071d947bf65de29b729d768461f75fd5b6a6dd83b7c2d99ebec281e",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/RuntimeConfiguration.cs": "88474b08663263a5f872627e80c14a70e2b1e0975e5c412a128f049908b915e6",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/SingleScriptableObject.cs": "a05fe680aef655cbb22c836db8ded4d5314217f4d514f81f2aa5a77915635dd5",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/SystemConfigurationAsset.cs": "3f5bf61bfcf1952ce2aa3cc44ad258b839b1fdb0ed3d2ad81983c907d05f4904",
+    "Packages/com.hardlight.hlunitycore/Runtime/HLUnityCore.Runtime.asmdef": "b9f3210d5cca9f7b7cc5bc458defe0e14e8df1486a17b29e517332c476347973",
+    "Packages/com.hardlight.hlunitycore/Runtime/ScriptableObjectWithGuid.cs": "befb87c3cc9068308cfa3e8965ceb82602974ffcb6380a894cd68d03e364629a"
+}
+
+CONFIGURATION_RULES = (
+    {
+        "assembly": "HLUnityCore.Runtime",
+        "full_name": "Hardlight.ActiveRuntimeConfiguration",
+        "export_path": "Assets/Scripts/HLUnityCore.Runtime/Hardlight/ActiveRuntimeConfiguration.cs",
+        "maintained_path": "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/ActiveRuntimeConfiguration.cs",
+        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
+        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "runtime_sources": CONFIGURATION_RUNTIME_SOURCES,
+    },
+    {
+        "assembly": "HLUnityCore.Runtime",
+        "full_name": "Hardlight.RuntimeConfiguration",
+        "export_path": "Assets/Scripts/HLUnityCore.Runtime/Hardlight/RuntimeConfiguration.cs",
+        "maintained_path": "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/RuntimeConfiguration.cs",
+        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
+        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "runtime_sources": CONFIGURATION_RUNTIME_SOURCES,
+    },
+    {
+        "assembly": "Game.Runtime",
+        "full_name": "HardlightProject.GameLevels",
+        "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/GameLevels.cs",
+        "maintained_path": "Assets/Scripts/Game/Configuration/GameLevels.cs",
+        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
+        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "runtime_sources": CONFIGURATION_RUNTIME_SOURCES,
+    },
+)
+RULES += CONFIGURATION_RULES
+
 GUID = re.compile(r"^guid:\s*([0-9a-f]{32})\s*$", re.MULTILINE)
 DOCUMENT = re.compile(r"^--- !u!(?P<class>\d+) &-?\d+\r?\n(?P<label>\w+):\r?\n(?P<fields>.*?)(?=^--- !u!|\Z)", re.MULTILINE | re.DOTALL)
 POINTER = re.compile(r"^(?P<prefix>  m_Script: *)\{(?P<body>[^}\r\n]*)\}(?P<trailer> *\r?$)", re.MULTILINE)
@@ -369,3 +419,24 @@ def rewrite_script_pointers(content, bindings):
     if package_changes != expected:
         raise ValueError("Unsupported Unity UI script document envelope")
     return rewritten.encode("utf-8"), changes
+
+
+def rewrite_prepared_script_pointers(content, bindings):
+    """Route only the three qualified configuration script identities."""
+    from .configurationbindings import PROFILES, rewrite_configuration_pointers
+
+    if len({row["exported_guid"] for row in bindings}) != len(bindings):
+        raise ValueError("Duplicate exported script binding")
+    configuration = [row for row in bindings
+                     if (row.get("assembly"), row.get("full_name")) in PROFILES]
+    scalar = [row for row in bindings
+              if (row.get("assembly"), row.get("full_name")) not in PROFILES]
+    # Select by script field lines first. The configuration helper's stricter
+    # standalone/control guards must not apply to unrelated scalar documents.
+    text = content.decode("utf-8")
+    script_lines = re.findall(r"^[ \t]*m_Script:[^\r\n]*", text, re.MULTILINE)
+    if any(row["exported_guid"] in line.lower() for row in configuration for line in script_lines):
+        rewritten, changes = rewrite_configuration_pointers(content, configuration)
+        rewritten, scalar_changes = rewrite_script_pointers(rewritten, scalar)
+        return rewritten, changes + scalar_changes
+    return rewrite_script_pointers(content, scalar)
