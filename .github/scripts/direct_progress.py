@@ -345,7 +345,7 @@ def compile_job(api, request):
     driver.require_control_reporting_tools(source, control)
     sys.path.insert(0, str(control / "tools"))
     from lucidlib.verification import artifact_fingerprint
-    command = ["xvfb-run", "-a", "python3", str(control / ".github/scripts/native_compilation.py"),
+    command = ["python3", str(control / ".github/scripts/native_compilation.py"),
         "--source", str(source), "--control", str(control),
         "--input", "/srv/lucid-task5/input/SonicDreamTeam.app", "--work-dir", str(source / ".cache/project-lucid"),
         "--expected-head", request["head"], "--expected-source", artifact_fingerprint(source),

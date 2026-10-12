@@ -1,7 +1,7 @@
 """Trusted-source Linux driver for a native VM or a prepared container.
 
 No activation, credentials, runner registration or publication is performed.
-Run with xvfb-run -a if no display server is available. The calling controller
+The Editor runs headlessly inside the namespace sandbox. The calling controller
 requires a completed PR workflow admitted by GitHub's contributor approval policy.
 """
 import argparse
@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+
+from editor_sandbox import isolated_editor
 
 
 def git_head(root):
@@ -98,7 +100,8 @@ def run(source, control, input_path, work, expected_head, expected_source, image
     from lucidlib import bootstrap as bootstrap_module
     from lucidlib.bootstrap import bootstrap, host_name
     from lucidlib.verification import artifact_fingerprint, find_editor
-    from lucidlib.playercode import run_player_code, _engine_identity
+    from lucidlib import playercode
+    from lucidlib.playercode import _engine_identity
     from lucidlib.playerschema import _player_evidence
     from lucidlib.progressreport import generate_progress, check_progress
     if host_name() != 'linux-x86_64':
@@ -113,11 +116,15 @@ def run(source, control, input_path, work, expected_head, expected_source, image
         require_control_reporting_tools(source, control)
 
     unchanged()
+    def compile_player():
+        with isolated_editor(playercode, source):
+            return playercode.run_player_code(source, work, 'linux')
+
     with project_cache_scope(bootstrap_module, source, work), source_working_directory(source):
         logs = work / 'private-driver-logs'
         logs.mkdir(parents=True, exist_ok=True)
         phases = [('bootstrap', lambda: bootstrap(work, selected=['cpp2il'])),
-                  ('player-code', lambda: run_player_code(source, work, 'linux')),
+                  ('player-code', compile_player),
                   ('progress', lambda: generate_progress(source, work, input_path, 'linux'))]
         for name, phase in phases:
             unchanged()
