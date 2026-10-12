@@ -573,6 +573,20 @@ def run_tests(repo_root, work_dir, mode):
                "-testResults", str(xml), "-logFile", str(log)]
     environment = os.environ.copy()
     environment["LUCID_RECOVERY_WORK_DIR"] = str(Path(work_dir).resolve())
+    if mode == "editmode":
+        from .fontreferencefixtures import build_import_fixture
+        carrier_meta = Path(repo_root) / "Assets/Tests/Editor/ProjectLucidFontReferenceConversionCarrier.cs.meta"
+        carrier_guids = re.findall(r"(?m)^guid: ([a-f0-9]{32})$", carrier_meta.read_text(encoding="utf-8"))
+        if len(carrier_guids) != 1:
+            raise ValueError("Test carrier MonoScript GUID is absent or ambiguous")
+        fixture = build_import_fixture(carrier_guids[0])
+        fixture["nonce"] = uuid.uuid4().hex
+        converter_source = Path(repo_root) / "tools/lucidlib/fontreferences.py"
+        fixture["converter_sha256"] = hashlib.sha256(converter_source.read_bytes()).hexdigest()
+        fixture_path = managed_path(work_dir, "reports", "font-reference-import.json")
+        write_json(fixture_path, fixture)
+        environment["LUCID_FONT_REFERENCE_IMPORT_FIXTURE"] = str(fixture_path.resolve())
+        environment["LUCID_FONT_REFERENCE_IMPORT_NONCE"] = fixture["nonce"]
     result = subprocess.run(command, env=environment, timeout=1800)
     after = current_identity(repo_root)
     errors = []
@@ -1264,3 +1278,5 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalGameConfigurationTests.OwnedBuildFeaturesPreserveOrderDuplicatesAndLiveReadOnlyViews',
     'ProjectLucid.Tests.OriginalGameConfigurationTests.OwnedConstructorFailureAndSerializedApplyKeepTheRealFeatureCache',
 )
+
+EDITMODE_TESTS += ("OriginalFontReferenceConversionTests.PythonConverterProducedFontCollectionOwnersImportTheirExactBytes",)

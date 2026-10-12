@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.ExceptionServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using HardlightProject;
@@ -65,6 +67,115 @@ public sealed class OriginalFontReferenceConversionTests
                 });
             }
         });
+    }
+
+    [Serializable]
+    private sealed class ConverterFixture
+    {
+        public int schema_version;
+        public string generated_by;
+        public string carrier_script_guid;
+        public string converter_sha256;
+        public string nonce;
+        public string[] keys;
+        public ConverterVariant[] variants;
+    }
+
+    [Serializable]
+    private sealed class ConverterVariant
+    {
+        public string name;
+        public string original_base64;
+        public string converted_base64;
+        public string original_sha256;
+        public string converted_sha256;
+        public int fragment_count;
+        public bool script_references_modified;
+        public bool player_serialized_profile_verified;
+        public bool runtime_verified;
+    }
+
+    [Test]
+    public void PythonConverterProducedFontCollectionOwnersImportTheirExactBytes()
+    {
+        string work = Environment.GetEnvironmentVariable("LUCID_RECOVERY_WORK_DIR");
+        string supplied = Environment.GetEnvironmentVariable("LUCID_FONT_REFERENCE_IMPORT_FIXTURE");
+        string nonce = Environment.GetEnvironmentVariable("LUCID_FONT_REFERENCE_IMPORT_NONCE");
+        Assert.That(work, Is.Not.Null.And.Not.Empty, "Run EditMode through tools/lucid.py test to generate its fresh converter fixture.");
+        Assert.That(supplied, Is.Not.Null.And.Not.Empty);
+        Assert.That(nonce, Does.Match("^[a-f0-9]{32}$"));
+        Assert.That(Path.GetFullPath(supplied), Is.EqualTo(Path.GetFullPath(Path.Combine(work, "reports", "font-reference-import.json"))));
+        byte[] contextBytes = File.ReadAllBytes(supplied);
+        Assert.That(contextBytes.Length, Is.LessThan(65536));
+        TestContext.Out.WriteLine("Python converter import fixture (complete base64): " + Convert.ToBase64String(contextBytes));
+        var fixture = JsonUtility.FromJson<ConverterFixture>(new UTF8Encoding(false, true).GetString(contextBytes));
+        Assert.That(fixture, Is.Not.Null);
+        Assert.That(fixture.schema_version, Is.EqualTo(1));
+        Assert.That(fixture.generated_by, Is.EqualTo("ProjectLucid.fontreferences.import-fixture"));
+        Assert.That(fixture.nonce, Is.EqualTo(nonce));
+        string converterPath = Path.Combine(Path.GetDirectoryName(Application.dataPath), "tools", "lucidlib", "fontreferences.py");
+        Assert.That(fixture.converter_sha256, Is.EqualTo(Sha256(File.ReadAllBytes(converterPath))));
+        var expectedKeys = Enumerable.Range(1, 4).Select(value => value.ToString("x32", CultureInfo.InvariantCulture)).ToArray();
+        Assert.That(fixture.keys, Is.EqualTo(expectedKeys));
+        Assert.That(fixture.variants, Has.Length.EqualTo(2));
+        Assert.That(fixture.variants.Select(variant => variant.name).ToArray(), Is.EqualTo(new[] { "LF", "CRLF" }));
+
+        WithOwnedFolder((folder, enroll) =>
+        {
+            var owner = ScriptableObject.CreateInstance<ProjectLucidFontReferenceConversionCarrier>();
+            enroll(owner);
+            MonoScript script = MonoScript.FromScriptableObject(owner);
+            Assert.That(script, Is.Not.Null);
+            Assert.That(fixture.carrier_script_guid, Is.EqualTo(AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(script))));
+            Assert.That(EditorSettings.serializationMode, Is.EqualTo(SerializationMode.ForceText));
+            foreach (var variant in fixture.variants)
+            {
+                Assert.That(variant.fragment_count, Is.EqualTo(expectedKeys.Length));
+                Assert.That(variant.script_references_modified, Is.False);
+                Assert.That(variant.player_serialized_profile_verified, Is.False);
+                Assert.That(variant.runtime_verified, Is.False);
+                foreach (bool converted in new[] { false, true })
+                {
+                    string encoded = converted ? variant.converted_base64 : variant.original_base64;
+                    byte[] source = Convert.FromBase64String(encoded);
+                    Assert.That(Convert.ToBase64String(source), Is.EqualTo(encoded));
+                    Assert.That(Sha256(source), Is.EqualTo(converted ? variant.converted_sha256 : variant.original_sha256));
+                    string path = folder + "/Python" + variant.name + (converted ? "Converted" : "OriginalProfile") + ".asset";
+                    Assert.That(File.Exists(path) || File.Exists(path + ".meta"), Is.False);
+                    File.WriteAllBytes(path, source);
+                    AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
+                    Assert.That(File.ReadAllBytes(path), Is.EqualTo(source));
+                    var imported = AssetDatabase.LoadAssetAtPath<ProjectLucidFontReferenceConversionCarrier>(path);
+                    Assert.That(imported, Is.Not.Null);
+                    Assert.That(AssetDatabase.GetAssetPath(imported), Is.EqualTo(path));
+                    Assert.That(AssetDatabase.AssetPathToGUID(path), Has.Length.EqualTo(32));
+                    Assert.That(imported.CollectionReferences.Count, Is.EqualTo(expectedKeys.Length));
+                    using (var serialized = new SerializedObject(imported))
+                    {
+                        serialized.Update();
+                        var list = serialized.FindProperty("m_fontAssetsAndFallBackCollectionRefs");
+                        Assert.That(list, Is.Not.Null);
+                        Assert.That(list.arraySize, Is.EqualTo(expectedKeys.Length));
+                        for (int i = 0; i < expectedKeys.Length; i++)
+                        {
+                            var reference = imported.CollectionReferences[i];
+                            Assert.That(reference.GetType(), Is.EqualTo(typeof(AssetReferenceT<FontAssetAndFallbacks>)));
+                            Assert.That(reference.AssetGUID, Is.EqualTo(expectedKeys[i]));
+                            Assert.That(reference.RuntimeKey, Is.EqualTo(expectedKeys[i]));
+                            Assert.That(reference.IsValid(), Is.False);
+                            AssertReference(list.GetArrayElementAtIndex(i), expectedKeys[i]);
+                        }
+                    }
+                    Assert.That(File.ReadAllBytes(path), Is.EqualTo(source));
+                }
+            }
+        });
+    }
+
+    private static string Sha256(byte[] bytes)
+    {
+        using (var algorithm = SHA256.Create())
+            return BitConverter.ToString(algorithm.ComputeHash(bytes)).Replace("-", string.Empty).ToLowerInvariant();
     }
 
     private static void ImportBoth(string folder, ScriptableObject owner, string[] keys, Action<ScriptableObject> observe)
