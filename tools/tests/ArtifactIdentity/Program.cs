@@ -77,6 +77,31 @@ namespace ProjectLucid.ToolTests
             Require(LucidArtifactIdentity.Fingerprint(root, false) == Source, "Restored maintained source", ref checks);
         }
 
+        private static void SourceDocumentVectors(string root, ref int checks)
+        {
+            string cache = Path.Combine(root, "isolated host tools");
+            Directory.CreateDirectory(cache);
+            string previous = Directory.GetCurrentDirectory();
+            try
+            {
+                Directory.SetCurrentDirectory(cache);
+                foreach (string relative in new[] { "Assets/Scripts/fixture.cs", "Packages/com.example.fixture/Runtime/fixture.cs" })
+                {
+                    // A decoy document in the tool cache must never receive credit.
+                    Write(cache, relative, "wrong source checksum\n");
+                    string expected = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+                    string actual = ProjectLucid.CodeProgress.SourceDocuments.Resolve(root, relative);
+                    Require(actual == expected, "Relative PDB resolves from project: " + relative, ref checks);
+                    Require(File.ReadAllText(actual) != File.ReadAllText(Path.Combine(cache, relative)), "Tool-cache decoy rejected", ref checks);
+                    Require(ProjectLucid.CodeProgress.SourceDocuments.Resolve(root, expected) == expected, "Absolute PDB identity retained", ref checks);
+                }
+                string outside = ProjectLucid.CodeProgress.SourceDocuments.Resolve(root, "../foreign.cs");
+                Require(Path.GetRelativePath(root, outside).StartsWith("..", StringComparison.Ordinal), "Foreign source remains outside project", ref checks);
+            }
+            finally { Directory.SetCurrentDirectory(previous); }
+            Console.WriteLine("Progress source document vectors passed from isolated tool working directory.");
+        }
+
         private static int Main(string[] args)
         {
             if (args.Length != 0)
@@ -92,6 +117,7 @@ namespace ProjectLucid.ToolTests
             {
                 Directory.CreateDirectory(root);
                 Vectors(root, ref checks);
+                SourceDocumentVectors(root, ref checks);
             }
             catch (Exception error) { failure = error; }
             try { if (Directory.Exists(root)) Directory.Delete(root, true); }

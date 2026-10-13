@@ -258,7 +258,7 @@ internal static class Program
                     row["source_status"] = "verified";
                     foreach (var document in documents)
                     {
-                        string path = Path.GetFullPath(document.Url);
+                        string path = SourceDocuments.Resolve(root, document.Url);
                         string relative = Path.GetRelativePath(root, path).Replace('\\','/');
                         if (!(relative.StartsWith("Assets/", StringComparison.Ordinal) || relative.StartsWith("Packages/", StringComparison.Ordinal)) ||
                             relative.Split('/').Any(p => p is ".." or "Editor" or "Tests" or "bin" or "obj" or "__pycache__" || p.StartsWith('.')) ||

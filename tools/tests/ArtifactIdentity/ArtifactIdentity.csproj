@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs" />
+    <Compile Include="../../code-progress/SourceDocuments.cs" Link="SourceDocuments.cs" />
     <Compile Include="../../../Assets/Editor/RecoveredProof/LucidArtifactIdentity.cs" Link="LucidArtifactIdentity.cs" />
   </ItemGroup>
   <Target Name="RequirePinnedSdk" BeforeTargets="PrepareForBuild">

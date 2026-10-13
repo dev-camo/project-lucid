@@ -180,6 +180,123 @@ class CodeWorkTests(unittest.TestCase):
                                        scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
 
 
+class AssemblyAvailabilityTests(unittest.TestCase):
+    def measurement(self):
+        helper = CodeWorkTests()
+        scope = ["Game.Runtime", "HLAutoPlay.Runtime", "HLInput.Runtime"]
+        original = [helper.original_row(assembly=name) for name in scope]
+        availability = {
+            "Game.Runtime": {"measurement_status": "measured", "unavailable_reason": None},
+            "HLAutoPlay.Runtime": {"measurement_status": "no_recovered_source", "unavailable_reason": None},
+            "HLInput.Runtime": {"measurement_status": "unavailable", "unavailable_reason": "maintained-source-module-not-returned-linux"}}
+        inventories = helper.inventories(original, [helper.player_row()])
+        return codeprogress.measure_code_work(*inventories, scope, assembly_availability=availability)
+
+    def public(self, measurement=None):
+        return codeprogress.public_counts(self.measurement() if measurement is None else measurement,
+                                         source="a" * 64, input_binary="b" * 64, input_metadata="c" * 64,
+                                         scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
+
+    def test_unavailable_excludes_numerator_and_denominator_unrecovered_is_counted(self):
+        result = self.measurement()
+        self.assertEqual(2, result["schema_version"])
+        self.assertEqual((1, 2), tuple(result["totals"][key] for key in ("implemented_source_bodies", "original_native_bodies")))
+        rows = {row["assembly"]: row for row in result["assemblies"]}
+        self.assertTrue(all(rows["HLInput.Runtime"][key] is None for key in codeprogress.COUNT_FIELDS))
+        self.assertEqual((0, 1), tuple(rows["HLAutoPlay.Runtime"][key] for key in ("implemented_source_bodies", "original_native_bodies")))
+        self.assertEqual("measurement_unavailable", next(row["status"] for row in result["method_map"] if row["original_id"].startswith("HLInput.Runtime:")))
+
+    def test_chart_never_displays_unavailable_as_zero_progress(self):
+        text = codeprogress.render_readme_section(self.public())
+        row = next(line for line in text.splitlines() if line.startswith("| HLInput.Runtime"))
+        self.assertIn("| — | — | Unavailable / not counted:", row)
+        self.assertIn("linux compiler returned no assembly module", row)
+        self.assertNotIn("0%", row)
+        self.assertIn("HLAutoPlay.Runtime (no recovered source) | 0 | 1 | 0.00%", text)
+        self.assertIn("(50.00%)", text)
+
+    def test_all_unavailable_has_no_percentage_and_null_counts(self):
+        helper = CodeWorkTests(); availability = {"Game.Runtime": {"measurement_status": "unavailable", "unavailable_reason": "maintained-source-module-not-returned-linux"}}
+        result = codeprogress.measure_code_work(*helper.inventories(player=[]), ["Game.Runtime"], assembly_availability=availability)
+        self.assertEqual(0, result["totals"]["original_native_bodies"])
+        text = codeprogress.render_readme_section(self.public(result))
+        self.assertIn("(—)", text)
+        self.assertNotIn("0.00%", text)
+
+    def test_unavailable_numeric_counts_bad_totals_or_freeform_reason_rejected(self):
+        for mutation in ("number", "total", "reason", "status", "missing"):
+            report = self.public()
+            row = report["assemblies"][-1]
+            if mutation == "number": row["implemented_source_bodies"] = 0
+            if mutation == "total": report["totals"]["original_native_bodies"] += 1
+            if mutation == "reason": row["unavailable_reason"] = "/private/path | fake"
+            if mutation == "status": row["measurement_status"] = "silently-omitted"
+            if mutation == "missing": del row["unavailable_reason"]
+            with self.assertRaises(ValueError): codeprogress.validate_public_counts(report)
+
+    def test_availability_cannot_hide_compiled_methods_or_omit_scope(self):
+        helper = CodeWorkTests()
+        for availability in ({}, {"Game.Runtime": {"measurement_status": "unavailable", "unavailable_reason": "maintained-source-module-not-returned-linux"}},
+                             {"Game.Runtime": {"measurement_status": "no_recovered_source", "unavailable_reason": None}}):
+            with self.assertRaises(ValueError):
+                codeprogress.measure_code_work(*helper.inventories(), ["Game.Runtime"], assembly_availability=availability)
+
+    def test_expected_linux_scope_includes_every_recovered_assembly(self):
+        root = Path(__file__).resolve().parents[2]
+        scope, _, _ = codeprogress._scope(root)
+        self.assertEqual(22, len(scope))
+        unrecovered = {"Assembly-CSharp", "Assembly-CSharp-firstpass", "HLAutoPlay.Runtime"}
+        returned = [{"assembly_name": name} for name in scope if name not in unrecovered]
+        statuses = codeprogress._assembly_availability(root, {"staged": {"modules": returned}}, scope, "linux")
+        self.assertEqual(19, sum(row["measurement_status"] == "measured" for row in statuses.values()))
+        self.assertEqual(unrecovered, {name for name, row in statuses.items() if row["measurement_status"] == "no_recovered_source"})
+        self.assertFalse(any(row["measurement_status"] == "unavailable" for row in statuses.values()))
+        # Apple input is managed metadata on Linux; the name is not a platform exclusion.
+        returned = [row for row in returned if row["assembly_name"] != "HLAppleInput.Runtime"]
+        statuses = codeprogress._assembly_availability(root, {"staged": {"modules": returned}}, scope, "linux")
+        self.assertEqual({"measurement_status": "unavailable", "unavailable_reason": "maintained-source-module-not-returned-linux"}, statuses["HLAppleInput.Runtime"])
+
+    def test_missing_source_assembly_not_in_compiler_plan_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            runtime = root / "Packages/com.example/Runtime"; runtime.mkdir(parents=True)
+            (runtime / "HLInput.Runtime.asmdef").write_text('{"name":"HLInput.Runtime"}')
+            (runtime / "Input.cs").write_text("class Input {}")
+            result = codeprogress._assembly_availability(root, {"staged": {"modules": []}}, ["HLInput.Runtime"], "linux")
+            self.assertEqual("unavailable", result["HLInput.Runtime"]["measurement_status"])
+
+    def test_nested_definitions_asmrefs_and_default_assemblies_have_correct_owners(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            outer = root / "Assets/Outer"; outer.mkdir(parents=True)
+            (outer / "outer.asmdef").write_text('{"name":"HLInput.Runtime"}')
+            nested = outer / "Nested"; nested.mkdir()
+            (nested / "inner.asmdef").write_text('{"name":"Game.Runtime"}')
+            (nested / "inner.asmdef.meta").write_text("guid: " + "a" * 32 + "\n")
+            (nested / "Inner.cs").write_text("class Inner {}")
+            reference = root / "Assets/Reference"; reference.mkdir()
+            (reference / "Game.asmref").write_text('{"reference":"GUID:' + "a" * 32 + '"}')
+            (reference / "Other.cs").write_text("class Other {}")
+            default = root / "Assets/Plugins"; default.mkdir()
+            (default / "Firstpass.cs").write_text("class Firstpass {}")
+            (root / "Assets/Default.cs").write_text("class Default {}")
+            scope = ["Game.Runtime", "HLInput.Runtime", "Assembly-CSharp", "Assembly-CSharp-firstpass"]
+            result = codeprogress._assembly_availability(root, {"staged": {"modules": []}}, scope, "linux")
+            self.assertEqual("no_recovered_source", result["HLInput.Runtime"]["measurement_status"])
+            for name in set(scope) - {"HLInput.Runtime"}:
+                self.assertEqual("unavailable", result[name]["measurement_status"])
+            (reference / "Game.asmref").write_text('{"reference":"GUID:' + "b" * 32 + '"}')
+            with self.assertRaisesRegex(ValueError, "Unresolved"):
+                codeprogress._assembly_availability(root, {"staged": {"modules": []}}, scope, "linux")
+
+    def test_old_main_snapshot_remains_valid_and_renderer_identical(self):
+        root = Path(__file__).resolve().parents[2]
+        report = json.loads((root / "docs/code-progress.json").read_bytes())
+        codeprogress.validate_public_counts(report)
+        from lucidlib.progressreport import split_readme
+        self.assertEqual(split_readme((root / "README.md").read_text())[1] + "\n", codeprogress.render_readme_section(report))
+
+
 class NativeByteMapTests(unittest.TestCase):
     def fixture(self, folder, section_name=b"il2cpp", flags=0x80000400):
         path = folder / "native.dylib"; address = 0x1000; offset = 256; data = b"actual native method prefix"
