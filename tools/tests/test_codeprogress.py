@@ -289,6 +289,29 @@ class AssemblyAvailabilityTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Unresolved"):
                 codeprogress._assembly_availability(root, {"staged": {"modules": []}}, scope, "linux")
 
+    def test_ignored_definitions_and_references_cannot_change_sealed_availability(self):
+        from lucidlib.verification import artifact_fingerprint
+        for relative in ("Assets/Recovered", "Assets/StreamingAssets", "Assets/.hidden", "Assets/bin", "Assets/obj",
+                         "Assets/__pycache__", "Packages/.hidden", "Packages/bin", "Packages/obj", "Packages/__pycache__"):
+            for kind in ("duplicate_definition", "malformed_reference", "malformed_definition"):
+                with self.subTest(relative=relative, kind=kind), tempfile.TemporaryDirectory() as folder:
+                    root = Path(folder).resolve()
+                    runtime = root / "Packages/com.example/Runtime"; runtime.mkdir(parents=True)
+                    (runtime / "Runtime.asmdef").write_text('{"name":"HLInput.Runtime"}')
+                    (runtime / "Runtime.asmdef.meta").write_text("guid: " + "a" * 32 + "\n")
+                    (runtime / "Input.cs").write_text("class Input {}")
+                    evidence = {"staged": {"modules": []}}
+                    baseline = codeprogress._assembly_availability(root, evidence, ["HLInput.Runtime"], "linux")
+                    fingerprint = artifact_fingerprint(root)
+                    ignored = root / relative; ignored.mkdir(parents=True)
+                    if kind == "duplicate_definition":
+                        (ignored / "Old.asmdef").write_text('{"name":"HLInput.Runtime"}')
+                        (ignored / "Old.asmdef.meta").write_text("guid: " + "a" * 32 + "\n")
+                    else:
+                        (ignored / ("Old.asmref" if kind == "malformed_reference" else "Old.asmdef")).write_text("{invalid json")
+                    self.assertEqual(fingerprint, artifact_fingerprint(root))
+                    self.assertEqual(baseline, codeprogress._assembly_availability(root, evidence, ["HLInput.Runtime"], "linux"))
+
     def test_old_main_snapshot_remains_valid_and_renderer_identical(self):
         root = Path(__file__).resolve().parents[2]
         report = json.loads((root / "docs/code-progress.json").read_bytes())

@@ -250,24 +250,43 @@ def _assembly_availability(root, evidence, scope, target):
     returned = {row["assembly_name"] for row in evidence["staged"]["modules"]}
     recovered = set()
     boundaries, guids, references = {}, {}, []
-    sources = []
+    sources, definitions = [], []
     for base in (Path(root) / "Assets", Path(root) / "Packages"):
-        for path in base.rglob("*.asmdef"):
-            _, definition = _json(path, 65536)
-            name = definition.get("name")
-            if not isinstance(name, str) or not name:
-                raise ValueError("Maintained assembly definition has no name")
-            if path.parent in boundaries:
-                raise ValueError("Ambiguous maintained assembly definition")
-            boundaries[path.parent] = name
-            meta = path.with_name(path.name + ".meta")
-            if meta.exists():
-                matches = re.findall(r"^guid: ([0-9a-f]{32})$", playercode._regular(meta, 65536).read_text(), re.MULTILINE)
-                if len(matches) != 1 or matches[0] in guids:
-                    raise ValueError("Ambiguous maintained assembly GUID")
-                guids[matches[0]] = name
-        references.extend(base.rglob("*.asmref"))
-        sources.extend(path for path in base.rglob("*.cs") if _maintained_document(path.relative_to(root).as_posix()))
+        if base.is_symlink():
+            raise ValueError("Symlinked maintained source directory")
+        for parent, directories, files in os.walk(base):
+            for name in directories:
+                if (Path(parent) / name).is_symlink():
+                    raise ValueError("Symlinked maintained source directory")
+            # Use the source fingerprint's directory boundary for definitions,
+            # references and source alike. Ignored outputs cannot alter a
+            # measurement while leaving its source identity unchanged.
+            directories[:] = [name for name in directories if not name.startswith(".")
+                              and name not in ("obj", "bin", "__pycache__")]
+            if Path(parent) == Path(root) / "Assets":
+                directories[:] = [name for name in directories if name not in ("Recovered", "StreamingAssets")]
+            for name in files:
+                path = Path(parent) / name
+                if name.endswith(".asmdef"):
+                    definitions.append(path)
+                elif name.endswith(".asmref"):
+                    references.append(path)
+                elif name.endswith(".cs") and _maintained_document(path.relative_to(root).as_posix()):
+                    sources.append(path)
+    for path in definitions:
+        _, definition = _json(path, 65536)
+        name = definition.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError("Maintained assembly definition has no name")
+        if path.parent in boundaries:
+            raise ValueError("Ambiguous maintained assembly definition")
+        boundaries[path.parent] = name
+        meta = path.with_name(path.name + ".meta")
+        if meta.exists():
+            matches = re.findall(r"^guid: ([0-9a-f]{32})$", playercode._regular(meta, 65536).read_text(), re.MULTILINE)
+            if len(matches) != 1 or matches[0] in guids:
+                raise ValueError("Ambiguous maintained assembly GUID")
+            guids[matches[0]] = name
     for path in references:
         _, definition = _json(path, 65536)
         reference = definition.get("reference")
