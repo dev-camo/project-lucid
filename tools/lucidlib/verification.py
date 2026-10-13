@@ -1328,3 +1328,10 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalDataDefinitionsAssetImportTests.GenuineOwnedDataDefinitionsRetainsFiftySevenNullSlotsAndMonoScriptAfterReimport',
     'ProjectLucid.Tests.Editor.OriginalDataDefinitionsAssetImportTests.ActualSuppliedDataDefinitionsPreservesScriptAndFiftySevenOrderedRawReferences',
 )
+
+# Owned closed storage and callbacks; supplied group payloads require separate qualification.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.ClosedStateMachinesGroupRetainsThreeArgumentElementAndOriginalConstraints',
+    'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.GenuineOwnedGroupPreservesOrderedNameAndDataStorageAfterReimport',
+    'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.GenuineOwnedElementCallbacksRetainCurrentNameAndNullOrDestroyedNone',
+)
