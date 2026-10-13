@@ -224,7 +224,8 @@ namespace ProjectLucid.Offline
 
         private static bool IsStorageFailure(Exception error)
         {
-            return error is IOException || error is UnauthorizedAccessException || error is ArgumentException ||
+            // Invalid envelopes use the existing backup and corrupt-file paths.
+            return error is IOException || error is InvalidDataException || error is UnauthorizedAccessException || error is ArgumentException ||
                 error is NotSupportedException || error is CryptographicException;
         }
 
