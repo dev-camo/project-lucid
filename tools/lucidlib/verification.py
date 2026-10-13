@@ -551,11 +551,55 @@ def test_verdict(path, required):
         root = ET.fromstring(data)
     except ET.ParseError as error:
         raise ValueError("Invalid Unity test XML: " + str(error)) from error
-    passed = {test.get("fullname") for test in root.iter("test-case") if test.get("result") == "Passed"}
-    missing = sorted(set(required) - passed)
-    success = root.tag == "test-run" and root.get("result") == "Passed" and root.get("failed") == "0" and not missing
+    diagnostics = []
+    outcomes = {"Passed": "passed", "Failed": "failed", "Inconclusive": "inconclusive", "Skipped": "skipped"}
+    named_outcomes = {}
+    counts = {}
+    # NUnit summary counters count case occurrences, not distinct fullnames.
+    # Fold the complete tree so nested suites are checked without recursive calls.
+    for node in reversed(list(root.iter())):
+        errors = []
+        actual = dict.fromkeys(("total", *outcomes.values()), 0)
+        for child in node:
+            for key, value in counts.pop(child).items():
+                actual[key] += value
+        if node.tag in ("test-run", "test-suite", "test-case"):
+            result = node.get("result")
+            name = node.get("fullname") or node.get("name") or "<unnamed>"
+            if result not in outcomes:
+                errors.append("Unsupported " + node.tag + " outcome for " + name + ": " + repr(result))
+            elif result == "Failed":
+                errors.append("Failed " + node.tag + ": " + name)
+            if node.tag == "test-case":
+                actual["total"] += 1
+                if result in outcomes:
+                    actual[outcomes[result]] += 1
+                if node.get("fullname"):
+                    named_outcomes.setdefault(node.get("fullname"), set()).add(result)
+            else:
+                # testcasecount counts discovered tests and may exceed filtered results.
+                for key, value in actual.items():
+                    declared = node.get(key)
+                    if declared is not None and (re.fullmatch(r"[0-9]+", declared) is None or
+                                                 (declared.lstrip("0") or "0") != str(value)):
+                        errors.append("Inconsistent " + node.tag + " " + key + " count for " + name +
+                                      ": " + repr(declared) + "; observed " + str(value))
+        counts[node] = actual
+        diagnostics.append(errors)
+    errors = [error for group in reversed(diagnostics) for error in group]
+    # Optional skipped/inconclusive cases are allowed. Every occurrence of a
+    # required fullname must pass; one passing duplicate cannot erase a failure.
+    passed = {name for name, values in named_outcomes.items() if values == {"Passed"}}
+    required_names = set(required)
+    missing = sorted(required_names - passed)
+    conflicting = sorted(name for name in required_names if len(named_outcomes.get(name, ())) > 1)
+    if conflicting:
+        errors.append("Conflicting required test outcomes: " + ", ".join(conflicting))
+    success = (root.tag == "test-run" and root.get("result") == "Passed" and root.get("failed") == "0"
+               and not missing and not errors)
     return {"status": "complete" if success else "incomplete", "result": root.get("result"),
             "passed": len(passed), "missing_required_tests": missing,
+            "conflicting_required_tests": conflicting, "errors": errors,
             "xml_sha256": hashlib.sha256(data).hexdigest()}
 
 
@@ -602,6 +646,7 @@ def run_tests(repo_root, work_dir, mode):
         errors.append("Project content changed during testing; rerun with the imported project")
     try:
         verdict = test_verdict(xml, EDITMODE_TESTS if mode == "editmode" else PLAYMODE_TESTS)
+        errors.extend(verdict["errors"])
         if verdict["missing_required_tests"]:
             errors.append("Missing required tests: " + ", ".join(verdict["missing_required_tests"]))
     except ValueError as error:

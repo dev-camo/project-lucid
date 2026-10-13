@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -7,6 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib.project import build_project, validate_project
+from lucidlib import verification
 from lucidlib.assets import EXPORT_SETTINGS, fingerprint_manifest, _tool_lock
 from lucidlib.inspection import _manifest
 
@@ -48,6 +50,52 @@ class ProjectTests(unittest.TestCase):
             work, _, _ = self.fixture(root)
             self.assertEqual("complete", validate_project(root, work, "extraction")["status"])
             self.assertEqual("failed", validate_project(root, work, "release")["status"])
+
+    def test_contradictory_xml_blocks_real_release_validation_and_build(self):
+        # Complete-shaped inert evidence isolates the XML guard; no Editor runs.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            work, _, _ = self.fixture(root)
+            (root / "Assets/Recovered").mkdir(parents=True)
+            (root / "ProjectSettings").mkdir()
+            (root / "ProjectSettings/ProjectVersion.txt").write_text("m_EditorVersion: " + verification.UNITY_VERSION)
+            (root / "Packages").mkdir()
+            (root / "Packages/packages-lock.json").write_text("{}")
+            identity = verification.current_identity(root)
+            audit = {"status": "complete", "unresolved_references": 0,
+                     "unity_version": verification.UNITY_VERSION, **identity}
+            (work / "reports/unity-reference-audit.json").write_text(json.dumps(audit))
+            from xml.sax.saxutils import quoteattr
+            for mode, names in (("editmode", verification.EDITMODE_TESTS), ("playmode", verification.PLAYMODE_TESTS)):
+                cases = ''.join('<test-case fullname=' + quoteattr(name) + ' result="Passed"/>' for name in names)
+                xml = work / "reports" / (mode + ".xml")
+                xml.write_text('<test-run result="Passed" failed="0">' + cases + '</test-run>')
+                receipt = {"generated_by": "ProjectLucid.run_tests", "status": "complete",
+                           "unity_version": verification.UNITY_VERSION, **identity,
+                           "verdict": {"xml_sha256": hashlib.sha256(xml.read_bytes()).hexdigest()}}
+                (work / "reports" / (mode + "-verification.json")).write_text(json.dumps(receipt))
+            self.assertEqual("complete", validate_project(root, work)["status"])
+            xml = work / "reports/playmode.xml"
+            valid = xml.read_text()
+            for contradiction in ('<test-case fullname="Other.Test" result="Failed"/>',
+                                  '<test-suite result="Failed"/>',
+                                  '<test-case fullname=' + quoteattr(verification.PLAYMODE_TESTS[0]) + ' result="Skipped"/>'):
+                with self.subTest(contradiction=contradiction):
+                    xml.write_text(valid.replace('</test-run>', contradiction + '</test-run>'))
+                    receipt_path = work / "reports/playmode-verification.json"
+                    receipt = json.loads(receipt_path.read_text())
+                    receipt["verdict"]["xml_sha256"] = hashlib.sha256(xml.read_bytes()).hexdigest()
+                    receipt_path.write_text(json.dumps(receipt))
+                    result = validate_project(root, work)
+                    self.assertEqual("failed", result["status"])
+                    self.assertTrue(any("playmode" in error and "incomplete" in error for error in result["errors"]))
+                    with patch("lucidlib.project.find_editor") as editor, patch("lucidlib.project.subprocess.run") as run:
+                        built = build_project(root, work, "macos")
+                    self.assertEqual("blocked", built["status"])
+                    editor.assert_not_called()
+                    run.assert_not_called()
+                    self.assertFalse((root / "Builds").exists())
+                    self.assertFalse((work / "reports/release-validation.json").exists())
 
     def test_validation_rejects_input_changed_after_export(self):
         with tempfile.TemporaryDirectory() as temporary:

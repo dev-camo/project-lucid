@@ -1,10 +1,14 @@
+import hashlib
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from lucidlib import verification
 from lucidlib.verification import artifact_fingerprint, test_verdict, verified_receipt
 
 
@@ -65,6 +69,163 @@ class VerificationTests(unittest.TestCase):
             self.assertEqual(["Game.OriginalStartup"], result["missing_required_tests"])
             self.xml(path, ["Game.OriginalStartup"])
             self.assertEqual("complete", test_verdict(path, ["Game.OriginalStartup"])["status"])
+
+    def test_passing_root_cannot_hide_failed_descendants(self):
+        controls = (
+            '<test-case fullname="Other.Test" result="Failed"/>',
+            '<test-case fullname="Game.Required" result="Failed"/>',
+            '<test-suite fullname="Failed.Fixture" result="Failed"/>',
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+            for failure in controls:
+                with self.subTest(failure=failure):
+                    path.write_text('<test-run result="Passed" failed="0">'
+                                    '<test-suite result="Passed">'
+                                    '<test-case fullname="Game.Required" result="Passed"/>'
+                                    + failure + '</test-suite></test-run>')
+                    self.assertEqual("incomplete", test_verdict(path, ["Game.Required"])["status"])
+
+    def test_required_pass_cannot_hide_a_conflicting_duplicate_outcome(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+            for outcome in ("Failed", "Skipped", "Inconclusive", "Unknown", ""):
+                for reverse in (False, True):
+                    with self.subTest(outcome=outcome, reverse=reverse):
+                        cases = ['<test-case fullname="Game.Required" result="Passed"/>',
+                                 '<test-case fullname="Game.Required" result="' + outcome + '"/>']
+                        path.write_text('<test-run result="Passed" failed="0">'
+                                        + ''.join(reversed(cases) if reverse else cases) + '</test-run>')
+                        verdict = test_verdict(path, ["Game.Required"])
+                        self.assertEqual("incomplete", verdict["status"])
+                        self.assertEqual(["Game.Required"], verdict["missing_required_tests"])
+
+    def test_optional_skipped_and_inconclusive_cases_do_not_replace_required_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+            for outcome in ("Skipped", "Inconclusive"):
+                with self.subTest(outcome=outcome):
+                    optional = '<test-case fullname="Optional.Test" result="' + outcome + '"/>'
+                    path.write_text('<test-run result="Passed" failed="0">'
+                                    '<test-case fullname="Game.Required" result="Passed"/>'
+                                    + optional + '</test-run>')
+                    self.assertEqual("complete", test_verdict(path, ["Game.Required"])["status"])
+                    self.assertEqual("incomplete", test_verdict(path, ["Optional.Test"])["status"])
+
+    def test_unrecognised_case_or_suite_outcome_is_not_successful_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+            for node in ('<test-case fullname="Optional.Test"/>',
+                         '<test-case fullname="Optional.Test" result="Unknown"/>',
+                         '<test-suite result="Unknown"/>'):
+                with self.subTest(node=node):
+                    path.write_text('<test-run result="Passed" failed="0">'
+                                    '<test-case fullname="Game.Required" result="Passed"/>'
+                                    + node + '</test-run>')
+                    self.assertEqual("incomplete", test_verdict(path, ["Game.Required"])["status"])
+
+    def test_declared_outcome_counts_must_match_descendant_case_records(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+            for summary in ('total="2"', 'passed="2"', 'skipped="1"', 'inconclusive="1"',
+                            'passed="-1"', 'total="not-a-count"'):
+                for summary_owner in ("run", "suite"):
+                    with self.subTest(summary=summary, owner=summary_owner):
+                        run_summary = ' ' + summary if summary_owner == "run" else ''
+                        suite_summary = ' ' + summary if summary_owner == "suite" else ''
+                        path.write_text('<test-run result="Passed" failed="0"' + run_summary + '>'
+                                        '<test-suite result="Passed"' + suite_summary + '>'
+                                        '<test-case fullname="Game.Required" result="Passed"/>'
+                                        '</test-suite></test-run>')
+                        self.assertEqual("incomplete", test_verdict(path, ["Game.Required"])["status"])
+            path.write_text('<test-run result="Passed" failed="0">'
+                            '<test-suite result="Passed" failed="1">'
+                            '<test-case fullname="Game.Required" result="Passed"/>'
+                            '</test-suite></test-run>')
+            self.assertEqual("incomplete", test_verdict(path, ["Game.Required"])["status"])
+
+    def test_consistent_nested_counts_and_repeated_passes_remain_supported(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+            path.write_text('<test-run result="Passed" testcasecount="99" total="4" passed="2" failed="0" '
+                            'skipped="1" inconclusive="1"><test-suite result="Passed" testcasecount="99" total="4" '
+                            'passed="2" failed="0" skipped="1" inconclusive="1">'
+                            '<test-case fullname="Game.Required" result="Passed"/>'
+                            '<test-suite result="Passed" total="3" passed="1" failed="0" '
+                            'skipped="1" inconclusive="1">'
+                            '<test-case fullname="Game.Required" result="Passed"/>'
+                            '<test-case fullname="Optional.Skip" result="Skipped"/>'
+                            '<test-case fullname="Optional.Inconclusive" result="Inconclusive"/>'
+                            '</test-suite></test-suite></test-run>')
+            verdict = test_verdict(path, ["Game.Required"])
+            self.assertEqual("complete", verdict["status"])
+            self.assertEqual(1, verdict["passed"])
+
+    def test_receipt_rechecks_failed_xml_even_with_its_matching_digest(self):
+        # This is inert supplied evidence, not an actual generated Unity receipt.
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary)
+            reports = work / "reports"
+            reports.mkdir()
+            from xml.sax.saxutils import quoteattr
+            names = verification.PLAYMODE_TESTS
+            cases = ''.join('<test-case fullname=' + quoteattr(name) + ' result="Passed"/>' for name in names)
+            xml = reports / "playmode.xml"
+            for failure in ('<test-case fullname="Unrelated.Test" result="Failed"/>',
+                            '<test-case fullname=' + quoteattr(names[0]) + ' result="Skipped"/>',
+                            '<test-suite result="Failed"/>'):
+                with self.subTest(failure=failure):
+                    xml.write_text('<test-run result="Passed" failed="0">' + cases + failure + '</test-run>')
+                    identity = {"source_fingerprint": "synthetic-source", "prepared_asset_fingerprint": "synthetic-assets"}
+                    receipt = {"generated_by": "ProjectLucid.run_tests", "status": "complete",
+                               "unity_version": verification.UNITY_VERSION, **identity,
+                               "verdict": {"xml_sha256": hashlib.sha256(xml.read_bytes()).hexdigest()}}
+                    (reports / "playmode-verification.json").write_text(json.dumps(receipt))
+                    with self.assertRaisesRegex(ValueError, "incomplete"):
+                        verified_receipt(work, "playmode", identity)
+
+    def test_run_tests_retains_outcome_diagnostics_without_launching_unity(self):
+        from xml.sax.saxutils import quoteattr
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            work = root / "cache"
+            names = verification.PLAYMODE_TESTS
+            cases = ''.join('<test-case fullname=' + quoteattr(name) + ' result="Passed"/>' for name in names)
+            controls = ('<test-case fullname="Other.Test" result="Failed"/>',
+                        '<test-suite fullname="Teardown.Fixture" result="Failed"/>',
+                        '<test-case fullname=' + quoteattr(names[0]) + ' result="Skipped"/>')
+            for contradiction in controls:
+                with self.subTest(contradiction=contradiction):
+                    def supplied_xml(command, **kwargs):
+                        Path(command[command.index("-testResults") + 1]).write_text(
+                            '<test-run result="Passed" failed="0">' + cases + contradiction + '</test-run>')
+                        Path(command[command.index("-logFile") + 1]).write_text(
+                            "Unity Editor version: " + verification.UNITY_VERSION)
+                        return SimpleNamespace(returncode=0)
+                    with patch("lucidlib.bootstrap.CACHE_ROOT", work), patch.object(
+                            verification, "find_editor", return_value=root / "inert-editor"), patch.object(
+                            verification.subprocess, "run", side_effect=supplied_xml) as process:
+                        report = verification.run_tests(root, work, "playmode")
+                    process.assert_called_once()
+                    self.assertEqual("incomplete", report["status"])
+                    self.assertTrue(report["verdict"]["errors"])
+                    self.assertTrue(all(error in report["errors"] for error in report["verdict"]["errors"]))
+                    self.assertEqual(hashlib.sha256((work / "reports/playmode.xml").read_bytes()).hexdigest(),
+                                     report["verdict"]["xml_sha256"])
+                    saved = json.loads((work / "reports/playmode-verification.json").read_text())
+                    self.assertEqual(report, saved)
+
+    def test_diagnostics_keep_document_order_despite_bottom_up_summary_checks(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+            path.write_text('<test-run result="Passed" failed="0">'
+                            '<test-case fullname="First.Failure" result="Failed"/>'
+                            '<test-suite fullname="Last.Failure" result="Failed"/></test-run>')
+            verdict = test_verdict(path, [])
+            self.assertEqual("incomplete", verdict["status"])
+            self.assertEqual('Inconsistent test-run failed count for <unnamed>: \'0\'; observed 1', verdict["errors"][0])
+            self.assertEqual('Failed test-case: First.Failure', verdict["errors"][1])
+            self.assertEqual('Failed test-suite: Last.Failure', verdict["errors"][2])
 
     def test_malformed_or_entity_xml_is_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

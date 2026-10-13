@@ -466,6 +466,32 @@ class PortTests(unittest.TestCase):
             self.assertTrue(any(p.name.endswith("editmode.xml") for p in paths))
             self.assertTrue(any(p.name.endswith("editmode-verification.json") for p in paths))
 
+    def test_contradictory_import_xml_does_not_trigger_retry_or_build(self):
+        from xml.sax.saxutils import quoteattr
+        previous = self.old_selection()
+        controls = ('<test-case fullname="Other.Test" result="Failed"/>',
+                    '<test-suite result="Failed"/>',
+                    '<test-case fullname=' + quoteattr(port.verification.EDITMODE_TESTS[0]) + ' result="Skipped"/>')
+        for contradiction in controls:
+            with self.subTest(contradiction=contradiction):
+                self.stages.calls.clear()
+                def tests(root, work, mode):
+                    self.stages.calls.append(mode)
+                    report = self.import_receipt(root, work, mode)
+                    xml = Path(report["xml"])
+                    xml.write_text(xml.read_text().replace('</test-run>', contradiction + '</test-run>'))
+                    # Mimic a stale permissive predicate, with the actual new XML digest.
+                    report["verdict"] = {"status": "complete", "result": "Passed",
+                                         "passed": len(port.verification.EDITMODE_TESTS), "missing_required_tests": [],
+                                         "xml_sha256": port.inspection.sha256_file(xml)}
+                    return report
+                with patch.object(port.verification, "run_tests", tests):
+                    result = self.run_port()
+                self.assertEqual("editmode", result["failed_stage"])
+                self.assertEqual(1, self.stages.calls.count("editmode"))
+                self.assertNotIn("build", self.stages.calls)
+                self.assertEqual(previous, (self.output / "macos/latest.json").read_bytes())
+
     def test_import_retry_is_bounded_to_two_full_invocations(self):
         previous = self.old_selection()
         def tests(root, work, mode):
