@@ -84,16 +84,23 @@ def main(argv=None):
             from lucidlib.inspection import inspect_bundle
             report = inspect_bundle(args.input)
             destination = write_report(work_dir, "inspection.json", report)
-            present = report["addressables"]["bundle_count"]
-            missing = len(report["addressables"]["missing_bundles"])
+            addressables = report["addressables"]
+            complete = addressables["complete"] is True
+            present = addressables["bundle_count"]
+            missing = len(addressables["missing_bundles"])
+            remote = len(addressables["remote_ids"])
+            unmapped = len(addressables["unmapped_bundle_ids"])
             identity = report["identity"]
-            summary = {"status": "failed" if missing else "complete", "version": identity["version"],
+            summary = {"status": "complete" if complete else "failed", "version": identity["version"],
                        "unity_version": identity["unity_version"], "bundles_present": present,
-                       "bundles_missing": missing, "report": str(destination)}
+                       "bundles_missing": missing, "bundle_locations_remote": remote,
+                       "bundle_locations_unmapped": unmapped, "report": str(destination)}
             print(json.dumps(summary, indent=2) if args.json else
-                  "Sonic Dream Team {} / Unity {}\nbundles: {} present, {} missing\nreport: {}".format(
-                      identity["version"], identity["unity_version"], present, missing, destination))
-            return 1 if missing else 0
+                  "inspection: {}\nSonic Dream Team {} / Unity {}\n"
+                  "bundles: {} present, {} missing, {} remote locations, {} unmapped locations\nreport: {}".format(
+                      summary["status"], identity["version"], identity["unity_version"],
+                      present, missing, remote, unmapped, destination))
+            return 0 if complete else 1
         if args.command == "bootstrap":
             from lucidlib.bootstrap import bootstrap
             report = bootstrap(work_dir, selected=args.tool)
