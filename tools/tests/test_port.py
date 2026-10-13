@@ -123,7 +123,9 @@ class PortTests(unittest.TestCase):
         self.work = self.root / ".cache/project-lucid"
         self.output = self.root / "output with spaces"
         self.lock = self.root / "tools/tool-lock.json"
-        self.lock.write_text(json.dumps({"schema_version": 1, "platform": platform.system().lower() + "-" + platform.machine().lower()}))
+        self.lock.write_text(json.dumps({"schema_version": 1,
+                                        "platform": platform.system().lower() + "-" + platform.machine().lower(),
+                                        "rid": "synthetic", "artifacts": {}}))
         self.editor = self.root / "synthetic-editor"
         self.editor.write_bytes(b"synthetic installed editor identity")
         self.stages = SyntheticStages(self)
@@ -161,6 +163,43 @@ class PortTests(unittest.TestCase):
     def assert_unchanged(self):
         self.assertEqual(self.original_input, port.inspection._manifest(self.app))
         self.assertEqual(self.original_source, port.verification.artifact_fingerprint(self.root))
+
+    def test_every_pinned_host_reaches_the_next_preflight_gate(self):
+        maintained_lock = Path(port.__file__).resolve().parents[1] / "tool-lock.json"
+        self.lock.write_bytes(maintained_lock.read_bytes())
+        self.original_source = port.verification.artifact_fingerprint(self.root)
+        hosts = [("Darwin", "arm64"), ("Linux", "x86_64"), ("Windows", "AMD64")]
+        for system, machine in hosts:
+            with self.subTest(system=system, machine=machine), \
+                    patch.object(port.bootstrap.platform, "system", return_value=system), \
+                    patch.object(port.bootstrap.platform, "machine", return_value=machine), \
+                    patch.object(port.verification, "find_editor",
+                                 side_effect=RuntimeError("stop at engine identity")) as editor:
+                result = self.run_port()
+            editor.assert_called_once_with()
+            self.assertEqual("failed", result["status"])
+            self.assertEqual("preflight", result["failed_stage"])
+            self.assertEqual("stop at engine identity", result["error"])
+            self.assertEqual([], self.stages.calls)
+            self.assertFalse(self.output.exists())
+        self.assert_unchanged()
+
+    def test_unsupported_host_is_rejected_before_engine_or_stage_execution(self):
+        maintained_lock = Path(port.__file__).resolve().parents[1] / "tool-lock.json"
+        self.lock.write_bytes(maintained_lock.read_bytes())
+        self.original_source = port.verification.artifact_fingerprint(self.root)
+        with patch.object(port.bootstrap.platform, "system", return_value="Linux"), \
+                patch.object(port.bootstrap.platform, "machine", return_value="aarch64"), \
+                patch.object(port.verification, "find_editor") as editor:
+            result = self.run_port()
+        editor.assert_not_called()
+        self.assertEqual("failed", result["status"])
+        self.assertEqual("preflight", result["failed_stage"])
+        self.assertIn("detected linux-aarch64", result["error"])
+        self.assertIn("darwin-arm64, windows-amd64, linux-x86_64", result["error"])
+        self.assertEqual([], self.stages.calls)
+        self.assertFalse(self.output.exists())
+        self.assert_unchanged()
 
     def test_every_early_stage_failure_returns_nonzero_without_build_or_output(self):
         for stage in ("inspect", "bootstrap", "declarations", "native-schema", "asset-export", "extraction-validation",

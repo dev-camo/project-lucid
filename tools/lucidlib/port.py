@@ -11,7 +11,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import platform
 import plistlib
 import shutil
 import stat
@@ -275,9 +274,7 @@ def run_port(repo_root, work_dir, input_path, target, output_root):
             attempt.mkdir(parents=True, exist_ok=False)
             report.update(run=nonce, run_dir=str(attempt), work_dir=str(work), output_root=str(output))
             lock = bootstrap.load_lock()
-            host = platform.system().lower() + "-" + platform.machine().lower()
-            if lock.get("platform") != host:
-                raise ValueError("Tool lock supports " + str(lock.get("platform")) + "; detected " + host)
+            bootstrap.host_lock(lock)
             source = verification.artifact_fingerprint(root)
             engine = playercode._engine_identity(verification.find_editor())
             original = inspection._manifest(app)
