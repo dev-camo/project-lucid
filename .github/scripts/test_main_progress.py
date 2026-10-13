@@ -329,6 +329,40 @@ class OfflineTreeTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
+    def native_concurrency(self, workflow):
+        text = (Path(__file__).resolve().parents[2] / '.github/workflows' / workflow).read_text()
+        self.assertEqual(1, text.count('\nconcurrency:\n'))
+        block = text.split('\nconcurrency:\n', 1)[1].split('\njobs:', 1)[0]
+        return dict(line.strip().split(': ', 1) for line in block.splitlines() if line.strip())
+
+    def test_both_native_workflows_preserve_serialization_and_keep_pending_runs(self):
+        for workflow in ('native-progress.yml', 'pr-compilation.yml'):
+            with self.subTest(workflow=workflow):
+                self.assertEqual({'group': 'native-progress-${{ github.repository }}', 'queue': 'max',
+                                  'cancel-in-progress': 'false'}, self.native_concurrency(workflow))
+
+    def test_pending_main_survives_later_pr_gate_arrival(self):
+        # GitHub queue:single replaces the existing pending run, even with
+        # cancel-in-progress:false. queue:max retains up to100 pending runs.
+        # Both incoming workflow policies matter: an unconfigured PR gate
+        # can replace a queued main measurement before its admission step.
+        # Primary contract: docs.github.com/en/actions/how-tos/write-workflows/
+        # choose-when-workflows-run/control-workflow-concurrency
+        policies = {name: self.native_concurrency(name) for name in ('native-progress.yml', 'pr-compilation.yml')}
+        def pending_after_arrivals(config):
+            pending = []
+            for workflow, run in (('native-progress.yml', 'new-main'), ('pr-compilation.yml', 'later-pr-gate')):
+                if config[workflow].get('queue', 'single') == 'single':
+                    pending.clear()
+                pending.append(run)
+            return pending
+        self.assertEqual(['new-main', 'later-pr-gate'], pending_after_arrivals(policies))
+        # Retain the observed failure vector as a control, using the default
+        # PR policy. It would evict the pending automatic main measurement.
+        default_pr = {name: dict(policy) for name, policy in policies.items()}
+        default_pr['pr-compilation.yml'].pop('queue', None)
+        self.assertEqual(['later-pr-gate'], pending_after_arrivals(default_pr))
+
     def test_generation_main_only_pr_compilation_only_and_no_summary_or_fork_credential(self):
         root = Path(__file__).resolve().parents[2]
         native = (root / '.github/workflows/native-progress.yml').read_text()
