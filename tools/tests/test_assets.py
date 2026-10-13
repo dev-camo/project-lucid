@@ -12,7 +12,7 @@ import hashlib
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from lucidlib import assets
+from lucidlib import assets, bootstrap
 from lucidlib.bootstrap import executable
 
 
@@ -40,13 +40,16 @@ def write_bundle(project, path, data=None, guid=None):
 class AssetTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.work = self.root / "work"
         self.repo = self.root / "repo"
         self.repo.mkdir()
         self.work.mkdir()
+        self.cache_root = mock.patch.object(bootstrap, "CACHE_ROOT", self.work)
+        self.cache_root.start()
 
     def tearDown(self):
+        self.cache_root.stop()
         self.temporary.cleanup()
 
     def make_export(self):

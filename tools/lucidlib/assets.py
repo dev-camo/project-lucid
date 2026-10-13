@@ -24,7 +24,7 @@ import uuid
 
 from .audio import normalize_audio
 from .bootstrap import (ToolError, executable as native_executable, host_lock,
-                        tool_work_dir, verified_tool_path)
+                        managed_path, tool_work_dir, validate_work_dir, verified_tool_path)
 from .inspection import _manifest, sha256_file
 
 
@@ -167,11 +167,38 @@ def _validate_export_identity(report: dict) -> Path:
     return app
 
 
+def _physical_path(path: Path) -> Path:
+    """Reject symbolic-link ancestors for repository paths and file writes."""
+    path = Path(path).expanduser()
+    if ".." in path.parts:
+        raise ValueError("Asset paths cannot contain parent traversal")
+    path = Path(os.path.abspath(os.fspath(path)))
+    if any(component.is_symlink() for component in (path, *path.parents)):
+        raise ValueError(f"Refusing symbolic link in asset path: {path}")
+    return path
+
+
+def _cache_path(work: Path, path: Path) -> Path:
+    """Check captured and generated descendants without resolving away links."""
+    path = _physical_path(path)
+    try:
+        relative = path.relative_to(work)
+    except ValueError as exc:
+        raise ValueError("Asset path must be inside the work directory") from exc
+    return managed_path(work, *relative.parts)
+
+
 def _json_write(path: Path, value: dict) -> None:
+    path = _physical_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
-    temporary.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    os.replace(temporary, path)
+    stream = temporary.open("x", encoding="utf-8")
+    try:
+        with stream:
+            stream.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _resolve_app(input_path: Path) -> Path:
@@ -189,17 +216,17 @@ def _resolve_app(input_path: Path) -> Path:
 
 
 def _safe_work_dir(work_dir: Path, protected: Path) -> Path:
-    work = work_dir.expanduser().resolve()
+    work = _physical_path(work_dir)
     protected = protected.resolve()
     if work == protected or work in protected.parents or protected in work.parents:
         raise ValueError("The work directory must be separate from the supplied game bundle")
+    work = validate_work_dir(work)
     work.mkdir(parents=True, exist_ok=True)
     return work
 
 
 def _assert_no_symlinks(root: Path) -> None:
-    if root.is_symlink():
-        raise ValueError(f"Refusing symlink: {root}")
+    root = _physical_path(root)
     for path in root.rglob("*"):
         if path.is_symlink():
             raise ValueError(f"Refusing symlink in generated assets: {path}")
@@ -305,8 +332,9 @@ def _normalize_streaming_bundles(stage: Path, previous: Path) -> dict:
 
 
 def _exported_project(stage: Path) -> Path:
+    stage = _physical_path(stage)
     for candidate in [stage / "ExportedProject", stage]:
-        if (candidate / "Assets").is_dir():
+        if _physical_path(candidate / "Assets").is_dir():
             return candidate
     raise ValueError(f"AssetRipper did not export an Assets directory below: {stage}")
 
@@ -321,9 +349,10 @@ def _request(base: str, endpoint: str, fields: dict | None = None, timeout: int 
 
 
 def _start_ripper(executable: Path, run_dir: Path) -> tuple[subprocess.Popen, str, object]:
-    log = (run_dir / "assetripper.log").resolve()
-    console_path = run_dir / "assetripper-console.log"
-    console = console_path.open("wb")
+    run_dir = _physical_path(run_dir)
+    log = _physical_path(run_dir / "assetripper.log")
+    console_path = _physical_path(run_dir / "assetripper-console.log")
+    console = console_path.open("xb")
     process = subprocess.Popen(
         [str(executable), "--headless", "--port", "0", "--log-path", str(log)],
         cwd=run_dir, stdout=console, stderr=subprocess.STDOUT,
@@ -494,7 +523,7 @@ def build_asset_map(project_path: Path, catalog_path: Path | None = None) -> dic
     Path matches are evidence for later review, not rewritten runtime addresses.
     Multiple exports from one source (notably FBX files) remain explicit.
     """
-    project_path = _exported_project(project_path.resolve(strict=True))
+    project_path = _exported_project(_physical_path(project_path).resolve(strict=True))
     assets_dir = project_path / "Assets"
     if not assets_dir.is_dir():
         raise ValueError(f"AssetRipper did not export an Assets directory: {project_path}")
@@ -569,16 +598,18 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
     """Run a full-app export in fresh quarantine; publish a pointer on success."""
     app = _resolve_app(input_path)
     work = _safe_work_dir(work_dir, app)
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    run = managed_path(work, "assets", "runs", run_id)
+    # Reject retained publication links before creating any extraction output.
+    managed_path(work, "assets", "latest-assets.json")
     executable = native_executable(tool_work_dir(work) / "tools/assetripper/AssetRipper.GUI.Free")
     if not executable.is_file():
         raise FileNotFoundError(f"AssetRipper is missing at {executable}; run the bootstrap command first")
     executable = verified_tool_path(work, "assetripper")
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
-    run = work / "assets/runs" / run_id
     run.mkdir(parents=True, exist_ok=False)
-    project = run / "project"
+    project = _cache_path(work, run / "project")
     manifest = _manifest(app)
-    _json_write(run / "input-manifest.json", {"files": manifest})
+    _json_write(_cache_path(work, run / "input-manifest.json"), {"files": manifest})
     tool = _tool_lock()
     tool["executable_sha256"] = sha256_file(executable)
     report = {"schema_version": SCHEMA_VERSION, "status": "running", "run_id": run_id,
@@ -588,19 +619,20 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
               "warnings": ["Generated script bodies are placeholders and remain quarantined.",
                            "Compiled shader data is preserved; shader source has not been reconstructed.",
                            "Catalog path matches require review before generating Addressables bindings."]}
-    _json_write(run / "report.json", report)
+    _json_write(_cache_path(work, run / "report.json"), report)
     process = console = None
     try:
         process, base, console = _start_ripper(executable.resolve(), run)
         _request(base, "/Settings/Update", EXPORT_SETTINGS)
         _request(base, "/LoadFolder", {"Path": str(app)})
+        project = _cache_path(work, project)
         if project.exists():
             raise RuntimeError("Fresh export destination unexpectedly exists; refusing destructive export")
         _request(base, "/Export/UnityProject", {"Path": str(project), "CreateSubfolder": "false"})
         return finalize_asset_export(run, work)
     except BaseException as exc:
         report.update(status="failed", error=str(exc))
-        _json_write(run / "report.json", report)
+        _json_write(_cache_path(work, run / "report.json"), report)
         raise
     finally:
         if process is not None:
@@ -609,38 +641,41 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
 
 def finalize_asset_export(run_dir: Path, work_dir: Path) -> dict:
     """Retry indexing a completed retained export without running extraction."""
-    work = work_dir.expanduser().resolve(strict=True)
-    run = run_dir.expanduser().resolve(strict=True)
-    if (work / "assets/runs") not in run.parents:
+    work = validate_work_dir(work_dir.expanduser())
+    run = _cache_path(work, run_dir)
+    if managed_path(work, "assets", "runs") not in run.parents:
         raise ValueError("The export run must be inside work/assets/runs")
-    report = json.loads((run / "report.json").read_text())
-    log = run / "assetripper.log"
+    report_path = _cache_path(work, run / "report.json")
+    map_path = _cache_path(work, run / "asset-map.json")
+    latest = managed_path(work, "assets", "latest-assets.json")
+    log = _cache_path(work, run / "assetripper.log")
+    report = json.loads(report_path.read_text())
+    project = _cache_path(work, Path(report["project_path"]))
+    if run not in project.parents:
+        raise ValueError("The export project must be inside its run directory")
     log_text = log.read_text(encoding="utf-8", errors="replace")
     if "Finished post-export" not in log_text:
         raise RuntimeError(f"AssetRipper did not report a completed export; see {log}")
     app = _validate_export_identity(report)
-    project = Path(report["project_path"]).resolve(strict=True)
-    if run not in project.parents:
-        raise ValueError("The export project must be inside its run directory")
+    _safe_work_dir(work, app)
     catalog = app / "Contents/Resources/Data/StreamingAssets/aa/catalog.json"
     mapping = build_asset_map(project, catalog)
     if not mapping["assets"]:
         raise RuntimeError("AssetRipper reported completion but produced no indexed assets")
-    _json_write(run / "asset-map.json", mapping)
+    _json_write(_cache_path(work, map_path), mapping)
     report.pop("error", None)
     report.update(status="exported", project_path=mapping["project_path"],
-                  asset_map_path=str(run / "asset-map.json"), log_path=str(log), summary=mapping["summary"])
-    _json_write(run / "report.json", report)
-    _json_write(work / "assets/latest-assets.json", report)
+                  asset_map_path=str(map_path), log_path=str(log), summary=mapping["summary"])
+    _json_write(_cache_path(work, report_path), report)
+    _json_write(_cache_path(work, latest), report)
     return report
 
 
 def _owned_directory(path: Path) -> None:
-    if path.is_symlink():
-        raise ValueError(f"Refusing to replace symlink: {path}")
+    path = _physical_path(path)
     if not path.exists():
         return
-    marker = path / MARKER
+    marker = _physical_path(path / MARKER)
     try:
         owned = json.loads(marker.read_text())["owner"] == OWNER
     except (OSError, ValueError, KeyError):
@@ -651,14 +686,17 @@ def _owned_directory(path: Path) -> None:
 
 def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[Path]:
     """Swap same-filesystem prepared copies; roll back all targets on error."""
-    for destination, _ in replacements:
+    for destination, staged in replacements:
         _owned_directory(destination)
+        _assert_no_symlinks(staged)
     backups = []
     installed = []
     try:
         for destination, staged in replacements:
             if destination.exists():
-                backup = destination.with_name("." + destination.name + ".backup-" + uuid.uuid4().hex)
+                backup = _physical_path(destination.with_name("." + destination.name + ".backup-" + uuid.uuid4().hex))
+                if backup.exists():
+                    raise ValueError(f"Asset backup destination already exists: {backup}")
                 destination.rename(backup)
                 backups.append((destination, backup))
             staged.rename(destination)
@@ -675,18 +713,27 @@ def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[Pa
 
 def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     """Promote data and authored StreamingAssets while excluding generated code."""
-    repo = repo_root.expanduser().resolve(strict=True)
-    work = work_dir.expanduser().resolve(strict=True)
-    report = json.loads((work / "assets/latest-assets.json").read_text())
+    repo = _physical_path(repo_root).resolve(strict=True)
+    work = validate_work_dir(work_dir.expanduser())
+    latest = managed_path(work, "assets", "latest-assets.json")
+    prepared = managed_path(work, "assets", "latest-prepare.json")
+    # Cache publication and retention must be safe before replacing any assets.
+    backup_dir = managed_path(work, "assets", "backups", uuid.uuid4().hex)
+    report = json.loads(latest.read_text())
     if report.get("status") != "exported":
         raise ValueError("The latest asset export did not complete")
-    _validate_export_identity(report)
-    project = _exported_project(Path(report["project_path"]).resolve(strict=True))
-    if work not in project.parents:
-        raise ValueError("The export project must be inside the work directory")
+    app = _validate_export_identity(report)
+    _safe_work_dir(work, app)
+    project = _exported_project(_cache_path(work, Path(report["project_path"])))
     source = project / "Assets"
     _assert_no_symlinks(source)
-    mapping = json.loads(Path(report["asset_map_path"]).read_text())
+    mapping = json.loads(_cache_path(work, Path(report["asset_map_path"])).read_text())
+    assets = _physical_path(repo / "Assets")
+    if assets == app or assets in app.parents or app in assets.parents:
+        raise ValueError("Prepared assets must be separate from the supplied game bundle")
+    targets = [(assets / "Recovered", source), (assets / "StreamingAssets", source / "StreamingAssets")]
+    for destination, _ in targets:
+        _owned_directory(destination)
     from .scriptbindings import resolve_bindings, rewrite_prepared_script_pointers
     script_bindings = resolve_bindings(repo, work, project, mapping, input_fingerprint=report["input_fingerprint"])
     bindings = script_bindings["bindings"]
@@ -696,14 +743,8 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     shader_guids = {row["guid"] for row in mapping["assets"] if row.get("shader_quarantined")}
     dangling = sorted({guid for row in mapping["assets"] if not row["code_quarantined"]
                        for guid in row["script_references"] if guid in quarantined_guids and guid not in bound_guids})
-    assets = repo / "Assets"
-    if assets.is_symlink():
-        raise ValueError("Refusing a symlinked Assets directory")
     assets.mkdir(exist_ok=True)
-    targets = [(assets / "Recovered", source), (assets / "StreamingAssets", source / "StreamingAssets")]
-    for destination, _ in targets:
-        _owned_directory(destination)
-    staging = assets / (".lucid-assets-" + uuid.uuid4().hex)
+    staging = _physical_path(assets / (".lucid-assets-" + uuid.uuid4().hex))
     staging.mkdir()
     replacements = []
     audio_reports = {}
@@ -728,7 +769,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                         if _is_compiled_shader(path):
                             skipped_shader += 1
                             continue
-                    output = stage / relative
+                    output = _physical_path(stage / relative)
                     output.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(path, output)
                     row = mapped_assets.get("Assets/" + relative.as_posix()) if destination.name == "Recovered" else None
@@ -750,11 +791,11 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
             replacements.append((destination, stage))
         backups = _replace_owned_directories(replacements)
         if backups:
-            backup_dir = work / "assets/backups" / uuid.uuid4().hex
+            backup_dir = _cache_path(work, backup_dir)
             backup_dir.mkdir(parents=True)
             retained = []
             for backup in backups:
-                retained_path = backup_dir / backup.name
+                retained_path = _cache_path(work, backup_dir / backup.name)
                 shutil.move(str(backup), str(retained_path))
                 retained.append(retained_path)
             backups = retained
@@ -769,7 +810,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                   "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",
                                "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",
                                "Preparation preserves asset GUIDs and restores only approved, layout-verified script pointers; gameplay remains unresolved."]}
-        _json_write(work / "assets/latest-prepare.json", result)
+        _json_write(_cache_path(work, prepared), result)
         return result
     finally:
         shutil.rmtree(staging, ignore_errors=True)
