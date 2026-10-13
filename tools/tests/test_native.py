@@ -1,10 +1,12 @@
 """Atomic native evidence runs and conservative provenance/selection checks."""
 
 import hashlib
+import io
 import json
 from pathlib import Path
 import shutil
 import tempfile
+import tarfile
 import unittest
 from unittest import mock
 
@@ -46,7 +48,17 @@ class NativeHelpersTests(unittest.TestCase):
         self.dotnet.write_bytes(b"pinned dotnet fixture")
         self.archive = self.work / "downloads/source.tar.gz"
         self.archive.parent.mkdir(parents=True)
-        self.archive.write_bytes(b"pinned archive fixture")
+        entry = self.source / "Cpp2IL/Cpp2IL.csproj"
+        entry.parent.mkdir(parents=True)
+        entry.write_text("fixture entrypoint project")
+        with tarfile.open(self.archive, "w:gz") as archive:
+            for path in sorted(self.source.rglob("*")):
+                if path.is_file():
+                    data = path.read_bytes()
+                    info = tarfile.TarInfo("Cpp2IL-fixture/" + path.relative_to(self.source).as_posix())
+                    info.size = len(data)
+                    info.mode = path.stat().st_mode & 0o777
+                    archive.addfile(info, io.BytesIO(data))
         self.build = {"status": "ready", "path": str(self.work / "harness.dll"), "fingerprint": "fixture"}
 
     def tearDown(self):
@@ -199,7 +211,7 @@ class NativeHelpersTests(unittest.TestCase):
     def build_patches(self):
         return [mock.patch.object(native, "_PROJECT", self.project), mock.patch.object(native, "_MANIFEST", self.manifest),
                 mock.patch.object(native, "bootstrap", return_value={"status": "ready", "tools": {"dotnet": {"status": "ready"}}}),
-                mock.patch.object(native, "_install", return_value=self.source),
+                mock.patch.object(native, "unpack_archive", wraps=native.unpack_archive),
                 mock.patch.object(native, "download_artifact", return_value=self.archive)]
 
     def test_build_reuses_only_matching_verified_outputs(self):
@@ -221,6 +233,67 @@ class NativeHelpersTests(unittest.TestCase):
             changed = native.build_native_harness(self.work)
             self.assertNotEqual(changed["fingerprint"], rebuilt["fingerprint"])
             self.assertEqual(run.call_count, 3)
+
+    def test_build_ignores_shared_source_extras_and_never_modifies_shared_source(self):
+        contaminant = self.source / 'Cpp2IL.Core/bin/Release/unowned.dll'
+        contaminant.parent.mkdir(parents=True)
+        contaminant.write_bytes(b'unowned shared output')
+        before = bootstrap_module.tree_seal(self.source)
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, 'run_logged', side_effect=self.build_runner) as run:
+            result = native.build_native_harness(self.work)
+        self.assertEqual('ready', result['status'])
+        command = run.call_args.args[0]
+        staged = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('-p:Cpp2ILSource=')))
+        self.assertNotEqual(self.source, staged)
+        final_source = Path(result['output_dir']).parents[3] / 'source'
+        self.assertFalse((final_source / contaminant.relative_to(self.source)).exists())
+        self.assertEqual(before, bootstrap_module.tree_seal(self.source))
+        self.assertIn('cpp2il_source_closure_sha256', result)
+
+    def test_archive_input_content_mode_or_link_change_during_build_never_promotes_output(self):
+        for mutation in ('content', 'mode', 'link'):
+            patches = self.build_patches()
+            def changed(command, work, log_name, **kwargs):
+                result = self.build_runner(command, work, log_name, **kwargs)
+                source = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('-p:Cpp2ILSource=')))
+                entry = source / 'Cpp2IL/Cpp2IL.csproj'
+                if mutation == 'content':
+                    entry.write_text('changed original project')
+                elif mutation == 'mode':
+                    entry.chmod(0o600)
+                else:
+                    entry.unlink()
+                    entry.symlink_to(self.project)
+                return result
+            with patches[0], patches[1], patches[2], patches[3], patches[4], \
+                 mock.patch.object(native, 'run_logged', side_effect=changed):
+                result = native.build_native_harness(self.work)
+            with self.subTest(mutation=mutation):
+                self.assertEqual('failed', result['status'])
+                self.assertFalse((self.work / 'native-recovery/latest-build.json').exists())
+                self.assertEqual([], list((self.work / 'native-recovery/builds').glob('.stage-*')))
+
+    def test_archive_link_or_traversal_rejected_before_build(self):
+        for kind in ('link', 'traversal'):
+            with tarfile.open(self.archive, 'w:gz') as archive:
+                member = tarfile.TarInfo('Cpp2IL-fixture/escape' if kind == 'link' else 'Cpp2IL-fixture/../escape')
+                if kind == 'link':
+                    member.type = tarfile.SYMTYPE
+                    member.linkname = '/outside/entry'
+                    archive.addfile(member)
+                else:
+                    member.size = 1
+                    archive.addfile(member, io.BytesIO(b'x'))
+            patches = self.build_patches()
+            with patches[0], patches[1], patches[2], patches[3], patches[4], \
+                 mock.patch.object(native, 'run_logged') as run:
+                result = native.build_native_harness(self.work)
+            with self.subTest(kind=kind):
+                self.assertEqual('failed', result['status'])
+                run.assert_not_called()
+                self.assertFalse((self.work / 'native-recovery/latest-build.json').exists())
 
     def test_build_failure_does_not_promote_ready_receipt(self):
         patches = self.build_patches()

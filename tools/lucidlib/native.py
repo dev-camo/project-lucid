@@ -10,10 +10,10 @@ import shutil
 import uuid
 import xml.etree.ElementTree as ET
 
-from .bootstrap import (REPO_ROOT, ToolError, _install, bootstrap, download_artifact,
+from .bootstrap import (REPO_ROOT, ToolError, bootstrap, download_artifact,
                         dotnet_environment, fcntl, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json, tool_work_dir,
-                        seal_built_tool, verify_built_tool, retain_failure)
+                        seal_built_tool, verify_built_tool, retain_failure, unpack_archive, tree_seal)
 from .inspection import sha256_file
 from .metadata import parse_metadata
 from .recovery import _resolve_input, _thin_binary
@@ -119,17 +119,28 @@ def build_native_harness(work_dir: Path) -> dict:
         if installed.get("status") != "ready" or sdk.get("status") != "ready":
             raise ToolError(sdk.get("error", "Pinned SDK bootstrap failed"))
         dotnet = managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet")
-        source_lock = managed_path(work_dir, "tools", ".cpp2il-source.lock")
         build_lock = managed_path(work_dir, "native-recovery", ".build.lock")
         build_lock.parent.mkdir(parents=True, exist_ok=True)
         if fcntl is None:
             raise ToolError("Native harness requires the platform supported by the tool lock")
-        with build_lock.open("a") as build_stream, source_lock.open("a") as source_stream:
+        with build_lock.open("a") as build_stream:
             fcntl.flock(build_stream, fcntl.LOCK_EX)
-            fcntl.flock(source_stream, fcntl.LOCK_EX)
-            source = _install("cpp2il-source", lock, work_dir)
-            archive = download_artifact(lock["artifacts"]["cpp2il-source"], work_dir)
-            _verify_cpp2il_source(source, work_dir)
+            artifact = host_lock(lock)["artifacts"]["cpp2il-source"]
+            archive = download_artifact(artifact, work_dir)
+            stage = managed_path(work_dir, "native-recovery", "builds", f".stage-{run_id}")
+            destination = managed_path(work_dir, "native-recovery", "builds", run_id)
+            stage.mkdir(parents=True, exist_ok=False)
+            build_source = stage / "source"
+            # Use the verified archive, never a shared installed source tree:
+            # prior builds may have left untrusted bin/obj files in that tree.
+            unpack_archive(archive, build_source, artifact)
+            if not managed_path(work_dir, *build_source.relative_to(work_dir).parts,
+                                artifact["entrypoint"]).is_file():
+                raise ToolError("Pinned Cpp2IL archive lacks its expected project")
+            source_closure = tree_seal(build_source)
+            _verify_cpp2il_source(build_source, work_dir)
+            identity["cpp2il_source_closure_sha256"] = hashlib.sha256(
+                json.dumps(source_closure, sort_keys=True).encode()).hexdigest()
             harness_sources = [_PROJECT, _MANIFEST, *sorted(_PROJECT.parent.glob("*.cs"))]
             identity["harness_sources"] = {path.name: sha256_file(path) for path in harness_sources}
             identity["dotnet_host_sha256"] = sha256_file(dotnet)
@@ -139,11 +150,6 @@ def build_native_harness(work_dir: Path) -> dict:
             cached = _cached_build(pointer, work_dir, fingerprint)
             if cached:
                 return cached
-            stage = managed_path(work_dir, "native-recovery", "builds", f".stage-{run_id}")
-            destination = managed_path(work_dir, "native-recovery", "builds", run_id)
-            stage.mkdir(parents=True, exist_ok=False)
-            build_source = stage / "source"
-            shutil.copytree(source, build_source)
             process = run_logged([
                 str(dotnet), "build", str(_PROJECT), "-c", "Release", "-p:TargetFramework=net10.0",
                 "-p:GeneratePackageOnBuild=false", "-p:RestorePackagesWithLockFile=true",
@@ -158,7 +164,12 @@ def build_native_harness(work_dir: Path) -> dict:
             output = stage / "build/bin/Release/net10.0"
             if process["returncode"] or process["timed_out"] or not (output / _HARNESS).is_file():
                 raise ToolError(f"Native harness build failed; inspect {process['log']}")
-            _verify_cpp2il_source(source, work_dir)
+            _verify_cpp2il_source(build_source, work_dir)
+            current_closure = tree_seal(build_source)
+            # MSBuild may add its own outputs in this fresh owned stage, but
+            # every original archive file and mode must remain identical.
+            if any(current_closure.get(path) != record for path, record in source_closure.items()):
+                raise ToolError("Owned Cpp2IL archive input closure changed during build")
             hashes = _file_hashes(output, work_dir)
             stage.replace(destination)
             stage = None
