@@ -9,6 +9,29 @@ from lucidlib.verification import artifact_fingerprint
 
 
 class ArtifactIdentityVectorTests(unittest.TestCase):
+    def test_shared_fingerprint_orders_bmp_and_supplementary_paths_as_utf16(self):
+        # The hosted C# runner checks these same fixed digests. U+E000 sorts
+        # after supplementary characters in UTF16, unlike Python's default.
+        rows = (
+            ('\ue000.cs', 'high BMP path\n'),
+            ('ascii.cs', 'ASCII path\n'),
+            ('\U0001f680.cs', 'rocket path\n'),
+            ('\U00010000.cs', 'supplementary path\n'),
+        )
+        vectors = (
+            (False, 'Assets/Scripts', '450c68cbceb82d4d16bdf02dfa6956332f8d856a4cb15e5f4218c77a2f7616c1'),
+            (True, 'Assets/Recovered', 'ab5b67e4566261ce27053dddd489a55bef1ec98ea4effc21ad4a69ecd1d284eb'),
+        )
+        for prepared, scope, expected in vectors:
+            for creation_order in (rows, tuple(reversed(rows))):
+                with self.subTest(prepared=prepared, creation_order=creation_order):
+                    with tempfile.TemporaryDirectory() as temporary:
+                        root = Path(temporary)
+                        (root / scope).mkdir(parents=True)
+                        for name, content in creation_order:
+                            (root / scope / name).write_bytes(content.encode('utf8'))
+                        self.assertEqual(expected, artifact_fingerprint(root, prepared))
+
     def test_shared_fingerprint_includes_all_prepared_asset_directories(self):
         source_rows = {
             'Assets/Scripts/fixture.cs': 'maintained source\n',

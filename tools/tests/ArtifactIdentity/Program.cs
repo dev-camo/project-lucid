@@ -8,10 +8,13 @@ namespace ProjectLucid.ToolTests
 {
     internal static class Program
     {
-        // These fixed UTF8 vectors also live in the existing Python and Unity
+        // The original UTF8 vectors also live in the existing Python and Unity
         // identity tests. Expected digests are not calculated by this runner.
         private const string Source = "f37b79d175d61b5da2cecd9cdb5317e6cd3f766aa3d15216fe1ff22c81f5e005";
         private const string Prepared = "373ae7371342069cd66210e0a7359def1e129d54885a32ab31d2ad42160c6106";
+        // These Unicode vectors are also fixed in the Python identity tests.
+        private const string UnicodeSource = "450c68cbceb82d4d16bdf02dfa6956332f8d856a4cb15e5f4218c77a2f7616c1";
+        private const string UnicodePrepared = "ab5b67e4566261ce27053dddd489a55bef1ec98ea4effc21ad4a69ecd1d284eb";
 
         private static void Write(string root, string relative, string content)
         {
@@ -102,6 +105,21 @@ namespace ProjectLucid.ToolTests
             Console.WriteLine("Progress source document vectors passed from isolated tool working directory.");
         }
 
+        private static void UnicodeVectors(string root, ref int checks)
+        {
+            // U+E000 follows supplementary characters in UTF16 code-unit
+            // order. Python's default code-point sort reverses that relation.
+            foreach (string scope in new[] { "Assets/Scripts", "Assets/Recovered" })
+            {
+                Write(root, scope + "/\uE000.cs", "high BMP path\n");
+                Write(root, scope + "/ascii.cs", "ASCII path\n");
+                Write(root, scope + "/\U0001F680.cs", "rocket path\n");
+                Write(root, scope + "/\U00010000.cs", "supplementary path\n");
+            }
+            Require(LucidArtifactIdentity.Fingerprint(root, false) == UnicodeSource, "BMP/supplementary source vector", ref checks);
+            Require(LucidArtifactIdentity.Fingerprint(root, true) == UnicodePrepared, "BMP/supplementary prepared vector", ref checks);
+        }
+
         private static int Main(string[] args)
         {
             if (args.Length != 0)
@@ -118,6 +136,7 @@ namespace ProjectLucid.ToolTests
                 Directory.CreateDirectory(root);
                 Vectors(root, ref checks);
                 SourceDocumentVectors(root, ref checks);
+                UnicodeVectors(Path.Combine(root, "unicode"), ref checks);
             }
             catch (Exception error) { failure = error; }
             try { if (Directory.Exists(root)) Directory.Delete(root, true); }

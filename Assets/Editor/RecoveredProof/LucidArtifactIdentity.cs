@@ -24,6 +24,8 @@ namespace ProjectLucid.Editor
             }
             using (var digest = SHA256.Create())
             {
+                // Canonical relative-path order is UTF16 code-unit order in
+                // both implementations; hash rows remain UTF8 without a BOM.
                 foreach (string file in files.OrderBy(p => Relative(root, p), StringComparer.Ordinal))
                 {
                     string hash;

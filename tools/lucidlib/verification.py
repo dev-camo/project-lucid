@@ -477,7 +477,7 @@ EDITMODE_TESTS += (
 )
 
 def artifact_fingerprint(repo_root, prepared=False):
-    """Canonical path/content hash, shared with LucidArtifactIdentity in Unity."""
+    """Hash UTF8 path/content rows in UTF16 code-unit order, shared with Unity."""
     root = Path(repo_root).resolve()
     bases = ("Assets/Recovered", "Assets/StreamingAssets") if prepared else (
         "Assets", "Packages", "ProjectSettings", "tools")
@@ -505,7 +505,9 @@ def artifact_fingerprint(repo_root, prepared=False):
                     continue
                 files.append((path.relative_to(root).as_posix(), path))
     result = hashlib.sha256()
-    for relative, path in sorted(files):
+    # Big-endian UTF16 bytes have the same order as C# StringComparer.Ordinal,
+    # including supplementary characters that Python orders by code point.
+    for relative, path in sorted(files, key=lambda row: row[0].encode("utf-16-be")):
         content = hashlib.sha256()
         with path.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
