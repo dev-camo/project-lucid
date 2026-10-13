@@ -314,8 +314,8 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(export.input_fingerprint.sha256, prepared.input_fingerprint.sha256, "Immutable supplied release identity.");
             ImportBindings proof = prepared.script_bindings;
             Assert.IsNotNull(proof); Assert.AreEqual("verified_layout", proof.status); Assert.IsTrue(proof.references_modified);
-            Assert.IsNotNull(proof.bindings); Assert.AreEqual(11, proof.bindings.Length);
-            Assert.IsNotNull(proof.assets); Assert.AreEqual(528, proof.assets.Length);
+            Assert.IsNotNull(proof.bindings); Assert.AreEqual(12, proof.bindings.Length);
+            Assert.IsNotNull(proof.assets); Assert.AreEqual(529, proof.assets.Length);
             var expectedOwners = new HashSet<string>(new[] {
                 "Game.Runtime::HardlightProject.LevelStartPositionDefinition",
                 "Game.Runtime::HardlightProject.LevelDefinition",
@@ -327,7 +327,8 @@ namespace ProjectLucid.Tests
                 "Game.Runtime::HardlightProject.GameLevels",
                 "Game.Runtime::HardlightProject.CoreGameConfiguration",
                 "HLLocalisation.Runtime::Hardlight.HLLocalisationConfigurationAsset",
-                "Game.Runtime::HardlightProject.HashedGroupConfiguration" }, StringComparer.Ordinal);
+                "Game.Runtime::HardlightProject.HashedGroupConfiguration",
+                "Game.Runtime::HardlightProject.DataDefinitions" }, StringComparer.Ordinal);
             var actualOwners = new HashSet<string>(StringComparer.Ordinal);
             foreach (ImportBinding item in proof.bindings)
             {

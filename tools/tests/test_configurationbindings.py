@@ -44,6 +44,67 @@ def game_document():
         "  m_uiScenes: []\n  m_gameplayEntries:\n  - " + asset(100) + "\n")
 
 
+def definitions_binding():
+    return dict(assembly="Game.Runtime", full_name="HardlightProject.DataDefinitions",
+                exported_guid="7" * 32, target_guid="8" * 32,
+                exported_file_id=11500000, target_file_id=11500000)
+
+
+def definitions_document(own):
+    return document(0, own).replace(binding(0)["exported_guid"].encode(), b"7" * 32)
+
+
+class DataDefinitionsDocumentTests(unittest.TestCase):
+    def assert_pointer_only(self, content):
+        row = definitions_binding()
+        result, count = rewrite_configuration_pointers(content, [row])
+        old = ("  m_Script: {fileID: 11500000, guid: " + row["exported_guid"] + ", type: 3}").encode()
+        new = ("  m_Script: {fileID: 11500000, guid: " + row["target_guid"] + ", type: 3}").encode()
+        self.assertEqual(1, content.count(old))
+        self.assertEqual((content.replace(old, new), 1), (result, count))
+        return result
+
+    def test_ordered_57_pointer_array_changes_only_script(self):
+        raw = definitions_document("  DataDefinitionsArray:\n" +
+            "".join("  - " + asset(i) + "\n" for i in range(57)))
+        self.assert_pointer_only(raw)
+
+    def test_empty_duplicates_nulls_and_newline_bytes_are_retained(self):
+        for own in ("  DataDefinitionsArray: []\n",
+                    "  DataDefinitionsArray:\n  - " + asset(1) + "\n  - {fileID: 0}\n  - " + asset(1) + "\n"):
+            raw = definitions_document(own)
+            for content in (raw, raw.replace(b"\n", b"\r\n"), raw.rstrip(b"\n")):
+                with self.subTest(content=content):
+                    self.assert_pointer_only(content)
+
+    def test_exact_owner_and_field_set_remain_required(self):
+        raw = definitions_document("  DataDefinitionsArray: []\n")
+        for change in (b"  DataDefinitionsArray: []\n  Other: []\n",
+                       b"  DataDefinitionsArray: []\n  DataDefinitionsArray: []\n",
+                       b"  m_elements: []\n", b""):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                rewrite_configuration_pointers(raw.replace(b"  DataDefinitionsArray: []\n", change), [definitions_binding()])
+        with self.assertRaises(ValueError):
+            rewrite_configuration_pointers(raw, [dict(definitions_binding(), full_name="HardlightProject.StateMachinesGroup")])
+
+    def test_nested_alias_tag_and_invalid_asset_shapes_are_rejected(self):
+        for own in ("  DataDefinitionsArray:\n", "  DataDefinitionsArray: null\n",
+                    "  DataDefinitionsArray:\n  - *group\n",
+                    "  DataDefinitionsArray:\n  - !Group " + asset(1) + "\n",
+                    "  DataDefinitionsArray:\n  - Name: group\n    Data: " + asset(1) + "\n",
+                    "  DataDefinitionsArray:\n  - {fileID: 1}\n",
+                    "  DataDefinitionsArray:\n  - {fileID: 11400000, guid: " + "0" * 32 + ", type: 2}\n",
+                    "  DataDefinitionsArray: []\n  - " + asset(1) + "\n"):
+            with self.subTest(own=own), self.assertRaises(ValueError):
+                rewrite_configuration_pointers(definitions_document(own), [definitions_binding()])
+
+    def test_prepared_dispatch_preserves_unrelated_asset_references(self):
+        from lucidlib.scriptbindings import rewrite_prepared_script_pointers
+        raw = definitions_document("  DataDefinitionsArray:\n  - " + asset(1) + "\n  - " + asset(2) + "\n")
+        expected = rewrite_configuration_pointers(raw, [definitions_binding()])
+        self.assertEqual(expected, rewrite_prepared_script_pointers(raw, [binding(0), definitions_binding()]))
+
+
 class ConfigurationDocumentTests(unittest.TestCase):
     def assert_pointer_only(self, content, index):
         row = binding(index)

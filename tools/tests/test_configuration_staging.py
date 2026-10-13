@@ -11,6 +11,40 @@ from test_configurationbindings import asset, binding, document, game_document, 
 
 
 class ConfigurationStagingTests(unittest.TestCase):
+    def test_definitions_root_keeps_pointer_order_metadata_and_prior_state_on_bad_shape(self):
+        from test_configurationbindings import definitions_binding, definitions_document
+        fixture = test_assets.AssetTests("runTest")
+        fixture.setUp(); self.addCleanup(fixture.tearDown)
+        project = fixture.make_export()
+        raw = definitions_document("  DataDefinitionsArray:\n" +
+            "".join("  - " + asset(i) + "\n" for i in range(57)))
+        test_assets.write_asset(project, "Definitions/Root.asset", "e" * 32, raw.decode())
+        test_assets.write_asset(project, "Scripts/Game.Runtime/HardlightProject/DataDefinitions.cs",
+                               definitions_binding()["exported_guid"], "// Synthetic quarantined declaration.\n")
+        map_path = project.parent / "asset-map.json"
+        assets._json_write(map_path, assets.build_asset_map(project))
+        proof = {"status": "verified_layout", "bindings": [definitions_binding()], "references_modified": False}
+        # Only the input-free identity fixture is substituted; real staging and
+        # strict pointer rewriting run, without qualifying a supplied game asset.
+        with patch("lucidlib.scriptbindings.resolve_bindings", return_value=proof):
+            result = assets.prepare_assets(fixture.repo, fixture.work)
+        prepared = fixture.repo / "Assets/Recovered/Definitions/Root.asset"
+        expected = raw.replace(b"guid: " + b"7" * 32, b"guid: " + b"8" * 32)
+        self.assertEqual(expected, prepared.read_bytes())
+        self.assertEqual(1, len(result["script_bindings"]["assets"]))
+        self.assertEqual(raw, (project / "Assets/Definitions/Root.asset").read_bytes())
+        self.assertEqual((project / "Assets/Definitions/Root.asset.meta").read_bytes(),
+                         prepared.with_name(prepared.name + ".meta").read_bytes())
+        before = {p.relative_to(fixture.repo).as_posix(): p.read_bytes() for p in (fixture.repo / "Assets").rglob("*") if p.is_file()}
+        receipt = (fixture.work / "assets/latest-prepare.json").read_bytes()
+        (project / "Assets/Definitions/Root.asset").write_bytes(raw + b"  m_elements: []\n")
+        assets._json_write(map_path, assets.build_asset_map(project))
+        with patch("lucidlib.scriptbindings.resolve_bindings", return_value=proof), self.assertRaisesRegex(ValueError, "field set or order"):
+            assets.prepare_assets(fixture.repo, fixture.work)
+        self.assertEqual(before, {p.relative_to(fixture.repo).as_posix(): p.read_bytes() for p in (fixture.repo / "Assets").rglob("*") if p.is_file()})
+        self.assertEqual(receipt, (fixture.work / "assets/latest-prepare.json").read_bytes())
+        self.assertEqual([], list((fixture.repo / "Assets").glob(".lucid-assets-*")))
+
     def test_unsupported_configuration_preserves_previous_prepared_assets_and_receipt(self):
         fixture = test_assets.AssetTests("runTest")
         fixture.setUp()

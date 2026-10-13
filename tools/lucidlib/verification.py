@@ -1321,3 +1321,10 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalLoadingBootstrapTests.OriginalOwnersRetainDeclarationsTypedAttributesAndNaturalCallbacks',
     'ProjectLucid.Tests.OriginalLoadingBootstrapTests.CharacterEmptyOriginalReturnsAndDevelopmentConditionRemain',
 )
+
+# The root's pointers are qualified separately from referenced group payloads.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalDataDefinitionsAssetImportTests.DataDefinitionsRetainsOriginalFieldsAndTypedAuthoringDeclarations',
+    'ProjectLucid.Tests.Editor.OriginalDataDefinitionsAssetImportTests.GenuineOwnedDataDefinitionsRetainsFiftySevenNullSlotsAndMonoScriptAfterReimport',
+    'ProjectLucid.Tests.Editor.OriginalDataDefinitionsAssetImportTests.ActualSuppliedDataDefinitionsPreservesScriptAndFiftySevenOrderedRawReferences',
+)

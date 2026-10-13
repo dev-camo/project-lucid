@@ -18,6 +18,7 @@ PROFILES = {
         "m_baseAsset", "m_overriddenFields", "m_localisedDefinitionsDirectory", "m_nodeDataExportPath",
         "m_charactersOutputDirectory", "m_enableEditorDataGeneration", "m_enableLocalisedUIStringFunctionality"),
     ("Game.Runtime", "HardlightProject.HashedGroupConfiguration"): (),
+    ("Game.Runtime", "HardlightProject.DataDefinitions"): ("DataDefinitionsArray",),
 }
 COMMON = ("m_ObjectHideFlags", "m_CorrespondingSourceObject", "m_PrefabInstance",
           "m_PrefabAsset", "m_GameObject", "m_Enabled", "m_EditorHideFlags", "m_Script",
@@ -28,7 +29,7 @@ SCRIPT = re.compile(r"\{fileID: (-?[0-9]+), guid: ([0-9a-f]{32}), type: 3\}")
 ASSET = re.compile(r"\{fileID: 11400000, guid: ([0-9a-f]{32}), type: 2\}")
 GUID = re.compile(r"[0-9a-f]{32}")
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
-POINTER_LISTS = {"m_configurationAssets", "m_systemScenes", "m_uiScenes", "m_gameplayEntries"}
+POINTER_LISTS = {"m_configurationAssets", "m_systemScenes", "m_uiScenes", "m_gameplayEntries", "DataDefinitionsArray"}
 POINTER_FIELDS = {"ActiveConfig", "m_baseAsset", "m_runtimeIssueProfile", "m_hashedComponentGroupDefaults"}
 SCALAR_FIELDS = {
     ("Game.Runtime", "HardlightProject.CoreGameConfiguration"): {

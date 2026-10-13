@@ -197,6 +197,28 @@ MENU_CONFIGURATION_RULES = (
 )
 RULES += MENU_CONFIGURATION_RULES
 
+# The definitions root stores ordered asset pointers. Referenced group payloads
+# remain separate; this rule does not admit their generic serialized layouts.
+DATA_DEFINITIONS_RUNTIME_SOURCES = {
+    "Assets/Scripts/Definitions/DataDefinitions.cs": "a755b84d81a1db2a2fcf01a6cfef2581903bbc504ccbe7ca9a186e5d5871ec69",
+    "Assets/Scripts/Definitions/DefinitionDataType.cs": "396b278ba573f3aace1a56b7db03f6807095108ebe2a1c198cc5da2247f0e768",
+    "Packages/com.hardlight.hlunitycore/Runtime/CollectionExtensions.cs": "c12ebc871205508af466aff3730fdb0b6673294dfc3eb818807c1e0e4013a234",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/HLOutput.cs": "f0a390a051cdc3d604db7f7e484be19bf0e42badbb57591839f242a813f28f3a",
+    "Packages/com.hardlight.hlunitycore/Runtime/Il2CppSetOptionAttribute.cs": "138cbbdeccb4c6c6cdf5d08e248e06dc8419cff250de803582194df39893e945",
+    "Assets/Scripts/RecoveredProof/Game.Runtime.asmdef": "2298a799f9322014131e3244f3cd6cc7fb8a7c8a253c97a5d95b090a109284f0",
+    "Packages/com.hardlight.hlunitycore/Runtime/HLUnityCore.Runtime.asmdef": "b9f3210d5cca9f7b7cc5bc458defe0e14e8df1486a17b29e517332c476347973",
+}
+DATA_DEFINITIONS_RULES = ({
+    "assembly": "Game.Runtime",
+    "full_name": "HardlightProject.DataDefinitions",
+    "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/DataDefinitions.cs",
+    "maintained_path": "Assets/Scripts/Definitions/DataDefinitions.cs",
+    "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
+    "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+    "runtime_sources": DATA_DEFINITIONS_RUNTIME_SOURCES,
+},)
+RULES += DATA_DEFINITIONS_RULES
+
 GUID = re.compile(r"^guid:\s*([0-9a-f]{32})\s*$", re.MULTILINE)
 DOCUMENT = re.compile(r"^--- !u!(?P<class>\d+) &-?\d+\r?\n(?P<label>\w+):\r?\n(?P<fields>.*?)(?=^--- !u!|\Z)", re.MULTILINE | re.DOTALL)
 POINTER = re.compile(r"^(?P<prefix>  m_Script: *)\{(?P<body>[^}\r\n]*)\}(?P<trailer> *\r?$)", re.MULTILINE)
