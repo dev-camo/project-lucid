@@ -181,7 +181,8 @@ def measure_code_work(original, maintained, scope, namespace_filters=None, assem
     total = {key: sum(group[key] for group in groups if group[key] is not None) for key in COUNT_FIELDS}
     if total["implemented_source_bodies"] > total["original_native_bodies"]:
         raise ValueError("Impossible method body credit")
-    return {"schema_version": 2 if assembly_availability is not None else 1, "measure": "maintained-original-source-body-coverage-v1", "assemblies": groups,
+    # Schema 3 keeps availability accounting but simplifies ordinary zero-credit rows.
+    return {"schema_version": 3 if assembly_availability is not None else 1, "measure": "maintained-original-source-body-coverage-v1", "assemblies": groups,
             "totals": total, "method_map": method_map, "behavior_parity_verified": False, "native_byte_matching_verified": False}
 
 
@@ -315,22 +316,22 @@ def _assembly_availability(root, evidence, scope, target):
 
 def _count_groups(measurement):
     schema = measurement.get("schema_version")
-    if (type(schema) is not int or schema not in (1, 2) or measurement.get("measure") != "maintained-original-source-body-coverage-v1" or
+    if (type(schema) is not int or schema not in (1, 2, 3) or measurement.get("measure") != "maintained-original-source-body-coverage-v1" or
             measurement.get("behavior_parity_verified") is not False or measurement.get("native_byte_matching_verified") is not False):
         raise ValueError("Unsupported code-work measurement or parity claim")
     groups, totals = measurement.get("assemblies"), measurement.get("totals")
     if not isinstance(groups, list) or not 1 <= len(groups) <= 256 or not isinstance(totals, dict) or set(totals) != COUNT_FIELDS:
         raise ValueError("Incomplete public code-work groups")
     names, result = [], []
-    extra = {"measurement_status", "unavailable_reason"} if schema == 2 else set()
+    extra = {"measurement_status", "unavailable_reason"} if schema in (2, 3) else set()
     for row in groups:
         if (not isinstance(row, dict) or set(row) != COUNT_FIELDS | {"assembly"} | extra or not isinstance(row["assembly"], str) or
                 re.fullmatch(r"Game\.Runtime|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?", row["assembly"]) is None):
             raise ValueError("Unsupported public assembly group")
         names.append(row["assembly"])
-        if schema == 2:
+        if schema in (2, 3):
             _validate_availability({row["assembly"]: {k: row[k] for k in extra}}, [row["assembly"]])
-        unavailable = schema == 2 and row["measurement_status"] == "unavailable"
+        unavailable = schema in (2, 3) and row["measurement_status"] == "unavailable"
         if unavailable:
             if any(row[k] is not None for k in COUNT_FIELDS):
                 raise ValueError("Unavailable assembly cannot carry counted methods")
@@ -340,7 +341,7 @@ def _count_groups(measurement):
             if (row["original_native_bodies"] != sum(row[k] for k in ("implemented_source_bodies", "unresolved_identities", "withheld_bodies", "not_implemented")) or
                     row["original_native_bodies"] > row["original_declarations"]):
                 raise ValueError("Public method counts do not account for original bodies")
-            if schema == 2 and row["measurement_status"] == "no_recovered_source" and any(row[k] for k in
+            if schema in (2, 3) and row["measurement_status"] == "no_recovered_source" and any(row[k] for k in
                     ("implemented_source_bodies", "withheld_bodies")):
                 raise ValueError("Unrecovered assembly cannot have compiled source credit")
         result.append({key: row[key] for key in sorted(COUNT_FIELDS | {"assembly"} | extra)})
@@ -392,13 +393,15 @@ def render_readme_section(report):
         if group.get("measurement_status") == "unavailable":
             out.append("| " + label + " | — | — | Unavailable / not counted: " + AVAILABILITY_REASONS[group["unavailable_reason"]] + " |")
             continue
-        if group.get("measurement_status") == "no_recovered_source":
+        if report["schema_version"] == 2 and group.get("measurement_status") == "no_recovered_source":
             label += " (no recovered source)"
         out.append("| " + label + " | " + format(group["implemented_source_bodies"], ",") + " | " + format(group["original_native_bodies"], ",") + " | " + percentage(group) + " |")
     out += ["| **Total** | **" + format(total["implemented_source_bodies"], ",") + "** | **" + format(total["original_native_bodies"], ",") + "** | **" + percentage(total) + "** |", "",
             "Generated from original method signatures and compiled source. Counts are conservative: ambiguous signatures and recognized trivial or placeholder patterns are excluded, including some genuine trivial methods. These counts cover methods with original native bodies; the game is not yet playable.", "<!-- LUCID_CODE_PROGRESS:END -->"]
     if report["schema_version"] == 2:
         out.insert(-1, "Unavailable assemblies are excluded from both totals. Assemblies with no recovered source remain counted with zero source implementations.")
+    elif report["schema_version"] == 3 and any(group["measurement_status"] == "unavailable" for group in report["assemblies"]):
+        out.insert(-1, "Unavailable assemblies are excluded from both totals.")
     return "\n".join(out) + "\n"
 
 

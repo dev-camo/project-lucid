@@ -74,6 +74,8 @@ class HTTPSFixture:
             value = self.bot
         elif path == repo:
             value = {"full_name": direct.REPOSITORY, "default_branch": "main"}
+        elif path == repo + "/contents/docs/code-progress.json":
+            value = {"encoding": "base64", "content": base64.b64encode(self.raw).decode()}
         elif path == repo + "/commits/main":
             value = {"sha": self.default}
         elif path == repo + "/actions/runs/123":
@@ -386,24 +388,43 @@ class DirectProgressTests(unittest.TestCase):
                 self.assertNotIn(key, environment)
 
     def test_forged_bot_report_cannot_skip_real_compilation(self):
-        forged=copy.deepcopy(self.http.report)
-        for rows in (forged["assemblies"], [forged["totals"]]):
-            row=next(row for row in rows if row["not_implemented"])
-            row["implemented_source_bodies"] += 1
-            row["not_implemented"] -= 1
-        forged["compiler_receipt_sha256"]="0" * 64
-        # This reproduces the self-consistent forgery accepted by the old shortcut.
-        direct.reporting_tools(ROOT)[0](forged, ROOT)
-        event = self.event()
-        with tempfile.TemporaryDirectory() as directory:
-            path=Path(directory)/"event.json"
-            output=Path(directory)/"output"
-            path.write_text(json.dumps(event))
-            with mock.patch.dict(os.environ,{"GITHUB_EVENT_PATH":str(path),"GITHUB_OUTPUT":str(output)}), \
-                 mock.patch.object(sys,"argv",["direct_progress","gate"]):
-                direct.main()
-            self.assertIn("run=true\n",output.read_text())
-        self.assertFalse(any(c["path"].endswith("/commits/"+self.http.head) for c in self.http.calls))
+        original = copy.deepcopy(self.http.report)
+        for schema in (1, 2, 3):
+            with self.subTest(schema=schema):
+                forged = copy.deepcopy(original)
+                forged["schema_version"] = schema
+                row = next(row for row in forged["assemblies"]
+                           if row.get("measurement_status", "measured") == "measured"
+                           and row["not_implemented"] > 0)
+                if schema == 1:
+                    for assembly in forged["assemblies"]:
+                        assembly.pop("measurement_status", None)
+                        assembly.pop("unavailable_reason", None)
+                for counts in (row, forged["totals"]):
+                    counts["implemented_source_bodies"] += 1
+                    counts["not_implemented"] -= 1
+                forged["compiler_receipt_sha256"] = "0" * 64
+                # Self-consistent counts still cannot prove compiler provenance.
+                direct.reporting_tools(ROOT)[0](forged, ROOT)
+                self.http.report = forged
+                self.http.raw = (json.dumps(forged, indent=2, sort_keys=True) + "\n").encode()
+                with self.assertRaisesRegex(ValueError, "Report differs from protected real compiler outputs"):
+                    direct.verify_report(self.http.raw, self.http.producer, self.http.request, "456", ROOT, ROOT)
+                self.http.calls.clear()
+                event = self.event()
+                event["workflow_run"]["actor"] = {"login": direct.BOT}
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "event.json"
+                    output = Path(directory) / "output"
+                    path.write_text(json.dumps(event))
+                    with mock.patch.dict(os.environ, {"GITHUB_EVENT_PATH": str(path), "GITHUB_OUTPUT": str(output)}), \
+                         mock.patch.object(sys, "argv", ["direct_progress", "gate"]), \
+                         mock.patch.object(direct, "reporting_tools") as report_tools:
+                        direct.main()
+                        report_tools.assert_not_called()
+                    self.assertIn("run=true\n", output.read_text())
+                self.assertFalse(any(c["path"].endswith("/commits/" + self.http.head)
+                                     or "/contents/" in c["path"] for c in self.http.calls))
         workflow=(ROOT/".github/workflows/native-progress.yml").read_text()
         self.assertIn("compile: ${{ steps.gate.outputs.run }}",workflow)
         self.assertNotIn("recheck",workflow)

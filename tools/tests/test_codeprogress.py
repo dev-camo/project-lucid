@@ -199,7 +199,7 @@ class AssemblyAvailabilityTests(unittest.TestCase):
 
     def test_unavailable_excludes_numerator_and_denominator_unrecovered_is_counted(self):
         result = self.measurement()
-        self.assertEqual(2, result["schema_version"])
+        self.assertEqual(3, result["schema_version"])
         self.assertEqual((1, 2), tuple(result["totals"][key] for key in ("implemented_source_bodies", "original_native_bodies")))
         rows = {row["assembly"]: row for row in result["assemblies"]}
         self.assertTrue(all(rows["HLInput.Runtime"][key] is None for key in codeprogress.COUNT_FIELDS))
@@ -212,8 +212,47 @@ class AssemblyAvailabilityTests(unittest.TestCase):
         self.assertIn("| — | — | Unavailable / not counted:", row)
         self.assertIn("linux compiler returned no assembly module", row)
         self.assertNotIn("0%", row)
-        self.assertIn("HLAutoPlay.Runtime (no recovered source) | 0 | 1 | 0.00%", text)
+        self.assertIn("HLAutoPlay.Runtime | 0 | 1 | 0.00%", text)
+        self.assertNotIn("no recovered source", text)
+        self.assertIn("Unavailable assemblies are excluded from both totals.", text)
         self.assertIn("(50.00%)", text)
+
+    def test_schema3_preserves_counted_zero_rows_without_limitation_notes(self):
+        report = self.public()
+        report["assemblies"][-1].update(measurement_status="no_recovered_source", unavailable_reason=None)
+        for key in codeprogress.COUNT_FIELDS:
+            report["assemblies"][-1][key] = int(key in ("original_declarations", "original_native_bodies", "not_implemented"))
+            report["totals"][key] += report["assemblies"][-1][key]
+        text = codeprogress.render_readme_section(report)
+        self.assertIn("HLAutoPlay.Runtime | 0 | 1 | 0.00%", text)
+        self.assertIn("HLInput.Runtime | 0 | 1 | 0.00%", text)
+        self.assertIn("(33.33%)", text)
+        self.assertNotIn("no recovered source", text)
+        self.assertNotIn("Unavailable", text)
+
+    def test_preserved_snapshot_and_schema2_rendering_are_unchanged(self):
+        root = Path(__file__).resolve().parents[2]
+        report = json.loads((root / "docs/code-progress.json").read_text())
+        readme = (root / "README.md").read_text()
+        start = readme.index("<!-- LUCID_CODE_PROGRESS:START -->")
+        end = readme.index("<!-- LUCID_CODE_PROGRESS:END -->", start) + len("<!-- LUCID_CODE_PROGRESS:END -->")
+        self.assertEqual(readme[start:end] + "\n", codeprogress.render_readme_section(report))
+        legacy = self.public()
+        legacy["schema_version"] = 2
+        self.assertIn("HLAutoPlay.Runtime (no recovered source) | 0 | 1 | 0.00%", codeprogress.render_readme_section(legacy))
+
+    def test_no_source_credit_is_rejected_in_both_availability_schemas(self):
+        for schema in (2, 3):
+            with self.subTest(schema=schema):
+                report = self.public()
+                report["schema_version"] = schema
+                row = report["assemblies"][1]
+                row["implemented_source_bodies"] += 1
+                row["not_implemented"] -= 1
+                report["totals"]["implemented_source_bodies"] += 1
+                report["totals"]["not_implemented"] -= 1
+                with self.assertRaisesRegex(ValueError, "Unrecovered assembly cannot have compiled source credit"):
+                    codeprogress.validate_public_counts(report)
 
     def test_all_unavailable_has_no_percentage_and_null_counts(self):
         helper = CodeWorkTests(); availability = {"Game.Runtime": {"measurement_status": "unavailable", "unavailable_reason": "maintained-source-module-not-returned-linux"}}
