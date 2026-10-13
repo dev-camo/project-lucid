@@ -8,6 +8,16 @@ PROFILES = {
     ("HLUnityCore.Runtime", "Hardlight.RuntimeConfiguration"): ("m_configurationAssets",),
     ("Game.Runtime", "HardlightProject.GameLevels"): (
         "m_baseAsset", "m_overriddenFields", "m_systemScenes", "m_uiScenes", "m_gameplayEntries"),
+    ("Game.Runtime", "HardlightProject.CoreGameConfiguration"): (
+        "m_baseAsset", "m_overriddenFields", "m_useExportedScenes", "m_missionIntrosEnabled",
+        "m_useFastValidation", "m_gameCenter", "m_replayMode", "m_allowUnityShaderDebuggingWindow",
+        "m_sendCrashReports", "m_runtimeIssueProfile", "m_deviceConsoleEnabled", "m_logHandlerEnabled",
+        "m_calculateFPSCounter", "m_tapToSkipEnabled", "m_showGameCenterChallenges",
+        "m_challengeManagerIntegrationType", "m_hashedComponentGroupDefaults"),
+    ("HLLocalisation.Runtime", "Hardlight.HLLocalisationConfigurationAsset"): (
+        "m_baseAsset", "m_overriddenFields", "m_localisedDefinitionsDirectory", "m_nodeDataExportPath",
+        "m_charactersOutputDirectory", "m_enableEditorDataGeneration", "m_enableLocalisedUIStringFunctionality"),
+    ("Game.Runtime", "HardlightProject.HashedGroupConfiguration"): (),
 }
 COMMON = ("m_ObjectHideFlags", "m_CorrespondingSourceObject", "m_PrefabInstance",
           "m_PrefabAsset", "m_GameObject", "m_Enabled", "m_EditorHideFlags", "m_Script",
@@ -19,6 +29,19 @@ ASSET = re.compile(r"\{fileID: 11400000, guid: ([0-9a-f]{32}), type: 2\}")
 GUID = re.compile(r"[0-9a-f]{32}")
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
 POINTER_LISTS = {"m_configurationAssets", "m_systemScenes", "m_uiScenes", "m_gameplayEntries"}
+POINTER_FIELDS = {"ActiveConfig", "m_baseAsset", "m_runtimeIssueProfile", "m_hashedComponentGroupDefaults"}
+SCALAR_FIELDS = {
+    ("Game.Runtime", "HardlightProject.CoreGameConfiguration"): {
+        "m_useExportedScenes": "bool", "m_missionIntrosEnabled": "bool", "m_useFastValidation": "bool",
+        "m_gameCenter": "bool", "m_replayMode": "int32", "m_allowUnityShaderDebuggingWindow": "bool",
+        "m_sendCrashReports": "bool", "m_deviceConsoleEnabled": "bool", "m_logHandlerEnabled": "bool",
+        "m_calculateFPSCounter": "bool", "m_tapToSkipEnabled": "bool", "m_showGameCenterChallenges": "bool",
+        "m_challengeManagerIntegrationType": "int32"},
+    ("HLLocalisation.Runtime", "Hardlight.HLLocalisationConfigurationAsset"): {
+        "m_localisedDefinitionsDirectory": "path", "m_nodeDataExportPath": "path",
+        "m_charactersOutputDirectory": "path", "m_enableEditorDataGeneration": "bool",
+        "m_enableLocalisedUIStringFunctionality": "bool"},
+}
 
 
 def _bindings(rows):
@@ -51,6 +74,26 @@ def _asset(value):
     match = ASSET.fullmatch(value)
     if match is None or match[1] == "0" * 32:
         raise ValueError("Unsupported configuration asset pointer")
+
+
+def _scalar(value, items, kind):
+    # Only the three original owners above admit these scalar fields. Keep the
+    # text unchanged; validation never interprets a path or an enum as behavior.
+    if items:
+        raise ValueError("Unsupported configuration scalar sequence")
+    if kind == "bool":
+        if value not in ("0", "1"):
+            raise ValueError("Unsupported configuration Boolean")
+    elif kind == "int32":
+        if re.fullmatch(r"-?(?:0|[1-9][0-9]*)", value) is None or not -(1 << 31) <= int(value) < (1 << 31):
+            raise ValueError("Unsupported configuration Int32 enum payload")
+    elif kind == "path":
+        # This is data syntax, not a filesystem operation. Reject YAML aliases,
+        # tags, comments, quoting and multiline forms outside the observed export.
+        if re.fullmatch(r"[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*", value) is None:
+            raise ValueError("Unsupported configuration plain path")
+    else:
+        raise ValueError("Unsupported configuration scalar kind")
 
 
 def _document(body, row):
@@ -94,7 +137,10 @@ def _document(body, row):
         raise ValueError("Unsupported selected configuration script pointer")
     for name in PROFILES[(row["assembly"], row["full_name"])]:
         value, items = values[name]
-        if name in ("ActiveConfig", "m_baseAsset"):
+        kind = SCALAR_FIELDS.get((row["assembly"], row["full_name"]), {}).get(name)
+        if kind is not None:
+            _scalar(value, items, kind)
+        elif name in POINTER_FIELDS:
             if items:
                 raise ValueError("Unsupported configuration scalar sequence")
             _asset(value)
@@ -112,7 +158,7 @@ def _document(body, row):
 
 
 def rewrite_configuration_pointers(content, bindings):
-    """Validate only these three authored profiles and replace their script line.
+    """Validate only the qualified authored profiles and replace their script line.
 
     This pure function performs no source admission, provider action or file IO.
     It rejects unsupported shapes before returning any transformed content.

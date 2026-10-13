@@ -1289,6 +1289,13 @@ EDITMODE_TESTS += (
 
 EDITMODE_TESTS += ("OriginalFontReferenceConversionTests.PythonConverterProducedFontCollectionOwnersImportTheirExactBytes",)
 
+# Genuine owned menu configuration storage; original initialization stays separate.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineOwnedCoreGraphRetainsSeparateBaseOverridesAndTwelveRuntimeSlots',
+    'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineOwnedLocalisationPreservesAuthoredPathsFlagsAndOverrideOrder',
+    'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineOwnedHashedRemainsFieldlessPlainScriptableObjectAfterReimport',
+)
+
 # Owned original procedural-mesh and CrossPromo configuration controls.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.ProceduralMesh_DefaultsRemainDistinctFromAuthoredSettings',
@@ -1298,4 +1305,9 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.ServerSelectsDevOnlyForZeroAndProdForEveryTestedNonzero',
     'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.EmptyValidatePreservesCompleteOwnedStateAndOriginalBaseReferences',
     'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.CompleteDeclaredContractAndOrderedAttributesRemainOriginal',
+)
+
+# Read-only supplied menu imports; initialization and provider payloads remain separate.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalMenuPreparedAssetImportTests.ActualSuppliedMenuAssetsRetainOriginalScriptsFieldsGraphAndRuntimeOrder',
 )

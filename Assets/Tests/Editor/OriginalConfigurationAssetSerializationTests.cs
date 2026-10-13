@@ -314,8 +314,29 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(export.input_fingerprint.sha256, prepared.input_fingerprint.sha256, "Immutable supplied release identity.");
             ImportBindings proof = prepared.script_bindings;
             Assert.IsNotNull(proof); Assert.AreEqual("verified_layout", proof.status); Assert.IsTrue(proof.references_modified);
-            Assert.IsNotNull(proof.bindings); Assert.AreEqual(8, proof.bindings.Length);
-            Assert.IsNotNull(proof.assets); Assert.AreEqual(524, proof.assets.Length);
+            Assert.IsNotNull(proof.bindings); Assert.AreEqual(11, proof.bindings.Length);
+            Assert.IsNotNull(proof.assets); Assert.AreEqual(528, proof.assets.Length);
+            var expectedOwners = new HashSet<string>(new[] {
+                "Game.Runtime::HardlightProject.LevelStartPositionDefinition",
+                "Game.Runtime::HardlightProject.LevelDefinition",
+                "UnityEngine.UI::UnityEngine.UI.LayoutElement",
+                "UnityEngine.UI::UnityEngine.UI.ContentSizeFitter",
+                "UnityEngine.UI::UnityEngine.UI.AspectRatioFitter",
+                "HLUnityCore.Runtime::Hardlight.ActiveRuntimeConfiguration",
+                "HLUnityCore.Runtime::Hardlight.RuntimeConfiguration",
+                "Game.Runtime::HardlightProject.GameLevels",
+                "Game.Runtime::HardlightProject.CoreGameConfiguration",
+                "HLLocalisation.Runtime::Hardlight.HLLocalisationConfigurationAsset",
+                "Game.Runtime::HardlightProject.HashedGroupConfiguration" }, StringComparer.Ordinal);
+            var actualOwners = new HashSet<string>(StringComparer.Ordinal);
+            foreach (ImportBinding item in proof.bindings)
+            {
+                Assert.IsNotNull(item);
+                string owner = item.assembly + "::" + item.full_name;
+                Assert.IsTrue(expectedOwners.Contains(owner), "Unexpected exact binding owner: " + owner);
+                Assert.IsTrue(actualOwners.Add(owner), "Duplicate exact binding owner: " + owner);
+            }
+            CollectionAssert.AreEquivalent(expectedOwners, actualOwners, "Every exact binding owner must be present.");
             Assert.AreEqual(ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false), proof.source_fingerprint, "Fresh maintained source binding evidence.");
             Assert.IsTrue(IsHash(proof.comparison_sha256));
             Assert.AreEqual(proof.comparison_sha256, Hash(System.IO.File.ReadAllBytes(CheckedPath(work, proof.comparison_path))), "Exact current layout evidence bytes.");

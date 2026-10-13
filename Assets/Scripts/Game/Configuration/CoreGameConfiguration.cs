@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x02000414. This private full declaration retains
-    // its real ChallengeManager.IntegrationType dependency; no outer shim.
+    // Original Game.Runtime 0x02000414. ChallengeManager.IntegrationType
+    // retains its original declaring type and serialized enum identity.
     [CreateAssetMenu(fileName = "CoreGameConfiguration", menuName = "HardlightProject/Config/Core Game")]
     public class CoreGameConfiguration : SystemConfigurationAsset
     {

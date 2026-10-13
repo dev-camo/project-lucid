@@ -181,4 +181,125 @@ class ConfigurationDocumentTests(unittest.TestCase):
         self.assertEqual(before_rows, rows)
 
 
+def menu_binding(index):
+    assembly, name = (("Game.Runtime", "HardlightProject.CoreGameConfiguration"),
+                      ("HLLocalisation.Runtime", "Hardlight.HLLocalisationConfigurationAsset"),
+                      ("Game.Runtime", "HardlightProject.HashedGroupConfiguration"))[index]
+    return dict(assembly=assembly, full_name=name, exported_guid=str(index+7)*32,
+                target_guid=chr(ord("b")+index)*32, exported_file_id=11500000, target_file_id=11500000)
+
+
+def menu_document(index, own):
+    common = document(0, "").replace(binding(0)["exported_guid"].encode(), menu_binding(index)["exported_guid"].encode())
+    return common + own
+
+
+def core_document(*, development=False):
+    base = b"{fileID: 0}" if development else asset(42).encode()
+    overrides = (b"  - m_useFastValidation\n  - m_applicationVersionDefinition\n  - m_hashedComponentGroupDefaults\n"
+                 if development else b"  - m_gameCenter\n  - m_useExportedScenes\n")
+    return menu_document(0, b"  m_baseAsset: " + base + b"\n  m_overriddenFields:\n" + overrides +
+        b"  m_useExportedScenes: 1\n  m_missionIntrosEnabled: 0\n  m_useFastValidation: 1\n"
+        b"  m_gameCenter: 0\n  m_replayMode: -951563343\n  m_allowUnityShaderDebuggingWindow: 0\n"
+        b"  m_sendCrashReports: 0\n  m_runtimeIssueProfile: {fileID: 0}\n  m_deviceConsoleEnabled: 0\n"
+        b"  m_logHandlerEnabled: 0\n  m_calculateFPSCounter: 0\n  m_tapToSkipEnabled: 0\n"
+        b"  m_showGameCenterChallenges: 1\n  m_challengeManagerIntegrationType: 0\n"
+        b"  m_hashedComponentGroupDefaults: " + (asset(99).encode() if development else b"{fileID: 0}") + b"\n")
+
+
+def localisation_document():
+    return menu_document(1, b"  m_baseAsset: {fileID: 0}\n  m_overriddenFields:\n"
+        b"  - m_localisedDefinitionsDirectory\n  - m_nodeDataExportPath\n"
+        b"  m_localisedDefinitionsDirectory: ExampleStrings\n"
+        b"  m_nodeDataExportPath: ../../synthetic/export/full_data_export.js\n"
+        b"  m_charactersOutputDirectory: /Example Data/Characters/\n"
+        b"  m_enableEditorDataGeneration: 1\n  m_enableLocalisedUIStringFunctionality: 0\n")
+
+
+class MenuConfigurationDocumentTests(unittest.TestCase):
+    def assert_pointer_only(self, content, index):
+        row = menu_binding(index); before = copy.deepcopy(row)
+        result, count = rewrite_configuration_pointers(content, [row])
+        source = ("  m_Script: {fileID: 11500000, guid: " + row["exported_guid"] + ", type: 3}").encode()
+        target = ("  m_Script: {fileID: 11500000, guid: " + row["target_guid"] + ", type: 3}").encode()
+        self.assertEqual(1, content.count(source)); self.assertEqual((content.replace(source, target), 1), (result, count))
+        self.assertEqual(before, row)
+        return result
+
+    def test_core_prod_and_dev_keep_differing_raw_graphs(self):
+        for development in (False, True):
+            with self.subTest(development=development):
+                content = core_document(development=development)
+                result = self.assert_pointer_only(content, 0)
+                self.assertEqual(content.split(b"  m_baseAsset:")[1], result.split(b"  m_baseAsset:")[1])
+                if development:
+                    self.assertIn(b"  - m_applicationVersionDefinition\n", result)
+                    self.assertNotIn(b"  m_applicationVersionDefinition:", result)
+
+    def test_localisation_paths_flags_and_override_order_are_literal(self):
+        self.assert_pointer_only(localisation_document(), 1)
+
+    def test_hashed_is_common_only_without_configuration_or_guid_fields(self):
+        self.assert_pointer_only(menu_document(2, b""), 2)
+        for field in (b"  m_baseAsset: {fileID: 0}\n", b"  m_overriddenFields: []\n", b"  m_guid: synthetic\n"):
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                rewrite_configuration_pointers(menu_document(2, field), [menu_binding(2)])
+
+    def test_new_profiles_preserve_crlf_and_missing_final_newline(self):
+        for index, content in [(0, core_document(development=True)), (1, localisation_document()), (2, menu_document(2, b""))]:
+            for variant in (content.replace(b"\n", b"\r\n"), content.rstrip(b"\n")):
+                with self.subTest(index=index), self.subTest(variant=variant): self.assert_pointer_only(variant, index)
+
+    def test_core_boolean_and_enum_payloads_are_bounded_without_clamping(self):
+        for value in (b"-2147483648", b"2147483647", b"1122295862"):
+            self.assert_pointer_only(core_document().replace(b"m_replayMode: -951563343", b"m_replayMode: " + value), 0)
+        cases = [core_document().replace(b"m_gameCenter: 0", b"m_gameCenter: " + v) for v in (b"true", b"2", b"-1", b"0x1")]
+        cases += [core_document().replace(b"m_replayMode: -951563343", b"m_replayMode: " + v) for v in (b"2147483648", b"-2147483649", b"+1", b"1.0", b"0x42", b"01")]
+        for content in cases:
+            with self.subTest(content=content), self.assertRaises(ValueError): rewrite_configuration_pointers(content, [menu_binding(0)])
+
+    def test_core_pointer_payloads_remain_data_with_exact_asset_shape(self):
+        self.assert_pointer_only(core_document().replace(b"m_runtimeIssueProfile: {fileID: 0}", b"m_runtimeIssueProfile: " + asset(123).encode()), 0)
+        for pointer in (b"{fileID: 1}", b"{fileID: 11400000, guid: " + b"0"*32 + b", type: 2}", b"{fileID: 11400000, guid: " + b"a"*32 + b", type: 3}"):
+            with self.subTest(pointer=pointer), self.assertRaises(ValueError):
+                rewrite_configuration_pointers(core_document().replace(b"m_runtimeIssueProfile: {fileID: 0}", b"m_runtimeIssueProfile: " + pointer), [menu_binding(0)])
+
+    def test_localisation_rejects_yaml_path_extensions_and_bool_aliases(self):
+        for path in (b"*alias", b"&anchor path", b"!tag path", b'"quoted"', b"path # comment", b"|", b"path: value", b"[path]"):
+            with self.subTest(path=path), self.assertRaises(ValueError):
+                rewrite_configuration_pointers(localisation_document().replace(b"ExampleStrings", path), [menu_binding(1)])
+        with self.assertRaises(ValueError):
+            rewrite_configuration_pointers(localisation_document().replace(b"m_enableEditorDataGeneration: 1", b"m_enableEditorDataGeneration: true"), [menu_binding(1)])
+
+    def test_extra_missing_duplicate_reordered_and_nested_fields_are_rejected(self):
+        c = core_document(); l = localisation_document()
+        cases = [(0, c+b"  m_extra: 0\n"), (0, c+b"  m_gameCenter: 1\n"), (0, c.replace(b"  m_gameCenter: 0\n", b"")),
+                 (0, c.replace(b"  m_gameCenter: 0\n  m_replayMode:", b"  m_replayMode: 0\n  m_gameCenter:")),
+                 (0, c.replace(b"  m_gameCenter: 0", b"  m_gameCenter:\n    nested: 0")),
+                 (1, l.replace(b"  m_enableEditorDataGeneration: 1", b"  m_enableEditorDataGeneration:\n  - 1")),
+                 (1, l+b"  m_overriddenFields: []\n")]
+        for index, content in cases:
+            with self.subTest(index=index, content=content), self.assertRaises(ValueError): rewrite_configuration_pointers(content, [menu_binding(index)])
+
+    def test_new_bindings_do_not_affect_existing_runtime_twelve_slots(self):
+        content = runtime_document(); rows = [menu_binding(i) for i in range(3)]
+        self.assertEqual((content, 0), rewrite_configuration_pointers(content, rows))
+        expected, count = rewrite_configuration_pointers(content, [binding(1)])
+        self.assertEqual((expected, count), rewrite_configuration_pointers(content, rows+[binding(1)]))
+
+    def test_dispatch_routes_new_configuration_only_and_keeps_scalar_body(self):
+        from lucidlib.scriptbindings import rewrite_prepared_script_pointers
+        for index, content in [(0, core_document()), (1, localisation_document()), (2, menu_document(2, b""))]:
+            rows = [menu_binding(i) for i in range(3)]
+            expected = self.assert_pointer_only(content, index)
+            self.assertEqual((expected, 1), rewrite_prepared_script_pointers(content, rows))
+        raw = document(0, "  ActiveConfig: {fileID: 0}\n")
+        self.assertEqual((raw, 0), rewrite_prepared_script_pointers(raw, [menu_binding(i) for i in range(3)]))
+
+    def test_failure_preserves_bytes_binding_rows_and_complete_stale_list(self):
+        content = core_document(development=True)+b"  m_invented: 0\n"; rows = [menu_binding(i) for i in range(3)]; before = copy.deepcopy(rows)
+        with self.assertRaises(ValueError): rewrite_configuration_pointers(content, rows)
+        self.assertEqual(before, rows); self.assertIn(b"  - m_applicationVersionDefinition\n", content)
+
+
 if __name__ == "__main__": unittest.main()

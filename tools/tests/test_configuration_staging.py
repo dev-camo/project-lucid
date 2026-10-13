@@ -115,4 +115,43 @@ class ConfigurationStagingTests(unittest.TestCase):
         self.assertEqual([], list((fixture.repo / "Assets").glob(".lucid-assets-*")))
 
 
+class MenuConfigurationStagingTests(unittest.TestCase):
+    def test_four_menu_assets_keep_runtime_and_raw_ancestry_then_reject_bad_scalar_atomically(self):
+        from test_configurationbindings import menu_binding, core_document, localisation_document, menu_document
+        fixture = test_assets.AssetTests("runTest"); fixture.setUp(); self.addCleanup(fixture.tearDown)
+        project = fixture.make_export()
+        documents = [("Prod", core_document(), menu_binding(0)), ("Dev", core_document(development=True), menu_binding(0)),
+                     ("Localisation", localisation_document(), menu_binding(1)), ("Hashed", menu_document(2, b""), menu_binding(2)),
+                     ("Runtime", runtime_document(), binding(1))]
+        for index, (name, content, row) in enumerate(documents):
+            test_assets.write_asset(project, "Configuration/"+name+".asset", format(index+48, "032x"), content.decode())
+        for row in [menu_binding(i) for i in range(3)]+[binding(1)]:
+            namespace, name = row["full_name"].rsplit(".", 1)
+            test_assets.write_asset(project, "Scripts/"+row["assembly"]+"/"+namespace+"/"+name+".cs", row["exported_guid"], "// Synthetic quarantined declaration.\n")
+        scalar = dict(exported_guid="a"*32, target_guid="f"*32, exported_file_id=11500000, target_file_id=11500000)
+        proof = dict(status="verified_layout", bindings=[scalar]+[menu_binding(i) for i in range(3)]+[binding(1)], references_modified=False)
+        map_path = project.parent/"asset-map.json"; assets._json_write(map_path, assets.build_asset_map(project))
+        source_before = {p.relative_to(project).as_posix():p.read_bytes() for p in project.rglob("*") if p.is_file()}
+        with patch("lucidlib.scriptbindings.resolve_bindings", return_value=proof): actual = assets.prepare_assets(fixture.repo, fixture.work)
+        self.assertEqual(6, len(actual["script_bindings"]["assets"]))
+        for name, content, row in documents:
+            before = ("  m_Script: {fileID: 11500000, guid: "+row["exported_guid"]+", type: 3}").encode()
+            after = ("  m_Script: {fileID: 11500000, guid: "+row["target_guid"]+", type: 3}").encode()
+            prepared = fixture.repo/"Assets/Recovered/Configuration"/(name+".asset")
+            self.assertEqual(content.replace(before, after), prepared.read_bytes())
+            self.assertEqual((project/"Assets/Configuration"/(name+".asset.meta")).read_bytes(), prepared.with_name(prepared.name+".meta").read_bytes())
+        self.assertEqual(source_before, {p.relative_to(project).as_posix():p.read_bytes() for p in project.rglob("*") if p.is_file()})
+        prepared_before = {p.relative_to(fixture.repo).as_posix():p.read_bytes() for p in (fixture.repo/"Assets").rglob("*") if p.is_file()}
+        with patch("lucidlib.scriptbindings.resolve_bindings", return_value=proof): assets.prepare_assets(fixture.repo, fixture.work)
+        self.assertEqual(prepared_before, {p.relative_to(fixture.repo).as_posix():p.read_bytes() for p in (fixture.repo/"Assets").rglob("*") if p.is_file()})
+        receipt = (fixture.work/"assets/latest-prepare.json").read_bytes()
+        broken = project/"Assets/Configuration/Dev.asset"; raw = broken.read_bytes(); broken.write_bytes(raw.replace(b"m_gameCenter: 0", b"m_gameCenter: 2"))
+        assets._json_write(map_path, assets.build_asset_map(project))
+        with patch("lucidlib.scriptbindings.resolve_bindings", return_value=proof), self.assertRaisesRegex(ValueError, "Boolean"):
+            assets.prepare_assets(fixture.repo, fixture.work)
+        self.assertEqual(prepared_before, {p.relative_to(fixture.repo).as_posix():p.read_bytes() for p in (fixture.repo/"Assets").rglob("*") if p.is_file()})
+        self.assertEqual(receipt, (fixture.work/"assets/latest-prepare.json").read_bytes())
+        self.assertEqual([], list((fixture.repo/"Assets").glob(".lucid-assets-*")))
+
+
 if __name__ == "__main__": unittest.main()
