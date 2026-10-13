@@ -38,13 +38,12 @@ namespace ProjectLucid
         {
             checks = 0;
             object[] previous = StoreStatics.Select(name => Static(name).GetValue(null)).ToArray();
-            HLPropertyStore registered = ProcessManager.GetSystemSafe<HLPropertyStore>(autoRegister: false);
-            try { VerifyKeysAndFactories(); VerifyCleanup(); VerifyCurrentStorageAndSingleton(); VerifyShutdown(); }
+            var registration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<HLPropertyStore>(), previous);
+            try { VerifyKeysAndFactories(); VerifyCleanup(registration); VerifyCurrentStorageAndSingleton(registration); VerifyShutdown(registration); }
             finally
             {
-                ProcessManager.UnregisterSystem<HLPropertyStore>();
-                if (registered != null) ProcessManager.RegisterSystem(registered);
-                for (int i = 0; i < StoreStatics.Length; i++) Static(StoreStatics[i]).SetValue(null, previous[i]);
+                try { registration.Dispose(); }
+                finally { for (int i = 0; i < StoreStatics.Length; i++) Static(StoreStatics[i]).SetValue(null, previous[i]); }
             }
         }
         private static IFSMState Cleanup() => ApplicationStateBootCleanup.ConstructInstance(Machine(), Name(), "invalid unused json");
@@ -67,12 +66,12 @@ namespace ProjectLucid
             Check(typeof(ApplicationStateBootCleanup).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).Length == 0, "cleanup adds no synthetic fields");
             Check(typeof(ApplicationStateBootShutdown).GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).Length == 0, "shutdown adds no synthetic fields");
         }
-        private static void VerifyCleanup()
+        private static void VerifyCleanup(VerificationFixtureOwnership.RegistryRow registration)
         {
             foreach (int condition in new[] { 0, 1, 2, 3 })
             {
                 var memory = new MemoryStorage(); var store = Store(memory);
-                ProcessManager.RegisterSystem(store, canReplace: true);
+                registration.Register(store, canReplace: true);
                 store.AddProperty("HL_First_Boot", true);
                 var user = new FSMUser();
                 if (condition != 0)
@@ -91,21 +90,21 @@ namespace ProjectLucid
                 Check(memory.Calls.SequenceEqual(expectedSave ? new[] { "save", "backup" } : Array.Empty<string>()), "cleanup uses immediate primary/backup store flow");
             }
             var failingMemory = new MemoryStorage(); var failingStore = Store(failingMemory);
-            ProcessManager.RegisterSystem(failingStore, canReplace: true);
+            registration.Register(failingStore, canReplace: true);
             var failingUser = new FSMUser(); failingUser.Storage.SetValue(AppFSMKeys.BootHLPropertyStoreList, new HLPropertyList());
             HLPropertyStore.AddSaveHandler(properties => throw new MarkerException());
             Throws<MarkerException>(() => Cleanup().OnEnter(failingUser, null), "save callback error propagates");
             Check(failingUser.Storage.HasValue<HLPropertyList>(AppFSMKeys.BootHLPropertyStoreList) && !failingStore.CanSave, "save error prevents snapshot removal and keeps original Saving state");
             var nullMemory = new MemoryStorage(); var nullStore = Store(nullMemory);
-            ProcessManager.RegisterSystem(nullStore, canReplace: true);
+            registration.Register(nullStore, canReplace: true);
             var nullUser = new FSMUser(); nullUser.Storage.SetValue<HLPropertyList>(AppFSMKeys.BootHLPropertyStoreList, null);
             Throws<NullReferenceException>(() => Cleanup().OnEnter(nullUser, null), "present null snapshot is not repaired");
             Check(nullUser.Storage.HasValue<HLPropertyList>(AppFSMKeys.BootHLPropertyStoreList) && nullMemory.Calls.Count == 0, "null snapshot failure retains key and skips save");
         }
-        private static void VerifyCurrentStorageAndSingleton()
+        private static void VerifyCurrentStorageAndSingleton(VerificationFixtureOwnership.RegistryRow registration)
         {
             var memory = new MemoryStorage(); var store = Store(memory);
-            ProcessManager.RegisterSystem(store, canReplace: true);
+            registration.Register(store, canReplace: true);
             var first = new FSMStorage(); var second = new FSMStorage();
             var properties = new HLPropertyList(); properties.AddProperty("HL_First_Boot", false);
             first.SetValue(AppFSMKeys.BootHLPropertyStoreList, properties); second.SetValue(AppFSMKeys.BootHLPropertyStoreList, properties);
@@ -113,16 +112,16 @@ namespace ProjectLucid
             Cleanup().OnEnter(user, null);
             Check(user.Reads == 2 && first.HasValue<HLPropertyList>(AppFSMKeys.BootHLPropertyStoreList) && !second.HasValue<HLPropertyList>(AppFSMKeys.BootHLPropertyStoreList), "cleanup re-reads current storage for removal");
             var registeredMemory = new MemoryStorage(); var registered = Store(registeredMemory);
-            ProcessManager.RegisterSystem(registered, canReplace: true);
+            registration.Register(registered, canReplace: true);
             var currentMemory = new MemoryStorage(); var current = Store(currentMemory);
             Cleanup().OnEnter(new FSMUser(), null);
             Check(registered.GetPropertyValue("HL_First_Boot") == "False" && current.GetPropertyValue("HL_First_Boot") == "", "flag write uses registered store");
             Check(registeredMemory.Calls.Count == 0 && currentMemory.Calls.SequenceEqual(new[] { "save", "backup" }), "immediate save independently uses current singleton");
         }
-        private static void VerifyShutdown()
+        private static void VerifyShutdown(VerificationFixtureOwnership.RegistryRow registration)
         {
             var memory = new MemoryStorage(); var store = Store(memory);
-            SystemRef untyped = ProcessManager.RegisterSystem(store, canReplace: true);
+            SystemRef untyped = registration.Register(store, canReplace: true);
             var typed = ProcessManager.GetSystemRef<HLPropertyStore>();
             bool notified = false;
             Action<ISystem> observe = previous => { notified = true; Check(ReferenceEquals(previous, store) && Static("s_internalInstance").GetValue(null) == null, "store shutdown completes before unregistration notification"); };
@@ -131,7 +130,7 @@ namespace ProjectLucid
             finally { untyped.OnSystemShutdown -= observe; }
             Check(notified && untyped.IsNull() && typed.IsNull() && ProcessManager.IsSystemNull<HLPropertyStore>(), "successful shutdown revokes original registry references");
             Check(memory.Calls.Count == 0, "shutdown performs no replacement save or storage write");
-            store = Store(memory); untyped = ProcessManager.RegisterSystem(store, canReplace: true);
+            store = Store(memory); untyped = registration.Register(store, canReplace: true);
             Action<ISystem> fail = previous => throw new MarkerException();
             untyped.OnSystemShutdown += fail;
             try { Throws<MarkerException>(() => Shutdown().OnEnter(null, null), "unregistration callback error propagates"); }

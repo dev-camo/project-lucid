@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Runtime.Serialization;
 using Hardlight;
 using Hardlight.Enums;
@@ -40,6 +41,97 @@ namespace ProjectLucid
         private static ClientDataAPI.LocalisedString Value(string id, string content, int args = 0) => new ClientDataAPI.LocalisedString { Id = id, Content = content, NumArgs = args };
         private static BufferTable Buffer(string hash, params ClientDataAPI.LocalisedString[] values) => new BufferTable { Hash = hash, Strings = values };
         private static Definition DefinitionFor(Languages language) => new Definition { SupportedLanguages = new ClientDataAPI.SupportedLanguage[0], StringTable = new BufferTable { Language = (int)language, Hash = "bounded-callback", Strings = new ClientDataAPI.LocalisedString[0] } };
+
+        private static FieldInfo[] DataStatics() => T.GetFields(Declared).Where(f => f.IsStatic && !f.IsLiteral &&
+            f.Name != "ShouldInvokeStringHandlers" && f.Name != "OnRequestStringTable" && f.Name != "StringsTableHandlers").ToArray();
+
+        private static void WithCleanup(Action body, params Action[] cleanup)
+        {
+            Exception primary = null;
+            var failures = new List<Exception>();
+            try { body(); }
+            catch (Exception failure) { primary = failure; }
+            foreach (Action release in cleanup)
+                try { release(); }
+                catch (Exception failure) { failures.Add(failure); }
+            if (primary != null)
+            {
+                if (failures.Count != 0) primary.Data["StringTableFixtureCleanupFailures"] = new AggregateException(failures);
+                ExceptionDispatchInfo.Capture(primary).Throw();
+            }
+            if (failures.Count != 0) throw new AggregateException(failures);
+        }
+
+        private sealed class CallbackSubscriptions : IDisposable
+        {
+            private readonly Func<bool> initializer;
+            private Func<bool> readiness;
+            private readonly List<Action> requests = new List<Action>();
+            private readonly List<Action> handlers = new List<Action>();
+            private readonly List<FastAction> releasedHandlers = new List<FastAction>();
+            private FastAction ownedHandlers;
+
+            public CallbackSubscriptions()
+            {
+                initializer = (Func<bool>)Field(T, "ShouldInvokeStringHandlers").GetValue(null);
+                RequireOriginalReadiness(initializer);
+                Table.ShouldInvokeStringHandlers -= initializer;
+            }
+
+            public void SetReadiness(Func<bool> callback)
+            {
+                if (readiness != null) Table.ShouldInvokeStringHandlers -= readiness;
+                readiness = null;
+                if (callback != null)
+                {
+                    readiness = callback;
+                    Table.ShouldInvokeStringHandlers += callback;
+                }
+            }
+
+            public void AddRequest(Action callback) { requests.Add(callback); Table.OnRequestStringTable += callback; }
+            public void RemoveRequest(Action callback) { Table.OnRequestStringTable -= callback; requests.Remove(callback); }
+            public void ClearRequests()
+            {
+                foreach (Action callback in requests) Table.OnRequestStringTable -= callback;
+                requests.Clear();
+            }
+
+            public void AddHandler(Action callback)
+            {
+                if (!ReferenceEquals(Table.StringsTableHandlers, ownedHandlers))
+                    throw new InvalidOperationException("StringTable handler owner changed during fixture.");
+                handlers.Add(callback);
+                Table.StringsTableHandlers += callback;
+                ownedHandlers = Table.StringsTableHandlers;
+            }
+
+            public void ClearHandlers()
+            {
+                if (ownedHandlers == null) return;
+                if (!ReferenceEquals(Table.StringsTableHandlers, ownedHandlers))
+                    throw new InvalidOperationException("StringTable handler owner changed during cleanup.");
+                Type storage = ownedHandlers.GetType().BaseType;
+                IEnumerable<Action>[] lists = {
+                    ownedHandlers.GetInvocationList(),
+                    (IEnumerable<Action>)storage.GetField("m_addedList", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ownedHandlers),
+                    (IEnumerable<Action>)storage.GetField("m_removedList", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(ownedHandlers) };
+                if (lists.Any(list => list.Any(callback => !handlers.Any(owned => ReferenceEquals(callback, owned)))))
+                    throw new InvalidOperationException("StringTable owned handler object contains a foreign callback.");
+                foreach (Action callback in handlers) Table.StringsTableHandlers -= callback;
+                // Keep the old object and its fault state for this scope. Public
+                // unsubscription may queue removals; do not repair/flush them.
+                releasedHandlers.Add(ownedHandlers);
+                Table.StringsTableHandlers = null;
+                ownedHandlers = null;
+                handlers.Clear();
+            }
+
+            public void Dispose()
+            {
+                WithCleanup(() => { }, ClearHandlers, ClearRequests, () => SetReadiness(null), () => Table.ShouldInvokeStringHandlers += initializer);
+            }
+        }
 
         private static IEnumerable<(int offset, OpCode op, object value)> IL(MethodBase method)
         {
@@ -219,47 +311,50 @@ namespace ProjectLucid
         private static void CallbackOrdering()
         {
             Table owner = Fixture(); Definition definition = DefinitionFor(Languages.Japanese);
-            FieldInfo handlers = Field(T,"StringsTableHandlers"), request = Field(T,"OnRequestStringTable"), ready = Field(T,"ShouldInvokeStringHandlers");
-            handlers.SetValue(null,null); request.SetValue(null,null);
-            Check(ready.GetValue(null) != null && ((Func<bool>)ready.GetValue(null))(), "original readiness initializer returns true");
-            var trace = new List<string>(); Action oldRequest = () => trace.Add("stale request"), newRequest = () => trace.Add("live request");
-            Table.OnRequestStringTable += oldRequest;
-            Action first = () => { trace.Add("handler first"); Check(Table.StringsLanguage == Languages.Japanese,"native language published before first callback"); Table.OnRequestStringTable -= oldRequest; Table.OnRequestStringTable += newRequest; definition.StringTable.Language = (int)Languages.German; };
-            Action second = () => { trace.Add("handler second"); Check(Table.StringsLanguage == Languages.Japanese,"native published language remains captured despite handler changing definition"); };
-            Table.StringsTableHandlers += first; Table.StringsTableHandlers += second;
-            Invoke(owner,"InvokeStringTableHandlers",definition);
-            Check(trace.SequenceEqual(new[] { "handler first","handler second","live request" }), "original live request event re-read after handlers mutate registration");
-            Check(definition.StringTable.Language == (int)Languages.German && Table.StringsLanguage == Languages.Japanese,"handler mutation retained without additional language publication");
-            trace.Clear(); handlers.SetValue(null,null); request.SetValue(null,null); Table.OnRequestStringTable += () => trace.Add("request with null handlers");
-            Invoke(owner,"InvokeStringTableHandlers",definition);
-            Check(Table.StringsLanguage == Languages.German && trace.SequenceEqual(new[] { "request with null handlers" }), "native genuine FastAction null invokes no handlers then request");
-            trace.Clear(); handlers.SetValue(null,null); request.SetValue(null,null);
-            Table.StringsTableHandlers += () => { trace.Add("throwing handler"); throw new ApplicationException("bounded handler failure"); };
-            Table.OnRequestStringTable += () => trace.Add("must not request"); definition.StringTable.Language = (int)Languages.French;
-            Check(Throws<ApplicationException>(() => Invoke(owner,"InvokeStringTableHandlers",definition)) && trace.SequenceEqual(new[] { "throwing handler" }) && Table.StringsLanguage == Languages.French, "native handler throw keeps published language and prevents request");
-            trace.Clear(); handlers.SetValue(null,null); request.SetValue(null,null); Table.OnRequestStringTable += () => { trace.Add("throwing request"); throw new ApplicationException("bounded request failure"); };
-            Check(Throws<ApplicationException>(() => Invoke(owner,"RequestStringTable")) && trace.SequenceEqual(new[] { "throwing request" }), "native request event does not swallow exception");
-            request.SetValue(null,null); Invoke(owner,"RequestStringTable"); Check(request.GetValue(null) == null,"native absent request event is a no-op");
-            int probes = 0, callbackCount = 0;
-            Func<bool> delayed = () => { ++probes; return false; }; ready.SetValue(null,delayed);
-            Table.OnRequestStringTable += () => ++callbackCount;
-            IEnumerator iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition);
-            Check(probes == 0 && callbackCount == 0,"native iterator construction has no readiness callback");
-            Check(iterator.MoveNext() && iterator.Current == null && probes == 1 && callbackCount == 0,"native false readiness yields null once");
-            ready.SetValue(null,(Func<bool>)(() => { ++probes; return true; }));
-            Check(!iterator.MoveNext() && probes == 2 && callbackCount == 1 && Table.StringsLanguage == Languages.French,"native deferred path consults live replaced readiness and invokes once");
-            Check(!iterator.MoveNext() && callbackCount == 1,"native deferred completed state prevents callback repetition");
-            ready.SetValue(null,delayed); iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition); Check(iterator.MoveNext(),"paused deferred fixture begins");
-            ((IDisposable)iterator).Dispose(); ready.SetValue(null,(Func<bool>)(() => true));
-            Check(!iterator.MoveNext() && callbackCount == 2,"original empty deferred Dispose leaves paused state resumable");
-            ready.SetValue(null,null); iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition);
-            Check(Throws<NullReferenceException>(() => iterator.MoveNext()),"native null readiness event is unguarded");
-            ready.SetValue(null,(Func<bool>)(() => true)); Check(!iterator.MoveNext() && callbackCount == 2,"native readiness throw terminates iterator before later re-entry");
-            ready.SetValue(null,(Func<bool>)(() => true)); iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition);
-            request.SetValue(null,(Action)(() => throw new ApplicationException("bounded completion failure")));
-            Check(Throws<ApplicationException>(() => iterator.MoveNext()),"native completion callback exception propagates");
-            request.SetValue(null,(Action)(() => ++callbackCount)); Check(!iterator.MoveNext() && callbackCount == 2,"native terminal state retained after completion callback throws");
-            Check(Throws<NotSupportedException>(() => iterator.Reset()),"native iterator Reset is not supported");
+            var callbacks = new CallbackSubscriptions();
+            WithCleanup(() =>
+            {
+                MethodInfo initializer = T.GetNestedType("<>c", Declared).GetMethods(Declared).Single(m => m.Name == "<.cctor>b__69_0");
+                Check(IL(initializer).Where(i => i.op != OpCodes.Nop).Select(i => i.op).SequenceEqual(new[] { OpCodes.Ldc_I4_1, OpCodes.Ret }), "readiness initializer source pattern returns true without invoking current subscribers");
+                var trace = new List<string>(); Action oldRequest = () => trace.Add("stale request"), newRequest = () => trace.Add("live request");
+                callbacks.AddRequest(oldRequest);
+                Action first = () => { trace.Add("handler first"); Check(Table.StringsLanguage == Languages.Japanese,"native language published before first callback"); callbacks.RemoveRequest(oldRequest); callbacks.AddRequest(newRequest); definition.StringTable.Language = (int)Languages.German; };
+                Action second = () => { trace.Add("handler second"); Check(Table.StringsLanguage == Languages.Japanese,"native published language remains captured despite handler changing definition"); };
+                callbacks.AddHandler(first); callbacks.AddHandler(second);
+                Invoke(owner,"InvokeStringTableHandlers",definition);
+                Check(trace.SequenceEqual(new[] { "handler first","handler second","live request" }), "original live request event re-read after handlers mutate registration");
+                Check(definition.StringTable.Language == (int)Languages.German && Table.StringsLanguage == Languages.Japanese,"handler mutation retained without additional language publication");
+                trace.Clear(); callbacks.ClearHandlers(); callbacks.ClearRequests(); callbacks.AddRequest(() => trace.Add("request with null handlers"));
+                Invoke(owner,"InvokeStringTableHandlers",definition);
+                Check(Table.StringsLanguage == Languages.German && trace.SequenceEqual(new[] { "request with null handlers" }), "native genuine FastAction null invokes no handlers then request");
+                trace.Clear(); callbacks.ClearHandlers(); callbacks.ClearRequests();
+                callbacks.AddHandler(() => { trace.Add("throwing handler"); throw new ApplicationException("bounded handler failure"); });
+                callbacks.AddRequest(() => trace.Add("must not request")); definition.StringTable.Language = (int)Languages.French;
+                Check(Throws<ApplicationException>(() => Invoke(owner,"InvokeStringTableHandlers",definition)) && trace.SequenceEqual(new[] { "throwing handler" }) && Table.StringsLanguage == Languages.French, "native handler throw keeps published language and prevents request");
+                trace.Clear(); callbacks.ClearHandlers(); callbacks.ClearRequests(); callbacks.AddRequest(() => { trace.Add("throwing request"); throw new ApplicationException("bounded request failure"); });
+                Check(Throws<ApplicationException>(() => Invoke(owner,"RequestStringTable")) && trace.SequenceEqual(new[] { "throwing request" }), "native request event does not swallow exception");
+                callbacks.ClearRequests(); Invoke(owner,"RequestStringTable"); Check(Field(T,"OnRequestStringTable").GetValue(null) == null,"native absent request event is a no-op");
+                int probes = 0, callbackCount = 0;
+                Func<bool> delayed = () => { ++probes; return false; }; callbacks.SetReadiness(delayed);
+                callbacks.AddRequest(() => ++callbackCount);
+                IEnumerator iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition);
+                Check(probes == 0 && callbackCount == 0,"native iterator construction has no readiness callback");
+                Check(iterator.MoveNext() && iterator.Current == null && probes == 1 && callbackCount == 0,"native false readiness yields null once");
+                callbacks.SetReadiness(() => { ++probes; return true; });
+                Check(!iterator.MoveNext() && probes == 2 && callbackCount == 1 && Table.StringsLanguage == Languages.French,"native deferred path consults live replaced readiness and invokes once");
+                Check(!iterator.MoveNext() && callbackCount == 1,"native deferred completed state prevents callback repetition");
+                callbacks.SetReadiness(delayed); iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition); Check(iterator.MoveNext(),"paused deferred fixture begins");
+                ((IDisposable)iterator).Dispose(); callbacks.SetReadiness(() => true);
+                Check(!iterator.MoveNext() && callbackCount == 2,"original empty deferred Dispose leaves paused state resumable");
+                callbacks.SetReadiness(null); iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition);
+                Check(Throws<NullReferenceException>(() => iterator.MoveNext()),"native null readiness event is unguarded");
+                callbacks.SetReadiness(() => true); Check(!iterator.MoveNext() && callbackCount == 2,"native readiness throw terminates iterator before later re-entry");
+                callbacks.SetReadiness(() => true); iterator = (IEnumerator)Invoke(owner,"WaitOnProjectAssets",definition);
+                callbacks.ClearRequests(); callbacks.AddRequest(() => throw new ApplicationException("bounded completion failure"));
+                Check(Throws<ApplicationException>(() => iterator.MoveNext()),"native completion callback exception propagates");
+                callbacks.ClearRequests(); callbacks.AddRequest(() => ++callbackCount); Check(!iterator.MoveNext() && callbackCount == 2,"native terminal state retained after completion callback throws");
+                Check(Throws<NotSupportedException>(() => iterator.Reset()),"native iterator Reset is not supported");
+            }, callbacks.Dispose);
         }
         private static void NullSingletonBoundaries()
         {
@@ -281,29 +376,62 @@ namespace ProjectLucid
         }
         public static int RunManaged()
         {
-            checks = 0; FieldInfo[] statics = T.GetFields(Declared).Where(f => f.IsStatic && !f.IsLiteral).ToArray(); object[] previous = statics.Select(f => f.GetValue(null)).ToArray();
-            try { Metadata(); NativeOrderingContracts(); EntriesAndHash(); StoreAndFailurePaths(); CallbackOrdering(); NullSingletonBoundaries(); return checks; }
-            finally { for (int i = 0; i < statics.Length; ++i) statics[i].SetValue(null,previous[i]); }
+            RequireColdManagedState();
+            checks = 0; FieldInfo[] statics = DataStatics(); object[] previous = statics.Select(f => f.GetValue(null)).ToArray();
+            WithCleanup(() => { Metadata(); NativeOrderingContracts(); EntriesAndHash(); StoreAndFailurePaths(); CallbackOrdering(); NullSingletonBoundaries(); },
+                () => { for (int i = 0; i < statics.Length; ++i) statics[i].SetValue(null,previous[i]); });
+            return checks;
+        }
+
+        private static void RequireColdManagedState()
+        {
+            var registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            RequireColdState(registry, MonoSingleton<Table>.Instance, MonoSingleton<Hardlight.Localisation.Language>.Instance,
+                Table.StringsTableHandlers, Field(T, "OnRequestStringTable").GetValue(null));
+            RequireOriginalReadiness((Func<bool>)Field(T, "ShouldInvokeStringHandlers").GetValue(null));
+        }
+
+        public static void RequireColdState(IDictionary registry, object tableSingleton, object languageSingleton, object handlers, object request)
+        {
+            VerificationFixtureOwnership.RequireAbsent(registry, ProcessManager.GetDefaultName<Table>(), tableSingleton, languageSingleton, handlers, request);
+            VerificationFixtureOwnership.RequireAbsent(registry, ProcessManager.GetDefaultName<Hardlight.Localisation.Language>());
+        }
+
+        public static void RequireOriginalReadiness(Func<bool> readiness)
+        {
+            Type closure = T.GetNestedType("<>c", Declared);
+            MethodInfo initializer = closure.GetMethods(Declared).Single(m => m.Name == "<.cctor>b__69_0");
+            object target = Field(closure, "<>9").GetValue(null);
+            Delegate[] handlers = readiness?.GetInvocationList();
+            // This is the expected generated source pattern, not a fresh
+            // original/compiler identity receipt. Never invoke borrowed code.
+            if (handlers == null || handlers.Length != 1 ||
+                !handlers[0].Method.Equals(initializer) || !ReferenceEquals(handlers[0].Target, target))
+                throw new InvalidOperationException("StringTable fixture requires only the original readiness initializer.");
         }
         private static void EngineComponentAndFiles()
         {
             // Actual Editor execution only. Files below are generated from the
             // genuine codec in a new temporary directory, never supplied assets
             // or save containers. Automatic lifecycle is a separate Play test.
+            RequireColdManagedState();
             Check(!Application.isPlaying, "isolated synchronous loader proof runs in actual EditMode");
             Check(ProcessManager.IsSystemNull<Table>() && ReferenceEquals(MonoSingleton<Table>.Instance,null), "no existing original string-table singleton");
             Check(ProcessManager.IsSystemNull<Hardlight.Localisation.Language>() && ReferenceEquals(MonoSingleton<Hardlight.Localisation.Language>.Instance,null), "no existing original language singleton");
-            FieldInfo[] statics = T.GetFields(Declared).Where(f => f.IsStatic && !f.IsLiteral).ToArray(); object[] oldStatics = statics.Select(f => f.GetValue(null)).ToArray();
+            FieldInfo[] statics = DataStatics(); object[] oldStatics = statics.Select(f => f.GetValue(null)).ToArray();
+            var tableRegistration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<Table>());
+            var languageRegistration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<Hardlight.Localisation.Language>());
             GameObject owner = null, languageOwner = null; Table table = null; Hardlight.Localisation.Language language = null;
             string temporary = System.IO.Path.Combine(System.IO.Path.GetTempPath(),"project-lucid-string-table-"+Guid.NewGuid().ToString("N"));
-            try
+            var subscriptions = new CallbackSubscriptions();
+            WithCleanup(() =>
             {
                 System.IO.Directory.CreateDirectory(temporary);
                 owner = new GameObject("Lucid original StringTable proof"); owner.SetActive(false); table = owner.AddComponent<Table>();
                 Check(Field(T,"m_supportedLanguages").GetValue(table) == null && Field(T,"m_strings").GetValue(table) == null && (long)Field(T,"m_cachedAtTime").GetValue(table) == 0 && table.NumberFormat == null, "actual original component constructor leaves all table runtime data unset");
                 string json = JsonUtility.ToJson(table);
                 Check(T.GetFields(Declared).All(f => !json.Contains("\""+f.Name+"\"")), "actual Unity serializes no original outer runtime/static/constant field");
-                typeof(MonoSingleton<Table>).GetMethod("Awake",Declared).Invoke(table,null);
+                tableRegistration.RegisterUsing(table, () => typeof(MonoSingleton<Table>).GetMethod("Awake",Declared).Invoke(table,null));
                 Check(ReferenceEquals(MonoSingleton<Table>.Instance,table) && ReferenceEquals(ProcessManager.GetSystemRef<Table>().GetSafe(),table), "actual component registers through genuine singleton/process graph");
                 Check(!Table.AreStringsLoaded() && !Table.StringExists(Strings.NONE) && Table.GetString(Strings.NONE) == string.Empty, "actual registered empty table and NONE lookup readiness");
                 Check(Invoke(null,"LoadLocalisationDefinitionFromCache",(Languages)int.MinValue) == null, "actual original false dirty gate exits before unknown enum/path/cache IO");
@@ -321,7 +449,7 @@ namespace ProjectLucid
                 Check(Table.GetString((Strings)1234567) == null && Table.GetStringAndNumArgs((Strings)1234567,out content,out args) && content == null && args == -8, "actual nullable stored content and signed args preserved");
                 Check(Table.GetString((Strings)7654321) == string.Empty && !Table.GetStringAndNumArgs((Strings)7654321,out content,out args) && content == string.Empty && args == 0, "actual absent entry empty/out fallback");
                 languageOwner = new GameObject("Lucid original Language table proof"); languageOwner.SetActive(false); language = languageOwner.AddComponent<Hardlight.Localisation.Language>();
-                typeof(MonoSingleton<Hardlight.Localisation.Language>).GetMethod("Awake",Declared).Invoke(language,null);
+                languageRegistration.RegisterUsing(language, () => typeof(MonoSingleton<Hardlight.Localisation.Language>).GetMethod("Awake",Declared).Invoke(language,null));
                 Field(typeof(Hardlight.Localisation.Language),"m_currentLanguage").SetValue(language,Languages.Japanese);
                 var supported = new[] { new ClientDataAPI.SupportedLanguage { Language = (int)Languages.EnglishUS },new ClientDataAPI.SupportedLanguage { Language = (int)Languages.Japanese } };
                 Invoke(table,"InternalSetSupportedLanguages",(object)supported);
@@ -334,17 +462,17 @@ namespace ProjectLucid
                 var definition = new Definition { SupportedLanguages = supported, StringTable = Buffer("actual-definition",Value("NUMBER_SEPARATOR"," "),Value("DECIMAL_SEPARATOR","."),Value("title","bounded original loader",2)) };
                 definition.StringTable.Language = (int)Languages.Japanese;
                 Check(Table.GetStringID("NUMBER_SEPARATOR") == (int)Strings.NUMBER_SEPARATOR && Table.GetStringID("DECIMAL_SEPARATOR") == (int)Strings.DECIMAL_SEPARATOR, "actual buffer keys use genuine original CRC identities");
-                var trace = new List<string>(); Field(T,"StringsTableHandlers").SetValue(null,null); Field(T,"OnRequestStringTable").SetValue(null,null);
-                Field(T,"ShouldInvokeStringHandlers").SetValue(null,(Func<bool>)(() => { trace.Add("ready"); Check(ReferenceEquals(Table.GetSupportedLanguages(),supported) && Table.Hash == "actual-definition" && Table.GetString("title") == "bounded original loader" && table.NumberFormat.NumberGroupSeparator == " ", "actual readiness callback observes already applied support/hash/dictionary/format"); return true; }));
-                Table.StringsTableHandlers += () => { trace.Add("handlers"); Check(Table.StringsLanguage == Languages.Japanese,"actual handlers observe published original definition language"); };
-                Table.OnRequestStringTable += () => trace.Add("request"); Invoke(table,"OnLanguageDefinitionLoaded",definition);
+                var trace = new List<string>();
+                subscriptions.SetReadiness(() => { trace.Add("ready"); Check(ReferenceEquals(Table.GetSupportedLanguages(),supported) && Table.Hash == "actual-definition" && Table.GetString("title") == "bounded original loader" && table.NumberFormat.NumberGroupSeparator == " ", "actual readiness callback observes already applied support/hash/dictionary/format"); return true; });
+                subscriptions.AddHandler(() => { trace.Add("handlers"); Check(Table.StringsLanguage == Languages.Japanese,"actual handlers observe published original definition language"); });
+                subscriptions.AddRequest(() => trace.Add("request")); Invoke(table,"OnLanguageDefinitionLoaded",definition);
                 Check(trace.SequenceEqual(new[] { "ready","handlers","request" }), "actual native readiness/handler/request sequence");
                 var incomplete = new Definition { SupportedLanguages = new ClientDataAPI.SupportedLanguage[0], StringTable = Buffer("missing-decimal",Value("NUMBER_SEPARATOR",";")) };
                 Check(Throws<ArgumentException>(() => Invoke(table,"OnLanguageDefinitionLoaded",incomplete)), "actual missing decimal separator propagates real BCL setter exception");
                 Check(ReferenceEquals(Table.GetSupportedLanguages(),incomplete.SupportedLanguages) && Table.Hash == "missing-decimal" && table.NumberFormat.NumberGroupSeparator == ";" && table.NumberFormat.NumberDecimalSeparator == ".", "actual failed definition keeps new support/hash/dictionary and partly changed format");
-                trace.Clear(); Field(T,"ShouldInvokeStringHandlers").SetValue(null,null);
+                trace.Clear(); subscriptions.SetReadiness(null);
                 Check(Throws<NullReferenceException>(() => Invoke(table,"OnLanguageDefinitionLoaded",definition)) && trace.Count == 0 && Table.Hash == "actual-definition" && table.NumberFormat.NumberDecimalSeparator == ".", "actual null readiness failure occurs after data/format mutation and before handlers");
-                Field(T,"ShouldInvokeStringHandlers").SetValue(null,(Func<bool>)(() => { throw new ApplicationException("bounded ready failure"); }));
+                subscriptions.SetReadiness(() => { throw new ApplicationException("bounded ready failure"); });
                 byte[] encoded = definition.encode(); table.UpdateLocalisationDefinition(encoded);
                 Check(Table.Hash == "actual-definition" && Table.GetString("title") == "bounded original loader" && trace.Count == 0, "actual byte update applies decoded definition then swallows readiness exception before cache write");
                 string path = System.IO.Path.Combine(temporary,"EnglishUS.bytes"); definition.StringTable.Language = (int)Languages.EnglishUS; byte[] english = definition.encode(); System.IO.File.WriteAllBytes(path,english);
@@ -360,42 +488,31 @@ namespace ProjectLucid
                 loaded = Table.LoadLanguageDefinition(Languages.Japanese,temporary,callback);
                 Check(loaded.SupportedLanguages == null && loaded.StringTable == null && callbacks == 0, "actual empty file returns original incomplete codec model without default fallback");
                 Check((long)Field(T,"m_cachedAtTime").GetValue(table) == 0, "native table/read/update/handlers never invent cached-at timestamp changes");
-            }
-            finally
+            }, () =>
             {
-                // These inactive owners had their original Awake invoked
-                // explicitly. Pair it with original OnDestroy explicitly too;
-                // automatic dispatch is covered by the separate PlayMode test.
-                try
+                // Pair each explicit Awake with its original OnDestroy, then
+                // release only our acquired rows and exact subscriptions.
+                if (owner != null)
                 {
-                    try
-                    {
-                        if (owner != null)
-                        {
-                            try { Method("OnDestroy").Invoke(table, null); }
-                            finally { UnityEngine.Object.DestroyImmediate(owner); }
-                        }
-                    }
-                    finally
-                    {
-                        if (languageOwner != null)
-                        {
-                            try { typeof(Hardlight.Localisation.Language).GetMethod("OnDestroy", Declared).Invoke(language, null); }
-                            finally { UnityEngine.Object.DestroyImmediate(languageOwner); }
-                        }
-                    }
+                    try { Method("OnDestroy").Invoke(table, null); }
+                    finally { UnityEngine.Object.DestroyImmediate(owner); }
                 }
-                finally
+            }, () =>
+            {
+                if (languageOwner != null)
                 {
-                    for (int i = 0; i < statics.Length; ++i) statics[i].SetValue(null,oldStatics[i]);
-                    if (System.IO.Directory.Exists(temporary)) System.IO.Directory.Delete(temporary,true);
+                    try { typeof(Hardlight.Localisation.Language).GetMethod("OnDestroy", Declared).Invoke(language, null); }
+                    finally { UnityEngine.Object.DestroyImmediate(languageOwner); }
                 }
-            }
+            }, subscriptions.Dispose, tableRegistration.Dispose, languageRegistration.Dispose,
+                () => { for (int i = 0; i < statics.Length; ++i) statics[i].SetValue(null,oldStatics[i]); },
+                () => { if (System.IO.Directory.Exists(temporary)) System.IO.Directory.Delete(temporary,true); });
             Check(ProcessManager.IsSystemNull<Table>() && ReferenceEquals(MonoSingleton<Table>.Instance,null), "actual table destruction unregisters and clears original singleton");
             Check(ProcessManager.IsSystemNull<Hardlight.Localisation.Language>() && ReferenceEquals(MonoSingleton<Hardlight.Localisation.Language>.Instance,null), "actual language fixture destruction unregisters and clears original singleton");
         }
         public static void Run()
         {
+            RequireColdManagedState();
             using (ClientDataAPIVerification.IsolatePools())
             {
                 int managed = RunManaged();

@@ -27,7 +27,7 @@ namespace ProjectLucid
             checks = 0;
             object[] previous = StoreFields.Select(name => Field(typeof(HLPropertyStore), name, true).GetValue(null)).ToArray();
             Adapter priorPlugin = (Adapter)Field(typeof(Facade), "m_plugin", true).GetValue(null);
-            HLPropertyStore priorStore = ProcessManager.GetSystemSafe<HLPropertyStore>(null, false);
+            var registration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<HLPropertyStore>(), previous.Concat(new object[] { priorPlugin }).ToArray());
             var objects = new List<GameObject>();
             try
             {
@@ -44,7 +44,7 @@ namespace ProjectLucid
                 var storage = new MemorySave();
                 var store = new HLPropertyStore("fixture", 4, "facade-fixture");
                 Set(store, "m_propertyFileStorage", storage);
-                ProcessManager.RegisterSystem(store, canReplace: true);
+                registration.Register(store);
                 store.LoadFromIdentifier("slot");
                 VerifyKeysAndMessages(cloud, adapter);
                 VerifyCallbacks(cloud, adapter, store);
@@ -54,10 +54,12 @@ namespace ProjectLucid
             finally
             {
                 foreach (GameObject item in objects) if (item != null) UnityEngine.Object.DestroyImmediate(item);
-                ProcessManager.UnregisterSystem<HLPropertyStore>();
-                if (priorStore != null) ProcessManager.RegisterSystem(priorStore, canReplace: true);
-                for (int i = 0; i < StoreFields.Length; ++i) Field(typeof(HLPropertyStore), StoreFields[i], true).SetValue(null, previous[i]);
-                Field(typeof(Facade), "m_plugin", true).SetValue(null, priorPlugin);
+                try { registration.Dispose(); }
+                finally
+                {
+                    for (int i = 0; i < StoreFields.Length; ++i) Field(typeof(HLPropertyStore), StoreFields[i], true).SetValue(null, previous[i]);
+                    Field(typeof(Facade), "m_plugin", true).SetValue(null, priorPlugin);
+                }
             }
         }
 

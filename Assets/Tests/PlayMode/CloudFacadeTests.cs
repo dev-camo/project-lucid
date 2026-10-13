@@ -17,17 +17,30 @@ namespace ProjectLucid.Tests
     // desktop-service acceptance remain separate required scenarios.
     public sealed class CloudFacadeTests
     {
+        private static readonly string[] StoreFields = { "s_internalInstance", "SaveHandlers", "ModifySaveHandlers",
+            "ResolveConflictHandlers", "SaveSuccessHandlers", "AfterConflictsResolvedHandlers", "LoadHandlers" };
+
+        private static void RequireUnownedStore(IDictionary registry, object[] storeState, object plugin)
+        {
+            if (registry.Contains(ProcessManager.GetDefaultName<HLPropertyStore>()) ||
+                storeState.Any(value => !ReferenceEquals(value, null)) || !ReferenceEquals(plugin, null))
+                throw new InvalidOperationException("Cloud fixture requires an absent property-store row and unowned store/plugin state.");
+        }
+
         [UnityTest]
         public IEnumerator OriginalCloudFacade_OverlappingCallbacksAndShutdown()
         {
             Adapter previousPlugin = (Adapter)Field(typeof(Facade), "m_plugin", true).GetValue(null);
-            object previousStoreInstance = Field(typeof(HLPropertyStore), "s_internalInstance", true).GetValue(null);
-            HLPropertyStore previousStore = ProcessManager.GetSystemSafe<HLPropertyStore>(null, false);
+            object[] previousStoreState = StoreFields.Select(name => Field(typeof(HLPropertyStore), name, true).GetValue(null)).ToArray();
+            var registry = (IDictionary)Field(typeof(ProcessManager), "s_systemDictionary", true).GetValue(null);
+            RequireUnownedStore(registry, previousStoreState, previousPlugin);
+            HLPropertyStore store = null;
+            object ownedRow = null;
+            MemoryCloud adapter = null;
             GameObject gameObject = null;
             try
             {
-                ProcessManager.UnregisterSystem<HLPropertyStore>();
-                var adapter = new MemoryCloud();
+                adapter = new MemoryCloud();
                 Field(typeof(Facade), "m_plugin", true).SetValue(null, adapter);
                 gameObject = new GameObject("Lucid live cloud facade proof"); gameObject.SetActive(false);
                 Facade cloud = gameObject.AddComponent<Facade>();
@@ -44,10 +57,15 @@ namespace ProjectLucid.Tests
                 yield return null;
                 Assert.IsEmpty(adapter.Reads, "Callbacks wait for a property-store system before reading keys.");
 
-                var store = new HLPropertyStore("fixture-only", 4, "live-facade-fixture");
+                // Waiting uses IsSystemNull without creating a row. Reject any
+                // interleaving owner before constructing/publishing our store.
+                RequireUnownedStore(registry, StoreFields.Select(name => Field(typeof(HLPropertyStore), name, true).GetValue(null)).ToArray(), null);
+                Assert.AreSame(adapter, Field(typeof(Facade), "m_plugin", true).GetValue(null));
+                store = new HLPropertyStore("fixture-only", 4, "live-facade-fixture");
                 Field(typeof(HLPropertyStore), "m_activeSaveIdentifier").SetValue(store, "slot");
                 store.AddProperty("slot", "10"); // No file I/O; readiness does not require loaded.
                 ProcessManager.RegisterSystem(store);
+                ownedRow = registry[ProcessManager.GetDefaultName<HLPropertyStore>()];
                 Assert.IsFalse(store.IsLoaded);
                 yield return null;
                 Assert.IsEmpty(adapter.Reads, "Store presence alone does not satisfy the initialization gate.");
@@ -86,12 +104,49 @@ namespace ProjectLucid.Tests
             }
             finally
             {
-                if (gameObject != null) UnityEngine.Object.DestroyImmediate(gameObject);
-                ProcessManager.UnregisterSystem<HLPropertyStore>();
-                if (previousStore != null) ProcessManager.RegisterSystem(previousStore, canReplace: true);
-                Field(typeof(HLPropertyStore), "s_internalInstance", true).SetValue(null, previousStoreInstance);
-                Field(typeof(Facade), "m_plugin", true).SetValue(null, previousPlugin);
+                try { if (gameObject != null) UnityEngine.Object.DestroyImmediate(gameObject); }
+                finally
+                {
+                    try
+                    {
+                        if (ownedRow != null)
+                        {
+                            string name = ProcessManager.GetDefaultName<HLPropertyStore>();
+                            SystemRef reference = (SystemRef)ownedRow.GetType().GetField("SystemRef").GetValue(ownedRow);
+                            Assert.AreSame(ownedRow, registry[name], "Only release the acquired row.");
+                            Assert.IsTrue(reference.IsNull() || ReferenceEquals(reference.GetSafe(), store), "A replacement owner is not fixture state.");
+                            if (!reference.IsNull()) ProcessManager.UnregisterSystem(name);
+                            if (ReferenceEquals(registry[name], ownedRow) && reference.IsNull()) registry.Remove(name);
+                        }
+                    }
+                    finally
+                    {
+                        // Do not overwrite a new external singleton/plugin after
+                        // an interleaving writer changed either field.
+                        FieldInfo singleton = Field(typeof(HLPropertyStore), "s_internalInstance", true);
+                        if (ReferenceEquals(singleton.GetValue(null), store)) singleton.SetValue(null, previousStoreState[0]);
+                        FieldInfo plugin = Field(typeof(Facade), "m_plugin", true);
+                        if (ReferenceEquals(plugin.GetValue(null), adapter)) plugin.SetValue(null, previousPlugin);
+                    }
+                }
             }
+        }
+
+        [Test]
+        public void BorrowedStoreRowAndStaticCallbacksAreRejectedWithoutInvocation()
+        {
+            var registry = new Hashtable();
+            object foreignRow = new object();
+            registry.Add(ProcessManager.GetDefaultName<HLPropertyStore>(), foreignRow);
+            int callbacks = 0;
+            Action callback = () => { callbacks++; throw new InvalidOperationException("foreign callback"); };
+            Assert.Throws<InvalidOperationException>(() => RequireUnownedStore(registry, new object[] { callback }, null));
+            Assert.AreSame(foreignRow, registry[ProcessManager.GetDefaultName<HLPropertyStore>()]);
+            Assert.AreEqual(0, callbacks);
+            registry.Clear();
+            Assert.Throws<InvalidOperationException>(() => RequireUnownedStore(registry, new object[] { callback }, null));
+            Assert.Throws<InvalidOperationException>(() => RequireUnownedStore(registry, new object[0], new object()));
+            Assert.AreEqual(0, callbacks);
         }
 
         private static FieldInfo Field(Type type, string name, bool isStatic = false) => type.GetField(name, BindingFlags.NonPublic | (isStatic ? BindingFlags.Static : BindingFlags.Instance));

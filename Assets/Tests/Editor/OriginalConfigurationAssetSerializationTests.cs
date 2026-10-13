@@ -120,7 +120,7 @@ namespace ProjectLucid.Tests
                 Assert.AreEqual(SerializedPropertyType.ObjectReference, field.propertyType);
                 field.objectReferenceValue = runtime;
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                AssetDatabase.SaveAssets();
+                AssetDatabase.SaveAssetIfDirty(active);
                 active = owned.Reimport(active);
                 serialized = owned.Inspect(active);
                 Assert.AreSame(runtime, active.ActiveConfig);
@@ -145,7 +145,7 @@ namespace ProjectLucid.Tests
                 SerializedObject serialized = owned.Inspect(runtime);
                 References(Required(serialized, "m_configurationAssets"), expected);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                AssetDatabase.SaveAssets();
+                AssetDatabase.SaveAssetIfDirty(runtime);
                 runtime = owned.Reimport(runtime);
                 serialized = owned.Inspect(runtime);
                 AssertReferences(Required(serialized, "m_configurationAssets"), expected);
@@ -183,7 +183,7 @@ namespace ProjectLucid.Tests
                 References(Required(serialized, "m_uiScenes"));
                 References(Required(serialized, "m_gameplayEntries"), entry, null, entry);
                 serialized.ApplyModifiedPropertiesWithoutUndo();
-                AssetDatabase.SaveAssets();
+                AssetDatabase.SaveAssetIfDirty(levels);
                 levels = owned.Reimport(levels);
                 serialized = owned.Inspect(levels);
                 Assert.AreSame(parent, Required(serialized, "m_baseAsset").objectReferenceValue);
@@ -195,6 +195,40 @@ namespace ProjectLucid.Tests
                 AssertReferences(Required(serialized, "m_gameplayEntries"), entry, null, entry);
                 foreach (string name in new[] { "m_allLevels", "m_allZones", "m_zoneForLevel", "m_levelsPerZone", "m_levelsCached" })
                     Assert.IsNull(serialized.FindProperty(name), "Original nonserialized cache: " + name);
+            });
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void SerializationFixtureLeavesAnUnrelatedDirtyAssetUnsaved(int fixture)
+        {
+            WithOwnedAssets(owned =>
+            {
+                RuntimeConfiguration sentinel = owned.Create<RuntimeConfiguration>("SeparateDirtySentinel");
+                AssetDatabase.SaveAssetIfDirty(sentinel);
+                string path = AssetDatabase.GetAssetPath(sentinel);
+                byte[] assetBytes = System.IO.File.ReadAllBytes(path);
+                byte[] metadataBytes = System.IO.File.ReadAllBytes(path + ".meta");
+                sentinel.name = "UnsavedSentinelEdit";
+                EditorUtility.SetDirty(sentinel);
+                Assert.IsTrue(EditorUtility.IsDirty(sentinel));
+
+                // Each called fixture owns a different UUID directory. Run
+                // independent cases so one failure cannot hide the others.
+                switch (fixture)
+                {
+                    case 0: ActiveConfigurationPreservesItsSerializedRuntimeReferenceAndGetter(); break;
+                    case 1: RuntimeConfigurationKeepsTwelveOrderedSlotsAndCreatesReadonlyWrappers(); break;
+                    case 2: GameLevelsPreservesBaseOverridesAndAuthoredReferenceOrderWithoutCaching(); break;
+                    default: throw new ArgumentOutOfRangeException(nameof(fixture));
+                }
+
+                CollectionAssert.AreEqual(assetBytes, System.IO.File.ReadAllBytes(path));
+                CollectionAssert.AreEqual(metadataBytes, System.IO.File.ReadAllBytes(path + ".meta"));
+                Assert.AreEqual(path, AssetDatabase.GetAssetPath(sentinel));
+                Assert.AreEqual("UnsavedSentinelEdit", sentinel.name);
+                Assert.IsTrue(EditorUtility.IsDirty(sentinel), "The fixture must not save another owner's dirty edit.");
             });
         }
 

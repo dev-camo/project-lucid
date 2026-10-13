@@ -33,14 +33,21 @@ namespace ProjectLucid
         }
         public static int RunManaged()
         {
+            RequireColdLoggingHost(MonoSingleton<HLUnityCore>.Instance);
             checks = 0;
             CheckDeclarations(); CheckReads(); CheckCallbacks(); CheckIterator(); CheckConcurrentEvents();
             return checks;
         }
         public static void Run()
         {
+            RequireColdLoggingHost(MonoSingleton<HLUnityCore>.Instance);
             RunManaged(); CheckEngine();
             Debug.Log("PASS original SystemRef bounded checks=" + checks + "; host and Unity-reference fixtures executed; full startup remains outside proof.");
+        }
+        public static void RequireColdLoggingHost(object host)
+        {
+            if (!ReferenceEquals(host, null))
+                throw new InvalidOperationException("SystemRef fixture requires no existing logging singleton.");
         }
         private static void CheckDeclarations()
         {
@@ -161,20 +168,19 @@ namespace ProjectLucid
         private static void CheckEngine()
         {
             Check(HLUnityCore.IsNull() && ProcessManager.IsSystemNull<HLUnityCore>(), "engine fixture begins without original logging host");
-            var config = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
-            var gameObject = new GameObject("Lucid original SystemRef logging fixture"); gameObject.SetActive(false);
-            var host = gameObject.AddComponent<HLUnityCore>();
             var singleton = typeof(MonoSingleton<HLUnityCore>).GetField("<Instance>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic);
             object previousSingleton = singleton.GetValue(null);
             const string proofName = "ProjectLucid.SystemRef.GenuineHostFixture";
-            var registry = (IDictionary)Field(typeof(ProcessManager), "s_systemDictionary").GetValue(null);
-            var previousRows = new List<DictionaryEntry>(); foreach (DictionaryEntry row in registry) previousRows.Add(row);
+            var registration = new VerificationFixtureOwnership.RegistryRow(proofName, previousSingleton);
+            var config = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+            var gameObject = new GameObject("Lucid original SystemRef logging fixture"); gameObject.SetActive(false);
+            var host = gameObject.AddComponent<HLUnityCore>();
             try
             {
                 // Actual original engine component and registry, manually arranged to
                 // isolate Get diagnostics. This does not assert its Awake lifecycle.
                 singleton.SetValue(null, host); Field(typeof(HLUnityCore), "m_unityCoreConfigurationAsset").SetValue(host, config);
-                ProcessManager.RegisterSystem(host, proofName);
+                registration.Register(host);
                 Check(ReferenceEquals(HLUnityCore.Instance, host) && ReferenceEquals(ProcessManager.GetSystem<HLUnityCore>(proofName), host), "genuine singleton and registry point to actual Unity component");
                 var owner = new SystemRef<First>("engine name", null); int logs = 0; string message = null; string stack = null; int code = -1;
                 Action<string, string, int> capture = (text, trace, value) => { logs++; message = text; stack = trace; code = value; };
@@ -205,10 +211,10 @@ namespace ProjectLucid
             }
             finally
             {
-                try { ProcessManager.UnregisterSystem(proofName); }
+                try { registration.Dispose(); }
                 finally
                 {
-                    try { singleton.SetValue(null, previousSingleton); registry.Clear(); foreach (var row in previousRows) registry.Add(row.Key, row.Value); }
+                    try { singleton.SetValue(null, previousSingleton); }
                     finally
                     {
                         try { if (!ReferenceEquals(gameObject, null)) UnityEngine.Object.DestroyImmediate(gameObject); }
