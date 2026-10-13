@@ -1311,3 +1311,13 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalMenuPreparedAssetImportTests.ActualSuppliedMenuAssetsRetainOriginalScriptsFieldsGraphAndRuntimeOrder',
 )
+
+# Owned Loading factories and early faults; genuine App/system entry stays separate.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.OriginalLoadingBootstrapTests.LoadingFactoryIgnoresJsonAndRegistersTheGenuineOwnedState',
+    'ProjectLucid.Tests.OriginalLoadingBootstrapTests.LoadingConstructorKeepsOriginalStateReplacementWithoutProviderEntry',
+    'ProjectLucid.Tests.OriginalLoadingBootstrapTests.LoadingNullUserFaultsBeforeAppSystemsAndRetainsOwnedRegistration',
+    'ProjectLucid.Tests.OriginalLoadingBootstrapTests.LoadingRealWrongGraphUserFaultsBeforeSystemsAndRetainsOwnedStorage',
+    'ProjectLucid.Tests.OriginalLoadingBootstrapTests.OriginalOwnersRetainDeclarationsTypedAttributesAndNaturalCallbacks',
+    'ProjectLucid.Tests.OriginalLoadingBootstrapTests.CharacterEmptyOriginalReturnsAndDevelopmentConditionRemain',
+)

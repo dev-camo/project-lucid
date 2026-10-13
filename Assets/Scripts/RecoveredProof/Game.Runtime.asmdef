@@ -15,6 +15,7 @@
     "HLSplines.Runtime",
     "Cinemachine",
     "HLAnalytics.Runtime",
+    "HLHaptics.Runtime",
     "HLAppleInput.Runtime",
     "HLNotifications.Runtime",
     "HLPhysics.Runtime",
