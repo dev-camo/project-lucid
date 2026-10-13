@@ -287,10 +287,13 @@ namespace ProjectLucid.Editor
         {
             return attributes.Select(attribute =>
             {
+                // Declared parameter types are separate from boxed CAD values.
+                var parameters = attribute.Constructor.GetParameters();
+                var parameterTypes = parameters.Select(p => TypeReference(p.ParameterType)).ToArray();
                 var arguments = attribute.ConstructorArguments.Select(AttributeValue).ToArray();
                 if (attribute.AttributeType.FullName == "Hardlight.ShowIfAttribute" &&
                     attribute.AttributeType.Assembly.GetName().Name == "HLUnityCore.Runtime" &&
-                    attribute.Constructor.GetParameters().Select(p => p.ParameterType).SequenceEqual(new[] { typeof(string), typeof(object) }) &&
+                    parameters.Select(p => p.ParameterType).SequenceEqual(new[] { typeof(string), typeof(object) }) &&
                     attribute.ConstructorArguments.Count == 2 &&
                     attribute.ConstructorArguments[1].ArgumentType == typeof(object) && attribute.ConstructorArguments[1].Value == null)
                     arguments[1] = LoadedAttributeBlobEvidence.ReadBoxedStringNull(member, attribute);
@@ -298,6 +301,8 @@ namespace ProjectLucid.Editor
                 {
                 ["assembly"] = attribute.AttributeType.Assembly.GetName().Name, ["full_name"] = attribute.AttributeType.FullName,
                 ["constructor_token"] = Hex(attribute.Constructor.MetadataToken),
+                ["constructor_parameter_types"] = parameterTypes,
+                ["constructor_parameter_types_complete"] = true,
                 ["arguments"] = arguments,
                 ["fields"] = attribute.NamedArguments.Where(n => n.IsField).Select(n => new Dictionary<string, object>
                     { ["name"] = n.MemberName, ["value"] = AttributeValue(n.TypedValue) }).ToArray(),

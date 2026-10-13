@@ -7,9 +7,9 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
+    [CreateAssetMenu(fileName = "FSM", menuName = "Hardlight/HLUnityCore/Finite State Machine", order = 0)]
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [CreateAssetMenu(fileName = "FSM", menuName = "Hardlight/HLUnityCore/Finite State Machine", order = 0)]
     public class FiniteStateMachineScriptableObject : ScriptableObject
     {
         [SerializeField, Tooltip("The FSM JSON can contain multiple FSMs, specify which one should be used")]

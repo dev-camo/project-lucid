@@ -24,6 +24,101 @@ namespace ProjectLucid.Tests.Editor
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 
         [Test]
+        public void FsmDeclarationRetainsOriginalAttributeOrderAndCurrentConstructorTypes()
+        {
+            Type owner = typeof(FiniteStateMachineScriptableObject);
+            Assert.That(owner.Attributes, Is.EqualTo(TypeAttributes.Public | TypeAttributes.BeforeFieldInit));
+            IList<CustomAttributeData> attributes = owner.GetCustomAttributesData();
+            CollectionAssert.AreEqual(new[] { typeof(CreateAssetMenuAttribute),
+                typeof(Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute),
+                typeof(Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute) }, attributes.Select(a => a.AttributeType));
+            CustomAttributeData menu = attributes[0];
+            Assert.That(menu.Constructor.GetParameters(), Is.Empty);
+            Assert.That(menu.ConstructorArguments, Is.Empty);
+            CollectionAssert.AreEqual(new[] { "fileName", "menuName", "order" }, menu.NamedArguments.Select(a => a.MemberName));
+            CollectionAssert.AreEqual(new[] { typeof(string), typeof(string), typeof(int) }, menu.NamedArguments.Select(a => a.TypedValue.ArgumentType));
+            CollectionAssert.AreEqual(new object[] { "FSM", "Hardlight/HLUnityCore/Finite State Machine", 0 }, menu.NamedArguments.Select(a => a.TypedValue.Value));
+            Assert.That(menu.NamedArguments.All(a => !a.IsField), Is.True);
+            for (int i = 1; i < 3; i++)
+            {
+                CustomAttributeData option = attributes[i];
+                Assert.That(option.AttributeType.Assembly.GetName().Name, Is.EqualTo("HLUnityCore.Runtime"));
+                // Observe current parameter types independently of the boxed Boolean payload.
+                CollectionAssert.AreEqual(new[] { typeof(Unity.IL2CPP.CompilerServices.Option), typeof(object) },
+                    option.Constructor.GetParameters().Select(p => p.ParameterType));
+                Assert.That(option.ConstructorArguments.Count, Is.EqualTo(2));
+                Assert.That(option.ConstructorArguments[0].ArgumentType, Is.EqualTo(typeof(Unity.IL2CPP.CompilerServices.Option)));
+                Assert.That(option.ConstructorArguments[0].Value, Is.TypeOf<int>());
+                Assert.That(option.ConstructorArguments[0].Value, Is.EqualTo(i));
+                Assert.That(option.ConstructorArguments[1].ArgumentType, Is.EqualTo(typeof(bool)));
+                Assert.That(option.ConstructorArguments[1].Value, Is.TypeOf<bool>());
+                Assert.That(option.ConstructorArguments[1].Value, Is.EqualTo(false));
+                Assert.That(option.NamedArguments, Is.Empty);
+                Assert.That(option.Constructor, Is.EqualTo(attributes[1].Constructor));
+            }
+
+            FieldInfo[] fields = owner.GetFields(Declared).OrderBy(f => f.MetadataToken).ToArray();
+            CollectionAssert.AreEqual(new[] { "m_name", "m_isOverwriteOk", "m_reuseExisting", "m_releaseOnDestroy",
+                "m_referencedScriptableObjects", "m_relativePathToJSON", "m_embeddedJSON", "m_fsmDictionary",
+                "m_fsm", "m_refCount", "OnInitialisationComplete" }, fields.Select(f => f.Name));
+            CollectionAssert.AreEqual(new[] { typeof(string), typeof(bool), typeof(bool), typeof(bool),
+                typeof(List<ScriptableObject>), typeof(string), typeof(string), typeof(Dictionary<string, FiniteStateMachine>),
+                typeof(FiniteStateMachine), typeof(int), typeof(Action<FiniteStateMachineScriptableObject>) }, fields.Select(f => f.FieldType));
+            Type[][] fieldAttributes = {
+                new[] { typeof(SerializeField), typeof(TooltipAttribute) },
+                new[] { typeof(HeaderAttribute), typeof(SerializeField), typeof(TooltipAttribute) },
+                new[] { typeof(SerializeField), typeof(TooltipAttribute) },
+                new[] { typeof(TooltipAttribute), typeof(SerializeField) },
+                new[] { typeof(TooltipAttribute), typeof(SerializeField) },
+                new[] { typeof(SerializeField), typeof(HeaderAttribute), typeof(TooltipAttribute) },
+                new[] { typeof(SerializeField), typeof(TooltipAttribute), typeof(TextAreaAttribute) },
+                Type.EmptyTypes, Type.EmptyTypes, Type.EmptyTypes, Type.EmptyTypes
+            };
+            string[] tooltips = {
+                "The FSM JSON can contain multiple FSMs, specify which one should be used",
+                "If true then it's ok for existing FSMs to be overwritten with the new FSMs where there's a name clash",
+                "If true then existing FSMs will be reused when there's a name clash. The loaded FSM will be discarded",
+                "If true then the loaded FSMs will be released from the FSMManager when ReleaseFSM is called",
+                "Reference scriptable objects used by the FSM's states and transitions to ensure they're loaded.",
+                "Path is relative to the StreamingAssets directory",
+                "JSON data for the FSM. If specified 'Relative Path To JSON' is ignored"
+            };
+            for (int i = 0; i < fields.Length; i++)
+            {
+                Assert.That(fields[i].Attributes, Is.EqualTo(i == 10 ? FieldAttributes.Public : FieldAttributes.Private));
+                IList<CustomAttributeData> data = fields[i].GetCustomAttributesData();
+                CollectionAssert.AreEqual(fieldAttributes[i], data.Select(a => a.AttributeType));
+                Assert.That(data.All(a => a.NamedArguments.Count == 0), Is.True);
+                Assert.That(data.Any(a => a.AttributeType == typeof(SerializeField)), Is.EqualTo(i < 7));
+                foreach (CustomAttributeData serialize in data.Where(a => a.AttributeType == typeof(SerializeField)))
+                {
+                    Assert.That(serialize.ConstructorArguments, Is.Empty);
+                    Assert.That(serialize.Constructor.GetParameters(), Is.Empty);
+                }
+                if (i < 7)
+                {
+                    CustomAttributeData tooltip = data.Single(a => a.AttributeType == typeof(TooltipAttribute));
+                    Assert.That(tooltip.ConstructorArguments.Count, Is.EqualTo(1));
+                    Assert.That(tooltip.ConstructorArguments[0].ArgumentType, Is.EqualTo(typeof(string)));
+                    Assert.That(tooltip.ConstructorArguments[0].Value, Is.EqualTo(tooltips[i]));
+                }
+            }
+            int[] headerFields = { 1, 5 };
+            string[] headers = { "Advanced Settings", "JSON" };
+            for (int i = 0; i < headerFields.Length; i++)
+            {
+                CustomAttributeData header = fields[headerFields[i]].GetCustomAttributesData().Single(a => a.AttributeType == typeof(HeaderAttribute));
+                Assert.That(header.ConstructorArguments.Count, Is.EqualTo(1));
+                Assert.That(header.ConstructorArguments[0].ArgumentType, Is.EqualTo(typeof(string)));
+                Assert.That(header.ConstructorArguments[0].Value, Is.EqualTo(headers[i]));
+            }
+            CustomAttributeData area = fields[6].GetCustomAttributesData().Single(a => a.AttributeType == typeof(TextAreaAttribute));
+            CollectionAssert.AreEqual(new[] { typeof(int), typeof(int) }, area.ConstructorArguments.Select(a => a.ArgumentType));
+            CollectionAssert.AreEqual(new object[] { 5, 30 }, area.ConstructorArguments.Select(a => a.Value));
+            // The public Action field remains present; this does not assert serializer eligibility.
+        }
+
+        [Test]
         public void ClosedStateMachinesGroupRetainsThreeArgumentElementAndOriginalConstraints()
         {
             Type owner = typeof(StateMachinesGroup), element = typeof(Element);

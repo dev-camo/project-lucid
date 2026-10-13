@@ -1332,6 +1332,7 @@ EDITMODE_TESTS += (
 # Owned closed storage and callbacks; supplied group payloads require separate qualification.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.ClosedStateMachinesGroupRetainsThreeArgumentElementAndOriginalConstraints',
+    'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.FsmDeclarationRetainsOriginalAttributeOrderAndCurrentConstructorTypes',
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.GenuineOwnedGroupPreservesOrderedNameAndDataStorageAfterReimport',
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.GenuineOwnedElementCallbacksRetainCurrentNameAndNullOrDestroyedNone',
 )
