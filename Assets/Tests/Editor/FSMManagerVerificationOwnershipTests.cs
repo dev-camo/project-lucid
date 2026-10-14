@@ -233,6 +233,94 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
+        public void PassLimitIsRecordedWhileLaterRowsAndActionsAreStillReleased()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            int limit = FSMManagerVerification.TeardownPassLimit;
+            string first = "Lucid-ownership-limit-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
+            var replacement = new FSMManager();
+            int actionCalls = 0;
+            try
+            {
+                SystemRef firstRef = ProcessManager.RegisterSystem(new FSMManager(), first);
+                SystemRef<FSMManager> firstTyped = ProcessManager.GetSystemRef<FSMManager>(first);
+                SystemRef secondRef = ProcessManager.RegisterSystem(new FSMManager(), second);
+                firstTyped.OnSystemShutdown += system =>
+                {
+                    replacement.SubscribeToAction(SystemAction.Update, context => actionCalls++);
+                    ProcessManager.RegisterSystem(replacement, first);
+                };
+                // Too small a budget for the revalidation this callback causes.
+                FSMManagerVerification.TeardownPassLimit = 1;
+                var failure = Assert.Throws<InvalidOperationException>(() => FSMManagerVerification.ReleaseOwnedRows(new[] { first, second }));
+                StringAssert.Contains("did not settle", failure.Message);
+                Assert.That(rows.Contains(first) || rows.Contains(second), Is.False, "a later owned row survived the limit");
+                Assert.That(firstRef.IsNull() && firstTyped.IsNull() && secondRef.IsNull(), Is.True);
+                replacement.ProcessSystemAction(SystemAction.Update);
+                Assert.That(actionCalls, Is.Zero, "the limit skipped action release");
+            }
+            finally
+            {
+                FSMManagerVerification.TeardownPassLimit = limit;
+                replacement.UnsubscribeFromAction(SystemAction.Update);
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void ReferenceActivatedDuringTeardownIsNotNotifiedTwice()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-activated-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                // The typed reference starts invalid: it has already been revoked on its own.
+                typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef").GetMethod("InternalRevokeSystem").Invoke(typed, null);
+                Assert.That(typed.IsNull(), Is.True);
+                var injected = new InvalidOperationException("typed failure");
+                int typedCalls = 0;
+                untyped.OnSystemShutdown += system => ProcessManager.RegisterSystem(new FSMManager(), name, canReplace: true);
+                typed.OnSystemShutdown += system => { typedCalls++; throw injected; };
+                Exception thrown = Assert.Catch(() => FSMManagerVerification.ReleaseOwnedRows(new[] { name }));
+                Assert.That(thrown, Is.SameAs(injected));
+                Assert.That(typedCalls, Is.EqualTo(1), "the activated reference was notified twice");
+                Assert.That(rows.Contains(name), Is.False);
+                Assert.That(untyped.IsNull() && typed.IsNull(), Is.True);
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void LaterRowCallbackRecreatingAReleasedNameIsSwept()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string first = "Lucid-ownership-cross-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
+            SystemRef recreated = null;
+            try
+            {
+                ProcessManager.RegisterSystem(new FSMManager(), first);
+                SystemRef secondRef = ProcessManager.RegisterSystem(new FSMManager(), second);
+                secondRef.OnSystemShutdown += system => recreated = ProcessManager.RegisterSystem(new FSMManager(), first);
+                FSMManagerVerification.ReleaseOwnedRows(new[] { first, second });
+                Assert.That(recreated, Is.Not.Null, "the callback ran");
+                Assert.That(rows.Contains(first) || rows.Contains(second), Is.False, "a re-created owned row survived");
+                Assert.That(recreated.IsNull() && secondRef.IsNull(), Is.True);
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
         public void ThrowingShutdownObserverDoesNotKeepLaterOwnedRowsRegistered()
         {
             IDictionary rows = Rows();

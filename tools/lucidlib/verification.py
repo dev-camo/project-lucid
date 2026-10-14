@@ -1450,4 +1450,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ShutdownObserverReplacementDoesNotLeaveAnOwnedReferenceValid",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.FailureAndReentrantReplacementLeaveNoOwnedReferenceValid",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ReplacementActionSubscriptionsAreReleasedWithTheOwnedRow",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.PassLimitIsRecordedWhileLaterRowsAndActionsAreStillReleased",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ReferenceActivatedDuringTeardownIsNotNotifiedTwice",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.LaterRowCallbackRecreatingAReleasedNameIsSwept",
 )
