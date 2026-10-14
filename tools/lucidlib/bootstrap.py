@@ -44,16 +44,29 @@ class ToolError(RuntimeError):
     """A pinned tool could not be downloaded, installed, or executed."""
 
 
+def _is_link(path: Path) -> bool:
+    """True for symbolic links and for Windows junctions and other reparse points."""
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return False
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & reparse)
+
+
 def validate_work_dir(work_dir: Path) -> Path:
     """Allow generated cache directories only; reject source paths and symlinks."""
     requested = Path(os.path.abspath(os.fspath(work_dir)))
     roots = [CACHE_ROOT] + [root for root in (HOST_CACHE_ROOT, DIAGNOSTICS_ROOT) if root is not None]
-    if not any(requested == root or root in requested.parents for root in roots):
+    matched = [root for root in roots if requested == root or root in requested.parents]
+    if not matched:
         raise ValueError(f"Work directory must be {CACHE_ROOT} or a child directory")
     current = Path(requested.anchor)
     for part in requested.parts[1:]:
         current /= part
-        if current.is_symlink():
+        # From the approved root down, Windows junctions and other reparse points are links too.
+        managed = any(current == root or root in current.parents for root in matched)
+        if _is_link(current) if managed else current.is_symlink():
             raise ValueError(f"Work directory cannot contain a symbolic link: {current}")
         if current.exists() and not current.is_dir():
             raise ValueError(f"Work directory component is not a directory: {current}")
@@ -110,7 +123,7 @@ def reader_build_paths(root: Path, work: Path, run: Path, name: str) -> tuple[Pa
 
 def tree_seal(directory: Path) -> dict:
     """Seal the complete file/directory closure, rejecting links and special files."""
-    if directory.is_symlink() or not directory.is_dir():
+    if _is_link(directory) or not directory.is_dir():
         raise ToolError(f"Tool tree must be a physical directory: {directory}")
     result = {}
     for path in sorted(directory.rglob("*")):
@@ -177,7 +190,7 @@ def managed_path(work_dir: Path, *parts: str) -> Path:
     current = root
     for part in relative.parts:
         current /= part
-        if current.is_symlink():
+        if _is_link(current):
             raise ValueError(f"Generated path cannot contain a symbolic link: {current}")
     return result
 
@@ -498,16 +511,6 @@ def _try_lock(stream) -> bool:
         raise
 
 
-def _is_link(path: Path) -> bool:
-    """True for symbolic links and for Windows junctions and other reparse points."""
-    try:
-        info = os.lstat(path)
-    except FileNotFoundError:
-        return False
-    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & reparse)
-
-
 def _open_lease(path: Path, *, create: bool):
     """Open a lease file without following links or blocking on special files."""
     if _is_link(path):
@@ -605,6 +608,8 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
     if _is_link(builds) or (builds.exists() and not builds.is_dir()):
         raise ToolError(f"Cpp2IL builds must be a physical directory: {builds}")
     builds.mkdir(parents=True, exist_ok=True)
+    # Recheck the whole chain from the cache root once it exists, before anything is pruned.
+    managed_path(work_dir, "tools", "cpp2il-builds")
     warnings: list = []
     _prune_cpp2il_builds(tools, builds, warnings)
     build_id = uuid.uuid4().hex
