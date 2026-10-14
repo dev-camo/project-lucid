@@ -8,6 +8,7 @@ import subprocess
 import sys
 from .verification import current_identity, find_editor, verified_receipt
 from .bootstrap import managed_path, write_json
+from .scriptmetadata import validate_script_metadata
 
 UNITY_VERSION = "2022.3.54f1"
 
@@ -86,6 +87,8 @@ def validate_project(repo_root, work_dir, stage="release"):
     identity = {}
     checks = {}
     if stage == "release":
+        checks["script_metadata"] = validate_script_metadata(repo_root)
+        errors.extend(checks["script_metadata"]["errors"])
         if not (repo_root / "Assets" / "Recovered").is_dir():
             errors.append("Extracted content has not been prepared in the Unity project")
         version_path = repo_root / "ProjectSettings" / "ProjectVersion.txt"
