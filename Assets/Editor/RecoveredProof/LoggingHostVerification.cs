@@ -391,8 +391,12 @@ namespace ProjectLucid
             Check(bridge.GetDeviceID() == string.Empty && bridge.GetScreenUnusableHeaderHeightInPixels() == 0 && bridge.GetScreenUnusableFooterHeightInPixels() == 0 && !bridge.DoesThisDeviceHaveANotch() && bridge.CalculateApplicationChecksum() == 0, "original retail bridge constants");
             bridge.LogToDeviceConsole(null); Check(true, "original retail console body RET");
             uint[] bits = { 0x00000000, 0x80000000, 0x3f800000, 0xbf800000, 0x3fe00000, 0xbfe00000, 0x4effffff, 0x4f000000, 0x4f000001, 0xceffffff, 0xcf000000, 0xcf000001, 0x7f7fffff, 0xff7fffff, 0x7f800000, 0xff800000, 0x7fc00000, 0xffc00000, 0x7f800001, 0xff800001, 0x00000001, 0x80000001 };
-            int[] expected = { 0, 0, 1, -1, 1, -1, 2147483520, int.MaxValue, int.MaxValue, -2147483520, int.MinValue, int.MinValue, int.MaxValue, int.MinValue, int.MinValue, int.MinValue, 0, 0, 0, 0, 0, 0 };
-            for (int i = 0; i < bits.Length; i++) Check(bridge.GetPixelsFromNativeUnitDistance(BitConverter.ToSingle(BitConverter.GetBytes(bits[i]), 0)) == expected[i], "exact original ARM64 leaf conversion " + bits[i].ToString("x8"));
+            // The original slice matching this process: ARM64 FCVTZS or x86-64 CVTTSS2SI.
+            bool arm64 = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.Arm64;
+            int[] expected = arm64
+                ? new[] { 0, 0, 1, -1, 1, -1, 2147483520, int.MaxValue, int.MaxValue, -2147483520, int.MinValue, int.MinValue, int.MaxValue, int.MinValue, int.MinValue, int.MinValue, 0, 0, 0, 0, 0, 0 }
+                : new[] { 0, 0, 1, -1, 1, -1, 2147483520, int.MinValue, int.MinValue, -2147483520, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, int.MinValue, 0, 0 };
+            for (int i = 0; i < bits.Length; i++) Check(bridge.GetPixelsFromNativeUnitDistance(BitConverter.ToSingle(BitConverter.GetBytes(bits[i]), 0)) == expected[i], "exact original " + (arm64 ? "ARM64" : "x86-64") + " leaf conversion " + bits[i].ToString("x8"));
             Check(HLTrackingAuthorisationNativeBridge.Initialise(null).GetType() == typeof(HLTrackingAuthorisationNativeBridgeStub), "original retail tracking factory ignores owner/selects genuine original Stub");
             var tracking = new HLTrackingAuthorisationNativeBridgeStub();
             Check(!tracking.CanDeviceRequestTrackingAuthorisation() && tracking.RequestTrackingAuthorisationStatus() == -1, "original retail tracking capabilities/status");

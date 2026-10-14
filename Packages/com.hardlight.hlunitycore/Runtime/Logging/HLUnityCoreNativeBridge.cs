@@ -66,14 +66,21 @@ namespace Hardlight
         public void LogToDeviceConsole(string message) { }
         public int CalculateApplicationChecksum() => 0;
 
-        // 0x06000923; ARM64 0x1af5cd0, FCVTZS plus the positive-infinity
-        // adjustment. Spell out native conversion results across managed JITs.
+        // 0x06000923. The universal original differs by slice, so spell out each
+        // native result across managed JITs. ARM64 0x1af5cd0 is saturating FCVTZS
+        // (NaN gives 0) except positive infinity; x86-64 0x1af16c0 is a bare
+        // CVTTSS2SI, whose NaN and out-of-range results are int.MinValue.
         public int GetPixelsFromNativeUnitDistance(float distance)
         {
-            if (float.IsPositiveInfinity(distance)) return int.MinValue;
-            if (float.IsNaN(distance)) return 0;
-            if (distance >= 2147483648f) return int.MaxValue;
-            if (distance <= -2147483648f) return int.MinValue;
+            if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+            {
+                if (float.IsPositiveInfinity(distance)) return int.MinValue;
+                if (float.IsNaN(distance)) return 0;
+                if (distance >= 2147483648f) return int.MaxValue;
+                if (distance <= -2147483648f) return int.MinValue;
+                return (int)distance;
+            }
+            if (float.IsNaN(distance) || distance >= 2147483648f || distance < -2147483648f) return int.MinValue;
             return (int)distance;
         }
 
