@@ -1528,3 +1528,7 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRemovesAnOverrideWhoseAddConfigThrew",
     "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideScanFailure",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioTypesTests.DeclarationsMatchTheShippedAssembly",
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioTypesTests.TimerShowsAndHidesItsSpawnedObjects",
+)
