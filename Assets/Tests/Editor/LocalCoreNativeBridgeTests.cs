@@ -37,6 +37,13 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void CountryPolicyReturnsEmptyForUnmappedNeutralCultures()
+        {
+            // Mono has no specific culture for these neutral cultures.
+            AssertCountries(("st", ""), ("pa", ""), ("en", "US"));
+        }
+
+        [Test]
         public void CountryPolicyTracksEachSpecificCultureAfterInvariant()
         {
             // Mono caches RegionInfo.CurrentRegion process-wide; the policy must never consult it.

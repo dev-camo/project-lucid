@@ -1040,6 +1040,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.LocalePolicyTracksTwoOwnedCultureScopes",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.CountryPolicyResolvesNeutralCulturesThroughTheirSpecificCulture",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.CountryPolicyTracksEachSpecificCultureAfterInvariant",
+    "ProjectLucid.Tests.LocalCoreNativeBridgeTests.CountryPolicyReturnsEmptyForUnmappedNeutralCultures",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.OfflineClientCodeReturnsOneAndWritesZero",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.MissingOwnerFaultsBeforeTheOfflineInitialiseBoundary",
 )
