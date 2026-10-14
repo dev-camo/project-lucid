@@ -1383,3 +1383,9 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.GenuineOwnedGroupPreservesOrderedNameAndDataStorageAfterReimport',
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.GenuineOwnedElementCallbacksRetainCurrentNameAndNullOrDestroyedNone',
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.VerificationAssemblyDeclaresAndResolvesPinnedUI",
+    "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",
+    "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
+)

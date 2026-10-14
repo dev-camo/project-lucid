@@ -215,6 +215,58 @@ class VerificationTests(unittest.TestCase):
                     saved = json.loads((work / "reports/playmode-verification.json").read_text())
                     self.assertEqual(report, saved)
 
+    def test_ui_reference_cases_are_required_by_runs_and_receipts(self):
+        # Supplied XML exercises qualification policy without launching Unity.
+        from xml.sax.saxutils import quoteattr
+        required = tuple("ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests." + name for name in (
+            "VerificationAssemblyDeclaresAndResolvesPinnedUI",
+            "PlayModeAssemblyDeclaresAndResolvesPinnedUI",
+            "CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
+        ))
+        for name in required:
+            self.assertEqual(1, verification.EDITMODE_TESTS.count(name))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            work = root / "cache"
+            carrier = root / "Assets/Tests/Editor/ProjectLucidFontReferenceConversionCarrier.cs.meta"
+            carrier.parent.mkdir(parents=True)
+            carrier.write_text("guid: " + "a" * 32 + "\n")
+            converter = root / "tools/lucidlib/fontreferences.py"
+            converter.parent.mkdir(parents=True)
+            converter.write_text("# inert converter identity for supplied XML\n")
+            identity = {"source_fingerprint": "synthetic-source", "prepared_asset_fingerprint": "synthetic-assets"}
+            xml = root / "supplied.xml"
+            self.xml(xml, verification.EDITMODE_TESTS)
+            self.assertEqual("complete", test_verdict(xml, verification.EDITMODE_TESTS)["status"])
+            for name in required:
+                for outcome in (None, "Skipped", "Failed"):
+                    with self.subTest(name=name, outcome=outcome):
+                        cases = ''.join('<test-case fullname=' + quoteattr(case) + ' result="Passed"/>'
+                                        for case in verification.EDITMODE_TESTS if case != name)
+                        if outcome is not None:
+                            cases += '<test-case fullname=' + quoteattr(name) + ' result=' + quoteattr(outcome) + '/>'
+                        xml.write_text('<test-run result="Passed" failed="0">' + cases + '</test-run>')
+
+                        def supplied_xml(command, **kwargs):
+                            Path(command[command.index("-testResults") + 1]).write_bytes(xml.read_bytes())
+                            Path(command[command.index("-logFile") + 1]).write_text(
+                                "Unity Editor version: " + verification.UNITY_VERSION)
+                            return SimpleNamespace(returncode=0)
+
+                        with patch("lucidlib.bootstrap.CACHE_ROOT", work), patch.object(
+                                verification, "find_editor", return_value=root / "inert-editor"), patch.object(
+                                verification, "current_identity", return_value=identity), patch.object(
+                                verification.subprocess, "run", side_effect=supplied_xml) as process:
+                            report = verification.run_tests(root, work, "editmode")
+                        process.assert_called_once()
+                        self.assertEqual("incomplete", report["status"])
+                        self.assertEqual([name], report["verdict"]["missing_required_tests"])
+                        # A caller cannot bless the same incomplete XML by changing the receipt status.
+                        report["status"] = "complete"
+                        (work / "reports/editmode-verification.json").write_text(json.dumps(report))
+                        with self.assertRaisesRegex(ValueError, "incomplete"):
+                            verified_receipt(work, "editmode", identity)
+
     def test_diagnostics_keep_document_order_despite_bottom_up_summary_checks(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "tests.xml"
