@@ -269,6 +269,32 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
+        public void PassLimitKeepsAnEarlierCallbackFailure()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            int limit = FSMManagerVerification.TeardownPassLimit;
+            string first = "Lucid-ownership-limit-failure-" + Guid.NewGuid().ToString("N"), second = first + "-b";
+            try
+            {
+                SystemRef firstRef = ProcessManager.RegisterSystem(new FSMManager(), first);
+                SystemRef secondRef = ProcessManager.RegisterSystem(new FSMManager(), second);
+                var injected = new InvalidOperationException("original failure");
+                firstRef.OnSystemShutdown += system => throw injected;
+                FSMManagerVerification.TeardownPassLimit = 1;
+                Exception thrown = Assert.Catch(() => FSMManagerVerification.ReleaseOwnedRows(new[] { first, second }));
+                Assert.That(thrown, Is.SameAs(injected), "the limit replaced the earlier failure");
+                Assert.That(rows.Contains(first) || rows.Contains(second), Is.False);
+                Assert.That(firstRef.IsNull() && secondRef.IsNull(), Is.True);
+            }
+            finally
+            {
+                FSMManagerVerification.TeardownPassLimit = limit;
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
         public void ReferenceActivatedDuringTeardownIsNotNotifiedTwice()
         {
             IDictionary rows = Rows();
@@ -276,10 +302,9 @@ namespace ProjectLucid.Editor
             string name = "Lucid-ownership-activated-" + Guid.NewGuid().ToString("N");
             try
             {
-                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                // An owned non-FSM system leaves the typed FSMManager reference null at the start.
+                SystemRef untyped = ProcessManager.RegisterSystem(new ForeignSystem(), name);
                 SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
-                // The typed reference starts invalid: it has already been revoked on its own.
-                typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef").GetMethod("InternalRevokeSystem").Invoke(typed, null);
                 Assert.That(typed.IsNull(), Is.True);
                 var injected = new InvalidOperationException("typed failure");
                 int typedCalls = 0;
@@ -290,6 +315,39 @@ namespace ProjectLucid.Editor
                 Assert.That(typedCalls, Is.EqualTo(1), "the activated reference was notified twice");
                 Assert.That(rows.Contains(name), Is.False);
                 Assert.That(untyped.IsNull() && typed.IsNull(), Is.True);
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void CallbackCreatedReferenceNotifiedElsewhereIsNotNotifiedAgain()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string first = "Lucid-ownership-transient-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
+            SystemRef<FSMManager> transient = null;
+            int transientCalls = 0;
+            try
+            {
+                SystemRef firstRef = ProcessManager.RegisterSystem(new FSMManager(), first);
+                ProcessManager.RegisterSystem(new FSMManager(), second);
+                // A callback creates a reference on another owned row, unregisters that row (which
+                // notifies the new reference) and then registers a replacement, revalidating it.
+                firstRef.OnSystemShutdown += system =>
+                {
+                    transient = ProcessManager.GetSystemRef<FSMManager>(second);
+                    transient.OnSystemShutdown += value => transientCalls++;
+                    ProcessManager.UnregisterSystem(second);
+                    ProcessManager.RegisterSystem(new FSMManager(), second);
+                };
+                FSMManagerVerification.ReleaseOwnedRows(new[] { first, second });
+                Assert.That(transient, Is.Not.Null, "the callback ran");
+                Assert.That(transientCalls, Is.EqualTo(1), "the transient reference was notified again");
+                Assert.That(rows.Contains(first) || rows.Contains(second), Is.False);
+                Assert.That(firstRef.IsNull() && transient.IsNull(), Is.True);
             }
             finally
             {

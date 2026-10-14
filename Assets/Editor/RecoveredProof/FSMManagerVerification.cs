@@ -111,8 +111,11 @@ namespace ProjectLucid
         //  1. No owned name keeps a row, no reference seen during teardown stays valid, and every
         //     system that entered an owned row loses its action subscriptions.
         //  2. A reference's shutdown observers start at most once. A "begin" sentinel placed before
-        //     its observers (public remove/add, order kept) records the start; once started, the
-        //     reference is only ever detached and revoked silently.
+        //     its observers (public remove/add, order kept) records the start. The fixture calls the
+        //     original unregister only for rows present when teardown started that nobody has
+        //     unregistered yet, and notifies only references present at that call. Every other
+        //     reference, including ones callbacks create or re-create during teardown (whose earlier
+        //     notifications cannot be observed), is detached and revoked silently.
         //  3. Cleanup never stops at a failure; the first failure is rethrown after all rows.
         //  4. The work is bounded: when the pass budget runs out, that is recorded as a failure and
         //     the remaining rows are revoked silently and dropped, which runs no callbacks.
@@ -126,7 +129,9 @@ namespace ProjectLucid
             private readonly IDictionary rows;
             private readonly HashSet<object> notified = new HashSet<object>(new ReferenceComparer());
             private readonly HashSet<object> bracketed = new HashSet<object>(new ReferenceComparer());
-            private readonly HashSet<object> processedRows = new HashSet<object>(new ReferenceComparer());
+            private readonly HashSet<object> initialRows = new HashSet<object>(new ReferenceComparer());
+            private readonly HashSet<object> unregisteredRows = new HashSet<object>(new ReferenceComparer());
+            private readonly HashSet<object> eligible = new HashSet<object>(new ReferenceComparer());
             private readonly List<ISystem> entered = new List<ISystem>();
             private readonly List<Sentinel> sentinels = new List<Sentinel>();
             private readonly MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
@@ -140,6 +145,12 @@ namespace ProjectLucid
             {
                 try
                 {
+                    foreach (string name in owned)
+                        if (rows.Contains(name))
+                        {
+                            initialRows.Add(rows[name]);
+                            foreach (object reference in References(rows[name])) Bracket(reference);
+                        }
                     bool settled = false;
                     while (!settled && budget > 0)
                     {
@@ -189,19 +200,23 @@ namespace ProjectLucid
 
             private void Record(Exception error) { if (first == null) first = error; }
 
-            // A row object is unregistered through the original API once; a row re-created under
-            // an owned name is a new row and gets its own original unregister.
+            // The original unregister runs once, for a row present at the start that no callback has
+            // already started unregistering; rows created during teardown are only revoked silently.
             private void ReleaseRow(string name, object info)
             {
-                foreach (object reference in References(info)) Bracket(reference);
-                SystemRef untyped = (SystemRef)References(info)[0];
+                List<object> present = References(info);
+                foreach (object reference in present) Bracket(reference);
+                SystemRef untyped = (SystemRef)present[0];
                 sentinels.Add(Subscribe(untyped, "OnSystemStartup", system => Enter(system as ISystem)));
                 Enter(untyped.GetSafe());
-                if (processedRows.Add(info))
+                bool started = present.Any(reference => notified.Contains(reference));
+                if (initialRows.Contains(info) && !started && unregisteredRows.Add(info))
                 {
+                    eligible.UnionWith(present);
                     try { ProcessManager.UnregisterSystem(name); }
                     catch (Exception error) { Record(error); }
                 }
+                unregisteredRows.Add(info);
                 // Revoke until no reference of this row is set; observers may revalidate references,
                 // add typed ones, or register other owned names, which later passes visit.
                 while (budget-- > 0)
@@ -213,7 +228,7 @@ namespace ProjectLucid
                         if (!IsValid(reference)) continue;
                         changed = true;
                         Enter(untyped.GetSafe());
-                        if (notified.Contains(reference)) { Silence(reference); continue; }
+                        if (notified.Contains(reference) || !eligible.Contains(reference)) { Silence(reference); continue; }
                         notified.Add(reference);
                         try { revoke.Invoke(reference, null); }
                         catch (TargetInvocationException error)
