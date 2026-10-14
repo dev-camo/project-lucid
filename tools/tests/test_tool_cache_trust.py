@@ -213,18 +213,28 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.assertEqual([], self.temporaries())
         self.spawn.assert_not_called()
 
-    def test_untrusted_lease_files_are_skipped_without_following_or_blocking(self):
+    def test_untrusted_lease_files_are_skipped_without_following(self):
         self.cpp2il_fixture()
         builds = self.work / "tools/cpp2il-builds"
         builds.mkdir(parents=True)
         outside = self.directory / "outside-target"
         (builds / "dangling.lock").symlink_to(outside)
-        os.mkfifo(builds / "pipe.lock")
         with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
             result = bootstrap._ensure_cpp2il(self.lock, self.work)
         self.assertEqual("ready", result["status"])
         self.assertFalse(outside.exists())
         self.assertTrue(any("dangling.lock" in warning for warning in result["cleanup_warnings"]))
+        self.spawn.assert_not_called()
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "FIFOs are Unix-only")
+    def test_fifo_lease_files_are_skipped_without_blocking(self):
+        self.cpp2il_fixture()
+        builds = self.work / "tools/cpp2il-builds"
+        builds.mkdir(parents=True)
+        os.mkfifo(builds / "pipe.lock")
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
+            result = bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertEqual("ready", result["status"])
         self.assertTrue(any("pipe.lock" in warning for warning in result["cleanup_warnings"]))
         self.spawn.assert_not_called()
 
@@ -410,8 +420,6 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.assertIsNone(bootstrap.HOST_CACHE_ROOT)
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class Cpp2ILFreshProcessTests(unittest.TestCase):
@@ -502,3 +510,7 @@ if len(sys.argv) > 5:
             holder.wait()
             for stream in (holder.stdin, holder.stdout, holder.stderr):
                 stream.close()
+
+
+if __name__ == "__main__":
+    unittest.main()
