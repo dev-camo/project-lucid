@@ -1538,3 +1538,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.PlayerPositionShaderGlobalIsTheWorldPosition",
     "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.DissolveRefetchesTheMainCameraAfterItsCameraWasDestroyed",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.LiteralContentFormatsNestedParametersAndKeepsTextOnFormatErrors",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.TableContentIsStoredAsItsCrcStringId",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.ReverseChildrenReversesSiblingOrder",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.DeclarationsMatchTheShippedAssembly",
+)
