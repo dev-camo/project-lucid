@@ -498,6 +498,24 @@ def _try_lock(stream) -> bool:
         raise
 
 
+def _open_lease(path: Path, *, create: bool):
+    """Open a lease file without following links or blocking on special files."""
+    if path.is_symlink():
+        raise ToolError(f"Cpp2IL lease must not be a link: {path}")
+    flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    if create:
+        flags |= os.O_CREAT | os.O_EXCL
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ToolError(f"Cpp2IL lease must be a regular file: {path}")
+        return os.fdopen(descriptor, "r+b")
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 def _release_lease(stream) -> None:
     try:
         if fcntl is not None:
@@ -530,16 +548,22 @@ def _prune_cpp2il_builds(tools: Path, builds: Path, warnings: list) -> None:
         directory = lease.with_suffix("")
         if directory in _CPP2IL_LEASES:
             continue
-        stream = lease.open("a")
+        try:
+            stream = _open_lease(lease, create=False)
+        except (OSError, ToolError) as exc:
+            warnings.append(f"Skipped untrusted Cpp2IL lease {lease}: {exc}")
+            continue
         if not _try_lock(stream):
             stream.close()
             continue
-        try:
-            _BUILD_SEALS.pop(directory, None)
-            _remove_tree(directory, warnings)
+        # The owner has exited. Close the lease before deleting anything (Windows cannot
+        # delete an open file), and keep the lease until its build is really gone so a
+        # later pass can retry a failed removal.
+        _release_lease(stream)
+        _BUILD_SEALS.pop(directory, None)
+        _remove_tree(directory, warnings)
+        if not directory.exists() and not directory.is_symlink():
             _remove_tree(lease, warnings)
-        finally:
-            _release_lease(stream)
     for stale in [*builds.glob(".build-*"), *tools.glob(".cpp2il-source-*")]:
         _remove_tree(stale, warnings)
 
@@ -569,7 +593,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
     _prune_cpp2il_builds(tools, builds, warnings)
     build_id = uuid.uuid4().hex
     directory = builds / build_id
-    lease = (builds / f"{build_id}.lock").open("a")
+    lease = _open_lease(builds / f"{build_id}.lock", create=True)
     if not _try_lock(lease):
         lease.close()
         raise ToolError(f"Fresh Cpp2IL build lease is unexpectedly held: {directory}")

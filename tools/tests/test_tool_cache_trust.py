@@ -213,6 +213,43 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.assertEqual([], self.temporaries())
         self.spawn.assert_not_called()
 
+    def test_untrusted_lease_files_are_skipped_without_following_or_blocking(self):
+        self.cpp2il_fixture()
+        builds = self.work / "tools/cpp2il-builds"
+        builds.mkdir(parents=True)
+        outside = self.directory / "outside-target"
+        (builds / "dangling.lock").symlink_to(outside)
+        os.mkfifo(builds / "pipe.lock")
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
+            result = bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertEqual("ready", result["status"])
+        self.assertFalse(outside.exists())
+        self.assertTrue(any("dangling.lock" in warning for warning in result["cleanup_warnings"]))
+        self.assertTrue(any("pipe.lock" in warning for warning in result["cleanup_warnings"]))
+        self.spawn.assert_not_called()
+
+    def test_failed_stale_build_removal_keeps_its_lease_for_a_later_retry(self):
+        self.cpp2il_fixture()
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
+            stale = Path(bootstrap._ensure_cpp2il(self.lock, self.work)["path"]).parent
+        self.release_leases()
+        original_rmtree = shutil.rmtree
+        def failing_rmtree(path, *args, **kwargs):
+            if Path(path) == stale:
+                raise OSError("injected stale removal failure")
+            return original_rmtree(path, *args, **kwargs)
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build), \
+                mock.patch.object(bootstrap.shutil, "rmtree", failing_rmtree):
+            bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertTrue(stale.exists())
+        self.assertTrue(stale.with_suffix(".lock").exists())
+        self.release_leases()
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
+            bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertFalse(stale.exists())
+        self.assertFalse(stale.with_suffix(".lock").exists())
+        self.spawn.assert_not_called()
+
     def test_forged_inspector_marker_rejected_before_build_or_load(self):
         sdk = self.work / "tools/dotnet/dotnet"
         sdk.parent.mkdir(parents=True)
