@@ -508,10 +508,6 @@ class PlayerCodeTests(unittest.TestCase):
         self.assertEqual(self.old, self.latest.read_bytes())
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class NativeQueryGuards(unittest.TestCase):
     setUp = PlayerCodeTests.setUp
     native_queries = PlayerCodeTests.native_queries
@@ -548,3 +544,7 @@ class NativeQueryGuards(unittest.TestCase):
 
     def test_native_query_profile_path_rejected(self):
         self.assert_rejected(lambda r, run: [r[k].update(compatibility_profile_folder="../profile") for k in ("native_profile_queries_before", "native_profile_queries_after")])
+
+
+if __name__ == "__main__":
+    unittest.main()

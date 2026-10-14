@@ -525,9 +525,6 @@ class RuntimeContractReaderBuildTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.invoke()
 
 
-if __name__=='__main__':unittest.main()
-
-
 class RuntimeLoadedAttestationInvocationTests(unittest.TestCase):
     def test_failure_is_not_a_boolean_claim(self):
         reader={'host':{'path':'host'},'binary':{'path':'reader'},'env':{'guard':'fixture'}}
@@ -543,3 +540,6 @@ class RuntimeLoadedAttestationInvocationTests(unittest.TestCase):
         with mock.patch.object(rc.subprocess,'run',return_value=subprocess.CompletedProcess([],0,b'{"fixture":"synthetic-only"}',b'')) as run:
             self.assertEqual(rc._attest_loaded(reader,{'run':'/owned/run'}),{'fixture':'synthetic-only'})
             self.assertEqual(run.call_args.args[0],['host','reader','--attest-loaded','/owned/run/manifest.json'])
+
+
+if __name__=='__main__':unittest.main()
