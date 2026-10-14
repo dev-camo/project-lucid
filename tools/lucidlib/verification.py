@@ -1475,4 +1475,5 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ForeignSaveHandlerSurvivesARefusedVerification",
     "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ForeignStoreSurvivesARefusedVerification",
     "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ColdVerificationReturnsToTheSameColdState",
+    "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.StorageConstructionFaultShutsDownThePublishedFixtureStoreAndAllowsRetry",
 )

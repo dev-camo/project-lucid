@@ -48,6 +48,18 @@ namespace ProjectLucid.Editor
             RequireColdStore();
         }
 
+        [Test]
+        public void StorageConstructionFaultShutsDownThePublishedFixtureStoreAndAllowsRetry()
+        {
+            RequireColdStore();
+            // The real offline storage constructor rejects this name after the original
+            // constructor has already published the fixture store.
+            Assert.Throws<ArgumentException>(() => PropertyListVerification.RunStoreFixture("not/portable"));
+            RequireColdStore();
+            PropertyListVerification.RunStoreFixture("unused");
+            RequireColdStore();
+        }
+
         private static void RequireColdStore()
         {
             Assert.That(PropertyListVerification.StoreSingletonPublished() || HLPropertyStore.IsThereAnyLoadHandler ||
