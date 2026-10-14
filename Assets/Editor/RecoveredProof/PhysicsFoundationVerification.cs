@@ -82,7 +82,7 @@ namespace ProjectLucid
             Require(fields.Length == 2 && fields.Select(f => f.Name).SequenceEqual(new[] { "MaxNumRaycastHits", "m_raycastHits" }), "full ordered original own-field schema");
             FieldInfo limit = fields[0], buffer = fields[1];
             Require(limit.IsPrivate && limit.IsStatic && limit.IsLiteral && !limit.IsInitOnly && limit.FieldType == typeof(int) && Equals(limit.GetRawConstantValue(), 16), "original private constant flags/type/value");
-            Require(buffer.IsPrivate && buffer.IsStatic && !buffer.IsLiteral && !buffer.IsInitOnly && buffer.FieldType == typeof(RaycastHit[]), "original mutable shared buffer flags/type");
+            Require(buffer.IsPrivate && buffer.IsStatic && !buffer.IsLiteral && buffer.IsInitOnly && buffer.FieldType == typeof(RaycastHit[]), "original readonly shared buffer reference flags/type");
             Require(fields.All(f => f.GetCustomAttributesData().Count == 0), "original own-field attributes");
             ConstructorInfo initializer = type.TypeInitializer;
             Require(initializer != null && initializer.IsPrivate && initializer.IsStatic && initializer.IsSpecialName && (initializer.Attributes & MethodAttributes.RTSpecialName) != 0, "original generated static initializer flags");

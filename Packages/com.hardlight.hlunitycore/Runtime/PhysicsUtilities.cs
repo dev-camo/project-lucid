@@ -8,7 +8,7 @@ namespace Hardlight
     public static class PhysicsUtilities
     {
         private const int MaxNumRaycastHits = 16;
-        private static RaycastHit[] m_raycastHits = new RaycastHit[MaxNumRaycastHits];
+        private static readonly RaycastHit[] m_raycastHits = new RaycastHit[MaxNumRaycastHits];
 
         // 0x06000b5e: retain the shared limited buffer and native enumeration order.
         // Choose by collider-transform distance from the camera, not hit distance.
