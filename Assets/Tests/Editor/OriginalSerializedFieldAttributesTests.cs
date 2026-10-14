@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using HardlightProject;
 using NUnit.Framework;
+using ProjectLucid.Tests.CutsceneShared;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Playables;
@@ -10,7 +11,7 @@ using UnityEngine.Playables;
 namespace ProjectLucid.Editor
 {
     // Compiled field attributes must match the original 1.10.1 Game.Runtime attribute spans.
-    // The owned RespawnPoint stays inactive, so no Awake or system registration runs.
+    // Owned components stay inactive, so no Awake, OnEnable or system registration runs.
     public sealed class OriginalSerializedFieldAttributesTests
     {
         private const BindingFlags Declared = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
@@ -73,6 +74,49 @@ namespace ProjectLucid.Editor
             {
                 UnityEngine.Object.DestroyImmediate(owner);
                 UnityEngine.Object.DestroyImmediate(copyOwner);
+            }
+        }
+
+        [Test]
+        public void OwnedCutsceneSerializesDirectorThroughPrefabRoundTrip()
+        {
+            string folder = "Assets/ProjectLucidOwnedCutscene_" + Guid.NewGuid().ToString("N");
+            var owner = new GameObject("OwnedCutsceneSerialization");
+            try
+            {
+                owner.SetActive(false);
+                Assert.That(AssetDatabase.IsValidFolder(folder), Is.False);
+                Assert.That(AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length)), Is.Not.Empty);
+                PlayableDirector director = owner.AddComponent<PlayableDirector>();
+                OwnedCutsceneProbe probe = owner.AddComponent<OwnedCutsceneProbe>();
+                using (var serialized = new SerializedObject(probe))
+                {
+                    SerializedProperty property = serialized.FindProperty("m_timelineDirector");
+                    Assert.That(property, Is.Not.Null);
+                    Assert.That(property.propertyType, Is.EqualTo(SerializedPropertyType.ObjectReference));
+                    Assert.That(property.objectReferenceValue, Is.Null);
+                    property.objectReferenceValue = director;
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+                Assert.That(probe.TimelineDirector, Is.SameAs(director));
+
+                // The saved prefab is a separate serialized copy; its probe must reference its own director.
+                string path = folder + "/OwnedCutscene.prefab";
+                PrefabUtility.SaveAsPrefabAsset(owner, path, out bool saved);
+                Assert.That(saved, Is.True);
+                var loaded = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                Assert.That(loaded, Is.Not.Null);
+                Assert.That(loaded, Is.Not.SameAs(owner));
+                Assert.That(loaded.activeSelf, Is.False);
+                PlayableDirector loadedDirector = loaded.GetComponent<PlayableDirector>();
+                Assert.That(loadedDirector, Is.Not.Null.And.Not.SameAs(director));
+                Assert.That(loaded.GetComponent<OwnedCutsceneProbe>().TimelineDirector, Is.SameAs(loadedDirector));
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(owner);
+                if (AssetDatabase.IsValidFolder(folder))
+                    AssetDatabase.DeleteAsset(folder);
             }
         }
 

@@ -1,0 +1,10 @@
+{
+  "name": "ProjectLucid.Cutscene.EngineVerification",
+  "references": [
+    "Game.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}
