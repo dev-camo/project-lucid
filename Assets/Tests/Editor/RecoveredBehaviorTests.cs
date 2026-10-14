@@ -515,8 +515,10 @@ namespace ProjectLucid.Tests
             // registry methods, thirty-five original UI registry/comparer methods,
             // eleven original analytics helper methods, and Unity's two
             // MonoScript generator methods.
-            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(709));
-            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(709),
+            // 599 emitted method rows plus 120 fixed checks in the pinned compiler fixture.
+            const int expectedChecks = 719;
+            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(expectedChecks));
+            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(expectedChecks),
                 "A repeated verification in the same Editor domain must count its own checks.");
         }
 
