@@ -69,6 +69,7 @@ namespace HardlightProject
 
         protected EnemyNavigation() { }
 
+        [System.Serializable]
         protected enum ConstrainType
         {
             Distance = 1,

@@ -1389,3 +1389,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
 )
+
+# Compiled declaration flags only; Unity serialization and gameplay stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalSerializableEnumFlagsTests.LowFilterTypeRetainsOriginalSerializableFlags",
+    "ProjectLucid.Editor.OriginalSerializableEnumFlagsTests.ConstrainTypeRetainsOriginalSerializableFlags",
+)
