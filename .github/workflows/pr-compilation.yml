@@ -1,4 +1,6 @@
 name: PR compilation
+run-name: >-
+  PR compilation (upstream ${{ github.event.workflow_run.id }}/${{ github.event.workflow_run.run_attempt }} ${{ github.event.workflow_run.event }} ${{ github.event.workflow_run.head_sha }})
 
 on:
   workflow_run:

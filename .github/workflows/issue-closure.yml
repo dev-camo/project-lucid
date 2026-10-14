@@ -1,0 +1,43 @@
+name: Verified issue closure
+
+on:
+  workflow_run:
+    workflows: [Tool tests, Code progress, PR compilation, Refresh native progress]
+    types: [completed]
+    branches: [main]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: Merged PR holding explicit whole-issue acceptance
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: verified-issue-closure-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    if: github.repository == 'dev-camo/project-lucid' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+      issues: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Qualify explicit acceptance without closing issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_CLOSURE_AUTHORIZATION: ${{ secrets.ISSUE_CLOSURE_AUTHORIZATION }}
+        run: python3 .github/scripts/issue_closure.py
