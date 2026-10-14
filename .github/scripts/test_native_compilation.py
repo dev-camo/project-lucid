@@ -26,6 +26,47 @@ class NativeCompilationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'trusted control'):
                 native_compilation.require_control_reporting_tools(source, control)
 
+    def test_overlay_admits_pr_game_code_with_trusted_reporting_code_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, control = Path(directory) / 'source', Path(directory) / 'control'
+            for root in (source, control):
+                (root / 'tools/lucidlib').mkdir(parents=True)
+                (root / 'tools/lucidlib/verification.py').write_text('REQUIRED = ("trusted",)\n')
+                (root / 'Assets/Editor').mkdir(parents=True)
+                for name in ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'):
+                    (root / 'Assets/Editor' / name).write_text('// trusted helper\n')
+                (root / 'Assets/Scripts').mkdir(parents=True)
+            (control / 'tools/removed_by_pr.py').write_text('trusted = True\n')
+            (source / 'tools/lucidlib/verification.py').write_text('REQUIRED = ("trusted", "pr")\n')
+            (source / 'tools/added_by_pr.py').write_text('raise AssertionError("PR tools must not execute")\n')
+            (source / 'Assets/Editor/LucidPlayerCompilation.cs').write_text('// PR driver must not run\n')
+            (source / 'Assets/Scripts/Game.cs').write_text('// PR game code is kept\n')
+            self.assertEqual([], native_compilation.overlay_control_reporting_tools(control, control))
+            replaced = native_compilation.overlay_control_reporting_tools(source, control)
+            self.assertEqual(['Assets/Editor/LucidPlayerCompilation.cs', 'tools/added_by_pr.py',
+                              'tools/lucidlib/verification.py', 'tools/removed_by_pr.py'], replaced)
+            native_compilation.require_control_reporting_tools(source, control)
+            self.assertEqual(native_compilation.reporting_files(control), native_compilation.reporting_files(source))
+            self.assertFalse((source / 'tools/added_by_pr.py').exists())
+            self.assertEqual('// PR game code is kept\n', (source / 'Assets/Scripts/Game.cs').read_text())
+            self.assertEqual([], native_compilation.overlay_control_reporting_tools(source, control))
+
+    def test_overlay_rejects_symlinked_reporting_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, control = Path(directory) / 'source', Path(directory) / 'control'
+            for root in (source, control):
+                (root / 'tools').mkdir(parents=True)
+                (root / 'Assets/Editor').mkdir(parents=True)
+                for name in ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'):
+                    (root / 'Assets/Editor' / name).write_text('// trusted helper\n')
+            (control / 'tools/helper.py').write_text('trusted = True\n')
+            outside = Path(directory) / 'outside.py'
+            outside.write_text('untouched\n')
+            (source / 'tools/helper.py').symlink_to(outside)
+            with self.assertRaisesRegex(ValueError, 'regular files'):
+                native_compilation.overlay_control_reporting_tools(source, control)
+            self.assertEqual('untouched\n', outside.read_text())
+
     def test_control_cache_binding_preserves_confinement_and_restores_state(self):
         from lucidlib import bootstrap
         original = bootstrap.REPO_ROOT, bootstrap.CACHE_ROOT, bootstrap.LOCK_FILE

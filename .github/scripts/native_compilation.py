@@ -49,6 +49,29 @@ def require_control_reporting_tools(source, control):
         raise ValueError('Source reporting tools differ from trusted control; review/control update required')
 
 
+def overlay_control_reporting_tools(source, control):
+    """Replace a disposable PR checkout's reporting code with the trusted control's.
+
+    PR compilation then builds the PR's game code without executing or measuring
+    any PR reporting code. Returns the sorted replaced paths; a PR's reporting
+    changes still need review and the post-merge main run, which uses them.
+    """
+    source, control = Path(source).resolve(strict=True), Path(control).resolve(strict=True)
+    current, trusted = reporting_files(source), reporting_files(control)
+    changed = sorted(path for path in set(current) | set(trusted) if current.get(path) != trusted.get(path))
+    for path in changed:
+        target = source / path
+        if any(part.is_symlink() for part in (target, *target.parents)):
+            raise ValueError('Reporting code must be regular files')
+        if path in trusted:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((control / path).read_bytes())
+        else:
+            target.unlink()
+    require_control_reporting_tools(source, control)
+    return changed
+
+
 def require_execution_identity(image, engine):
     editor_hash = next(row['sha256'] for row in engine if row['name'] == 'editor')
     if image.startswith('native@'):

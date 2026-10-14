@@ -165,6 +165,9 @@ def pr_compile_job(api, request):
     shared.checkout(control, request['control_commit'])
     shared.checkout(source, request['head'])
     shared.require_current_pr(api, request)
+    # PR reporting code never runs here: compile the PR's game code with the trusted
+    # control's reporting code, and say exactly which paths were substituted.
+    substituted = shared.driver.overlay_control_reporting_tools(source, control)
     shared.driver.require_control_reporting_tools(source, control)
     sys.path.insert(0, str(control / 'tools'))
     from lucidlib.verification import artifact_fingerprint
@@ -183,7 +186,11 @@ def pr_compile_job(api, request):
     shared.driver.require_control_reporting_tools(source, control)
     if shared.git_head(source) != request['head'] or artifact_fingerprint(source) != fingerprint:
         raise ValueError('PR source changed during compilation')
-    print('Exact-head PR compilation verified')
+    if substituted:
+        print('Exact-head PR game code compiled with trusted control reporting code; '
+              'PR reporting changes need review and the post-merge main run: ' + ', '.join(substituted))
+    else:
+        print('Exact-head PR compilation verified')
 
 
 def git(source, *arguments, data=None, index=None):
