@@ -64,9 +64,8 @@ def validate_work_dir(work_dir: Path) -> Path:
     current = Path(requested.anchor)
     for part in requested.parts[1:]:
         current /= part
-        # From the approved root down, Windows junctions and other reparse points are links too.
-        managed = any(current == root or root in current.parents for root in matched)
-        if _is_link(current) if managed else current.is_symlink():
+        # Windows junctions and other reparse points are links too, on every ancestor.
+        if _is_link(current):
             raise ValueError(f"Work directory cannot contain a symbolic link: {current}")
         if current.exists() and not current.is_dir():
             raise ValueError(f"Work directory component is not a directory: {current}")
@@ -80,7 +79,7 @@ def isolated_host_cache(parent: Path, *, diagnostics: bool = False):
     if HOST_CACHE_ROOT is not None:
         raise ToolError("A host cache scope is already active")
     parent = Path(parent)
-    if any(path.is_symlink() for path in (parent, *parent.parents)):
+    if any(_is_link(path) for path in (parent, *parent.parents)):
         raise ToolError("Host cache parent cannot contain a symbolic link")
     with tempfile.TemporaryDirectory(prefix="host-tools-", dir=parent) as directory:
         HOST_CACHE_ROOT = Path(directory)
@@ -647,7 +646,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
             _remove_tree(directory, warnings)
             _release_lease(lease)
             # Keep the lease while the directory survives so a later prune retries it.
-            if not directory.exists() and not directory.is_symlink():
+            if not directory.exists() and not _is_link(directory):
                 _remove_tree(builds / f"{build_id}.lock", warnings)
         _remove_tree(stage, warnings)
         _remove_tree(build_source, warnings)

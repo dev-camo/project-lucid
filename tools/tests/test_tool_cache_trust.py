@@ -187,6 +187,9 @@ class ToolCacheTrustTests(unittest.TestCase):
     def test_junction_ancestor_of_cpp2il_builds_is_rejected_before_pruning(self):
         self.assert_junction_rejected_before_pruning(self.work / "tools")
 
+    def test_junction_above_the_approved_cache_root_is_rejected_before_pruning(self):
+        self.assert_junction_rejected_before_pruning(bootstrap.CACHE_ROOT.parent)
+
     def test_generated_cpp2il_requires_complete_process_owned_seal(self):
         self.cpp2il_fixture()
         with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build) as runner:
