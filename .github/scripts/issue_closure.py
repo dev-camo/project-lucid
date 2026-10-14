@@ -315,20 +315,22 @@ def reviews(api, pr):
 
 
 def approval_records(rows):
-    latest = {}
-    for comment in rows:
-        if comment['state'] == 'PENDING':
-            continue
-        value = record(comment)
-        if value and value.get('kind') == 'approval':
-            validate_record(value, APPROVAL_FIELDS)
-            require(value['decision'] in {'close', 'hold'}, 'Unknown approval disposition')
-            number = value['issue']
-            if number not in latest or (timestamp(comment['submitted_at']), comment['id']) > \
-                    (timestamp(latest[number][0]['submitted_at']), latest[number][0]['id']):
-                latest[number] = (comment, value)
-    require(len(latest) <= MAX_CANDIDATES, 'Issue candidate count exceeds bound')
-    return latest
+    # Only the latest submitted row can grant. Historical bodies never grant or
+    # poison a fresh pair; their rows remain durable barriers and digest entries.
+    submitted = [row for row in rows if row['state'] != 'PENDING']
+    if not submitted:
+        return {}
+    newest_at = max(timestamp(row['submitted_at']) for row in submitted)
+    newest = [row for row in submitted if timestamp(row['submitted_at']) == newest_at]
+    require(len(newest) == 1,
+            'Later or same-time submitted review invalidates approval; latest submission is ambiguous')
+    comment = newest[0]
+    value = record(comment)
+    if not value or value['kind'] != 'approval':
+        return {}
+    validate_record(value, APPROVAL_FIELDS)
+    require(value['decision'] in {'close', 'hold'}, 'Unknown approval disposition')
+    return {value['issue']: (comment, value)}
 
 
 def source_head(api, settled):
@@ -462,13 +464,6 @@ def qualify(api, anchor_number, comment_id, control_sha):
     require(approval['commit_sha'] == anchor.get('head', {}).get('sha')
             and verification['commit_sha'] == anchor.get('head', {}).get('sha'), 'Review commit differs from exact PR head')
     review_barrier(rows, approval, verification)
-    newer_verifications = []
-    for row in rows:
-        candidate = record(row)
-        if row['id'] > verification['id'] and candidate and candidate.get('kind') == 'verification' \
-                and candidate.get('issue') == value['issue']:
-            newer_verifications.append(row)
-    require(not newer_verifications, 'Verification evidence was superseded')
     require(verified['kind'] == 'verification' and verified['independent'] is True
             and verified['publication_verified'] is True
             and {key: verified[key] for key in COMMON} == {key: value[key] for key in COMMON},
@@ -540,10 +535,6 @@ def require_current(api, plan):
     trusted(api, selected[0], 'approval', policy)
     trusted(api, verification, 'verification', policy)
     review_barrier(rows, selected[0], verification)
-    for row in rows:
-        candidate = record(row)
-        require(not (row['id'] > verification['id'] and candidate and candidate.get('kind') == 'verification'
-                     and candidate.get('issue') == plan['issue']), 'Verification evidence superseded during qualification')
     # Refresh selection and current attempts after all earlier job/check reads.
     # In apply mode this is the final gate before PATCH, not a cached green result.
     for run in plan['runs']:
@@ -619,6 +610,7 @@ def candidates(api, event, event_name, control_sha):
             issue = api.request(ROOT + f"/issues/{value['issue']}")
             if issue.get('state') == 'open' and value['decision'] == 'close':
                 result.append((number, approval['id']))
+    require(len(result) <= MAX_CANDIDATES, 'Issue candidate count exceeds bound')
     return result
 
 

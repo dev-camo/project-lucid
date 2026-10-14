@@ -537,10 +537,10 @@ class ClosureTests(unittest.TestCase):
             self.api = FakeGitHub()
             self.api.rows.append(attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT))
             if observed:
-                self.held('removed or superseded')
+                self.held('latest submission is ambiguous')
             with self.assertRaisesRegex(ValueError, 'Submitted reviews cannot be deleted'):
                 self.api.delete_review(203)
-            self.held('removed or superseded')
+            self.held('latest submission is ambiguous')
             self.assertEqual(ACCEPTED_AT, self.api.prs[PR]['updated_at'])
 
     def test_removed_or_dismissed_hold_summary_retains_review_barrier(self):
@@ -549,7 +549,7 @@ class ClosureTests(unittest.TestCase):
                 self.api = FakeGitHub()
                 self.api.rows.append(attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT))
                 if observed:
-                    self.held('removed or superseded')
+                    self.held('latest submission is ambiguous')
                 self.api.delete_review_summary(203, ACCEPTED_AT)
                 if dismissed:
                     self.api.rows[-1]['state'] = 'DISMISSED'
@@ -618,6 +618,105 @@ class ClosureTests(unittest.TestCase):
         approval = dict(self.api.acceptance, verification_review_id=204)
         self.api.rows.extend([fresh_verification, attested(approval, 205, '2026-10-14T06:00:00Z')])
         self.assertEqual(ISSUE, closure.qualify(self.api, PR, 205, MERGE)['issue'])
+        self.assertEqual([], self.api.writes)
+
+    def test_fresh_pair_recovers_after_malformed_dismissed_unauthorized_or_obsolete_history(self):
+        for body, state in ((closure.MARKER + '{malformed', 'DISMISSED'),
+                            (closure.MARKER + json.dumps(dict(self.api.acceptance, obsolete=True)), 'COMMENTED'),
+                            (closure.MARKER + json.dumps(dict(self.api.verification, kind='obsolete')), 'DISMISSED'),
+                            (closure.MARKER + json.dumps(self.api.acceptance), 'COMMENTED')):
+            with self.subTest(body=body, state=state):
+                self.api = FakeGitHub()
+                older = attested(self.api.acceptance, 203, ACCEPTED_AT)
+                older.update(body=body, state=state, user=copy.deepcopy(OUTSIDE_USER))
+                self.api.rows.append(older)
+                self.api.rows.extend([attested(self.api.verification, 204, LATER),
+                    attested(dict(self.api.acceptance, verification_review_id=204),
+                             205, '2026-10-14T06:00:00Z')])
+                plan = closure.qualify(self.api, PR, 205, MERGE)
+                self.assertEqual([(PR, 205)], closure.candidates(self.api, self.workflow_event(),
+                                                                'workflow_run', MERGE))
+                closure.require_current(self.api, plan)
+                self.assertEqual('closed', closure.close(self.api, plan))
+                self.assertEqual(1, len(self.api.writes))
+                self.assertEqual(5, len(self.api.rows))
+                self.assertFalse(any('/collaborators/outside-user/permission' in path
+                                     for path, _, _ in self.api.requests))
+
+    def test_earlier_created_drafts_submitted_as_fresh_pair_pass_every_gate(self):
+        self.api.rows[0]['user'] = copy.deepcopy(OUTSIDE_USER)
+        verification = attested(self.api.verification, 190, BEFORE)
+        verification['submitted_at'] = LATER
+        approval = attested(dict(self.api.acceptance, verification_review_id=190), 185, BEFORE)
+        approval['submitted_at'] = '2026-10-14T06:00:00Z'
+        self.api.rows.extend([verification, approval])
+        plan = closure.qualify(self.api, PR, 185, MERGE)
+        self.assertEqual(190, plan['verification_review'])
+        self.assertEqual(185, plan['approval_review'])
+        self.assertEqual([(PR, 185)], closure.candidates(self.api, self.workflow_event(), 'workflow_run', MERGE))
+        closure.require_current(self.api, plan)
+        self.assertEqual('closed', closure.close(self.api, plan))
+        self.assertEqual(1, len(self.api.writes))
+
+    def test_malformed_historical_body_still_blocks_as_intervening_review(self):
+        for state in ('COMMENTED', 'DISMISSED'):
+            self.api = FakeGitHub()
+            older = attested(self.api.acceptance, 203, '2026-10-14T03:30:00Z')
+            older.update(body=closure.MARKER + '{malformed', state=state,
+                         user=copy.deepcopy(OUTSIDE_USER))
+            self.api.rows.insert(1, older)
+            self.held('Intervening submitted review invalidates verification')
+
+    def test_latest_malformed_or_obsolete_review_never_falls_back_to_old_approval(self):
+        for body, state in ((closure.MARKER + '{malformed', 'COMMENTED'),
+                            (closure.MARKER + '{malformed', 'DISMISSED'),
+                            (closure.MARKER + json.dumps(dict(self.api.acceptance, obsolete=True)), 'COMMENTED')):
+            self.api = FakeGitHub()
+            plan = self.qualify()
+            later = attested(self.api.acceptance, 190, LATER)
+            later.update(body=body, state=state, user=copy.deepcopy(OUTSIDE_USER))
+            self.api.rows.append(later)
+            self.held('Malformed acceptance JSON|Acceptance fields differ')
+            with self.assertRaises(closure.Blocked):
+                closure.candidates(self.api, self.workflow_event(), 'workflow_run', MERGE)
+            with self.assertRaisesRegex(closure.Blocked, 'history changed'):
+                closure.require_current(self.api, plan)
+            with self.assertRaises(closure.Blocked):
+                closure.close(self.api, plan)
+            self.assertEqual([], self.api.writes)
+
+    def test_pending_malformed_or_higher_id_verification_draft_never_supersedes(self):
+        for body in (closure.MARKER + '{malformed', closure.MARKER + json.dumps(self.api.verification)):
+            self.api = FakeGitHub()
+            pending = attested(self.api.verification, 999, LATER)
+            pending.update(body=body, state='PENDING', submitted_at=None)
+            self.api.rows.append(pending)
+            plan = self.qualify()
+            closure.require_current(self.api, plan)
+            self.assertEqual('closed', closure.close(self.api, plan))
+            self.assertEqual(1, len(self.api.writes))
+
+    def test_only_current_approval_is_discovered_after_many_historical_issue_records(self):
+        for index in range(4):
+            older = attested(dict(self.api.acceptance, issue=100 + index), 210 + index, BEFORE)
+            self.api.rows.insert(0, older)
+        self.assertEqual([(PR, 202)], closure.candidates(self.api, self.workflow_event(), 'workflow_run', MERGE))
+        self.assertFalse(any('/issues/' + str(100 + index) in path
+                             for index in range(4) for path, _, _ in self.api.requests))
+        self.assertEqual('closed', closure.close(self.api, self.qualify()))
+        self.assertEqual(1, len(self.api.writes))
+
+    def test_later_low_id_verification_invalidates_old_and_new_linked_approval(self):
+        plan = self.qualify()
+        later = attested(self.api.verification, 190, BEFORE)
+        later['submitted_at'] = LATER
+        self.api.rows.append(later)
+        self.held('removed or superseded')
+        with self.assertRaises(closure.Blocked):
+            closure.close(self.api, plan)
+        self.api.rows.append(attested(self.api.acceptance, 185, '2026-10-14T06:00:00Z'))
+        with self.assertRaisesRegex(closure.Blocked, 'Intervening submitted review'):
+            closure.qualify(self.api, PR, 185, MERGE)
         self.assertEqual([], self.api.writes)
 
     def test_review_wakeup_is_read_only_and_selects_actual_main_anchor(self):
@@ -907,8 +1006,8 @@ class ClosureTests(unittest.TestCase):
         self.held('removed or superseded')
         revoked['body'] = 'Acceptance withdrawn. The whole issue is not fixed.'
         revoked['updated_at'] = '2026-10-14T06:00:00Z'
-        self.held('Later edited discussion')
-        with self.assertRaisesRegex(closure.Blocked, 'Later edited discussion'):
+        self.held('removed or superseded')
+        with self.assertRaisesRegex(closure.Blocked, 'removed or superseded'):
             closure.close(self.api, plan)
         self.assertEqual([], self.api.writes)
 
@@ -1044,7 +1143,7 @@ class ClosureTests(unittest.TestCase):
             self.api.sync_records()
             self.held()
 
-    def test_contributor_and_issue_candidate_counts_are_bounded(self):
+    def test_contributor_count_and_ambiguous_issue_candidates_are_bounded(self):
         contributor = {'number': 11, 'head_sha': HEAD, 'merge_sha': MERGE}
         self.api.acceptance['pull_requests'] = [contributor] * 6
         self.api.sync_records()
@@ -1052,7 +1151,7 @@ class ClosureTests(unittest.TestCase):
         self.api = FakeGitHub()
         for index in range(3):
             self.api.rows.append(attested(dict(self.api.acceptance, issue=100 + index), 203 + index, ACCEPTED_AT))
-        with self.assertRaisesRegex(closure.Blocked, 'candidate count'):
+        with self.assertRaisesRegex(closure.Blocked, 'latest submission is ambiguous'):
             closure.candidates(self.api, self.workflow_event(), 'workflow_run', MERGE)
         self.assertEqual([], self.api.writes)
 
