@@ -8,14 +8,18 @@ namespace ProjectLucid.Offline
         internal static void Initialise(string gameObjectName) { }
         internal static string GetLocaleString() => CultureInfo.CurrentCulture.Name.Replace('-', '_');
         internal static string GetLanguageCode() => CultureInfo.CurrentCulture.TwoLetterISOLanguageName;
-        // Resolve the current culture on every call. Mono caches RegionInfo.CurrentRegion
-        // from its first culture and rejects neutral cultures, so a neutral culture uses
-        // its default specific culture; only the invariant culture keeps the runtime result.
+        // The runtime's region code for the invariant culture; Mono cannot construct it
+        // directly and only reports it through the process-wide RegionInfo.CurrentRegion cache.
+        private const string InvariantRegionCode = "IV";
+
+        // Resolve the current culture on every call without RegionInfo.CurrentRegion, which
+        // Mono caches from its first culture and rejects for neutral cultures. A neutral
+        // culture uses its default specific culture.
         internal static string GetISO2CountryCode()
         {
             CultureInfo culture = CultureInfo.CurrentCulture;
             if (culture.Equals(CultureInfo.InvariantCulture))
-                return RegionInfo.CurrentRegion.TwoLetterISORegionName;
+                return InvariantRegionCode;
             if (culture.IsNeutralCulture)
                 culture = CultureInfo.CreateSpecificCulture(culture.Name);
             return new RegionInfo(culture.LCID).TwoLetterISORegionName;

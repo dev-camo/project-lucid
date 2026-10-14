@@ -39,7 +39,8 @@ namespace ProjectLucid.Tests
         [Test]
         public void CountryPolicyTracksEachSpecificCultureAfterInvariant()
         {
-            // Mono caches RegionInfo.CurrentRegion; the policy must still follow later cultures.
+            // Mono caches RegionInfo.CurrentRegion process-wide; the policy must never consult it.
+            // Priming that cache here would leak into the Editor, so the primed case is probed outside it.
             AssertCountries(("", "IV"), ("en-GB", "GB"), ("en-US", "US"), ("en-AU", "AU"), ("", "IV"));
         }
 
