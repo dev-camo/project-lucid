@@ -10,7 +10,8 @@ public sealed class AppleTVRemoteSetter : MonoBehaviour
 	[SerializeField]
 	private bool m_setOnAwake;
 
-		[SerializeField]
+	[ShowIf("m_setOnAwake", (string)null)]
+	[SerializeField]
 	private bool m_allowExitToHome;
 
 	// 06000017 (1.10.1 RVA 0x506EE0)

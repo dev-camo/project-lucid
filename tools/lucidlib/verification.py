@@ -1390,3 +1390,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
 )
+
+# Compiled declaration attributes only; inspector and tvOS remote behavior stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalAppleTVRemoteSetterAttributesTests.AllowExitToHomeRetainsOriginalOrderedAttributes",
+)
