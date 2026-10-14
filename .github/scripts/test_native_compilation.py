@@ -1,4 +1,5 @@
 """Native driver boundaries; these fixtures do not compile or create receipts."""
+import shutil
 import sys
 import tempfile
 import unittest
@@ -67,6 +68,63 @@ class NativeCompilationTests(unittest.TestCase):
                              native_compilation.overlay_control_reporting_tools(source, control))
             self.assertEqual('// trusted helper\n', (source / 'Assets/Editor/LucidPlayerCompilation.cs').read_text())
             native_compilation.require_control_reporting_tools(source, control)
+
+    def overlay_pair(self, directory, trusted):
+        source, control = Path(directory) / 'source', Path(directory) / 'control'
+        for root in (source, control):
+            (root / 'Assets/Editor').mkdir(parents=True)
+            for name in ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'):
+                (root / 'Assets/Editor' / name).write_text('// trusted helper\n')
+            (root / 'tools').mkdir()
+        for relative, text in trusted.items():
+            for root in (source, control):
+                (root / relative).parent.mkdir(parents=True, exist_ok=True)
+                (root / relative).write_text(text)
+        return source, control
+
+    def assert_overlaid(self, source, control):
+        native_compilation.require_control_reporting_tools(source, control)
+        self.assertEqual(native_compilation.reporting_files(control), native_compilation.reporting_files(source))
+
+    def test_overlay_replaces_a_directory_where_a_trusted_file_belongs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, control = self.overlay_pair(directory, {'tools/helper.py': 'trusted = True\n'})
+            (source / 'tools/helper.py').unlink()
+            (source / 'tools/helper.py').mkdir()
+            (source / 'tools/helper.py/child.py').write_text('pr = True\n')
+            self.assertEqual(['tools/helper.py', 'tools/helper.py/child.py'],
+                             native_compilation.overlay_control_reporting_tools(source, control))
+            self.assert_overlaid(source, control)
+
+    def test_overlay_replaces_a_file_where_a_trusted_directory_belongs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, control = self.overlay_pair(directory, {'tools/pkg/helper.py': 'trusted = True\n'})
+            (source / 'tools/pkg/helper.py').unlink()
+            (source / 'tools/pkg').rmdir()
+            (source / 'tools/pkg').write_text('pr = True\n')
+            self.assertEqual(['tools/pkg', 'tools/pkg/helper.py'],
+                             native_compilation.overlay_control_reporting_tools(source, control))
+            self.assert_overlaid(source, control)
+
+    def test_overlay_restores_a_tools_tree_replaced_by_a_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, control = self.overlay_pair(directory, {'tools/a.py': 'a\n', 'tools/lucidlib/b.py': 'b\n'})
+            shutil.rmtree(source / 'tools')
+            (source / 'tools').write_text('not a directory\n')
+            self.assertEqual(['tools/a.py', 'tools/lucidlib/b.py'],
+                             native_compilation.overlay_control_reporting_tools(source, control))
+            self.assert_overlaid(source, control)
+
+    def test_overlay_replaces_a_directory_at_a_fixed_editor_reporting_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, control = self.overlay_pair(directory, {'tools/a.py': 'a\n'})
+            fixed = source / 'Assets/Editor/LucidCleanPlayerCompilation.cs'
+            fixed.unlink()
+            fixed.mkdir()
+            (fixed / 'inner.cs').write_text('// pr\n')
+            self.assertEqual(['Assets/Editor/LucidCleanPlayerCompilation.cs'],
+                             native_compilation.overlay_control_reporting_tools(source, control))
+            self.assert_overlaid(source, control)
 
     def test_overlay_rejects_symlinked_reporting_paths(self):
         with tempfile.TemporaryDirectory() as directory:

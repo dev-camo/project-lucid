@@ -10,8 +10,9 @@ import contextlib
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
+import shutil
 import subprocess
 import sys
 
@@ -41,7 +42,7 @@ def reporting_files(root, *, allow_missing_fixed=False):
         if any(part.is_symlink() for part in (path, *path.parents)):
             raise ValueError('Reporting code must be regular files')
         # Only the overlay may see a PR that deleted a fixed Editor reporting file.
-        if allow_missing_fixed and not path.exists() and path.parent == root / 'Assets/Editor':
+        if allow_missing_fixed and path.parent == root / 'Assets/Editor' and (not path.exists() or path.is_dir()):
             continue
         if not path.is_file():
             raise ValueError('Reporting code must be regular files')
@@ -54,6 +55,42 @@ def require_control_reporting_tools(source, control):
         raise ValueError('Source reporting tools differ from trusted control; review/control update required')
 
 
+FIXED_REPORTING_FILES = ('Assets/Editor/LucidPlayerCompilation.cs', 'Assets/Editor/LucidCleanPlayerCompilation.cs')
+
+
+def _in_reporting_area(relative):
+    return relative == 'tools' or relative.startswith('tools/') or relative in FIXED_REPORTING_FILES
+
+
+def _clear_reporting_obstructions(source, relative):
+    """Remove PR entries that block writing a trusted reporting file at relative."""
+    parts = PurePosixPath(relative).parts
+    for depth in range(1, len(parts) + 1):
+        partial = '/'.join(parts[:depth])
+        entry = source.joinpath(*parts[:depth])
+        if entry.is_symlink():
+            raise ValueError('Reporting code must be regular files')
+        last = depth == len(parts)
+        obstructs = entry.is_dir() if last else (entry.exists() and not entry.is_dir())
+        if not obstructs:
+            continue
+        if not _in_reporting_area(partial):
+            raise ValueError('Reporting path is obstructed outside the reporting area')
+        if entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+
+
+def _prune_empty_directories(directory):
+    if directory.is_symlink() or not directory.is_dir():
+        return
+    for parent, directories, files in os.walk(directory, topdown=False):
+        path = Path(parent)
+        if path != directory and not path.is_symlink() and not any(path.iterdir()):
+            path.rmdir()
+
+
 def overlay_control_reporting_tools(source, control):
     """Replace a disposable PR checkout's reporting code with the trusted control's.
 
@@ -62,17 +99,21 @@ def overlay_control_reporting_tools(source, control):
     changes still need review and the post-merge main run, which uses them.
     """
     source, control = Path(source).resolve(strict=True), Path(control).resolve(strict=True)
-    current, trusted = reporting_files(source, allow_missing_fixed=True), reporting_files(control)
+    current = reporting_files(source, allow_missing_fixed=True)
+    trusted = reporting_files(control)
     changed = sorted(path for path in set(current) | set(trusted) if current.get(path) != trusted.get(path))
+    # Delete PR-only reporting files first, then directories they leave empty, so a
+    # file/directory transition never blocks restoring a trusted path.
     for path in changed:
-        target = source / path
-        if any(part.is_symlink() for part in (target, *target.parents)):
-            raise ValueError('Reporting code must be regular files')
+        if path not in trusted:
+            (source / path).unlink()
+    _prune_empty_directories(source / 'tools')
+    for path in changed:
         if path in trusted:
+            _clear_reporting_obstructions(source, path)
+            target = source / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((control / path).read_bytes())
-        else:
-            target.unlink()
     require_control_reporting_tools(source, control)
     return changed
 
