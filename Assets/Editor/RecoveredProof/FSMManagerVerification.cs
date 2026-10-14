@@ -22,6 +22,8 @@ namespace ProjectLucid
             s_ownedRows.Clear();
             string defaultManager = ProcessManager.GetDefaultName<FSMManager>();
             IDictionary rows = RegistryRows();
+            var original = new List<DictionaryEntry>();
+            foreach (DictionaryEntry row in rows) original.Add(row);
             // A retained empty default row belongs to someone else, observers included. Set the
             // row object aside untouched so the fixture's own default manager never fires them.
             object borrowedDefault = null;
@@ -46,6 +48,7 @@ namespace ProjectLucid
             {
                 s_ownedRows.Clear();
                 if (borrowedDefault != null) rows[defaultManager] = borrowedDefault;
+                RestoreRowOrder(rows, original);
             }
             // The fixture's own failure outranks a cleanup failure.
             if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
@@ -58,6 +61,20 @@ namespace ProjectLucid
         private static IDictionary RegistryRows() =>
             (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
 
+        // Order-sensitive lookups such as FindSystemRef see insertion order. If setting the
+        // borrowed row aside moved it, re-add the same row objects in their original order.
+        private static void RestoreRowOrder(IDictionary rows, List<DictionaryEntry> original)
+        {
+            var current = new List<object>();
+            foreach (object key in rows.Keys) current.Add(key);
+            if (current.Count != original.Count || !original.TrueForAll(row => rows.Contains(row.Key))) return;
+            bool ordered = true;
+            for (int i = 0; i < original.Count && ordered; i++) ordered = Equals(current[i], original[i].Key);
+            if (ordered) return;
+            rows.Clear();
+            foreach (DictionaryEntry row in original) rows.Add(row.Key, row.Value);
+        }
+
         // Unregister through the original API, then drop each row even when a shutdown
         // observer throws; one failed row never keeps later rows registered.
         internal static void ReleaseOwnedRows(IList<string> owned)
@@ -67,11 +84,35 @@ namespace ProjectLucid
             foreach (string row in owned)
             {
                 if (!rows.Contains(row)) continue;
+                object info = rows[row];
                 try { ProcessManager.UnregisterSystem(row); }
-                catch (Exception error) { first = first ?? error; }
+                catch (Exception error)
+                {
+                    first = first ?? error;
+                    RevokeRemainingReferences(info);
+                }
                 finally { rows.Remove(row); }
             }
             if (first != null) ExceptionDispatchInfo.Capture(first).Throw();
+        }
+
+        // The original unregister stops at the first throwing observer. Revoke each reference
+        // that is still set through the original internal revoke, one at a time. A reference
+        // whose own observer throws again keeps its fields, as the original revoke does.
+        private static void RevokeRemainingReferences(object info)
+        {
+            // An already-revoked reference has no system, so revoking it again runs no observer.
+            Type infoType = info.GetType();
+            var references = new List<object> { infoType.GetField("SystemRef").GetValue(info) };
+            foreach (object reference in ((IDictionary)infoType.GetField("SystemRefDictionary").GetValue(info)).Values)
+                references.Add(reference);
+            MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
+                .GetMethod("InternalRevokeSystem", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            foreach (object reference in references)
+            {
+                try { revoke.Invoke(reference, null); }
+                catch (TargetInvocationException) { }
+            }
         }
 
         private static void VerifyFastActions()
