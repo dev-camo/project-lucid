@@ -16,95 +16,108 @@ namespace ProjectLucid.Tests
         [UnityTest]
         public IEnumerator OriginalCoroutineHost_StartStopAndRegistryLifecycle()
         {
-            var objects = new List<GameObject>();
-            SystemRef untyped = ProcessManager.GetSystemRef(typeof(CoroutineUtils).ToString());
-            SystemRef<CoroutineUtils> typed = ProcessManager.GetSystemRef<CoroutineUtils>();
-            var shutdown = new List<string>();
-            Action<ISystem> untypedShutdown = value => shutdown.Add("untyped");
-            Action<CoroutineUtils> typedShutdown = value => shutdown.Add("typed");
-            untyped.OnSystemShutdown += untypedShutdown;
-            typed.OnSystemShutdown += typedShutdown;
-            try
+            var rowLease = new LifecycleSystemRowLease(LifecycleSystemRowLease.SharedRegistry, ProcessManager.GetDefaultName<CoroutineUtils>());
+            using (rowLease)
             {
 #pragma warning disable CS0618
                 Assert.IsTrue(CoroutineUtils.Instance == null, "The bounded test starts without a utility host.");
-                var firstObject = new GameObject("Lucid coroutine host proof");
-                objects.Add(firstObject);
-                CoroutineUtils first = firstObject.AddComponent<CoroutineUtils>();
-                Assert.AreSame(first, CoroutineUtils.Instance);
-                Assert.AreSame(first, untyped.GetSafe());
-                Assert.AreSame(first, typed.GetSafe());
-
-                int scheduledFrame = Time.frameCount;
-                int callbackFrame = -1;
-                int callbackCalls = 0;
-                CoroutineUtils.OnNextFrame(() => { callbackFrame = Time.frameCount; ++callbackCalls; });
-                Assert.AreEqual(0, callbackCalls, "Next-frame callbacks remain pending during the scheduling call.");
-                yield return null;
-                yield return null;
-                Assert.AreEqual(scheduledFrame + 1, callbackFrame, "The callback runs on the following Unity frame.");
-                Assert.AreEqual(1, callbackCalls);
-
-                var trace = new List<string>();
-                Coroutine stopped = CoroutineUtils.RunCoroutine(TraceFrames(trace));
-                Assert.IsNotNull(stopped);
-                CollectionAssert.AreEqual(new[] { "start" }, trace, "StartCoroutine executes the first iterator step immediately.");
-                CoroutineUtils.StopUtilCoroutine(ref stopped);
-                Assert.IsNull(stopped, "A successful stop clears the caller's handle.");
-                yield return null;
-                yield return null;
-                CollectionAssert.AreEqual(new[] { "start" }, trace, "Stopped work never advances to the next frame.");
-
-                trace.Clear();
-                Coroutine running = CoroutineUtils.RunCoroutine(TraceFrames(trace));
-                yield return null;
-                yield return null;
-                yield return null;
-                CollectionAssert.AreEqual(new[] { "start", "resume", "finish" }, trace, "The original host schedules the Unity iterator across frames.");
-                CoroutineUtils.StopUtilCoroutine(ref running);
-                Assert.IsNull(running);
-
-                var duplicateObject = new GameObject("Lucid duplicate host proof");
-                objects.Add(duplicateObject);
-                CoroutineUtils duplicate = duplicateObject.AddComponent<CoroutineUtils>();
-                Assert.AreSame(first, CoroutineUtils.Instance);
-                yield return null;
-                Assert.IsTrue(duplicate == null, "Awake destroys the duplicate component.");
-                Assert.IsTrue(duplicateObject != null, "Duplicate rejection retains its GameObject.");
-                Assert.AreSame(first, typed.GetSafe(), "Duplicate OnDestroy cannot unregister another host by type/name.");
-                Assert.IsEmpty(shutdown);
-
-                Coroutine stale = CoroutineUtils.RunCoroutine(EndlessFrames());
-                Coroutine captured = stale;
-                bool destroyedHostCallback = false;
-                CoroutineUtils.OnNextFrame(() => destroyedHostCallback = true);
-                UnityEngine.Object.Destroy(firstObject);
-                yield return null;
-                yield return null;
-                Assert.IsFalse(destroyedHostCallback, "Host destruction cancels its pending next-frame callback.");
-                Assert.IsTrue(CoroutineUtils.Instance == null);
-                Assert.IsTrue(untyped.IsNull() && typed.IsNull());
-                CollectionAssert.AreEqual(new[] { "untyped", "typed" }, shutdown, "Registry revokes untyped before typed cached references.");
-                CoroutineUtils.StopUtilCoroutine(ref stale);
-                Assert.AreSame(captured, stale, "Missing Unity host leaves the caller's stale handle unchanged.");
-
-                var replacementObject = new GameObject("Lucid replacement host proof");
-                objects.Add(replacementObject);
-                CoroutineUtils replacement = replacementObject.AddComponent<CoroutineUtils>();
-                Assert.AreSame(replacement, CoroutineUtils.Instance);
-                Assert.AreSame(replacement, untyped.GetSafe());
-                Assert.AreSame(replacement, typed.GetSafe(), "Unregistration retains cached references for a replacement host.");
-                UnityEngine.Object.Destroy(replacementObject);
-                yield return null;
-                CollectionAssert.AreEqual(new[] { "untyped", "typed", "untyped", "typed" }, shutdown);
 #pragma warning restore CS0618
+                var objects = new List<GameObject>();
+                SystemRef untyped = null;
+                SystemRef<CoroutineUtils> typed = null;
+                var shutdown = new List<string>();
+                Action<ISystem> untypedShutdown = value => shutdown.Add("untyped");
+                Action<CoroutineUtils> typedShutdown = value => shutdown.Add("typed");
+                try
+                {
+                    untyped = ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<CoroutineUtils>());
+                    rowLease.CaptureCreatedRow(untyped);
+                    typed = ProcessManager.GetSystemRef<CoroutineUtils>();
+                    rowLease.CaptureTypedReference(typed);
+                    untyped.OnSystemShutdown += untypedShutdown;
+                    typed.OnSystemShutdown += typedShutdown;
+#pragma warning disable CS0618
+                    var firstObject = new GameObject("Lucid coroutine host proof");
+                    objects.Add(firstObject);
+                    CoroutineUtils first = firstObject.AddComponent<CoroutineUtils>();
+                    Assert.AreSame(first, CoroutineUtils.Instance);
+                    Assert.AreSame(first, untyped.GetSafe());
+                    Assert.AreSame(first, typed.GetSafe());
+
+                    int scheduledFrame = Time.frameCount;
+                    int callbackFrame = -1;
+                    int callbackCalls = 0;
+                    CoroutineUtils.OnNextFrame(() => { callbackFrame = Time.frameCount; ++callbackCalls; });
+                    Assert.AreEqual(0, callbackCalls, "Next-frame callbacks remain pending during the scheduling call.");
+                    yield return null;
+                    yield return null;
+                    Assert.AreEqual(scheduledFrame + 1, callbackFrame, "The callback runs on the following Unity frame.");
+                    Assert.AreEqual(1, callbackCalls);
+
+                    var trace = new List<string>();
+                    Coroutine stopped = CoroutineUtils.RunCoroutine(TraceFrames(trace));
+                    Assert.IsNotNull(stopped);
+                    CollectionAssert.AreEqual(new[] { "start" }, trace, "StartCoroutine executes the first iterator step immediately.");
+                    CoroutineUtils.StopUtilCoroutine(ref stopped);
+                    Assert.IsNull(stopped, "A successful stop clears the caller's handle.");
+                    yield return null;
+                    yield return null;
+                    CollectionAssert.AreEqual(new[] { "start" }, trace, "Stopped work never advances to the next frame.");
+
+                    trace.Clear();
+                    Coroutine running = CoroutineUtils.RunCoroutine(TraceFrames(trace));
+                    yield return null;
+                    yield return null;
+                    yield return null;
+                    CollectionAssert.AreEqual(new[] { "start", "resume", "finish" }, trace, "The original host schedules the Unity iterator across frames.");
+                    CoroutineUtils.StopUtilCoroutine(ref running);
+                    Assert.IsNull(running);
+
+                    var duplicateObject = new GameObject("Lucid duplicate host proof");
+                    objects.Add(duplicateObject);
+                    CoroutineUtils duplicate = duplicateObject.AddComponent<CoroutineUtils>();
+                    Assert.AreSame(first, CoroutineUtils.Instance);
+                    yield return null;
+                    Assert.IsTrue(duplicate == null, "Awake destroys the duplicate component.");
+                    Assert.IsTrue(duplicateObject != null, "Duplicate rejection retains its GameObject.");
+                    Assert.AreSame(first, typed.GetSafe(), "Duplicate OnDestroy cannot unregister another host by type/name.");
+                    Assert.IsEmpty(shutdown);
+
+                    Coroutine stale = CoroutineUtils.RunCoroutine(EndlessFrames());
+                    Coroutine captured = stale;
+                    bool destroyedHostCallback = false;
+                    CoroutineUtils.OnNextFrame(() => destroyedHostCallback = true);
+                    UnityEngine.Object.Destroy(firstObject);
+                    yield return null;
+                    yield return null;
+                    Assert.IsFalse(destroyedHostCallback, "Host destruction cancels its pending next-frame callback.");
+                    Assert.IsTrue(CoroutineUtils.Instance == null);
+                    Assert.IsTrue(untyped.IsNull() && typed.IsNull());
+                    CollectionAssert.AreEqual(new[] { "untyped", "typed" }, shutdown, "Registry revokes untyped before typed cached references.");
+                    CoroutineUtils.StopUtilCoroutine(ref stale);
+                    Assert.AreSame(captured, stale, "Missing Unity host leaves the caller's stale handle unchanged.");
+
+                    var replacementObject = new GameObject("Lucid replacement host proof");
+                    objects.Add(replacementObject);
+                    CoroutineUtils replacement = replacementObject.AddComponent<CoroutineUtils>();
+                    Assert.AreSame(replacement, CoroutineUtils.Instance);
+                    Assert.AreSame(replacement, untyped.GetSafe());
+                    Assert.AreSame(replacement, typed.GetSafe(), "Unregistration retains cached references for a replacement host.");
+                    UnityEngine.Object.Destroy(replacementObject);
+                    yield return null;
+                    CollectionAssert.AreEqual(new[] { "untyped", "typed", "untyped", "typed" }, shutdown);
+#pragma warning restore CS0618
+                }
+                finally
+                {
+                    rowLease.RunCleanup("detach-coroutine-untyped-shutdown", () => { if (untyped != null) untyped.OnSystemShutdown -= untypedShutdown; });
+                    rowLease.RunCleanup("detach-coroutine-typed-shutdown", () => { if (typed != null) typed.OnSystemShutdown -= typedShutdown; });
+                    foreach (GameObject item in objects)
+                        rowLease.RunCleanup("destroy-coroutine-owner", () => { if (item != null) UnityEngine.Object.DestroyImmediate(item); });
+                }
             }
-            finally
-            {
-                untyped.OnSystemShutdown -= untypedShutdown;
-                typed.OnSystemShutdown -= typedShutdown;
-                foreach (GameObject item in objects) if (item != null) UnityEngine.Object.DestroyImmediate(item);
-            }
+            Assert.IsEmpty(rowLease.CleanupFailures, "Fixture cleanup failed; retained failures were reported separately.");
+            Assert.IsEmpty(rowLease.DiagnosticFailures, "Fixture cleanup reporting failed; diagnostic failures remain retained.");
         }
 
         private static IEnumerator TraceFrames(List<string> trace)
