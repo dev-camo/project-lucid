@@ -100,6 +100,7 @@ class FakeGitHub:
                    'status': 'completed', 'conclusion': 'success', 'created_at': MERGED_AT}
             if filename == 'pr-compilation.yml':
                 run['display_title'] = closure.compilation_title({'id': run_id - 1, 'attempt': 1, 'sha': sha})
+                run['name'] = run['display_title']
             self.runs[run_id] = run
             self.run_lists[(sha, filename)] = [run]
             self.jobs[run_id] = []
@@ -734,6 +735,72 @@ class ClosureTests(unittest.TestCase):
             closure.candidates(self.api, event, 'workflow_run', MERGE)
         self.assertEqual([], self.api.writes)
 
+    def test_configured_compilation_run_name_admits_source_and_generated_child_completion(self):
+        for generated in (False, True):
+            self.api = FakeGitHub()
+            if generated:
+                self.api.generated_child()
+            sha = self.api.commit['sha']
+            run = self.api.run_lists[(sha, 'pr-compilation.yml')][-1]
+            self.assertEqual(run['display_title'], run['name'])
+            self.assertTrue(run['name'].startswith('PR compilation (upstream '))
+            event = {'repository': self.api.repo, 'workflow_run': copy.deepcopy(run)}
+            self.assertEqual([(PR, 202)], closure.candidates(self.api, event, 'workflow_run', sha))
+            self.assertEqual(ISSUE, self.qualify()['issue'])
+            self.assertEqual([], self.api.writes)
+
+    def test_completion_display_name_does_not_replace_registered_workflow_identity(self):
+        for filename in closure.WORKFLOWS:
+            self.api = FakeGitHub()
+            run = self.api.run_lists[(MERGE, filename)][-1]
+            event = {'repository': self.api.repo, 'workflow_run': copy.deepcopy(run)}
+            event['workflow_run']['name'] = 'A configured display title'
+            self.assertEqual([(PR, 202)], closure.candidates(self.api, event, 'workflow_run', MERGE))
+            self.assertEqual([], self.api.writes)
+
+    def test_compilation_display_title_cannot_spoof_registered_workflow_identity(self):
+        for target, key, value in (('run', 'path', '.github/workflows/foreign.yml'),
+                                  ('run', 'workflow_id', 999), ('run', 'id', 999),
+                                  ('workflow', 'id', 999), ('workflow', 'name', 'Foreign workflow'),
+                                  ('workflow', 'path', '.github/workflows/foreign.yml'),
+                                  ('workflow', 'state', 'disabled_manually')):
+            self.api = FakeGitHub()
+            run = self.api.run_lists[(MERGE, 'pr-compilation.yml')][-1]
+            event = {'repository': self.api.repo, 'workflow_run': copy.deepcopy(run)}
+            selected = run if target == 'run' else self.api.workflows['pr-compilation.yml']
+            selected[key] = value
+            with self.assertRaisesRegex(closure.Blocked, 'path differs|identity differs'):
+                closure.candidates(self.api, event, 'workflow_run', MERGE)
+            self.assertEqual([], self.api.writes)
+
+    def test_completion_payload_cannot_hide_changed_live_run_context(self):
+        for key, value in (('head_sha', HEAD), ('head_branch', 'topic'), ('event', 'pull_request'),
+                           ('status', 'in_progress'), ('repository', {'full_name': 'foreign/repo'}),
+                           ('head_repository', {'full_name': 'foreign/repo'})):
+            self.api = FakeGitHub()
+            run = self.api.run_lists[(MERGE, 'pr-compilation.yml')][-1]
+            event = {'repository': self.api.repo, 'workflow_run': copy.deepcopy(run)}
+            run[key] = value
+            with self.assertRaisesRegex(closure.Blocked, 'identity differs|canonical postmerge'):
+                closure.candidates(self.api, event, 'workflow_run', MERGE)
+            self.assertEqual([], self.api.writes)
+
+    def test_wrong_compilation_event_is_rejected_even_when_payload_and_live_run_agree(self):
+        run = self.api.run_lists[(MERGE, 'pr-compilation.yml')][-1]
+        run['event'] = 'push'
+        event = {'repository': self.api.repo, 'workflow_run': copy.deepcopy(run)}
+        with self.assertRaisesRegex(closure.Blocked, 'canonical postmerge'):
+            closure.candidates(self.api, event, 'workflow_run', MERGE)
+        self.assertEqual([], self.api.writes)
+
+    def test_failed_completion_wakeup_never_grants_closure(self):
+        run = self.api.run_lists[(MERGE, 'pr-compilation.yml')][-1]
+        run['conclusion'] = 'failure'
+        event = {'repository': self.api.repo, 'workflow_run': copy.deepcopy(run)}
+        self.assertEqual([(PR, 202)], closure.candidates(self.api, event, 'workflow_run', MERGE))
+        self.held('Latest workflow attempt is not successful')
+        self.assertEqual([], self.api.writes)
+
     def test_review_wakeup_workflow_has_no_checkout_token_or_configuration(self):
         root = Path(__file__).resolve().parents[1] / 'workflows'
         listener = (root / 'issue-acceptance-event.yml').read_text()
@@ -1108,7 +1175,7 @@ class ClosureTests(unittest.TestCase):
         self.held('open issue')
 
     def test_event_foreign_run_nonmain_and_untrusted_comment_are_rejected(self):
-        for key, value in (('head_sha', HEAD), ('head_branch', 'topic'), ('name', 'Foreign workflow'),
+        for key, value in (('head_sha', HEAD), ('head_branch', 'topic'), ('workflow_id', 999),
                            ('event', 'pull_request'), ('head_repository', {'full_name': 'stranger/project-lucid'})):
             event = copy.deepcopy(self.workflow_event())
             event['workflow_run'][key] = value

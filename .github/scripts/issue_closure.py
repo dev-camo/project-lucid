@@ -586,11 +586,26 @@ def candidates(api, event, event_name, control_sha):
                     and admitted.get('event') == 'pull_request_review' and admitted.get('status') == 'completed',
                     'Review wake-up identity differs')
         else:
-            require(run.get('repository', {}).get('full_name') == REPOSITORY
-                and run.get('head_repository', {}).get('full_name') == REPOSITORY
-                and run.get('head_branch') == 'main' and run.get('head_sha') in {source, settled['sha']}
-                and run.get('name') in {value[0] for value in WORKFLOWS.values()}
-                and run.get('event') in {'push', 'workflow_run'} and run.get('status') == 'completed',
+            # Configured run-name changes run.name; registered ID/path admit a
+            # wake-up while the full qualification gate still binds upstream.
+            require(positive(run.get('id')), 'Invalid completion wake-up run')
+            admitted = api.request(ROOT + '/actions/runs/' + str(run['id']))
+            filename = next((name for name in WORKFLOWS
+                if admitted.get('path') == '.github/workflows/' + name), None)
+            require(filename is not None, 'Postmerge workflow path differs')
+            workflow = api.request(ROOT + '/actions/workflows/' + filename)
+            name, expected_event, _ = WORKFLOWS[filename]
+            require(positive(workflow.get('id')) and workflow.get('name') == name
+                and workflow.get('path') == admitted.get('path') and workflow.get('state') == 'active'
+                and admitted.get('id') == run['id'] and admitted.get('workflow_id') == workflow['id']
+                and all(run.get(key) == admitted.get(key)
+                        for key in ('workflow_id', 'head_sha', 'head_branch', 'event')),
+                'Postmerge completion identity differs')
+            require(all(row.get('repository', {}).get('full_name') == REPOSITORY
+                and row.get('head_repository', {}).get('full_name') == REPOSITORY
+                and row.get('head_branch') == 'main' and row.get('head_sha') in {source, settled['sha']}
+                and row.get('event') == expected_event and row.get('status') == 'completed'
+                for row in (run, admitted)),
                     'Only canonical postmerge workflow completion is admitted')
         prs = paginated(api, ROOT + f'/commits/{source}/pulls')
         numbers = [pr['number'] for pr in prs if pr.get('merge_commit_sha') == source and pr.get('merged_at')]
