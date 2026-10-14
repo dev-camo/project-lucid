@@ -1,0 +1,107 @@
+using System.Collections.Generic;
+
+namespace Hardlight
+{
+	// Original HLUnityCore.Runtime 02000055; bodies translated from the 1.10.1 x86-64 binary.
+	// The table and its insertion order come from the original static constructor.
+	public static class HLProfilerMarkerConverter
+	{
+		// 04000192; initialised by the original static constructor 06000230 (1.10.1 RVA 0x1AAD040).
+		private static readonly Dictionary<HLProfilerMarker, string> HLProfilerMarkerToName = new Dictionary<HLProfilerMarker, string>
+		{
+			{ HLProfilerMarker.PlayerLoop, "PlayerLoop" },
+			{ HLProfilerMarker.WaitForTargetFPS, "WaitForTargetFPS" },
+			{ HLProfilerMarker.BehaviourUpdate, "BehaviourUpdate" },
+			{ HLProfilerMarker.FixedBehaviourUpdate, "FixedBehaviourUpdate" },
+			{ HLProfilerMarker.PreLateUpdateScriptRunBehaviourLateUpdate, "PreLateUpdate.ScriptRunBehaviourLateUpdate" },
+			{ HLProfilerMarker.SetPassCallsCount, "SetPass Calls Count" },
+			{ HLProfilerMarker.DrawCallsCount, "Draw Calls Count" },
+			{ HLProfilerMarker.TrianglesCount, "Triangles Count" },
+			{ HLProfilerMarker.VerticesCount, "Vertices Count" },
+			{ HLProfilerMarker.ShadowCastersCount, "Shadow Casters Count" },
+			{ HLProfilerMarker.BatchesCount, "Batches Count" },
+			{ HLProfilerMarker.DynamicBatchesCount, "Dynamic Batches Count" },
+			{ HLProfilerMarker.DynamicBatchedDrawCallsCount, "Dynamic Batched Draw Calls Count" },
+			{ HLProfilerMarker.DynamicBatchedTrianglesCount, "Dynamic Batched Triangles Count" },
+			{ HLProfilerMarker.DynamicBatchedVerticesCount, "Dynamic Batched Vertices Count" },
+			{ HLProfilerMarker.DynamicBatchingTime, "Dynamic Batching Time" },
+			{ HLProfilerMarker.StaticBatchesCount, "Static Batches Count" },
+			{ HLProfilerMarker.StaticBatchedDrawCallsCount, "Static Batched Draw Calls Count" },
+			{ HLProfilerMarker.StaticBatchedTrianglesCount, "Static Batched Triangles Count" },
+			{ HLProfilerMarker.StaticBatchedVerticesCount, "Static Batched Vertices Count" },
+			{ HLProfilerMarker.InstancedBatchesCount, "Instanced Batches Count" },
+			{ HLProfilerMarker.InstancedBatchedDrawCallsCount, "Instanced Batched Draw Calls Count" },
+			{ HLProfilerMarker.InstancedBatchedTrianglesCount, "Instanced Batched Triangles Count" },
+			{ HLProfilerMarker.InstancedBatchedVerticesCount, "Instanced Batched Vertices Count" },
+			{ HLProfilerMarker.UsedTexturesCount, "Used Textures Count" },
+			{ HLProfilerMarker.UsedTexturesBytes, "Used Textures Bytes" },
+			{ HLProfilerMarker.RenderTexturesCount, "Render Textures Count" },
+			{ HLProfilerMarker.RenderTexturesBytes, "Render Textures Bytes" },
+			{ HLProfilerMarker.RenderTexturesChangesCount, "Render Textures Changes Count" },
+			{ HLProfilerMarker.UsedBuffersCount, "Used Buffers Count" },
+			{ HLProfilerMarker.UsedBuffersBytes, "Used Buffers Bytes" },
+			{ HLProfilerMarker.VertexBufferUploadInFrameCount, "Vertex Buffer Upload In Frame Count" },
+			{ HLProfilerMarker.VertexBufferUploadInFrameBytes, "Vertex Buffer Upload In Frame Bytes" },
+			{ HLProfilerMarker.IndexBufferUploadInFrameCount, "Index Buffer Upload In Frame Count" },
+			{ HLProfilerMarker.IndexBufferUploadInFrameBytes, "Index Buffer Upload In Frame Bytes" },
+			{ HLProfilerMarker.TotalUsedMemory, "Total Used Memory" },
+			{ HLProfilerMarker.TotalReservedMemory, "Total Reserved Memory" },
+			{ HLProfilerMarker.GCUsedMemory, "GC Used Memory" },
+			{ HLProfilerMarker.GCReservedMemory, "GC Reserved Memory" },
+			{ HLProfilerMarker.GfxUsedMemory, "Gfx Used Memory" },
+			{ HLProfilerMarker.GfxReservedMemory, "Gfx Reserved Memory" },
+			{ HLProfilerMarker.AudioUsedMemory, "Audio Used Memory" },
+			{ HLProfilerMarker.AudioReservedMemory, "Audio Reserved Memory" },
+			{ HLProfilerMarker.VideoUsedMemory, "Video Used Memory" },
+			{ HLProfilerMarker.VideoReservedMemory, "Video Reserved Memory" },
+			{ HLProfilerMarker.SystemUsedMemory, "System Used Memory" },
+			{ HLProfilerMarker.ProfilerUsedMemory, "Profiler Used Memory" },
+			{ HLProfilerMarker.ProfilerReservedMemory, "Profiler Reserved Memory" },
+			{ HLProfilerMarker.TextureCount, "Texture Count" },
+			{ HLProfilerMarker.TextureMemory, "Texture Memory" },
+			{ HLProfilerMarker.MeshCount, "Mesh Count" },
+			{ HLProfilerMarker.MeshMemory, "Mesh Memory" },
+			{ HLProfilerMarker.MaterialCount, "Material Count" },
+			{ HLProfilerMarker.MaterialMemory, "Material Memory" },
+			{ HLProfilerMarker.AnimationClipCount, "AnimationClip Count" },
+			{ HLProfilerMarker.AnimationClipMemory, "AnimationClip Memory" },
+			{ HLProfilerMarker.AssetCount, "Asset Count" },
+			{ HLProfilerMarker.ObjectCount, "Object Count" },
+			{ HLProfilerMarker.GCAllocationInFrameCount, "GC Allocation In Frame Count" },
+			{ HLProfilerMarker.GCAllocatedInFrame, "GC Allocated In Frame" },
+			{ HLProfilerMarker.GCAlloc, "GC.Alloc" },
+			{ HLProfilerMarker.GCCollect, "GC.Collect" },
+			{ HLProfilerMarker.PhysicsSimulate, "Physics.Simulate" },
+			{ HLProfilerMarker.PhysicsFetchResults, "Physics.FetchResults" },
+			{ HLProfilerMarker.PhysicsInterpolation, "Physics.Interpolation" },
+			{ HLProfilerMarker.PhysicsProcessing, "Physics.Processing" },
+			{ HLProfilerMarker.EditorLoop, "EditorLoop" },
+			{ HLProfilerMarker.ProfilerCollectEditorStats, "Profiler.CollectEditorStats" },
+			{ HLProfilerMarker.CoroutinesDelayedCalls, "CoroutinesDelayedCalls" },
+			{ HLProfilerMarker.UpdateScriptRunBehaviourUpdate, "Update.ScriptRunBehaviourUpdate" },
+			{ HLProfilerMarker.GfxPresentFrame, "Gfx.PresentFrame" },
+			{ HLProfilerMarker.GfxProcessCommands, "Gfx.ProcessCommands" },
+			{ HLProfilerMarker.GfxWaitForCommands, "Gfx.WaitForCommands" },
+			{ HLProfilerMarker.GfxWaitForPresentOnGfxThread, "Gfx.WaitForPresentOnGfxThread" },
+			{ HLProfilerMarker.GfxWaitForRenderThread, "Gfx.WaitForRenderThread" },
+			{ HLProfilerMarker.MonoJIT, "Mono.JIT" },
+			{ HLProfilerMarker.UnsafeUtilityMalloc, "UnsafeUtility.Malloc" },
+			{ HLProfilerMarker.Idle, "Idle" },
+			{ HLProfilerMarker.JobHandleComplete, "JobHandle.Complete" },
+			{ HLProfilerMarker.SemaphoreWaitForSignal, "Semaphore.WaitForSignal" },
+			{ HLProfilerMarker.WaitForJobGroupID, "WaitForJobGroupID" },
+			{ HLProfilerMarker.PhysicsProcessingCloth, "Physics.ProcessingCloth" },
+			{ HLProfilerMarker.PhysicsProcessReports, "Physics.ProcessReports" },
+			{ HLProfilerMarker.PhysicsUpdateBodies, "Physics.UpdateBodies" },
+			{ HLProfilerMarker.PhysicsUpdateCloth, "Physics.UpdateCloth" },
+			{ HLProfilerMarker.GameObjectCount, "GameObject Count" },
+			{ HLProfilerMarker.SceneObjectCount, "Scene Object Count" },
+		};
+
+		// 0600022f (1.10.1 RVA 0x1AA9F10). A missing marker returns null.
+		public static string GetName(HLProfilerMarker marker)
+		{
+			return HLProfilerMarkerToName.TryGetValue(marker, out string name) ? name : null;
+		}
+	}
+}
