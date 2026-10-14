@@ -15,6 +15,38 @@ namespace ProjectLucid.Tests
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public |
             BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance;
 
+        private OwnedLoaderState owned;
+
+        // Each case mutates only fresh owned loader state; the borrowed objects are
+        // never touched and their identities return even when an assertion fails.
+        [SetUp]
+        public void LeaseOwnedLoaderState() => owned = new OwnedLoaderState();
+
+        [TearDown]
+        public void RestoreBorrowedLoaderState() => owned.Dispose();
+
+        [Test]
+        public void OwnedLeaseRestoresBorrowedIdentitiesAfterMutationAndFailure()
+        {
+            var lookup = (Dictionary<int, string>)Field("m_sceneNameLookup", typeof(Dictionary<int, string>)).GetValue(null);
+            var permanent = (List<int>)Field("m_permanentScenes", typeof(List<int>)).GetValue(null);
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                using (new OwnedLoaderState())
+                {
+                    GuiPageLoader.InitialiseGUIPageLoader();
+                    GuiPageLoader.LoadPermanently(int.MinValue);
+                    Assert.That(GuiPageLoader.IsPermanentScene(int.MinValue), Is.True);
+                    throw new InvalidOperationException("injected fixture failure");
+                }
+            });
+            Assert.That(Field("m_sceneNameLookup", typeof(Dictionary<int, string>)).GetValue(null), Is.SameAs(lookup));
+            Assert.That(Field("m_permanentScenes", typeof(List<int>)).GetValue(null), Is.SameAs(permanent));
+            Assert.That((bool)Field("m_isInitialised", typeof(bool)).GetValue(null), Is.False);
+            Assert.That(lookup.Count, Is.EqualTo(0));
+            Assert.That(permanent.Count, Is.EqualTo(0));
+        }
+
         [Test]
         public void NormalInitialisationKeepsExactlyTheTwoShippedOverlayMappings()
         {
@@ -84,8 +116,7 @@ namespace ProjectLucid.Tests
             Assert.That(GuiPageLoader.UnloadSceneFromValue(identifier), Is.False);
             Assert.That(GuiPageLoader.UnloadSceneFromValue(identifier, true), Is.False);
             appended.RequireUnchanged();
-            // This intentionally retains the original public method's one static
-            // append. No private removal, reset, or simulated restoration occurs.
+            // The original method's append stays in the owned list released at TearDown.
         }
 
         [Test]
@@ -258,6 +289,32 @@ namespace ProjectLucid.Tests
             Assert.That(lookup.Count, Is.EqualTo(2));
             Assert.That(lookup[Information], Is.EqualTo("s_overlay_general_information"));
             Assert.That(lookup[TextEntry], Is.EqualTo("s_overlay_general_text_entry"));
+        }
+
+        // Swaps the three original static fields for fresh cold owned values and puts the
+        // borrowed objects back on Dispose without modifying them.
+        private sealed class OwnedLoaderState : IDisposable
+        {
+            private readonly object lookup;
+            private readonly object initialised;
+            private readonly object permanent;
+
+            internal OwnedLoaderState()
+            {
+                lookup = Field("m_sceneNameLookup", typeof(Dictionary<int, string>)).GetValue(null);
+                initialised = Field("m_isInitialised", typeof(bool)).GetValue(null);
+                permanent = Field("m_permanentScenes", typeof(List<int>)).GetValue(null);
+                Field("m_sceneNameLookup", typeof(Dictionary<int, string>)).SetValue(null, new Dictionary<int, string>());
+                Field("m_isInitialised", typeof(bool)).SetValue(null, false);
+                Field("m_permanentScenes", typeof(List<int>)).SetValue(null, new List<int>());
+            }
+
+            public void Dispose()
+            {
+                typeof(GuiPageLoader).GetField("m_sceneNameLookup", Declared).SetValue(null, lookup);
+                typeof(GuiPageLoader).GetField("m_isInitialised", Declared).SetValue(null, initialised);
+                typeof(GuiPageLoader).GetField("m_permanentScenes", Declared).SetValue(null, permanent);
+            }
         }
 
         private sealed class Snapshot

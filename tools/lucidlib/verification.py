@@ -367,6 +367,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGuiPageLoaderTests.UnconstrainedGenericConversionFaultsPrecedeSceneLookup",
     "ProjectLucid.Tests.OriginalGuiPageLoaderTests.PermanentUnmappedIdentifierAppendsOnceAndRetainsItsOriginalRecord",
     "ProjectLucid.Tests.OriginalGuiPageLoaderTests.WholeOriginalDeclarationRetainsAllFifteenMethodsAndRealEnumProviders",
+    "ProjectLucid.Tests.OriginalGuiPageLoaderTests.OwnedLeaseRestoresBorrowedIdentitiesAfterMutationAndFailure",
 )
 
 # Owned local access-point boundary through the preserved original facade.
