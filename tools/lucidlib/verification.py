@@ -92,6 +92,7 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "OriginalClientDataAPIRetainsNativeCodecPoolsAndPartialFailures",
     "OriginalNetworkBufferRetainsCursorVarintAndUtf8Failures",
     "CodecMethodFlagsAreRestoredByTheActualUnityCompilerPipeline",
+    "CodecVerificationRetryAfterOutputFailureCountsOnlyItsOwnChecks",
     "OriginalTimeScaledComponentRetainsCallbacksAndTimingPhases",
     "OriginalTimeSchedulerRetainsCategoryPauseCallbackAndEngineOrder",
     "OriginalSerializableDictionaryRetainsCallbackAndUnitySerializationOrder",

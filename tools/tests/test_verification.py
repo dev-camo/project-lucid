@@ -215,14 +215,16 @@ class VerificationTests(unittest.TestCase):
                     saved = json.loads((work / "reports/playmode-verification.json").read_text())
                     self.assertEqual(report, saved)
 
-    def test_ui_reference_cases_are_required_by_runs_and_receipts(self):
+    def test_ui_and_codec_retry_cases_are_required_by_runs_and_receipts(self):
         # Supplied XML exercises qualification policy without launching Unity.
         from xml.sax.saxutils import quoteattr
         required = tuple("ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests." + name for name in (
             "VerificationAssemblyDeclaresAndResolvesPinnedUI",
             "PlayModeAssemblyDeclaresAndResolvesPinnedUI",
             "CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
-        ))
+        )) + (
+            "ProjectLucid.Tests.RecoveredBehaviorTests.CodecVerificationRetryAfterOutputFailureCountsOnlyItsOwnChecks",
+        )
         for name in required:
             self.assertEqual(1, verification.EDITMODE_TESTS.count(name))
         with tempfile.TemporaryDirectory() as temporary:

@@ -523,6 +523,13 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void CodecVerificationRetryAfterOutputFailureCountsOnlyItsOwnChecks()
+        {
+            Assert.That(CodecPipelineVerification.RunAfterOutputFailure(), Is.EqualTo(719),
+                "A failed output write must not add its completed checks to the unchanged-input retry.");
+        }
+
+        [Test]
         public void OriginalTimeScaledComponentRetainsCallbacksAndTimingPhases()
         {
             Assert.That(TimeScaledComponentVerification.Run(), Is.EqualTo(72));

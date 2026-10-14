@@ -10,6 +10,7 @@ using Unity.CompilationPipeline.Common.ILPostProcessing;
 internal static class PostProcessorVerification
 {
     private static int checks;
+    internal static int CompletedChecks => checks;
     private static byte[] original, pdb;
     private static string[] references;
     private static CodecMethodFlagsPostProcessor processor = new CodecMethodFlagsPostProcessor();
