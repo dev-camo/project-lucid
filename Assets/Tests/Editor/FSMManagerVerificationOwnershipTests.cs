@@ -92,12 +92,16 @@ namespace ProjectLucid.Editor
         public void FailureDuringRunStillReleasesOwnedRowsAndRestoresTheRegistry()
         {
             IDictionary rows = Rows();
+            const string coreName = "Hardlight.HLUnityCore";
             object[] layout = FSMManagerVerification.CaptureLayout(rows);
             try
             {
+                // An existing core row belongs to someone else; set it aside untouched so the
+                // test-owned failure row never reuses its SystemInfo or fires its observers.
+                rows.Remove(coreName);
                 // A registered HLUnityCore breaks the diagnostics precondition, after the
                 // fixture has already acquired its own rows and references.
-                SystemRef core = ProcessManager.RegisterSystem(new ForeignSystem(), "Hardlight.HLUnityCore", noException: true);
+                SystemRef core = ProcessManager.RegisterSystem(new ForeignSystem(), coreName);
                 List<string> order = rows.Keys.Cast<string>().ToList();
                 List<object> values = rows.Values.Cast<object>().ToList();
                 var failure = Assert.Throws<InvalidOperationException>(FSMManagerVerification.Run);
@@ -105,6 +109,65 @@ namespace ProjectLucid.Editor
                 Assert.That(rows.Keys.Cast<string>(), Is.EqualTo(order), "no owned row survives and order is kept");
                 Assert.That(rows.Values.Cast<object>(), Is.EqualTo(values), "row objects are unchanged");
                 Assert.That(core.IsValid(), Is.True, "the foreign row keeps its system");
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void FailureInjectionLeavesABorrowedEmptyCoreRowUntouched()
+        {
+            IDictionary rows = Rows();
+            const string coreName = "Hardlight.HLUnityCore";
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            try
+            {
+                // A retained empty core row with untyped and typed references and an observer.
+                rows.Remove(coreName);
+                SystemRef untyped = ProcessManager.GetSystemRef(coreName);
+                SystemRef<ForeignSystem> typed = ProcessManager.GetSystemRef<ForeignSystem>(coreName);
+                object borrowed = rows[coreName];
+                object[] borrowedLayout = FSMManagerVerification.CaptureLayout(rows);
+                int startups = 0;
+                untyped.OnSystemStartup += system => startups++;
+                typed.OnSystemStartup += system => startups++;
+                FailureDuringRunStillReleasesOwnedRowsAndRestoresTheRegistry();
+                FSMManagerVerification.RestoreLayout(rows, borrowedLayout);
+                Assert.That(rows[coreName], Is.SameAs(borrowed));
+                Assert.That(startups, Is.Zero, "borrowed startup observers ran");
+                Assert.That(untyped.IsNull() && typed.IsNull(), Is.True, "borrowed references became valid");
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void ShutdownObserverReplacementDoesNotLeaveAnOwnedReferenceValid()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-reentrant-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                int replacements = 0, shutdowns = 0;
+                untyped.OnSystemShutdown += system => shutdowns++;
+                // A public typed observer registers a replacement under the same owned name.
+                typed.OnSystemShutdown += system =>
+                {
+                    replacements++;
+                    ProcessManager.RegisterSystem(new FSMManager(), name);
+                };
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                Assert.That(rows.Contains(name), Is.False);
+                Assert.That(untyped.IsNull() && typed.IsNull(), Is.True, "a revalidated owned reference survived");
+                Assert.That(replacements, Is.EqualTo(1));
+                Assert.That(shutdowns, Is.EqualTo(1), "the untyped observer was notified twice");
             }
             finally
             {

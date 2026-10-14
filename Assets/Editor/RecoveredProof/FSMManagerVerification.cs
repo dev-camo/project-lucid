@@ -115,7 +115,11 @@ namespace ProjectLucid
             {
                 if (!rows.Contains(row)) continue;
                 object info = rows[row];
-                try { ProcessManager.UnregisterSystem(row); }
+                try
+                {
+                    ProcessManager.UnregisterSystem(row);
+                    RevokeRevalidatedReferences(info);
+                }
                 catch (Exception error)
                 {
                     first = first ?? error;
@@ -133,10 +137,7 @@ namespace ProjectLucid
         // later reference is notified once; if its observer throws too, it is detached the same way.
         private static void RevokeRemainingReferences(object info)
         {
-            Type infoType = info.GetType();
-            var references = new List<object> { infoType.GetField("SystemRef").GetValue(info) };
-            foreach (object reference in ((IDictionary)infoType.GetField("SystemRefDictionary").GetValue(info)).Values)
-                references.Add(reference);
+            List<object> references = References(info);
             MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
                 .GetMethod("InternalRevokeSystem", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             bool notified = true;
@@ -155,6 +156,31 @@ namespace ProjectLucid
                     revoke.Invoke(reference, null);
                 }
             }
+        }
+
+        // A shutdown observer may register a replacement under the same owned name, which makes
+        // an already-revoked reference valid again. Every reference was notified once during this
+        // teardown, so a revalidated one is detached and revoked without notifying it twice.
+        private static void RevokeRevalidatedReferences(object info)
+        {
+            MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
+                .GetMethod("InternalRevokeSystem", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            foreach (object reference in References(info))
+            {
+                if (!IsValid(reference)) continue;
+                DetachShutdownObservers(reference);
+                revoke.Invoke(reference, null);
+            }
+        }
+
+        // The original revoke order: the untyped reference, then each typed reference.
+        private static List<object> References(object info)
+        {
+            Type infoType = info.GetType();
+            var references = new List<object> { infoType.GetField("SystemRef").GetValue(info) };
+            foreach (object reference in ((IDictionary)infoType.GetField("SystemRefDictionary").GetValue(info)).Values)
+                references.Add(reference);
+            return references;
         }
 
         private static bool IsValid(object reference) =>
