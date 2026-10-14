@@ -516,6 +516,8 @@ namespace ProjectLucid.Tests
             // eleven original analytics helper methods, and Unity's two
             // MonoScript generator methods.
             Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(709));
+            Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(709),
+                "A repeated verification in the same Editor domain must count its own checks.");
         }
 
         [Test]

@@ -50,6 +50,8 @@ internal static class PostProcessorVerification
     }
     internal static int Run(string path, string output, string[] refs)
     {
+        // Count only this invocation, including retries after a failed run.
+        checks = 0;
         original = File.ReadAllBytes(path); pdb = File.ReadAllBytes(Path.ChangeExtension(path, ".pdb")); references = refs;
         Check(!ReferenceEquals(processor.GetInstance(), processor), "independent processor instance");
         var ignored = Input(original, null, "Game.Runtime");
