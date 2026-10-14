@@ -1390,3 +1390,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
 )
+
+# Compiled declaration flags only; gameplay and native layout stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalSealedTypeFlagsTests.LevelManagerLevelRetainsOriginalSealedFlags",
+    "ProjectLucid.Editor.OriginalSealedTypeFlagsTests.GameTipsDefinitionRetainsOriginalSealedFlags",
+)

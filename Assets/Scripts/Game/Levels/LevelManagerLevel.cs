@@ -6,7 +6,7 @@ namespace HardlightProject
 {
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
-    public class LevelManagerLevel
+    public sealed class LevelManagerLevel
     {
         public GameplayLevelDefinition LevelDefinition { get; }
         public GameplayLevelDefinition SceneDefinition { get; }

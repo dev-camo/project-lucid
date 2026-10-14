@@ -9,7 +9,7 @@ namespace HardlightProject
     [CreateAssetMenu(fileName = "GameTipsDefinition", menuName = "HardlightProject/DefinitionData/Definitions/GameTipsDefinition")]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
-    public class GameTipsDefinition : ScriptableObject
+    public sealed class GameTipsDefinition : ScriptableObject
     {
         [SerializeField]
         [HashEnum(null)]
