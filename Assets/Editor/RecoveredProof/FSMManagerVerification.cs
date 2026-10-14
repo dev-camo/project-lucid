@@ -54,8 +54,16 @@ namespace ProjectLucid
             // The fixture's own failure outranks a cleanup failure.
             if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
             if (cleanup != null) ExceptionDispatchInfo.Capture(cleanup).Throw();
-            ProcessUnregistrationVerification.Run();
-            ProcessActionVerification.Run();
+            // The downstream verifiers clear and re-add the registry, so restore its layout again after them.
+            try
+            {
+                ProcessUnregistrationVerification.Run();
+                ProcessActionVerification.Run();
+            }
+            finally
+            {
+                if (HoldsExactly(rows, original)) RestoreLayout(rows, layout);
+            }
         }
 
         // The original private registry; only rows named by the caller are ever removed.
@@ -80,7 +88,9 @@ namespace ProjectLucid
         internal static void RestoreLayout(IDictionary rows, object[] layout)
         {
             FieldInfo[] fields = LayoutFields(rows);
-            for (int i = 0; i < fields.Length; i++) fields[i].SetValue(rows, layout[i]);
+            // Restore copies so one captured layout can be restored more than once.
+            for (int i = 0; i < fields.Length; i++)
+                fields[i].SetValue(rows, layout[i] is Array array ? array.Clone() : layout[i]);
         }
 
         private static FieldInfo[] LayoutFields(IDictionary rows) =>
