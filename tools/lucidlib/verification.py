@@ -1390,3 +1390,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
 )
+
+# Compiled attributes and owned inactive serialization; scenes and gameplay stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.CutsceneTimelineDirectorRetainsOriginalSerializeField",
+    "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.EffectListEffectsRetainsOriginalSerializeField",
+    "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.RespawnPointFlagRetainsOriginalTooltipThenSerializeField",
+    "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.OwnedRespawnPointSerializesTrueDisableFlag",
+)

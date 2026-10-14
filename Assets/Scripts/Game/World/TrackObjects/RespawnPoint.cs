@@ -11,8 +11,10 @@ namespace HardlightProject
     [RequireComponent(typeof(Collider))]
     public class RespawnPoint : MonoBehaviour
     {
-        // Preserve the shipped spelling and ordinary private field. The original
-        // metadata has no SerializeField attribute or initializers on these fields.
+        // Preserve the shipped spelling. Only this field carries original attributes;
+        // none of these fields has an initializer.
+        [Tooltip("Check this if you never want this to become the player respawn point through proximity and only want to set it manually.")]
+        [SerializeField]
         private bool disableSetOnCollsion;
         private SystemRef<LevelRespawnPoints> m_levelRespawnPoints;
         private SystemRef<CharacterManager> m_characterManagerRef;
