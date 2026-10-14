@@ -9,13 +9,13 @@ namespace HardlightProject
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public abstract class CharacterAbility_MovementJumpBase<AbilityDef> : CharacterAbility_MovementAir<AbilityDef> where AbilityDef : CharacterAbilityDefinition_Jump
 	{
+		public bool Jump { get; private set; }
+
 		private bool m_queuedJump;
 
 		private bool m_endJump;
 
 		private float m_timeActivated;
-
-		public bool Jump { get; private set; }
 
 		public float TimeElapsed
 		{

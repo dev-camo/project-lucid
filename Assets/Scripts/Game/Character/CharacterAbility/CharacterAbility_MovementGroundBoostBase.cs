@@ -10,11 +10,11 @@ namespace HardlightProject
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public abstract class CharacterAbility_MovementGroundBoostBase<TAbilityDef> : CharacterAbility_MovementGround<TAbilityDef>, IAbilityTrigger where TAbilityDef : CharacterAbilityDefinition_MovementGroundBoostBase
 	{
+		public bool IsTriggered { get; private set; }
+
 		private bool m_queuedBoost;
 
 		private float m_timeActivated;
-
-		public bool IsTriggered { get; private set; }
 
 		public float TimeElapsed
 		{

@@ -13,6 +13,10 @@ namespace HardlightProject
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public abstract class CharacterAbility_MovementRail<TAbilityDef> : CharacterAbility_MovementTracker<TAbilityDef, RailDefinition>, IAbilityTrigger where TAbilityDef : CharacterAbilityDefinition_MovementRail
 	{
+		public bool IsTriggered { get; protected set; }
+
+		public bool JumpOnRailTracker { get; private set; }
+
 		private InputDebounce m_inputDebounce;
 
 		private bool m_queuedJump;
@@ -22,13 +26,6 @@ namespace HardlightProject
 		private StackableDataHandle m_controlsEnabledHandle;
 
 		private StackableDataHandle m_gravityEnabledHandle;
-
-		public bool IsTriggered
- { get
-; protected set
-; }
-
-		public bool JumpOnRailTracker { get; private set; }
 
 		// 06001186 (1.10.1 RVA 0xE65500)
 		public override void Initialise(Actor actor, AbilityDefinition definition)
