@@ -1390,3 +1390,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
 )
+
+# Compiled field metadata order only; native layout and ability behavior stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalAbilityFieldOrderTests.IdleRetainsOriginalFieldOrder",
+    "ProjectLucid.Editor.OriginalAbilityFieldOrderTests.GroundBoostBaseRetainsOriginalFieldOrder",
+    "ProjectLucid.Editor.OriginalAbilityFieldOrderTests.JumpBaseRetainsOriginalFieldOrder",
+    "ProjectLucid.Editor.OriginalAbilityFieldOrderTests.RailRetainsOriginalFieldOrder",
+)

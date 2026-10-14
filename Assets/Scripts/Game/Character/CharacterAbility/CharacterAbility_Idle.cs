@@ -9,9 +9,9 @@ namespace HardlightProject
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public class CharacterAbility_Idle : CharacterAbility<CharacterAbilityDefinition_Idle>, IAbilityTrigger
 	{
-		private float m_enterIdleElapsedTime;
-
 		public bool IsTriggered { get; private set; }
+
+		private float m_enterIdleElapsedTime;
 
 		// 0600110a (1.10.1 RVA 0x747390)
 		protected override void DoOnEnter()
