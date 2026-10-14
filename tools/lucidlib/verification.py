@@ -1439,3 +1439,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalAbilityFieldOrderTests.JumpBaseRetainsOriginalFieldOrder",
     "ProjectLucid.Editor.OriginalAbilityFieldOrderTests.RailRetainsOriginalFieldOrder",
 )
+
+# Fixture ownership of process registry rows; original ProcessManager semantics stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.RepeatedRunsLeaveRegistryRowsAndSystemsUnchanged",
+)

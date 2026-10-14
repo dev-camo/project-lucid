@@ -1,5 +1,6 @@
 #if UNITY_EDITOR
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Hardlight;
@@ -11,14 +12,48 @@ namespace ProjectLucid
     // arm64 functions. They do not establish original-game or startup equivalence.
     public static class FSMManagerVerification
     {
+        // Registry rows this run created. The original UnregisterSystem keeps rows, typed
+        // caches and observers, so the fixture also drops exactly these rows afterwards.
+        private static readonly List<string> s_ownedRows = new List<string>();
+
         public static void Run()
         {
-            VerifyFastActions();
-            VerifySystemReferences();
-            VerifyManagers();
-            VerifyDiagnostics();
+            s_ownedRows.Clear();
+            string defaultManager = ProcessManager.GetDefaultName<FSMManager>();
+            bool defaultManagerOwned = ProcessManager.IsSystemNull(defaultManager);
+            bool defaultRowOwned = !RegistryRows().Contains(defaultManager);
+            try
+            {
+                VerifyFastActions();
+                VerifySystemReferences();
+                VerifyManagers();
+                VerifyDiagnostics();
+            }
+            finally
+            {
+                // GetManager registers a default manager only when none existed before.
+                if (defaultManagerOwned) ProcessManager.UnregisterSystem(defaultManager);
+                if (defaultRowOwned) s_ownedRows.Add(defaultManager);
+                ReleaseOwnedRows();
+            }
             ProcessUnregistrationVerification.Run();
             ProcessActionVerification.Run();
+        }
+
+        // The original private registry; only rows named in s_ownedRows are ever removed.
+        private static IDictionary RegistryRows() =>
+            (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+
+        private static void ReleaseOwnedRows()
+        {
+            IDictionary rows = RegistryRows();
+            foreach (string row in s_ownedRows)
+            {
+                if (!rows.Contains(row)) continue;
+                try { ProcessManager.UnregisterSystem(row); }
+                finally { rows.Remove(row); }
+            }
+            s_ownedRows.Clear();
         }
 
         private static void VerifyFastActions()
@@ -90,6 +125,9 @@ namespace ProjectLucid
         private static void VerifySystemReferences()
         {
             string name = "Lucid-verification-system-" + Guid.NewGuid().ToString("N");
+            s_ownedRows.Add(name);
+            s_ownedRows.Add(name + "-replacement");
+            s_ownedRows.Add(name + "-detached");
             var trace = new List<string>();
             var untyped = ProcessManager.GetSystemRef(name);
             var typed = ProcessManager.GetSystemRef<TestSystem>(name);
@@ -189,6 +227,7 @@ namespace ProjectLucid
             Check(global.TryGetFSM(overwritten.FSMId, out found) && ReferenceEquals(found, overwritten), "constructor forwards overwrite flag");
             Check(!global.ReleaseFSM(registered) && global.ReleaseFSM(overwritten) && global.FSMs.Count == before, "global cleanup respects counts");
             string customName = name + "-custom";
+            s_ownedRows.Add(customName);
             ProcessManager.RegisterSystem(manager, customName);
             Check(ReferenceEquals(FSMManager.GetManager(customName), manager), "explicit named manager lookup");
         }
