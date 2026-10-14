@@ -33,7 +33,8 @@ def _index_rows(root):
         if stage != "0" or mode not in ("100644", "100755"):
             raise ValueError("Commit progress requires regular, unconflicted source: " + path)
         rows.append((path, oid))
-    return sorted(rows)
+    # Match the UTF16 ordinal path order used by the source fingerprint.
+    return sorted(rows, key=lambda row: row[0].encode("utf-16-be"))
 
 
 def require_matching_source_index(repo_root):

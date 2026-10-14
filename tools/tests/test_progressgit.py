@@ -36,6 +36,24 @@ class ProgressIndexTests(unittest.TestCase):
         self.git("add", "Assets")
         require_matching_source_index(self.root)
 
+    def unicode_sources(self):
+        paths = [self.root / "Assets" / name for name in ("\ue000.cs", "\U00010000.cs")]
+        for path in paths:
+            path.write_text("same source bytes\n", encoding="utf-8")
+        self.git("add", "Assets")
+        return paths
+
+    def test_staged_unicode_paths_match_filesystem_identity(self):
+        # These names reverse order between Unicode code points and UTF16 units.
+        self.unicode_sources()
+        require_matching_source_index(self.root)
+
+    def test_unstaged_unicode_edit_is_rejected(self):
+        paths = self.unicode_sources()
+        paths[1].write_text("unstaged change\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "Stage all maintained source"):
+            require_matching_source_index(self.root)
+
     def test_unstaged_change_is_rejected(self):
         (self.root / "Assets" / "Source with spaces.cs").write_text("second\n")
         with self.assertRaisesRegex(ValueError, "Stage all maintained source"):
