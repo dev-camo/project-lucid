@@ -24,6 +24,20 @@ namespace ProjectLucid.Editor
             FSMManagerVerification.Run();
             FSMManagerVerification.Run();
             Assert.That(rows.Keys.Cast<string>(), Is.EqualTo(order), "registry rows and their order");
+            // Freed fixture slots must not reorder later registrations.
+            string first = "Lucid-ownership-after-a-" + Guid.NewGuid().ToString("N");
+            string second = "Lucid-ownership-after-b-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                ProcessManager.GetSystemRef(first);
+                ProcessManager.GetSystemRef(second);
+                Assert.That(rows.Keys.Cast<string>().Skip(order.Count), Is.EqualTo(new[] { first, second }));
+            }
+            finally
+            {
+                rows.Remove(first);
+                rows.Remove(second);
+            }
             foreach (KeyValuePair<string, bool> row in before)
                 Assert.That(ProcessManager.IsSystemNull(row.Key), Is.EqualTo(row.Value), row.Key);
         }

@@ -42,13 +42,16 @@ namespace ProjectLucid
                 VerifyDiagnostics();
             }
             catch (Exception error) { failure = error; }
+            int ownedRowsPresent = 0;
+            foreach (string row in s_ownedRows)
+                if (rows.Contains(row)) ownedRowsPresent++;
             try { ReleaseOwnedRows(s_ownedRows); }
             catch (Exception error) { cleanup = error; }
             finally
             {
                 s_ownedRows.Clear();
                 if (borrowedDefault != null) rows[defaultManager] = borrowedDefault;
-                RestoreRowOrder(rows, original);
+                RestoreRowOrder(rows, original, ownedRowsPresent > 0);
             }
             // The fixture's own failure outranks a cleanup failure.
             if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
@@ -61,16 +64,18 @@ namespace ProjectLucid
         private static IDictionary RegistryRows() =>
             (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
 
-        // Order-sensitive lookups such as FindSystemRef see insertion order. If setting the
-        // borrowed row aside moved it, re-add the same row objects in their original order.
-        private static void RestoreRowOrder(IDictionary rows, List<DictionaryEntry> original)
+        // Order-sensitive lookups such as FindSystemRef see insertion order, and slots freed by
+        // removed rows decide where later registrations land. When owned rows were removed or the
+        // borrowed row moved, re-add the same row objects in their original order. Free slots that
+        // predate the run cannot be reproduced without private dictionary internals.
+        private static void RestoreRowOrder(IDictionary rows, List<DictionaryEntry> original, bool rowsRemoved)
         {
             var current = new List<object>();
             foreach (object key in rows.Keys) current.Add(key);
             if (current.Count != original.Count || !original.TrueForAll(row => rows.Contains(row.Key))) return;
             bool ordered = true;
             for (int i = 0; i < original.Count && ordered; i++) ordered = Equals(current[i], original[i].Key);
-            if (ordered) return;
+            if (ordered && !rowsRemoved) return;
             rows.Clear();
             foreach (DictionaryEntry row in original) rows.Add(row.Key, row.Value);
         }
