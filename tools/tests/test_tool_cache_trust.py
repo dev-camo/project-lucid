@@ -102,17 +102,42 @@ class ToolCacheTrustTests(unittest.TestCase):
                 shutil.rmtree(destination)
         self.spawn.assert_not_called()
 
-    def test_forged_cpp2il_build_marker_cannot_authorize_output(self):
+    def cpp2il_fixture(self):
         self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
         self.archive("cpp2il-source", {"Cpp2IL/Cpp2IL.csproj": b"verified source"}, "Cpp2IL/Cpp2IL.csproj")
+
+    @staticmethod
+    def fixture_build(command, *args, **kwargs):
+        stage = Path(command[command.index("-o") + 1])
+        stage.mkdir(parents=True)
+        bootstrap.executable(stage / "Cpp2IL").write_bytes(b"inert generated executable")
+        return {"returncode": 0, "timed_out": False, "log": "fixture"}
+
+    def test_forged_cpp2il_build_marker_is_replaced_by_a_fresh_build(self):
+        self.cpp2il_fixture()
         output = self.work / "tools/cpp2il"
         output.mkdir(parents=True)
         bootstrap.executable(output / "Cpp2IL").write_bytes(b"inert forged Cpp2IL")
+        (output / "forged-plugin.dll").write_bytes(b"inert forged dependency")
         bootstrap.write_json(output / "lucid-build.json", {"commit": "fixture-pin", "sdk": "fixture-pin", "runtime": "fixture-rid", "build_schema": 2})
-        with mock.patch.object(bootstrap, "run_logged") as runner, self.assertRaisesRegex(bootstrap.ToolError, "Unverified cached Cpp2IL"):
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build) as runner:
+            result = bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertEqual(1, runner.call_count)
+        self.assertEqual(b"inert generated executable", Path(result["path"]).read_bytes())
+        self.assertFalse((output / "forged-plugin.dll").exists())
+        self.assertEqual([], [path.name for path in (self.work / "tools").iterdir() if path.name.startswith(".") and "cpp2il" in path.name])
+        self.spawn.assert_not_called()
+
+    def test_symlinked_cpp2il_output_is_rejected_before_build(self):
+        self.cpp2il_fixture()
+        target = self.work / "elsewhere"
+        target.mkdir()
+        (self.work / "tools").mkdir(exist_ok=True)
+        (self.work / "tools/cpp2il").symlink_to(target)
+        with mock.patch.object(bootstrap, "run_logged") as runner, self.assertRaises((bootstrap.ToolError, ValueError)):
             bootstrap._ensure_cpp2il(self.lock, self.work)
         runner.assert_not_called()
-        self.spawn.assert_not_called()
+        self.assertTrue(target.is_dir())
 
     def test_generated_cpp2il_requires_complete_process_owned_seal(self):
         self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
@@ -273,3 +298,61 @@ class ToolCacheTrustTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Cpp2ILFreshProcessTests(unittest.TestCase):
+    """Two real Python processes share one work tree; each mocks only the inert build."""
+
+    archive = ToolCacheTrustTests.archive
+    CHILD = """
+import json, sys
+from pathlib import Path
+from unittest import mock
+sys.path.insert(0, sys.argv[1])
+from tools.lucidlib import bootstrap
+work, lock, label = Path(sys.argv[2]), json.loads(Path(sys.argv[3]).read_text()), sys.argv[4]
+def build(command, *args, **kwargs):
+    stage = Path(command[command.index("-o") + 1])
+    stage.mkdir(parents=True)
+    bootstrap.executable(stage / "Cpp2IL").write_bytes(b"inert executable from " + label.encode())
+    return {"returncode": 0, "timed_out": False, "log": "fixture"}
+with mock.patch.object(bootstrap, "host_name", return_value="fixture-host"), \\
+        mock.patch("urllib.request.urlopen", side_effect=AssertionError("offline")), \\
+        mock.patch.object(bootstrap.subprocess, "Popen", side_effect=AssertionError("no executable may run")), \\
+        mock.patch.object(bootstrap, "run_logged", side_effect=build) as runner:
+    result = bootstrap._ensure_cpp2il(lock, work)
+    again = bootstrap._ensure_cpp2il(lock, work)
+print(json.dumps({"status": result["status"], "path": result["path"], "same": again["path"] == result["path"],
+                  "builds": runner.call_count, "bytes": Path(result["path"]).read_text()}))
+"""
+
+    def setUp(self):
+        bootstrap.CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        self.directory = Path(tempfile.mkdtemp(prefix="test-cpp2il-process-", dir=bootstrap.CACHE_ROOT))
+        self.addCleanup(shutil.rmtree, self.directory)
+        self.work = self.directory / "work"
+        self.work.mkdir()
+        self.lock = {"platform": "fixture-host", "rid": "fixture-rid", "artifacts": {}}
+
+    def run_process(self, label):
+        import subprocess, sys
+        lock = self.directory / "lock.json"
+        lock.write_text(json.dumps(self.lock))
+        process = subprocess.run([sys.executable, "-c", self.CHILD, str(bootstrap.REPO_ROOT), str(self.work), str(lock), label],
+                                 capture_output=True, text=True, timeout=120)
+        self.assertEqual(0, process.returncode, process.stderr)
+        return json.loads(process.stdout.strip().splitlines()[-1])
+
+    def test_second_process_rebuilds_instead_of_refusing_prior_output(self):
+        self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
+        self.archive("cpp2il-source", {"Cpp2IL/Cpp2IL.csproj": b"verified source"}, "Cpp2IL/Cpp2IL.csproj")
+        first = self.run_process("bootstrap")
+        second = self.run_process("recover-code")
+        for result, label in ((first, "bootstrap"), (second, "recover-code")):
+            self.assertEqual("ready", result["status"])
+            self.assertTrue(result["same"])
+            self.assertEqual(1, result["builds"])
+            self.assertEqual("inert executable from " + label, result["bytes"])
+        self.assertEqual(first["path"], second["path"])
+        leftovers = [path.name for path in (self.work / "tools").iterdir() if path.name.startswith(".") and "cpp2il" in path.name]
+        self.assertEqual([], leftovers)
