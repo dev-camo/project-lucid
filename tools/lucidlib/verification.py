@@ -1412,3 +1412,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalSerializableEnumFlagsTests.LowFilterTypeRetainsOriginalSerializableFlags",
     "ProjectLucid.Editor.OriginalSerializableEnumFlagsTests.ConstrainTypeRetainsOriginalSerializableFlags",
 )
+
+# Compiled declaration attributes only; inspector and tvOS remote behavior stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalAppleTVRemoteSetterAttributesTests.AllowExitToHomeRetainsOriginalOrderedAttributes",
+)
