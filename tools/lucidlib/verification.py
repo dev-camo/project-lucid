@@ -999,6 +999,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.InitialiseWritesTheSameOwnedExclusionListAndRetainsNullFaults",
     "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.GenuineOwnedAppKeysRetainSuppliedDummyConstantForEverySerializedKey",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLProfilerMarkerConverterTests.ConverterRetainsOriginalDeclarations",
+    "ProjectLucid.Editor.OriginalHLProfilerMarkerConverterTests.TableRetainsOriginalEntriesAndInsertionOrder",
+)
 
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.MissionStringsFormattingTests.MissionTimer_NonpositiveMissingAndCustomFormats",
