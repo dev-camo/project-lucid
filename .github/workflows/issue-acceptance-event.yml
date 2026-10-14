@@ -1,0 +1,14 @@
+name: Issue acceptance event
+
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+
+permissions: {}
+
+jobs:
+  wake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: ':'

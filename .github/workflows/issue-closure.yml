@@ -2,11 +2,8 @@ name: Verified issue closure
 
 on:
   workflow_run:
-    workflows: [Tool tests, Code progress, PR compilation, Refresh native progress]
+    workflows: [Tool tests, Code progress, PR compilation, Refresh native progress, Issue acceptance event]
     types: [completed]
-    branches: [main]
-  issue_comment:
-    types: [created]
   workflow_dispatch:
     inputs:
       pull_request:

@@ -32,7 +32,8 @@ OUTSIDE_USER = {'login': 'outside-user', 'id': 303, 'type': 'User'}
 def attested(value, identifier, date):
     return {'id': identifier, 'body': closure.MARKER + json.dumps(value),
             'user': copy.deepcopy(PROFILES[value['kind']]),
-            'created_at': date, 'updated_at': date}
+            'created_at': date, 'updated_at': date, 'submitted_at': date,
+            'state': 'COMMENTED', 'last_edited_at': None, 'commit_sha': HEAD, 'source': 'submitted_review'}
 
 
 class FakeGitHub:
@@ -59,7 +60,7 @@ class FakeGitHub:
         self.verification = dict(copy.deepcopy(common), kind='verification', independent=True, publication_verified=True,
                            criteria=[{'criterion': 'Both criteria', 'result': 'passed',
                                       'evidence': 'Authenticated independent receipt sha256:' + 'e' * 64}])
-        self.acceptance = dict(copy.deepcopy(common), kind='approval', decision='close', verification_comment_id=201,
+        self.acceptance = dict(copy.deepcopy(common), kind='approval', decision='close', verification_review_id=201,
                                independent_verification_accepted=True)
         self.rows = []
         self.sync_records()
@@ -70,6 +71,17 @@ class FakeGitHub:
         self.checks = {}
         self.add_checks(MERGE)
         self.comparisons = {}
+        self.issue_comments = []
+
+    def delete_review(self, identifier):
+        row = next(row for row in self.rows if row['id'] == identifier)
+        if row['state'] != 'PENDING':
+            raise ValueError('Submitted reviews cannot be deleted')
+        self.rows.remove(row)
+
+    def delete_review_summary(self, identifier, date):
+        row = next(row for row in self.rows if row['id'] == identifier)
+        row.update(body='', last_edited_at=date, updated_at=date)
 
     def sync_records(self):
         self.rows = [attested(self.verification, 201, VERIFIED_AT), attested(self.acceptance, 202, ACCEPTED_AT)]
@@ -115,6 +127,29 @@ class FakeGitHub:
         self.requests.append((path, method, copy.deepcopy(body)))
         if self.hook:
             self.hook(path, method, body)
+        if path == '/graphql':
+            if method != 'POST' or body['query'] != closure.REVIEW_QUERY:
+                raise AssertionError('Only the fixed read query is allowed')
+            variables = body['variables']
+            if variables['owner'] + '/' + variables['name'] != closure.REPOSITORY or variables['number'] != PR:
+                raise AssertionError('Wrong review target')
+            offset = int(variables['cursor'] or '0')
+            batch = self.rows[offset:offset + 100]
+            nodes = []
+            for row in batch:
+                created = row.get('created_at', BEFORE)
+                edited = row.get('last_edited_at')
+                if row.get('updated_at', created) != created:
+                    edited = row['updated_at']
+                user = row.get('user') or OUTSIDE_USER
+                nodes.append({'databaseId': row['id'], 'body': row['body'],
+                    'state': row.get('state', 'COMMENTED'), 'createdAt': created,
+                    'submittedAt': row.get('submitted_at', created), 'lastEditedAt': edited,
+                    'commit': {'oid': row.get('commit_sha', HEAD)},
+                    'author': {'__typename': user['type'], 'login': user['login'], 'databaseId': user['id']}})
+            return {'data': {'repository': {'nameWithOwner': closure.REPOSITORY,
+                'pullRequest': {'number': PR, 'reviews': {'nodes': nodes,
+                    'pageInfo': {'hasNextPage': offset + 100 < len(self.rows), 'endCursor': str(offset + 100)}}}}}}
         parsed = urllib.parse.urlsplit(path)
         route = parsed.path[len(closure.ROOT):]
         query = urllib.parse.parse_qs(parsed.query)
@@ -234,7 +269,8 @@ class ClosureTests(unittest.TestCase):
                     api.sync_records()
                     event = {'repository': api.repo, 'action': 'created',
                              'issue': {'number': PR, 'pull_request': {}}, 'comment': api.rows[-1]}
-                    self.assertEqual([(PR, 202)], closure.candidates(api, event, 'issue_comment', MERGE))
+                    self.assertEqual([], closure.candidates(api, event, 'issue_comment', MERGE))
+                    self.assertEqual([(PR, 202)], closure.candidates(api, self.workflow_event(), 'workflow_run', MERGE))
                 else:
                     api.runs[1000]['status'] = 'in_progress'
                     with self.assertRaises(closure.Blocked):
@@ -335,7 +371,7 @@ class ClosureTests(unittest.TestCase):
 
     def test_missing_wrong_or_same_verification_id_holds(self):
         for number in (200, 202, 999):
-            self.api.acceptance['verification_comment_id'] = number
+            self.api.acceptance['verification_review_id'] = number
             self.api.sync_records()
             self.held()
 
@@ -363,7 +399,7 @@ class ClosureTests(unittest.TestCase):
 
     def test_new_verification_record_supersedes_old_independent_receipt(self):
         self.api.rows.insert(1, attested(dict(self.api.verification), 203, VERIFIED_AT))
-        self.held('superseded')
+        self.held('superseded|invalidates verification')
 
     def test_malformed_duplicate_unknown_fields_and_script_text_fail_closed(self):
         for body in (closure.MARKER + '{bad json}',
@@ -379,7 +415,7 @@ class ClosureTests(unittest.TestCase):
 
     def test_configured_principals_with_write_access_qualify_separate_records(self):
         plan = self.qualify()
-        self.assertNotEqual(plan['approval_comment'], plan['verification_comment'])
+        self.assertNotEqual(plan['approval_review'], plan['verification_review'])
         self.assertEqual({101, 202}, {row['user']['id'] for row in self.api.rows})
         for profile in PROFILES.values():
             self.assertTrue(any('/collaborators/' + profile['login'] + '/permission' in path
@@ -453,8 +489,8 @@ class ClosureTests(unittest.TestCase):
         self.api.rows[1]['user'] = copy.deepcopy(PROFILES['verification'])
         with mock.patch.dict(os.environ, {closure.AUTHORIZATION_ENV: json.dumps(policy)}):
             plan = self.qualify()
-            self.assertNotEqual(plan['approval_comment'], plan['verification_comment'])
-            self.api.acceptance['verification_comment_id'] = 202
+            self.assertNotEqual(plan['approval_review'], plan['verification_review'])
+            self.api.acceptance['verification_review_id'] = 202
             self.api.sync_records()
             self.api.rows[1]['user'] = copy.deepcopy(PROFILES['verification'])
             self.held('Separate verification evidence')
@@ -482,6 +518,197 @@ class ClosureTests(unittest.TestCase):
             closure.close(self.api, plan)
         self.assertEqual([], self.api.writes)
 
+    def test_deletable_conversation_records_never_authorize_closure(self):
+        for observed in (False, True):
+            self.api = FakeGitHub()
+            self.api.issue_comments = copy.deepcopy(self.api.rows)
+            self.api.rows = []
+            hold = attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT)
+            self.api.issue_comments.append(hold)
+            if observed:
+                self.held('removed or superseded')
+            self.api.issue_comments.pop()
+            self.held('removed or superseded')
+            self.assertEqual([], closure.candidates(self.api, self.workflow_event(), 'workflow_run', MERGE))
+            self.assertEqual([], self.api.writes)
+
+    def test_submitted_hold_cannot_be_deleted_before_or_after_observation(self):
+        for observed in (False, True):
+            self.api = FakeGitHub()
+            self.api.rows.append(attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT))
+            if observed:
+                self.held('removed or superseded')
+            with self.assertRaisesRegex(ValueError, 'Submitted reviews cannot be deleted'):
+                self.api.delete_review(203)
+            self.held('removed or superseded')
+            self.assertEqual(ACCEPTED_AT, self.api.prs[PR]['updated_at'])
+
+    def test_removed_or_dismissed_hold_summary_retains_review_barrier(self):
+        for observed in (False, True):
+            for dismissed in (False, True):
+                self.api = FakeGitHub()
+                self.api.rows.append(attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT))
+                if observed:
+                    self.held('removed or superseded')
+                self.api.delete_review_summary(203, ACCEPTED_AT)
+                if dismissed:
+                    self.api.rows[-1]['state'] = 'DISMISSED'
+                self.held('Later edited|submitted review invalidates')
+                self.assertEqual(ACCEPTED_AT, self.api.prs[PR]['updated_at'])
+
+    def test_later_unmarked_or_dismissed_submitted_review_blocks_old_approval(self):
+        for state in ('COMMENTED', 'APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'):
+            self.api = FakeGitHub()
+            later = attested(self.api.acceptance, 203, ACCEPTED_AT)
+            later.update(body='Unmarked review summary', state=state)
+            self.api.rows.append(later)
+            self.held('submitted review invalidates approval')
+
+    def test_edited_intervening_verification_cannot_restore_older_evidence(self):
+        self.api.rows.insert(1, attested(self.api.verification, 203, '2026-10-14T03:30:00Z'))
+        self.api.delete_review_summary(203, '2026-10-14T03:30:00Z')
+        self.held('Intervening submitted review')
+
+    def test_pending_review_is_not_authority_and_can_be_deleted(self):
+        pending = attested(dict(self.api.acceptance, decision='hold'), 203, LATER)
+        pending.update(state='PENDING', submitted_at=None)
+        self.api.rows.append(pending)
+        self.assertEqual(ISSUE, self.qualify()['issue'])
+        self.api.delete_review(203)
+        self.assertEqual(ISSUE, self.qualify()['issue'])
+        self.api.rows[-1].update(state='PENDING', submitted_at=None)
+        self.held('removed or superseded')
+
+    def test_pending_created_earlier_but_submitted_later_supersedes_by_submission(self):
+        later = attested(dict(self.api.acceptance, decision='hold'), 190, BEFORE)
+        later['submitted_at'] = LATER
+        self.api.rows.insert(0, later)
+        self.held('removed or superseded')
+
+    def test_same_timestamp_edit_flag_invalidates_selected_record(self):
+        for index in (0, 1):
+            self.api = FakeGitHub()
+            self.api.rows[index]['last_edited_at'] = self.api.rows[index]['created_at']
+            self.held('Edited acceptance|Later edited')
+
+    def test_review_commit_and_submission_state_are_bound(self):
+        for field, value in (('commit_sha', MERGE), ('state', 'APPROVED'), ('state', 'DISMISSED')):
+            self.api = FakeGitHub()
+            self.api.rows[0][field] = value
+            self.held('Review commit|Edited acceptance')
+
+    def test_previously_observed_history_removal_blocks_current_plan(self):
+        older = attested(self.api.verification, 100, BEFORE)
+        older['body'] = 'Older ordinary review'
+        self.api.rows.insert(0, older)
+        plan = self.qualify()
+        self.api.rows.pop(0)
+        with self.assertRaisesRegex(closure.Blocked, 'history changed'):
+            closure.require_current(self.api, plan)
+        with self.assertRaisesRegex(closure.Blocked, 'Qualification changed'):
+            closure.close(self.api, plan)
+        self.assertEqual([], self.api.writes)
+
+    def test_fresh_pair_after_retained_hold_reauthorizes_deliberately(self):
+        hold = attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT)
+        self.api.rows.append(hold)
+        self.api.delete_review_summary(203, ACCEPTED_AT)
+        self.held()
+        fresh_verification = attested(self.api.verification, 204, '2026-10-14T05:00:00Z')
+        approval = dict(self.api.acceptance, verification_review_id=204)
+        self.api.rows.extend([fresh_verification, attested(approval, 205, '2026-10-14T06:00:00Z')])
+        self.assertEqual(ISSUE, closure.qualify(self.api, PR, 205, MERGE)['issue'])
+        self.assertEqual([], self.api.writes)
+
+    def test_review_wakeup_is_read_only_and_selects_actual_main_anchor(self):
+        workflow = {'id': 9, 'name': 'Issue acceptance event', 'state': 'active',
+                    'path': '.github/workflows/issue-acceptance-event.yml'}
+        self.api.workflows['issue-acceptance-event.yml'] = workflow
+        run = {'id': 9999, 'name': workflow['name'], 'workflow_id': 9, 'path': workflow['path'],
+               'repository': {'full_name': closure.REPOSITORY}, 'event': 'pull_request_review',
+               'head_sha': HEAD, 'head_branch': 'feature', 'status': 'completed'}
+        self.api.runs[9999] = run
+        event = {'repository': self.api.repo, 'workflow_run': run}
+        self.assertEqual([(PR, 202)], closure.candidates(self.api, event, 'workflow_run', MERGE))
+        run['path'] = '.github/workflows/other.yml'
+        with self.assertRaisesRegex(closure.Blocked, 'wake-up identity'):
+            closure.candidates(self.api, event, 'workflow_run', MERGE)
+        self.assertEqual([], self.api.writes)
+
+    def test_review_wakeup_workflow_has_no_checkout_token_or_configuration(self):
+        root = Path(__file__).resolve().parents[1] / 'workflows'
+        listener = (root / 'issue-acceptance-event.yml').read_text()
+        self.assertIn('pull_request_review:', listener)
+        self.assertIn('types: [submitted, edited, dismissed]', listener)
+        self.assertIn('permissions: {}', listener)
+        self.assertNotIn('checkout', listener)
+        self.assertNotIn('secrets.', listener)
+        self.assertNotIn('github.token', listener)
+        privileged = (root / 'issue-closure.yml').read_text()
+        self.assertIn('Issue acceptance event]', privileged)
+        self.assertNotIn('pull_request_review:', privileged)
+        self.assertNotIn('issue_comment:', privileged)
+
+    def test_failed_canceled_replaced_or_overflowed_wakeup_cannot_erase_hold(self):
+        for delivery in ('failure', 'cancelled', 'replaced', 'queue-overflow'):
+            self.api = FakeGitHub()
+            plan = self.qualify()
+            self.api.rows.append(attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT))
+            self.api.delete_review_summary(203, ACCEPTED_AT)
+            # No successful event worker or invalidation write is performed.
+            if delivery not in {'replaced', 'queue-overflow'}:
+                self.api.runs[9999] = {'id': 9999, 'name': 'Issue acceptance event',
+                                        'status': 'completed', 'conclusion': delivery}
+            with self.assertRaises(closure.Blocked):
+                closure.close(self.api, plan)
+            self.assertEqual([], self.api.writes)
+            self.assertEqual(ACCEPTED_AT, self.api.prs[PR]['updated_at'])
+
+    def test_read_failure_before_invalidation_cannot_fall_back_to_old_grant(self):
+        plan = self.qualify()
+        self.api.rows.append(attested(dict(self.api.acceptance, decision='hold'), 203, ACCEPTED_AT))
+        def unavailable(path, method, body):
+            if path == '/graphql':
+                raise urllib.error.URLError('simulated read failure')
+            if method != 'GET':
+                raise AssertionError('No journal mutation is permitted')
+        self.api.hook = unavailable
+        with self.assertRaises(urllib.error.URLError):
+            closure.close(self.api, plan)
+        self.assertEqual([], self.api.writes)
+        self.api.hook = None
+        with self.assertRaises(closure.Blocked):
+            closure.close(self.api, plan)
+        self.assertEqual([], self.api.writes)
+
+    def test_partial_graphql_data_and_missing_edit_state_fail_closed(self):
+        original = self.api.request
+        def partial(path, method='GET', body=None):
+            result = original(path, method, body)
+            if path == '/graphql':
+                result['errors'] = [{'message': 'partial data'}]
+            return result
+        self.api.request = partial
+        self.held('partial data')
+        self.api = FakeGitHub()
+        original = self.api.request
+        def missing_edit_state(path, method='GET', body=None):
+            result = original(path, method, body)
+            if path == '/graphql':
+                result['data']['repository']['pullRequest']['reviews']['nodes'][0].pop('lastEditedAt')
+            return result
+        self.api.request = missing_edit_state
+        self.held('metadata')
+
+    def test_http_graphql_allowlist_rejects_other_queries_and_foreign_variables(self):
+        api = closure.GitHub(token='fixture-token')
+        with mock.patch('urllib.request.build_opener') as network:
+            for body in ({'query': 'mutation { deleteIssue(input:{}) { clientMutationId } }', 'variables': {}},
+                         {'query': closure.REVIEW_QUERY, 'variables': {'owner': 'foreign', 'name': 'repo', 'number': PR, 'cursor': None}},
+                         {'query': closure.REVIEW_QUERY, 'variables': {'owner': 'dev-camo', 'name': 'project-lucid', 'number': True, 'cursor': None}}):
+                with self.assertRaises(closure.Blocked):
+                    api.request('/graphql', 'POST', body)
+            network.assert_not_called()
     def test_principal_login_cannot_redirect_permission_requests(self):
         for login in ('verification-user/../issues/34', 'verification-user?x=1', 'other.example/user', ''):
             self.api = FakeGitHub()
@@ -510,6 +737,7 @@ class ClosureTests(unittest.TestCase):
         self.held('PR changed')
         self.api = FakeGitHub()
         self.api.rows[0]['created_at'] = BEFORE
+        self.api.rows[0]['submitted_at'] = BEFORE
         self.api.rows[0]['updated_at'] = BEFORE
         self.held('must follow every actual merge')
 
@@ -639,7 +867,7 @@ class ClosureTests(unittest.TestCase):
         plan = self.qualify()
         fired = []
         def start_run(path, method, body):
-            if '/issues/12/comments?' in path and not fired:
+            if path == '/graphql' and not fired:
                 fired.append(True)
                 newer = copy.deepcopy(self.api.runs[1000])
                 newer.update(id=9999, status='queued', conclusion=None)
@@ -695,7 +923,7 @@ class ClosureTests(unittest.TestCase):
                 row.update(body='Acceptance withdrawn.', updated_at='2026-10-14T06:00:00Z')
                 self.api.rows.append(row)
         self.api.hook = revoke
-        with self.assertRaisesRegex(closure.Blocked, 'Later edited discussion'):
+        with self.assertRaisesRegex(closure.Blocked, 'Later edited discussion|history changed'):
             closure.close(self.api, plan)
         self.assertEqual([], self.api.writes)
 
@@ -704,9 +932,11 @@ class ClosureTests(unittest.TestCase):
         revocation.update(body='Acceptance withdrawn.', updated_at='2026-10-14T06:00:00Z')
         self.api.rows.append(revocation)
         renewed_at = '2026-10-14T07:00:00Z'
-        self.api.rows.append(attested(self.api.acceptance, 204, renewed_at))
+        self.api.rows.append(attested(self.api.verification, 204, '2026-10-14T06:30:00Z'))
+        renewed = dict(self.api.acceptance, verification_review_id=204)
+        self.api.rows.append(attested(renewed, 205, renewed_at))
         self.api.prs[PR]['updated_at'] = renewed_at
-        self.assertEqual(ISSUE, closure.qualify(self.api, PR, 204, MERGE)['issue'])
+        self.assertEqual(ISSUE, closure.qualify(self.api, PR, 205, MERGE)['issue'])
         self.assertEqual([], self.api.writes)
 
     def test_older_contributor_metadata_changes_are_attested_and_rechecked(self):
@@ -802,7 +1032,7 @@ class ClosureTests(unittest.TestCase):
     def test_paginated_comments_and_jobs_are_complete_and_overflow_blocks(self):
         self.api.rows = [{'id': index, 'body': 'Unrelated discussion.'} for index in range(1, 102)] + self.api.rows
         self.assertEqual(ISSUE, self.qualify()['issue'])
-        self.assertTrue(any('/comments?per_page=100&page=2' in path for path, _, _ in self.api.requests))
+        self.assertTrue(any(path == '/graphql' and body['variables']['cursor'] == '100' for path, _, body in self.api.requests))
         self.api.rows = [{'id': index, 'body': 'Unrelated discussion.'} for index in range(1, 501)] + self.api.rows
         self.held('pagination limit')
 

@@ -22,6 +22,19 @@ DIGEST = re.compile(r'[0-9a-f]{64}\Z')
 MAX_PAGES = 5
 MAX_CANDIDATES = 3
 MAX_REQUESTS = 700
+REVIEW_QUERY = '''query IssueClosureReviews($owner:String!, $name:String!, $number:Int!, $cursor:String) {
+  repository(owner:$owner, name:$name) {
+    nameWithOwner
+    pullRequest(number:$number) {
+      number
+      reviews(first:100, after:$cursor) {
+        nodes { databaseId body state createdAt submittedAt lastEditedAt
+          commit { oid } author { __typename login ... on User { databaseId } } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}'''
 TOOL_JOBS = {'Python (ubuntu-24.04, 3.13)', 'Python (macos-15, 3.13)',
              'C# identity (ubuntu-24.04)', 'C# identity (windows-2025)',
              'C# identity (macos-15)', 'C# identity (macos-15-intel)'}
@@ -36,7 +49,7 @@ WORKFLOWS = {
 }
 COMMON = {'issue', 'issue_scope_sha256', 'settled_sha', 'pull_requests',
           'scope', 'all_issue_criteria_verified'}
-APPROVAL_FIELDS = COMMON | {'kind', 'decision', 'verification_comment_id', 'independent_verification_accepted'}
+APPROVAL_FIELDS = COMMON | {'kind', 'decision', 'verification_review_id', 'independent_verification_accepted'}
 VERIFICATION_FIELDS = COMMON | {'kind', 'independent', 'publication_verified', 'criteria'}
 
 
@@ -57,9 +70,18 @@ class GitHub:
         self.calls += 1
         if self.calls > MAX_REQUESTS:
             raise Blocked('API request budget exhausted')
-        if not (path == ROOT or path.startswith(ROOT + '/')):
+        query = (path == '/graphql' and method == 'POST' and isinstance(body, dict)
+                 and set(body) == {'query', 'variables'} and body['query'] == REVIEW_QUERY)
+        if query:
+            variables = body['variables']
+            require(isinstance(variables, dict) and set(variables) == {'owner', 'name', 'number', 'cursor'}
+                    and (variables['owner'], variables['name']) == tuple(REPOSITORY.split('/'))
+                    and positive(variables['number'])
+                    and (variables['cursor'] is None or isinstance(variables['cursor'], str)
+                         and 0 < len(variables['cursor']) <= 1024), 'Invalid review query target')
+        if not query and not (path == ROOT or path.startswith(ROOT + '/')):
             raise Blocked('Foreign API target')
-        if method != 'GET' and not (method == 'PATCH'
+        if not query and method != 'GET' and not (method == 'PATCH'
                 and re.fullmatch(re.escape(ROOT) + r'/issues/[1-9][0-9]*', path)
                 and body == {'state': 'closed', 'state_reason': 'completed'}):
             raise Blocked('Unexpected mutation')
@@ -110,17 +132,35 @@ def scope_digest(issue):
 
 
 def evidence_digest(approval, verification):
-    fields = ('id', 'body', 'user', 'created_at', 'updated_at')
+    fields = ('id', 'body', 'user', 'created_at', 'updated_at', 'submitted_at',
+              'last_edited_at', 'state', 'commit_sha', 'source')
     raw = [{key: comment.get(key) for key in fields} for comment in (approval, verification)]
     return hashlib.sha256(json.dumps(raw, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
 def require_no_later_edits(rows, accepted_at):
-    # Examine timestamps before marker filtering can hide an edited revocation.
     for row in rows:
-        if not immutable(row):
-            require(timestamp(row['updated_at']) <= timestamp(accepted_at),
+        if row['last_edited_at'] is not None:
+            require(timestamp(row['last_edited_at']) < timestamp(accepted_at),
                     'Later edited discussion requires renewed acceptance')
+
+
+def review_barrier(rows, approval, verification):
+    # Submitted reviews cannot be deleted. Keep all rows, including unmarked,
+    # edited and dismissed summaries, before interpreting acceptance payloads.
+    submitted = [row for row in rows if row['state'] != 'PENDING']
+    require(all(row['id'] == approval['id'] or timestamp(row['submitted_at']) <
+                timestamp(approval['submitted_at']) for row in submitted),
+            'Later or same-time submitted review invalidates approval')
+    require(timestamp(verification['submitted_at']) < timestamp(approval['submitted_at']),
+            'Verification must be submitted before approval')
+    require(all(row['id'] in {approval['id'], verification['id']} or
+                timestamp(row['submitted_at']) < timestamp(verification['submitted_at'])
+                for row in submitted), 'Intervening submitted review invalidates verification')
+
+
+def review_history_digest(rows):
+    return hashlib.sha256(json.dumps(rows, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
 def paginated(api, path, key=None):
@@ -147,7 +187,8 @@ def default_head(api):
 
 
 def immutable(comment):
-    return comment.get('created_at') == comment.get('updated_at')
+    return (comment.get('source') == 'submitted_review' and comment.get('state') == 'COMMENTED'
+            and comment.get('submitted_at') is not None and comment.get('last_edited_at') is None)
 
 
 def unique_object(pairs):
@@ -230,19 +271,61 @@ def validate_record(value, fields):
         seen.add(pr['number'])
 
 
-def comments(api, pr):
-    return paginated(api, ROOT + f'/issues/{pr}/comments')
+def reviews(api, pr):
+    owner, name = REPOSITORY.split('/')
+    rows, cursor = [], None
+    for _ in range(MAX_PAGES):
+        result = api.request('/graphql', 'POST', {'query': REVIEW_QUERY,
+            'variables': {'owner': owner, 'name': name, 'number': pr, 'cursor': cursor}})
+        require(not result.get('errors'), 'Review query failed or returned partial data')
+        repository = (result.get('data') or {}).get('repository') or {}
+        pull = repository.get('pullRequest') or {}
+        require(repository.get('nameWithOwner') == REPOSITORY and pull.get('number') == pr,
+                'Review query repository or PR differs')
+        connection = pull.get('reviews') or {}
+        batch = connection.get('nodes')
+        require(isinstance(batch, list) and len(batch) <= 100, 'Invalid review collection')
+        for row in batch:
+            require(isinstance(row, dict) and all(key in row for key in
+                ('databaseId', 'body', 'state', 'createdAt', 'submittedAt', 'lastEditedAt', 'author', 'commit'))
+                and positive(row['databaseId']) and isinstance(row['body'], str)
+                and row['state'] in {'PENDING', 'COMMENTED', 'APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'},
+                'Invalid submitted review metadata')
+            timestamp(row['createdAt'])
+            if row['state'] != 'PENDING':
+                timestamp(row['submittedAt'])
+            author = row['author'] or {}
+            rows.append({'id': row['databaseId'], 'body': row['body'], 'state': row['state'],
+                'created_at': row['submittedAt'] or row['createdAt'],
+                'updated_at': row['lastEditedAt'] or row['submittedAt'] or row['createdAt'],
+                'submitted_at': row['submittedAt'], 'last_edited_at': row['lastEditedAt'],
+                'commit_sha': (row['commit'] or {}).get('oid'), 'source': 'submitted_review',
+                'user': {'login': author.get('login'), 'id': author.get('databaseId'),
+                         'type': author.get('__typename')}})
+        page = connection.get('pageInfo') or {}
+        require(type(page.get('hasNextPage')) is bool, 'Invalid review pagination')
+        if not page['hasNextPage']:
+            require(len({row['id'] for row in rows}) == len(rows), 'Duplicate review identity')
+            return rows
+        next_cursor = page.get('endCursor')
+        require(isinstance(next_cursor, str) and 0 < len(next_cursor) <= 1024 and next_cursor != cursor,
+                'Invalid review cursor')
+        cursor = next_cursor
+    raise Blocked('Review pagination limit reached')
 
 
 def approval_records(rows):
     latest = {}
     for comment in rows:
+        if comment['state'] == 'PENDING':
+            continue
         value = record(comment)
         if value and value.get('kind') == 'approval':
             validate_record(value, APPROVAL_FIELDS)
             require(value['decision'] in {'close', 'hold'}, 'Unknown approval disposition')
             number = value['issue']
-            if number not in latest or comment['id'] > latest[number][0]['id']:
+            if number not in latest or (timestamp(comment['submitted_at']), comment['id']) > \
+                    (timestamp(latest[number][0]['submitted_at']), latest[number][0]['id']):
                 latest[number] = (comment, value)
     require(len(latest) <= MAX_CANDIDATES, 'Issue candidate count exceeds bound')
     return latest
@@ -352,14 +435,14 @@ def qualify(api, anchor_number, comment_id, control_sha):
     anchor = api.request(ROOT + f'/pulls/{anchor_number}')
     require(anchor.get('merged') is True and anchor.get('merge_commit_sha') == source,
             'Acceptance anchor must be the actual latest merged PR')
-    rows = comments(api, anchor_number)
+    rows = reviews(api, anchor_number)
     selected = next(((comment, value) for comment, value in approval_records(rows).values()
                      if comment['id'] == comment_id), None)
     require(selected is not None, 'Approval was removed or superseded')
     approval, value = selected
     trusted(api, approval, value['kind'], policy)
     require(value['decision'] == 'close' and value['independent_verification_accepted'] is True
-            and positive(value['verification_comment_id']), 'Explicit closure approval required')
+            and positive(value['verification_review_id']), 'Explicit closure approval required')
     require(value['settled_sha'] == settled['sha'], 'Acceptance settled SHA is stale')
     require_no_later_edits(rows, approval['created_at'])
     require(timestamp(anchor['updated_at']) <= timestamp(approval['created_at']),
@@ -370,12 +453,15 @@ def qualify(api, anchor_number, comment_id, control_sha):
     require(scope_digest(issue) == value['issue_scope_sha256'], 'Issue criteria changed')
     require(timestamp(issue['updated_at']) <= timestamp(approval['created_at']),
             'Issue changed or reopened after acceptance')
-    verification = next((row for row in rows if row['id'] == value['verification_comment_id']), None)
+    verification = next((row for row in rows if row['id'] == value['verification_review_id']), None)
     require(verification is not None and verification['id'] != approval['id'], 'Separate verification evidence required')
     verified = record(verification)
     require(verified is not None, 'Structured verification evidence required')
     validate_record(verified, VERIFICATION_FIELDS)
     trusted(api, verification, verified['kind'], policy)
+    require(approval['commit_sha'] == anchor.get('head', {}).get('sha')
+            and verification['commit_sha'] == anchor.get('head', {}).get('sha'), 'Review commit differs from exact PR head')
+    review_barrier(rows, approval, verification)
     newer_verifications = []
     for row in rows:
         candidate = record(row)
@@ -419,11 +505,11 @@ def qualify(api, anchor_number, comment_id, control_sha):
         runs.extend(merged_checks(api, expected['merge_sha'], settled['sha']))
     if settled['sha'] != source:
         runs.extend(merged_checks(api, settled['sha'], settled['sha'], native=False))
-    plan = {'issue': value['issue'], 'anchor_pr': anchor_number, 'approval_comment': approval['id'],
-            'verification_comment': verification['id'], 'settled_sha': settled['sha'], 'source_sha': source,
+    plan = {'issue': value['issue'], 'anchor_pr': anchor_number, 'approval_review': approval['id'],
+            'verification_review': verification['id'], 'settled_sha': settled['sha'], 'source_sha': source,
             'issue_updated_at': issue['updated_at'], 'issue_scope_sha256': value['issue_scope_sha256'],
             'anchor_updated_at': anchor['updated_at'], 'accepted_at': approval['created_at'],
-            'evidence_sha256': evidence_digest(approval, verification),
+            'evidence_sha256': evidence_digest(approval, verification), 'review_history_sha256': review_history_digest(rows),
             'authorization_sha256': authorization_digest(policy), 'contributors': contributors, 'runs': runs}
     require_current(api, plan)
     return plan
@@ -442,16 +528,18 @@ def require_current(api, plan):
         require(pr.get('updated_at') == expected['updated_at'] and pr.get('merged') is True
                 and pr.get('head', {}).get('sha') == expected['head_sha']
                 and pr.get('merge_commit_sha') == expected['merge_sha'], 'Contributing PR changed during qualification')
-    rows = comments(api, plan['anchor_pr'])
+    rows = reviews(api, plan['anchor_pr'])
+    require(review_history_digest(rows) == plan['review_history_sha256'], 'Submitted review history changed')
     require_no_later_edits(rows, plan['accepted_at'])
     selected = approval_records(rows).get(plan['issue'])
-    require(selected is not None and selected[0]['id'] == plan['approval_comment'],
+    require(selected is not None and selected[0]['id'] == plan['approval_review'],
             'Approval removed or superseded during qualification')
-    verification = next((row for row in rows if row['id'] == plan['verification_comment']), None)
+    verification = next((row for row in rows if row['id'] == plan['verification_review']), None)
     require(verification is not None and evidence_digest(selected[0], verification) == plan['evidence_sha256'],
             'Acceptance changed during qualification')
     trusted(api, selected[0], 'approval', policy)
     trusted(api, verification, 'verification', policy)
+    review_barrier(rows, selected[0], verification)
     for row in rows:
         candidate = record(row)
         require(not (row['id'] > verification['id'] and candidate and candidate.get('kind') == 'verification'
@@ -466,7 +554,7 @@ def require_current(api, plan):
 
 def close(api, plan):
     # Rebuild the entire gate, including latest attempts and immutable comments.
-    require(qualify(api, plan['anchor_pr'], plan['approval_comment'], plan['settled_sha']) == plan,
+    require(qualify(api, plan['anchor_pr'], plan['approval_review'], plan['settled_sha']) == plan,
             'Qualification changed before closure')
     require_current(api, plan)
     path = ROOT + f"/issues/{plan['issue']}"
@@ -494,21 +582,29 @@ def candidates(api, event, event_name, control_sha):
     source = source_head(api, settled)
     if event_name == 'workflow_run':
         run = event.get('workflow_run') or {}
-        require(run.get('repository', {}).get('full_name') == REPOSITORY
+        if run.get('name') == 'Issue acceptance event':
+            require(positive(run.get('id')), 'Invalid review wake-up run')
+            admitted = api.request(ROOT + '/actions/runs/' + str(run.get('id')))
+            workflow = api.request(ROOT + '/actions/workflows/issue-acceptance-event.yml')
+            require(positive(workflow.get('id')) and workflow.get('name') == 'Issue acceptance event'
+                    and workflow.get('path') == '.github/workflows/issue-acceptance-event.yml'
+                    and workflow.get('state') == 'active'
+                    and admitted.get('id') == run.get('id') and admitted.get('workflow_id') == workflow.get('id')
+                    and admitted.get('path') == '.github/workflows/issue-acceptance-event.yml'
+                    and admitted.get('repository', {}).get('full_name') == REPOSITORY
+                    and admitted.get('event') == 'pull_request_review' and admitted.get('status') == 'completed',
+                    'Review wake-up identity differs')
+        else:
+            require(run.get('repository', {}).get('full_name') == REPOSITORY
                 and run.get('head_repository', {}).get('full_name') == REPOSITORY
                 and run.get('head_branch') == 'main' and run.get('head_sha') in {source, settled['sha']}
                 and run.get('name') in {value[0] for value in WORKFLOWS.values()}
                 and run.get('event') in {'push', 'workflow_run'} and run.get('status') == 'completed',
-                'Only canonical postmerge workflow completion is admitted')
+                    'Only canonical postmerge workflow completion is admitted')
         prs = paginated(api, ROOT + f'/commits/{source}/pulls')
         numbers = [pr['number'] for pr in prs if pr.get('merge_commit_sha') == source and pr.get('merged_at')]
     elif event_name == 'issue_comment':
-        if event.get('action') != 'created' or 'pull_request' not in event.get('issue', {}):
-            return []
-        if not (event.get('comment', {}).get('body') or '').startswith(MARKER):
-            return []
-        require(positive(event['issue'].get('number')), 'Invalid acceptance PR')
-        numbers = [event['issue']['number']]
+        return []
     elif event_name == 'workflow_dispatch':
         # Manual retries are restricted to default main and its merged anchor.
         number = str(event.get('inputs', {}).get('pull_request', ''))
@@ -519,7 +615,7 @@ def candidates(api, event, event_name, control_sha):
     require(len(numbers) <= 1, 'Ambiguous actual merge association')
     result = []
     for number in numbers:
-        for approval, value in approval_records(comments(api, number)).values():
+        for approval, value in approval_records(reviews(api, number)).values():
             issue = api.request(ROOT + f"/issues/{value['issue']}")
             if issue.get('state') == 'open' and value['decision'] == 'close':
                 result.append((number, approval['id']))
