@@ -51,6 +51,23 @@ class NativeCompilationTests(unittest.TestCase):
             self.assertEqual('// PR game code is kept\n', (source / 'Assets/Scripts/Game.cs').read_text())
             self.assertEqual([], native_compilation.overlay_control_reporting_tools(source, control))
 
+    def test_overlay_restores_a_deleted_fixed_editor_reporting_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, control = Path(directory) / 'source', Path(directory) / 'control'
+            for root in (source, control):
+                (root / 'tools').mkdir(parents=True)
+                (root / 'tools/helper.py').write_text('trusted = True\n')
+                (root / 'Assets/Editor').mkdir(parents=True)
+                for name in ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'):
+                    (root / 'Assets/Editor' / name).write_text('// trusted helper\n')
+            (source / 'Assets/Editor/LucidPlayerCompilation.cs').unlink()
+            with self.assertRaisesRegex(ValueError, 'regular files'):
+                native_compilation.require_control_reporting_tools(source, control)
+            self.assertEqual(['Assets/Editor/LucidPlayerCompilation.cs'],
+                             native_compilation.overlay_control_reporting_tools(source, control))
+            self.assertEqual('// trusted helper\n', (source / 'Assets/Editor/LucidPlayerCompilation.cs').read_text())
+            native_compilation.require_control_reporting_tools(source, control)
+
     def test_overlay_rejects_symlinked_reporting_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             source, control = Path(directory) / 'source', Path(directory) / 'control'

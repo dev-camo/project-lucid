@@ -22,7 +22,7 @@ def git_head(root):
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
 
 
-def reporting_files(root):
+def reporting_files(root, *, allow_missing_fixed=False):
     root = Path(root).resolve(strict=True)
     tools = root / 'tools'
     if any(path.is_symlink() for path in (tools, *tools.parents)):
@@ -38,7 +38,12 @@ def reporting_files(root):
                  ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'))
     result = {}
     for path in paths:
-        if any(part.is_symlink() for part in (path, *path.parents)) or not path.is_file():
+        if any(part.is_symlink() for part in (path, *path.parents)):
+            raise ValueError('Reporting code must be regular files')
+        # Only the overlay may see a PR that deleted a fixed Editor reporting file.
+        if allow_missing_fixed and not path.exists() and path.parent == root / 'Assets/Editor':
+            continue
+        if not path.is_file():
             raise ValueError('Reporting code must be regular files')
         result[str(path.relative_to(root))] = hashlib.sha256(path.read_bytes()).hexdigest()
     return result
@@ -57,7 +62,7 @@ def overlay_control_reporting_tools(source, control):
     changes still need review and the post-merge main run, which uses them.
     """
     source, control = Path(source).resolve(strict=True), Path(control).resolve(strict=True)
-    current, trusted = reporting_files(source), reporting_files(control)
+    current, trusted = reporting_files(source, allow_missing_fixed=True), reporting_files(control)
     changed = sorted(path for path in set(current) | set(trusted) if current.get(path) != trusted.get(path))
     for path in changed:
         target = source / path
