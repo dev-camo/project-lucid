@@ -126,23 +126,52 @@ namespace ProjectLucid
             if (first != null) ExceptionDispatchInfo.Capture(first).Throw();
         }
 
-        // The original unregister stops at the first throwing observer. Revoke each reference
-        // that is still set through the original internal revoke, one at a time. A reference
-        // whose own observer throws again keeps its fields, as the original revoke does.
+        // The original unregister stops at the first throwing observer, leaving that reference
+        // and every later one set. Revoke them in the original order (untyped, then typed). The
+        // first one still set is the reference whose observer already threw: detach its shutdown
+        // observers through the public event before revoking, so it is never notified twice. A
+        // later reference is notified once; if its observer throws too, it is detached the same way.
         private static void RevokeRemainingReferences(object info)
         {
-            // An already-revoked reference has no system, so revoking it again runs no observer.
             Type infoType = info.GetType();
             var references = new List<object> { infoType.GetField("SystemRef").GetValue(info) };
             foreach (object reference in ((IDictionary)infoType.GetField("SystemRefDictionary").GetValue(info)).Values)
                 references.Add(reference);
             MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
                 .GetMethod("InternalRevokeSystem", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            bool notified = true;
             foreach (object reference in references)
             {
+                if (!IsValid(reference)) continue;
+                if (notified)
+                {
+                    notified = false;
+                    DetachShutdownObservers(reference);
+                }
                 try { revoke.Invoke(reference, null); }
-                catch (TargetInvocationException) { }
+                catch (TargetInvocationException)
+                {
+                    DetachShutdownObservers(reference);
+                    revoke.Invoke(reference, null);
+                }
             }
+        }
+
+        private static bool IsValid(object reference) =>
+            (bool)reference.GetType().GetMethod("IsValid", BindingFlags.Instance | BindingFlags.Public).Invoke(reference, null);
+
+        // Reads the observer list and removes each observer through the public event accessor;
+        // no private field is written.
+        private static void DetachShutdownObservers(object reference)
+        {
+            Type type = reference.GetType();
+            while (type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) == null)
+                type = type.BaseType;
+            var observers = (Delegate)type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
+            if (observers == null) return;
+            EventInfo shutdown = type.GetEvent("OnSystemShutdown");
+            foreach (Delegate observer in observers.GetInvocationList())
+                shutdown.RemoveEventHandler(reference, observer);
         }
 
         private static void VerifyFastActions()

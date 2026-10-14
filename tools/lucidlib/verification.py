@@ -1445,4 +1445,5 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.RepeatedRunsLeaveRegistryRowsAndSystemsUnchanged",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.BorrowedEmptyDefaultManagerRowKeepsItsReferencesAndObservers",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ThrowingShutdownObserverDoesNotKeepLaterOwnedRowsRegistered",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.FailureDuringRunStillReleasesOwnedRowsAndRestoresTheRegistry",
 )

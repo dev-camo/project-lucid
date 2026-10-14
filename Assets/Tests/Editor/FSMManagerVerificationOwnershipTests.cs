@@ -86,6 +86,32 @@ namespace ProjectLucid.Editor
             }
         }
 
+        private sealed class ForeignSystem : ISystem { }
+
+        [Test]
+        public void FailureDuringRunStillReleasesOwnedRowsAndRestoresTheRegistry()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            try
+            {
+                // A registered HLUnityCore breaks the diagnostics precondition, after the
+                // fixture has already acquired its own rows and references.
+                SystemRef core = ProcessManager.RegisterSystem(new ForeignSystem(), "Hardlight.HLUnityCore", noException: true);
+                List<string> order = rows.Keys.Cast<string>().ToList();
+                List<object> values = rows.Values.Cast<object>().ToList();
+                var failure = Assert.Throws<InvalidOperationException>(FSMManagerVerification.Run);
+                Assert.That(failure.Message, Is.EqualTo("FSM manager verification failed: diagnostic test precondition"));
+                Assert.That(rows.Keys.Cast<string>(), Is.EqualTo(order), "no owned row survives and order is kept");
+                Assert.That(rows.Values.Cast<object>(), Is.EqualTo(values), "row objects are unchanged");
+                Assert.That(core.IsValid(), Is.True, "the foreign row keeps its system");
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
         [Test]
         public void ThrowingShutdownObserverDoesNotKeepLaterOwnedRowsRegistered()
         {
@@ -99,15 +125,18 @@ namespace ProjectLucid.Editor
                 SystemRef<FSMManager> firstTyped = ProcessManager.GetSystemRef<FSMManager>(first);
                 SystemRef secondRef = ProcessManager.RegisterSystem(new FSMManager(), second);
                 var injected = new InvalidOperationException("injected shutdown failure");
-                firstRef.OnSystemShutdown += system => throw injected;
+                int untypedCalls = 0, typedCalls = 0;
+                // Persistent observers throw on every call, on both the untyped and a typed reference.
+                firstRef.OnSystemShutdown += system => { untypedCalls++; throw injected; };
+                firstTyped.OnSystemShutdown += system => { typedCalls++; throw new InvalidOperationException("typed"); };
                 Exception thrown = Assert.Catch(() => FSMManagerVerification.ReleaseOwnedRows(new[] { first, second }));
                 Assert.That(thrown, Is.SameAs(injected));
                 Assert.That(rows.Contains(first) || rows.Contains(second), Is.False);
                 Assert.That(secondRef.IsNull(), Is.True, "later owned row was not revoked");
-                // The original stops before typed references; they are revoked individually.
-                Assert.That(firstTyped.IsNull(), Is.True, "failing row's typed reference was not revoked");
-                // Only the reference whose own observer throws keeps its system, as in the original revoke.
-                Assert.That(firstRef.IsNull(), Is.False);
+                // No owned reference survives, and each observer is notified exactly once.
+                Assert.That(firstRef.IsNull() && firstTyped.IsNull(), Is.True, "failing row's references were not revoked");
+                Assert.That(untypedCalls, Is.EqualTo(1), "throwing untyped observer was retried");
+                Assert.That(typedCalls, Is.EqualTo(1), "typed observer was not notified exactly once");
             }
             finally
             {
