@@ -1010,6 +1010,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.MissionStringsFormattingTests.MissionDescription_PositiveArgumentsAndNaNDistinction",
     "ProjectLucid.Tests.MissionStringsFormattingTests.MissionFormats_OrdinaryFaultsAndPositiveTimerEvaluationOrder",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLProfilerCategoryConverterTests.ConverterAndComparersRetainOriginalDeclarations",
+    "ProjectLucid.Editor.OriginalHLProfilerCategoryConverterTests.TableMapsEveryCategoryInOrderUsingTheSharedComparer",
+)
 
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.UniqueCollectableStateDataTests.RegistrationAndCollectionKeepIndependentIdsAndCountOnlyOnce",
