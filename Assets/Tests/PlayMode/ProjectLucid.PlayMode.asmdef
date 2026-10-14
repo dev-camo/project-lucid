@@ -12,7 +12,7 @@
     "Unity.Timeline",
     "HLUnityUI.Runtime",
     "HLEventSystems.Runtime",
-    "Unity.ugui",
+    "UnityEngine.UI",
     "ProjectLucid.CoroutineScroll.EngineVerification",
     "ProjectLucid.Haptics.EngineVerification",
     "ProjectLucid.Screen.EngineVerification"

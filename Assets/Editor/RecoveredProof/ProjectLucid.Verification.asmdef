@@ -19,7 +19,7 @@
     "HLPhysics.Runtime",
     "HLUnityUI.Runtime",
     "HLEventSystems.Runtime",
-    "Unity.ugui",
+    "UnityEngine.UI",
     "ProjectLucid.CoroutineScroll.EngineVerification",
     "HLNotifications.Runtime",
     "HLCrashReport.Runtime"

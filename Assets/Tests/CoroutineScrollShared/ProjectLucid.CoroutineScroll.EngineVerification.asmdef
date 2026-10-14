@@ -4,7 +4,7 @@
     "HLUnityCore.Runtime",
     "HLUnityUI.Runtime",
     "HLEventSystems.Runtime",
-    "Unity.ugui"
+    "UnityEngine.UI"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"
