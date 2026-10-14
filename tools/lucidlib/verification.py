@@ -1401,3 +1401,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.ManagedAddressableVerificationIsolationTests.ForeignDeferredCompletionIsNotDispatchedByTheVerification",
 )
+
+# Compiled declaration flags only; animation behavior and native layout stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalActorAnimatorFieldTests.AnimatorFieldRetainsOriginalPrivateInitOnlyFlags",
+)

@@ -10,7 +10,7 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class ActorAnimator
     {
-        private Animator m_animator;
+        private readonly Animator m_animator;
 
         // Original 06000345 activates the supplied animator's GameObject after
         // storing it, without a null guard.
