@@ -1,7 +1,10 @@
 """Opt-in integration checks against the pinned Core API and supplied release.
 
-Build the harness, then set LUCID_NATIVE_INTEGRATION=1 to run these checks. All
-mutated fixtures and evidence stay in fresh recovery-cache directories.
+These checks require an explicitly authorized controller to build and seal the
+host and harness in the same process before opt-in discovery. A cached marker
+alone is rejected; this fixture never bootstraps or rebuilds those dependencies,
+or recreates their seals.
+All mutated fixtures and evidence stay in fresh recovery-cache directories.
 """
 
 from __future__ import annotations
@@ -11,66 +14,190 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import struct
 import subprocess
 import unittest
 import uuid
 from xml.sax.saxutils import escape
 
+from tools.lucidlib import bootstrap, native
+from tools.lucidlib.inspection import sha256_file
+from tools.lucidlib.macho import inspect_macho
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CACHE = ROOT / ".cache/project-lucid"
 PIN = "b5ad444b82267cb1e4b88b8b373c008105bdea52"
-HARNESS = CACHE / "native-recovery/build/bin/Release/net10.0/ProjectLucid.NativeRecovery.dll"
-DOTNET = CACHE / "tools/dotnet/dotnet"
 METADATA = ROOT / "input/SonicDreamTeam.app/Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat"
 
 
-@unittest.skipUnless(os.environ.get("LUCID_NATIVE_INTEGRATION") == "1", "requires pinned native-recovery build and supplied release")
+def _physical_file(path):
+    """Reject path aliases before reading borrowed inputs or generated evidence."""
+    path = Path(os.path.abspath(os.fspath(path)))
+    for component in (*reversed(path.parents), path):
+        if component.is_symlink():
+            raise bootstrap.ToolError(f"Integration input cannot contain a symbolic link: {component}")
+    info = path.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+        raise bootstrap.ToolError(f"Integration input must be one physical regular file: {path}")
+    return path
+
+
+def _file_identity(path):
+    path = _physical_file(path)
+    before = path.stat()
+    digest = sha256_file(path)
+    after = path.stat()
+    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    identity = tuple(getattr(before, field) for field in fields)
+    if identity != tuple(getattr(after, field) for field in fields):
+        raise bootstrap.ToolError(f"Integration input changed while hashing: {path}")
+    return identity, digest
+
+
+class _IntegrationPreflight:
+    """Read-only admission; public cache files cannot create execution authority."""
+
+    def __init__(self, work, original, metadata):
+        self.work = bootstrap.validate_work_dir(work)
+        self.original, self.metadata = _physical_file(original), _physical_file(metadata)
+        self.pointer = bootstrap.managed_path(bootstrap.tool_work_dir(self.work),
+                                              "native-recovery", "latest-build.json")
+        self.pointer_identity = _file_identity(self.pointer)
+        report = native._load_json(self.pointer, 1024 * 1024)
+        self.dotnet = self._host()
+        identity = native._lock_identity(bootstrap.load_lock())
+        identity.update(
+            cpp2il_source_closure_sha256=report.get("cpp2il_source_closure_sha256"),
+            harness_sources=self._harness_sources(),
+            dotnet_host_sha256=sha256_file(self.dotnet))
+        fingerprint = hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+        if any(report.get(key) != value for key, value in identity.items()):
+            raise bootstrap.ToolError("Integration harness source/host identity differs from the current pinned build")
+        build = native._cached_build(self.pointer, bootstrap.tool_work_dir(self.work), fingerprint)
+        if build is None:
+            raise bootstrap.ToolError("Integration requires a genuine same-process sealed native harness; cached markers are insufficient")
+        self.fingerprint, self.build_identity = fingerprint, identity
+        self.harness = _physical_file(build["path"])
+        self.original_identity, self.metadata_identity = _file_identity(self.original), _file_identity(self.metadata)
+        architectures = inspect_macho(self.original)["architectures"]
+        self.architectures = {}
+        for name in ("x86_64", "arm64"):
+            rows = [row for row in architectures if row["name"] == name]
+            if len(rows) != 1 or rows[0]["encrypted"]:
+                raise bootstrap.ToolError(f"Integration requires one readable original {name} slice")
+            self.architectures[name] = rows[0]
+        self.binary = bootstrap.managed_path(self.work, "recovery", "inputs",
+                                             self.original_identity[1] + ".x86_64.dylib")
+        self.binary_identity = _file_identity(self.binary)
+        self.slice_hashes = {name: self._slice_hash(row) for name, row in self.architectures.items()}
+        if self.binary_identity[1] != self.slice_hashes["x86_64"]:
+            raise bootstrap.ToolError("Integration analysis slice differs from the physical original")
+        self.verify()
+
+    def _harness_sources(self):
+        return {path.name: sha256_file(_physical_file(path)) for path in
+                (native._PROJECT, native._MANIFEST, *sorted(native._PROJECT.parent.glob("*.cs")))}
+
+    def _host(self):
+        host_work = bootstrap.tool_work_dir(self.work)
+        directory = bootstrap.managed_path(host_work, "tools", "dotnet")
+        # Do not let verified_tool_path install/download on an opt-in test's behalf.
+        # Presence is only a prerequisite: its production validator checks the
+        # exact pinned identity and complete executable/dependency closure below.
+        artifact = bootstrap.host_lock()["artifacts"]["dotnet"]
+        identity = {key: artifact[key] for key in ("version", "sha256", "sha512") if key in artifact}
+        recorded = bootstrap._INSTALL_SEALS.get(directory)
+        if recorded is None or recorded[0] != identity:
+            raise bootstrap.ToolError("Integration requires a genuine same-process verified host tool; no installation is attempted")
+        return _physical_file(bootstrap.verified_tool_path(self.work, "dotnet"))
+
+    def _slice_hash(self, architecture):
+        checksum = hashlib.sha256()
+        with self.original.open("rb") as stream:
+            stream.seek(architecture["offset"])
+            remaining = architecture["size"]
+            while remaining:
+                block = stream.read(min(1024 * 1024, remaining))
+                if not block:
+                    raise bootstrap.ToolError("Integration original slice is truncated")
+                checksum.update(block)
+                remaining -= len(block)
+        return checksum.hexdigest()
+
+    def verify(self):
+        current_lock = native._lock_identity(bootstrap.load_lock())
+        if any(self.build_identity.get(key) != value for key, value in current_lock.items()):
+            raise bootstrap.ToolError("Integration native lock identity changed after admission")
+        if _file_identity(self.pointer) != self.pointer_identity:
+            raise bootstrap.ToolError("Integration build pointer changed after admission")
+        if self._harness_sources() != self.build_identity["harness_sources"]:
+            raise bootstrap.ToolError("Integration control sources changed after admission")
+        if self._host() != self.dotnet or native._cached_build(
+                self.pointer, bootstrap.tool_work_dir(self.work), self.fingerprint) is None:
+            raise bootstrap.ToolError("Integration executable/dependency closure changed after admission")
+        for path, identity in ((self.original, self.original_identity), (self.metadata, self.metadata_identity),
+                               (self.binary, self.binary_identity)):
+            if _file_identity(path) != identity:
+                raise bootstrap.ToolError(f"Integration sealed input changed after admission: {path}")
+        if any(self._slice_hash(row) != self.slice_hashes[name] for name, row in self.architectures.items()):
+            raise bootstrap.ToolError("Integration original slice changed after admission")
+
+    def extract_arm64(self, directory):
+        self.verify()
+        target = bootstrap.managed_path(self.work, *directory.relative_to(self.work).parts, "GameAssembly.arm64.dylib")
+        architecture = self.architectures["arm64"]
+        with self.original.open("rb") as stream, target.open("xb") as output:
+            stream.seek(architecture["offset"])
+            remaining = architecture["size"]
+            while remaining:
+                block = stream.read(min(1024 * 1024, remaining))
+                if not block:
+                    raise bootstrap.ToolError("Integration original ARM64 slice is truncated")
+                output.write(block)
+                remaining -= len(block)
+        self.verify()
+        if _file_identity(target)[1] != self.slice_hashes["arm64"]:
+            raise bootstrap.ToolError("Integration ARM64 slice differs from the physical original")
+        return target
+
+
+def _integration_environment(directory, dotnet):
+    # Absolute verified executable paths do not need caller-provided search or
+    # runtime injection channels. Restore/build caches and HOME are test-owned.
+    home = directory / "home"
+    home.mkdir(exist_ok=False)
+    env = {"PATH": os.defpath, "LANG": "C", "LC_ALL": "C", "HOME": str(home),
+           "USERPROFILE": str(home), "XDG_CONFIG_HOME": str(home / ".config"),
+           "DOTNET_ROOT": str(dotnet.parent), "DOTNET_NOLOGO": "1",
+           "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1", "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+           "DOTNET_MULTILEVEL_LOOKUP": "0", "DOTNET_TieredCompilation": "0",
+           "COMPlus_TieredCompilation": "0", "DOTNET_TieredPGO": "0"}
+    for key, name in (("DOTNET_CLI_HOME", "dotnet-home"), ("NUGET_PACKAGES", "nuget-packages"),
+                      ("DOTNET_BUNDLE_EXTRACT_BASE_DIR", "dotnet-bundles")):
+        path = directory / name
+        path.mkdir(exist_ok=False)
+        env[key] = str(path)
+    return env
+
+
+@unittest.skipUnless(os.environ.get("LUCID_NATIVE_INTEGRATION") == "1", "requires explicit native integration opt-in and genuine same-process tool seals")
 class NativeRecoveryIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pointer = CACHE / "native-recovery/latest-build.json"
-        cls.harness = Path(json.loads(pointer.read_text())["path"]) if pointer.is_file() else HARNESS
-        if not cls.harness.resolve().is_relative_to(CACHE.resolve()):
-            raise RuntimeError("Native integration harness must remain in the generated cache")
-        for file in (cls.harness, DOTNET, METADATA):
-            if not file.is_file():
-                raise RuntimeError(f"Required integration input is absent: {file}")
-        candidates = sorted((CACHE / "recovery/inputs").glob("*.x86_64.dylib"))
-        if len(candidates) != 1:
-            raise RuntimeError("Integration checks need one hash-verified x86_64 analysis slice")
-        cls.binary = candidates[0]
         original = ROOT / "input/SonicDreamTeam.app/Contents/Frameworks/GameAssembly.dylib"
-        # Extract the original ARM64 slice to a fresh cache child; never rewrite
-        # the supplied universal binary or depend on an agent-generated probe.
-        cls.architecture_dir = CACHE / "native-recovery/tests" / uuid.uuid4().hex
-        cls.architecture_dir.mkdir(parents=True)
-        cls.arm64 = cls.architecture_dir / "GameAssembly.arm64.dylib"
-        with original.open("rb") as stream:
-            magic, count = struct.unpack(">II", stream.read(8))
-            if magic != 0xcafebabe or not 1 <= count <= 64:
-                raise RuntimeError("Integration release requires the original FAT32 Mach-O")
-            rows = [struct.unpack(">iiIII", stream.read(20)) for _ in range(count)]
-            arm = next(row for row in rows if row[0] == 0x0100000c)
-            stream.seek(arm[2])
-            with cls.arm64.open("wb") as output:
-                remaining = arm[3]
-                while remaining:
-                    block = stream.read(min(1024 * 1024, remaining))
-                    if not block:
-                        raise RuntimeError("Truncated ARM64 input")
-                    output.write(block)
-                    remaining -= len(block)
-        cls.environment = os.environ.copy()
-        cls.environment.update(DOTNET_ROOT=str(DOTNET.parent), DOTNET_NOLOGO="1",
-                               DOTNET_TieredCompilation="0", COMPlus_TieredCompilation="0",
-                               DOTNET_CLI_HOME=str(CACHE / "dotnet-home"),
-                               NUGET_PACKAGES=str(CACHE / "nuget-packages"))
+        cls.preflight = _IntegrationPreflight(CACHE, original, METADATA)
+        cls.harness, cls.dotnet, cls.binary = cls.preflight.harness, cls.preflight.dotnet, cls.preflight.binary
+        cls.architecture_dir = bootstrap.managed_path(CACHE, "native-recovery", "tests", uuid.uuid4().hex)
+        cls.architecture_dir.mkdir(parents=True, exist_ok=False)
+        cls.arm64 = cls.preflight.extract_arm64(cls.architecture_dir)
+        cls.arm64_identity = _file_identity(cls.arm64)
+        cls.environment = _integration_environment(cls.architecture_dir, cls.dotnet)
 
     def setUp(self):
-        self.directory = CACHE / "native-recovery/tests" / uuid.uuid4().hex
-        self.directory.mkdir(parents=True)
+        self.directory = bootstrap.managed_path(CACHE, "native-recovery", "tests", uuid.uuid4().hex)
+        self.directory.mkdir(parents=True, exist_ok=False)
         self.output = self.directory / "output"
 
     def invoke(self, command="schemas", assembly="Game.Runtime", token=None, **overrides):
@@ -81,12 +208,25 @@ class NativeRecoveryIntegrationTests(unittest.TestCase):
         if token is not None:
             options["token"] = token
         options.update(overrides)
-        args = [str(DOTNET), str(self.harness), command]
+        self._verify_launch_inputs(options["binary"], options["metadata"])
+        args = [str(self.dotnet), str(self.harness), command]
         for key, value in options.items():
             args.extend(["--" + key, str(value)])
-        result = subprocess.run(args, env=self.environment, capture_output=True, text=True, timeout=120)
+        result = subprocess.run(args, env=self.environment, cwd=self.directory, stdin=subprocess.DEVNULL,
+                                capture_output=True, text=True, timeout=120)
         (self.directory / "process.log").write_text(result.stdout + result.stderr)
         return result
+
+    def _verify_launch_inputs(self, binary=None, metadata=None):
+        self.preflight.verify()
+        if _file_identity(self.arm64) != self.arm64_identity:
+            raise bootstrap.ToolError("Integration ARM64 fixture changed after extraction")
+        for path, original in ((binary, (self.binary, self.arm64)), (metadata, (METADATA,))):
+            if path is not None and Path(path) not in original:
+                checked = bootstrap.managed_path(CACHE, *Path(path).relative_to(CACHE).parts)
+                if self.directory not in checked.parents:
+                    raise bootstrap.ToolError("Mutated integration inputs must belong to this test's fresh directory")
+                _file_identity(checked)
 
     def assert_failed_without_output(self, result, message):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
@@ -272,13 +412,19 @@ Console.WriteLine("guard_checks=11");
             '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType>'
             '<TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>'
             '</PropertyGroup><ItemGroup>' + references + '</ItemGroup></Project>')
-        build = subprocess.run([str(DOTNET), "build", str(self.directory / "GuardTests.csproj"), "-c", "Release"],
-                               env=self.environment, capture_output=True, text=True, timeout=60)
+        self._verify_launch_inputs()
+        build = subprocess.run([str(self.dotnet), "build", str(self.directory / "GuardTests.csproj"), "-c", "Release"],
+                               env=self.environment, cwd=self.directory, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
         (self.directory / "guard-build.log").write_text(build.stdout + build.stderr)
         self.assertEqual(build.returncode, 0, build.stdout + build.stderr)
-        run = subprocess.run([str(DOTNET), str(self.directory / "bin/Release/net10.0/GuardTests.dll"),
+        guard_output = self.directory / "bin/Release/net10.0"
+        bootstrap.seal_built_tool(guard_output, {"fixture": "owned-guard-build"})
+        self._verify_launch_inputs()
+        if not bootstrap.verify_built_tool(guard_output, {"fixture": "owned-guard-build"}):
+            raise bootstrap.ToolError("Owned guard runner changed after its successful build")
+        run = subprocess.run([str(self.dotnet), str(guard_output / "GuardTests.dll"),
                               str(self.binary), str(METADATA), str(self.harness)],
-                             env=self.environment, capture_output=True, text=True, timeout=120)
+                             env=self.environment, cwd=self.directory, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=120)
         (self.directory / "guard-run.log").write_text(run.stdout + run.stderr)
         self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
         self.assertIn("guard_checks=11", run.stdout)
@@ -451,11 +597,12 @@ Console.WriteLine("guard_checks=11");
         self.assertEqual(sentinel.read_text(), "retain existing evidence")
 
     def verify_source(self, source, archive=None):
-        args = [str(DOTNET), "msbuild", str(ROOT / "tools/native-recovery/NativeRecovery.csproj"),
+        self._verify_launch_inputs()
+        args = [str(self.dotnet), "msbuild", str(ROOT / "tools/native-recovery/NativeRecovery.csproj"),
                 "-t:VerifyCpp2ILSource", "-p:Cpp2ILSource=" + str(source)]
         if archive is not None:
             args.append("-p:Cpp2ILArchive=" + str(archive))
-        result = subprocess.run(args, env=self.environment, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(args, env=self.environment, cwd=self.directory, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
         (self.directory / "build-check.log").write_text(result.stdout + result.stderr)
         return result
 
