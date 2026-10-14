@@ -1396,3 +1396,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalSealedTypeFlagsTests.LevelManagerLevelRetainsOriginalSealedFlags",
     "ProjectLucid.Editor.OriginalSealedTypeFlagsTests.GameTipsDefinitionRetainsOriginalSealedFlags",
 )
+
+# Fixture ownership of the global property store; production save behavior stays separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ForeignSaveHandlerSurvivesARefusedVerification",
+    "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ForeignStoreSurvivesARefusedVerification",
+    "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ColdVerificationReturnsToTheSameColdState",
+)

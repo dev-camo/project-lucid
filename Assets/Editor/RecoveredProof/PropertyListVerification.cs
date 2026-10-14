@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Reflection;
 using Hardlight;
 using UnityEngine;
 
@@ -89,14 +90,26 @@ namespace ProjectLucid
                 Require(((string)null).MakeAlphanumeric() == null && " \t".MakeAlphanumeric() == " \t" && "".MakeAlphanumeric() == "", "blank text passed through");
                 list.Properties.Insert(0, null);
                 RequireThrows<NullReferenceException>(() => list.GetProperty(5u), "null collection element stays an error");
+                // The fixture store publishes the global singleton, and its original Shutdown
+                // clears five global handler lists, so use it only from that exact cold state.
+                Require(!StoreSingletonPublished() && !HLPropertyStore.IsThereAnyLoadHandler && !HLPropertyStore.IsThereAnySaveHandler &&
+                    !HLPropertyStore.IsThereAnyModifySaveHandler && !HLPropertyStore.IsThereAnySaveSuccessHandler &&
+                    !HLPropertyStore.IsThereAnyResolveConflictHandler, "no foreign property store or cleared handler before the fixture store");
                 var store = new HLPropertyStore("key", 1, "unused");
-                Require(!store.IsLoaded && store.CanSave && store.UnencryptedSaveVersion == 2,
-                    "store construction leaves explicit loading for its caller");
-                store.Shutdown();
+                try
+                {
+                    Require(!store.IsLoaded && store.CanSave && store.UnencryptedSaveVersion == 2,
+                        "store construction leaves explicit loading for its caller");
+                }
+                finally { store.Shutdown(); }
                 Debug.Log("[Project Lucid] Original property-list checks passed: " + checks);
             }
             finally { CultureInfo.CurrentCulture = previous; }
         }
+
+        // Read-only observation of the original private singleton; nothing writes it here.
+        internal static bool StoreSingletonPublished() =>
+            typeof(HLPropertyStore).GetField("s_internalInstance", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null) != null;
 
         private static void Require(bool condition, string message)
         {
