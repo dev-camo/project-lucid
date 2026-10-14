@@ -31,6 +31,19 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void CountryPolicyResolvesNeutralCulturesThroughTheirSpecificCulture()
+        {
+            AssertCountries(("en", "US"), ("fr", "FR"), ("zh-Hans", "CN"));
+        }
+
+        [Test]
+        public void CountryPolicyTracksEachSpecificCultureAfterInvariant()
+        {
+            // Mono caches RegionInfo.CurrentRegion; the policy must still follow later cultures.
+            AssertCountries(("", "IV"), ("en-GB", "GB"), ("en-US", "US"), ("en-AU", "AU"), ("", "IV"));
+        }
+
+        [Test]
         public void OfflineClientCodeReturnsOneAndWritesZero()
         {
             var bridge = new HLUnityCoreNativeBridge();
@@ -44,6 +57,25 @@ namespace ProjectLucid.Tests
         {
             var bridge = new HLUnityCoreNativeBridge();
             Assert.Throws<NullReferenceException>(() => bridge.Initialise(null));
+        }
+
+        private static void AssertCountries(params (string culture, string country)[] cases)
+        {
+            var bridge = new HLUnityCoreNativeBridge();
+            var saved = CultureInfo.CurrentCulture;
+            try
+            {
+                foreach (var (culture, country) in cases)
+                {
+                    CultureInfo.CurrentCulture = new CultureInfo(culture);
+                    Assert.AreEqual(country, bridge.GetDeviceISO2CountryCode(), culture);
+                }
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = saved;
+            }
+            Assert.AreSame(saved, CultureInfo.CurrentCulture);
         }
     }
 }
