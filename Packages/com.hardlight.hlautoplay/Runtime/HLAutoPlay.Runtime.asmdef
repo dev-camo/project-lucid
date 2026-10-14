@@ -1,0 +1,8 @@
+{
+  "name": "HLAutoPlay.Runtime",
+  "references": [
+    "HLUnityCore.Runtime"
+  ],
+  "autoReferenced": true,
+  "noEngineReferences": false
+}

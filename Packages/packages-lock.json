@@ -15,6 +15,12 @@
         "com.hardlight.hlinput": "0.1.0"
       }
     },
+    "com.hardlight.hlautoplay": {
+      "version": "file:com.hardlight.hlautoplay",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.hardlight.hlbinders": {
       "version": "file:com.hardlight.hlbinders",
       "depth": 0,

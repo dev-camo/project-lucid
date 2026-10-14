@@ -24,7 +24,8 @@
     "HLBinders.Runtime",
     "FairPlay.Runtime",
     "HLSplines.Runtime",
-    "HLCrossPromo.Runtime"
+    "HLCrossPromo.Runtime",
+    "HLAutoPlay.Runtime"
   ],
   "includePlatforms": [
     "Editor"
