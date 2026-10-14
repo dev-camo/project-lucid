@@ -250,6 +250,28 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.assertFalse(stale.with_suffix(".lock").exists())
         self.spawn.assert_not_called()
 
+    def test_failed_seal_with_failed_cleanup_keeps_the_lease_for_a_later_retry(self):
+        self.cpp2il_fixture()
+        original_rmtree = shutil.rmtree
+        def failing_rmtree(path, *args, **kwargs):
+            if Path(path).parent.name == "cpp2il-builds" and not Path(path).name.startswith("."):
+                raise OSError("injected published cleanup failure")
+            return original_rmtree(path, *args, **kwargs)
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build), \
+                mock.patch.object(bootstrap, "seal_built_tool", side_effect=bootstrap.ToolError("injected seal failure")), \
+                mock.patch.object(bootstrap.shutil, "rmtree", failing_rmtree), \
+                self.assertRaisesRegex(bootstrap.ToolError, "injected seal failure"):
+            bootstrap._ensure_cpp2il(self.lock, self.work)
+        builds = self.work / "tools/cpp2il-builds"
+        orphans = [path for path in builds.iterdir() if path.is_dir() and not path.name.startswith(".")]
+        self.assertEqual(1, len(orphans))
+        self.assertTrue(orphans[0].with_suffix(".lock").exists())
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
+            bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertFalse(orphans[0].exists())
+        self.assertFalse(orphans[0].with_suffix(".lock").exists())
+        self.spawn.assert_not_called()
+
     def test_forged_inspector_marker_rejected_before_build_or_load(self):
         sdk = self.work / "tools/dotnet/dotnet"
         sdk.parent.mkdir(parents=True)

@@ -625,7 +625,9 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
         if not published:
             _remove_tree(directory, warnings)
             _release_lease(lease)
-            _remove_tree(builds / f"{build_id}.lock", warnings)
+            # Keep the lease while the directory survives so a later prune retries it.
+            if not directory.exists() and not directory.is_symlink():
+                _remove_tree(builds / f"{build_id}.lock", warnings)
         _remove_tree(stage, warnings)
         _remove_tree(build_source, warnings)
     result = {"status": "ready", "path": str(executable(directory / "Cpp2IL")), "version": identity["commit"], "build": process}
