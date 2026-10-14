@@ -272,7 +272,10 @@ namespace ProjectLucid
             var eventField = Field(T, "OnLanguageChanged"); var bridge = Field(typeof(HLUnityCore), "s_unityCoreNativeBridge");
             object oldStore = storeInstance.GetValue(null), oldLoads = loads.GetValue(null), oldSaves = saves.GetValue(null), oldEvent = eventField.GetValue(null), oldBridge = bridge.GetValue(null);
             GameObject owner = null; Language language = null; bool registered = false;
-            SystemRef<Language> system = ProcessManager.GetSystemRef<Language>();
+            // The fixture owns the default Language row: auto-registering references keep an
+            // empty row after the original unregister, so it is removed when the proof ends.
+            var registration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<Language>());
+            SystemRef<Language> system = null;
             Action<Language> shutdown = null;
             try
             {
@@ -289,7 +292,8 @@ namespace ProjectLucid
                 Field(typeof(HLPropertyStore), "m_isLoaded").SetValue(store, true);
                 Field(typeof(HLPropertyStore), "ActiveProperties").SetValue(store, Properties("True", "Korean"));
                 storeInstance.SetValue(null, store); loads.SetValue(null, null); saves.SetValue(null, null); eventField.SetValue(null, null);
-                typeof(MonoSingleton<Language>).GetMethod("Awake", Declared).Invoke(language, null); registered = true;
+                registration.RegisterUsing(language, () => typeof(MonoSingleton<Language>).GetMethod("Awake", Declared).Invoke(language, null)); registered = true;
+                system = ProcessManager.GetSystemRef<Language>();
                 Check(ReferenceEquals(MonoSingleton<Language>.Instance, language) && ReferenceEquals(system.GetSafe(), language) && !ProcessManager.IsSystemNull<Language>(), "actual genuine component registers through original singleton/process graph");
                 Check(Language.GetLanguage() == Languages.EnglishUS && Language.GetLanguageAsInt() == (int)Languages.EnglishUS, "actual Unity nonnull getters read original current singleton");
                 int notifications = 0;
@@ -322,6 +326,7 @@ namespace ProjectLucid
             {
                 if (shutdown != null) system.OnSystemShutdown -= shutdown;
                 if (registered && language != null) Invoke(language, "OnDestroy");
+                registration.Dispose();
                 if (owner != null) UnityEngine.Object.DestroyImmediate(owner);
                 storeInstance.SetValue(null, oldStore); loads.SetValue(null, oldLoads); saves.SetValue(null, oldSaves); eventField.SetValue(null, oldEvent); bridge.SetValue(null, oldBridge);
             }

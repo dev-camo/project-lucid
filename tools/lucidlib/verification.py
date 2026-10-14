@@ -1580,3 +1580,7 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLPhysicsLifecycleTests.EngineCreationRegistersOnAwakeAndDestructionReleasesIt",
     "ProjectLucid.Tests.OriginalHLPhysicsLifecycleTests.FailureAfterAwakeStillReleasesOwnedStateAndKeepsTheFirstFailure",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.LanguageVerificationRegistryOwnershipTests.LanguageProofLeavesNoLanguageRegistryRow",
+)
