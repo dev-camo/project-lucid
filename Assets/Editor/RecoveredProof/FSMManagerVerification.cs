@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
 using Hardlight;
@@ -105,8 +106,9 @@ namespace ProjectLucid
             return true;
         }
 
-        // Unregister through the original API, then drop each row even when a shutdown
-        // observer throws; one failed row never keeps later rows registered.
+        // Unregister each owned row through the original API, then reconcile everything its
+        // callbacks did before dropping the row. One failed row never keeps later rows registered,
+        // and the first failure is rethrown after every row is released.
         internal static void ReleaseOwnedRows(IList<string> owned)
         {
             IDictionary rows = RegistryRows();
@@ -114,64 +116,116 @@ namespace ProjectLucid
             foreach (string row in owned)
             {
                 if (!rows.Contains(row)) continue;
-                object info = rows[row];
-                try
-                {
-                    ProcessManager.UnregisterSystem(row);
-                    RevokeRevalidatedReferences(info);
-                }
-                catch (Exception error)
-                {
-                    first = first ?? error;
-                    RevokeRemainingReferences(info);
-                }
+                try { ReleaseOwnedRow(row, rows[row], ref first); }
                 finally { rows.Remove(row); }
             }
             if (first != null) ExceptionDispatchInfo.Capture(first).Throw();
         }
 
-        // The original unregister stops at the first throwing observer, leaving that reference
-        // and every later one set. Revoke them in the original order (untyped, then typed). The
-        // first one still set is the reference whose observer already threw: detach its shutdown
-        // observers through the public event before revoking, so it is never notified twice. A
-        // later reference is notified once; if its observer throws too, it is detached the same way.
-        private static void RevokeRemainingReferences(object info)
+        // Ownership of a row's teardown, for the original unregister and anything its observers do:
+        //  - every reference is notified at most once; a reference whose observers already ran
+        //    (or threw) is detached through the public event and revoked silently;
+        //  - shutdown observers may register replacements under the owned name, revalidating
+        //    references or adding typed ones, so the row is reconciled until no reference is set;
+        //  - every system that entered the row during teardown loses its action subscriptions,
+        //    as the original unregister does for the system it removes.
+        // Observers are tracked only through public event subscriptions; no private field is written.
+        private static void ReleaseOwnedRow(string row, object info, ref Exception first)
         {
-            List<object> references = References(info);
-            MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
-                .GetMethod("InternalRevokeSystem", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            bool notified = true;
-            foreach (object reference in references)
+            List<object> initial = References(info);
+            var completed = new HashSet<object>(new ReferenceComparer());
+            var entered = new List<ISystem>();
+            var sentinels = new List<Sentinel>();
+            object untyped = initial[0];
+            try
             {
-                if (!IsValid(reference)) continue;
-                if (notified)
+                foreach (object reference in initial)
+                    sentinels.Add(Subscribe(reference, "OnSystemShutdown", () => completed.Add(reference)));
+                sentinels.Add(Subscribe(untyped, "OnSystemStartup", system => { if (system != null) entered.Add((ISystem)system); }));
+                bool[] validAtStart = initial.Select(IsValid).ToArray();
+                try { ProcessManager.UnregisterSystem(row); }
+                catch (Exception error) { first = first ?? error; }
+                // Notified: observers completed, or the first reference whose observers threw.
+                var notified = new HashSet<object>(completed, new ReferenceComparer());
+                for (int i = 0; i < initial.Count; i++)
                 {
-                    notified = false;
-                    DetachShutdownObservers(reference);
+                    if (!validAtStart[i] || completed.Contains(initial[i])) continue;
+                    notified.Add(initial[i]);
+                    break;
                 }
-                try { revoke.Invoke(reference, null); }
-                catch (TargetInvocationException)
-                {
-                    DetachShutdownObservers(reference);
-                    revoke.Invoke(reference, null);
-                }
+                Reconcile(info, notified, entered, ref first);
             }
+            finally
+            {
+                foreach (Sentinel sentinel in sentinels)
+                    sentinel.Event.RemoveEventHandler(sentinel.Reference, sentinel.Observer);
+            }
+            foreach (ISystem system in entered)
+                ProcessManager.UnsubscribeFromAllActions(system);
         }
 
-        // A shutdown observer may register a replacement under the same owned name, which makes
-        // an already-revoked reference valid again. Every reference was notified once during this
-        // teardown, so a revalidated one is detached and revoked without notifying it twice.
-        private static void RevokeRevalidatedReferences(object info)
+        private const int ReconcileLimit = 32;
+
+        private static void Reconcile(object info, HashSet<object> notified, List<ISystem> entered, ref Exception first)
         {
             MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
                 .GetMethod("InternalRevokeSystem", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            foreach (object reference in References(info))
+            for (int pass = 0; pass < ReconcileLimit; pass++)
             {
-                if (!IsValid(reference)) continue;
-                DetachShutdownObservers(reference);
-                revoke.Invoke(reference, null);
+                bool changed = false;
+                foreach (object reference in References(info))
+                {
+                    if (!IsValid(reference)) continue;
+                    changed = true;
+                    ISystem current = ((SystemRef)info.GetType().GetField("SystemRef").GetValue(info)).GetSafe();
+                    if (current != null && !entered.Contains(current)) entered.Add(current);
+                    if (!notified.Add(reference))
+                    {
+                        DetachShutdownObservers(reference);
+                        revoke.Invoke(reference, null);
+                        continue;
+                    }
+                    try { revoke.Invoke(reference, null); }
+                    catch (TargetInvocationException error)
+                    {
+                        first = first ?? error.InnerException;
+                        DetachShutdownObservers(reference);
+                        revoke.Invoke(reference, null);
+                    }
+                }
+                if (!changed) return;
             }
+            throw new InvalidOperationException("Owned registry row teardown did not settle; observers keep re-registering.");
         }
+
+        private sealed class ReferenceComparer : IEqualityComparer<object>
+        {
+            bool IEqualityComparer<object>.Equals(object x, object y) => ReferenceEquals(x, y);
+            int IEqualityComparer<object>.GetHashCode(object value) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
+        }
+
+        private struct Sentinel
+        {
+            public object Reference;
+            public EventInfo Event;
+            public Delegate Observer;
+        }
+
+        // Public event subscription of a fixture observer to a reference's Action<T> event.
+        private static Sentinel Subscribe(object reference, string eventName, Action onCall) =>
+            Subscribe(reference, eventName, _ => onCall());
+
+        private static Sentinel Subscribe(object reference, string eventName, Action<object> onCall)
+        {
+            EventInfo evt = reference.GetType().GetEvent(eventName);
+            Type argument = evt.EventHandlerType.GetGenericArguments()[0];
+            Delegate observer = (Delegate)typeof(FSMManagerVerification).GetMethod(nameof(Observer), BindingFlags.NonPublic | BindingFlags.Static)
+                .MakeGenericMethod(argument).Invoke(null, new object[] { onCall });
+            evt.AddEventHandler(reference, observer);
+            return new Sentinel { Reference = reference, Event = evt, Observer = observer };
+        }
+
+        private static Action<T> Observer<T>(Action<object> onCall) => value => onCall(value);
 
         // The original revoke order: the untyped reference, then each typed reference.
         private static List<object> References(object info)

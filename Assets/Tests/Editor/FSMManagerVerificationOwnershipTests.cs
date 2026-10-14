@@ -176,6 +176,63 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
+        public void FailureAndReentrantReplacementLeaveNoOwnedReferenceValid()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-failure-reentrant-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                var injected = new InvalidOperationException("injected shutdown failure");
+                int untypedCalls = 0, typedCalls = 0;
+                untyped.OnSystemShutdown += system => { untypedCalls++; throw injected; };
+                typed.OnSystemShutdown += system => { typedCalls++; ProcessManager.RegisterSystem(new FSMManager(), name); };
+                Exception thrown = Assert.Catch(() => FSMManagerVerification.ReleaseOwnedRows(new[] { name }));
+                Assert.That(thrown, Is.SameAs(injected));
+                Assert.That(rows.Contains(name), Is.False);
+                Assert.That(untyped.IsNull() && typed.IsNull(), Is.True, "a revalidated owned reference survived failure cleanup");
+                Assert.That(untypedCalls, Is.EqualTo(1));
+                Assert.That(typedCalls, Is.EqualTo(1));
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void ReplacementActionSubscriptionsAreReleasedWithTheOwnedRow()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-replacement-action-" + Guid.NewGuid().ToString("N");
+            var replacement = new FSMManager();
+            int actionCalls = 0;
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                typed.OnSystemShutdown += system =>
+                {
+                    replacement.SubscribeToAction(SystemAction.Update, context => actionCalls++);
+                    ProcessManager.RegisterSystem(replacement, name);
+                };
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                Assert.That(rows.Contains(name), Is.False);
+                Assert.That(untyped.IsNull() && typed.IsNull(), Is.True);
+                replacement.ProcessSystemAction(SystemAction.Update);
+                Assert.That(actionCalls, Is.Zero, "a replacement's action subscription survived teardown");
+            }
+            finally
+            {
+                replacement.UnsubscribeFromAction(SystemAction.Update);
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
         public void ThrowingShutdownObserverDoesNotKeepLaterOwnedRowsRegistered()
         {
             IDictionary rows = Rows();
