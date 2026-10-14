@@ -3,6 +3,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Hardlight;
 using UnityEngine;
 
@@ -20,8 +21,17 @@ namespace ProjectLucid
         {
             s_ownedRows.Clear();
             string defaultManager = ProcessManager.GetDefaultName<FSMManager>();
-            bool defaultManagerOwned = ProcessManager.IsSystemNull(defaultManager);
-            bool defaultRowOwned = !RegistryRows().Contains(defaultManager);
+            IDictionary rows = RegistryRows();
+            // A retained empty default row belongs to someone else, observers included. Set the
+            // row object aside untouched so the fixture's own default manager never fires them.
+            object borrowedDefault = null;
+            if (rows.Contains(defaultManager) && ProcessManager.IsSystemNull(defaultManager))
+            {
+                borrowedDefault = rows[defaultManager];
+                rows.Remove(defaultManager);
+            }
+            if (!rows.Contains(defaultManager)) s_ownedRows.Add(defaultManager);
+            Exception failure = null, cleanup = null;
             try
             {
                 VerifyFastActions();
@@ -29,31 +39,39 @@ namespace ProjectLucid
                 VerifyManagers();
                 VerifyDiagnostics();
             }
+            catch (Exception error) { failure = error; }
+            try { ReleaseOwnedRows(s_ownedRows); }
+            catch (Exception error) { cleanup = error; }
             finally
             {
-                // GetManager registers a default manager only when none existed before.
-                if (defaultManagerOwned) ProcessManager.UnregisterSystem(defaultManager);
-                if (defaultRowOwned) s_ownedRows.Add(defaultManager);
-                ReleaseOwnedRows();
+                s_ownedRows.Clear();
+                if (borrowedDefault != null) rows[defaultManager] = borrowedDefault;
             }
+            // The fixture's own failure outranks a cleanup failure.
+            if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
+            if (cleanup != null) ExceptionDispatchInfo.Capture(cleanup).Throw();
             ProcessUnregistrationVerification.Run();
             ProcessActionVerification.Run();
         }
 
-        // The original private registry; only rows named in s_ownedRows are ever removed.
+        // The original private registry; only rows named by the caller are ever removed.
         private static IDictionary RegistryRows() =>
             (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
 
-        private static void ReleaseOwnedRows()
+        // Unregister through the original API, then drop each row even when a shutdown
+        // observer throws; one failed row never keeps later rows registered.
+        internal static void ReleaseOwnedRows(IList<string> owned)
         {
             IDictionary rows = RegistryRows();
-            foreach (string row in s_ownedRows)
+            Exception first = null;
+            foreach (string row in owned)
             {
                 if (!rows.Contains(row)) continue;
                 try { ProcessManager.UnregisterSystem(row); }
+                catch (Exception error) { first = first ?? error; }
                 finally { rows.Remove(row); }
             }
-            s_ownedRows.Clear();
+            if (first != null) ExceptionDispatchInfo.Capture(first).Throw();
         }
 
         private static void VerifyFastActions()

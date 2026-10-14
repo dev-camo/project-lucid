@@ -1443,4 +1443,6 @@ EDITMODE_TESTS += (
 # Fixture ownership of process registry rows; original ProcessManager semantics stay separate.
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.RepeatedRunsLeaveRegistryRowsAndSystemsUnchanged",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.BorrowedEmptyDefaultManagerRowKeepsItsReferencesAndObservers",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ThrowingShutdownObserverDoesNotKeepLaterOwnedRowsRegistered",
 )
