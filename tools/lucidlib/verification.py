@@ -1396,3 +1396,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalSealedTypeFlagsTests.LevelManagerLevelRetainsOriginalSealedFlags",
     "ProjectLucid.Editor.OriginalSealedTypeFlagsTests.GameTipsDefinitionRetainsOriginalSealedFlags",
 )
+
+# Fixture isolation from the live Addressables manager; package wait behavior stays separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.ManagedAddressableVerificationIsolationTests.ForeignDeferredCompletionIsNotDispatchedByTheVerification",
+)

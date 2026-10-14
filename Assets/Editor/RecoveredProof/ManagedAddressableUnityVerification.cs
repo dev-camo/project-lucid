@@ -72,7 +72,11 @@ namespace ProjectLucid
             var exceptions = new List<Exception>();
             try
             {
-                manager = Addressables.ResourceManager;
+                // An owned manager keeps every completed-handle wait and flush away from the
+                // live Addressables manager and its queued foreign work. Its global update hook
+                // stays off, so only these waits pump it.
+                manager = new ResourceManager();
+                typeof(ResourceManager).GetField("CallbackHooksEnabled", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(manager, false);
                 ResourceManager.ExceptionHandler = (operation, error) => exceptions.Add(error);
                 var first = new GameObject("Project Lucid managed asset first") { hideFlags = HideFlags.HideAndDontSave };
                 objects.Add(first);
@@ -264,7 +268,7 @@ namespace ProjectLucid
                 {
                     if (manager != null)
                     {
-                        // Flush package-owned deferred references before releasing our
+                        // Flush the owned manager's deferred references before releasing our
                         // remaining caller leases, including on an assertion failure.
                         try
                         {
@@ -282,6 +286,7 @@ namespace ProjectLucid
                         }
                         catch (Exception error) { if (cleanupFailure == null) cleanupFailure = error; }
                     }
+                    manager?.Dispose();
                 }
                 finally
                 {
