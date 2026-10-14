@@ -1572,3 +1572,6 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.DecodeAndHandlerFailuresReachTheErrorHandlerWithTheCallersBuffer",
     "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.UnhandledAndUnknownHandlersShareTheCallersRefBuffer",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLPhysicsSingletonTests.SingletonMatchesTheShippedDeclaration",
+)

@@ -1,7 +1,9 @@
 {
   "name": "HLPhysics.Runtime",
   "rootNamespace": "Hardlight",
-  "references": [],
+  "references": [
+    "HLUnityCore.Runtime"
+  ],
   "includePlatforms": [],
   "excludePlatforms": [],
   "allowUnsafeCode": false,

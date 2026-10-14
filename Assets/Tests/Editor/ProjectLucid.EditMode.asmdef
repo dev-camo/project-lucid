@@ -26,7 +26,8 @@
     "FairPlay.Runtime",
     "HLSplines.Runtime",
     "HLCrossPromo.Runtime",
-    "HLAutoPlay.Runtime"
+    "HLAutoPlay.Runtime",
+    "HLPhysics.Runtime"
   ],
   "includePlatforms": [
     "Editor"

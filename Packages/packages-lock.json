@@ -98,7 +98,9 @@
       "version": "file:com.hardlight.hlphysics",
       "depth": 0,
       "source": "embedded",
-      "dependencies": {}
+      "dependencies": {
+        "com.hardlight.hlunitycore": "0.1.0"
+      }
     },
     "com.hardlight.hlrtltextmeshpro": {
       "version": "file:com.hardlight.hlrtltextmeshpro",
