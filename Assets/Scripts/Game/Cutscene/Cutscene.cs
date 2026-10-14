@@ -12,7 +12,8 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class Cutscene : MonoBehaviour
     {
-        protected PlayableDirector m_timelineDirector; // 0x04000e37, not serialized.
+        [SerializeField]
+        protected PlayableDirector m_timelineDirector; // 0x04000e37
 
         // Original 0x060018a1..ab and corresponding backing fields 0x04000e38..3c.
         public PlayableDirector TimelineDirector => m_timelineDirector;

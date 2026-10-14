@@ -9,6 +9,7 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class EffectList
     {
+        [UnityEngine.SerializeField]
         public SequencedEffect[] Effects;
         // Implicit original06002084 invokes Object only; Effects remains null.
     }
