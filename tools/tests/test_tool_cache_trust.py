@@ -161,6 +161,25 @@ class ToolCacheTrustTests(unittest.TestCase):
         runner.assert_not_called()
         self.assertEqual([], list(target.iterdir()))
 
+    def test_junction_cpp2il_builds_root_is_rejected_before_pruning(self):
+        # Path.is_symlink() misses NTFS junctions; their reparse attribute is reported instead.
+        self.cpp2il_fixture()
+        builds = self.work / "tools/cpp2il-builds"
+        builds.mkdir(parents=True)
+        (builds / "victim").mkdir()
+        (builds / "victim.lock").write_bytes(b"")
+        original_lstat = os.lstat
+        def junction_lstat(path, *args, **kwargs):
+            info = original_lstat(path, *args, **kwargs)
+            if Path(path) == builds:
+                return mock.Mock(st_mode=info.st_mode, st_file_attributes=0x400)
+            return info
+        with mock.patch.object(bootstrap.os, "lstat", junction_lstat), \
+                mock.patch.object(bootstrap, "run_logged") as runner, self.assertRaises(bootstrap.ToolError):
+            bootstrap._ensure_cpp2il(self.lock, self.work)
+        runner.assert_not_called()
+        self.assertTrue((builds / "victim").is_dir())
+
     def test_generated_cpp2il_requires_complete_process_owned_seal(self):
         self.cpp2il_fixture()
         with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build) as runner:

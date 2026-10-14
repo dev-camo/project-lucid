@@ -498,9 +498,19 @@ def _try_lock(stream) -> bool:
         raise
 
 
+def _is_link(path: Path) -> bool:
+    """True for symbolic links and for Windows junctions and other reparse points."""
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return False
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & reparse)
+
+
 def _open_lease(path: Path, *, create: bool):
     """Open a lease file without following links or blocking on special files."""
-    if path.is_symlink():
+    if _is_link(path):
         raise ToolError(f"Cpp2IL lease must not be a link: {path}")
     flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     if create:
@@ -530,7 +540,13 @@ def _release_lease(stream) -> None:
 def _remove_tree(path: Path, warnings: list) -> None:
     """Best-effort cleanup; its failure is reported and never changes the build outcome."""
     try:
-        if path.is_symlink() or path.is_file():
+        if _is_link(path):
+            # A junction is removed as a directory entry; its target is never traversed.
+            try:
+                path.unlink()
+            except IsADirectoryError:
+                os.rmdir(path)
+        elif path.is_file():
             path.unlink()
         elif path.exists():
             shutil.rmtree(path)
@@ -562,7 +578,7 @@ def _prune_cpp2il_builds(tools: Path, builds: Path, warnings: list) -> None:
         _release_lease(stream)
         _BUILD_SEALS.pop(directory, None)
         _remove_tree(directory, warnings)
-        if not directory.exists() and not directory.is_symlink():
+        if not directory.exists() and not _is_link(directory):
             _remove_tree(lease, warnings)
     for stale in [*builds.glob(".build-*"), *tools.glob(".cpp2il-source-*")]:
         _remove_tree(stale, warnings)
@@ -586,7 +602,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
         if not verify_built_tool(directory, identity):
             raise ToolError(f"Sealed Cpp2IL build changed during this process: {directory}")
         return {"status": "ready", "path": str(executable(directory / "Cpp2IL")), "version": identity["commit"]}
-    if builds.is_symlink() or (builds.exists() and not builds.is_dir()):
+    if _is_link(builds) or (builds.exists() and not builds.is_dir()):
         raise ToolError(f"Cpp2IL builds must be a physical directory: {builds}")
     builds.mkdir(parents=True, exist_ok=True)
     warnings: list = []
