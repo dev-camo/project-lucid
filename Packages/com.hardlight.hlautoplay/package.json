@@ -3,5 +3,8 @@
   "displayName": "Hardlight AutoPlay",
   "version": "0.1.0",
   "unity": "2022.3",
-  "description": "Locally maintained original AutoPlay runtime source, as shipped with its retail stub bodies."
+  "description": "Locally maintained original AutoPlay runtime source, as shipped with its retail stub bodies.",
+  "dependencies": {
+    "com.hardlight.hlunitycore": "0.1.0"
+  }
 }

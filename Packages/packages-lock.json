@@ -19,7 +19,9 @@
       "version": "file:com.hardlight.hlautoplay",
       "depth": 0,
       "source": "embedded",
-      "dependencies": {}
+      "dependencies": {
+        "com.hardlight.hlunitycore": "0.1.0"
+      }
     },
     "com.hardlight.hlbinders": {
       "version": "file:com.hardlight.hlbinders",

@@ -284,10 +284,10 @@ class AssemblyAvailabilityTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[2]
         scope, _, _ = codeprogress._scope(root)
         self.assertEqual(22, len(scope))
-        unrecovered = {"Assembly-CSharp", "Assembly-CSharp-firstpass", "HLAutoPlay.Runtime"}
+        unrecovered = {"Assembly-CSharp", "Assembly-CSharp-firstpass"}
         returned = [{"assembly_name": name} for name in scope if name not in unrecovered]
         statuses = codeprogress._assembly_availability(root, {"staged": {"modules": returned}}, scope, "linux")
-        self.assertEqual(19, sum(row["measurement_status"] == "measured" for row in statuses.values()))
+        self.assertEqual(20, sum(row["measurement_status"] == "measured" for row in statuses.values()))
         self.assertEqual(unrecovered, {name for name, row in statuses.items() if row["measurement_status"] == "no_recovered_source"})
         self.assertFalse(any(row["measurement_status"] == "unavailable" for row in statuses.values()))
         # Apple input is managed metadata on Linux; the name is not a platform exclusion.

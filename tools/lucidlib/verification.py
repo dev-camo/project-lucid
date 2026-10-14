@@ -1496,3 +1496,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.TrackedMarkersShareAGroupAndAppearInSnapshots",
     "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.TwoColumnStatsAlternateColumnsAndClearTheBuilder",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLAutoPlayTests.DeclarationsMatchTheShippedAssembly",
+    "ProjectLucid.Editor.OriginalHLAutoPlayTests.StubbedRunnerReportsFailureAndHoldsNoScripts",
+)
