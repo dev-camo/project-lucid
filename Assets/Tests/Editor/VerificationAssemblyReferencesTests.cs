@@ -19,6 +19,8 @@ namespace ProjectLucid.Tests.Editor
         [TestCase("ProjectLucid.Verification", TestName = "VerificationAssemblyDeclaresAndResolvesPinnedUI")]
         [TestCase("ProjectLucid.PlayMode", TestName = "PlayModeAssemblyDeclaresAndResolvesPinnedUI")]
         [TestCase("ProjectLucid.CoroutineScroll.EngineVerification", TestName = "CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI")]
+        [TestCase("HLUnityUI.Runtime", TestName = "UnityUIRuntimeAssemblyDeclaresAndResolvesPinnedUI")]
+        [TestCase("HLEventSystems.Runtime", TestName = "EventSystemsRuntimeAssemblyDeclaresAndResolvesPinnedUI")]
         public void VerificationAssemblyResolvesPinnedUI(string assemblyName)
         {
             var assemblies = CompilationPipeline.GetAssemblies(AssembliesType.Editor);
