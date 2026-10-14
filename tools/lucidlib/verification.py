@@ -1424,4 +1424,5 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.EffectListEffectsRetainsOriginalSerializeField",
     "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.RespawnPointFlagRetainsOriginalTooltipThenSerializeField",
     "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.OwnedRespawnPointSerializesTrueDisableFlag",
+    "ProjectLucid.Editor.OriginalSerializedFieldAttributesTests.OwnedCutsceneSerializesDirectorThroughPrefabRoundTrip",
 )
