@@ -105,57 +105,112 @@ class ToolCacheTrustTests(unittest.TestCase):
     def cpp2il_fixture(self):
         self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
         self.archive("cpp2il-source", {"Cpp2IL/Cpp2IL.csproj": b"verified source"}, "Cpp2IL/Cpp2IL.csproj")
+        self.addCleanup(self.release_leases)
+
+    def release_leases(self):
+        for path in list(bootstrap._CPP2IL_LEASES):
+            if self.directory in path.parents:
+                bootstrap._release_lease(bootstrap._CPP2IL_LEASES.pop(path))
+                bootstrap._BUILD_SEALS.pop(path, None)
+
+    def forget_process_state(self):
+        """Mimic a new process while this one keeps holding its lease as a live owner."""
+        held = []
+        for path in list(bootstrap._CPP2IL_LEASES):
+            if self.directory in path.parents:
+                held.append(bootstrap._CPP2IL_LEASES.pop(path))
+                bootstrap._BUILD_SEALS.pop(path, None)
+        self.addCleanup(lambda: [bootstrap._release_lease(stream) for stream in held])
+        return held
 
     @staticmethod
     def fixture_build(command, *args, **kwargs):
         stage = Path(command[command.index("-o") + 1])
         stage.mkdir(parents=True)
         bootstrap.executable(stage / "Cpp2IL").write_bytes(b"inert generated executable")
+        (stage / "Dependency.dll").write_bytes(b"inert generated dependency")
         return {"returncode": 0, "timed_out": False, "log": "fixture"}
 
-    def test_forged_cpp2il_build_marker_is_replaced_by_a_fresh_build(self):
+    def temporaries(self):
+        tools = self.work / "tools"
+        return sorted(path.name for path in [*tools.glob(".cpp2il-source-*"), *(tools / "cpp2il-builds").glob(".build-*")])
+
+    def test_forged_legacy_cpp2il_output_is_never_selected(self):
         self.cpp2il_fixture()
-        output = self.work / "tools/cpp2il"
-        output.mkdir(parents=True)
-        bootstrap.executable(output / "Cpp2IL").write_bytes(b"inert forged Cpp2IL")
-        (output / "forged-plugin.dll").write_bytes(b"inert forged dependency")
-        bootstrap.write_json(output / "lucid-build.json", {"commit": "fixture-pin", "sdk": "fixture-pin", "runtime": "fixture-rid", "build_schema": 2})
+        legacy = self.work / "tools/cpp2il"
+        legacy.mkdir(parents=True)
+        bootstrap.executable(legacy / "Cpp2IL").write_bytes(b"inert forged Cpp2IL")
+        bootstrap.write_json(legacy / "lucid-build.json", {"commit": "fixture-pin", "sdk": "fixture-pin", "runtime": "fixture-rid", "build_schema": 2})
         with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build) as runner:
             result = bootstrap._ensure_cpp2il(self.lock, self.work)
         self.assertEqual(1, runner.call_count)
+        self.assertIn(self.work / "tools/cpp2il-builds", Path(result["path"]).parents)
         self.assertEqual(b"inert generated executable", Path(result["path"]).read_bytes())
-        self.assertFalse((output / "forged-plugin.dll").exists())
-        self.assertEqual([], [path.name for path in (self.work / "tools").iterdir() if path.name.startswith(".") and "cpp2il" in path.name])
+        self.assertEqual(b"inert forged Cpp2IL", bootstrap.executable(legacy / "Cpp2IL").read_bytes())
+        self.assertEqual([], self.temporaries())
         self.spawn.assert_not_called()
 
-    def test_symlinked_cpp2il_output_is_rejected_before_build(self):
+    def test_symlinked_cpp2il_builds_root_is_rejected_before_build(self):
         self.cpp2il_fixture()
         target = self.work / "elsewhere"
         target.mkdir()
         (self.work / "tools").mkdir(exist_ok=True)
-        (self.work / "tools/cpp2il").symlink_to(target)
+        (self.work / "tools/cpp2il-builds").symlink_to(target)
         with mock.patch.object(bootstrap, "run_logged") as runner, self.assertRaises((bootstrap.ToolError, ValueError)):
             bootstrap._ensure_cpp2il(self.lock, self.work)
         runner.assert_not_called()
-        self.assertTrue(target.is_dir())
+        self.assertEqual([], list(target.iterdir()))
 
     def test_generated_cpp2il_requires_complete_process_owned_seal(self):
-        self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
-        self.archive("cpp2il-source", {"Cpp2IL/Cpp2IL.csproj": b"verified source"}, "Cpp2IL/Cpp2IL.csproj")
-        def build(command, *args, **kwargs):
-            stage = Path(command[command.index("-o") + 1])
-            stage.mkdir(parents=True)
-            bootstrap.executable(stage / "Cpp2IL").write_bytes(b"inert generated executable")
-            (stage / "Dependency.dll").write_bytes(b"inert generated dependency")
-            return {"returncode": 0, "timed_out": False, "log": "fixture"}
-        with mock.patch.object(bootstrap, "run_logged", side_effect=build) as runner:
+        self.cpp2il_fixture()
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build) as runner:
             first = bootstrap._ensure_cpp2il(self.lock, self.work)
             self.assertEqual(first["path"], bootstrap._ensure_cpp2il(self.lock, self.work)["path"])
             self.assertEqual(1, runner.call_count)
             Path(first["path"]).with_name("Dependency.dll").write_bytes(b"substituted dependency")
-            with self.assertRaises(bootstrap.ToolError):
+            with self.assertRaisesRegex(bootstrap.ToolError, "changed during this process"):
                 bootstrap._ensure_cpp2il(self.lock, self.work)
             self.assertEqual(1, runner.call_count)
+        self.spawn.assert_not_called()
+
+    def test_failed_publication_keeps_a_live_build_and_leaves_no_temporaries(self):
+        self.cpp2il_fixture()
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
+            live = Path(bootstrap._ensure_cpp2il(self.lock, self.work)["path"])
+        self.forget_process_state()
+        original_rename = Path.rename
+        def failing_rename(path, target):
+            if path.name.startswith(".build-"):
+                raise OSError("injected publication failure")
+            return original_rename(path, target)
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build), \
+                mock.patch.object(Path, "rename", failing_rename), self.assertRaisesRegex(OSError, "injected publication failure"):
+            bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertEqual(b"inert generated executable", live.read_bytes())
+        builds = sorted(path.name for path in (self.work / "tools/cpp2il-builds").iterdir())
+        self.assertEqual([live.parent.name, live.parent.name + ".lock"], builds)
+        self.assertEqual([], self.temporaries())
+        self.spawn.assert_not_called()
+
+    def test_cleanup_failure_does_not_override_a_sealed_build(self):
+        self.cpp2il_fixture()
+        original_rmtree = shutil.rmtree
+        def failing_rmtree(path, *args, **kwargs):
+            if Path(path).name.startswith(".cpp2il-source-"):
+                raise OSError("injected cleanup failure")
+            return original_rmtree(path, *args, **kwargs)
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build), \
+                mock.patch.object(bootstrap.shutil, "rmtree", failing_rmtree):
+            result = bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertEqual("ready", result["status"])
+        self.assertTrue(any("injected cleanup failure" in warning for warning in result["cleanup_warnings"]))
+        self.assertEqual(result["path"], bootstrap._ensure_cpp2il(self.lock, self.work)["path"])
+        self.assertEqual(1, len(self.temporaries()))
+        # The next process prunes the leftover temporary while building its own copy.
+        self.release_leases()
+        with mock.patch.object(bootstrap, "run_logged", side_effect=self.fixture_build):
+            bootstrap._ensure_cpp2il(self.lock, self.work)
+        self.assertEqual([], self.temporaries())
         self.spawn.assert_not_called()
 
     def test_forged_inspector_marker_rejected_before_build_or_load(self):
@@ -301,7 +356,7 @@ if __name__ == "__main__":
 
 
 class Cpp2ILFreshProcessTests(unittest.TestCase):
-    """Two real Python processes share one work tree; each mocks only the inert build."""
+    """Real Python processes share one work tree; each mocks only the inert build."""
 
     archive = ToolCacheTrustTests.archive
     CHILD = """
@@ -323,7 +378,10 @@ with mock.patch.object(bootstrap, "host_name", return_value="fixture-host"), \\
     result = bootstrap._ensure_cpp2il(lock, work)
     again = bootstrap._ensure_cpp2il(lock, work)
 print(json.dumps({"status": result["status"], "path": result["path"], "same": again["path"] == result["path"],
-                  "builds": runner.call_count, "bytes": Path(result["path"]).read_text()}))
+                  "builds": runner.call_count, "bytes": Path(result["path"]).read_text()}), flush=True)
+if len(sys.argv) > 5:
+    sys.stdin.readline()
+    print(json.dumps({"still": Path(result["path"]).read_text()}), flush=True)
 """
 
     def setUp(self):
@@ -333,26 +391,55 @@ print(json.dumps({"status": result["status"], "path": result["path"], "same": ag
         self.work = self.directory / "work"
         self.work.mkdir()
         self.lock = {"platform": "fixture-host", "rid": "fixture-rid", "artifacts": {}}
+        self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
+        self.archive("cpp2il-source", {"Cpp2IL/Cpp2IL.csproj": b"verified source"}, "Cpp2IL/Cpp2IL.csproj")
+        self.lock_file = self.directory / "lock.json"
+        self.lock_file.write_text(json.dumps(self.lock))
+
+    def command(self, label, *hold):
+        import sys
+        return [sys.executable, "-c", self.CHILD, str(bootstrap.REPO_ROOT), str(self.work), str(self.lock_file), label, *hold]
 
     def run_process(self, label):
-        import subprocess, sys
-        lock = self.directory / "lock.json"
-        lock.write_text(json.dumps(self.lock))
-        process = subprocess.run([sys.executable, "-c", self.CHILD, str(bootstrap.REPO_ROOT), str(self.work), str(lock), label],
-                                 capture_output=True, text=True, timeout=120)
+        import subprocess
+        process = subprocess.run(self.command(label), capture_output=True, text=True, timeout=120)
         self.assertEqual(0, process.returncode, process.stderr)
         return json.loads(process.stdout.strip().splitlines()[-1])
 
-    def test_second_process_rebuilds_instead_of_refusing_prior_output(self):
-        self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")
-        self.archive("cpp2il-source", {"Cpp2IL/Cpp2IL.csproj": b"verified source"}, "Cpp2IL/Cpp2IL.csproj")
+    def check(self, result, label):
+        self.assertEqual("ready", result["status"])
+        self.assertTrue(result["same"])
+        self.assertEqual(1, result["builds"])
+        self.assertEqual("inert executable from " + label, result["bytes"])
+
+    def test_second_process_builds_its_own_copy_instead_of_refusing(self):
         first = self.run_process("bootstrap")
         second = self.run_process("recover-code")
-        for result, label in ((first, "bootstrap"), (second, "recover-code")):
-            self.assertEqual("ready", result["status"])
-            self.assertTrue(result["same"])
-            self.assertEqual(1, result["builds"])
-            self.assertEqual("inert executable from " + label, result["bytes"])
-        self.assertEqual(first["path"], second["path"])
-        leftovers = [path.name for path in (self.work / "tools").iterdir() if path.name.startswith(".") and "cpp2il" in path.name]
+        self.check(first, "bootstrap")
+        self.check(second, "recover-code")
+        self.assertNotEqual(first["path"], second["path"])
+        # The first owner has exited, so the second process pruned its build.
+        self.assertFalse(Path(first["path"]).exists())
+        leftovers = [path.name for path in (self.work / "tools").rglob(".*") if "cpp2il" in path.name]
         self.assertEqual([], leftovers)
+
+    def test_live_consumer_keeps_its_selected_executable_while_another_process_builds(self):
+        import subprocess
+        holder = subprocess.Popen(self.command("holder", "hold"), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True)
+        try:
+            held = json.loads(holder.stdout.readline())
+            self.check(held, "holder")
+            other = self.run_process("other")
+            self.check(other, "other")
+            self.assertNotEqual(held["path"], other["path"])
+            holder.stdin.write("go\n")
+            holder.stdin.flush()
+            self.assertEqual({"still": "inert executable from holder"}, json.loads(holder.stdout.readline()))
+            self.assertEqual(0, holder.wait(timeout=60), holder.stderr.read())
+        finally:
+            if holder.poll() is None:
+                holder.kill()
+            holder.wait()
+            for stream in (holder.stdin, holder.stdout, holder.stderr):
+                stream.close()

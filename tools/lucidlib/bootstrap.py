@@ -37,6 +37,7 @@ HOST_CACHE_ROOT: Path | None = None
 DIAGNOSTICS_ROOT: Path | None = None
 _BUILD_SEALS: dict[Path, tuple[dict, dict]] = {}
 _INSTALL_SEALS: dict[Path, tuple[dict, dict]] = {}
+_CPP2IL_LEASES: dict[Path, object] = {}
 
 
 class ToolError(RuntimeError):
@@ -81,6 +82,9 @@ def isolated_host_cache(parent: Path, *, diagnostics: bool = False):
                 for path in list(seals):
                     if HOST_CACHE_ROOT in path.parents:
                         del seals[path]
+            for path in list(_CPP2IL_LEASES):
+                if HOST_CACHE_ROOT in path.parents:
+                    _release_lease(_CPP2IL_LEASES.pop(path))
             HOST_CACHE_ROOT = None
             DIAGNOSTICS_ROOT = None
 
@@ -472,28 +476,106 @@ def verified_tool_path(work_dir: Path, name: str) -> Path:
     return directory / host_lock(lock)["artifacts"][name]["entrypoint"]
 
 
+def _try_lock(stream) -> bool:
+    """Take an exclusive lock without waiting; False means another owner holds it."""
+    if fcntl is not None:
+        try:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError as exc:
+            if exc.errno in (errno.EAGAIN, errno.EWOULDBLOCK, errno.EACCES):
+                return False
+            raise
+    if msvcrt is None:
+        raise ToolError("This host has no supported file lock")
+    stream.seek(0)
+    try:
+        msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+        return True
+    except OSError as exc:
+        if exc.errno in _LOCK_CONTENTION:
+            return False
+        raise
+
+
+def _release_lease(stream) -> None:
+    try:
+        if fcntl is not None:
+            fcntl.flock(stream, fcntl.LOCK_UN)
+        elif msvcrt is not None:
+            stream.seek(0)
+            msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+    finally:
+        stream.close()
+
+
+def _remove_tree(path: Path, warnings: list) -> None:
+    """Best-effort cleanup; its failure is reported and never changes the build outcome."""
+    try:
+        if path.is_symlink() or path.is_file():
+            path.unlink()
+        elif path.exists():
+            shutil.rmtree(path)
+    except OSError as exc:
+        warnings.append(f"Could not remove {path}: {exc}")
+
+
+def _prune_cpp2il_builds(tools: Path, builds: Path, warnings: list) -> None:
+    """Remove builds whose owning process has exited, plus stale build temporaries.
+
+    Callers hold the exclusive Cpp2IL build lock, so no other build is in progress.
+    A build whose owner lock is still held by a live process is never touched.
+    """
+    for lease in sorted(builds.glob("*.lock")):
+        directory = lease.with_suffix("")
+        if directory in _CPP2IL_LEASES:
+            continue
+        stream = lease.open("a")
+        if not _try_lock(stream):
+            stream.close()
+            continue
+        try:
+            _BUILD_SEALS.pop(directory, None)
+            _remove_tree(directory, warnings)
+            _remove_tree(lease, warnings)
+        finally:
+            _release_lease(stream)
+    for stale in [*builds.glob(".build-*"), *tools.glob(".cpp2il-source-*")]:
+        _remove_tree(stale, warnings)
+
+
 def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
     work_dir = tool_work_dir(work_dir)
     dotnet_root = _install("dotnet", lock, work_dir)
     source = _install("cpp2il-source", lock, work_dir)
-    output = managed_path(work_dir, "tools", "cpp2il")
-    marker = managed_path(work_dir, "tools", "cpp2il", "lucid-build.json")
     rid = host_lock(lock)["rid"]
     identity = {"commit": lock["artifacts"]["cpp2il-source"]["version"],
                 "sdk": lock["artifacts"]["dotnet"]["version"], "runtime": rid,
                 "build_schema": 2}
-    program = executable(managed_path(work_dir, "tools", "cpp2il", "Cpp2IL"))
-    if verify_built_tool(output, identity):
-        return {"status": "ready", "path": str(program), "version": identity["commit"]}
-    if output in _BUILD_SEALS:
-        raise ToolError(f"Sealed Cpp2IL build changed during this process: {output}")
-    if output.is_symlink() or (output.exists() and not output.is_dir()):
-        raise ToolError(f"Cpp2IL output must be a physical directory: {output}")
-    # A new process holds no seal for an earlier build, and its public marker proves
-    # nothing; rebuild from pinned source and replace that tree before any use.
-    stage = managed_path(work_dir, "tools", f".build-cpp2il-{uuid.uuid4().hex}")
-    build_source = managed_path(work_dir, "tools", f".cpp2il-source-{uuid.uuid4().hex}")
-    unverified = managed_path(work_dir, "tools", f".unverified-cpp2il-{uuid.uuid4().hex}")
+    tools = managed_path(work_dir, "tools")
+    builds = managed_path(work_dir, "tools", "cpp2il-builds")
+    # Each process uses only its own immutable build, kept under a lease for the
+    # process lifetime, so another process never replaces an executable in use.
+    for directory in list(_CPP2IL_LEASES):
+        if builds not in directory.parents:
+            continue
+        if not verify_built_tool(directory, identity):
+            raise ToolError(f"Sealed Cpp2IL build changed during this process: {directory}")
+        return {"status": "ready", "path": str(executable(directory / "Cpp2IL")), "version": identity["commit"]}
+    if builds.is_symlink() or (builds.exists() and not builds.is_dir()):
+        raise ToolError(f"Cpp2IL builds must be a physical directory: {builds}")
+    builds.mkdir(parents=True, exist_ok=True)
+    warnings: list = []
+    _prune_cpp2il_builds(tools, builds, warnings)
+    build_id = uuid.uuid4().hex
+    directory = builds / build_id
+    lease = (builds / f"{build_id}.lock").open("a")
+    if not _try_lock(lease):
+        lease.close()
+        raise ToolError(f"Fresh Cpp2IL build lease is unexpectedly held: {directory}")
+    stage = builds / f".build-{build_id}"
+    build_source = tools / f".cpp2il-source-{build_id}"
+    published = False
     try:
         shutil.copytree(source, build_source)
         process = run_logged([
@@ -510,15 +592,22 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
             if (source / filename).is_file():
                 shutil.copyfile(source / filename, stage / filename)
         write_json(stage / "lucid-build.json", identity)
-        if output.exists():
-            output.replace(unverified)
-        stage.replace(output)
-        seal_built_tool(output, identity)
-        return {"status": "ready", "path": str(program), "version": identity["commit"], "build": process}
+        # A fresh name: publication never displaces another build.
+        stage.rename(directory)
+        seal_built_tool(directory, identity)
+        _CPP2IL_LEASES[directory] = lease
+        published = True
     finally:
-        for path in (stage, build_source, unverified):
-            if path.exists():
-                shutil.rmtree(path)
+        if not published:
+            _remove_tree(directory, warnings)
+            _release_lease(lease)
+            _remove_tree(builds / f"{build_id}.lock", warnings)
+        _remove_tree(stage, warnings)
+        _remove_tree(build_source, warnings)
+    result = {"status": "ready", "path": str(executable(directory / "Cpp2IL")), "version": identity["commit"], "build": process}
+    if warnings:
+        result["cleanup_warnings"] = warnings
+    return result
 
 
 def bootstrap(work_dir: Path, selected=None) -> dict:
