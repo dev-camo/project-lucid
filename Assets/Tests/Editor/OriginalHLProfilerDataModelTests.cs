@@ -70,7 +70,7 @@ namespace ProjectLucid.Editor
             Assert.That((int)typeof(HLProfilerConsole).GetNestedType("GUISkinModifierTarget", BindingFlags.NonPublic).Attributes, Is.EqualTo(0x105));
             Type generalStats = typeof(HLProfilerConsole).GetNestedType("GUIGeneralStats", BindingFlags.NonPublic);
             Assert.That(generalStats.IsDefined(typeof(FlagsAttribute)), Is.True);
-            Assert.That(Enum.GetValues(generalStats).Cast<int>(), Is.EqualTo(new[] { 0, 2, 4, 8 }));
+            Assert.That(Enum.GetValues(generalStats).Cast<object>().Select(value => Convert.ToInt32(value)), Is.EqualTo(new[] { 0, 2, 4, 8 }));
             Type utils = typeof(HLProfilerConsole).Assembly.GetType("Hardlight.HLProfilerUtils");
             Assert.That((int)utils.GetMethod("FormatCount", BindingFlags.NonPublic | BindingFlags.Static).Attributes, Is.EqualTo(0x93));
             Assert.That((int)utils.GetMethod("GUIRightAlignedLabel", BindingFlags.NonPublic | BindingFlags.Static).Attributes, Is.EqualTo(0x91));

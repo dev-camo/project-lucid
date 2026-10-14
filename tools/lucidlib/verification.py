@@ -1486,3 +1486,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ColdVerificationReturnsToTheSameColdState",
     "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.StorageConstructionFaultShutsDownThePublishedFixtureStoreAndAllowsRetry",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.ConsoleAndManagerRetainOriginalDeclarations",
+    "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.ConsoleFieldInitializersMatchTheOriginalConstructor",
+    "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.SampleBufferAlwaysHoldsTheMaximumBecauseTheClampIsReversed",
+    "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.TrackedMarkersShareAGroupAndAppearInSnapshots",
+    "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.TwoColumnStatsAlternateColumnsAndClearTheBuilder",
+)
