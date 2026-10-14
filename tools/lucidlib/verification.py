@@ -1500,3 +1500,6 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLAutoPlayTests.DeclarationsMatchTheShippedAssembly",
     "ProjectLucid.Editor.OriginalHLAutoPlayTests.StubbedRunnerReportsFailureAndHoldsNoScripts",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedTests.DeclarationsMatchTheShippedFirstpassAssembly",
+)
