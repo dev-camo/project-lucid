@@ -5,8 +5,8 @@ using System;
 namespace Hardlight
 {
 	// Original HLUnityCore.Runtime 02000042; bodies translated from the 1.10.1 x86-64 binary.
-	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+	[Il2CppSetOption(Option.NullChecks, false)]
 	public class HLProfilerCategoryEqualityComparer : IEqualityComparer<HLProfilerCategory>
 	{
 		// 06000196 (1.10.1 RVA 0x1AA2A60)
