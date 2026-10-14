@@ -3,7 +3,7 @@
   "rootNamespace": "Hardlight",
   "references": [
     "HLUnityCore.Runtime",
-    "Unity.ugui"
+    "UnityEngine.UI"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
