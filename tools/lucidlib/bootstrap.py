@@ -485,10 +485,15 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
     program = executable(managed_path(work_dir, "tools", "cpp2il", "Cpp2IL"))
     if verify_built_tool(output, identity):
         return {"status": "ready", "path": str(program), "version": identity["commit"]}
-    if output.exists():
-        raise ToolError(f"Unverified cached Cpp2IL build: {output}; use a fresh host cache")
+    if output in _BUILD_SEALS:
+        raise ToolError(f"Sealed Cpp2IL build changed during this process: {output}")
+    if output.is_symlink() or (output.exists() and not output.is_dir()):
+        raise ToolError(f"Cpp2IL output must be a physical directory: {output}")
+    # A new process holds no seal for an earlier build, and its public marker proves
+    # nothing; rebuild from pinned source and replace that tree before any use.
     stage = managed_path(work_dir, "tools", f".build-cpp2il-{uuid.uuid4().hex}")
     build_source = managed_path(work_dir, "tools", f".cpp2il-source-{uuid.uuid4().hex}")
+    unverified = managed_path(work_dir, "tools", f".unverified-cpp2il-{uuid.uuid4().hex}")
     try:
         shutil.copytree(source, build_source)
         process = run_logged([
@@ -505,14 +510,15 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
             if (source / filename).is_file():
                 shutil.copyfile(source / filename, stage / filename)
         write_json(stage / "lucid-build.json", identity)
+        if output.exists():
+            output.replace(unverified)
         stage.replace(output)
         seal_built_tool(output, identity)
         return {"status": "ready", "path": str(program), "version": identity["commit"], "build": process}
     finally:
-        if stage.exists():
-            shutil.rmtree(stage)
-        if build_source.exists():
-            shutil.rmtree(build_source)
+        for path in (stage, build_source, unverified):
+            if path.exists():
+                shutil.rmtree(path)
 
 
 def bootstrap(work_dir: Path, selected=None) -> dict:
