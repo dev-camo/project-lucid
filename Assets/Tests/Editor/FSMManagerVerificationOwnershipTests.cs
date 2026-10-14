@@ -9,7 +9,8 @@ using NUnit.Framework;
 namespace ProjectLucid.Editor
 {
     // The FSM manager fixture must leave no fixture-owned registry row behind and must
-    // never fire or replace observers on rows it borrows.
+    // never fire or replace observers on rows it borrows. Each case restores the registry's
+    // complete dictionary state so later fixtures see the same rows and free slots.
     public sealed class FSMManagerVerificationOwnershipTests
     {
         private static IDictionary Rows() => (IDictionary)typeof(ProcessManager)
@@ -19,27 +20,33 @@ namespace ProjectLucid.Editor
         public void RepeatedRunsLeaveRegistryRowsAndSystemsUnchanged()
         {
             IDictionary rows = Rows();
-            Dictionary<string, bool> before = rows.Keys.Cast<string>().ToDictionary(name => name, name => ProcessManager.IsSystemNull(name));
-            List<string> order = rows.Keys.Cast<string>().ToList();
-            FSMManagerVerification.Run();
-            FSMManagerVerification.Run();
-            Assert.That(rows.Keys.Cast<string>(), Is.EqualTo(order), "registry rows and their order");
-            // Freed fixture slots must not reorder later registrations.
-            string first = "Lucid-ownership-after-a-" + Guid.NewGuid().ToString("N");
-            string second = "Lucid-ownership-after-b-" + Guid.NewGuid().ToString("N");
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string gap = "Lucid-ownership-gap-" + Guid.NewGuid().ToString("N");
+            string probe = "Lucid-ownership-probe-" + Guid.NewGuid().ToString("N");
             try
             {
-                ProcessManager.GetSystemRef(first);
-                ProcessManager.GetSystemRef(second);
-                Assert.That(rows.Keys.Cast<string>().Skip(order.Count), Is.EqualTo(new[] { first, second }));
+                // A slot freed before the run decides where the next registration lands.
+                ProcessManager.GetSystemRef(gap);
+                ProcessManager.GetSystemRef(Guid.NewGuid().ToString("N"));
+                rows.Remove(gap);
+                Dictionary<string, bool> before = rows.Keys.Cast<string>().ToDictionary(name => name, name => ProcessManager.IsSystemNull(name));
+                List<string> order = rows.Keys.Cast<string>().ToList();
+                object[] runLayout = FSMManagerVerification.CaptureLayout(rows);
+                ProcessManager.GetSystemRef(probe);
+                List<string> expected = rows.Keys.Cast<string>().ToList();
+                FSMManagerVerification.RestoreLayout(rows, runLayout);
+                FSMManagerVerification.Run();
+                FSMManagerVerification.Run();
+                Assert.That(rows.Keys.Cast<string>(), Is.EqualTo(order), "registry rows and their order");
+                ProcessManager.GetSystemRef(probe);
+                Assert.That(rows.Keys.Cast<string>(), Is.EqualTo(expected), "free slots that predate the run");
+                foreach (KeyValuePair<string, bool> row in before)
+                    Assert.That(ProcessManager.IsSystemNull(row.Key), Is.EqualTo(row.Value), row.Key);
             }
             finally
             {
-                rows.Remove(first);
-                rows.Remove(second);
+                FSMManagerVerification.RestoreLayout(rows, layout);
             }
-            foreach (KeyValuePair<string, bool> row in before)
-                Assert.That(ProcessManager.IsSystemNull(row.Key), Is.EqualTo(row.Value), row.Key);
         }
 
         [Test]
@@ -47,7 +54,9 @@ namespace ProjectLucid.Editor
         {
             IDictionary rows = Rows();
             string name = ProcessManager.GetDefaultName<FSMManager>();
-            Assume.That(rows.Contains(name), Is.False, "this case owns the default manager row only when it is absent");
+            // An earlier fixture may have left a default manager row; set it aside for this case.
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            rows.Remove(name);
             // This test's own empty row stands in for one retained by another fixture.
             SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>();
             SystemRef untyped = ProcessManager.GetSystemRef(name);
@@ -73,8 +82,7 @@ namespace ProjectLucid.Editor
             }
             finally
             {
-                rows.Remove(name);
-                rows.Remove(later);
+                FSMManagerVerification.RestoreLayout(rows, layout);
             }
         }
 
@@ -82,6 +90,7 @@ namespace ProjectLucid.Editor
         public void ThrowingShutdownObserverDoesNotKeepLaterOwnedRowsRegistered()
         {
             IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
             string first = "Lucid-ownership-test-" + Guid.NewGuid().ToString("N");
             string second = first + "-second";
             try
@@ -102,8 +111,7 @@ namespace ProjectLucid.Editor
             }
             finally
             {
-                rows.Remove(first);
-                rows.Remove(second);
+                FSMManagerVerification.RestoreLayout(rows, layout);
             }
         }
     }

@@ -24,6 +24,7 @@ namespace ProjectLucid
             IDictionary rows = RegistryRows();
             var original = new List<DictionaryEntry>();
             foreach (DictionaryEntry row in rows) original.Add(row);
+            object[] layout = CaptureLayout(rows);
             // A retained empty default row belongs to someone else, observers included. Set the
             // row object aside untouched so the fixture's own default manager never fires them.
             object borrowedDefault = null;
@@ -42,16 +43,13 @@ namespace ProjectLucid
                 VerifyDiagnostics();
             }
             catch (Exception error) { failure = error; }
-            int ownedRowsPresent = 0;
-            foreach (string row in s_ownedRows)
-                if (rows.Contains(row)) ownedRowsPresent++;
             try { ReleaseOwnedRows(s_ownedRows); }
             catch (Exception error) { cleanup = error; }
             finally
             {
                 s_ownedRows.Clear();
                 if (borrowedDefault != null) rows[defaultManager] = borrowedDefault;
-                RestoreRowOrder(rows, original, ownedRowsPresent > 0);
+                if (HoldsExactly(rows, original)) RestoreLayout(rows, layout);
             }
             // The fixture's own failure outranks a cleanup failure.
             if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
@@ -65,19 +63,36 @@ namespace ProjectLucid
             (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
 
         // Order-sensitive lookups such as FindSystemRef see insertion order, and slots freed by
-        // removed rows decide where later registrations land. When owned rows were removed or the
-        // borrowed row moved, re-add the same row objects in their original order. Free slots that
-        // predate the run cannot be reproduced without private dictionary internals.
-        private static void RestoreRowOrder(IDictionary rows, List<DictionaryEntry> original, bool rowsRemoved)
+        // removed rows decide where later registrations land. Once the registry holds exactly its
+        // original rows again, restore the dictionary's complete state, free slots included.
+        internal static object[] CaptureLayout(IDictionary rows)
         {
-            var current = new List<object>();
-            foreach (object key in rows.Keys) current.Add(key);
-            if (current.Count != original.Count || !original.TrueForAll(row => rows.Contains(row.Key))) return;
-            bool ordered = true;
-            for (int i = 0; i < original.Count && ordered; i++) ordered = Equals(current[i], original[i].Key);
-            if (ordered && !rowsRemoved) return;
-            rows.Clear();
-            foreach (DictionaryEntry row in original) rows.Add(row.Key, row.Value);
+            FieldInfo[] fields = LayoutFields(rows);
+            var layout = new object[fields.Length];
+            for (int i = 0; i < fields.Length; i++)
+            {
+                object value = fields[i].GetValue(rows);
+                layout[i] = value is Array array ? array.Clone() : value;
+            }
+            return layout;
+        }
+
+        internal static void RestoreLayout(IDictionary rows, object[] layout)
+        {
+            FieldInfo[] fields = LayoutFields(rows);
+            for (int i = 0; i < fields.Length; i++) fields[i].SetValue(rows, layout[i]);
+        }
+
+        private static FieldInfo[] LayoutFields(IDictionary rows) =>
+            rows.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+        // Rows the run did not create are never dropped by restoring the layout.
+        private static bool HoldsExactly(IDictionary rows, List<DictionaryEntry> original)
+        {
+            if (rows.Count != original.Count) return false;
+            foreach (DictionaryEntry row in original)
+                if (!rows.Contains(row.Key) || !ReferenceEquals(rows[row.Key], row.Value)) return false;
+            return true;
         }
 
         // Unregister through the original API, then drop each row even when a shutdown
