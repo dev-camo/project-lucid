@@ -1406,3 +1406,9 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalActorAnimatorFieldTests.AnimatorFieldRetainsOriginalPrivateInitOnlyFlags",
 )
+
+# Compiled declaration flags only; Unity serialization and gameplay stay separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalSerializableEnumFlagsTests.LowFilterTypeRetainsOriginalSerializableFlags",
+    "ProjectLucid.Editor.OriginalSerializableEnumFlagsTests.ConstrainTypeRetainsOriginalSerializableFlags",
+)

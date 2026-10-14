@@ -29,6 +29,7 @@ namespace HardlightProject
         private readonly Dictionary<HLAudioSourceIdentifier, float> m_lerpFromCutoffValues =
             new Dictionary<HLAudioSourceIdentifier, float>(HardlightEnumComparers.HLAudioSourceIdentifierComparer);
 
+        [Serializable]
         public enum LowFilterType
         {
             None = -1,
