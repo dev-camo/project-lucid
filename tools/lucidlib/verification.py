@@ -1561,3 +1561,8 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalReverseOrderOnLanguagePlayTests.ActivationAwakeReversesRightToLeftChildrenOnce",
     "ProjectLucid.Tests.OriginalReverseOrderOnLanguagePlayTests.ActivationAwakeLeavesLeftToRightChildren",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalClientDataDispatcherTests.PacketsReachTheirHandlerOrFallBackToUnhandled",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherTests.HandlerExceptionsGoToTheDispatchErrorHandler",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherTests.TriggersReportWhetherAHandlerRan",
+)
