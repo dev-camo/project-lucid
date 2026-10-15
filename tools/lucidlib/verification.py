@@ -1916,3 +1916,8 @@ PLAYMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.SameSpaceObjectAvoidanceTargetTests.TargetUsesThePositionMinusCentreAngleAndReturnsTheRadialDirection",
 )
+
+# Leaderboard challenge callback reporting, through an owned inactive logging host.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLeaderboardCallbackGapTests.ChallengeCallbackReportsOnlyNonEmptyErrorsRegardlessOfSendFlag",
+)
