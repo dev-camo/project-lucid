@@ -85,6 +85,88 @@ namespace ProjectLucid.Tests.Editor
             });
         }
 
+        // Original getters 0x060017ef..0x060017fc (x86-64 0x796cb0..0x796d98) each read
+        // one distinct field byte in declaration order; ShowGameCenterChallenges
+        // (x86-64 0x796d70) also requires m_gameCenter. One flag at a time catches
+        // any getter swap that the shared values of the round-trip cases hide.
+        [Test]
+        public void GenuineCoreFlagsEachReachOnlyTheirOwnGetterAndChallengesNeedGameCenter()
+        {
+            string[] fields = {
+                "m_useExportedScenes", "m_missionIntrosEnabled", "m_useFastValidation", "m_gameCenter",
+                "m_allowUnityShaderDebuggingWindow", "m_sendCrashReports", "m_deviceConsoleEnabled",
+                "m_logHandlerEnabled", "m_calculateFPSCounter", "m_tapToSkipEnabled", "m_showGameCenterChallenges" };
+            Func<CoreGameConfiguration, bool>[] getters = {
+                value => value.UseExportedScenes, value => value.MissionIntrosEnabled, value => value.FastValidation,
+                value => value.GameCenter, value => value.AllowUnityShaderDebuggingWindow, value => value.SendCrashReports,
+                value => value.DeviceConsoleEnabled, value => value.LogHandlerEnabled, value => value.CalculateFPSCounter,
+                value => value.TapToSkipEnabled, value => value.ShowGameCenterChallenges };
+            const int gameCenter = 3, challenges = 10;
+            var config = ScriptableObject.CreateInstance<CoreGameConfiguration>();
+            SerializedObject data = null;
+            try
+            {
+                data = new SerializedObject(config);
+                void Apply(params int[] enabled)
+                {
+                    data.Update();
+                    for (int i = 0; i < fields.Length; i++)
+                        Require(data, fields[i]).boolValue = Array.IndexOf(enabled, i) >= 0;
+                    data.ApplyModifiedPropertiesWithoutUndo();
+                }
+                for (int field = 0; field < fields.Length; field++)
+                {
+                    Apply(field);
+                    for (int getter = 0; getter < getters.Length; getter++)
+                        Assert.That(getters[getter](config), Is.EqualTo(getter == field && field != challenges),
+                            fields[field] + " alone -> getter " + getter);
+                }
+                Apply(gameCenter, challenges);
+                for (int getter = 0; getter < getters.Length; getter++)
+                    Assert.That(getters[getter](config), Is.EqualTo(getter == gameCenter || getter == challenges), "getter " + getter);
+            }
+            finally
+            {
+                data?.Dispose();
+                Object.DestroyImmediate(config);
+            }
+        }
+
+        // Original constructor 0x0600000f (x86-64 0x1a34110) stores "Language Strings",
+        // "/../../Server/src/data/full_data_export.js", "/Game Assets/Fonts/Characters/"
+        // and both flags true (one 0x0101 word). Getters 0x06000009..0x0600000d
+        // (x86-64 0x1a33f00..0x1a33f40) read those fields in order. Opposite flag
+        // values catch a swap that the all-true authored case cannot.
+        [Test]
+        public void GenuineLocalisationDefaultsAndOppositeFlagsReachTheirOwnGetters()
+        {
+            var loc = ScriptableObject.CreateInstance<HLLocalisationConfigurationAsset>();
+            SerializedObject data = null;
+            try
+            {
+                Assert.That(loc.LocalisedDefinitionsDirectory, Is.EqualTo("Language Strings"));
+                Assert.That(loc.NodeDataExportPath, Is.EqualTo("/../../Server/src/data/full_data_export.js"));
+                Assert.That(loc.CharactersOutputDirectory, Is.EqualTo("/Game Assets/Fonts/Characters/"));
+                Assert.That(loc.EnableEditorDataGeneration, Is.True);
+                Assert.That(loc.EnableLocalisedUIStringFunctionality, Is.True);
+                data = new SerializedObject(loc);
+                foreach (bool generation in new[] { false, true })
+                {
+                    data.Update();
+                    Require(data, "m_enableEditorDataGeneration").boolValue = generation;
+                    Require(data, "m_enableLocalisedUIStringFunctionality").boolValue = !generation;
+                    data.ApplyModifiedPropertiesWithoutUndo();
+                    Assert.That(loc.EnableEditorDataGeneration, Is.EqualTo(generation));
+                    Assert.That(loc.EnableLocalisedUIStringFunctionality, Is.EqualTo(!generation));
+                }
+            }
+            finally
+            {
+                data?.Dispose();
+                Object.DestroyImmediate(loc);
+            }
+        }
+
         [Test]
         public void GenuineOwnedHashedRemainsFieldlessPlainScriptableObjectAfterReimport()
         {

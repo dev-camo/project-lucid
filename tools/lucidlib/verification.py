@@ -343,6 +343,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.FailedCompletionRetainsBothPrimaryAndRollbackErrorsWhileRevokingReadiness",
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.RealLocalCompletionSurvivesDisposalAndAStoreReloadWithoutAnOpenGameplaySlot",
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.MalformedOwnedCompletionValueFailsBeforePublishingEntriesOrReadiness",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.BelowTargetAndTrackingDisallowedEvaluationsWriteNoLocalCompletion",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.MalformedSecondCompletionValueFailsBeforePublishingTheValidFirstEntry",
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OwnedDisposalPreservesASeparatelyNamedRegistrationOfTheSameManager",
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OwnedCompletionFaultPreservesTheSameManagerAliasAndThePrimaryError",
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineLeaderboardStartupFaultPreservesItsSameObjectAliasAndPrimaryError",
@@ -1488,6 +1490,7 @@ EDITMODE_TESTS += ('OriginalFontReferenceConversionTests.OwnedOriginalAndExplici
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.ActiveConfigurationPreservesItsSerializedRuntimeReferenceAndGetter',
     'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.RuntimeConfigurationKeepsTwelveOrderedSlotsAndCreatesReadonlyWrappers',
+    'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.RuntimeConfigurationWithoutAnAuthoredArrayFaultsOnEveryWrapperRead',
     'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.GameLevelsPreservesBaseOverridesAndAuthoredReferenceOrderWithoutCaching',
     'ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.ActualPreparedConfigurationOwnersRetainOriginalPointersAndScopedLoadedFields',
 )
@@ -1506,6 +1509,8 @@ EDITMODE_TESTS += ("OriginalFontReferenceConversionTests.PythonConverterProduced
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineOwnedCoreGraphRetainsSeparateBaseOverridesAndTwelveRuntimeSlots',
     'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineOwnedLocalisationPreservesAuthoredPathsFlagsAndOverrideOrder',
+    'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineCoreFlagsEachReachOnlyTheirOwnGetterAndChallengesNeedGameCenter',
+    'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineLocalisationDefaultsAndOppositeFlagsReachTheirOwnGetters',
     'ProjectLucid.Tests.Editor.OriginalMenuConfigurationAssetSerializationTests.GenuineOwnedHashedRemainsFieldlessPlainScriptableObjectAfterReimport',
 )
 

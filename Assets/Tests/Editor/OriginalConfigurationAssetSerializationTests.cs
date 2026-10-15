@@ -108,6 +108,9 @@ namespace ProjectLucid.Tests
                 Assert.AreSame(expected[i], array.GetArrayElementAtIndex(i).objectReferenceValue, "Original reference slot " + i);
         }
 
+        // Literals match the original string constants returned by AssetLocation
+        // (x86-64 0x1b13780) and GetFileName (x86-64 0x1b137b0), tokens within
+        // 0x06000de1..0x06000de4; get_Config (x86-64 0x1b13770) returns ActiveConfig.
         [Test]
         public void ActiveConfigurationPreservesItsSerializedRuntimeReferenceAndGetter()
         {
@@ -133,6 +136,8 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Twelve slots mirror the original prepared RuntimeConfiguration asset
+        // (checked in ActualPreparedConfigurationOwnersRetainOriginalPointersAndScopedLoadedFields).
         [Test]
         public void RuntimeConfigurationKeepsTwelveOrderedSlotsAndCreatesReadonlyWrappers()
         {
@@ -161,6 +166,17 @@ namespace ProjectLucid.Tests
                 Assert.Throws<NotSupportedException>(() => ((IList<SystemConfigurationAsset>)firstWrapper)[0] = second);
                 Assert.IsNull(serialized.FindProperty("Assets"));
             });
+        }
+
+        // Original Assets 0x06000e5b (x86-64 0x1b15640) tail-calls Array.AsReadOnly on
+        // the raw field, and the constructor 0x06000e5c has no array initializer, so a
+        // normally constructed instance faults on every read. Catches a null fallback.
+        [Test]
+        public void RuntimeConfigurationWithoutAnAuthoredArrayFaultsOnEveryWrapperRead()
+        {
+            var runtime = new RuntimeConfiguration();
+            Assert.Throws<ArgumentNullException>(() => { var unused = runtime.Assets; });
+            Assert.Throws<ArgumentNullException>(() => { var unused = runtime.Assets; });
         }
 
         [Test]

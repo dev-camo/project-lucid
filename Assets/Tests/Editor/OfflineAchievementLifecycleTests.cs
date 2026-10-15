@@ -117,6 +117,92 @@ namespace ProjectLucid.Tests.EditMode
             }
         }
 
+        // Original Achievement.ReportProgress 0x06001106 (x86-64 0x1b2eec0) stores
+        // (int)Clamp01(progress / target) == 1 when unauthenticated, so 1/2 is not
+        // complete. TrackProgress 0x06001107 (x86-64 0x1b2f0a0) falls back to the
+        // target for a null tracker, so only the offline tracking gate can stop that
+        // completion. Catches writing on any evaluation or dropping the gate.
+        [Test]
+        public void BelowTargetAndTrackingDisallowedEvaluationsWriteNoLocalCompletion()
+        {
+            using (var world = new OwnedCoreWorld())
+            {
+                string fallbackIdentifier = AchievementIdentifier.Beach_Combing.GetString();
+                string fallbackKey = "ProjectLucid.Local.default.Achievements." + fallbackIdentifier;
+                bool trackingAllowed = true;
+                int tracked = 1;
+                Action tracker = null;
+                Action fallback = null;
+                LocalAchievementManagerLease lease = null;
+                lease = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier, fallbackIdentifier },
+                    () => trackingAllowed, () =>
+                    {
+                        lease.Manager.AddBehaviour(Identifier, 2, ref tracker, () => tracked);
+                        lease.Manager.AddBehaviour(fallbackIdentifier, 2, ref fallback, null);
+                    }, () =>
+                    {
+                        LocalAchievementRuntime.DetachEvaluators(lease.Manager, ref tracker);
+                        LocalAchievementRuntime.DetachEvaluators(lease.Manager, ref fallback);
+                    }));
+                lease.Start();
+                tracker();
+                Assert.That(lease.Manager.Achievements[Identifier].ReportedComplete, Is.False);
+                Assert.That(world.Store.GetPropertyValueFromSave(LocalAchievementRuntime.SaveIdentifier, CompletionKey),
+                    Is.EqualTo(HLPropertyStore.DefaultPropertyValue));
+                trackingAllowed = false;
+                fallback();
+                tracked = 2;
+                tracker();
+                Assert.That(lease.Manager.Achievements[fallbackIdentifier].ReportedComplete, Is.False);
+                Assert.That(lease.Manager.Achievements[Identifier].ReportedComplete, Is.False);
+                Assert.That(world.Store.GetPropertyValueFromSave(LocalAchievementRuntime.SaveIdentifier, fallbackKey),
+                    Is.EqualTo(HLPropertyStore.DefaultPropertyValue));
+                Assert.That(world.Store.GetPropertyValueFromSave(LocalAchievementRuntime.SaveIdentifier, CompletionKey),
+                    Is.EqualTo(HLPropertyStore.DefaultPropertyValue));
+                // Positive control: the same evaluator completes once tracking resumes.
+                trackingAllowed = true;
+                tracker();
+                Assert.That(lease.Manager.Achievements[Identifier].ReportedComplete, Is.True);
+                Assert.That(world.Store.GetPropertyValueFromSave(LocalAchievementRuntime.SaveIdentifier, CompletionKey), Is.EqualTo("1"));
+                Assert.That(world.Store.GetPropertyValueFromSave(LocalAchievementRuntime.SaveIdentifier, fallbackKey),
+                    Is.EqualTo(HLPropertyStore.DefaultPropertyValue));
+            }
+        }
+
+        // Offline adapter policy: every stored value is validated before any entry
+        // is published. Rollback runs while the context still holds its entries,
+        // so a single-loop add-then-validate would show the valid first entry there.
+        [Test]
+        public void MalformedSecondCompletionValueFailsBeforePublishingTheValidFirstEntry()
+        {
+            using (var world = new OwnedCoreWorld())
+            {
+                string malformedIdentifier = AchievementIdentifier.Beach_Combing.GetString();
+                Assert.That(world.Store.TrySetPropertyValueOnSave(LocalAchievementRuntime.SaveIdentifier,
+                    CompletionKey, "1"), Is.True);
+                Assert.That(world.Store.TrySetPropertyValueOnSave(LocalAchievementRuntime.SaveIdentifier,
+                    "ProjectLucid.Local.default.Achievements." + malformedIdentifier, "invalid"), Is.True);
+                int completed = 0;
+                int rollbacks = 0;
+                int entriesAtRollback = -1;
+                LocalAchievementManagerLease lease = null;
+                lease = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier, malformedIdentifier },
+                    () => true, () => ++completed, () =>
+                    {
+                        ++rollbacks;
+                        entriesAtRollback = lease.Manager.Achievements.Count;
+                    }));
+                FormatException error = Assert.Throws<FormatException>(() => lease.Start());
+                Assert.That(error.Message, Is.EqualTo("Invalid local achievement completion value."));
+                Assert.That(completed, Is.Zero);
+                Assert.That(rollbacks, Is.EqualTo(1));
+                Assert.That(entriesAtRollback, Is.Zero);
+                Assert.That(lease.IsReady, Is.False);
+                Assert.That(lease.Manager.Achievements.Count, Is.Zero);
+                Assert.That(ProcessManager.IsSystemNull<AchievementsManager>(), Is.True);
+            }
+        }
+
         // These additional cases use a genuine independently named registry row.
         // The existing four preservation oracles and observation helpers are unchanged.
         [Test]
@@ -219,6 +305,10 @@ namespace ProjectLucid.Tests.EditMode
             }
         }
 
+        // Offline policy, not original behavior: original Shutdown 0x0600061d
+        // (x86-64 0x53ac50) tail-calls UnregisterSystem(ISystem), which clears every
+        // row holding the object, alias included. The offline route removes only
+        // the default-name row, and this case pins that deliberate deviation.
         [Test]
         public void GenuineLeaderboardSubscribedShutdownPreservesItsSameObjectNamedAlias()
         {
