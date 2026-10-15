@@ -419,6 +419,13 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.CloudFacadeTests.FixtureGuardRejectsBorrowedStoreStateWithoutInvocation",
 )
 
+# Medium coverage gaps in UI managers, buttons, highlighters, scroll geometry and cameras.
+
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalUIContainerManagerGapTests.SingularCloseAllExceptFaultKeepsFieldWhileTransitionCloseClearsIt",
+    "ProjectLucid.Tests.OriginalUIContainerManagerGapTests.DebugAndFreeReturnExternallyDestroyedCachedContainer",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMissionRingRewardPreservationTests.OriginalMissionRingRewardsPreserveAuthoredOrderAndInclusiveSignedThresholds",
 )
