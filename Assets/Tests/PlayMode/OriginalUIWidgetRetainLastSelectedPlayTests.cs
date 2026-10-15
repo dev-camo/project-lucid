@@ -35,14 +35,6 @@ namespace ProjectLucid.Tests
 
         private static void Set(object target, string name, object value) => Field(target.GetType(), name).SetValue(target, value);
         private static object Get(object target, string name) => Field(target.GetType(), name).GetValue(target);
-        private static bool HasObservers(object reference)
-        {
-            Type type = reference.GetType();
-            while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
-            return new[] { "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" }
-                .Any(name => type.GetField(name, Instance | BindingFlags.DeclaredOnly).GetValue(reference) != null);
-        }
-
         private static int Bound(Delegate source, object target) => source == null ? 0 : source.GetInvocationList().Count(entry => ReferenceEquals(entry.Target, target));
 
         private static GameObject Owned(List<UObject> owned, string name, bool active = false)
@@ -71,21 +63,15 @@ namespace ProjectLucid.Tests
             var navigationLease = new LifecycleSystemRowLease(registry, ProcessManager.GetDefaultName<UINavigationManager>());
             var runtimeLease = new LifecycleSystemRowLease(registry, ProcessManager.GetDefaultName<UIRuntimeConfiguration>());
             // SystemConfiguration: an absent row is leased and removed; a live one is borrowed for one
-            // override; a dormant one is reused only without observers and returned to dormant.
+            // owned override. A dormant row is refused before AddConfig: its typed cache may still
+            // hold references that AddConfig would replace and cleanup would revoke.
             string configurationName = ProcessManager.GetDefaultName<SystemConfiguration>();
             LifecycleSystemRowLease configurationLease = null;
-            object dormantConfigurationRow = null;
-            object[] dormantConfigurationKeys = null;
             if (!registry.Contains(configurationName))
                 configurationLease = new LifecycleSystemRowLease(registry, configurationName);
-            else if (!((SystemRef)Get(registry[configurationName], "SystemRef")).IsValid())
-            {
-                dormantConfigurationRow = registry[configurationName];
-                var dormantCache = (IDictionary)Get(dormantConfigurationRow, "SystemRefDictionary");
-                Assert.That(HasObservers(Get(dormantConfigurationRow, "SystemRef")) || dormantCache.Values.Cast<object>().Any(HasObservers), Is.False,
-                    "Fixture refuses a dormant configuration row with observers");
-                dormantConfigurationKeys = dormantCache.Keys.Cast<object>().ToArray();
-            }
+            else
+                Assert.That(((SystemRef)Get(registry[configurationName], "SystemRef")).IsValid(), Is.True,
+                    "Fixture refuses a dormant configuration row");
             using (configurationLease)
             using (runtimeLease)
             using (navigationLease)
@@ -243,12 +229,6 @@ namespace ProjectLucid.Tests
                     {
                         if (configurationHandle != null) ProcessManager.GetSystem<SystemConfiguration>().StackableData.RemoveOverrides(configurationHandle);
                         if (createdConfiguration != null) ProcessManager.UnregisterSystem(createdConfiguration);
-                        if (dormantConfigurationRow == null) return;
-                        object row = registry[configurationName];
-                        var cache = (IDictionary)Get(row, "SystemRefDictionary");
-                        if (!ReferenceEquals(row, dormantConfigurationRow) || ((SystemRef)Get(row, "SystemRef")).IsValid() ||
-                            !cache.Keys.Cast<object>().SequenceEqual(dormantConfigurationKeys))
-                            throw new InvalidOperationException("Borrowed dormant configuration row was not returned unchanged");
                     });
                     for (int i = owned.Count - 1; i >= 0; i--)
                     {
