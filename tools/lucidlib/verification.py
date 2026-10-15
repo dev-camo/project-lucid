@@ -2091,6 +2091,8 @@ PLAYMODE_TESTS += (
 # Discriminating cases for tests the audit judged weak.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OfflineAccessPointTests.FacadeForwardsEachCallToItsOriginalPluginSlotIncludingWidthQuirk",
+    "ProjectLucid.Tests.OriginalMainMenuFSMWeakRemediationTests.AudioClipParsePrecedesSourceParseWhenBothFail",
+    "ProjectLucid.Tests.OriginalMainMenuFSMWeakRemediationTests.MainMenuFamiliesKeepOriginalCompleteAttributeRowOrder",
 )
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(False)",
