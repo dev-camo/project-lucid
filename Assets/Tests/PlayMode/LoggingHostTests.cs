@@ -22,28 +22,17 @@ namespace ProjectLucid.Tests
         public IEnumerator OriginalLoggingHost_RegisteredCallbacksAndRetainedNativeBridgeLifecycle()
         {
             Assert.IsTrue(HLUnityCore.IsNull() && ProcessManager.IsSystemNull<HLUnityCore>(), "The bounded runtime fixture starts without the game's real logging host.");
-            // SystemConfiguration row ownership: an absent row is leased and removed once cleared; a live
-            // one is borrowed for the single owned override. A dormant row is refused before AddConfig,
-            // because its typed cache may still hold references that AddConfig would replace.
-            IDictionary registry = LifecycleSystemRowLease.SharedRegistry;
-            string configurationName = ProcessManager.GetDefaultName<SystemConfiguration>();
-            LifecycleSystemRowLease configurationLease = null;
-            if (!registry.Contains(configurationName))
-                configurationLease = new LifecycleSystemRowLease(registry, configurationName);
-            else
-                Assert.IsTrue(((SystemRef)registry[configurationName].GetType().GetField("SystemRef").GetValue(registry[configurationName])).IsValid(),
-                    "The fixture refuses a dormant configuration row.");
+            var configuration = new OwnedConfiguration();
             Type type = typeof(HLUnityCore);
             object previousBridge = Field(type, "s_unityCoreNativeBridge").GetValue(null);
             object previousTracking = Field(type, "s_trackingAuthorisationNativeBridge").GetValue(null);
             bool previousLogging = Debug.unityLogger.logEnabled;
             LogType previousFilter = Debug.unityLogger.filterLogType;
-            bool priorConfiguration = !ProcessManager.IsSystemNull<SystemConfiguration>();
-            SystemConfiguration createdConfiguration = null;
             var config = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
             Field(config.LowMemoryConfig.GetType(), "m_enabled").SetValue(config.LowMemoryConfig, true);
             Field(config.LowMemoryConfig.GetType(), "m_triggerResourcesUnloadAssets").SetValue(config.LowMemoryConfig, false);
-            StackableDataHandle handle = null;
+            var cleanup = new List<Exception>();
+            bool completed = false;
             var objects = new List<GameObject>();
             var callbacks = new List<Application.LogCallback>();
             var shutdown = new List<string>();
@@ -56,9 +45,7 @@ namespace ProjectLucid.Tests
             try
             {
                 // Original runtime configuration enumeration registers the base asset type.
-                handle = SystemConfiguration.AddConfig<SystemConfigurationAsset>(config);
-                if (!priorConfiguration) createdConfiguration = ProcessManager.GetSystem<SystemConfiguration>();
-                configurationLease?.CaptureCreatedRow(ProcessManager.GetSystemRef(configurationName));
+                configuration.Add(config);
                 Field(type, "s_unityCoreNativeBridge").SetValue(null, null);
                 Field(type, "s_trackingAuthorisationNativeBridge").SetValue(null, null);
                 Debug.unityLogger.logEnabled = true;
@@ -143,25 +130,280 @@ namespace ProjectLucid.Tests
                 yield return null;
                 CollectionAssert.AreEqual(new[] { "untyped", "typed", "untyped", "typed" }, shutdown);
                 Assert.IsTrue(HLUnityCore.IsNull() && ProcessManager.IsSystemNull<HLUnityCore>());
+                completed = true;
             }
             finally
             {
-                untyped.OnSystemShutdown -= onUntyped;
-                typed.OnSystemShutdown -= onTyped;
-                foreach (GameObject item in objects) if (item != null) Object.DestroyImmediate(item);
+                // Every step is attempted; none may replace a body failure.
+                Step(cleanup, () => untyped.OnSystemShutdown -= onUntyped);
+                Step(cleanup, () => typed.OnSystemShutdown -= onTyped);
+                foreach (GameObject item in objects) Step(cleanup, () => { if (item != null) Object.DestroyImmediate(item); });
                 // Probe cleanup only: preserve the original runtime's retained
                 // callback behavior while isolating the rest of the test suite.
-                foreach (Application.LogCallback callback in callbacks) Application.logMessageReceived -= callback;
-                Field(type, "s_unityCoreNativeBridge").SetValue(null, previousBridge);
-                Field(type, "s_trackingAuthorisationNativeBridge").SetValue(null, previousTracking);
-                if (handle != null) ProcessManager.GetSystem<SystemConfiguration>().StackableData.RemoveOverrides(handle);
-                if (createdConfiguration != null) ProcessManager.UnregisterSystem(createdConfiguration);
-                configurationLease?.Dispose();
-                if (config != null) Object.DestroyImmediate(config);
-                Debug.unityLogger.logEnabled = previousLogging;
-                Debug.unityLogger.filterLogType = previousFilter;
+                foreach (Application.LogCallback callback in callbacks) Step(cleanup, () => Application.logMessageReceived -= callback);
+                Step(cleanup, () => Field(type, "s_unityCoreNativeBridge").SetValue(null, previousBridge));
+                Step(cleanup, () => Field(type, "s_trackingAuthorisationNativeBridge").SetValue(null, previousTracking));
+                cleanup.AddRange(configuration.Release());
+                Step(cleanup, () => { if (config != null) Object.DestroyImmediate(config); });
+                Step(cleanup, () => Debug.unityLogger.logEnabled = previousLogging);
+                Step(cleanup, () => Debug.unityLogger.filterLogType = previousFilter);
+                if (!completed) foreach (Exception failure in cleanup) TestContext.Error.WriteLine("Logging host cleanup also failed: " + failure);
             }
-            if (configurationLease != null) Assert.IsEmpty(configurationLease.CleanupFailures, "The owned configuration row is removed once cleared.");
+            Assert.IsEmpty(cleanup, "Every logging host cleanup step completes.");
+        }
+
+        // Configuration-row ownership controls. Each needs an absent row so it can own every row it touches.
+        private static IDictionary Registry => LifecycleSystemRowLease.SharedRegistry;
+        private static string ConfigurationName => ProcessManager.GetDefaultName<SystemConfiguration>();
+
+        private static void WithOwnedLiveConfiguration(Action<SystemConfiguration> body)
+        {
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The control owns the configuration row.");
+            var outer = new LifecycleSystemRowLease(Registry, ConfigurationName);
+            var live = new SystemConfiguration();
+            try
+            {
+                outer.CaptureCreatedRow(ProcessManager.RegisterSystem(live));
+                body(live);
+            }
+            finally
+            {
+                if (ReferenceEquals(ProcessManager.IsSystemNull(ConfigurationName) ? null : ProcessManager.GetSystem<SystemConfiguration>(), live))
+                    ProcessManager.UnregisterSystem(live);
+                outer.Dispose();
+            }
+            Assert.IsEmpty(outer.CleanupFailures);
+            Assert.IsFalse(Registry.Contains(ConfigurationName));
+        }
+
+        // Catches leaving the cleared row behind (the original leak) or a second run tripping over the first.
+        [Test]
+        public void OwnedConfigurationRemovesAnAbsentRowOnEveryRun()
+        {
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The control owns the configuration row.");
+            for (int run = 0; run < 2; run++)
+            {
+                var asset = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+                var owned = new OwnedConfiguration();
+                List<Exception> failures;
+                try
+                {
+                    Assert.IsTrue(owned.OwnsRow);
+                    Assert.IsNotNull(owned.Add(asset));
+                    Assert.IsFalse(ProcessManager.IsSystemNull<SystemConfiguration>());
+                }
+                finally
+                {
+                    failures = owned.Release();
+                    Object.DestroyImmediate(asset);
+                }
+                Assert.IsEmpty(failures);
+                Assert.IsFalse(Registry.Contains(ConfigurationName), "Run " + run + " removes its cleared row.");
+            }
+        }
+
+        // Catches unregistering a borrowed configuration, or removing overrides the fixture does not own.
+        [Test]
+        public void OwnedConfigurationBorrowsALiveRowAndRemovesOnlyItsOwnOverride()
+        {
+            WithOwnedLiveConfiguration(live =>
+            {
+                var foreign = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+                var asset = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+                StackableDataHandle foreignHandle = SystemConfiguration.AddConfig<SystemConfigurationAsset>(foreign, 1);
+                try
+                {
+                    object row = Registry[ConfigurationName];
+                    var owned = new OwnedConfiguration();
+                    Assert.IsFalse(owned.OwnsRow);
+                    owned.Add(asset);
+                    Assert.IsTrue(owned.HoldsOverride(live.StackableData));
+                    Assert.IsEmpty(owned.Release());
+                    Assert.IsFalse(owned.HoldsOverride(live.StackableData));
+                    Assert.AreSame(row, Registry[ConfigurationName]);
+                    Assert.AreSame(live, ProcessManager.GetSystem<SystemConfiguration>());
+                    Assert.AreSame(foreign, live.StackableData.GetOverride<SystemConfigurationAsset>(foreignHandle, 1));
+                }
+                finally
+                {
+                    live.StackableData.RemoveOverrides(foreignHandle);
+                    Object.DestroyImmediate(asset);
+                    Object.DestroyImmediate(foreign);
+                }
+            });
+        }
+
+        // Catches borrowing or replacing a dormant row instead of refusing it before AddConfig.
+        [Test]
+        public void OwnedConfigurationRefusesADormantRowWithoutTouchingIt()
+        {
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The control owns the configuration row.");
+            var seed = new LifecycleSystemRowLease(Registry, ConfigurationName);
+            try
+            {
+                SystemRef dormant = ProcessManager.GetSystemRef(ConfigurationName);
+                seed.CaptureCreatedRow(dormant);
+                object row = Registry[ConfigurationName];
+                Assert.Throws<InvalidOperationException>(() => new OwnedConfiguration());
+                Assert.AreSame(row, Registry[ConfigurationName]);
+                Assert.IsTrue(dormant.IsNull());
+            }
+            finally { seed.Dispose(); }
+            Assert.IsEmpty(seed.CleanupFailures);
+            Assert.IsFalse(Registry.Contains(ConfigurationName));
+        }
+
+        // Injected cleanup failure before the row is released: a throwing listener during override
+        // removal must not stop unregistration and row removal, and must be reported, not swallowed.
+        [Test]
+        public void OwnedConfigurationStillReleasesItsRowAfterAnOverrideRemovalFailure()
+        {
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The control owns the configuration row.");
+            var asset = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+            var owned = new OwnedConfiguration();
+            var sentinel = new InvalidOperationException("lucid-injected-cleanup-failure");
+            SystemConfiguration created = null;
+            Action<int> fail = id => throw sentinel;
+            List<Exception> failures;
+            try
+            {
+                owned.Add(asset);
+                created = ProcessManager.GetSystem<SystemConfiguration>();
+                created.StackableData.OnDataUpdated += fail;
+            }
+            finally
+            {
+                failures = owned.Release();
+                if (created != null) created.StackableData.OnDataUpdated -= fail;
+                Object.DestroyImmediate(asset);
+            }
+            Assert.AreEqual(1, failures.Count);
+            Assert.AreSame(sentinel, failures[0]);
+            Assert.IsFalse(owned.HoldsOverride(created.StackableData), "RemoveOverrides drops the entry before notifying.");
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The owned row is still removed.");
+        }
+
+        // AddOverride stores the override before notifying listeners. A listener that throws on a
+        // borrowed live configuration leaves an override without a handle; Release must still remove it.
+        [Test]
+        public void OwnedConfigurationRemovesAnOverrideWhoseAddConfigThrew()
+        {
+            WithOwnedLiveConfiguration(live =>
+            {
+                var asset = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+                var sentinel = new InvalidOperationException("lucid-injected-add-failure");
+                int notifications = 0;
+                Action<int> failOnce = id => { if (notifications++ == 0) throw sentinel; };
+                live.StackableData.OnDataUpdated += failOnce;
+                try
+                {
+                    var owned = new OwnedConfiguration();
+                    Assert.AreSame(sentinel, Assert.Throws<InvalidOperationException>(() => owned.Add(asset)));
+                    Assert.IsTrue(owned.HoldsOverride(live.StackableData), "The override was stored before the listener threw.");
+                    Assert.IsEmpty(owned.Release());
+                    Assert.IsFalse(owned.HoldsOverride(live.StackableData));
+                    Assert.AreSame(live, ProcessManager.GetSystem<SystemConfiguration>());
+                }
+                finally
+                {
+                    live.StackableData.OnDataUpdated -= failOnce;
+                    Object.DestroyImmediate(asset);
+                }
+            });
+        }
+
+        private static void Step(List<Exception> failures, Action action)
+        {
+            try { action(); }
+            catch (Exception failure) { failures.Add(failure); }
+        }
+
+        // Owns at most one SystemConfiguration row and every override of the assets it adds.
+        // An absent row is leased and removed once cleared; a live one is borrowed. A dormant
+        // row is refused before AddConfig, because its typed cache may still hold references
+        // that AddConfig would replace.
+        internal sealed class OwnedConfiguration
+        {
+            private readonly IDictionary registry = LifecycleSystemRowLease.SharedRegistry;
+            private readonly string name = ProcessManager.GetDefaultName<SystemConfiguration>();
+            private readonly LifecycleSystemRowLease lease;
+            private readonly List<SystemConfigurationAsset> assets = new List<SystemConfigurationAsset>();
+            private readonly List<Exception> captureFailures = new List<Exception>();
+            private bool captured;
+            private bool released;
+
+            internal OwnedConfiguration()
+            {
+                if (!registry.Contains(name)) lease = new LifecycleSystemRowLease(registry, name);
+                else if (!RowReference().IsValid()) throw new InvalidOperationException("The fixture refuses a dormant configuration row.");
+            }
+
+            internal bool OwnsRow => lease != null;
+
+            // AddOverride stores the override before notifying listeners, so a throwing
+            // listener leaves an override without a returned handle; Release finds it by asset.
+            internal StackableDataHandle Add(SystemConfigurationAsset asset)
+            {
+                assets.Add(asset);
+                StackableDataHandle handle;
+                try { handle = SystemConfiguration.AddConfig<SystemConfigurationAsset>(asset); }
+                catch
+                {
+                    try { CaptureCreatedRow(); }
+                    catch (Exception failure) { captureFailures.Add(failure); }
+                    throw;
+                }
+                CaptureCreatedRow();
+                return handle;
+            }
+
+            internal List<Exception> Release()
+            {
+                var failures = new List<Exception>(captureFailures);
+                if (released) return failures;
+                released = true;
+                SystemConfiguration system = null;
+                Step(failures, () => system = ProcessManager.IsSystemNull(name) ? null : ProcessManager.GetSystem<SystemConfiguration>());
+                if (system != null)
+                    foreach (StackableDataHandle handle in OverridesOf(system.StackableData))
+                        Step(failures, () => system.StackableData.RemoveOverrides(handle));
+                if (lease != null)
+                {
+                    if (system != null) Step(failures, () => ProcessManager.UnregisterSystem(system));
+                    lease.Dispose();
+                    foreach (LifecycleSystemRowLease.FailureRecord record in lease.CleanupFailures) failures.Add(record.Failure);
+                }
+                return failures;
+            }
+
+            internal bool HoldsOverride(StackableData data) => OverridesOf(data).Count != 0;
+
+            private List<StackableDataHandle> OverridesOf(StackableData data)
+            {
+                // Read-only scan of the override table for containers holding an owned asset, matched by
+                // reference: Unity equality would also match a destroyed owned asset to a foreign null value.
+                var table = (System.Collections.Specialized.OrderedDictionary)typeof(StackableData)
+                    .GetField("m_dataDictionary", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(data);
+                var handles = new List<StackableDataHandle>();
+                foreach (DictionaryEntry entry in table)
+                    if (entry.Value is Dictionary<int, StackableData.StackableDataContainer> containers)
+                        foreach (StackableData.StackableDataContainer container in containers.Values)
+                            if (container is StackableData.StackableDataContainer<SystemConfigurationAsset> typed && assets.Exists(asset => ReferenceEquals(asset, typed.Value)))
+                            {
+                                handles.Add((StackableDataHandle)entry.Key);
+                                break;
+                            }
+                return handles;
+            }
+
+            private void CaptureCreatedRow()
+            {
+                if (lease == null || captured || !registry.Contains(name)) return;
+                captured = true;
+                lease.CaptureCreatedRow(RowReference());
+            }
+
+            private SystemRef RowReference() => (SystemRef)registry[name].GetType().GetField("SystemRef").GetValue(registry[name]);
         }
     }
 }

@@ -1518,3 +1518,12 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalUIWidgetRetainLastSelectedPlayTests.SuccessfulAwakeDefersRealNavigationSelectOfTheRememberedWidget",
 )
+
+# Logging host test fixture ownership of the SystemConfiguration row; logging behavior stays separate.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRemovesAnAbsentRowOnEveryRun",
+    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationBorrowsALiveRowAndRemovesOnlyItsOwnOverride",
+    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRefusesADormantRowWithoutTouchingIt",
+    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideRemovalFailure",
+    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRemovesAnOverrideWhoseAddConfigThrew",
+)
