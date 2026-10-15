@@ -171,12 +171,20 @@ namespace ProjectLucid.Tests
         // Original Assets 0x06000e5b (x86-64 0x1b15640) tail-calls Array.AsReadOnly on
         // the raw field, and the constructor 0x06000e5c has no array initializer, so a
         // normally constructed instance faults on every read. Catches a null fallback.
+        // CreateInstance runs that constructor without deserializing any authored data.
         [Test]
         public void RuntimeConfigurationWithoutAnAuthoredArrayFaultsOnEveryWrapperRead()
         {
-            var runtime = new RuntimeConfiguration();
-            Assert.Throws<ArgumentNullException>(() => { var unused = runtime.Assets; });
-            Assert.Throws<ArgumentNullException>(() => { var unused = runtime.Assets; });
+            RuntimeConfiguration runtime = ScriptableObject.CreateInstance<RuntimeConfiguration>();
+            try
+            {
+                Assert.Throws<ArgumentNullException>(() => { var unused = runtime.Assets; });
+                Assert.Throws<ArgumentNullException>(() => { var unused = runtime.Assets; });
+            }
+            finally
+            {
+                Object.DestroyImmediate(runtime);
+            }
         }
 
         [Test]
