@@ -431,6 +431,8 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLButtonGapTests.ButtonDownAndUpReadSoundActionAndIdAfterTheirEvent",
     "ProjectLucid.Tests.OriginalHLButtonGapTests.DisableInvokesDisabledSelectedOnlyWhenHighlightedAfterBaseWithoutNullGuard",
     "ProjectLucid.Tests.OriginalHLButtonGapTests.PointerUpExitAndEnterDispatchFromStateCapturedBeforeBase",
+    "ProjectLucid.Tests.OriginalHLButtonHighlighterGapTests.TargetsForwardEachCallbackInOrderAndRereadTheArray",
+    "ProjectLucid.Tests.OriginalHLButtonHighlighterGapTests.ActiveSetButtonStateStopsStoredCoroutineBeforeApplyingSynchronously",
 )
 
 EDITMODE_TESTS += (
