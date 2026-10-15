@@ -1952,3 +1952,8 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLevelManagerSystemsGapPlayTests.ShutdownCallbacksSeeTheObjectRowOnlyDuringFullTeardown",
 )
+
+# InstancedObjectPool re-registration and unknown-key behavior over an owned mesh.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalInstancedObjectPoolGapTests.ReRegistrationKeepsTheFirstPoolAndUnknownKeysAreSilentMisses",
+)
