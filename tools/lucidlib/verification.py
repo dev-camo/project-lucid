@@ -1526,4 +1526,5 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRefusesADormantRowWithoutTouchingIt",
     "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideRemovalFailure",
     "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRemovesAnOverrideWhoseAddConfigThrew",
+    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideScanFailure",
 )

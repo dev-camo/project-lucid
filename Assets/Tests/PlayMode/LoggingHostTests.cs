@@ -144,7 +144,7 @@ namespace ProjectLucid.Tests
                 foreach (Application.LogCallback callback in callbacks) Step(cleanup, () => Application.logMessageReceived -= callback);
                 Step(cleanup, () => Field(type, "s_unityCoreNativeBridge").SetValue(null, previousBridge));
                 Step(cleanup, () => Field(type, "s_trackingAuthorisationNativeBridge").SetValue(null, previousTracking));
-                cleanup.AddRange(configuration.Release());
+                Step(cleanup, () => cleanup.AddRange(configuration.Release()));
                 Step(cleanup, () => { if (config != null) Object.DestroyImmediate(config); });
                 Step(cleanup, () => Debug.unityLogger.logEnabled = previousLogging);
                 Step(cleanup, () => Debug.unityLogger.filterLogType = previousFilter);
@@ -320,6 +320,31 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Injected scan failure on an owned row: Release must record it and still unregister the
+        // created system and remove its row. Catches an unguarded scan exiting Release early.
+        [Test]
+        public void OwnedConfigurationStillReleasesItsRowAfterAnOverrideScanFailure()
+        {
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The control owns the configuration row.");
+            var asset = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+            var owned = new OwnedConfiguration();
+            var sentinel = new InvalidOperationException("lucid-injected-scan-failure");
+            List<Exception> failures;
+            try
+            {
+                owned.Add(asset);
+                owned.ScanOverride = data => throw sentinel;
+            }
+            finally
+            {
+                failures = owned.Release();
+                Object.DestroyImmediate(asset);
+            }
+            Assert.AreEqual(1, failures.Count);
+            Assert.AreSame(sentinel, failures[0]);
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The owned row is still removed.");
+        }
+
         private static void Step(List<Exception> failures, Action action)
         {
             try { action(); }
@@ -371,18 +396,27 @@ namespace ProjectLucid.Tests
                 if (released) return failures;
                 released = true;
                 SystemConfiguration system = null;
+                List<StackableDataHandle> handles = null;
                 Step(failures, () => system = ProcessManager.IsSystemNull(name) ? null : ProcessManager.GetSystem<SystemConfiguration>());
-                if (system != null)
-                    foreach (StackableDataHandle handle in OverridesOf(system.StackableData))
+                // A failed scan is recorded like any other step, so unregistration and the lease still run.
+                if (system != null) Step(failures, () => handles = (ScanOverride ?? OverridesOf)(system.StackableData));
+                if (handles != null)
+                    foreach (StackableDataHandle handle in handles)
                         Step(failures, () => system.StackableData.RemoveOverrides(handle));
                 if (lease != null)
                 {
                     if (system != null) Step(failures, () => ProcessManager.UnregisterSystem(system));
-                    lease.Dispose();
-                    foreach (LifecycleSystemRowLease.FailureRecord record in lease.CleanupFailures) failures.Add(record.Failure);
+                    Step(failures, () =>
+                    {
+                        lease.Dispose();
+                        foreach (LifecycleSystemRowLease.FailureRecord record in lease.CleanupFailures) failures.Add(record.Failure);
+                    });
                 }
                 return failures;
             }
+
+            // Fault-injection seam for the ownership controls only; null uses the real scan.
+            internal Func<StackableData, List<StackableDataHandle>> ScanOverride;
 
             internal bool HoldsOverride(StackableData data) => OverridesOf(data).Count != 0;
 
