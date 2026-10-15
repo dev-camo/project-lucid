@@ -187,25 +187,94 @@ namespace ProjectLucid.Verification
         public static int VerifyOwnedInactiveConfigurationLifecycleRegistryOrder()
         {
             var c = new Checks();
+            ConfigurationLifecycle(c, false);
+            return c.Count;
+        }
+
+        // An assertion failing after the reflected Awake must still revoke the
+        // owned registration: DestroyImmediate runs no OnDestroy on the
+        // never-activated owner, and SystemRef validity is a plain reference
+        // test, so a reused row would keep reporting the destroyed fixture.
+        // Covers an absent key and a quiet pre-existing row holding a cached
+        // typed reference (or only the quiet row the domain already has).
+        public static int VerifyOwnedInactiveConfigurationLifecycleReleasesRowAfterAssertionFault()
+        {
+            var c = new Checks();
+            string name = ProcessManager.GetDefaultName<UIRuntimeConfiguration>();
+            IDictionary registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", Declared).GetValue(null);
+            if (registry.Contains(name))
+            {
+                FaultedConfigurationLifecycleRestoresRow(c, registry, name);
+                return c.Count;
+            }
+            FaultedConfigurationLifecycleRestoresRow(c, registry, name);
+            using (var row = new VerificationFixtureOwnership.RegistryRow(name))
+            {
+                row.Register(null);
+                SystemRef<UIRuntimeConfiguration> typed = ProcessManager.GetSystemRef<UIRuntimeConfiguration>(name);
+                c.Require(typed != null && RowReferences(registry[name]).Count == 2, "owned quiet row caches one typed reference");
+                FaultedConfigurationLifecycleRestoresRow(c, registry, name);
+            }
+            c.Require(!registry.Contains(name), "owned quiet row released");
+            return c.Count;
+        }
+
+        private const string InjectedLifecycleFault = "Original UI leaf verification: injected assertion fault after configuration Awake";
+
+        private static void FaultedConfigurationLifecycleRestoresRow(Checks c, IDictionary registry, string name)
+        {
+            object row = registry.Contains(name) ? registry[name] : null;
+            List<object> references = row == null ? null : RowReferences(row);
+            string failure = null;
+            try { ConfigurationLifecycle(c, true); }
+            catch (InvalidOperationException fault) { failure = fault.Message; }
+            c.Require(failure == InjectedLifecycleFault, "faulted lifecycle surfaces its own fault, not a cleanup failure: " + failure);
+            RequireOriginalRow(c, registry, name, row, references, "after faulted configuration lifecycle");
+        }
+
+        // The row is absent again, or is the same row object holding the same
+        // untyped and typed references with no system or observers.
+        private static void RequireOriginalRow(Checks c, IDictionary registry, string name, object row, List<object> references, string phase)
+        {
+            if (row == null)
+            {
+                c.Require(!registry.Contains(name), "absent configuration row stays absent " + phase);
+                return;
+            }
+            c.Require(registry.Contains(name) && ReferenceEquals(registry[name], row), "pre-existing configuration row kept " + phase);
+            List<object> actual = RowReferences(row);
+            c.Require(actual.Count == references.Count, "pre-existing row reference count kept " + phase);
+            for (int i = 0; i < references.Count; ++i) c.Require(ReferenceEquals(actual[i], references[i]), "pre-existing row reference identity kept " + phase);
+            RequireQuietNullRow(c, row, "pre-existing configuration row quiet " + phase);
+            c.Require(!ProcessManager.IsSystemValid(name), "configuration system not valid " + phase);
+        }
+
+        // faultAfterAwake throws once Awake has installed the fixture, standing
+        // in for any later assertion failure.
+        private static void ConfigurationLifecycle(Checks c, bool faultAfterAwake)
+        {
             Type owner = typeof(UIRuntimeConfiguration);
             string name = ProcessManager.GetDefaultName<UIRuntimeConfiguration>();
             c.Require(name == "Hardlight.UIRuntimeConfiguration", "genuine default system name");
             IDictionary registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", Declared).GetValue(null);
             object existingRow = registry.Contains(name) ? registry[name] : null;
             if (existingRow != null) RequireQuietNullRow(c, existingRow, "pre-existing configuration row is a null, unobserved row");
+            List<object> existingReferences = existingRow == null ? null : RowReferences(existingRow);
             var state = new StateWatch(c);
             MethodInfo awake = owner.GetMethod("Awake", Declared), destroy = owner.GetMethod("OnDestroy", Declared);
             GameObject gameObject = null;
+            UIRuntimeConfiguration configuration = null;
             try
             {
                 gameObject = Inactive(c, "Owned original UI configuration lifecycle");
-                UIRuntimeConfiguration configuration = gameObject.AddComponent<UIRuntimeConfiguration>();
+                configuration = gameObject.AddComponent<UIRuntimeConfiguration>();
                 state.AssertUnchanged(c, "after inactive configuration creation");
                 ObjectDefaults(c, configuration);
                 c.Require(InvokeFaults<NullReferenceException>(awake, configuration), "Awake reaches the unbound bridge without a null guard");
                 c.Require(registry.Contains(name) && (existingRow == null || ReferenceEquals(registry[name], existingRow)), "Awake registry row present at the bridge fault");
                 SystemRef reference = RowReference(registry[name]);
                 c.Require(ReferenceEquals(reference.GetSafe(), configuration) && ProcessManager.IsSystemValid<UIRuntimeConfiguration>(), "Awake registered this configuration before the bridge fault");
+                if (faultAfterAwake) throw new InvalidOperationException(InjectedLifecycleFault);
                 c.Require(InvokeFaults<NullReferenceException>(destroy, configuration), "OnDestroy reaches the unbound bridge without a null guard");
                 c.Require(ReferenceEquals(RowReference(registry[name]), reference) && reference.IsNull() && !ProcessManager.IsSystemValid<UIRuntimeConfiguration>(), "OnDestroy unregistered before the bridge fault");
                 RequireQuietNullRow(c, registry[name], "revoked configuration row has no observers");
@@ -214,15 +283,26 @@ namespace ProjectLucid.Verification
             }
             finally
             {
-                try { if (!ReferenceEquals(gameObject, null)) UObject.DestroyImmediate(gameObject); }
+                try
+                {
+                    // Revoke only this fixture's own registration (a no-op once
+                    // OnDestroy ran); a foreign system in the row is left alone.
+                    if (!ReferenceEquals(configuration, null) && registry.Contains(name) && ReferenceEquals(RowReference(registry[name]).GetSafe(), configuration))
+                        ProcessManager.UnregisterSystem(name);
+                }
                 finally
                 {
-                    // The key was absent before this case, so any row now is the fixture's own.
-                    if (existingRow == null && registry.Contains(name)) registry.Remove(name);
-                    state.AssertUnchanged(c, "after destruction of the configuration lifecycle owner");
+                    try { if (!ReferenceEquals(gameObject, null)) UObject.DestroyImmediate(gameObject); }
+                    finally
+                    {
+                        // The key was absent before this case, so a row that
+                        // holds no system now is the fixture's own.
+                        if (existingRow == null && registry.Contains(name) && RowReference(registry[name]).IsNull()) registry.Remove(name);
+                        state.AssertUnchanged(c, "after destruction of the configuration lifecycle owner");
+                    }
                 }
             }
-            return c.Count;
+            RequireOriginalRow(c, registry, name, existingRow, existingReferences, "after configuration lifecycle");
         }
 
         private static bool InvokeFaults<T>(MethodInfo method, object target) where T : Exception
@@ -237,14 +317,20 @@ namespace ProjectLucid.Verification
             return (SystemRef)row.GetType().GetField("SystemRef", Declared).GetValue(row);
         }
 
+        // The untyped reference followed by the cached typed references in row order.
+        private static List<object> RowReferences(object row)
+        {
+            var references = new List<object> { RowReference(row) };
+            foreach (DictionaryEntry typed in (IDictionary)row.GetType().GetField("SystemRefDictionary", Declared).GetValue(row)) references.Add(typed.Value);
+            return references;
+        }
+
         // A row whose references hold no system, event observer or pending
         // valid-callback (every field but the name is null) can be replaced and
         // revoked by the owned lifecycle without notifying foreign code.
         private static void RequireQuietNullRow(Checks c, object row, string message)
         {
-            var references = new List<object> { RowReference(row) };
-            foreach (DictionaryEntry typed in (IDictionary)row.GetType().GetField("SystemRefDictionary", Declared).GetValue(row)) references.Add(typed.Value);
-            foreach (object reference in references)
+            foreach (object reference in RowReferences(row))
             {
                 c.Require(reference != null, message + " (present reference)");
                 for (Type at = reference.GetType(); at != null && at != typeof(object); at = at.BaseType)

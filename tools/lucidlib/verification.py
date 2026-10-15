@@ -934,6 +934,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalMenuCameraUsesOwnedInactiveStoredCameraAndUnguardedToggle",
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalUIConfigurationUsesOwnedInactiveStoredGettersAndPrimitiveJson",
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalUIConfigurationLifecycleRegistersAndUnregistersBeforeUnguardedBridgeCalls",
+    "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalUIConfigurationLifecycleRevokesOwnedRegistrationAfterAssertionFault",
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalAbstractUIBridgeAndSupplierPreserveCompleteMetadataAndBaseOnlyBodies",
     "ProjectLucid.Tests.UIConcreteInputTests.ConcreteDeclarationsAndOwnedDefaults",
     "ProjectLucid.Tests.UIConcreteInputTests.EnumValidationPrecedesNullModuleFault",
