@@ -1839,3 +1839,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGameCenterAccessPointGapTests.ScreenCoordinateWidthForwardsToThePluginWidthSlot",
 )
+
+# Original ScreenManager lock flags across device orientations; owned Screen flags restored.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalScreenManagerGapTests.UnlockedToggleWritesLockFlagsFromTheDeviceOrientation",
+)
