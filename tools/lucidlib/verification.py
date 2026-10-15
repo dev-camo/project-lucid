@@ -1688,3 +1688,7 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.UIStartupLifecycleTests.OriginalUIHostAndVisibilityMembersRetainOwnedRegistryAndCoroutineRules",
     "ProjectLucid.Tests.UIWidgetProgressionTests.OriginalAnimationRoutesUseConfiguredClipNamesAndSameLayerStop",
 )
+
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalEntityActivationUpdateTests.UpdateRunsTheInactivePassFirstAndBothListsInReverse",
+)
