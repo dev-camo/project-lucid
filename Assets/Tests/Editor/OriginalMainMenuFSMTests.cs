@@ -42,7 +42,21 @@ namespace ProjectLucid.Tests
             var state = new ApplicationStateLoadGameSave(machine, Name());
             // Original user.Storage access fails before ProcessManager.GetSystem
             // and CoroutineUtils.RunCoroutine. No nonnull-user entry is attempted.
-            Assert.Throws<NullReferenceException>(() => state.OnEnter(null, null));
+            // 0x060006a4 x86-64 0x649400: base DoOnEnter, then the interface
+            // Storage call on the user, then SetValue, GetSystem<SaveManager> and
+            // RunCoroutine. Those later boundaries can also raise NullReferenceException
+            // here (a missing HLUnityCore makes GetSystem throw "System '...' is null",
+            // and RunCoroutine has no host), so the fault site and the untouched
+            // registry pin the order. Mutations caught: dropping or moving the
+            // Storage write after GetSystem (which autoregisters a SaveManager row).
+            var registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary",
+                BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            object[] keys = registry.Keys.Cast<object>().ToArray();
+            var fault = Assert.Throws<NullReferenceException>(() => state.OnEnter(null, null));
+            Assert.That(fault.Message, Does.Not.StartWith("System '"));
+            string top = fault.StackTrace.Split('\n').Select(line => line.Trim()).First(line => line.Length != 0);
+            Assert.That(top, Does.Contain("HardlightProject.ApplicationStateLoadGameSave.DoOnEnter"));
+            Assert.That(registry.Keys.Cast<object>().ToArray(), Is.EqualTo(keys));
             Assert.That(machine.States[state.StateId], Is.SameAs(state));
             Assert.That(state.GetStateTransitions().Count, Is.EqualTo(0));
         }
