@@ -1854,3 +1854,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalVisualQualityGapTests.MissingAttributeSelectsMediumAndAppliesTheSelection",
 )
+
+# Original scaled and unscaled timed waits at time scale zero; time scale restored.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalCoroutineTimeSourceGapPlayTests.ZeroTimeScaleHoldsTheScaledWaitButEndsTheUnscaledWait",
+)
