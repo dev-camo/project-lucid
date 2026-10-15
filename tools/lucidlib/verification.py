@@ -1883,3 +1883,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLocalisedUIStringTargetDiscoveryTests.RightToLeftTextSuppressesUguiDiscoveryAfterEveryTargetIsReset",
     "ProjectLucid.Tests.OriginalLocalisedUIStringTargetDiscoveryTests.PlainTextMeshProUguiIsDiscoveredWithoutRightToLeftText",
 )
+
+# Original CharacterCustomisationManager constructor registration order.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalCharacterCustomisationOrderTests.SaveRegistrationIsRequestedBeforeTheStringTableSubscription",
+)
