@@ -1146,6 +1146,7 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.TwoNaturalIteratorsHaveTwelveManagedRoles',
     'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactiveAttachmentRetainsOriginalConstructorDefaults',
     'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactiveNoChangeSuppressesCompletion',
+    'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactiveLockedChangeCompletesOnceThenSameOrientationSuppresses',
     'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactivePublicSubscriptionsRetainOwnedMembership',
     'ProjectLucid.Tests.OriginalScreenManagerEditModeTests.InactiveLockAndTogglePreserveOriginalGate',
 )

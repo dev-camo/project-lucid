@@ -10,6 +10,7 @@ namespace ProjectLucid.Tests
         [Test] public void TwoNaturalIteratorsHaveTwelveManagedRoles() => ScreenManagerVerification.TwoNaturalIteratorsHaveTwelveManagedRoles();
         [Test] public void InactiveAttachmentRetainsOriginalConstructorDefaults() => ScreenManagerVerification.InactiveAttachmentRetainsOriginalConstructorDefaults();
         [Test] public void InactiveNoChangeSuppressesCompletion() => ScreenManagerVerification.InactiveNoChangeSuppressesCompletion();
+        [Test] public void InactiveLockedChangeCompletesOnceThenSameOrientationSuppresses() => ScreenManagerVerification.InactiveLockedChangeCompletesOnceThenSameOrientationSuppresses();
         [Test] public void InactivePublicSubscriptionsRetainOwnedMembership() => ScreenManagerVerification.InactivePublicSubscriptionsRetainOwnedMembership();
         [Test] public void InactiveLockAndTogglePreserveOriginalGate() => ScreenManagerVerification.InactiveLockAndTogglePreserveOriginalGate();
     }

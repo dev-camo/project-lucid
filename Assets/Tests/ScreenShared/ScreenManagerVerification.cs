@@ -171,6 +171,51 @@ namespace ProjectLucid.Tests.ScreenShared
                 Assert.That(Read(manager, "m_reapplyAutoRotation"), Is.Null);
             });
         }
+        // 0x06000dc5 x86-64 0x1b12e00: returns when the request is Uninitialised or
+        // equals the stored orientation (+0x50), else stores it, calls
+        // ForceOrientation, saves only when an HLPropertyStore system exists, then
+        // tail-calls the callback. The user lock makes ForceOrientation return after
+        // its Screen.orientation write, so no coroutine starts on the inactive host.
+        // Mutations caught: dropping the equality clause (the repeated Landscape
+        // request completes), invoking the callback before storing the orientation,
+        // skipping the callback, or ignoring the lock (autorotation flags change and
+        // StartCoroutine logs on the inactive host).
+        public static void InactiveLockedChangeCompletesOnceThenSameOrientationSuppresses()
+        {
+            bool landscapeLeft = Screen.autorotateToLandscapeLeft, landscapeRight = Screen.autorotateToLandscapeRight;
+            bool portrait = Screen.autorotateToPortrait, portraitUpsideDown = Screen.autorotateToPortraitUpsideDown;
+            try
+            {
+                Inactive(manager =>
+                {
+                    var observed = new List<UIOrientation>();
+                    Action complete = () => observed.Add(manager.Orientation);
+                    manager.SetOrientationLock(true);
+                    bool[] locked = { Screen.autorotateToLandscapeLeft, Screen.autorotateToLandscapeRight, Screen.autorotateToPortrait, Screen.autorotateToPortraitUpsideDown };
+                    manager.ChangeOrientation(UIOrientation.Landscape, complete);
+                    Assert.That(observed, Is.EqualTo(new[] { UIOrientation.Landscape }));
+                    manager.ChangeOrientation(UIOrientation.Landscape, complete);
+                    Assert.That(observed, Is.EqualTo(new[] { UIOrientation.Landscape }));
+                    manager.ChangeOrientation(UIOrientation.Portrait, complete);
+                    Assert.That(observed, Is.EqualTo(new[] { UIOrientation.Landscape, UIOrientation.Portrait }));
+                    manager.ChangeOrientation(UIOrientation.Uninitialised, complete);
+                    Assert.That(observed, Is.EqualTo(new[] { UIOrientation.Landscape, UIOrientation.Portrait }));
+                    manager.ChangeOrientation(UIOrientation.Landscape);
+                    Assert.That(manager.Orientation, Is.EqualTo(UIOrientation.Landscape));
+                    Assert.That(new[] { Screen.autorotateToLandscapeLeft, Screen.autorotateToLandscapeRight, Screen.autorotateToPortrait, Screen.autorotateToPortraitUpsideDown },
+                        Is.EqualTo(locked), "Locked ForceOrientation leaves autorotation untouched");
+                    Assert.That(Read(manager, "m_reapplyAutoRotation"), Is.Null);
+                    Assert.That(manager.IsOrientationLocked(), Is.True);
+                });
+            }
+            finally
+            {
+                Screen.autorotateToLandscapeLeft = landscapeLeft;
+                Screen.autorotateToLandscapeRight = landscapeRight;
+                Screen.autorotateToPortrait = portrait;
+                Screen.autorotateToPortraitUpsideDown = portraitUpsideDown;
+            }
+        }
         public static void InactivePublicSubscriptionsRetainOwnedMembership()
         {
             Inactive(manager =>
