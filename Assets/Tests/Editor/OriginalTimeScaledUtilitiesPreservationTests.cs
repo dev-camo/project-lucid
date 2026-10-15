@@ -29,6 +29,14 @@ namespace ProjectLucid.Tests
             Assert.That(OriginalTimeScaledUtilitiesVerification.RunOriginalFrameTimeBoundaries(), Is.EqualTo(10));
         }
 
+        // Deterministic companion to the frame test above, whose expected call
+        // count follows the observed engine delta.
+        [Test]
+        public void OriginalTimingZeroCategoryScaleLeavesOnlyThePredicateToEndAFrameWait()
+        {
+            Assert.That(OriginalTimeScaledUtilitiesVerification.RunOriginalZeroScaleFrameTimer(), Is.EqualTo(6));
+        }
+
         [Test]
         public void OriginalTimingPredicateAndNestedDelayFaultsPreserveReentryAndEmptyDispose()
         {

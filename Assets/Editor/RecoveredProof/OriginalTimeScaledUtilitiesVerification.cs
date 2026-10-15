@@ -529,6 +529,35 @@ public static class OriginalTimeScaledUtilitiesVerification
         }
     }
 
+    // Frame timer of <WaitForSeconds>d__5.MoveNext (x86-64 0x1b1a8b0): the loop runs
+    // while waitSeconds > timer (0x1b1a959/0x1b1a971), the predicate is called first
+    // (0x1b1a98d), then timer += Time.deltaTime * GetTimescale(category) (0x1b1a9cf)
+    // before the null yield. A zero category scale keeps the timer at zero whatever the
+    // engine delta, so only the predicate's third call can end a positive wait. Catches
+    // a timer that counts frames or ignores the category scale (when the engine delta
+    // is positive); a zero wait never enters the loop.
+    public static int RunOriginalZeroScaleFrameTimer()
+    {
+        lock (FixtureLock)
+        using (var scope = new EngineScope())
+        {
+            var checks = new Checks();
+            scope.Scale(0f);
+            float delta = Time.deltaTime;
+            checks.That(!float.IsNaN(delta) && !float.IsInfinity(delta), "Observe a finite engine frame delta");
+            int calls = 0;
+            IEnumerator frame = TimeScaledUtilities.WaitForSeconds(float.Epsilon, scope.Category, () => ++calls == 3);
+            checks.That(frame.MoveNext() && frame.Current == null && calls == 1, "Zero scale keeps the first frame waiting");
+            checks.That(frame.MoveNext() && frame.Current == null && calls == 2, "Zero scale keeps the second frame waiting");
+            checks.That(!frame.MoveNext() && calls == 3, "Only the predicate ends a zero-scale wait");
+            checks.That(frame.Current == null, "Zero-scale terminal Current remains null");
+            int zeroCalls = 0;
+            IEnumerator none = TimeScaledUtilities.WaitForSeconds(0f, scope.Category, () => { ++zeroCalls; return false; });
+            checks.That(!none.MoveNext() && zeroCalls == 0 && none.Current == null, "A zero wait ends before any predicate call");
+            return checks.Count;
+        }
+    }
+
     public static int RunOriginalFaultAndNestedDelayBoundaries()
     {
         lock (FixtureLock)
