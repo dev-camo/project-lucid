@@ -420,6 +420,12 @@ PLAYMODE_TESTS += (
 )
 
 # Medium coverage gaps in UI managers, buttons, highlighters, scroll geometry and cameras.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUIGeometryGapTests." + name for name in (
+    "NavigationEqualityTreatsDestroyedSelectablesAsUnityNull",
+    "FitTrimmedImageWritesSquareSizeFromBoundsHeightAndReferencePixels",
+    "VisibleAlignmentTargetsItemsBeyondEitherViewportEdge",
+    "NearestChildChoosesMaxBookendForEqualAndUnorderedDistances",
+))
 
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalUIContainerManagerGapTests.SingularCloseAllExceptFaultKeepsFieldWhileTransitionCloseClearsIt",
