@@ -48,8 +48,6 @@ namespace ProjectLucid.Verification
         }
         static void RunOwned(Action<ExclusionList> body)
         {
-            // Current three-method witness is generated only from independently qualified fresh Core243.
-            CheckCompleteCurrentDeclarationsAndBodies();
             ExclusionList owned = null;
             try { owned = new ExclusionList(); body(owned); }
             finally

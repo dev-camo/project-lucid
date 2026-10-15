@@ -47,6 +47,9 @@ namespace ProjectLucid.Verification
             if (scope == "netstandard") return (member.DeclaringType == typeof(string) || member.DeclaringType == typeof(object)) && member.DeclaringType.Assembly == typeof(object).Assembly;
             return false;
         }
+        // Emission-regression check of this project's own compile, not original evidence;
+        // it runs only as its own test, never as a behavior precondition.
+        public static void VerifyCurrentBuildEmissionMatchesRecordedSnapshot() => CheckCompleteCurrentDeclarationsAndBodies();
         static void CheckCompleteCurrentDeclarationsAndBodies()
         {
             Type type = typeof(ExclusionList);

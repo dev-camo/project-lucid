@@ -9,6 +9,8 @@ namespace ProjectLucid.Tests
     [TestFixture]
     public sealed class BootTransitionTests
     {
+        // Emission-regression check of the project's own compile, not original evidence.
+        [Test] public void CurrentBuildEmissionMatchesRecordedSnapshot() { BootTransitionVerification.VerifyCurrentBuildEmissionMatchesRecordedSnapshot(); LogAssert.NoUnexpectedReceived(); }
         [Test] public void JsonDefaultsAndOriginalFactories() { BootTransitionVerification.VerifyJsonDefaultsAndOriginalFactories(); LogAssert.NoUnexpectedReceived(); }
         [Test] public void SaveLoadedTruthTableAndNoDefaultInsertion() { BootTransitionVerification.VerifySaveLoadedTruthTableAndNoDefaultInsertion(); LogAssert.NoUnexpectedReceived(); }
         [Test] public void UserAndTypedNullStorageFaults() { BootTransitionVerification.VerifyUserAndTypedNullStorageFaults(); LogAssert.NoUnexpectedReceived(); }

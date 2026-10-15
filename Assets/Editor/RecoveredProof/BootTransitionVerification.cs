@@ -55,7 +55,6 @@ namespace ProjectLucid.Verification
         }
         static void RunOwned(int id, Action<Owned> body)
         {
-            CheckCompleteCurrentDeclarationsAndBodies();
             var owned = new Owned(id); var failures = new List<Exception>();
             try { owned.Acquire(); body(owned); }
             catch (Exception exception) { failures.Add(exception); }

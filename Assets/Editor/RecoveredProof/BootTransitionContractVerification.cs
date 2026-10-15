@@ -126,6 +126,9 @@ namespace ProjectLucid.Verification
             if (type.TypeInitializer != null && !methods.Any(x => x.MetadataToken == type.TypeInitializer.MetadataToken)) methods.Add(type.TypeInitializer);
             return methods.OrderBy(x => x.MetadataToken).ToArray();
         }
+        // Emission-regression check of this project's own compile, not original evidence;
+        // it runs only as its own test, never as a behavior precondition.
+        public static void VerifyCurrentBuildEmissionMatchesRecordedSnapshot() => CheckCompleteCurrentDeclarationsAndBodies();
         static void CheckCompleteCurrentDeclarationsAndBodies()
         {
             OwnerFact[] facts = CurrentFacts();

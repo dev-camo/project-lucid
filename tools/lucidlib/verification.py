@@ -945,6 +945,7 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.ControllerActionTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Tests.ControllerActionTests.GenuineConstructorsAndPersistentSystemCache",
     "ProjectLucid.Tests.ControllerActionTests.HeldUpAndDisabledPublishBeforeBrainFaults",
     "ProjectLucid.Tests.ControllerActionTests.RejectedModifiersAndValidatorsRetainFlags",
@@ -963,6 +964,7 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.BootTransitionTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Tests.BootTransitionTests.JsonDefaultsAndOriginalFactories",
     "ProjectLucid.Tests.BootTransitionTests.SaveLoadedTruthTableAndNoDefaultInsertion",
     "ProjectLucid.Tests.BootTransitionTests.UserAndTypedNullStorageFaults",
@@ -972,6 +974,7 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.ExclusionListTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Tests.ExclusionListTests.ConstructorDefaultsAndWriteOnlyEnabled",
     "ProjectLucid.Tests.ExclusionListTests.DisabledShortCircuitBeforeNullInputs",
     "ProjectLucid.Tests.ExclusionListTests.EnabledArrayAndMessageFaultBoundaries",

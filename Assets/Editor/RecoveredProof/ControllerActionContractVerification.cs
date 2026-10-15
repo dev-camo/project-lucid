@@ -103,6 +103,9 @@ namespace ProjectLucid.Verification
                 type.GetInterfaces().SequenceEqual(inherited) &&
                 typeof(MulticastDelegate).GetInterfaces().SequenceEqual(inherited);
         }
+        // Emission-regression check of this project's own compile, not original evidence;
+        // it runs only as its own test, never as a behavior precondition.
+        public static void VerifyCurrentBuildEmissionMatchesRecordedSnapshot() => CheckCompleteCurrentDeclarationsAndBodies();
         static void CheckCompleteCurrentDeclarationsAndBodies()
         {
             OwnerFact[] facts = CurrentFacts(); Require(facts.Length == 9 && facts.Sum(x => x.Methods.Length) == 45 && facts.Sum(x => x.Fields.Length) == 16, "complete nine-owner/45-declaration scope");

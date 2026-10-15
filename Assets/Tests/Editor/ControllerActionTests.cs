@@ -7,6 +7,8 @@ namespace ProjectLucid.Tests
     [TestFixture]
     public sealed class ControllerActionTests
     {
+        // Emission-regression check of the project's own compile, not original evidence.
+        [Test] public void CurrentBuildEmissionMatchesRecordedSnapshot() { ControllerActionVerification.VerifyCurrentBuildEmissionMatchesRecordedSnapshot(); LogAssert.NoUnexpectedReceived(); }
         [Test] public void GenuineConstructorsAndPersistentSystemCache() { Assert.Greater(ControllerActionVerification.VerifyDeclarationsConstructorsAndCache(), 0); LogAssert.NoUnexpectedReceived(); }
         [Test] public void HeldUpAndDisabledPublishBeforeBrainFaults() { Assert.Greater(ControllerActionVerification.VerifyHeldUpAndDisabledPrefixes(), 0); LogAssert.NoUnexpectedReceived(); }
         [Test] public void RejectedModifiersAndValidatorsRetainFlags() { Assert.Greater(ControllerActionVerification.VerifyRejectedModifiersAndValidatorFaults(), 0); LogAssert.NoUnexpectedReceived(); }
