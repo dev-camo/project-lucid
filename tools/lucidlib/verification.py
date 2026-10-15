@@ -1717,3 +1717,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.BundledLanguagesRejectABorrowedStringRequestWithoutCallingIt",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.BundledLanguagesRejectAThrowingBorrowedStringRequestWithoutCallingIt",
 )
+
+# Native-literal mixer oracle; the missing-parameter branch runs on an owned copy.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.AudioMixerLifecycleTests.OriginalGetMusicVolumeReturnsUnityGainWhenTheParameterIsMissing",
+)
