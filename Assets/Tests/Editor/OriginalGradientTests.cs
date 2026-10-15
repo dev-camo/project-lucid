@@ -240,6 +240,82 @@ public sealed class OriginalGradientTests
         finally { if (owner != null) UnityEngine.Object.DestroyImmediate(owner); }
     }
 
+    // 0x1b4e090 x86-64 ApplyGradient: projection = x*dir.x + y*dir.y (direction at
+    // +0x48), t = ((p - min) / span + offset(+0x50) - 0.5) / scale(+0x54) + 0.5,
+    // then Color32.Lerp(end(+0x38), start(+0x28), t) with t clamped to [0, 1] and
+    // each channel truncated from a + (b - a) * t; uv1 = (greyscale, brightness, 0, 0).
+    // Direction (0.75, 0.5) projects the triangle (0,0), (2,1), (0,2) to 0, 2, 1, so
+    // every t below is dyadic and each byte is exact; expectations are hand-derived.
+    // Mutations caught: dropping the x term, applying offset or scale in another
+    // order, an unclamped lerp, swapped endpoints, and a zero-span guard (the
+    // zero-direction stream must still rewrite uv1 rather than return early).
+    [Test]
+    public void OriginalGradientActiveModifyMeshProjectsOffsetsScalesAndClamps()
+    {
+        GameObject owner = null;
+        try
+        {
+            owner = new GameObject("OriginalGradient-owned-projection", typeof(RectTransform));
+            owner.SetActive(false);
+            owner.AddComponent<Image>();
+            OriginalGradient gradient = owner.AddComponent<OriginalGradient>();
+            owner.SetActive(true);
+            Assert.That(gradient.IsActive(), Is.True);
+            gradient.StartColour = new Color32(240, 40, 60, 255);
+            gradient.EndColour = new Color32(20, 80, 220, 128);
+            gradient.Direction = new Vector2(0.75f, 0.5f);
+            gradient.SetGreyscaleFactorAndBrightness(0.25f, 0.75f);
+
+            // Interior: t = 0.375, 0.875, 0.625.
+            gradient.Offset = 0.25f;
+            gradient.Scale = 2f;
+            ModifyAndCheck(gradient, new Vector4(0.25f, 0.75f, 0f, 0f),
+                new Color32(102, 65, 160, 175), new Color32(212, 45, 80, 239), new Color32(157, 55, 120, 207));
+
+            // Clamped: t = -0.25 -> 0 (end), 1.75 -> 1 (start), 0.75 interior.
+            gradient.Offset = 0.125f;
+            gradient.Scale = 0.5f;
+            ModifyAndCheck(gradient, new Vector4(0.25f, 0.75f, 0f, 0f),
+                new Color32(20, 80, 220, 128), new Color32(240, 40, 60, 255), new Color32(185, 50, 100, 223));
+
+            // Zero span: a zero direction projects every vertex to 0, so t is NaN.
+            // The NaN-to-byte colour stays unqualified; only the unguarded uv1 write is pinned.
+            gradient.Direction = Vector2.zero;
+            gradient.SetGreyscaleFactorAndBrightness(-0.5f, 1.5f);
+            using (VertexHelper vertices = Triangle())
+            {
+                List<UIVertex> before = Stream(vertices);
+                gradient.ModifyMesh(vertices);
+                List<UIVertex> after = Stream(vertices);
+                Assert.That(after.Count, Is.EqualTo(3));
+                for (int i = 0; i < after.Count; ++i)
+                {
+                    CheckVertexChannels(before[i], after[i], false);
+                    Assert.That(after[i].uv1, Is.EqualTo(new Vector4(-0.5f, 1.5f, 0f, 0f)));
+                }
+            }
+        }
+        finally { if (owner != null) UnityEngine.Object.DestroyImmediate(owner); }
+    }
+
+    private static void ModifyAndCheck(OriginalGradient gradient, Vector4 uv1, params Color32[] expected)
+    {
+        using (VertexHelper vertices = Triangle())
+        {
+            List<UIVertex> before = Stream(vertices);
+            gradient.ModifyMesh(vertices);
+            List<UIVertex> after = Stream(vertices);
+            Assert.That(vertices.currentVertCount, Is.EqualTo(3));
+            Assert.That(after.Count, Is.EqualTo(expected.Length));
+            for (int i = 0; i < after.Count; ++i)
+            {
+                CheckVertexChannels(before[i], after[i], false);
+                Assert.That(after[i].color, Is.EqualTo(expected[i]), "vertex " + i);
+                Assert.That(after[i].uv1, Is.EqualTo(uv1));
+            }
+        }
+    }
+
     private static VertexHelper Triangle()
     {
         VertexHelper vertices = new VertexHelper();

@@ -1182,6 +1182,7 @@ EDITMODE_TESTS += (
     'OriginalGradientTests.OriginalGradientPublicSettersRetainUnboundedFiniteValues',
     'OriginalGradientTests.OriginalGradientInactiveModifyMeshKeepsWholeTriangleStream',
     'OriginalGradientTests.OriginalGradientActiveModifyMeshReplacesColorAndUV1Only',
+    'OriginalGradientTests.OriginalGradientActiveModifyMeshProjectsOffsetsScalesAndClamps',
 )
 
 EDITMODE_TESTS += (
