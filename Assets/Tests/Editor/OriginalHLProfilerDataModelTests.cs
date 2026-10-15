@@ -135,7 +135,11 @@ namespace ProjectLucid.Editor
             manager.StopGroupProfiling(true);
             Assert.That(manager.GroupList.Any(group => group.IsVisible), Is.False, "forced invisible");
 
+            // Stopping drops A from the manager without shutting it down; the test still owns its recorder.
+            var customData = (IDictionary)typeof(HLProfilerDataManager).GetField("m_customDataList", Instance).GetValue(manager);
+            m_data.Add((HLProfilerData)customData["Lucid" + HLProfilerCategory.Scripts + "A"]);
             manager.StopTrackingProfilerMarker(HLProfilerCategory.Scripts, "Lucid", "A");
+            Assert.That(customData.Contains("Lucid" + HLProfilerCategory.Scripts + "A"), Is.False);
             Assert.That(manager.GroupList[0].LayoutList.Select(layout => layout.Name), Is.EqualTo(new[] { "B" }));
         }
 
