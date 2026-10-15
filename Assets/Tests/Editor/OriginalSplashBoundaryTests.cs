@@ -39,6 +39,10 @@ namespace ProjectLucid.Tests
             }
             // Original Game.Runtime Boot063b..63e/Unload0772..775. Entry is
             // held here: real display/store/load/unload boundaries stay uninvoked.
+            // Attribute order is the original metadata v31 CAD row order: Boot
+            // 0x020000c1 [NullChecks, menu, ArrayBoundsChecks], Unload 0x0200012d
+            // [ArrayBoundsChecks, NullChecks, menu], and both JSONCtorArgs
+            // 0x020000c2/0x0200012e [ArrayBoundsChecks, NullChecks].
         }
 
         [Test]
@@ -78,6 +82,9 @@ namespace ProjectLucid.Tests
                 RequireMethodSet(owner, "ConstructInstance", "DoOnEnter");
             // Type metadata only. Cleanup/intro constructors acquire global
             // SystemRefs; Fairplay entry invokes the original platform wrapper.
+            // Attribute order is the original metadata v31 CAD row order: Fairplay
+            // 0x020000c4 [ArrayBoundsChecks, menu, NullChecks]; cleanup 0x020000dd
+            // and intro 0x020000e6 [NullChecks, ArrayBoundsChecks, menu].
         }
 
         [Test]
@@ -110,6 +117,10 @@ namespace ProjectLucid.Tests
             // No scene-predicate object is constructed. Its normal field initializer
             // auto-registers/caches the global App ref even with UseAppStorage=false.
             // SceneManager/Addressables and actual App readiness stay held.
+            // Attribute order is the original metadata v31 CAD row order: both
+            // owners 0x02000183/0x02000185 [menu, ArrayBoundsChecks, NullChecks];
+            // JSONCtorArgs 0x02000184 [ArrayBoundsChecks, NullChecks] but
+            // 0x02000186 [NullChecks, ArrayBoundsChecks].
         }
 
         [Test]

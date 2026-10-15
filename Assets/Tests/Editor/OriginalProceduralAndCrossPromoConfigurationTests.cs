@@ -90,6 +90,11 @@ namespace ProjectLucid.Tests.Editor
                 var mesh = scope.Create<ProceduralMesh_SystemConfig>();
                 var cross = scope.Create<CrossPromoConfigurationAsset>();
                 // Scalar values are the exact frozen shipped documents; their PPtr graph is separate.
+                // Shipped Data/resources.assets (sha256 ba5d4b45...cc30a426): MonoBehaviour
+                // "ProceduralMeshSystemConfig" (m_Name at 0x20df34) stores bools 1,0,1,1,0,0 after
+                // an empty base PPtr/list; "ProdHLCrossPromoConfiguration" (m_Name at 0x20f304)
+                // stores dreamteam/sdt_router/ios, m_server 1, 1024, grid_incoming/grid/
+                // settings.json, 1, 8, 3, m_debug 0. The Dev document differs in m_server 0, m_debug 1.
                 SetMesh(mesh, new[] { true, false, true, true, false, false });
                 SetCross(cross, "dreamteam", "sdt_router", "ios", 1, 1024L,
                     "grid_incoming", "grid", "settings.json", true, 8, 3, false);
@@ -172,6 +177,11 @@ namespace ProjectLucid.Tests.Editor
         [Test]
         public void CompleteDeclaredContractAndOrderedAttributesRemainOriginal()
         {
+            // Expected orders are the original metadata v31 CAD rows: mesh 0x0200004a
+            // [CreateAssetMenu(fileName, menuName, order 0), ArrayBoundsChecks, NullChecks]
+            // with one SerializeField per bool; cross 0x02000006 [CreateAssetMenu] and fields
+            // 0x04000020..0x0400002b in the per-field Tooltip/Header/SerializeField order below.
+            // ServerDev/ServerProd 0x0400001e/1f have no CAD row.
             Type mesh = typeof(ProceduralMesh_SystemConfig), cross = typeof(CrossPromoConfigurationAsset);
             AssertOwner(mesh, "HLSplines.Runtime", "Hardlight.ProceduralMesh_SystemConfig");
             AssertOwner(cross, "HLCrossPromo.Runtime", "Hardlight.CrossPromoConfigurationAsset");

@@ -7,6 +7,8 @@ using TMPro;
 using UnityEditor;
 using UnityEngine;
 
+// Profiles the pinned com.unity.textmeshpro 3.2.0-pre.4 package (Packages/manifest.json)
+// that the original player ships. A version-drift tripwire, not game-code evidence.
 public sealed class OriginalTMPSettingsSerializationTests
 {
     private const BindingFlags OwnInstance = BindingFlags.Instance | BindingFlags.Public |
