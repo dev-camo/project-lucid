@@ -7,6 +7,7 @@
     "ProjectLucid.Haptics.EngineVerification",
     "ProjectLucid.Cutscene.EngineVerification",
     "ProjectLucid.Selection.EngineVerification",
+    "ProjectLucid.UISelection.EngineVerification",
     "Game.Runtime",
     "HLCrashReport.Runtime",
     "HLUnityCore.Runtime",

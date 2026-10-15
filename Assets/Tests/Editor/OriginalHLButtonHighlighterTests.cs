@@ -6,6 +6,7 @@ using System.Reflection;
 using Hardlight;
 using NUnit.Framework;
 using UnityEditor;
+using ProjectLucid.Tests.UISelectionShared;
 using UnityEngine;
 using Source = HLButtonHighlightCustomisations.ButtonHighlightChangeSource;
 using Targets = Hardlight.HLButtonHighlighter.ButtonHighlightChangeTargets;
@@ -14,7 +15,8 @@ using ProjectLucid.Tests.SelectionShared;
 namespace ProjectLucid.Editor
 {
     // Owned inactive components cover synchronous public behavior only.
-    // Active Apply/callback/animation paths and the original shrink fault remain separate.
+    // The Apply iterator is driven directly (never scheduled) with test-only recording
+    // modifications; active coroutine scheduling and the animation-clip branch remain separate.
     public sealed class OriginalHLButtonHighlighterTests
     {
         private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic |
@@ -587,6 +589,90 @@ namespace ProjectLucid.Editor
                 Assert.That(owned.Highlighter.enabled, Is.False);
                 Assert.That(owned.Root.activeSelf || owned.Root.activeInHierarchy, Is.False);
             }
+        }
+
+        // Iterator MoveNext 0x06000440 x86-64 0x1b5b7f0 (owner 0x06000434): after
+        // Animation.Stop, grow appends a new cached Source before each Activate;
+        // then whole-layer Begin, Updated(1f) and End loops pair cached[i] with
+        // current[i]. Shrink fetches layers[i] then current[i] for i >= current
+        // count, so List's indexer throws before any Deactivate. Fails if the
+        // three passes interleave per layer, Activate follows Begin, or the
+        // shrink index is guarded.
+        [Test]
+        public void DrivenIteratorOrdersGrowEqualPassesAndPreservesShrinkIndexFault()
+        {
+            using (var owned = new Owned())
+            {
+                var calls = new List<RecordingUISelectionModification.Call>();
+                RecordingUISelectionModification first = owned.Root.AddComponent<RecordingUISelectionModification>();
+                RecordingUISelectionModification second = owned.Root.AddComponent<RecordingUISelectionModification>();
+                first.Sink = calls; second.Sink = calls;
+                Wire(owned, null);
+                using (var serialized = new SerializedObject(owned.Highlighter))
+                {
+                    serialized.Update();
+                    SerializedProperty layers = Property(serialized, "m_customisableLayers");
+                    layers.arraySize = 2;
+                    for (int i = 0; i < 2; ++i)
+                    {
+                        SerializedProperty targets = layers.GetArrayElementAtIndex(i).FindPropertyRelative("UISelectionModifications");
+                        targets.arraySize = 1;
+                        targets.GetArrayElementAtIndex(0).objectReferenceValue = i == 0 ? first : second;
+                    }
+                    serialized.ApplyModifiedPropertiesWithoutUndo();
+                }
+                Source a0 = new Source(), b0 = new Source(), b1 = new Source(), c0 = new Source(), c1 = new Source();
+                var names = new Dictionary<Source, string> { { a0, "a0" }, { b0, "b0" }, { b1, "b1" }, { c0, "c0" }, { c1, "c1" } };
+                var cached = Read<List<Source>>(owned.Highlighter, "m_cachedChangeSource");
+
+                // Grow 1 -> 2: inactive SetButtonState only rotates the lists.
+                owned.Highlighter.SetButtonState(owned.Asset(a0), false);
+                owned.Highlighter.SetButtonState(owned.Asset(b0, b1), false);
+                Assert.That(Apply(owned.Highlighter).MoveNext(), Is.False);
+                Assert.That(cached.Count, Is.EqualTo(2));
+                Source appended = cached[1];
+                Assert.That(appended, Is.Not.Null);
+                Assert.That(names.ContainsKey(appended), Is.False);
+                names.Add(appended, "new");
+                Assert.That(Describe(calls, names, first), Is.EqualTo(new[] {
+                    "1 Activate -> b1",
+                    "0 Begin a0 -> b0", "1 Begin new -> b1",
+                    "0 Updated a0 -> b0 @1", "1 Updated new -> b1 @1",
+                    "0 End a0 -> b0", "1 End new -> b1" }));
+
+                // Equal counts: no Activate or Deactivate.
+                calls.Clear();
+                owned.Highlighter.SetButtonState(owned.Asset(c0, c1), false);
+                Assert.That(Apply(owned.Highlighter).MoveNext(), Is.False);
+                Assert.That(Describe(calls, names, first), Is.EqualTo(new[] {
+                    "0 Begin b0 -> c0", "1 Begin b1 -> c1",
+                    "0 Updated b0 -> c0 @1", "1 Updated b1 -> c1 @1",
+                    "0 End b0 -> c0", "1 End b1 -> c1" }));
+
+                // Shrink 2 -> 1: the original indexes current[1] and faults first.
+                calls.Clear();
+                owned.Highlighter.SetButtonState(owned.Asset(a0), false);
+                IEnumerator shrink = Apply(owned.Highlighter);
+                Assert.Throws<ArgumentOutOfRangeException>(() => shrink.MoveNext());
+                Assert.That(calls, Is.Empty);
+                Assert.That(cached.Count, Is.EqualTo(2));
+                Assert.That(owned.Root.activeSelf || owned.Root.activeInHierarchy, Is.False);
+            }
+        }
+
+        private static IEnumerator Apply(HLButtonHighlighter highlighter)
+        {
+            MethodInfo method = typeof(HLButtonHighlighter).GetMethod("ApplyCurrentCustomisation", Declared);
+            // Constructs the natural iterator only; no coroutine is scheduled.
+            return (IEnumerator)method.Invoke(highlighter, new object[] { false });
+        }
+
+        private static string[] Describe(List<RecordingUISelectionModification.Call> calls,
+            Dictionary<Source, string> names, RecordingUISelectionModification first)
+        {
+            return calls.Select(call => (ReferenceEquals(call.Owner, first) ? "0 " : "1 ") + call.Name + " " +
+                (call.Previous == null ? "" : names[call.Previous] + " ") + "-> " + names[call.Current] +
+                (call.Name == "Updated" ? " @" + call.Lerp.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")).ToArray();
         }
     }
 }

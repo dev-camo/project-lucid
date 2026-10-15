@@ -1217,6 +1217,7 @@ EDITMODE_TESTS += (
     'ProjectLucid.Editor.OriginalHLButtonHighlighterTests.NullDefaultFaultFollowsAnchorAndCacheRotation',
     'ProjectLucid.Editor.OriginalHLButtonHighlighterTests.MissingRectTransformFaultPrecedesStateMutation',
     'ProjectLucid.Editor.OriginalHLButtonHighlighterTests.GenuineRequiredBehavioursEnableBeforeNullElementFault',
+    'ProjectLucid.Editor.OriginalHLButtonHighlighterTests.DrivenIteratorOrdersGrowEqualPassesAndPreservesShrinkIndexFault',
 )
 
 EDITMODE_TESTS += (
