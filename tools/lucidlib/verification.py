@@ -1264,6 +1264,7 @@ EDITMODE_TESTS += (
     'ProjectLucid.Editor.OriginalUIUtilsTests.OriginalGenericSettersUseOwnedObjectEqualityDispatch',
     'ProjectLucid.Editor.OriginalUIUtilsTests.OriginalVisualHelpersForwardToGenuineOwnedUnityComponents',
     'ProjectLucid.Editor.OriginalUIUtilsTests.OriginalFrontPlaneProjectionUsesGenuineOwnedCamera',
+    'ProjectLucid.Editor.OriginalUIUtilsTests.OriginalSpritePivotDividesDefaultHalfAndShrinkReturnsBeforeNativeSize',
     'ProjectLucid.Tests.OriginalHLNavigationTests.WholeNavigationDeclarationsRetainOriginalFieldsModesAndAccessors',
     'ProjectLucid.Tests.OriginalHLNavigationTests.OrdinaryNavigationPreservesZeroDefaultUndefinedModesAndValueCopies',
 )

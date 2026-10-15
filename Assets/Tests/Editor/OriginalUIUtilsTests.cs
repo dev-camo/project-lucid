@@ -282,6 +282,83 @@ namespace ProjectLucid.Editor
             LogAssert.NoUnexpectedReceived();
         }
 
+        // 0x060005d7 x86-64 0x1b6bd20: scale = reference/sprite PPU; the default
+        // pivot is the literal (0.5,0.5) divided by the scaled sprite size; a
+        // bounded height above the box shrinks sizeDelta, resets localScale and
+        // returns before the virtual SetNativeSize. A centred default pivot
+        // (height 32 fits the 50-unit box) would reach SetNativeSize instead.
+        [Test]
+        public void OriginalSpritePivotDividesDefaultHalfAndShrinkReturnsBeforeNativeSize()
+        {
+            PropertyInfo instance = typeof(MonoSingleton<HLUIEffectManager>).GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
+            MethodInfo setInstance = instance.GetSetMethod(true);
+            HLUIEffectManager previous = HLUIEffectManager.Instance;
+            try
+            {
+                using (var owned = new OwnedUnityObjects())
+                {
+                    GameObject managerOwner = owned.Add(new GameObject("Owned inactive UI effect reference"));
+                    managerOwner.SetActive(false);
+                    HLUIEffectManager manager = managerOwner.AddComponent<HLUIEffectManager>();
+                    Assert.That(manager.ReferencePixelsPerUnit, Is.EqualTo(100f));
+                    // Owned singleton slot only; Awake/registry are never entered.
+                    setInstance.Invoke(null, new object[] { manager });
+                    Texture2D texture = owned.Add(new Texture2D(64, 32, TextureFormat.RGBA32, false));
+                    Sprite centred = owned.Add(Sprite.Create(texture, new Rect(0, 0, 64, 32), new Vector2(0.5f, 0.5f), 50f));
+                    Sprite custom = owned.Add(Sprite.Create(texture, new Rect(0, 0, 64, 32), new Vector2(0.25f, 0.75f), 50f));
+                    Image image = OwnedImage(owned, centred);
+                    RectTransform target = image.rectTransform;
+                    RectTransform box = owned.Add(new GameObject("Owned bounding box", typeof(RectTransform))).GetComponent<RectTransform>();
+                    box.sizeDelta = new Vector2(10f, 50f);
+                    // scale 100/50 = 2: scaled size (128,64); pivot (0.5/128, 0.5/64).
+                    UIUtils.ApplySpriteCustomPivotToTransform(image, box, false, true);
+                    Assert.That(target.pivot, Is.EqualTo(new Vector2(0.00390625f, 0.0078125f)));
+                    Assert.That(target.anchoredPosition, Is.EqualTo(Vector2.zero));
+                    Vector2 shrunk = new Vector2(128f, 64f) * (50f / (64f - 64f * 0.0078125f));
+                    Assert.That(target.sizeDelta.x, Is.EqualTo(shrunk.x).Within(1e-4f));
+                    Assert.That(target.sizeDelta.y, Is.EqualTo(shrunk.y).Within(1e-4f));
+                    Assert.That(target.localScale, Is.EqualTo(Vector3.one));
+                    // SetNativeSize was not reached: it would collapse the anchors.
+                    Assert.That(target.anchorMin, Is.EqualTo(Vector2.zero));
+                    Assert.That(target.anchorMax, Is.EqualTo(Vector2.one));
+
+                    // Fitting height and no native size: only pivot and position change.
+                    Image fitted = OwnedImage(owned, centred);
+                    box.sizeDelta = new Vector2(10f, 100f);
+                    UIUtils.ApplySpriteCustomPivotToTransform(fitted, box, false, false);
+                    Assert.That(fitted.rectTransform.pivot, Is.EqualTo(new Vector2(0.00390625f, 0.0078125f)));
+                    Assert.That(fitted.rectTransform.sizeDelta, Is.EqualTo(new Vector2(3f, 5f)));
+                    Assert.That(fitted.rectTransform.localScale, Is.EqualTo(new Vector3(2f, 3f, 4f)));
+
+                    // Custom pixel pivot (16,24)*2 over (128,64), then the genuine native size.
+                    Image native = OwnedImage(owned, custom);
+                    UIUtils.ApplySpriteCustomPivotToTransform(native, null, true, true);
+                    Assert.That(native.rectTransform.pivot.x, Is.EqualTo(0.25f).Within(1e-6f));
+                    Assert.That(native.rectTransform.pivot.y, Is.EqualTo(0.75f).Within(1e-6f));
+                    Assert.That(native.rectTransform.sizeDelta, Is.EqualTo(new Vector2(128f, 64f)));
+                    Assert.That(native.rectTransform.anchorMax, Is.EqualTo(native.rectTransform.anchorMin));
+                    Assert.That(ReferenceEquals(HLUIEffectManager.Instance, manager), Is.True);
+                }
+            }
+            finally { setInstance.Invoke(null, new object[] { previous }); }
+            Assert.That(ReferenceEquals(HLUIEffectManager.Instance, previous), Is.True);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        private static Image OwnedImage(OwnedUnityObjects owned, Sprite sprite)
+        {
+            GameObject root = owned.Add(new GameObject("Owned original pivot image", typeof(RectTransform)));
+            root.SetActive(false);
+            Image image = root.AddComponent<Image>();
+            image.sprite = sprite;
+            RectTransform rect = image.rectTransform;
+            rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
+            rect.anchoredPosition = new Vector2(7f, 9f);
+            rect.sizeDelta = new Vector2(3f, 5f);
+            rect.localScale = new Vector3(2f, 3f, 4f);
+            return image;
+        }
+
         // These ordinary owned values are generic test arguments, not substitute UI/service providers.
         private struct EqualityValue : IEquatable<EqualityValue>
         {
