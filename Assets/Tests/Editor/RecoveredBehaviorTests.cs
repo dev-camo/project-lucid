@@ -13,18 +13,37 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        // Game.Runtime SurfaceEvent 0x02000a9e: OnSurfaceEnter 0x06003d1f (x86-64 0x6d2ef0)
+        // invokes m_onEnter, then starts <ProcessStayEvents>d__7 (0x02000a9f) only when
+        // m_onStay.GetPersistentEventCount() > 0; OnSurfaceExit 0x06003d20 (x86-64 0x6d3000)
+        // stops and nulls the handle before m_onExit. MoveNext 0x06003d25 (x86-64 0x6d30e0)
+        // invalidates state before the owner/m_onStay loads and invokes before yielding the
+        // cached wait; Dispose 0x06003d24 (x86-64 0x6d30d0) is empty and Reset 0x06003d27
+        // (x86-64 0x6d3160) throws NotSupportedException. The authored persistent-listener
+        // start/stop path runs on frames in SurfaceEventLifecycleTests (PlayMode).
         public void OriginalSurfaceEventsRetainPersistentCallbacksAndIteratorOrder()
         {
             Assert.That(ProjectLucid.Verification.SurfaceEventVerification.Run(), Is.EqualTo(42));
         }
 
         [Test]
+        // HLUnityCore.Runtime PooledPrefab`1 0x020001f1 .ctor 0x06000c98 (x86-64 shared body
+        // 0x18d0830) stores the instance and the raw index with no clamp; ObjectUpdateType
+        // 0x020001f2 literals Enable 0x0400068d / Disable 0x0400068e.
         public void OriginalPrefabPoolValuesRetainContractsAndDefaults()
         {
             Assert.That(ProjectLucid.Editor.PrefabPoolVerification.RunManaged(), Is.EqualTo(39));
         }
 
         [Test]
+        // PrefabPool`1 0x020001f5 shared bodies: SpawnInstance 0x06000cc0 (x86-64 0x18dd7a0)
+        // pops the active free stack before the inactive one (which reparents to the active
+        // bucket), then sets position/rotation/scale and expands only when m_resizeWhenFull;
+        // typed DespawnInstance 0x06000cc2 (x86-64 0x18ddac0) returns on destroyed pool or
+        // index -1, otherwise pushes onto m_freeActiveObjects with no dedupe or reparent;
+        // the boxed overload 0x06000cc1 (x86-64 0x18dd9c0) ignores other PooledPrefab types;
+        // LateUpdate 0x06000cb9 (x86-64 0x18dd300) pushes inactive before
+        // Transform.SetParent(inactive bucket index / 50, false).
         public void OriginalPrefabPoolRetainsReuseResizeAndDeferredReturnOrder()
         {
             Assert.That(ProjectLucid.Editor.PrefabPoolVerification.RunEngine(), Is.EqualTo(39));
@@ -139,6 +158,10 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        // Game.Runtime GravitySurfaceDefinition 0x0200055f has exactly the seven public fields
+        // 0x04001344..0x0400134a and a base-only .ctor 0x06001d21 (x86-64 0x54d8c0);
+        // GravitySurfaceDefinitionGroup.GetKeyComparer 0x06001d23 (x86-64 0x54d8e0) returns
+        // HardlightEnumComparers static slot 0x1a8 = GravitySurfaceTypeComparer 0x04000bcb.
         public void OriginalGravitySurfacesRetainTypedKeysAndUnitySerialization()
         {
             Assert.That(ProjectLucid.Editor.GravitySurfaceDefinitionVerification.RunManaged(), Is.EqualTo(43));
@@ -174,6 +197,11 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        // Game.Runtime TerrainMetadataDefinition 0x020005cd fields 0x040014b5..0x040014b7;
+        // getters 0x06001f65..0x06001f67 (x86-64 0x55adc0/0x55add0/0x55ade0) load offsets
+        // 0x18/0x20/0x28 directly. The tooltip, FormerlySerializedAs("metadataType") and
+        // CreateAssetMenu strings are attribute arguments in the original global-metadata
+        // attribute_data section (offsets 0xb898c8..0xb8992a and 0xb6a88e..0xb6a8ab).
         public void OriginalTerrainMetadataRetainsKeysRawEnumsAndUnitySerialization()
         {
             Assert.That(ProjectLucid.Editor.TerrainMetadataDefinitionVerification.RunManaged(), Is.EqualTo(32));
@@ -269,6 +297,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        // Game.Runtime CollectableChangeData.HasChange 0x06003b0c (x86-64 0x6bd130): true when
+        // FixedChange != 0, else cmpneqss on FractionChange, so NaN counts as a change.
+        // HazardDefinition .ctor 0x06001d29 (x86-64 0x54d9f0) stores AllowKnockback = 1,
+        // both ActorFormType.None hashes 0xb6fa1284, BoostCooldownDurationSeconds 0.5f and
+        // ZeroToFullVelocityScale 1f; AbilityTypeDefinition .ctor 0x06001bbc (x86-64
+        // 0x5461e0) stores GracePeriod 0x3e4ccccd (0.2f).
         public void OriginalCharacterDamageDefinitionsRetainDefaultsContractsAndCollectableChanges()
         {
             Assert.That(CharacterDamagePrerequisitesVerification.Run(), Is.EqualTo(184));
@@ -282,6 +316,9 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        // ApplicationStateEvent.FindByName 0x06000627 (x86-64 0x53b620) tail-calls
+        // ObjectUtils.FindByNameSafe 0x06001237 (x86-64 0x984420): first ordinal name match
+        // in Resources.FindObjectsOfTypeAll order, which the duplicate-name check observes.
         public void OriginalDataManagerDefinitionsRetainKeysDefaultsAndUnitySerialization()
         {
             Assert.That(DataManagerDefinitionVerification.RunManaged(), Is.EqualTo(32));
@@ -378,6 +415,11 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        // Game.Runtime clip constructors 0x060019fe/0x06001a15/0x06001a18 (x86-64 0x53dd00/
+        // 0x53e600/0x53e630) only call the ScriptableObject base; HLAudioMixerDefinition
+        // .ctor 0x06001a10 (x86-64 0x53e480) stores a SerializableDictionary built with
+        // HardlightEnumComparers slot 0x1c8 (HLAudioMixerGroupIdentifierComparer) before the
+        // base call; ConvertToDecibels 0x06001a0e (x86-64 0x53e2f0) is log10 * 20 unclamped.
         public void OriginalAudioDefinitionsRetainClipDefaultsMixerConversionAndJson()
         {
             Assert.That(ActorAudioDefinitionVerification.RunManaged(), Is.EqualTo(52));
@@ -760,7 +802,9 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
-        public void OriginalBootSceneUnloadRetainsFactoryAndNativeOperation()
+        // Factory/metadata only; the SceneManager unload in DoOnEnter runs in the
+        // PlayMode BootSceneUnloadTests.
+        public void OriginalBootSceneUnloadRetainsFactoryAndStateMetadata()
         {
             BootSceneUnloadVerification.Run();
         }

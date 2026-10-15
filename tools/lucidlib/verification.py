@@ -130,7 +130,7 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "OriginalGameplayUiDefinitionRetainsAbstractContractsAndGuidBase",
     "OriginalSceneAuthoringAttributesRetainInheritedUsageAndValues",
     "OriginalSystemSceneDefinitionsBindAndRoundtripWithoutIdentityChanges",
-    "OriginalBootSceneUnloadRetainsFactoryAndNativeOperation",
+    "OriginalBootSceneUnloadRetainsFactoryAndStateMetadata",
     "OriginalLevelDefinitionsRetainSceneNameAndNativeRuntimeContract",
     "StackableConfigurationPreservesNativeOrderCacheAndOperations",
     "OriginalConfigurationProviderRetainsUnityConstructionAndLookup",
