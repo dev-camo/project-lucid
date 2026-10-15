@@ -1456,5 +1456,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.LaterRowCallbackRecreatingAReleasedNameIsSwept",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.TransientReplacementInALaterRowLosesItsActions",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.TransientSystemIsTrackedWhenAnEarlierStartupObserverThrows",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.RecursiveUnregisterInsideAShutdownObserverDoesNotNotifyTwice",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.EqualForeignSystemKeepsItsActionSubscription",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ActionInjectionCasesPreserveAnAbsentActionRow",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.OwnedReferenceObserversAreRestoredInOrder",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.CallbackCreatedReferenceNotifiedElsewhereIsNotNotifiedAgain",
 )

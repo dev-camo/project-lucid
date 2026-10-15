@@ -16,6 +16,40 @@ namespace ProjectLucid.Editor
         private static IDictionary Rows() => (IDictionary)typeof(ProcessManager)
             .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
 
+        private static IDictionary ActionRows() => (IDictionary)typeof(ProcessManager)
+            .GetField("s_systemActionLookup", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+
+        // Snapshot of the action table: the outer per-action rows and each inner subscriber
+        // dictionary, so action-injection cases leave no row, entry or free slot behind.
+        private sealed class ActionLayout
+        {
+            private readonly IDictionary outer = ActionRows();
+            private readonly object[] outerLayout;
+            private readonly List<KeyValuePair<IDictionary, object[]>> inner;
+
+            public ActionLayout()
+            {
+                outerLayout = FSMManagerVerification.CaptureLayout(outer);
+                inner = outer.Values.Cast<IDictionary>()
+                    .Select(rows => new KeyValuePair<IDictionary, object[]>(rows, FSMManagerVerification.CaptureLayout(rows))).ToList();
+            }
+
+            public void Restore()
+            {
+                foreach (KeyValuePair<IDictionary, object[]> rows in inner) FSMManagerVerification.RestoreLayout(rows.Key, rows.Value);
+                FSMManagerVerification.RestoreLayout(outer, outerLayout);
+            }
+        }
+
+        // Distinct instances with the same id compare equal, like systems with value equality.
+        private sealed class EqualSystem : ISystem
+        {
+            private readonly int id;
+            public EqualSystem(int id) { this.id = id; }
+            public override bool Equals(object other) => other is EqualSystem system && system.id == id;
+            public override int GetHashCode() => id;
+        }
+
         [Test]
         public void RepeatedRunsLeaveRegistryRowsAndSystemsUnchanged()
         {
@@ -207,6 +241,7 @@ namespace ProjectLucid.Editor
         {
             IDictionary rows = Rows();
             object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var actions = new ActionLayout();
             string name = "Lucid-ownership-replacement-action-" + Guid.NewGuid().ToString("N");
             var replacement = new FSMManager();
             int actionCalls = 0;
@@ -229,6 +264,7 @@ namespace ProjectLucid.Editor
             {
                 replacement.UnsubscribeFromAction(SystemAction.Update);
                 FSMManagerVerification.RestoreLayout(rows, layout);
+                actions.Restore();
             }
         }
 
@@ -237,6 +273,7 @@ namespace ProjectLucid.Editor
         {
             IDictionary rows = Rows();
             object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var actions = new ActionLayout();
             int limit = FSMManagerVerification.TeardownPassLimit;
             string first = "Lucid-ownership-limit-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
             var replacement = new FSMManager();
@@ -265,6 +302,7 @@ namespace ProjectLucid.Editor
                 FSMManagerVerification.TeardownPassLimit = limit;
                 replacement.UnsubscribeFromAction(SystemAction.Update);
                 FSMManagerVerification.RestoreLayout(rows, layout);
+                actions.Restore();
             }
         }
 
@@ -360,6 +398,7 @@ namespace ProjectLucid.Editor
         {
             IDictionary rows = Rows();
             object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var actions = new ActionLayout();
             string first = "Lucid-ownership-transient-action-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
             var transient = new FSMManager();
             int actionCalls = 0;
@@ -383,6 +422,7 @@ namespace ProjectLucid.Editor
             {
                 transient.UnsubscribeFromAction(SystemAction.Update);
                 FSMManagerVerification.RestoreLayout(rows, layout);
+                actions.Restore();
             }
         }
 
@@ -391,6 +431,7 @@ namespace ProjectLucid.Editor
         {
             IDictionary rows = Rows();
             object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var actions = new ActionLayout();
             string first = "Lucid-ownership-startup-throw-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
             var transient = new FSMManager();
             int actionCalls = 0;
@@ -415,6 +456,112 @@ namespace ProjectLucid.Editor
             finally
             {
                 transient.UnsubscribeFromAction(SystemAction.Update);
+                FSMManagerVerification.RestoreLayout(rows, layout);
+                actions.Restore();
+            }
+        }
+
+        [Test]
+        public void RecursiveUnregisterInsideAShutdownObserverDoesNotNotifyTwice()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-recursive-" + Guid.NewGuid().ToString("N");
+            int calls = 0;
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                // Guarded so an unguarded runtime recursion cannot overflow the stack.
+                untyped.OnSystemShutdown += system => { if (++calls == 1) ProcessManager.UnregisterSystem(name); };
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                Assert.That(calls, Is.EqualTo(1), "a recursive unregister notified the observer again");
+                Assert.That(rows.Contains(name), Is.False);
+                Assert.That(untyped.IsNull(), Is.True);
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void EqualForeignSystemKeepsItsActionSubscription()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var actions = new ActionLayout();
+            string name = "Lucid-ownership-equal-" + Guid.NewGuid().ToString("N");
+            var foreign = new EqualSystem(7);
+            int foreignCalls = 0;
+            try
+            {
+                foreign.SubscribeToAction(SystemAction.Update, context => foreignCalls++);
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                // A distinct system equal to the foreign one enters the owned row without subscribing.
+                untyped.OnSystemShutdown += system => ProcessManager.RegisterSystem(new EqualSystem(7), name, canReplace: true);
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                foreign.ProcessSystemAction(SystemAction.Update);
+                Assert.That(foreignCalls, Is.EqualTo(1), "cleanup removed an equal foreign system's action");
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+                actions.Restore();
+            }
+        }
+
+        [Test]
+        public void ActionInjectionCasesPreserveAnAbsentActionRow()
+        {
+            var actions = new ActionLayout();
+            try
+            {
+                ActionRows().Remove(SystemAction.Update);
+                ReplacementActionSubscriptionsAreReleasedWithTheOwnedRow();
+                TransientReplacementInALaterRowLosesItsActions();
+                Assert.That(ActionRows().Contains(SystemAction.Update), Is.False, "an action case left an outer action row behind");
+            }
+            finally
+            {
+                actions.Restore();
+            }
+        }
+
+        private static Delegate[] ShutdownObservers(object reference)
+        {
+            Type type = reference.GetType();
+            while (type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) == null)
+                type = type.BaseType;
+            var list = (Delegate)type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
+            return list?.GetInvocationList() ?? new Delegate[0];
+        }
+
+        [Test]
+        public void OwnedReferenceObserversAreRestoredInOrder()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-observers-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                var injected = new InvalidOperationException("untyped failure");
+                Action<ISystem> first = system => { }, failing = system => throw injected, last = system => { };
+                Action<FSMManager> typedObserver = system => { };
+                untyped.OnSystemShutdown += first;
+                untyped.OnSystemShutdown += failing;
+                untyped.OnSystemShutdown += last;
+                typed.OnSystemShutdown += typedObserver;
+                Assert.That(Assert.Catch(() => FSMManagerVerification.ReleaseOwnedRows(new[] { name })), Is.SameAs(injected));
+                // The failing reference was silenced and the typed one notified normally; both keep
+                // exactly their original observers in order, with no fixture wrapper or sentinel left.
+                Assert.That(ShutdownObservers(untyped), Is.EqualTo(new Delegate[] { first, failing, last }));
+                Assert.That(ShutdownObservers(typed), Is.EqualTo(new Delegate[] { typedObserver }));
+                Assert.That(untyped.IsNull() && typed.IsNull(), Is.True);
+            }
+            finally
+            {
                 FSMManagerVerification.RestoreLayout(rows, layout);
             }
         }
