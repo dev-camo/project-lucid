@@ -172,20 +172,21 @@ namespace ProjectLucid.Tests
             private static readonly FieldInfo s_core = typeof(GameplayLevelDefinition).GetField("m_coreGameConfiguration", Static);
             private readonly List<Object> m_objects = new List<Object>();
             private readonly VerificationFixtureOwnership.RegistryRow m_levelManagerRow;
+            private readonly BorrowedSystemRowTypedCache m_borrowedLevelManagerRow;
             private readonly object m_priorCore;
             private CoreGameConfiguration m_core;
 
             // A category's initializer only reads or creates the LevelManager
             // row and its typed reference; nothing is registered into it. An
-            // absent row is acquired empty and removed afterwards, while a row
-            // left by an earlier asset import is read as it is.
+            // absent row is acquired empty and removed afterwards. A row left by
+            // an earlier asset import is borrowed, and the typed reference each
+            // category's GetSystemRef<LevelManager> caches there is removed.
             public OwnedLevels()
             {
                 m_priorCore = s_core.GetValue(null);
                 string name = ProcessManager.GetDefaultName<LevelManager>();
-                var registry = (System.Collections.IDictionary)typeof(ProcessManager)
-                    .GetField("s_systemDictionary", Static).GetValue(null);
-                if (registry.Contains(name)) return;
+                m_borrowedLevelManagerRow = BorrowedSystemRowTypedCache.TryBorrow(name);
+                if (m_borrowedLevelManagerRow != null) return;
                 m_levelManagerRow = new VerificationFixtureOwnership.RegistryRow(name);
                 m_levelManagerRow.Register(null);
             }
@@ -228,6 +229,7 @@ namespace ProjectLucid.Tests
                 {
                     s_core.SetValue(null, m_priorCore);
                     m_levelManagerRow?.Dispose();
+                    m_borrowedLevelManagerRow?.Dispose();
                 }
                 finally
                 {

@@ -1938,6 +1938,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.UnloadScenePresentKeyUnloadsRemovesThenRepublishes",
 )
 
+# Borrowed registry rows lose only the typed references cached while borrowed.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.BorrowedSystemRowTypedCacheTests.RemovesOnlyTypedReferencesCachedWhileBorrowed",
+    "ProjectLucid.Tests.BorrowedSystemRowTypedCacheTests.ReportsAChangedPriorTypedReferenceWithoutRestoringIt",
+)
+
 # DefinitionDataType.GetData callback and insertion order through a recording test group.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalDefinitionDataTypeGapTests.GetDataAsksForTheComparerFirstAndRereadsDataAfterEachKey",

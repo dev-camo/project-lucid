@@ -255,7 +255,7 @@ namespace ProjectLucid.Tests
                 .GetField("s_systemDictionary", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             private readonly Dictionary<string, VerificationFixtureOwnership.RegistryRow> m_rows =
                 new Dictionary<string, VerificationFixtureOwnership.RegistryRow>();
-            private readonly List<VerificationFixtureOwnership.RegistryRow> m_order = new List<VerificationFixtureOwnership.RegistryRow>();
+            private readonly List<IDisposable> m_order = new List<IDisposable>();
             private readonly List<GameObject> m_objects = new List<GameObject>();
             private readonly List<AsyncOperationHandle> m_handles = new List<AsyncOperationHandle>();
             private ResourceManager m_resources;
@@ -270,11 +270,15 @@ namespace ProjectLucid.Tests
                 row.Register(null);
             }
 
-            // App's own initializers only read or create these rows, so a row
-            // left by earlier work is read as it is.
+            // App's field initializers (App.cs m_saveManagerRef and
+            // m_screenTransitionManagerRef) only read or create these rows, but
+            // GetSystemRef<T> caches a typed reference in either. An absent row
+            // is acquired owned; a borrowed row has those added entries removed.
             private void ReadOnlyRow<T>() where T : class, ISystem
             {
-                if (!m_registry.Contains(ProcessManager.GetDefaultName<T>())) Row<T>();
+                BorrowedSystemRowTypedCache borrowed = BorrowedSystemRowTypedCache.TryBorrow(ProcessManager.GetDefaultName<T>());
+                if (borrowed == null) Row<T>();
+                else m_order.Add(borrowed);
             }
 
             public IDictionary TypedReferences(string name)
