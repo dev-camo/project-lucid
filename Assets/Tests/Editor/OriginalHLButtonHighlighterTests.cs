@@ -9,6 +9,7 @@ using UnityEditor;
 using UnityEngine;
 using Source = HLButtonHighlightCustomisations.ButtonHighlightChangeSource;
 using Targets = Hardlight.HLButtonHighlighter.ButtonHighlightChangeTargets;
+using ProjectLucid.Tests.SelectionShared;
 
 namespace ProjectLucid.Editor
 {
@@ -419,6 +420,9 @@ namespace ProjectLucid.Editor
                 Assert.That(owned.Canvas.sortingOrder, Is.EqualTo(5));
                 owned.Highlighter.ResetCanvasLayer();
                 Assert.That(owned.Canvas.overrideSorting, Is.False);
+                // Without override this nested canvas reports its parent's sorting; turning the
+                // override back on shows the canvas's own values, which the reset left in place.
+                owned.Canvas.overrideSorting = true;
                 Assert.That(owned.Canvas.sortingLayerID, Is.EqualTo(background));
                 Assert.That(owned.Canvas.sortingOrder, Is.EqualTo(5));
                 Assert.That(owned.Root.activeSelf || owned.Root.activeInHierarchy, Is.False);

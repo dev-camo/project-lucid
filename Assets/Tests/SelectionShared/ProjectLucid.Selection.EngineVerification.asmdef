@@ -1,0 +1,10 @@
+{
+  "name": "ProjectLucid.Selection.EngineVerification",
+  "references": [
+    "HLUnityUI.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

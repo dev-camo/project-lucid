@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using Hardlight;
 using Source = HLButtonHighlightCustomisations.ButtonHighlightChangeSource;
 
-namespace ProjectLucid.Editor
+namespace ProjectLucid.Tests.SelectionShared
 {
-    // Test-only ModifiedOnUISelection that records each dispatched callback;
+    // Test-only ModifiedOnUISelection that records each dispatched callback. Editor-only
+    // assemblies cannot supply attachable components, so it lives in this runtime test assembly;
     // it provides no game API and is only attached to owned inactive objects.
     public sealed class OriginalSelectionModificationProbe : ModifiedOnUISelection
     {
