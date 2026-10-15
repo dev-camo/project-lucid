@@ -6,6 +6,10 @@ namespace ProjectLucid.Tests
     [TestFixture]
     public sealed class OriginalConeVolumeTests
     {
+        // Emission-regression check of the project's own compile, not original evidence.
+        [Test] public void CurrentBuildEmissionMatchesRecordedSnapshot()
+        { OriginalConeVolumeVerification.RunCurrentBuildEmissionMatchesRecordedSnapshot(); }
+
         [Test] public void OrdinaryDescriptionRetainsZeroInitializationAndValueCopies()
         { OriginalConeVolumeVerification.RunOrdinaryDescriptionValues(); }
 

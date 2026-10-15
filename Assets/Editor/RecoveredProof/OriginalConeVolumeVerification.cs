@@ -30,12 +30,15 @@ namespace ProjectLucid.Editor
             0x3f3504f7u, 0xbf3504efu, 0x3f6c835fu, 0xbec3ef15u
         };
 
-        private static void RequireCurrentProvidersAndEmission()
+        // Emission-regression check of this project's own compile, not original evidence;
+        // it runs only as its own test, never as a behavior precondition.
+        public static void RunCurrentBuildEmissionMatchesRecordedSnapshot()
         {
-            // Deliberately missing from this source-author packet. Root must
-            // supply a separately reviewed witness of actual complete current PE
-            // declarations/CIL/scoped providers; no fabricated emitted facts.
             ConeVolumeCurrentFacts.RequireWholeCurrentEmission();
+        }
+
+        private static void RequireCurrentProvidersAndDeclarations()
+        {
             Require(typeof(ConeVolume).FullName == "HardlightProject.ConeVolume" &&
                 typeof(ConeVolume).Assembly.GetName().Name == "Game.Runtime" &&
                 (int)typeof(ConeVolume).Attributes == 1048961, "original whole static owner");
@@ -57,7 +60,7 @@ namespace ProjectLucid.Editor
 
         public static void RunOrdinaryDescriptionValues()
         {
-            RequireCurrentProvidersAndEmission();
+            RequireCurrentProvidersAndDeclarations();
             // Ordinary zero initialization, not an uninitialized-object bypass.
             var value = new ConeVolume.ConeDescription();
             Vector(value.Origin, Vector3.zero, "default origin");
@@ -78,7 +81,7 @@ namespace ProjectLucid.Editor
 
         public static void RunEllipseBoundaryDepthAndTranslation()
         {
-            RequireCurrentProvidersAndEmission();
+            RequireCurrentProvidersAndDeclarations();
             Vector3 origin = new Vector3(8f, -4f, 16f);
             Vector2 tangents = new Vector2(2f, 1f);
             // Radii 4 and 2 give exact dyadic inside/edge/outside results.
@@ -103,7 +106,7 @@ namespace ProjectLucid.Editor
 
         public static void RunExactAngleTableAndMutableAlias()
         {
-            RequireCurrentProvidersAndEmission();
+            RequireCurrentProvidersAndDeclarations();
             using (var lease = new CacheLease())
             {
                 lease.Install(null);
@@ -122,7 +125,7 @@ namespace ProjectLucid.Editor
 
         public static void RunCacheSizeReplacementAndSizedRetention()
         {
-            RequireCurrentProvidersAndEmission();
+            RequireCurrentProvidersAndDeclarations();
             using (var lease = new CacheLease())
             {
                 foreach (int length in new[] { 0, 15, 17 })
@@ -147,7 +150,7 @@ namespace ProjectLucid.Editor
 
         public static void RunBoundsAxisHalfTurnNegativeDistanceAndStep()
         {
-            RequireCurrentProvidersAndEmission();
+            RequireCurrentProvidersAndDeclarations();
             using (var lease = new CacheLease())
             {
                 lease.Install(null);
@@ -167,7 +170,7 @@ namespace ProjectLucid.Editor
 
         public static void RunBoundsConsumeMutableCachedAngles()
         {
-            RequireCurrentProvidersAndEmission();
+            RequireCurrentProvidersAndDeclarations();
             using (var lease = new CacheLease())
             {
                 var angles = new Vector2[16];
@@ -184,7 +187,7 @@ namespace ProjectLucid.Editor
 
         public static void RunBoundsRetainNonunitQuaternion()
         {
-            RequireCurrentProvidersAndEmission();
+            RequireCurrentProvidersAndDeclarations();
             using (var lease = new CacheLease())
             {
                 lease.Install(null);

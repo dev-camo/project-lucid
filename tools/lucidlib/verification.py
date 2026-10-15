@@ -1000,6 +1000,7 @@ PLAYMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalConeVolumeTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Tests.OriginalConeVolumeTests.OrdinaryDescriptionRetainsZeroInitializationAndValueCopies",
     "ProjectLucid.Tests.OriginalConeVolumeTests.EllipseRetainsInclusiveBoundariesAndIgnoresLocalDepth",
     "ProjectLucid.Tests.OriginalConeVolumeTests.AngleTableRetainsEveryOriginalBitAndMutableArrayIdentity",
