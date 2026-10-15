@@ -595,6 +595,40 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
+        public void OwnReferenceIsValidWhileItsObserversRun()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-validity-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                var seen = new List<string>();
+                int recursions = 0;
+                // The original revoke notifies before it clears, so each observer still sees its own
+                // reference set; this holds for observers that run after a recursive unregister too.
+                untyped.OnSystemShutdown += system => seen.Add("u1:" + !untyped.IsNull() + ":" + !ProcessManager.IsSystemNull(name));
+                untyped.OnSystemShutdown += system =>
+                {
+                    if (++recursions == 1)
+                        try { ProcessManager.UnregisterSystem(name); }
+                        catch (Exception) { }
+                };
+                untyped.OnSystemShutdown += system => seen.Add("u3:" + !untyped.IsNull());
+                typed.OnSystemShutdown += system => seen.Add("t:" + !typed.IsNull());
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                Assert.That(seen, Is.EqualTo(new[] { "u1:True:True", "u3:True", "t:True" }));
+                Assert.That(recursions, Is.EqualTo(1));
+                Assert.That(untyped.IsNull() && typed.IsNull() && !rows.Contains(name), Is.True);
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
         public void LaterRowCallbackRecreatingAReleasedNameIsSwept()
         {
             IDictionary rows = Rows();

@@ -116,19 +116,20 @@ namespace ProjectLucid
         //     whose stored key is an entered system itself are removed; equal foreign systems, their
         //     actions, foreign observers and their order are untouched.
         //  3. Notification. Each owned reference present at its row's unregister is notified at most
-        //     once: the fixture clears it, then invokes its shutdown observers once from a snapshot in
-        //     order, so a recursive unregister finds it cleared and an observer may remove itself.
-        //     Rows present at the start that no callback has begun unregistering are handled this way;
-        //     everything else is revoked silently with its observers kept. A begin sentinel records
-        //     notifications started by callbacks' own unregisters.
+        //     once, through the original revoke: it is still valid while its observers run and an
+        //     observer may remove itself. The row's system loses its actions first (by identity), as
+        //     the original unregister does. Observers are instrumented in place (begin sentinel first,
+        //     a progress marker after each); a second dispatch of a notified reference is stopped by
+        //     its sentinel, and the outer dispatch's remaining observers then run once, in order, while
+        //     the reference is still valid. Rows present at the start that no callback has begun
+        //     unregistering are handled this way; everything else is revoked silently, observers kept.
         //  4. Failure. The first failure is rethrown only after all owned cleanup completes.
         //  5. Bound. Reconciliation has a budget; exhausting it is recorded (never replacing an earlier
         //     failure) and the remaining owned state is revoked silently and released.
         // Only public event subscriptions and public unsubscription are used to change state.
-        // Deviation, stated: during this teardown an owned reference already reads as cleared while
-        // its own shutdown observers run (the original revoke notifies first). With public events
-        // only, notify-before-clear, once-only notification under recursion, and an observer's own
-        // removal cannot all hold together; this choice keeps the last two.
+        // Deviation, stated: a callback that re-dispatches an owned reference already being or
+        // already notified (where the original would notify it again) sees that call throw; the
+        // fixture then completes the outer notification itself.
         internal static void ReleaseOwnedRows(IList<string> owned) => new Teardown(RegistryRows()).Release(owned);
 
         internal static int TeardownPassLimit = 1024;
@@ -142,6 +143,11 @@ namespace ProjectLucid
             private readonly HashSet<object> unregisteredRows = new HashSet<object>(new ReferenceComparer());
             private readonly HashSet<object> eligible = new HashSet<object>(new ReferenceComparer());
             private readonly HashSet<object> watchedRows = new HashSet<object>(new ReferenceComparer());
+            // Dispatch progress per instrumented reference: started, completed observer count, done.
+            private readonly HashSet<object> active = new HashSet<object>(new ReferenceComparer());
+            private readonly HashSet<object> done = new HashSet<object>(new ReferenceComparer());
+            private readonly Dictionary<object, int> progress = new Dictionary<object, int>(new ReferenceComparer());
+            private readonly Dictionary<object, Delegate[]> snapshots = new Dictionary<object, Delegate[]>(new ReferenceComparer());
             private readonly List<ISystem> entered = new List<ISystem>();
             private readonly List<Sentinel> sentinels = new List<Sentinel>();
             private readonly MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
@@ -256,25 +262,38 @@ namespace ProjectLucid
                 return true;
             }
 
-            // Notifies a reference's shutdown observers once, from a snapshot in order, after clearing
-            // it. The observers stay subscribed, so one may remove itself; a recursive unregister finds
-            // the reference already cleared and cannot notify it again. An observer failure stops the
-            // remaining observers of that reference, as a multicast invocation does.
+            // Notifies a reference once through the original revoke, so it is still valid while its
+            // observers run and they may remove themselves. A recursive re-dispatch is stopped by the
+            // begin sentinel; the outer dispatch's remaining observers are then run here, in order,
+            // while the reference is still valid, before it is cleared silently.
             private void NotifyOnce(object reference)
             {
-                notified.Add(reference);
-                object value = reference.GetType().GetMethods().First(method => method.Name == "GetSafe" && !method.IsGenericMethod).Invoke(reference, null);
-                ShutdownEvent(reference, out Delegate[] observers);
-                Silence(reference);
-                foreach (Delegate observer in observers)
+                try { revoke.Invoke(reference, null); }
+                catch (TargetInvocationException error) when (error.InnerException is RedispatchSuppressed) { ResumeSuppressed(); }
+                catch (TargetInvocationException error)
                 {
-                    if (sentinels.Any(sentinel => ReferenceEquals(sentinel.Observer, observer))) continue;
-                    try { observer.DynamicInvoke(value); }
-                    catch (TargetInvocationException error)
+                    Record(error.InnerException);
+                    // An observer failure ends that dispatch, as a multicast invocation does.
+                    foreach (object aborted in active.Where(item => !done.Contains(item)).ToList()) done.Add(aborted);
+                }
+            }
+
+            private void ResumeSuppressed()
+            {
+                foreach (object reference in active.Where(item => !done.Contains(item)).ToList())
+                {
+                    Delegate[] observers = snapshots[reference];
+                    object value = reference.GetType().GetMethods().First(method => method.Name == "GetSafe" && !method.IsGenericMethod).Invoke(reference, null);
+                    // The observer that was running when the re-dispatch was stopped has already run.
+                    for (int next = progress[reference] + 1; next < observers.Length; next++)
                     {
-                        Record(error.InnerException);
-                        break;
+                        progress[reference] = next;
+                        try { observers[next].DynamicInvoke(value); }
+                        catch (TargetInvocationException error) when (error.InnerException is RedispatchSuppressed) { }
+                        catch (TargetInvocationException error) { Record(error.InnerException); break; }
                     }
+                    done.Add(reference);
+                    if (IsValid(reference)) Silence(reference);
                 }
             }
 
@@ -313,12 +332,33 @@ namespace ProjectLucid
                 foreach (SystemAction action in actions) system.UnsubscribeFromAction(action);
             }
 
-            // A begin sentinel placed before a reference's shutdown observers records any notification
-            // of it, including one started by a callback's own unregister.
+            // Instruments a reference's shutdown observers, keeping them and their order: a begin
+            // sentinel goes first and a progress marker follows each observer (public remove/add).
+            // The sentinel records the notification and stops any second dispatch of the reference.
             private void Bracket(object reference)
             {
-                if (bracketed.Add(reference))
-                    BracketEvent(reference, "OnSystemShutdown", _ => notified.Add(reference));
+                if (!bracketed.Add(reference)) return;
+                EventInfo shutdown = ShutdownEvent(reference, out Delegate[] observers);
+                snapshots[reference] = observers;
+                foreach (Delegate observer in observers) shutdown.RemoveEventHandler(reference, observer);
+                sentinels.Add(Subscribe(reference, "OnSystemShutdown", () =>
+                {
+                    if (active.Contains(reference)) throw new RedispatchSuppressed();
+                    notified.Add(reference);
+                    active.Add(reference);
+                    progress[reference] = 0;
+                    if (observers.Length == 0) done.Add(reference);
+                }));
+                for (int index = 0; index < observers.Length; index++)
+                {
+                    int completed = index + 1;
+                    shutdown.AddEventHandler(reference, observers[index]);
+                    sentinels.Add(Subscribe(reference, "OnSystemShutdown", () =>
+                    {
+                        progress[reference] = completed;
+                        if (completed == observers.Length) done.Add(reference);
+                    }));
+                }
             }
 
             private void BracketEvent(object reference, string eventName, Action<object> onCall)
@@ -343,6 +383,13 @@ namespace ProjectLucid
             var list = (Delegate)type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
             observers = list?.GetInvocationList() ?? new Delegate[0];
             return type.GetEvent("OnSystemShutdown");
+        }
+
+        // Raised only by a begin sentinel to stop a second dispatch of an already notified owned
+        // reference; the fixture catches it where it started that reference's notification.
+        private sealed class RedispatchSuppressed : Exception
+        {
+            public RedispatchSuppressed() : base("Fixture teardown stopped a second notification of an owned reference.") { }
         }
 
         private sealed class ReferenceComparer : IEqualityComparer<object>

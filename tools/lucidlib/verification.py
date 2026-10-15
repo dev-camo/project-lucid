@@ -1461,5 +1461,6 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ActionInjectionCasesPreserveAnAbsentActionRow",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.OwnedReferenceObserversAreRestoredInOrder",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ObserverThatRemovesItselfStaysRemoved",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.OwnReferenceIsValidWhileItsObserversRun",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.CallbackCreatedReferenceNotifiedElsewhereIsNotNotifiedAgain",
 )
