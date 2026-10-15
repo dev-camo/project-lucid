@@ -33,6 +33,9 @@ namespace ProjectLucid.Tests
             internal Exception BodyFailure;
             internal IReadOnlyList<LifecycleSystemRowLease.FailureRecord> CleanupFailures;
             internal readonly List<string> Notes = new List<string>();
+            // Observed after construction and before activation; the original constructor publishes nothing.
+            internal bool InstanceBeforeActivation;
+            internal bool RowBeforeActivation;
         }
 
         // Creates the owned HLPhysics through the engine, runs body, then always releases owned state.
@@ -52,7 +55,8 @@ namespace ProjectLucid.Tests
                 owner = new GameObject("Lucid owned HLPhysics");
                 owner.SetActive(false);
                 physics = owner.AddComponent(Physics);
-                if (registry.Contains(name)) outcome.Notes.Add("row present after construction");
+                outcome.InstanceBeforeActivation = !ReferenceEquals(Instance(), null);
+                outcome.RowBeforeActivation = registry.Contains(name);
                 owner.SetActive(true);
                 // Capture before any assertion, by a non-creating read of the raw row, and only a row that
                 // holds this component or nothing.
@@ -122,11 +126,16 @@ namespace ProjectLucid.Tests
             {
                 Assert.That(physics, Is.Not.Null, "the original constructor completes");
                 Assert.That(Instance(), Is.SameAs(physics), "Unity's Awake publishes the singleton");
-                Assert.That(ProcessManager.GetSystemRef(name).GetSafe(), Is.SameAs(physics), "Awake registered this system");
+                // Non-creating lookup: a missing registration must fail here without adding a row.
+                Assert.That(ProcessManager.GetSystemRef(name, false).GetSafe(), Is.SameAs(physics), "Awake registered this system");
                 Object.DestroyImmediate(physics.gameObject);
                 Assert.That(ReferenceEquals(Instance(), null), Is.True, "OnDestroy clears Instance");
                 Assert.That(ProcessManager.IsSystemNull(name), Is.True, "OnDestroy unregisters the system");
             });
+            // Construction alone (original ctor 0x1a4cde0 only tail-calls the base) publishes no Instance
+            // and creates no row; checked before any body failure is rethrown.
+            Assert.That(outcome.InstanceBeforeActivation, Is.False, "construction alone publishes no Instance");
+            Assert.That(outcome.RowBeforeActivation, Is.False, "construction alone registers nothing");
             if (outcome.BodyFailure != null)
             {
                 // Keep the body failure primary; a failing diagnostic writer cannot replace it.
@@ -135,7 +144,7 @@ namespace ProjectLucid.Tests
                     catch (Exception) { }
                 ExceptionDispatchInfo.Capture(outcome.BodyFailure).Throw();
             }
-            Assert.That(outcome.Notes, Is.Empty, "construction alone registered nothing, no foreign row appeared and OnDestroy unregistered");
+            Assert.That(outcome.Notes, Is.Empty, "no foreign row appeared and OnDestroy unregistered");
             Assert.That(outcome.CleanupFailures, Is.Empty);
             RequireRestored(foreignRows);
         }
