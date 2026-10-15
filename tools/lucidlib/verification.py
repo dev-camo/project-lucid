@@ -1509,7 +1509,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OutOfRangeSelectionClearsEveryAutoSelectAndStillSubscribes",
     "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.RepeatedRetrievalSubscribesAgainAndOnDisableRemovesOnePerWidget",
     "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OnSelectedStoresFirstMatchingIndexAndIgnoresForeignWidgets",
-    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OnSelectedWithNullOrDestroyedWidgetMatchesTheFirstDestroyedEntry",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OnSelectedMatchesDestroyedEntriesByUnityNullOrIdentity",
     "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.ContainerClosedRetrievesOnlyWhenTheListedContainersAreExclusivelyOpen",
     "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.AwakeLookupFailuresThrowBeforeAnySubscription",
     "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OnDestroyUnsubscribesOnlyWhileTheUIManagerReferenceIsValid",

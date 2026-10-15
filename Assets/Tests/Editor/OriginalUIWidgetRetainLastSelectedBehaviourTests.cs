@@ -340,29 +340,34 @@ namespace ProjectLucid.Editor
             }
         }
 
-        // The <OnSelected>b__0 predicate (x86-64 0x426b80) is UnityEngine.Object.op_Equality, so a
-        // null or destroyed argument matches the first destroyed entry, and only that.
-        // Catches: reference or managed equality in the predicate (nothing would be stored).
+        // The <OnSelected>b__0 predicate (x86-64 0x426b80) is UnityEngine.Object.op_Equality
+        // (0x26cdaf0), i.e. CompareBaseObjects (0x26d0a60): a null side matches a destroyed wrapper,
+        // but two non-null wrappers compare by identity (0x26d0a9d), destroyed or not.
+        // Catches: a reference-equality predicate (null would match nothing), and treating every
+        // destroyed wrapper as null (a distinct destroyed argument would match the destroyed entry).
         [Test]
-        public void OnSelectedWithNullOrDestroyedWidgetMatchesTheFirstDestroyedEntry()
+        public void OnSelectedMatchesDestroyedEntriesByUnityNullOrIdentity()
         {
             using (var fixture = new Fixture())
             {
                 UIWidgetNavigation destroyed = fixture.Own("Lucid owned destroyed entry").AddComponent<UIWidgetNavigation>();
-                UIWidgetNavigation destroyedArgument = fixture.Own("Lucid owned destroyed argument").AddComponent<UIWidgetNavigation>();
+                UIWidgetNavigation distinctDestroyed = fixture.Own("Lucid owned distinct destroyed argument").AddComponent<UIWidgetNavigation>();
                 UObject.DestroyImmediate(destroyed);
-                UObject.DestroyImmediate(destroyedArgument);
+                UObject.DestroyImmediate(distinctDestroyed);
 
                 fixture.Call("OnSelected", (object)null);
                 Assert.That(fixture.Stored(), Is.Null, "live entries are not Unity-null");
 
                 fixture.SetWidgets(fixture.First, destroyed, fixture.Second, destroyed);
                 fixture.Call("OnSelected", (object)null);
-                Assert.That(fixture.Stored(), Is.EqualTo(1));
+                Assert.That(fixture.Stored(), Is.EqualTo(1), "null matches the first destroyed entry");
 
-                fixture.SetWidgets(fixture.First, fixture.Second, destroyed);
-                fixture.Call("OnSelected", destroyedArgument);
-                Assert.That(fixture.Stored(), Is.EqualTo(2));
+                fixture.SetWidgets(fixture.First, fixture.Second, destroyed, destroyed);
+                fixture.Call("OnSelected", distinctDestroyed);
+                Assert.That(fixture.Stored(), Is.EqualTo(1), "a distinct destroyed wrapper matches nothing");
+
+                fixture.Call("OnSelected", destroyed);
+                Assert.That(fixture.Stored(), Is.EqualTo(2), "the same destroyed wrapper matches its own first index");
             }
         }
 
