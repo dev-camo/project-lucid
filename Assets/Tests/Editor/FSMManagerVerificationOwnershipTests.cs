@@ -316,6 +316,46 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
+        public void MutableHashResubscriptionReleasesEveryOwnedStoredEntry()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var actions = new ActionLayout();
+            string name = "Lucid-ownership-mutable-resubscribe-" + Guid.NewGuid().ToString("N");
+            var replacement = new MutableHashSystem();
+            var foreign = new MutableHashSystem { Hash = 2 };
+            int foreignCalls = 0;
+            try
+            {
+                foreign.SubscribeToAction(SystemAction.Update, context => foreignCalls++);
+                ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                typed.OnSystemShutdown += system =>
+                {
+                    // Two stored entries for one reference: under hash 1, then under hash 2.
+                    replacement.SubscribeToAction(SystemAction.Update, context => { });
+                    replacement.Hash = 2;
+                    replacement.SubscribeToAction(SystemAction.Update, context => { });
+                    ProcessManager.RegisterSystem(replacement, name);
+                };
+                var updates = (IDictionary)ActionRows()[SystemAction.Update];
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                Assert.That(updates.Keys.Cast<object>().Count(key => ReferenceEquals(key, replacement)), Is.Zero,
+                    "an owned stored action entry survived teardown");
+                Assert.That(updates.Keys.Cast<object>().Count(key => ReferenceEquals(key, foreign)), Is.EqualTo(1));
+                foreign.ProcessSystemAction(SystemAction.Update);
+                Assert.That(foreignCalls, Is.EqualTo(1));
+                Assert.That(rows.Contains(name), Is.False);
+            }
+            finally
+            {
+                foreign.UnsubscribeFromAction(SystemAction.Update);
+                FSMManagerVerification.RestoreLayout(rows, layout);
+                actions.Restore();
+            }
+        }
+
+        [Test]
         public void PassLimitIsRecordedWhileLaterRowsAndActionsAreStillReleased()
         {
             IDictionary rows = Rows();

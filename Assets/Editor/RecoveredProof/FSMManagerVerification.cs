@@ -282,9 +282,14 @@ namespace ProjectLucid
 
             // Removes only action entries whose stored key is the very system that entered an owned
             // row; an equal but distinct foreign system keeps its subscription.
+            // Every entered system is released even if an earlier one reports a failure.
             private void ReleaseEnteredActions()
             {
-                foreach (ISystem system in entered) ReleaseActionsOf(system);
+                foreach (ISystem system in entered)
+                {
+                    try { ReleaseActionsOf(system); }
+                    catch (Exception error) { Record(error); }
+                }
             }
 
             // Removes only entries whose stored key is this very system.
@@ -297,13 +302,17 @@ namespace ProjectLucid
                 foreach (DictionaryEntry row in ActionLookup())
                     foreach (object key in ((IDictionary)row.Value).Keys)
                         if (ReferenceEquals(key, system)) actions.Add((SystemAction)row.Key);
+                // One removal per stored entry: a system subscribed again after its hash changed holds
+                // several entries for the same reference, each under its own stored hash.
                 foreach (SystemAction action in actions)
                 {
                     var callbacks = (Dictionary<ISystem, Action<object>>)ActionLookup()[action];
                     RemoveStoredKey(callbacks, system, () => system.UnsubscribeFromAction(action));
-                    if (callbacks.Keys.Any(key => ReferenceEquals(key, system)))
-                        throw new InvalidOperationException("An owned action subscription could not be released: " + action);
                 }
+                // Only after every located entry was processed is anything left reported.
+                foreach (SystemAction action in actions.Distinct())
+                    if (((IDictionary)ActionLookup()[action]).Keys.Cast<object>().Any(key => ReferenceEquals(key, system)))
+                        throw new InvalidOperationException("An owned action subscription could not be released: " + action);
             }
 
             // The public unsubscription hashes the system again; a system whose hash changed after it

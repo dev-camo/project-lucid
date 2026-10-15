@@ -1451,6 +1451,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.FailureAndReentrantReplacementLeaveNoOwnedReferenceValid",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ReplacementActionSubscriptionsAreReleasedWithTheOwnedRow",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.MutableHashReplacementLosesItsActionWithTheOwnedRow",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.MutableHashResubscriptionReleasesEveryOwnedStoredEntry",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.PassLimitIsRecordedWhileLaterRowsAndActionsAreStillReleased",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.PassLimitKeepsAnEarlierCallbackFailure",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ReferenceActivatedDuringTeardownIsNotNotifiedTwice",
