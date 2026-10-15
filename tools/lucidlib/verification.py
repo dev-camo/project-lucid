@@ -1898,3 +1898,10 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalAlertBadgeTextTests.AlertWinsOverCountAndOnlyCountsAboveTheMaximumUseTheFormat",
 )
+
+# Original HLInputDebugMenu steering-assist labels, glyph toggling and comparator.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLInputDebugMenuBehaviourTests.SteeringAssistLabelsFollowTheStoredDisabledFlagAndTheSetterStoresItsInverse",
+    "ProjectLucid.Tests.OriginalHLInputDebugMenuBehaviourTests.SameVisibleTypeHidesOnlyTheParentWhileOtherRequestsReshowAndClearChildren",
+    "ProjectLucid.Tests.OriginalHLInputDebugMenuBehaviourTests.GlyphComparatorOrdersInputsByOrdinalNameNotValue",
+)
