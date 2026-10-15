@@ -1888,3 +1888,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCharacterCustomisationOrderTests.SaveRegistrationIsRequestedBeforeTheStringTableSubscription",
 )
+
+# Original FontAssetLanguageSetter handle release and string-handler readiness.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalFontLanguageHandleTests.LanguageChangeReleasesOldHandlesAndReadinessClearsAfterEveryHandleCompletes",
+)
