@@ -132,8 +132,10 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Fixture self-check, not product behavior: RequireUnownedStore must refuse
+        // a foreign registry row, store callbacks or plugin without invoking them.
         [Test]
-        public void BorrowedStoreRowAndStaticCallbacksAreRejectedWithoutInvocation()
+        public void FixtureGuardRejectsBorrowedStoreStateWithoutInvocation()
         {
             var registry = new Hashtable();
             object foreignRow = new object();

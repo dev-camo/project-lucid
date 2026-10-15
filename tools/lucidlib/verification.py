@@ -414,6 +414,11 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalObjectDestructionLifecycleTests.OriginalComponentRemovalRetainsDeferredExclusionsAndTransform",
 )
 
+# Fixture guard self-check for the live cloud facade proof; no product oracle.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.CloudFacadeTests.FixtureGuardRejectsBorrowedStoreStateWithoutInvocation",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMissionRingRewardPreservationTests.OriginalMissionRingRewardsPreserveAuthoredOrderAndInclusiveSignedThresholds",
 )
