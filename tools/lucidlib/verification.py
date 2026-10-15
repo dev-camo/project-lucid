@@ -1781,3 +1781,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.LeaveClearsTriggeredAndExitingFlags",
 )
+
+# Original action-subscription release timing on a real coroutine host.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.InputActionSubscriptionTests.UnheldReleaseDefersOnUpToTheNextFrameAfterClearingDown",
+)
