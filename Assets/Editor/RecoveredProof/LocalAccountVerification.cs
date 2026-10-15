@@ -122,7 +122,11 @@ namespace ProjectLucid.Tests
             }
         }
 
-        public static void BothFactoryFlagsKeepIdentitySeparateFromAuthentication()
+        // Project offline policy, not original provenance: without
+        // PROJECT_LUCID_ORIGINAL_GAMECENTER both factories ignore forceStub, so the
+        // two iterations exercise the same LocalAccountPlayer. Identity constants
+        // are the project's own LocalProfileIdentity values.
+        public static void OfflinePolicyFactoriesIgnoreForceStubAndKeepIdentitySeparateFromAuthentication()
         {
             foreach (bool forceStub in new[] { false, true })
                 using (var account = new Account(forceStub))

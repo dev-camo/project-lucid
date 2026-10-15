@@ -1069,7 +1069,7 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
-    "ProjectLucid.Tests.LocalAccountTests.BothFactoryFlagsKeepIdentitySeparateFromAuthentication",
+    "ProjectLucid.Tests.LocalAccountTests.OfflinePolicyFactoriesIgnoreForceStubAndKeepIdentitySeparateFromAuthentication",
     "ProjectLucid.Tests.LocalAccountTests.RealCallbacksPreserveOrderPayloadAndClear",
     "ProjectLucid.Tests.LocalAccountTests.CallbackFaultStopsLaterPhotoCompletionAndOwnedClearRecovers",
     "ProjectLucid.Tests.LocalAccountTests.GenuineFacadeDefaultsKeepFailedAuthenticationAndShutdownCleanup",
