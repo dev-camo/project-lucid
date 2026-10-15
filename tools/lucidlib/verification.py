@@ -1594,7 +1594,6 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.LanguageVerificationRegistryOwnershipTests.LanguageProofLeavesNoLanguageRegistryRow",
 )
 EDITMODE_TESTS += (
-    "ProjectLucid.Editor.OriginalApplicationStateInitialiseCharacterTests.FaultInTheResumedMissionLoopTerminatesTheIterator",
     "ProjectLucid.Editor.OriginalApplicationStateInitialiseCharacterTests.FaultAfterTheMissionWaitTerminatesTheIterator",
 )
 

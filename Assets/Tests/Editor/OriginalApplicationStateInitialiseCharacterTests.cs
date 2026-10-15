@@ -9,17 +9,18 @@ namespace ProjectLucid.Editor
 {
     // InitialiseMissions iterator MoveNext 06000682 (1.10.1 RVA 0x6474F0). Its compiler
     // fault handler (0x64819D-0x6481D1) runs the 1/-3 cleanup (Dispose 06000681, 0x647430
-    // -> <>m__Finally1 06000683, 0x648200: state -1, dispose the mission-state enumerator)
-    // before rethrowing, so a resume that faults inside the loop ends the iterator.
-    // Only the iterator's real constructor (06000680, 0x6470E0) is used, as for the
-    // generated closure in CameraInputDisablerVerification. No field is written, and
-    // ProcessManager, MissionManager, App, WaitUntil and coroutine hosts stay untouched.
+    // -> <>m__Finally1 06000683, 0x648200: state -1) before rethrowing.
+    // Synthetic constructor control only: the iterator is built with its real constructor
+    // (06000680, 0x6470E0) directly at state 1, a legal dispatch entry (0x64761F), with no
+    // enumerator acquired, as for the generated closure in CameraInputDisablerVerification.
+    // It proves the fault-path state transition, not live enumerator disposal, a reachable
+    // gameplay fault or the LoadAllMissions read. State -3 is not a resume state (the
+    // dispatch at 0x64760B-0x64762A admits only 0/1/2), so it is not used. No field is
+    // written, and ProcessManager, MissionManager, App, WaitUntil and coroutine hosts stay
+    // untouched.
     public sealed class OriginalApplicationStateInitialiseCharacterTests
     {
         private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-
-        [Test]
-        public void FaultInTheResumedMissionLoopTerminatesTheIterator() => AssertFaultTerminates(-3);
 
         [Test]
         public void FaultAfterTheMissionWaitTerminatesTheIterator() => AssertFaultTerminates(1);
@@ -34,8 +35,8 @@ namespace ProjectLucid.Editor
             Assert.That(state.GetValue(iterator), Is.EqualTo(resumeState));
             Assert.That(ReadOnlyField(type, "_003C_003E7__wrap3", typeof(System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<string, MissionState>>)).GetValue(iterator), Is.Null);
 
-            // Both resume states enter the protected loop, whose first enumerator call
-            // faults on the never-acquired enumerator; the fault itself is rethrown.
+            // State 1 re-enters the protected loop, whose first enumerator call faults on the
+            // never-acquired enumerator; the fault itself is rethrown.
             Assert.Throws<NullReferenceException>(() => iterator.MoveNext());
             Assert.That(state.GetValue(iterator), Is.EqualTo(-1), "the fault handler ran the 1/-3 cleanup");
             Assert.That(iterator.Current, Is.Null);
