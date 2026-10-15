@@ -54,6 +54,68 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Fractional widths around m_tolerance 0.05 (read at 0x53b7cd and negated
+        // at 0x53b7d5). A kept difference of 0.03 or -0.03 lies inside the band, so
+        // neither `prev < -tol` (0x53b7ea) nor `tol < prev` (0x53b7fd) holds and a
+        // nearer later width is ignored; 0.07 and -0.07 lie just outside it, so the
+        // same later width replaces them. Catches a zero tolerance (replaces 0.03
+        // and -0.03) and a widened one (keeps 0.07 and -0.07).
+        [Test]
+        public void FractionalWidthDifferencesFollowTheSelectionTolerance()
+        {
+            RequireScreen(out int width, out int height);
+            using (var splash = new OwnedSplash())
+            {
+                splash.Select(
+                    Entry(splash, width, height, width - 0.03f, "diff 0.03"),
+                    Entry(splash, width, height, width - 0.01f, "diff 0.01"));
+                Assert.AreEqual("diff 0.03", splash.Target.sprite.name);
+
+                splash.Select(
+                    Entry(splash, width, height, width + 0.03f, "diff -0.03"),
+                    Entry(splash, width, height, width - 0.01f, "diff 0.01"));
+                Assert.AreEqual("diff -0.03", splash.Target.sprite.name);
+
+                splash.Select(
+                    Entry(splash, width, height, width - 0.07f, "diff 0.07"),
+                    Entry(splash, width, height, width - 0.01f, "diff 0.01"));
+                Assert.AreEqual("diff 0.01", splash.Target.sprite.name);
+
+                splash.Select(
+                    Entry(splash, width, height, width + 0.07f, "diff -0.07"),
+                    Entry(splash, width, height, width + 0.01f, "diff -0.01"));
+                Assert.AreEqual("diff -0.01", splash.Target.sprite.name);
+            }
+        }
+
+        // 0x53b7a1..0x53b7a7 divides AspectRatio.x by .y and WithinTolerance
+        // (x86-64 0x1b04c70) widens both sides to double and tests
+        // `target - tol < value && value < target + tol` with m_tolerance 0.05.
+        // Entries 0.03 from the screen aspect on either side match although not
+        // equal; entries 0.07 away do not, so entry 0 is only the fallback. Catches
+        // exact aspect equality (falls back to entry 0) and a widened tolerance
+        // (the near miss matches first at difference 0 and is kept).
+        [Test]
+        public void AspectRatioMatchesWithinToleranceButNotJustOutside()
+        {
+            RequireScreen(out int width, out int height);
+            float aspect = (float)width / height;
+            using (var splash = new OwnedSplash())
+            {
+                splash.Select(
+                    Entry(splash, aspect + 0.07f, 1f, width, "aspect +0.07"),
+                    Entry(splash, aspect - 0.07f, 1f, width, "aspect -0.07"),
+                    Entry(splash, aspect + 0.03f, 1f, width - 100, "aspect +0.03"));
+                Assert.AreEqual("aspect +0.03", splash.Target.sprite.name);
+
+                splash.Select(
+                    Entry(splash, aspect + 0.07f, 1f, width, "aspect +0.07"),
+                    Entry(splash, aspect - 0.07f, 1f, width, "aspect -0.07"),
+                    Entry(splash, aspect - 0.03f, 1f, width - 100, "aspect -0.03"));
+                Assert.AreEqual("aspect -0.03", splash.Target.sprite.name);
+            }
+        }
+
         // With no aspect match the loop never assigns, so entry 0 is used even
         // though it does not match either. Catches a "no selection, no change" or
         // "first matching entry" fallback.
@@ -78,8 +140,10 @@ namespace ProjectLucid.Tests
             Assert.Greater(height, 0, "Selection needs a positive Screen size");
         }
 
-        private static SplashScreen.AspectRatioSplashScreenData Entry(OwnedSplash splash, int aspectX, int aspectY,
-            int minimumWidth, string name)
+        // Float parameters match the serialized AspectRatio and Width fields so
+        // fractional differences reach the selection unchanged.
+        private static SplashScreen.AspectRatioSplashScreenData Entry(OwnedSplash splash, float aspectX, float aspectY,
+            float minimumWidth, string name)
         {
             return new SplashScreen.AspectRatioSplashScreenData
             {

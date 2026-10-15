@@ -1763,6 +1763,8 @@ EDITMODE_TESTS += (
     "OriginalLanguageUtilsFormatterTests.InitialiserMapsEachIdentifierToItsShippedDestination",
     "ProjectLucid.Tests.OriginalSplashSelectionTests.SelectionFollowsSignedWidthDifferenceSequenceNotNearestWidth",
     "ProjectLucid.Tests.OriginalSplashSelectionTests.UnmatchedAspectFallsBackToTheFirstEntry",
+    "ProjectLucid.Tests.OriginalSplashSelectionTests.FractionalWidthDifferencesFollowTheSelectionTolerance",
+    "ProjectLucid.Tests.OriginalSplashSelectionTests.AspectRatioMatchesWithinToleranceButNotJustOutside",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetMergesLaterGroupsIntoFirstAndFaultsOnDuplicateKeys",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetKeepsTheFirstGroupDictionaryWithItsKeyComparer",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetGroupReturnsFirstClrMatchIncludingDestroyedGroup",
