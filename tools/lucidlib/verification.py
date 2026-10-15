@@ -1165,6 +1165,10 @@ PLAYMODE_TESTS += (
     'ProjectLucid.Tests.OriginalScreenManagerPlayModeTests.GenuinePlayLifecycleSavesOwnedPropertiesAndTearsDown',
 )
 
+PLAYMODE_TESTS += (
+    'ProjectLucid.Tests.UIInputTypeVisibilityLifecycleTests.SelectionTypesHidePointerGroupBeforeShowingControllerGroupAndBack',
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSelectableBasePreservationTests.CompleteOriginalBasesRetainAbstractSlotsAndEmptyInstanceShape",
     "ProjectLucid.Tests.OriginalSelectableBasePreservationTests.OriginalEventInterfacesBindToDeclaredAbstractHandlers",
