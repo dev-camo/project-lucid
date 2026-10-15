@@ -428,6 +428,9 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLUIEffectManagerGapTests.AwakeLogsBeforeRegistrationAndKeepsFirstCuePerKeyIncludingNullClip",
     "ProjectLucid.Tests.OriginalStackedCameraGapTests.EnableLoadsAndDisableUnloadsThroughRegisteredManager",
     "ProjectLucid.Tests.OriginalStackedCameraGapTests.MissingManagerSkipsUnloadAndLateRegistrationStillLoadsDisabledCamera",
+    "ProjectLucid.Tests.OriginalHLButtonGapTests.ButtonDownAndUpReadSoundActionAndIdAfterTheirEvent",
+    "ProjectLucid.Tests.OriginalHLButtonGapTests.DisableInvokesDisabledSelectedOnlyWhenHighlightedAfterBaseWithoutNullGuard",
+    "ProjectLucid.Tests.OriginalHLButtonGapTests.PointerUpExitAndEnterDispatchFromStateCapturedBeforeBase",
 )
 
 EDITMODE_TESTS += (
