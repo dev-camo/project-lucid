@@ -235,6 +235,40 @@ namespace ProjectLucid.Editor
             LogAssert.NoUnexpectedReceived();
         }
 
+        // PlayAudioClip (x86-64 0x1b49c90) returns on HLAudioTypes.None (0xb6fa1284) before the lookup,
+        // then requires ContainsKey and a Unity-non-null clip before reading UISoundEffectManager.Instance.
+        // With no sound manager instance, only a cue that passes every guard reaches that read and faults.
+        [Test]
+        public void PopulatedCuesStopAtNoneAndNullClipsBeforeTheSoundManager()
+        {
+            Assume.That(UISoundEffectManager.Instance, Is.Null, "requires no live UI sound manager");
+            AudioClip clip = AudioClip.Create("Lucid owned UI cue", 1, 1, 44100, false);
+            try
+            {
+                using (var owned = new InactiveManager())
+                {
+                    var cues = (Dictionary<HLAudioTypes, AudioClip>)typeof(HLUIEffectManager).GetField("m_audioCues", Declared).GetValue(owned.Manager);
+                    cues[HLAudioTypes.None] = clip;
+                    cues[(HLAudioTypes)71] = null;
+                    cues[(HLAudioTypes)(-19)] = clip;
+                    try
+                    {
+                        foreach (HLAudioTypes stopped in new[] { HLAudioTypes.None, (HLAudioTypes)71, (HLAudioTypes)5 })
+                        {
+                            owned.Manager.PlayAudioClip(stopped, 0.5f);
+                            owned.Manager.PlayAudioClipWithSemitoneOffset(stopped, 3, 0.5f);
+                        }
+                        Assert.Throws<NullReferenceException>(() => owned.Manager.PlayAudioClip((HLAudioTypes)(-19), 0.5f));
+                        Assert.Throws<NullReferenceException>(() => owned.Manager.PlayAudioClipWithSemitoneOffset((HLAudioTypes)(-19), 3, 0.5f));
+                    }
+                    finally { cues.Clear(); }
+                    owned.RequireUnchanged();
+                }
+            }
+            finally { UnityEngine.Object.DestroyImmediate(clip); }
+            LogAssert.NoUnexpectedReceived();
+        }
+
         private static Type RequireAudioCueType()
         {
             Type cue = typeof(HLUIEffectManager).GetNestedType("HLAudioCueKVP", Declared);

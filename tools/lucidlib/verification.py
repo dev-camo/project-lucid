@@ -1167,6 +1167,7 @@ EDITMODE_TESTS += (
 
 EDITMODE_TESTS += (
     'ProjectLucid.Editor.OriginalHLUIEffectManagerTests.OriginalEffectManagerRetainsWholeTwoOwnerDeclarations',
+    'ProjectLucid.Editor.OriginalHLUIEffectManagerTests.PopulatedCuesStopAtNoneAndNullClipsBeforeTheSoundManager',
     'ProjectLucid.Editor.OriginalHLUIEffectManagerTests.OriginalInactiveEffectManagerRetainsDefaultsAndEmptyReferenceSetter',
     'ProjectLucid.Editor.OriginalHLUIEffectManagerTests.OriginalEffectManagerSamplesEighteenGenuineSerializedFiniteCurves',
     'ProjectLucid.Editor.OriginalHLUIEffectManagerTests.OriginalEffectManagerReturnsGenuineOwnedSerializedVisualValues',
