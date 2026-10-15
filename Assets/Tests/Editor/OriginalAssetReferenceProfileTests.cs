@@ -37,8 +37,11 @@ public sealed class OriginalAssetReferenceProfileTests
         finally { UnityEngine.Object.DestroyImmediate(owner); }
     }
 
+    // Addressables package contract (SetEditorAsset and editor serialization of
+    // a genuine AssetDatabase asset), not original game behavior. It needs a
+    // temporary Assets/ folder, removed in WithOwnedAsset's finally blocks.
     [Test]
-    public void OwnedRealAssetAssignmentPreservesGuidAndTrueEditorFlagThroughSerialization()
+    public void AddressablesContractRealAssetAssignmentPreservesGuidAndTrueEditorFlagThroughSerialization()
     {
         WithOwnedAsset((owner, asset, guid) =>
         {

@@ -1301,7 +1301,7 @@ EDITMODE_TESTS += (
     'OriginalLocalisedUIStringContractsTests.LocalisedMethodsKeepPublicLifecycleAndExactNullOverrideContract',
     'OriginalLocalisedUIStringOwnedTextTests.InactiveOriginalDiscoveryWritesOwnedUguiTextAndEmptyOverrideWithoutLookup',
     'OriginalAssetReferenceProfileTests.OwnedClosedAssetReferenceExposesFourEditorChildrenWithoutAnOperation',
-    'OriginalAssetReferenceProfileTests.OwnedRealAssetAssignmentPreservesGuidAndTrueEditorFlagThroughSerialization',
+    'OriginalAssetReferenceProfileTests.AddressablesContractRealAssetAssignmentPreservesGuidAndTrueEditorFlagThroughSerialization',
     'OriginalAssetReferenceProfileTests.OwnedPublicNullClearSetsEditorFlagAndClearsGuidAndSubObjectName',
 )
 
