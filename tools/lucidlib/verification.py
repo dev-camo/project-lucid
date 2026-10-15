@@ -1130,6 +1130,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLUnityCoreGapTests.ClassInitializerRegistersOnlyTheOriginalPrimitiveOperations",
 )
 
+# Low-priority coverage-gap cases: UI scroll, text and sound forwarding.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalUIScrollTextAudioGapTests.OffsetTestsMinFirstHorizontallyAndMaxFirstVertically",
+    "ProjectLucid.Editor.OriginalUIScrollTextAudioGapTests.TextAndGradientHelpersForwardToOwnedComponentsAndIgnoreNull",
+    "ProjectLucid.Editor.OriginalUIScrollTextAudioGapTests.NullClipStillSetsPitchAndVolumeAndReachesPlayOneShot",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
