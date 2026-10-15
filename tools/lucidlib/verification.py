@@ -1849,3 +1849,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLoggingHostGapTests.MissingHostThrowsNullReferenceWithTheSuppliedMessage",
 )
+
+# Original visual-quality feature fallback and Apply dispatch.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalVisualQualityGapTests.MissingAttributeSelectsMediumAndAppliesTheSelection",
+)
