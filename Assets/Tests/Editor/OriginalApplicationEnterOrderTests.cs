@@ -74,6 +74,10 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(1, gates.Count);
             Assert.Greater(gates[0].Target, body[gameCenter].Offset);
             Assert.LessOrEqual(gates[0].Target, body[vibration].Offset);
+            // Nothing gates the vibration lookup: native 0x649c64..0x649c8d holds only
+            // the il2cpp class-init check between the GameCenter call and GetSystemRef.
+            Assert.IsEmpty(body.Skip(gameCenter + 1).Take(vibration - gameCenter - 1).Where(IsConditional).ToList(),
+                "No condition between the GameCenter registration and the vibration lookup.");
             // No rollback or handler surrounds the ordered registrations.
             Assert.IsEmpty(enter.GetMethodBody().ExceptionHandlingClauses);
         }
@@ -125,10 +129,63 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(1, Constant(platform), "get_platform is compared with OSXPlayer");
             Instruction frameRate = body[body.IndexOf(calls[5]) - 1];
             Assert.AreEqual(60, Constant(frameRate), "non-macOS target frame rate");
+            AssertPlatformPaths(enter, body, body.IndexOf(calls[1]), body.IndexOf(calls[3]),
+                body.IndexOf(calls[4]), body.IndexOf(calls[5]));
             // The store and Addressables arguments are the shipped literals.
             CollectionAssert.AreEqual(new[] { "H4RDl1ght_S4VE", "Primary", "HL_Default_Save_ID" },
                 body.Where(i => i.Code == OpCodes.Ldstr).Select(i => enter.Module.ResolveString(i.Operand)).ToArray());
             Assert.IsEmpty(enter.GetMethodBody().ExceptionHandlingClauses);
+        }
+
+        // Native 0x53c2df `cmp eax, 1; jne 0x53c32b`: only a platform other than
+        // OSXPlayer jumps to the `mov edi, 0x3c` targetFrameRate path, and OSXPlayer
+        // falls through to SetResolution then `jmp 0x53c348` over it. The refresh
+        // argument is `movabs rcx, 0x3c00000001` at 0x53c2fe: RefreshRate.numerator
+        // (offset 0) is 1 and denominator (offset 4) is 60. Catches `!=`, swapped
+        // paths and a 60/1 or otherwise changed refresh fraction.
+        private static void AssertPlatformPaths(MethodInfo enter, List<Instruction> body, int platform,
+            int fullScreen, int resolution, int frameRateCall)
+        {
+            Instruction branch = JumpIfNotEqual(body, platform + 1);
+            int elseStart = body.FindIndex(i => i.Offset == branch.Target);
+            Assert.Greater(elseStart, resolution, "Only the non-macOS path is skipped to");
+            Assert.LessOrEqual(elseStart, frameRateCall - 1, "The jump lands on the frame-rate path");
+            for (int i = elseStart; i < frameRateCall - 1; i++) Assert.AreEqual(OpCodes.Nop, body[i].Code);
+            Instruction exit = body[elseStart - 1];
+            Assert.IsTrue(exit.Code == OpCodes.Br || exit.Code == OpCodes.Br_S, "macOS path ends with " + exit.Code);
+            Assert.Greater(exit.Target, body[frameRateCall].Offset, "macOS path jumps over set_targetFrameRate");
+            Assert.AreEqual(1, body.Skip(platform + 1).Take(frameRateCall - platform - 1).Count(IsConditional));
+
+            var refresh = new Dictionary<string, int>();
+            for (int i = fullScreen + 1; i < resolution; i++)
+            {
+                if (body[i].Code != OpCodes.Stfld) continue;
+                FieldInfo field = enter.Module.ResolveField(body[i].Operand);
+                Assert.AreEqual(typeof(RefreshRate), field.DeclaringType, field.Name);
+                refresh.Add(field.Name, Constant(body[i - 1]));
+            }
+            CollectionAssert.AreEquivalent(new Dictionary<string, int> { { "numerator", 1 }, { "denominator", 60 } }, refresh);
+        }
+
+        // Release IL branches with bne.un; Debug IL materialises ceq into a local
+        // and tests it with brfalse. Either form jumps exactly when unequal.
+        private static Instruction JumpIfNotEqual(List<Instruction> body, int compare)
+        {
+            Instruction next = body[compare + 1];
+            if (next.Code == OpCodes.Bne_Un || next.Code == OpCodes.Bne_Un_S) return next;
+            Assert.AreEqual(OpCodes.Ceq, next.Code, "Expected bne.un or ceq after the platform operand");
+            Assert.AreEqual(Local(body[compare + 2], "stloc"), Local(body[compare + 3], "ldloc"));
+            Instruction jump = body[compare + 4];
+            Assert.IsTrue(jump.Code == OpCodes.Brfalse || jump.Code == OpCodes.Brfalse_S, "Expected brfalse, found " + jump.Code);
+            return jump;
+        }
+
+        private static int Local(Instruction instruction, string prefix)
+        {
+            string name = instruction.Code.Name;
+            Assert.IsTrue(name == prefix || name.StartsWith(prefix + "."), "Expected " + prefix + ", found " + name);
+            string suffix = name == prefix ? "s" : name.Substring(prefix.Length + 1);
+            return suffix == "s" ? instruction.Operand : int.Parse(suffix);
         }
 
         private struct Instruction

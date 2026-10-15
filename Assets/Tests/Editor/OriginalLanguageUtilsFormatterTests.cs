@@ -46,7 +46,9 @@ public sealed class OriginalLanguageUtilsFormatterTests
     // 0x1a35340..0x1a35379 drops a decimal place while (int)(value * factor) % 10
     // is zero. ignoreZeroDecimal (third argument) is never read. Catches
     // Math.Round instead of Floor (1.21M), no trimming (1.20M / 3.00M) and any
-    // use of ignoreZeroDecimal.
+    // use of ignoreZeroDecimal. Negatives take the thousands branch (inlined
+    // 1e6 > value test 0x1a35225) and floor away from zero; Math.Truncate would
+    // give -1.23K and -1.2K (an Editor Mono replay of the native arithmetic agrees).
     [Test]
     public void AbbreviationFloorsThenTrimsTrailingZerosIgnoringZeroDecimalFlag()
     {
@@ -70,6 +72,8 @@ public sealed class OriginalLanguageUtilsFormatterTests
                 Assert.AreEqual("1.23M", component.FormatNumber(1239000d, 2, ignoreZeroDecimal, true));
                 Assert.AreEqual("12.5K", component.FormatNumber(12550d, 1, ignoreZeroDecimal, true));
                 Assert.AreEqual("2.5B", component.FormatNumber(2500000000d, 3, ignoreZeroDecimal, true));
+                Assert.AreEqual("-1.24K", component.FormatNumber(-1234.5d, 2, ignoreZeroDecimal, true));
+                Assert.AreEqual("-1.21K", component.FormatNumber(-1201d, 2, ignoreZeroDecimal, true));
                 Assert.AreEqual("1,234,567.00", component.FormatNumber(1234567d, 2, ignoreZeroDecimal, false));
             }
         });

@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using Hardlight;
 using HardlightProject;
@@ -70,7 +71,7 @@ namespace ProjectLucid.Tests
             }
             finally
             {
-                try { if (host != null) UnityEngine.Object.DestroyImmediate(host); }
+                try { if (host != null) DestroyWithoutAppShutdown(host); }
                 finally
                 {
                     // Remove only the field-initialiser rows created above, after
@@ -82,6 +83,48 @@ namespace ProjectLucid.Tests
                         if (!existed[i]) registry.Remove(fieldRows[i]);
                     }
                 }
+            }
+        }
+
+        // Unity sends OnDestroy only to objects that were once active (and App has no
+        // ExecuteAlways for EditMode), so this never activated App must not reach
+        // OnDestroy 0x06000561 and its global ProcessSystemAction(Shutdown/AppShutdown).
+        // Every dispatch clears the scratch
+        // s_actionList and TryGetOrNew adds a missing action row, so an unchanged
+        // lookup plus a surviving owned sentinel in the list proves no dispatch ran.
+        private static void DestroyWithoutAppShutdown(GameObject host)
+        {
+            const BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Static;
+            var lookup = (Dictionary<SystemAction, Dictionary<ISystem, Action<object>>>)typeof(ProcessManager)
+                .GetField("s_systemActionLookup", flags).GetValue(null);
+            var pending = (List<Action<object>>)typeof(ProcessManager).GetField("s_actionList", flags).GetValue(null);
+            FieldInfo inProgress = typeof(ProcessManager).GetField("s_systemActionInProgress", flags);
+            var rows = new List<KeyValuePair<SystemAction, KeyValuePair<Dictionary<ISystem, Action<object>>, int>>>();
+            foreach (KeyValuePair<SystemAction, Dictionary<ISystem, Action<object>>> row in lookup)
+                rows.Add(new KeyValuePair<SystemAction, KeyValuePair<Dictionary<ISystem, Action<object>>, int>>(row.Key,
+                    new KeyValuePair<Dictionary<ISystem, Action<object>>, int>(row.Value, row.Value.Count)));
+            Action<object>[] listed = pending.ToArray();
+            object flag = inProgress.GetValue(null);
+            int capacity = pending.Capacity;
+            Action<object> sentinel = _ => { };
+            bool sentinelKept;
+            pending.Add(sentinel);
+            try { UnityEngine.Object.DestroyImmediate(host); }
+            finally
+            {
+                sentinelKept = pending.Count == listed.Length + 1 && ReferenceEquals(pending[listed.Length], sentinel);
+                pending.Remove(sentinel);
+                if (pending.Count <= capacity) pending.Capacity = capacity;
+            }
+            Assert.IsTrue(sentinelKept, "No Shutdown/AppShutdown dispatch cleared s_actionList");
+            CollectionAssert.AreEqual(listed, pending);
+            Assert.AreEqual(flag, inProgress.GetValue(null));
+            Assert.AreEqual(rows.Count, lookup.Count, "No action row was added");
+            foreach (var row in rows)
+            {
+                Assert.IsTrue(lookup.TryGetValue(row.Key, out Dictionary<ISystem, Action<object>> callbacks), row.Key.ToString());
+                Assert.AreSame(row.Value.Key, callbacks, row.Key.ToString());
+                Assert.AreEqual(row.Value.Value, callbacks.Count, row.Key.ToString());
             }
         }
     }
