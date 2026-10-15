@@ -1009,6 +1009,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.ControllerActionTests.NeverActiveInputSystemUsesExplicitOriginalCallbacks",
 )
 
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalControllerSubscriptionGapTests." + name for name in (
+    "ApplyModifiersRejectsOnlyValuesStrictlyInsideTheFloatTolerance",
+    "ApplyModifiersRunsTheAuthoredListInOrderBeforeTheTolerance",
+    "SubscribeRegistersHeldThenUpAndUnsubscribeRemovesBoth",
+    "InputDisabledSubscriptionFollowsTheStaticOnesOnlyForARegisteredSystem",
+))
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CameraInputDisablerTests.CurrentDeclarationsAndBodiesMatchSnapshot",
     "ProjectLucid.Tests.CameraInputDisablerTests.OriginalAxesThresholdsAndSnapArguments",
