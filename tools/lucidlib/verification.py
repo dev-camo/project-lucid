@@ -1565,4 +1565,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalClientDataDispatcherTests.PacketsReachTheirHandlerOrFallBackToUnhandled",
     "ProjectLucid.Editor.OriginalClientDataDispatcherTests.HandlerExceptionsGoToTheDispatchErrorHandler",
     "ProjectLucid.Editor.OriginalClientDataDispatcherTests.TriggersReportWhetherAHandlerRan",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.PacketIdsEqualTheOriginalDispatchLiterals",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.EachLiteralIdReachesOnlyItsHandlerWithTheDecodedPayload",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.KnownIdsWithoutAHandlerReachUnhandledUndecoded",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.EachTriggerInvokesOnlyItsHandlerWithTheSameReference",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.DecodeAndHandlerFailuresReachTheErrorHandlerWithTheCallersBuffer",
+    "ProjectLucid.Editor.OriginalClientDataDispatcherRoutingTests.UnhandledAndUnknownHandlersShareTheCallersRefBuffer",
 )
