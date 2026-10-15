@@ -1770,3 +1770,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetGroupReturnsFirstClrMatchIncludingDestroyedGroup",
     "ProjectLucid.Tests.OriginalFontReadinessUpdateTests.UpdateReadsAndStoresBothKeysEagerlyFromTheRegisteredApp",
 )
+
+# Original cloud facade property-store handler lifecycle and save modification.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CloudFacadeHandlerTests.ShutdownRemovesSaveHandlerAndLeavesAfterConflictsHandlerSubscribed",
+    "ProjectLucid.Tests.CloudFacadeHandlerTests.ModifySaveMutatesOnlySubscribedChangedPropertiesAndConsumesChanges",
+)
