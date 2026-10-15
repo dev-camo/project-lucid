@@ -1115,6 +1115,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLOutputDiagnosticGapTests.InvalidVersionTextReportsEachOriginalDiagnosticThroughTheRegisteredCore",
 )
 
+# Low-priority coverage-gap cases: game data values and declarations.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalGameDataGapTests.FirstCollectionWrapsTheCountAtInt32MaxValue",
+    "ProjectLucid.Tests.OriginalGameDataGapTests.IsNewStateSetterMarksTheStoreDirtyEvenForAnUnchangedValue",
+    "ProjectLucid.Tests.OriginalGameDataGapTests.AnalyticsEnumsKeepTheOriginalHashedLiteralsAndLabels",
+    "ProjectLucid.Tests.OriginalGameDataGapTests.LedgeBrakeFieldsKeepTheOriginalPerFieldAttributeOrder",
+    "ProjectLucid.Tests.OriginalGameDataGapTests.PyramidMeshUsesTheOriginalCallOrderAndIndexInitializer",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
