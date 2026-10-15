@@ -1764,4 +1764,5 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSplashSelectionTests.UnmatchedAspectFallsBackToTheFirstEntry",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetMergesLaterGroupsIntoFirstAndFaultsOnDuplicateKeys",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetGroupReturnsFirstClrMatchIncludingDestroyedGroup",
+    "ProjectLucid.Tests.OriginalFontReadinessUpdateTests.UpdateReadsAndStoresBothKeysEagerlyFromTheRegisteredApp",
 )
