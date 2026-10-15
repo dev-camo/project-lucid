@@ -5,6 +5,9 @@ namespace ProjectLucid.Editor.Tests
 {
  public sealed class OriginalHashedGroupConfigurationPreservationTests
  {
+  // The declaration prelude is pinned to native metadata 0x02000420/0x06001859 (see
+  // HashedGroupConfigurationCurrentFacts); CreateInstance proves the original empty
+  // ctor runs. Name, hideFlags and destruction checks are engine behavior only.
   [Test]
   public void GenuineOwnedCreationAndDestruction()
   {
