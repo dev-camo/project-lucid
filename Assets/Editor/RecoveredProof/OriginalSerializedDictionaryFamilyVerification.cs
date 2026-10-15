@@ -31,6 +31,18 @@ namespace ProjectLucid.Editor
         private static List<TPair> Rows<TPair>(object instance)
             => (List<TPair>)BaseField(instance, "m_values").GetValue(instance);
 
+        // Expected values below come from global-metadata HLUnityCore.Runtime rows:
+        // SerializableDictionary`3 0x02000285, `4 0x02000286, SerializableDictionaryKvpList`4
+        // 0x02000289 and SerializableKeyValueListPair`2 0x0200028a all have flags 0x102001
+        // (Public|Serializable|BeforeFieldInit) and 4/4/4/6 methods (0x06000fa9..fac,
+        // 0x06000fad..fb0, 0x06000fe6..fe9, 0x06000fea..fef). Attribute ranges 424, 425,
+        // 428 and 429 each hold two Il2CppSetOption 0x06000031 rows: NullChecks then
+        // ArrayBoundsChecks, except `4 (range 425) which stores ArrayBoundsChecks first;
+        // every value is bool false. Generic containers 1348/1349/1351/1355 flag every
+        // parameter ReferenceTypeConstraint (0x4) except `3 TValue (flags 0), none with
+        // type constraints; method containers 1352..1354 (Set, KeyAs, ValuesAs) hold the
+        // four cast parameters, all 0x4. Fields m_key 0x04000822 and m_values 0x04000823
+        // carry one SerializeField row each (ranges 863, 864).
         public static int RunOriginalMetadata()
         {
             checks = 0;
