@@ -1859,3 +1859,14 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCoroutineTimeSourceGapPlayTests.ZeroTimeScaleHoldsTheScaledWaitButEndsTheUnscaledWait",
 )
+
+# Original performance-dependency Hide/Destroy behaviour and OnDestroy handler removal.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests.HideFollowsValidityAndDestroyKeepsAValidObject",
+    "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests.DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers",
+)
+
+# Original performance-dependency Destroy behaviour on an owned inactive object.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests.InvalidProfileDestroysTheWholeGameObject",
+)
