@@ -7,11 +7,11 @@ namespace ProjectLucid.Tests
     {
         [Test]
         public void CopyPreservesAliasesAndDestinationCallbacks()
-        { Assert.That(OriginalPerformanceDependencyVerification.RunCopyManaged20(), Is.EqualTo(20)); }
+        { Assert.That(OriginalPerformanceDependencyVerification.RunCopyOwned20(), Is.EqualTo(20)); }
 
         [Test]
         public void DelegateAccessorsPreserveDuplicatesAndCapturedOrder()
-        { Assert.That(OriginalPerformanceDependencyVerification.RunDelegateAccessorsManaged18(), Is.EqualTo(18)); }
+        { Assert.That(OriginalPerformanceDependencyVerification.RunDelegateAccessorsOwned18(), Is.EqualTo(18)); }
 
         [Test]
         public void ComparisonsPreserveThresholdsAndMissingFeatureFallback()

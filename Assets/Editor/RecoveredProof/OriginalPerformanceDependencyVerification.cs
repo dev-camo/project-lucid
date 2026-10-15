@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using System.Runtime.Serialization;
 using Hardlight;
 using UnityEngine;
 using UnityEngine.Events;
@@ -12,8 +11,9 @@ using UObj = UnityEngine.Object;
 namespace ProjectLucid.Verification
 {
     // Original PerformanceDependency 06000d6b..06000d75. The first two groups
-    // exercise CLR fields/delegates on uninitialized managed objects only.
-    // The remaining groups require real Unity objects; private lifecycle methods
+    // exercise fields/delegates on real components added to inactive owned
+    // GameObjects, so Awake never subscribes to the registry reference.
+    // The remaining groups require a real manager and profile; private lifecycle methods
     // are invoked explicitly, with no Awake, registry replacement or ForceReset.
     public static class OriginalPerformanceDependencyVerification
     {
@@ -47,8 +47,20 @@ namespace ProjectLucid.Verification
         private static Action<bool> Callback(PerformanceDependency owner)
         { return (Action<bool>)DependencyGet(owner, "ValidateDependencyCallback"); }
         private static int Length(Delegate value) { return value == null ? 0 : value.GetInvocationList().Length; }
-        private static PerformanceDependency ManagedObject()
-        { return (PerformanceDependency)FormatterServices.GetUninitializedObject(typeof(PerformanceDependency)); }
+        // Real construction (field initializers included) without Awake.
+        private sealed class OwnedDependencies : IDisposable
+        {
+            private readonly List<GameObject> hosts = new List<GameObject>();
+            public PerformanceDependency Create()
+            {
+                var host = new GameObject("Owned original performance dependency");
+                host.hideFlags = HideFlags.HideAndDontSave;
+                host.SetActive(false);
+                hosts.Add(host);
+                return host.AddComponent<PerformanceDependency>();
+            }
+            public void Dispose() { foreach (GameObject host in hosts) if (host != null) UObj.DestroyImmediate(host); }
+        }
         private static void InitialiseOriginalReference()
         {
             // The authored static initializer may create its one genuine cached
@@ -57,17 +69,18 @@ namespace ProjectLucid.Verification
             RuntimeHelpers.RunClassConstructor(typeof(PerformanceDependency).TypeHandle);
         }
 
-        public static int RunCopyManaged20()
+        public static int RunCopyOwned20()
         {
             InitialiseOriginalReference();
             var registry = new RegistryObservation();
             int count = 0;
             try
             {
-                PerformanceDependency source = ManagedObject(), target = ManagedObject();
+                using var owned = new OwnedDependencies();
+                PerformanceDependency source = owned.Create(), target = owned.Create();
                 var attribute = new PerformanceAttribute { Level = PerformanceProfile.QualityLevel.High };
-                object sourceEvent = FormatterServices.GetUninitializedObject(typeof(UnityEvent));
-                object targetEvent = FormatterServices.GetUninitializedObject(typeof(UnityEvent));
+                object sourceEvent = new UnityEvent();
+                object targetEvent = new UnityEvent();
                 Action<bool> sourceCallback = value => { }, targetCallback = value => { };
                 DependencySet(source, "m_requiredPerformanceAttribute", attribute);
                 DependencySet(source, "m_comparison", PerformanceDependency.Comparison.Exactly);
@@ -104,14 +117,15 @@ namespace ProjectLucid.Verification
             finally { registry.AssertUnchanged(); }
         }
 
-        public static int RunDelegateAccessorsManaged18()
+        public static int RunDelegateAccessorsOwned18()
         {
             InitialiseOriginalReference();
             var registry = new RegistryObservation();
             int count = 0;
             try
             {
-                PerformanceDependency owner = ManagedObject();
+                using var owned = new OwnedDependencies();
+                PerformanceDependency owner = owned.Create();
                 var trace = new List<string>();
                 Action<bool> a = value => trace.Add("A" + value), b = value => trace.Add("B" + value);
                 Action<bool> c = value => trace.Add("C" + value), absent = value => { };
