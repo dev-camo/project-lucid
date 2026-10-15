@@ -1503,3 +1503,18 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedTests.DeclarationsMatchTheShippedFirstpassAssembly",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.FixtureRefusesAnExistingDormantRowWithoutTouchingIt",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.MissingSelectionSubscribesEachWidgetOnceAndLeavesAutoSelectUntouched",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OutOfRangeSelectionClearsEveryAutoSelectAndStillSubscribes",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.RepeatedRetrievalSubscribesAgainAndOnDisableRemovesOnePerWidget",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OnSelectedStoresFirstMatchingIndexAndIgnoresForeignWidgets",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OnSelectedWithNullOrDestroyedWidgetMatchesTheFirstDestroyedEntry",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.ContainerClosedRetrievesOnlyWhenTheListedContainersAreExclusivelyOpen",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.AwakeLookupFailuresThrowBeforeAnySubscription",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.OnDestroyUnsubscribesOnlyWhileTheUIManagerReferenceIsValid",
+    "ProjectLucid.Editor.OriginalUIWidgetRetainLastSelectedBehaviourTests.ResetFindsTheConcreteContainer",
+)
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalUIWidgetRetainLastSelectedPlayTests.SuccessfulAwakeDefersRealNavigationSelectOfTheRememberedWidget",
+)
