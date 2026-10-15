@@ -1905,3 +1905,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLInputDebugMenuBehaviourTests.SameVisibleTypeHidesOnlyTheParentWhileOtherRequestsReshowAndClearChildren",
     "ProjectLucid.Tests.OriginalHLInputDebugMenuBehaviourTests.GlyphComparatorOrdersInputsByOrdinalNameNotValue",
 )
+
+# Original ToggleCursorVisibility gameplay callback and input-module check.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.ToggleCursorVisibilityGameplayTests.GameplayCallbackIgnoresForceReleaseAndOtherModulesLeaveTheCursor",
+)
