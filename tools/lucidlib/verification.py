@@ -424,6 +424,7 @@ PLAYMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalUIContainerManagerGapTests.SingularCloseAllExceptFaultKeepsFieldWhileTransitionCloseClearsIt",
     "ProjectLucid.Tests.OriginalUIContainerManagerGapTests.DebugAndFreeReturnExternallyDestroyedCachedContainer",
+    "ProjectLucid.Tests.OriginalUIInputVisibilityGapTests.DisabledControllerStillSubscribesWhenUIManagerBecomesValidLater",
 )
 
 EDITMODE_TESTS += (
