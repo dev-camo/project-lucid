@@ -20,6 +20,7 @@ namespace ProjectLucid.Tests
         }
 
         private sealed class FixtureSystem : ISystem { }
+        private sealed class OtherFixtureSystem : ISystem { }
 
         [TestCase(false)]
         [TestCase(true)]
@@ -166,6 +167,46 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(0, foreignCalls);
             beforeUntyped.AssertUnchanged(untyped);
             beforeTyped.AssertUnchanged(typed);
+        }
+
+        // The typed cache can change after capture without touching the captured
+        // reference: its entry may be swapped, or a second typed entry may appear.
+        // Both carry foreign work, so release must keep the row instead of
+        // checking only the references it captured (LifecycleSystemRowLease.cs:105,110).
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(bool replaceCapturedEntry)
+        {
+            const string name = "isolated changed typed cache";
+            IDictionary registry = new Dictionary<string, object>();
+            var lease = new LifecycleSystemRowLease(registry, name);
+            var untyped = new SystemRef(name, null);
+            var row = new IsolatedRow(untyped);
+            registry.Add(name, row);
+            lease.CaptureCreatedRow(untyped);
+            var typed = new SystemRef<FixtureSystem>(name, null);
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<FixtureSystem>(), typed);
+            lease.CaptureTypedReference(typed);
+            int foreignCalls = 0;
+            Action<OtherFixtureSystem> foreignWork = value => { ++foreignCalls; throw new InvalidOperationException("foreign typed work"); };
+            // Either the captured key now maps to a different reference, or an
+            // uncaptured key was added; each new reference holds deferred work.
+            string foreignKey = replaceCapturedEntry ? ProcessManager.GetDefaultName<FixtureSystem>() : ProcessManager.GetDefaultName<OtherFixtureSystem>();
+            var foreign = new SystemRef<OtherFixtureSystem>(name, null);
+            foreign.InvokeOnValid(foreignWork);
+            row.SystemRefDictionary[foreignKey] = foreign;
+            var beforeTyped = new ReferenceSnapshot<FixtureSystem>(typed);
+            var beforeForeign = new ReferenceSnapshot<OtherFixtureSystem>(foreign);
+
+            Assert.DoesNotThrow(lease.Dispose);
+            Assert.IsInstanceOf<InvalidOperationException>(lease.CleanupFailure);
+            StringAssert.Contains(replaceCapturedEntry ? "typed cache ownership changed" : "row ownership changed", lease.CleanupFailure.Message);
+            Assert.AreSame(row, registry[name], "A changed typed cache keeps the row and its foreign work.");
+            Assert.AreSame(foreign, row.SystemRefDictionary[foreignKey]);
+            Assert.AreEqual(replaceCapturedEntry ? 1 : 2, row.SystemRefDictionary.Count);
+            Assert.AreEqual(0, foreignCalls);
+            beforeTyped.AssertUnchanged(typed);
+            beforeForeign.AssertUnchanged(foreign);
         }
 
         [Test]

@@ -2087,3 +2087,9 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLowGapPlayTests.DestroyFaultsReleasingAMissingVideoTargetTexture",
     "ProjectLucid.Tests.OriginalLowGapPlayTests.AwakeRegistersBeforeApplyingAndDestroyDetachesBeforeUnregistering",
 )
+
+# Discriminating cases for tests the audit judged weak.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(False)",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(True)",
+)
