@@ -82,11 +82,15 @@ namespace ProjectLucid.Editor
         {
             string folder = "Assets/ProjectLucidOwnedCutscene_" + Guid.NewGuid().ToString("N");
             var owner = new GameObject("OwnedCutsceneSerialization");
+            bool created = false;
             try
             {
                 owner.SetActive(false);
                 Assert.That(AssetDatabase.IsValidFolder(folder), Is.False);
-                Assert.That(AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length)), Is.Not.Empty);
+                string folderGuid = AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                created = !string.IsNullOrEmpty(folderGuid);
+                Assert.That(created, Is.True);
+                Assert.That(AssetDatabase.GUIDToAssetPath(folderGuid), Is.EqualTo(folder));
                 PlayableDirector director = owner.AddComponent<PlayableDirector>();
                 OwnedCutsceneProbe probe = owner.AddComponent<OwnedCutsceneProbe>();
                 using (var serialized = new SerializedObject(probe))
@@ -114,9 +118,20 @@ namespace ProjectLucid.Editor
             }
             finally
             {
-                UnityEngine.Object.DestroyImmediate(owner);
-                if (AssetDatabase.IsValidFolder(folder))
-                    AssetDatabase.DeleteAsset(folder);
+                try
+                {
+                    UnityEngine.Object.DestroyImmediate(owner);
+                }
+                finally
+                {
+                    // Delete only the scratch folder this case created; the
+                    // Assets root is not ignored, so a failed delete must fail.
+                    if (created)
+                    {
+                        Assert.That(AssetDatabase.DeleteAsset(folder), Is.True, "Delete only this case's owned scratch.");
+                        Assert.That(AssetDatabase.IsValidFolder(folder), Is.False);
+                    }
+                }
             }
         }
 
