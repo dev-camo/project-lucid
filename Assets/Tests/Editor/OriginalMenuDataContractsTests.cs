@@ -88,6 +88,22 @@ public sealed class OriginalMenuDataContractsTests
         // Original base identity hashes may collide; no equality/hash repair or inequality claim.
     }
 
+    private sealed class DerivedPageParameters : GuiPageParameters { }
+
+    // GuiPageParameters.Equals (x86-64 0x1b445b0) tests isinst GuiPageParameters, then compares
+    // obj.GetType() with this.GetType() through Type.op_Equality: a derived instance is never equal to
+    // a base instance in either direction, while two instances of the same derived type are.
+    [Test]
+    public void ParametersEqualityRequiresTheExactRuntimeType()
+    {
+        var baseParameters = new GuiPageParameters();
+        var derived = new DerivedPageParameters();
+        Assert.IsFalse(baseParameters.Equals(derived));
+        Assert.IsFalse(derived.Equals(baseParameters));
+        Assert.IsTrue(derived.Equals(new DerivedPageParameters()));
+        Assert.AreEqual(typeof(DerivedPageParameters), derived.Clone().GetType());
+    }
+
     [Test]
     public void RecordStoresSignedIdentifiersAndOwnedReferencesWithoutDispatch()
     {

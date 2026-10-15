@@ -1271,6 +1271,7 @@ EDITMODE_TESTS += tuple("OriginalMenuDataContractsTests." + name for name in (
     "Menu22TopLevelTypesKeepLiteralNamesAssemblyAndOriginalFlags",
     "ParametersKeepOriginalReadonlyFieldAndOrdinaryPublicContracts",
     "ParametersCloneAndEqualityRetainGenuineNullAndExactTypeBehavior",
+    "ParametersEqualityRequiresTheExactRuntimeType",
     "RecordStoresSignedIdentifiersAndOwnedReferencesWithoutDispatch",
     "OverlayPendingValueDefaultAndCopiesRetainDataReferenceIdentity",
     "InitializerSerializedFieldsAndConditionalStartAreMetadataOnly",
