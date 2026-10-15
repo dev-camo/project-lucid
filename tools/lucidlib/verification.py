@@ -1760,6 +1760,7 @@ EDITMODE_TESTS += (
     "OriginalLocalisedUIStringLookupFallbackTests.FailedLookupWritesMissingMarkerOnlyForNonNoneIdentifierAndNullOverride",
     "OriginalLanguageUtilsFormatterTests.InitialiserPublishesFormatterAndCachesBeforeItsDecimalSeparatorFault",
     "OriginalLanguageUtilsFormatterTests.AbbreviationFloorsThenTrimsTrailingZerosIgnoringZeroDecimalFlag",
+    "OriginalLanguageUtilsFormatterTests.InitialiserMapsEachIdentifierToItsShippedDestination",
     "ProjectLucid.Tests.OriginalSplashSelectionTests.SelectionFollowsSignedWidthDifferenceSequenceNotNearestWidth",
     "ProjectLucid.Tests.OriginalSplashSelectionTests.UnmatchedAspectFallsBackToTheFirstEntry",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetMergesLaterGroupsIntoFirstAndFaultsOnDuplicateKeys",
