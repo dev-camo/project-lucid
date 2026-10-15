@@ -1751,3 +1751,10 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.AudioMixerLifecycleTests.OriginalGetMusicVolumeReturnsUnityGainWhenTheParameterIsMissing",
 )
+
+# Coverage gaps: application enter order, localisation fallback/formatting,
+# splash selection, definition lookup and font-readiness storage reads.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationEnterOrderTests.LoadingEnterRegistersSystemsInShippedOrderWithOnlyGameCenterGated",
+    "ProjectLucid.Tests.OriginalApplicationEnterOrderTests.BootEnterKeepsDisplayStoreCacheThenLoadBeforeLoadedLevelsRead",
+)
