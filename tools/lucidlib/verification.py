@@ -1429,6 +1429,7 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     'OriginalHLInputDebugMenuContractsTests.AuthoredDebugOwnerKeepsWholeDeclarationsAndOriginalParameterNamesWithoutConstruction',
     'OriginalHLInputDebugMenuContractsTests.DiscoveredGlyphComparatorCacheKeepsWholeRoleWithoutStaticValueReads',
+    'OriginalHLInputDebugMenuContractsTests.GlyphComparatorKeepsOriginalCompilerNamesAndOrdinalEnumNameOrder',
 )
 
 EDITMODE_TESTS += (

@@ -151,6 +151,28 @@ public sealed class OriginalHLInputDebugMenuContractsTests
         // callback contract. No delegate, static value or initializer is executed.
     }
 
+    // Original <>c 0x020005f8 holds <>9__17_0 (0x04001524) and <ToggleGlyphs>b__17_0
+    // (0x06002016, x86-64 0x560300), which boxes both GameInput values, calls
+    // Enum.ToString on each and returns String.CompareOrdinal(x, y). UIBack sorts
+    // before Up by name although its value is larger, so a numeric comparer, swapped
+    // operands or a renumbered lambda ordinal fails here.
+    [Test]
+    public void GlyphComparatorKeepsOriginalCompilerNamesAndOrdinalEnumNameOrder()
+    {
+        Type cache = typeof(HLInputDebugMenu).GetNestedType("<>c", BindingFlags.NonPublic);
+        Assert.IsNotNull(cache);
+        Assert.IsNotNull(cache.GetField("<>9__17_0", Declared));
+        MethodInfo callback = cache.GetMethod("<ToggleGlyphs>b__17_0", Declared);
+        Assert.IsNotNull(callback);
+        object instance = Activator.CreateInstance(cache);
+        Func<GameInput, GameInput, int> compare = (x, y) => (int)callback.Invoke(instance, new object[] { x, y });
+        Assert.That((int)GameInput.UIBack, Is.GreaterThan((int)GameInput.Up));
+        Assert.That(compare(GameInput.UIBack, GameInput.Up), Is.LessThan(0));
+        Assert.That(compare(GameInput.Up, GameInput.UIBack), Is.GreaterThan(0));
+        Assert.That(compare(GameInput.UIRight, GameInput.UIRightSecondary), Is.LessThan(0));
+        Assert.That(compare(GameInput.None, GameInput.None), Is.Zero);
+    }
+
     private static void Field(FieldInfo field, string name, Type type, int flags)
     {
         Assert.AreEqual(name, field.Name); Assert.AreEqual(type, field.FieldType);
