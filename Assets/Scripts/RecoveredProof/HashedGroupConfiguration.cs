@@ -10,8 +10,7 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class HashedGroupConfiguration : ScriptableObject
     {
-        // 0x06001859; ARM64 0x774704 forwards to ScriptableObject0x26d8528;
-        // x86-64 0x79b6e0 likewise tail-jumps to ScriptableObject .ctor 0x26ce790.
+        // 0x06001859; ARM64 0x774704 forwards to ScriptableObject0x26d8528.
         public HashedGroupConfiguration() { }
     }
 }
