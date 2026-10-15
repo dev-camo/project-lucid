@@ -62,12 +62,14 @@ namespace ProjectLucid.Tests
                 }
                 finally
                 {
-                    // OnDestroy unregisters but keeps the static; restore it only while this host still owns it.
+                    // OnDestroy (0x06001171, x86-64 0x1b31630) only unregisters and keeps the static; restore it
+                    // only while this host still owns it. The host is destroyed by now, so Unity's overloaded
+                    // null would hide it; compare CLR references instead.
                     rowLease.RunCleanup("destroy-coroutine-owner", () => { if (owner != null) UnityEngine.Object.DestroyImmediate(owner); });
                     rowLease.RunCleanup("restore-coroutine-singleton", () =>
                     {
                         object current = instanceField.GetValue(null);
-                        if (host != null && ReferenceEquals(current, host)) instanceField.SetValue(null, priorInstance);
+                        if (!ReferenceEquals(host, null) && ReferenceEquals(current, host)) instanceField.SetValue(null, priorInstance);
                         else if (!ReferenceEquals(current, priorInstance))
                             throw new InvalidOperationException("Coroutine singleton ownership changed");
                     });
