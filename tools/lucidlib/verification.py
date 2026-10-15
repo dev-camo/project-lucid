@@ -1191,6 +1191,7 @@ EDITMODE_TESTS += (
     'OriginalGradientTests.OriginalGradientInactiveModifyMeshKeepsWholeTriangleStream',
     'OriginalGradientTests.OriginalGradientActiveModifyMeshReplacesColorAndUV1Only',
     'OriginalGradientTests.OriginalGradientActiveModifyMeshProjectsOffsetsScalesAndClamps',
+    'OriginalGradientTests.OriginalGradientAwakeNormalizesAuthoredDirectionAndClampsScale',
 )
 
 EDITMODE_TESTS += (

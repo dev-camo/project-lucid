@@ -316,6 +316,60 @@ public sealed class OriginalGradientTests
         }
     }
 
+    // 0x060002de Awake x86-64 0x1b4ea10: base UIBehaviour.Awake, then a zero
+    // direction (sqrMagnitude < 1e-10) becomes Vector2.up, any other direction
+    // is normalized in place, and maxss clamps scale to >= 0. Fails if Awake
+    // keeps the authored (3,4), normalizes zero to zero, or leaves -2 scale.
+    [Test]
+    public void OriginalGradientAwakeNormalizesAuthoredDirectionAndClampsScale()
+    {
+        var owners = new List<GameObject>();
+        try
+        {
+            OriginalGradient skewed = AuthoredInactive(owners, new Vector2(3f, 4f), -2f);
+            OriginalGradient zero = AuthoredInactive(owners, Vector2.zero, 0.5f);
+            // Authored values survive until the genuine engine Awake runs.
+            Assert.That(skewed.Direction, Is.EqualTo(new Vector2(3f, 4f)));
+            Assert.That(skewed.Scale, Is.EqualTo(-2f));
+            Assert.That(zero.Direction, Is.EqualTo(Vector2.zero));
+            foreach (GameObject owner in owners) owner.SetActive(true);
+            Assert.That(skewed.IsActive() && zero.IsActive(), Is.True);
+            Assert.That(skewed.Direction.x, Is.EqualTo(0.6f).Within(1e-6f));
+            Assert.That(skewed.Direction.y, Is.EqualTo(0.8f).Within(1e-6f));
+            Assert.That(skewed.Scale, Is.EqualTo(0f));
+            Assert.That(zero.Direction, Is.EqualTo(Vector2.up));
+            Assert.That(zero.Scale, Is.EqualTo(0.5f));
+            // Setters after Awake stay unclamped and unnormalized.
+            skewed.Direction = new Vector2(0f, -7f);
+            skewed.Scale = -1f;
+            Assert.That(skewed.Direction, Is.EqualTo(new Vector2(0f, -7f)));
+            Assert.That(skewed.Scale, Is.EqualTo(-1f));
+        }
+        finally
+        {
+            for (int i = owners.Count - 1; i >= 0; --i)
+                if (owners[i] != null) UnityEngine.Object.DestroyImmediate(owners[i]);
+        }
+    }
+
+    private static OriginalGradient AuthoredInactive(List<GameObject> owners, Vector2 direction, float scale)
+    {
+        var owner = new GameObject("OriginalGradient-owned-awake", typeof(RectTransform));
+        owners.Add(owner);
+        owner.SetActive(false);
+        owner.AddComponent<Image>();
+        OriginalGradient gradient = owner.AddComponent<OriginalGradient>();
+        using (SerializedObject serialized = new SerializedObject(gradient))
+        {
+            serialized.Update();
+            serialized.FindProperty("m_direction").vector2Value = direction;
+            serialized.FindProperty("m_scale").floatValue = scale;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+        Assert.That(owner.activeInHierarchy, Is.False);
+        return gradient;
+    }
+
     private static VertexHelper Triangle()
     {
         VertexHelper vertices = new VertexHelper();
