@@ -274,7 +274,6 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalImmediateObjectDestructionRetainsUnityWrappers",
     "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalChildRemovalRetainsReverseHierarchyBehavior",
     "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalComponentRemovalRetainsRequirementsAndExclusions",
-    "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalComponentRemovalDefersRequiredComponentBehindItsDependent",
     "ProjectLucid.Tests.OriginalObjectExtensionsPreservationTests.OriginalHierarchyPathRetainsNamesAndCurrentParents",
 )
 

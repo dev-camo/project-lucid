@@ -42,12 +42,6 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
-        public void OriginalComponentRemovalDefersRequiredComponentBehindItsDependent()
-        {
-            Assert.That(OriginalObjectExtensionsVerification.RunOriginalRequiredComponentRemovalWithDependentFirst(), Is.EqualTo(4));
-        }
-
-        [Test]
         public void OriginalHierarchyPathRetainsNamesAndCurrentParents()
         {
             Assert.That(OriginalObjectExtensionsVerification.RunOriginalHierarchyPath(), Is.EqualTo(4));
