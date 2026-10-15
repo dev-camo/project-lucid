@@ -17,6 +17,8 @@ namespace ProjectLucid.Editor
   // "HardlightProject/DefinitionData/HashedGroupConfiguration", and the option rows
   // carry (Option 2 ArrayBoundsChecks, bool false) then (Option 1 NullChecks, bool
   // false). The ECMA blobs below are those rows; .ctor 0x06001859 has no other range.
+  // Its body (ARM64 0x774704, x86-64 0x79b6e0) only tail-calls the ScriptableObject
+  // constructor (x86-64 0x26ce790).
   static readonly string[] AttributeBlobs=new string[] {"01000200540e0866696c654e616d651848617368656447726f7570436f6e66696775726174696f6e540e086d656e754e616d6538486172646c6967687450726f6a6563742f446566696e6974696f6e446174612f48617368656447726f7570436f6e66696775726174696f6e","01000200000002000000","01000100000002000000"};
   internal static void Require(bool value,string text){if(!value)throw new InvalidOperationException("HashedGroupConfiguration current-emission setup hold: "+text);}
   internal static bool Scope(Type type,string scope)
