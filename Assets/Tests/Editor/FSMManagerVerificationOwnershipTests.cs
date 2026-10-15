@@ -268,6 +268,53 @@ namespace ProjectLucid.Editor
             }
         }
 
+        // A system whose hash changes after it subscribes stays stored under its old hash.
+        private sealed class MutableHashSystem : ISystem
+        {
+            public int Hash = 1;
+            public override bool Equals(object other) => ReferenceEquals(this, other);
+            public override int GetHashCode() => Hash;
+        }
+
+        [Test]
+        public void MutableHashReplacementLosesItsActionWithTheOwnedRow()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var actions = new ActionLayout();
+            string name = "Lucid-ownership-mutable-hash-" + Guid.NewGuid().ToString("N");
+            var replacement = new MutableHashSystem();
+            var foreign = new MutableHashSystem { Hash = 2 };
+            int foreignCalls = 0;
+            try
+            {
+                foreign.SubscribeToAction(SystemAction.Update, context => foreignCalls++);
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
+                typed.OnSystemShutdown += system =>
+                {
+                    replacement.SubscribeToAction(SystemAction.Update, context => { });
+                    replacement.Hash = 2;
+                    ProcessManager.RegisterSystem(replacement, name);
+                };
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                var updates = (IDictionary)ActionRows()[SystemAction.Update];
+                Assert.That(updates.Keys.Cast<object>().Any(key => ReferenceEquals(key, replacement)), Is.False,
+                    "the owned action entry survived its system's hash change");
+                // A foreign system with the same current hash keeps its subscription.
+                Assert.That(updates.Keys.Cast<object>().Any(key => ReferenceEquals(key, foreign)), Is.True);
+                foreign.ProcessSystemAction(SystemAction.Update);
+                Assert.That(foreignCalls, Is.EqualTo(1));
+                Assert.That(rows.Contains(name), Is.False);
+            }
+            finally
+            {
+                foreign.UnsubscribeFromAction(SystemAction.Update);
+                FSMManagerVerification.RestoreLayout(rows, layout);
+                actions.Restore();
+            }
+        }
+
         [Test]
         public void PassLimitIsRecordedWhileLaterRowsAndActionsAreStillReleased()
         {

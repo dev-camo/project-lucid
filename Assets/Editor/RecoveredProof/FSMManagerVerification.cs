@@ -297,7 +297,40 @@ namespace ProjectLucid
                 foreach (DictionaryEntry row in ActionLookup())
                     foreach (object key in ((IDictionary)row.Value).Keys)
                         if (ReferenceEquals(key, system)) actions.Add((SystemAction)row.Key);
-                foreach (SystemAction action in actions) system.UnsubscribeFromAction(action);
+                foreach (SystemAction action in actions)
+                {
+                    var callbacks = (Dictionary<ISystem, Action<object>>)ActionLookup()[action];
+                    RemoveStoredKey(callbacks, system, () => system.UnsubscribeFromAction(action));
+                    if (callbacks.Keys.Any(key => ReferenceEquals(key, system)))
+                        throw new InvalidOperationException("An owned action subscription could not be released: " + action);
+                }
+            }
+
+            // The public unsubscription hashes the system again; a system whose hash changed after it
+            // subscribed is stored under its old hash and would be missed. For this one call the
+            // dictionary's comparer answers the stored hash and reference identity for that system
+            // only, so the dictionary's own Remove unlinks exactly that entry and every other key,
+            // slot and free-list position behaves as in an ordinary removal.
+            private static void RemoveStoredKey(Dictionary<ISystem, Action<object>> callbacks, ISystem system, Action remove)
+            {
+                const BindingFlags Fields = BindingFlags.Instance | BindingFlags.NonPublic;
+                Type type = callbacks.GetType();
+                var entries = (Array)type.GetField("_entries", Fields).GetValue(callbacks);
+                int count = (int)type.GetField("_count", Fields).GetValue(callbacks);
+                FieldInfo entryKey = entries.GetType().GetElementType().GetField("key");
+                FieldInfo entryHash = entries.GetType().GetElementType().GetField("hashCode");
+                int stored = -1;
+                for (int index = 0; index < count && stored < 0; index++)
+                {
+                    object entry = entries.GetValue(index);
+                    if (ReferenceEquals(entryKey.GetValue(entry), system)) stored = (int)entryHash.GetValue(entry);
+                }
+                if (stored < 0) return;
+                FieldInfo comparerField = type.GetField("_comparer", Fields);
+                var original = (IEqualityComparer<ISystem>)comparerField.GetValue(callbacks);
+                comparerField.SetValue(callbacks, new StoredKeyComparer(original ?? EqualityComparer<ISystem>.Default, system, stored));
+                try { remove(); }
+                finally { comparerField.SetValue(callbacks, original); }
             }
 
             // A begin sentinel placed before a reference's shutdown observers records any notification
@@ -330,6 +363,20 @@ namespace ProjectLucid
             var list = (Delegate)type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
             observers = list?.GetInvocationList() ?? new Delegate[0];
             return type.GetEvent("OnSystemShutdown");
+        }
+
+        private sealed class StoredKeyComparer : IEqualityComparer<ISystem>
+        {
+            private readonly IEqualityComparer<ISystem> inner;
+            private readonly ISystem target;
+            private readonly int stored;
+            public StoredKeyComparer(IEqualityComparer<ISystem> inner, ISystem target, int stored)
+            {
+                this.inner = inner; this.target = target; this.stored = stored;
+            }
+            public bool Equals(ISystem x, ISystem y) =>
+                ReferenceEquals(x, target) || ReferenceEquals(y, target) ? ReferenceEquals(x, y) : inner.Equals(x, y);
+            public int GetHashCode(ISystem system) => ReferenceEquals(system, target) ? stored : inner.GetHashCode(system);
         }
 
         private sealed class ReferenceComparer : IEqualityComparer<object>
