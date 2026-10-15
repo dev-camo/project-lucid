@@ -1108,6 +1108,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalBinderGapTests.ArgumentsAreReadInOrderBeforeTheFormatAndOnlyANullFormatBecomesEmpty",
 )
 
+# Low-priority coverage-gap cases: diagnostics routed to a registered core.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLOutputDiagnosticGapTests.NullRangeReportsTheOriginalDiagnosticAndLeavesTheTarget",
+    "ProjectLucid.Editor.OriginalHLOutputDiagnosticGapTests.NullIncludedFilesReachTheAddRangeDiagnosticAfterRequiredFiles",
+    "ProjectLucid.Editor.OriginalHLOutputDiagnosticGapTests.InvalidVersionTextReportsEachOriginalDiagnosticThroughTheRegisteredCore",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
