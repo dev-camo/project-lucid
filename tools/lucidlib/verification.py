@@ -1776,3 +1776,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CloudFacadeHandlerTests.ShutdownRemovesSaveHandlerAndLeavesAfterConflictsHandlerSubscribed",
     "ProjectLucid.Tests.CloudFacadeHandlerTests.ModifySaveMutatesOnlySubscribedChangedPropertiesAndConsumesChanges",
 )
+
+# Original rolling ability leave reset on a really constructed ability.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.LeaveClearsTriggeredAndExitingFlags",
+)
