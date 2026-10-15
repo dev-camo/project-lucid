@@ -104,6 +104,18 @@ namespace ProjectLucid.Verification
                 }
                 attempt(() => RestoreRows(registry, oldRegistry));
                 attempt(() => RestoreRows(actions, oldActions));
+                // Detached inner action rows, the dispatch snapshot list and the
+                // in-progress flag are shared too; rewrite them only if changed,
+                // so untouched rows keep their original enumeration order.
+                foreach (var row in oldInner)
+                    attempt(() => { if (!SameRows(row.Key, row.Value)) RestoreRows(row.Key, row.Value); });
+                attempt(() =>
+                {
+                    bool same = list.Count == oldList.Length;
+                    for (int i = 0; same && i < oldList.Length; i++) same = ReferenceEquals(list[i], oldList[i]);
+                    if (!same) { list.Clear(); foreach (object item in oldList) list.Add(item); }
+                });
+                attempt(() => { if (!Equals(progressField.GetValue(null), oldProgress)) progressField.SetValue(null, oldProgress); });
                 attempt(() => HostField.SetValue(null, oldHost));
                 attempt(() => Time.timeScale = oldScale);
                 if (error != null) throw error;
@@ -246,8 +258,10 @@ namespace ProjectLucid.Verification
                 Coroutine nullWaitHandle = CoroutineUtils.Delay(() => supplied = Time.frameCount, (WaitForSeconds)null);
                 Check(ref count, next == -1 && ui == -1 && supplied == -1 && uiHandle != null && nullWaitHandle != null, "Three original factories schedule genuine delayed callbacks");
                 for (int frame = 0; frame < 12 && (next < 0 || ui < 0 || supplied < 0); frame++) yield return null;
-                Check(ref count, next >= first + 1 && supplied >= first + 1 && ui >= first + 2, "Original single-null and exact-two-frame callbacks complete through real engine scheduling");
-                Check(ref count, next <= ui && supplied <= ui, "Original two-frame wait completes no earlier than one-frame factories");
+                // 0x06001175 and 0x0600117d (null wait retained) each yield one
+                // null; 0x06001177 passes exactly two frames. Exact, not bounds.
+                Check(ref count, next == first + 1 && supplied == first + 1 && ui == first + 2, "Original single-null and exact-two-frame callbacks complete through real engine scheduling");
+                Check(ref count, next < ui && supplied < ui, "Original two-frame wait completes one frame after the one-frame factories");
                 CoroutineUtils.StopUtilCoroutine(ref uiHandle);
                 CoroutineUtils.StopUtilCoroutine(ref nullWaitHandle);
                 Check(ref count, uiHandle == null && nullWaitHandle == null, "Original stop clears completed genuine handles after engine call");
