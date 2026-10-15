@@ -239,32 +239,44 @@ namespace ProjectLucid.Editor
         {
             using (var owned = new OwnedUnityObjects())
             {
+                // An owned target keeps the pixel rect independent of the editor screen
+                // size; it is added first so it is destroyed after the camera.
+                RenderTexture target = owned.Add(new RenderTexture(1024, 1024, 0));
                 GameObject root = owned.Add(new GameObject("Owned original projection camera"));
                 root.SetActive(false);
                 Camera camera = root.AddComponent<Camera>();
                 camera.enabled = false;
+                camera.targetTexture = target;
                 camera.orthographic = true;
                 camera.orthographicSize = 5f;
                 camera.aspect = 4f / 3f;
                 camera.pixelRect = new Rect(10f, 20f, 640f, 480f);
-                foreach (Vector3 point in new[] { new Vector3(1f, 2f, 2f), new Vector3(-1f, 1f, -2f), new Vector3(0f, 0f, 0.0005f), new Vector3(0f, 0f, 0.001f) })
+                // Fixture preconditions for the literal points below: identity camera at
+                // the origin, half extents 20/3 by 5, so screen = (330 + 48x, 260 + 48y).
+                Assert.That(root.transform.position, Is.EqualTo(Vector3.zero));
+                Assert.That(root.transform.rotation, Is.EqualTo(Quaternion.identity));
+                Assert.That(camera.pixelRect, Is.EqualTo(new Rect(10f, 20f, 640f, 480f)));
+                Assert.That(camera.aspect, Is.EqualTo(4f / 3f));
+                // Literal expectations from 0x060005d5 (x86-64 0x1b6bb20, arm64 0x1b73f14):
+                // the camera-space z is compared with -0.001f by ucomiss/seta (fcmp/cset gt),
+                // so only z > -0.001f is behind; a behind point is rebuilt through
+                // cameraToWorldMatrix with z = -0.001f, i.e. world z 0.001 here, before
+                // WorldToScreenPoint. Rows: point, expected behind, expected screen point.
+                var cases = new[]
                 {
-                    Vector3 local = camera.worldToCameraMatrix.MultiplyPoint(point);
-                    bool expectedBehind = local.z > -0.001f;
-                    Vector3 projectedPoint = point;
-                    if (expectedBehind)
-                    {
-                        local.z = -0.001f;
-                        projectedPoint = camera.cameraToWorldMatrix.MultiplyPoint(local);
-                    }
-                    Vector3 expected = camera.WorldToScreenPoint(projectedPoint);
+                    (new Vector3(1f, 2f, 2f), false, new Vector3(378f, 356f, 2f)),
+                    (new Vector3(-1f, 1f, -2f), true, new Vector3(282f, 308f, 0.001f)),
+                    (new Vector3(0f, 0f, 0.0005f), true, new Vector3(330f, 260f, 0.001f)),
+                    (new Vector3(0f, 0f, 0.001f), false, new Vector3(330f, 260f, 0.001f)),
+                };
+                foreach (var (point, expectedBehind, expected) in cases)
+                {
                     bool behind;
                     Vector3 actual = UIUtils.ProjectToFrontPlaneish(point, camera, out behind);
-                    Assert.That(behind, Is.EqualTo(expectedBehind));
-                    Assert.That(actual.x, Is.EqualTo(expected.x).Within(0.0001f));
-                    Assert.That(actual.y, Is.EqualTo(expected.y).Within(0.0001f));
-                    Assert.That(actual.z, Is.EqualTo(expected.z).Within(0.000001f));
-                    Assert.That(actual.z, Is.EqualTo(expectedBehind ? 0.001f : point.z).Within(0.000001f));
+                    Assert.That(behind, Is.EqualTo(expectedBehind), "behind flag for " + point);
+                    Assert.That(actual.x, Is.EqualTo(expected.x).Within(0.0001f), "screen x for " + point);
+                    Assert.That(actual.y, Is.EqualTo(expected.y).Within(0.0001f), "screen y for " + point);
+                    Assert.That(actual.z, Is.EqualTo(expected.z).Within(0.000001f), "screen z for " + point);
                 }
             }
             LogAssert.NoUnexpectedReceived();
