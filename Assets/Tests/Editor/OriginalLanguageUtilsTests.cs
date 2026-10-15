@@ -186,9 +186,46 @@ public sealed class OriginalLanguageUtilsTests
             Assert.AreEqual(long.MinValue, BitConverter.DoubleToInt64Bits(AbbreviatedValue(component, negativeZero)));
             Assert.AreEqual(0L, BitConverter.DoubleToInt64Bits(AbbreviatedValue(component, 0d)));
             AssertCachesAreNull(component);
-            // Null caches cannot distinguish the NaN format branch. That branch stays source/native evidence.
+            // Null caches cannot distinguish the NaN format branch; the sentinel pairing case pins it.
             // This helper does not reach flooring, integer conversions, Mathf.Pow or exp10f.
         });
+    }
+
+    // 0x0600002a x86-64 0x1a35560: below 1e6 stores the cache at +0x38, below 1e9
+    // the one at +0x40, otherwise +0x48; both ucomisd/jbe tests fall through on
+    // NaN to the last branch. The three caches follow declaration order
+    // (thousands, millions, billions), so distinct sentinels pin each pairing.
+    // Mutations caught: swapping any two format assignments, or routing NaN to
+    // the thousands branch (e.g. testing >= 1e6 first).
+    [Test]
+    public void LanguageUtilsOwnedAbbreviationPairsEachBranchWithItsFormatCache()
+    {
+        WithInactiveLanguageUtils(component =>
+        {
+            const string thousands = "thousands sentinel {0}", millions = "millions sentinel {0}", billions = "billions sentinel {0}";
+            SetCache(component, "thousandsFormatString", thousands);
+            SetCache(component, "millionsFormatString", millions);
+            SetCache(component, "billionsFormatString", billions);
+            double[] inputs = { -1000000000000d, -1d, 999999d, 1000000d, 999999999d, 1000000000d, double.PositiveInfinity, double.NegativeInfinity, double.NaN };
+            string[] formats = { thousands, thousands, thousands, millions, millions, billions, billions, thousands, billions };
+            for (int i = 0; i < inputs.Length; i++)
+            {
+                string format;
+                AbbreviatedValue(component, inputs[i], out format);
+                Assert.AreSame(formats[i], format, "input " + inputs[i]);
+            }
+            Assert.AreSame(thousands, typeof(LanguageUtils).GetField("thousandsFormatString", Declared).GetValue(component));
+            Assert.AreSame(millions, typeof(LanguageUtils).GetField("millionsFormatString", Declared).GetValue(component));
+            Assert.AreSame(billions, typeof(LanguageUtils).GetField("billionsFormatString", Declared).GetValue(component));
+            Assert.IsNull(typeof(LanguageUtils).GetField("m_numberFormatter", Declared).GetValue(component));
+        });
+    }
+
+    private static void SetCache(LanguageUtils component, string name, string value)
+    {
+        FieldInfo field = typeof(LanguageUtils).GetField(name, Declared);
+        Assert.IsNotNull(field, name);
+        field.SetValue(component, value);
     }
 
     private static readonly string[] CacheNames = { "thousandsFormatString", "millionsFormatString", "billionsFormatString", "m_numberFormatter" };
@@ -205,6 +242,14 @@ public sealed class OriginalLanguageUtilsTests
 
     private static double AbbreviatedValue(LanguageUtils component, double value)
     {
+        string format;
+        double result = AbbreviatedValue(component, value, out format);
+        Assert.IsNull(format);
+        return result;
+    }
+
+    private static double AbbreviatedValue(LanguageUtils component, double value, out string format)
+    {
         MethodInfo method = typeof(LanguageUtils).GetMethod("GenerateAbbreviatedValue", Declared, null,
             new[] { typeof(double), typeof(string).MakeByRefType() }, null);
         Assert.IsNotNull(method);
@@ -212,7 +257,7 @@ public sealed class OriginalLanguageUtilsTests
         Assert.IsTrue(method.IsPrivate);
         object[] arguments = { value, null };
         double result = (double)method.Invoke(component, arguments);
-        Assert.IsNull(arguments[1]);
+        format = (string)arguments[1];
         return result;
     }
 

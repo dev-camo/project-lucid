@@ -1258,6 +1258,7 @@ EDITMODE_TESTS += tuple("OriginalLanguageUtilsTests." + name for name in (
     "LanguageUtilsInactiveConstructionRetainsOriginalNoneAndNullCaches",
     "LanguageUtilsOwnedAbbreviationRetainsSignedStrictThresholdsAndNullOutputs",
     "LanguageUtilsOwnedAbbreviationRetainsNonfiniteAndSignedZeroResults",
+    "LanguageUtilsOwnedAbbreviationPairsEachBranchWithItsFormatCache",
 ))
 EDITMODE_TESTS += tuple("OriginalUIVisibilityControllerTests." + name for name in (
     "InputVisibilityRetainsCompleteAuthoredFieldsMethodsAndOrderedOptions",
