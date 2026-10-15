@@ -1963,3 +1963,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalEntityActivationRegistrationGapTests.RegisterCreatesBothRowsInactiveFirstAndDeregisterRemovesBeforeShutdown",
     "ProjectLucid.Tests.OriginalEntityActivationRegistrationGapTests.ActivateIndexesTheSourceRowWhileDeactivateProbesItAndNeitherRollsBack",
 )
+
+# ManagedAddressableAsset cached-load counting and unload clamping.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalManagedAddressableAssetGapTests.CachedLoadsStillCountAndUnloadClampsBeforeClearingTheAsset",
+)
