@@ -8,7 +8,9 @@ using Mono.Cecil.Cil;
 namespace ProjectLucid.CodeGen
 {
     // HLSplines.Runtime original getters 06000285/287/28a/28c/28f/291.
-    // Roslyn emits IsReadOnly before CompilerGenerated for these six auto getters.
+    // Roslyn emits IsReadOnly before CompilerGenerated for these six auto getters;
+    // global-metadata attribute ranges 472/474/476/478/480/482 store the original
+    // order CompilerGenerated (0x06001ffb) then IsReadOnly (0x06002012).
     // Restore only their CustomAttribute row order; PE bodies, tokens, heaps, MVID
     // and portable PDB remain byte-identical. No declared-scope alias is applied.
     internal static class RibbonAccessorAttributes

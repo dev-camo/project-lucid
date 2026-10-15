@@ -89,7 +89,11 @@ namespace ProjectLucid
                         var getter = property.GetMethod;
                         var after = b.Properties.Single(p => p.Name == property.Name).GetMethod;
                         check(getter.CustomAttributes.Select(c => c.AttributeType.FullName).SequenceEqual(new[] { "System.Runtime.CompilerServices.IsReadOnlyAttribute", "System.Runtime.CompilerServices.CompilerGeneratedAttribute" }), "Natural ribbon getter marker order differs.");
-                        check(after.CustomAttributes.Select(c => c.AttributeType.FullName).SequenceEqual(getter.CustomAttributes.Reverse().Select(c => c.AttributeType.FullName)), "Original ribbon getter marker order was lost.");
+                        // Native order: global-metadata HLSplines.Runtime attribute ranges 472, 474,
+                        // 476, 478, 480 and 482 for getters 0x06000285/287/28a/28c/28f/291 each list
+                        // CompilerGeneratedAttribute .ctor 0x06001ffb before IsReadOnlyAttribute
+                        // .ctor 0x06002012, both with empty argument data.
+                        check(after.CustomAttributes.Select(c => c.AttributeType.FullName).SequenceEqual(new[] { "System.Runtime.CompilerServices.CompilerGeneratedAttribute", "System.Runtime.CompilerServices.IsReadOnlyAttribute" }), "Original ribbon getter marker order was lost.");
                         check(getter.MetadataToken == after.MetadataToken && tokens.Add(getter.MetadataToken.ToUInt32()), "Ribbon getter token changed or was duplicated.");
                         check(after.CustomAttributes.Select((c, i) => c.Constructor.FullName == getter.CustomAttributes[1 - i].Constructor.FullName && c.AttributeType.Scope.ToString() == getter.CustomAttributes[1 - i].AttributeType.Scope.ToString() && c.GetBlob().SequenceEqual(getter.CustomAttributes[1 - i].GetBlob())).All(v => v), "Restoration changed marker scope, constructor or raw blob.");
                         check(Body(getter) == Body(after), "Restoration changed ribbon getter instructions.");
