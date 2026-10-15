@@ -1893,3 +1893,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalFontLanguageHandleTests.LanguageChangeReleasesOldHandlesAndReadinessClearsAfterEveryHandleCompletes",
 )
+
+# Original alert badge text selection on an owned RTLTextMeshPro.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalAlertBadgeTextTests.AlertWinsOverCountAndOnlyCountsAboveTheMaximumUseTheFormat",
+)
