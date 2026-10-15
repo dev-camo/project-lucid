@@ -184,7 +184,10 @@ namespace ProjectLucid.Tests.Editor
                 MonoScript script = AssetDatabase.LoadAssetAtPath<MonoScript>(SourcePath);
                 AssertScript(script, MaintainedScriptGuid, null);
                 Assert.That(MonoScript.FromScriptableObject(value), Is.EqualTo(script));
-                value.DataDefinitionsArray = new DefinitionDataType[57];
+                // Slot count of the immutable supplied root (the pinned 57-entry
+                // References order, checked against raw pointers in the actual test).
+                Assert.That(References.Length, Is.EqualTo(57));
+                value.DataDefinitionsArray = new DefinitionDataType[References.Length];
                 AssetDatabase.CreateAsset(value, path); EditorUtility.SetDirty(value); AssetDatabase.SaveAssetIfDirty(value);
                 string assetGuid; long assetId;
                 Assert.That(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(value, out assetGuid, out assetId), Is.True);
@@ -193,14 +196,14 @@ namespace ProjectLucid.Tests.Editor
                 DataDefinitions loaded = AssetDatabase.LoadAssetAtPath<DataDefinitions>(path);
                 Assert.That(loaded, Is.Not.Null); if (!ReferenceEquals(value, loaded)) owned.Add(loaded);
                 Assert.That(loaded.GetType(), Is.EqualTo(typeof(DataDefinitions)));
-                Assert.That(loaded.DataDefinitionsArray, Is.Not.Null); Assert.That(loaded.DataDefinitionsArray.Length, Is.EqualTo(57));
+                Assert.That(loaded.DataDefinitionsArray, Is.Not.Null); Assert.That(loaded.DataDefinitionsArray.Length, Is.EqualTo(References.Length));
                 Assert.That(loaded.DataDefinitionsArray.All(x => ReferenceEquals(x, null)), Is.True);
                 AssertIdentity(loaded, assetGuid, assetId); Assert.That(MonoScript.FromScriptableObject(loaded), Is.EqualTo(script));
                 var data = new SerializedObject(loaded); serialized.Add(data); data.Update();
                 Assert.That(Require(data, "m_Script", SerializedPropertyType.ObjectReference).objectReferenceValue, Is.EqualTo(script));
                 SerializedProperty array = Require(data, "DataDefinitionsArray", SerializedPropertyType.Generic);
-                Assert.That(array.isArray, Is.True); Assert.That(array.arraySize, Is.EqualTo(57));
-                for (int i = 0; i < 57; i++)
+                Assert.That(array.isArray, Is.True); Assert.That(array.arraySize, Is.EqualTo(References.Length));
+                for (int i = 0; i < References.Length; i++)
                 {
                     SerializedProperty slot = array.GetArrayElementAtIndex(i);
                     Assert.That(slot.propertyType, Is.EqualTo(SerializedPropertyType.ObjectReference));
