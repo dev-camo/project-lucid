@@ -999,6 +999,7 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.HLHapticsPlayTests.ManagerAwakeDebugSnapshotAndSafeTriggerOrder",
     "ProjectLucid.Tests.HLHapticsPlayTests.NaturalIteratorFinitePositiveWaitRepeatCounts",
     "ProjectLucid.Tests.HLHapticsPlayTests.NaturalIteratorLiveOwnedArrayAfterPositiveWait",
+    "ProjectLucid.Tests.HLHapticsPlayTests.TriggerEventStartsACoroutineForEveryMatchingDefinition",
 )
 
 EDITMODE_TESTS += (

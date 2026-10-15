@@ -154,5 +154,23 @@ namespace ProjectLucid.Verification
    lease.Activate(true);VibrationEventData data=OwnAsset<VibrationEventData>(lease.Assets);var values=new[]{new VibrationEventData.Vibrations{m_repeat=1f,m_delay=0.03f,m_vibrationType=VibrationType.Selection},new VibrationEventData.Vibrations{m_repeat=-1f,m_delay=0f},new VibrationEventData.Vibrations{m_repeat=-1f,m_delay=0f}};data.m_vibrationEvents=values;CheckFiniteInput(values);IEnumerator iterator=NaturalIterator(lease,values);
    return WatchOwned(lease,iterator,values,resumed=>{if(resumed==1){values[0].m_repeat=-1f;values[0].m_delay=0f;values[1]=new VibrationEventData.Vibrations{m_repeat=0f,m_delay=0.03f,m_vibrationType=VibrationType.ImpactLight};data.m_vibrationEvents=new[]{new VibrationEventData.Vibrations{m_repeat=-1f,m_delay=0f}};Require(!ReferenceEquals(data.m_vibrationEvents,values)&&ReferenceEquals(iterator.GetType().GetField("vibrations",Declared).GetValue(iterator),values),"public asset replacement cannot retarget captured argument");}else if(resumed==2){values[2]=null;}else throw new InvalidOperationException("Unexpected owned mutation step");},state=>Require(state.Completed&&state.Error!=null&&state.Error.GetType()==typeof(NullReferenceException)&&state.Yields==2&&state.Resumed==2&&state.Indices.SequenceEqual(new[]{0,1})&&state.Repeats.SequenceEqual(new[]{0,0}),"live reread ordering and prospective managed null-entry fault after real waits; original IL2CPP malformed behavior remains held"));
   });
+  // Original 0x0600000d (x86-64 0x1a195e0) starts a <Vibrate>d__13 coroutine for every definition whose event
+  // matches, rereading the field after each StartCoroutine and never leaving the loop early. Each matching
+  // definition here has null vibrations, so every started coroutine logs one NullReferenceException on its first
+  // step. Fails if the scan stops after the first match (one log) or ignores the event filter (three logs).
+  public static void TriggerEventStartsACoroutineForEveryMatchingDefinition()
+  {
+   WithManager(lease=>{
+    lease.Activate(true);lease.Manager.SetVibrationFromSettings(true);
+    VibrationEventData first=OwnAsset<VibrationEventData>(lease.Assets),other=OwnAsset<VibrationEventData>(lease.Assets),second=OwnAsset<VibrationEventData>(lease.Assets);
+    first.m_vibrationEvent=VibrationEvent.DefaultSelection;other.m_vibrationEvent=VibrationEvent.LongPressSelection;second.m_vibrationEvent=VibrationEvent.DefaultSelection;
+    Require(first.m_vibrationEvents==null&&other.m_vibrationEvents==null&&second.m_vibrationEvents==null,"owned definitions keep null vibration arrays");
+    ManagerField("m_vibrationEventDefinitions").SetValue(lease.Manager,new[]{first,other,second});lease.CheckShared();
+    var fault=new System.Text.RegularExpressions.Regex("NullReferenceException");
+    UnityEngine.TestTools.LogAssert.Expect(LogType.Exception,fault);UnityEngine.TestTools.LogAssert.Expect(LogType.Exception,fault);
+    lease.Manager.TriggerEvent(VibrationEvent.DefaultSelection);
+    Require(lease.Manager.IsAvailable&&lease.Manager.VibrationEnabledInSettings,"available enabled branch scanned");lease.CheckShared();
+   });
+  }
  }
 }
