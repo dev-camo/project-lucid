@@ -1921,3 +1921,10 @@ PLAYMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLeaderboardCallbackGapTests.ChallengeCallbackReportsOnlyNonEmptyErrorsRegardlessOfSendFlag",
 )
+
+# GameLevels cache publication and linked-test level lookup over owned level graphs.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalGameLevelsGapTests.CacheLevelsPublishesOnlyAfterCompileAndKeepsEntriesFromAFailedPass",
+    "ProjectLucid.Tests.OriginalGameLevelsGapTests.GetLevelDelegatesOnlyCycleLevelsAndOtherwiseReturnsTheLinkedScene",
+    "ProjectLucid.Tests.OriginalGameLevelsGapTests.GetLevelsRunsFindFirstAndRemovesGuidMatchesFromANewCopy",
+)
