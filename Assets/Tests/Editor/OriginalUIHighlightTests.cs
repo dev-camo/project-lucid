@@ -71,6 +71,54 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0x06000036 x86-64 0x1a3b3a0 and 0x06000039 x86-64 0x1a3b3e0 each return the
+        // field at +0x20 unchanged. Null fields cannot tell that from a constant-null
+        // or wrong-field getter (mutation: Definition => null, Prefab => null), so
+        // bind real owned references through the normal serialized properties.
+        [Test]
+        public void SerializedOwnedReferencesReturnUnchangedFromBothGetters()
+        {
+            using (var owned = new OwnedHighlight())
+            {
+                using (var serialized = new SerializedObject(owned.Highlight))
+                {
+                    serialized.Update();
+                    SerializedProperty field = serialized.FindProperty("m_definition");
+                    Assert.That(field.propertyType, Is.EqualTo(SerializedPropertyType.ObjectReference));
+                    field.objectReferenceValue = owned.Definition;
+                    Assert.That(serialized.ApplyModifiedPropertiesWithoutUndo(), Is.True);
+                }
+                using (var serialized = new SerializedObject(owned.Definition))
+                {
+                    serialized.Update();
+                    SerializedProperty field = serialized.FindProperty("m_prefab");
+                    Assert.That(field.propertyType, Is.EqualTo(SerializedPropertyType.ObjectReference));
+                    field.objectReferenceValue = owned.Highlight;
+                    Assert.That(serialized.ApplyModifiedPropertiesWithoutUndo(), Is.True);
+                }
+                Assert.That(ReferenceEquals(DefinitionField.GetValue(owned.Highlight), owned.Definition), Is.True);
+                Assert.That(ReferenceEquals(owned.Highlight.Definition, owned.Definition), Is.True);
+                Assert.That(ReferenceEquals(PrefabField.GetValue(owned.Definition), owned.Highlight), Is.True);
+                Assert.That(ReferenceEquals(owned.Definition.Prefab, owned.Highlight), Is.True);
+            }
+        }
+
+        // 0x06000037 x86-64 0x1a3b3b0: loads m_onShowHighlight once, returns on null
+        // (test/je), otherwise tail-jumps to UnityEvent.Invoke. Plain inactive
+        // AddComponent leaves the inline event unallocated (the reason listener
+        // cases go through a prefab round trip), so this deterministically takes the
+        // null branch. Mutation caught: dropping the null test (m_onShowHighlight.Invoke()).
+        [Test]
+        public void PlainOwnedAttachmentLeavesEventNullAndShowSkipsIt()
+        {
+            using (var owned = new OwnedHighlight())
+            {
+                Assert.That(ReferenceEquals(ReadEvent(owned.Highlight), null), Is.True, "plain AddComponent leaves the serialized UnityEvent unallocated");
+                Assert.DoesNotThrow(() => owned.Highlight.OnShowHighlight());
+                Assert.That(ReferenceEquals(ReadEvent(owned.Highlight), null), Is.True, "show does not allocate the event");
+            }
+        }
+
         [Test]
         public void GenuineEventRunsOwnedListenersSynchronouslyAndRemovesOnlyThoseListeners()
         {
