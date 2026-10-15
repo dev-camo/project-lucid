@@ -1844,3 +1844,8 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalScreenManagerGapTests.UnlockedToggleWritesLockFlagsFromTheDeviceOrientation",
 )
+
+# Original LogOrThrowException without a live logging host.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLoggingHostGapTests.MissingHostThrowsNullReferenceWithTheSuppliedMessage",
+)
