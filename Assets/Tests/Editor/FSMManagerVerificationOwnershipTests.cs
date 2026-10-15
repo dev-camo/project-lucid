@@ -462,26 +462,31 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
-        public void RecursiveUnregisterInsideAShutdownObserverDoesNotNotifyTwice()
+        public void RecursiveUnregisterInsideAShutdownObserverMatchesTheOriginal()
         {
-            IDictionary rows = Rows();
-            object[] layout = FSMManagerVerification.CaptureLayout(rows);
-            string name = "Lucid-ownership-recursive-" + Guid.NewGuid().ToString("N");
-            int calls = 0;
-            try
+            // A guarded observer that unregisters its own row: the original notifies it again from the
+            // nested unregister. The fixture must produce the same trace and add no notification.
+            SystemRef released = null;
+            Func<List<string>, string[]> scenario = trace =>
             {
+                string name = "Lucid-ownership-recursive-" + Guid.NewGuid().ToString("N");
                 SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
-                // Guarded so an unguarded runtime recursion cannot overflow the stack.
-                untyped.OnSystemShutdown += system => { if (++calls == 1) ProcessManager.UnregisterSystem(name); };
-                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
-                Assert.That(calls, Is.EqualTo(1), "a recursive unregister notified the observer again");
-                Assert.That(rows.Contains(name), Is.False);
-                Assert.That(untyped.IsNull(), Is.True);
-            }
-            finally
-            {
-                FSMManagerVerification.RestoreLayout(rows, layout);
-            }
+                released = untyped;
+                int calls = 0;
+                // Guarded so recursion is bounded by the observer, never by stack overflow.
+                untyped.OnSystemShutdown += system =>
+                {
+                    int call = ++calls;
+                    trace.Add("call " + call + ":" + !untyped.IsNull());
+                    if (call == 1) ProcessManager.UnregisterSystem(name);
+                    trace.Add("end " + call + ":" + !untyped.IsNull());
+                };
+                return new[] { name };
+            };
+            List<string> original = Teardown(true, scenario);
+            Assert.That(original, Is.EqualTo(new[] { "call 1:True", "call 2:True", "end 2:True", "end 1:False" }), "original public unregister");
+            Assert.That(Teardown(false, scenario), Is.EqualTo(original));
+            Assert.That(released.IsNull(), Is.True);
         }
 
         [Test]
@@ -597,34 +602,130 @@ namespace ProjectLucid.Editor
         [Test]
         public void OwnReferenceIsValidWhileItsObserversRun()
         {
-            IDictionary rows = Rows();
-            object[] layout = FSMManagerVerification.CaptureLayout(rows);
-            string name = "Lucid-ownership-validity-" + Guid.NewGuid().ToString("N");
-            try
+            // The original revoke notifies before it clears, so observers see their own reference set.
+            // After an observer's recursive unregister, the nested dispatch has already cleared it, so the
+            // outer tail sees it cleared; the fixture must match the original trace exactly.
+            Func<List<string>, string[]> scenario = seen =>
             {
+                string name = "Lucid-ownership-validity-" + Guid.NewGuid().ToString("N");
                 SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
                 SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>(name);
-                var seen = new List<string>();
                 int recursions = 0;
-                // The original revoke notifies before it clears, so each observer still sees its own
-                // reference set; this holds for observers that run after a recursive unregister too.
                 untyped.OnSystemShutdown += system => seen.Add("u1:" + !untyped.IsNull() + ":" + !ProcessManager.IsSystemNull(name));
                 untyped.OnSystemShutdown += system =>
                 {
-                    if (++recursions == 1)
-                        try { ProcessManager.UnregisterSystem(name); }
-                        catch (Exception) { }
+                    if (++recursions == 1) ProcessManager.UnregisterSystem(name);
                 };
                 untyped.OnSystemShutdown += system => seen.Add("u3:" + !untyped.IsNull());
                 typed.OnSystemShutdown += system => seen.Add("t:" + !typed.IsNull());
-                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
-                Assert.That(seen, Is.EqualTo(new[] { "u1:True:True", "u3:True", "t:True" }));
-                Assert.That(recursions, Is.EqualTo(1));
-                Assert.That(untyped.IsNull() && typed.IsNull() && !rows.Contains(name), Is.True);
+                return new[] { name };
+            };
+            List<string> original = Teardown(true, scenario);
+            Assert.That(original.First(), Is.EqualTo("u1:True:True"), "original public unregister");
+            Assert.That(original, Does.Contain("u3:False"), "original outer tail after the nested unregister");
+            Assert.That(Teardown(false, scenario), Is.EqualTo(original));
+        }
+
+        // Runs a scenario's teardown either through the original public unregister of its first row
+        // (the baseline) or through the fixture, and returns the observed trace. Rows are released and
+        // the registry layout restored in both modes.
+        private static List<string> Teardown(bool original, Func<List<string>, string[]> scenario)
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            var trace = new List<string>();
+            try
+            {
+                string[] owned = scenario(trace);
+                if (original) ProcessManager.UnregisterSystem(owned[0]);
+                else FSMManagerVerification.ReleaseOwnedRows(owned);
+                return new List<string>(trace);
             }
             finally
             {
                 FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        private static string[] ReplacingRecursion(List<string> trace)
+        {
+            string name = "Lucid-ownership-argument-" + Guid.NewGuid().ToString("N");
+            var original = new FSMManager();
+            var replacement = new FSMManager();
+            SystemRef untyped = ProcessManager.RegisterSystem(original, name);
+            int calls = 0;
+            untyped.OnSystemShutdown += system =>
+            {
+                if (++calls != 1) return;
+                ProcessManager.RegisterSystem(replacement, name, canReplace: true);
+                ProcessManager.UnregisterSystem(name);
+            };
+            untyped.OnSystemShutdown += system =>
+                trace.Add(ReferenceEquals(system, original) ? "original" : ReferenceEquals(system, replacement) ? "replacement" : "other");
+            return new[] { name };
+        }
+
+        [Test]
+        public void ResumedOuterObserverGetsOriginalArgument()
+        {
+            // A multicast invocation's argument is fixed when it begins: the outer dispatch's later
+            // observer receives the system that began it, even after a callback replaced the row's system.
+            List<string> baseline = Teardown(true, ReplacingRecursion);
+            Assert.That(baseline.Last(), Is.EqualTo("original"), "original public unregister");
+            List<string> fixture = Teardown(false, ReplacingRecursion);
+            Assert.That(fixture.Last(), Is.EqualTo("original"));
+            Assert.That(fixture, Does.Not.Contain("other"));
+        }
+
+        private static string[] NestedRows(List<string> trace)
+        {
+            string a = "Lucid-ownership-nest-a-" + Guid.NewGuid().ToString("N"), b = a + "-b";
+            SystemRef first = ProcessManager.RegisterSystem(new FSMManager(), a);
+            SystemRef second = ProcessManager.RegisterSystem(new FSMManager(), b);
+            int aCalls = 0, bCalls = 0;
+            first.OnSystemShutdown += system => { trace.Add("A.begin"); if (++aCalls == 1) ProcessManager.UnregisterSystem(b); };
+            first.OnSystemShutdown += system => trace.Add("A.tail");
+            second.OnSystemShutdown += system => { trace.Add("B.begin"); if (++bCalls == 1) ProcessManager.UnregisterSystem(b); };
+            second.OnSystemShutdown += system => trace.Add("B.tail");
+            return new[] { a, b };
+        }
+
+        [Test]
+        public void NestedDispatchTailFinishesBeforeCallerTail()
+        {
+            // A's observer unregisters B, whose observer unregisters B again: B's dispatch is nested
+            // inside A's, so B's tail completes before A's tail resumes.
+            foreach (bool original in new[] { true, false })
+            {
+                List<string> trace = Teardown(original, NestedRows);
+                string mode = original ? "original public unregister" : "fixture";
+                Assert.That(trace.Take(2), Is.EqualTo(new[] { "A.begin", "B.begin" }), mode);
+                Assert.That(trace.Last(), Is.EqualTo("A.tail"), mode);
+                Assert.That(trace.Count(entry => entry == "A.tail"), Is.EqualTo(1), mode);
+                Assert.That(trace.LastIndexOf("B.tail"), Is.LessThan(trace.IndexOf("A.tail")), mode);
+            }
+        }
+
+        [Test]
+        public void GuardedRecursiveObserverContinuesAfterNestedCall()
+        {
+            // The observer that makes a guarded same-row unregister completes its own remaining work.
+            foreach (bool original in new[] { true, false })
+            {
+                List<string> trace = Teardown(original, log =>
+                {
+                    string name = "Lucid-ownership-continue-" + Guid.NewGuid().ToString("N");
+                    SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                    int calls = 0;
+                    untyped.OnSystemShutdown += system =>
+                    {
+                        if (++calls != 1) return;
+                        ProcessManager.UnregisterSystem(name);
+                        log.Add("continued");
+                    };
+                    return new[] { name };
+                });
+                Assert.That(trace, Is.EqualTo(new[] { "continued" }), original ? "original public unregister" : "fixture");
             }
         }
 
