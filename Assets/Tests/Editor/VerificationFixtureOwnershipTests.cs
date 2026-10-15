@@ -166,6 +166,24 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(0, calls);
         }
 
+        [Test]
+        public void StringTableGuardAcceptsOnlyTheOriginalReadinessInitializer()
+        {
+            // Positive control: the generated static-lambda delegate the
+            // original field initializer installs, rebuilt here rather than
+            // read from shared state another fixture or scene may extend.
+            // It is never invoked.
+            const BindingFlags declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            Type closure = typeof(Hardlight.Localisation.StringTable).GetNestedType("<>c", declared);
+            MethodInfo method = closure.GetMethod("<.cctor>b__69_0", declared);
+            object target = closure.GetField("<>9", declared).GetValue(null);
+            var original = (Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>), target, method);
+            Assert.DoesNotThrow(() => StringTableVerification.RequireOriginalReadiness(original));
+            Assert.Throws<InvalidOperationException>(() => StringTableVerification.RequireOriginalReadiness(original + original));
+            Func<bool> sameShape = () => true;
+            Assert.Throws<InvalidOperationException>(() => StringTableVerification.RequireOriginalReadiness(sameShape));
+        }
+
         [TestCase(0)]
         [TestCase(1)]
         [TestCase(2)]
@@ -192,6 +210,20 @@ namespace ProjectLucid.Tests
             Assert.IsTrue(row.IsNull());
             if (state == 0) Assert.AreSame(row, registry[tableName]);
             if (state == 1) Assert.AreSame(row, registry[languageName]);
+        }
+
+        [Test]
+        public void StringTableColdGuardAcceptsEmptyStateAndUnrelatedRows()
+        {
+            // Positive control for the rejection cases above: only the two
+            // default-name rows and the four shared references are guarded.
+            var registry = new Hashtable();
+            Assert.DoesNotThrow(() => StringTableVerification.RequireColdState(registry, null, null, null, null));
+            var unrelated = new SystemRef("unrelated row", null);
+            registry.Add("ProjectLucid.UnrelatedRow." + Guid.NewGuid().ToString("N"), unrelated);
+            Assert.DoesNotThrow(() => StringTableVerification.RequireColdState(registry, null, null, null, null));
+            Assert.AreEqual(1, registry.Count);
+            Assert.IsTrue(unrelated.IsNull());
         }
     }
 }

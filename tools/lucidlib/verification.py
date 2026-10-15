@@ -1705,3 +1705,9 @@ PLAYMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalEntityActivationUpdateTests.UpdateRunsTheInactivePassFirstAndBothListsInReverse",
 )
+
+# Positive controls for the managed StringTable fixture guards.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableGuardAcceptsOnlyTheOriginalReadinessInitializer",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardAcceptsEmptyStateAndUnrelatedRows",
+)
