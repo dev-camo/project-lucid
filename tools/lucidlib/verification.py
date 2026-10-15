@@ -1910,3 +1910,8 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.ToggleCursorVisibilityGameplayTests.GameplayCallbackIgnoresForceReleaseAndOtherModulesLeaveTheCursor",
 )
+
+# Original SameSpaceObjectAvoidance target direction and offset.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.SameSpaceObjectAvoidanceTargetTests.TargetUsesThePositionMinusCentreAngleAndReturnsTheRadialDirection",
+)
