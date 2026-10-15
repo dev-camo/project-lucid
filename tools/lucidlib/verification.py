@@ -1103,6 +1103,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.UniqueCollectableStateDataTests.NullKeyFaultsRetainDistinctOutputWriteOrderAndExistingState",
 )
 
+# Low-priority coverage-gap cases: binder evaluation order.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalBinderGapTests.ArgumentsAreReadInOrderBeforeTheFormatAndOnlyANullFormatBecomesEmpty",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
