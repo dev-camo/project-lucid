@@ -24,9 +24,14 @@ namespace ProjectLucid.Tests
             IDictionary registry = (IDictionary)typeof(ProcessManager)
                 .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
             string[] fieldRows = { ProcessManager.GetDefaultName<SaveManager>(), ProcessManager.GetDefaultName<UIScreenTransitionManager>() };
-            // App's field initialisers auto-register these rows; require them absent
-            // so cleanup can remove exactly what this fixture created.
-            foreach (string row in fieldRows) VerificationFixtureOwnership.RequireAbsent(registry, row);
+            // App's field initialisers auto-register these rows. An earlier lookup
+            // may have left one unoccupied; cleanup removes only rows created here.
+            bool[] existed = new bool[fieldRows.Length];
+            for (int i = 0; i < fieldRows.Length; i++)
+            {
+                existed[i] = registry.Contains(fieldRows[i]);
+                if (existed[i]) Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), "Occupied row " + fieldRows[i]);
+            }
             GameObject host = null;
             try
             {
@@ -70,11 +75,11 @@ namespace ProjectLucid.Tests
                 {
                     // Remove only the field-initialiser rows created above, after
                     // checking they never held a system.
-                    foreach (string row in fieldRows)
+                    for (int i = 0; i < fieldRows.Length; i++)
                     {
-                        if (!registry.Contains(row)) continue;
-                        Assert.IsTrue(ProcessManager.IsSystemNull(row), row);
-                        registry.Remove(row);
+                        if (!registry.Contains(fieldRows[i])) continue;
+                        Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), fieldRows[i]);
+                        if (!existed[i]) registry.Remove(fieldRows[i]);
                     }
                 }
             }
