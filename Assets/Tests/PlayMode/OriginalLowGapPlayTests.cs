@@ -78,6 +78,10 @@ namespace ProjectLucid.Tests
                 try
                 {
                     rowLease.CaptureCreatedRow(ProcessManager.GetSystemRef(name));
+                    // GetSystemSafe caches a typed reference in the row, so the
+                    // lease owns it before the registration check reads it.
+                    SystemRef<SplashScreen> typed = ProcessManager.GetSystemRef<SplashScreen>();
+                    rowLease.CaptureTypedReference(typed);
                     owner = new GameObject("Lucid splash destroy proof");
                     owner.SetActive(false);
                     var director = owner.AddComponent<PlayableDirector>();
@@ -92,6 +96,7 @@ namespace ProjectLucid.Tests
                     Set(splash, "m_aspectRatioSplashScreenData", Array.Empty<SplashScreen.AspectRatioSplashScreenData>());
                     owner.SetActive(true);
                     Assert.That(ProcessManager.GetSystemSafe<SplashScreen>(), Is.SameAs(splash), "the real Awake registered");
+                    Assert.That(ProcessManager.GetSystemRef<SplashScreen>(), Is.SameAs(typed), "the check reused the owned typed reference");
                     LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException"));
                     UnityEngine.Object.DestroyImmediate(owner);
                     owner = null;
