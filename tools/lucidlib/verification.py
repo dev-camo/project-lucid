@@ -1937,3 +1937,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.PlayAudioSuppressesOnlyZeroClipForAMissingSource",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.UnloadScenePresentKeyUnloadsRemovesThenRepublishes",
 )
+
+# DefinitionDataType.GetData callback and insertion order through a recording test group.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalDefinitionDataTypeGapTests.GetDataAsksForTheComparerFirstAndRereadsDataAfterEachKey",
+)
