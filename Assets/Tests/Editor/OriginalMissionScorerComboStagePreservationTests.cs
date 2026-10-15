@@ -10,6 +10,10 @@ namespace ProjectLucid.Tests
         private const string SecondValuesJson = "{\"m_comboMultiplier\":-2.25,\"m_comboTimeLimit\":9.5,\"m_drainPerSecond\":4.75,\"m_maxCombo\":0.5}";
         private const string UpdatedFirstValuesJson = "{\"m_maxCombo\":32,\"m_drainPerSecond\":0.125,\"m_comboMultiplier\":0,\"m_comboTimeLimit\":0.25}";
 
+        // Expected defaults are the native .ctor 0x06002789 (x86-64 0x5c07e0) stores:
+        // 0x40A00000 and 0x3F800000 at +0x10/+0x14, 0x40000000 at +0x18, +0x1c
+        // untouched; getters 0x06002785..88 read those offsets in this order. The
+        // facts prelude is a separate snapshot of the current Editor emission.
         [Test]
         public void OrdinaryConstructorPreservesAllFourDefaults()
         {
