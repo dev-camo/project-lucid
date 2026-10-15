@@ -1877,3 +1877,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLoggedFailureBranchTests.UnsupportedSplineLogsThenStillNotifiesTheUnchangedOldSelection",
     "ProjectLucid.Tests.OriginalLoggedFailureBranchTests.InvalidTriggerLogsYetSubscribesSwipeAndScrollWheelWhileUpAndHeldUseTheirPairs",
 )
+
+# Original LocalisedUIString target discovery on owned inactive text components.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLocalisedUIStringTargetDiscoveryTests.RightToLeftTextSuppressesUguiDiscoveryAfterEveryTargetIsReset",
+    "ProjectLucid.Tests.OriginalLocalisedUIStringTargetDiscoveryTests.PlainTextMeshProUguiIsDiscoveredWithoutRightToLeftText",
+)
