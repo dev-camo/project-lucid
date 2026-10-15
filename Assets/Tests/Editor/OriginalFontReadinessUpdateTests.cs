@@ -25,13 +25,26 @@ namespace ProjectLucid.Tests
             IDictionary registry = (IDictionary)typeof(ProcessManager)
                 .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
             string[] fieldRows = { ProcessManager.GetDefaultName<SaveManager>(), ProcessManager.GetDefaultName<UIScreenTransitionManager>() };
-            // App's field initialisers auto-register these rows. An earlier lookup
-            // may have left one unoccupied; cleanup removes only rows created here.
+            // App's field initialisers auto-register these rows and cache one typed
+            // reference in each. An earlier lookup may have left a row unoccupied;
+            // snapshot such a borrowed row's object and whole typed cache so cleanup
+            // removes only what this fixture added and leaves the row as found.
+            Func<object, bool>[] typedIsNull =
+            {
+                o => o is SystemRef<SaveManager> r && r.IsNull(),
+                o => o is SystemRef<UIScreenTransitionManager> r && r.IsNull(),
+            };
             bool[] existed = new bool[fieldRows.Length];
+            object[] borrowedRows = new object[fieldRows.Length];
+            var borrowedCaches = new Dictionary<object, object>[fieldRows.Length];
             for (int i = 0; i < fieldRows.Length; i++)
             {
                 existed[i] = registry.Contains(fieldRows[i]);
-                if (existed[i]) Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), "Occupied row " + fieldRows[i]);
+                if (!existed[i]) continue;
+                Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), "Occupied row " + fieldRows[i]);
+                borrowedRows[i] = registry[fieldRows[i]];
+                borrowedCaches[i] = new Dictionary<object, object>();
+                foreach (DictionaryEntry entry in TypedCache(borrowedRows[i])) borrowedCaches[i].Add(entry.Key, entry.Value);
             }
             GameObject host = null;
             try
@@ -74,17 +87,41 @@ namespace ProjectLucid.Tests
                 try { if (host != null) DestroyWithoutAppShutdown(host); }
                 finally
                 {
-                    // Remove only the field-initialiser rows created above, after
-                    // checking they never held a system.
+                    // Remove the field-initialiser rows created above and the typed
+                    // references added to borrowed rows before checking that none
+                    // held a system and every borrowed row matches its snapshot.
+                    var unoccupied = new List<KeyValuePair<string, bool>>();
                     for (int i = 0; i < fieldRows.Length; i++)
                     {
                         if (!registry.Contains(fieldRows[i])) continue;
-                        Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), fieldRows[i]);
+                        unoccupied.Add(new KeyValuePair<string, bool>(fieldRows[i], ProcessManager.IsSystemNull(fieldRows[i])));
+                        IDictionary cache = TypedCache(registry[fieldRows[i]]);
+                        foreach (DictionaryEntry entry in new Hashtable(cache))
+                        {
+                            if (existed[i] && borrowedCaches[i].ContainsKey(entry.Key)) continue;
+                            if (existed[i]) cache.Remove(entry.Key);
+                            unoccupied.Add(new KeyValuePair<string, bool>(fieldRows[i] + " typed " + entry.Key, typedIsNull[i](entry.Value)));
+                        }
                         if (!existed[i]) registry.Remove(fieldRows[i]);
+                    }
+                    foreach (KeyValuePair<string, bool> reference in unoccupied) Assert.IsTrue(reference.Value, reference.Key);
+                    for (int i = 0; i < fieldRows.Length; i++)
+                    {
+                        if (!existed[i]) continue;
+                        Assert.IsTrue(registry.Contains(fieldRows[i]), fieldRows[i]);
+                        Assert.AreSame(borrowedRows[i], registry[fieldRows[i]], fieldRows[i]);
+                        IDictionary cache = TypedCache(borrowedRows[i]);
+                        Assert.AreEqual(borrowedCaches[i].Count, cache.Count, fieldRows[i]);
+                        foreach (KeyValuePair<object, object> entry in borrowedCaches[i])
+                            Assert.AreSame(entry.Value, cache[entry.Key], fieldRows[i] + " typed " + entry.Key);
                     }
                 }
             }
         }
+
+        // ProcessManager.SystemInfo.SystemRefDictionary: the row's typed reference cache.
+        private static IDictionary TypedCache(object row) => (IDictionary)row.GetType()
+            .GetField("SystemRefDictionary", BindingFlags.Public | BindingFlags.Instance).GetValue(row);
 
         // Unity sends OnDestroy only to objects that were once active (and App has no
         // ExecuteAlways for EditMode), so this never activated App must not reach
