@@ -1928,3 +1928,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGameLevelsGapTests.GetLevelDelegatesOnlyCycleLevelsAndOtherwiseReturnsTheLinkedScene",
     "ProjectLucid.Tests.OriginalGameLevelsGapTests.GetLevelsRunsFindFirstAndRemovesGuidMatchesFromANewCopy",
 )
+
+# Application FSM scene, readiness and audio nodes over owned registry rows and services.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.SceneLoadedSelectsStorageBeforeEitherSceneSource",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.AppReadyResolvesTheAppReferenceEvenForAnInvalidCommonHandle",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.GuiReadySelectsStorageByFlagAndChecksUiConfigurationLast",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.PlayAudioSuppressesOnlyZeroClipForAMissingSource",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.UnloadScenePresentKeyUnloadsRemovesThenRepublishes",
+)
