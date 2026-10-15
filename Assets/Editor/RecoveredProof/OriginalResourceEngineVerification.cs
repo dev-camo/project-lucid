@@ -25,6 +25,12 @@ namespace ProjectLucid.RecoveredProof
                 old.name = "ResourcePreservationOwnedLeaf";
                 Check(ref n, SceneManager.GetActiveScene().handle == old.handle, "renamed runner scene remains active");
                 Check(ref n, ResourceUtils.CurrentSceneName == "ResourcePreservationOwnedLeaf", "original getter reads active scene leaf");
+                // 0x0600123c (x86-64 0x1b367f0) splits Scene.name on '/' with no options and returns the
+                // last element, so empty segments are kept and a trailing slash yields an empty leaf.
+                old.name = "Resource/Preservation//OwnedLeaf";
+                Check(ref n, ResourceUtils.CurrentSceneName == "OwnedLeaf", "original getter returns the last slash segment");
+                old.name = "Resource/Preservation/";
+                Check(ref n, ResourceUtils.CurrentSceneName == string.Empty, "original getter keeps the empty trailing segment");
                 Check(ref n, SceneManager.GetActiveScene().handle == old.handle, "getter preserves selected scene");
             }
             finally
