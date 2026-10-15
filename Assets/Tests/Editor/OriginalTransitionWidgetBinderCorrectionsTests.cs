@@ -50,9 +50,6 @@ namespace ProjectLucid.Editor
             private AbilityTriggeredArgsProbe() : base(null, default, null) { }
 
             internal static bool NewIsTriggered() => new AbilityTriggeredJSONCtorArgs().IsTriggered;
-
-            // The ConstructInstance (0x529800) parse, without the DataManager lookup the ctor needs.
-            internal static bool JsonIsTriggered(string json) => JsonUtility.FromJson<AbilityTriggeredJSONCtorArgs>(json).IsTriggered;
         }
 
         // Both nodes' AddComponentMenu CAD blob holds a zero-length menu string, not a null one.
@@ -70,20 +67,13 @@ namespace ProjectLucid.Editor
         }
 
         // AbilityTriggeredJSONCtorArgs..ctor (0x5299B0) stores IsTriggered = 1 before Object..ctor.
-        // Catches a missing initializer, which leaves a fresh instance false.
+        // Catches a missing initializer, which leaves a directly constructed instance false. This covers
+        // direct construction only; JsonUtility.FromJson behaviour for omitted IsTriggered is an engine
+        // contract still pending native observation, so no test asserts it.
         [Test]
         public void AbilityTriggeredArgsDefaultToTriggered()
         {
             Assert.That(AbilityTriggeredArgsProbe.NewIsTriggered(), Is.True);
-        }
-
-        // ConstructInstance parses its args with JsonUtility.FromJson, so JSON that omits IsTriggered
-        // keeps the constructor's true and an explicit false still reads false.
-        [Test]
-        public void AbilityTriggeredJsonWithoutIsTriggeredKeepsTheTrueDefault()
-        {
-            Assert.That(AbilityTriggeredArgsProbe.JsonIsTriggered("{\"AbilityDefinitionName\":\"Probe\"}"), Is.True);
-            Assert.That(AbilityTriggeredArgsProbe.JsonIsTriggered("{\"AbilityDefinitionName\":\"Probe\",\"IsTriggered\":false}"), Is.False);
         }
 
         private UIWidgetRadioButton Button(GameObject group, string name, out Image image, out Sprite on, out Sprite off)

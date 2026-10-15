@@ -1600,7 +1600,6 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.BinderNodesHideFromTheComponentMenuWithAnEmptyString",
     "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.AbilityTriggeredArgsDefaultToTriggered",
-    "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.AbilityTriggeredJsonWithoutIsTriggeredKeepsTheTrueDefault",
     "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.SingleToggleSelectsTheIncomingButtonNotTheEqualChild",
 )
 
