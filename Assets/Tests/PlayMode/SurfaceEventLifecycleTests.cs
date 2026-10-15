@@ -94,5 +94,59 @@ namespace ProjectLucid.Tests
             yield break;
 #endif
         }
+
+        // <ProcessStayEvents>d__7.MoveNext (x86-64 0x6d30e0) invokes m_onStay then
+        // yields the WaitForFixedUpdate the constructor (x86-64 0x6d3070) caches at
+        // +0x40, so each resumed stay callback falls in a new fixed step. With fixed
+        // steps six frames apart, a `yield return null` routine repeats fixedTime.
+        [UnityTest]
+        public IEnumerator AuthoredStayRoutineResumesOncePerFixedStep()
+        {
+#if UNITY_EDITOR
+            GameObject owned = null, target = null;
+            SurfaceEvent surface = null;
+            float previousScale = Time.timeScale, previousFixed = Time.fixedDeltaTime;
+            float previousCapture = Time.captureDeltaTime;
+            try
+            {
+                Time.timeScale = 1f; Time.fixedDeltaTime = 0.1f; Time.captureDeltaTime = 1f / 60f;
+                owned = new GameObject("Lucid genuine surface fixed-step verification");
+                target = new GameObject("Lucid genuine persistent fixed-step target");
+                surface = owned.AddComponent<SurfaceEvent>();
+                var stay = new UnityEvent();
+                Field("m_onEnter").SetValue(surface, new UnityEvent()); Field("m_onStay").SetValue(surface, stay);
+                Field("m_onExit").SetValue(surface, new UnityEvent());
+                var fixedTimes = new System.Collections.Generic.List<float>();
+                bool resumed = false;
+                stay.AddListener(() => { if (resumed) fixedTimes.Add(Time.fixedTime); });
+                UnityEventTools.AddBoolPersistentListener(stay, target.SetActive, false);
+                surface.OnSurfaceEnter();
+                resumed = true;
+                const int frames = 40;
+                for (int frame = 0; frame < frames; ++frame) yield return null;
+                surface.OnSurfaceExit();
+                Assert.That(fixedTimes.Count, Is.GreaterThanOrEqualTo(2), "the routine resumes on fixed steps");
+                Assert.That(fixedTimes.Count, Is.LessThan(frames / 2), "the routine does not resume every frame");
+                for (int i = 1; i < fixedTimes.Count; ++i)
+                    Assert.That(fixedTimes[i], Is.GreaterThan(fixedTimes[i - 1]), "one stay callback per fixed step");
+            }
+            finally
+            {
+                try { if (surface != null) surface.StopAllCoroutines(); }
+                finally
+                {
+                    try { if (owned != null) UnityEngine.Object.DestroyImmediate(owned); }
+                    finally
+                    {
+                        try { if (target != null) UnityEngine.Object.DestroyImmediate(target); }
+                        finally { Time.captureDeltaTime = previousCapture; Time.fixedDeltaTime = previousFixed; Time.timeScale = previousScale; }
+                    }
+                }
+            }
+#else
+            Assert.Ignore("This authored persistent-call fixture requires the real Unity Editor event authoring API.");
+            yield break;
+#endif
+        }
     }
 }

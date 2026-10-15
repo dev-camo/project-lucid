@@ -63,6 +63,34 @@ namespace ProjectLucid.Tests
             // tokens are not treated as the original IL2CPP layout or identities.
         }
 
+        // Native register use fixes each signature: StartTransition 0x060004c7
+        // (x86-64 0x1b60e60) and DoTransition 0x060004ca (x86-64 0x1b60f00) take
+        // xmm0 float then esi bool, and only DoTransition returns its new iterator in
+        // rax; FinishTransition 0x060004c8 (x86-64 0x1b60f90) and Awake 0x060004c9
+        // (x86-64 0x1b60fa0) use only this. The iterator ctor 0x060004cc (x86-64
+        // 0x1b61010) stores one int state, and MoveNext (x86-64 0x1b61090) uses six
+        // instance slots: state, current, owner, bool, float and float.
+        [Test]
+        public void OriginalMethodsAndIteratorRetainNativeSignaturesAndSlotTypes()
+        {
+            Type type = typeof(MenuBloomTransition);
+            MethodInfo[] methods = type.GetMethods(Own).OrderBy(x => x.MetadataToken).ToArray();
+            Assert.That(methods.Select(x => x.ReturnType), Is.EqualTo(new[] {
+                typeof(void), typeof(void), typeof(void), typeof(IEnumerator) }));
+            Assert.That(methods.Select(x => x.GetParameters().Select(p => p.ParameterType).ToArray()), Is.EqualTo(new[] {
+                new[] { typeof(float), typeof(bool) }, Type.EmptyTypes, Type.EmptyTypes, new[] { typeof(float), typeof(bool) } }));
+            Assert.That(methods[3].GetParameters().Select(x => x.Name), Is.EqualTo(new[] { "halfDuration", "stopAtWhite" }));
+            Assert.That(methods[3].GetParameters().Any(x => x.IsOptional), Is.False);
+            ConstructorInfo constructor = type.GetConstructors(Own).Single();
+            Assert.That(constructor.IsPublic && !constructor.IsStatic, Is.True);
+            Type iterator = type.GetNestedTypes(Own).Single();
+            Assert.That(iterator.GetConstructors(Own).Single().GetParameters().Select(x => x.ParameterType),
+                Is.EqualTo(new[] { typeof(int) }));
+            Assert.That(iterator.GetFields(Own).Select(x => x.FieldType).OrderBy(x => x.FullName), Is.EqualTo(new[] {
+                typeof(MenuBloomTransition), typeof(bool), typeof(int), typeof(object), typeof(float), typeof(float) }
+                .OrderBy(x => x.FullName)));
+        }
+
         [Test]
         public void NormalInactiveAttachmentRetainsConstructorDefaultAndRequiredComponents()
         {

@@ -1225,6 +1225,7 @@ EDITMODE_TESTS += (
 
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMenuBloomPreservationTests.OriginalOwnerRetainsFieldsAttributesDefaultAndNaturalIteratorContract",
+    "ProjectLucid.Tests.OriginalMenuBloomPreservationTests.OriginalMethodsAndIteratorRetainNativeSignaturesAndSlotTypes",
     "ProjectLucid.Tests.OriginalMenuBloomPreservationTests.NormalInactiveAttachmentRetainsConstructorDefaultAndRequiredComponents",
 )
 
@@ -1267,6 +1268,11 @@ PLAYMODE_TESTS += (
 
 PLAYMODE_TESTS += (
     'ProjectLucid.Tests.UIInputTypeVisibilityLifecycleTests.SelectionTypesHidePointerGroupBeforeShowingControllerGroupAndBack',
+)
+
+# Genuine SurfaceEvent stay routine cadence on fixed steps.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.SurfaceEventLifecycleTests.AuthoredStayRoutineResumesOncePerFixedStep",
 )
 
 EDITMODE_TESTS += (
