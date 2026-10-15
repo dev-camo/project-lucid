@@ -107,6 +107,10 @@ namespace HardlightProject
                 Mathf.Cos(m_stoppedInputDisableRecenterAngleThreshold * Mathf.Deg2Rad);
             VelocityToTargetUpCosine = Mathf.Cos(m_angleFromVelocityToTargetUp * Mathf.Deg2Rad);
         }
+        // Original .ctor 0x06001a85 (x86-64 0x53fe00): movsd packed 90f/100f to
+        // +0x28/+0x2c, 0x3f800000 (1f) to +0x30, 0x3dcccccd (0.1f) to +0x50, movsd
+        // packed 45f/5f to +0x5c/+0x60, then the base 0x40400000 (3f) to +0x18 before
+        // ScriptableObject .ctor. Every other field keeps its zero/null default.
         public CameraRecenterHeadingDefinition_FreeLook() { }
     }
 }

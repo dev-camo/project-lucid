@@ -22,6 +22,8 @@ namespace HardlightProject
         public float TimeoutSeconds => m_timeoutSeconds;
         public float ForwardAngleExitSnapThreshold => m_forwardAngleExitSnapThreshold;
         public bool ClearStickyControlsOnSnapEnd => m_clearStickyControlsOnSnapEnd;
+        // Original .ctor 0x06001a70 (x86-64 0x53fb10): stores 0x40400000 (3f) to
+        // m_timeoutSeconds at +0x18, then tail-calls ScriptableObject .ctor.
         protected CameraRecenterHeadingDefinition() { }
     }
 }

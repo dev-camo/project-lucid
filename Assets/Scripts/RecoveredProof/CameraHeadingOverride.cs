@@ -14,6 +14,7 @@ namespace HardlightProject
         public Transform Target;
         public CameraHeadingOverride.CameraHeadingOverrideSettings Settings;
         public void UpdateCachedValues() => Settings.UpdateCachedValues();
+        // Original .ctor 0x06000cc1 (x86-64 0x712410) only calls Object .ctor.
         public CameraHeadingOverride() { }
 
         [Serializable]
@@ -49,6 +50,9 @@ namespace HardlightProject
             public float MaximumAngleThresholdCosine { get; private set; }
             public void UpdateCachedValues() => MaximumAngleThresholdCosine =
                 Mathf.Cos(MaximumAngleThreshold * Mathf.Deg2Rad);
+            // Original .ctor 0x06000cc5 (x86-64 0x712440): byte 1 to +0x10
+            // (UseTargetAsXAxisOverride), 0x3f000000 (0.5f) to +0x14, movsd packed
+            // 0.5f/0.5f to +0x1c/+0x20 (YAxisValue, YAxisSpeed), then Object .ctor.
             public CameraHeadingOverrideSettings() { }
         }
     }

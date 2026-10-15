@@ -34,6 +34,8 @@ namespace ProjectLucid
             Check(ReferenceEquals(heading.Target,null) && heading.Settings==null,"original heading references remain null");
             var a=new CameraHeadingOverride.CameraHeadingOverrideSettings();
             var b=new CameraHeadingOverride.CameraHeadingOverrideSettings();
+            // Settings .ctor 0x06000cc5 (x86-64 0x712440): byte 1 at +0x10, 0x3f000000 at +0x14,
+            // packed 0.5f/0.5f at +0x1c/+0x20; outer .ctor 0x06000cc1 (x86-64 0x712410) stores nothing.
             Check(a.UseTargetAsXAxisOverride && b.UseTargetAsXAxisOverride,"genuine heading x override default");
             Check(Bits(a.XAxisRecenteringTime)==Bits(.5f) && Bits(a.YAxisValue)==Bits(.5f) && Bits(a.YAxisSpeed)==Bits(.5f),"three original half defaults");
             Check(!a.OverrideXAxisRecenteringTime && !a.OverrideYAxisValue && !a.RecenterToCameraTargetOnCameraInput && !a.RequireMinimumAngle && !a.OverrideTargetingHoming,"unwritten heading flags remain false");
@@ -106,6 +108,10 @@ namespace ProjectLucid
             {
                 value=ScriptableObject.CreateInstance<CameraRecenterHeadingDefinition_FreeLook>();
                 overrides=ScriptableObject.CreateInstance<CameraRecenterHeadingOverrides>();
+                // Native default stores: base .ctor 0x06001a70 (x86-64 0x53fb10) 3f at +0x18;
+                // FreeLook .ctor 0x06001a85 (x86-64 0x53fe00) packed 90f/100f, 1f, 0.1f
+                // (0x3dcccccd) and packed 45f/5f; settings .ctor 0x06000cc5 (x86-64 0x712440)
+                // true, then 0.5f three times. All other fields stay zero/null.
                 Check(value.TimeoutSeconds==3f && value.ForwardAngleExitSnapThreshold==0f && !value.ClearStickyControlsOnSnapEnd,"real original base constructor defaults");
                 Check(value.RecenterMode==CameraRecenterHeadingDefinition_FreeLook.RecenteringMode.Default && value.RecenterToHeadingReEnableAngle==90f && value.RecenterToHeadingDisableAngle==100f,"real packed native FreeLook mode/angle defaults");
                 Check(value.MinimumRequiredVelocityForRecenter==1f && value.SnapRecenterTimeSeconds==.1f && value.RecenterTimeSmoothingValue==0f && value.StoppedInputDisableRecenterSeconds==0f,"real scalar constructor defaults");
