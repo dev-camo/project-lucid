@@ -17,6 +17,11 @@ using UnityEngine.AddressableAssets;
 // No FontAssetLanguageSetter/App/system instance, font load, readiness or catalog is supplied.
 public sealed class OriginalFontReferenceConversionTests
 {
+    // Keys of the shipped StreamingAssets/aa/catalog.json (sha256
+    // 02a6803f2ae6b963de9566c4a703050b569c53a5a0a516591584914acdc5a027), each resolving
+    // to a FontAssetAndFallbacks entry: Assets/Fonts/ProximaNova{Black,Bold,BlackCn,
+    // Extrabold}Fallbacks.asset in this order.
+    // Their order in an original owner is not asserted from asset bytes here.
     private static readonly string[] Collections = {
         "c6bc5f88793a44caaab2e67bd2a45af1", "00411bdfebdc243b5b97ae0f721d16b0",
         "824c341753e3d4732af8fb81d6d0b65a", "36555d6dfb0164ae2982ca7fc963c182" };
