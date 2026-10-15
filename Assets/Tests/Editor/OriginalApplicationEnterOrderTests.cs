@@ -72,6 +72,7 @@ namespace ProjectLucid.Tests
             Assert.IsEmpty(beforeGate, "The eleven registrations and initialisation are unconditional.");
             List<Instruction> gates = body.Skip(gate + 1).Take(gameCenter - gate - 1).Where(IsConditional).ToList();
             Assert.AreEqual(1, gates.Count);
+            Assert.AreEqual(gates[0].Offset, JumpIfFalse(body, gate).Offset, "The gate tests the getter result itself");
             Assert.Greater(gates[0].Target, body[gameCenter].Offset);
             Assert.LessOrEqual(gates[0].Target, body[vibration].Offset);
             // Nothing gates the vibration lookup: native 0x649c64..0x649c8d holds only
@@ -176,6 +177,21 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(OpCodes.Ceq, next.Code, "Expected bne.un or ceq after the platform operand");
             Assert.AreEqual(Local(body[compare + 2], "stloc"), Local(body[compare + 3], "ldloc"));
             Instruction jump = body[compare + 4];
+            Assert.IsTrue(jump.Code == OpCodes.Brfalse || jump.Code == OpCodes.Brfalse_S, "Expected brfalse, found " + jump.Code);
+            return jump;
+        }
+
+        // Native 0x649c4c `cmp byte ptr [rax + 0x2b], 0; je 0x649c64`: a false
+        // GameCenter jumps past the registration call 0x649c5f. Release IL is
+        // `brfalse` straight after the getter; Debug IL stores the getter result in a
+        // local and reloads it for `brfalse`. A negated test emits brtrue, or
+        // `ldc.i4.0; ceq` before the local, so neither form matches.
+        private static Instruction JumpIfFalse(List<Instruction> body, int getter)
+        {
+            Instruction next = body[getter + 1];
+            if (next.Code == OpCodes.Brfalse || next.Code == OpCodes.Brfalse_S) return next;
+            Assert.AreEqual(Local(next, "stloc"), Local(body[getter + 2], "ldloc"), "Expected the getter result in a local");
+            Instruction jump = body[getter + 3];
             Assert.IsTrue(jump.Code == OpCodes.Brfalse || jump.Code == OpCodes.Brfalse_S, "Expected brfalse, found " + jump.Code);
             return jump;
         }
