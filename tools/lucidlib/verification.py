@@ -1957,3 +1957,9 @@ PLAYMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalInstancedObjectPoolGapTests.ReRegistrationKeepsTheFirstPoolAndUnknownKeysAreSilentMisses",
 )
+
+# EntityActivationManager registration and activation transitions with recorded logic.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalEntityActivationRegistrationGapTests.RegisterCreatesBothRowsInactiveFirstAndDeregisterRemovesBeforeShutdown",
+    "ProjectLucid.Tests.OriginalEntityActivationRegistrationGapTests.ActivateIndexesTheSourceRowWhileDeactivateProbesItAndNeitherRollsBack",
+)
