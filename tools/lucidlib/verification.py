@@ -1603,6 +1603,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.SingleToggleSelectsTheIncomingButtonNotTheEqualChild",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.AirAbilityEntryNudgeRunsBetweenTheVelocityTestAndTheForwardRead",
+    "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.HalfPipeEarlyAirSuppressionEndsOnlyTheAirActiveImpulse",
+    "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.TargetedLocationRaycastDividesByOneMagnitudeWithoutNormalizing",
+)
+
+
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("version")',

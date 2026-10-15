@@ -51,8 +51,8 @@ namespace HardlightProject
 			if (brain.AirActive && m_activeTimer <= Definition.ExitAirTimeThreshold)
 			{
 				AirActive = false;
+				// Only the air-active impulse ends here; a simultaneous stomp input stays available (0xE60ECA-0xE60EE1).
 				m_character.EndAirActiveImpulse();
-				m_character.EndAirStompAttackImpulse();
 			}
 		}
 

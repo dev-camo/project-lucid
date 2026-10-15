@@ -30,10 +30,13 @@ namespace HardlightProject
 			CharacterAbility_Air ability = GetAbility(character);
 			CharacterAbilityDefinition_Air definition = ability.Definition;
 			Vector3 gravityNormalised = character.GravityNormalised;
-			Vector3 forward = definition.MaintainOrientationFromVelocity && character.LocalVelocity.XZ().sqrMagnitude > 0.0001f
-				? character.WorldVelocityNormalised
-				: character.ForwardDirection;
-			OrientateToGravity(character, forward, gravityNormalised);
+			bool forwardFromVelocity = definition.MaintainOrientationFromVelocity && character.LocalVelocity.XZ().sqrMagnitude > 0.0001f;
+			// Entry nudge clears walls and perpendicular gravity before orientation (0x77315E-0x7731ED).
+			if (definition.NudgeCharacterUpOnEnter && Mathf.Abs(Vector3.Dot(character.UpDirection, gravityNormalised)) <= definition.NudgeCharacterUpOnEnterMaxDotProduct)
+			{
+				character.SetWorldPosition(character.WorldPosition + character.UpDirection * definition.NudgeCharacterUpOnEnterDistance);
+			}
+			OrientateToGravity(character, forwardFromVelocity ? character.WorldVelocityNormalised : character.ForwardDirection, gravityNormalised);
 			if (definition.OrientateToInputOnEnter)
 			{
 				CharacterAbility_MovementAir movementAir = character.GetAbility<CharacterAbility_MovementAir>(ActorAbilityType.Character_MovementAir);

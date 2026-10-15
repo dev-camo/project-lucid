@@ -74,7 +74,9 @@ namespace HardlightProject
 		{
 			Vector3 worldPosition = m_character.WorldPosition;
 			Vector3 direction = m_targetedLocation.m_worldPosition - worldPosition;
-			return !Physics.Raycast(worldPosition, direction.normalized, direction.magnitude, m_character.CollisionMask, QueryTriggerInteraction.Ignore);
+			// The original divides by the magnitude directly, with no normalization epsilon (0xE6935A-0xE693A4).
+			float distance = direction.magnitude;
+			return !Physics.Raycast(worldPosition, direction / distance, distance, m_character.CollisionMask, QueryTriggerInteraction.Ignore);
 		}
 
 		// 0600129f (1.10.1 RVA 0xE693F0)
