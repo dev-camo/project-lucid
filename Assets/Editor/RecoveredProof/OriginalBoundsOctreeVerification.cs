@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using UnityEngine;
 
@@ -75,9 +74,34 @@ namespace ProjectLucid.Editor
             return c;
         }
 
+        // Literal BestFitChild 0x06000013 results, [center, point] over the values
+        // -inf, -1, -0, 0, 1, +inf, NaN with the other two axes zero. x86-64 0xe3f3b0:
+        // x is ucomiss cx, px + setb (1 when px > cx or unordered), y is cmpnleps lane 1
+        // (4 when py < cy or unordered), z is ucomiss cz, pz + cmovae (2 when pz > cz or
+        // unordered). arm64 0xe2a4e0 agrees: fcmp px, cx cset hi; fcmp py, cy cset lt;
+        // fcmp pz, cz csel hi. Equal and signed zeros select the low octant.
+        private static readonly int[][,] OctantTables =
+        {
+            new int[,] // x
+            {
+                { 0, 1, 1, 1, 1, 1, 1 }, { 0, 0, 1, 1, 1, 1, 1 }, { 0, 0, 0, 0, 1, 1, 1 }, { 0, 0, 0, 0, 1, 1, 1 },
+                { 0, 0, 0, 0, 0, 1, 1 }, { 0, 0, 0, 0, 0, 0, 1 }, { 1, 1, 1, 1, 1, 1, 1 },
+            },
+            new int[,] // y
+            {
+                { 0, 0, 0, 0, 0, 0, 4 }, { 4, 0, 0, 0, 0, 0, 4 }, { 4, 4, 0, 0, 0, 0, 4 }, { 4, 4, 0, 0, 0, 0, 4 },
+                { 4, 4, 4, 4, 0, 0, 4 }, { 4, 4, 4, 4, 4, 0, 4 }, { 4, 4, 4, 4, 4, 4, 4 },
+            },
+            new int[,] // z
+            {
+                { 0, 2, 2, 2, 2, 2, 2 }, { 0, 0, 2, 2, 2, 2, 2 }, { 0, 0, 0, 0, 2, 2, 2 }, { 0, 0, 0, 0, 2, 2, 2 },
+                { 0, 0, 0, 0, 0, 2, 2 }, { 0, 0, 0, 0, 0, 0, 2 }, { 2, 2, 2, 2, 2, 2, 2 },
+            },
+        };
+
         public static int VerifyOctantComparisons()
         {
-            int c = 0; var node = (BoundsOctreeNode<int>)FormatterServices.GetUninitializedObject(typeof(BoundsOctreeNode<int>));
+            int c = 0; var node = new BoundsOctreeNode<int>(1f, 1f, 1f, Vector3.zero);
             MethodInfo setCenter = typeof(BoundsOctreeNode<int>).GetProperty("Center").GetSetMethod(true);
             float[] values = { float.NegativeInfinity, -1f, -0f, 0f, 1f, float.PositiveInfinity, float.NaN };
             for (int axis = 0; axis < 3; axis++)
@@ -85,8 +109,7 @@ namespace ProjectLucid.Editor
                 for (int i = 0; i < values.Length; i++) for (int j = 0; j < values.Length; j++)
                 {
                     Vector3 center = Vector3.zero, point = Vector3.zero; center[axis] = values[i]; point[axis] = values[j]; setCenter.Invoke(node, new object[] { center });
-                    bool bit = axis == 1 ? !(values[j] >= values[i]) : !(values[j] <= values[i]);
-                    Check(node.BestFitChild(point) == (bit ? new[] { 1, 4, 2 }[axis] : 0), ref c, "Native unordered/equality octant table");
+                    Check(node.BestFitChild(point) == OctantTables[axis][i, j], ref c, "Native unordered/equality octant table");
                 }
             }
             setCenter.Invoke(node, new object[] { Vector3.zero });

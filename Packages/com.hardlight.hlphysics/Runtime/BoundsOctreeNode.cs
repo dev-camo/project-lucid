@@ -72,6 +72,8 @@ namespace Hardlight
         {
             // Inverse comparisons intentionally retain the original unordered choices:
             // either NaN operand selects x bit1, y bit4 or z bit2 on both shipped CPUs.
+            // 0x06000013: x86-64 0xe3f3b0 ucomiss/setb, cmpnleps lane 1, ucomiss/cmovae;
+            // arm64 0xe2a4e0 fcmp with cset hi (x), cset lt (y), csel hi (z).
             return (objBoundsCenter.x <= Center.x ? 0 : 1) +
                 (objBoundsCenter.y >= Center.y ? 0 : 4) +
                 (objBoundsCenter.z <= Center.z ? 0 : 2);
