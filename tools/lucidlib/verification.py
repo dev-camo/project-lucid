@@ -1519,12 +1519,12 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalUIWidgetRetainLastSelectedPlayTests.SuccessfulAwakeDefersRealNavigationSelectOfTheRememberedWidget",
 )
 
-# Logging host test fixture ownership of the SystemConfiguration row; logging behavior stays separate.
+# Logging host test fixture ownership of the SystemConfiguration row (startup row set aside per control); logging behavior stays separate.
 PLAYMODE_TESTS += (
-    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRemovesAnAbsentRowOnEveryRun",
-    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationBorrowsALiveRowAndRemovesOnlyItsOwnOverride",
-    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRefusesADormantRowWithoutTouchingIt",
-    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideRemovalFailure",
-    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationRemovesAnOverrideWhoseAddConfigThrew",
-    "ProjectLucid.Tests.LoggingHostTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideScanFailure",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRemovesAnAbsentRowOnEveryRun",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationBorrowsALiveRowAndRemovesOnlyItsOwnOverride",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRefusesADormantRowWithoutTouchingIt",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideRemovalFailure",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRemovesAnOverrideWhoseAddConfigThrew",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationStillReleasesItsRowAfterAnOverrideScanFailure",
 )
