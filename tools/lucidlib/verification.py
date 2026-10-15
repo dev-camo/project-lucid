@@ -1999,3 +1999,29 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalManagedAddressableAssetGapTests.CachedLoadsStillCountAndUnloadClampsBeforeClearingTheAsset",
 )
+
+# Low-priority native-grounded gap cases (core, UI, game, spline and physics).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalCoreLowGapTests.NestedStringsHashAndCompareCharByCharThroughRecursion",
+    "ProjectLucid.Tests.OriginalCoreLowGapTests.NullTypeFaultsInTheLookupInsteadOfReturningTheDefaultSize",
+    "ProjectLucid.Tests.OriginalCoreLowGapTests.FixedWaitReadsFixedDeltaTimeBeforeTheCategoryTimescale",
+    "ProjectLucid.Tests.OriginalCoreLowGapTests.ForeignPhotoHashLeavesTheMatchingPhotoInPlace",
+    "ProjectLucid.Tests.OriginalCoreLowGapTests.NullConfigurationArrayFaultsInsteadOfReadingAsEmpty",
+    "ProjectLucid.Tests.OriginalUILowGapTests.FadeTransitionDefaultsTrueOnARealComponent",
+    "ProjectLucid.Tests.OriginalUILowGapTests.DestroyedHostStopFaultKeepsTheRetainedScrollIterator",
+    "ProjectLucid.Tests.OriginalUILowGapTests.NullToggleNotificationThrowsTheExactOriginalMessage",
+    "ProjectLucid.Tests.OriginalGameLowGapTests.CloseContainerFactoryResolvesTheContainerBeforeTheEvent",
+    "ProjectLucid.Tests.OriginalGameLowGapTests.FairPlayCatchLogsTheExceptionBeforeRequestingQuit",
+    "ProjectLucid.Tests.OriginalGameLowGapTests.ZeroDistanceConeAdmitsNoPointIncludingItsCenter",
+    "ProjectLucid.Tests.OriginalGameLowGapTests.DebugInfoKeepsTheExactHeadersCountsSeparatorsAndEmptyMarker",
+    "ProjectLucid.Tests.OriginalGameLowGapTests.DestructorDispatchesTheOverriddenShutdown",
+    "ProjectLucid.Tests.OriginalSplinePhysicsLowGapTests.InitialisePublishesTheArrayAndClearsTheCacheBeforeAnEntryFaults",
+    "ProjectLucid.Tests.OriginalSplinePhysicsLowGapTests.GrowthChildrenUseTheOriginalOctantSignPattern",
+)
+
+# Low-priority gap cases that need real Awake/OnDestroy messages or an active scene object.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLowGapPlayTests.MacConnectCallbackFindsTheNamedObjectAndSendsTheCommandData",
+    "ProjectLucid.Tests.OriginalLowGapPlayTests.DestroyFaultsReleasingAMissingVideoTargetTexture",
+    "ProjectLucid.Tests.OriginalLowGapPlayTests.AwakeRegistersBeforeApplyingAndDestroyDetachesBeforeUnregistering",
+)
