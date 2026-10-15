@@ -2103,3 +2103,12 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(False)",
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(True)",
 )
+
+# Native-grounded strengthening of weak original-behavior cases, kept in their own files.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.HLHapticsWeakRemediationTests.EventDataJsonUsesOriginalFieldOrderAndEnumLiterals",
+    "ProjectLucid.Tests.HLHapticsWeakRemediationTests.UnavailableTriggerTestsNoneBeforeDebugFlagAndDefinitions",
+    "OriginalMenuDataWeakRemediationTests.MenuPageFadeTransitionDefaultsTrueOnOwnedComponent",
+    "ProjectLucid.Editor.OriginalHLUIEffectManagerWeakRemediationTests.OriginalEffectManagerSamplesPassRawTimeToLoopingCurves",
+    "ProjectLucid.Tests.OriginalHLButtonWeakRemediationTests.InactiveButtonPropertiesRouteToTheirOwnBackingFields",
+)
