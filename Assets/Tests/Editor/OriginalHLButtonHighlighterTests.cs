@@ -311,6 +311,120 @@ namespace ProjectLucid.Editor
             Assert.Throws<NullReferenceException>(() => targets.OnHighlightEnd(null, null));
         }
 
+        // ButtonHighlightChangeTargets 0x06000438..0x0600043c (x86-64 0x1b5b5d0,
+        // 0x1b5b630, 0x1b5b690, 0x1b5b6f0, 0x1b5b770): each loop rereads the array
+        // field every iteration, walks it upward and makes one virtual call with
+        // its arguments passed through unchanged. Vtable slots 0x178/0x188/0x198/
+        // 0x1a8/0x1b8 are OnHighlightBegin/Updated/End/OnActivate/OnDeactivate, so
+        // Activate reaches OnActivate and Deactivate reaches OnDeactivate.
+        // Mutations caught: swapped Activate/Deactivate targets, swapped previous
+        // and current sources, a substituted lerp value, reverse iteration, and a
+        // loop over a cached array (the mid-dispatch replacement is ignored).
+        [Test]
+        public void OwnedTargetsDispatchEachCallbackToItsSlotInAscendingOrder()
+        {
+            var roots = new List<GameObject>();
+            try
+            {
+                var calls = new List<OriginalSelectionModificationProbe.Call>();
+                OriginalSelectionModificationProbe first = Probe("Owned first selection modification", roots, calls);
+                OriginalSelectionModificationProbe second = Probe("Owned second selection modification", roots, calls);
+                OriginalSelectionModificationProbe third = Probe("Owned replacement selection modification", roots, calls);
+                var targets = new Targets { UISelectionModifications = new ModifiedOnUISelection[] { first, second } };
+                var previous = new Source { Top = 1f };
+                var current = new Source { Top = 2f };
+                const float lerp = 0.375f;
+
+                targets.Activate(current);
+                Calls(calls, first, "OnActivate", null, current, float.NaN, second, "OnActivate", null, current, float.NaN);
+                targets.Deactivate(previous);
+                Calls(calls, first, "OnDeactivate", null, previous, float.NaN, second, "OnDeactivate", null, previous, float.NaN);
+                targets.OnHighlightBegin(previous, current);
+                Calls(calls, first, "OnHighlightBegin", previous, current, float.NaN, second, "OnHighlightBegin", previous, current, float.NaN);
+                targets.OnHighlightUpdated(previous, current, lerp);
+                Calls(calls, first, "OnHighlightUpdated", previous, current, lerp, second, "OnHighlightUpdated", previous, current, lerp);
+                targets.OnHighlightEnd(previous, current);
+                Calls(calls, first, "OnHighlightEnd", previous, current, float.NaN, second, "OnHighlightEnd", previous, current, float.NaN);
+
+                var replacement = new ModifiedOnUISelection[] { first, third };
+                first.OnCall = probe => targets.UISelectionModifications = replacement;
+                targets.Activate(current);
+                first.OnCall = null;
+                Calls(calls, first, "OnActivate", null, current, float.NaN, third, "OnActivate", null, current, float.NaN);
+                Assert.That(ReferenceEquals(targets.UISelectionModifications, replacement), Is.True);
+                foreach (GameObject root in roots) Assert.That(root.activeSelf || root.activeInHierarchy, Is.False);
+            }
+            finally
+            {
+                for (int i = roots.Count - 1; i >= 0; --i)
+                    if (roots[i] != null) UnityEngine.Object.DestroyImmediate(roots[i]);
+            }
+        }
+
+        private static OriginalSelectionModificationProbe Probe(string name, List<GameObject> roots,
+            List<OriginalSelectionModificationProbe.Call> calls)
+        {
+            var root = new GameObject(name);
+            roots.Add(root);
+            root.SetActive(false);
+            var probe = root.AddComponent<OriginalSelectionModificationProbe>();
+            Assert.That(probe, Is.Not.Null);
+            probe.Calls = calls;
+            return probe;
+        }
+
+        // Expects the recorded calls as (receiver, method, previous, current, lerp) groups, then clears.
+        private static void Calls(List<OriginalSelectionModificationProbe.Call> calls, params object[] expected)
+        {
+            Assert.That(calls.Count, Is.EqualTo(expected.Length / 5));
+            for (int i = 0; i < calls.Count; ++i)
+            {
+                OriginalSelectionModificationProbe.Call call = calls[i];
+                Assert.That(ReferenceEquals(call.Receiver, expected[i * 5]), Is.True, "receiver " + i);
+                Assert.That(call.Method, Is.EqualTo(expected[i * 5 + 1]), "method " + i);
+                Assert.That(ReferenceEquals(call.Previous, expected[i * 5 + 2]), Is.True, "previous source " + i);
+                Assert.That(ReferenceEquals(call.Current, expected[i * 5 + 3]), Is.True, "current source " + i);
+                Assert.That(BitConverter.ToInt32(BitConverter.GetBytes(call.Lerp), 0),
+                    Is.EqualTo(BitConverter.ToInt32(BitConverter.GetBytes((float)expected[i * 5 + 4]), 0)), "lerp " + i);
+            }
+            calls.Clear();
+        }
+
+        // 0x06000432 x86-64 0x1b5b470 (int) and 0x06000431 x86-64 0x1b599c0 (string)
+        // set overrideSorting, then the sorting layer, then the order; 0x06000433
+        // x86-64 0x1b59a10 only clears overrideSorting. Distinct non-Default layers
+        // from ProjectSettings/TagManager.asset (Menu Foreground 13, Menu Background
+        // 9) make each layer write observable. Mutations caught: dropping either
+        // overload's layer write, or a reset that also restores layer or order.
+        [Test]
+        public void OwnedInactiveCanvasLayerOverloadsWriteDistinctLayersThatResetKeeps()
+        {
+            using (var owned = new Owned(nestedCanvas: true))
+            {
+                Wire(owned, null);
+                int foreground = SortingLayer.NameToID("Menu Foreground");
+                int background = SortingLayer.NameToID("Menu Background");
+                Assert.That(foreground, Is.EqualTo(13));
+                Assert.That(background, Is.EqualTo(9));
+                Assert.That(owned.Canvas.sortingLayerID, Is.EqualTo(SortingLayer.NameToID("Default")));
+                owned.Highlighter.SetButtonCanvasLayer(foreground, 17);
+                Assert.That(owned.Canvas.overrideSorting, Is.True);
+                Assert.That(owned.Canvas.sortingLayerID, Is.EqualTo(foreground));
+                Assert.That(owned.Canvas.sortingLayerName, Is.EqualTo("Menu Foreground"));
+                Assert.That(owned.Canvas.sortingOrder, Is.EqualTo(17));
+                owned.Highlighter.SetButtonCanvasLayer("Menu Background", 5);
+                Assert.That(owned.Canvas.overrideSorting, Is.True);
+                Assert.That(owned.Canvas.sortingLayerID, Is.EqualTo(background));
+                Assert.That(owned.Canvas.sortingLayerName, Is.EqualTo("Menu Background"));
+                Assert.That(owned.Canvas.sortingOrder, Is.EqualTo(5));
+                owned.Highlighter.ResetCanvasLayer();
+                Assert.That(owned.Canvas.overrideSorting, Is.False);
+                Assert.That(owned.Canvas.sortingLayerID, Is.EqualTo(background));
+                Assert.That(owned.Canvas.sortingOrder, Is.EqualTo(5));
+                Assert.That(owned.Root.activeSelf || owned.Root.activeInHierarchy, Is.False);
+            }
+        }
+
         [Test]
         public void OwnedInactiveCanvasLayerOverloadsAndReset()
         {
