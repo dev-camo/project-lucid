@@ -27,7 +27,8 @@ namespace ProjectLucid.Tests
         // every other type hides it. 0x06002fd4 (0x609dd0) stores the flag and
         // shows/hides directly; 0x06002fd6 (0x609cd0) updates the HLInputModule.
         // Fails if the force-release guard is removed, if non-pointer types read
-        // gameplay control, or if the storeDefault argument is dropped.
+        // gameplay control or the App at all, or if the storeDefault argument is
+        // dropped.
         [UnityTest]
         public IEnumerator InputTypeChoosesCursorUnlessForceReleased()
         {
@@ -85,8 +86,20 @@ namespace ProjectLucid.Tests
 
                 app.Storage.SetValue(AppFSMKeys.GameplayControlActive, false);
                 module.SetHardwareCursorVisibility(true);
-                InputType(toggle, UIInputType.Touch);
-                Assert.IsFalse(visible(), "Non-pointer types hide the cursor regardless of gameplay control.");
+                // Non-pointer types branch (0x609bd4) straight to
+                // SetCursorVisibility(false) at 0x609c79, never reaching the
+                // m_appRef.Get at 0x609be8. Revoke the App for this call only,
+                // so any App or storage read faults; then re-register it.
+                var appRef = (SystemRef<App>)typeof(ToggleCursorVisibility).GetField("m_appRef", Instance).GetValue(toggle);
+                ProcessManager.UnregisterSystem(app);
+                try
+                {
+                    Assert.IsNull(appRef.GetSafe(), "The toggle's App reference is revoked for the Touch call.");
+                    InputType(toggle, UIInputType.Touch);
+                }
+                finally { ProcessManager.RegisterSystem(app); }
+                Assert.AreSame(app, appRef.GetSafe());
+                Assert.IsFalse(visible(), "Non-pointer types hide the cursor without reading the App.");
 
                 app.Storage.SetValue(AppFSMKeys.GameplayControlActive, true);
                 Force(toggle, true);

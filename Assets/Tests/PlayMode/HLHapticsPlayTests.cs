@@ -11,6 +11,6 @@ namespace ProjectLucid.Tests
         [Test] public void ManagerAwakeDebugSnapshotAndSafeTriggerOrder() => HLHapticsVerification.ManagerAwakeDebugSnapshotAndSafeTriggerOrder();
         [UnityTest] public IEnumerator NaturalIteratorFinitePositiveWaitRepeatCounts() => HLHapticsVerification.NaturalIteratorFinitePositiveWaitRepeatCounts();
         [UnityTest] public IEnumerator NaturalIteratorLiveOwnedArrayAfterPositiveWait() => HLHapticsVerification.NaturalIteratorLiveOwnedArrayAfterPositiveWait();
-        [Test] public void TriggerEventStartsACoroutineForEveryMatchingDefinition() => HLHapticsVerification.TriggerEventStartsACoroutineForEveryMatchingDefinition();
+        [UnityTest] public IEnumerator TriggerEventStartsACoroutineForEveryMatchingDefinition() => HLHapticsVerification.TriggerEventStartsACoroutineForEveryMatchingDefinition();
     }
 }

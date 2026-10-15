@@ -147,10 +147,22 @@ namespace ProjectLucid.Tests
                     Assert.IsFalse((bool)cachedVersion.GetValue(cloud));
                     Assert.AreEqual(0, changes.Count);
 
-                    // Empty change set: no store lookup, version flag retained.
+                    // Empty change set: the Count test (0x1a9b82e) branches out
+                    // before GetSystemSafe (0x1a9b863), whose result is then
+                    // dereferenced unchecked. Revoke the owned store for this
+                    // call only, so a reordered lookup faults on null; the
+                    // retained row is re-acquired by the same owner.
                     cachedVersion.SetValue(cloud, true);
                     conflictsResolved = false;
-                    Assert.IsFalse(ModifySave(cloud, list, ref conflictsResolved));
+                    bool emptyResult;
+                    ProcessManager.UnregisterSystem(ProcessManager.GetDefaultName<HLPropertyStore>());
+                    try
+                    {
+                        Assert.IsTrue(ProcessManager.IsSystemNull<HLPropertyStore>());
+                        emptyResult = ModifySave(cloud, list, ref conflictsResolved);
+                    }
+                    finally { row.Register(store); }
+                    Assert.IsFalse(emptyResult);
                     Assert.IsFalse(conflictsResolved);
                     Assert.IsTrue((bool)cachedVersion.GetValue(cloud));
 
