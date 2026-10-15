@@ -249,6 +249,37 @@ namespace ProjectLucid.Tests
             Assert.That(Read(typeof(HLSelectableInputListener.SelectedButtonInput), data, "m_provider"), Is.Null);
         }
 
+        // 0x0600047c x86-64 0x1b5f5c0: SetProvider stores only when the field at
+        // +0x48 is null. 0x0600047b x86-64 0x1b5f510: get_Text returns null for a
+        // null provider, else tail-calls the provider's interface Text on every read.
+        // Mutations caught: dropping the first-write-wins guard (b replaces a), a
+        // null argument clearing the stored provider, and Text ignoring or caching
+        // the provider value.
+        [Test]
+        public void OrdinarySelectedButtonInputKeepsFirstProviderAndReadsItsTextEachTime()
+        {
+            var data = new HLSelectableInputListener.SelectedButtonInput();
+            var first = new TextProvider { Value = "first provider text" };
+            var later = new TextProvider { Value = "later provider text" };
+            data.SetProvider(first);
+            Assert.That(ReferenceEquals(Read(typeof(HLSelectableInputListener.SelectedButtonInput), data, "m_provider"), first), Is.True);
+            Assert.That(data.Text, Is.SameAs(first.Value));
+            data.SetProvider(later);
+            data.SetProvider(null);
+            Assert.That(ReferenceEquals(Read(typeof(HLSelectableInputListener.SelectedButtonInput), data, "m_provider"), first), Is.True);
+            first.Value = "changed first provider text";
+            Assert.That(data.Text, Is.SameAs(first.Value));
+            Assert.That(first.Reads, Is.EqualTo(2));
+            Assert.That(later.Reads, Is.Zero);
+        }
+
+        private sealed class TextProvider : HLSelectableInputListener.ISelectedButtonInputTextProvider
+        {
+            public string Value;
+            public int Reads;
+            public string Text { get { ++Reads; return Value; } }
+        }
+
         private static UnityEvent[] Events(HLButton button)
         { return new[] { button.OnClick, button.OnDisabledClick, button.OnOfflineClick, button.OnButtonDown, button.OnButtonUp }; }
 

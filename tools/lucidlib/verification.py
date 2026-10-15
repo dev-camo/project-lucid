@@ -1247,6 +1247,7 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.OriginalHLButtonAndInputListenerTests.InactiveAnimationDisabledPressReturnsFalseWithoutDispatch',
     'ProjectLucid.Tests.OriginalHLButtonAndInputListenerTests.InactiveListenerReturnsGenuineObservedArrayWithoutSetup',
     'ProjectLucid.Tests.OriginalHLButtonAndInputListenerTests.OrdinarySelectedButtonInputKeepsNullProviderAndZeroDefaults',
+    'ProjectLucid.Tests.OriginalHLButtonAndInputListenerTests.OrdinarySelectedButtonInputKeepsFirstProviderAndReadsItsTextEachTime',
     'ProjectLucid.Editor.OriginalUIUtilsTests.OriginalUIUtilsRetainsCompleteGenericDefaultAndAnnotationContracts',
     'ProjectLucid.Editor.OriginalUIUtilsTests.OriginalFormattingUsesSingleConversionAndGenuineCultureProviders',
     'ProjectLucid.Editor.OriginalUIUtilsTests.OriginalRefColourUsesExactChannelsAndRetainsManagedNaNBranch',
