@@ -22,6 +22,17 @@ namespace ProjectLucid.Tests
         public IEnumerator OriginalLoggingHost_RegisteredCallbacksAndRetainedNativeBridgeLifecycle()
         {
             Assert.IsTrue(HLUnityCore.IsNull() && ProcessManager.IsSystemNull<HLUnityCore>(), "The bounded runtime fixture starts without the game's real logging host.");
+            // SystemConfiguration row ownership: an absent row is leased and removed once cleared; a live
+            // one is borrowed for the single owned override. A dormant row is refused before AddConfig,
+            // because its typed cache may still hold references that AddConfig would replace.
+            IDictionary registry = LifecycleSystemRowLease.SharedRegistry;
+            string configurationName = ProcessManager.GetDefaultName<SystemConfiguration>();
+            LifecycleSystemRowLease configurationLease = null;
+            if (!registry.Contains(configurationName))
+                configurationLease = new LifecycleSystemRowLease(registry, configurationName);
+            else
+                Assert.IsTrue(((SystemRef)registry[configurationName].GetType().GetField("SystemRef").GetValue(registry[configurationName])).IsValid(),
+                    "The fixture refuses a dormant configuration row.");
             Type type = typeof(HLUnityCore);
             object previousBridge = Field(type, "s_unityCoreNativeBridge").GetValue(null);
             object previousTracking = Field(type, "s_trackingAuthorisationNativeBridge").GetValue(null);
@@ -47,6 +58,7 @@ namespace ProjectLucid.Tests
                 // Original runtime configuration enumeration registers the base asset type.
                 handle = SystemConfiguration.AddConfig<SystemConfigurationAsset>(config);
                 if (!priorConfiguration) createdConfiguration = ProcessManager.GetSystem<SystemConfiguration>();
+                configurationLease?.CaptureCreatedRow(ProcessManager.GetSystemRef(configurationName));
                 Field(type, "s_unityCoreNativeBridge").SetValue(null, null);
                 Field(type, "s_trackingAuthorisationNativeBridge").SetValue(null, null);
                 Debug.unityLogger.logEnabled = true;
@@ -144,10 +156,12 @@ namespace ProjectLucid.Tests
                 Field(type, "s_trackingAuthorisationNativeBridge").SetValue(null, previousTracking);
                 if (handle != null) ProcessManager.GetSystem<SystemConfiguration>().StackableData.RemoveOverrides(handle);
                 if (createdConfiguration != null) ProcessManager.UnregisterSystem(createdConfiguration);
+                configurationLease?.Dispose();
                 if (config != null) Object.DestroyImmediate(config);
                 Debug.unityLogger.logEnabled = previousLogging;
                 Debug.unityLogger.filterLogType = previousFilter;
             }
+            if (configurationLease != null) Assert.IsEmpty(configurationLease.CleanupFailures, "The owned configuration row is removed once cleared.");
         }
     }
 }
