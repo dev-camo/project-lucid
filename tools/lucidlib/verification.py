@@ -1265,6 +1265,7 @@ EDITMODE_TESTS += tuple("OriginalUIVisibilityControllerTests." + name for name i
     "InputVisibilityNaturalCaptureRetainsWholeCurrentRoleWithoutQueuedCallbackExecution",
     "InputVisibilityInactiveOwnedBindingsRoundTripWithoutBridgeOrSubscription",
     "PlatformVisibilityInactiveOwnedBindingRoundTripsWithoutActivatingOverrides",
+    "PlatformVisibilityStartCallsOverridesUnconditionallyWithoutNullGuard",
 ))
 
 # Original stacked-camera declaration obligations.

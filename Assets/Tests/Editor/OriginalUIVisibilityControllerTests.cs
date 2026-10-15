@@ -188,6 +188,50 @@ public sealed class OriginalUIVisibilityControllerTests
         }
     }
 
+    // 0x06002ffe x86-64 0x60b650: Start loads m_macOsUiOverrides and tail-jumps to
+    // ActivateOverrides with no null test or platform predicate. Mutations caught:
+    // a null guard or platform check (null case no longer faults) and a body that
+    // skips the call (bound case no longer reaches ActivateOverrides). The managed
+    // NullReferenceException stands in for the unchecked native call
+    // ([Il2CppSetOption(NullChecks, false)]); native fault timing stays held.
+    [Test]
+    public void PlatformVisibilityStartCallsOverridesUnconditionallyWithoutNullGuard()
+    {
+        var roots = new List<GameObject>();
+        object inputAction = InputBridge.OnUpdateLastInputType;
+        object shutdownAction = InputBridge.OnShutdown;
+        MethodInfo start = typeof(UIPlatformVisibilityController).GetMethod("Start", Declared);
+        try
+        {
+            UIPlatformVisibilityController controller = Inactive<UIPlatformVisibilityController>("Owned inactive platform visibility start", roots);
+            var unbound = Assert.Throws<TargetInvocationException>(() => start.Invoke(controller, null));
+            Assert.IsInstanceOf<NullReferenceException>(unbound.InnerException);
+            StringAssert.DoesNotContain("ActivateOverrides", unbound.InnerException.StackTrace); // Faults at the call site in Start.
+
+            // Bound to an Awake-less overrider, the call reaches ActivateOverrides, which
+            // faults on its unpublished system reference before allocating any handle.
+            UIVisibilityGroupOverrider overrides = Inactive<UIVisibilityGroupOverrider>("Owned inactive macOS overrides start", roots);
+            PassiveOverride(overrides);
+            typeof(UIPlatformVisibilityController).GetField("m_macOsUiOverrides", Declared).SetValue(controller, overrides);
+            var bound = Assert.Throws<TargetInvocationException>(() => start.Invoke(controller, null));
+            Assert.IsInstanceOf<NullReferenceException>(bound.InnerException);
+            StringAssert.Contains("UIVisibilityGroupOverrider.ActivateOverrides", bound.InnerException.StackTrace);
+            PassiveOverride(overrides);
+            foreach (GameObject root in roots) Assert.IsFalse(root.activeInHierarchy);
+            Assert.AreSame(inputAction, InputBridge.OnUpdateLastInputType);
+            Assert.AreSame(shutdownAction, InputBridge.OnShutdown);
+        }
+        finally
+        {
+            try { DestroyAll(roots, roots.Count - 1); }
+            finally
+            {
+                Assert.AreSame(inputAction, InputBridge.OnUpdateLastInputType);
+                Assert.AreSame(shutdownAction, InputBridge.OnShutdown);
+            }
+        }
+    }
+
     private static T Inactive<T>(string name, List<GameObject> roots) where T : Component
     {
         GameObject root = new GameObject(name); roots.Add(root); root.SetActive(false);
