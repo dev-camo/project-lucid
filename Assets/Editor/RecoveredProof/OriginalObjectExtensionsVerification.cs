@@ -178,6 +178,32 @@ namespace ProjectLucid.Editor
             return checks.Count;
         }
 
+        // 0600027d x86-64 0x1ab0050: the first reverse pass skips any component
+        // whose GetType() is in the gathered RequireComponent list (List.Contains
+        // at 0x1ab044a, jne back to the loop), and only the second pass removes
+        // the rest. Here the dependent HingeJoint precedes its required Rigidbody,
+        // so a plain single reverse pass (mutation: drop the Contains skip) would
+        // DestroyImmediate the Rigidbody while the joint still requires it; Unity
+        // refuses that removal, leaving the body alive and logging an error.
+        public static int RunOriginalRequiredComponentRemovalWithDependentFirst()
+        {
+            var checks = new Checks();
+            GameObject root = Create("OriginalRequiredComponentDependentFirstRoot");
+            try
+            {
+                Rigidbody body = root.AddComponent<Rigidbody>();
+                HingeJoint joint = root.AddComponent<HingeJoint>();
+                checks.Require(UnityEditorInternal.ComponentUtility.MoveComponentUp(joint), "Editor reorders the genuine dependent fixture.");
+                Component[] before = root.GetComponents<Component>();
+                checks.Require(before.Length == 3 && ReferenceEquals(before[1], joint) && ReferenceEquals(before[2], body), "Dependent precedes its required component.");
+                root.RemoveAllComponents(true);
+                checks.Require(joint == null && body == null, "Required Rigidbody deferred to the second pass after its dependent.");
+                checks.Require(root.GetComponents<Component>().Length == 1 && root.transform != null, "Only the genuine Transform remains.");
+            }
+            finally { Cleanup(root); }
+            return checks.Count;
+        }
+
         public static int RunOriginalHierarchyPath()
         {
             var checks = new Checks();
