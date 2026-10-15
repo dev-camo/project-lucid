@@ -7,6 +7,14 @@ namespace ProjectLucid.Tests.EditMode
     [TestFixture]
     public sealed class UIOriginalLeafTests
     {
+        // Emission-regression check of the project's own compile, not original evidence.
+        [Test]
+        public void CurrentBuildEmissionMatchesRecordedSnapshot()
+        {
+            UIOriginalLeafVerification.VerifyCurrentBuildEmissionMatchesRecordedSnapshot();
+            LogAssert.NoUnexpectedReceived();
+        }
+
         [Test]
         public void OriginalMenuCameraUsesOwnedInactiveStoredCameraAndUnguardedToggle()
         {
@@ -36,7 +44,7 @@ namespace ProjectLucid.Tests.EditMode
         }
 
         [Test]
-        public void OriginalAbstractUIBridgeAndSupplierPreserveCompleteMetadataAndBaseOnlyBodies()
+        public void OriginalAbstractUIBridgeAndSupplierPreserveCompleteMetadataAndBaseOnlyConstructors()
         {
             UIOriginalLeafVerification.VerifyOriginalAbstractBridgeAndSupplierMetadata();
             LogAssert.NoUnexpectedReceived();

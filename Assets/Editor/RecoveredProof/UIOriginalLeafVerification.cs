@@ -490,12 +490,30 @@ namespace ProjectLucid.Verification
             c.Require(setter.Module == expected.Module && setter.MetadataToken == expected.MetadataToken && setter.DeclaringType == typeof(Behaviour) && setter.Name == "set_enabled" && !setter.IsStatic && setter.GetParameters().Length == 1 && setter.GetParameters()[0].ParameterType == typeof(bool), "actual Unity Behaviour.enabled setter operand");
         }
 
-        private static void BaseOnlyConstructor(Checks c, Type owner, int attributes, Type baseType)
+        private static ConstructorInfo BaseOnlyConstructor(Checks c, Type owner, int attributes, Type baseType)
         {
             ConstructorInfo[] constructors = owner.GetConstructors(Declared);
             c.Require(constructors.Length == 1, "one original instance constructor " + owner.Name);
             ConstructorInfo constructor = constructors[0];
             c.Require(constructor.Name == ".ctor" && constructor.DeclaringType == owner && (int)constructor.Attributes == attributes && (int)constructor.GetMethodImplementationFlags() == 0 && constructor.GetParameters().Length == 0 && constructor.CallingConvention == (CallingConventions.Standard | CallingConventions.HasThis) && constructor.GetCustomAttributesData().Count == 0, "exact base-only constructor declaration " + owner.Name);
+            return constructor;
+        }
+
+        // Emission-regression check of this project's own compile, not original evidence;
+        // it runs only as its own test, never inside the owned behavior/declaration cases.
+        public static int VerifyCurrentBuildEmissionMatchesRecordedSnapshot()
+        {
+            var c = new Checks();
+            BaseOnlyConstructorBody(c, typeof(GUICameraManager), 6278, typeof(MonoSingleton<GUICameraManager>));
+            BaseOnlyConstructorBody(c, typeof(UIRuntimeConfiguration), 6278, typeof(MonoBehaviour));
+            BaseOnlyConstructorBody(c, typeof(InputBridge), 6276, typeof(ScriptableObject));
+            BaseOnlyConstructorBody(c, typeof(InputSupplier), 6276, typeof(ScriptableObject));
+            return c.Count;
+        }
+
+        private static void BaseOnlyConstructorBody(Checks c, Type owner, int attributes, Type baseType)
+        {
+            ConstructorInfo constructor = BaseOnlyConstructor(c, owner, attributes, baseType);
             byte[] il = EmptyBody(c, constructor, "constructor " + owner.Name).GetILAsByteArray();
             // Require the complete current base-only call/ret shape; no opcode relaxation.
             c.Require(il.Length == 7 && il[0] == 0x02 && il[1] == 0x28 && il[6] == 0x2a, "entire base-call/ret constructor " + owner.Name);

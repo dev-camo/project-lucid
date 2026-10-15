@@ -931,11 +931,12 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalMenuCameraUsesOwnedInactiveStoredCameraAndUnguardedToggle",
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalUIConfigurationUsesOwnedInactiveStoredGettersAndPrimitiveJson",
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalUIConfigurationLifecycleRegistersAndUnregistersBeforeUnguardedBridgeCalls",
     "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalUIConfigurationLifecycleRevokesOwnedRegistrationAfterAssertionFault",
-    "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalAbstractUIBridgeAndSupplierPreserveCompleteMetadataAndBaseOnlyBodies",
+    "ProjectLucid.Tests.EditMode.UIOriginalLeafTests.OriginalAbstractUIBridgeAndSupplierPreserveCompleteMetadataAndBaseOnlyConstructors",
     "ProjectLucid.Tests.UIConcreteInputTests.ConcreteDeclarationsAndOwnedDefaults",
     "ProjectLucid.Tests.UIConcreteInputTests.EnumValidationPrecedesNullModuleFault",
     "ProjectLucid.Tests.UIConcreteInputTests.AllNullSuppliersFaultBeforeMapping",
