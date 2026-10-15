@@ -2095,6 +2095,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMainMenuFSMWeakRemediationTests.MainMenuFamiliesKeepOriginalCompleteAttributeRowOrder",
     "ProjectLucid.Tests.EditMode.AbilityLeafDefinitionTests.OriginalRestoreRecordSerializesEveryOriginalFieldInTokenOrder",
     "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests.OriginalTimingZeroCategoryScaleLeavesOnlyThePredicateToEndAFrameWait",
+    "ProjectLucid.Editor.OriginalUIUtilsWeakRemediationTests.OriginalMonoBehaviourActivationForwardsBothFlagsToItsGameObject",
+    "ProjectLucid.Editor.OriginalUIUtilsWeakRemediationTests.OriginalInteractableAndGradientForwardEachArgumentToItsOwnSetter",
+    "ProjectLucid.Editor.OriginalUIUtilsWeakRemediationTests.OriginalTextHelpersForwardTextThenColourToTheOwnedTextComponent",
 )
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(False)",
