@@ -93,6 +93,9 @@ namespace ProjectLucid.Verification
    }
    if(serializable) {CustomAttributeData a=actual[facts.Length];Require(a.AttributeType==typeof(SerializableAttribute)&&a.Constructor==typeof(SerializableAttribute).GetConstructor(Type.EmptyTypes)&&a.ConstructorArguments.Count==0&&a.NamedArguments.Count==0,"exact genuine Serializable pseudoattribute; stored absence separate");}
   }
+  // Current-build declaration, CIL and provider-source snapshot. It is not
+  // original evidence, so it runs only as its own declared-shape test.
+  public static void CurrentDeclarationsBodiesAndProviderSourcePins() => CheckWholeContract();
   internal static void CheckWholeContract()
   {
    Assembly assembly=typeof(VibrationManager).Assembly;Require(assembly.GetName().Name=="HLHaptics.Runtime"&&typeof(VibrationEventData).Assembly==assembly&&typeof(HLHapticsConfigurationAsset).Assembly==assembly,"complete original assembly owners");
@@ -108,7 +111,7 @@ namespace ProjectLucid.Verification
     PropertyInfo[] properties=type.GetProperties(Declared).OrderBy(x=>x.MetadataToken).ToArray();Require(properties.Length==f.Properties.Length,"whole property count");
     for(int i=0;i<properties.Length;i++){PropertyInfo p=properties[i];PropertyFact pf=f.Properties[i];Require(p.Name==pf.Name&&TypeKey(p.PropertyType)==pf.Type&&(int)p.Attributes==pf.Flags&&p.GetIndexParameters().Length==0&&(p.GetGetMethod(true)==null?null:MethodKey(p.GetGetMethod(true)))==pf.Getter&&(p.GetSetMethod(true)==null?null:MethodKey(p.GetSetMethod(true)))==pf.Setter&&p.GetAccessors(true).Length==(pf.Getter==null?0:1)+(pf.Setter==null?0:1),"whole exact property/accessor scope");CheckAttributes(p.GetCustomAttributesData(),pf.Attributes);}
    }
-   CheckProviderSourcesAndShapes();
+   CheckProviderSourcePins();CheckProviderShapes();
   }
   static void CheckMethod(MethodBase actual,MethodFact f)
   {

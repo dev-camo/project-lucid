@@ -972,6 +972,7 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.HLHapticsTests.CurrentDeclarationsBodiesAndProviderSourcePins",
     "ProjectLucid.Tests.HLHapticsTests.ConfigurationDefaultsAndLiteralNativeFiles",
     "ProjectLucid.Tests.HLHapticsTests.ConfigurationJsonDuplicatesAndPrivateSerializedPath",
     "ProjectLucid.Tests.HLHapticsTests.EventDataAndNestedVibrationsJsonRoundTrip",

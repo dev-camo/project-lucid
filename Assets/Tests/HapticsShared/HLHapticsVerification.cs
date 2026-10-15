@@ -31,7 +31,7 @@ namespace ProjectLucid.Verification
   {T value=ScriptableObject.CreateInstance<T>();Require(value!=null,"genuine preconstructed owned asset");objects.Add(value);return value;}
   static void WithAssets(Action<List<UnityEngine.Object>> body)
   {
-   CheckWholeContract();var objects=new List<UnityEngine.Object>();var errors=new List<Exception>();try{body(objects);}catch(Exception e){errors.Add(e);}foreach(UnityEngine.Object value in objects)try{UnityEngine.Object.DestroyImmediate(value);}catch(Exception e){errors.Add(e);}if(errors.Count!=0)throw new AggregateException("Original owned asset body and independent releases",errors);
+   var objects=new List<UnityEngine.Object>();var errors=new List<Exception>();try{body(objects);}catch(Exception e){errors.Add(e);}foreach(UnityEngine.Object value in objects)try{UnityEngine.Object.DestroyImmediate(value);}catch(Exception e){errors.Add(e);}if(errors.Count!=0)throw new AggregateException("Original owned asset body and independent releases",errors);
   }
   static void Expect<T>(Action action) where T:Exception
   {Exception observed=null;try{action();}catch(Exception e){observed=e;}Require(observed!=null&&observed.GetType()==typeof(T),"prospective genuine CLR exact fault "+typeof(T)+"; observed "+(observed==null?"none":observed.GetType().ToString()));}
@@ -130,7 +130,7 @@ namespace ProjectLucid.Verification
    ManagerLease lease=null;IEnumerator inner=null;Exception primary=null;
    try
    {
-    try{CheckWholeContract();Require(Application.isPlaying,"SETUP HOLD: original positive Coroutine waits require an already genuine PlayMode host; current EditMode is not qualified");lease=ManagerLease.Acquire();inner=factory(lease);Require(inner!=null,"actual owned case iterator");}catch(Exception error){primary=error;}
+    try{Require(Application.isPlaying,"SETUP HOLD: original positive Coroutine waits require an already genuine PlayMode host; current EditMode is not qualified");lease=ManagerLease.Acquire();inner=factory(lease);Require(inner!=null,"actual owned case iterator");}catch(Exception error){primary=error;}
     while(primary==null&&inner!=null)
     {
      bool more=false;object current=null;

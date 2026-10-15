@@ -22,10 +22,15 @@ namespace ProjectLucid.Verification
    Type type=reference.GetType();while(type!=null && (!type.IsGenericType||type.GetGenericTypeDefinition()!=typeof(SystemRef<>)))type=type.BaseType;
    Require(type!=null&&type.Assembly==typeof(ProcessManager).Assembly,"genuine closed SystemRef owner");return type.GetField(name,Declared);
   }
-  static void CheckProviderSourcesAndShapes()
+  // Maintained-source SHA pins: part of the separate current-shape test only.
+  static void CheckProviderSourcePins()
   {
    string root=Directory.GetParent(Application.dataPath).FullName;
    foreach(SourcePin pin in ProviderSourcePins()) {byte[] bytes=File.ReadAllBytes(System.IO.Path.Combine(root,pin.Path));using(SHA256 sha=SHA256.Create())Require(bytes.Length==pin.Bytes&&string.Concat(sha.ComputeHash(bytes).Select(x=>x.ToString("x2")))==pin.Sha,"complete frozen provider source "+pin.Path);}
+  }
+  // Shared-state field shapes the lease snapshots must cover completely.
+  static void CheckProviderShapes()
+  {
    Type core=typeof(ProcessManager);Require(core.Assembly.GetName().Name=="HLUnityCore.Runtime"&&core.GetFields(Declared).Length==5,"whole five static ProcessManager fields");
    Type info=core.GetNestedType("SystemInfo",BindingFlags.NonPublic);Require(info!=null&&info.Assembly==core.Assembly&&info.GetFields(Declared).Length==2,"genuine complete SystemInfo");
    Type cache=info.GetField("SystemRefDictionary",Declared).FieldType;Require(cache.IsGenericType&&cache.GetGenericTypeDefinition()==typeof(Dictionary<,>)&&cache.GetGenericArguments()[0]==typeof(string)&&cache.GetGenericArguments()[1].FullName=="Hardlight.ISystemRef"&&cache.GetGenericArguments()[1].Assembly==core.Assembly,"genuine typed-cache provider/interface");
@@ -106,7 +111,7 @@ namespace ProjectLucid.Verification
    SharedSnapshot shared;object beforeTarget;bool active,closed,ownsLock;object newInfo;
    public static ManagerLease Acquire()
    {
-    CheckWholeContract();var lease=new ManagerLease();try{lease.Preflight();lease.Host=new GameObject("HLHaptics original owned fixture");lease.Host.SetActive(false);lease.Manager=lease.Host.AddComponent<VibrationManager>();lease.CheckShared();Require(!lease.Manager.IsAvailable&&!lease.Manager.VibrationEnabledInSettings&&(bool)ManagerField("m_debugInEditor").GetValue(lease.Manager)==false&&ManagerField("m_vibrationEventDefinitions").GetValue(lease.Manager)==null,"actual inactive lifecycle defaults before setup");return lease;}catch(Exception error){lease.CloseWith(error);throw;}
+    CheckProviderShapes();var lease=new ManagerLease();try{lease.Preflight();lease.Host=new GameObject("HLHaptics original owned fixture");lease.Host.SetActive(false);lease.Manager=lease.Host.AddComponent<VibrationManager>();lease.CheckShared();Require(!lease.Manager.IsAvailable&&!lease.Manager.VibrationEnabledInSettings&&(bool)ManagerField("m_debugInEditor").GetValue(lease.Manager)==false&&ManagerField("m_vibrationEventDefinitions").GetValue(lease.Manager)==null,"actual inactive lifecycle defaults before setup");return lease;}catch(Exception error){lease.CloseWith(error);throw;}
    }
    void Preflight()
    {
