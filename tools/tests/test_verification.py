@@ -14,7 +14,9 @@ from lucidlib.verification import artifact_fingerprint, test_verdict, verified_r
 
 class VerificationTests(unittest.TestCase):
     def xml(self, path, names, result="Passed"):
-        cases = ''.join('<test-case fullname="' + name + '" result="Passed" />' for name in names)
+        # Parameterized fullnames carry quotes, so names are escaped as attributes.
+        from xml.sax.saxutils import quoteattr
+        cases = ''.join('<test-case fullname=' + quoteattr(name) + ' result="Passed" />' for name in names)
         path.write_text('<test-run result="' + result + '" failed="0">' + cases + '</test-run>')
 
     def test_identity_hashes_content_separately_from_prepared_assets(self):
@@ -69,6 +71,28 @@ class VerificationTests(unittest.TestCase):
             self.assertEqual(["Game.OriginalStartup"], result["missing_required_tests"])
             self.xml(path, ["Game.OriginalStartup"])
             self.assertEqual("complete", test_verdict(path, ["Game.OriginalStartup"])["status"])
+
+    def test_unregistered_project_test_keeps_the_run_incomplete(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "tests.xml"
+
+            def run(project, package):
+                path.write_text(
+                    '<test-run result="Passed" failed="0">'
+                    '<test-suite type="Assembly" name="/p/Library/ScriptAssemblies/ProjectLucid.EditMode.dll" result="Passed">' +
+                    ''.join('<test-case fullname="' + name + '" result="Passed" />' for name in project) +
+                    '</test-suite><test-suite type="Assembly" name="Unity.Package.Tests.dll" result="Passed">' +
+                    ''.join('<test-case fullname="' + name + '" result="Passed" />' for name in package) +
+                    '</test-suite></test-run>')
+                return test_verdict(path, ["Game.Required", "Game.Case(1)"])
+
+            # A passing, skipped or parameterized project case must be named in the registry; a
+            # package's own tests are not project tests.
+            self.assertEqual("complete", run(["Game.Required", "Game.Case(1)"], ["Package.Stub"])["status"])
+            for extra in ("Game.Extra", "Game.Case(2)"):
+                result = run(["Game.Required", "Game.Case(1)", extra], [])
+                self.assertEqual("incomplete", result["status"])
+                self.assertEqual(["Unregistered project tests: " + extra], result["errors"])
 
     def test_passing_root_cannot_hide_failed_descendants(self):
         controls = (

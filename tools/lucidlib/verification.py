@@ -597,6 +597,15 @@ def test_verdict(path, required):
     conflicting = sorted(name for name in required_names if len(named_outcomes.get(name, ())) > 1)
     if conflicting:
         errors.append("Conflicting required test outcomes: " + ", ".join(conflicting))
+    # Every case of a project test assembly must be required by its exact fullname, so a project
+    # test cannot be skipped, renamed or dropped without a visible registry change.
+    project_cases = {case.get("fullname") or "<unnamed>" for suite in root.iter("test-suite")
+                     if suite.get("type") == "Assembly" and
+                     re.split(r"[\\/]", suite.get("name") or "")[-1].startswith("ProjectLucid.")
+                     for case in suite.iter("test-case")}
+    unregistered = sorted(project_cases - required_names)
+    if unregistered:
+        errors.append("Unregistered project tests: " + ", ".join(unregistered))
     success = (root.tag == "test-run" and root.get("result") == "Passed" and root.get("failed") == "0"
                and not missing and not errors)
     return {"status": "complete" if success else "incomplete", "result": root.get("result"),
@@ -1583,4 +1592,35 @@ PLAYMODE_TESTS += (
 
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.LanguageVerificationRegistryOwnershipTests.LanguageProofLeavesNoLanguageRegistryRow",
+)
+
+# Project tests that ran without being required, including parameterized cases by exact fullname.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("version")',
+    'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("checksum")',
+    'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("missing-payload")',
+    'ProjectLucid.Tests.LocalPropertySaveTests.TwoInvalidEnvelopesReportFinalErrorWithoutErasingEitherCopy("version")',
+    'ProjectLucid.Tests.LocalPropertySaveTests.TwoInvalidEnvelopesReportFinalErrorWithoutErasingEitherCopy("checksum")',
+    'ProjectLucid.Tests.LocalPropertySaveTests.TwoInvalidEnvelopesReportFinalErrorWithoutErasingEitherCopy("missing-payload")',
+    "ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.SerializationFixtureLeavesAnUnrelatedDirtyAssetUnsaved(0)",
+    "ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.SerializationFixtureLeavesAnUnrelatedDirtyAssetUnsaved(1)",
+    "ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.SerializationFixtureLeavesAnUnrelatedDirtyAssetUnsaved(2)",
+    "ProjectLucid.Tests.OriginalHLUnityCoreUtilityTests.AbsoluteKeepsSizeWhenEndpointsRoundEqual",
+    "ProjectLucid.Tests.OriginalHLUnityCoreUtilityTests.AbsoluteSwapsReversedEndpoints",
+    "ProjectLucid.Tests.OriginalHLUnityCoreUtilityTests.BestMatchSkipsIntMinValueScore",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CollisionRejectionKeepsOwnedSentinelObserversAndActionSubscription",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.DisposalRejectsAReplacementOwnerWithoutRevokingItsReferences",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.EmptyBorrowedRowAndForeignStaticStateAreAlsoRejected",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.FailedAcquisitionDoesNotReleaseASeparateOwner(False)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.FailedAcquisitionDoesNotReleaseASeparateOwner(True)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.GuardPreservesBorrowedRowsReferencesAndCallbacks",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(0)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(1)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(2)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(3)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(4)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(5)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableGuardNeverCallsBorrowedReadiness(False)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableGuardNeverCallsBorrowedReadiness(True)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.SystemRefEntryGuardRejectsBorrowedLoggingStateWithoutCallingIt",
 )
