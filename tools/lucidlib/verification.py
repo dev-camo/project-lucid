@@ -1942,3 +1942,13 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalDefinitionDataTypeGapTests.GetDataAsksForTheComparerFirstAndRereadsDataAfterEachKey",
 )
+
+# LevelManagerSystems constructor replacement order with a test-only system.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLevelManagerSystemsGapTests.ConstructorReplacementShutsTheOldSystemDownBeforeCreatingTheNewOne",
+)
+
+# LevelManagerSystems ownership-row timing during prefab replacement and shutdown.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLevelManagerSystemsGapPlayTests.ShutdownCallbacksSeeTheObjectRowOnlyDuringFullTeardown",
+)
