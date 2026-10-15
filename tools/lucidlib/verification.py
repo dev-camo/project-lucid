@@ -1544,3 +1544,20 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.ReverseChildrenReversesSiblingOrder",
     "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.DeclarationsMatchTheShippedAssembly",
 )
+
+# Owned genuine StringTable fixture (identity-checked registry row, original Awake and setters); no Language object.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.TableContentToStringReturnsTheOwnedStringTableEntryForBothConstructors",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.TableContentFormatsTheLookedUpTextWithNestedParameters",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.TableFormatMismatchKeepsTheLookedUpText",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.TableHasContentDependsOnTheIdNotTheLookup",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.EvaluateLeavesChildrenWhenNoSupportedLanguageMatches",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.EvaluateLeavesChildrenForALeftToRightLanguage",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.EvaluateReversesChildrenForARightToLeftLanguage",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.ReverseChildrenHandlesZeroOneThreeFourAndFiveChildren",
+    "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesBehaviourTests.FallbackDataGettersReturnTheirSerializedBackingLists",
+)
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalReverseOrderOnLanguagePlayTests.ActivationAwakeReversesRightToLeftChildrenOnce",
+    "ProjectLucid.Tests.OriginalReverseOrderOnLanguagePlayTests.ActivationAwakeLeavesLeftToRightChildren",
+)
