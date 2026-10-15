@@ -426,6 +426,8 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalUIContainerManagerGapTests.DebugAndFreeReturnExternallyDestroyedCachedContainer",
     "ProjectLucid.Tests.OriginalUIInputVisibilityGapTests.DisabledControllerStillSubscribesWhenUIManagerBecomesValidLater",
     "ProjectLucid.Tests.OriginalHLUIEffectManagerGapTests.AwakeLogsBeforeRegistrationAndKeepsFirstCuePerKeyIncludingNullClip",
+    "ProjectLucid.Tests.OriginalStackedCameraGapTests.EnableLoadsAndDisableUnloadsThroughRegisteredManager",
+    "ProjectLucid.Tests.OriginalStackedCameraGapTests.MissingManagerSkipsUnloadAndLateRegistrationStillLoadsDisabledCamera",
 )
 
 EDITMODE_TESTS += (
