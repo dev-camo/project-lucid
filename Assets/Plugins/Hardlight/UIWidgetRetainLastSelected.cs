@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Hardlight
 {
-    // Original Assembly-CSharp-firstpass 02000002; bodies translated from the 1.10.1 x86-64 binary.
+    // Original Assembly-CSharp-firstpass; bodies translated from the 1.10.1 x86-64 binary.
     // Remembers the selected widget of a container through the UIManager and reselects it
     // when the container is created or when only the listed containers remain open.
     [Il2CppSetOption(Option.NullChecks, false)]
