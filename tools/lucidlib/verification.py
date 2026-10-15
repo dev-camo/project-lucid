@@ -1829,3 +1829,8 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CaptureIfCreated_ReplacedRowIsRefusedWithoutDeletionOrInvocationAndLaterCleanupContinues",
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CaptureIfCreated_PendingForeignObserverIsNeitherInvokedNorDeleted",
 )
+
+# Original controller polling notification and live Count reads on an owned provider.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalControllerPollingGapTests.PollingNotifiesOnlyOnCountChangesAndKeepsTheEmptyCountLoop",
+)
