@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -54,6 +55,36 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Enum-key Get (shared x86-64 0x8fd390) keeps the first GetData result
+        // object itself (0x8fd448 `mov r14, rax`) and AddRanges later results into
+        // it (0x8fd3d5). GetData (x86-64 0xf301d0) passes the GetKeyComparer slot
+        // result (0xf301ee) to the Dictionary constructor (0xf30234), and
+        // FadeTransitionDefinitionGroup.GetKeyComparer 0x06001cce (x86-64 0x54cd90)
+        // loads HardlightEnumComparers static +0x180, the 49th static field,
+        // FadeTransitionTypeComparer. Island groups return a null comparer, so only
+        // a group like this one catches a result copied into a fresh dictionary,
+        // which would take the default comparer instead.
+        [Test]
+        public void GetKeepsTheFirstGroupDictionaryWithItsKeyComparer()
+        {
+            using (var owned = new Owned())
+            {
+                FadeTransitionDefinition black = owned.Fade(FadeTransitionType.Black);
+                FadeTransitionDefinition white = owned.Fade(FadeTransitionType.White);
+                DataDefinitions definitions = owned.Add(ScriptableObject.CreateInstance<DataDefinitions>());
+                definitions.DataDefinitionsArray = new DefinitionDataType[] { owned.FadeGroup(black), owned.FadeGroup(white) };
+
+                Dictionary<FadeTransitionType, FadeTransitionDefinition> merged =
+                    definitions.Get<FadeTransitionType, FadeTransitionDefinition>();
+                Assert.IsNotNull(HardlightEnumComparers.FadeTransitionTypeComparer);
+                Assert.AreNotSame(EqualityComparer<FadeTransitionType>.Default, HardlightEnumComparers.FadeTransitionTypeComparer);
+                Assert.AreSame(HardlightEnumComparers.FadeTransitionTypeComparer, merged.Comparer);
+                CollectionAssert.AreEqual(new[] { FadeTransitionType.Black, FadeTransitionType.White }, merged.Keys.ToArray());
+                Assert.AreSame(black, merged[FadeTransitionType.Black]);
+                Assert.AreSame(white, merged[FadeTransitionType.White]);
+            }
+        }
+
         // 0x8fd6c3 IsInst on each slot returns the first CLR instance without a
         // Unity null test, so a destroyed group is still returned. Catches a Unity
         // equality guard (would return the later live group) and a last-match rule.
@@ -102,6 +133,26 @@ namespace ProjectLucid.Tests
             {
                 GameplayIslandDefinitionGroup group = Add(ScriptableObject.CreateInstance<GameplayIslandDefinitionGroup>());
                 group.m_elements = islands.Select(Element).ToArray();
+                return group;
+            }
+
+            // m_type is the serialized key field behind FadeTransitionDefinition.Type.
+            public FadeTransitionDefinition Fade(FadeTransitionType type)
+            {
+                FadeTransitionDefinition fade = Add(ScriptableObject.CreateInstance<FadeTransitionDefinition>());
+                typeof(FadeTransitionDefinition).GetField("m_type", BindingFlags.Instance | BindingFlags.NonPublic)
+                    .SetValue(fade, type);
+                Assert.AreEqual(type, fade.Type);
+                return fade;
+            }
+
+            public FadeTransitionDefinitionGroup FadeGroup(FadeTransitionDefinition fade)
+            {
+                FadeTransitionDefinitionGroup group = Add(ScriptableObject.CreateInstance<FadeTransitionDefinitionGroup>());
+                group.m_elements = new[]
+                {
+                    new DefinitionDataType<FadeTransitionType, FadeTransitionDefinition>.DefinitionElement<FadeTransitionDefinition>(fade),
+                };
                 return group;
             }
 
