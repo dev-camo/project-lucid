@@ -567,6 +567,34 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
+        public void ObserverThatRemovesItselfStaysRemoved()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = "Lucid-ownership-self-removal-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                SystemRef untyped = ProcessManager.RegisterSystem(new FSMManager(), name);
+                int calls = 0;
+                Action<ISystem> before = system => { }, after = system => { };
+                Action<ISystem> leaving = null;
+                leaving = system => { calls++; untyped.OnSystemShutdown -= leaving; };
+                untyped.OnSystemShutdown += before;
+                untyped.OnSystemShutdown += leaving;
+                untyped.OnSystemShutdown += after;
+                FSMManagerVerification.ReleaseOwnedRows(new[] { name });
+                Assert.That(calls, Is.EqualTo(1));
+                // As with the original public unregister, the observer's own removal is kept.
+                Assert.That(ShutdownObservers(untyped), Is.EqualTo(new Delegate[] { before, after }));
+                Assert.That(untyped.IsNull() && !rows.Contains(name), Is.True);
+            }
+            finally
+            {
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
         public void LaterRowCallbackRecreatingAReleasedNameIsSwept()
         {
             IDictionary rows = Rows();

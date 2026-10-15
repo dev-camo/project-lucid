@@ -115,18 +115,20 @@ namespace ProjectLucid
         //  2. Identity. References and systems are tracked by reference identity. Only action entries
         //     whose stored key is an entered system itself are removed; equal foreign systems, their
         //     actions, foreign observers and their order are untouched.
-        //  3. Notification. A notification is marked before any observer runs: a begin sentinel goes
-        //     first and each existing observer runs behind a once-only wrapper, so recursion cannot
-        //     repeat it. The original unregister runs once per row present at the start that nobody
-        //     has started unregistering, and only references present then may be notified. Everything
-        //     else is revoked silently, with observers taken off and put back in order. Wrappers are
-        //     replaced by the original observers at the end.
+        //  3. Notification. Each owned reference present at its row's unregister is notified at most
+        //     once: the fixture clears it, then invokes its shutdown observers once from a snapshot in
+        //     order, so a recursive unregister finds it cleared and an observer may remove itself.
+        //     Rows present at the start that no callback has begun unregistering are handled this way;
+        //     everything else is revoked silently with its observers kept. A begin sentinel records
+        //     notifications started by callbacks' own unregisters.
         //  4. Failure. The first failure is rethrown only after all owned cleanup completes.
         //  5. Bound. Reconciliation has a budget; exhausting it is recorded (never replacing an earlier
         //     failure) and the remaining owned state is revoked silently and released.
         // Only public event subscriptions and public unsubscription are used to change state.
-        // Limitation: while teardown runs, a callback removing its own original observer with -=
-        // cannot detach the wrapper, so that observer is put back at the end.
+        // Deviation, stated: during this teardown an owned reference already reads as cleared while
+        // its own shutdown observers run (the original revoke notifies first). With public events
+        // only, notify-before-clear, once-only notification under recursion, and an observer's own
+        // removal cannot all hold together; this choice keeps the last two.
         internal static void ReleaseOwnedRows(IList<string> owned) => new Teardown(RegistryRows()).Release(owned);
 
         internal static int TeardownPassLimit = 1024;
@@ -140,7 +142,6 @@ namespace ProjectLucid
             private readonly HashSet<object> unregisteredRows = new HashSet<object>(new ReferenceComparer());
             private readonly HashSet<object> eligible = new HashSet<object>(new ReferenceComparer());
             private readonly HashSet<object> watchedRows = new HashSet<object>(new ReferenceComparer());
-            private readonly Dictionary<object, Dictionary<Delegate, Delegate>> wrappers = new Dictionary<object, Dictionary<Delegate, Delegate>>(new ReferenceComparer());
             private readonly List<ISystem> entered = new List<ISystem>();
             private readonly List<Sentinel> sentinels = new List<Sentinel>();
             private readonly MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
@@ -193,7 +194,6 @@ namespace ProjectLucid
                     foreach (object reference in bracketed.Where(IsValid).ToList()) Silence(reference);
                     foreach (Sentinel sentinel in sentinels)
                         sentinel.Event.RemoveEventHandler(sentinel.Reference, sentinel.Observer);
-                    RestoreWrappedObservers();
                     try { ReleaseEnteredActions(); }
                     catch (Exception error) { Record(error); }
                 }
@@ -225,8 +225,16 @@ namespace ProjectLucid
                 {
                     work = true;
                     eligible.UnionWith(present);
-                    try { ProcessManager.UnregisterSystem(name); }
-                    catch (Exception error) { Record(error); }
+                    // The original unregister order: release the system's actions, then each
+                    // reference, untyped first, notifying each once.
+                    ISystem system = untyped.GetSafe();
+                    if (system != null) { Enter(system); ReleaseActionsOf(system); }
+                    foreach (object reference in present)
+                    {
+                        if (!IsValid(reference)) continue;
+                        if (notified.Contains(reference)) Silence(reference);
+                        else NotifyOnce(reference);
+                    }
                 }
                 unregisteredRows.Add(info);
                 // Revoke until no reference of this row is set; observers may revalidate references,
@@ -240,18 +248,34 @@ namespace ProjectLucid
                         if (!IsValid(reference)) continue;
                         changed = work = true;
                         Enter(untyped.GetSafe());
-                        if (notified.Contains(reference) || !eligible.Contains(reference)) { Silence(reference); continue; }
-                        notified.Add(reference);
-                        try { revoke.Invoke(reference, null); }
-                        catch (TargetInvocationException error)
-                        {
-                            Record(error.InnerException);
-                            Silence(reference);
-                        }
+                        if (notified.Contains(reference) || !eligible.Contains(reference)) Silence(reference);
+                        else NotifyOnce(reference);
                     }
                     if (!changed) return work;
                 }
                 return true;
+            }
+
+            // Notifies a reference's shutdown observers once, from a snapshot in order, after clearing
+            // it. The observers stay subscribed, so one may remove itself; a recursive unregister finds
+            // the reference already cleared and cannot notify it again. An observer failure stops the
+            // remaining observers of that reference, as a multicast invocation does.
+            private void NotifyOnce(object reference)
+            {
+                notified.Add(reference);
+                object value = reference.GetType().GetMethods().First(method => method.Name == "GetSafe" && !method.IsGenericMethod).Invoke(reference, null);
+                ShutdownEvent(reference, out Delegate[] observers);
+                Silence(reference);
+                foreach (Delegate observer in observers)
+                {
+                    if (sentinels.Any(sentinel => ReferenceEquals(sentinel.Observer, observer))) continue;
+                    try { observer.DynamicInvoke(value); }
+                    catch (TargetInvocationException error)
+                    {
+                        Record(error.InnerException);
+                        break;
+                    }
+                }
             }
 
             private void Enter(ISystem system)
@@ -273,53 +297,28 @@ namespace ProjectLucid
             // row; an equal but distinct foreign system keeps its subscription.
             private void ReleaseEnteredActions()
             {
-                var lookup = (IDictionary)typeof(ProcessManager).GetField("s_systemActionLookup", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-                var owned = new List<KeyValuePair<ISystem, SystemAction>>();
-                foreach (DictionaryEntry row in lookup)
-                    foreach (object key in ((IDictionary)row.Value).Keys)
-                        if (entered.Any(system => ReferenceEquals(system, key)))
-                            owned.Add(new KeyValuePair<ISystem, SystemAction>((ISystem)key, (SystemAction)row.Key));
-                foreach (KeyValuePair<ISystem, SystemAction> entry in owned)
-                    entry.Key.UnsubscribeFromAction(entry.Value);
+                foreach (ISystem system in entered) ReleaseActionsOf(system);
             }
 
-            // Puts each original observer back where its once-only wrapper still sits.
-            private void RestoreWrappedObservers()
+            // Removes only entries whose stored key is this very system.
+            private static IDictionary ActionLookup() =>
+                (IDictionary)typeof(ProcessManager).GetField("s_systemActionLookup", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+
+            private void ReleaseActionsOf(ISystem system)
             {
-                foreach (object reference in wrappers.Keys.ToList())
-                {
-                    Dictionary<Delegate, Delegate> originals = wrappers[reference];
-                    EventInfo shutdown = ShutdownEvent(reference, out Delegate[] observers);
-                    foreach (Delegate observer in observers) shutdown.RemoveEventHandler(reference, observer);
-                    foreach (Delegate observer in observers)
-                        shutdown.AddEventHandler(reference, originals.TryGetValue(observer, out Delegate original) ? original : observer);
-                }
+                var actions = new List<SystemAction>();
+                foreach (DictionaryEntry row in ActionLookup())
+                    foreach (object key in ((IDictionary)row.Value).Keys)
+                        if (ReferenceEquals(key, system)) actions.Add((SystemAction)row.Key);
+                foreach (SystemAction action in actions) system.UnsubscribeFromAction(action);
             }
 
-            // Re-adds the reference's shutdown observers behind a begin sentinel, in their order,
-            // through the public event, so the start of its notification is observable.
-            // Marks a notification before any observer runs: a begin sentinel goes first, and each
-            // existing observer is replaced in order by a once-only wrapper that marks the reference
-            // and then invokes the original, so a recursive unregister cannot run it again.
+            // A begin sentinel placed before a reference's shutdown observers records any notification
+            // of it, including one started by a callback's own unregister.
             private void Bracket(object reference)
             {
-                if (!bracketed.Add(reference)) return;
-                BracketEvent(reference, "OnSystemShutdown", _ => notified.Add(reference));
-                EventInfo shutdown = ShutdownEvent(reference, out Delegate[] observers);
-                var originals = new Dictionary<Delegate, Delegate>(new DelegateIdentity());
-                var replaced = new List<Delegate>();
-                foreach (Delegate observer in observers)
-                {
-                    if (sentinels.Any(sentinel => ReferenceEquals(sentinel.Observer, observer))) continue;
-                    Delegate wrapper = (Delegate)typeof(FSMManagerVerification).GetMethod(nameof(OnceOnly), BindingFlags.NonPublic | BindingFlags.Static)
-                        .MakeGenericMethod(shutdown.EventHandlerType.GetGenericArguments()[0])
-                        .Invoke(null, new object[] { observer, (Action)(() => notified.Add(reference)) });
-                    shutdown.RemoveEventHandler(reference, observer);
-                    originals[wrapper] = observer;
-                    replaced.Add(wrapper);
-                }
-                foreach (Delegate wrapper in replaced) shutdown.AddEventHandler(reference, wrapper);
-                wrappers[reference] = originals;
+                if (bracketed.Add(reference))
+                    BracketEvent(reference, "OnSystemShutdown", _ => notified.Add(reference));
             }
 
             private void BracketEvent(object reference, string eventName, Action<object> onCall)
@@ -336,18 +335,6 @@ namespace ProjectLucid
             }
         }
 
-        private static Action<T> OnceOnly<T>(Action<T> original, Action mark)
-        {
-            bool invoked = false;
-            return value =>
-            {
-                if (invoked) return;
-                invoked = true;
-                mark();
-                original(value);
-            };
-        }
-
         private static EventInfo ShutdownEvent(object reference, out Delegate[] observers)
         {
             Type type = reference.GetType();
@@ -356,12 +343,6 @@ namespace ProjectLucid
             var list = (Delegate)type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
             observers = list?.GetInvocationList() ?? new Delegate[0];
             return type.GetEvent("OnSystemShutdown");
-        }
-
-        private sealed class DelegateIdentity : IEqualityComparer<Delegate>
-        {
-            public bool Equals(Delegate x, Delegate y) => ReferenceEquals(x, y);
-            public int GetHashCode(Delegate value) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(value);
         }
 
         private sealed class ReferenceComparer : IEqualityComparer<object>
