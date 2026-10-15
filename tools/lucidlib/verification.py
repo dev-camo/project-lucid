@@ -2093,6 +2093,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OfflineAccessPointTests.FacadeForwardsEachCallToItsOriginalPluginSlotIncludingWidthQuirk",
     "ProjectLucid.Tests.OriginalMainMenuFSMWeakRemediationTests.AudioClipParsePrecedesSourceParseWhenBothFail",
     "ProjectLucid.Tests.OriginalMainMenuFSMWeakRemediationTests.MainMenuFamiliesKeepOriginalCompleteAttributeRowOrder",
+    "ProjectLucid.Tests.EditMode.AbilityLeafDefinitionTests.OriginalRestoreRecordSerializesEveryOriginalFieldInTokenOrder",
 )
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(False)",
