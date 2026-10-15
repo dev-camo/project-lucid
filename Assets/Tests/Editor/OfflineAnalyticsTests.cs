@@ -14,6 +14,11 @@ namespace ProjectLucid.Editor.Tests
     // or invoked. The observer is an explicitly owned abstract-event extension.
     public sealed class OfflineAnalyticsTests
     {
+        // Facade 0x06000003..0b forwards through IAnalytics interface slots (x86-64 e.g.
+        // Initialise 0x199da00 slot 1, ProcessManualQueue 0x199dba0 slot 3, ApplicationPause
+        // 0x199df00 slot 7, ClearAnalyticsEventsCached 0x199e0a0 slot 9). An owned settings
+        // identity survives every forwarder except Shutdown, so routing any of them to the
+        // Shutdown or Initialise slot fails; LocalAnalytics itself is offline policy.
         [Test]
         public void DefaultFacadeUsesOfflineProviderAndCompletesLifecycleLocally()
         {
@@ -42,12 +47,40 @@ namespace ProjectLucid.Editor.Tests
                 Analytics.Shutdown();
                 Assert.That(Analytics.IsSupported, Is.False);
                 Assert.That(Analytics.GetAnalyticsSettings(), Is.Null);
+
+                var owned = new OwnedSettings();
+                Analytics.Initialise(owned);
+                Assert.That(Analytics.GetAnalyticsSettings(), Is.SameAs(owned));
+                Analytics.ResetEventIndex();
+                Analytics.ProcessManualQueue(0);
+                Analytics.PushAnalyticsEventToManualQueue(null, 0);
+                Analytics.ApplicationPause(true);
+                Analytics.ClearAnalyticsEventsCached();
+                Assert.That(Analytics.GetEventIndex(), Is.EqualTo(-1));
+                Assert.That(Analytics.GetAnalyticsSettings(), Is.SameAs(owned));
+                Analytics.Shutdown();
+                Assert.That(Analytics.GetAnalyticsSettings(), Is.Null);
             }
             finally
             {
                 Analytics.Shutdown();
                 Analytics.Initialise(priorSettings);
             }
+        }
+
+        // Identity-only settings: the offline provider must never read them.
+        private sealed class OwnedSettings : IAnalyticsSettings
+        {
+            private static Exception Read() => new InvalidOperationException("owned analytics settings must not be read");
+            public string GameID => throw Read();
+            public string Environment => throw Read();
+            public Uri ServerBaseURL => throw Read();
+            public int MaxQueueLength => throw Read();
+            public int MaxSendAttempts => throw Read();
+            public bool IsAnalyticsEventsSendingAllowed => throw Read();
+            public bool IsAnalyticsEventsCollectionAllowed => throw Read();
+            public bool PersistentEventIndex => throw Read();
+            public bool IsAnalyticsEventToManualQueueCollectionEnabled(int category) => throw Read();
         }
 
         [Test]

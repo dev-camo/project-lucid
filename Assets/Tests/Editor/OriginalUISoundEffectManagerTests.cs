@@ -63,6 +63,9 @@ namespace ProjectLucid.Editor
             RequireMethod(methods[1], new[] { typeof(AudioClip), typeof(int), typeof(float) }, new[] { "clip", "semitoneChange", "volume" });
         }
 
+        // PlayAudioClip 0x06000007 x86-64 0x1b391c0 and PlayAudioClipWithSemitoneOffset
+        // 0x06000008 0x1b39270 both call Object.op_Inequality on m_audioSource and skip
+        // set_pitch, set_volume and PlayOneShot when it is null; this is that fault path only.
         [Test]
         public void OriginalInactiveSoundManagerWithNullSourceSuppressesPlaybackRoutes()
         {

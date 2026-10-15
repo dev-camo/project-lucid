@@ -55,12 +55,20 @@ public sealed class OriginalGenericSerializationFrontierTests
     private static readonly string[] ArgumentFields =
         { "m_ObjectArgument", "m_ObjectArgumentAssemblyTypeName", "m_IntArgument", "m_FloatArgument", "m_StringArgument", "m_BoolArgument" };
 
+    // Shipped field rows: HLModernUI.Runtime UIInteractable 0x02000021 holds 0x04000071..74 with
+    // m_onInteractableValueChanged second (0x04000072); Game.Runtime FontAssetLanguageSetter
+    // 0x02000958 holds 0x04002681..86 with m_fontAssetsAndFallBackCollectionRefs first.
     [Test]
     public void OriginalGenericFieldSignaturesAndEditorProjectionRemainExplicit()
     {
         RequireField(typeof(UIInteractable), "m_onInteractableValueChanged", typeof(UnityEvent<bool>));
         RequireField(typeof(FontAssetLanguageSetter), "m_fontAssetsAndFallBackCollectionRefs",
             typeof(List<AssetReferenceT<FontAssetAndFallbacks>>));
+        RequireOriginalFieldOrder(typeof(UIInteractable),
+            "m_interactable", "m_onInteractableValueChanged", "m_canvasGroupAllowInteraction", "m_canvasGroupCache");
+        RequireOriginalFieldOrder(typeof(FontAssetLanguageSetter),
+            "m_fontAssetsAndFallBackCollectionRefs", "m_fontAssetsAndFallBackCollection", "m_asyncOperationHandles",
+            "m_appRef", "m_assetManager", "m_isRespondingToLanguageChange");
         RequireField(typeof(ProjectLucidGenericSerializationCarrier), "m_onInteractableValueChanged", typeof(UnityEvent<bool>));
         RequireField(typeof(ProjectLucidGenericSerializationCarrier), "m_fontAssetsAndFallBackCollectionRefs",
             typeof(List<AssetReferenceT<FontAssetAndFallbacks>>));
@@ -252,11 +260,19 @@ public sealed class OriginalGenericSerializationFrontierTests
         });
     }
 
+    // Game.Runtime UIContainerStart 0x02000947 field rows 0x0400262d..42; the two buttons are
+    // rows 0x0400262f and 0x04002630, between m_mediaAlertBadge and m_challengesAnalyticsEvent.
     [Test]
     public void OwnedReferenceOnlyCarrierUsesPPtrPropertiesWithoutConstructingOriginalButtons()
     {
         RequireField(typeof(UIContainerStart), "m_bonusZoneButton", typeof(UIWidgetButtonStart));
         RequireField(typeof(UIContainerStart), "m_challengesButton", typeof(UIWidgetButtonStart));
+        RequireOriginalFieldOrder(typeof(UIContainerStart),
+            "m_sweetDreamsCategory", "m_mediaAlertBadge", "m_bonusZoneButton", "m_challengesButton",
+            "m_challengesAnalyticsEvent", "CanContinue", "CanLoad", "FirstTime", "BonusZoneUnlocked",
+            "ChallengesProgressAdventure", "RewardsFormatString", "OrbRewardsCollected", "OrbRewardsTotal",
+            "MoonRewardsCollected", "MoonRewardsTotal", "m_saveManagerRef", "m_app", "m_progressionManager",
+            "m_transitionManager", "m_levelManager", "m_ornamentManager", "m_musicTrackManager");
         Observe((owned, serialized, lease) =>
         {
             foreach (string name in new[] { "m_bonusZoneButton", "m_challengesButton" })
@@ -318,6 +334,12 @@ public sealed class OriginalGenericSerializationFrontierTests
         var attributes = field.GetCustomAttributesData(); Assert.That(attributes.Count, Is.EqualTo(1));
         Assert.That(attributes[0].AttributeType, Is.EqualTo(typeof(SerializeField)));
         Assert.That(attributes[0].ConstructorArguments.Count, Is.EqualTo(0)); Assert.That(attributes[0].NamedArguments.Count, Is.EqualTo(0));
+    }
+    // Complete declared instance fields in metadata-token order against the shipped field rows.
+    private static void RequireOriginalFieldOrder(Type owner, params string[] names)
+    {
+        Assert.That(owner.GetFields(Own).OrderBy(field => field.MetadataToken).Select(field => field.Name).ToArray(),
+            Is.EqualTo(names), owner.FullName);
     }
     private static bool IsSerializationCandidate(FieldInfo field) => !field.IsStatic && !field.IsLiteral && !field.IsInitOnly &&
         (field.Attributes & FieldAttributes.NotSerialized) == 0 &&

@@ -23,6 +23,11 @@ namespace ProjectLucid.Tests.Editor
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public |
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 
+        // Shipped HLUnityCore.Runtime attribute blobs, in blob order: type 0x02000094 has
+        // CreateAssetMenu (fileName "FSM", menuName, order 0) then two Il2CppSetOption rows
+        // (NullChecks, ArrayBoundsChecks; false). Field rows 0x040001f6..fc carry exactly the
+        // SerializeField/Header/Tooltip/TextArea(5, 30) sequences and literals listed below;
+        // 0x040001fd..0x04000200 have no attribute rows.
         [Test]
         public void FsmDeclarationRetainsOriginalAttributeOrderAndCurrentConstructorTypes()
         {
@@ -118,6 +123,11 @@ namespace ProjectLucid.Tests.Editor
             // The public Action field remains present; this does not assert serializer eligibility.
         }
 
+        // Shipped Game.Runtime rows: StateMachinesGroup 0x020005c5 declares no fields;
+        // DefinitionDataType`2 0x0200052e field m_elements 0x040012b8 [SerializeField];
+        // DefinitionElement`1 0x0200052f fields Name 0x040012b9 [SerializeField, HideInInspector]
+        // and Data 0x040012ba [SerializeField]. The Data-binds-TData check is the project's
+        // extra-T rule; its generic parameter row is not decoded here.
         [Test]
         public void ClosedStateMachinesGroupRetainsThreeArgumentElementAndOriginalConstraints()
         {
