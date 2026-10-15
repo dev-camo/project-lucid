@@ -18,6 +18,8 @@ namespace Hardlight
         private readonly string OutputFileName;
         private readonly string Key;
         private readonly byte[] EncryptionKey;
+        // Metadata string literal 1355; .ctor 0x06000d4c (x86-64 0x1b0b060) loads
+        // it and stores Encoding.UTF8.GetBytes before the base Object ctor runs.
         private readonly byte[] InitialisationVector = Encoding.UTF8.GetBytes("7%o18m'b~)mQD%o1");
         private readonly List<string> SaveIdentifiers = new List<string>();
 

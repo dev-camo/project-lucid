@@ -37,7 +37,10 @@ namespace ProjectLucid.Editor
 
         // Synthetic key UTF-8 -> Base64 -> first sixteen UTF-8 ASCII bytes:
         // 63484a76616d566a6443317364574e70. Original IV:
-        // 37256f31386d27627e296d5144256f31.
+        // 37256f31386d27627e296d5144256f31, the UTF-8 of global-metadata string
+        // literal 1355 "7%o18m'b~)mQD%o1" that HLSaveMethodEncrypted .ctor
+        // 0x06000d4c (x86-64 0x1b0b060) passes to Encoding.UTF8.GetBytes. The
+        // same ctor takes Base64 chars [0, 16) of UTF-8(key) (mov ecx, 0x10).
         private static readonly Vector[] Vectors =
         {
             new Vector("empty", "", "", ""),

@@ -10,6 +10,8 @@ namespace ProjectLucid.Tests
             Assert.That(ProjectLucid.Editor.OriginalEncryptedSaveVerification.RunFixedVectors(), Is.EqualTo(12));
         }
 
+        // Expected IV is metadata string literal 1355 as loaded by .ctor
+        // 0x06000d4c (x86-64 0x1b0b060); see OriginalEncryptedSaveVerification.
         [Test]
         public void OriginalEncryptedSaveRetainsUtf8ConstructorBoundaries()
         {
