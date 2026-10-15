@@ -21,13 +21,13 @@ namespace HardlightProject
 			[GraphUnityObject(typeof(AbilityDefinition))]
 			public string AbilityDefinitionName;
 
-			public bool IsTriggered;
+			// Stored before the base constructor runs (0x5299B4).
+			public bool IsTriggered = true;
 
 			// 0600045c (1.10.1 RVA 0x5299B0)
 			public AbilityTriggeredJSONCtorArgs()
 			{
-			
-		}
+			}
 		}
 
 		private readonly AbilityDefinition m_abilityDefinition;
@@ -38,7 +38,11 @@ namespace HardlightProject
 		protected ActorTransition_AbilityTriggered(FiniteStateMachine fsm, FSMIdentifier transitionId, AbilityTriggeredJSONCtorArgs ctorArgs) : base(fsm, transitionId)
 		{
 			m_isTriggered = ctorArgs.IsTriggered;
-			DataManagerUtilities.TryGetAbilityDefinition(ctorArgs.AbilityDefinitionName, out m_abilityDefinition, "Transition " + transitionId.Name);
+			if (DataManagerUtilities.TryGetAbilityDefinition(ctorArgs.AbilityDefinitionName, out m_abilityDefinition, "Transition " + transitionId.Name))
+			{
+				// The original reads the virtual ScriptType on success and discards it (0x5297E7).
+				_ = m_abilityDefinition.ScriptType;
+			}
 		}
 
 		// 0600045a (1.10.1 RVA 0x529800)

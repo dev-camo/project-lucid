@@ -1597,6 +1597,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalApplicationStateInitialiseCharacterTests.FaultAfterTheMissionWaitTerminatesTheIterator",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.BinderNodesHideFromTheComponentMenuWithAnEmptyString",
+    "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.AbilityTriggeredArgsDefaultToTriggered",
+    "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.AbilityTriggeredJsonWithoutIsTriggeredKeepsTheTrueDefault",
+    "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.SingleToggleSelectsTheIncomingButtonNotTheEqualChild",
+)
+
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("version")',

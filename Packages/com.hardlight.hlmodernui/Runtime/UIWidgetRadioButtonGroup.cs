@@ -41,7 +41,8 @@ namespace Hardlight
 			for (int i = 0; i < m_childRadioButtons.Length; i++)
 			{
 				var btn = m_childRadioButtons[i];
-				if (btn == radioButton) btn.Select(); else btn.Deselect();
+				// Unity equality selects the incoming button, not the child (0x1A49C71).
+				if (btn == radioButton) radioButton.Select(); else btn.Deselect();
 			}
 		}
 
