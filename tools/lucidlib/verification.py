@@ -1593,6 +1593,10 @@ PLAYMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.LanguageVerificationRegistryOwnershipTests.LanguageProofLeavesNoLanguageRegistryRow",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalApplicationStateInitialiseCharacterTests.FaultInTheResumedMissionLoopTerminatesTheIterator",
+    "ProjectLucid.Editor.OriginalApplicationStateInitialiseCharacterTests.FaultAfterTheMissionWaitTerminatesTheIterator",
+)
 
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (

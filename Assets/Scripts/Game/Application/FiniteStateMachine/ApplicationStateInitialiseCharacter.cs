@@ -100,63 +100,74 @@ namespace HardlightProject
 			// 06000682 (1.10.1 RVA 0x6474F0)
 			private bool MoveNext()
 			{
-				if (_003C_003E1__state == 0)
+				// The compiler fault handler (0x64819D-0x6481D1): dispose through the 1/-3 states, then rethrow.
+				try
 				{
-					_003C_003E1__state = -1;
-					_003CmissionManager_003E5__2 = ProcessManager.GetSystem<MissionManager>();
-					app.Storage.GetValue<bool>(AppFSMKeys.IsFastLoading, false, true);
-					_003CactiveMissionContext_003E5__3 = _003CmissionManager_003E5__2.ActiveMissionContext;
-					if (_003CactiveMissionContext_003E5__3 != null)
+					if (_003C_003E1__state == 0)
 					{
-						bool isReload = app.Storage.GetValue<bool>(AppFSMKeys.RestartInProgress, false, true);
-						_003CmissionManager_003E5__2.PurgeMissionStates(isReload);
-						_003CmissionManager_003E5__2.LoadMissionsFromLevel(loadedLevel, isReload);
-						_003CmissionManager_003E5__2.LoadMission(_003CactiveMissionContext_003E5__3.MissionDefinition, _003CactiveMissionContext_003E5__3.LevelDefinition);
-						_003CmissionManager_003E5__2.CachePreLevelMissionSaveData(_003CactiveMissionContext_003E5__3.LevelDefinition.GetGUID());
-					}
-					if (ProcessManager.GetSystemRef<GameplayIslandManager>().TryGet(out GameplayIslandManager islandManager))
-					{
-						islandManager.SanitisePendingGameplayElements();
-					}
-					_003C_003E7__wrap3 = _003CmissionManager_003E5__2.MissionStates.GetEnumerator();
-					_003C_003E1__state = -3;
-				}
-				if (_003C_003E1__state == 1)
-				{
-					_003C_003E1__state = -3;
-				}
-				if (_003C_003E1__state == -3)
-				{
-					while (_003C_003E7__wrap3.MoveNext())
-					{
-						_003C_003Ec__DisplayClass8_0 locals = new _003C_003Ec__DisplayClass8_0();
-						_003C_003E7__wrap3.Current.Deconstruct(out string _, out locals.missionState);
-						MissionDefinition definition = locals.missionState.Definition;
-						if (definition.SubLevelDefinition != null)
+						_003C_003E1__state = -1;
+						_003CmissionManager_003E5__2 = ProcessManager.GetSystem<MissionManager>();
+						app.Storage.GetValue<bool>(AppFSMKeys.IsFastLoading, false, true);
+						_003CactiveMissionContext_003E5__3 = _003CmissionManager_003E5__2.ActiveMissionContext;
+						if (_003CactiveMissionContext_003E5__3 != null)
 						{
-							continue;
+							bool isReload = app.Storage.GetValue<bool>(AppFSMKeys.RestartInProgress, false, true);
+							_003CmissionManager_003E5__2.PurgeMissionStates(isReload);
+							_003CmissionManager_003E5__2.LoadMissionsFromLevel(loadedLevel, isReload);
+							_003CmissionManager_003E5__2.LoadMission(_003CactiveMissionContext_003E5__3.MissionDefinition, _003CactiveMissionContext_003E5__3.LevelDefinition);
+							_003CmissionManager_003E5__2.CachePreLevelMissionSaveData(_003CactiveMissionContext_003E5__3.LevelDefinition.GetGUID());
 						}
-						bool isActiveMission = _003CactiveMissionContext_003E5__3 != null && _003CactiveMissionContext_003E5__3.MissionDefinition == definition;
-						if (!isActiveMission && !loadedLevel.LevelDefinition.LoadAllMissions && locals.missionState.SetUpComplete)
+						if (ProcessManager.GetSystemRef<GameplayIslandManager>().TryGet(out GameplayIslandManager islandManager))
 						{
-							continue;
+							islandManager.SanitisePendingGameplayElements();
 						}
-						_003CmissionManager_003E5__2.SetUpMissionTracker(locals.missionState);
-						_003C_003E2__current = new WaitUntil(locals._003CInitialiseMissions_003Eb__0);
-						_003C_003E1__state = 1;
+						_003C_003E7__wrap3 = _003CmissionManager_003E5__2.MissionStates.GetEnumerator();
+						_003C_003E1__state = -3;
+					}
+					if (_003C_003E1__state == 1)
+					{
+						_003C_003E1__state = -3;
+					}
+					if (_003C_003E1__state == -3)
+					{
+						while (_003C_003E7__wrap3.MoveNext())
+						{
+							_003C_003Ec__DisplayClass8_0 locals = new _003C_003Ec__DisplayClass8_0();
+							_003C_003E7__wrap3.Current.Deconstruct(out string _, out locals.missionState);
+							MissionDefinition definition = locals.missionState.Definition;
+							if (definition.SubLevelDefinition != null)
+							{
+								continue;
+							}
+							bool isActiveMission = _003CactiveMissionContext_003E5__3 != null && _003CactiveMissionContext_003E5__3.MissionDefinition == definition;
+							// LoadAllMissions is read before combining with isActiveMission (0x647E4B-0x647E6E).
+							bool loadAllMissions = loadedLevel.LevelDefinition.LoadAllMissions;
+							if (!(isActiveMission | loadAllMissions) && locals.missionState.SetUpComplete)
+							{
+								continue;
+							}
+							_003CmissionManager_003E5__2.SetUpMissionTracker(locals.missionState);
+							_003C_003E2__current = new WaitUntil(locals._003CInitialiseMissions_003Eb__0);
+							_003C_003E1__state = 1;
+							return true;
+						}
+						_003C_003Em__Finally1();
+						_003C_003E7__wrap3 = null;
+						_003C_003E2__current = _003C_003E4__this.ReplaceCharacter(app);
+						_003C_003E1__state = 2;
 						return true;
 					}
-					_003C_003Em__Finally1();
-					_003C_003E7__wrap3 = null;
-					_003C_003E2__current = _003C_003E4__this.ReplaceCharacter(app);
-					_003C_003E1__state = 2;
-					return true;
+					if (_003C_003E1__state == 2)
+					{
+						_003C_003E1__state = -1;
+					}
+					return false;
 				}
-				if (_003C_003E1__state == 2)
+				catch
 				{
-					_003C_003E1__state = -1;
+					((IDisposable)this).Dispose();
+					throw;
 				}
-				return false;
 			}
 
 			bool IEnumerator.MoveNext()
