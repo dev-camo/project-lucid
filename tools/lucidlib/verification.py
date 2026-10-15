@@ -1870,3 +1870,10 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests.InvalidProfileDestroysTheWholeGameObject",
 )
+
+# Original logged failure branches routed through an owned inactive HLUnityCore.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLoggedFailureBranchTests.RigReplacementLogsUnexpectedInputAndMissingReplacementComponent",
+    "ProjectLucid.Tests.OriginalLoggedFailureBranchTests.UnsupportedSplineLogsThenStillNotifiesTheUnchangedOldSelection",
+    "ProjectLucid.Tests.OriginalLoggedFailureBranchTests.InvalidTriggerLogsYetSubscribesSwipeAndScrollWheelWhileUpAndHeldUseTheirPairs",
+)
