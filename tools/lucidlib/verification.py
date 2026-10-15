@@ -1531,4 +1531,10 @@ PLAYMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalAssemblyCSharpStudioTypesTests.DeclarationsMatchTheShippedAssembly",
     "ProjectLucid.Editor.OriginalAssemblyCSharpStudioTypesTests.TimerShowsAndHidesItsSpawnedObjects",
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.TimerHidesAtExactlyZeroAndStopsCountingBelowMinusHalf",
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.LaserLineUsesTheLocalEndPointAndTheBallTheWorldEndPoint",
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.WallInvokesItsEventOnlyWhenTheBallIsStrictlyCloserThanNineUnits",
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.PowerSourceStartsAnEightSecondWorldSpaceLineOnlyForThePlayer",
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.PlayerPositionShaderGlobalIsTheWorldPosition",
+    "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.DissolveRefetchesTheMainCameraAfterItsCameraWasDestroyed",
 )
