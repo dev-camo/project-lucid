@@ -155,6 +155,15 @@ namespace ProjectLucid.Tests
             Instruction exit = body[elseStart - 1];
             Assert.IsTrue(exit.Code == OpCodes.Br || exit.Code == OpCodes.Br_S, "macOS path ends with " + exit.Code);
             Assert.Greater(exit.Target, body[frameRateCall].Offset, "macOS path jumps over set_targetFrameRate");
+            // Native `jmp 0x53c348` lands straight after the call at 0x53c343, on the
+            // HLPropertyStore allocation that starts the common work. Only the else
+            // block's closing nops may sit between; the rejoin is that first common
+            // instruction, so common work moved into the else fails here.
+            int common = frameRateCall + 1;
+            while (body[common].Code == OpCodes.Nop) common++;
+            Assert.AreEqual(OpCodes.Ldstr, body[common].Code, "Common work starts with the property-store name");
+            Assert.AreEqual("H4RDl1ght_S4VE", enter.Module.ResolveString(body[common].Operand));
+            Assert.AreEqual(body[common].Offset, exit.Target, "macOS path rejoins at the first common instruction");
             Assert.AreEqual(1, body.Skip(platform + 1).Take(frameRateCall - platform - 1).Count(IsConditional));
 
             var refresh = new Dictionary<string, int>();
