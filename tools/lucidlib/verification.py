@@ -1787,3 +1787,8 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.InputActionSubscriptionTests.UnheldReleaseDefersOnUpToTheNextFrameAfterClearingDown",
 )
+
+# Original cursor input-type handling with a genuine EventSystem and HLInputModule.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.ToggleCursorVisibilityInputTypeTests.InputTypeChoosesCursorUnlessForceReleased",
+)
