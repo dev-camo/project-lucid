@@ -7,7 +7,7 @@ namespace ProjectLucid.Tests
     {
         [Test]
         public void ReceivedTokenPreservesStoreReentryAndFaultOrder()
-        { Assert.That(OriginalNotificationsVerification.RunManagedCallbacks(), Is.EqualTo(31)); }
+        { Assert.That(OriginalNotificationsVerification.RunManagedCallbacks(), Is.EqualTo(33)); }
 
         [Test]
         public void ConfigurationPreservesDefaultsAndOverrideAliases()

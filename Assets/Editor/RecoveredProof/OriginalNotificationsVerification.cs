@@ -1,15 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using UnityEngine;
 
 namespace ProjectLucid.Verification
 {
-    // Original HLNotifications callback 0600000f and direct field getters.
-    // Managed wrappers exercise only CLR fields and rebuilt FastAction dispatch:
-    // no singleton startup, bridge, platform service or Unity lifecycle is called.
+    // Original HLNotifications constructor 06000010, callback 0600000f and direct
+    // field getters. The owner is a real component on an inactive owned GameObject,
+    // so Awake/singleton registration, the bridge and platform services never run.
     public static class OriginalNotificationsVerification
     {
         private const BindingFlags Fields = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -19,9 +18,33 @@ namespace ProjectLucid.Verification
         public static int RunManagedCallbacks()
         {
             int count = 0;
-            var owner = (HLNotifications)FormatterServices.GetUninitializedObject(typeof(HLNotifications));
-            Check(owner.CachedPushToken == null, ref count, "Managed wrapper starts without a token");
-            Check(owner.OnReceivedPushToken == null, ref count, "Managed wrapper starts without listeners");
+            var host = new GameObject("ProjectLucid HLNotifications callback fixture");
+            host.hideFlags = HideFlags.HideAndDontSave;
+            host.SetActive(false);
+            try
+            {
+                var owner = host.AddComponent<HLNotifications>();
+                // x86-64 0x1a4cb80: the constructor stores only "" at the sound field
+                // and 1 at cloud auto-init before the base constructor.
+                Check(owner.NotificationSoundiOS == string.Empty, ref count, "Constructor stores the empty sound literal");
+                Check((bool)typeof(HLNotifications).GetField("m_enableCloudMessagingAutoInitOnInitialise", Fields).GetValue(owner), ref count, "Constructor enables cloud auto-init");
+                Check(owner.CachedPushToken == null, ref count, "Constructed owner starts without a token");
+                Check(owner.OnReceivedPushToken == null, ref count, "Constructed owner starts without listeners");
+                count += RunReceivedToken(owner);
+            }
+            finally { UnityEngine.Object.DestroyImmediate(host); }
+            bool nullOwnerFault = false;
+            try { ((HLNotifications)null).Native_ReceivedPushToken("unused"); }
+            catch (NullReferenceException) { nullOwnerFault = true; }
+            // Managed callvirt behavior only: native 0x1a4cb20 has no owner null check.
+            Check(nullOwnerFault, ref count, "Managed null owner faults before its field store");
+            return count;
+        }
+
+        // Store-before-invoke, reentry and fault order of 0x0600000f.
+        private static int RunReceivedToken(HLNotifications owner)
+        {
+            int count = 0;
             owner.Native_ReceivedPushToken("alpha");
             Check(owner.CachedPushToken == "alpha", ref count, "Null listener still stores token");
             Check(owner.OnReceivedPushToken == null, ref count, "Null listener remains null");
@@ -89,10 +112,6 @@ namespace ProjectLucid.Verification
             owner.Native_ReceivedPushToken("after-fault");
             Check(owner.CachedPushToken == "after-fault", ref count, "Fresh null action permits a later token write");
             Check(owner.OnReceivedPushToken == null, ref count, "Later null action remains null");
-            bool nullOwnerFault = false;
-            try { ((HLNotifications)null).Native_ReceivedPushToken("unused"); }
-            catch (NullReferenceException) { nullOwnerFault = true; }
-            Check(nullOwnerFault, ref count, "Null owner faults at its field store");
             return count;
         }
 
