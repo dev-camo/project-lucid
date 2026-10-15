@@ -1834,3 +1834,8 @@ PLAYMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalControllerPollingGapTests.PollingNotifiesOnlyOnCountChangesAndKeepsTheEmptyCountLoop",
 )
+
+# Original access-point screen-coordinate width forwarding target.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalGameCenterAccessPointGapTests.ScreenCoordinateWidthForwardsToThePluginWidthSlot",
+)
