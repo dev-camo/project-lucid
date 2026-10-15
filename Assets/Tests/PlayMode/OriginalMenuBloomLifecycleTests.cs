@@ -75,10 +75,27 @@ namespace ProjectLucid.Tests
                 owned.Bloom.StartTransition(halfDuration, true);
                 Assert.That(owned.Group.alpha, Is.EqualTo(0f), "the first sample occurs before the first yield");
                 Assert.That(owned.IsEnabled && owned.IsStalled, Is.True);
-                yield return new WaitForSeconds(halfDuration * 2f + 0.1f);
+                // Rising loop of <DoTransition>d__7.MoveNext (x86-64 0x1b61090,
+                // 0x1b61112..0x1b6116a): set alpha = clamp01(t / half) * maxAlpha, then
+                // t += Time.deltaTime, then yield, while t < half. Mirror t from this
+                // frame's delta and each later frame's delta; the held alpha is the last
+                // t below half. Catches adding delta before sampling or another curve.
+                float rising = Time.deltaTime, lastRising = 0f;
+                float risingDeadline = Time.realtimeSinceStartup + 10f;
+                while (rising < halfDuration)
+                {
+                    Assert.That(Time.realtimeSinceStartup, Is.LessThan(risingDeadline), "rising fade reaches its half duration");
+                    lastRising = rising;
+                    yield return null;
+                    rising += Time.deltaTime;
+                }
+                yield return null;
+                yield return null;
                 float held = owned.Group.alpha;
                 Assert.That(held, Is.GreaterThanOrEqualTo(0f).And.LessThan(1f),
                     "the stall does not force the peak or change the last strict rising sample");
+                Assert.That(held, Is.EqualTo(Mathf.Lerp(0f, 1f, lastRising / halfDuration)),
+                    "the held alpha is the exact last rising sample");
                 yield return null;
                 yield return null;
                 Assert.That(owned.Group.alpha, Is.EqualTo(held));
