@@ -171,7 +171,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalEditorCloudRetainsLiveKeysAndStaleCaptures",
     "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalCloudNotificationsUseRealUserInfoJsonAndReceiverOrder",
     "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalCloudConnectCallbacksRetainDelegateCombineRemoveOrder",
-    "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalCloudFactorySelectsOfflineWithoutConstructingAppleProvider",
+    "ProjectLucid.Tests.OriginalCloudBehaviorTests.CloudFactorySelectsOfflinePortWithoutConstructingAppleProvider",
     "ProjectLucid.Tests.OriginalCloudBehaviorTests.OriginalMacCooldownRetainsRealSuppliedWaitIterator",
 )
 

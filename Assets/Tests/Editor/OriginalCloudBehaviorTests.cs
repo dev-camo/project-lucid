@@ -28,8 +28,10 @@ namespace ProjectLucid.Tests
             Assert.That(ProjectLucid.Editor.OriginalCloudVerification.RunConnectDelegateOrder(), Is.EqualTo(7));
         }
 
+        // Port policy, not original behavior: the shipped factory constructs
+        // Cloud_MacOS; the offline build selects LocalCloud at that boundary instead.
         [Test]
-        public void OriginalCloudFactorySelectsOfflineWithoutConstructingAppleProvider()
+        public void CloudFactorySelectsOfflinePortWithoutConstructingAppleProvider()
         {
             Assert.That(ProjectLucid.Editor.OriginalCloudVerification.RunDefaultOfflineFactory(), Is.EqualTo(6));
         }
