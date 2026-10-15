@@ -1137,6 +1137,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalUIScrollTextAudioGapTests.NullClipStillSetsPitchAndVolumeAndReachesPlayOneShot",
 )
 
+# Low-priority coverage-gap cases: input modifier defaults and cutoff.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalInputModifierGapTests.ConstructorsKeepTheOriginalCooldownAndDeadZoneDefaults",
+    "ProjectLucid.Tests.OriginalInputModifierGapTests.VectorCurveCutsOffBelowTheOriginalSquaredMagnitude",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
