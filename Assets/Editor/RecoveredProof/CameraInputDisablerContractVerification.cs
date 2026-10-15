@@ -92,6 +92,9 @@ namespace ProjectLucid.Verification
             var methods = type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared)).ToList(); if (type.TypeInitializer != null && !methods.Any(x => x.MetadataToken == type.TypeInitializer.MetadataToken)) methods.Add(type.TypeInitializer);
             return methods.OrderBy(x => x.MetadataToken).ToArray();
         }
+        // Current-build declaration/CIL snapshot, not original evidence; it runs
+        // only as its own declared-shape test, never as a behavior precondition.
+        public static void VerifyCurrentDeclarationsAndBodies() => CheckCompleteCurrentDeclarationsAndBodies();
         static void CheckCompleteCurrentDeclarationsAndBodies()
         {
             OwnerFact[] facts = CurrentFacts(); Require(facts.Length == 3 && facts.Sum(x => x.Methods.Length) == 37 && facts.Sum(x => x.Fields.Length) == 17, "complete three-owner/37-declaration scope");

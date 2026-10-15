@@ -944,6 +944,7 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CameraInputDisablerTests.CurrentDeclarationsAndBodiesMatchSnapshot",
     "ProjectLucid.Tests.CameraInputDisablerTests.OriginalAxesThresholdsAndSnapArguments",
     "ProjectLucid.Tests.CameraInputDisablerTests.OriginalCaptureAndRealDebounceRetainFaultOrder",
     "ProjectLucid.Tests.CameraInputDisablerTests.OriginalCameraSubscriptionsRetainForeignCallbacks",
