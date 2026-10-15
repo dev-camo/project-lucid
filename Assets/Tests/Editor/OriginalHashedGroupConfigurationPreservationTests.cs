@@ -5,13 +5,16 @@ namespace ProjectLucid.Editor.Tests
 {
  public sealed class OriginalHashedGroupConfigurationPreservationTests
  {
-  // The declaration prelude is pinned to native metadata 0x02000420/0x06001859 (see
-  // HashedGroupConfigurationCurrentFacts); CreateInstance proves the original empty
-  // ctor runs. Name, hideFlags and destruction checks are engine behavior only.
+  // Emission-regression check of the project's own compile, not original evidence.
+  // Its declaration facts are pinned to native metadata 0x02000420/0x06001859 (see
+  // HashedGroupConfigurationCurrentFacts).
+  [Test]
+  public void CurrentBuildEmissionMatchesRecordedSnapshot()=>ProjectLucid.Editor.HashedGroupConfigurationCurrentFacts.RequireWholeCurrentEmission();
+  // CreateInstance proves the original empty ctor runs. Name, hideFlags and
+  // destruction checks are engine behavior only.
   [Test]
   public void GenuineOwnedCreationAndDestruction()
   {
-   ProjectLucid.Editor.HashedGroupConfigurationCurrentFacts.RequireWholeCurrentEmission();
    HashedGroupConfiguration owned=null;
    try
    {
@@ -32,7 +35,6 @@ namespace ProjectLucid.Editor.Tests
   [Test]
   public void TwoGenuineOwnedInstancesKeepIndependentEngineState()
   {
-   ProjectLucid.Editor.HashedGroupConfigurationCurrentFacts.RequireWholeCurrentEmission();
    HashedGroupConfiguration first=null,second=null;
    try
    {

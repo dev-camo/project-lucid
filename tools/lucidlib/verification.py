@@ -1007,17 +1007,20 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalConeVolumeTests.BoundsRetainAxisHalfTurnNegativeDistanceAndIgnoredStep",
     "ProjectLucid.Tests.OriginalConeVolumeTests.BoundsConsumeCallerMutationsOfTheActualCachedArray",
     "ProjectLucid.Tests.OriginalConeVolumeTests.BoundsRetainNonunitQuaternionWithoutNormalization",
+    "ProjectLucid.Tests.OriginalMissionScorerComboStagePreservationTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Tests.OriginalMissionScorerComboStagePreservationTests.OrdinaryConstructorPreservesAllFourDefaults",
     "ProjectLucid.Tests.OriginalMissionScorerComboStagePreservationTests.GenuineUnitySerializationPopulatesPrivateFieldsAndRoundTripsTheirOrder",
     "ProjectLucid.Tests.OriginalMissionScorerComboStagePreservationTests.IndependentlyConstructedInstancesKeepTheirOwnSerializedState",
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Editor.Tests.OriginalHashedGroupConfigurationPreservationTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Editor.Tests.OriginalHashedGroupConfigurationPreservationTests.GenuineOwnedCreationAndDestruction",
     "ProjectLucid.Editor.Tests.OriginalHashedGroupConfigurationPreservationTests.TwoGenuineOwnedInstancesKeepIndependentEngineState",
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.CurrentBuildEmissionMatchesRecordedSnapshot",
     "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.TrimRemovesOnlyLeadingIgnoredLinesWithInvariantCaseMatching",
     "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.FirstFunctionRetainsLiteralFirstLineAndDoesNotTrimPrefixes",
     "ProjectLucid.Editor.Tests.OriginalHLCrashReportPreservationTests.ReadonlyLogDataConstructorRetainsEverySuppliedIdentityAndInteger",

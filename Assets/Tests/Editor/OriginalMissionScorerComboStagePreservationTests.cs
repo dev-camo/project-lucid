@@ -10,14 +10,16 @@ namespace ProjectLucid.Tests
         private const string SecondValuesJson = "{\"m_comboMultiplier\":-2.25,\"m_comboTimeLimit\":9.5,\"m_drainPerSecond\":4.75,\"m_maxCombo\":0.5}";
         private const string UpdatedFirstValuesJson = "{\"m_maxCombo\":32,\"m_drainPerSecond\":0.125,\"m_comboMultiplier\":0,\"m_comboTimeLimit\":0.25}";
 
+        // Emission-regression check of the project's own compile, not original evidence.
+        [Test]
+        public void CurrentBuildEmissionMatchesRecordedSnapshot() => ProjectLucid.Editor.MissionScorerComboStageCurrentFacts.RequireWholeCurrentEmission();
+
         // Expected defaults are the native .ctor 0x06002789 (x86-64 0x5c07e0) stores:
         // 0x40A00000 and 0x3F800000 at +0x10/+0x14, 0x40000000 at +0x18, +0x1c
-        // untouched; getters 0x06002785..88 read those offsets in this order. The
-        // facts prelude is a separate snapshot of the current Editor emission.
+        // untouched; getters 0x06002785..88 read those offsets in this order.
         [Test]
         public void OrdinaryConstructorPreservesAllFourDefaults()
         {
-            ProjectLucid.Editor.MissionScorerComboStageCurrentFacts.RequireWholeCurrentEmission();
             var stage = new MissionScorerComboStage();
             Assert.That(ReadInOriginalGetterOrder(stage), Is.EqualTo(new[] { 5f, 1f, 2f, 0f }));
         }
@@ -25,7 +27,6 @@ namespace ProjectLucid.Tests
         [Test]
         public void GenuineUnitySerializationPopulatesPrivateFieldsAndRoundTripsTheirOrder()
         {
-            ProjectLucid.Editor.MissionScorerComboStageCurrentFacts.RequireWholeCurrentEmission();
             var stage = new MissionScorerComboStage();
             JsonUtility.FromJsonOverwrite(FirstValuesJson, stage);
             Assert.That(ReadInOriginalGetterOrder(stage), Is.EqualTo(new[] { -3.5f, 7.25f, 1.125f, -0.625f }));
@@ -38,7 +39,6 @@ namespace ProjectLucid.Tests
         [Test]
         public void IndependentlyConstructedInstancesKeepTheirOwnSerializedState()
         {
-            ProjectLucid.Editor.MissionScorerComboStageCurrentFacts.RequireWholeCurrentEmission();
             var first = new MissionScorerComboStage();
             var second = new MissionScorerComboStage();
             JsonUtility.FromJsonOverwrite(FirstValuesJson, first);

@@ -13,10 +13,13 @@ namespace ProjectLucid.Editor.Tests
     // registry, lifecycle, reporting, bridge or deliberate crash path is invoked.
     public sealed class OriginalHLCrashReportPreservationTests
     {
+        // Emission-regression check of the project's own compile, not original evidence.
+        [Test]
+        public void CurrentBuildEmissionMatchesRecordedSnapshot() => HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
+
         [Test]
         public void TrimRemovesOnlyLeadingIgnoredLinesWithInvariantCaseMatching()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             CultureInfo previous = CultureInfo.CurrentCulture;
             try
             {
@@ -41,7 +44,6 @@ namespace ProjectLucid.Editor.Tests
         [Test]
         public void FirstFunctionRetainsLiteralFirstLineAndDoesNotTrimPrefixes()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             string[][] cases = {
                 new[] { null, "" }, new[] { " \t\r\n", "" },
                 new[] { "Hardlight.HLOutput.Call()\nGame.Entry()", "Hardlight.HLOutput.Call()" },
@@ -61,7 +63,6 @@ namespace ProjectLucid.Editor.Tests
         [Test]
         public void ReadonlyLogDataConstructorRetainsEverySuppliedIdentityAndInteger()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             string kind = new string(new[] { ' ', 'k', '\0', 'x' });
             string message = new string(new[] { '\t', 'm', '\u03bb' });
             string stack = new string(new[] { 's', '\r', '\n' });
@@ -86,7 +87,6 @@ namespace ProjectLucid.Editor.Tests
         [Test]
         public void GenuineConfigurationCreationKeepsDefaultsAndIndependentOwnedAllocations()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             WithOwned<HLCrashReportConfigurationAsset>(first => WithOwned<HLCrashReportConfigurationAsset>(second => {
                 Assert.That(ReferenceEquals(first, second), Is.False);
                 Assert.That(first.UseErrorExclusion, Is.False);
@@ -122,7 +122,6 @@ namespace ProjectLucid.Editor.Tests
         [Test]
         public void RequiredNativeFilesDeduplicateWithoutEditingOwnedInputArrays()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             WithOwned<HLCrashReportConfigurationAsset>(owned => {
                 string[] included = { "HLCrashReport.h", "extra.mm", "extra.mm", null, "HLCrashReport.mm", "Extra.mm" };
                 string[] before = (string[])included.Clone();
@@ -144,7 +143,6 @@ namespace ProjectLucid.Editor.Tests
         [Test]
         public void NativePathsKeepAllThreeLiteralSuffixesAndUnsupportedValueFaults()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             WithOwned<HLCrashReportConfigurationAsset>(owned => {
                 string[] suffix = { "/AppCenter/", "/Crashlytics/", "/Stub/" };
                 for (int i = 0; i < 3; i++) {
@@ -167,7 +165,6 @@ namespace ProjectLucid.Editor.Tests
         [Test]
         public void InitialiseWritesTheSameOwnedExclusionListAndRetainsNullFaults()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             WithOwned<HLCrashReportConfigurationAsset>(owned => {
                 ExclusionList list = owned.ErrorExclusionList;
                 owned.Initialise();
@@ -193,7 +190,6 @@ namespace ProjectLucid.Editor.Tests
         [Test]
         public void GenuineOwnedAppKeysRetainSuppliedDummyConstantForEverySerializedKey()
         {
-            HLCrashReportCurrentFacts.RequireWholeCurrentEmission();
             WithOwned<HLCrashReportAppKeys>(owned => {
                 string[] fields = { "m_iOSAppSecretProd", "m_iOSAppSecretQA", "m_googleAppSecretProd", "m_googleAppSecretQA", "m_amazonAppSecretProd", "m_amazonAppSecretQA", "m_samsungAppSecretProd", "m_samsungAppSecretQA" };
                 foreach (string field in fields) Assert.That(Read(owned, field), Is.Null);
