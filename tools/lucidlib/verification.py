@@ -1143,6 +1143,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalInputModifierGapTests.VectorCurveCutsOffBelowTheOriginalSquaredMagnitude",
 )
 
+# Low-priority coverage-gap cases: ribbon end edge.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalSplineGapTests.LastBlockEndEdgeUsesTheRealKnotCountAndInclusiveTolerance",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
