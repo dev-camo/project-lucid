@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Reflection;
 using Hardlight;
 using Hardlight.Utils;
 using NUnit.Framework;
@@ -12,11 +13,22 @@ namespace ProjectLucid.Tests
         [UnityTest]
         public IEnumerator OriginalCoroutineHelpers_NestedTwoFramesAndBothStopOverloads()
         {
+            // Awake publishes the static host and registers it; OnDestroy unregisters but keeps both the
+            // static and the registry row. Restore the prior static and remove only a row created here.
+            FieldInfo instanceField = typeof(CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
+            var registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            string rowName = ProcessManager.GetDefaultName<CoroutineUtils>();
+            // A live host would make this host's registration throw; an empty retained row is reused.
+            Assert.That(ProcessManager.IsSystemNull(rowName), Is.True, "requires no live coroutine host");
+            object priorInstance = instanceField.GetValue(null);
+            bool hadRow = registry.Contains(rowName);
+            instanceField.SetValue(null, null);
             var owner = new GameObject("Lucid original coroutine prerequisites");
             try
             {
                 var host = owner.AddComponent<CoroutineUtils>();
                 Assert.That(host, Is.Not.Null);
+                Assert.That(instanceField.GetValue(null), Is.SameAs(host), "Awake publishes the owned host");
                 int calls = 0;
                 int actionFrame = -1;
                 int firstFrame = Time.frameCount;
@@ -47,6 +59,8 @@ namespace ProjectLucid.Tests
             finally
             {
                 Object.DestroyImmediate(owner);
+                instanceField.SetValue(null, priorInstance);
+                if (!hadRow) registry.Remove(rowName);
             }
         }
     }

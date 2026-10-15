@@ -165,11 +165,16 @@ namespace ProjectLucid
             var prior = maps[2][typeof(int)];
             StackableData.RegisterTypeOperations<int>(); Check(ReferenceEquals(prior, maps[2][typeof(int)]), "null registration retains existing");
             StackableData.ResultCarrier<int>.Operation custom = delegate(StackableData.StackableDataContainer<int> c, ref StackableData.ResultCarrier<int> r) { r.SetValue(71); return StackableData.OperationAction.EarlyExit; };
-            StackableData.RegisterTypeOperations<int>(multiply: custom);
-            Check(ReferenceEquals(custom, maps[2][typeof(int)]) && maps[3][typeof(int)].Method.Name == "IntAddition", "only supplied registry replaced");
-            var carrier = default(StackableData.ResultCarrier<int>); var registered = (StackableData.ResultCarrier<int>.Operation)maps[2][typeof(int)];
-            Check(registered(null, ref carrier) == StackableData.OperationAction.EarlyExit && carrier.Value == 71, "custom registered behavior");
-            maps[2][typeof(int)] = prior;
+            // The custom operation replaces the shared int registration; restore it even if a check fails,
+            // so later stackable cases never run against this fixture's operation.
+            try
+            {
+                StackableData.RegisterTypeOperations<int>(multiply: custom);
+                Check(ReferenceEquals(custom, maps[2][typeof(int)]) && maps[3][typeof(int)].Method.Name == "IntAddition", "only supplied registry replaced");
+                var carrier = default(StackableData.ResultCarrier<int>); var registered = (StackableData.ResultCarrier<int>.Operation)maps[2][typeof(int)];
+                Check(registered(null, ref carrier) == StackableData.OperationAction.EarlyExit && carrier.Value == 71, "custom registered behavior");
+            }
+            finally { maps[2][typeof(int)] = prior; }
         }
         private static void CallbackChecks()
         {
