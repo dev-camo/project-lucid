@@ -356,6 +356,70 @@ namespace ProjectLucid.Editor
         }
 
         [Test]
+        public void TransientReplacementInALaterRowLosesItsActions()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string first = "Lucid-ownership-transient-action-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
+            var transient = new FSMManager();
+            int actionCalls = 0;
+            try
+            {
+                SystemRef firstRef = ProcessManager.RegisterSystem(new FSMManager(), first);
+                ProcessManager.RegisterSystem(new FSMManager(), second);
+                // Before second's turn, a callback registers a transient system there and replaces it.
+                firstRef.OnSystemShutdown += system =>
+                {
+                    transient.SubscribeToAction(SystemAction.Update, context => actionCalls++);
+                    ProcessManager.RegisterSystem(transient, second, canReplace: true);
+                    ProcessManager.RegisterSystem(new FSMManager(), second, canReplace: true);
+                };
+                FSMManagerVerification.ReleaseOwnedRows(new[] { first, second });
+                Assert.That(rows.Contains(first) || rows.Contains(second), Is.False);
+                transient.ProcessSystemAction(SystemAction.Update);
+                Assert.That(actionCalls, Is.Zero, "the transient system kept its action subscription");
+            }
+            finally
+            {
+                transient.UnsubscribeFromAction(SystemAction.Update);
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
+        public void TransientSystemIsTrackedWhenAnEarlierStartupObserverThrows()
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string first = "Lucid-ownership-startup-throw-a-" + Guid.NewGuid().ToString("N"), second = first + "-b";
+            var transient = new FSMManager();
+            int actionCalls = 0;
+            var injected = new InvalidOperationException("startup failure");
+            try
+            {
+                SystemRef firstRef = ProcessManager.RegisterSystem(new FSMManager(), first);
+                SystemRef secondRef = ProcessManager.RegisterSystem(new FSMManager(), second);
+                // A foreign startup observer on the later row throws before any observer after it.
+                secondRef.OnSystemStartup += system => throw injected;
+                firstRef.OnSystemShutdown += system =>
+                {
+                    transient.SubscribeToAction(SystemAction.Update, context => actionCalls++);
+                    ProcessManager.RegisterSystem(transient, second, canReplace: true);
+                };
+                Exception thrown = Assert.Catch(() => FSMManagerVerification.ReleaseOwnedRows(new[] { first, second }));
+                Assert.That(thrown, Is.SameAs(injected));
+                Assert.That(rows.Contains(first) || rows.Contains(second), Is.False);
+                transient.ProcessSystemAction(SystemAction.Update);
+                Assert.That(actionCalls, Is.Zero, "the transient system kept its action subscription");
+            }
+            finally
+            {
+                transient.UnsubscribeFromAction(SystemAction.Update);
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        [Test]
         public void LaterRowCallbackRecreatingAReleasedNameIsSwept()
         {
             IDictionary rows = Rows();

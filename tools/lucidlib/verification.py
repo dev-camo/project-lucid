@@ -1454,5 +1454,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.PassLimitKeepsAnEarlierCallbackFailure",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.ReferenceActivatedDuringTeardownIsNotNotifiedTwice",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.LaterRowCallbackRecreatingAReleasedNameIsSwept",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.TransientReplacementInALaterRowLosesItsActions",
+    "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.TransientSystemIsTrackedWhenAnEarlierStartupObserverThrows",
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.CallbackCreatedReferenceNotifiedElsewhereIsNotNotifiedAgain",
 )

@@ -109,7 +109,9 @@ namespace ProjectLucid
         // Releases every owned row. Invariants, for the original unregister and anything its
         // observers do, including callbacks that re-register owned names already released:
         //  1. No owned name keeps a row, no reference seen during teardown stays valid, and every
-        //     system that entered an owned row loses its action subscriptions.
+        //     system that entered an owned row loses its action subscriptions. Every owned name keeps
+        //     a watched row until the end, so systems registered there by callbacks, even transient
+        //     ones replaced before their row's turn, are seen by a startup sentinel that runs first.
         //  2. A reference's shutdown observers start at most once. A "begin" sentinel placed before
         //     its observers (public remove/add, order kept) records the start. The fixture calls the
         //     original unregister only for rows present when teardown started that nobody has
@@ -117,12 +119,12 @@ namespace ProjectLucid
         //     reference, including ones callbacks create or re-create during teardown (whose earlier
         //     notifications cannot be observed), is detached and revoked silently.
         //  3. Cleanup never stops at a failure; the first failure is rethrown after all rows.
-        //  4. The work is bounded: when the pass budget runs out, that is recorded as a failure and
-        //     the remaining rows are revoked silently and dropped, which runs no callbacks.
+        //  4. The work is bounded: when the reconcile budget runs out, that is recorded as a failure
+        //     (never replacing an earlier one) and every row is revoked silently and dropped.
         // Only public event subscriptions are written; ProcessManager and SystemRef are unchanged.
         internal static void ReleaseOwnedRows(IList<string> owned) => new Teardown(RegistryRows()).Release(owned);
 
-        internal static int TeardownPassLimit = 64;
+        internal static int TeardownPassLimit = 1024;
 
         private sealed class Teardown
         {
@@ -132,6 +134,7 @@ namespace ProjectLucid
             private readonly HashSet<object> initialRows = new HashSet<object>(new ReferenceComparer());
             private readonly HashSet<object> unregisteredRows = new HashSet<object>(new ReferenceComparer());
             private readonly HashSet<object> eligible = new HashSet<object>(new ReferenceComparer());
+            private readonly HashSet<object> watchedRows = new HashSet<object>(new ReferenceComparer());
             private readonly List<ISystem> entered = new List<ISystem>();
             private readonly List<Sentinel> sentinels = new List<Sentinel>();
             private readonly MethodInfo revoke = typeof(ProcessManager).Assembly.GetType("Hardlight.ISystemRef")
@@ -145,46 +148,43 @@ namespace ProjectLucid
             {
                 try
                 {
+                    // Every owned name keeps a watched row for the whole teardown: existing rows are
+                    // kept, absent names get an empty fixture row. Any registration under an owned
+                    // name, transient or not, then enters a row whose startup is already watched.
                     foreach (string name in owned)
-                        if (rows.Contains(name))
-                        {
-                            initialRows.Add(rows[name]);
-                            foreach (object reference in References(rows[name])) Bracket(reference);
-                        }
+                    {
+                        if (rows.Contains(name)) initialRows.Add(rows[name]);
+                        else ProcessManager.GetSystemRef(name);
+                    }
+                    foreach (string name in owned) Watch(rows[name]);
                     bool settled = false;
                     while (!settled && budget > 0)
                     {
                         settled = true;
-                        // Every present owned row is bracketed before any is unregistered, so an
-                        // unregister started by another row's callback is still observed.
-                        foreach (string name in owned)
-                            if (rows.Contains(name))
-                                foreach (object reference in References(rows[name])) Bracket(reference);
                         foreach (string name in owned)
                         {
-                            if (!rows.Contains(name)) continue;
-                            settled = false;
-                            object info = rows[name];
-                            try { ReleaseRow(name, info); }
-                            catch (Exception error) { Record(error); }
-                            finally { if (ReferenceEquals(Row(name), info)) rows.Remove(name); }
+                            if (!rows.Contains(name)) ProcessManager.GetSystemRef(name);
+                            Watch(rows[name]);
                         }
-                    }
-                    if (!settled || owned.Any(name => rows.Contains(name)) || bracketed.Any(IsValid))
-                    {
-                        if (!settled)
-                            Record(new InvalidOperationException("Owned registry row teardown did not settle; callbacks keep re-registering owned names."));
                         foreach (string name in owned)
                         {
-                            if (!rows.Contains(name)) continue;
-                            foreach (object reference in References(rows[name])) { bracketed.Add(reference); Silence(reference); }
-                            rows.Remove(name);
+                            try { if (ReleaseRow(name, rows[name])) settled = false; }
+                            catch (Exception error) { Record(error); settled = false; }
                         }
-                        foreach (object reference in bracketed.Where(IsValid).ToList()) Silence(reference);
                     }
+                    if (!settled)
+                        Record(new InvalidOperationException("Owned registry row teardown did not settle; callbacks keep re-registering owned names."));
                 }
                 finally
                 {
+                    // Silent revocation runs no callbacks, so this always completes.
+                    foreach (string name in owned)
+                    {
+                        if (!rows.Contains(name)) continue;
+                        foreach (object reference in References(rows[name])) if (IsValid(reference)) Silence(reference);
+                        rows.Remove(name);
+                    }
+                    foreach (object reference in bracketed.Where(IsValid).ToList()) Silence(reference);
                     foreach (Sentinel sentinel in sentinels)
                         sentinel.Event.RemoveEventHandler(sentinel.Reference, sentinel.Observer);
                     foreach (ISystem system in entered)
@@ -196,22 +196,30 @@ namespace ProjectLucid
                 if (first != null) ExceptionDispatchInfo.Capture(first).Throw();
             }
 
-            private object Row(string name) => rows.Contains(name) ? rows[name] : null;
-
             private void Record(Exception error) { if (first == null) first = error; }
 
-            // The original unregister runs once, for a row present at the start that no callback has
-            // already started unregistering; rows created during teardown are only revoked silently.
-            private void ReleaseRow(string name, object info)
+            // Places begin sentinels on the row's references and its untyped startup event, and
+            // records the system it holds now.
+            private void Watch(object info)
             {
                 List<object> present = References(info);
                 foreach (object reference in present) Bracket(reference);
+                if (watchedRows.Add(info))
+                    BracketEvent(present[0], "OnSystemStartup", system => Enter(system as ISystem));
+                Enter(((SystemRef)present[0]).GetSafe());
+            }
+
+            // The original unregister runs once, for a row present at the start that no callback has
+            // already started unregistering. Returns whether this pass found any work in the row.
+            private bool ReleaseRow(string name, object info)
+            {
+                List<object> present = References(info);
                 SystemRef untyped = (SystemRef)present[0];
-                sentinels.Add(Subscribe(untyped, "OnSystemStartup", system => Enter(system as ISystem)));
-                Enter(untyped.GetSafe());
+                bool work = false;
                 bool started = present.Any(reference => notified.Contains(reference));
                 if (initialRows.Contains(info) && !started && unregisteredRows.Add(info))
                 {
+                    work = true;
                     eligible.UnionWith(present);
                     try { ProcessManager.UnregisterSystem(name); }
                     catch (Exception error) { Record(error); }
@@ -226,7 +234,7 @@ namespace ProjectLucid
                     {
                         Bracket(reference);
                         if (!IsValid(reference)) continue;
-                        changed = true;
+                        changed = work = true;
                         Enter(untyped.GetSafe());
                         if (notified.Contains(reference) || !eligible.Contains(reference)) { Silence(reference); continue; }
                         notified.Add(reference);
@@ -237,8 +245,9 @@ namespace ProjectLucid
                             Silence(reference);
                         }
                     }
-                    if (!changed) return;
+                    if (!changed) return work;
                 }
+                return true;
             }
 
             private void Enter(ISystem system)
@@ -256,16 +265,21 @@ namespace ProjectLucid
             // through the public event, so the start of its notification is observable.
             private void Bracket(object reference)
             {
-                if (!bracketed.Add(reference)) return;
+                if (bracketed.Add(reference))
+                    BracketEvent(reference, "OnSystemShutdown", _ => notified.Add(reference));
+            }
+
+            private void BracketEvent(object reference, string eventName, Action<object> onCall)
+            {
                 Type type = reference.GetType();
-                while (type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) == null)
+                while (type.GetField(eventName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly) == null)
                     type = type.BaseType;
-                var observers = (Delegate)type.GetField("OnSystemShutdown", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
-                EventInfo shutdown = type.GetEvent("OnSystemShutdown");
+                var observers = (Delegate)type.GetField(eventName, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
+                EventInfo evt = type.GetEvent(eventName);
                 Delegate[] list = observers?.GetInvocationList() ?? new Delegate[0];
-                foreach (Delegate observer in list) shutdown.RemoveEventHandler(reference, observer);
-                sentinels.Add(Subscribe(reference, "OnSystemShutdown", () => notified.Add(reference)));
-                foreach (Delegate observer in list) shutdown.AddEventHandler(reference, observer);
+                foreach (Delegate observer in list) evt.RemoveEventHandler(reference, observer);
+                sentinels.Add(Subscribe(reference, eventName, onCall));
+                foreach (Delegate observer in list) evt.AddEventHandler(reference, observer);
             }
         }
 
