@@ -22,6 +22,13 @@ namespace ProjectLucid.Tests.EditMode
         }
 
         [Test]
+        public void OriginalUIConfigurationLifecycleRegistersAndUnregistersBeforeUnguardedBridgeCalls()
+        {
+            UIOriginalLeafVerification.VerifyOwnedInactiveConfigurationLifecycleRegistryOrder();
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        [Test]
         public void OriginalAbstractUIBridgeAndSupplierPreserveCompleteMetadataAndBaseOnlyBodies()
         {
             UIOriginalLeafVerification.VerifyOriginalAbstractBridgeAndSupplierMetadata();

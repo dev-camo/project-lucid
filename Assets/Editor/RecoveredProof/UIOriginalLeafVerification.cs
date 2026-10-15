@@ -14,7 +14,8 @@ using UObject = UnityEngine.Object;
 
 namespace ProjectLucid.Verification
 {
-    // Controlled owned-object checks. Never activate or invoke the original UI lifecycle.
+    // Controlled owned-object checks. Never activate the original UI; only the
+    // configuration lifecycle case invokes Awake/OnDestroy, by reflection, on a never-activated owner.
     public static class UIOriginalLeafVerification
     {
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
@@ -171,6 +172,86 @@ namespace ProjectLucid.Verification
                 finally { state.AssertUnchanged(c, "after destruction of never-activated configuration"); }
             }
             return c.Count;
+        }
+
+        // 0x060000c4 x86-64 0x1b3f0d0: RegisterSystem(this, null, false, false), then
+        // the two virtual bridge calls on m_inputBridge with no null test.
+        // 0x060000c5 x86-64 0x1b3f160: UnregisterSystem(this), then the bridge
+        // unregister, with no finally. With an unbound bridge each body must have
+        // finished its registry step before faulting. Mutations caught: a bridge
+        // null guard (no fault), registering after the bridge calls (no row at the
+        // fault) and unregistering after the bridge call (row still valid). Awake
+        // and OnDestroy are invoked by reflection on the never-activated owner, so
+        // Unity runs neither; the managed NullReferenceException stands in for the
+        // unchecked native virtual call (NullChecks false).
+        public static int VerifyOwnedInactiveConfigurationLifecycleRegistryOrder()
+        {
+            var c = new Checks();
+            Type owner = typeof(UIRuntimeConfiguration);
+            string name = ProcessManager.GetDefaultName<UIRuntimeConfiguration>();
+            c.Require(name == "Hardlight.UIRuntimeConfiguration", "genuine default system name");
+            IDictionary registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", Declared).GetValue(null);
+            object existingRow = registry.Contains(name) ? registry[name] : null;
+            if (existingRow != null) RequireQuietNullRow(c, existingRow, "pre-existing configuration row is a null, unobserved row");
+            var state = new StateWatch(c);
+            MethodInfo awake = owner.GetMethod("Awake", Declared), destroy = owner.GetMethod("OnDestroy", Declared);
+            GameObject gameObject = null;
+            try
+            {
+                gameObject = Inactive(c, "Owned original UI configuration lifecycle");
+                UIRuntimeConfiguration configuration = gameObject.AddComponent<UIRuntimeConfiguration>();
+                state.AssertUnchanged(c, "after inactive configuration creation");
+                ObjectDefaults(c, configuration);
+                c.Require(InvokeFaults<NullReferenceException>(awake, configuration), "Awake reaches the unbound bridge without a null guard");
+                c.Require(registry.Contains(name) && (existingRow == null || ReferenceEquals(registry[name], existingRow)), "Awake registry row present at the bridge fault");
+                SystemRef reference = RowReference(registry[name]);
+                c.Require(ReferenceEquals(reference.GetSafe(), configuration) && ProcessManager.IsSystemValid<UIRuntimeConfiguration>(), "Awake registered this configuration before the bridge fault");
+                c.Require(InvokeFaults<NullReferenceException>(destroy, configuration), "OnDestroy reaches the unbound bridge without a null guard");
+                c.Require(ReferenceEquals(RowReference(registry[name]), reference) && reference.IsNull() && !ProcessManager.IsSystemValid<UIRuntimeConfiguration>(), "OnDestroy unregistered before the bridge fault");
+                RequireQuietNullRow(c, registry[name], "revoked configuration row has no observers");
+                if (existingRow == null) registry.Remove(name);
+                state.AssertUnchanged(c, "after configuration lifecycle row release");
+            }
+            finally
+            {
+                try { if (!ReferenceEquals(gameObject, null)) UObject.DestroyImmediate(gameObject); }
+                finally
+                {
+                    // The key was absent before this case, so any row now is the fixture's own.
+                    if (existingRow == null && registry.Contains(name)) registry.Remove(name);
+                    state.AssertUnchanged(c, "after destruction of the configuration lifecycle owner");
+                }
+            }
+            return c.Count;
+        }
+
+        private static bool InvokeFaults<T>(MethodInfo method, object target) where T : Exception
+        {
+            try { method.Invoke(target, null); }
+            catch (TargetInvocationException failure) { return failure.InnerException is T; }
+            return false;
+        }
+
+        private static SystemRef RowReference(object row)
+        {
+            return (SystemRef)row.GetType().GetField("SystemRef", Declared).GetValue(row);
+        }
+
+        // A row whose references hold no system, event observer or pending
+        // valid-callback (every field but the name is null) can be replaced and
+        // revoked by the owned lifecycle without notifying foreign code.
+        private static void RequireQuietNullRow(Checks c, object row, string message)
+        {
+            var references = new List<object> { RowReference(row) };
+            foreach (DictionaryEntry typed in (IDictionary)row.GetType().GetField("SystemRefDictionary", Declared).GetValue(row)) references.Add(typed.Value);
+            foreach (object reference in references)
+            {
+                c.Require(reference != null, message + " (present reference)");
+                for (Type at = reference.GetType(); at != null && at != typeof(object); at = at.BaseType)
+                    foreach (FieldInfo field in at.GetFields(Declared))
+                        if (!field.IsStatic && field.Name != "m_systemName")
+                            c.Require(field.GetValue(reference) == null, message + " (" + field.Name + ")");
+            }
         }
 
         public static int VerifyOriginalAbstractBridgeAndSupplierMetadata()
