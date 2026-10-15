@@ -29,7 +29,9 @@
     "HLSplines.Runtime",
     "HLCrossPromo.Runtime",
     "HLAutoPlay.Runtime",
-    "HLPhysics.Runtime"
+    "HLPhysics.Runtime",
+    "HLNotifications.Runtime",
+    "HLEventSystems.Runtime"
   ],
   "includePlatforms": [
     "Editor"

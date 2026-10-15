@@ -931,6 +931,31 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.EditMode.AnalyticsMissionTypeHelpersTests.OriginalLabelsComparersAndMutableCacheBehavior',
 )
 
+# Low-priority coverage gaps, round A: native-grounded single cases.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLeaderboardGapTests.InitializersCreateGameCenterThenLeaderboardRowsBeforeTheManagerRow",
+    "ProjectLucid.Tests.OriginalLeaderboardGapTests.AppShutdownClearsTheListenerWithoutDeinitialisingOrUnsubscribing",
+    "ProjectLucid.Tests.OriginalLeaderboardGapTests.InvalidHolderCompletesBothRequestsFalseOnTheFirstStepWithoutListeners",
+    "ProjectLucid.Tests.OriginalControllerProviderGapTests.SelectionPassesEachPollingRateToItsOwnOriginalWait",
+    "ProjectLucid.Tests.OriginalAudioSourceDataGapTests.PresentSourceWithoutAClipFaultsOnTheClipLength",
+    "ProjectLucid.Tests.OriginalLinkedLevelTestsGapTests.LiveScenesRenameEntriesThroughSceneNameAndDestroyedScenesKeepTheirNames",
+    "ProjectLucid.Tests.OriginalNotificationsGapTests.EachOverrideIsCheckedAndReportedTemplateFirst",
+    "ProjectLucid.Tests.OriginalUIGapTests.NonHLInputModuleIsStoredAsNoModule",
+    "ProjectLucid.Tests.OriginalUIGapTests.StartActivatesTheOverriderWithoutAPlatformOrNullTest",
+    "ProjectLucid.Tests.OriginalUIGapTests.ScrollLeftHandlerIsAMemberlessEventMarker",
+    "ProjectLucid.Tests.OriginalUIGapTests.ScrollRightHandlerIsAMemberlessEventMarker",
+    "ProjectLucid.Tests.OriginalPropertyStoreGapTests.StoreIsPublishedBeforeItsStorageConstructionFaults",
+    "ProjectLucid.Tests.OriginalPropertyStoreGapTests.WipeAllSaveFilesLetsAnEnumerationFaultEscape",
+    "ProjectLucid.Tests.OriginalGuiPageLoaderGapTests.RepeatedEnumValueFaultsAfterKeepingEarlierMappings",
+    "ProjectLucid.Tests.OriginalBuildValidationGapTests.NullSeverityRecordFaultsUnlessAnEarlierRecordMatches",
+    "ProjectLucid.Tests.OriginalBuildValidationGapTests.NullSceneExclusionFaultsUnlessAnEarlierExclusionMatches",
+    "ProjectLucid.Tests.OriginalAnalyticsEventGapTests.SpawnBuildsAFiveEventPoolOnceAndInitialisesEachSpawnedEvent",
+)
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalControllerProviderGapPlayTests.SecondInitialiseLeavesTheFirstPollingLoopRunningAfterShutdown",
+    "ProjectLucid.Tests.OriginalUIVisibilityGroupMemberGapPlayTests.DestroyedWaitingMemberKeepsItsDeferredManagerCallback",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.DeadZoneHysteresisAndRadialCacheResetRemainOriginal",
     "ProjectLucid.Tests.EditMode.InputModifierOriginalBehaviorTests.CooldownScalarVectorTimingAndDebounceInputStateRemainOriginal",
