@@ -1124,6 +1124,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGameDataGapTests.PyramidMeshUsesTheOriginalCallOrderAndIndexInitializer",
 )
 
+# Low-priority coverage-gap cases: core utilities and registries.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLUnityCoreGapTests.BestMatchKeepsTheFirstTieAndRejectsScoresAtInt32MaxValue",
+    "ProjectLucid.Tests.OriginalHLUnityCoreGapTests.ClassInitializerRegistersOnlyTheOriginalPrimitiveOperations",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.SequencedEffectTests.DefaultsAndNonPositiveDelaysKeepOriginalHooks",
     "ProjectLucid.Tests.SequencedEffectTests.InclusiveAndExclusiveGatesUseRealCurrentInput",
