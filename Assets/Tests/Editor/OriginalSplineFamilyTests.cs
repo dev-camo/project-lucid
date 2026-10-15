@@ -24,5 +24,7 @@ namespace ProjectLucid.Tests.EditMode
             => Assert.AreEqual(15, OriginalSplineFamilyVerification.GenuineTrackerWorldAndFaultPrefix());
         [Test] public void SplineSamplingCacheRestoresEveryPriorBitAfterOwnedFaults()
             => Assert.AreEqual(7, OriginalSplineFamilyVerification.SharedSamplingCacheFaultRestoration());
+        [Test] public void SplineSamplingCacheAccumulatesOwnedLineSegmentsToWholeLength()
+            => Assert.AreEqual(5, OriginalSplineFamilyVerification.OwnedLineSamplingCacheAccumulatesWholeLength());
     }
 }

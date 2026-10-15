@@ -501,6 +501,33 @@ namespace ProjectLucid.Verification
             return c.Count;
         }
 
+        // 0x060001d4 x86-64 0x1a6daa0: samples i = 1..2047 (loop bound 0x800) store
+        // each segment length over [(i - 1) / 2047f, i / 2047f], then 0x7ff prefix
+        // additions accumulate them. The owned straight Bezier is P(t) = 10t along
+        // +Z, so [1] is 10/2047 and [2047] telescopes to the whole length 10. The
+        // [2047] bound is 2047 additions times half an ulp below 16 (4.8e-7), about
+        // 9.8e-4; per-segment chord rounding is far smaller. Mutations caught: a
+        // 2048 denominator ([1] = 10/2048, [2047] = 9.9951), a missing or shortened
+        // prefix pass ([2047] stays near 0.0049) and a nonzero first sample.
+        public static int OwnedLineSamplingCacheAccumulatesWholeLength()
+        {
+            Checks c = new Checks();
+            SamplingCache cache = new SamplingCache();
+            float[] samples = cache.Original;
+            using (OwnedObjects owned = new OwnedObjects())
+            {
+                MakeLine(owned, Vector3.forward);
+                c.Is(Bits(samples[0]) == 0, "first sample is exact +0");
+                c.Near(samples[1], 10f / 2047f, "first segment spans 1/2047 of the line", 1e-6f);
+                bool increasing = true;
+                for (int i = 1; i < samples.Length; ++i) increasing &= samples[i] > samples[i - 1];
+                c.Is(increasing, "prefix sums strictly increase across every sample");
+                c.Near(samples[2047], 10f, "last prefix sum is the whole line length", 1e-3f);
+            }
+            c.Is(cache.SameReference && SameBits(samples, cache.Before), "owned Engine cleanup restores every prior sample bit");
+            return c.Count;
+        }
+
         public static int SharedSamplingCacheFaultRestoration()
         {
             Checks c = new Checks();
