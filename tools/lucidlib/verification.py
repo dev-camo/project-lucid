@@ -1757,4 +1757,7 @@ PLAYMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationEnterOrderTests.LoadingEnterRegistersSystemsInShippedOrderWithOnlyGameCenterGated",
     "ProjectLucid.Tests.OriginalApplicationEnterOrderTests.BootEnterKeepsDisplayStoreCacheThenLoadBeforeLoadedLevelsRead",
+    "OriginalLocalisedUIStringLookupFallbackTests.FailedLookupWritesMissingMarkerOnlyForNonNoneIdentifierAndNullOverride",
+    "OriginalLanguageUtilsFormatterTests.InitialiserPublishesFormatterAndCachesBeforeItsDecimalSeparatorFault",
+    "OriginalLanguageUtilsFormatterTests.AbbreviationFloorsThenTrimsTrailingZerosIgnoringZeroDecimalFlag",
 )
