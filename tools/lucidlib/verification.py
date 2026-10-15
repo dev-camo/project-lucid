@@ -1488,6 +1488,8 @@ EDITMODE_TESTS += (
 )
 
 EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalHLProfilerDataModelCleanupTests.TeardownDisposesEveryOwnedRecorderAndKeepsAForeignOneRecording",
+    "ProjectLucid.Editor.OriginalHLProfilerDataModelCleanupTests.LosingTheStoppedMarkerOwnershipLeavesItsRecorderLive",
     "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.ConsoleAndManagerRetainOriginalDeclarations",
     "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.ConsoleFieldInitializersMatchTheOriginalConstructor",
     "ProjectLucid.Editor.OriginalHLProfilerDataModelTests.SampleBufferAlwaysHoldsTheMaximumBecauseTheClampIsReversed",
