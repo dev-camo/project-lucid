@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using Hardlight;
 using NUnit.Framework;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -278,6 +279,171 @@ namespace ProjectLucid.Tests
             public string Value;
             public int Reads;
             public string Text { get { ++Reads; return Value; } }
+        }
+
+        // HLButton.Press 0x060005fc x86-64 0x1b6cfb0: a false base result on a
+        // non-interactable button invokes m_onDisabledClick, then loads the static
+        // OnDisabledClickSfx and m_onDisabledClickSfxId. Fails if the sound is
+        // read or played before the event (the first action would then play).
+        [Test]
+        public void InactiveNonInteractablePressDispatchesEventBeforeRereadingDisabledSound()
+        {
+            using (Owned owned = new Owned(false))
+            {
+                HLButton button = owned.Button;
+                FastAction<HLAudioTypes> priorClick = HLButton.OnClickSfx;
+                FastAction<HLAudioTypes> priorDisabled = HLButton.OnDisabledClickSfx;
+                var log = new List<string>();
+                try
+                {
+                    DisabledWithoutAnimation(button);
+                    using (var serialized = new SerializedObject(button))
+                    {
+                        serialized.Update();
+                        serialized.FindProperty("m_onDisabledClickSfxId").intValue = (int)HLAudioTypes.None;
+                        serialized.ApplyModifiedPropertiesWithoutUndo();
+                    }
+                    var click = new FastAction<HLAudioTypes>(); click += id => log.Add("click sound");
+                    var first = new FastAction<HLAudioTypes>(); first += id => log.Add("first disabled sound");
+                    var second = new FastAction<HLAudioTypes>(); second += id => log.Add("second disabled sound " + (int)id);
+                    HLButton.OnClickSfx = click;
+                    HLButton.OnDisabledClickSfx = first;
+                    button.OnClick.AddListener(() => log.Add("click"));
+                    button.OnDisabledClick.AddListener(() => { log.Add("disabled"); HLButton.OnDisabledClickSfx = second; });
+                    Assert.That(button.Press(), Is.False);
+                    Assert.That(log, Is.EqualTo(new[] { "disabled", "second disabled sound " + (int)HLAudioTypes.None }));
+                    Assert.That(Read(typeof(HLCurveAnimatedGraphic), button, "m_animatingCoroutine"), Is.Null);
+                }
+                finally
+                {
+                    HLButton.OnClickSfx = priorClick;
+                    HLButton.OnDisabledClickSfx = priorDisabled;
+                }
+                owned.AssertUnchanged();
+                // The accepted branch needs an active button whose Awake/OnEnable publish
+                // a VibrationManager row and ActiveSelectables entry; it is not entered here.
+            }
+        }
+
+        // ButtonSelected 0x06000476 x86-64 0x1b5f000 appends one closure per entry
+        // without clearing; closure 0x06000480 (0x1b5f5f0) rereads the entry's
+        // supplier; ProcessTriggers 0x06000477 (0x1b5f3a0) calls virtual Press
+        // before the entry's UnityEvent. Setup 0x06000474 (0x1b5eb20) adds ClearUp
+        // to InputBridge.OnShutdown before SystemRef.IsNull; ClearUp 0x06000475
+        // (0x1b5edd0) removes it and deselects before IsNull. Here the controller
+        // reference was never published (no Awake), so both IsNull calls fault.
+        [Test]
+        public void InactiveListenerAppendsClosuresPressesBeforeEventsAndOrdersShutdownAroundFaults()
+        {
+            using (Owned owned = new Owned(true))
+            {
+                HLSelectableInputListener listener = owned.Listener;
+                FastAction priorShutdown = InputBridge.OnShutdown;
+                FastAction<HLAudioTypes> priorDisabled = HLButton.OnDisabledClickSfx;
+                var objects = new List<UnityEngine.Object>();
+                var log = new List<string>();
+                try
+                {
+                    InputBridge.OnShutdown = null;
+                    HLButton.OnDisabledClickSfx = null;
+                    var buttonRoot = new GameObject("owned-original-listener-target", typeof(RectTransform));
+                    objects.Add(buttonRoot);
+                    buttonRoot.SetActive(false);
+                    HLButton button = buttonRoot.AddComponent<HLButton>();
+                    DisabledWithoutAnimation(button);
+                    button.OnDisabledClick.AddListener(() => log.Add("press"));
+                    var first = ScriptableObject.CreateInstance<HLInputSupplier>(); objects.Add(first);
+                    var second = ScriptableObject.CreateInstance<HLInputSupplier>(); objects.Add(second);
+                    using (var serialized = new SerializedObject(listener))
+                    {
+                        serialized.Update();
+                        serialized.FindProperty("m_buttonInputData").arraySize = 3;
+                        serialized.ApplyModifiedPropertiesWithoutUndo();
+                    }
+                    HLSelectableInputListener.SelectedButtonInput[] data = listener.GetButtonInputData();
+                    Assert.That(data.Length, Is.EqualTo(3));
+                    Entry(data[0], first, button, "event0", log);
+                    Entry(data[1], second, null, "event1", log);
+                    Entry(data[2], first, null, "event2", log);
+                    var delegates = (List<Action<float>>)Read(typeof(HLSelectableInputListener), listener, "m_delegates");
+
+                    // A null watched selectable equals a null selection; repeats append.
+                    Call(listener, "ButtonSelected", (HLSelectable)null);
+                    Assert.That(delegates.Count, Is.EqualTo(3));
+                    Call(listener, "ButtonSelected", (HLSelectable)null);
+                    Assert.That(delegates.Count, Is.EqualTo(6));
+                    Call(listener, "ButtonSelected", (HLSelectable)button);
+                    Assert.That(delegates.Count, Is.EqualTo(6));
+
+                    delegates[0](0.25f);
+                    Assert.That(log, Is.EqualTo(new[] { "press", "event0", "event2" }));
+                    log.Clear();
+                    data[0].m_inputSupplierToListenFor = second;
+                    delegates[3](0f);
+                    Assert.That(log, Is.EqualTo(new[] { "press", "event0", "event1" }));
+
+                    Assert.Throws<NullReferenceException>(() => Call(listener, "Setup"));
+                    FastAction shutdown = InputBridge.OnShutdown;
+                    Assert.That(shutdown, Is.Not.Null);
+                    Assert.That(shutdown.GetInvocationListCount(), Is.EqualTo(1));
+                    Assert.That(ReferenceEquals(shutdown.GetInvocationList()[0].Target, listener), Is.True);
+                    Assert.That(shutdown.GetInvocationList()[0].Method.Name, Is.EqualTo("ClearUp"));
+
+                    Assert.Throws<NullReferenceException>(() => Call(listener, "ClearUp"));
+                    Assert.That(ReferenceEquals(InputBridge.OnShutdown, shutdown), Is.True);
+                    Assert.That(shutdown.GetInvocationListCount(), Is.Zero);
+                    Assert.That(delegates.Count, Is.Zero);
+                    Assert.That(ReferenceEquals(Read(typeof(HLSelectableInputListener), listener, "m_delegates"), delegates), Is.True);
+                }
+                finally
+                {
+                    try
+                    {
+                        for (int i = objects.Count - 1; i >= 0; --i)
+                            if (objects[i] != null) UnityEngine.Object.DestroyImmediate(objects[i]);
+                    }
+                    finally
+                    {
+                        InputBridge.OnShutdown = priorShutdown;
+                        HLButton.OnDisabledClickSfx = priorDisabled;
+                    }
+                }
+                owned.AssertUnchanged();
+            }
+        }
+
+        // Serialized authoring only: no Interactable setter callbacks or coroutine.
+        private static void DisabledWithoutAnimation(HLButton button)
+        {
+            using (var serialized = new SerializedObject(button))
+            {
+                serialized.Update();
+                serialized.FindProperty("m_interactable").boolValue = false;
+                serialized.FindProperty("m_animationDisabled").boolValue = true;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+            }
+            Assert.That(button.IsActive(), Is.False);
+            Assert.That(button.IsInteractable(), Is.False);
+            Assert.That(button.AnimationDisabled, Is.True);
+        }
+
+        private static void Entry(HLSelectableInputListener.SelectedButtonInput entry, InputSupplier supplier,
+            HLButton button, string label, List<string> log)
+        {
+            entry.m_inputSupplierToListenFor = supplier;
+            entry.m_triggerButton = button != null;
+            entry.m_buttonToTrigger = button;
+            entry.m_triggerEvent = true;
+            entry.m_eventToTrigger = new UnityEvent();
+            entry.m_eventToTrigger.AddListener(() => log.Add(label));
+        }
+
+        private static void Call(object target, string name, params object[] arguments)
+        {
+            MethodInfo method = target.GetType().GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.That(method, Is.Not.Null, name);
+            try { method.Invoke(target, arguments); }
+            catch (TargetInvocationException failure) { throw failure.InnerException; }
         }
 
         private static UnityEvent[] Events(HLButton button)
