@@ -1892,6 +1892,7 @@ EDITMODE_TESTS += (
 # Original FontAssetLanguageSetter handle release and string-handler readiness.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalFontLanguageHandleTests.LanguageChangeReleasesOldHandlesAndReadinessClearsAfterEveryHandleCompletes",
+    "ProjectLucid.Tests.OriginalFontLanguageHandleTests.OnlyTheFirstMatchingPairingOfEachCollectionIsLoaded",
 )
 
 # Original alert badge text selection on an owned RTLTextMeshPro.

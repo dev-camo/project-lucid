@@ -25,7 +25,7 @@
 // Start subscribes Language then StringTable, loads all referenced collections, and registers its App callback after enumeration disposal.
 // App callbacks select FontsFallbackPreloadReady or FontsChangeLanguageReady, write false before starting the static coroutine, then yield null and each handle before writing true.
 // Readiness observes handle completion order, not validity/status/success. String handlers return false while idle or any handle is unfinished; the completed pass clears the responding flag.
-// For each old handle, language changes remove its result only if complete, then release the handle regardless; tracking is cleared before every matching pairing is processed, with no early match exit or rollback.
+// For each old handle, language changes remove its result only if complete, then release the handle regardless; tracking is cleared, then only the first pairing of the language is loaded (x86-64 0x685f82 leaves the pairing loop after its font loop) before the next collection; no rollback.
 // OnDestroy only unsubscribes Language then StringTable; it does not release handles, revoke queued App callbacks or stop the coroutine.
 // Addressable assets, TMP fonts/fallback lists, App lifecycle and actual Engine readiness remain separate qualification requirements.
 using System.Collections;
@@ -119,6 +119,7 @@ namespace HardlightProject
                         m_asyncOperationHandles[fontAssetAndLanguageFallbacks].AddUnique(handle);
                         loadHandles.Add(handle);
                     }
+                    break;
                 }
             }
             m_appRef.InvokeOnValid(app => OnAppValid(app, loadHandles, AppFSMKeys.FontsChangeLanguageReady));

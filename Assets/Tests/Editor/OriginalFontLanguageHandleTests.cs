@@ -38,8 +38,7 @@ namespace ProjectLucid.Tests
         // finished handles; keeping old tracking; loading another language's fonts;
         // reporting readiness while idle or while a handle is pending; or leaving
         // the flag set after a completed pass (a repeated call would return true).
-        // Only one pairing matches here: whether later matching pairings of the
-        // same collection are processed is not asserted.
+        // Only one pairing matches here; the first-match exit is covered below.
         [Test]
         public void LanguageChangeReleasesOldHandlesAndReadinessClearsAfterEveryHandleCompletes()
         {
@@ -148,6 +147,110 @@ namespace ProjectLucid.Tests
                     {
                         // The setter's field initialiser created this App row; the
                         // queued App callback is discarded with it. No App existed.
+                        if (registry.Contains(appRow))
+                        {
+                            Assert.IsTrue(ProcessManager.IsSystemNull(appRow), "The App row never held a system.");
+                            registry.Remove(appRow);
+                        }
+                    }
+                }
+            }
+        }
+
+        // x86-64 0x6857a0: after the font loop of a matching pairing completes, the
+        // finally at 0x685f50 disposes the font enumerator with no pending exception
+        // and jumps to 0x685fd6, which disposes the pairing enumerator and moves to the
+        // next collection (0x685ffa -> 0x685aa0). The only branch back to the pairing
+        // MoveNext (0x685d10) is the language mismatch at 0x685d3b. So each collection
+        // loads only its first pairing of the language, and later collections still load.
+        // Catches: processing every matching pairing, or returning after the first.
+        [Test]
+        public void OnlyTheFirstMatchingPairingOfEachCollectionIsLoaded()
+        {
+            var owned = new List<Object>();
+            var materials = new List<Material>();
+            string appRow = ProcessManager.GetDefaultName<App>();
+            IDictionary registry = (IDictionary)typeof(ProcessManager)
+                .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            Assert.IsFalse(registry.Contains(appRow), "Fixture requires an absent App row; its field initialiser creates one.");
+            var resourceManager = new ResourceManager();
+            typeof(ResourceManager).GetField("CallbackHooksEnabled", Instance | BindingFlags.Public).SetValue(resourceManager, false);
+            var handles = new List<AsyncOperationHandle>();
+            try
+            {
+                TMP_FontAsset firstBase = Font(owned, materials, "first base");
+                TMP_FontAsset secondBase = Font(owned, materials, "second base");
+                TMP_FontAsset firstFrench = Font(owned, materials, "first French");
+                TMP_FontAsset laterFrench = Font(owned, materials, "later French");
+                TMP_FontAsset secondFrench = Font(owned, materials, "second collection French");
+                firstBase.fallbackFontAssetTable = new List<TMP_FontAsset>();
+                secondBase.fallbackFontAssetTable = new List<TMP_FontAsset>();
+
+                var first = ScriptableObject.CreateInstance<FontAssetAndFallbacks>();
+                var second = ScriptableObject.CreateInstance<FontAssetAndFallbacks>();
+                owned.Add(first); owned.Add(second);
+                first.m_fontAsset = firstBase;
+                first.m_fallbackCollection = new List<FontAssetAndFallbacks.FontAssetFallbackPairing>
+                {
+                    Pairing(Languages.French, "lucid-owned-font-first-french"),
+                    Pairing(Languages.French, "lucid-owned-font-later-french"),
+                };
+                second.m_fontAsset = secondBase;
+                second.m_fallbackCollection = new List<FontAssetAndFallbacks.FontAssetFallbackPairing>
+                {
+                    Pairing(Languages.French, "lucid-owned-font-second-french"),
+                };
+
+                AsyncOperationHandle<TMP_FontAsset> firstHandle = resourceManager.CreateCompletedOperation(firstFrench, (string)null);
+                AsyncOperationHandle<TMP_FontAsset> laterHandle = resourceManager.CreateCompletedOperation(laterFrench, (string)null);
+                AsyncOperationHandle<TMP_FontAsset> secondHandle = resourceManager.CreateCompletedOperation(secondFrench, (string)null);
+                handles.Add(firstHandle); handles.Add(laterHandle); handles.Add(secondHandle);
+
+                GameObject managerObject = Inactive(owned, "Owned inactive font AddressableManager");
+                AddressableManager manager = managerObject.AddComponent<AddressableManager>();
+                var preloaded = (Dictionary<string, AsyncOperationHandle>)typeof(AddressableManager)
+                    .GetField("m_preloadedAssetHandleLookup", Instance).GetValue(manager);
+                preloaded.Add("lucid-owned-font-first-french", firstHandle);
+                preloaded.Add("lucid-owned-font-later-french", laterHandle);
+                preloaded.Add("lucid-owned-font-second-french", secondHandle);
+
+                GameObject setterObject = Inactive(owned, "Owned inactive FontAssetLanguageSetter");
+                FontAssetLanguageSetter setter = setterObject.AddComponent<FontAssetLanguageSetter>();
+                typeof(FontAssetLanguageSetter).GetField("m_assetManager", Instance).SetValue(setter, manager);
+                var collections = (List<FontAssetAndFallbacks>)typeof(FontAssetLanguageSetter)
+                    .GetField("m_fontAssetsAndFallBackCollection", Instance).GetValue(setter);
+                var tracked = (Dictionary<FontAssetAndFallbacks, List<AsyncOperationHandle<TMP_FontAsset>>>)typeof(FontAssetLanguageSetter)
+                    .GetField("m_asyncOperationHandles", Instance).GetValue(setter);
+                collections.Add(first); collections.Add(second);
+                tracked.Add(first, new List<AsyncOperationHandle<TMP_FontAsset>>());
+                tracked.Add(second, new List<AsyncOperationHandle<TMP_FontAsset>>());
+
+                typeof(FontAssetLanguageSetter).GetMethod("LanguageChanged", Instance).Invoke(setter, new object[] { Languages.French });
+
+                CollectionAssert.AreEqual(new[] { firstFrench }, firstBase.fallbackFontAssetTable, "Only the first French pairing is loaded.");
+                CollectionAssert.AreEqual(new[] { firstHandle }, tracked[first]);
+                CollectionAssert.AreEqual(new[] { secondFrench }, secondBase.fallbackFontAssetTable, "The next collection still loads its pairing.");
+                CollectionAssert.AreEqual(new[] { secondHandle }, tracked[second]);
+            }
+            finally
+            {
+                try
+                {
+                    foreach (AsyncOperationHandle handle in handles)
+                        if (handle.IsValid()) resourceManager.Release(handle);
+                    resourceManager.Dispose();
+                }
+                finally
+                {
+                    try
+                    {
+                        for (int i = owned.Count - 1; i >= 0; --i)
+                            if (owned[i] != null) Object.DestroyImmediate(owned[i]);
+                        foreach (Material material in materials)
+                            if (material != null) Object.DestroyImmediate(material);
+                    }
+                    finally
+                    {
                         if (registry.Contains(appRow))
                         {
                             Assert.IsTrue(ProcessManager.IsSystemNull(appRow), "The App row never held a system.");
