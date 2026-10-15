@@ -32,6 +32,7 @@ namespace ProjectLucid.Tests
             Field(config.LowMemoryConfig.GetType(), "m_enabled").SetValue(config.LowMemoryConfig, true);
             Field(config.LowMemoryConfig.GetType(), "m_triggerResourcesUnloadAssets").SetValue(config.LowMemoryConfig, false);
             var cleanup = new List<Exception>();
+            var diagnostics = new List<Exception>();
             bool completed = false;
             var objects = new List<GameObject>();
             var callbacks = new List<Application.LogCallback>();
@@ -147,7 +148,14 @@ namespace ProjectLucid.Tests
                 Step(cleanup, () => { if (config != null) Object.DestroyImmediate(config); });
                 Step(cleanup, () => Debug.unityLogger.logEnabled = previousLogging);
                 Step(cleanup, () => Debug.unityLogger.filterLogType = previousFilter);
-                if (!completed) foreach (Exception failure in cleanup) TestContext.Error.WriteLine("Logging host cleanup also failed: " + failure);
+                // As in LifecycleSystemRowLease, a failing diagnostic is recorded rather than
+                // thrown, so the body failure stays primary.
+                if (!completed)
+                    foreach (Exception failure in cleanup)
+                    {
+                        try { TestContext.Error.WriteLine("Logging host cleanup also failed: " + failure); }
+                        catch (Exception diagnosticFailure) { diagnostics.Add(diagnosticFailure); }
+                    }
             }
             Assert.IsEmpty(cleanup, "Every logging host cleanup step completes.");
         }
