@@ -1574,4 +1574,8 @@ EDITMODE_TESTS += (
 )
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLPhysicsSingletonTests.SingletonMatchesTheShippedDeclaration",
+    "ProjectLucid.Editor.OriginalHLPhysicsSingletonTests.SoleConstructorIsTheOriginalPublicParameterlessOne",
+)
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLPhysicsLifecycleTests.EngineCreationRegistersOnAwakeAndDestructionReleasesIt",
 )
