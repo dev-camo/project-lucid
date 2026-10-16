@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using Hardlight;
 using NUnit.Framework;
@@ -246,38 +247,44 @@ namespace ProjectLucid.Editor
             Assume.That(UISoundEffectManager.Instance, Is.Null, "requires no live UI sound manager");
             AudioClip clip = AudioClip.Create("Lucid owned UI cue", 1, 1, 44100, false);
             AudioClip destroyed = null;
+            InactiveManager owned = null;
+            Dictionary<HLAudioTypes, AudioClip> cues = null;
+            // Every owned cleanup step runs after any failure; the body's failure stays first.
+            Action[] cleanup =
+            {
+                () => { if (cues != null) cues.Clear(); },
+                () => { if (owned != null) owned.Dispose(); },
+                () => { if (destroyed != null) UnityEngine.Object.DestroyImmediate(destroyed); },
+                () => UnityEngine.Object.DestroyImmediate(clip),
+            };
             try
             {
                 destroyed = AudioClip.Create("Lucid owned destroyed UI cue", 1, 1, 44100, false);
                 UnityEngine.Object.DestroyImmediate(destroyed);
                 Assert.That((object)destroyed, Is.Not.Null);
                 Assert.That(destroyed == null, Is.True);
-                using (var owned = new InactiveManager())
+                owned = new InactiveManager();
+                cues = (Dictionary<HLAudioTypes, AudioClip>)typeof(HLUIEffectManager).GetField("m_audioCues", Declared).GetValue(owned.Manager);
+                cues[HLAudioTypes.None] = clip;
+                cues[(HLAudioTypes)71] = null;
+                cues[(HLAudioTypes)72] = destroyed;
+                cues[(HLAudioTypes)(-19)] = clip;
+                foreach (HLAudioTypes stopped in new[] { HLAudioTypes.None, (HLAudioTypes)71, (HLAudioTypes)72, (HLAudioTypes)5 })
                 {
-                    var cues = (Dictionary<HLAudioTypes, AudioClip>)typeof(HLUIEffectManager).GetField("m_audioCues", Declared).GetValue(owned.Manager);
-                    cues[HLAudioTypes.None] = clip;
-                    cues[(HLAudioTypes)71] = null;
-                    cues[(HLAudioTypes)72] = destroyed;
-                    cues[(HLAudioTypes)(-19)] = clip;
-                    try
-                    {
-                        foreach (HLAudioTypes stopped in new[] { HLAudioTypes.None, (HLAudioTypes)71, (HLAudioTypes)72, (HLAudioTypes)5 })
-                        {
-                            owned.Manager.PlayAudioClip(stopped, 0.5f);
-                            owned.Manager.PlayAudioClipWithSemitoneOffset(stopped, 3, 0.5f);
-                        }
-                        Assert.Throws<NullReferenceException>(() => owned.Manager.PlayAudioClip((HLAudioTypes)(-19), 0.5f));
-                        Assert.Throws<NullReferenceException>(() => owned.Manager.PlayAudioClipWithSemitoneOffset((HLAudioTypes)(-19), 3, 0.5f));
-                    }
-                    finally { cues.Clear(); }
-                    owned.RequireUnchanged();
+                    owned.Manager.PlayAudioClip(stopped, 0.5f);
+                    owned.Manager.PlayAudioClipWithSemitoneOffset(stopped, 3, 0.5f);
                 }
+                Assert.Throws<NullReferenceException>(() => owned.Manager.PlayAudioClip((HLAudioTypes)(-19), 0.5f));
+                Assert.Throws<NullReferenceException>(() => owned.Manager.PlayAudioClipWithSemitoneOffset((HLAudioTypes)(-19), 3, 0.5f));
+                cues.Clear();
+                owned.RequireUnchanged();
             }
-            finally
+            catch (Exception primary)
             {
-                try { if (destroyed != null) UnityEngine.Object.DestroyImmediate(destroyed); }
-                finally { UnityEngine.Object.DestroyImmediate(clip); }
+                RunOwnedCleanup(primary, cleanup);
+                throw;
             }
+            RunOwnedCleanup(null, cleanup);
             LogAssert.NoUnexpectedReceived();
         }
 
@@ -337,12 +344,25 @@ namespace ProjectLucid.Editor
 
             public void Dispose()
             {
-                try
-                {
-                    if (gameObject != null) Object.DestroyImmediate(gameObject);
-                }
-                finally { RequireUnchanged(); }
+                RunOwnedCleanup(null, () => { if (gameObject != null) Object.DestroyImmediate(gameObject); }, RequireUnchanged);
             }
+        }
+
+        // Attempts every step. With no cleanup failure it returns, so a caller's primary is rethrown by
+        // the caller with its own stack; a sole cleanup failure is rethrown with its stack; otherwise all
+        // failures are aggregated with the primary (or earliest) first.
+        private static void RunOwnedCleanup(Exception primary, params Action[] steps)
+        {
+            var failures = new List<Exception>();
+            foreach (Action step in steps)
+            {
+                try { step(); }
+                catch (Exception failure) { failures.Add(failure); }
+            }
+            if (failures.Count == 0) return;
+            if (primary == null && failures.Count == 1) ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            if (primary != null) failures.Insert(0, primary);
+            throw new AggregateException("Owned test body or cleanup failed", failures);
         }
 
         private static void RequireSafeCoreBaseline(KeyValuePair<ISystem, SystemRef>[] rows)
