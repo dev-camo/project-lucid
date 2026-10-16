@@ -238,22 +238,30 @@ namespace ProjectLucid.Editor
         // PlayAudioClip (x86-64 0x1b49c90) returns on HLAudioTypes.None (0xb6fa1284) before the lookup,
         // then requires ContainsKey and a Unity-non-null clip before reading UISoundEffectManager.Instance.
         // With no sound manager instance, only a cue that passes every guard reaches that read and faults.
+        // The clip guard is Object.op_Inequality(clip, null): a destroyed clip keeps its managed reference
+        // but must still stop both routes, which a plain reference test would not.
         [Test]
         public void PopulatedCuesStopAtNoneAndNullClipsBeforeTheSoundManager()
         {
             Assume.That(UISoundEffectManager.Instance, Is.Null, "requires no live UI sound manager");
             AudioClip clip = AudioClip.Create("Lucid owned UI cue", 1, 1, 44100, false);
+            AudioClip destroyed = null;
             try
             {
+                destroyed = AudioClip.Create("Lucid owned destroyed UI cue", 1, 1, 44100, false);
+                UnityEngine.Object.DestroyImmediate(destroyed);
+                Assert.That((object)destroyed, Is.Not.Null);
+                Assert.That(destroyed == null, Is.True);
                 using (var owned = new InactiveManager())
                 {
                     var cues = (Dictionary<HLAudioTypes, AudioClip>)typeof(HLUIEffectManager).GetField("m_audioCues", Declared).GetValue(owned.Manager);
                     cues[HLAudioTypes.None] = clip;
                     cues[(HLAudioTypes)71] = null;
+                    cues[(HLAudioTypes)72] = destroyed;
                     cues[(HLAudioTypes)(-19)] = clip;
                     try
                     {
-                        foreach (HLAudioTypes stopped in new[] { HLAudioTypes.None, (HLAudioTypes)71, (HLAudioTypes)5 })
+                        foreach (HLAudioTypes stopped in new[] { HLAudioTypes.None, (HLAudioTypes)71, (HLAudioTypes)72, (HLAudioTypes)5 })
                         {
                             owned.Manager.PlayAudioClip(stopped, 0.5f);
                             owned.Manager.PlayAudioClipWithSemitoneOffset(stopped, 3, 0.5f);
@@ -265,7 +273,11 @@ namespace ProjectLucid.Editor
                     owned.RequireUnchanged();
                 }
             }
-            finally { UnityEngine.Object.DestroyImmediate(clip); }
+            finally
+            {
+                try { if (destroyed != null) UnityEngine.Object.DestroyImmediate(destroyed); }
+                finally { UnityEngine.Object.DestroyImmediate(clip); }
+            }
             LogAssert.NoUnexpectedReceived();
         }
 
