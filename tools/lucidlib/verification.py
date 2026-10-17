@@ -2432,3 +2432,24 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLUnityCoreMiscTests." + nam
     "BillOfMaterialsValidatesItsUnsetArrayDuringConstruction",
     "ManifestConfigDefaultPathsAreTheShippedLiterals",
 ))
+
+# Specification of Hardlight.Flip (HLUnityUI.Runtime 0x060002c6..cd) from the x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFlipTests." + name for name in (
+    "DeclarationKeepsTheOriginalAttributesFieldsAndMethodOrder",
+    "FreshComponentStartsWithBothFlipsOff",
+    "ModifyVerticesMirrorsEachFlaggedAxisAcrossTheVertexBounds(True,False)",
+    "ModifyVerticesMirrorsEachFlaggedAxisAcrossTheVertexBounds(False,True)",
+    "ModifyVerticesMirrorsEachFlaggedAxisAcrossTheVertexBounds(True,True)",
+    "ModifyVerticesLeavesEmptyListsAndUnflaggedVerticesUntouched",
+    "ModifyVerticesReadsTheCountBeforeTheFlags",
+    "ModifyVerticesKeepsASingleVertexInPlace",
+    "ModifyVerticesBoundsFollowTheMinMaxOperandOrderForNaN",
+    "ModifyMeshRebuildsTheHelperFromTheMirroredTriangleStream",
+    "ModifyMeshRunsWithoutAnActiveGuardOrFlagShortcut",
+    "SettersWriteOnlyTheirOwnFieldAndDirtyVerticesOnlyOnChange(True)",
+    "SettersWriteOnlyTheirOwnFieldAndDirtyVerticesOnlyOnChange(False)",
+    "TogglesInvertOnlyTheirOwnFieldAndDirtyVerticesEveryCall(True)",
+    "TogglesInvertOnlyTheirOwnFieldAndDirtyVerticesEveryCall(False)",
+    "MarkDirtyAndSettersDirtyTheGraphicEvenWhenTheFlipIsDisabled",
+    "MutatorsWithoutAGraphicStillWriteTheFields",
+))
