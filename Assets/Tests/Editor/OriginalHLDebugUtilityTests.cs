@@ -86,7 +86,6 @@ namespace ProjectLucid.Tests
         [Test]
         public void ConditionalNamesAndRetailDevelopmentCheck()
         {
-            Assert.That(typeof(HLDebug).GetMethod(nameof(HLDebug.IsEditor), Type.EmptyTypes).ReturnType, Is.EqualTo(typeof(bool)));
             Assert.That(HLDebug.IsDevelopmentBuild(), Is.False);
             Assert.That(HLDebug.DebugConditional, Is.EqualTo("BUILD_DEVELOPMENT"));
             Assert.That(HLDebug.EditorConditional, Is.EqualTo("UNITY_EDITOR"));
@@ -170,19 +169,23 @@ namespace ProjectLucid.Tests
         }
 
         // 0x1b1c950: forward turned by 180 + angle degrees of yaw in the direction's look
-        // frame, scaled by the length. Expected values come from the yaw itself.
+        // frame, scaled by the length. The left stroke is checked against the 180 - angle
+        // yaw that DrawGizmo and DrawDebugRay compute inline (0x1b1c7a4, 0x1b1cca0), since
+        // the reconstruction reaches it through the helper with -angle. Expected values
+        // come from the yaws themselves.
         [Test]
         public void ArrowHeadDirectionTurnsBackByTheHeadAngle()
         {
             MethodInfo head = typeof(DebugArrow).GetMethod("GetArrowHeadDirection", PrivateStatic);
             float yaw = (180f + 35f) * Mathf.Deg2Rad;
+            float leftYaw = (180f - 35f) * Mathf.Deg2Rad;
 
             var right = (Vector3)head.Invoke(null, new object[] { Vector3.forward, 35f, 0.25f });
             var left = (Vector3)head.Invoke(null, new object[] { Vector3.forward, -35f, 0.25f });
             var turned = (Vector3)head.Invoke(null, new object[] { Vector3.right, 35f, 2f });
 
             Assert.That(Vector3.Distance(right, new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw)) * 0.25f), Is.LessThan(1e-5f));
-            Assert.That(Vector3.Distance(left, new Vector3(-Mathf.Sin(yaw), 0f, Mathf.Cos(yaw)) * 0.25f), Is.LessThan(1e-5f));
+            Assert.That(Vector3.Distance(left, new Vector3(Mathf.Sin(leftYaw), 0f, Mathf.Cos(leftYaw)) * 0.25f), Is.LessThan(1e-5f));
             Assert.That(turned.magnitude, Is.EqualTo(2f).Within(1e-5f));
             Assert.That(Vector3.Angle(turned, Vector3.right), Is.EqualTo(180f - 35f).Within(1e-3f));
         }

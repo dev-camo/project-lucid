@@ -15,10 +15,12 @@ namespace Hardlight
 
 		private const float DefaultArrowHeadAngle = 35f;
 
-		// 0x06000f38, 0x1b1c5f0: the head strokes start at position + direction. The
-		// binary shows the helper inlined, with a 180 - angle yaw for the second stroke
-		// (0x1b1c79c); it is written here as the helper with -arrowHeadAngle, which gives
-		// exactly the same result.
+		// 0x06000f38, 0x1b1c5f0: the head strokes start at position + direction. Both
+		// bodies compute each stroke inline, with a 180 + angle yaw for the first and
+		// 180 - angle for the second (subss at 0x1b1c7a4), scaling by the length after;
+		// GetArrowHeadDirection has no call sites. The binary cannot decide whether the
+		// source called the helper with -arrowHeadAngle or wrote the expressions inline;
+		// the helper form used here gives the same result.
 		public static void DrawGizmo(Vector3 position, Vector3 direction, Color colour, float arrowHeadLength = DefaultArrowHeadLength, float arrowHeadAngle = DefaultArrowHeadAngle)
 		{
 			Gizmos.color = colour;
@@ -29,7 +31,8 @@ namespace Hardlight
 			Gizmos.DrawRay(position + direction, left);
 		}
 
-		// 0x06000f39, 0x1b1caa0: the same shape through Debug.DrawRay(start, dir, color).
+		// 0x06000f39, 0x1b1caa0: the same shape through Debug.DrawRay(start, dir, color),
+		// again inline with the 180 - angle yaw for the second stroke (subss at 0x1b1cca0).
 		// Being [Conditional], its call sites are absent from the retail player.
 		[Conditional("BUILD_DEVELOPMENT")]
 		public static void DrawDebugRay(Vector3 position, Vector3 direction, Color colour, float arrowHeadLength = DefaultArrowHeadLength, float arrowHeadAngle = DefaultArrowHeadAngle)

@@ -32,6 +32,8 @@ namespace ProjectLucid.Tests
 
         public struct ValueRow : IRow { }
 
+        public sealed class ImplementingRow : IRow { }
+
         private sealed class HiddenRow : BaseRow { }
 
         private static string SerializedType(InspectableType inspectable)
@@ -224,6 +226,7 @@ namespace ProjectLucid.Tests
         {
             var attribute = new ImplementsTypeAttribute(typeof(IRow));
 
+            Assert.That(attribute.IsConstraintSatisfied(typeof(ImplementingRow)), Is.True);
             Assert.That(typeof(IRow).IsAssignableFrom(typeof(ValueRow)), Is.True);
             Assert.That(attribute.IsConstraintSatisfied(typeof(ValueRow)), Is.False);
             Assert.That(attribute.IsConstraintSatisfied(typeof(IRow)), Is.False);

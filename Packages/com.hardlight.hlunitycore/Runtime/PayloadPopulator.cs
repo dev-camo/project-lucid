@@ -14,9 +14,9 @@ namespace Hardlight
 	{
 		private readonly PayloadPropertyBuilder m_payloadPropertyBuilder;
 
-		// 0x06000c65: the builder is created after the object constructor, so its
-		// property scan sees the derived instance. The gate is bound virtually
-		// (vtable slot 4), so overrides decide when updates may run.
+		// 0x06000c65: the builder is assigned in the constructor body after
+		// Object..ctor, receiving this and a delegate bound virtually (vtable slot 4)
+		// to IsSafePointToUpdateProperties, so overrides decide when updates may run.
 		protected PayloadPopulator()
 		{
 			m_payloadPropertyBuilder = new PayloadPropertyBuilder(this, IsSafePointToUpdateProperties);

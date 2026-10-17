@@ -173,9 +173,8 @@ namespace ProjectLucid.Tests
             Assert.That(output, Is.Null);
         }
 
-        // 0x1b06fb0: the builder is created from this after the object constructor, so it
-        // fills the derived instance's missing payload properties, and its gate is bound
-        // through vtable slot 4 to the override.
+        // 0x1b06fb0: the builder is assigned in the constructor body after Object..ctor,
+        // receiving this and a delegate bound through vtable slot 4 to the override.
         [Test]
         public void PopulatorBuildsItsPropertiesAndBindsTheGateToTheOverride()
         {

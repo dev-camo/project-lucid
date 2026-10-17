@@ -101,8 +101,9 @@ namespace ProjectLucid.Tests
         }
 
         // BuildMetaData 0x1a9ea80 returns before parsing when Resources.Load gives null, so
-        // GetValue (0x1a9eb80) takes its null m_data branch. The 1.10.1 data ships no
-        // Resources/BuildMetaData/BuildMetaData asset, which the precondition confirms.
+        // GetValue (0x1a9eb80) takes its null m_data branch. The reference export
+        // (runs/20261005T062956Z-cef5ba97) has no Resources/BuildMetaData/BuildMetaData
+        // asset, only BuildMetaData.cs; the precondition checks this project matches.
         [Test]
         public void BuildMetaDataWithoutItsResourceReturnsNullForEveryKey()
         {
