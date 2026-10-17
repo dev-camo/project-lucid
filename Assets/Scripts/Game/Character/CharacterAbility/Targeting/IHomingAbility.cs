@@ -1,10 +1,6 @@
-using System.Collections.Generic;
-using UnityEngine;
-using Unity.IL2CPP.CompilerServices;
-
 namespace HardlightProject
 {
-    public interface IHomingAbility // 02000310, all eight abstract accessor/method rows.
+    public interface IHomingAbility : IAbility // 02000310, all eight abstract accessor/method rows.
     {
         void Reset();
         bool CanActivate { get; }

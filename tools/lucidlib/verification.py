@@ -2240,6 +2240,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.IsTriggeredReportsTriggeredOrExiting",
 )
 
+# Original ability interface edges (metadata 0x02000081 -> IAbilityTrigger, 0x02000310 -> IAbility).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalAbilityInterfaceEdgeTests.TriggerableInheritsTheTriggerGetterAndDeclaresOnlyItsTwoContracts",
+    "ProjectLucid.Tests.OriginalAbilityInterfaceEdgeTests.HomingAbilityIsAnAbilityAndDeclaresItsEightRowsInMetadataOrder",
+    "ProjectLucid.Tests.OriginalAbilityInterfaceEdgeTests.AbilityIsAMemberlessRootInterface",
+)
+
 # Original hashed identifiers passed or compared by rolling, knockback and audio-source bodies.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.RollingEntryQueriesTheCharacterRollAction",
