@@ -21,7 +21,8 @@ namespace Hardlight
         // Called with the entry's data whenever the element is (re)assigned to an entry.
         public abstract void Initialise(T data);
 
-        // Called on every element after each scroll position change.
+        // Called on every element each time PositionChanged runs with data (scroll value
+        // changes and RefreshView).
         public virtual void OnScroll()
         {
         }

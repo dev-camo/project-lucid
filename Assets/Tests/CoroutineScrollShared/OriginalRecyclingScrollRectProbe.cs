@@ -7,10 +7,11 @@ using Element = ProjectLucid.Tests.OriginalRecyclingScrollRectElementProbe;
 namespace ProjectLucid.Tests
 {
     // Test-only concrete subclass of the abstract original HLRecyclingScrollRect`2 (no
-    // original subclass exists). The five abstract sizes return fixture-set values, the
-    // slot 19..24 overrides and ContentReady (slot 27) record their dispatches, and
-    // Destroy (slot 26) records the object instead of calling Object.Destroy, which edit
-    // mode refuses, unless DestroyThroughBase is set. Everything else is the original
+    // original subclass exists). The size getters return fixture-set values;
+    // set_ContentSize (slot 20), GetNormalizedPositionOnAxis (23), SetChildPosition (24)
+    // and ContentReady (27) record their dispatches, and Destroy (26) records the object
+    // instead of calling Object.Destroy, which edit mode refuses, unless
+    // DestroyThroughBase is set. Everything else is the original
     // base body, reached through the public Run* wrappers. It lives in this runtime test
     // assembly because Unity refuses to attach a component whose script is Editor-only.
     public sealed class OriginalRecyclingScrollRectProbe : HLRecyclingScrollRect<Element, int>

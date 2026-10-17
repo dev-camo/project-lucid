@@ -236,7 +236,8 @@ namespace ProjectLucid.Tests
             Element element = root.AddComponent<Element>();
             Assert.That(element.RectTransform == null, Is.True);
             RectTransform other = NewRect("Other", root.transform, Vector2.one);
-            fields[0].SetValue(element, other);
+            // Late-bound writes need the closed type's FieldInfo, not the open definition's.
+            typeof(HLRecyclingScrollRectElement<int>).GetField("m_rectTransform", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(element, other);
             Assert.That(element.RectTransform, Is.SameAs(other));
         }
 

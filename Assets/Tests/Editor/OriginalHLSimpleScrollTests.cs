@@ -231,7 +231,8 @@ namespace ProjectLucid.Tests
 
         // 0x1B6A682/0x1B6A711: a clamped rect adds HLScrollRect's offset for the stale
         // m_ContentBounds (no UpdateBounds first), so a move below the top is undone and
-        // the unchanged position is not written; a move that stays inside is kept.
+        // the unchanged position is not written; a move that stays inside is kept. The view
+        // side is viewRect.rect (0x1B6A794/0x1B6A79E), y in [-50, 50], not m_ViewBounds.
         [Test]
         public void ClampedInputScrollUsesTheCachedContentBounds()
         {

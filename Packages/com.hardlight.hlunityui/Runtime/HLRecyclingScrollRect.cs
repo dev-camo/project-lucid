@@ -280,8 +280,9 @@ namespace Hardlight
         }
 
         // 0x0600066e: objects are taken from just before the first object (the end of
-        // the ring) and then from the end of the list; both ranges are destroyed before
-        // either is removed, the end range first.
+        // the ring) and then from the end of the list. The range before the first object
+        // is destroyed first, then the end range; only then are they removed, end range
+        // first.
         protected void RemoveObjects(int amount)
         {
             int indexOfFirstObject = m_indexOfFirstObject;
