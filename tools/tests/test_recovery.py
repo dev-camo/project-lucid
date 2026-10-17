@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import signal
 import stat
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -124,34 +125,84 @@ class RecoverySafetyTests(unittest.TestCase):
         self.assertNotEqual(result["returncode"], 0)
         self.assertIn("stopped the process", Path(result["log"]).read_text())
 
+    # The leader starts the worker, waits until the worker reports ready (handler
+    # installed, PID published atomically), then sleeps past the timeout and exits
+    # on SIGTERM.
+    _LEADER = ("import os, subprocess, sys, time; "
+               "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]]); "
+               "end = time.monotonic() + 30\n"
+               "while not os.path.exists(sys.argv[2]) and time.monotonic() < end: time.sleep(0.02)\n"
+               "time.sleep(60)")
+
+    @staticmethod
+    def _process_stopped(pid):
+        # os.kill(pid, 0) also succeeds on a zombie awaiting a lazy reaper; a zombie
+        # has stopped running.
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return True
+        if sys.platform.startswith("linux"):
+            try:
+                stat_line = Path(f"/proc/{pid}/stat").read_text()
+            except OSError:
+                return True
+            return stat_line.rsplit(")", 1)[1].split()[0] == "Z"
+        state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True,
+                               text=True).stdout.strip()
+        return not state or state.startswith("Z")
+
+    def _run_leader_with_worker(self, worker, log_name):
+        pid_file = self.work / "worker.pid"
+        result = run_logged([sys.executable, "-c", self._LEADER, worker, str(pid_file)], self.work,
+                            log_name, timeout=3)
+        self.assertTrue(pid_file.exists(), "worker was not ready before the timeout")
+        return result, int(pid_file.read_text())
+
+    @staticmethod
+    def _worker(on_sigterm):
+        return ("import os, signal, sys, time\n" + on_sigterm +
+                "tmp = sys.argv[1] + '.tmp'\nopen(tmp, 'w').write(str(os.getpid()))\n"
+                "os.replace(tmp, sys.argv[1])\ntime.sleep(60)")
+
     @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
     def test_timeout_stops_descendant_that_outlives_the_leader(self):
         # The leader exits on SIGTERM; its child ignores SIGTERM and would survive a
         # group SIGTERM alone. The wrapper must still stop the whole group (#235).
-        pid_file = self.work / "worker.pid"
-        worker = ("import os, signal, sys, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
-                  "open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)")
-        leader = ("import subprocess, sys, time; "
-                  "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]]); time.sleep(60)")
+        worker = self._worker("signal.signal(signal.SIGTERM, signal.SIG_IGN)\n")
         worker_pid = None
         try:
-            result = run_logged([sys.executable, "-c", leader, worker, str(pid_file)], self.work,
-                                "descendant-timeout.log", timeout=2)
+            result, worker_pid = self._run_leader_with_worker(worker, "descendant-timeout.log")
             self.assertTrue(result["timed_out"])
             self.assertNotEqual(result["returncode"], 0)
             self.assertIn("stopped the process", Path(result["log"]).read_text())
-            worker_pid = int(pid_file.read_text())
             deadline = time.monotonic() + 5
-            alive = True
-            while alive and time.monotonic() < deadline:
+            while not self._process_stopped(worker_pid) and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertTrue(self._process_stopped(worker_pid),
+                            "SIGTERM-ignoring descendant survived the timeout")
+        finally:
+            if worker_pid is not None:
                 try:
-                    os.kill(worker_pid, 0)
+                    os.kill(worker_pid, signal.SIGKILL)
                 except ProcessLookupError:
-                    alive = False
-                else:
-                    time.sleep(0.05)
-            self.assertFalse(alive, "SIGTERM-ignoring descendant survived the timeout")
-            worker_pid = None
+                    pass
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_timeout_keeps_sigterm_grace_for_descendants_after_the_leader_exits(self):
+        # The leader exits on SIGTERM at once; the worker needs about a second to
+        # finish its own cleanup. The group SIGKILL must wait for the SIGTERM grace
+        # window instead of following the leader's exit immediately.
+        done = self.work / "worker.done"
+        worker = self._worker(
+            "def stop(*_):\n    time.sleep(1)\n    open(%r, 'w').write('done')\n    os._exit(0)\n"
+            "signal.signal(signal.SIGTERM, stop)\n" % str(done))
+        worker_pid = None
+        try:
+            result, worker_pid = self._run_leader_with_worker(worker, "descendant-grace.log")
+            self.assertTrue(result["timed_out"])
+            self.assertTrue(done.exists(), "descendant was killed during its SIGTERM cleanup")
+            self.assertTrue(self._process_stopped(worker_pid))
         finally:
             if worker_pid is not None:
                 try:

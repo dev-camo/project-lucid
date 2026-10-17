@@ -381,6 +381,27 @@ def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
         raise
 
 
+def stop_process_group(pgid: int, grace_deadline: float) -> None:
+    """SIGKILL a reaped leader's group once its members stop or the SIGTERM grace ends."""
+    # The group id stays reserved while members remain, so this reaches descendants
+    # that outlived the leader (#235). Members still handling SIGTERM keep the rest
+    # of the shared grace window. An empty group ends the wait without a signal, so
+    # a recycled id is never targeted. Darwin reports EPERM for a group holding only
+    # unreaped zombies; a member we may not signal cannot be stopped either way.
+    while True:
+        try:
+            os.killpg(pgid, 0)
+        except (ProcessLookupError, PermissionError):
+            return
+        if time.monotonic() >= grace_deadline:
+            break
+        time.sleep(0.05)
+    try:
+        os.killpg(pgid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
 def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: int = 900,
                env: dict | None = None, cwd: Path | None = None) -> dict:
     """Bound a child process and its descendants; keep evidence in the cache."""
@@ -405,7 +426,9 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
                 except ProcessLookupError:
                     pass
             else:
+                # Known gap (#235): Windows stops only the immediate process, not its tree.
                 process.terminate()
+            grace_deadline = time.monotonic() + 5
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -418,13 +441,7 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
                     process.kill()
                 process.wait()
             if os.name == "posix":
-                # The reaped leader's group id stays reserved while members remain, so
-                # this reaches descendants that ignored SIGTERM and outlived the leader.
-                # Darwin reports EPERM for a group holding only unreaped zombies.
-                try:
-                    os.killpg(process.pid, signal.SIGKILL)
-                except (ProcessLookupError, PermissionError):
-                    pass
+                stop_process_group(process.pid, grace_deadline)
             returncode = process.returncode
             stream.write(f"\nRecovery wrapper stopped the process after {timeout} seconds.\n")
     return {"command": command, "log": str(log), "returncode": returncode,
