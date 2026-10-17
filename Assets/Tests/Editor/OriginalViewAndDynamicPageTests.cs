@@ -92,6 +92,26 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void RectTransformReplacesADestroyedAssignedTransform()
+        {
+            using (var hosts = new Hosts())
+            {
+                GameObject owner = hosts.Inactive("ViewBase fixture");
+                var view = owner.AddComponent<OriginalViewBaseProbe>();
+                FieldInfo field = typeof(ViewBase).GetField("m_rectTransform", Any);
+                GameObject assigned = hosts.Inactive("Destroyed RectTransform");
+                field.SetValue(view, assigned.transform);
+                Object.DestroyImmediate(assigned);
+
+                // 0x1b4d0fc compares with UnityEngine.Object.op_Equality, so a destroyed
+                // transform counts as missing; a reference-null check would return it.
+                RectTransform own = owner.GetComponent<RectTransform>();
+                Assert.That(view.RectTransform, Is.SameAs(own));
+                Assert.That(field.GetValue(view), Is.SameAs(own));
+            }
+        }
+
+        [Test]
         public void SetActiveSetsTheOwnGameObject()
         {
             using (var hosts = new Hosts())
@@ -192,6 +212,27 @@ namespace ProjectLucid.Tests
                 Assert.That(b.Shown, Is.Empty);
                 Assert.That(c.Shown, Is.EqualTo(new GuiPageParameters[] { parameters }));
                 Assert.That(Active(loader), Is.SameAs(c), "No break: the last match wins");
+            }
+        }
+
+        [Test]
+        public void OnShowActivatesEachEntryBeforeShowingItAndStoresItAfter()
+        {
+            using (var hosts = new Hosts())
+            {
+                DynamicPageLoad loader = Loader(hosts, out GameObject root, (11, "A"), (22, "B"), (11, "C"));
+                OriginalPageContentProbe a = Entry(root, "A"), b = Entry(root, "B"), c = Entry(root, "C");
+                foreach (OriginalPageContentProbe entry in new[] { a, b, c })
+                    entry.ReadActiveContent = () => Active(loader);
+
+                loader.OnShow(new DynamicPageLoadParameters { m_pageEntry = (DynamicPageEntry)11 });
+
+                // Per match: SetActive(true) at 0x1b631ff, the slot 6 OnShow at 0x1b6321e,
+                // then the m_activeContent store at 0x1b63231.
+                Assert.That(a.ShownState, Is.EqualTo(new[] { (true, (GuiPageContent)null) }));
+                Assert.That(b.ShownState, Is.Empty);
+                Assert.That(c.ShownState, Is.EqualTo(new[] { (true, (GuiPageContent)a) }));
+                Assert.That(Active(loader), Is.SameAs(c));
             }
         }
 

@@ -20,7 +20,10 @@ namespace ProjectLucid.Tests
     // The editor's Screen.safeArea is not under test control, so the dodged landscape and
     // portrait insets are not exercised here; every Apply case below is chosen so that
     // the native branch structure gives the initial anchors whether or not the editor
-    // reports a safe area.
+    // reports a safe area. The batch editor reports a full-screen safe area, so every
+    // margin EnsureInitialisation measures is 0: the swapped portrait ratios
+    // (0x1b65b25/0x1b65c1a), the 0.35 landscape factor and the currentResolution.height
+    // divisor are not discriminated by any case here.
     [TestFixture]
     public sealed class OriginalContentFrameControllerTests
     {
@@ -199,7 +202,7 @@ namespace ProjectLucid.Tests
         // ---- EnsureInitialisation (0x1b65ae0) ---------------------------------------
 
         [Test]
-        public void EnsureInitialisationMeasuresTheSafeAreaOnceAgainstTheResolutionHeight()
+        public void EnsureInitialisationRunsOnceAndCapturesTheInitialAnchors()
         {
             using (var hosts = new Hosts())
             {
@@ -208,7 +211,8 @@ namespace ProjectLucid.Tests
 
                 // The native body reads safeArea.y, then height - safeArea.yMax, then
                 // max(safeArea.x, width - safeArea.xMax), and divides each by
-                // currentResolution.height; both landscape ratios are scaled by 0.35.
+                // currentResolution.height; both landscape ratios are scaled by 0.35. With the
+                // editor's full-screen safe area these ratios are all 0 (see the header).
                 Rect safeArea = Screen.safeArea;
                 float top = safeArea.y;
                 float bottom = Screen.height - safeArea.yMax;
@@ -277,6 +281,41 @@ namespace ProjectLucid.Tests
                 Assert.That((float)Get(controller, "m_lerpProgress"), Is.EqualTo(0f));
                 // Apply only arms the lerp; the anchors move in Update.
                 AssertVector(new Vector2(0.05f, 0.15f), Root(controller).anchorMin, "live anchorMin");
+            }
+        }
+
+        // Without a reported safe area, 0x1b65439 jumps straight to the initial-anchor
+        // StartLerp at 0x1b657f3: neither the dodged insets nor any override getter is
+        // reached, even when forced. Without that gate, forcing would inset the anchors
+        // and query the override.
+        [TestCase(true, false, 3)]
+        [TestCase(false, true, 1)]
+        public void ApplyWithoutASafeAreaSkipsTheInsetsAndTheOverride(bool landscapeDodge, bool portraitDodge, int orientation)
+        {
+            Assert.That(HLUnityCore.DoesThisDeviceHaveASafeArea(), Is.False, "Precondition: the editor reports no safe area");
+            using (var hosts = new Hosts())
+            using (new ScreenFixture((ScreenOrientation)orientation))
+            {
+                ContentFrameController controller = hosts.Controller();
+                Set(controller, "m_landscapeNotchDodge", landscapeDodge);
+                Set(controller, "m_portraitNotchDodge", portraitDodge);
+                Call(controller, "EnsureInitialisation");
+                Set(controller, "m_landscapeSideMarginRatio", 0.05f);
+                Set(controller, "m_landscapeBottomMarginRatio", 0.02f);
+                Set(controller, "m_portraitTopMarginRatio", 0.03f);
+                Set(controller, "m_portraitBottomMarginRatio", 0.04f);
+                var handler = new Handler { Active = true };
+                Set(controller, "m_contentFrameControllerOverride", Override(handler, true, true, true, true));
+                handler.Queries = 0;
+
+                Call(controller, "Apply", true);
+
+                // An ungated body would give (0.15, 0.22)/(0.65, 0.9) in landscape and
+                // (0.1, 0.24)/(0.7, 0.87) in portrait.
+                AssertVector(new Vector2(0.1f, 0.2f), Vector(controller, "m_targetAnchorMin"), "target min");
+                AssertVector(new Vector2(0.7f, 0.9f), Vector(controller, "m_targetAnchorMax"), "target max");
+                Assert.That(ShouldLerp(controller), Is.True);
+                Assert.That(handler.Queries, Is.EqualTo(0), "No override getter runs before the gate");
             }
         }
 
