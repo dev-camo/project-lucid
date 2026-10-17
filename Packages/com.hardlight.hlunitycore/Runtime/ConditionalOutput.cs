@@ -32,17 +32,27 @@ namespace Hardlight
 			public string Colour { get; set; }
 		}
 
-		private static readonly Dictionary<Type, bool> s_conditionalLoggerLookup = new Dictionary<Type, bool>();
+		// The property and event come first: the event's backing field is static
+		// slot 0x0 ahead of the four fields, and get_/add_/remove_ are 0x06000168..6a.
+		public static IReadOnlyDictionary<Type, bool> ConditionalLoggerLookup => s_conditionalLoggerLookup;
 
-		private static readonly Queue<LogData> s_logQueue = new Queue<LogData>();
+		public static event Action OnConditionalLoggerToggled;
+
+		private static readonly Dictionary<Type, bool> s_conditionalLoggerLookup;
+
+		private static readonly Queue<LogData> s_logQueue;
 
 		private static ConditionalOutputSettings s_conditionalOutputSettings;
 
 		private static bool s_initialised;
 
-		public static IReadOnlyDictionary<Type, bool> ConditionalLoggerLookup => s_conditionalLoggerLookup;
-
-		public static event Action OnConditionalLoggerToggled;
+		// 0x0600016b, 0x1aa11c0: explicit, so the type is not beforefieldinit
+		// (original flags 0x181). The lookup is allocated before the queue.
+		static ConditionalOutput()
+		{
+			s_conditionalLoggerLookup = new Dictionary<Type, bool>();
+			s_logQueue = new Queue<LogData>();
+		}
 
 		// 0x0600016c, x86-64 0x1aa12a0: the retail body only latches s_initialised.
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
@@ -53,8 +63,10 @@ namespace Hardlight
 			s_initialised = true;
 		}
 
-		// 0x0600016d, 0x1aa1340: the first concrete subclass found wins; the base
-		// provider is used only when the scan finds none.
+		// 0x0600016d, 0x1aa1340: the first non-abstract type assignable to
+		// ConditionalOutputPreInitialiseSettings, the base included, in
+		// GetAssemblies/GetTypes order wins. The fallback at 0x1aa156f runs only
+		// when no such type is enumerated.
 		[Conditional("BUILD_DEVELOPMENT")]
 		private static void CreatePreInitialiseSettings()
 		{
@@ -144,7 +156,7 @@ namespace Hardlight
 				// The retail body formats this text and discards it; the
 				// development-only output call that took it, with context and
 				// colour, is compiled out.
-				string log = string.Format("{0} - {1}", type.Name, message);
+				_ = string.Format("{0} - {1}", type.Name, message);
 			}
 		}
 
@@ -173,7 +185,10 @@ namespace Hardlight
 			while (s_logQueue.Count > 0)
 			{
 				LogData logData = s_logQueue.Dequeue();
-				ConditionalLogInternal(logData.Type, logData.Condition, string.Format("(Delayed log) {0}", logData.Message), logData.Context, logData.Colour);
+				// 0x1aa2075..0x1aa209d read Message and format it before loading
+				// the other four properties.
+				string delayedMessage = string.Format("(Delayed log) {0}", logData.Message);
+				ConditionalLogInternal(logData.Type, logData.Condition, delayedMessage, logData.Context, logData.Colour);
 			}
 		}
 

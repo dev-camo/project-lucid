@@ -20,6 +20,7 @@ namespace ProjectLucid.Tests
         private static readonly Type LogDataType = typeof(ConditionalOutput).GetNestedType("LogData", BindingFlags.NonPublic);
 
         private sealed class OwnedLogger : IConditionalLogger { }
+        private abstract class AbstractOwnedLogger : IConditionalLogger { }
         private static class OuterA { public sealed class Same { } }
         private static class OuterB { public sealed class Same { } }
 
@@ -30,6 +31,9 @@ namespace ProjectLucid.Tests
             protected override bool DefaultLogState { get { Reads.Add("DefaultLogState"); return false; } }
             protected override ConditionalOutputSettings.UnhandledLogBehaviour PreInitialiseLogBehaviour { get { Reads.Add("PreInitialiseLogBehaviour"); return ConditionalOutputSettings.UnhandledLogBehaviour.Queue; } }
             protected override List<ConditionalOutputSettings.LogStateOverride> DefaultLogStateOverrides { get { Reads.Add("DefaultLogStateOverrides"); return Overrides; } }
+            // Counts scan-made instances; reset by the test that reads it.
+            public static int Created;
+            public OwnedPreInitialiseSettings() { Created++; }
         }
 
         // Records every string conversion, so formatting is visible.
@@ -39,6 +43,15 @@ namespace ProjectLucid.Tests
             private readonly string m_name;
             public RecordingMessage(List<string> log, string name) { m_log = log; m_name = name; }
             public override string ToString() { m_log.Add(m_name); return m_name; }
+        }
+
+        // Runs an action at the moment the message is converted.
+        private sealed class CallbackMessage
+        {
+            private readonly string m_name;
+            private readonly Action m_onConvert;
+            public CallbackMessage(string name, Action onConvert) { m_name = name; m_onConvert = onConvert; }
+            public override string ToString() { m_onConvert(); return m_name; }
         }
 
         private bool m_savedInitialised;
@@ -233,34 +246,57 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // Generic bodies: 0x8f15a0 and 0x8f1700 are RET; 0x8f15b0 forwards to
-        // ConditionalLogInternal with the logger's type and every argument.
+        // 0x8f15b0 forwards every argument to ConditionalLogInternal with the type
+        // from a constrained call on the logger, not typeof(T): instantiated over the
+        // interface, the queued type is still the runtime class.
         [Test]
-        public void GenericEntryPointsMatchTheirRetailBodies()
+        public void ConditionalLogWithConditionForwardsTheLoggerRuntimeType()
+        {
+            Prepare(initialised: false, ConditionalOutputSettings.UnhandledLogBehaviour.Queue);
+            var logger = new OwnedLogger();
+            var context = new GameObject("owned-conditional-output-context");
+            try
+            {
+                int before = QueueCount;
+                Generic("ConditionalLog", 5, typeof(OwnedLogger)).Invoke(null, new object[] { logger, false, "long", context, "green" });
+                Assert.That(QueueCount, Is.EqualTo(before + 1));
+                object entry = QueueLast();
+                Assert.That(Get(entry, "Type"), Is.SameAs(typeof(OwnedLogger)));
+                Assert.That(Get(entry, "Condition"), Is.EqualTo(false));
+                Assert.That(Get(entry, "Message"), Is.EqualTo("long"));
+                Assert.That(Get(entry, "Context"), Is.SameAs(context));
+                Assert.That(Get(entry, "Colour"), Is.EqualTo("green"));
+
+                Generic("ConditionalLog", 5, typeof(IConditionalLogger)).Invoke(null, new object[] { logger, true, "boxed", null, null });
+                Assert.That(QueueCount, Is.EqualTo(before + 2));
+                Assert.That(Get(QueueLast(), "Type"), Is.SameAs(typeof(OwnedLogger)));
+            }
+            finally
+            {
+                Object.DestroyImmediate(context);
+            }
+        }
+
+        // Retail-stripping oracle: 0x8f15a0 (4-argument ConditionalLog<T>) and
+        // 0x8f1700 (ToggleLog<T>) are a bare RET in the shipped player.
+        [Test]
+        public void RetailStrippedGenericBodiesAreNoOps()
         {
             Prepare(initialised: false, ConditionalOutputSettings.UnhandledLogBehaviour.Queue);
             Lookup[typeof(OwnedLogger)] = true;
-            var logger = new OwnedLogger();
             int before = QueueCount;
-            Generic("ConditionalLog", 4).Invoke(null, new object[] { logger, "short", null, "blue" });
+            Generic("ConditionalLog", 4, typeof(OwnedLogger)).Invoke(null, new object[] { new OwnedLogger(), "short", null, "blue" });
             Assert.That(QueueCount, Is.EqualTo(before));
 
-            Generic("ConditionalLog", 5).Invoke(null, new object[] { logger, false, "long", null, "green" });
-            Assert.That(QueueCount, Is.EqualTo(before + 1));
-            object entry = QueueLast();
-            Assert.That(Get(entry, "Type"), Is.SameAs(typeof(OwnedLogger)));
-            Assert.That(Get(entry, "Condition"), Is.EqualTo(false));
-            Assert.That(Get(entry, "Message"), Is.EqualTo("long"));
-            Assert.That(Get(entry, "Colour"), Is.EqualTo("green"));
-
-            Generic("ToggleLog", 1).Invoke(null, new object[] { (bool?)false });
+            Generic("ToggleLog", 1, typeof(OwnedLogger)).Invoke(null, new object[] { (bool?)false });
             Assert.That(Lookup[typeof(OwnedLogger)], Is.True);
             Assert.That(PlayerPrefs.HasKey(typeof(OwnedLogger).FullName), Is.False);
         }
 
-        // 0x1aa12a0: the retail Initialise only latches the flag.
+        // Retail-stripping oracle: 0x1aa12a0, the shipped Initialise, only latches
+        // the flag; its development-only setup calls are compiled out.
         [Test]
-        public void InitialiseOnlyLatchesTheInitialisedFlag()
+        public void RetailStrippedInitialiseOnlyLatchesTheInitialisedFlag()
         {
             var settings = new ConditionalOutputSettings();
             Field("s_conditionalOutputSettings").SetValue(null, settings);
@@ -273,6 +309,119 @@ namespace ProjectLucid.Tests
             Assert.That(Field("s_conditionalOutputSettings").GetValue(null), Is.SameAs(settings));
             Assert.That(Lookup.Count, Is.EqualTo(lookupCount));
             Assert.That(QueueCount, Is.EqualTo(queueCount));
+        }
+
+        // 0x1aa2010..0x1aa209d: each replay passes the dequeued Type, Condition,
+        // Context and Colour with the message formatted as "(Delayed log) {0}". The
+        // first conversion switches back to Queue, so its replay is queued again and
+        // the second conversion captures it before the drain finishes.
+        [Test]
+        public void DumpLogQueueReplaysEveryFieldWithTheDelayedPrefix()
+        {
+            var context = new GameObject("owned-conditional-output-context");
+            try
+            {
+                Prepare(initialised: false, ConditionalOutputSettings.UnhandledLogBehaviour.Queue);
+                ClearQueue();
+                object requeued = null;
+                var first = new CallbackMessage("first", () => Prepare(initialised: false, ConditionalOutputSettings.UnhandledLogBehaviour.Queue));
+                var second = new CallbackMessage("second", () =>
+                {
+                    requeued = QueueLast();
+                    Prepare(initialised: false, ConditionalOutputSettings.UnhandledLogBehaviour.ForceLog);
+                });
+                Internal(typeof(OwnedLogger), false, first, context, "red");
+                Internal(typeof(OuterA.Same), true, second, null, "blue");
+
+                Prepare(initialised: false, ConditionalOutputSettings.UnhandledLogBehaviour.ForceLog);
+                Invoke("DumpLogQueue");
+                Assert.That(QueueCount, Is.EqualTo(0));
+                Assert.That(requeued, Is.Not.Null);
+                Assert.That(Get(requeued, "Type"), Is.SameAs(typeof(OwnedLogger)));
+                Assert.That(Get(requeued, "Condition"), Is.EqualTo(false));
+                Assert.That(Get(requeued, "Message"), Is.EqualTo("(Delayed log) first"));
+                Assert.That(Get(requeued, "Context"), Is.SameAs(context));
+                Assert.That(Get(requeued, "Colour"), Is.EqualTo("red"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(context);
+            }
+        }
+
+        // 0x1aa1730: each non-abstract IConditionalLogger implementation is added
+        // with PlayerPrefs[FullName] == 1, defaulting to the settings' state for the
+        // type. A same-named interface from another namespace does not match, and a
+        // second scan throws on the first duplicate Add.
+        [Test]
+        public void InitialiseLoggerLookupReadsPlayerPrefsOverTheDefaultAndRejectsDuplicates()
+        {
+            var overrides = new List<ConditionalOutputSettings.LogStateOverride>();
+            Field("s_conditionalOutputSettings").SetValue(null, new ConditionalOutputSettings(false,
+                ConditionalOutputSettings.UnhandledLogBehaviour.ForceLog, overrides));
+
+            // Absent key: the default state decides, through the full-name override.
+            Assert.That(ScanLookup(), Is.False);
+            overrides.Add(new ConditionalOutputSettings.LogStateOverride { TypeName = PrefKey, Enabled = true });
+            Assert.That(ScanLookup(), Is.True);
+            Assert.That(Lookup.ContainsKey(typeof(AbstractOwnedLogger)), Is.False);
+            Assert.That(Lookup.ContainsKey(typeof(ConditionalOutputDecoy.DecoyLogger)), Is.False);
+            Assert.That(Lookup.ContainsKey(typeof(ProcessManager).GetNestedType("ProcessManagerLogger", BindingFlags.NonPublic)), Is.True);
+
+            // A stored key replaces the default; only 1 enables.
+            PlayerPrefs.SetInt(PrefKey, 0);
+            Assert.That(ScanLookup(), Is.False);
+            PlayerPrefs.SetInt(PrefKey, 2);
+            Assert.That(ScanLookup(), Is.False);
+            overrides[0].Enabled = false;
+            PlayerPrefs.SetInt(PrefKey, 1);
+            Assert.That(ScanLookup(), Is.True);
+
+            Assert.Throws<ArgumentException>(() => Invoke("InitialiseLoggerLookup"));
+        }
+
+        // 0x1aa1660: without a Resources ConditionalOutputConfiguration the current
+        // settings reference is kept.
+        [Test]
+        public void InitialiseSettingsWithoutConfigurationKeepsTheCurrentSettings()
+        {
+            Assert.That(Resources.Load<ConditionalOutputConfiguration>(ConditionalOutputConfiguration.FileName), Is.Null,
+                "precondition: this project ships no Resources configuration");
+            var settings = new ConditionalOutputSettings();
+            Field("s_conditionalOutputSettings").SetValue(null, settings);
+            Invoke("InitialiseSettings");
+            Assert.That(Field("s_conditionalOutputSettings").GetValue(null), Is.SameAs(settings));
+        }
+
+        // 0x1aa1340: the scan creates at most one provider and stores its fresh
+        // settings. The concrete base is itself a candidate, so when
+        // HLUnityCore.Runtime is enumerated before this assembly the base wins over
+        // the later test-owned subclass.
+        [Test]
+        public void CreatePreInitialiseSettingsUsesTheFirstEnumeratedProviderOnly()
+        {
+            var previous = new ConditionalOutputSettings();
+            Field("s_conditionalOutputSettings").SetValue(null, previous);
+            OwnedPreInitialiseSettings.Created = 0;
+            Invoke("CreatePreInitialiseSettings");
+            var created = (ConditionalOutputSettings)Field("s_conditionalOutputSettings").GetValue(null);
+            Assert.That(created, Is.Not.Null);
+            Assert.That(created, Is.Not.SameAs(previous));
+            Assert.That(OwnedPreInitialiseSettings.Created, Is.LessThanOrEqualTo(1));
+            if (OwnedPreInitialiseSettings.Created == 1)
+            {
+                Assert.That(created.PreInitialiseLogBehaviour, Is.EqualTo(ConditionalOutputSettings.UnhandledLogBehaviour.Queue));
+                Assert.That(created.GetDefaultLogState(typeof(OwnedLogger)), Is.False);
+            }
+            else
+            {
+                Assert.That(created.PreInitialiseLogBehaviour, Is.EqualTo(ConditionalOutputSettings.UnhandledLogBehaviour.ForceLog));
+                Assert.That(created.GetDefaultLogState(typeof(OwnedLogger)), Is.True);
+            }
+
+            List<Assembly> assemblies = new List<Assembly>(AppDomain.CurrentDomain.GetAssemblies());
+            if (assemblies.IndexOf(typeof(ConditionalOutput).Assembly) < assemblies.IndexOf(typeof(ConditionalOutputTests).Assembly))
+                Assert.That(OwnedPreInitialiseSettings.Created, Is.EqualTo(0));
         }
 
         // 0x1aa2120 forwards unconditionally; 0x1aa2180 writes only once initialised.
@@ -382,6 +531,14 @@ namespace ProjectLucid.Tests
             return (List<ConditionalOutputSettings.LogStateOverride>)field.GetValue(settings);
         }
 
+        // Runs InitialiseLoggerLookup on an empty lookup and returns the owned entry.
+        private static bool ScanLookup()
+        {
+            Lookup.Clear();
+            Invoke("InitialiseLoggerLookup");
+            return Lookup[typeof(OwnedLogger)];
+        }
+
         private static void Prepare(bool initialised, ConditionalOutputSettings.UnhandledLogBehaviour behaviour)
         {
             Field("s_initialised").SetValue(null, initialised);
@@ -408,11 +565,11 @@ namespace ProjectLucid.Tests
             Call(typeof(ConditionalOutput).GetMethod(name, StaticMembers, null, Type.EmptyTypes, null));
         }
 
-        private static MethodInfo Generic(string name, int parameterCount)
+        private static MethodInfo Generic(string name, int parameterCount, Type argument)
         {
             foreach (MethodInfo method in typeof(ConditionalOutput).GetMethods(StaticMembers))
                 if (method.Name == name && method.IsGenericMethodDefinition && method.GetParameters().Length == parameterCount)
-                    return method.MakeGenericMethod(typeof(OwnedLogger));
+                    return method.MakeGenericMethod(argument);
             Assert.Fail(name + "/" + parameterCount);
             return null;
         }
@@ -430,4 +587,13 @@ namespace ProjectLucid.Tests
             }
         }
     }
+}
+
+namespace ProjectLucid.Tests.ConditionalOutputDecoy
+{
+    // Shares IConditionalLogger's simple name only; InitialiseLoggerLookup's
+    // identity check after GetInterface(Name) must reject it.
+    internal interface IConditionalLogger { }
+
+    internal sealed class DecoyLogger : IConditionalLogger { }
 }
