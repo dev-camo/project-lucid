@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -11,6 +12,7 @@ using UnityEngine;
 using UnityEngine.ResourceManagement;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.SceneManagement;
+using UnityEngine.SocialPlatforms;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
@@ -234,6 +236,144 @@ namespace ProjectLucid.Tests
             Assert.That(body.IndexOf(conditionals[0]), Is.LessThan(unload));
             Assert.That(conditionals[0].Target, Is.GreaterThan(calls[7].Offset));
             Assert.That(enter.GetMethodBody().ExceptionHandlingClauses, Is.Empty);
+        }
+
+        // ApplicationStateLoadAssets.DoOnEnter 0x06000695, x86-64 0x648C00, reads
+        // Social.localUser and passes it the cached <>c.<DoOnEnter>b__2_0 before any
+        // other call. Offline builds keep that statement under
+        // PROJECT_LUCID_ORIGINAL_GAMECENTER and run the same callback with false
+        // (#237), as GameCenter.NativeLoginRequest does. The owned Social.Active
+        // throws when it is reached. The absent owned GameCenter row defers the
+        // notification on its typed reference, and entry then faults at the App
+        // cast that comes before LoadDefinitionData. Calling platform
+        // authentication, dropping the notification or passing true fails here.
+        [Test]
+        public void LoadAssetsOfflineNotifiesGameCenterWithoutPlatformAuthentication()
+        {
+            using (var owned = new OwnedServices())
+            using (var social = new OwnedSocialPlatform())
+            {
+                owned.Row<GameCenter>();
+                // Negative control: a direct static-facade call reaches the owned provider.
+                Assert.Throws<SocialPlatformReached>(() => Social.localUser.Authenticate(_ => { }));
+                Assert.That((social.LocalUserReads, social.Authentications), Is.EqualTo((1, 1)));
+                social.Reset();
+
+                FiniteStateMachine machine = Machine();
+                FSMUser user = User();
+                IFSMState state = ApplicationStateLoadAssets.ConstructInstance(machine, Name(), null);
+                Assert.Throws<InvalidCastException>(() => state.OnEnter(user, null));
+                Assert.That((social.LocalUserReads, social.Authentications), Is.EqualTo((0, 0)), "no platform authentication");
+
+                SystemRef<GameCenter> reference = ProcessManager.GetSystemRef<GameCenter>(null, false);
+                Assert.That(reference.IsNull(), Is.True);
+                var pending = (FastAction<GameCenter>)typeof(SystemRef<GameCenter>)
+                    .GetField("m_actionOnSystemValid", Instance).GetValue(reference);
+                Assert.That(pending, Is.Not.Null, "the GameCenter notification is deferred on the typed reference");
+                List<Action<GameCenter>> listeners = pending.GetInvocationList();
+                Assert.That(listeners.Count, Is.EqualTo(1), "exactly one notification");
+                object closure = listeners[0].Target;
+                Assert.That(closure.GetType().DeclaringType, Is.EqualTo(typeof(ApplicationStateLoadAssets)));
+                Assert.That(closure.GetType().Name, Is.EqualTo("<>c__DisplayClass2_0"), "the original callback's closure");
+                Assert.That(closure.GetType().GetField("loginSuccess").GetValue(closure), Is.EqualTo(false));
+                Assert.That(user.Storage.GetCollection(), Is.Empty);
+            }
+        }
+
+        // After authentication the offline DoOnEnter keeps the native order. It
+        // invokes the cached original callback (<>9__2_0) with false, then calls
+        // GetAs<App>, DataManager.LoadDefinitionData, GetSystem<SaveManager>,
+        // InitialiseSaveData and RunCoroutine. It calls no Social member.
+        [Test]
+        public void LoadAssetsOfflineEntryInvokesTheCachedCallbackThenLoadsInTheOriginalOrder()
+        {
+            MethodInfo enter = typeof(ApplicationStateLoadAssets).GetMethod("DoOnEnter", Instance | BindingFlags.DeclaredOnly);
+            Assert.That(enter, Is.Not.Null);
+            List<Instruction> body = Read(enter);
+            List<Instruction> calls = body.Where(i => i.Code == OpCodes.Call || i.Code == OpCodes.Callvirt).ToList();
+            string[] expected =
+            {
+                typeof(Action<bool>).FullName + "::Invoke",
+                typeof(IGraphUserExtensions).FullName + "::GetAs<" + typeof(App).FullName + ">",
+                typeof(App).FullName + "::get_DataManager",
+                typeof(DataManager).FullName + "::LoadDefinitionData",
+                typeof(ProcessManager).FullName + "::GetSystem<" + typeof(SaveManager).FullName + ">",
+                typeof(ApplicationStateLoadAssets).FullName + "::InitialiseSaveData",
+                typeof(Hardlight.Utils.CoroutineUtils).FullName + "::RunCoroutine",
+            };
+            Assert.That(calls.Select(c => Describe(enter, c)).ToArray(), Is.EqualTo(expected));
+
+            Instruction cache = body.First(i => i.Code == OpCodes.Ldsfld);
+            Assert.That(enter.Module.ResolveField(cache.Operand).Name, Is.EqualTo("<>9__2_0"), "the original cached delegate");
+            Assert.That(body[body.IndexOf(calls[0]) - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_0), "the callback reports a failed login");
+        }
+
+        // The original-define branch keeps the native statement verbatim.
+        [Test]
+        public void LoadAssetsOriginalGameCenterBranchKeepsThePlatformAuthentication()
+        {
+            string path = Path.Combine(Application.dataPath, "Scripts", "Game", "Application", "FiniteStateMachine", "ApplicationStateLoadAssets.cs");
+            string[] lines = File.ReadAllLines(path).Select(l => l.Trim()).ToArray();
+            int open = Array.IndexOf(lines, "#if PROJECT_LUCID_ORIGINAL_GAMECENTER");
+            Assert.That(open, Is.GreaterThanOrEqualTo(0));
+            Assert.That(lines[open + 1], Is.EqualTo(
+                "Social.localUser.Authenticate(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)));"));
+            Assert.That(lines[open + 2], Is.EqualTo("#else"));
+        }
+
+        private sealed class SocialPlatformReached : Exception { }
+
+        // Owns Social.Active through the raw ActivePlatform._active field, so a
+        // platform that was never selected is restored as unselected.
+        private sealed class OwnedSocialPlatform : ISocialPlatform, ILocalUser, IDisposable
+        {
+            private static readonly FieldInfo s_active = typeof(Social).Assembly
+                .GetType("UnityEngine.SocialPlatforms.ActivePlatform", true)
+                .GetField("_active", BindingFlags.Static | BindingFlags.NonPublic);
+            private readonly object m_prior;
+            public int LocalUserReads { get; private set; }
+            public int Authentications { get; private set; }
+
+            public OwnedSocialPlatform()
+            {
+                Assert.That(s_active, Is.Not.Null, "ActivePlatform._active");
+                m_prior = s_active.GetValue(null);
+                Social.Active = this;
+            }
+
+            public void Reset() { LocalUserReads = 0; Authentications = 0; }
+            public void Dispose() => s_active.SetValue(null, m_prior);
+
+            private Exception Authenticated() { Authentications++; return new SocialPlatformReached(); }
+
+            public ILocalUser localUser { get { LocalUserReads++; return this; } }
+            public void Authenticate(Action<bool> callback) => throw Authenticated();
+            public void Authenticate(Action<bool, string> callback) => throw Authenticated();
+            void ISocialPlatform.Authenticate(ILocalUser user, Action<bool> callback) => throw Authenticated();
+            void ISocialPlatform.Authenticate(ILocalUser user, Action<bool, string> callback) => throw Authenticated();
+            public void LoadFriends(Action<bool> callback) => throw new SocialPlatformReached();
+            public IUserProfile[] friends => throw new SocialPlatformReached();
+            public bool authenticated => throw new SocialPlatformReached();
+            public bool underage => throw new SocialPlatformReached();
+            public string userName => throw new SocialPlatformReached();
+            public string id => throw new SocialPlatformReached();
+            public string gameId => throw new SocialPlatformReached();
+            public bool isFriend => throw new SocialPlatformReached();
+            public UserState state => throw new SocialPlatformReached();
+            public Texture2D image => throw new SocialPlatformReached();
+            public void LoadUsers(string[] userIDs, Action<IUserProfile[]> callback) => throw new SocialPlatformReached();
+            public void ReportProgress(string achievementID, double progress, Action<bool> callback) => throw new SocialPlatformReached();
+            public void LoadAchievementDescriptions(Action<IAchievementDescription[]> callback) => throw new SocialPlatformReached();
+            public void LoadAchievements(Action<IAchievement[]> callback) => throw new SocialPlatformReached();
+            public IAchievement CreateAchievement() => throw new SocialPlatformReached();
+            public void ReportScore(long score, string board, Action<bool> callback) => throw new SocialPlatformReached();
+            public void LoadScores(string leaderboardID, Action<IScore[]> callback) => throw new SocialPlatformReached();
+            public ILeaderboard CreateLeaderboard() => throw new SocialPlatformReached();
+            public void ShowAchievementsUI() => throw new SocialPlatformReached();
+            public void ShowLeaderboardUI() => throw new SocialPlatformReached();
+            void ISocialPlatform.LoadFriends(ILocalUser user, Action<bool> callback) => throw new SocialPlatformReached();
+            void ISocialPlatform.LoadScores(ILeaderboard board, Action<bool> callback) => throw new SocialPlatformReached();
+            bool ISocialPlatform.GetLoading(ILeaderboard board) => throw new SocialPlatformReached();
         }
 
         private static IFSMTransition SceneLoaded(FiniteStateMachine machine, string scene, bool useApp, bool addressable) =>

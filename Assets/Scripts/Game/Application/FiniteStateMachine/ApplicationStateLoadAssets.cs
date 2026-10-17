@@ -28,7 +28,13 @@ namespace HardlightProject
 		// 06000695 (1.10.1 RVA 0x648C00)
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
+#if PROJECT_LUCID_ORIGINAL_GAMECENTER
 			Social.localUser.Authenticate(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)));
+#else
+			// Offline adaptation: no platform authentication (GameKit on macOS); the same
+			// cached callback reports a failed login, as GameCenter.NativeLoginRequest does.
+			new Action<bool>(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)))(false);
+#endif
 			user.GetAs<App>().DataManager.LoadDefinitionData();
 			CoroutineUtils.RunCoroutine(InitialiseSaveData(ProcessManager.GetSystem<SaveManager>(), user));
 		}

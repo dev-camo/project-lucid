@@ -2125,6 +2125,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.UnloadScenePresentKeyUnloadsRemovesThenRepublishes",
 )
 
+# LoadAssets offline entry: no platform Social authentication, same GameCenter callback.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineNotifiesGameCenterWithoutPlatformAuthentication",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryInvokesTheCachedCallbackThenLoadsInTheOriginalOrder",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOriginalGameCenterBranchKeepsThePlatformAuthentication",
+)
+
 # Borrowed registry rows lose only the typed references cached while borrowed.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.BorrowedSystemRowTypedCacheTests.RemovesOnlyTypedReferencesCachedWhileBorrowed",
