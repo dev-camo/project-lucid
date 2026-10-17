@@ -20,12 +20,11 @@ namespace Hardlight
         public const int MillisecondsPerHour = 3600000;
         public const int MillisecondsPerMinute = 60000;
         public const int MillisecondsPerDay = 86400000;
-        public static readonly DateTime Epoch;
+        // .cctor 0x0600100b: 1970-01-01 at midnight, explicitly UTC. A field
+        // initializer keeps the original BeforeFieldInit flag.
+        public static readonly DateTime Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         public const string DateTimeStringFormat = "dd/MM/yyyy HH:mm";
         public const string DateStringFormat = "dd/MM/yyyy";
-
-        // 0x0600100b: 1970-01-01 at midnight, explicitly UTC.
-        static TimeUtils() { Epoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc); }
 
         // 0x06000ff5/ff6: out resets before conversion; only range failures
         // are caught. These overloads use milliseconds rather than seconds.

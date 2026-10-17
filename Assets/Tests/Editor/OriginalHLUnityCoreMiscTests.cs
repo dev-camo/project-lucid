@@ -67,6 +67,29 @@ namespace ProjectLucid.Tests
                 Assert.That(type.Attributes & TypeAttributes.BeforeFieldInit, Is.EqualTo(TypeAttributes.BeforeFieldInit), type.FullName);
         }
 
+        // Original metadata: HLPropertyList (TypeDefIndex 9256, token 0x020001f8)
+        // flags 0x100001 and TimeUtils (9403, 0x0200028c) flags 0x100181, both
+        // BeforeFieldInit. Their .cctors only store field values: HLPropertyList
+        // 0x06000cec (x86-64 0x1b09d60) a string[] {",", "/"}, then the char[]
+        // from the 2e002b002d00 initializer blob; TimeUtils 0x0600100b (x86-64
+        // 0x1b20cc0) DateTime(1970, 1, 1, 0, 0, 0, Utc) into Epoch.
+        [Test]
+        public void PropertyListAndTimeUtilsKeepTheOriginalTypeFlagsAndStaticValues()
+        {
+            const BindingFlags privateStatic = BindingFlags.Static | BindingFlags.NonPublic;
+            Assert.That((int)typeof(HLPropertyList).Attributes, Is.EqualTo(0x00100001));
+            Assert.That((int)typeof(TimeUtils).Attributes, Is.EqualTo(0x00100181));
+            Assert.That(typeof(HLPropertyList).TypeInitializer, Is.Not.Null);
+            Assert.That(typeof(TimeUtils).TypeInitializer, Is.Not.Null);
+
+            Assert.That(typeof(HLPropertyList).GetField("m_invalidDecimalSeparators", privateStatic).GetValue(null),
+                Is.EqualTo(new[] { ",", "/" }));
+            Assert.That(typeof(HLPropertyList).GetField("m_decimalAdditionalCharacters", privateStatic).GetValue(null),
+                Is.EqualTo(new[] { '.', '+', '-' }));
+            Assert.That(TimeUtils.Epoch.Ticks, Is.EqualTo(621355968000000000L));
+            Assert.That(TimeUtils.Epoch.Kind, Is.EqualTo(DateTimeKind.Utc));
+        }
+
         // Barycentric 0x06000a9d (x86-64 0x1b03ff0): a = v2 - v3, b = v1 - v3,
         // so u weights aV1, v weights aV2 and w (1 - u - v, 0x1b040b8) weights
         // aV3. The degenerate triangle divides 0/0 (divps 0x1b040b1) without a

@@ -2550,6 +2550,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLDebugUtilityTests." + name
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLUnityCoreMiscTests." + name for name in (
     "ClosureAndIteratorNamesFollowTheOriginalMemberOrder",
     "StaticInitialisersKeepTheOriginalBeforeFieldInitFlag",
+    "PropertyListAndTimeUtilsKeepTheOriginalTypeFlagsAndStaticValues",
     "BarycentricWeightsVerticesInOrderWithTheNativeTolerance",
     "ContentComparerUsesOrdinalTextAndToleratesNullContent",
     "ManifestMetadataFormatsTheMappedAttributeVerbatim",
