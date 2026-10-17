@@ -1,5 +1,7 @@
 from pathlib import Path
 from types import SimpleNamespace
+import json
+import shutil
 import sys
 import tempfile
 import unittest
@@ -29,12 +31,67 @@ class BuildDestinationTests(unittest.TestCase):
         def build(command, **kwargs):
             self.assertEqual(str(destination), command[command.index("-lucidOutput") + 1])
             self.assertIn("ProjectLucid.Editor.LucidBuild.Build", command)
+            self.record(command, "linux", destination, "")
             destination.write_bytes(b"synthetic BuildPlayer result")
             return SimpleNamespace(returncode=0)
         with patch.object(project.subprocess, "run", side_effect=build):
             result = project.build_project(self.root, self.work, "linux", destination=destination)
         self.assertEqual("complete", result["status"])
         self.assertEqual(str(destination), result["output_dir"])
+
+    @staticmethod
+    def record(command, target, destination, architecture):
+        # Mirrors the JsonUtility BuildRecord LucidBuild writes after BuildPlayer succeeds.
+        Path(command[command.index("-lucidBuildRecord") + 1]).write_text(json.dumps(
+            {"target": target, "output": str(destination), "architecture": architecture}))
+
+    def macos_build(self, architecture, mutate=None):
+        destination = self.root / "output/macos/.stage-fixture/ProjectLucid.app"
+        destination.parent.mkdir(parents=True)
+        def build(command, **kwargs):
+            if mutate:
+                mutate()
+            if architecture is not None:
+                self.record(command, "macos", destination, architecture)
+            destination.mkdir()
+            return SimpleNamespace(returncode=0)
+        with patch.object(project.subprocess, "run", side_effect=build):
+            return project.build_project(self.root, self.work, "macos", destination=destination)
+
+    def test_macos_build_reports_the_universal_architecture_it_used(self):
+        result = self.macos_build("x64ARM64")
+        self.assertEqual("complete", result["status"])
+        self.assertEqual("x64ARM64", result["architecture"])
+        self.assertEqual([], result["errors"])
+
+    def test_macos_build_with_another_or_unreported_architecture_fails(self):
+        for architecture in ("x64", "ARM64", "", None):
+            with self.subTest(architecture=architecture):
+                result = self.macos_build(architecture)
+                self.assertEqual("failed", result["status"])
+                self.assertTrue(result["errors"])
+                shutil.rmtree(self.root / "output/macos")
+
+    def test_stale_build_record_is_not_reused(self):
+        stale = self.work / "reports/build-macos.json"
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        destination = self.root / "output/macos/.stage-fixture/ProjectLucid.app"
+        stale.write_text(json.dumps({"target": "macos", "output": str(destination), "architecture": "x64ARM64"}))
+        result = self.macos_build(None)
+        self.assertEqual("failed", result["status"])
+        self.assertIsNone(result["architecture"])
+
+    def test_build_that_rewrites_project_settings_is_rejected(self):
+        # The pre-fix builder ran PlayerSettings.SetArchitecture(Standalone, 2) after
+        # the release receipt was checked, which serialises this map into the
+        # fingerprinted ProjectSettings.asset.
+        settings = self.root / "ProjectSettings/ProjectSettings.asset"
+        settings.parent.mkdir()
+        settings.write_text("  platformArchitecture: {}\n")
+        result = self.macos_build("x64ARM64", mutate=lambda: settings.write_text(
+            "  platformArchitecture:\n    Standalone: 2\n"))
+        self.assertEqual("failed", result["status"])
+        self.assertIn("The build changed maintained source after release validation", result["errors"])
 
     def test_existing_payload_and_nonempty_stage_are_never_overwritten(self):
         destination = self.stage / "ProjectLucid.x86_64"

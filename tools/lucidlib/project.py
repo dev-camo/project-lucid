@@ -6,11 +6,14 @@ import platform
 import shutil
 import subprocess
 import sys
-from .verification import current_identity, find_editor, verified_receipt
+from .verification import artifact_fingerprint, current_identity, find_editor, verified_receipt
 from .bootstrap import managed_path, write_json
 from .scriptmetadata import validate_script_metadata
 
 UNITY_VERSION = "2022.3.54f1"
+# LucidBuild selects the macOS slice in the Library build settings; the original
+# SonicDreamTeam.app binaries are universal (x86_64 + arm64).
+MAC_ARCHITECTURE = "x64ARM64"
 
 
 def doctor(repo_root, work_dir):
@@ -145,10 +148,27 @@ def build_project(repo_root, work_dir, target, *, destination=None):
             raise ValueError("Custom build output requires a fresh physical staging directory")
     destination.parent.mkdir(parents=True, exist_ok=True)
     log = managed_path(work_dir, "reports", "build-" + target + ".log")
+    record = managed_path(work_dir, "reports", "build-" + target + ".json")
+    record.unlink(missing_ok=True)
+    source = artifact_fingerprint(repo_root)
     command = [str(executable), "-batchmode", "-quit", "-projectPath", str(repo_root),
                "-logFile", str(log), "-executeMethod", "ProjectLucid.Editor.LucidBuild.Build",
-               "-lucidTarget", target, "-lucidOutput", str(destination), "-lucidValidation", str(receipt)]
+               "-lucidTarget", target, "-lucidOutput", str(destination), "-lucidValidation", str(receipt),
+               "-lucidBuildRecord", str(record)]
     process = subprocess.run(command, timeout=1800)
-    success = process.returncode == 0 and destination.exists()
+    errors = []
+    if artifact_fingerprint(repo_root) != source:
+        errors.append("The build changed maintained source after release validation")
+    try:
+        built = json.loads(record.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        built = {}
+    if built.get("target") != target or built.get("output") != str(destination):
+        errors.append("The build record does not identify this target and destination")
+    architecture = built.get("architecture")
+    if target == "macos" and architecture != MAC_ARCHITECTURE:
+        errors.append("The macOS build architecture is " + repr(architecture) + ", not " + MAC_ARCHITECTURE)
+    success = process.returncode == 0 and destination.exists() and not errors
     return {"status": "complete" if success else "failed", "target": target,
-            "output_dir": str(destination), "log": str(log), "exit_code": process.returncode}
+            "output_dir": str(destination), "log": str(log), "exit_code": process.returncode,
+            "architecture": architecture, "source_fingerprint": source, "errors": errors}
