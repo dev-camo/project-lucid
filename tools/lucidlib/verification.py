@@ -3760,6 +3760,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.RecoveredBehaviorTests.EnumStringVerifiersLeaveTheNativeTablesAsFoundInEitherOrder",
     "ProjectLucid.Tests.RecoveredBehaviorTests.EnumStringVerifierFailuresStillRestoreTheNativeTables(0)",
     "ProjectLucid.Tests.RecoveredBehaviorTests.EnumStringVerifierFailuresStillRestoreTheNativeTables(1)",
+    "ProjectLucid.Tests.RecoveredBehaviorTests.ActorVerifiersLeaveTheirCachedEnumTablesAsFound",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.ActionRowsRemoveAnAbsentRowTheFixtureCreated",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.ActionRowsRemoveTheCreatedRowWhenTheFixtureFailsAfterConstruction",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.ActionRowsKeepABorrowedEmptyRow",

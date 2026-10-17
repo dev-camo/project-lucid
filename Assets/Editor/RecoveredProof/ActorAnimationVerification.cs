@@ -66,7 +66,18 @@ namespace ProjectLucid
             return d;
         }
         private static Dictionary<ActorAnimationType,List<AnimationParameterWrapper>> Lookup(ActorAnimationDefinition d) => Get<Dictionary<ActorAnimationType,List<AnimationParameterWrapper>>>(d,"m_parametersLookup");
+        // The parameter and fullscreen-effect callbacks call the original GetString,
+        // which caches misses (for example non-native ActorAnimationType keys) in the
+        // shared HardlightEnumExtensions tables. Both runs lease those tables so they
+        // return to their admitted entries on every path.
+        private static readonly string[] CachedEnumTables = { "ActorAnimationTypeEnumToString", "FullscreenShaderParametersTypeEnumToString" };
         public static int RunManaged()
+        {
+            using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions), CachedEnumTables))
+                return RunManagedLeased();
+        }
+
+        private static int RunManagedLeased()
         {
             checks=0;
             {
@@ -503,6 +514,12 @@ namespace ProjectLucid
         // Genuine Unity object constructors/hash/JSON paths are separate from managed tests.
         // Root owns executing this method in the real Editor.
         public static int RunEngine()
+        {
+            using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions), CachedEnumTables))
+                return RunEngineLeased();
+        }
+
+        private static int RunEngineLeased()
         {
             checks=0;
             ActorAnimationDefinition d=null;

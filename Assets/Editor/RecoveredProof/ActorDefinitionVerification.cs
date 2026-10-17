@@ -49,13 +49,18 @@ namespace ProjectLucid
         internal const string ParticleDisplayCachedSite = "ActorDefinitionVerification.ParticleDisplayCached";
 
         // The genuine GetString calls below, direct and through the original
-        // serialization callbacks, cache the non-native ActorParticleTriggerType 17,
-        // ParticleEffectType 23 and LevelSetupTypes 0 in the shared native tables.
-        // The lease returns those tables to their admitted entries on every path.
+        // serialization callbacks, cache misses such as ActorParticleTriggerType 17,
+        // ParticleEffectType 23, HLAudioClipIdentifier 23 and LevelSetupTypes 0/29
+        // in the shared native tables. The leases return those tables to their
+        // admitted entries on every path, for the managed and engine runs alike.
+        private static readonly string[] CachedEnumTables =
+        {
+            "ActorParticleTriggerTypeEnumToString", "ParticleEffectTypeEnumToString", "LevelSetupTypesEnumToString",
+            "HLAudioClipIdentifierEnumToString", "ActorAudioTypesEnumToString",
+        };
         public static int RunManaged()
         {
-            using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions),
-                "ActorParticleTriggerTypeEnumToString", "ParticleEffectTypeEnumToString", "LevelSetupTypesEnumToString"))
+            using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions), CachedEnumTables))
                 return RunManagedLeased();
         }
 
@@ -207,6 +212,12 @@ namespace ProjectLucid
         }
         private static float Single(float value) => BitConverter.ToSingle(BitConverter.GetBytes(value), 0);
         public static int RunEngine()
+        {
+            using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions), CachedEnumTables))
+                return RunEngineLeased();
+        }
+
+        private static int RunEngineLeased()
         {
             int checks = 0;
             var settings = new CharacterSettings { Collider = new CharacterSettings.ColliderSettings() };

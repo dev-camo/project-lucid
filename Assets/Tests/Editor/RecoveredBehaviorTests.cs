@@ -1015,10 +1015,12 @@ namespace ProjectLucid.Tests
         };
 
         // Each table's dictionary object, then its keys and value references in order.
-        private static System.Collections.Generic.List<object> EnumTables()
+        private static System.Collections.Generic.List<object> EnumTables() => EnumTables(EnumVerifierTables);
+
+        private static System.Collections.Generic.List<object> EnumTables(string[] names)
         {
             var state = new System.Collections.Generic.List<object>();
-            foreach (string name in EnumVerifierTables)
+            foreach (string name in names)
             {
                 var table = (IDictionary)typeof(HardlightProject.HardlightEnumExtensions)
                     .GetField(name, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null);
@@ -1028,9 +1030,12 @@ namespace ProjectLucid.Tests
             return state;
         }
 
-        private static void AssertEnumTables(System.Collections.Generic.List<object> before, string step)
+        private static void AssertEnumTables(System.Collections.Generic.List<object> before, string step) =>
+            AssertEnumTables(before, EnumVerifierTables, step);
+
+        private static void AssertEnumTables(System.Collections.Generic.List<object> before, string[] names, string step)
         {
-            System.Collections.Generic.List<object> after = EnumTables();
+            System.Collections.Generic.List<object> after = EnumTables(names);
             Assert.That(after.Count, Is.EqualTo(before.Count), step + ": table entry count");
             for (int i = 0; i < before.Count; ++i)
                 Assert.That(before[i] is System.Enum ? Equals(before[i], after[i]) : ReferenceEquals(before[i], after[i]), Is.True, step + ": entry " + i);
@@ -1051,6 +1056,34 @@ namespace ProjectLucid.Tests
             AssertEnumTables(before, "enum strings twice");
             Assert.That(ActorDefinitionVerification.RunManaged(), Is.EqualTo(100));
             AssertEnumTables(before, "actor after enum strings");
+        }
+
+        // Native run19 (4beb125) recorded the actor-definition and actor-animation
+        // fixtures growing these tables through the original serialization callbacks'
+        // GetString misses, in both their managed and engine runs. Each run, twice,
+        // must leave every table's object, keys and value references as found.
+        private static readonly string[] ActorVerifierTables =
+        {
+            "ActorAnimationTypeEnumToString", "FullscreenShaderParametersTypeEnumToString",
+            "HLAudioClipIdentifierEnumToString", "LevelSetupTypesEnumToString", "ActorAudioTypesEnumToString",
+            "ActorParticleTriggerTypeEnumToString", "ParticleEffectTypeEnumToString",
+        };
+
+        [Test]
+        public void ActorVerifiersLeaveTheirCachedEnumTablesAsFound()
+        {
+            System.Collections.Generic.List<object> before = EnumTables(ActorVerifierTables);
+            for (int pass = 0; pass < 2; ++pass)
+            {
+                Assert.That(ActorDefinitionVerification.RunManaged(), Is.EqualTo(100));
+                AssertEnumTables(before, ActorVerifierTables, "actor definition managed " + pass);
+                Assert.That(ActorDefinitionVerification.RunEngine(), Is.EqualTo(38));
+                AssertEnumTables(before, ActorVerifierTables, "actor definition engine " + pass);
+                Assert.That(ActorAnimationVerification.RunManaged(), Is.EqualTo(358));
+                AssertEnumTables(before, ActorVerifierTables, "actor animation managed " + pass);
+                Assert.That(ActorAnimationVerification.RunEngine(), Is.EqualTo(23));
+                AssertEnumTables(before, ActorVerifierTables, "actor animation engine " + pass);
+            }
         }
 
         // A failure after a miss is cached still returns every table to its admitted
