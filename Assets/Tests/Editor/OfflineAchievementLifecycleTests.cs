@@ -624,6 +624,12 @@ namespace ProjectLucid.Tests.EditMode
             // loses only its added typed entries, and a live local player is foreign.
             private readonly LifecycleRow managerRow = new LifecycleRow(ProcessManager.GetDefaultName<AchievementsManager>());
             private readonly LifecycleRow playerRow = new LifecycleRow(ProcessManager.GetDefaultName<GameCenterLocalPlayer>(), borrowLiveSystem: true);
+            // The manager subscribes to these actions, and SubscribeToAction creates a
+            // missing outer row that no unsubscribe removes. Rows admitted absent are
+            // removed once empty after the observation; admitted rows keep their
+            // dictionary and exact subscriber pairs.
+            private readonly VerificationFixtureOwnership.ActionRows actionRows = new VerificationFixtureOwnership.ActionRows(
+                SystemAction.AppInitialise, SystemAction.Initialise, SystemAction.Shutdown);
             internal HLPropertyStore Store { get; private set; }
             internal OwnedCoreWorld()
             {
@@ -670,6 +676,8 @@ namespace ProjectLucid.Tests.EditMode
                 foreach (var lease in leases)
                     try { lease.Dispose(); } catch (Exception error) { errors.Add(error); }
                 try { RequireEmptyLocalContexts(); process.AssertRestored(); }
+                catch (Exception error) { errors.Add(error); }
+                try { actionRows.Dispose(); }
                 catch (Exception error) { errors.Add(error); }
                 try { managerRow.Dispose(); }
                 catch (Exception error) { errors.Add(error); }
