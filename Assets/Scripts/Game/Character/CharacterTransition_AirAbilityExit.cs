@@ -21,13 +21,14 @@ namespace HardlightProject
 			return new CharacterTransition_AirAbilityExit(fsm, transitionId);
 		}
 
-		// 06001703 (1.10.1 RVA 0x78F430)
+		// 06001703 (1.10.1 RVA 0x78F430). A missing cached ability exits: the null
+		// test at 0x78F561 jumps to the epilogue with the result still 1.
 		protected override bool DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			if (base.DoUpdate(user, updateContext))
 				return true;
 			CharacterAbility_Air ability = user.GetAs<Character>().Storage.GetValue<CharacterAbility_Air>(ActorFSMKeys.AirAbilityActive, null, true);
-			return ability != null && !ability.AirActive;
+			return ability == null || !ability.AirActive;
 		}
 	}
 }

@@ -21,12 +21,14 @@ namespace HardlightProject
 			return new CharacterTransition_HalfPipeAirExit(fsm, transitionId);
 		}
 
-		// 06001731 (1.10.1 RVA 0x790D40)
+		// 06001731 (1.10.1 RVA 0x790D40). A direction override exits before any storage
+		// read (0x790DC7); an active collider stays without reading the transfer flag (0x790E96).
 		protected override bool DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			if (base.DoUpdate(user, updateContext)) return true;
 			Character character = user.GetAs<Character>();
-			return !character.IsDirectionOverrideActive() && !character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderActive, false, true) && !character.Storage.GetValue(ActorFSMKeys.HalfPipeTransferActive, false, true);
+			return character.IsDirectionOverrideActive() ||
+				(!character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderActive, false, true) && !character.Storage.GetValue(ActorFSMKeys.HalfPipeTransferActive, false, true));
 		}
 	}
 }

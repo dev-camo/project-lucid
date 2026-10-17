@@ -21,12 +21,14 @@ namespace HardlightProject
 			return new CharacterTransition_HalfPipeTransferExit(fsm, transitionId);
 		}
 
-		// 06001737 (1.10.1 RVA 0x7911E0)
+		// 06001737 (1.10.1 RVA 0x7911E0). Track contact (0x791267) and then a direction
+		// override (0x791279) each exit before the transfer flag is read.
 		protected override bool DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			if (base.DoUpdate(user, updateContext)) return true;
 			Character character = user.GetAs<Character>();
-			return !character.Collider.HasTrackContact() && !character.IsDirectionOverrideActive() && !character.Storage.GetValue(ActorFSMKeys.HalfPipeTransferActive, false, true);
+			return character.Collider.HasTrackContact() || character.IsDirectionOverrideActive() ||
+				!character.Storage.GetValue(ActorFSMKeys.HalfPipeTransferActive, false, true);
 		}
 	}
 }

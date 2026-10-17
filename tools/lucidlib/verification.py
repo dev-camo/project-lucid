@@ -1785,6 +1785,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.TargetedLocationRaycastDividesByOneMagnitudeWithoutNormalizing",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalCharacterExitTransitionTests.AirAbilityExitLeavesWhenTheCachedAbilityIsMissingOrInactive",
+    "ProjectLucid.Tests.OriginalCharacterExitTransitionTests.HalfPipeAirExitLeavesOnDirectionOverrideBeforeReadingStorage",
+    "ProjectLucid.Tests.OriginalCharacterExitTransitionTests.HalfPipeTransferExitLeavesOnContactOrDirectionOverrideBeforeReadingTransfer",
+    "ProjectLucid.Tests.OriginalCharacterExitTransitionTests.ShouldRespawnReadsBothFlagsBeforeCombiningThem",
+)
+
 
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (

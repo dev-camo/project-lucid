@@ -21,11 +21,15 @@ namespace HardlightProject
 			return new CharacterTransition_ShouldRespawn(fsm, transitionId);
 		}
 
-		// 0600179c (1.10.1 RVA 0x794590)
+		// 0600179c (1.10.1 RVA 0x794590). Both flags are always read, so a missing
+		// InHardFailureState is stored even when out of bounds (or al, r14b at 0x794751).
+		// The native body never calls the base update.
 		protected override bool DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			Character character = user.GetAs<Character>();
-			return character.Storage.GetValue(ActorFSMKeys.IsOutOfBounds, false, true) || character.Storage.GetValue(ActorFSMKeys.InHardFailureState, false, true);
+			bool outOfBounds = character.Storage.GetValue(ActorFSMKeys.IsOutOfBounds, false, true);
+			bool hardFailure = character.Storage.GetValue(ActorFSMKeys.InHardFailureState, false, true);
+			return outOfBounds | hardFailure;
 		}
 	}
 }
