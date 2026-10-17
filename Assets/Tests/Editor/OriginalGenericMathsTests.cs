@@ -39,6 +39,20 @@ namespace ProjectLucid.Tests
         {
         }
 
+        // Owned: an int-backed enum reports TypeCode.Int32, so Create builds this
+        // closed type's IntegerMaths and the shared Castclass to IMaths<T>
+        // (0x138e775) rejects it. Only this file's closed type is poisoned.
+        public enum OwnedIntEnum
+        {
+            Zero,
+        }
+
+        // Not covered on purpose: the jump table at 0x138e7fc also sends Empty,
+        // DBNull, Boolean, DateTime and code 17 to the throw at 0x138e77f, but only
+        // shared BCL closed types (GenericMaths<bool>, GenericMaths<DateTime>, ...)
+        // reach those codes, and a failing initialiser would poison them for the
+        // whole test process.
+
         // Native bodies 0xe4c440..0xe4c4b0 (byte), 0xbccfd0..0xbcd050 (sbyte),
         // 0xe5d290..0xe5d310 (char), 0xbe4740/0xcaa020 (short/ushort): unchecked
         // arithmetic narrowed with movzx/movsx, unsigned seta/setb comparisons for
@@ -58,9 +72,9 @@ namespace ProjectLucid.Tests
             Assert.That(GenericMaths<sbyte>.GreaterThan(-1, 0), Is.False);
             Assert.That(GenericMaths<sbyte>.LessThanOrEqual(-128, -128), Is.True);
 
-            Assert.That(GenericMaths<char>.Add('￿', (char)1), Is.EqualTo('\0'));
+            Assert.That(GenericMaths<char>.Add(char.MaxValue, (char)1), Is.EqualTo('\0'));
             Assert.That(GenericMaths<char>.Divide('d', (char)2), Is.EqualTo('2'));
-            Assert.That(GenericMaths<char>.GreaterThan('￿', 'a'), Is.True);
+            Assert.That(GenericMaths<char>.GreaterThan(char.MaxValue, 'a'), Is.True);
 
             Assert.That(GenericMaths<short>.Add(short.MaxValue, 1), Is.EqualTo(short.MinValue));
             Assert.That(GenericMaths<short>.LessThan(-1, 0), Is.True);
@@ -128,7 +142,7 @@ namespace ProjectLucid.Tests
         public void DecimalForwardsToTheDecimalOperators()
         {
             Assert.That(GenericMaths<decimal>.Add(0.1m, 0.2m), Is.EqualTo(0.3m));
-            Assert.That(GenericMaths<decimal>.Divide(1m, 3m), Is.EqualTo(1m / 3m));
+            Assert.That(GenericMaths<decimal>.Divide(1m, 3m), Is.EqualTo(0.3333333333333333333333333333m));
             Assert.That(GenericMaths<decimal>.Multiply(1.5m, 1.5m), Is.EqualTo(2.25m));
             Assert.That(GenericMaths<decimal>.Subtract(1m, 0.75m), Is.EqualTo(0.25m));
             Assert.That(GenericMaths<decimal>.GreaterThan(0.3m, 0.2m), Is.True);
@@ -207,6 +221,17 @@ namespace ProjectLucid.Tests
                 Assert.That(failure.InnerException.Message, Is.EqualTo(
                     "Type Unsupported does not support generic maths. Add support by implementing the IMaths<T> interface."));
             }
+        }
+
+        // Create (0x138db60) returns every type-code implementation through the
+        // shared Castclass tail (0x138e775); for an enum T the implementation is
+        // IMaths<underlying>, so the initialiser fails with InvalidCastException
+        // rather than the NotSupportedException message.
+        [Test]
+        public void EnumTypesFailInitialisationOnTheImplementationCast()
+        {
+            var failure = Assert.Throws<TypeInitializationException>(() => GenericMaths<OwnedIntEnum>.Add(OwnedIntEnum.Zero, OwnedIntEnum.Zero));
+            Assert.That(failure.InnerException, Is.TypeOf<InvalidCastException>());
         }
 
         static void ExpectUnsupported(string typeName, string operation, TestDelegate call)

@@ -16,8 +16,8 @@ namespace Hardlight
 		{
 		}
 
-		// 0x06000ab0..0x06000ab7 forward to interface slots 0..7 with no null guard
-		// of their own; a null implementation raises NullReferenceException.
+		// 0x06000ab0..0x06000ab7 forward to interface slots 0..7 with no guard of
+		// their own; an unsupported T fails in the type initialiser instead.
 		public static T Add(T left, T right)
 		{
 			return s_implementation.Add(left, right);
@@ -60,9 +60,14 @@ namespace Hardlight
 
 		// Original 0x06000ab8 (0x138db60). A T that implements IMaths<T> itself is
 		// instantiated with Activator, so calls go to a fresh instance rather than the
-		// operands. Otherwise the type code picks an implementation, in RGCTX order;
-		// Object only covers the three Unity vectors. An enum reports its underlying
-		// code, so its implementation fails the final cast to IMaths<T>.
+		// operands. Otherwise the type code picks an implementation; Object only
+		// covers the three Unity vectors. The case order is inferred from the method
+		// RGCTX scan order (Char at entry 14 .. String at 38, Vector2/3/4Maths at
+		// 40/42/44), not from the native block layout, where clang placed the Object
+		// block (0x138dcd7) before Char..String. An enum reports its underlying code,
+		// so its implementation is expected to fail the shared Castclass to IMaths<T>
+		// (0x138e775) with InvalidCastException in the type initialiser; observed on
+		// CoreCLR only.
 		private static IMaths<T> Create()
 		{
 			Type type = typeof(T);
@@ -118,8 +123,10 @@ namespace Hardlight
 			throw new NotSupportedException("Type " + type.Name + " does not support generic maths. Add support by implementing the IMaths<T> interface.");
 		}
 
-		// Original 02000181. Every operation is virtual and unsupported by default;
-		// the message names TMath (class RGCTX entry 0), not the outer T.
+		// Original 02000181 (BaseMaths<T, TMath>). Every operation is virtual and
+		// unsupported by default. The message's typeof is class RGCTX entry 0, which
+		// an unpublished RGCTX dump resolved to TMath; behaviour cannot tell it from
+		// the outer T, since every implementation that survives Create has T == TMath.
 		private abstract class BaseMaths<TMath> : IMaths<TMath>
 		{
 			public virtual TMath Add(TMath left, TMath right)
@@ -551,7 +558,8 @@ namespace Hardlight
 			}
 		}
 
-		// Floating-point comparisons are ordered (ucomiss/ucomisd), so NaN is false.
+		// ucomiss/ucomisd with seta/setae (operands swapped for LessThan/LessThanOrEqual);
+		// an unordered (NaN) result sets CF/ZF, so every comparison is false.
 		private class FloatMaths : BaseMaths<float>
 		{
 			public override float Add(float left, float right)

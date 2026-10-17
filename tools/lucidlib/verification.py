@@ -2192,4 +2192,5 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGenericMathsTests.UnityVectorsOnlyAddAndSubtract",
     "ProjectLucid.Tests.OriginalGenericMathsTests.SelfImplementingTypesRunOnOneActivatorCreatedInstance",
     "ProjectLucid.Tests.OriginalGenericMathsTests.UnsupportedTypesFailInitialisationWithTheOriginalMessage",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.EnumTypesFailInitialisationOnTheImplementationCast",
 )
