@@ -8,6 +8,7 @@
     "ProjectLucid.Cutscene.EngineVerification",
     "ProjectLucid.Selection.EngineVerification",
     "ProjectLucid.UISelection.EngineVerification",
+    "ProjectLucid.UnityCore.EngineVerification",
     "Game.Runtime",
     "HLCrashReport.Runtime",
     "HLUnityCore.Runtime",

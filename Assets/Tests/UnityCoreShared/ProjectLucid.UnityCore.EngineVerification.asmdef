@@ -1,0 +1,8 @@
+{
+  "name": "ProjectLucid.UnityCore.EngineVerification",
+  "references": [],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

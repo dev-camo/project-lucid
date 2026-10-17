@@ -6,7 +6,8 @@ namespace ProjectLucid.Tests
 {
     // Test-owned component for OriginalHLUnityCoreObjectUtilsTests. It records the
     // reflection traffic of ObjectUtils.CopyComponent 0x06001235; the fixture
-    // clears the static log before and after every case.
+    // clears the static log before and after every case. Unity refuses to attach
+    // scripts from Editor assemblies, so it lives in this runtime test assembly.
     public sealed class OriginalHLUnityCoreCopyComponentProbe : MonoBehaviour
     {
         public static readonly List<string> Log = new List<string>();
