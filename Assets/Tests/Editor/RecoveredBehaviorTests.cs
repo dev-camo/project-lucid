@@ -952,6 +952,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void RecoveredYamlMissingScriptsLeaveTheReferenceAuditIncomplete()
+        {
+            ScriptReferenceVerification.RunRecoveredYaml();
+        }
+
+        [Test]
         public void SuppliedLayoutComponentsRetainAuthoredScalarsAfterScriptBinding()
         {
             UguiLayoutBindingVerification.RunAuthored();

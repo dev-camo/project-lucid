@@ -63,53 +63,12 @@ namespace ProjectLucid.Editor
             }
             string recovered = Path.Combine(Application.dataPath, "Recovered");
             if (!Directory.Exists(recovered)) throw new InvalidOperationException("Prepare supplied assets before auditing references.");
-            var resolved = new Dictionary<string, string>();
-            var missing = new Dictionary<string, HashSet<string>>();
-            var badScripts = new HashSet<string>();
-            var scriptResults = new Dictionary<string, string>();
+            var scan = new ReferenceScan();
             var shaderErrors = new List<string>();
-            int scanned = 0;
             foreach (string file in Directory.EnumerateFiles(recovered, "*", SearchOption.AllDirectories).OrderBy(p => p, StringComparer.Ordinal))
             {
                 if (!SerializedExtensions.Contains(Path.GetExtension(file))) continue;
-                using (var reader = new StreamReader(file))
-                {
-                    string line = reader.ReadLine();
-                    if (line == null || !line.StartsWith("%YAML", StringComparison.Ordinal)) continue;
-                    scanned++;
-                    string relative = "Assets/" + file.Substring(Application.dataPath.Length + 1).Replace('\\', '/');
-                    while ((line = reader.ReadLine()) != null)
-                    {
-                        if (line.TrimStart().StartsWith("m_Script:", StringComparison.Ordinal))
-                        {
-                            string error;
-                            if (!scriptResults.TryGetValue(line, out error))
-                            {
-                                error = GetScriptBindingError(line);
-                                scriptResults.Add(line, error);
-                            }
-                            if (error != null) badScripts.Add(relative + ": " + error);
-                        }
-                        if (line.IndexOf("guid:", StringComparison.Ordinal) < 0) continue;
-                        foreach (Match match in GuidReference.Matches(line))
-                        {
-                            string guid = match.Groups[1].Value.ToLowerInvariant();
-                            if (IsBuiltinGuid(guid)) continue;
-                            string destination;
-                            if (!resolved.TryGetValue(guid, out destination))
-                            {
-                                destination = AssetDatabase.GUIDToAssetPath(guid);
-                                resolved.Add(guid, destination);
-                            }
-                            if (String.IsNullOrEmpty(destination))
-                            {
-                                HashSet<string> examples;
-                                if (!missing.TryGetValue(guid, out examples)) missing.Add(guid, examples = new HashSet<string>());
-                                if (examples.Count < 8) examples.Add(relative);
-                            }
-                        }
-                    }
-                }
+                scan.ScanFile(file, "Assets/" + file.Substring(Application.dataPath.Length + 1).Replace('\\', '/'));
             }
             foreach (string guid in AssetDatabase.FindAssets("t:Shader", new[] { "Assets/Shaders" }))
             {
@@ -128,7 +87,7 @@ namespace ProjectLucid.Editor
                     throw new InvalidOperationException("Project import changed during reference audit.");
                 context.CheckUnchanged(root);
             }
-            string referenceStatus = missing.Count == 0 && badScripts.Count == 0 && shaderErrors.Count == 0 ? "complete" : "incomplete";
+            string referenceStatus = scan.Status(shaderErrors.Count);
             var audit = new Audit
             {
                 // Supplied hashes remain non-authoritative until the CLI checks
@@ -142,11 +101,11 @@ namespace ProjectLucid.Editor
                 identity_status = context == null ? "complete" : "pending-wrapper",
                 identity_nonce = context == null ? null : context.Nonce,
                 identity_context_sha256 = context == null ? null : context.Digest,
-                scanned_assets = scanned,
-                unresolved_references = missing.Count + badScripts.Count + shaderErrors.Count,
-                missing_guids = missing.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+                scanned_assets = scan.Scanned,
+                unresolved_references = scan.Unresolved(shaderErrors.Count),
+                missing_guids = scan.Missing.OrderBy(pair => pair.Key, StringComparer.Ordinal)
                     .Select(pair => new MissingReference { guid = pair.Key, examples = pair.Value.OrderBy(s => s, StringComparer.Ordinal).ToArray() }).ToArray(),
-                invalid_script_bindings = badScripts.OrderBy(s => s, StringComparer.Ordinal).ToArray(),
+                invalid_script_bindings = scan.InvalidScriptBindings(),
                 shader_errors = shaderErrors.ToArray()
             };
             string directory = Path.GetDirectoryName(output);
@@ -161,7 +120,81 @@ namespace ProjectLucid.Editor
                 else File.Move(temporary, output);
             }
             finally { if (File.Exists(temporary)) File.Delete(temporary); }
-            Debug.Log("Project Lucid reference audit: " + scanned + " assets, " + audit.unresolved_references + " unresolved references. " + output);
+            Debug.Log("Project Lucid reference audit: " + scan.Scanned + " assets, " + audit.unresolved_references + " unresolved references. " + output);
+        }
+
+        // Reference state for the serialized YAML files of one audit.
+        private sealed class ReferenceScan
+        {
+            private static readonly Regex ObjectHeader = new Regex(@"^--- !u!(\d+) &(-?\d+)", RegexOptions.Compiled);
+            private readonly Dictionary<string, string> resolved = new Dictionary<string, string>();
+            private readonly Dictionary<string, string> scriptResults = new Dictionary<string, string>();
+            private readonly HashSet<string> badScripts = new HashSet<string>();
+            public readonly Dictionary<string, HashSet<string>> Missing = new Dictionary<string, HashSet<string>>();
+            public int Scanned;
+
+            public void ScanFile(string file, string relative)
+            {
+                using (var reader = new StreamReader(file))
+                {
+                    string line = reader.ReadLine();
+                    if (line == null || !line.StartsWith("%YAML", StringComparison.Ordinal)) return;
+                    Scanned++;
+                    string currentObject = null;
+                    while ((line = reader.ReadLine()) != null)
+                    {
+                        Match header = line.StartsWith("--- ", StringComparison.Ordinal) ? ObjectHeader.Match(line) : Match.Empty;
+                        if (header.Success) currentObject = "!u!" + header.Groups[1].Value + " &" + header.Groups[2].Value;
+                        if (line.TrimStart().StartsWith("m_Script:", StringComparison.Ordinal))
+                        {
+                            string error;
+                            if (!scriptResults.TryGetValue(line, out error))
+                            {
+                                error = GetScriptBindingError(line);
+                                scriptResults.Add(line, error);
+                            }
+                            // Null pointers are identical text, so each one names its
+                            // object to give one diagnostic per affected document.
+                            if (error != null)
+                                badScripts.Add(relative + (NullScriptReference.IsMatch(line) && currentObject != null ? " " + currentObject : "") + ": " + error);
+                        }
+                        if (line.IndexOf("guid:", StringComparison.Ordinal) < 0) continue;
+                        foreach (Match match in GuidReference.Matches(line))
+                        {
+                            string guid = match.Groups[1].Value.ToLowerInvariant();
+                            if (IsBuiltinGuid(guid)) continue;
+                            string destination;
+                            if (!resolved.TryGetValue(guid, out destination))
+                            {
+                                destination = AssetDatabase.GUIDToAssetPath(guid);
+                                resolved.Add(guid, destination);
+                            }
+                            if (String.IsNullOrEmpty(destination))
+                            {
+                                HashSet<string> examples;
+                                if (!Missing.TryGetValue(guid, out examples)) Missing.Add(guid, examples = new HashSet<string>());
+                                if (examples.Count < 8) examples.Add(relative);
+                            }
+                        }
+                    }
+                }
+            }
+
+            public string[] InvalidScriptBindings() { return badScripts.OrderBy(s => s, StringComparer.Ordinal).ToArray(); }
+            public int Unresolved(int shaderErrors) { return Missing.Count + badScripts.Count + shaderErrors; }
+            public string Status(int shaderErrors) { return Unresolved(shaderErrors) == 0 ? "complete" : "incomplete"; }
+        }
+
+        // Applies Run's YAML reference rules to one file outside Assets/Recovered,
+        // so isolated fixtures can check the status the audit would report.
+        public static string ScanSerializedFile(string file, string relative, out string[] invalidScriptBindings, out int unresolvedReferences)
+        {
+            var scan = new ReferenceScan();
+            scan.ScanFile(file, relative);
+            if (scan.Scanned != 1) throw new InvalidDataException("Not a serialized YAML file: " + file);
+            invalidScriptBindings = scan.InvalidScriptBindings();
+            unresolvedReferences = scan.Unresolved(0);
+            return scan.Status(0);
         }
 
         private static string ReadOption(string[] arguments, string name)
@@ -251,8 +284,9 @@ namespace ProjectLucid.Editor
         // A matching GUID alone can select a different subasset in a DLL or an
         // unrelated script. This checks loaded class eligibility; original type
         // equivalence and runtime behavior remain separate reconstruction gates.
-        // A null pointer is a missing-script component in Unity, not an optional
-        // reference, so it is reported like any other unbound script.
+        // A null m_Script leaves a MonoBehaviour or ScriptableObject document
+        // without its class. Rejecting it is fail-closed audit policy, not a
+        // claim about the original data; optional null PPtrs are not checked here.
         public static string GetScriptBindingError(string line)
         {
             if (NullScriptReference.IsMatch(line)) return "MonoScript pointer is null: " + line.Trim();
