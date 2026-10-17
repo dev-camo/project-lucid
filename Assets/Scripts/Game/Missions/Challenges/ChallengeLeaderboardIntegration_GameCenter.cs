@@ -87,7 +87,7 @@ namespace HardlightProject
         // Original06002575 retains the real service and original time scope numeric0.
         public override void ShowLeaderboard()
         {
-            m_leaderboardSystemRef.Get().ShowLeaderboardUI(GetLeaderboardIdentifier(), (TimeScope)0);
+            m_leaderboardSystemRef.Get().ShowLeaderboardUI(GetLeaderboardIdentifier(), TimeScope.Today);
         }
 
         // Original06002576 returns original TailsChallenges_Daily0x0feae372.

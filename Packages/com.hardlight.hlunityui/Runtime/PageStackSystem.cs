@@ -31,8 +31,8 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
-    [Il2CppSetOption((Option)2, false)]
-    [Il2CppSetOption((Option)1, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class PageStackSystem<T> where T : GuiPage
     {
         public enum State

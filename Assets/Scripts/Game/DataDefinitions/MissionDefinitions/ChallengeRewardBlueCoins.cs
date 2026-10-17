@@ -41,8 +41,8 @@ namespace HardlightProject
         public override string GetRewardGUID() => Definition.GetGUID();
         // 06001d8c: the original reward does no immediate currency mutation here.
         public override void GiveReward() { }
-        // 06001d8d: preserve the original localization enum's Int32 literal.
-        public override Strings GetRewardName() => (Strings)0x207546e7;
+        // 06001d8d
+        public override Strings GetRewardName() => Strings.MENU_TAILS_CHALLENGES_REWARD_TRACK_DREAM_BLUE_COINS;
 
         // 06001d8e: only the sprite callback triggers loading; the texture callback is unused.
         public override void LoadImage(Action<Texture> textureCallback, Action<Sprite> spriteCallback)

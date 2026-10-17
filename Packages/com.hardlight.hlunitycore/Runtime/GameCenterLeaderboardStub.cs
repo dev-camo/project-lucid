@@ -69,7 +69,7 @@ namespace Hardlight
                 {
                     BaseLeaderboardID = leaderboardID,
                     Title = "LeaderboardTitle_" + leaderboardID,
-                    Type = (LeaderboardType)0,
+                    Type = LeaderboardType.Classic,
                     GroupIdentifier = "GroupIdentifier_" + leaderboardID,
                     StartDate = startDate,
                     NextStartDate = nextStartDate,

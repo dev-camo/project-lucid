@@ -72,7 +72,7 @@ namespace HardlightProject
 		{
 			SaveDataSettings settings = ProcessManager.GetSystem<SaveManager>().GetSaveDataSettings();
 			AudioManager audioManager = ProcessManager.GetSystem<AudioManager>();
-			HLAudioMixerDefinition mixer = audioManager.GetMixer((HLAudioMixerIdentifier)0x7642df2f);
+			HLAudioMixerDefinition mixer = audioManager.GetMixer(HLAudioMixerIdentifier.Main);
 			mixer.SetMasterVolume(settings.MasterVolume);
 			mixer.SetMusicVolume(settings.MusicVolume);
 			mixer.SetSfxVolume(settings.SfxVolume);

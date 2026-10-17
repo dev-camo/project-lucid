@@ -165,13 +165,13 @@ namespace HardlightProject
             character.Storage.SetValue(ActorFSMKeys.AirAbilityDirectionOverrideAnimationElapsedSeconds, elapsed + deltaTime);
             Quaternion rotation = Quaternion.LookRotation(Vector3.Cross(character.RightDirection, velocity), velocity);
             character.VisualProxy.OverrideRotation(rotation);
-            character.Animator.TrySetFromAnimationType(m_stateAnimationDefinition, (ActorAnimationType)unchecked((int)0xc2920266), true);
+            character.Animator.TrySetFromAnimationType(m_stateAnimationDefinition, ActorAnimationType.DirectionOverride, true);
         }
 
         private void ResetDirectionOverride(Character character)
         {
             character.VisualProxy.StopOverridingRotation();
-            character.Animator.TrySetFromAnimationType(m_stateAnimationDefinition, (ActorAnimationType)unchecked((int)0xc2920266), false);
+            character.Animator.TrySetFromAnimationType(m_stateAnimationDefinition, ActorAnimationType.DirectionOverride, false);
             character.Storage.SetValue(ActorFSMKeys.AirAbilityDirectionOverrideAnimationElapsedSeconds, 0f);
         }
     }

@@ -38,7 +38,7 @@ namespace Hardlight
 
         private void Update()
         {
-            if (Input.GetKeyDown((KeyCode)289)) GUIEnabled = !GUIEnabled;
+            if (Input.GetKeyDown(KeyCode.F8)) GUIEnabled = !GUIEnabled;
             m_info = string.Empty;
             if (!GUIEnabled) return;
             foreach (IPrefabPool pool in m_prefabPools.Values)

@@ -5,9 +5,9 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    [Il2CppSetOption((Option)1, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     [CreateAssetMenu(fileName = "CameraAxisStateOverrides", menuName = "HardlightProject/DefinitionData/Definitions/CameraAxisStateOverrides")]
-    [Il2CppSetOption((Option)2, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class CameraAxisStateOverrides : ScriptableObject
     {
         [Tooltip("Lookup by type to camera axis state definitions.")]

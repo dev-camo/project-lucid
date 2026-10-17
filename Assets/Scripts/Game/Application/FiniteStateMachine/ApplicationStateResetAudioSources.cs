@@ -25,7 +25,7 @@ namespace HardlightProject
 		{
 			AudioManager audioManager = ProcessManager.GetSystem<AudioManager>();
 			SaveDataSettings settings = ProcessManager.GetSystem<SaveManager>().GetSaveDataSettings();
-			audioManager.GetMixer((HLAudioMixerIdentifier)0x7642df2f).ResetVolume(settings);
+			audioManager.GetMixer(HLAudioMixerIdentifier.Main).ResetVolume(settings);
 		}
 	}
 }
