@@ -138,8 +138,7 @@ namespace Hardlight
                 Vector2 lerpAmount = Vector2.Lerp(Vector2.zero, lerpTarget, timer / m_lerpTime) - cumulativeLerpAmount;
                 cumulativeLerpAmount += lerpAmount;
                 timer += Time.deltaTime;
-                // The native body reads the Vector2.zero static for this test
-                // (0x1B6AE79..0x1B6AE8C); the helper it came from is unidentified.
+                // The native test reads the Vector2.zero static (0x1B6AE79..0x1B6AE8C).
                 Vector2 position = value > 0f && (lerpAmount.x < Vector2.zero.x || lerpAmount.y < Vector2.zero.y)
                     ? m_scrollRect.content.anchoredPosition - lerpAmount
                     : m_scrollRect.content.anchoredPosition + lerpAmount;

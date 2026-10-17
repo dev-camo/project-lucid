@@ -333,6 +333,10 @@ namespace ProjectLucid.Tests
             // Content shorter than the viewport scrolls nothing.
             probe.ContentSizeValue = 50f;
             Assert.That(probe.RunIndexOfFirstEntry(0f), Is.Zero);
+            // maxss at 0x1394194: past the end, the unclamped -50 * (1 - 3) = 100 would give
+            // ceil(27 / 45) = 1; the clamped 0 gives ceil(-73 / 45) = -1, clamped to 0.
+            probe.DataCount = 10;
+            Assert.That(probe.RunIndexOfFirstEntry(3f), Is.Zero);
         }
 
         // 0x06000664 (roundss 0x9 at 0x13939c7 is a floor): (100 + 2 * 20) / 45 = 3.1 gives
@@ -352,6 +356,21 @@ namespace ProjectLucid.Tests
             Assert.That(probe.Objects.All(o => o.transform.parent == probe.Content), Is.True);
             Assert.That(probe.Calls.Last(), Is.EqualTo("ContentReady"));
             Assert.That(probe.Calls.Count(c => c == "ContentReady"), Is.EqualTo(1));
+        }
+
+        // 0x1393969 divides by element + spacing and 0x13939c7 floors: (165 + 40) / 45 =
+        // 4.56 gives six objects, where rounding, a ceiling or dividing by the element
+        // alone (205 / 40 = 5.1) would all give seven.
+        [Test]
+        public void SetupContentDividesByTheElementAndSpacingStep()
+        {
+            Probe probe = Build();
+            probe.ViewportSizeValue = 165f;
+            Data(probe, 10, 10);
+            probe.RunSetupContent();
+            Assert.That(probe.MaxObjectsRequired, Is.EqualTo(6));
+            Assert.That(probe.Objects.Count, Is.EqualTo(6));
+            Assert.That(probe.ObjectCount, Is.EqualTo(6));
         }
 
         // 0x1393a05..0x1393a3d: the end share is min(delta, m_dataCount - first + 1), so it
@@ -620,6 +639,22 @@ namespace ProjectLucid.Tests
             Assert.That(ring.Select(o => o.ScrollCount).ToArray(), Is.EqualTo(new[] { 2, 2, 2, 2 }));
         }
 
+        // 0x1393af9/0x1393b41: the OnScroll loop runs to m_objects.Count (the list size at
+        // +0x18), not m_objectCount. Content no taller than the viewport targets entry 0,
+        // so nothing moves first.
+        [Test]
+        public void PositionChangedNotifiesEveryListedObjectWhateverTheObjectCount()
+        {
+            Probe probe = Build();
+            Element[] ring = Ring(probe, 4, 0, 0);
+            probe.ObjectCount = 2;
+            Data(probe, 20, 10);
+            probe.ContentSizeValue = 100f;
+            probe.RunPositionChanged(Vector2.zero);
+            Assert.That(probe.ChildPositions, Is.Empty);
+            Assert.That(ring.Select(o => o.ScrollCount).ToArray(), Is.EqualTo(new[] { 1, 1, 1, 1 }));
+        }
+
         // 0x0600065d: object (first object + i) % count gets entry (first entry + i) % data
         // count; with objects but no data the remainder divides by zero.
         [Test]
@@ -692,6 +727,28 @@ namespace ProjectLucid.Tests
             Assert.That(probe.IndexOfFirstObject, Is.EqualTo(1));
             AssertReceived(first, 1, 1, 7, 4);
             AssertReceived(added, 5, 5);
+        }
+
+        // 0x139338d then the tail jump at 0x13933ac: RefreshView moves the ring before
+        // ReloadAllData reassigns it. Content 16 + 40 * 11 + 5 * 10 = 506 at position 0.5
+        // targets ceil((406 * 0.5 - 70) / 45) = 3, so MoveFromStartToEnd(3) jumps the two
+        // objects to entries 3 and 4 (Row1 <- 30, Row0 <- 40) and the reload repeats them.
+        // Reloading first would give Row0 {0, 0, 40} and Row1 {10, 10, 30}.
+        [Test]
+        public void SetEntriesRefreshesTheViewBeforeReloadingTheData()
+        {
+            Probe probe = Build();
+            HLScrollRect scroll = AttachScroll(probe);
+            scroll.verticalNormalizedPosition = 0.5f;
+            Assert.That(scroll.normalizedPosition.y, Is.EqualTo(0.5f).Within(1e-4f));
+            probe.MaxObjectsRequired = 2;
+            probe.SetEntries(Enumerable.Range(0, 10).Select(i => i * 10).ToList(), false);
+            Assert.That(probe.ContentSizeWrites.ToArray(), Is.EqualTo(new[] { 506f }));
+            Assert.That(Names(probe.Objects), Is.EqualTo(new[] { "Row0", "Row1" }));
+            AssertReceived(probe.Objects[0], 0, 40, 40);
+            AssertReceived(probe.Objects[1], 10, 30, 30);
+            Assert.That(probe.IndexOfFirstEntryField, Is.EqualTo(3));
+            Assert.That(probe.IndexOfFirstObject, Is.EqualTo(1));
         }
 
         // 0x06000670/0x06000672: an inactive hierarchy starts nothing, so MarkDirty leaves

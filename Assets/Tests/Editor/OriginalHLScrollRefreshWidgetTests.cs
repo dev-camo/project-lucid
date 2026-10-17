@@ -179,13 +179,18 @@ namespace ProjectLucid.Tests
             Assert.That(Get(rig.Widget, "m_animationState"), Is.Null);
         }
 
-        // 0x1B3C26F..0x1B3C2A7: with an animation the pull state is scrubbed at speed 0 to
-        // the progress and becomes the default clip.
+        // 0x1B3C26F..0x1B3C2A7: with an animation every state is stopped (Animation.Stop at
+        // 0x1B3C27A), then the pull state is scrubbed at speed 0 to the progress and becomes
+        // the default clip; SetupAnimation re-enables only the pull state.
         [Test]
         public void OnDragScrubsThePullAnimation()
         {
             Rig rig = Build(true);
+            AnimationState load = rig.Animation["load"];
+            load.enabled = true;
+            Assert.That(load.enabled, Is.True);
             rig.Widget.OnDrag(0.075f);
+            Assert.That(load.enabled, Is.False, "Stop disables the other states");
             AnimationState pull = rig.Animation["pull"];
             Assert.That(Get(rig.Widget, "m_animationState"), Is.SameAs(pull));
             AssertState(pull, 0f, WrapMode.Default);

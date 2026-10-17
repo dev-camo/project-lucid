@@ -101,6 +101,7 @@ namespace ProjectLucid.Tests
 
         public void RunOnEnable() => OnEnable();
         public void RunOnDisable() => OnDisable();
+        public void RunOnRectTransformDimensionsChange() => OnRectTransformDimensionsChange();
         public Element RunInstantiate() => Instantiate();
         public void RunBaseDestroy(Element objectToDestroy) => base.Destroy(objectToDestroy);
         public void RunSetupContent() => SetupContent();

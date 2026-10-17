@@ -194,6 +194,31 @@ namespace ProjectLucid.Tests
             Near(horizontal.content.anchoredPosition, new Vector2(100f, 0f));
         }
 
+        // 0x1B6A438 / 0x1B6A948: with m_lerpScroll set both handlers start the lerp
+        // iterator instead of calling OnScroll. On the inactive HLSimpleScroll root
+        // StartCoroutine logs and returns null into m_coroutine, so nothing moves and the
+        // scroll stays armed; the active-root path is in OriginalHLSimpleScrollPlayTests.
+        [Test]
+        public void LerpScrollStartsTheIteratorInsteadOfScrolling()
+        {
+            HLSimpleScroll simple = Build(false, true, out HLScrollRect scroll);
+            Set(simple, typeof(HLSimpleScroll), "m_lerpScroll", true);
+            Arm(simple);
+            var inactive = new System.Text.RegularExpressions.Regex("Coroutine couldn't be started");
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Error, inactive);
+            simple.OnScrollUp(0.5f);
+            Near(scroll.content.anchoredPosition, Vector2.zero);
+            Assert.That(Armed(simple), Is.True);
+            Assert.That(Get(simple, typeof(HLSimpleScroll), "m_coroutine"), Is.Null);
+
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Error, inactive);
+            simple.OnScrollDown(0.5f);
+            Near(scroll.content.anchoredPosition, Vector2.zero);
+            Assert.That(Armed(simple), Is.True);
+            Assert.That(Get(simple, typeof(HLSimpleScroll), "m_coroutine"), Is.Null);
+        }
+
         // 0x1B6A62C..0x1B6A659: with both or neither axis enabled the step is zero, but the
         // scroll is still disarmed.
         [Test]
