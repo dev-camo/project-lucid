@@ -419,11 +419,13 @@ namespace ProjectLucid.Tests
             Assert.That(bound, Is.Not.Null);
             Assert.That(bound.GetValue(null), Is.Null, "foreign bound local achievements stay untouched");
             Assert.That(ProcessManager.IsSystemNull<App>(), Is.True, "no foreign live App for the pending login to reach");
-            // The GameCenter constructor subscribes to these actions and creates
-            // a missing row; own them before it runs.
+            // GameCenter (Initialise, AppShutdown, Update) and the GameCenterLocalPlayer
+            // it constructs (AppInitialise, AppShutdown) subscribe to these actions,
+            // creating any missing row; own them before the constructor runs.
             var actionRows = new VerificationFixtureOwnership.ActionRows(
-                SystemAction.Initialise, SystemAction.AppShutdown, SystemAction.Update);
+                SystemAction.Initialise, SystemAction.AppInitialise, SystemAction.AppShutdown, SystemAction.Update);
             GameCenter gameCenter = null;
+            GameCenterLocalPlayer localPlayer = null;
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
                 using (var owned = new OwnedServices())
@@ -454,12 +456,18 @@ namespace ProjectLucid.Tests
                     finally
                     {
                         // GameCenter registers itself and its local player into the owned rows.
+                        localPlayer = ProcessManager.GetSystemSafe<GameCenterLocalPlayer>(null, false);
                         owned.AdoptCurrent<GameCenterLocalPlayer>();
                         owned.AdoptCurrent<GameCenter>();
                     }
                 }
             },
-            () => { if (gameCenter != null) ProcessManager.UnsubscribeFromAllActions(gameCenter); },
+            () =>
+            {
+                // Safety net if row disposal throws before unregistering either system.
+                if (localPlayer != null) ProcessManager.UnsubscribeFromAllActions(localPlayer);
+                if (gameCenter != null) ProcessManager.UnsubscribeFromAllActions(gameCenter);
+            },
             actionRows.Dispose);
         }
 
