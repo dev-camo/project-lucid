@@ -11,7 +11,7 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class Actor : MonoBehaviour, ITimeScaled, IGraphUser, IHasVisualProxy
-    { // Original option order: NullChecks=false, ArrayBoundsChecks=false.
+    { // Exact C# spelling, native fault/inlining equivalence and Unity runtime parity remain held.
         // The original schema (36 fields, 152 methods) is authoritative.
         // 06000316 is a BeforeFieldInit initializer: original AngleAxis(180, up),
         // not Euler and not an explicit static constructor that clears BeforeFieldInit.

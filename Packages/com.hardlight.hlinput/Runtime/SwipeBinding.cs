@@ -8,8 +8,7 @@ namespace Hardlight
     // HLInput.Runtime 0x02000015: one declared method, three declared fields,
     // and NO original native constructor. The private base(modifiers) constructor
     // in StrippedBindingConstructionCompatibility.cs is extra, with zero original
-    // credit and never base(null) credit; engine asset, Instantiate and JSON
-    // routes remain pending.
+    // credit; engine asset, Instantiate and JSON routes remain pending.
     [Serializable]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
