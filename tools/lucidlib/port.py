@@ -160,7 +160,7 @@ def _project_lock(root):
     path = _physical(root / ".cache/project-lucid/locks/port.lock")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as stream:
-        if not bootstrap._try_lock(stream):
+        if not bootstrap.try_lock(stream):
             raise ValueError("Another port attempt owns this project")
         try:
             yield

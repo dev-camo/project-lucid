@@ -270,7 +270,7 @@ def exclusive_lock(stream):
 
 
 def unlock(stream) -> None:
-    """Release a lock taken by exclusive_lock or _try_lock on this host."""
+    """Release a lock taken by exclusive_lock or try_lock on this host."""
     if fcntl is not None:
         fcntl.flock(stream, fcntl.LOCK_UN)
     elif msvcrt is not None:
@@ -496,7 +496,7 @@ def verified_tool_path(work_dir: Path, name: str) -> Path:
     return directory / host_lock(lock)["artifacts"][name]["entrypoint"]
 
 
-def _try_lock(stream) -> bool:
+def try_lock(stream) -> bool:
     """Take an exclusive lock without waiting; False means another owner holds it."""
     if fcntl is not None:
         try:
@@ -575,7 +575,7 @@ def _prune_cpp2il_builds(tools: Path, builds: Path, warnings: list) -> None:
         except (OSError, ToolError) as exc:
             warnings.append(f"Skipped untrusted Cpp2IL lease {lease}: {exc}")
             continue
-        if not _try_lock(stream):
+        if not try_lock(stream):
             stream.close()
             continue
         # The owner has exited. Close the lease before deleting anything (Windows cannot
@@ -618,7 +618,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
     build_id = uuid.uuid4().hex
     directory = builds / build_id
     lease = _open_lease(builds / f"{build_id}.lock", create=True)
-    if not _try_lock(lease):
+    if not try_lock(lease):
         lease.close()
         raise ToolError(f"Fresh Cpp2IL build lease is unexpectedly held: {directory}")
     stage = builds / f".build-{build_id}"

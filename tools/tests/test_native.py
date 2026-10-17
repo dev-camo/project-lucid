@@ -1,10 +1,8 @@
 """Atomic native evidence runs and conservative provenance/selection checks."""
 
-import errno
 import hashlib
 import io
 import json
-import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -15,27 +13,7 @@ from unittest import mock
 
 from tools.lucidlib import native, bootstrap as bootstrap_module
 from tools.lucidlib.bootstrap import CACHE_ROOT, ToolError, load_lock
-
-
-class RegionMsvcrt:
-    """msvcrt.locking over real descriptors: one owner per file, like Windows byte-range locks."""
-    LK_UNLCK, LK_LOCK, LK_NBLCK = 0, 1, 2
-
-    def __init__(self):
-        self.held = {}
-        self.guard = threading.Lock()
-
-    def locking(self, fd, mode, length):
-        info = os.fstat(fd)
-        key = (info.st_dev, info.st_ino)
-        with self.guard:
-            if mode == self.LK_UNLCK:
-                if self.held.pop(key, None) != fd:
-                    raise OSError(errno.EACCES, "region not held by this descriptor")
-                return
-            if self.held.get(key, fd) != fd:
-                raise OSError(errno.EACCES if mode == self.LK_NBLCK else errno.EDEADLK, "region held")
-            self.held[key] = fd
+from fake_msvcrt import RegionMsvcrt
 
 
 class NativeHelpersTests(unittest.TestCase):
