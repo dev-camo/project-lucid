@@ -201,6 +201,22 @@ class ScriptBindingTests(unittest.TestCase):
                     run.assert_not_called()
                 source.write_bytes(original)
 
+    def test_public_variant_cannot_use_the_local_variant_binding_profile(self):
+        # Same 1.10.1 / 1022527550 release strings; hashes from the 1c24c1eb progress seal.
+        public = {"Contents/Frameworks/GameAssembly.dylib": "e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987",
+                  "Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat": "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837"}
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary = self.fixture(directory)
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary) as run:
+                with self.assertRaisesRegex(ValueError, "not been verified for this supplied release") as raised:
+                    resolve_bindings(root, work, export, mapping, input_fingerprint={"critical_files": public})
+                run.assert_not_called()
+            text = str(raised.exception)
+            for digest in public.values():
+                self.assertIn(digest, text)
+            self.assertIn("requires 6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216/"
+                          "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b", text)
+
     def test_another_game_release_cannot_use_identical_layout_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work, export, mapping, comparison, path, summary = self.fixture(directory)

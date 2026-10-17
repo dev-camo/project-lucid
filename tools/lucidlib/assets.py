@@ -25,6 +25,7 @@ import uuid
 from .audio import normalize_audio
 from .bootstrap import (ToolError, executable as native_executable, host_lock,
                         managed_path, tool_work_dir, validate_work_dir, verified_tool_path)
+from . import inputvariants
 from .inspection import _manifest, sha256_file
 
 
@@ -606,17 +607,21 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
     if not executable.is_file():
         raise FileNotFoundError(f"AssetRipper is missing at {executable}; run the bootstrap command first")
     executable = verified_tool_path(work, "assetripper")
+    manifest = _manifest(app)
+    fingerprint = fingerprint_manifest(manifest)
+    # Admit only a declared variant qualified for the prepare/binding chain, before
+    # any run directory or export exists; resolve_bindings repeats the code check.
+    variant = inputvariants.admit(fingerprint["critical_files"], inputvariants.ASSET_PREPARATION)
     run.mkdir(parents=True, exist_ok=False)
     project = _cache_path(work, run / "project")
-    manifest = _manifest(app)
     _json_write(_cache_path(work, run / "input-manifest.json"), {"files": manifest})
     tool = _tool_lock()
     tool["executable_sha256"] = sha256_file(executable)
     report = {"schema_version": SCHEMA_VERSION, "status": "running", "run_id": run_id,
               "input_path": str(app), "project_path": str(project), "log_path": str(run / "assetripper.log"),
               "asset_map_path": str(run / "asset-map.json"), "settings": dict(EXPORT_SETTINGS), "tool": tool,
-              "input_manifest_path": str(run / "input-manifest.json"), "input_fingerprint": fingerprint_manifest(manifest),
-              "warnings": ["Generated script bodies are placeholders and remain quarantined.",
+              "input_manifest_path": str(run / "input-manifest.json"), "input_fingerprint": fingerprint,
+              "input_variant": variant, "warnings": ["Generated script bodies are placeholders and remain quarantined.",
                            "Compiled shader data is preserved; shader source has not been reconstructed.",
                            "Catalog path matches require review before generating Addressables bindings."]}
     _json_write(_cache_path(work, run / "report.json"), report)

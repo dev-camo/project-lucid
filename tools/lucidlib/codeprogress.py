@@ -16,7 +16,7 @@ import struct
 import subprocess
 import uuid
 
-from . import native, playercode, playerschema, recovery
+from . import inputvariants, native, playercode, playerschema, recovery
 from .bootstrap import (dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path)
@@ -356,6 +356,9 @@ def public_counts(measurement, *, source, input_binary, input_metadata, scope_sh
                   "scope_sha256": scope_sha256, "compiler_receipt_sha256": compiler_receipt_sha256}
     if any(not isinstance(value, str) or HASH.fullmatch(value) is None for value in identities.values()):
         raise ValueError("Invalid sealed code-work identity")
+    # Progress is published per declared variant and never mixed with another
+    # variant's binding evidence; an undeclared input cannot be published.
+    inputvariants.require_code_variant(input_binary, input_metadata, inputvariants.CODE_PROGRESS)
     groups, totals = _count_groups(measurement)
     return {"schema_version": measurement["schema_version"], "generated_by": "ProjectLucid.code_progress", "measure": measurement["measure"], **identities,
             "assemblies": groups, "totals": totals, "behavior_parity_verified": False, "native_byte_matching_verified": False}

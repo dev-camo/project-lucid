@@ -14,6 +14,13 @@ import subprocess
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib import bootstrap, codeprogress
 
+# The e94d/88af pair sealed in docs/code-progress.json by 1c24c1eb, and the
+# 6c89/acb pair measured from the private local input; typed from that evidence.
+PROGRESS_BINARY = "e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987"
+PROGRESS_METADATA = "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837"
+LOCAL_BINARY = "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216"
+LOCAL_METADATA = "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b"
+
 
 class CodeWorkTests(unittest.TestCase):
     def signature(self, name="Calculate", **changes):
@@ -166,7 +173,7 @@ class CodeWorkTests(unittest.TestCase):
 
     def test_output_is_deterministic_and_public_counts_contain_no_raw_method_or_paths(self):
         measurement = self.measure()
-        report = codeprogress.public_counts(measurement, source="a" * 64, input_binary="b" * 64, input_metadata="c" * 64,
+        report = codeprogress.public_counts(measurement, source="a" * 64, input_binary=PROGRESS_BINARY, input_metadata=PROGRESS_METADATA,
                                             scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
         text = json.dumps(report, sort_keys=True) + codeprogress.render_readme_section(report)
         for forbidden in ("Sample.cs", "source_documents", "method_map", "native_pointer", "file_offset", "il_sha256", "<svg", ".cache/", "input/"):
@@ -176,7 +183,7 @@ class CodeWorkTests(unittest.TestCase):
 
     def test_public_content_identities_cannot_be_paths(self):
         with self.assertRaises(ValueError):
-            codeprogress.public_counts(self.measure(), source="/Users/example", input_binary="b" * 64, input_metadata="c" * 64,
+            codeprogress.public_counts(self.measure(), source="/Users/example", input_binary=PROGRESS_BINARY, input_metadata=PROGRESS_METADATA,
                                        scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
 
 
@@ -194,7 +201,7 @@ class AssemblyAvailabilityTests(unittest.TestCase):
 
     def public(self, measurement=None):
         return codeprogress.public_counts(self.measurement() if measurement is None else measurement,
-                                         source="a" * 64, input_binary="b" * 64, input_metadata="c" * 64,
+                                         source="a" * 64, input_binary=PROGRESS_BINARY, input_metadata=PROGRESS_METADATA,
                                          scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
 
     def test_unavailable_excludes_numerator_and_denominator_unrecovered_is_counted(self):
@@ -393,7 +400,7 @@ class NativeByteMapTests(unittest.TestCase):
 
 class PublicSnapshotTests(unittest.TestCase):
     def report(self):
-        return codeprogress.public_counts(CodeWorkTests().measure(), source="a" * 64, input_binary="b" * 64, input_metadata="c" * 64,
+        return codeprogress.public_counts(CodeWorkTests().measure(), source="a" * 64, input_binary=PROGRESS_BINARY, input_metadata=PROGRESS_METADATA,
                                          scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
 
     def test_injected_path_count_bool_or_unaccounted_counts_rejected(self):
@@ -407,6 +414,22 @@ class PublicSnapshotTests(unittest.TestCase):
             if change == "schema_bool": report["schema_version"] = True
             if change == "schema_float": report["schema_version"] = 1.0
             with self.assertRaises(ValueError): codeprogress.render_readme_section(report)
+
+    def test_snapshot_names_only_a_declared_input_variant(self):
+        report = self.report()
+        self.assertEqual("e94d-88af", codeprogress.inputvariants.code_variant(report["input_binary_sha256"], report["input_metadata_sha256"]))
+        local = codeprogress.public_counts(CodeWorkTests().measure(), source="a" * 64, input_binary=LOCAL_BINARY, input_metadata=LOCAL_METADATA,
+                                           scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
+        self.assertEqual(local, codeprogress.validate_public_counts(local))
+        # Mixed halves of two declared variants and an unknown pair are not a variant.
+        for binary, metadata in ((PROGRESS_BINARY, LOCAL_METADATA), (LOCAL_BINARY, PROGRESS_METADATA), ("b" * 64, "c" * 64)):
+            with self.subTest(binary=binary[:4], metadata=metadata[:4]):
+                with self.assertRaisesRegex(ValueError, "variant is not declared"):
+                    codeprogress.public_counts(CodeWorkTests().measure(), source="a" * 64, input_binary=binary, input_metadata=metadata,
+                                               scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
+                changed = dict(report, input_binary_sha256=binary, input_metadata_sha256=metadata)
+                with self.assertRaisesRegex(ValueError, "variant is not declared"):
+                    codeprogress.validate_public_counts(changed)
 
     def test_snapshot_source_or_scope_drift_rejected_offline(self):
         report = self.report()
@@ -474,6 +497,10 @@ class WrapperPublicationTests(unittest.TestCase):
         self.stack.enter_context(patch.object(codeprogress.recovery, "_resolve_input", return_value=(self.root, self.binary, self.metadata, codeprogress.UNITY_VERSION)))
         self.stack.enter_context(patch.object(codeprogress.recovery, "_thin_binary", return_value=(self.thin, "x86_64")))
         self.stack.enter_context(patch.object(codeprogress, "_build_reader", side_effect=self.build_reader))
+        # The synthetic input is declared only for this test's progress publication.
+        self.stack.enter_context(patch.dict(codeprogress.inputvariants.VARIANTS, {"synthetic": {
+            "binary_sha256": codeprogress.sha256_file(self.binary), "metadata_sha256": codeprogress.sha256_file(self.metadata),
+            "info_plist_sha256": None, "x86_64_slice_sha256": None, "qualified": frozenset((codeprogress.inputvariants.CODE_PROGRESS,))}}))
         self.stack.enter_context(patch.object(codeprogress.playercode, "_pe_identity", return_value={"mvid": self.mvid, "assembly_name": "Cpp2IL.Core"}))
         self.stack.enter_context(patch.object(codeprogress.subprocess, "run", side_effect=self.reader_process))
 

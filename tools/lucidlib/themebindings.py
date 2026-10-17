@@ -9,7 +9,7 @@ import json
 import math
 import re
 import struct
-from . import bindings, themecontracts
+from . import bindings, inputvariants, themecontracts
 
 THEME = ('Game.Runtime', 'HardlightProject.ZoneThemeOverride')
 ADDRESSABLE = 'Unity.Addressables'
@@ -46,9 +46,13 @@ ORIGINAL_SCHEMA = '74fe03b9f86733de89ff90ad39d5e27c1d40d2606ccdd23d61b40ac0129de
 # acceptance condition. Every current inventory/receipt keeps its own raw SHA.
 ORIGINAL_SCHEMA_CONTENT = '670f363a2ae89114dd3681430f636ccaee03809a509c5a06e38d5b24aaba62d7'
 ORIGINAL_CONTEXT_PATHS = ('native_binary', 'metadata', 'output_dir')
+# The reviewed schema content was read from the thin x86_64 slice of one declared
+# variant; Theme diagnostics stay bound to that variant's own inputs.
+ORIGINAL_INPUT_VARIANT = '6c89-acb'
+_THEME_INPUT = inputvariants.variant(ORIGINAL_INPUT_VARIANT, inputvariants.THEME_DIAGNOSTICS)
 ORIGINAL_INPUT_SHA256 = {
-    'native_binary': '797ef6ac359e8dbfc83d97a6148fe9aa7ac85113217e3013e00c3c5b30502c94',
-    'metadata': 'acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b',
+    'native_binary': _THEME_INPUT['x86_64_slice_sha256'],
+    'metadata': _THEME_INPUT['metadata_sha256'],
 }
 AA_SOURCE = '964dc8d67a9d9d4d0a62c67706b3e52963a708a586238a1090e18ccbcef2e5d1'
 SERIALIZER = '87bc9d79cc791c4c9f898bb6949895b8f02077f886dd9c23867b22fd4202fb55'

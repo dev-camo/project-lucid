@@ -411,6 +411,18 @@ class AssetTests(unittest.TestCase):
         data = app / "Contents/Resources/Data"
         data.mkdir(parents=True)
         (data / "globalgamemanagers").write_bytes(b"Unity")
+        critical = {"Contents/Frameworks/GameAssembly.dylib": b"synthetic code",
+                    "Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat": b"synthetic metadata",
+                    "Contents/Info.plist": b"synthetic plist"}
+        for relative, content in critical.items():
+            (app / relative).parent.mkdir(parents=True, exist_ok=True)
+            (app / relative).write_bytes(content)
+        digest = {relative: hashlib.sha256(content).hexdigest() for relative, content in critical.items()}
+        # Admit the synthetic bundle as its own declared variant for this test only.
+        synthetic = {"binary_sha256": digest["Contents/Frameworks/GameAssembly.dylib"],
+                     "metadata_sha256": digest["Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat"],
+                     "info_plist_sha256": digest["Contents/Info.plist"], "x86_64_slice_sha256": None,
+                     "qualified": frozenset((assets.inputvariants.ASSET_PREPARATION,))}
         tool = executable(self.work / "tools/assetripper/AssetRipper.GUI.Free")
         tool.parent.mkdir(parents=True)
         tool.write_text("synthetic")
@@ -418,7 +430,8 @@ class AssetTests(unittest.TestCase):
         assets._json_write(pointer, {"status": "exported", "run_id": "previous"})
         console = mock.Mock()
         process = mock.Mock()
-        with mock.patch.object(assets, "verified_tool_path", return_value=tool), \
+        with mock.patch.dict(assets.inputvariants.VARIANTS, {"synthetic": synthetic}), \
+             mock.patch.object(assets, "verified_tool_path", return_value=tool), \
              mock.patch.object(assets, "_start_ripper", return_value=(process, "http://127.0.0.1:1", console)), \
              mock.patch.object(assets, "_request", side_effect=RuntimeError("synthetic export failure")), \
              mock.patch.object(assets, "_stop_ripper"):
@@ -427,6 +440,7 @@ class AssetTests(unittest.TestCase):
         self.assertEqual(json.loads(pointer.read_text())["run_id"], "previous")
         reports = list((self.work / "assets/runs").glob("*/report.json"))
         self.assertEqual(json.loads(reports[0].read_text())["status"], "failed")
+        self.assertEqual(json.loads(reports[0].read_text())["input_variant"], "synthetic")
 
 
 if __name__ == "__main__":

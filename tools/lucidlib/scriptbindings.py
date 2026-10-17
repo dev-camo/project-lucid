@@ -7,6 +7,7 @@ import struct
 from pathlib import Path
 import re
 
+from . import inputvariants
 from .bindings import run_layout_inventory
 from .verification import artifact_fingerprint
 
@@ -14,13 +15,17 @@ from .verification import artifact_fingerprint
 # These are maintained implementations, not exported declarations. New types
 # require native behavior recovery and a real Unity serialization proof before
 # joining this list. Each supplied release still gets a strict layout comparison.
+# Every rule's behaviour and layout evidence was recovered from this one declared
+# input variant; another variant needs its own evidence, not a shared release string.
+BINDING_VARIANT = "6c89-acb"
+BINDING_INPUT = inputvariants.variant(BINDING_VARIANT, inputvariants.SCRIPT_BINDINGS)
 RULES = ({
     "assembly": "Game.Runtime",
     "full_name": "HardlightProject.LevelStartPositionDefinition",
     "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/LevelStartPositionDefinition.cs",
     "maintained_path": "Assets/Scripts/Definitions/LevelStartPositionDefinition.cs",
-    "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-    "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
     "runtime_sources": {
         "Assets/Scripts/Definitions/LevelStartPositionDefinition.cs": "13283ab5c73e5d97032f1be3b2be1478708fa187999f5943b14c9295dbf7a92f",
         "Packages/com.hardlight.hlunitycore/Runtime/ScriptableObjectWithGuid.cs": "befb87c3cc9068308cfa3e8965ceb82602974ffcb6380a894cd68d03e364629a",
@@ -31,8 +36,8 @@ RULES = ({
     "full_name": "HardlightProject.LevelDefinition",
     "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/LevelDefinition.cs",
     "maintained_path": "Assets/Scripts/Definitions/LevelDefinition.cs",
-    "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-    "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
     "runtime_sources": {
         "Assets/Scripts/Definitions/LevelDefinition.cs": "e1789c615fe0c7d6156d6ea84a355afb270706e274647fda8d9737c4668d3774",
         "Assets/Scripts/Definitions/ILevelDefinition.cs": "a3fb7c57bad19ec9224b97ba969c03e72cd72b84adfc1e92e6b9b9ec1ac8aec9",
@@ -61,8 +66,8 @@ PACKAGE_RULES = (
         "full_name": "UnityEngine.UI.LayoutElement",
         "export_path": "Assets/Scripts/UnityEngine.UI/UnityEngine/UI/LayoutElement.cs",
         "maintained_path": "Packages/com.unity.ugui/Runtime/UI/Core/Layout/LayoutElement.cs",
-        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "binary_sha256": BINDING_INPUT["binary_sha256"],
+        "metadata_sha256": BINDING_INPUT["metadata_sha256"],
         "package": "com.unity.ugui",
         "runtime_sources": UGUI_RUNTIME_SOURCES
     },
@@ -71,8 +76,8 @@ PACKAGE_RULES = (
         "full_name": "UnityEngine.UI.ContentSizeFitter",
         "export_path": "Assets/Scripts/UnityEngine.UI/UnityEngine/UI/ContentSizeFitter.cs",
         "maintained_path": "Packages/com.unity.ugui/Runtime/UI/Core/Layout/ContentSizeFitter.cs",
-        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "binary_sha256": BINDING_INPUT["binary_sha256"],
+        "metadata_sha256": BINDING_INPUT["metadata_sha256"],
         "package": "com.unity.ugui",
         "runtime_sources": UGUI_RUNTIME_SOURCES
     },
@@ -81,8 +86,8 @@ PACKAGE_RULES = (
         "full_name": "UnityEngine.UI.AspectRatioFitter",
         "export_path": "Assets/Scripts/UnityEngine.UI/UnityEngine/UI/AspectRatioFitter.cs",
         "maintained_path": "Packages/com.unity.ugui/Runtime/UI/Core/Layout/AspectRatioFitter.cs",
-        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "binary_sha256": BINDING_INPUT["binary_sha256"],
+        "metadata_sha256": BINDING_INPUT["metadata_sha256"],
         "package": "com.unity.ugui",
         "runtime_sources": UGUI_RUNTIME_SOURCES
     },
@@ -119,8 +124,8 @@ CONFIGURATION_RULES = (
         "full_name": "Hardlight.ActiveRuntimeConfiguration",
         "export_path": "Assets/Scripts/HLUnityCore.Runtime/Hardlight/ActiveRuntimeConfiguration.cs",
         "maintained_path": "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/ActiveRuntimeConfiguration.cs",
-        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "binary_sha256": BINDING_INPUT["binary_sha256"],
+        "metadata_sha256": BINDING_INPUT["metadata_sha256"],
         "runtime_sources": CONFIGURATION_RUNTIME_SOURCES,
     },
     {
@@ -128,8 +133,8 @@ CONFIGURATION_RULES = (
         "full_name": "Hardlight.RuntimeConfiguration",
         "export_path": "Assets/Scripts/HLUnityCore.Runtime/Hardlight/RuntimeConfiguration.cs",
         "maintained_path": "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/Configuration/RuntimeConfiguration.cs",
-        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "binary_sha256": BINDING_INPUT["binary_sha256"],
+        "metadata_sha256": BINDING_INPUT["metadata_sha256"],
         "runtime_sources": CONFIGURATION_RUNTIME_SOURCES,
     },
     {
@@ -137,8 +142,8 @@ CONFIGURATION_RULES = (
         "full_name": "HardlightProject.GameLevels",
         "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/GameLevels.cs",
         "maintained_path": "Assets/Scripts/Game/Configuration/GameLevels.cs",
-        "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-        "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+        "binary_sha256": BINDING_INPUT["binary_sha256"],
+        "metadata_sha256": BINDING_INPUT["metadata_sha256"],
         "runtime_sources": CONFIGURATION_RUNTIME_SOURCES,
     },
 )
@@ -172,8 +177,8 @@ MENU_CONFIGURATION_RULES = (
         'full_name': 'HardlightProject.CoreGameConfiguration',
         'export_path': 'Assets/Scripts/Game.Runtime/HardlightProject/CoreGameConfiguration.cs',
         'maintained_path': 'Assets/Scripts/Game/Configuration/CoreGameConfiguration.cs',
-        'binary_sha256': '6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216',
-        'metadata_sha256': 'acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b',
+        'binary_sha256': BINDING_INPUT["binary_sha256"],
+        'metadata_sha256': BINDING_INPUT["metadata_sha256"],
         "runtime_sources": MENU_CONFIGURATION_RUNTIME_SOURCES,
     },
     {
@@ -181,8 +186,8 @@ MENU_CONFIGURATION_RULES = (
         'full_name': 'Hardlight.HLLocalisationConfigurationAsset',
         'export_path': 'Assets/Scripts/HLLocalisation.Runtime/Hardlight/HLLocalisationConfigurationAsset.cs',
         'maintained_path': 'Packages/com.hardlight.hllocalisation/Runtime/HLLocalisationConfigurationAsset.cs',
-        'binary_sha256': '6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216',
-        'metadata_sha256': 'acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b',
+        'binary_sha256': BINDING_INPUT["binary_sha256"],
+        'metadata_sha256': BINDING_INPUT["metadata_sha256"],
         "runtime_sources": MENU_CONFIGURATION_RUNTIME_SOURCES,
     },
     {
@@ -190,8 +195,8 @@ MENU_CONFIGURATION_RULES = (
         'full_name': 'HardlightProject.HashedGroupConfiguration',
         'export_path': 'Assets/Scripts/Game.Runtime/HardlightProject/HashedGroupConfiguration.cs',
         'maintained_path': 'Assets/Scripts/RecoveredProof/HashedGroupConfiguration.cs',
-        'binary_sha256': '6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216',
-        'metadata_sha256': 'acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b',
+        'binary_sha256': BINDING_INPUT["binary_sha256"],
+        'metadata_sha256': BINDING_INPUT["metadata_sha256"],
         "runtime_sources": MENU_CONFIGURATION_RUNTIME_SOURCES,
     },
 )
@@ -213,8 +218,8 @@ DATA_DEFINITIONS_RULES = ({
     "full_name": "HardlightProject.DataDefinitions",
     "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/DataDefinitions.cs",
     "maintained_path": "Assets/Scripts/Definitions/DataDefinitions.cs",
-    "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-    "metadata_sha256": "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
     "runtime_sources": DATA_DEFINITIONS_RUNTIME_SOURCES,
 },)
 RULES += DATA_DEFINITIONS_RULES
@@ -302,7 +307,10 @@ def resolve_bindings(repo_root, work_dir, exported_project, asset_map, *, input_
                 raise ValueError("Maintained script behavior changed; review before binding: " + relative)
         if critical.get("Contents/Frameworks/GameAssembly.dylib") != rule["binary_sha256"] or critical.get(
                 "Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat") != rule["metadata_sha256"]:
-            raise ValueError("Script behavior has not been verified for this supplied release")
+            raise ValueError("Script behavior has not been verified for this supplied release: GameAssembly.dylib " +
+                             str(critical.get(inputvariants.GAME_ASSEMBLY)) + ", global-metadata.dat " +
+                             str(critical.get(inputvariants.METADATA)) + "; " + rule["full_name"] + " requires " +
+                             rule["binary_sha256"] + "/" + rule["metadata_sha256"])
 
     summary = run_layout_inventory(root, work)
     if summary.get("status") != "compared" or summary.get("source_freshness_verified") is not True:
