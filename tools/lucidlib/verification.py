@@ -2626,4 +2626,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSkewTests.ModifyVerticesShearsAboutTheStreamWeightedCentre",
     "ProjectLucid.Tests.OriginalSkewTests.DisabledModifyMeshLeavesTheIndexedMeshUntouched",
     "ProjectLucid.Tests.OriginalSkewTests.ActiveModifyMeshRebuildsASkewedTriangleStream",
+    "ProjectLucid.Tests.OriginalSkewTests.EnableDirtiesTheGraphicBeforeTheResetLerpZeroesTheSkew",
+    "ProjectLucid.Tests.OriginalSkewTests.ModifyVerticesAddsEachEntryOverCountIntoTheCentre",
+    "ProjectLucid.Tests.OriginalSkewTests.SkewChangesAndLerpStepsDoNotDirtyTheGraphic",
+    "ProjectLucid.Tests.OriginalSkewTests.InactiveOwnerModifyMeshLeavesTheIndexedMeshUntouched",
+    "ProjectLucid.Tests.OriginalSkewTests.ZeroLerpTimeStoresAnInfiniteTimerAndFinishesAfterOneYield",
+)
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalSkewPlayTests.ZeroTimeScaleHoldsTheResetLerpAtZeroSkew",
 )

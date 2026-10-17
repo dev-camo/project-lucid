@@ -10,6 +10,7 @@ using NUnit.Framework;
 using Unity.IL2CPP.CompilerServices;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
 using OriginalSkew = Hardlight.Skew;
@@ -571,6 +572,158 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // OnEnable 0x1B4F85C calls BaseMeshEffect.OnEnable first, which (ugui 1.0.0
+        // BaseMeshEffect.OnEnable) runs graphic.SetVerticesDirty(); only then 0x1B4F861
+        // tests +0x30 and starts the reset lerp, whose synchronous first step zeroes X.
+        // The one dirty callback therefore sees the authored X = 2. Fails with [] for a
+        // dropped base call and with [0] for a coroutine started before it.
+        [Test]
+        public void EnableDirtiesTheGraphicBeforeTheResetLerpZeroesTheSkew()
+        {
+            using (var fixture = new Fixture("OriginalSkew-enable-dirty", true))
+            {
+                SetLerpFlag(fixture.Skew, true);
+                SetLerpTime(fixture.Skew, float.PositiveInfinity);
+                SetSkew(fixture.Skew, 2f, 5f);
+                fixture.Skew.enabled = false;
+                Image image = fixture.Owner.GetComponent<Image>();
+                var seen = new List<float>();
+                UnityAction probe = () => seen.Add(SkewX(fixture.Skew));
+                image.RegisterDirtyVerticesCallback(probe);
+                try
+                {
+                    fixture.Skew.enabled = true;
+                }
+                finally
+                {
+                    image.UnregisterDirtyVerticesCallback(probe);
+                }
+                Assert.That(seen, Is.EqualTo(new[] { 2f }));
+                Assert.That(SkewX(fixture.Skew), Is.EqualTo(0f));
+                Assert.That(SkewY(fixture.Skew), Is.EqualTo(0f));
+            }
+        }
+
+        // 0x1B4F6A2..0x1B4F6C2: every entry is divided by the Count reloaded from +0x18
+        // (divps) and the quotient is added to the running centre. For x = 1, 2, 4 that
+        // gives centre.x 0x40155556, so with m_skewY 1 the new y values are exactly
+        // 0xbfaaaaac, 0xbeaaaab0 and 0x3fd55554. Summing first and dividing once gives
+        // centre.x 0x40155555 and y values 0xbfaaaaaa, 0xbeaaaaa8 and 0x3fd55556.
+        [Test]
+        public void ModifyVerticesAddsEachEntryOverCountIntoTheCentre()
+        {
+            using (var fixture = new Fixture("OriginalSkew-centre-order", false))
+            {
+                SetSkew(fixture.Skew, 0f, 1f);
+                float[] xs = { 1f, 2f, 4f };
+                List<UIVertex> verts = xs.Select((x, i) => Vertex(new Vector3(x, 0f, 0f), i)).ToList();
+                fixture.Skew.ModifyVertices(verts);
+                int[] expectedY = { unchecked((int)0xbfaaaaac), unchecked((int)0xbeaaaab0), 0x3fd55554 };
+                for (int i = 0; i < xs.Length; ++i)
+                {
+                    Assert.That(Bits(verts[i].position.y), Is.EqualTo(expectedY[i]), "y " + i);
+                    Assert.That(verts[i].position.x, Is.EqualTo(xs[i]), "x " + i);
+                    Assert.That(verts[i].position.z, Is.EqualTo(0f), "z " + i);
+                }
+            }
+        }
+
+        // ChangeSkewAmount 0x1B4F980..0x1B4F9FE and MoveNext 0x1B4FA40..0x1B4FB5C only
+        // store the skew fields and touch no graphic, so no step marks the vertices
+        // dirty. Fails for a SetVerticesDirty added after the stores or per lerp step.
+        [Test]
+        public void SkewChangesAndLerpStepsDoNotDirtyTheGraphic()
+        {
+            using (var fixture = new Fixture("OriginalSkew-no-dirty", true))
+            {
+                Image image = fixture.Owner.GetComponent<Image>();
+                int dirty = 0;
+                UnityAction probe = () => ++dirty;
+                image.RegisterDirtyVerticesCallback(probe);
+                try
+                {
+                    SetLerpTime(fixture.Skew, float.PositiveInfinity);
+                    fixture.Skew.ChangeSkewAmount(3f, -2f, true);
+                    Assert.That(SkewX(fixture.Skew), Is.EqualTo(3f));
+                    Assert.That(SkewY(fixture.Skew), Is.EqualTo(-2f));
+                    fixture.Skew.ChangeSkewAmount(1f, 1f, false);
+                    Assert.That(SkewX(fixture.Skew), Is.EqualTo(1f));
+                    Assert.That(SkewY(fixture.Skew), Is.EqualTo(1f));
+
+                    SetSkew(fixture.Skew, 4f, -8f);
+                    IEnumerator lerp = Lerp(fixture.Skew, true);
+                    Assert.That(lerp.MoveNext(), Is.True);
+                    Assert.That(SkewX(fixture.Skew), Is.EqualTo(0f));
+                    Assert.That(SkewY(fixture.Skew), Is.EqualTo(0f));
+                    Set(lerp, "<timer>5__4", 0.5f);
+                    Assert.That(lerp.MoveNext(), Is.True);
+                    Assert.That(SkewX(fixture.Skew), Is.EqualTo(2f));
+                    Assert.That(SkewY(fixture.Skew), Is.EqualTo(-4f));
+                    Set(lerp, "<timer>5__4", 7f);
+                    Assert.That(lerp.MoveNext(), Is.True);
+                    Assert.That(SkewX(fixture.Skew), Is.EqualTo(4f));
+                    Assert.That(SkewY(fixture.Skew), Is.EqualTo(-8f));
+                }
+                finally
+                {
+                    image.UnregisterDirtyVerticesCallback(probe);
+                }
+                Assert.That(dirty, Is.EqualTo(0));
+                LogAssert.NoUnexpectedReceived();
+            }
+        }
+
+        // 0x1B4F555 gates on the virtual UIBehaviour.IsActive (vcall slot 9), not on
+        // `enabled`: an enabled Skew on an inactive GameObject still leaves the mesh.
+        [Test]
+        public void InactiveOwnerModifyMeshLeavesTheIndexedMeshUntouched()
+        {
+            using (var fixture = new Fixture("OriginalSkew-mesh-inactive", false))
+            {
+                Assert.That(fixture.Skew.enabled, Is.True);
+                Assert.That(fixture.Skew.IsActive(), Is.False);
+                SetSkew(fixture.Skew, 0.75f, 0.5f);
+                using (VertexHelper vh = Quad())
+                {
+                    List<UIVertex> before = Stream(vh);
+                    fixture.Skew.ModifyMesh(vh);
+                    Assert.That(vh.currentVertCount, Is.EqualTo(4));
+                    Assert.That(vh.currentIndexCount, Is.EqualTo(6));
+                    List<UIVertex> after = Stream(vh);
+                    Assert.That(after.Count, Is.EqualTo(before.Count));
+                    for (int i = 0; i < after.Count; ++i)
+                    {
+                        Assert.That(after[i].position, Is.EqualTo(before[i].position));
+                        CheckOtherChannels(before[i], after[i]);
+                    }
+                }
+            }
+        }
+
+        // No lerp-time guard: divss 0x1B4FAC1 stores dt / 0 = +inf as the timer, and the
+        // clamp 0x1B4FAD1..0x1B4FAE5 gives t = 1, so the first step yields with the full
+        // pair and the next step finishes. Fails for an early restore on m_lerpTime <= 0.
+        [Test]
+        public void ZeroLerpTimeStoresAnInfiniteTimerAndFinishesAfterOneYield()
+        {
+            using (var fixture = new Fixture("OriginalSkew-zero-lerptime", false))
+            {
+                SetLerpTime(fixture.Skew, 0f);
+                SetSkew(fixture.Skew, 4f, -8f);
+                IEnumerator lerp = Lerp(fixture.Skew, true);
+                Assume.That(Time.deltaTime, Is.GreaterThan(0f));
+                Assert.That(lerp.MoveNext(), Is.True);
+                Assert.That(Get(lerp, "<timer>5__4"), Is.EqualTo(float.PositiveInfinity));
+                Assert.That(Get(lerp, "<>1__state"), Is.EqualTo(1));
+                Assert.That(SkewX(fixture.Skew), Is.EqualTo(4f));
+                Assert.That(SkewY(fixture.Skew), Is.EqualTo(-8f));
+                Assert.That(lerp.MoveNext(), Is.False);
+                Assert.That(Get(lerp, "<>1__state"), Is.EqualTo(-1));
+                Assert.That(SkewX(fixture.Skew), Is.EqualTo(4f));
+                Assert.That(SkewY(fixture.Skew), Is.EqualTo(-8f));
+            }
+        }
+
         private sealed class Fixture : IDisposable
         {
             public readonly GameObject Owner;
@@ -605,6 +758,7 @@ namespace ProjectLucid.Tests
             return (IEnumerator)typeof(OriginalSkew).GetMethod("LerpToSkew", Own).Invoke(skew, new object[] { reset });
         }
 
+        private static int Bits(float value) => BitConverter.ToInt32(BitConverter.GetBytes(value), 0);
         private static object Get(object target, string name) => target.GetType().GetField(name, Own).GetValue(target);
         private static void Set(object target, string name, object value) => target.GetType().GetField(name, Own).SetValue(target, value);
         private static float SkewX(OriginalSkew skew) => (float)Get(skew, "m_skewX");
