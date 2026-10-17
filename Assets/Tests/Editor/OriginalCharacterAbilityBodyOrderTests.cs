@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace ProjectLucid.Editor
 {
-    // Static checks on four Game.Runtime bodies, plus one value check on an engine operator a gate
+    // Static checks on Game.Runtime bodies, plus one value check on an engine operator a gate
     // binds to. Running the bodies needs a fully started Character (brain from OnStart, App, FSM,
     // physics), which a test cannot build without fakes.
     // The expected call sets and order come from the 1.10.1 x86-64 bodies cited per test, not
@@ -141,6 +141,41 @@ namespace ProjectLucid.Editor
             Assert.That(refs.Count(m => Same(m, division)), Is.EqualTo(1));
             Assert.That(refs.Count(m => Same(m, raycast)), Is.EqualTo(1));
             Assert.That(new[] { Index(refs, m => Same(m, magnitude)), Index(refs, m => Same(m, division)), Index(refs, m => Same(m, raycast)) },
+                Is.Ordered.Ascending.And.Unique);
+        }
+
+        // 06001038 (RVA 0xE5D960): loads this.m_character, calls Character.get_SaveDataSettings (0xE5D96A)
+        // and returns cmp byte [rax+0x40], 0 / sete. In dump.cs +0x40 is m_airAbilityHold and
+        // m_gameSpeedToggleEnabled is +0x64. The override reads neither Definition nor Input.
+        [Test]
+        public void ChaosControlContinuousCheckNegatesOnlyTheAirAbilityHoldSetting()
+        {
+            List<MemberInfo> refs = References(Method(typeof(CharacterAbility_AirChaos<>), "IsControlContinuous"));
+            MethodInfo saveDataSettings = Getter(typeof(Character), "SaveDataSettings");
+            MethodInfo airAbilityHold = Getter(typeof(SaveDataSettings), "AirAbilityHold");
+            Assert.That(refs.Count(m => Same(m, airAbilityHold)), Is.EqualTo(1));
+            Assert.That(refs.Count(m => Same(m, Getter(typeof(SaveDataSettings), "GameSpeedToggleEnabled"))), Is.EqualTo(0),
+                "+0x40 is not the game speed toggle");
+            Assert.That(refs.Count(m => m.Name == "get_Definition" || m.Name == "get_CharacterAbilityDefinition" || m.Name == "Input"),
+                Is.EqualTo(0), "the definition input type is not consulted");
+            Assert.That(Index(refs, m => Same(m, saveDataSettings)), Is.LessThan(Index(refs, m => Same(m, airAbilityHold))));
+        }
+
+        // 06001024 (RVA 0x73C560): get_Definition (0x73C592), then Input (+0xCC) compared with
+        // Continuous (0x73C597). Only on a match does it call get_SaveDataSettings (0x73C5A9) and
+        // return the negated +0x40 (m_airAbilityHold) byte; otherwise it returns false.
+        [Test]
+        public void AirContinuousCheckReadsTheDefinitionInputBeforeTheAirAbilityHoldSetting()
+        {
+            List<MemberInfo> refs = References(Method(typeof(CharacterAbility_Air), "IsControlContinuous"));
+            MethodInfo definition = Getter(typeof(CharacterAbility<CharacterAbilityDefinition_Air>), "Definition");
+            FieldInfo input = Field(typeof(CharacterAbilityDefinition_Air), "Input");
+            MethodInfo saveDataSettings = Getter(typeof(Character), "SaveDataSettings");
+            MethodInfo airAbilityHold = Getter(typeof(SaveDataSettings), "AirAbilityHold");
+            Assert.That(refs.Count(m => Same(m, airAbilityHold)), Is.EqualTo(1));
+            Assert.That(refs.Count(m => Same(m, Getter(typeof(SaveDataSettings), "GameSpeedToggleEnabled"))), Is.EqualTo(0));
+            Assert.That(new[] { Index(refs, m => Same(m, definition)), Index(refs, m => Same(m, input)),
+                    Index(refs, m => Same(m, saveDataSettings)), Index(refs, m => Same(m, airAbilityHold)) },
                 Is.Ordered.Ascending.And.Unique);
         }
 
