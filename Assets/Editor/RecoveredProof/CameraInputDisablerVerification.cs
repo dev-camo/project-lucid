@@ -234,8 +234,14 @@ namespace ProjectLucid.Verification
         }
         // GetSystemRef<InputSystem>(null, true) creates the InputSystem row, or a typed
         // entry in an existing row, on first use. The fixture owns only what it found
-        // absent: a created row is removed and a typed entry added to a borrowed row is
-        // dropped, each only once idle again; a borrowed row keeps identity and position.
+        // absent: a created row is removed through ReleaseEmptyRow only once every reference
+        // in it is empty, and a typed entry added to a borrowed row is dropped once its
+        // observers and deferred InvokeOnValid work are empty (its system value may mirror a
+        // live borrowed system); a borrowed row keeps identity and position.
+        // VerificationFixtureOwnership.LifecycleRow is not used: it requires a borrowed row to
+        // be idle on admission and release, but a borrowed InputSystem row may hold foreign
+        // observers that RegistryLease revokes and later restores, and its borrowLiveSystem
+        // mode skips release and would keep the added typed entry.
         sealed class FirstUseRow : IDisposable
         {
             static readonly string[] Observers = { "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" };
