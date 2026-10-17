@@ -399,6 +399,92 @@ class AssetTests(unittest.TestCase):
         self.assertEqual((self.root / "first/value").read_text(), "old")
         self.assertEqual((self.root / "second/value").read_text(), "old")
 
+    def test_failed_backup_retention_or_receipt_write_restores_prior_prepared_trees(self):
+        project = self.make_export()
+        maintained = self.repo / "Assets/Scripts/Maintained.cs"
+        maintained.parent.mkdir(parents=True)
+        maintained.write_text("class Maintained {}")
+        assets.prepare_assets(self.repo, self.work)
+        receipt = self.work / "assets/latest-prepare.json"
+        backups_root = self.work / "assets/backups"
+
+        def snapshot():
+            root = self.repo / "Assets"
+            return {path.relative_to(root).as_posix(): path.read_bytes() if path.is_file() else None
+                    for path in sorted(root.rglob("*"))}
+
+        prior_tree, prior_receipt = snapshot(), receipt.read_bytes()
+        scene = project / "Assets/Scenes/demo.unity"
+        scene.write_text(scene.read_text() + "# second export\n")
+        assets._json_write(project.parent / "asset-map.json", assets.build_asset_map(project))
+        original_move, original_write = assets.shutil.move, assets._json_write
+
+        def failing_move(fail_at):
+            calls = []
+
+            def move(source, destination):
+                calls.append(source)
+                if len(calls) == fail_at:
+                    raise OSError("injected backup retention failure")
+                return original_move(source, destination)
+            return mock.patch.object(assets.shutil, "move", move)
+
+        def failing_receipt_write(path, value):
+            if Path(path).name == "latest-prepare.json":
+                raise OSError("injected receipt write failure")
+            return original_write(path, value)
+
+        faults = {"first backup move": failing_move(1), "second backup move": failing_move(2),
+                  "receipt write": mock.patch.object(assets, "_json_write", failing_receipt_write)}
+        for name, fault in faults.items():
+            with self.subTest(fault=name):
+                with fault, self.assertRaisesRegex(OSError, "injected"):
+                    assets.prepare_assets(self.repo, self.work)
+                self.assertEqual(prior_tree, snapshot())
+                self.assertEqual(prior_receipt, receipt.read_bytes())
+                self.assertEqual([], list((self.repo / "Assets").glob(".lucid-assets-*")))
+                self.assertEqual([], list((self.repo / "Assets").glob(".*.backup-*")))
+                self.assertEqual([], list(backups_root.iterdir()) if backups_root.exists() else [])
+
+        result = assets.prepare_assets(self.repo, self.work)
+        self.assertIn("# second export", (self.repo / "Assets/Recovered/Scenes/demo.unity").read_text())
+        recorded = json.loads(receipt.read_text())
+        self.assertEqual(result, recorded)
+        self.assertEqual("test", recorded["run_id"])
+        retained = sorted(path for directory in backups_root.iterdir() for path in directory.iterdir())
+        self.assertEqual(2, len(retained))
+        self.assertEqual(sorted(str(path) for path in retained), sorted(recorded["backup_paths"]))
+        self.assertEqual([prior_tree["Recovered/Scenes/demo.unity"]],
+                         [(Path(path) / "Scenes/demo.unity").read_bytes() for path in recorded["backup_paths"]
+                          if (Path(path) / "Scenes/demo.unity").is_file()])
+        self.assertEqual("class Maintained {}", maintained.read_text())
+
+    def test_failed_restore_after_receipt_failure_retains_prior_copies_and_names_them(self):
+        self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        original_move, original_write = assets.shutil.move, assets._json_write
+
+        def failing_receipt_write(path, value):
+            if Path(path).name == "latest-prepare.json":
+                raise OSError("injected receipt write failure")
+            return original_write(path, value)
+
+        def move(source, destination):
+            if Path(destination).parent.name == "Assets":
+                raise OSError("injected restore failure")
+            return original_move(source, destination)
+
+        with mock.patch.object(assets, "_json_write", failing_receipt_write), \
+                mock.patch.object(assets.shutil, "move", move):
+            with self.assertRaisesRegex(RuntimeError, "retained prior copies") as caught:
+                assets.prepare_assets(self.repo, self.work)
+        self.assertRegex(str(caught.exception.__cause__), "injected restore failure")
+        self.assertRegex(str(caught.exception.__cause__.__context__), "injected receipt write failure")
+        retained = [path for directory in (self.work / "assets/backups").iterdir() for path in directory.iterdir()]
+        self.assertEqual(2, len(retained))
+        self.assertTrue(all(str(path) in str(caught.exception) for path in retained))
+        self.assertTrue(all((path / assets.MARKER).is_file() for path in retained))
+
     def test_work_directory_cannot_overlap_input(self):
         app = self.root / "Game.app"
         app.mkdir()

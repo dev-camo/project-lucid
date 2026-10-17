@@ -689,8 +689,11 @@ def _owned_directory(path: Path) -> None:
         raise ValueError(f"Refusing to replace unowned directory: {path}")
 
 
-def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[Path]:
-    """Swap same-filesystem prepared copies; roll back all targets on error."""
+def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[tuple[Path, Path | None]]:
+    """Swap same-filesystem prepared copies; roll back all targets on error.
+
+    Returns each installed destination with its prior copy (None when it had
+    none), so the caller can undo the swap if a later publication step fails."""
     for destination, staged in replacements:
         _owned_directory(destination)
         _assert_no_symlinks(staged)
@@ -713,7 +716,30 @@ def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[Pa
             backup.rename(destination)
         raise
     # Preserve prior copies for manual recovery; never recursively erase assets.
-    return [backup for _, backup in backups]
+    prior = dict(backups)
+    return [(destination, prior.get(destination)) for destination in installed]
+
+
+def _restore_swapped_directories(swapped: list[tuple[Path, Path | None]], locations: dict[Path, Path],
+                                 backup_dir: Path) -> None:
+    """Reinstate the prior owned copies after a post-swap failure.
+
+    locations maps each destination to where its prior copy lives now. If a
+    restore step fails, nothing further is touched and the retained copies are
+    named so recovery stays manual."""
+    for destination, backup in reversed(swapped):
+        try:
+            if destination.exists():
+                shutil.rmtree(destination)
+            if backup is not None:
+                shutil.move(str(locations[destination]), str(destination))
+                del locations[destination]
+        except BaseException as exc:
+            retained = ", ".join(str(path) for path in locations.values()) or "none"
+            raise RuntimeError(f"Could not restore prior prepared assets at {destination}; "
+                               f"retained prior copies: {retained}") from exc
+    if backup_dir.is_dir() and not any(backup_dir.iterdir()):
+        backup_dir.rmdir()
 
 
 def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
@@ -794,28 +820,37 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                 bundle_report = _normalize_streaming_bundles(stage, destination)
             _json_write(stage / MARKER, {"owner": OWNER, "run_id": report["run_id"]})
             replacements.append((destination, stage))
-        backups = _replace_owned_directories(replacements)
-        if backups:
-            backup_dir = _cache_path(work, backup_dir)
-            backup_dir.mkdir(parents=True)
-            retained = []
-            for backup in backups:
-                retained_path = _cache_path(work, backup_dir / backup.name)
-                shutil.move(str(backup), str(retained_path))
-                retained.append(retained_path)
-            backups = retained
-        result = {"schema_version": SCHEMA_VERSION, "status": "prepared", "run_id": report["run_id"],
-                  "recovered_path": str(assets / "Recovered"), "streaming_assets_path": str(assets / "StreamingAssets"),
-                  "copied_files": copied, "skipped_code_files": skipped_code, "skipped_shader_files": skipped_shader,
-                  "input_fingerprint": report["input_fingerprint"], "tool": report["tool"], "audio_normalization": audio_reports,
-                  "streaming_bundle_normalization": bundle_report,
-                  "backup_paths": [str(path) for path in backups], "quarantined_script_guids": dangling,
-                  "script_bindings": {**script_bindings, "references_modified": bool(rebound_assets), "assets": rebound_assets},
-                  "quarantined_shader_guids": sorted(shader_guids),
-                  "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",
-                               "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",
-                               "Preparation preserves asset GUIDs and restores only approved, layout-verified script pointers; gameplay remains unresolved."]}
-        _json_write(_cache_path(work, prepared), result)
+        swapped = _replace_owned_directories(replacements)
+        # Retention and the receipt commit with the swap: on any failure the prior
+        # trees go back in place, so they still match the prior receipt.
+        locations = {destination: backup for destination, backup in swapped if backup is not None}
+        try:
+            backups = []
+            if locations:
+                backup_dir = _cache_path(work, backup_dir)
+                backup_dir.mkdir(parents=True)
+                for destination, backup in swapped:
+                    if backup is None:
+                        continue
+                    retained_path = _cache_path(work, backup_dir / backup.name)
+                    shutil.move(str(backup), str(retained_path))
+                    locations[destination] = retained_path
+                    backups.append(retained_path)
+            result = {"schema_version": SCHEMA_VERSION, "status": "prepared", "run_id": report["run_id"],
+                      "recovered_path": str(assets / "Recovered"), "streaming_assets_path": str(assets / "StreamingAssets"),
+                      "copied_files": copied, "skipped_code_files": skipped_code, "skipped_shader_files": skipped_shader,
+                      "input_fingerprint": report["input_fingerprint"], "tool": report["tool"], "audio_normalization": audio_reports,
+                      "streaming_bundle_normalization": bundle_report,
+                      "backup_paths": [str(path) for path in backups], "quarantined_script_guids": dangling,
+                      "script_bindings": {**script_bindings, "references_modified": bool(rebound_assets), "assets": rebound_assets},
+                      "quarantined_shader_guids": sorted(shader_guids),
+                      "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",
+                                   "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",
+                                   "Preparation preserves asset GUIDs and restores only approved, layout-verified script pointers; gameplay remains unresolved."]}
+            _json_write(_cache_path(work, prepared), result)
+        except BaseException:
+            _restore_swapped_directories(swapped, locations, backup_dir)
+            raise
         return result
     finally:
         shutil.rmtree(staging, ignore_errors=True)
