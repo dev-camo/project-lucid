@@ -2635,3 +2635,21 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSkewPlayTests.ZeroTimeScaleHoldsTheResetLerpAtZeroSkew",
 )
+
+
+# Restored UnityEngine.UI.Extensions.TableLayoutGroup (HLUnityUI.Runtime 0x060000a8..bb).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTableLayoutGroupTests." + name for name in (
+    "DeclarationKeepsOriginalAttributesFieldsAndMembers",
+    "ConstructorSeedsOneColumnOfNinetySixAndFlexibleThirtyTwoRows",
+    "PropertiesReadAndWriteTheirOwnFields",
+    "HorizontalInputAddsOccupiedWidthsAndOneMinimumSpacingPerColumn",
+    "UniformHorizontalInputSharesTheFreeWidthWithTheMinimumAsFloor",
+    "FlexibleVerticalInputTakesPerRowMaximaAndKeepsThePreferredHeights",
+    "SingleRowVerticalInputAddsNoRowSpacing",
+    "HorizontalLayoutAlignsEachRowOnItsOwnCellsAndMirrorsOddCorners",
+    "HorizontalLayoutReusesTheStartOffsetForConsecutiveFullRows",
+    "HorizontalLayoutUsesTheSpacingFromTheInputPass",
+    "EmptyColumnWidthsFallBackToTwoThreeHundredColumns",
+    "VerticalLayoutStacksStoredRowHeightsAndReleasesThem",
+    "OnEnableForcesOneCanvasUpdate",
+))
