@@ -2350,3 +2350,21 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.GenerateMultipleFSMsWithoutMachineWritesEveryManagerRegisteredFSM",
     "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.SerialiseToFileRejectsBadPathsAndStillOverwritesAfterLoggingExistingFile",
 )
+
+
+# HLUnityCore.Runtime dispatch utilities restored from the 1.10.1 x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDispatchUtilitiesTests." + name for name in (
+    "UpdateInfoCatchesUpWithOneRateSizedCallbackPerElapsedPeriod",
+    "HandlesAreKeyedBySubscriberAloneAndImmediateUpdatePassesZero",
+    "ConstructorSubscribesTheVirtualOnUpdateToTheUpdateAction",
+    "AssignConsultsTheComparerWithTheCurrentValueFirst",
+    "AcquireReleaseAndForceReleaseFollowTheOriginalCountOrder",
+    "LoopWrapperChecksTheBudgetBeforeEachStep",
+    "LoopWrapperRejectsUndefinedUpdateTypesBeforeTheStartCallback",
+    "SchedulerResumesOnFrameAndTimeWaitsAndRemovesFinishedNodes",
+    "SchedulerStepsNewestFirstAndWaitsForFinishedNodes",
+    "SchedulerRejectsOtherYieldTypesAfterAdvancingTheFiber",
+    "GenericDispatcherQueuesPerDispatcherTypeAndSharesOneReference",
+    "StructExchangeKeysHandlesByPayloadTypeAndPublishesDefaults",
+    "CompilerGeneratedNamesMatchTheOriginalMemberOrdinals",
+))

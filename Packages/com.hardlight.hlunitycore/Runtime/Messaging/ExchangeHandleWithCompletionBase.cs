@@ -6,58 +6,15 @@ using Unity.IL2CPP.CompilerServices;
 namespace Hardlight
 {
     // Original020001b8: all5 owner methods plus full original natural completion graph.
+    // The nested types are declared ahead of TryGetCompletionData / SetData so
+    // the original closure and state-machine names (<>c__DisplayClass8_0,
+    // CompletionData's <>c__DisplayClass9_0/12_0, <RunTimeout>d__11,
+    // <Timeout>d__14) get the same member ordinals; their exact position
+    // relative to the fields is not recoverable.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class ExchangeHandleWithCompletionBase<TDelegate> : ExchangeHandleBase<TDelegate> where TDelegate : Delegate
     {
-        private int m_nextMessageID;
-        private readonly Stack<CompletionData> m_completionDataPool = new Stack<CompletionData>();
-        private readonly Dictionary<int, CompletionData> m_completionDataLookup = new Dictionary<int, CompletionData>();
-        private bool m_includeDebugInformation;
-
-        // Original06000c0d. Changes future allocations only; pooled data retains its debug choice.
-        public void EnableDebugInformation(bool enabled) { m_includeDebugInformation = enabled; }
-
-        // Original06000c0e: base clear/invalidation before live lookup enumeration, then lookup/pool clear.
-        public override void Invalidate()
-        {
-            base.Invalidate();
-            foreach (CompletionData data in m_completionDataLookup.Values) data.Invalidate();
-            m_completionDataLookup.Clear();
-            m_completionDataPool.Clear();
-        }
-
-        // Original06000c0f + natural closure06000c28/29. Empty subscriber path invokes callback before out=null.
-        protected bool TryGetCompletionData(Action finishedCallback, out ICompletionData completionData)
-        {
-            if (Subscribers.Count == 0)
-            {
-                finishedCallback();
-                completionData = null;
-                return false;
-            }
-            CompletionData newCompletionData = GetCompletionData();
-            completionData = newCompletionData;
-            int messageID = m_nextMessageID;
-            m_completionDataLookup[messageID] = newCompletionData;
-            newCompletionData.SetData(messageID, Subscribers, () =>
-            {
-                m_completionDataLookup.Remove(messageID);
-                m_completionDataPool.Push(newCompletionData);
-                finishedCallback();
-            });
-            m_nextMessageID = unchecked(m_nextMessageID + 1);
-            return true;
-        }
-
-        // Original06000c10; pop an existing object without changing its readonly debug record.
-        private CompletionData GetCompletionData()
-        {
-            if (m_completionDataPool.Count > 0) return m_completionDataPool.Pop();
-            return new CompletionData(m_includeDebugInformation);
-        }
-        // Implicit original protected06000c11: original Stack/Dictionary initializers precede genuine base ctor.
-
         // Original020001b9, full2 abstract methods. Protected nested interface, not a replacement contract.
         protected interface ICompletionData
         {
@@ -69,6 +26,27 @@ namespace Hardlight
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         private class CompletionData : ICompletionData
         {
+            [Il2CppSetOption(Option.NullChecks, false)]
+            [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+            private class CompletionDataDebug
+            {
+                private readonly List<Delegate> m_subscribers = new List<Delegate>();
+                // Original06000c1c: live AddRange after Clear.
+                public void Setup(IReadOnlyCollection<Delegate> subscribers)
+                {
+                    m_subscribers.Clear();
+                    m_subscribers.AddRange(subscribers);
+                }
+                // Original06000c1d: unchecked source indexer, fault occurs before owner count mutation.
+                public void OnSubscriberFinished(int subscriberIndex) { m_subscribers[subscriberIndex] = null; }
+                // Original06000c1e: shipped body retains enumeration/disposal, with no emitted log calls.
+                public void LogTimedOutSubscribers()
+                {
+                    foreach (Delegate subscriber in m_subscribers) { }
+                }
+                // Implicit original public06000c1f; List initializer precedes Object ctor.
+            }
+
             private int m_id;
             private int m_subscriberCount;
             private Action m_subscriberCallback;
@@ -138,27 +116,54 @@ namespace Hardlight
 
             // Original06000c1b: complete short-circuits current id read.
             private bool IsComplete(int id) => m_complete || m_id != id;
-
-            [Il2CppSetOption(Option.NullChecks, false)]
-            [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-            private class CompletionDataDebug
-            {
-                private readonly List<Delegate> m_subscribers = new List<Delegate>();
-                // Original06000c1c: live AddRange after Clear.
-                public void Setup(IReadOnlyCollection<Delegate> subscribers)
-                {
-                    m_subscribers.Clear();
-                    m_subscribers.AddRange(subscribers);
-                }
-                // Original06000c1d: unchecked source indexer, fault occurs before owner count mutation.
-                public void OnSubscriberFinished(int subscriberIndex) { m_subscribers[subscriberIndex] = null; }
-                // Original06000c1e: shipped body retains enumeration/disposal, with no emitted log calls.
-                public void LogTimedOutSubscribers()
-                {
-                    foreach (Delegate subscriber in m_subscribers) { }
-                }
-                // Implicit original public06000c1f; List initializer precedes Object ctor.
-            }
         }
+
+        private int m_nextMessageID;
+        private readonly Stack<CompletionData> m_completionDataPool = new Stack<CompletionData>();
+        private readonly Dictionary<int, CompletionData> m_completionDataLookup = new Dictionary<int, CompletionData>();
+        private bool m_includeDebugInformation;
+
+        // Original06000c0d. Changes future allocations only; pooled data retains its debug choice.
+        public void EnableDebugInformation(bool enabled) { m_includeDebugInformation = enabled; }
+
+        // Original06000c0e: base clear/invalidation before live lookup enumeration, then lookup/pool clear.
+        public override void Invalidate()
+        {
+            base.Invalidate();
+            foreach (CompletionData data in m_completionDataLookup.Values) data.Invalidate();
+            m_completionDataLookup.Clear();
+            m_completionDataPool.Clear();
+        }
+
+        // Original06000c0f + natural closure06000c28/29. Empty subscriber path invokes callback before out=null.
+        protected bool TryGetCompletionData(Action finishedCallback, out ICompletionData completionData)
+        {
+            if (Subscribers.Count == 0)
+            {
+                finishedCallback();
+                completionData = null;
+                return false;
+            }
+            CompletionData newCompletionData = GetCompletionData();
+            completionData = newCompletionData;
+            int messageID = m_nextMessageID;
+            m_completionDataLookup[messageID] = newCompletionData;
+            newCompletionData.SetData(messageID, Subscribers, () =>
+            {
+                m_completionDataLookup.Remove(messageID);
+                m_completionDataPool.Push(newCompletionData);
+                finishedCallback();
+            });
+            m_nextMessageID = unchecked(m_nextMessageID + 1);
+            return true;
+        }
+
+        // Original06000c10; pop an existing object without changing its readonly debug record.
+        private CompletionData GetCompletionData()
+        {
+            if (m_completionDataPool.Count > 0) return m_completionDataPool.Pop();
+            return new CompletionData(m_includeDebugInformation);
+        }
+        // Implicit original protected06000c11: original Stack/Dictionary initializers precede genuine base ctor.
     }
 }
