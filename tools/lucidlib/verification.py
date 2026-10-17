@@ -2331,3 +2331,22 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLUnityCoreFileUtilitiesTests.ReadWriteLinesPassesEachPathsLinesInParameterOrder",
     "ProjectLucid.Tests.OriginalHLUnityCoreFileUtilitiesTests.ClearDeletesSubdirectoriesBeforeFilesAndKeepsTheDirectory",
 )
+
+# HLUnityCore string/int-range/random-timeout/move/scriptable-object FSM nodes and graph serialisation.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.CheckIntInRangeKeepsInclusiveSignedBoundsWithoutInsertingMissingValues",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.CheckStringUsesStaticOrdinalEqualityAndStoresMissingValueAsNull",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.StringAndRangeFactoriesKeepOriginalIdentifiersEnumParsingAndJson",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.TimeoutRandomRollsRawRangeThenResetsElapsedAndRemovesBothOnLeave",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.TimeoutRandomUpdateAdvancesBeforeReadingAndStoresMissingTimeoutAsZero",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.TimeoutRandomScopesNamesToTheTransitionAndRoundTripsJson",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.SetStringRegistersBeforeArgsAndWritesCapturedValueOnEnter",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.MoveGameObjectTranslatesInSelfSpaceBeforeRotatingByDelta",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.UsesScriptableObjectResolvesLoadedObjectsByNameAndLogsOnlyRealMisses",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.UsesScriptableObjectKeepsTheFirstLoadedObjectWithAnEqualName",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.GenerateFiniteStateMachineClassWritesShortClassNamesArgumentsAndLinks",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.GenerateMultipleFSMsReusesContainerAndReplacesOnlyTheMachineList",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.GenerateMultipleFSMsWritesTheMachineThenEachDependencyInOrderWithDuplicates",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.GenerateMultipleFSMsWithoutMachineWritesEveryManagerRegisteredFSM",
+    "ProjectLucid.Tests.OriginalStringTimeoutFSMTests.SerialiseToFileRejectsBadPathsAndStillOverwritesAfterLoggingExistingFile",
+)

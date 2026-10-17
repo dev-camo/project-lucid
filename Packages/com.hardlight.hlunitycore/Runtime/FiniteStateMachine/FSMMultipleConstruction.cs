@@ -139,5 +139,110 @@ namespace Hardlight
             else result = ConstructFSMs(json, resultCallback, absolutePathForIncludes, reuseExistingFSMs, isOverwriteOk);
             yield return result;
         }
+
+        // Graph serialisation. These members follow ProcessJSON in the original
+        // declaration order, so they continue this partial rather than FSMClassFactory.cs.
+
+        // Original token 0x060003ae; x86_64 0x1abda00. The FSM list is always
+        // replaced. A machine serialises itself, then each dependency as listed
+        // (duplicates kept); without one, every manager-registered FSM is written.
+        // Includes and view metadata of a supplied container are left untouched.
+        public static JSONMultipleFSMs GenerateJSONMultipleFSMsClass(FiniteStateMachine fsm, JSONMultipleFSMs json)
+        {
+            if (json == null) json = new JSONMultipleFSMs();
+            json.FSMs = new List<JSONFiniteStateMachineClass>();
+            if (fsm != null)
+            {
+                json.FSMs.Add(GenerateJSONFiniteStateMachineClass(fsm));
+                foreach (FiniteStateMachine dependency in fsm.GetDependencies())
+                    json.FSMs.Add(GenerateJSONFiniteStateMachineClass(dependency));
+            }
+            else
+            {
+                foreach (KeyValuePair<int, FiniteStateMachine> entry in FSMManager.GetManager().FSMs)
+                    json.FSMs.Add(GenerateJSONFiniteStateMachineClass(entry.Value));
+            }
+            return json;
+        }
+
+        // Original token 0x060003af; x86_64 0x1abe010. Classes are short type
+        // names (the factory key); arguments come from each node's own
+        // serialiser. Dictionary order is kept and no node metadata is written.
+        public static JSONFiniteStateMachineClass GenerateJSONFiniteStateMachineClass(FiniteStateMachine fsm)
+        {
+            var json = new JSONFiniteStateMachineClass
+            {
+                Transitions = new List<JSONTransitionClass>(),
+                States = new List<JSONStateClass>(),
+                Name = GraphNameLookup.LookupNameUsingId(fsm.FSMId),
+                DoMultipleTransitions = fsm.DoMultipleTransitions,
+                UpdateTransientStates = fsm.UpdateTransientStates
+            };
+            if (fsm.DefaultState != null) json.DefaultState = GraphNameLookup.LookupNameUsingId(fsm.DefaultState.StateId);
+
+            foreach (KeyValuePair<int, IFSMState> entry in fsm.States)
+            {
+                var stateClass = new JSONStateClass
+                {
+                    Name = GraphNameLookup.LookupNameUsingId(entry.Key),
+                    Class = entry.Value.GetType().Name,
+                    CtorArgs = entry.Value.SerialiseRuntimeToJSON(),
+                    StateTransitions = new List<JSONStateTransition>()
+                };
+                foreach (FSMStateTransition stateTransition in entry.Value.GetStateTransitions())
+                {
+                    stateClass.StateTransitions.Add(new JSONStateTransition
+                    {
+                        Transition = GraphNameLookup.LookupNameUsingId(stateTransition.Transition.TransitionId),
+                        ToState = GraphNameLookup.LookupNameUsingId(stateTransition.ToState.StateId)
+                    });
+                }
+                json.States.Add(stateClass);
+            }
+
+            foreach (KeyValuePair<int, IFSMTransition> entry in fsm.Transitions)
+            {
+                json.Transitions.Add(new JSONTransitionClass
+                {
+                    Name = GraphNameLookup.LookupNameUsingId(entry.Key),
+                    Class = entry.Value.GetType().Name,
+                    CtorArgs = entry.Value.SerialiseRuntimeToJSON()
+                });
+            }
+            return json;
+        }
+
+        // Original token 0x060003b0; x86_64 0x1abf110. Generation runs before
+        // any path check. The extension test is a plain culture-sensitive
+        // EndsWith. An existing file without replace is logged but the native
+        // body does not return, so the StreamWriter still overwrites it.
+        public static void SerialiseFSMsToFile(FiniteStateMachine finiteStateMachine, string absolutePath, bool replace = false, string extension = ".json")
+        {
+            string json = JsonUtility.ToJson(GenerateJSONMultipleFSMsClass(finiteStateMachine, null), true);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                HLOutput.LogError("Failed to serialise FSM");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(absolutePath))
+            {
+                HLOutput.LogError("Unable to serialise FSM, path is empty or whitespace");
+                return;
+            }
+            if (!absolutePath.EndsWith(extension))
+            {
+                HLOutput.LogError("Unable to serialise FSM, file extension is not '" + extension + "'");
+                return;
+            }
+            if (File.Exists(absolutePath))
+            {
+                if (replace) File.Delete(absolutePath);
+                else HLOutput.LogError("Unable to serialise FSM, file exists at " + absolutePath);
+            }
+
+            string directory = Path.GetDirectoryName(absolutePath);
+            if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
+            using (StreamWriter writer = new StreamWriter(absolutePath)) writer.Write(json);
+        }
     }
 }

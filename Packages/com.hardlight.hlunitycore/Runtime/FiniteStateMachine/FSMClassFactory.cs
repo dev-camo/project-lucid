@@ -6,7 +6,7 @@ using UnityEngine;
 namespace Hardlight
 {
     // Original synchronous construction path. Multi-FSM/includes/file loading
-    // and graph serialization remain unrecovered and are not exposed here.
+    // and graph serialization continue, in original order, in FSMMultipleConstruction.cs.
     public static partial class FSMClassFactory
     {
         [Serializable]
