@@ -15,8 +15,36 @@ namespace Hardlight
         private readonly StackableDataHandle m_baseStackableDataHandle;
         private readonly List<int> m_updatedIds = new List<int>();
 
+        // Every field, the static constructor and the event live in this partial, so the
+        // field rows 0x04000056..5f never depend on partial file order and .cctor, .ctor,
+        // add and remove keep their original adjacent rows 0x06000102..105.
+        private static readonly Dictionary<Type, Delegate> LogicalAnds;
+        private static readonly Dictionary<Type, Delegate> LogicalOrs;
+        private static readonly Dictionary<Type, Delegate> Multiplies;
+        private static readonly Dictionary<Type, Delegate> Additions;
+
+        // 0x06000102; ARM64 0x1aa1c84. Original explicit static constructor:
+        // allocate all four maps first, then register bool,int,float,long,Vector3.
+        static StackableData()
+        {
+            LogicalAnds = new Dictionary<Type, Delegate>();
+            LogicalOrs = new Dictionary<Type, Delegate>();
+            Multiplies = new Dictionary<Type, Delegate>();
+            Additions = new Dictionary<Type, Delegate>();
+            RegisterTypeOperations<bool>(BoolLogicalAnd, BoolLogicalOr);
+            RegisterTypeOperations<int>(multiply: IntMultiply, addition: IntAddition);
+            RegisterTypeOperations<float>(multiply: FloatMultiply, addition: FloatAddition);
+            RegisterTypeOperations<long>(multiply: LongMultiply, addition: LongAddition);
+            RegisterTypeOperations<UnityEngine.Vector3>(multiply: Vector3Multiply, addition: Vector3Addition);
+        }
+
         // HLUnityCore.Runtime 0x06000103; ARM64 0x1aa20d0. Instance collection initializers precede the base call.
         public StackableData() { m_baseStackableDataHandle = CreateOverride(); }
+
+        // Original add/remove 0x06000104/105, ARM64 0x1aa22c8/0x1aa237c.
+        // The compiler supplies the original Delegate.Combine/Remove CAS loop and
+        // the exact original private field name OnDataUpdated (0x0400005f).
+        public event Action<int> OnDataUpdated;
 
         // 0x06000106/0x06000107; shared reference ARM64 0x9b00a8/0x9b0360.
         public void SetBaseValue<T>(int id, T value) { AddOverride(m_baseStackableDataHandle, id, value); }

@@ -1574,6 +1574,12 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalFiniteStateMachineDeclarationTests.FieldRowsKeepOriginalBackingFieldPlacement',
 )
 
+# Hardlight.StackableData field and method rows against dump.cs TypeDefIndex 8796.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalStackableDataDeclarationTests.FieldRowsKeepOriginalInstanceStaticAndEventOrder',
+    'ProjectLucid.Tests.Editor.OriginalStackableDataDeclarationTests.MethodRowsKeepOriginalOrder',
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.VerificationAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",

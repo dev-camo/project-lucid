@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Hardlight;
 using NUnit.Framework;
 using Unity.Profiling;
@@ -14,11 +15,10 @@ namespace ProjectLucid.Tests.Editor
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public |
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 
-        // dump.cs TypeDefIndex 8894, Hardlight.FiniteStateMachine 0x0200008f: FSMId 0x10,
-        // <DoMultipleTransitions>k__BackingField 0x14, <UpdateTransientStates>k__BackingField
-        // 0x15, <DefaultState>k__BackingField 0x18, m_ownedStates 0x20, m_ownedTransitions
-        // 0x28, m_profilerMarker 0x30. Declaring the auto-properties after the m_ fields
-        // emits the backing fields last and fails here.
+        // dump.cs TypeDefIndex 8894, DummyDll Hardlight.FiniteStateMachine 0x0200008f field
+        // rows 0x040001df..e5: FSMId (flags 0x26), the three [CompilerGenerated] backing
+        // fields (0x01), then m_ownedStates, m_ownedTransitions, m_profilerMarker (0x21).
+        // Declaring the auto-properties after the m_ fields emits the backing fields last.
         [Test]
         public void FieldRowsKeepOriginalBackingFieldPlacement()
         {
@@ -29,9 +29,9 @@ namespace ProjectLucid.Tests.Editor
             CollectionAssert.AreEqual(new[] { typeof(int), typeof(bool), typeof(bool), typeof(IFSMState),
                 typeof(Dictionary<int, IFSMState>), typeof(Dictionary<int, IFSMTransition>), typeof(ProfilerMarker) },
                 fields.Select(f => f.FieldType));
-            CollectionAssert.AreEqual(new[] { true, false, false, false, false, false, false }, fields.Select(f => f.IsPublic));
-            CollectionAssert.AreEqual(new[] { true, false, false, false, true, true, true }, fields.Select(f => f.IsInitOnly));
-            Assert.That(fields.All(f => !f.IsStatic), Is.True);
+            CollectionAssert.AreEqual(new[] { 0x26, 0x01, 0x01, 0x01, 0x21, 0x21, 0x21 }, fields.Select(f => (int)f.Attributes));
+            CollectionAssert.AreEqual(new[] { false, true, true, true, false, false, false },
+                fields.Select(f => f.IsDefined(typeof(CompilerGeneratedAttribute), false)));
         }
     }
 }

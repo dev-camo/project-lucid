@@ -11,8 +11,8 @@ namespace Hardlight
     {
         public readonly int FSMId;
         // 0x06000365..0x0600036c: auto-properties and dictionary views. The
-        // auto-properties precede the m_ fields so their backing fields keep
-        // the original row order (0x14, 0x15, 0x18 before m_ownedStates 0x20).
+        // auto-properties precede the m_ fields so their backing fields keep the
+        // original field rows 0x040001e0..e2 before m_ownedStates 0x040001e3.
         public bool DoMultipleTransitions { get; set; }
         public bool UpdateTransientStates { get; set; }
         public IFSMState DefaultState { get; set; }

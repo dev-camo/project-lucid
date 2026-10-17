@@ -116,31 +116,6 @@ namespace Hardlight
             public void Set(T value) { Value = value; }
         }
 
-        private static readonly Dictionary<Type, Delegate> LogicalAnds;
-        private static readonly Dictionary<Type, Delegate> LogicalOrs;
-        private static readonly Dictionary<Type, Delegate> Multiplies;
-        private static readonly Dictionary<Type, Delegate> Additions;
-
-        // Original add/remove 0x06000104/105, ARM64 0x1aa22c8/0x1aa237c.
-        // The compiler supplies the original Delegate.Combine/Remove CAS loop and
-        // the exact original private field name OnDataUpdated (0x0400005f).
-        public event Action<int> OnDataUpdated;
-
-        // 0x06000102; ARM64 0x1aa1c84. Original explicit static constructor:
-        // allocate all four maps first, then register bool,int,float,long,Vector3.
-        static StackableData()
-        {
-            LogicalAnds = new Dictionary<Type, Delegate>();
-            LogicalOrs = new Dictionary<Type, Delegate>();
-            Multiplies = new Dictionary<Type, Delegate>();
-            Additions = new Dictionary<Type, Delegate>();
-            RegisterTypeOperations<bool>(BoolLogicalAnd, BoolLogicalOr);
-            RegisterTypeOperations<int>(multiply: IntMultiply, addition: IntAddition);
-            RegisterTypeOperations<float>(multiply: FloatMultiply, addition: FloatAddition);
-            RegisterTypeOperations<long>(multiply: LongMultiply, addition: LongAddition);
-            RegisterTypeOperations<Vector3>(multiply: Vector3Multiply, addition: Vector3Addition);
-        }
-
         // 0x0600011b; ARM64 0x1aa2a84. A present false value skips container access.
         private static OperationAction BoolLogicalAnd(StackableDataContainer<bool> stackableDataContainer,
             ref ResultCarrier<bool> result)
