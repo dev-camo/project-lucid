@@ -2,8 +2,6 @@ using Unity.IL2CPP.CompilerServices;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.Utils;
 using UnityEngine;
@@ -32,86 +30,6 @@ namespace HardlightProject
 			}
 		}
 
-		[CompilerGenerated]
-		private sealed class _003CEnsureOneLevel_003Ed__6 : IEnumerator<object>, IEnumerator, IDisposable
-		{
-			private int _003C_003E1__state;
-
-			private object _003C_003E2__current;
-
-			public IGraphUser user;
-
-			public ApplicationStateLoadLevelEnsureOneLevel _003C_003E4__this;
-
-			object IEnumerator<object>.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			object IEnumerator.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			// 06000797 (1.10.1 RVA 0x658130)
-			[DebuggerHidden]
-			public _003CEnsureOneLevel_003Ed__6(int _003C_003E1__state)
-			{
-				this._003C_003E1__state = _003C_003E1__state;
-			}
-
-			// 06000798 (1.10.1 RVA 0x658300)
-			[DebuggerHidden]
-			void IDisposable.Dispose()
-			{
-			}
-
-			// 06000799 (1.10.1 RVA 0x658310)
-			private bool MoveNext()
-			{
-				if (_003C_003E1__state == 0)
-				{
-					_003C_003E1__state = -1;
-					LevelManager levelManager = ProcessManager.GetSystem<LevelManager>();
-					LevelManagerLoadLevelParameters parameters = user.Storage.GetValue<LevelManagerLoadLevelParameters>(AppFSMKeys.LevelLoadParameters, null, true);
-					if (levelManager.TryGetCurrentLevel(out LevelManagerLevel currentLevel))
-					{
-						bool differentLevel = parameters == null || !(currentLevel.LevelDefinition == parameters.LevelDefinition);
-						if (_003C_003E4__this.m_forceUnloadAny || differentLevel)
-						{
-							_003C_003E2__current = levelManager.UnloadLevel();
-							_003C_003E1__state = 1;
-							return true;
-						}
-					}
-				}
-				else if (_003C_003E1__state != 1)
-				{
-					return false;
-				}
-				_003C_003E1__state = -1;
-				_003C_003E4__this.PublishMessage(user);
-				return false;
-			}
-
-			bool IEnumerator.MoveNext()
-			{
-				//ILSpy generated this explicit interface implementation from .override directive in MoveNext
-				return this.MoveNext();
-			}
-
-			// 0600079b (1.10.1 RVA 0x6585D0)
-			[DebuggerHidden]
-			void IEnumerator.Reset()
-			{
-				throw new NotSupportedException();
-			}
-		}
-
 		private readonly ApplicationStateEvent m_stateEvent;
 
 		private readonly bool m_forceUnloadAny;
@@ -137,11 +55,20 @@ namespace HardlightProject
 			CoroutineUtils.RunCoroutine(EnsureOneLevel(user));
 		}
 
-		// 06000794 (1.10.1 RVA 0x6580B0)
-		[IteratorStateMachine(typeof(_003CEnsureOneLevel_003Ed__6))]
+		// 06000794 (1.10.1 RVA 0x6580B0); MoveNext 06000799 (RVA 0x658310)
 		private IEnumerator EnsureOneLevel(IGraphUser user)
 		{
-			return new _003CEnsureOneLevel_003Ed__6(0) { _003C_003E4__this = this, user = user };
+			LevelManager levelManager = ProcessManager.GetSystem<LevelManager>();
+			LevelManagerLoadLevelParameters parameters = user.Storage.GetValue<LevelManagerLoadLevelParameters>(AppFSMKeys.LevelLoadParameters, null, true);
+			if (levelManager.TryGetCurrentLevel(out LevelManagerLevel currentLevel))
+			{
+				bool differentLevel = parameters == null || !(currentLevel.LevelDefinition == parameters.LevelDefinition);
+				if (m_forceUnloadAny || differentLevel)
+				{
+					yield return levelManager.UnloadLevel();
+				}
+			}
+			PublishMessage(user);
 		}
 
 		// 06000795 (1.10.1 RVA 0x658150)

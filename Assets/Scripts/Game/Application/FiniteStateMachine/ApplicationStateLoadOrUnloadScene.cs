@@ -2,8 +2,6 @@ using Unity.IL2CPP.CompilerServices;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.Utils;
 using UnityEngine;
@@ -50,99 +48,6 @@ namespace HardlightProject
 			Unload
 		}
 
-		[CompilerGenerated]
-		private sealed class _003CLoadScene_003Ed__10 : IEnumerator<object>, IEnumerator, IDisposable
-		{
-			private int _003C_003E1__state;
-
-			private object _003C_003E2__current;
-
-			public IGraphUser user;
-
-			public ApplicationStateLoadOrUnloadScene _003C_003E4__this;
-
-			private AsyncOperationHandle<SceneInstance> _003CloadHandle_003E5__2;
-
-			object IEnumerator<object>.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			object IEnumerator.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			// 060006bb (1.10.1 RVA 0x64A380)
-			[DebuggerHidden]
-			public _003CLoadScene_003Ed__10(int _003C_003E1__state)
-			{
-				this._003C_003E1__state = _003C_003E1__state;
-			}
-
-			// 060006bc (1.10.1 RVA 0x64A570)
-			[DebuggerHidden]
-			void IDisposable.Dispose()
-			{
-			}
-
-			// 060006bd (1.10.1 RVA 0x64A580)
-			private bool MoveNext()
-			{
-				if (_003C_003E1__state == 1)
-				{
-					_003C_003E1__state = -1;
-					if (_003C_003E4__this.m_setActive)
-					{
-						SceneManager.SetActiveScene(_003CloadHandle_003E5__2.Result.Scene);
-					}
-					_003C_003E4__this.PublishMessage(user);
-					return false;
-				}
-				if (_003C_003E1__state != 0)
-				{
-					return false;
-				}
-				_003C_003E1__state = -1;
-				Dictionary<string, AsyncOperationHandle> loadedLevels = user.Storage.GetValue<Dictionary<string, AsyncOperationHandle>>(AppFSMKeys.LoadedLevels, null, true);
-				if (_003C_003E4__this.m_command == SceneCommand.Load)
-				{
-					_003CloadHandle_003E5__2 = Addressables.LoadSceneAsync(_003C_003E4__this.m_sceneName,
-						_003C_003E4__this.m_additive ? LoadSceneMode.Additive : LoadSceneMode.Single, true, 100);
-					loadedLevels[_003C_003E4__this.m_sceneName] = _003CloadHandle_003E5__2;
-					user.Storage.SetValue(AppFSMKeys.LoadedLevels, loadedLevels);
-					_003C_003E2__current = _003CloadHandle_003E5__2;
-					_003C_003E1__state = 1;
-					return true;
-				}
-				if (_003C_003E4__this.m_command == SceneCommand.Unload && loadedLevels.TryGetValue(_003C_003E4__this.m_sceneName, out AsyncOperationHandle sceneHandle))
-				{
-					AddressableManager.UnloadSceneAndClearResources(sceneHandle);
-					loadedLevels.Remove(_003C_003E4__this.m_sceneName);
-					user.Storage.SetValue(AppFSMKeys.LoadedLevels, loadedLevels);
-				}
-				_003C_003E4__this.PublishMessage(user);
-				return false;
-			}
-
-			bool IEnumerator.MoveNext()
-			{
-				//ILSpy generated this explicit interface implementation from .override directive in MoveNext
-				return this.MoveNext();
-			}
-
-			// 060006bf (1.10.1 RVA 0x64AC60)
-			[DebuggerHidden]
-			void IEnumerator.Reset()
-			{
-				throw new NotSupportedException();
-			}
-		}
-
 		private readonly string m_sceneName;
 
 		private readonly SceneCommand m_command;
@@ -177,11 +82,28 @@ namespace HardlightProject
 			CoroutineUtils.RunCoroutine(LoadScene(user));
 		}
 
-		// 060006b8 (1.10.1 RVA 0x64A300)
-		[IteratorStateMachine(typeof(_003CLoadScene_003Ed__10))]
+		// 060006b8 (1.10.1 RVA 0x64A300); MoveNext 060006bd (RVA 0x64A580)
 		private IEnumerator LoadScene(IGraphUser user)
 		{
-			return new _003CLoadScene_003Ed__10(0) { _003C_003E4__this = this, user = user };
+			Dictionary<string, AsyncOperationHandle> loadedLevels = user.Storage.GetValue<Dictionary<string, AsyncOperationHandle>>(AppFSMKeys.LoadedLevels, null, true);
+			if (m_command == SceneCommand.Load)
+			{
+				AsyncOperationHandle<SceneInstance> loadHandle = Addressables.LoadSceneAsync(m_sceneName, m_additive ? LoadSceneMode.Additive : LoadSceneMode.Single, true, 100);
+				loadedLevels[m_sceneName] = loadHandle;
+				user.Storage.SetValue(AppFSMKeys.LoadedLevels, loadedLevels);
+				yield return loadHandle;
+				if (m_setActive)
+				{
+					SceneManager.SetActiveScene(loadHandle.Result.Scene);
+				}
+			}
+			else if (m_command == SceneCommand.Unload && loadedLevels.TryGetValue(m_sceneName, out AsyncOperationHandle sceneHandle))
+			{
+				AddressableManager.UnloadSceneAndClearResources(sceneHandle);
+				loadedLevels.Remove(m_sceneName);
+				user.Storage.SetValue(AppFSMKeys.LoadedLevels, loadedLevels);
+			}
+			PublishMessage(user);
 		}
 
 		// 060006b9 (1.10.1 RVA 0x64A3A0)

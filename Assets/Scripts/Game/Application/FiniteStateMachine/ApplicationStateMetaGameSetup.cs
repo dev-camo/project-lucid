@@ -2,8 +2,6 @@ using Unity.IL2CPP.CompilerServices;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.Utils;
 using UnityEngine;
@@ -27,90 +25,6 @@ namespace HardlightProject
 			// 060007de (1.10.1 RVA 0x65E510)
 			public JSONCtorArgs()
 			{
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003CDestroyCharacter_003Ed__10 : IEnumerator<object>, IEnumerator, IDisposable
-		{
-			private int _003C_003E1__state;
-
-			private object _003C_003E2__current;
-
-			public ApplicationStateMetaGameSetup _003C_003E4__this;
-
-			public IGraphUser user;
-
-			public MissionDefinition missionDefinition;
-
-			private CharacterManager _003CcharacterManager_003E5__2;
-
-			object IEnumerator<object>.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			object IEnumerator.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			// 060007df (1.10.1 RVA 0x65E270)
-			[DebuggerHidden]
-			public _003CDestroyCharacter_003Ed__10(int _003C_003E1__state)
-			{
-				this._003C_003E1__state = _003C_003E1__state;
-			}
-
-			// 060007e0 (1.10.1 RVA 0x65E520)
-			[DebuggerHidden]
-			void IDisposable.Dispose()
-			{
-			}
-
-			// 060007e1 (1.10.1 RVA 0x65E530)
-			private bool MoveNext()
-			{
-				if (_003C_003E1__state == 0)
-				{
-					_003C_003E1__state = -1;
-					_003CcharacterManager_003E5__2 = _003C_003E4__this.m_characterManagerRef.Get();
-					if (!_003CcharacterManager_003E5__2.TryGetCurrentCharacter(out Character character))
-					{
-						_003C_003E4__this.UpdateUnlocks(user, missionDefinition);
-						return false;
-					}
-					user.Storage.SetValue(AppFSMKeys.CharacterLastUsed, character.Definition.Id);
-					_003C_003E2__current = character.ExitTriggerVolumes();
-					_003C_003E1__state = 1;
-					return true;
-				}
-				if (_003C_003E1__state == 1)
-				{
-					_003C_003E1__state = -1;
-					_003CcharacterManager_003E5__2.DestroyCharacters();
-					ParticleEffectManager particleManager = ProcessManager.GetSystemSafe<ParticleEffectManager>();
-					if (particleManager != null) particleManager.CleanUpAfterLevel();
-					_003C_003E4__this.UpdateUnlocks(user, missionDefinition);
-				}
-				return false;
-			}
-
-			bool IEnumerator.MoveNext()
-			{
-				//ILSpy generated this explicit interface implementation from .override directive in MoveNext
-				return this.MoveNext();
-			}
-
-			// 060007e3 (1.10.1 RVA 0x65E890)
-			[DebuggerHidden]
-			void IEnumerator.Reset()
-			{
-				throw new NotSupportedException();
 			}
 		}
 
@@ -243,11 +157,22 @@ namespace HardlightProject
 			}
 		}
 
-		// 060007db (1.10.1 RVA 0x65E1D0)
-		[IteratorStateMachine(typeof(_003CDestroyCharacter_003Ed__10))]
+		// 060007db (1.10.1 RVA 0x65E1D0); MoveNext 060007e1 (RVA 0x65E530)
 		private IEnumerator DestroyCharacter(IGraphUser user, MissionDefinition missionDefinition)
 		{
-			return new _003CDestroyCharacter_003Ed__10(0) { _003C_003E4__this = this, user = user, missionDefinition = missionDefinition };
+			CharacterManager characterManager = m_characterManagerRef.Get();
+			if (characterManager.TryGetCurrentCharacter(out Character character))
+			{
+				user.Storage.SetValue(AppFSMKeys.CharacterLastUsed, character.Definition.Id);
+				yield return character.ExitTriggerVolumes();
+				characterManager.DestroyCharacters();
+				ParticleEffectManager particleManager = ProcessManager.GetSystemSafe<ParticleEffectManager>();
+				if (particleManager != null)
+				{
+					particleManager.CleanUpAfterLevel();
+				}
+			}
+			UpdateUnlocks(user, missionDefinition);
 		}
 
 		// 060007dc (1.10.1 RVA 0x65E290)

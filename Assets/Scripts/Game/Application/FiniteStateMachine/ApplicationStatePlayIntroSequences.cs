@@ -2,8 +2,6 @@ using Unity.IL2CPP.CompilerServices;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.Utils;
 using UnityEngine;
@@ -60,289 +58,6 @@ namespace HardlightProject
 			}
 		}
 
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass11_0
-		{
-			public ApplicationStatePlayIntroSequences _003C_003E4__this;
-
-			public Character currentCharacter;
-
-			public App app;
-
-			public LevelManagerLevel currentLevel;
-
-			// 0600070d (1.10.1 RVA 0x64FAD0)
-			public _003C_003Ec__DisplayClass11_0()
-			{
-			}
-
-			// 0600070e (1.10.1 RVA 0x650CE0)
-			internal void _003CDoOnEnter_003Eb__0(StateCustomIntroSequence customIntroSequence)
-			{
-				_003C_003E4__this.PlayIntroSequence(customIntroSequence, currentCharacter, app, currentLevel);
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass13_0
-		{
-			public AudioManager audioManager;
-
-			// 0600070f (1.10.1 RVA 0x650D10)
-			public _003C_003Ec__DisplayClass13_0()
-			{
-			}
-
-			// 06000710 (1.10.1 RVA 0x650D20)
-			internal bool _003CPlayLevelAudio_003Eb__0()
-			{
-				return audioManager.HasSource(HLAudioSourceIdentifier.Background);
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass14_0
-		{
-			public IntroSequence customIntroSequence;
-
-			public Action<StateCustomIntroSequence> onComplete;
-
-			public Transform startingPosition;
-
-			// 06000711 (1.10.1 RVA 0x650390)
-			public _003C_003Ec__DisplayClass14_0()
-			{
-			}
-
-			// 06000712 (1.10.1 RVA 0x650D50)
-			internal void _003CTryGetCustomIntroSequence_003Eb__0(GameObject asset)
-			{
-				customIntroSequence = asset.GetComponent<IntroSequence>();
-				onComplete(new StateCustomIntroSequence(customIntroSequence, startingPosition, true, true));
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass15_0
-		{
-			public ApplicationStatePlayIntroSequences _003C_003E4__this;
-
-			public App app;
-
-			public Character currentCharacter;
-
-			// 06000713 (1.10.1 RVA 0x6506D0)
-			public _003C_003Ec__DisplayClass15_0()
-			{
-			}
-
-			// 06000714 (1.10.1 RVA 0x650E30)
-			internal void _003CPlayIntroSequence_003Eb__0()
-			{
-				_003C_003E4__this.OnIntroSequencesCompleted(app, currentCharacter);
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass16_0
-		{
-			public ApplicationStatePlayIntroSequences _003C_003E4__this;
-
-			public App app;
-
-			public Character currentCharacter;
-
-			// 06000715 (1.10.1 RVA 0x650E60)
-			public _003C_003Ec__DisplayClass16_0()
-			{
-			}
-
-			// 06000716 (1.10.1 RVA 0x650E70)
-			internal void _003CPlayCustomIntroSequence_003Eb__0()
-			{
-				_003C_003E4__this.OnIntroSequencesCompleted(app, currentCharacter);
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003CPlayCustomIntroSequence_003Ed__16 : IEnumerator<object>, IEnumerator, IDisposable
-		{
-			private int _003C_003E1__state;
-
-			private object _003C_003E2__current;
-
-			public ApplicationStatePlayIntroSequences _003C_003E4__this;
-
-			public App app;
-
-			public Character currentCharacter;
-
-			public StateCustomIntroSequence stateIntroSequence;
-
-			private _003C_003Ec__DisplayClass16_0 _003C_003E8__1;
-
-			object IEnumerator<object>.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			object IEnumerator.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			// 06000717 (1.10.1 RVA 0x6507A0)
-			[DebuggerHidden]
-			public _003CPlayCustomIntroSequence_003Ed__16(int _003C_003E1__state)
-			{
-				this._003C_003E1__state = _003C_003E1__state;
-			}
-
-			// 06000718 (1.10.1 RVA 0x650EA0)
-			[DebuggerHidden]
-			void IDisposable.Dispose()
-			{
-			}
-
-			// 06000719 (1.10.1 RVA 0x650EB0)
-			private bool MoveNext()
-			{
-				if (_003C_003E1__state == 0)
-				{
-					_003C_003E1__state = -1;
-					_003C_003E8__1 = new _003C_003Ec__DisplayClass16_0 { _003C_003E4__this = _003C_003E4__this, app = app, currentCharacter = currentCharacter };
-					if (stateIntroSequence.WaitForUnityEvents)
-					{
-						_003C_003E2__current = null;
-						_003C_003E1__state = 1;
-						return true;
-					}
-				}
-				else if (_003C_003E1__state == 1)
-				{
-					_003C_003E1__state = -1;
-				}
-				else
-				{
-					return false;
-				}
-				_003C_003E8__1.currentCharacter.ParentBlobShadowToRig();
-				_003C_003E4__this.m_islandManagerRef.Get().ForceActiveIsland(_003C_003E8__1.currentCharacter.WorldPosition);
-				_003C_003E8__1.app.TryReleaseUIScreenTransition();
-				if (_003C_003E4__this.m_levelManagerRef.Get().TryGetCurrentLevel(out LevelManagerLevel level))
-				{
-					level.Data.PlayIntroSequence(stateIntroSequence.IntroSequence.Identifier, stateIntroSequence.Start,
-						_003C_003E8__1._003CPlayCustomIntroSequence_003Eb__0, stateIntroSequence.DestroySelf);
-				}
-				return false;
-			}
-
-			bool IEnumerator.MoveNext()
-			{
-				//ILSpy generated this explicit interface implementation from .override directive in MoveNext
-				return this.MoveNext();
-			}
-
-			// 0600071b (1.10.1 RVA 0x651190)
-			[DebuggerHidden]
-			void IEnumerator.Reset()
-			{
-				throw new NotSupportedException();
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003CPlayLevelAudio_003Ed__13 : IEnumerator<object>, IEnumerator, IDisposable
-		{
-			private int _003C_003E1__state;
-
-			private object _003C_003E2__current;
-
-			public ApplicationStatePlayIntroSequences _003C_003E4__this;
-
-			public LevelManagerLevel loadedLevel;
-
-			private _003C_003Ec__DisplayClass13_0 _003C_003E8__1;
-
-			private HLAudioClipIdentifier _003ClevelAudioClipIdentifier_003E5__2;
-
-			private bool _003CstartAtRandomTime_003E5__3;
-
-			object IEnumerator<object>.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			object IEnumerator.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			// 0600071d (1.10.1 RVA 0x650370)
-			[DebuggerHidden]
-			public _003CPlayLevelAudio_003Ed__13(int _003C_003E1__state)
-			{
-				this._003C_003E1__state = _003C_003E1__state;
-			}
-
-			// 0600071e (1.10.1 RVA 0x6511E0)
-			[DebuggerHidden]
-			void IDisposable.Dispose()
-			{
-			}
-
-			// 0600071f (1.10.1 RVA 0x6511F0)
-			private bool MoveNext()
-			{
-				if (_003C_003E1__state == 0)
-				{
-					_003C_003E1__state = -1;
-					_003C_003E8__1 = new _003C_003Ec__DisplayClass13_0();
-					_003ClevelAudioClipIdentifier_003E5__2 = HLAudioClipIdentifier.None;
-					_003CstartAtRandomTime_003E5__3 = false;
-					MissionManager missionManager = _003C_003E4__this.m_missionManagerRef.Get();
-					if (missionManager.HasActiveMission())
-					{
-						_003ClevelAudioClipIdentifier_003E5__2 = missionManager.ActiveMissionContext.MissionDefinition.MusicOverrideIdentifier;
-						_003CstartAtRandomTime_003E5__3 = missionManager.ActiveMissionContext.MissionDefinition.MusicStartAtRandomTime;
-					}
-					if (_003ClevelAudioClipIdentifier_003E5__2 == HLAudioClipIdentifier.None)
-						_003ClevelAudioClipIdentifier_003E5__2 = loadedLevel.LevelDefinition.BackgroundAudioClip;
-					_003C_003E8__1.audioManager = ProcessManager.GetSystem<AudioManager>();
-					_003C_003E2__current = new WaitUntil(_003C_003E8__1._003CPlayLevelAudio_003Eb__0);
-					_003C_003E1__state = 1;
-					return true;
-				}
-				if (_003C_003E1__state == 1)
-				{
-					_003C_003E1__state = -1;
-					_003C_003E8__1.audioManager.PlayClipAtSource(_003ClevelAudioClipIdentifier_003E5__2, HLAudioSourceIdentifier.Background, _003CstartAtRandomTime_003E5__3);
-				}
-				return false;
-			}
-
-			bool IEnumerator.MoveNext()
-			{
-				//ILSpy generated this explicit interface implementation from .override directive in MoveNext
-				return this.MoveNext();
-			}
-
-			// 06000721 (1.10.1 RVA 0x651550)
-			[DebuggerHidden]
-			void IEnumerator.Reset()
-			{
-				throw new NotSupportedException();
-			}
-		}
-
 		private readonly ApplicationStateEvent m_stateEvent;
 
 		private readonly float m_controlsDelayTime;
@@ -378,25 +93,23 @@ namespace HardlightProject
 			return new ApplicationStatePlayIntroSequences(fsm, stateId, stateEvent, doNotCloseContainers, args.ControlsDelayTime);
 		}
 
-		// 060006ff (1.10.1 RVA 0x64F850)
+		// 060006ff (1.10.1 RVA 0x64F850); intro callback 0600070e (RVA 0x650CE0)
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
-			_003C_003Ec__DisplayClass11_0 locals = new _003C_003Ec__DisplayClass11_0();
-			locals._003C_003E4__this = this;
 			base.DoOnEnter(user, action);
 			LevelManager levelManager = ProcessManager.GetSystem<LevelManager>();
-			if (!levelManager.TryGetCurrentLevel(out locals.currentLevel))
+			if (!levelManager.TryGetCurrentLevel(out LevelManagerLevel currentLevel))
 			{
 				return;
 			}
 			levelManager.StartLevel();
 			levelManager.SetIntroSequencePlaying(true);
-			CoroutineUtils.RunCoroutine(PlayLevelAudio(locals.currentLevel));
+			CoroutineUtils.RunCoroutine(PlayLevelAudio(currentLevel));
 			ProcessManager.GetSystem<CollectableManager>().ResetTemporaryCollectables();
-			ProcessManager.GetSystem<CharacterManager>().TryGetCurrentCharacter(out locals.currentCharacter);
-			locals.app = user.GetAs<App>();
-			InitialiseCharacter(locals.currentCharacter);
-			TryGetCustomIntroSequence(user, locals.currentLevel, locals._003CDoOnEnter_003Eb__0);
+			ProcessManager.GetSystem<CharacterManager>().TryGetCurrentCharacter(out Character currentCharacter);
+			App app = user.GetAs<App>();
+			InitialiseCharacter(currentCharacter);
+			TryGetCustomIntroSequence(user, currentLevel, customIntroSequence => PlayIntroSequence(customIntroSequence, currentCharacter, app, currentLevel));
 		}
 
 		// 06000700 (1.10.1 RVA 0x64FB60)
@@ -416,77 +129,94 @@ namespace HardlightProject
 			currentCharacter.Storage.SetValue(ActorFSMKeys.InputOverrideModifierHandle, inputOverrideHandle);
 		}
 
-		// 06000701 (1.10.1 RVA 0x64FAE0)
-		[IteratorStateMachine(typeof(_003CPlayLevelAudio_003Ed__13))]
+		// 06000701 (1.10.1 RVA 0x64FAE0); MoveNext 0600071f (RVA 0x6511F0), WaitUntil predicate 06000710 (RVA 0x650D20)
 		private IEnumerator PlayLevelAudio(LevelManagerLevel loadedLevel)
 		{
-			return new _003CPlayLevelAudio_003Ed__13(0) { _003C_003E4__this = this, loadedLevel = loadedLevel };
+			HLAudioClipIdentifier levelAudioClipIdentifier = HLAudioClipIdentifier.None;
+			bool startAtRandomTime = false;
+			MissionManager missionManager = m_missionManagerRef.Get();
+			if (missionManager.HasActiveMission())
+			{
+				levelAudioClipIdentifier = missionManager.ActiveMissionContext.MissionDefinition.MusicOverrideIdentifier;
+				startAtRandomTime = missionManager.ActiveMissionContext.MissionDefinition.MusicStartAtRandomTime;
+			}
+			if (levelAudioClipIdentifier == HLAudioClipIdentifier.None)
+			{
+				levelAudioClipIdentifier = loadedLevel.LevelDefinition.BackgroundAudioClip;
+			}
+			AudioManager audioManager = ProcessManager.GetSystem<AudioManager>();
+			yield return new WaitUntil(() => audioManager.HasSource(HLAudioSourceIdentifier.Background));
+			audioManager.PlayClipAtSource(levelAudioClipIdentifier, HLAudioSourceIdentifier.Background, startAtRandomTime);
 		}
 
-		// 06000702 (1.10.1 RVA 0x64FDA0)
+		// 06000702 (1.10.1 RVA 0x64FDA0); asset callback 06000712 (RVA 0x650D50)
 		private void TryGetCustomIntroSequence(IGraphUser user, LevelManagerLevel levelManagerLevel, Action<StateCustomIntroSequence> onComplete)
 		{
-			_003C_003Ec__DisplayClass14_0 locals = new _003C_003Ec__DisplayClass14_0();
-			locals.onComplete = onComplete;
 			MissionManager missionManager = m_missionManagerRef.Get();
 			MissionDefinition definition = missionManager.ActiveMissionContext?.MissionDefinition;
-			if (definition == null)
+			if (definition == null || !missionManager.MissionStates.TryGetValue(definition.GetGUID(), out MissionState state))
 			{
-				locals.onComplete(null);
+				onComplete(null);
 				return;
 			}
-			if (missionManager.MissionStates.TryGetValue(definition.GetGUID(), out MissionState state))
+			LevelStartPositionDefinition startDefinition = missionManager.GetActiveMissionStartPosition();
+			if (startDefinition == null)
 			{
-				LevelStartPositionDefinition startDefinition = missionManager.GetActiveMissionStartPosition();
-				if (!(startDefinition == null))
-				{
-					locals.startingPosition = levelManagerLevel.Data.GetStartingPosition(startDefinition);
-					locals.customIntroSequence = state.Tracker.CustomIntroSequence;
-					if (!(locals.customIntroSequence == null) || state.Tracker.IntroBehaviour != MissionTracker.IntroSequenceBehaviour.UseDefault)
-					{
-						locals.onComplete(new StateCustomIntroSequence(locals.customIntroSequence, locals.startingPosition, false, false));
-						return;
-					}
-					DataManager dataManager = ProcessManager.GetSystem<DataManager>();
-					AsyncOperationHandle<GameObject> handle = m_addressablesManagerRef.Get().LoadAssetAsyncInstance(
-						dataManager.IntroSequenceDefinitions[IntroSequenceIdentifier.WalkThroughGate].IntroSequence,
-						m_levelManagerRef.Get().ManagedGameObjectParent,
-						locals._003CTryGetCustomIntroSequence_003Eb__0);
-					user.Storage.SetValue(AppFSMKeys.IntroSequenceHandle, handle);
-					return;
-				}
+				onComplete(null);
+				return;
 			}
-			locals.onComplete(null);
+			Transform startingPosition = levelManagerLevel.Data.GetStartingPosition(startDefinition);
+			IntroSequence customIntroSequence = state.Tracker.CustomIntroSequence;
+			if (!(customIntroSequence == null) || state.Tracker.IntroBehaviour != MissionTracker.IntroSequenceBehaviour.UseDefault)
+			{
+				onComplete(new StateCustomIntroSequence(customIntroSequence, startingPosition, false, false));
+				return;
+			}
+			DataManager dataManager = ProcessManager.GetSystem<DataManager>();
+			AsyncOperationHandle<GameObject> handle = m_addressablesManagerRef.Get().LoadAssetAsyncInstance(
+				dataManager.IntroSequenceDefinitions[IntroSequenceIdentifier.WalkThroughGate].IntroSequence,
+				m_levelManagerRef.Get().ManagedGameObjectParent,
+				asset =>
+				{
+					customIntroSequence = asset.GetComponent<IntroSequence>();
+					onComplete(new StateCustomIntroSequence(customIntroSequence, startingPosition, true, true));
+				});
+			user.Storage.SetValue(AppFSMKeys.IntroSequenceHandle, handle);
 		}
 
-		// 06000703 (1.10.1 RVA 0x650400)
+		// 06000703 (1.10.1 RVA 0x650400); completion callback 06000714 (RVA 0x650E30)
 		private void PlayIntroSequence(StateCustomIntroSequence customIntroSequence, Character currentCharacter, App app, LevelManagerLevel loadedLevel)
 		{
-			_003C_003Ec__DisplayClass15_0 locals = new _003C_003Ec__DisplayClass15_0();
-			locals._003C_003E4__this = this;
-			locals.app = app;
-			locals.currentCharacter = currentCharacter;
 			bool hasCustomIntroSequence = customIntroSequence?.IntroSequence != null;
 			if (!hasCustomIntroSequence || customIntroSequence.IntroSequence.CharacterSkipLevelEnterState)
 			{
-				locals.currentCharacter.Storage.SetValue(ActorFSMKeys.SkipLevelEnter, true);
+				currentCharacter.Storage.SetValue(ActorFSMKeys.SkipLevelEnter, true);
 			}
 			if (hasCustomIntroSequence)
 			{
 				loadedLevel.Data.RegisterIntroSequence(customIntroSequence.IntroSequence);
-				CoroutineUtils.RunCoroutine(PlayCustomIntroSequence(customIntroSequence, locals.currentCharacter, locals.app));
+				CoroutineUtils.RunCoroutine(PlayCustomIntroSequence(customIntroSequence, currentCharacter, app));
 				return;
 			}
-			m_islandManagerRef.Get().ForceActiveIsland(locals.currentCharacter.WorldPosition);
-			locals.app.TryReleaseUIScreenTransition();
-			loadedLevel.Data.PlayIntroSequence(IntroSequenceIdentifier.IntroRail, null, locals._003CPlayIntroSequence_003Eb__0, false);
+			m_islandManagerRef.Get().ForceActiveIsland(currentCharacter.WorldPosition);
+			app.TryReleaseUIScreenTransition();
+			loadedLevel.Data.PlayIntroSequence(IntroSequenceIdentifier.IntroRail, null, () => OnIntroSequencesCompleted(app, currentCharacter), false);
 		}
 
-		// 06000704 (1.10.1 RVA 0x6506E0)
-		[IteratorStateMachine(typeof(_003CPlayCustomIntroSequence_003Ed__16))]
+		// 06000704 (1.10.1 RVA 0x6506E0); MoveNext 06000719 (RVA 0x650EB0), completion callback 06000716 (RVA 0x650E70)
 		private IEnumerator PlayCustomIntroSequence(StateCustomIntroSequence stateIntroSequence, Character currentCharacter, App app)
 		{
-			return new _003CPlayCustomIntroSequence_003Ed__16(0) { _003C_003E4__this = this, stateIntroSequence = stateIntroSequence, currentCharacter = currentCharacter, app = app };
+			if (stateIntroSequence.WaitForUnityEvents)
+			{
+				yield return null;
+			}
+			currentCharacter.ParentBlobShadowToRig();
+			m_islandManagerRef.Get().ForceActiveIsland(currentCharacter.WorldPosition);
+			app.TryReleaseUIScreenTransition();
+			if (m_levelManagerRef.Get().TryGetCurrentLevel(out LevelManagerLevel level))
+			{
+				level.Data.PlayIntroSequence(stateIntroSequence.IntroSequence.Identifier, stateIntroSequence.Start, () => OnIntroSequencesCompleted(app, currentCharacter), stateIntroSequence.DestroySelf);
+			}
 		}
 
 		// 06000705 (1.10.1 RVA 0x6507C0)

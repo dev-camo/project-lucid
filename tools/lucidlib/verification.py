@@ -1759,6 +1759,19 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalApplicationStateInitialiseCharacterTests.FaultAfterTheMissionWaitTerminatesTheIterator",
 )
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.LoadAssetsMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.UnloadUnusedAssetsMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.RestartSetupMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.InitialiseCharacterMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.LoadLevelEnsureOneLevelMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.LoadLevelSceneMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.LoadOrUnloadSceneMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.LoadThenUnloadSceneMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.MetaGameSetupMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.PlayIntroSequencesMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.UnloadAllLevelsMatchesTheOriginalGeneratedMembers",
+)
 
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalTransitionWidgetBinderCorrectionsTests.BinderNodesHideFromTheComponentMenuWithAnEmptyString",

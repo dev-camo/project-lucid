@@ -2,8 +2,6 @@ using Unity.IL2CPP.CompilerServices;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.Utils;
 using UnityEngine;
@@ -27,130 +25,6 @@ namespace HardlightProject
 			// 060007a7 (1.10.1 RVA 0x658E60)
 			public JSONCtorArgs()
 			{
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass6_0
-		{
-			public LevelManager levelManager;
-
-			public string sceneDefinitionGUID;
-
-			// 060007a8 (1.10.1 RVA 0x658E70)
-			public _003C_003Ec__DisplayClass6_0()
-			{
-			}
-
-			// 060007a9 (1.10.1 RVA 0x658E80)
-			internal bool _003CLoadLevel_003Eb__0()
-			{
-				return levelManager.TryGetCurrentLevel(out LevelManagerLevel level) && level.SceneDefinition.GetGUID() == sceneDefinitionGUID;
-			}
-		}
-
-		[CompilerGenerated]
-		private sealed class _003CLoadLevel_003Ed__6 : IEnumerator<object>, IEnumerator, IDisposable
-		{
-			private int _003C_003E1__state;
-
-			private object _003C_003E2__current;
-
-			public IGraphUser user;
-
-			public ApplicationStateLoadLevelScene _003C_003E4__this;
-
-			private _003C_003Ec__DisplayClass6_0 _003C_003E8__1;
-
-			private GameplayLevelDefinition _003CsceneDefinition_003E5__2;
-
-			object IEnumerator<object>.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			object IEnumerator.Current
-			{
-				[DebuggerHidden]
-				get
-				{return _003C_003E2__current;}
-			}
-
-			// 060007aa (1.10.1 RVA 0x658CA0)
-			[DebuggerHidden]
-			public _003CLoadLevel_003Ed__6(int _003C_003E1__state)
-			{
-				this._003C_003E1__state = _003C_003E1__state;
-			}
-
-			// 060007ab (1.10.1 RVA 0x658EB0)
-			[DebuggerHidden]
-			void IDisposable.Dispose()
-			{
-			}
-
-			// 060007ac (1.10.1 RVA 0x658EC0)
-			private bool MoveNext()
-			{
-				if (_003C_003E1__state == 0)
-				{
-					_003C_003E1__state = -1;
-					_003C_003E8__1 = new _003C_003Ec__DisplayClass6_0();
-					LevelManagerLoadLevelParameters parameters = user.Storage.GetValue<LevelManagerLoadLevelParameters>(AppFSMKeys.LevelLoadParameters, null, true);
-					_003CsceneDefinition_003E5__2 = parameters.LevelDefinition;
-					_003C_003E8__1.sceneDefinitionGUID = _003CsceneDefinition_003E5__2.GetGUID();
-					MissionManager missionManager = _003C_003E4__this.m_missionManagerRef.Get();
-					if (missionManager.HasActiveMission() && missionManager.ActiveMissionContext.MissionDefinition.SceneOverride != null)
-					{
-						_003CsceneDefinition_003E5__2 = missionManager.ActiveMissionContext.MissionDefinition.SceneOverride;
-						_003C_003E8__1.sceneDefinitionGUID = _003CsceneDefinition_003E5__2.GetGUID();
-					}
-					if (parameters.LevelDefinition == null)
-					{
-						_003C_003E4__this.PublishMessage(user);
-						return false;
-					}
-					_003C_003E8__1.levelManager = ProcessManager.GetSystem<LevelManager>();
-					_003C_003E2__current = _003C_003E8__1.levelManager.LoadLevelSceneForFSM(parameters.LevelDefinition, _003CsceneDefinition_003E5__2);
-					_003C_003E1__state = 1;
-					return true;
-				}
-				if (_003C_003E1__state == 1)
-				{
-					_003C_003E1__state = -1;
-					_003C_003E2__current = new WaitUntil(_003C_003E8__1._003CLoadLevel_003Eb__0);
-					_003C_003E1__state = 2;
-					return true;
-				}
-				if (_003C_003E1__state == 2)
-				{
-					_003C_003E1__state = -1;
-					if (_003C_003E8__1.levelManager.TryGetCurrentLevel(out LevelManagerLevel level))
-					{
-						_003C_003E8__1.levelManager.OnLevelLoaded(level);
-						_003C_003E4__this.PublishMessage(user);
-					}
-					else
-					{
-						HLOutput.LogError($"{nameof(ApplicationStateLoadLevelScene)} has waited for level to be loaded but still could not find level {_003CsceneDefinition_003E5__2.DisplayName}.");
-					}
-				}
-				return false;
-			}
-
-			bool IEnumerator.MoveNext()
-			{
-				//ILSpy generated this explicit interface implementation from .override directive in MoveNext
-				return this.MoveNext();
-			}
-
-			// 060007ae (1.10.1 RVA 0x6594F0)
-			[DebuggerHidden]
-			void IEnumerator.Reset()
-			{
-				throw new NotSupportedException();
 			}
 		}
 
@@ -178,11 +52,35 @@ namespace HardlightProject
 			CoroutineUtils.RunCoroutine(LoadLevel(user));
 		}
 
-		// 060007a5 (1.10.1 RVA 0x658C20)
-		[IteratorStateMachine(typeof(_003CLoadLevel_003Ed__6))]
+		// 060007a5 (1.10.1 RVA 0x658C20); MoveNext 060007ac (RVA 0x658EC0), WaitUntil predicate 060007a9 (RVA 0x658E80)
 		private IEnumerator LoadLevel(IGraphUser user)
 		{
-			return new _003CLoadLevel_003Ed__6(0) { _003C_003E4__this = this, user = user };
+			LevelManagerLoadLevelParameters parameters = user.Storage.GetValue<LevelManagerLoadLevelParameters>(AppFSMKeys.LevelLoadParameters, null, true);
+			GameplayLevelDefinition sceneDefinition = parameters.LevelDefinition;
+			string sceneDefinitionGUID = sceneDefinition.GetGUID();
+			MissionManager missionManager = m_missionManagerRef.Get();
+			if (missionManager.HasActiveMission() && missionManager.ActiveMissionContext.MissionDefinition.SceneOverride != null)
+			{
+				sceneDefinition = missionManager.ActiveMissionContext.MissionDefinition.SceneOverride;
+				sceneDefinitionGUID = sceneDefinition.GetGUID();
+			}
+			if (parameters.LevelDefinition == null)
+			{
+				PublishMessage(user);
+				yield break;
+			}
+			LevelManager levelManager = ProcessManager.GetSystem<LevelManager>();
+			yield return levelManager.LoadLevelSceneForFSM(parameters.LevelDefinition, sceneDefinition);
+			yield return new WaitUntil(() => levelManager.TryGetCurrentLevel(out LevelManagerLevel currentLevel) && currentLevel.SceneDefinition.GetGUID() == sceneDefinitionGUID);
+			if (levelManager.TryGetCurrentLevel(out LevelManagerLevel level))
+			{
+				levelManager.OnLevelLoaded(level);
+				PublishMessage(user);
+			}
+			else
+			{
+				HLOutput.LogError($"{nameof(ApplicationStateLoadLevelScene)} has waited for level to be loaded but still could not find level {sceneDefinition.DisplayName}.");
+			}
 		}
 
 		// 060007a6 (1.10.1 RVA 0x658CC0)

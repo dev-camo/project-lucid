@@ -31,9 +31,9 @@ namespace ProjectLucid.Editor
             ConstructorInfo constructor = type.GetConstructor(Instance, null, new[] { typeof(int) }, null);
             Assert.That(constructor, Is.Not.Null);
             var iterator = (IEnumerator)constructor.Invoke(new object[] { resumeState });
-            FieldInfo state = ReadOnlyField(type, "_003C_003E1__state", typeof(int));
+            FieldInfo state = ReadOnlyField(type, "<>1__state", typeof(int));
             Assert.That(state.GetValue(iterator), Is.EqualTo(resumeState));
-            Assert.That(ReadOnlyField(type, "_003C_003E7__wrap3", typeof(System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<string, MissionState>>)).GetValue(iterator), Is.Null);
+            Assert.That(ReadOnlyField(type, "<>7__wrap3", typeof(System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<string, MissionState>>)).GetValue(iterator), Is.Null);
 
             // State 1 re-enters the protected loop, whose first enumerator call faults on the
             // never-acquired enumerator; the fault itself is rethrown.
