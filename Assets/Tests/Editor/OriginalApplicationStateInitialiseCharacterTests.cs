@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using HardlightProject;
 using NUnit.Framework;
+using UnityEditor.Compilation;
 
 namespace ProjectLucid.Editor
 {
@@ -27,6 +28,8 @@ namespace ProjectLucid.Editor
 
         private static void AssertFaultTerminates(int resumeState)
         {
+            // The <>7__wrap3 slot name is the original's Release emission (dump.cs).
+            Assert.That(CompilationPipeline.codeOptimization, Is.EqualTo(CodeOptimization.Release), "the original field names assume Release emission");
             Type type = IteratorType();
             ConstructorInfo constructor = type.GetConstructor(Instance, null, new[] { typeof(int) }, null);
             Assert.That(constructor, Is.Not.Null);

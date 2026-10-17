@@ -4,16 +4,15 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using HardlightProject;
 using NUnit.Framework;
+using UnityEditor.Compilation;
 
 namespace ProjectLucid.Editor
 {
-    // Compiler-generated identities of the application FSM coroutines, against the original
-    // Game.Runtime metadata (dump.cs, TypeDefIndex in each case). Roslyn names iterator and
-    // closure types after the owning member's ordinal and emits hoisted and captured fields in
-    // capture order, so these names pin the member declaration order and the source shape of
-    // each iterator and lambda (captured-local scope, parameter use order, foreach lowering).
-    // Fields, nested types and methods are compared in metadata-token order, which is the
-    // dump order.
+    // Compiler-generated nested types, fields, methods and iterator attributes of the
+    // application FSM coroutines, compared with the original Game.Runtime metadata (dump.cs,
+    // TypeDefIndex in each case) in metadata-token order, which is the dump order. The
+    // original was emitted with Release code optimization; Debug emission hoists different
+    // locals, so the expectations only apply to a Release compilation.
     public sealed class OriginalApplicationCoroutineIdentityTests
     {
         private const BindingFlags Declared = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
@@ -114,8 +113,8 @@ namespace ProjectLucid.Editor
                 StateMachine("<DestroyCharacter>d__10", new[] { "<>4__this", "user", "missionDefinition", "<characterManager>5__2" }));
         }
 
-        // TypeDefIndex 258-267. DisplayClass14_0 keeps the onComplete parameter and the
-        // starting-position and intro-sequence locals in one scope, in lambda capture order.
+        // TypeDefIndex 258-267. DisplayClass14_0 holds the onComplete parameter and the
+        // method-scope startingPosition and customIntroSequence locals in one class.
         [Test]
         public void PlayIntroSequencesMatchesTheOriginalGeneratedMembers()
         {
@@ -148,6 +147,7 @@ namespace ProjectLucid.Editor
 
         private static void AssertGenerated(Type owner, (string method, string stateMachine)[] iterators, string[] ownerMethods, params (string name, string[] fields, string[] methods)[] generated)
         {
+            Assert.That(CompilationPipeline.codeOptimization, Is.EqualTo(CodeOptimization.Release), "the original metadata oracle assumes Release emission");
             Type[] nested = owner.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
                 .Where(t => t.Name.StartsWith("<"))
                 .OrderBy(t => t.MetadataToken)
@@ -167,8 +167,9 @@ namespace ProjectLucid.Editor
                 MethodInfo factory = owner.GetMethod(method, Declared);
                 Assert.That(factory, Is.Not.Null, method);
                 Type type = factory.GetCustomAttribute<IteratorStateMachineAttribute>(false)?.StateMachineType;
-                Assert.That(type?.Name, Is.EqualTo(stateMachine), $"{owner.Name}.{method} iterator");
-                Assert.That(type.DeclaringType, Is.EqualTo(owner));
+                Assert.That(type, Is.Not.Null, $"{owner.Name}.{method} iterator");
+                Assert.That(type.Name, Is.EqualTo(stateMachine), $"{owner.Name}.{method} iterator");
+                Assert.That(type.DeclaringType, Is.EqualTo(owner), $"{owner.Name}.{method} iterator owner");
             }
 
             Assert.That(GeneratedMethods(owner), Is.EqualTo(ownerMethods), $"{owner.Name} generated methods");

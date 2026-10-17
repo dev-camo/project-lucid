@@ -152,36 +152,42 @@ namespace HardlightProject
 		// 06000702 (1.10.1 RVA 0x64FDA0); asset callback 06000712 (RVA 0x650D50)
 		private void TryGetCustomIntroSequence(IGraphUser user, LevelManagerLevel levelManagerLevel, Action<StateCustomIntroSequence> onComplete)
 		{
+			// Method-scope locals keep onComplete and both captures in the single DisplayClass14_0.
+			IntroSequence customIntroSequence;
+			Transform startingPosition;
 			MissionManager missionManager = m_missionManagerRef.Get();
 			MissionDefinition definition = missionManager.ActiveMissionContext?.MissionDefinition;
-			if (definition == null || !missionManager.MissionStates.TryGetValue(definition.GetGUID(), out MissionState state))
+			if (definition == null)
 			{
 				onComplete(null);
 				return;
 			}
-			LevelStartPositionDefinition startDefinition = missionManager.GetActiveMissionStartPosition();
-			if (startDefinition == null)
+			if (missionManager.MissionStates.TryGetValue(definition.GetGUID(), out MissionState state))
 			{
-				onComplete(null);
-				return;
-			}
-			Transform startingPosition = levelManagerLevel.Data.GetStartingPosition(startDefinition);
-			IntroSequence customIntroSequence = state.Tracker.CustomIntroSequence;
-			if (!(customIntroSequence == null) || state.Tracker.IntroBehaviour != MissionTracker.IntroSequenceBehaviour.UseDefault)
-			{
-				onComplete(new StateCustomIntroSequence(customIntroSequence, startingPosition, false, false));
-				return;
-			}
-			DataManager dataManager = ProcessManager.GetSystem<DataManager>();
-			AsyncOperationHandle<GameObject> handle = m_addressablesManagerRef.Get().LoadAssetAsyncInstance(
-				dataManager.IntroSequenceDefinitions[IntroSequenceIdentifier.WalkThroughGate].IntroSequence,
-				m_levelManagerRef.Get().ManagedGameObjectParent,
-				asset =>
+				LevelStartPositionDefinition startDefinition = missionManager.GetActiveMissionStartPosition();
+				if (!(startDefinition == null))
 				{
-					customIntroSequence = asset.GetComponent<IntroSequence>();
-					onComplete(new StateCustomIntroSequence(customIntroSequence, startingPosition, true, true));
-				});
-			user.Storage.SetValue(AppFSMKeys.IntroSequenceHandle, handle);
+					startingPosition = levelManagerLevel.Data.GetStartingPosition(startDefinition);
+					customIntroSequence = state.Tracker.CustomIntroSequence;
+					if (!(customIntroSequence == null) || state.Tracker.IntroBehaviour != MissionTracker.IntroSequenceBehaviour.UseDefault)
+					{
+						onComplete(new StateCustomIntroSequence(customIntroSequence, startingPosition, false, false));
+						return;
+					}
+					DataManager dataManager = ProcessManager.GetSystem<DataManager>();
+					AsyncOperationHandle<GameObject> handle = m_addressablesManagerRef.Get().LoadAssetAsyncInstance(
+						dataManager.IntroSequenceDefinitions[IntroSequenceIdentifier.WalkThroughGate].IntroSequence,
+						m_levelManagerRef.Get().ManagedGameObjectParent,
+						asset =>
+						{
+							customIntroSequence = asset.GetComponent<IntroSequence>();
+							onComplete(new StateCustomIntroSequence(customIntroSequence, startingPosition, true, true));
+						});
+					user.Storage.SetValue(AppFSMKeys.IntroSequenceHandle, handle);
+					return;
+				}
+			}
+			onComplete(null);
 		}
 
 		// 06000703 (1.10.1 RVA 0x650400); completion callback 06000714 (RVA 0x650E30)
