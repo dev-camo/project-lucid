@@ -2119,3 +2119,16 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLUIEffectManagerWeakRemediationTests.OriginalEffectManagerSamplesPassRawTimeToLoopingCurves",
     "ProjectLucid.Tests.OriginalHLButtonWeakRemediationTests.InactiveButtonPropertiesRouteToTheirOwnBackingFields",
 )
+
+# Issue #87: Language row admission and unwind controls.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(True)",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageRawKeyWithNullRow_RejectsBeforeReadingIt",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(False,False,False)",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(True,False,False)",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(False,True,False)",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(True,True,False)",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(False,True,True)",
+    "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(True,True,True)",
+)
