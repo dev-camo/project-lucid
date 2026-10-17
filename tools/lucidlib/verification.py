@@ -2962,3 +2962,76 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSelectableGeneratedMembers
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLSelectableScenePlayTests.WaitForRootObjectsYieldsOnceThenRecordsTheSceneAndRegisters",
 )
+
+
+# Restored HLUnityUI.Runtime recycling and scroll helpers: Hardlight.HLRecyclingScrollRect`2
+# (0x06000653..67e), HLHorizontal/HLVerticalRecyclingScrollRect`2, HLRecyclingScrollRectElement`1,
+# Hardlight.HLSimpleScroll, HLScrollRefreshWidget and HLParentScrollRectBlocker.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLRecyclingScrollRectTests." + name for name in (
+    "DeclarationKeepsTheDumpedConstraintFieldsAndGeneratedNames",
+    "ElementDeclarationAndDataTypeIsTheClosedTypeArgument",
+    "ConstructorSeedsTheRingStateAndDefaults",
+    "LoopingIndexHelpersKeepTheirOwnWrapRules",
+    "AdjustSizeCountsTheResizeOffsetAndNeverNegativeSpacing",
+    "PositionFromEntryIndexStepsByElementAndSpacing",
+    "IndexOfFirstEntryCeilsTheScrolledStepsAndClamps",
+    "SetupContentFloorsTheVisibleCountAndAddsAtTheEnd",
+    "SetupContentSplitsWithAnOffByOneEndShare",
+    "SetupContentRemovesSurplusObjects",
+    "RemoveObjectsTakesTheRingEndBeforeTheFirstObject",
+    "RemoveObjectsWithNegativeFirstObjectThrowsAfterTrimmingTheEnd",
+    "AddNewObjectsToEndInsertsAtTheFirstObjectSlot",
+    "AddNewObjectsToEndRestartsANegativeFirstObjectAtZero",
+    "InstantiateNewObjectRenamesInsertsInitialisesAndPositions",
+    "BaseInstantiateParentsTheCloneAndBaseDestroyUsesObjectDestroy",
+    "MoveFromStartToEndReassignsTheLeadingObjects",
+    "MoveFromStartToEndJumpsPastAWholeRing",
+    "NonPositiveMovesOnlyRewriteTheIndicesWhenMovingToTheStart",
+    "MoveFromEndToStartReassignsFromTheNewFirstObject",
+    "PositionChangedMovesTowardsTheTargetEntryAndNotifiesEveryObject",
+    "PositionChangedCapsForwardMovesAndMovesBackFully",
+    "ReloadAllDataWrapsEntriesAndObjectsIndependently",
+    "ClearDestroysLastToFirstAndRestoresTheConstructorIndices",
+    "SetEntriesAlwaysResetsTheScrollAfterRemovingObjects",
+    "InactiveSetupAtEndOfFrameStartsNothingAndLeavesTheFlagClear",
+    "SetupCoroutineResizesWaitsTwoFramesThenBuilds",
+    "OnDisableNeverRemovesTheValueChangedListener",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLDirectionalRecyclingScrollRectTests." + name for name in (
+    "DeclarationsKeepTheDumpedAlignmentFieldAndCentreDefault",
+    "HorizontalSizesReadWidthsAndLeftRightPadding",
+    "VerticalSizesReadHeightsAndTopBottomPadding",
+    "ContentSizeSetterSizesBothContentsAlongTheAxis",
+    "HorizontalChildPositionUsesTheVerticalAlignment",
+    "VerticalChildPositionNegatesThePositionAndUsesTheHorizontalAlignment",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLParentScrollRectBlockerTests." + name for name in (
+    "DeclarationKeepsTheDumpedInterfacesFieldsAndDisplayClass",
+    "PointerTrackingFollowsTheFirstPointerUntilItsDragEnds",
+    "PotentialDragReachesOnlyTheFirstParentHandlerForTheLeftButton",
+    "PotentialDragSkipsAncestorsWithoutAHandler",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLScrollRefreshWidgetTests." + name for name in (
+    "DeclarationKeepsTheDumpedFieldsNestedEventAndDefaults",
+    "OnDragStoresTheClampedThresholdProgress",
+    "OnDragScrubsThePullAnimation",
+    "OnEndDragBelowTheActivationPercentageCancels",
+    "OnEndDragAtTheActivationPercentageRefreshesUntilTheCallback",
+    "OnEndDragWithNaNProgressCancels",
+    "AwakeAndOnDestroySubscribeToTheScrollRectDragEvents",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSimpleScrollTests." + name for name in (
+    "DeclarationKeepsTheDumpedFieldsDefaultsAndIterator",
+    "ScrollEventsArmTheInputScroll",
+    "InputScrollMovesTheSingleEnabledAxisByThePixelStep",
+    "InputScrollWithBothOrNeitherAxisDoesNotMoveButDisarms",
+    "TooSmallContentOrAnInactiveRectLeavesTheScrollArmed",
+    "ClampedInputScrollUsesTheCachedContentBounds",
+    "ClearUpLeavesShutdownAndUnregistersBothInputs",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSimpleScrollPlayTests." + name for name in (
+    "LerpAddsTheGrowthOfTheLerpEachFrameAndStopsShort",
+    "PositiveValueSubtractsNegativeSteps",
+    "NegativeValueAddsItsSteps",
+    "InactiveRectEndsTheLerpAndLeavesTheScrollArmed",
+))
