@@ -307,6 +307,30 @@ namespace ProjectLucid.Tests
             Assert.That(image.color, Is.Not.EqualTo(Color.Lerp(from, to, 0.5f)), "RGB is not an RGB-space lerp.");
         }
 
+        // The blend is read back through the virtual getter (vslot 22, 0x1B5F9E2) between the
+        // two setter calls (vslot 23, 0x1B5F9C9 and the tail jump at 0x1B5FA55), so a getter
+        // that rewrites r shows up in the stored blend and in the second set.
+        [Test]
+        public void SwapColourReadsTheLabColourBackBeforeSettingTheAlpha()
+        {
+            GameObject owner = new GameObject("OriginalSwapColour-readback", typeof(RectTransform));
+            m_owned.Add(owner);
+            owner.SetActive(false);
+            var image = owner.AddComponent<ProjectLucid.Tests.UISelectionShared.ColourReadBackImage>();
+            OnUISelectionSwapColour layer = owner.AddComponent<OnUISelectionSwapColour>();
+            Set(layer, "m_image", image);
+            image.Log = new List<string>();
+
+            layer.OnHighlightUpdated(ColourSource(new Color(1f, 0f, 0f, 0.25f)), ColourSource(new Color(0f, 0f, 1f, 0.75f)), 0.5f);
+
+            Assert.That(image.Log, Is.EqualTo(new[] { "set", "get", "set" }));
+            var blend = (Color)Get(layer, "m_currentColourBlend");
+            Assert.That(blend.r, Is.EqualTo(ProjectLucid.Tests.UISelectionShared.ColourReadBackImage.ReadBackRed));
+            Assert.That(blend.a, Is.EqualTo(0.5f));
+            Assert.That(image.Sets[1].r, Is.EqualTo(ProjectLucid.Tests.UISelectionShared.ColourReadBackImage.ReadBackRed));
+            Assert.That(image.Sets[1].a, Is.EqualTo(0.5f));
+        }
+
         // The alpha lerp clamps like the LAB one (LABColor.Lerp 0x1B397F7 uses the same
         // minss 1.0 / cmpltss 0 clamp): t = 3 gives the current alpha, t = -2 the previous
         // alpha. The RGB checks are delegation-only, as above.

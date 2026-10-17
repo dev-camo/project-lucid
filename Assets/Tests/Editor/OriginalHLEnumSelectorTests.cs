@@ -210,6 +210,19 @@ namespace ProjectLucid.Tests
             Assert.That(probe.Value, Is.EqualTo(Value.Two));
         }
 
+        // 0x13926DE `cmp [m_currentIndex],0; jns` wraps only a negative index, so 1 steps
+        // down to 0 (a `<= 0` wrap would give index 3, Seven).
+        [Test]
+        public void DecrementFromOneKeepsIndexZero()
+        {
+            EnumSelectorProbe probe = MakeInitialised("OriginalHLEnumSelector-decrement-zero");
+            Set(probe, "m_currentIndex", 1);
+            probe.Action_Decrement();
+            Assert.That(Get(probe, "m_currentIndex"), Is.EqualTo(0));
+            Assert.That(probe.Value, Is.EqualTo(Value.Zero));
+            Assert.That(probe.Log, Is.EqualTo(new[] { "Validate 0 values=4" }));
+        }
+
         // SetCurrentValue 0x06000066 @0x1392850: m_currentValue = value first, then
         // Compare(m_values[i], m_currentValue) for i < m_valueCount, index = first match,
         // then Validate. Value 2 matches at index 1 after two compares.
