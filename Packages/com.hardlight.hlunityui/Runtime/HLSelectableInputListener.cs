@@ -1,5 +1,5 @@
 // Original HLUnityUI.Runtime Hardlight.HLSelectableInputListener complete family reconstruction.
-// C# spelling, local names and compiler-generated ordinal/layout are inferred; source/native fault equivalence and current emission remain held.
+// C# spelling and local names are inferred; source/native fault equivalence and current emission remain held.
 // All thirty concrete ARM64/x86_64 spans were personally read; the text-provider interface has two genuine zero definition pointers.
 // Setup subscribes shutdown before SystemRef.IsNull. ClearUp deselects before checking/removing controller subscriptions; no idempotence/rollback added.
 // ButtonSelected appends per-index closures without clearing the delegate list. Callback supplier and ProcessTriggers entries are reread, including after Press/event reentry.
@@ -36,6 +36,40 @@ namespace Hardlight
     [Il2CppSetOption(Option.NullChecks, false)]
     public class HLSelectableInputListener : MonoBehaviour
     {
+        // Both nested types precede the fields: the shipping closure is
+        // <>c__DisplayClass12_0 (0x02000092), so ButtonSelected is member ordinal 12.
+        [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
+        public class SelectedButtonInput
+        {
+            public bool m_triggerButton;
+            [Tooltip("Will trigger an interactable button")]
+            public HLButton m_buttonToTrigger;
+            public bool m_triggerEvent;
+            [Tooltip("Any extras can be setup here, will trigger on input after the button")]
+            public UnityEvent m_eventToTrigger;
+            [Tooltip("Add your desired input here, when the button is selected and this input happens, the button will trigger and event will fire.")]
+            public GameInput m_inputToListenFor;
+            public InputSupplier m_inputSupplierToListenFor;
+            [HashEnum(typeof(Strings))]
+            [Tooltip("String to be shown in the overlay.")]
+            public Strings m_stringID;
+            private ISelectedButtonInputTextProvider m_provider;
+
+            public string Text { get { return m_provider != null ? m_provider.Text : null; } }
+            public void SetProvider(ISelectedButtonInputTextProvider provider)
+            {
+                if (m_provider == null) m_provider = provider;
+            }
+            public SelectedButtonInput() { }
+        }
+
+        public interface ISelectedButtonInputTextProvider
+        {
+            string Text { get; }
+        }
+
         [Tooltip("The selectable to watch, can be the same as the button to be triggered by needs to be defined separately")]
         [SerializeField] private HLSelectable m_selectableToWatch;
         [Tooltip("Buttons to trigger, events to fire and inputs to listen to are all defined here")]
@@ -112,37 +146,5 @@ namespace Hardlight
 
         public SelectedButtonInput[] GetButtonInputData() { return m_buttonInputData; }
         public HLSelectableInputListener() { }
-
-        [Serializable]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        [Il2CppSetOption(Option.NullChecks, false)]
-        public class SelectedButtonInput
-        {
-            public bool m_triggerButton;
-            [Tooltip("Will trigger an interactable button")]
-            public HLButton m_buttonToTrigger;
-            public bool m_triggerEvent;
-            [Tooltip("Any extras can be setup here, will trigger on input after the button")]
-            public UnityEvent m_eventToTrigger;
-            [Tooltip("Add your desired input here, when the button is selected and this input happens, the button will trigger and event will fire.")]
-            public GameInput m_inputToListenFor;
-            public InputSupplier m_inputSupplierToListenFor;
-            [HashEnum(typeof(Strings))]
-            [Tooltip("String to be shown in the overlay.")]
-            public Strings m_stringID;
-            private ISelectedButtonInputTextProvider m_provider;
-
-            public string Text { get { return m_provider != null ? m_provider.Text : null; } }
-            public void SetProvider(ISelectedButtonInputTextProvider provider)
-            {
-                if (m_provider == null) m_provider = provider;
-            }
-            public SelectedButtonInput() { }
-        }
-
-        public interface ISelectedButtonInputTextProvider
-        {
-            string Text { get; }
-        }
     }
 }

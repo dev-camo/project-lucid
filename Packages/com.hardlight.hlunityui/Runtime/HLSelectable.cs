@@ -120,14 +120,6 @@ namespace Hardlight
             }
         }
 
-        protected enum SelectionState
-        {
-            Normal = 0,
-            Highlighted = 1,
-            Pressed = 2,
-            Disabled = 3
-        }
-
         public static FastAction<HLAudioTypes> OnNavigateTowardsSfx;
         [SerializeField] protected Transform m_targetTransform;
         [SerializeField] protected GameObject m_selectedAndHighlightObject;
@@ -326,6 +318,17 @@ namespace Hardlight
             InstantClearState();
             m_onShouldHighlightChanged -= ShouldHighlight;
             base.OnDisable();
+        }
+
+        // The shipping iterator is <WaitForRootObjects>d__77 (0x020000f6); its member
+        // ordinal is 77 only when one nested type follows WaitForRootObjects. Which
+        // one is not recorded in metadata; this enum is placed beside the state code.
+        protected enum SelectionState
+        {
+            Normal = 0,
+            Highlighted = 1,
+            Pressed = 2,
+            Disabled = 3
         }
 
         protected virtual void InstantClearState()

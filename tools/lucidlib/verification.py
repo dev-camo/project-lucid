@@ -2951,3 +2951,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLTappableTests." + name for
     "PointerDownRecordsTheStartTimeOnly",
     "PointerUpTapsOnlyWhenStrictlyShorterThanTheThreshold",
 ))
+
+
+# Compiler-generated HLSelectable iterator and HLSelectableInputListener closure (HLUnityUI.Runtime).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSelectableGeneratedMembersTests." + name for name in (
+    "WaitForRootObjectsStateMachineKeepsTheShippingName",
+    "ButtonSelectedClosureKeepsTheShippingDisplayClassName",
+    "WaitForRootObjectsYieldsOnceThenRecordsTheSceneAndRegisters",
+    "WaitForRootObjectsResetIsNotSupported",
+))
