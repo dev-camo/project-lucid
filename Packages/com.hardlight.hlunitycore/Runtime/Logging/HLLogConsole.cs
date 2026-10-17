@@ -7,6 +7,10 @@ namespace Hardlight
 	// because HLLogHandler.LogMessageReceiveThreaded reads the field. The
 	// console window's fields, nested ConsoleLogMessage and methods
 	// 0x060009ec..0x06000a21 are still to be recovered into this declaration.
+	// Game.Runtime ProjectConsole : HLLogConsole (TypeDefIndex 1530) is
+	// serialized in the shipped LogHandler.prefab with m_logConsoleAsset, a
+	// field this stub lacks. Do not bind this script or use it as a base
+	// until the full declaration is restored.
 	[RequireComponent(typeof(HLLogHandler))]
 	public class HLLogConsole : MonoBehaviour
 	{

@@ -6,6 +6,10 @@ namespace Hardlight
 {
 	// Original HLUnityCore.Runtime 0x02000176 (TypeDefIndex 9125), methods
 	// 0x06000a65..0x06000a68; bodies translated from the 1.10.1 x86-64 binary.
+	// Shipped asset Assets/MonoBehaviour/SDT-LogHandlerSettings.asset uses
+	// this script (export GUID 1d20c2996d00010c90bb1b9c35e5cedb) with six
+	// platform rows and a DefaultExclusions list. The script binding is
+	// still pending, so that asset does not bind to this type yet.
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[CreateAssetMenu(fileName = "LoggerSettings", menuName = "Hardlight/LogHandler")]
@@ -33,8 +37,9 @@ namespace Hardlight
 		}
 
 		// 0x06000a67 (0x1b02370) still compares every later row's platform with
-		// each row's, but the shipped body discards the result: whatever the
-		// duplicate branch did was compiled out of this build.
+		// each row's, but the player body discards the result. What the
+		// duplicate branch contained is unknown: possibly a [Conditional] or
+		// editor-only call that would still run in the Editor.
 		private void OnValidate()
 		{
 			int count = m_platformSettings.Length;

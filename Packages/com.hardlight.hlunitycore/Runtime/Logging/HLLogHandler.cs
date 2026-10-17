@@ -10,6 +10,12 @@ namespace Hardlight
 {
 	// Original HLUnityCore.Runtime 0x02000170 (TypeDefIndex 9119), methods
 	// 0x06000a44..0x06000a59; bodies translated from the 1.10.1 x86-64 binary.
+	// Shipped assets use this script: the reference export's
+	// Assets/GameObject/LogHandler.prefab (instanced in s_common.unity) holds
+	// it under script GUID 44031b67d3b370f585efb8453c56e4a4 with
+	// m_settingsAsset -> SDT-LogHandlerSettings. The script binding is still
+	// pending (no Unity serialization proof yet), so those assets do not bind
+	// to this type and the .meta GUID is not the export's.
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public class HLLogHandler : MonoBehaviour, ISystem
@@ -51,6 +57,9 @@ namespace Hardlight
 
 		// 0x06000a47. A missing asset, or no row for the active platform, falls
 		// back to a default setting; a missing exclusion array to Array.Empty.
+		// A null asset skips the store entirely (0x1b00b1c -> 0x1b00b86), so the
+		// default replaces any previous setting without testing it; keep the
+		// assignment inside the condition.
 		private void Awake()
 		{
 			ProcessManager.RegisterSystem(this);
@@ -129,7 +138,9 @@ namespace Hardlight
 		// including values outside LogType; otherwise only the five mapped types
 		// pass (jump table 0x1b01688). Exclusions see the raw message. The stack
 		// trace is kept or dropped by the second mask with the same rule (lookup
-		// table 0x29a8370).
+		// table 0x29a8370). Both switches are written the same way; the jump
+		// table versus lookup table is the optimiser's choice, not a different
+		// source construct.
 		private void LogMessageReceiveThreaded(string message, string stackTrace, LogType type)
 		{
 			bool isSupported = m_currentSetting.LogTypeSupport == HLLogConsole.AllLogTypes;

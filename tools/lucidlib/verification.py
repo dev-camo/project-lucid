@@ -2139,6 +2139,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLLogHandlerTests." + name f
     "ConstructorCreatesOnlyTheQueueAndAwakeFallsBackToDefaults",
     "AwakeSelectsTheFirstCaseInsensitivePlatformRowAndSizesTheList",
     "MasksFilterTypesAndOnlyTheCurrentAllLogTypesValueAcceptsUnmappedTypes",
+    "ShippedOsxSettingsRowDropsUnmappedTypesAndKeepsWarningErrorAssertStacks",
     "ExclusionListsSkipMatchesAndEnableExclusionListChangesTheFirstNamedList",
     "QueueUpdateCountsStackThenMessageLengthsAndRaisesAfterListing",
     "UpdateFlushesAtTheWrappedIntThresholdOnlyWithAutoExport",

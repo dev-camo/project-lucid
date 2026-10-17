@@ -226,9 +226,73 @@ namespace ProjectLucid.Tests
             LogAssert.NoUnexpectedReceived();
         }
 
+        // Original-derived oracle: the six rows and exclusion list of the shipped
+        // SDT-LogHandlerSettings.asset (2026-10-05 reference export,
+        // ExportedProject/Assets/MonoBehaviour), copied field for field. Awake
+        // 0x1b00a60 picks the osx row. Its m_logTypeSupported -1 is not the
+        // AllLogTypes value 0x3e, so the bounded switch at 0x1b01688 applies
+        // and an unmapped type is dropped even though every bit is set. Stack
+        // mask 28 keeps traces for Warning, Error and Assert only; maxMB -1
+        // disables auto-export (default 10000 capacity) and stage 2 is quit
+        // only, so pause does not flush. The empty DefaultExclusions list
+        // excludes nothing.
+        // Mutations caught: treating any all-bits mask as AllLogTypes, a
+        // non-positive size enabling auto-export, or a pause export.
+        [Test]
+        public void ShippedOsxSettingsRowDropsUnmappedTypesAndKeepsWarningErrorAssertStacks()
+        {
+            SupportedLogTypes original = HLLogConsole.AllLogTypes;
+            Assert.AreEqual(Everything, original, "fixture requires the shipped AllLogTypes value");
+            const ExportFormats AnyFormat = (ExportFormats)(-1);
+            const SupportedLogTypes AnyType = (SupportedLogTypes)(-1);
+            const SupportedLogTypes ShippedStacks = (SupportedLogTypes)28;
+            const ExportStages Quit = (ExportStages)2;
+            HLLogHandlerSetting osx = Setting("osx", AnyFormat, AnyType, ShippedStacks, -1, Quit);
+            var asset = ScriptableObject.CreateInstance<HLLogHandlerSettingScriptableObject>();
+            try
+            {
+                Set(asset, "m_platformSettings", new[]
+                {
+                    Setting("editor", (ExportFormats)2, AnyType, AnyType, 0, (ExportStages)(-1)),
+                    Setting("ios", AnyFormat, AnyType, ShippedStacks, -1, Quit),
+                    Setting("android", (ExportFormats)2, AnyType, ShippedStacks, 0, Quit),
+                    Setting("windows", AnyFormat, AnyType, ShippedStacks, 1, Quit),
+                    osx,
+                    Setting("tvos", AnyFormat, AnyType, ShippedStacks, -1, Quit),
+                });
+                Set(asset, "m_logExclusionList", new[] { new ExclusionList { Name = "DefaultExclusions", Exclusions = new string[0] } });
+                using (var owned = new Owned(asset))
+                {
+                    HLLogHandler handler = owned.Handler;
+                    Assert.AreSame(osx, Get(handler, "m_currentSetting"));
+                    Assert.AreEqual(false, Get(handler, "m_isAutoExportEnabled"));
+                    Assert.AreEqual(10000, Messages(handler).Capacity);
+
+                    var types = new[] { LogType.Error, LogType.Assert, LogType.Warning, LogType.Log, LogType.Exception, (LogType)5 };
+                    foreach (LogType type in types) Receive(handler, "m" + (int)type, "s" + (int)type, type);
+                    Call(handler, "LogQueueUpdate");
+                    Assert.That(handler.LogMessages.Select(Describe),
+                        Is.EqualTo(new[] { "0|m0|s0", "1|m1|s1", "2|m2|s2", "3|m3|<null>", "4|m4|<null>" }));
+
+                    Set(handler, "m_currentLogByteSize", long.MaxValue);
+                    Call(handler, "Update");
+                    Call(handler, "OnApplicationPause", true);
+                    Assert.AreEqual(5, handler.LogMessages.Count, "neither the size check nor pause flushes");
+                    Assert.AreEqual(long.MaxValue, Get(handler, "m_currentLogByteSize"));
+                }
+            }
+            finally
+            {
+                HLLogConsole.AllLogTypes = original;
+                Object.DestroyImmediate(asset);
+            }
+            LogAssert.NoUnexpectedReceived();
+        }
+
         // 0x1b013d0 inlines ExclusionList.IsExcluded for every list on the raw
-        // message before enqueueing. EnableExclusionList 0x1b003b0 changes only
-        // the first list whose name is not unequal (op_Inequality) and stops.
+        // message before enqueueing. EnableExclusionList 0x1b003b0 changes the
+        // first list whose Name equals the argument (the loop skips on string
+        // op_Inequality) and then stops.
         // Mutations caught: excluding after the stack decision, matching the
         // stack trace, toggling every same-named list, or a missing-name throw.
         [Test]
@@ -299,7 +363,7 @@ namespace ProjectLucid.Tests
         // imul eax,[rax+0x2c],0xf4240 is a 32-bit product, sign-extended, and
         // the flush runs at >=. 2148 MB wraps negative, so even an empty log
         // flushes. Disabled auto-export never flushes. Export format 0 keeps
-        // LogExport from writing (test 0xe at 0x1afb8fa).
+        // LogExport from writing (test 0xe at 0x1afb8f5).
         // Mutations caught: a long product, a strict comparison, or checking
         // the size without the auto-export flag.
         [Test]
@@ -399,6 +463,10 @@ namespace ProjectLucid.Tests
                         "**<span style=\"color:red; font-weight:bold\">Assert</span>**: as\n\n**Stack trace**:\n+ c\n*****\n",
                         handler.LogGetInMarkdownFormat());
                     string json = handler.LogGetInJsonFormat();
+                    // Independent literal for the Error row: JsonUtility pretty printing
+                    // uses 4-space indentation and the declared field order.
+                    StringAssert.Contains(
+                        "{\n    \"Type\": 0,\n    \"Message\": \"bad\",\n    \"StackTrace\": \"at A\\nat B\\n\"\n}\n", json);
                     Assert.AreEqual(string.Concat(messages.Select(m => JsonUtility.ToJson(m, true) + "\n")), json);
                     Assert.AreNotEqual(string.Concat(messages.Select(m => JsonUtility.ToJson(m, false) + "\n")), json, "pretty printing is on");
 
@@ -463,6 +531,9 @@ namespace ProjectLucid.Tests
                         handler.LogExport();
                         Assert.IsFalse(Directory.Exists(rootPath + "/none"), "no directory without a format");
 
+                        // Control: the path LogExport creates first must throw here, so
+                        // the next assertion shows the catch, not a path that worked.
+                        Assert.Catch<Exception>(() => Directory.CreateDirectory(rootPath + "/bad\0name"));
                         Set(handler, "m_currentSetting", Setting(format: ExportFormats.Txt, exportPath: root + "/bad\0name"));
                         Assert.DoesNotThrow(() => handler.LogExport());
                         Assert.AreEqual(1, Messages(handler).Count, "export does not flush");
@@ -509,7 +580,7 @@ namespace ProjectLucid.Tests
             Assert.IsFalse(new HLLogMessage { StackTrace = "" }.HasStackTrace);
             Assert.IsTrue(new HLLogMessage { StackTrace = " " }.HasStackTrace);
             Assert.AreEqual("abcde", " a b\tc\r\n d e ".RemoveWhitespace());
-            Assert.AreEqual("a​b", "a​b".RemoveWhitespace(), "zero-width space is not whitespace");
+            Assert.AreEqual("a\u200Bb", "a\u200Bb".RemoveWhitespace(), "zero-width space is not whitespace");
             Assert.Throws<NullReferenceException>(() => ((string)null).RemoveWhitespace());
 
             var asset = ScriptableObject.CreateInstance<HLLogHandlerSettingScriptableObject>();
