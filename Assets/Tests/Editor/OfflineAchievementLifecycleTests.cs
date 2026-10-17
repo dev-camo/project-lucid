@@ -624,10 +624,11 @@ namespace ProjectLucid.Tests.EditMode
             // loses only its added typed entries, and a live local player is foreign.
             private readonly LifecycleRow managerRow = new LifecycleRow(ProcessManager.GetDefaultName<AchievementsManager>());
             private readonly LifecycleRow playerRow = new LifecycleRow(ProcessManager.GetDefaultName<GameCenterLocalPlayer>(), borrowLiveSystem: true);
-            // The manager subscribes to these actions, and SubscribeToAction creates a
-            // missing outer row that no unsubscribe removes. Rows admitted absent are
-            // removed once empty after the observation; admitted rows keep their
-            // dictionary and exact subscriber pairs.
+            // The manager's Initialise/Shutdown subscriptions and the lease's
+            // single-system ProcessSystemAction calls (AppInitialise included) create
+            // missing outer rows through TryGetOrNew, and no unsubscribe removes them.
+            // Rows admitted absent are removed once empty after the observation;
+            // admitted rows keep their dictionary and exact subscriber pairs.
             private readonly VerificationFixtureOwnership.ActionRows actionRows = new VerificationFixtureOwnership.ActionRows(
                 SystemAction.AppInitialise, SystemAction.Initialise, SystemAction.Shutdown);
             internal HLPropertyStore Store { get; private set; }
