@@ -60,6 +60,107 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Original base UpdateForwardSpeed (06000ff4, x86-64 0x739500) keeps the
+        // modifier-adjusted SpeedMin at [rbp-0x3c] and the input-scaled minimum in
+        // xmm4 (0x7395c6..0x7395f3, maxss with SpeedMin only when ClampToSpeedMin).
+        // Positive acceleration compares and caps against [rbp-0x3c] (0x7396cb,
+        // 0x7396e2); the curve ratio (0x739609), direction fallback (0x7396f2) and
+        // deceleration floor (0x73975a) use xmm4. CharacterAbility_Rolling
+        // inherits the base body. Every case uses deltaTime 1 and zero SpeedCap.
+
+        // fs 0, SpeedMin 10, SpeedMax 20, input 0.5: the effective minimum is 5 but
+        // acceleration 10 reaches the configured 10. Capping at the effective
+        // minimum gives 5.
+        [Test]
+        public void ForwardSpeedAcceleratesToConfiguredMinimumUnderPartialInput()
+        {
+            WithOwnedAppRow(ability =>
+            {
+                var motion = ForwardMotion(clampToSpeedMin: false, acceleration: 10f);
+                Assert.AreEqual(10f, UpdateForwardSpeed(ability, motion, 0f, 0.5f).Speed, 1e-5f);
+            });
+        }
+
+        // A modifier lowering speedMin to 8 sets the cap: effective 4, configured
+        // 8, motion.SpeedMin 10. Expect 8, not 4 (effective) or 10 (unmodified).
+        [Test]
+        public void ForwardSpeedCapIsTheModifierAdjustedMinimum()
+        {
+            WithOwnedAppRow(ability =>
+            {
+                ability.m_modifierSpeed = (ref float acceleration, ref float speedMin, ref float speedMax,
+                    ref float deceleration) => speedMin = 8f;
+                var motion = ForwardMotion(clampToSpeedMin: false, acceleration: 10f);
+                Assert.AreEqual(8f, UpdateForwardSpeed(ability, motion, 0f, 0.5f).Speed, 1e-5f);
+            });
+        }
+
+        // fs 5, input 0.5: the curve t => t is sampled at 5 / effective 5 = 1, so
+        // acceleration 4 gives min(5 + 4, 10) = 9. A configured ratio (0.5) gives
+        // 7; an effective cap gives 5.
+        [Test]
+        public void ForwardSpeedCurveRatioUsesTheEffectiveMinimum()
+        {
+            WithOwnedAppRow(ability =>
+            {
+                var motion = ForwardMotion(clampToSpeedMin: false, acceleration: 4f);
+                var curve = UnityEngine.AnimationCurve.Linear(0f, 0f, 2f, 2f);
+                Assert.AreEqual(9f, UpdateForwardSpeed(ability, motion, 5f, 0.5f, curve).Speed, 1e-5f);
+            });
+        }
+
+        // ClampToSpeedMin with input 2: effective max(20, 10) = 20. Acceleration
+        // 15 stops at the configured 10 (an effective cap gives 15), and 10 < 20
+        // still applies the zero-direction fallback.
+        [Test]
+        public void ClampedForwardSpeedStopsAtConfiguredMinimumAndFallsBackBelowTheEffectiveOne()
+        {
+            WithOwnedAppRow(ability =>
+            {
+                var motion = ForwardMotion(clampToSpeedMin: true, acceleration: 15f);
+                var result = UpdateForwardSpeed(ability, motion, 0f, 2f);
+                Assert.AreEqual(10f, result.Speed, 1e-5f);
+                Assert.AreEqual(UnityEngine.Vector3.forward, result.Direction);
+            });
+        }
+
+        // Negative control for the floor: with zero acceleration, deceleration 10
+        // and input 0.5, fs 15 falls to 5 but stops at the effective 7.5, not the
+        // configured 10.
+        [Test]
+        public void ForwardSpeedDecelerationFloorIsTheEffectiveMinimum()
+        {
+            WithOwnedAppRow(ability =>
+            {
+                var motion = ForwardMotion(clampToSpeedMin: false, acceleration: 0f);
+                motion.DecelerationCurve = UnityEngine.AnimationCurve.Constant(0f, 1f, 10f);
+                Assert.AreEqual(7.5f, UpdateForwardSpeed(ability, motion, 15f, 0.5f).Speed, 1e-5f);
+            });
+        }
+
+        private static CharacterAbilityDefinition.Motion ForwardMotion(bool clampToSpeedMin, float acceleration) =>
+            new CharacterAbilityDefinition.Motion
+            {
+                ClampToSpeedMin = clampToSpeedMin,
+                SpeedMin = 10f,
+                SpeedMax = 20f,
+                Acceleration = acceleration,
+            };
+
+        private static (float Speed, UnityEngine.Vector3 Direction) UpdateForwardSpeed(CharacterAbility ability,
+            CharacterAbilityDefinition.Motion motion, float forwardSpeed, float effectiveInputMagnitude,
+            UnityEngine.AnimationCurve accelerationCurve = null)
+        {
+            MethodInfo method = typeof(CharacterAbility).GetMethod("UpdateForwardSpeed", Instance);
+            var args = new object[]
+            {
+                forwardSpeed, UnityEngine.Vector3.zero, 1f, motion, 1f, effectiveInputMagnitude,
+                accelerationCurve, true,
+            };
+            method.Invoke(ability, args);
+            return ((float)args[0], (UnityEngine.Vector3)args[1]);
+        }
+
         // Owned failure controls for the App row cleanup; they make no
         // original-behavior claim. Each failure is raised by the fixture itself
         // after the real constructor has created the App reference.

@@ -1947,6 +1947,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.CharacterActionFlagsAcceptsCharacterRollAndRejectsAnUndeclaredAction",
 )
 
+# Original base forward-speed configured and effective minima (x86-64 0x739500).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.ForwardSpeedAcceleratesToConfiguredMinimumUnderPartialInput",
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.ForwardSpeedCapIsTheModifierAdjustedMinimum",
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.ForwardSpeedCurveRatioUsesTheEffectiveMinimum",
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.ClampedForwardSpeedStopsAtConfiguredMinimumAndFallsBackBelowTheEffectiveOne",
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.ForwardSpeedDecelerationFloorIsTheEffectiveMinimum",
+)
+
 # Owned App-row cleanup failure controls; no original-behavior claim.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.OwnedFailureAfterAppReferenceCreationReleasesTheEmptyRowAndKeepsThePrimary",

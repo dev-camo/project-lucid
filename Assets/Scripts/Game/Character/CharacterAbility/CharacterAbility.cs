@@ -268,12 +268,15 @@ namespace HardlightProject
             float acceleration = motion.Acceleration;
             float deceleration = motion.EvaluateDeceleration(forwardSpeed);
             m_modifierSpeed?.Invoke(ref acceleration, ref speedMin, ref speedMax, ref deceleration);
-            float inputMinimum = Mathf.Clamp(forwardSpeed, speedMin, speedMax) * effectiveInputMagnitude;
-            if (!motion.ClampToSpeedMin || inputMinimum > speedMin) speedMin = inputMinimum;
+            // The input-scaled minimum drives the curve ratio, the direction fallback
+            // and the deceleration floor; positive acceleration still caps at the
+            // configured (modifier-adjusted) speedMin.
+            float effectiveMinimum = Mathf.Clamp(forwardSpeed, speedMin, speedMax) * effectiveInputMagnitude;
+            if (motion.ClampToSpeedMin && !(effectiveMinimum > speedMin)) effectiveMinimum = speedMin;
             if (accelerationCurve != null)
             {
                 float factor;
-                if (speedMin > 0.0001f) factor = accelerationCurve.Evaluate(forwardSpeed / speedMin);
+                if (effectiveMinimum > 0.0001f) factor = accelerationCurve.Evaluate(forwardSpeed / effectiveMinimum);
                 else
                 {
                     Keyframe last = accelerationCurve[accelerationCurve.length - 1];
@@ -293,13 +296,13 @@ namespace HardlightProject
                 if (!(forwardSpeed >= speedMin))
                 {
                     forwardSpeed = Mathf.Min(forwardSpeed + acceleration * deltaTime, speedMin);
-                    if (motion.ClampToSpeedMin && forwardSpeed < speedMin &&
+                    if (motion.ClampToSpeedMin && forwardSpeed < effectiveMinimum &&
                         forwardDirection.sqrMagnitude < 0.0001f)
                         forwardDirection = Vector3.forward;
                 }
             }
             else if (effectiveInputMagnitude < 0.9999f && applyDeceleration)
-                forwardSpeed = Mathf.Max(forwardSpeed + (acceleration - deceleration) * deltaTime, speedMin);
+                forwardSpeed = Mathf.Max(forwardSpeed + (acceleration - deceleration) * deltaTime, effectiveMinimum);
         }
 
         public void ResetStaminaRecharge()
