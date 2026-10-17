@@ -2182,6 +2182,22 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameCenterSaveGameTests." + 
     "ResolveKeepsOnlyMatchingEventsInTheSharedResolveList",
 ))
 
+# Spec for Hardlight.FullScreenTransitionController (HLUnityUI.Runtime 0x060000e0..ef).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFullScreenTransitionControllerTests." + name for name in (
+    "OriginalDeclarationsFieldOrderAndClosureShape",
+    "ConstructorDefaultsBothDurationsToOneAndAwakeOnlyResetsTheState",
+    "HeldTransitionWaitsAtTheMidpointUntilContinued",
+    "PositiveOverridesReplaceTheSerializedDurationsAndAreStoredRaw",
+    "ContinuousTransitionHalvesTheOverrideAndContinuesAfterTheMidpoint",
+    "ContinuousMidpointThatResetsOrContinuesPreemptsTheAutomaticContinue",
+    "StartTransitionOutsideHeldOutChangesNothingAndReturnsFalse",
+    "StartTransitionFromHeldOutOverwritesBothCachesEvenWithNull",
+    "ContinueTransitionOnlyFromHeldInAndAdoptsACompletionOnlyWhenNoneIsCached",
+    "ResetTransitionFromAnyStateKeepsSpeedOverridesAndCaches",
+    "PrivateStepsRunUnconditionallyFromAnyState",
+    "MissingAnimatorFaultsAfterTheStateAndCachesAreWritten",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
