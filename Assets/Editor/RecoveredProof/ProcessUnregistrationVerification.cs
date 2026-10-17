@@ -8,8 +8,9 @@ using UnityEngine;
 
 namespace ProjectLucid
 {
-    // Native-derived registry teardown proof. Action storage is seeded through
-    // reflection because the original subscription/dispatch API is unresolved.
+    // Native-derived registry teardown proof. It seeds s_systemActionLookup through
+    // reflection to isolate teardown; subscription and dispatch routes are covered
+    // by ProcessActionVerification.
     public static class ProcessUnregistrationVerification
     {
         private sealed class TestSystem : ISystem { }

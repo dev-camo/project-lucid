@@ -244,150 +244,60 @@ namespace HardlightProject
 		[NonSerialized]
 		private SceneInstance m_missionSceneInstance;
 
-        // Game.Runtime 0x06001dfe, native 0x5251c8: DefinitionData source field.
-        public Strings MissionName => DefinitionData.m_missionName;
-
-        // Game.Runtime 0x06001dff, native 0x528a84: DefinitionData source field.
-        public MissionType Type => DefinitionData.m_type;
-
-        // Game.Runtime 0x06001e00, native 0x528ad0: DefinitionData source field.
-        public CharacterId CharacterId => DefinitionData.m_characterId;
-
-        // Game.Runtime 0x06001e01, native 0x528b1c: DefinitionData source field.
-        public bool ExclusiveToCharacter => DefinitionData.m_exclusiveToCharacter;
-
-        // Game.Runtime 0x06001e02, native 0x528b68: owner field.
-        public CharacterArchetype CharacterArchetype => m_characterArchetype;
-
-        // Game.Runtime 0x06001e03, native 0x528b70: DefinitionData source field.
-        public Sprite MissionProgressIcon => DefinitionData.m_missionProgressIcon;
-
-        // Game.Runtime 0x06001e04, native 0x528bbc: DefinitionData source field.
-        public Sprite MissionObjectiveIcon => DefinitionData.m_missionObjectiveIcon;
-
-        // Game.Runtime 0x06001e05, native 0x528c08: DefinitionData source field.
-        public bool ShowInMissionList => DefinitionData.m_showInMissionList;
-
-        // Game.Runtime 0x06001e06, native 0x528c54: DefinitionData source field.
-        public bool Replayable => DefinitionData.m_replayable;
-
-        // Game.Runtime 0x06001e07, native 0x528ca0: DefinitionData source field.
-        public bool ReloadOnCharacterRespawn => DefinitionData.m_reloadOnCharacterRespawn;
-
-        // Game.Runtime 0x06001e08, native 0x525ac8: DefinitionData source field.
-        public LevelStartPositionDefinition CustomStartPosition => DefinitionData.m_customStartPosition;
-
-        // Game.Runtime 0x06001e09, native 0x5209e8: DefinitionData source field.
-        public List<MissionDefinition> SubMissions => DefinitionData.m_subMissions;
-
-        // Game.Runtime 0x06001e0a, native 0x528cec: DefinitionData source field.
-        public List<GameplayIslandDefinition> Islands => DefinitionData.m_islands;
-
-        // Game.Runtime 0x06001e0b, native 0x528d38: DefinitionData source field.
-        public bool DoNotUnloadOnRetry => DefinitionData.m_doNotUnloadOnRetry;
-
-        // Game.Runtime 0x06001e0c, native 0x528d84: DefinitionData source field.
-        public bool EnableDreamPowers => DefinitionData.m_enableDreamPowers;
-
-        // Game.Runtime 0x06001e0d, native 0x528dd0: DefinitionData source field.
-        public bool ShowProgressInUI => DefinitionData.m_showProgressInUI;
-
-        // Game.Runtime 0x06001e0e, native 0x528e1c: DefinitionData source field.
-        public CharacterArchetype UnlocksCharacterArchetype => DefinitionData.m_unlocksCharacterArchetype;
-
-        // Game.Runtime 0x06001e0f, native 0x528e68: DefinitionData source field.
-        public GameplayLevelDefinition SubLevelDefinition => DefinitionData.m_subLevelDefinition;
-
-        // Game.Runtime 0x06001e10, native 0x528eb4: DefinitionData source field.
-        public int RewardValue => DefinitionData.m_rewardValue;
-
-        // Game.Runtime 0x06001e11, native 0x528f00: owner field.
-        public CollectableType RewardType => m_rewardType;
-
-        // Game.Runtime 0x06001e12, native 0x528f08: DefinitionData source field.
-        public OrnamentDefinition Ornament => DefinitionData.m_ornament;
-
-        // Game.Runtime 0x06001e13, native 0x528f54: DefinitionData source field.
-        public MusicTrackDefinition MusicTrack => DefinitionData.m_musicTrack;
-
-        // Game.Runtime 0x06001e14, native 0x528fa0: owner field.
-        public int XPReward => m_xpReward;
-
-        // Game.Runtime 0x06001e15, native 0x525118: DefinitionData source field.
-        public int TotalObjectiveCount => DefinitionData.m_totalObjectivesCount;
-
-        // Game.Runtime 0x06001e16, native 0x528fa8: owner field.
-        public bool IsScored => m_isScored;
-
-        // Game.Runtime 0x06001e17, native 0x528fb0: owner field.
-        public bool IsTimed => m_isTimed;
-
-        // Game.Runtime 0x06001e18, native 0x528fb8: DefinitionData source field.
-        public float TimeLimitSeconds => DefinitionData.m_timeLimitSeconds;
-
-        // Game.Runtime 0x06001e19, native 0x529004: DefinitionData source field.
-        public bool UseBestTime => DefinitionData.m_useBestTime;
-
-        // Game.Runtime 0x06001e1a, native 0x529050: DefinitionData source field.
-        public bool FailOnTimeLimitReached => DefinitionData.m_failOnTimeLimitReached;
+        // Game.Runtime getters 0x06001dfe..0x06001e2d. Each reads either the effective
+        // DefinitionData source or this owner's own field, exactly as written.
+        public Strings MissionName => DefinitionData.m_missionName; // 0x06001dfe, native 0x5251c8
+        public MissionType Type => DefinitionData.m_type; // 0x06001dff, native 0x528a84
+        public CharacterId CharacterId => DefinitionData.m_characterId; // 0x06001e00, native 0x528ad0
+        public bool ExclusiveToCharacter => DefinitionData.m_exclusiveToCharacter; // 0x06001e01, native 0x528b1c
+        public CharacterArchetype CharacterArchetype => m_characterArchetype; // 0x06001e02, native 0x528b68
+        public Sprite MissionProgressIcon => DefinitionData.m_missionProgressIcon; // 0x06001e03, native 0x528b70
+        public Sprite MissionObjectiveIcon => DefinitionData.m_missionObjectiveIcon; // 0x06001e04, native 0x528bbc
+        public bool ShowInMissionList => DefinitionData.m_showInMissionList; // 0x06001e05, native 0x528c08
+        public bool Replayable => DefinitionData.m_replayable; // 0x06001e06, native 0x528c54
+        public bool ReloadOnCharacterRespawn => DefinitionData.m_reloadOnCharacterRespawn; // 0x06001e07, native 0x528ca0
+        public LevelStartPositionDefinition CustomStartPosition => DefinitionData.m_customStartPosition; // 0x06001e08, native 0x525ac8
+        public List<MissionDefinition> SubMissions => DefinitionData.m_subMissions; // 0x06001e09, native 0x5209e8
+        public List<GameplayIslandDefinition> Islands => DefinitionData.m_islands; // 0x06001e0a, native 0x528cec
+        public bool DoNotUnloadOnRetry => DefinitionData.m_doNotUnloadOnRetry; // 0x06001e0b, native 0x528d38
+        public bool EnableDreamPowers => DefinitionData.m_enableDreamPowers; // 0x06001e0c, native 0x528d84
+        public bool ShowProgressInUI => DefinitionData.m_showProgressInUI; // 0x06001e0d, native 0x528dd0
+        public CharacterArchetype UnlocksCharacterArchetype => DefinitionData.m_unlocksCharacterArchetype; // 0x06001e0e, native 0x528e1c
+        public GameplayLevelDefinition SubLevelDefinition => DefinitionData.m_subLevelDefinition; // 0x06001e0f, native 0x528e68
+        public int RewardValue => DefinitionData.m_rewardValue; // 0x06001e10, native 0x528eb4
+        public CollectableType RewardType => m_rewardType; // 0x06001e11, native 0x528f00
+        public OrnamentDefinition Ornament => DefinitionData.m_ornament; // 0x06001e12, native 0x528f08
+        public MusicTrackDefinition MusicTrack => DefinitionData.m_musicTrack; // 0x06001e13, native 0x528f54
+        public int XPReward => m_xpReward; // 0x06001e14, native 0x528fa0
+        public int TotalObjectiveCount => DefinitionData.m_totalObjectivesCount; // 0x06001e15, native 0x525118
+        public bool IsScored => m_isScored; // 0x06001e16, native 0x528fa8
+        public bool IsTimed => m_isTimed; // 0x06001e17, native 0x528fb0
+        public float TimeLimitSeconds => DefinitionData.m_timeLimitSeconds; // 0x06001e18, native 0x528fb8
+        public bool UseBestTime => DefinitionData.m_useBestTime; // 0x06001e19, native 0x529004
+        public bool FailOnTimeLimitReached => DefinitionData.m_failOnTimeLimitReached; // 0x06001e1a, native 0x529050
 
         // Game.Runtime 0x06001e1b: repeated source reads; a zero/negative target uses the original total.
         public int TargetObjectivesToComplete => DefinitionData.m_targetObjectivesCount > 0
             ? DefinitionData.m_targetObjectivesCount : DefinitionData.m_totalObjectivesCount;
 
-        // Game.Runtime 0x06001e1c, native 0x52914c: DefinitionData source field.
-        public bool IsInstancedTracker => DefinitionData.m_isInstancedTracker;
-
-        // Game.Runtime 0x06001e1d, native 0x529198: owner field.
-        public bool IsInstancedSequencedTracker => m_isInstancedSequencedTracker;
-
-        // Game.Runtime 0x06001e1e, native 0x5291a0: DefinitionData source field.
-        public bool IsPersistentTracker => DefinitionData.m_isPersistentTracker;
-
-        // Game.Runtime 0x06001e1f, native 0x5291ec: owner field.
-        public bool IsReachGoalTracker => m_isReachGoalTracker;
-
-        // Game.Runtime 0x06001e20, native 0x5291f4: DefinitionData source field.
-        public UIContainerIdentifier ResultsScreenIdentifier => DefinitionData.m_resultsScreenIdentifier;
-
-        // Game.Runtime 0x06001e21, native 0x529240: DefinitionData source field.
-        public UIContainerIdentifier ShortResultsScreenIdentifier => DefinitionData.m_shortResultsScreenIdentifier;
-
-        // Game.Runtime 0x06001e22, native 0x52928c: DefinitionData source field.
-        public HLAudioClipIdentifier MusicOverrideIdentifier => DefinitionData.m_musicOverrideIdentifier;
-
-        // Game.Runtime 0x06001e23, native 0x5292d8: DefinitionData source field.
-        public bool MusicStartAtRandomTime => DefinitionData.m_musicStartAtRandomTime;
-
-        // Game.Runtime 0x06001e24, native 0x529324: DefinitionData source field.
-        public float CompletionCooldownTime => DefinitionData.m_completionCooldownTime;
-
-        // Game.Runtime 0x06001e25, native 0x529370: DefinitionData source field.
-        public int StartingRingCount => DefinitionData.m_startingRingCount;
-
-        // Game.Runtime 0x06001e26, native 0x525dd4: DefinitionData source field.
-        public float ObjectivesAdditionalTotalTimeSeconds => DefinitionData.m_objectivesAdditionalTotalTimeSeconds;
-
-        // Game.Runtime 0x06001e27, native 0x5293bc: owner field.
-        public MissionDefinition CompletedMissionOverrides => m_completedMissionOverrides;
-
-        // Game.Runtime 0x06001e28, native 0x5293c4: DefinitionData source field.
-        public LeaderboardIdentifier LeaderboardIdentifier => DefinitionData.m_leaderboardIdentifier;
-
-        // Game.Runtime 0x06001e29, native 0x529410: DefinitionData source field.
-        public MissionRankDefinition Ranks => DefinitionData.m_ranks;
-
-        // Game.Runtime 0x06001e2a, native 0x52945c: owner field.
-        public GameplayLevelDefinition SceneOverride => m_sceneOverride;
-
-        // Game.Runtime 0x06001e2b, native 0x529464: owner field.
-        public bool AllowLockedCharacters => m_allowLockedCharacters;
-
-        // Game.Runtime 0x06001e2c, native 0x52946c: owner field.
-        public ZoneThemeOverride ZoneThemeOverride => m_zoneThemeOverride;
-
-        // Game.Runtime 0x06001e2d, native 0x529474: owner field.
-        public bool UseAltUILayout => m_useAltUILayout;
+        public bool IsInstancedTracker => DefinitionData.m_isInstancedTracker; // 0x06001e1c, native 0x52914c
+        public bool IsInstancedSequencedTracker => m_isInstancedSequencedTracker; // 0x06001e1d, native 0x529198
+        public bool IsPersistentTracker => DefinitionData.m_isPersistentTracker; // 0x06001e1e, native 0x5291a0
+        public bool IsReachGoalTracker => m_isReachGoalTracker; // 0x06001e1f, native 0x5291ec
+        public UIContainerIdentifier ResultsScreenIdentifier => DefinitionData.m_resultsScreenIdentifier; // 0x06001e20, native 0x5291f4
+        public UIContainerIdentifier ShortResultsScreenIdentifier => DefinitionData.m_shortResultsScreenIdentifier; // 0x06001e21, native 0x529240
+        public HLAudioClipIdentifier MusicOverrideIdentifier => DefinitionData.m_musicOverrideIdentifier; // 0x06001e22, native 0x52928c
+        public bool MusicStartAtRandomTime => DefinitionData.m_musicStartAtRandomTime; // 0x06001e23, native 0x5292d8
+        public float CompletionCooldownTime => DefinitionData.m_completionCooldownTime; // 0x06001e24, native 0x529324
+        public int StartingRingCount => DefinitionData.m_startingRingCount; // 0x06001e25, native 0x529370
+        public float ObjectivesAdditionalTotalTimeSeconds => DefinitionData.m_objectivesAdditionalTotalTimeSeconds; // 0x06001e26, native 0x525dd4
+        public MissionDefinition CompletedMissionOverrides => m_completedMissionOverrides; // 0x06001e27, native 0x5293bc
+        public LeaderboardIdentifier LeaderboardIdentifier => DefinitionData.m_leaderboardIdentifier; // 0x06001e28, native 0x5293c4
+        public MissionRankDefinition Ranks => DefinitionData.m_ranks; // 0x06001e29, native 0x529410
+        public GameplayLevelDefinition SceneOverride => m_sceneOverride; // 0x06001e2a, native 0x52945c
+        public bool AllowLockedCharacters => m_allowLockedCharacters; // 0x06001e2b, native 0x529464
+        public ZoneThemeOverride ZoneThemeOverride => m_zoneThemeOverride; // 0x06001e2c, native 0x52946c
+        public bool UseAltUILayout => m_useAltUILayout; // 0x06001e2d, native 0x529474
 
         // Game.Runtime 0x06001e2e, native 0x528a3c: original GUID equality, lazy self source, without m_hasOverrides gating.
         private MissionDefinition DefinitionData

@@ -978,8 +978,9 @@ def _audit_context_bytes(root, identity, nonce):
 def _audit_wrapper_paths_supported(root):
     """UTF16 Ordinal and Python path order agree for these prepared paths.
 
-    Preserve the existing algorithms: unusual paths use direct Editor hashing,
-    whose result must still equal the wrapper's native content fingerprint.
+    Conservative policy: paths with a backslash or a character above U+FFFF use
+    direct Editor hashing, whose result must still equal the wrapper's native
+    content fingerprint.
     """
     for base in ("Assets/Recovered", "Assets/StreamingAssets"):
         for parent, directories, names in os.walk(Path(root) / base):

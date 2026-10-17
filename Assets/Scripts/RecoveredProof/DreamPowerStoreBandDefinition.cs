@@ -51,6 +51,6 @@ namespace HardlightProject
             SlotLockedBackground = new ManagedAddressableAsset<Sprite>(m_slotLockedBackground);
         }
         // Original Game.Runtime 0x06001c64, ARM 0x5224d4.
-        // Natural original constructor; documented field initializers precede the genuine base call.
+        // Implicit original constructor; base-only, no own field initializers.
     }
 }

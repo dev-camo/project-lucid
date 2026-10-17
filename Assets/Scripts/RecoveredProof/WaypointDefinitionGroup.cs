@@ -16,6 +16,6 @@ namespace HardlightProject
         protected override IEqualityComparer<HardlightProject.WaypointType> GetKeyComparer() => HardlightEnumComparers.WaypointTypeComparer;
 
         // Original Game.Runtime 0x06001fc5, ARM 0x5330a4.
-        // Natural original constructor; documented field initializers precede the genuine base call.
+        // Implicit original constructor; base-only, no own field initializers.
     }
 }

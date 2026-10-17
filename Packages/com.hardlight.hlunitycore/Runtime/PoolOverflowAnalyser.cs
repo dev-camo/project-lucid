@@ -2,7 +2,7 @@ using System;
 
 namespace Hardlight.Pooling
 {
-	// Original HLUnityCore.Runtime 02000292; bodies translated from the 1.10.1 x86-64 binary.
+	// Original HLUnityCore.Runtime 02000292; constants from the 1.10.1 metadata.
 	public static class PoolOverflowAnalyser
 	{
 		public const string SnapshotHeadMarker = "[P]";

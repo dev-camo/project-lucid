@@ -1,7 +1,7 @@
 // Original HLUnityUI.Runtime Hardlight.HLSelectableInputListener complete family reconstruction.
 // C# spelling and local names are inferred; source/native fault equivalence and current emission remain held.
 // Closure ordinal 12 is from metadata; placing both nested types before the fields is the simplest layout consistent with it and TypeDef order 0x90/0x91 (inferred).
-// All thirty concrete ARM64/x86_64 spans were personally read; the text-provider interface has two genuine zero definition pointers.
+// Bodies follow all thirty concrete ARM64/x86_64 spans; the text-provider interface has two genuine zero definition pointers.
 // Setup subscribes shutdown before SystemRef.IsNull. ClearUp deselects before checking/removing controller subscriptions; no idempotence/rollback added.
 // ButtonSelected appends per-index closures without clearing the delegate list. Callback supplier and ProcessTriggers entries are reread, including after Press/event reentry.
 // ProcessTriggers deliberately ignores value; matching suppliers dispatch Press before UnityEvent. No synthetic threshold, string lookup or event allocation.

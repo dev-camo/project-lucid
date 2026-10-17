@@ -31,7 +31,7 @@ namespace Hardlight.Analytics
         }
 
         // Original 0x0600025d; preserve authored JSON insertion order.
-        // Nullable fields are omitted when absent; no guard is added for eventDetail.
+        // No guard is added for eventDetail.
         protected override void FillEventDetail(JSONHashtable eventDetail)
         {
             eventDetail.Add("setting_name", SettingName);

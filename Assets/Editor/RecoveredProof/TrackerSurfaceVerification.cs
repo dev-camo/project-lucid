@@ -6,8 +6,8 @@ using UnityEngine;
 
 namespace ProjectLucid.Editor
 {
-    // Bounded native-derived tests. Private setter invocation proves its original
-    // publication boundary; it does not exercise an unavailable concrete resolver.
+    // Bounded native-derived tests. Invoking the private SetSurfaceLocation proves its
+    // original publication boundary; CollisionResolver2D is not exercised here.
     public static class TrackerSurfaceVerification
     {
         private static int checks;

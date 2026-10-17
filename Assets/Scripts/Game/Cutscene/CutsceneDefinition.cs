@@ -148,62 +148,35 @@ namespace HardlightProject
         [HashEnum((Type)null)]
         private Strings m_theatreName = Strings.NONE;
 
-        // Original 0x060018b0: direct original field 0x04000e3e.
-        public HLCutsceneIdentifier Identifier => m_identifier;
-        // Original 0x060018b1: direct original field 0x04000e3f.
-        public SerializableDictionary<CharacterId,AssetReferenceT<GameObject>> PrefabsForCharacter => m_prefabsForCharacter;
-        // Original 0x060018b2: direct original field 0x04000e40.
-        public CharacterPrefabMetadata MetadataFromCharacterPrefabs => m_metadataFromCharacterPrefabs;
-        // Original 0x060018b3: direct original field 0x04000e41.
-        public CharacterId CharacterToSwitchTo => m_characterToSwitchTo;
-        // Original 0x060018b4: direct original field 0x04000e42.
-        public CharacterId[] CharacterChoice => m_characterChoice;
-        // Original 0x060018b5: direct original field 0x04000e43.
-        public CutsceneDefinition TriggerNextCutscene => m_triggerNextCutscene;
-        // Original 0x060018b6: direct original field 0x04000e44.
-        public CutsceneRequirements TriggerRequirements => m_triggerRequirements;
-        // Original 0x060018b7: direct original field 0x04000e45.
-        public CutsceneRepetitionRule RepetitionRule => m_repetitionRule;
-        // Original 0x060018b8: direct original field 0x04000e46.
-        public bool CanBeSkipped => m_canBeSkipped;
-        // Original 0x060018b9: direct original field 0x04000e47.
-        public string NonGameplaySceneName => m_nonGameplaySceneName;
-        // Original 0x060018ba: direct original field 0x04000e48.
-        public bool PlayEveryTimeInEditor => m_playEveryTimeInEditor;
-        // Original 0x060018bb: direct original field 0x04000e49.
-        public List<TimeCategory> TimeCategoriesToPause => m_timeCategoriesToPause;
-        // Original 0x060018bc: direct original field 0x04000e4a.
-        public UIContainerIdentifier SkipUIContainer => m_skipUIContainer;
-        // Original 0x060018bd: direct original field 0x04000e4d.
-        public HLAudioClipIdentifier BackgroundMusic => m_backgroundMusic;
-        // Original 0x060018be: direct original field 0x04000e4e.
-        public MusicBehaviour BackgroundMusicBehaviour => m_musicBehaviour;
-        // Original 0x060018bf: direct original field 0x04000e4b.
-        public bool IslandCullingTracksCamera => m_islandCullingTracksCamera;
-        // Original 0x060018c0: direct original field 0x04000e4c.
-        public bool CharacterInvulnerable => m_characterInvulnerable;
-        // Original 0x060018c1: direct original field 0x04000e52.
-        public bool RequiresMaxResolutionScaling => m_requiresMaxResolutionScaling;
-        // Original 0x060018c2: direct original field 0x04000e53.
-        public bool DisableGameplayCameraForGood => m_disableGameplayCameraForGood;
-        // Original 0x060018c3: direct original field 0x04000e54.
-        public bool ExplicitlyLeadsIntoGameplay => m_leadsIntoGameplay;
-        // Original 0x060018c4: direct original field 0x04000e4f.
-        public bool DuckMusicVolume => m_duckMusicVolume;
-        // Original 0x060018c5: direct original field 0x04000e50.
-        public float DuckMusicVolumeFractionReduction => m_duckMusicVolumeFractionReduction;
-        // Original 0x060018c6: direct original field 0x04000e51.
-        public float MusicVolumeTransitionTime => m_musicVolumeTransitionTime;
-        // Original 0x060018c7: direct original field 0x04000e56.
-        public float StartTime => m_startTime;
-        // Original 0x060018c8: direct original field 0x04000e58.
-        public AssetReferenceT<Texture> TheatreImage => m_theatreImage;
-        // Original 0x060018c9: direct original field 0x04000e59.
-        public Strings TheatreName => m_theatreName;
-        // Original 0x060018ca: direct original field 0x04000e57.
-        public bool PlayTransitionOnStopped => m_playTransitionOnStopped;
-        // Original 0x060018cb: direct original field 0x04000e55.
-        public GameplayLevelDefinition LevelDefinitionForMissionContext => m_levelDefinitionForMissionContext;
+        // Original direct field getters, tagged with method and field tokens.
+        public HLCutsceneIdentifier Identifier => m_identifier; // 0x060018b0, field 0x04000e3e
+        public SerializableDictionary<CharacterId,AssetReferenceT<GameObject>> PrefabsForCharacter => m_prefabsForCharacter; // 0x060018b1, field 0x04000e3f
+        public CharacterPrefabMetadata MetadataFromCharacterPrefabs => m_metadataFromCharacterPrefabs; // 0x060018b2, field 0x04000e40
+        public CharacterId CharacterToSwitchTo => m_characterToSwitchTo; // 0x060018b3, field 0x04000e41
+        public CharacterId[] CharacterChoice => m_characterChoice; // 0x060018b4, field 0x04000e42
+        public CutsceneDefinition TriggerNextCutscene => m_triggerNextCutscene; // 0x060018b5, field 0x04000e43
+        public CutsceneRequirements TriggerRequirements => m_triggerRequirements; // 0x060018b6, field 0x04000e44
+        public CutsceneRepetitionRule RepetitionRule => m_repetitionRule; // 0x060018b7, field 0x04000e45
+        public bool CanBeSkipped => m_canBeSkipped; // 0x060018b8, field 0x04000e46
+        public string NonGameplaySceneName => m_nonGameplaySceneName; // 0x060018b9, field 0x04000e47
+        public bool PlayEveryTimeInEditor => m_playEveryTimeInEditor; // 0x060018ba, field 0x04000e48
+        public List<TimeCategory> TimeCategoriesToPause => m_timeCategoriesToPause; // 0x060018bb, field 0x04000e49
+        public UIContainerIdentifier SkipUIContainer => m_skipUIContainer; // 0x060018bc, field 0x04000e4a
+        public HLAudioClipIdentifier BackgroundMusic => m_backgroundMusic; // 0x060018bd, field 0x04000e4d
+        public MusicBehaviour BackgroundMusicBehaviour => m_musicBehaviour; // 0x060018be, field 0x04000e4e
+        public bool IslandCullingTracksCamera => m_islandCullingTracksCamera; // 0x060018bf, field 0x04000e4b
+        public bool CharacterInvulnerable => m_characterInvulnerable; // 0x060018c0, field 0x04000e4c
+        public bool RequiresMaxResolutionScaling => m_requiresMaxResolutionScaling; // 0x060018c1, field 0x04000e52
+        public bool DisableGameplayCameraForGood => m_disableGameplayCameraForGood; // 0x060018c2, field 0x04000e53
+        public bool ExplicitlyLeadsIntoGameplay => m_leadsIntoGameplay; // 0x060018c3, field 0x04000e54
+        public bool DuckMusicVolume => m_duckMusicVolume; // 0x060018c4, field 0x04000e4f
+        public float DuckMusicVolumeFractionReduction => m_duckMusicVolumeFractionReduction; // 0x060018c5, field 0x04000e50
+        public float MusicVolumeTransitionTime => m_musicVolumeTransitionTime; // 0x060018c6, field 0x04000e51
+        public float StartTime => m_startTime; // 0x060018c7, field 0x04000e56
+        public AssetReferenceT<Texture> TheatreImage => m_theatreImage; // 0x060018c8, field 0x04000e58
+        public Strings TheatreName => m_theatreName; // 0x060018c9, field 0x04000e59
+        public bool PlayTransitionOnStopped => m_playTransitionOnStopped; // 0x060018ca, field 0x04000e57
+        public GameplayLevelDefinition LevelDefinitionForMissionContext => m_levelDefinitionForMissionContext; // 0x060018cb, field 0x04000e55
 
         // 060018cc / ARM 778640 and x86 79f440: only AllComicCutscene.
         public bool IsValidInTheatre() => m_metadataFromCharacterPrefabs.AllComicCutscene;

@@ -24,40 +24,26 @@ namespace HardlightProject
         [SerializeField, Tooltip("Mission scorer display time.")]
         private float m_displayTimer = 0.5f;
 
-        // Original 0x06002753, 0x06002754: Read and privately write the original backing field at byte offset 140; preserve the natural compiler-generated accessor pair.
-        public int PointsTotal { get; private set; }
-        // Original 0x06002755, 0x06002756: Read and privately write the original backing field at byte offset 144; preserve the natural compiler-generated accessor pair.
-        public int PointsAdded { get; private set; }
-        // Original 0x06002757, 0x06002758: Read and privately write the original backing field at byte offset 148; preserve the natural compiler-generated accessor pair.
-        public int PointsAddedRaw { get; private set; }
-        // Original 0x06002759, 0x0600275a: Read and privately write the original backing field at byte offset 152; preserve the natural compiler-generated accessor pair.
-        public int PointsLost { get; private set; }
+        // Auto-properties with private setters; tags give the original get/set tokens and backing-field byte offset.
+        public int PointsTotal { get; private set; } // 0x06002753/0x06002754, offset 140
+        public int PointsAdded { get; private set; } // 0x06002755/0x06002756, offset 144
+        public int PointsAddedRaw { get; private set; } // 0x06002757/0x06002758, offset 148
+        public int PointsLost { get; private set; } // 0x06002759/0x0600275a, offset 152
         // Original 0x0600275b: Read timer at byte offset 208 and return ordered greater-than zero.
         public bool ShowPointsAdded => m_scoreTimeout > 0f;
-        // Original 0x0600275c, 0x0600275d: Read and privately write the original backing field at byte offset 156; preserve the natural compiler-generated accessor pair.
-        public int PointsTotalThisCombo { get; private set; }
-        // Original 0x0600275e, 0x0600275f: Read and privately write the original backing field at byte offset 160; preserve the natural compiler-generated accessor pair.
-        public bool PointsAddedFromCombo { get; private set; }
-        // Original 0x06002760, 0x06002761: Read and privately write the original backing field at byte offset 164; preserve the natural compiler-generated accessor pair.
-        public int PointsTotalThisStreak { get; private set; }
+        public int PointsTotalThisCombo { get; private set; } // 0x0600275c/0x0600275d, offset 156
+        public bool PointsAddedFromCombo { get; private set; } // 0x0600275e/0x0600275f, offset 160
+        public int PointsTotalThisStreak { get; private set; } // 0x06002760/0x06002761, offset 164
         // Original 0x06002762: Read timer at byte offset 212 and return ordered greater-than zero.
         public bool PointsAddedFromStreak => m_streakTimeout > 0f;
-        // Original 0x06002763, 0x06002764: Read and privately write the original backing field at byte offset 168; preserve the natural compiler-generated accessor pair.
-        public bool ComboActive { get; private set; }
-        // Original 0x06002765, 0x06002766: Read and privately write the original backing field at byte offset 172; preserve the natural compiler-generated accessor pair.
-        public float ComboMultiplier { get; private set; } = 1f;
-        // Original 0x06002767, 0x06002768: Read and privately write the original backing field at byte offset 176; preserve the natural compiler-generated accessor pair.
-        public float ComboStageMultiplier { get; private set; } = 1f;
-        // Original 0x06002769, 0x0600276a: Read and privately write the original backing field at byte offset 180; preserve the natural compiler-generated accessor pair.
-        public float ComboTimeout { get; private set; }
-        // Original 0x0600276b, 0x0600276c: Read and privately write the original backing field at byte offset 184; preserve the natural compiler-generated accessor pair.
-        public float ComboTimeoutNormalised { get; private set; }
-        // Original 0x0600276d, 0x0600276e: Read and privately write the original backing field at byte offset 188; preserve the natural compiler-generated accessor pair.
-        public int ComboCount { get; private set; }
-        // Original 0x0600276f, 0x06002770: Read and privately write the original backing field at byte offset 192; preserve the natural compiler-generated accessor pair.
-        public bool ComboAtMax { get; private set; }
-        // Original 0x06002771, 0x06002772: Read and privately write the original backing field at byte offset 193; preserve the natural compiler-generated accessor pair.
-        public bool ComboSuspended { get; private set; }
+        public bool ComboActive { get; private set; } // 0x06002763/0x06002764, offset 168
+        public float ComboMultiplier { get; private set; } = 1f; // 0x06002765/0x06002766, offset 172
+        public float ComboStageMultiplier { get; private set; } = 1f; // 0x06002767/0x06002768, offset 176
+        public float ComboTimeout { get; private set; } // 0x06002769/0x0600276a, offset 180
+        public float ComboTimeoutNormalised { get; private set; } // 0x0600276b/0x0600276c, offset 184
+        public int ComboCount { get; private set; } // 0x0600276d/0x0600276e, offset 188
+        public bool ComboAtMax { get; private set; } // 0x0600276f/0x06002770, offset 192
+        public bool ComboSuspended { get; private set; } // 0x06002771/0x06002772, offset 193
         private int m_comboStageIndex;
         private MissionScorerComboStage m_comboStage;
         private float m_scoreTimeout;
@@ -196,7 +182,9 @@ namespace HardlightProject
         public void NextComboStage() { SetComboStage(unchecked(m_comboStageIndex + 1)); }
         // Original 0x0600277c: Decrement the current stage index unchecked and tailcall SetComboStage; do not clamp or wrap the list index.
         public void PrevComboStage() { SetComboStage(unchecked(m_comboStageIndex - 1)); }
-        // Original 0x0600277d: For an ordered multiplier above one, copy the stage time limit and store normalisation one. Both ARM b.ls and x86 jae continue on unordered/NaN input; the historical candidate ordered > guard differs. Preserve the separate bounded whole-source <= early-return successor, with exceptional float runtime parity held.
+        // Original 0x0600277d: return only when the multiplier is <= 1, so NaN continues (ARM b.ls, x86 jae) and an
+        // ordered > 1 guard would differ. Otherwise copy the stage time limit and store normalisation one. Exceptional
+        // float runtime parity is held.
         public void ExtendCombo()
         {
             if (ComboMultiplier <= 1f) return;

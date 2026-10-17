@@ -1,6 +1,6 @@
 // Complete original HLLocalisation.Runtime.dll Hardlight.Localisation.LanguageUtils 0x0200000b.
 // Original six methods/nine fields, ordered attributes, optional defaults and closed base are retained.
-// All twelve original ARM64/x86_64 spans were personally read; local spelling/source-form is inferred.
+// Bodies follow all twelve original ARM64/x86_64 spans; local spelling/source-form is inferred.
 // The native power import is ___exp10f on both CPUs. Mathf.Pow(10f, decimalPlaces) preserves Single
 // factor construction at source level; full native/BCL/overflow/NaN/Infinity parity requires separate
 // controlled runtime checks. No rounding, formatter, StringTable readiness or locale fallback is invented.

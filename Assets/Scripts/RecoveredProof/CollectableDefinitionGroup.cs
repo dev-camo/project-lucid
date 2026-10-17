@@ -18,6 +18,6 @@ namespace HardlightProject
         protected override IEqualityComparer<HardlightProject.CollectableType> GetKeyComparer() => HardlightEnumComparers.CollectableTypeComparer;
 
         // Original Game.Runtime 0x06001c20, ARM 0x51ed94.
-        // Natural original constructor; genuine field initializers precede base.
+        // Implicit original constructor; base-only, no own field initializers.
     }
 }

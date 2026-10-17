@@ -18,8 +18,7 @@ namespace Hardlight.Analytics
             base.Initialise();
         }
 
-        // Original 0x06000125; preserve authored JSON insertion order.
-        // Nullable fields are omitted when absent; no guard is added for eventDetail.
+        // Original 0x06000125; the body is empty.
         protected override void FillEventDetail(JSONHashtable eventDetail)
         {
         }

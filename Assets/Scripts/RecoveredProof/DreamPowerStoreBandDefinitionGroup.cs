@@ -22,6 +22,6 @@ namespace HardlightProject
         public int GetIndex(DreamPowerStoreBandDefinition definition) => Array.FindIndex(m_elements, def => def.Data == definition);
 
         // Original Game.Runtime 0x06001c68, ARM 0x522654.
-        // Natural original constructor; documented field initializers precede the genuine base call.
+        // Implicit original constructor; base-only, no own field initializers.
     }
 }

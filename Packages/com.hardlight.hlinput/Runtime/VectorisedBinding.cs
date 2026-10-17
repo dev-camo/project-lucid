@@ -5,9 +5,10 @@ using Unity.IL2CPP.CompilerServices;
 namespace Hardlight
 {
     // HLInput.Runtime 0x02000016: complete original local API is three fields
-    // and zero methods. No constructor exists in shipped native metadata.
-    // Its implicit C# constructor is presently unbound and cannot call the
-    // genuine parameterized BaseBinding constructor; no invented body is used.
+    // and zero methods. No constructor exists in shipped native metadata. The
+    // private base(modifiers) constructor in StrippedBindingConstructionCompatibility.cs
+    // is extra, with zero original credit; engine asset, Instantiate and JSON
+    // routes remain pending.
     [Serializable]
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

@@ -16,6 +16,6 @@ namespace HardlightProject
         protected override IEqualityComparer<HardlightProject.MissionScorerStreakIdentifier> GetKeyComparer() => HardlightEnumComparers.MissionScorerStreakIdentifierComparer;
 
         // Original Game.Runtime 0x06001e61, ARM 0x52b5b4.
-        // Natural original constructor; documented field initializers precede the genuine base call.
+        // Implicit original constructor; base-only, no own field initializers.
     }
 }

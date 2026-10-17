@@ -16,7 +16,6 @@
 // calls the genuine base, then dispatches Down using both prior booleans. No getter-purity or fault equivalence claim.
 // Inlined base OnDisable/PointerDown/PointerUp/constructor work is retained as base calls rather than duplicated
 // into HLButton. Exact original C# spelling and optimizer/inlining/native null-fault equivalence remain held.
-// Full HLCurveAnimatedGraphic and all natural iterator providers are genuine missing prerequisites, not stubs.
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;

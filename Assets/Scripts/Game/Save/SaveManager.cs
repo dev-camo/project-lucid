@@ -723,8 +723,7 @@ namespace HardlightProject
             }
         }
 
-        // 0x06002d60: the second parameter is unused. RequestSave is the genuine
-        // SaveDataItem provider method; it is absent from the maintained class.
+        // 0x06002d60: the second parameter is unused. RequestSave is SaveDataItem 0x06002c39.
         [System.Diagnostics.Conditional("BUILD_DEVELOPMENT")]
         private void ResetMissionTimeTrial(SaveDataLevelMission missionSaveData, string buttonText)
         {

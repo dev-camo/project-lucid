@@ -280,8 +280,10 @@ class AuditHandshakeTests(unittest.TestCase):
         self.assertEqual(self.commands, [])
 
     def test_non_bmp_and_literal_backslash_paths_use_direct_hash_fallback(self):
-        # The existing Python and C# ordering algorithms diverge here. Do not
-        # silently certify a Python-supplied hash as a managed equivalent.
+        # Python code-point order and UTF-16 ordinal order differ for non-BMP
+        # names. artifact_fingerprint already sorts by UTF-16 and matches the shared
+        # identity vectors, but paths with a backslash or a character above U+FFFF
+        # conservatively use direct Editor hashing instead of a Python-supplied hash.
         values = ["\ue000.asset", "\U00010000.asset"]
         self.assertNotEqual(sorted(values), sorted(values, key=lambda value: value.encode("utf-16-be")))
         for name in ("extra\U00010000.asset", "literal\\name.asset"):

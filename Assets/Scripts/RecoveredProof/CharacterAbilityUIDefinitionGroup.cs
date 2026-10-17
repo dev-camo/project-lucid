@@ -18,6 +18,6 @@ namespace HardlightProject
         protected override IEqualityComparer<HardlightProject.CharacterAbilityUIType> GetKeyComparer() => HardlightEnumComparers.CharacterAbilityUITypeComparer;
 
         // Original Game.Runtime 0x06001bc2, ARM 0x51d324.
-        // Natural original constructor; genuine field initializers precede base.
+        // Implicit original constructor; base-only, no own field initializers.
     }
 }

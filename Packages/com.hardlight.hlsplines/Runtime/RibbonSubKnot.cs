@@ -101,7 +101,8 @@ namespace Hardlight
         public RibbonSubKnot(int lutCount) { m_tLUT = new float[lutCount]; }
         public RibbonSubKnot(RibbonAlignment alignment, int lutCount) : this(lutCount) { m_alignment = alignment; }
 
-        // Original 0x060002cd/0x060002ce. Initialise always replaces the array after publishing the parent.
+        // Original 0x060002cd (x86-64 0x1A74110) assigns m_parent only. 0x060002ce publishes the
+        // parent, then replaces the array with float[lutCount + 1].
         public void Initialise(RibbonKnot parent) { m_parent = parent; }
         public void Initialise(RibbonKnot parent, int lutCount)
         {

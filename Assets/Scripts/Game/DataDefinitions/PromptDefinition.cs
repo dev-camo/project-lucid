@@ -69,53 +69,23 @@ namespace HardlightProject
         [UnityEngine.SerializeField]
         private System.String m_ftueStepID;
 
-        // Original 0x06001eaa; returns the stored value without copying or normalizing it.
-        public HardlightProject.PromptSlotType PromptSlot => m_promptSlot;
-
-        // Original 0x06001eab; returns the stored value without copying or normalizing it.
-        public Hardlight.Enums.Strings Text => m_text;
-
-        // Original 0x06001eac; returns the stored value without copying or normalizing it.
-        public UnityEngine.AddressableAssets.AssetReferenceAtlasedSprite Image => m_atlasedImage;
-
-        // Original 0x06001ead; returns the stored value without copying or normalizing it.
-        public HardlightProject.PromptDefinition.PromptOccurenceType PauseOccurence => m_pauseOccurence;
-
-        // Original 0x06001eae; returns the stored value without copying or normalizing it.
-        public HardlightProject.PromptDefinition.PromptOccurenceType DisplayOccurence => m_displayOccurence;
-
-        // Original 0x06001eaf; returns the stored value without copying or normalizing it.
-        public System.Boolean TapToContinue => m_tapToContinue;
-
-        // Original 0x06001eb0; returns the stored value without copying or normalizing it.
-        public System.Single MinimumContinueSeconds => m_minimumContinueSeconds;
-
-        // Original 0x06001eb1; returns the stored value without copying or normalizing it.
-        public System.Single AutomaticContinueSeconds => m_automaticContinueSeconds;
-
-        // Original 0x06001eb2; returns the stored value without copying or normalizing it.
-        public HardlightProject.UIContainerPrompt PromptPrefab => m_promptPrefab;
-
-        // Original 0x06001eb3; returns the stored value without copying or normalizing it.
-        public System.Int32 Priority => m_priority;
-
-        // Original 0x06001eb4; returns the stored value without copying or normalizing it.
-        public System.Boolean IsExclusive => m_isExclusive;
-
-        // Original 0x06001eb5; returns the stored value without copying or normalizing it.
-        public System.Collections.Generic.IReadOnlyList<HardlightProject.PromptDefinition.PromptDefinitionChoice> Choices => m_choices;
-
-        // Original 0x06001eb6; returns the stored value without copying or normalizing it.
-        public System.Collections.Generic.IReadOnlyList<HardlightProject.PromptDefinition.PromptDefinitionDisplayInput> DisplayGameInputs => m_displayGameInputs;
-
-        // Original 0x06001eb7; returns the stored value without copying or normalizing it.
-        public UnityEngine.GameObject DisplayGameInputsSeparator => m_displayGameInputsSeparator;
-
-        // Original 0x06001eb8; returns the stored value without copying or normalizing it.
-        public System.Boolean SendFTUEAnalytics => m_sendFTUEAnalytics;
-
-        // Original 0x06001eb9; returns the stored value without copying or normalizing it.
-        public System.String FTUEStepID => m_ftueStepID;
+        // Original getters 0x06001eaa..0x06001eb9 return the stored field unchanged.
+        public HardlightProject.PromptSlotType PromptSlot => m_promptSlot; // 0x06001eaa
+        public Hardlight.Enums.Strings Text => m_text; // 0x06001eab
+        public UnityEngine.AddressableAssets.AssetReferenceAtlasedSprite Image => m_atlasedImage; // 0x06001eac
+        public HardlightProject.PromptDefinition.PromptOccurenceType PauseOccurence => m_pauseOccurence; // 0x06001ead
+        public HardlightProject.PromptDefinition.PromptOccurenceType DisplayOccurence => m_displayOccurence; // 0x06001eae
+        public System.Boolean TapToContinue => m_tapToContinue; // 0x06001eaf
+        public System.Single MinimumContinueSeconds => m_minimumContinueSeconds; // 0x06001eb0
+        public System.Single AutomaticContinueSeconds => m_automaticContinueSeconds; // 0x06001eb1
+        public HardlightProject.UIContainerPrompt PromptPrefab => m_promptPrefab; // 0x06001eb2
+        public System.Int32 Priority => m_priority; // 0x06001eb3
+        public System.Boolean IsExclusive => m_isExclusive; // 0x06001eb4
+        public System.Collections.Generic.IReadOnlyList<HardlightProject.PromptDefinition.PromptDefinitionChoice> Choices => m_choices; // 0x06001eb5
+        public System.Collections.Generic.IReadOnlyList<HardlightProject.PromptDefinition.PromptDefinitionDisplayInput> DisplayGameInputs => m_displayGameInputs; // 0x06001eb6
+        public UnityEngine.GameObject DisplayGameInputsSeparator => m_displayGameInputsSeparator; // 0x06001eb7
+        public System.Boolean SendFTUEAnalytics => m_sendFTUEAnalytics; // 0x06001eb8
+        public System.String FTUEStepID => m_ftueStepID; // 0x06001eb9
 
         // Original 0x06001eba. The first default remains; later defaults are cleared.
         // Retain live List enumeration and its disposal/fault ordering. Empty lists stay empty.

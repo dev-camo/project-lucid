@@ -52,22 +52,15 @@ namespace HardlightProject
         // 0x0400119f; original instance offset 0x3c.
         private float m_intentCosAngleAboveVelocity;
 
-        // 0x06001b4a: original direct field getter.
-        public float MaximumCosAngleToPlane => m_maximumCosAngleToPlane;
-        // 0x06001b4b: original direct field getter.
-        public float MaximumVelocityThreshold => m_maximumVelocityThreshold;
-        // 0x06001b4c: original direct field getter.
-        public float IntentCosAngleBelowVelocity => m_intentCosAngleBelowVelocity;
-        // 0x06001b4d: original direct field getter.
-        public float IntentCosAngleAboveVelocity => m_intentCosAngleAboveVelocity;
-        // 0x06001b4e: original direct field getter.
-        public float LedgeCosAngleLimit => m_ledgeCosAngleLimit;
-        // 0x06001b4f: original direct field getter.
-        public float RaycastStopDistance => m_raycastStopDistance;
-        // 0x06001b50: original direct field getter.
-        public float RaycastDetectDistance => m_raycastDetectDistance;
-        // 0x06001b51: original direct field getter.
-        public float RaycastDownDistance => m_raycastDownDistance;
+        // Original direct field getters.
+        public float MaximumCosAngleToPlane => m_maximumCosAngleToPlane; // 0x06001b4a
+        public float MaximumVelocityThreshold => m_maximumVelocityThreshold; // 0x06001b4b
+        public float IntentCosAngleBelowVelocity => m_intentCosAngleBelowVelocity; // 0x06001b4c
+        public float IntentCosAngleAboveVelocity => m_intentCosAngleAboveVelocity; // 0x06001b4d
+        public float LedgeCosAngleLimit => m_ledgeCosAngleLimit; // 0x06001b4e
+        public float RaycastStopDistance => m_raycastStopDistance; // 0x06001b4f
+        public float RaycastDetectDistance => m_raycastDetectDistance; // 0x06001b50
+        public float RaycastDownDistance => m_raycastDownDistance; // 0x06001b51
 
         // 0x06001b52: four original degree-to-radian products and cosines.
         // ARM publishes in this order; x86 computes all four, then publishes one vector.

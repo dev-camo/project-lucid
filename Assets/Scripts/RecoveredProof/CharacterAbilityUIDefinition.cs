@@ -24,6 +24,6 @@ namespace HardlightProject
         public Hardlight.UIContainerIdentifier ContainerIdentifier => m_containerIdentifier;
 
         // Original Game.Runtime 0x06001bbf, ARM 0x51d298.
-        // Natural original constructor; genuine field initializers precede base.
+        // Implicit original constructor; base-only, no own field initializers.
     }
 }
