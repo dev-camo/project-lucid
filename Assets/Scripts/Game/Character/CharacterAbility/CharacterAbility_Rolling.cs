@@ -12,11 +12,12 @@ namespace HardlightProject
 
 		public bool IsRollingExiting { get; private set; }
 
+		// 060011c1 (1.10.1 RVA 0x74B100)
 		public bool IsTriggered
 		{
 			get
 			{
-				return IsRollingTriggered;
+				return IsRollingTriggered || IsRollingExiting;
 			}
 		}
 

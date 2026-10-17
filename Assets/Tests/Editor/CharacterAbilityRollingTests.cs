@@ -36,6 +36,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Original 060011c1 (x86-64 0x74B100) returns true when
+        // IsRollingTriggered (+0xE8) is set, otherwise IsRollingExiting (+0xE9).
+        // ActorTransition_AbilityTriggered reads it through IAbilityTrigger.
+        // The (false, true) state, reachable from UpdateTrigger(false) after a
+        // triggered roll, is the negative control: a getter that returns only
+        // IsRollingTriggered reports false there.
+        [Test]
+        public void IsTriggeredReportsTriggeredOrExiting()
+        {
+            WithOwnedAppRow(ability =>
+            {
+                foreach (bool triggered in new[] { false, true })
+                foreach (bool exiting in new[] { false, true })
+                {
+                    Set(ability, nameof(CharacterAbility_Rolling.IsRollingTriggered), triggered);
+                    Set(ability, nameof(CharacterAbility_Rolling.IsRollingExiting), exiting);
+                    string state = "(triggered=" + triggered + ", exiting=" + exiting + ")";
+                    Assert.AreEqual(triggered || exiting, ability.IsTriggered, "Direct getter " + state);
+                    Assert.AreEqual(triggered || exiting, ((IAbilityTrigger)ability).IsTriggered, "IAbilityTrigger getter " + state);
+                }
+            });
+        }
+
         // Owned failure controls for the App row cleanup; they make no
         // original-behavior claim. Each failure is raised by the fixture itself
         // after the real constructor has created the App reference.

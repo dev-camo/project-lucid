@@ -1933,9 +1933,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CloudFacadeHandlerTests.ModifySaveMutatesOnlySubscribedChangedPropertiesAndConsumesChanges",
 )
 
-# Original rolling ability leave reset on a really constructed ability.
+# Original rolling ability leave reset and trigger getter on a really constructed ability.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.LeaveClearsTriggeredAndExitingFlags",
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.IsTriggeredReportsTriggeredOrExiting",
 )
 
 # Original hashed identifiers passed or compared by rolling, knockback and audio-source bodies.
