@@ -97,16 +97,26 @@ inventory paths and rechecks all three targets. These checks use Unity 2022.3.54
 on macOS and store reports in the cache. They establish compatibility evidence;
 asset bindings still require separate import and roundtrip validation.
 
-The README's code progress is generated from the supplied bundle and fresh
-compiled source with `python3 tools/lucid.py progress`. It updates the table and
-`docs/code-progress.json`; detailed method inventories remain in the local cache.
-Use `python3 tools/lucid.py progress --check` to check the published table without
+The README's code progress is measured with `python3 tools/lucid.py progress`,
+which needs the supplied bundle and a current `player-code` result for the
+target. It rewrites the README table and `docs/code-progress.json` locally for
+inspection only; do not commit them. Main Actions publish both after each merge,
+and detailed method inventories remain in the local cache. Use
+`python3 tools/lucid.py progress --check` to check the published table without
 the game bundle, Unity, or downloads.
 
-To refresh progress before each local commit, run
-`git config core.hooksPath tools/hooks`. The hook requires all source edits to be
-staged and a fresh `player-code` result. Automatic pushing is opt-in:
-`git config lucid.pushOnCommit true` pushes each successful commit to `origin`.
+`git config core.hooksPath tools/hooks` installs a pre-commit check that runs
+`python3 tools/lucid.py progress --stage`. It requires the staged index to match
+the working tree for tracked source, rejects staged changes to
+`docs/code-progress.json` and the generated README progress section, and checks
+the public counts of the existing snapshot. It needs no bundle, Unity, or
+`player-code` result, and it does not compile, measure, or refresh progress.
+Automatic pushing is opt-in: `git config lucid.pushOnCommit true` pushes each
+successful commit to `origin`.
+
+Passing the hook proves nothing about compilation or behaviour. Compilation is
+established by `player-code` locally and by the pull-request compilation check;
+behaviour is established only by the tests described below.
 
 Validation uses generated asset audits and test reports. Changing code or assets
 requires fresh checks. The current implementation has passing subsystem tests;
