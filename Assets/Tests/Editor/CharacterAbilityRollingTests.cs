@@ -78,7 +78,7 @@ namespace ProjectLucid.Tests
                 // Remove only this control's observer, then its now-empty row.
                 if (typed != null) typed.OnSystemShutdown -= observer;
                 object row = Registry[appName];
-                if (row != null) ReleaseNullRow(Registry, appName, row);
+                if (row != null) VerificationFixtureOwnership.ReleaseEmptyRow(Registry, appName, row);
             }
             Assert.IsFalse(Registry.Contains(appName));
         }
@@ -110,12 +110,12 @@ namespace ProjectLucid.Tests
                 // A constructor that throws after its initializer created the
                 // App row still leaves that row to this owner: it was absent
                 // just before construction and nothing else ran in between.
-                // The lookup never creates a row; ReleaseNullRow still refuses
+                // The lookup never creates a row; ReleaseEmptyRow still refuses
                 // any row that gained a system or observer.
                 if (ownedRow == null) ownedRow = registry[appName];
                 if (ownedRow != null && ReferenceEquals(registry[appName], ownedRow))
                 {
-                    try { ReleaseNullRow(registry, appName, ownedRow); }
+                    try { VerificationFixtureOwnership.ReleaseEmptyRow(registry, appName, ownedRow); }
                     catch (Exception cleanup) when (primary != null)
                     {
                         string message = "Rolling fixture cleanup failed after a body failure: " + cleanup;
@@ -131,24 +131,6 @@ namespace ProjectLucid.Tests
         {
             Type owner = typeof(CharacterAbility_Rolling).GetProperty(property, Instance).DeclaringType;
             owner.GetProperty(property, Instance).GetSetMethod(true).Invoke(target, new object[] { value });
-        }
-
-        // Remove the fixture-created row only while every reference in it is
-        // still empty; a row that gained a system or observer is foreign state.
-        private static void ReleaseNullRow(IDictionary registry, string name, object row)
-        {
-            var untyped = (SystemRef)row.GetType().GetField("SystemRef").GetValue(row);
-            var cache = (IDictionary)row.GetType().GetField("SystemRefDictionary").GetValue(row);
-            if (!untyped.IsNull()) throw new InvalidOperationException("Fixture App row gained a system: " + name);
-            foreach (DictionaryEntry entry in cache)
-            {
-                Type type = entry.Value.GetType();
-                while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
-                foreach (string field in new[] { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" })
-                    if (type.GetField(field, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly).GetValue(entry.Value) != null)
-                        throw new InvalidOperationException("Fixture App row reference retains state: " + field);
-            }
-            registry.Remove(name);
         }
     }
 }

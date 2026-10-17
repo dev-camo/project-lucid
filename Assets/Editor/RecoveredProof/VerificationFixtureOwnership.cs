@@ -128,6 +128,24 @@ namespace ProjectLucid
             }
         }
 
+        // Removes a row the fixture's own construction created, only while every reference in
+        // it is still empty; a row that gained a system or observer is foreign state and stays.
+        public static void ReleaseEmptyRow(IDictionary registry, string name, object row)
+        {
+            var untyped = (SystemRef)row.GetType().GetField("SystemRef").GetValue(row);
+            var cache = (IDictionary)row.GetType().GetField("SystemRefDictionary").GetValue(row);
+            if (!untyped.IsNull()) throw new InvalidOperationException("Fixture row gained a system: " + name);
+            foreach (DictionaryEntry entry in cache)
+            {
+                Type type = entry.Value.GetType();
+                while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
+                foreach (string field in new[] { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" })
+                    if (type.GetField(field, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly).GetValue(entry.Value) != null)
+                        throw new InvalidOperationException("Fixture row reference retains state: " + name + "." + field);
+            }
+            registry.Remove(name);
+        }
+
         public sealed class RegistryRow : IDisposable
         {
             private readonly IDictionary registry;

@@ -22,8 +22,7 @@ namespace ProjectLucid.Tests
         private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         // 06001703 (0x78F430): a null cached ability exits (0x78F561 je to the epilogue with
-        // BL=1); otherwise the result is AirActive == 0 (0x78F566 sete). The previous
-        // `ability != null && !AirActive` form returns false for the missing ability.
+        // BL=1); otherwise the result is AirActive == 0 (0x78F566 cmp / 0x78F56D sete).
         [Test]
         public void AirAbilityExitLeavesWhenTheCachedAbilityIsMissingOrInactive()
         {
@@ -46,7 +45,6 @@ namespace ProjectLucid.Tests
         // 06001731 (0x790D40): IsDirectionOverrideActive (0x790DC0) jumps to the epilogue with
         // R13B=1 before any storage read. HalfPipeColliderActive set returns 0 (0x790E96) without
         // reading HalfPipeTransferActive; otherwise the result is !HalfPipeTransferActive (0x790F64).
-        // The previous form returned false under a direction override.
         [Test]
         public void HalfPipeAirExitLeavesOnDirectionOverrideBeforeReadingStorage()
         {
@@ -82,7 +80,7 @@ namespace ProjectLucid.Tests
 
         // 06001737 (0x7911E0): Collider.HasTrackContact (0x791260) and then
         // IsDirectionOverrideActive (0x791272) each jump to the epilogue with BL=1; only then is
-        // the result !HalfPipeTransferActive (0x791343). The previous form returned false for both.
+        // the result !HalfPipeTransferActive (0x791343).
         // Contact is raised through the collider's genuine OnColliderContactIgnored handler.
         [Test]
         public void HalfPipeTransferExitLeavesOnContactOrDirectionOverrideBeforeReadingTransfer()
@@ -194,14 +192,20 @@ namespace ProjectLucid.Tests
             finally
             {
                 UnityEngine.Object.DestroyImmediate(gameObject);
+                // Every owned row is released even when an earlier one refuses, so a refused
+                // GameplayIslandManager row cannot leave the App row behind for later fixtures.
+                var cleanupFailures = new List<Exception>();
                 foreach (string name in owned)
                 {
                     if (!registry.Contains(name)) continue;
-                    try { ReleaseNullRow(registry, name, registry[name]); }
-                    catch (Exception cleanup) when (primary != null)
-                    {
-                        TestContext.Error.WriteLine("Exit transition fixture cleanup failed after a body failure: " + cleanup);
-                    }
+                    try { VerificationFixtureOwnership.ReleaseEmptyRow(registry, name, registry[name]); }
+                    catch (Exception cleanup) { cleanupFailures.Add(cleanup); }
+                }
+                if (cleanupFailures.Count > 0)
+                {
+                    var cleanupFailure = new AggregateException("Exit transition fixture cleanup failed", cleanupFailures);
+                    if (primary == null) throw cleanupFailure;
+                    TestContext.Error.WriteLine("Exit transition fixture cleanup failed after a body failure: " + cleanupFailure);
                 }
             }
         }
@@ -211,23 +215,6 @@ namespace ProjectLucid.Tests
         {
             Type owner = target.GetType().GetProperty(property, Instance).DeclaringType;
             owner.GetProperty(property, Instance).GetSetMethod(true).Invoke(target, new[] { value });
-        }
-
-        // A row that gained a system or observer is foreign state and is left in place.
-        private static void ReleaseNullRow(IDictionary registry, string name, object row)
-        {
-            var untyped = (SystemRef)row.GetType().GetField("SystemRef").GetValue(row);
-            var cache = (IDictionary)row.GetType().GetField("SystemRefDictionary").GetValue(row);
-            if (!untyped.IsNull()) throw new InvalidOperationException("Fixture row gained a system: " + name);
-            foreach (DictionaryEntry entry in cache)
-            {
-                Type type = entry.Value.GetType();
-                while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
-                foreach (string field in new[] { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" })
-                    if (type.GetField(field, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly).GetValue(entry.Value) != null)
-                        throw new InvalidOperationException("Fixture row reference retains state: " + field);
-            }
-            registry.Remove(name);
         }
     }
 }
