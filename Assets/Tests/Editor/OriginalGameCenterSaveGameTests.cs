@@ -34,8 +34,8 @@ namespace ProjectLucid.Tests
         }
 
         // HLOutput.LogError only reaches a registered HLUnityCore system; whether one
-        // exists is foreign state, so only the cases that reach the unsupported-platform
-        // factory branches tolerate its possible error output.
+        // exists is foreign state, so the case that builds an unsupported service
+        // tolerates its possible error output. The factory case asserts the exact text.
         private static void TolerateUnsupportedPlatformError() => LogAssert.ignoreFailingMessages = true;
 
         [TearDown]
@@ -170,21 +170,34 @@ namespace ProjectLucid.Tests
             Assert.Throws<NullReferenceException>(() => new StubNativeGameCenterSaveGame(null).FetchSavedGames(1));
         }
 
-        // 0x06000802/0x06000803 @0x1AE6640/0x1AE6540: forceStub selects the stub types;
-        // the macOS build has no other native or listener implementation and returns null.
+        // 0x06000802/0x06000803 @0x1AE6640/0x1AE6540: forceStub selects the stub types
+        // without reporting; outside forceStub the factories log the unsupported-platform
+        // error (String.Format of the boxed Application.platform, then HLOutput.LogError)
+        // and return null. GameCenterSaveGameListener (0x02000134) is compiled in but not
+        // constructed here. The error is captured through an owned HLUnityCore.
         [Test]
         public void FactoriesReturnStubsOnlyWhenForced()
         {
-            TolerateUnsupportedPlatformError();
-            var handler = new RecordingHandler();
-            INativeGameCenterSaveGame native = GameCenterSaveGameUtility.CreateNativeGameCenterSaveGame(handler, true);
-            Assert.That(native, Is.InstanceOf<StubNativeGameCenterSaveGame>());
-            native.DeleteSavedGamesWithName(21, "name");
-            Assert.That(handler.Calls, Is.EqualTo(new[] { "DeleteCompleted:21:True" }));
+            using (var log = new OwnedCoreErrorLog())
+            {
+                var handler = new RecordingHandler();
+                INativeGameCenterSaveGame native = GameCenterSaveGameUtility.CreateNativeGameCenterSaveGame(handler, true);
+                Assert.That(native, Is.InstanceOf<StubNativeGameCenterSaveGame>());
+                native.DeleteSavedGamesWithName(21, "name");
+                Assert.That(handler.Calls, Is.EqualTo(new[] { "DeleteCompleted:21:True" }));
+                Assert.That(GameCenterSaveGameUtility.CreateGameCenterSaveGameListener(true), Is.InstanceOf<StubGameCenterSaveGameListener>());
+                Assert.That(log.Errors, Is.Empty);
 
-            Assert.That(GameCenterSaveGameUtility.CreateNativeGameCenterSaveGame(handler), Is.Null);
-            Assert.That(GameCenterSaveGameUtility.CreateGameCenterSaveGameListener(), Is.Null);
-            Assert.That(GameCenterSaveGameUtility.CreateGameCenterSaveGameListener(true), Is.InstanceOf<StubGameCenterSaveGameListener>());
+                Assert.That(GameCenterSaveGameUtility.CreateNativeGameCenterSaveGame(handler), Is.Null);
+                Assert.That(GameCenterSaveGameUtility.CreateGameCenterSaveGameListener(), Is.Null);
+                Assert.That(log.Errors, Is.EqualTo(new[]
+                {
+                    string.Format("[GameCenterSaveGame] CreateNativeGameCenterSaveGame - Native gameCenter save game is not supporter on platform '{0}'.:0",
+                        UnityEngine.Application.platform),
+                    string.Format("[GameCenterSaveGame] CreateGameCenterSaveGameListener - GameCenter save game listener is not supporter on platform '{0}'.:0",
+                        UnityEngine.Application.platform),
+                }));
+            }
         }
 
         // 0x060007bb @0x1AE6350 subscribes AppInitialise (3) and AppShutdown (4) only.
@@ -303,8 +316,10 @@ namespace ProjectLucid.Tests
             SavedGame c = Parse("C|Mac|2024-01-02T03:04:05Z");
             int hash = 0;
             bool emit = true;
+            bool foreignStarted = false;
             listener.OnFetchSavedGamesStarted += started =>
             {
+                if (foreignStarted) return;
                 hash = started;
                 int own = started;
                 // Subscribed after the iterator's own handler, so it runs after it.
@@ -320,6 +335,11 @@ namespace ProjectLucid.Tests
                 listener.TriggerFetchSavedGameEvent(hash, a);
                 listener.TriggerFetchSavedGameEvent(hash + 1, b);
                 listener.TriggerFetchSavedGameEvent(hash, c);
+                // 0x060007cf clears only for the request hash; a foreign Started
+                // before completion must keep a and c.
+                foreignStarted = true;
+                listener.TriggerFetchSavedGamesStartedEvent(hash + 1);
+                foreignStarted = false;
             };
 
             var results = new List<(bool success, IReadOnlyList<SavedGame> savedGames)>();
@@ -398,8 +418,10 @@ namespace ProjectLucid.Tests
             SavedGame c = Parse("C|Mac|2024-01-02T03:04:05Z");
             int hash = 0;
             bool emit = true;
+            bool foreignStarted = false;
             listener.OnResolveConflictingSavedGamesStarted += started =>
             {
+                if (foreignStarted) return;
                 hash = started;
                 int own = started;
                 listener.OnResolveConflictingSavedGamesCompleted += (completed, success) =>
@@ -414,6 +436,11 @@ namespace ProjectLucid.Tests
                 listener.TriggerResolveConflictingSavedGameEvent(hash, b);
                 listener.TriggerResolveConflictingSavedGameEvent(hash + 1, a);
                 listener.TriggerResolveConflictingSavedGameEvent(hash, c);
+                // 0x060007db clears only for the request hash; a foreign Started
+                // before completion must keep b and c.
+                foreignStarted = true;
+                listener.TriggerResolveConflictingSavedGamesStartedEvent(hash + 1);
+                foreignStarted = false;
             };
 
             var results = new List<(bool success, IReadOnlyList<SavedGame> savedGames)>();

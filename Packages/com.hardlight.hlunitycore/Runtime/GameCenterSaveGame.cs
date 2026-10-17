@@ -6,8 +6,8 @@ using UnityEngine;
 
 namespace Hardlight
 {
-    // Original HLUnityCore.Runtime 0x02000127 (MethodDefs 0x060007bb..0x060007cd,
-    // iterator and closure bodies 0x060007ce..0x060007fe). The shipped Game Center
+    // Original HLUnityCore.Runtime 0x02000127 (MethodDefs 0x060007b7..0x060007cd,
+    // iterator and closure bodies 0x060007ce..0x06000801). The shipped Game Center
     // save-game service; offline behaviour belongs at the separate adapter boundary.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
@@ -35,7 +35,7 @@ namespace Hardlight
             ProcessManager.SubscribeToAction(this, SystemAction.AppShutdown, OnAppShutdown);
         }
 
-        private void OnAppInitialise(object context = null)
+        private void OnAppInitialise(object context)
         {
             if (!IsGameCenterSaveGameValid()) return;
             m_gameCenterSaveGameListener.OnDidModifySavedGame += TriggerOnDidModifySavedGameEvent;
@@ -47,7 +47,7 @@ namespace Hardlight
         // 0x060007bd: removals mirror OnAppInitialise; a MonoBehaviour listener's
         // GameObject is then destroyed. Native Deinitialise and the ProcessManager
         // subscriptions are left untouched.
-        private void OnAppShutdown(object context = null)
+        private void OnAppShutdown(object context)
         {
             if (!IsGameCenterSaveGameValid()) return;
             m_gameCenterSaveGameListener.OnDidModifySavedGame -= TriggerOnDidModifySavedGameEvent;
@@ -83,9 +83,9 @@ namespace Hardlight
 
         public bool IsAvailable() => IsGameCenterSaveGameValid() && m_nativeGameCenterSaveGame.IsAvailable();
 
-        // 0x060007c6: a matching Started event clears the shared fetched list, which
-        // is then passed to the caller itself. An invalid service reports
-        // (false, null) on the first step.
+        // 0x060007c6 (MoveNext 0x060007e6, closure 0x060007cf..0x060007d1): a matching
+        // Started event clears the shared fetched list, which is then passed to the
+        // caller itself. An invalid service reports (false, null) on the first step.
         public IEnumerator FetchSavedGames(Action<bool, IReadOnlyList<SavedGame>> onFetchSavedGamesCompleted)
         {
             if (!IsGameCenterSaveGameValid())
@@ -125,8 +125,8 @@ namespace Hardlight
             }
         }
 
-        // 0x060007c7: the last matching save event wins; a default SavedGame is
-        // reported otherwise.
+        // 0x060007c7 (MoveNext 0x060007fe, closure 0x060007d3): the last matching save
+        // event wins; a default SavedGame is reported otherwise.
         public IEnumerator SaveGameData(string saveGameName, string saveGameData, Action<bool, SavedGame> onSaveGameDataCompleted)
         {
             if (!IsGameCenterSaveGameValid())
@@ -160,7 +160,7 @@ namespace Hardlight
             }
         }
 
-        // 0x060007c8: the boxed copy and its real ISavedGameIdentifier interface call
+        // 0x060007c8 (MoveNext 0x060007ec): the boxed copy and its real ISavedGameIdentifier interface call
         // follow both subscriptions and precede the native-field and hash loads
         // (MoveNext 0x1ae8a8f..0x1ae8b14), so an interface-typed local is inferred.
         public IEnumerator LoadGameData(SavedGame savedGameToLoad, Action<bool, string> onLoadGameDataCompleted)
@@ -222,16 +222,16 @@ namespace Hardlight
             }
         }
 
-        // 0x060007ca: yields the list overload's enumerator once, with no validity
+        // 0x060007ca (MoveNext 0x060007f2): yields the list overload's enumerator once, with no validity
         // check of its own.
         public IEnumerator ResolveConflictingSavedGames(string saveGameData, Action<bool, IReadOnlyList<SavedGame>> onResolveConflictingSavedGamesCompleted, params SavedGame[] savedGames)
         {
             yield return ResolveConflictingSavedGames(saveGameData, onResolveConflictingSavedGamesCompleted, (IReadOnlyList<SavedGame>)savedGames);
         }
 
-        // 0x060007cb: the "|" join of every identifier is built after all three
-        // subscriptions and before the native call. The shared resolve list is
-        // passed to the caller itself.
+        // 0x060007cb (MoveNext 0x060007f8, closure 0x060007db..0x060007dd): the "|"
+        // join of every identifier is built after all three subscriptions and before
+        // the native call. The shared resolve list is passed to the caller itself.
         public IEnumerator ResolveConflictingSavedGames(string saveGameData, Action<bool, IReadOnlyList<SavedGame>> onResolveConflictingSavedGamesCompleted, IReadOnlyList<SavedGame> savedGames)
         {
             if (!IsGameCenterSaveGameValid())
