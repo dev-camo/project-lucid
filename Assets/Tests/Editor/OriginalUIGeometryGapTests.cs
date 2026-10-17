@@ -19,9 +19,10 @@ namespace ProjectLucid.Tests
 
         // HLNavigation.Equals 0x06000652 (x86-64 0x1b6fe90) compares Mode and
         // then each selectable through Object_op_Equality (0x26cdaf0), so a
-        // destroyed HLSelectable equals null and another destroyed one in every
-        // direction, while a live one does not. ReferenceEquals or
-        // object.Equals on the fields would report the destroyed cases unequal.
+        // destroyed HLSelectable equals null in every direction, while a live one
+        // does not. ReferenceEquals or object.Equals on the fields would report the
+        // destroyed-versus-null cases unequal. Two distinct destroyed references are
+        // both non-null, so the engine compares their instance IDs and they differ.
         [Test]
         public void NavigationEqualityTreatsDestroyedSelectablesAsUnityNull()
         {
@@ -43,7 +44,7 @@ namespace ProjectLucid.Tests
                     HLNavigation withLive = With(direction, live);
                     Assert.That(withDestroyed.Equals(empty), Is.True, direction + " destroyed equals null");
                     Assert.That(empty.Equals(withDestroyed), Is.True, direction + " null equals destroyed");
-                    Assert.That(withDestroyed.Equals(withOtherDestroyed), Is.True, direction + " two destroyed objects");
+                    Assert.That(withDestroyed.Equals(withOtherDestroyed), Is.False, direction + " two distinct destroyed objects compare by instance ID");
                     Assert.That(withLive.Equals(empty), Is.False, direction + " live differs from null");
                     Assert.That(withLive.Equals(withDestroyed), Is.False, direction + " live differs from destroyed");
                 }
