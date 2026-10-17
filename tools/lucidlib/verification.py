@@ -3046,3 +3046,87 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSimpleScrollPlayTests." + 
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLRecyclingScrollRectPlayTests." + name for name in (
     "SizeChangesMarkDirtyOnlyWhenRegeneratingAndOnlyOnce",
 ))
+
+
+# Restored UnityEngine.UI.HLCarousel (HLUnityUI.Runtime 0x06000089..91), Hardlight.HLCarouselSelection
+# (0x06000560..564), the axis content focus subclasses (0x06000568..56b, 0x060005c9..5cc),
+# HLPips (0x06000076..7a) and HLPipsElement (0x0600007b).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLCarouselTests." + name for name in (
+    "DeclarationKeepsTheDumpedFieldsConstantsAndMembers",
+    "SetWrapOffsetStoresTheVector",
+    "SetupCarouselExcludesBothCapsAndEnablesTheHorizontalAxis",
+    "SetupCarouselWithoutCapsCountsEveryChildOnTheVerticalAxis",
+    "SetupCarouselBelowTwoItemsDisablesScrollingEvenForCapsOutsideTheContent",
+    "SetupCarouselWithAnUndeclaredDirectionStoresAVerticalOffsetAndEnablesNoAxis",
+    "WrapAxisPastTheEndMovesBackOneSpanAndKeepsTheVelocity",
+    "WrapAxisBeforeTheStartMovesForwardOneSpan",
+    "WrapAxisOnTheVerticalAxisMovesOnlyY",
+    "WrapAxisInsideTheWrapBoundsChangesNothing(1250)",
+    "WrapAxisInsideTheWrapBoundsChangesNothing(-250)",
+    "WrapAxisInsideTheWrapBoundsChangesNothing(500)",
+    "WrapAxisWithAZeroOffsetPinsAnInRangePositionToTheStart",
+    "WrapAxisWithAnUndeclaredAxisThrowsBeforeWriting",
+    "LateUpdateWrapsOnlyTheHorizontalAxisWhenBothAreEnabled",
+    "LateUpdateWrapsTheVerticalAxisWithTheYOffset",
+    "LateUpdateWithBothAxesDisabledDoesNotWrap",
+    "CreateCapsCopiesTheOppositeEndsAndShiftsThemAlongX",
+    "CreateCapsWithoutHorizontalShiftsAlongYAndAcceptsNullCallbacks",
+    "DestroyCapsDestroysBothCapObjectsAndClearsTheFields",
+    "RecreateCapsDestroysTheOldCapsBeforeCopyingTheItems",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLCarouselSelectionTests." + name for name in (
+    "DeclarationOverridesTheFourSelectionPolicies",
+    "PoliciesDisableNormalisingAndClampingEnableWrappingAndWidenTheBookends",
+    "TargetScrollOffsetPastTheListEndIsUnclampedOnlyForTheCarousel",
+    "TargetScrollOffsetBeforeTheListStartIsUnclampedOnlyForTheCarousel",
+))
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.DeclarationOverridesBothSlotsAndHidesLateUpdate(True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.DeclarationOverridesBothSlotsAndHidesLateUpdate(False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.RefocusMovesTheHolderAlongItsAxis(True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.RefocusMovesTheHolderAlongItsAxis(False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.RefocusWritesTheOffsetEvenWhenFocusIsDisabled(True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.RefocusWritesTheOffsetEvenWhenFocusIsDisabled(False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateWithoutPreserveVelocityOnlySamplesTheVelocity(True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateWithoutPreserveVelocityOnlySamplesTheVelocity(False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateFlushesAPendingRefocusFirst(True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateFlushesAPendingRefocusFirst(False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(True,0)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(True,1)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(True,2)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(True,3)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(True,4)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(True,5)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(True,6)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(False,0)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(False,1)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(False,2)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(False,3)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(False,4)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(False,5)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.CalculatePositionDeltaUsesTheChildSizeOnItsOwnAxis(False,6)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(True,5,-3,True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(True,0,-3,True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(True,-5,3,False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(True,5,3,False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(True,-5,-3,False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(False,5,-3,True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(False,0,-3,True)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(False,-5,3,False)",
+    "ProjectLucid.Tests.OriginalHLAxisScrollRectContentFocusTests.LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(False,5,3,False)",
+)
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLPipsTests." + name for name in (
+    "DeclarationsKeepTheDumpedFieldsAttributesAndMembers",
+    "ConstructorStartsWithNoPreviousPipAndAnEmptyList",
+    "SetupPipsInstantiatesUnderTheRootAndInitialisesOnlyTheActivePip",
+    "SetupPipsAppendsToThePipsOfAnEarlierSetup",
+    "SetupPipsWithAnOutOfRangeActiveIndexInitialisesEveryPipInactive",
+    "SetupPipsWithoutAPrefabChangesNothing",
+    "NextDeactivatesTheCurrentPipThenActivatesTheNextUntilTheLast",
+    "PreviousDeactivatesTheCurrentPipThenActivatesThePreviousUntilTheFirst",
+    "NextStopsAtThePipCountEvenWithMorePipsInTheList",
+    "NextWithoutPipsAdvancesTheIndicesBeforeThrowing",
+))
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLPipsPlayTests.DestroyPipsEmptiesTheListNowAndDestroysThePipsAtFrameEnd",
+)
