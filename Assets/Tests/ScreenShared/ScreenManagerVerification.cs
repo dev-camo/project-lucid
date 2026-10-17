@@ -271,7 +271,7 @@ namespace ProjectLucid.Tests.ScreenShared
                     LogAssert.NoUnexpectedReceived();
                 }
                 finally { Object.DestroyImmediate(host); }
-                lease.VerifyNoRegistration();
+                lease.FinishNoRegistration();
             }
         }
 
@@ -356,7 +356,7 @@ namespace ProjectLucid.Tests.ScreenShared
                     }
                 }
                 Assert.That(File.Exists(primary) || File.Exists(backup), Is.False);
-                lease.VerifyOwnedTeardown();
+                lease.FinishOwnedTeardown();
             }
 #endif
             // Coroutines are genuinely started by Awake and stopped by OnDestroy,
@@ -409,6 +409,9 @@ namespace ProjectLucid.Tests.ScreenShared
             private readonly ScreenState screen;
             private ScreenManager owned;
             private bool disposed;
+            // Set when the body's terminal Finish check passes, so a teardown
+            // failure can fail the test without replacing an earlier failure.
+            private bool bodyVerified;
             private readonly string screenName = ProcessManager.GetDefaultName<ScreenManager>();
             private static readonly string[] StoreEvents = { "SaveHandlers", "ModifySaveHandlers", "ResolveConflictHandlers",
                 "SaveSuccessHandlers", "AfterConflictsResolvedHandlers", "LoadHandlers" };
@@ -470,8 +473,10 @@ namespace ProjectLucid.Tests.ScreenShared
                 Assert.That(ReferenceEquals(suiteScreenRef.GetSafe(), manager), Is.True);
                 Assert.That(((IDictionary)Read(info, "SystemRefDictionary")).Count, Is.EqualTo(0));
             }
-            public void VerifyNoRegistration() { Assert.That(owned, Is.Null); Verify(false); }
             public void VerifyOwnedTeardown() { Verify(true); }
+            // Each body's last statement; nothing can fail after it inside the body.
+            public void FinishNoRegistration() { Assert.That(owned, Is.Null); Verify(false); bodyVerified = true; }
+            public void FinishOwnedTeardown() { Verify(true); bodyVerified = true; }
             private void Verify(bool allowOwnedRow)
             {
                 Assert.That(ReferenceEquals(Static(typeof(ProcessManager), "s_systemDictionary"), systems), Is.True);
@@ -515,6 +520,7 @@ namespace ProjectLucid.Tests.ScreenShared
             {
                 if (disposed) return;
                 disposed = true;
+                Exception releaseFailure = null;
                 try
                 {
                     Assert.That(Static(typeof(HLPropertyStore), "s_internalInstance"), Is.Null);
@@ -523,23 +529,40 @@ namespace ProjectLucid.Tests.ScreenShared
                 }
                 finally
                 {
-                    try { ReleaseOwnedRows(); }
+                    try
+                    {
+                        try { ReleaseOwnedRows(); }
+                        catch (Exception failure)
+                        {
+                            // Retained and reported, never thrown here, so a body or
+                            // Verify failure already propagating stays the result.
+                            releaseFailure = failure;
+                            TestContext.Error.WriteLine("ScreenManager lease row release failed: " + failure);
+                        }
+                    }
                     finally
                     {
                         try { screen.Restore(); }
                         finally { leaseBusy = false; }
                     }
                 }
+                // Reached only when Dispose's Verify passed; bodyVerified shows the
+                // body completed, so no earlier failure is replaced.
+                if (bodyVerified && releaseFailure != null)
+                    Assert.Fail("ScreenManager lease row release failed; the failure was reported separately: " + releaseFailure.Message);
             }
 
             // Awake registers the singleton row and SubscribeToAction creates the
             // Initialise and Shutdown rows; UnregisterSystem and the unsubscribes
             // remove neither. A row absent at admission is this lease's own and is
             // removed once every reference in it is cleared; a row that still holds
-            // state stays, so Verify's report stands. Rows found at admission stay.
-            // Reads fields only and never throws, so a body failure stays the result.
+            // state stays and is reported, as LifecycleSystemRowLease reports a
+            // row that retains unowned state. Rows found at admission stay. It
+            // removes dictionary entries only and never assigns a row's fields;
+            // it can throw, and Dispose catches that so the first failure stands.
             private void ReleaseOwnedRows()
             {
+                var retained = new List<string>();
                 if (!priorSystems.ContainsKey(screenName) && systems.Contains(screenName))
                 {
                     object info = systems[screenName];
@@ -552,11 +575,16 @@ namespace ProjectLucid.Tests.ScreenShared
                             suiteScreenRef = null;
                         }
                     }
+                    else retained.Add("system row " + screenName);
                 }
                 foreach (SystemAction action in new[] { SystemAction.Initialise, SystemAction.Shutdown })
-                    if (!priorActionRows.ContainsKey(action) && actions.Contains(action) &&
-                        actions[action] is IDictionary row && row.Count == 0)
-                        actions.Remove(action);
+                {
+                    if (priorActionRows.ContainsKey(action) || !actions.Contains(action)) continue;
+                    if (actions[action] is IDictionary row && row.Count == 0) actions.Remove(action);
+                    else retained.Add("action row " + action);
+                }
+                if (retained.Count != 0)
+                    throw new InvalidOperationException("ScreenManager lease rows retain unowned state: " + string.Join(", ", retained));
             }
 
             private static bool IsIdleRow(object info)
@@ -567,6 +595,8 @@ namespace ProjectLucid.Tests.ScreenShared
                 return true;
             }
 
+            // Field list mirrors LifecycleSystemRowLease.RequireClearedReference;
+            // that helper is internal to the PlayMode assembly, which this one cannot reference.
             private static bool IsIdleReference(object reference)
             {
                 if (reference == null) return false;
