@@ -556,9 +556,10 @@ namespace ProjectLucid.Tests
             // Preserve the complete module, including thirteen localisation
             // registry methods, thirty-five original UI registry/comparer methods,
             // eleven original analytics helper methods, and Unity's two
-            // MonoScript generator methods.
-            // 599 emitted method rows plus 120 fixed checks in the pinned compiler fixture.
-            const int expectedChecks = 719;
+            // MonoScript generator methods, plus the twenty methods of the
+            // restored ClientDataAPI.Dispatcher (47f078d).
+            // 619 emitted method rows plus 120 fixed checks in the pinned compiler fixture.
+            const int expectedChecks = 739;
             Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(expectedChecks));
             Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(expectedChecks),
                 "A repeated verification in the same Editor domain must count its own checks.");
@@ -567,7 +568,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void CodecVerificationRetryAfterOutputFailureCountsOnlyItsOwnChecks()
         {
-            Assert.That(CodecPipelineVerification.RunAfterOutputFailure(), Is.EqualTo(719),
+            Assert.That(CodecPipelineVerification.RunAfterOutputFailure(), Is.EqualTo(739),
                 "A failed output write must not add its completed checks to the unchanged-input retry.");
         }
 
