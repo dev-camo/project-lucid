@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
+using UnityEngine.SceneManagement;
 
 namespace ProjectLucid.Tests
 {
@@ -79,6 +80,11 @@ namespace ProjectLucid.Tests
             // the il2cpp class-init check between the GameCenter call and GetSystemRef.
             Assert.IsEmpty(body.Skip(gameCenter + 1).Take(vibration - gameCenter - 1).Where(IsConditional).ToList(),
                 "No condition between the GameCenter registration and the vibration lookup.");
+            // Native 0x649c86 `xor edi, edi; mov esi, 1`: GetSystemRef(systemName null,
+            // autoRegister true). A false auto-registration flag fails here.
+            CollectionAssert.AreEqual(new[] { typeof(string), typeof(bool) }, Parameters(enter, calls[17]));
+            Assert.AreEqual(OpCodes.Ldnull, body[vibration - 2].Code, "systemName is null");
+            Assert.AreEqual(1, Constant(body[vibration - 1]), "autoRegister is true");
             // No rollback or handler surrounds the ordered registrations.
             Assert.IsEmpty(enter.GetMethodBody().ExceptionHandlingClauses);
         }
@@ -135,7 +141,53 @@ namespace ProjectLucid.Tests
             // The store and Addressables arguments are the shipped literals.
             CollectionAssert.AreEqual(new[] { "H4RDl1ght_S4VE", "Primary", "HL_Default_Save_ID" },
                 body.Where(i => i.Code == OpCodes.Ldstr).Select(i => enter.Module.ResolveString(i.Operand)).ToArray());
+            AssertCallOperands(enter, body, calls);
             Assert.IsEmpty(enter.GetMethodBody().ExceptionHandlingClauses);
+        }
+
+        // Native argument registers at each boot call site. DisplayInfo is handle
+        // 0x0, width 0x8, height 0xc (DisplayInfo.Equals 0x2687810); 0x53c2ef/0x53c2f3
+        // pass [rbp-0x78] as width and [rbp-0x74] as height. The store ctor 0x53c376
+        // takes rsi key, `xor edx, edx` client version 0 and rcx "Primary". The load
+        // 0x53c407 passes the scene field, edx 1 (Additive, wrapped by
+        // LoadSceneParameters 0x239f0ee), ecx 1 activateOnLoad and r8d 0x64 priority.
+        // Both storage sites read AppFSMKeys static 0x230 (0x53c4b4, 0x53c5dd), which
+        // the cctor fills at 0x5346c0 from the "LoadedLevels" literal (C31E3C05...).
+        private static void AssertCallOperands(MethodInfo enter, List<Instruction> body, List<Instruction> calls)
+        {
+            int displayInfo = body.IndexOf(calls[2]);
+            int fullScreen = body.IndexOf(calls[3]);
+            string[] size = body.Skip(displayInfo + 1).Take(fullScreen - displayInfo - 1)
+                .Where(i => i.Code == OpCodes.Ldfld).Select(i => Field(enter, i)).ToArray();
+            CollectionAssert.AreEqual(new[] { "UnityEngine.DisplayInfo::width", "UnityEngine.DisplayInfo::height" }, size,
+                "SetResolution takes the display width then height");
+            CollectionAssert.AreEqual(new[] { typeof(int), typeof(int), typeof(FullScreenMode), typeof(RefreshRate) },
+                Parameters(enter, calls[4]));
+
+            CollectionAssert.AreEqual(new[] { typeof(string), typeof(int), typeof(string) }, Parameters(enter, calls[6]));
+            int store = body.IndexOf(calls[6]);
+            Assert.AreEqual(OpCodes.Ldstr, body[store - 3].Code);
+            Assert.AreEqual(0, Constant(body[store - 2]), "HLPropertyStore client version");
+            Assert.AreEqual(OpCodes.Ldstr, body[store - 1].Code);
+
+            CollectionAssert.AreEqual(new[] { typeof(object), typeof(LoadSceneMode), typeof(bool), typeof(int) },
+                Parameters(enter, calls[11]));
+            int load = body.IndexOf(calls[11]);
+            Assert.AreEqual(1, (int)LoadSceneMode.Additive);
+            Assert.AreEqual(OpCodes.Ldfld, body[load - 4].Code);
+            Assert.AreEqual("HardlightProject.ApplicationStateBoot::m_sceneName", Field(enter, body[load - 4]));
+            CollectionAssert.AreEqual(new[] { 1, 1, 100 }, body.Skip(load - 3).Take(3).Select(Constant).ToArray(),
+                "Additive, activateOnLoad true, priority 100");
+
+            // Each storage call takes the LoadedLevels key pushed straight before
+            // its out or value argument, and no other static key is read.
+            foreach (int site in new[] { 13, 18 })
+            {
+                Instruction key = body[body.IndexOf(calls[site]) - 2];
+                Assert.AreEqual(OpCodes.Ldsfld, key.Code, Describe(enter, calls[site]));
+                Assert.AreEqual("HardlightProject.AppFSMKeys::LoadedLevels", Field(enter, key));
+            }
+            Assert.AreEqual(2, body.Count(i => i.Code == OpCodes.Ldsfld));
         }
 
         // Native 0x53c2df `cmp eax, 1; jne 0x53c32b`: only a platform other than
@@ -295,6 +347,15 @@ namespace ProjectLucid.Tests
             int index = Array.IndexOf(shortForms, instruction.Code);
             Assert.GreaterOrEqual(index, 0, "Expected an Int32 constant, found " + instruction.Code);
             return index;
+        }
+
+        private static Type[] Parameters(MethodInfo owner, Instruction call) =>
+            owner.Module.ResolveMethod(call.Operand).GetParameters().Select(p => p.ParameterType).ToArray();
+
+        private static string Field(MethodInfo owner, Instruction instruction)
+        {
+            FieldInfo field = owner.Module.ResolveField(instruction.Operand);
+            return field.DeclaringType + "::" + field.Name;
         }
 
         private static string Describe(MethodInfo owner, Instruction instruction) =>
