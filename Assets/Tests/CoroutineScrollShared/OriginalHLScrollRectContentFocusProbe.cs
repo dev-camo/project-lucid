@@ -15,11 +15,34 @@ namespace ProjectLucid.Tests
     // component whose script belongs to an Editor-only assembly.
     public sealed class OriginalHLScrollRectContentFocusProbe : HLScrollRectContentFocus
     {
+        // Child and list state seen by each slot 5 dispatch, so the fixture can
+        // check what the original subclasses would read (child.rect) at that point.
+        public readonly struct DeltaState
+        {
+            public readonly string Name;
+            public readonly Vector2 SizeDelta;
+            public readonly bool ActiveSelf;
+            public readonly string ParentName;
+            public readonly int OrderedCount;
+
+            public DeltaState(string name, Vector2 sizeDelta, bool activeSelf, string parentName, int orderedCount)
+            {
+                Name = name;
+                SizeDelta = sizeDelta;
+                ActiveSelf = activeSelf;
+                ParentName = parentName;
+                OrderedCount = orderedCount;
+            }
+        }
+
         public readonly List<string> Calls = new List<string>();
+        public readonly List<DeltaState> DeltaStates = new List<DeltaState>();
 
         protected override void CalculatePositionDelta(RectTransform child, Interaction interactionType, int index = 0)
         {
             Calls.Add("delta " + child.name + " " + (int)interactionType + " " + index);
+            DeltaStates.Add(new DeltaState(child.name, child.sizeDelta, child.gameObject.activeSelf,
+                child.parent == null ? null : child.parent.name, m_orderedChildren.Count));
         }
 
         public override void Refocus()

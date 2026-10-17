@@ -213,7 +213,8 @@ namespace Hardlight
         }
 
         // Original 06000576 (slot 4): m_preserveVelocity is left set, and each
-        // counter is published in start/end, added/removed order before it resets.
+        // counter is published in addedToStart, addedToEnd, removedFromStart,
+        // removedFromEnd order, and reset only after its Invoke returns.
         // Retail inlines RebuildContentLayout (0x1b66a98..0x1b66abe) and the
         // non-virtual ForceOffsetContentStartPosition (0x1b66b19..0x1b66b2a, an add
         // to m_ContentStartPosition); both calls are recovered from those bodies.

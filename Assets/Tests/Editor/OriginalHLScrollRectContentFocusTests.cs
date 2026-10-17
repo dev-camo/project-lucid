@@ -13,9 +13,11 @@ namespace ProjectLucid.Tests
 {
     // Behaviour of the abstract Hardlight.HLScrollRectContentFocus (HLUnityUI.Runtime
     // 0600056d..57c) against the shipped x86-64 bodies, driven through a test-only
-    // subclass that records the slot 4/5 dispatches. Every case builds its own
-    // inactive, unsaved hierarchy and destroys it in TearDown; no static state is
-    // touched. Expected values come from the native bodies cited per case.
+    // subclass that records the slot 4/5 dispatches. Every case owns its
+    // HideAndDontSave roots and destroys them in TearDown; the roots stay inactive
+    // except the explicitly active layout roots of the ForceRebuildLayoutImmediate
+    // cases, which also go through LayoutRebuilder's static pool. Expected values
+    // come from the native bodies cited per case.
     [TestFixture]
     public sealed class OriginalHLScrollRectContentFocusTests
     {
@@ -124,6 +126,21 @@ namespace ProjectLucid.Tests
             }, type.GetFields(Declared).Where(field => !field.IsStatic).Select(field => field.Name).ToArray());
             CollectionAssert.AreEqual(new[] { "m_scrollRect", "m_scrollRectContentHolder", "m_removalArea", "m_spacingBetweenContentItems", "m_childLimit" },
                 type.GetFields(Declared).Where(field => field.IsDefined(typeof(SerializeField), false)).Select(field => field.Name).ToArray());
+
+            // dump.cs field types (offsets 0x20..0x90); the events are public and
+            // every m_* field is protected.
+            FieldInfo[] instance = type.GetFields(Declared).Where(field => !field.IsStatic).ToArray();
+            CollectionAssert.AreEqual(new[]
+            {
+                typeof(FastAction<int>), typeof(FastAction<int>), typeof(FastAction<int>), typeof(FastAction<int>),
+                typeof(ScrollRect), typeof(RectTransform), typeof(RectTransform), typeof(float), typeof(int),
+                typeof(HLScrollRect), typeof(bool), typeof(bool), typeof(bool), typeof(bool),
+                typeof(float), typeof(Vector2), typeof(Vector2),
+                typeof(int), typeof(int), typeof(int), typeof(int),
+                typeof(LinkedList<RectTransform>),
+            }, instance.Select(field => field.FieldType).ToArray());
+            Assert.That(instance.Take(4).All(field => field.IsPublic), Is.True);
+            Assert.That(instance.Skip(4).All(field => field.IsFamily), Is.True);
         }
 
         // .ctor 0x1b66f40 only allocates the list and zeroes both vectors; events
@@ -241,6 +258,84 @@ namespace ProjectLucid.Tests
             CollectionAssert.AreEqual(new[] { 2, 0, 0, 1 }, focus.Counters);
         }
 
+        // Both adds evict at most once, and only when m_childLimit > 0 (jle at
+        // 0x1b664f9 / 0x1b666c9) and Count >= m_childLimit (jge at 0x1b66505 /
+        // 0x1b666d5). Count == limit would not evict here, a loop would leave [E],
+        // and limit != 0 would evict for -1.
+        [Test]
+        public void ChildLimitEvictsOnceWhenTheCountReachesAPositiveLimit()
+        {
+            Rig rig = Build(hlScrollRect: true);
+            Probe focus = rig.Focus;
+            focus.EnableFocus(true);
+            RectTransform b = Child(rig, "B");
+            RectTransform c = Child(rig, "C");
+            RectTransform d = Child(rig, "D");
+            foreach (RectTransform child in new[] { b, c, d })
+                focus.AddContentChildToEnd(child);
+
+            focus.ChildLimit = 1;
+            Assert.That(focus.AddContentChildToStart(Child(rig, "E")), Is.SameAs(d));
+            CollectionAssert.AreEqual(new[] { "E", "B", "C" }, Order(focus));
+
+            focus.ChildLimit = -1;
+            Assert.That(focus.AddContentChildToEnd(Child(rig, "F")) == null, Is.True);
+            CollectionAssert.AreEqual(new[] { "E", "B", "C", "F" }, Order(focus));
+        }
+
+        // Slot 5 runs after AddFirst, SetParent, SetSiblingIndex and
+        // ForceRebuildLayoutImmediate(newChild) (0x1b66569 then 0x1b66588), and in
+        // removals after the list removal, SetActive(false) and SetParent(removal).
+        // At-limit eviction runs before the new child is listed. The original
+        // subclasses read child.rect in slot 5, so this order is behaviour.
+        [Test]
+        public void PositionDeltaSeesTheRebuiltChildAndTheUpdatedList()
+        {
+            Rig rig = Build(hlScrollRect: true);
+            Probe focus = rig.Focus;
+            var active = new GameObject("ProjectLucid.HLScrollRectContentFocus.ActiveOwned", typeof(RectTransform));
+            roots.Add(active);
+            active.hideFlags = HideFlags.HideAndDontSave;
+            focus.ContentHolder = NewRect("Holder", active.transform, new Vector2(100f, 100f));
+            focus.EnableFocus(true);
+
+            // A dispatch before the rebuild would see the stale 40 x 40.
+            focus.AddContentChildToStart(Fitted("S", active.transform, 77f, 33f));
+            Probe.DeltaState added = focus.DeltaStates.Single();
+            Assert.That(added.Name, Is.EqualTo("S"));
+            Near(added.SizeDelta, new Vector2(77f, 33f));
+            Assert.That(added.ActiveSelf, Is.True);
+            Assert.That(added.ParentName, Is.EqualTo("Holder"));
+            Assert.That(added.OrderedCount, Is.EqualTo(1));
+
+            focus.DeltaStates.Clear();
+            focus.RemoveContentChildFromEnd();
+            Probe.DeltaState removed = focus.DeltaStates.Single();
+            Assert.That(removed.Name, Is.EqualTo("S"));
+            Assert.That(removed.ActiveSelf, Is.False);
+            Assert.That(removed.ParentName, Is.EqualTo("Removal"));
+            Assert.That(removed.OrderedCount, Is.Zero);
+
+            RectTransform listed = Child(rig, "R");
+            focus.AddContentChildToEnd(listed);
+            focus.DeltaStates.Clear();
+            focus.RemoveContentChild(listed);
+            Probe.DeltaState removedChild = focus.DeltaStates.Single();
+            Assert.That(removedChild.ActiveSelf, Is.False);
+            Assert.That(removedChild.ParentName, Is.EqualTo("Removal"));
+            Assert.That(removedChild.OrderedCount, Is.Zero);
+
+            // At the limit A is evicted before B is listed.
+            focus.ChildLimit = 1;
+            focus.AddContentChildToStart(Child(rig, "A"));
+            focus.Calls.Clear();
+            focus.DeltaStates.Clear();
+            focus.AddContentChildToStart(Child(rig, "B"));
+            CollectionAssert.AreEqual(new[] { "delta A 4 0", "delta B 0 0" }, focus.Calls);
+            Assert.That(focus.DeltaStates[0].OrderedCount, Is.Zero);
+            Assert.That(focus.DeltaStates[1].OrderedCount, Is.EqualTo(1));
+        }
+
         // AddContentChildToEnd 0x1b66680: last sibling of the holder; at the limit
         // RemoveContentChildFromStart (0x1b66790) runs first. A limit of 0 never evicts.
         [Test]
@@ -253,7 +348,12 @@ namespace ProjectLucid.Tests
             RectTransform b = Child(rig, "B");
             RectTransform c = Child(rig, "C");
             NewRect("Existing", rig.Content, Vector2.one);
+            // SetParent(holder, false) at 0x1b6670b keeps the local position; a
+            // world-preserving parent would give (-95, 6, 0).
+            rig.Content.localPosition = new Vector3(100f, 0f, 0f);
+            a.localPosition = new Vector3(5f, 6f, 0f);
             Assert.That(focus.AddContentChildToEnd(a) == null, Is.True);
+            Near(a.localPosition, new Vector3(5f, 6f, 0f));
             Assert.That(a.GetSiblingIndex(), Is.EqualTo(1));
             Assert.That(focus.AddContentChildToEnd(b) == null, Is.True);
             focus.ChildLimit = 2;
@@ -298,9 +398,12 @@ namespace ProjectLucid.Tests
             CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 }, focus.Counters);
 
             focus.EnableFocus(true);
+            c.anchoredPosition = new Vector2(8f, -9f);
+            world = c.position;
             Assert.That(focus.RemoveContentChildFromEnd(), Is.SameAs(c));
             Assert.That(c.gameObject.activeSelf, Is.False);
             Assert.That(c.parent, Is.SameAs(rig.Removal));
+            Near(c.position, world);
             CollectionAssert.AreEqual(new[] { "B" }, Order(focus));
             CollectionAssert.AreEqual(new[] { "delta C 4 0" }, focus.Calls);
             Assert.That(focus.RequiresRefocusing && focus.RequiresLayoutRebuilding && focus.PreserveVelocity, Is.True);
@@ -315,7 +418,8 @@ namespace ProjectLucid.Tests
         // RemoveContentChild 0x1b66850: the index search loops while node.Next is
         // non-null, so the last child (and a single child) report index 0; a
         // sequential search would report 2 for D. No removal counter changes, and
-        // a child that is not listed is left untouched.
+        // a child that is not listed is left untouched. The one-argument SetParent
+        // (0x1b6697a) keeps the world position under the removal area.
         [Test]
         public void RemoveContentChildReportsTheSearchIndexAndNeverSearchesTheLastNode()
         {
@@ -338,9 +442,12 @@ namespace ProjectLucid.Tests
             CollectionAssert.IsEmpty(focus.Calls);
             Assert.That(focus.RequiresRefocusing, Is.False);
 
+            b.anchoredPosition = new Vector2(-7f, 11f);
+            Vector3 world = b.position;
             Assert.That(focus.RemoveContentChild(b), Is.True);
             Assert.That(b.gameObject.activeSelf, Is.False);
             Assert.That(b.parent, Is.SameAs(rig.Removal));
+            Near(b.position, world);
             Assert.That(focus.RequiresRefocusing && focus.RequiresLayoutRebuilding && focus.PreserveVelocity, Is.True);
             Assert.That(focus.RemoveContentChild(d), Is.True);
             Assert.That(focus.RemoveContentChild(a), Is.True);
@@ -374,7 +481,10 @@ namespace ProjectLucid.Tests
         {
             Rig rig = Build(hlScrollRect: true);
             Probe focus = rig.Focus;
-            rig.Content.pivot = new Vector2(0.25f, 0.75f);
+            // The pivot is read from m_scrollRectContentHolder (+0x48 at 0x1b66e88),
+            // not from the scroll rect's content, which keeps pivot 0.5.
+            focus.ContentHolder = NewRect("Holder", rig.Root.transform, Vector2.one);
+            focus.ContentHolder.pivot = new Vector2(0.25f, 0.75f);
             focus.Spacing = 2f;
             var expected = new Dictionary<RectTransform.Axis, float[]>
             {
@@ -402,7 +512,9 @@ namespace ProjectLucid.Tests
         // Refocus 0x1b66a30: needs both the pending flag and focus; then rebuilds
         // when flagged, offsets the holder and (HLScrollRect only) the inherited
         // content start, clears the accumulator and flag but not m_preserveVelocity,
-        // and publishes non-zero counters in start/end, added/removed order.
+        // and publishes non-zero counters in addedToStart, addedToEnd,
+        // removedFromStart, removedFromEnd order (+0x80..+0x8c). The offset moves
+        // m_scrollRectContentHolder (+0x48 at 0x1b66ac2), not the scroll content.
         [Test]
         public void RefocusAppliesTheOffsetAndPublishesCountersOnlyWhenPendingAndEnabled()
         {
@@ -413,11 +525,13 @@ namespace ProjectLucid.Tests
             focus.OnChildrenAddedToEnd += count => log.Add("added end " + count);
             focus.OnChildrenRemovedFromStart += count => log.Add("removed start " + count);
             focus.OnChildrenRemovedFromEnd += count => log.Add("removed end " + count);
-            rig.Content.anchoredPosition = new Vector2(3f, 4f);
+            RectTransform holder = NewRect("Holder", rig.Root.transform, Vector2.one);
+            focus.ContentHolder = holder;
+            holder.anchoredPosition = new Vector2(3f, 4f);
             SetContentStartPosition(rig.Scroll, new Vector2(1f, 2f));
             focus.ContentRelativeOffset = new Vector2(10f, -20f);
             focus.AccumulatedPositionDelta = 5f;
-            focus.Counters = new[] { 2, 0, 3, 1 };
+            focus.Counters = new[] { 2, 4, 3, 1 };
             focus.RequiresLayoutRebuilding = true;
             focus.PreserveVelocity = true;
 
@@ -426,26 +540,28 @@ namespace ProjectLucid.Tests
             focus.EnableFocus(true);
             focus.RequiresRefocusing = false;
             focus.Refocus();
-            Near(rig.Content.anchoredPosition, new Vector2(3f, 4f));
+            Near(holder.anchoredPosition, new Vector2(3f, 4f));
             Assert.That(focus.AccumulatedPositionDelta, Is.EqualTo(5f));
             Assert.That(focus.RequiresLayoutRebuilding, Is.True);
-            CollectionAssert.AreEqual(new[] { 2, 0, 3, 1 }, focus.Counters);
+            CollectionAssert.AreEqual(new[] { 2, 4, 3, 1 }, focus.Counters);
             CollectionAssert.IsEmpty(log);
 
             focus.RequiresRefocusing = true;
             focus.Refocus();
-            Near(rig.Content.anchoredPosition, new Vector2(13f, -16f));
+            Near(holder.anchoredPosition, new Vector2(13f, -16f));
+            Near(rig.Content.anchoredPosition, Vector2.zero);
             Assert.That(ContentStartPosition(rig.Scroll), Is.EqualTo(new Vector2(11f, -18f)));
             Assert.That(focus.AccumulatedPositionDelta, Is.Zero);
             Assert.That(focus.RequiresRefocusing, Is.False);
             Assert.That(focus.RequiresLayoutRebuilding, Is.False);
             Assert.That(focus.PreserveVelocity, Is.True);
             CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 }, focus.Counters);
-            CollectionAssert.AreEqual(new[] { "added start 2", "removed start 3", "removed end 1" }, log);
+            // A start-major order would give added start, removed start, added end, removed end.
+            CollectionAssert.AreEqual(new[] { "added start 2", "added end 4", "removed start 3", "removed end 1" }, log);
 
             focus.Refocus();
-            Near(rig.Content.anchoredPosition, new Vector2(13f, -16f));
-            Assert.That(log.Count, Is.EqualTo(3));
+            Near(holder.anchoredPosition, new Vector2(13f, -16f));
+            Assert.That(log.Count, Is.EqualTo(4));
 
             // A plain ScrollRect only moves the holder; null events are tolerated
             // by the FastAction Invoke extension and the counters still reset.
@@ -460,6 +576,49 @@ namespace ProjectLucid.Tests
             Near(plain.Content.anchoredPosition, new Vector2(0f, 7f));
             Assert.That(ContentStartPosition(plain.Scroll), Is.EqualTo(new Vector2(1f, 2f)));
             CollectionAssert.AreEqual(new[] { 0, 0, 0, 0 }, plain.Focus.Counters);
+        }
+
+        // Refocus applies the offset, zeroes the accumulator and clears the flag
+        // (0x1b66ac2..0x1b66ae9) before publishing, and each Invoke runs before
+        // its counter is stored as 0 (0x1b66b46 then 0x1b66b4b). A listener that
+        // adds a child therefore sees the counter still at 1, and its increment
+        // is overwritten; snapshot-then-zero would leave the counter at 1.
+        [Test]
+        public void RefocusPublishesAfterApplyingAndZeroesEachCounterAfterItsInvoke()
+        {
+            Rig rig = Build(hlScrollRect: true);
+            Probe focus = rig.Focus;
+            focus.EnableFocus(true);
+            rig.Content.anchoredPosition = new Vector2(3f, 4f);
+            focus.ContentRelativeOffset = new Vector2(10f, -20f);
+            focus.AccumulatedPositionDelta = 5f;
+            focus.Counters = new[] { 1, 0, 0, 0 };
+            focus.RequiresRefocusing = true;
+
+            bool seenRequiresRefocusing = true;
+            float seenAccumulated = -1f;
+            Vector2 seenPosition = Vector2.zero;
+            int seenCounter = -1;
+            int calls = 0;
+            focus.OnChildrenAddedToStart += count =>
+            {
+                calls++;
+                seenRequiresRefocusing = focus.RequiresRefocusing;
+                seenAccumulated = focus.AccumulatedPositionDelta;
+                seenPosition = rig.Content.anchoredPosition;
+                seenCounter = focus.Counters[0];
+                focus.AddContentChildToStart(Child(rig, "Late"));
+            };
+
+            focus.Refocus();
+            Assert.That(calls, Is.EqualTo(1));
+            Assert.That(seenRequiresRefocusing, Is.False);
+            Assert.That(seenAccumulated, Is.Zero);
+            Near(seenPosition, new Vector2(13f, -16f));
+            Assert.That(seenCounter, Is.EqualTo(1));
+            Assert.That(focus.Counters[0], Is.Zero);
+            Assert.That(focus.RequiresRefocusing, Is.True);
+            CollectionAssert.AreEqual(new[] { "Late" }, Order(focus));
         }
 
         // A fitted rect lays itself out at its LayoutElement preferred size only
@@ -589,6 +748,11 @@ namespace ProjectLucid.Tests
         {
             Rig rig = Build(hlScrollRect: false);
             Probe focus = rig.Focus;
+            // The comparison rect is m_scrollRect.m_Viewport (+0x40 at 0x1b66dd3):
+            // the root and the content holder are 400 x 400, so a root-, holder- or
+            // viewRect-based test would see Outside, Edge and Above.
+            ((RectTransform)rig.Root.transform).sizeDelta = new Vector2(400f, 400f);
+            rig.Content.sizeDelta = new Vector2(400f, 400f);
             Assert.That(focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.Start), Is.False);
             Assert.That(focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.End), Is.False);
 
@@ -618,6 +782,27 @@ namespace ProjectLucid.Tests
             Assert.That(focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.End, 1), Is.True);
             above.anchoredPosition = new Vector2(0f, 60f);
             Assert.That(focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.End), Is.True);
+
+            // The rects are built from raw corners (c0, c3.x - c0.x, c1.y - c0.y) and
+            // compared without allowInverse (0x1b66de1..0x1b66e49). Turned 180
+            // degrees, c0 = (60, 20) and c3 = (20, 20), so the width is -40 and
+            // 50 > 60 fails, although the turned rect covers x 20..60.
+            RectTransform flipped = Child(rig, "Flipped");
+            focus.AddContentChildToEnd(flipped);
+            flipped.anchoredPosition = new Vector2(40f, 0f);
+            flipped.localEulerAngles = new Vector3(0f, 0f, 180f);
+            Assert.That(focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.End), Is.False);
+            Assert.That(focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.End, 1), Is.True);
+
+            // y -120..-80: only child.yMax > viewport.yMin fails.
+            RectTransform below = Child(rig, "Below");
+            focus.AddContentChildToEnd(below);
+            below.anchoredPosition = new Vector2(0f, -100f);
+            Assert.That(focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.End), Is.False);
+
+            // No viewRect fallback: a missing viewport throws from GetWorldCorners.
+            rig.Scroll.viewport = null;
+            Assert.Throws<NullReferenceException>(() => focus.IsChildVisibleToViewport(HLScrollRectContentFocus.Extent.End));
         }
     }
 }
