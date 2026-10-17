@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -19,8 +20,10 @@ namespace ProjectLucid.Tests
     // m_inputBridge field and RecordingUISelectable candidates whose lifecycle
     // callbacks stay off. Edit mode never calls the controller's Start, so no
     // system is registered; SetUp asserts that and UISelectableStaticState
-    // saves and clears the static selectable tables for the case. Exclusive
-    // scenes registered by a case are removed in TearDown.
+    // saves and clears the static selectable tables for the case. Cases that
+    // need a registered controller or GUICameraManager take an owned registry
+    // row and remove it afterwards. Exclusive scenes registered by a case are
+    // removed in TearDown.
     public sealed class OriginalUISelectableControllerTests
     {
         const BindingFlags Any = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -100,6 +103,97 @@ namespace ProjectLucid.Tests
         {
             try { return typeof(UISelectableController).GetMethod(method, Any).Invoke(target, args); }
             catch (TargetInvocationException e) { ExceptionDispatchInfo.Capture(e.InnerException).Throw(); throw; }
+        }
+
+        static void SetField(Type type, object target, string field, object value) => type.GetField(field, Any).SetValue(target, value);
+
+        static UISelectable Find(UISelectable caller, string sceneName) =>
+            UISelectableController.FindSelectable(Vector3.up, Vector3.zero, caller, sceneName);
+
+        RecordingUISelectable NewSceneSelectable(string name, string sceneName)
+        {
+            RecordingUISelectable selectable = NewSelectable(name, false);
+            SetField(typeof(UISelectable), selectable, "m_sceneName", sceneName);
+            return selectable;
+        }
+
+        // A 100x100 RectTransform at the world origin: corners (+/-50, +/-50, 0).
+        RecordingUISelectable NewRectNavigable(string name)
+        {
+            var go = Own(new GameObject(name, typeof(RectTransform)) { hideFlags = HideFlags.HideAndDontSave });
+            ((RectTransform)go.transform).sizeDelta = new Vector2(100f, 100f);
+            RecordingUISelectable selectable = go.AddComponent<RecordingUISelectable>();
+            selectable.Navigation = UINavigation.DefaultNavigation;
+            return selectable;
+        }
+
+        // The highlighter stays inactive, so SetButtonState starts no
+        // coroutine; its default customisation has no layers.
+        (HLButtonHighlighter highlighter, Canvas canvas) NewHighlighter(UISelectableController controller)
+        {
+            var go = Own(new GameObject("Highlighter", typeof(RectTransform)) { hideFlags = HideFlags.HideAndDontSave });
+            go.SetActive(false);
+            Canvas canvas = go.AddComponent<Canvas>();
+            HLButtonHighlighter highlighter = go.AddComponent<HLButtonHighlighter>();
+            var customisation = Own(ScriptableObject.CreateInstance<HLButtonHighlightCustomisations>());
+            customisation.m_buttonHighlightLayerData = new List<HLButtonHighlightCustomisations.ButtonHighlightChangeSource>();
+            SetField(typeof(HLButtonHighlighter), highlighter, "m_canvas", canvas);
+            SetField(typeof(HLButtonHighlighter), highlighter, "m_defaultCustomisation", customisation);
+            Set(controller, "m_cachedButtonHighlight", highlighter);
+            return (highlighter, canvas);
+        }
+
+        Transform NewTransform(string name, Vector3 position)
+        {
+            Transform transform = Own(new GameObject(name) { hideFlags = HideFlags.HideAndDontSave }).transform;
+            transform.position = position;
+            return transform;
+        }
+
+        static void AssertNear(Vector3 actual, Vector3 expected) => Assert.That(Vector3.Distance(actual, expected), Is.LessThan(1e-4f), actual.ToString());
+
+        // Runs the body with the controller as the UISelectableController system.
+        static void WithRegisteredController(UISelectableController controller, Action body)
+        {
+            using (var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<UISelectableController>()))
+            {
+                row.Register(controller);
+                body();
+            }
+        }
+
+        // Runs the body with a GUICameraManager system whose menu camera is
+        // orthographic (size 5) at (1000, 0, -10) and renders a 100x100 target,
+        // so a screen point maps to the viewport by dividing by 100.
+        void WithMenuCamera(Action body)
+        {
+            MethodInfo setInstance = typeof(MonoSingleton<GUICameraManager>).GetProperty("Instance").GetSetMethod(true);
+            using (var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<GUICameraManager>(), GUICameraManager.Instance))
+            {
+                RenderTexture target = Own(new RenderTexture(100, 100, 0));
+                var cameraObject = Own(new GameObject("Menu camera") { hideFlags = HideFlags.HideAndDontSave });
+                cameraObject.transform.position = new Vector3(1000f, 0f, -10f);
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.enabled = false;
+                camera.orthographic = true;
+                camera.orthographicSize = 5f;
+                camera.targetTexture = target;
+                var managerObject = Own(new GameObject("GUICameraManager fixture") { hideFlags = HideFlags.HideAndDontSave });
+                managerObject.SetActive(false);
+                GUICameraManager manager = managerObject.AddComponent<GUICameraManager>();
+                SetField(typeof(GUICameraManager), manager, "m_menuCamera", camera);
+                row.Register(manager);
+                setInstance.Invoke(null, new object[] { manager });
+                try
+                {
+                    Assert.That(GUICameraManager.Instance.MenuCamera, Is.SameAs(camera));
+                    body();
+                }
+                finally
+                {
+                    setInstance.Invoke(null, new object[] { null });
+                }
+            }
         }
 
         [Test]
@@ -478,6 +572,261 @@ namespace ProjectLucid.Tests
             Assert.That(controller.BlockFindSelectable(), Is.False);
             Assert.That(Get(controller, "m_systemEnabled"), Is.False);
             Assert.That(bridge.Calls, Is.EqualTo(new[] { "SetHardwareCursorVisibility True" }));
+        }
+
+        [Test]
+        public void RegisteredControllerWeightsSameSceneCandidatesAndKeepsTheScaledBest()
+        {
+            var (controller, _) = NewController();
+            RecordingUISelectable sameScene = NewNavigable("Same scene", new Vector3(0f, 5f, 0f), ExclusiveScene);
+            RecordingUISelectable otherScene = NewNavigable("Other scene", new Vector3(0f, 2f, 0f), ExclusiveScene);
+            SetField(typeof(UISelectable), sameScene, "m_sceneName", "A");
+            SetField(typeof(UISelectable), otherScene, "m_sceneName", "B");
+            RecordingUISelectable callerA = NewSceneSelectable("Caller A", "A");
+            RecordingUISelectable callerC = NewSceneSelectable("Caller C", "C");
+
+            WithRegisteredController(controller, () =>
+            {
+                // 5/25 * 3 = 0.6 beats 2/4 = 0.5. Unweighted, or with the unscaled
+                // 0.2 kept as the best, "Other scene" wins; the best is stored
+                // after the weighting (0x1B579F3 entered from 0x1B57D0C).
+                Assert.That(Find(callerA, null), Is.SameAs(sameScene));
+                Assert.That(Find(callerC, null), Is.SameAs(otherScene));
+                Assert.That(Find(null, null), Is.SameAs(otherScene));
+
+                // An exclusive scene turns the weighting off (0x1B57CB8..0x1B57CBD).
+                Assert.That(Find(callerA, ExclusiveScene), Is.SameAs(sameScene), "not yet exclusive");
+                controller.RegisterExclusiveScene(ExclusiveScene);
+                Assert.That(Find(callerA, ExclusiveScene), Is.SameAs(otherScene));
+            });
+
+            // Without a registered controller the weighting is 1 (0x1B578C5).
+            Assert.That(Find(callerA, null), Is.SameAs(otherScene));
+        }
+
+        [Test]
+        public void RegisteredControllerBlockReturnsNullUnlessTheOverrideListIsUsed()
+        {
+            var (controller, _) = NewController();
+            RecordingUISelectable global = NewNavigable("Global", new Vector3(0f, 1f, 0f));
+            RecordingUISelectable listed = NewSelectable("Override only", true, new Vector3(0f, 10f, 0f));
+            listed.Navigation = UINavigation.DefaultNavigation;
+            controller.OverrideList.Add(listed);
+
+            WithRegisteredController(controller, () =>
+            {
+                Assert.That(Find(null, null), Is.SameAs(global), "override list unused");
+                controller.BlockFindSelectable = () => true;
+                Assert.That(Find(null, null), Is.Null);
+
+                // The override list replaces the global table and ignores the
+                // block (0x1B57892..0x1B57899): 1/100 loses to the global 1/1
+                // only if the global table were searched.
+                controller.UseOverrideList = () => true;
+                Assert.That(Find(null, null), Is.SameAs(listed));
+                controller.BlockFindSelectable = () => false;
+                Assert.That(Find(null, null), Is.SameAs(listed));
+            });
+        }
+
+        [Test]
+        public void AnyCornersVisibleMapsTheCornersAsScreenOrWorldPoints()
+        {
+            RecordingUISelectable rect = NewRectNavigable("Rect");
+            RecordingUISelectable plain = NewNavigable("Plain", Vector3.zero);
+            WithMenuCamera(() =>
+            {
+                // As screen points the corner (50, 50) maps to (0.5, 0.5), inside
+                // the camera rect (ScreenToViewportPoint, 0x1B56974). As world
+                // points every corner's x is about 0.5 + (+/-50 - 1000) / 10
+                // (WorldToViewportPoint, 0x1B56A44).
+                Assert.That(rect.AnyCornersVisible(true), Is.True);
+                Assert.That(rect.AnyCornersVisible(false), Is.False);
+
+                // Without a RectTransform there are no corners to test (0x1B56826).
+                Assert.That(plain.AnyCornersVisible(false), Is.True);
+                Assert.That(plain.AnyCornersVisible(true), Is.True);
+            });
+        }
+
+        [Test]
+        public void RegisteredControllerPassesItsBlockFlagToTheCornerTest()
+        {
+            var (controller, _) = NewController();
+            RecordingUISelectable rect = NewRectNavigable("Rect");
+            Assert.That(UISelectableController.IsValidSelectableForNavigation(rect), Is.True, "no corner test without a controller");
+
+            WithMenuCamera(() => WithRegisteredController(controller, () =>
+            {
+                // BlockFindSelectable() becomes isFTUEButton (0x1B56113..0x1B5612B).
+                controller.BlockFindSelectable = () => true;
+                Assert.That(UISelectableController.IsValidSelectableForNavigation(rect), Is.True);
+                controller.BlockFindSelectable = () => false;
+                Assert.That(UISelectableController.IsValidSelectableForNavigation(rect), Is.False);
+            }));
+        }
+
+        [Test]
+        public void MoveToNewParentInstantStepChoosesTheStartScale()
+        {
+            var (controller, _) = NewController();
+            var (highlighter, canvas) = NewHighlighter(controller);
+            Transform parent = NewTransform("Highlight parent", Vector3.zero);
+            RecordingUISelectable target = NewSelectable("Target", false);
+            SetField(typeof(UISelectable), target, "m_highlightParentTransform", parent);
+            Set(controller, "m_buttonHighlightTransitionLayer", "Default");
+            Set(controller, "m_buttonHighlightTransitionTime", 0f);
+
+            bool Run(bool instant, UISelectable lastKnown)
+            {
+                highlighter.transform.localScale = new Vector3(2f, 2f, 2f);
+                canvas.overrideSorting = true;
+                canvas.sortingOrder = 7;
+                Set(controller, "m_setInstantTransition", instant);
+                Set(controller, "m_lastKnownSelected", lastKnown);
+                return ((IEnumerator)Call(controller, "MoveToNewParent", target)).MoveNext();
+            }
+
+            // A disabled system leaves the highlighter alone.
+            Assert.That(Run(true, null), Is.False);
+            Assert.That(highlighter.transform.parent, Is.Null);
+            Assert.That(canvas.sortingOrder, Is.EqualTo(7));
+
+            Set(controller, "m_systemEnabled", true);
+            Assert.That(Run(true, null), Is.False);
+            Assert.That(highlighter.transform.parent, Is.SameAs(parent));
+            Assert.That(highlighter.transform.localScale, Is.EqualTo(Vector3.one));
+            // SetButtonCanvasLayer wrote order 0; both resets cleared the override.
+            Assert.That(canvas.sortingOrder, Is.EqualTo(0));
+            Assert.That(canvas.overrideSorting, Is.False);
+            Assert.That(Get(controller, "m_setInstantTransition"), Is.False);
+
+            // No last known selection: the move starts from zero scale.
+            Assert.That(Run(false, null), Is.False);
+            Assert.That(highlighter.transform.localScale, Is.EqualTo(Vector3.zero));
+
+            // A valid last known selection skips the instant step.
+            Assert.That(Run(false, NewNavigable("Last known", Vector3.zero)), Is.False);
+            AssertNear(highlighter.transform.localScale, new Vector3(2f, 2f, 2f));
+            Assert.That(canvas.overrideSorting, Is.False);
+        }
+
+        [Test]
+        public void SpawnReparentsTheCachedHighlighterKeepingItsLocalPosition()
+        {
+            var (controller, _) = NewController();
+            var (highlighter, _) = NewHighlighter(controller);
+            highlighter.transform.SetParent(NewTransform("Previous parent", new Vector3(10f, 0f, 0f)), false);
+            highlighter.transform.localPosition = new Vector3(3f, 0f, 0f);
+            Transform origin = NewTransform("Origin point", Vector3.zero);
+            Set(controller, "m_selectableOriginPoint", origin);
+
+            Call(controller, "SpawnSelectedIndicator");
+            // SetParent(origin, false) at 0x1B575AF; keeping the world position
+            // would give a local x of 13.
+            Assert.That(highlighter.transform.parent, Is.SameAs(origin));
+            AssertNear(highlighter.transform.localPosition, new Vector3(3f, 0f, 0f));
+            Assert.That(highlighter.gameObject.activeSelf, Is.True);
+            Assert.That(Get(controller, "m_isButtonHighlightActive"), Is.True);
+            Assert.That(Get(controller, "m_setInstantTransition"), Is.True);
+
+            highlighter.gameObject.SetActive(false);
+            Call(controller, "SpawnSelectedIndicator");
+            Assert.That(highlighter.gameObject.activeSelf, Is.False, "already active");
+        }
+
+        [Test]
+        public void DeactivationLeavesTheHighlighterOnlyWhileBeingDestroyed()
+        {
+            var (controller, bridge) = NewController();
+            var (highlighter, _) = NewHighlighter(controller);
+            Transform parent = NewTransform("Highlight parent", Vector3.zero);
+            highlighter.transform.SetParent(parent, false);
+            highlighter.gameObject.SetActive(true);
+            Set(controller, "m_isButtonHighlightActive", true);
+            Set(controller, "m_systemActive", true);
+            Set(controller, "m_systemEnabled", true);
+
+            controller.DeactivateSystem(true);
+            Assert.That(highlighter.gameObject.activeSelf, Is.True);
+            Assert.That(highlighter.transform.parent, Is.SameAs(parent));
+            Assert.That(Get(controller, "m_isButtonHighlightActive"), Is.True);
+            Assert.That(bridge.Calls, Is.EqualTo(new[] { "SetHardwareCursorVisibility True" }));
+
+            Set(controller, "m_systemActive", true);
+            controller.DeactivateSystem(false);
+            Assert.That(highlighter.gameObject.activeSelf, Is.False);
+            Assert.That(highlighter.transform.parent, Is.SameAs(controller.transform));
+            Assert.That(Get(controller, "m_isButtonHighlightActive"), Is.False);
+        }
+
+        [Test]
+        public void RemoveHighlighterParksItAndReenablesRequiredBehaviours()
+        {
+            var (controller, bridge) = NewController();
+            var (highlighter, _) = NewHighlighter(controller);
+            Transform parent = NewTransform("Highlight parent", Vector3.zero);
+            highlighter.transform.SetParent(parent, false);
+            highlighter.transform.localScale = new Vector3(2f, 2f, 2f);
+            AudioSource required = Own(new GameObject("Required behaviour") { hideFlags = HideFlags.HideAndDontSave }).AddComponent<AudioSource>();
+            required.enabled = false;
+            SetField(typeof(HLButtonHighlighter), highlighter, "m_requiredComponents", new List<Behaviour> { required });
+            Set(controller, "m_systemEnabled", true);
+            Set(controller, "m_isButtonHighlightActive", true);
+
+            // A valid current selection keeps the highlighter where it is.
+            Set(controller, "m_currentlySelected", NewNavigable("Current", new Vector3(0f, 5f, 0f)));
+            controller.RemoveHighlighterFromScene();
+            Assert.That(highlighter.transform.parent, Is.SameAs(parent));
+            Assert.That(required.enabled, Is.False);
+
+            // With nothing selected it is parked under the controller at zero
+            // scale, then the downward search from the origin finds nothing.
+            Set(controller, "m_currentlySelected", null);
+            controller.RemoveHighlighterFromScene();
+            Assert.That(highlighter.transform.parent, Is.SameAs(controller.transform));
+            Assert.That(highlighter.transform.localScale, Is.EqualTo(Vector3.zero));
+            Assert.That(required.enabled, Is.True);
+            Assert.That(Get(controller, "m_setInstantTransition"), Is.True);
+            Assert.That(controller.CurrentlySelected, Is.Null);
+            Assert.That(bridge.Calls, Is.Empty);
+        }
+
+        [Test]
+        public void DisabledSystemStoresANonUISelectableAsNullButSelectsItsObject()
+        {
+            var (controller, bridge) = NewController();
+            Set(controller, "m_currentlySelected", NewSelectable("Previous", false));
+            var go = Own(new GameObject("HLSelectable") { hideFlags = HideFlags.HideAndDontSave });
+            go.SetActive(false);
+            HLSelectable other = go.AddComponent<HLSelectable>();
+
+            controller.SelectThis(other);
+            // isinst UISelectable yields null (0x1B57FC8..0x1B57FD7); the bridge
+            // still gets the original object's GameObject (0x1B57FEA).
+            Assert.That(controller.CurrentlySelected, Is.Null);
+            Assert.That(bridge.Calls, Is.EqualTo(new[] { "SetSelectedGameObjectWithMemory" }));
+            Assert.That(bridge.GameObjects.Single(), Is.SameAs(go));
+            Assert.That(bridge.EventData.Single(), Is.Null);
+        }
+
+        [Test]
+        public void AppReloadingDeselectsTheCurrentSelectionAfterShowingTheCursor()
+        {
+            var (controller, bridge) = NewController();
+            RecordingUISelectable selected = NewSelectable("Selected", false);
+            Set(controller, "m_systemEnabled", true);
+            Set(controller, "m_currentlySelected", selected);
+            var deselected = new List<UISelectable>();
+            controller.OnDeselect += s => deselected.Add(s);
+
+            controller.AppReloading();
+            // DisableSystem's tail (0x1B58B36..0x1B58B89).
+            Assert.That(bridge.Calls, Is.EqualTo(new[] { "SetHardwareCursorVisibility True", "DeselectObjectIfCurrentlySelected" }));
+            Assert.That(bridge.GameObjects.Single(), Is.SameAs(selected.gameObject));
+            Assert.That(deselected, Is.EqualTo(new UISelectable[] { selected }));
+            Assert.That(controller.CurrentlySelected, Is.Null);
+            Assert.That(Get(controller, "m_lastKnownSelected"), Is.SameAs(selected));
         }
     }
 }

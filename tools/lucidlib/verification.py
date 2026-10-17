@@ -2852,6 +2852,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableTests." + name f
     "MaterialSwapCachesStartMaterialsAndSwapsOnDisabled",
     "CanvasGroupSearchStopsAtIgnoreParentGroups",
     "TransformSettersReevaluateOnlyOnChangeAndHighlightParentFallsBack",
+    "IsSelectedAsksTheControllerWhenSelectionIsHighlighted",
+    "IsSelectedAsksTheBridgeOnlyWithACurrentEventSystem",
+    "PointerHighlightComparesThePressedObject",
+    "HighlightObjectFollowsTheHighlightWithoutSelectionHighlighting",
+    "SelectNeedsACurrentEventSystemButDeselectDoesNot",
+    "NavigationSearchesUseTheRotatedDirection",
 ))
 
 # Restored Hardlight.UISelectableController (HLUnityUI.Runtime 0x060003db..0x06000407).
@@ -2878,4 +2884,14 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableControllerTests.
     "TryGetCachedSelectablePrefersLastKnownThenNewestValidSubmission",
     "TryGetCachedSelectableFallsBackToADownwardSearchFromTheRecoveryOrigin",
     "AppReloadingResetsTheBlockDelegateAndDisables",
+    "RegisteredControllerWeightsSameSceneCandidatesAndKeepsTheScaledBest",
+    "RegisteredControllerBlockReturnsNullUnlessTheOverrideListIsUsed",
+    "AnyCornersVisibleMapsTheCornersAsScreenOrWorldPoints",
+    "RegisteredControllerPassesItsBlockFlagToTheCornerTest",
+    "MoveToNewParentInstantStepChoosesTheStartScale",
+    "SpawnReparentsTheCachedHighlighterKeepingItsLocalPosition",
+    "DeactivationLeavesTheHighlighterOnlyWhileBeingDestroyed",
+    "RemoveHighlighterParksItAndReenablesRequiredBehaviours",
+    "DisabledSystemStoresANonUISelectableAsNullButSelectsItsObject",
+    "AppReloadingDeselectsTheCurrentSelectionAfterShowingTheCursor",
 ))

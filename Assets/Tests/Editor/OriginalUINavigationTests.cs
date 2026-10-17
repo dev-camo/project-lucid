@@ -136,6 +136,10 @@ namespace ProjectLucid.Tests
                 Assert.That(withLive.Equals(default(UINavigation)), Is.False);
                 Assert.That(withLive.Equals(new UINavigation { SelectOnRight = live }), Is.False);
                 Assert.That(withLive.Equals(new UINavigation { SelectOnLeft = live }), Is.True);
+                // Up and down are compared too (0x1B5428D, 0x1B542C5).
+                Assert.That(new UINavigation { SelectOnUp = live }.Equals(default(UINavigation)), Is.False);
+                Assert.That(new UINavigation { SelectOnDown = live }.Equals(default(UINavigation)), Is.False);
+                Assert.That(new UINavigation { SelectOnUp = live }.Equals(new UINavigation { SelectOnDown = live }), Is.False);
             }
             finally
             {

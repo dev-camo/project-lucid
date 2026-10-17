@@ -23,6 +23,8 @@ namespace ProjectLucid.Tests
     // configuration; UISelectableStaticState saves and clears the static tables,
     // highlight actions and OnSfx for the case. SetUp first asserts that no
     // UIRuntimeConfiguration or UISelectableController system is registered.
+    // Edit mode makes no EventSystem current; cases that need one call its
+    // OnEnable, and TearDown calls its OnDisable.
     public sealed class OriginalUISelectableTests
     {
         const BindingFlags Any = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -33,6 +35,7 @@ namespace ProjectLucid.Tests
 
         UISelectableStaticState m_state;
         readonly List<Object> m_owned = new List<Object>();
+        EventSystem m_eventSystem;
 
         static List<UISelectable> AllSelectables => UISelectableStaticState.AllSelectables;
         static Dictionary<string, List<UISelectable>> SceneSelectables => UISelectableStaticState.SceneSelectables;
@@ -49,6 +52,11 @@ namespace ProjectLucid.Tests
         [TearDown]
         public void RestoreStaticState()
         {
+            if (m_eventSystem != null)
+            {
+                typeof(EventSystem).GetMethod("OnDisable", Any).Invoke(m_eventSystem, null);
+                m_eventSystem = null;
+            }
             for (int i = m_owned.Count - 1; i >= 0; i--)
             {
                 if (m_owned[i] != null) Object.DestroyImmediate(m_owned[i]);
@@ -101,6 +109,15 @@ namespace ProjectLucid.Tests
             var bridge = Own(ScriptableObject.CreateInstance<RecordingSelectionInputBridge>());
             Set(owner, "m_inputBridge", bridge);
             return bridge;
+        }
+
+        EventSystem MakeCurrentEventSystem()
+        {
+            Assert.That(EventSystem.current, Is.Null, "fixture needs no current EventSystem");
+            m_eventSystem = NewObject("EventSystem", false).AddComponent<EventSystem>();
+            typeof(EventSystem).GetMethod("OnEnable", Any).Invoke(m_eventSystem, null);
+            Assert.That(EventSystem.current, Is.SameAs(m_eventSystem));
+            return m_eventSystem;
         }
 
         // InvokeEvent needs the entry list and the haptics reference Awake would set.
@@ -737,6 +754,172 @@ namespace ProjectLucid.Tests
             selectable.HighlightParentTransform = other;
             selectable.TargetTransform = other;
             Assert.That(selectable.Calls.Count, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void IsSelectedAsksTheControllerWhenSelectionIsHighlighted()
+        {
+            RecordingUISelectable selectable = NewSelectable();
+            selectable.ActiveOverride = true;
+            NewConfiguration(selectable, true);
+            // Inactive and never enabled, so HighlightThis returns at once.
+            var controller = NewObject("Controller", false).AddComponent<UISelectableController>();
+            FieldInfo currentlySelected = typeof(UISelectableController).GetField("m_currentlySelected", Any);
+            currentlySelected.SetValue(controller, selectable);
+            Set(selectable, "m_selectableController", controller);
+
+            // The initial state comes from IsSelected (0x1B525E9), whose controller
+            // route compares the controller's current selection (0x1B55056).
+            selectable.CallOnEnable();
+            Assert.That(new[] { selectable.CurrentState, selectable.PreviousState }, Is.EqualTo(new[] { Highlighted, Normal }));
+            Assert.That(selectable.Calls, Is.EqualTo(new[] { "UpdateHighlight", "DoStateTransition 1 True" }));
+
+            // Neither pressed nor highlighted: the fallback still asks IsSelected.
+            selectable.Calls.Clear();
+            selectable.OnSelect(new BaseEventData(null));
+            Assert.That(new[] { selectable.CurrentState, selectable.PreviousState }, Is.EqualTo(new[] { Highlighted, Highlighted }));
+            Assert.That(selectable.Calls, Is.EqualTo(new[] { "UpdateHighlight" }));
+
+            currentlySelected.SetValue(controller, null);
+            selectable.OnSelect(new BaseEventData(null));
+            Assert.That(new[] { selectable.CurrentState, selectable.PreviousState }, Is.EqualTo(new[] { Normal, Highlighted }));
+        }
+
+        [Test]
+        public void IsSelectedAsksTheBridgeOnlyWithACurrentEventSystem()
+        {
+            RecordingUISelectable selectable = NewSelectable();
+            selectable.ActiveOverride = true;
+            NewConfiguration(selectable, false);
+            RecordingSelectionInputBridge bridge = NewBridge(selectable);
+            bridge.ModuleExists = bridge.ObjectSelected = true;
+            var eventData = new BaseEventData(null);
+
+            selectable.OnSelect(eventData);
+            Assert.That(selectable.CurrentState, Is.EqualTo(Normal));
+            Assert.That(bridge.Calls, Is.Empty);
+
+            // 0x1B55081..0x1B55147: EventSystem.current, InputModuleExists, then
+            // IsObjectSelected with this object.
+            MakeCurrentEventSystem();
+            selectable.OnSelect(eventData);
+            Assert.That(selectable.CurrentState, Is.EqualTo(Highlighted));
+            Assert.That(bridge.Calls, Is.EqualTo(new[] { "InputModuleExists", "IsObjectSelected" }));
+            Assert.That(bridge.GameObjects, Is.EqualTo(new[] { selectable.gameObject }));
+
+            // Without an input module the object is not asked; UpdateHighlight
+            // asks again because the state is no longer Highlighted.
+            bridge.Calls.Clear();
+            bridge.ModuleExists = false;
+            selectable.OnSelect(eventData);
+            Assert.That(selectable.CurrentState, Is.EqualTo(Normal));
+            Assert.That(bridge.Calls, Is.EqualTo(new[] { "InputModuleExists", "InputModuleExists" }));
+        }
+
+        [Test]
+        public void PointerHighlightComparesThePressedObject()
+        {
+            RecordingUISelectable selectable = NewSelectable();
+            selectable.ActiveOverride = true;
+            NewConfiguration(selectable, false);
+            GameObject other = NewObject("Other", false);
+            var pointer = new PointerEventData(null);
+
+            int Evaluate(bool down, bool inside, GameObject pressed)
+            {
+                selectable.PointerDown = down;
+                selectable.PointerInside = inside;
+                pointer.pointerPress = pressed;
+                selectable.OnSelect(pointer);
+                return selectable.CurrentState;
+            }
+
+            // Pressed here and dragged outside (first term, 0x1B564DB..0x1B56539).
+            Assert.That(Evaluate(true, false, selectable.gameObject), Is.EqualTo(Highlighted));
+            Assert.That(Evaluate(false, true, selectable.gameObject), Is.EqualTo(Highlighted));
+            Assert.That(Evaluate(false, true, null), Is.EqualTo(Highlighted));
+            // Inside, but another object holds the press.
+            Assert.That(Evaluate(false, true, other), Is.EqualTo(Normal));
+            Assert.That(Evaluate(true, false, other), Is.EqualTo(Normal));
+            Assert.That(Evaluate(true, false, null), Is.EqualTo(Normal));
+        }
+
+        [Test]
+        public void HighlightObjectFollowsTheHighlightWithoutSelectionHighlighting()
+        {
+            RecordingUISelectable selectable = NewSelectable();
+            GameObject highlight = NewObject("Highlight", false);
+            Set(selectable, "m_selectedAndHighlightObject", highlight);
+
+            // show = m_highlightEnabled && (Highlighted || IsSelected()), 0x1B5621A..0x1B562CB.
+            selectable.SetStates(Highlighted, Highlighted);
+            selectable.CallShouldHighlight(true);
+            Assert.That(highlight.activeSelf, Is.True);
+            selectable.CallShouldHighlight(false);
+            Assert.That(highlight.activeSelf, Is.False);
+            selectable.SetStates(Normal, Normal);
+            selectable.CallShouldHighlight(true);
+            Assert.That(highlight.activeSelf, Is.False);
+
+            // Selection highlighting only goes through the controller.
+            NewConfiguration(selectable, true);
+            highlight.SetActive(true);
+            selectable.CallShouldHighlight(false);
+            Assert.That(highlight.activeSelf, Is.True);
+        }
+
+        [Test]
+        public void SelectNeedsACurrentEventSystemButDeselectDoesNot()
+        {
+            RecordingUISelectable selectable = NewSelectable();
+            RecordingSelectionInputBridge bridge = NewBridge(selectable);
+            // Select dereferences EventSystem.current unchecked (0x1B56B04..0x1B56BCA).
+            Assert.Throws<NullReferenceException>(() => selectable.Select());
+            selectable.Deselect();
+            Assert.That(bridge.Calls, Is.Empty);
+
+            MakeCurrentEventSystem();
+            selectable.Select();
+            Assert.That(bridge.Calls, Is.EqualTo(new[] { "SetSelectedGameObjectWithMemory" }));
+            Assert.That(bridge.GameObjects, Is.EqualTo(new[] { selectable.gameObject }));
+            Assert.That(bridge.EventData, Is.EqualTo(new BaseEventData[] { null }));
+
+            bridge.Calls.Clear();
+            bridge.GameObjects.Clear();
+            selectable.Deselect();
+            Assert.That(bridge.Calls, Is.EqualTo(new[] { "DeselectObjectIfCurrentlySelected" }));
+            Assert.That(bridge.GameObjects, Is.EqualTo(new[] { selectable.gameObject }));
+
+            Set(selectable, "m_inputBridge", null);
+            Assert.DoesNotThrow(() => selectable.Select());
+            Assert.DoesNotThrow(() => selectable.Deselect());
+        }
+
+        [Test]
+        public void NavigationSearchesUseTheRotatedDirection()
+        {
+            RecordingUISelectable origin = NewNavigable("Origin", Vector3.zero);
+            RecordingUISelectable left = NewNavigable("Left candidate", new Vector3(-5f, 0f, 0f));
+            RecordingUISelectable right = NewNavigable("Right candidate", new Vector3(5f, 0f, 0f));
+            UISelectable.Add(left, null);
+            UISelectable.Add(right, null);
+            object navigation = new UINavigation { Mode = UINavigation.NavMode.Explicit, SelectOnLeft = NewSelectable("Inactive target") };
+            typeof(UINavigation).GetField("m_autoNavigateIfExplicitSelectionIsNotValid", Any).SetValue(navigation, true);
+            origin.Navigation = (UINavigation)navigation;
+            NewConfiguration(origin, true);
+
+            // The invalid explicit target falls back to a search (0x1B55F6D..0x1B55F91).
+            Assert.That(origin.FindSelectableOnLeft(), Is.SameAs(left));
+            // Turned half way round, left is world right.
+            origin.transform.rotation = Quaternion.Euler(0f, 0f, 180f);
+            Assert.That(origin.FindSelectableOnLeft(), Is.SameAs(right));
+
+            // The automatic search rotates the same way (0x1B55EA8..0x1B55ED0).
+            SetNavigationFlag(origin, UINavigation.NavMode.Automatic, null);
+            Set(origin, "m_uiRuntimeConfiguration", null);
+            Assert.That(origin.FindSelectableOnLeft(), Is.SameAs(right));
+            origin.transform.rotation = Quaternion.identity;
+            Assert.That(origin.FindSelectableOnLeft(), Is.SameAs(left));
         }
     }
 }
