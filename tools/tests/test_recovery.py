@@ -3,12 +3,15 @@
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
+import signal
 import stat
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 from unittest import mock
 import zipfile
@@ -120,6 +123,41 @@ class RecoverySafetyTests(unittest.TestCase):
         self.assertTrue(result["timed_out"])
         self.assertNotEqual(result["returncode"], 0)
         self.assertIn("stopped the process", Path(result["log"]).read_text())
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_timeout_stops_descendant_that_outlives_the_leader(self):
+        # The leader exits on SIGTERM; its child ignores SIGTERM and would survive a
+        # group SIGTERM alone. The wrapper must still stop the whole group (#235).
+        pid_file = self.work / "worker.pid"
+        worker = ("import os, signal, sys, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                  "open(sys.argv[1], 'w').write(str(os.getpid())); time.sleep(60)")
+        leader = ("import subprocess, sys, time; "
+                  "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]]); time.sleep(60)")
+        worker_pid = None
+        try:
+            result = run_logged([sys.executable, "-c", leader, worker, str(pid_file)], self.work,
+                                "descendant-timeout.log", timeout=2)
+            self.assertTrue(result["timed_out"])
+            self.assertNotEqual(result["returncode"], 0)
+            self.assertIn("stopped the process", Path(result["log"]).read_text())
+            worker_pid = int(pid_file.read_text())
+            deadline = time.monotonic() + 5
+            alive = True
+            while alive and time.monotonic() < deadline:
+                try:
+                    os.kill(worker_pid, 0)
+                except ProcessLookupError:
+                    alive = False
+                else:
+                    time.sleep(0.05)
+            self.assertFalse(alive, "SIGTERM-ignoring descendant survived the timeout")
+            worker_pid = None
+        finally:
+            if worker_pid is not None:
+                try:
+                    os.kill(worker_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     def test_schema_fallback_cannot_satisfy_body_request(self):
         app = self.work.parent / "source-recovery-fixture.app"

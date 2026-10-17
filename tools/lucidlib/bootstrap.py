@@ -417,6 +417,14 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
                 else:
                     process.kill()
                 process.wait()
+            if os.name == "posix":
+                # The reaped leader's group id stays reserved while members remain, so
+                # this reaches descendants that ignored SIGTERM and outlived the leader.
+                # Darwin reports EPERM for a group holding only unreaped zombies.
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
             returncode = process.returncode
             stream.write(f"\nRecovery wrapper stopped the process after {timeout} seconds.\n")
     return {"command": command, "log": str(log), "returncode": returncode,
