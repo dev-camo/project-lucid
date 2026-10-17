@@ -1792,6 +1792,7 @@ EDITMODE_TESTS += (
 
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.AirAbilityEntryNudgeRunsBetweenTheVelocityTestAndTheForwardRead",
+    "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.AirAbilityUpdateRefreshesGravityThroughVectorInequality",
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.HalfPipeEarlyAirSuppressionEndsOnlyTheAirActiveImpulse",
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.TargetedLocationRaycastDividesByOneMagnitudeWithoutNormalizing",
 )

@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace ProjectLucid.Editor
 {
-    // Static checks on three Game.Runtime bodies. Running them needs a fully started Character
+    // Static checks on four Game.Runtime bodies. Running them needs a fully started Character
     // (brain from OnStart, App, FSM, physics), which a test cannot build without fakes.
     // The expected call sets and order come from the 1.10.1 x86-64 bodies cited per test, not
     // from the reconstructed source. Only member references and their relative order are checked.
@@ -54,6 +54,29 @@ namespace ProjectLucid.Editor
             Assert.That(forward, Is.GreaterThan(move), "forward is read after the nudge");
             Assert.That(velocityForward, Is.GreaterThan(move), "velocity direction is read after the nudge");
             Assert.That(orientate, Is.GreaterThan(Math.Max(forward, velocityForward)));
+        }
+
+        // 06001510 (RVA 0x773590): the blend-gravity refresh is gated by Unity's inlined Vector3 !=.
+        // The squared difference is compared with 9.99999944E-11f (0x2edbe6fe at VA 0x29a6e8c) by
+        // ucomiss/ja (0x773941-0x77394C), so equality at that value and a NaN difference both refresh.
+        // The refresh then calls EnableGravity (0x773963), OrientateToGravity (0x773992) and
+        // UpdateCachedValues (0x7739A6) in that order.
+        [Test]
+        public void AirAbilityUpdateRefreshesGravityThroughVectorInequality()
+        {
+            List<MemberInfo> refs = References(Method(typeof(CharacterState_AirAbility), "DoUpdate"));
+            MethodInfo inequality = typeof(Vector3).GetMethod("op_Inequality", new[] { typeof(Vector3), typeof(Vector3) });
+            MethodInfo sqrMagnitude = Getter(typeof(Vector3), "sqrMagnitude");
+            int normalised = Index(refs, m => Same(m, Getter(typeof(Vector3), "normalized")));
+            int compare = Index(refs, m => Same(m, inequality));
+            int enable = Index(refs, m => m.Name == "EnableGravity");
+            int orientate = Index(refs, m => m.Name == "OrientateToGravity");
+            int cache = Index(refs, m => m.Name == "UpdateCachedValues");
+            Assert.That(refs.Count(m => Same(m, inequality)), Is.EqualTo(1));
+            Assert.That(new[] { normalised, compare, enable, orientate, cache }, Is.Ordered.Ascending.And.Unique,
+                "gravity direction, the != gate, then EnableGravity, OrientateToGravity and UpdateCachedValues");
+            Assert.That(refs.Take(enable).Count(m => Same(m, sqrMagnitude)), Is.EqualTo(0),
+                "no hand-written sqrMagnitude threshold before the refresh");
         }
 
         // 060010f1 (RVA 0xE60CF0): the early air-active branch stores AirActive = false
