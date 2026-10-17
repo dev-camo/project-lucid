@@ -55,7 +55,7 @@ namespace ProjectLucid
                 string optionalNulls =
                     "  m_ObjectHideFlags: 0\n  m_CorrespondingSourceObject: {fileID: 0}\n  m_PrefabInstance: {fileID: 0}\n" +
                     "  m_PrefabAsset: {fileID: 0}\n  m_GameObject: {fileID: 0}\n  m_Enabled: 1\n  m_EditorHideFlags: 0\n";
-                Func<string, string> document = (header, script) => header + "\nMonoBehaviour:\n" + optionalNulls + script + "\n  m_Name: Fixture\n  m_EditorClassIdentifier: \n";
+                Func<string, string, string> document = (header, script) => header + "\nMonoBehaviour:\n" + optionalNulls + script + "\n  m_Name: Fixture\n  m_EditorClassIdentifier: \n";
                 Func<string, string> yaml = body => "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" + body;
                 string bound = InstalledComponentPointer(out _, out _);
 
