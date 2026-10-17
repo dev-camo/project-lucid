@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -34,10 +35,26 @@ namespace ProjectLucid
         private static void Execute(bool unity)
         {
             checks = 0;
-            // The fixture registers and unregisters the default configuration row itself, which
-            // would strip a live system's action subscriptions, so refuse before touching it.
-            Check(ProcessManager.IsSystemNull<SystemConfiguration>(), "configuration proof requires no live SystemConfiguration");
-            VerifyPaths(); VerifyManagedConfigShape(); if (unity) VerifyUnityResourceBodies();
+            string name = ProcessManager.GetDefaultName<SystemConfiguration>();
+            // Unregistering a live configuration would strip its action subscriptions, so refuse it.
+            // This guard is fixture isolation, not an original-behaviour check, and is not counted.
+            if (!ProcessManager.IsSystemNull(name))
+                throw new InvalidOperationException("configuration proof requires no live SystemConfiguration");
+            IDictionary rows = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            var original = new List<DictionaryEntry>();
+            foreach (DictionaryEntry row in rows) original.Add(row);
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            // A retained empty row belongs to someone else, observers and typed references included.
+            // Registering into it would replace those references and fire their observers, so set the
+            // row object aside untouched while the fixture owns a fresh row of its own.
+            object borrowed = rows.Contains(name) ? rows[name] : null;
+            rows.Remove(name);
+            try { VerifyPaths(); VerifyManagedConfigShape(name); if (unity) VerifyUnityResourceBodies(name); }
+            finally
+            {
+                if (borrowed != null) rows[name] = borrowed;
+                if (FSMManagerVerification.HoldsExactly(rows, original)) FSMManagerVerification.RestoreLayout(rows, layout);
+            }
         }
         private static void VerifyPaths()
         {
@@ -58,7 +75,7 @@ namespace ProjectLucid
             }
             finally { Directory.Delete(root, true); }
         }
-        private static void VerifyManagedConfigShape()
+        private static void VerifyManagedConfigShape(string name)
         {
             var runtime = (RuntimeConfiguration)FormatterServices.GetUninitializedObject(typeof(RuntimeConfiguration));
             FieldInfo field = typeof(RuntimeConfiguration).GetField("m_configurationAssets", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -81,9 +98,9 @@ namespace ProjectLucid
             Check(typeof(SystemConfigurationAsset).GetField("m_baseAsset", BindingFlags.NonPublic | BindingFlags.Instance).IsFamily, "base asset retains protected field visibility");
             Check(typeof(SystemConfigurationAsset).GetMethod("Validate").IsAbstract, "configuration validation remains authored abstract contract");
             var system = new SystemConfiguration();
-            ProcessManager.RegisterSystem(system, canReplace: true);
-            try
+            using (var row = new VerificationFixtureOwnership.RegistryRow(name))
             {
+                row.Register(system, canReplace: true);
                 var handle = SystemConfiguration.AddConfig<SystemConfigurationAsset>(config);
                 int key = HLCRC32.GenerateInt(typeof(ConfigProbe).Name);
                 Check(ReferenceEquals(system.StackableData.Get<SystemConfigurationAsset>(key), config), "base registration uses runtime simple type name");
@@ -94,9 +111,8 @@ namespace ProjectLucid
                 Throws<NullReferenceException>(() => SystemConfiguration.AddConfig<ConfigProbe>(null, 123), "explicit CRC doesn't bypass original GetType read");
                 Check(system.StackableData.HasData(923), "failure leaves existing registered data");
             }
-            finally { ProcessManager.UnregisterSystem<SystemConfiguration>(); }
         }
-        private static void VerifyUnityResourceBodies()
+        private static void VerifyUnityResourceBodies(string name)
         {
             var runtime = ScriptableObject.CreateInstance<RuntimeConfiguration>();
             var active = ScriptableObject.CreateInstance<ActiveRuntimeConfiguration>();
@@ -109,15 +125,14 @@ namespace ProjectLucid
                 active.ActiveConfig = runtime;
                 Check(ReferenceEquals(active.Config, runtime), "real Unity active resource getter retains reference");
                 var system = new SystemConfiguration();
-                ProcessManager.RegisterSystem(system, canReplace: true);
-                try
+                using (var row = new VerificationFixtureOwnership.RegistryRow(name))
                 {
+                    row.Register(system, canReplace: true);
                     created = SystemConfiguration.GetConfig<ConfigProbe>();
                     Check(created != null && !ReferenceEquals(created, config), "missing config creates requested Unity asset");
                     Check(ReferenceEquals(system.StackableData.Get<SystemConfigurationAsset>(HLCRC32.GenerateInt(typeof(ConfigProbe).Name)), created), "fallback creation registers base-typed container");
                     Check(ReferenceEquals(SystemConfiguration.GetConfig<ConfigProbe>(), created), "subsequent lookup returns previously created config");
                 }
-                finally { ProcessManager.UnregisterSystem<SystemConfiguration>(); }
                 // Real Resource loading itself still requires the exact original asset binding, owned by the integration audit.
             }
             finally { if (created != null) UnityEngine.Object.DestroyImmediate(created); UnityEngine.Object.DestroyImmediate(config); UnityEngine.Object.DestroyImmediate(active); UnityEngine.Object.DestroyImmediate(runtime); }

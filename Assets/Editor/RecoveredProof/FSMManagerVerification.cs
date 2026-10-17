@@ -134,7 +134,7 @@ namespace ProjectLucid
             rows.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 
         // Rows the run did not create are never dropped by restoring the layout.
-        private static bool HoldsExactly(IDictionary rows, List<DictionaryEntry> original)
+        internal static bool HoldsExactly(IDictionary rows, List<DictionaryEntry> original)
         {
             if (rows.Count != original.Count) return false;
             foreach (DictionaryEntry row in original)

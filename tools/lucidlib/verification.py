@@ -1674,7 +1674,8 @@ EDITMODE_TESTS += (
 # Fixture ownership of the default configuration row; original ProcessManager semantics stay separate.
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.SystemConfigurationVerificationOwnershipTests.LiveForeignConfigurationIsRefusedBeforeAnyRegistryMutation",
-    "ProjectLucid.Editor.SystemConfigurationVerificationOwnershipTests.ColdVerificationPassesAndLeavesNoLiveConfiguration",
+    "ProjectLucid.Editor.SystemConfigurationVerificationOwnershipTests.DormantForeignConfigurationRowIsSetAsideAndRestoredUntouched",
+    "ProjectLucid.Editor.SystemConfigurationVerificationOwnershipTests.RunFromAnAbsentRowLeavesNoConfigurationRow",
 )
 
 # Fixture ownership of the global property store; production save behavior stays separate.
