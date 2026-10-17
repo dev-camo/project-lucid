@@ -104,7 +104,8 @@ namespace Hardlight
                 if (step >= 2) step /= 2;
                 float left = knotHandle.GetLUTValue(index);
                 float right = knotHandle.GetLUTValue(index + 1);
-                if (left <= t && right > t) return GetLinearRatioFromLerpT(knotHandle, knotT, index);
+                if (left <= t && right > t)
+                    return GetLinearRatioFromLerpT(knotHandle, knotT, index);
                 index += left < t ? step : -step;
             }
             return new LinearRatio(knotT.KnotIndex, 1f);
