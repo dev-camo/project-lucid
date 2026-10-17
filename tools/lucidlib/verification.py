@@ -2564,3 +2564,37 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFlipTests." + name for name 
     "MarkDirtyAndSettersDirtyTheGraphicEvenWhenTheFlipIsDisabled",
     "MutatorsWithoutAGraphicStillWriteTheFields",
 ))
+
+
+# Original HLUnityUI.Runtime ScalingTableLayoutGroup specified from its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalScalingTableLayoutGroupTests." + name for name in (
+    "DeclarationKeepsTheShippedSurface",
+    "ConstructorSetsTheShippedSerializedDefaults",
+    "PropertiesReadAndWriteTheirOwnSerializedFields",
+    "SettersMarkTheLayoutForRebuildOnlyWhenTheValueChanges",
+    "HorizontalInputSplitsTheWidthAndStretchesTheShortLastRow",
+    "HorizontalInputNarrowsTheTableToFewerCellsThanColumns",
+    "HorizontalInputClampsCellsToTheMinimumButReportsTheRectWidth",
+    "VerticalFillDividesTheRectHeightAcrossTheTableRows",
+    "VerticalOverflowDividesByTheSmallerOfExpectedAndTableRows(2)",
+    "VerticalOverflowDividesByTheSmallerOfExpectedAndTableRows(5)",
+    "VerticalUnknownRowAddModeDividesByZeroRows",
+    "VerticalInputReportsTheClampedRowHeights",
+    "SingleRowSkipsTheGuardedVerticalSpacingTerms",
+    "SetLayoutHorizontalPlacesCellsFromTheStartCorner(0)",
+    "SetLayoutHorizontalPlacesCellsFromTheStartCorner(1)",
+    "SetLayoutHorizontalPlacesCellsFromTheStartCorner(2)",
+    "SetLayoutHorizontalPlacesCellsFromTheStartCorner(3)",
+    "SetLayoutHorizontalAlignsOverflowingRowsByTheChildAlignment(0)",
+    "SetLayoutHorizontalAlignsOverflowingRowsByTheChildAlignment(1)",
+    "SetLayoutHorizontalRealignsOnlyWhenTheRowCellCountChanges",
+    "SetLayoutVerticalPlacesRowsFromTheStartCornerAndReleasesTheRowHeights(0)",
+    "SetLayoutVerticalPlacesRowsFromTheStartCornerAndReleasesTheRowHeights(1)",
+    "SetLayoutVerticalPlacesRowsFromTheStartCornerAndReleasesTheRowHeights(2)",
+    "SetLayoutVerticalPlacesRowsFromTheStartCornerAndReleasesTheRowHeights(3)",
+    "SetLayoutVerticalAlignsOverflowingRowsByTheChildAlignment",
+    "SetLayoutVerticalStopsARowOnlyAtTheExactChildCount",
+    "NoLayoutChildrenLeavesTheCachedInputsAndTablesUntouched",
+    "OnEnableRunsTheQueuedLayoutRebuildImmediately",
+))
+
