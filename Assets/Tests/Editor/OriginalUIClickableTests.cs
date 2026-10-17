@@ -709,30 +709,37 @@ namespace ProjectLucid.Tests
                 .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
             bool hadRow = rows.Contains(name);
             object priorRow = hadRow ? rows[name] : null;
-            using (var owned = new Owned<UIButtonProbe>())
+            // The auto-created exchange's constructor subscribes to Shutdown, and
+            // SubscribeToAction creates a missing action row that unregistering
+            // keeps; own it and release it after the exchange row is put back.
+            var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Shutdown);
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                UIButtonProbe button = owned.Component;
-                UIEvent eventId = owned.Own(ScriptableObject.CreateInstance<UIEvent>());
-                var received = new List<(UIEventType, UIEvent)>();
-                MessageExchangeBoundCallbackArg<UIMessage> exchange = owned.UseExchange(received);
+                using (var owned = new Owned<UIButtonProbe>())
+                {
+                    UIButtonProbe button = owned.Component;
+                    UIEvent eventId = owned.Own(ScriptableObject.CreateInstance<UIEvent>());
+                    var received = new List<(UIEventType, UIEvent)>();
+                    MessageExchangeBoundCallbackArg<UIMessage> exchange = owned.UseExchange(received);
 
-                button.PublishUIMessageOnClick(eventId);
-                button.PublishUIMessageOnDisabledClick(eventId);
-                button.PublishUIMessageOnOfflineClick(eventId);
-                button.PublishUIMessageOnButtonDown(eventId);
-                button.PublishUIMessageOnButtonUp(eventId);
-                button.PublishUIMessageOnButtonExit(eventId);
-                button.PublishUIMessage(UIEventType.OnRelease, eventId);
-                Assert.That(received.Select(r => r.Item1), Is.EqualTo(new[] { UIEventType.OnClick, UIEventType.OnDisabledClick,
-                    UIEventType.OnOfflineClick, UIEventType.OnButtonDown, UIEventType.OnButtonUp, UIEventType.OnButtonExit, UIEventType.OnRelease }));
-                Assert.That(received.Select(r => r.Item2), Is.All.SameAs(eventId));
-                Assert.That(ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>(null), Is.SameAs(exchange));
-                Assert.That(owned.Events, Is.Empty, "publishing raises no selectable event");
-                owned.AssertNoLogs();
-            }
+                    button.PublishUIMessageOnClick(eventId);
+                    button.PublishUIMessageOnDisabledClick(eventId);
+                    button.PublishUIMessageOnOfflineClick(eventId);
+                    button.PublishUIMessageOnButtonDown(eventId);
+                    button.PublishUIMessageOnButtonUp(eventId);
+                    button.PublishUIMessageOnButtonExit(eventId);
+                    button.PublishUIMessage(UIEventType.OnRelease, eventId);
+                    Assert.That(received.Select(r => r.Item1), Is.EqualTo(new[] { UIEventType.OnClick, UIEventType.OnDisabledClick,
+                        UIEventType.OnOfflineClick, UIEventType.OnButtonDown, UIEventType.OnButtonUp, UIEventType.OnButtonExit, UIEventType.OnRelease }));
+                    Assert.That(received.Select(r => r.Item2), Is.All.SameAs(eventId));
+                    Assert.That(ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>(null), Is.SameAs(exchange));
+                    Assert.That(owned.Events, Is.Empty, "publishing raises no selectable event");
+                    owned.AssertNoLogs();
+                }
 
-            Assert.That(rows.Contains(name), Is.EqualTo(hadRow), "the exchange row is put back as it was");
-            if (hadRow) Assert.That(rows[name], Is.SameAs(priorRow));
+                Assert.That(rows.Contains(name), Is.EqualTo(hadRow), "the exchange row is put back as it was");
+                if (hadRow) Assert.That(rows[name], Is.SameAs(priorRow));
+            }, actionRows.Dispose);
         }
 
         // DoStateTransition 0x1B52D60 (jump table 0x1B52F64), on an owner that is not active in the
