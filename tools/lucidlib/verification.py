@@ -2166,6 +2166,22 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLLogConsoleTests." + name f
     "HelpersUseTheNativeLiteralsAndLimits",
 ))
 
+# HLUnityCore save-game cluster restored from the 1.10.1 x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameCenterSaveGameTests." + name for name in (
+    "ParsingKeepsTheWholeJoinAndAdjustsTheDateToUniversal",
+    "ParsingRejectsMalformedJoinsAndClearsTheResult",
+    "EqualityComparesOnlyTheJoinHashAndFaultsOnDefault",
+    "ToStringUsesOriginalLabelsAndCurrentCultureDate",
+    "StubCompletesEveryRequestSuccessfullyWithoutDataEvents",
+    "FactoriesReturnStubsOnlyWhenForced",
+    "UnsupportedServiceSubscribesAppActionsAndFailsEachRequestLazily",
+    "ParsingUsesTheInvariantCultureNotTheCurrentOne",
+    "StubServiceWiresListenerEventsOnlyBetweenAppInitialiseAndShutdown",
+    "FetchKeepsOnlyMatchingEventsInTheSharedListAndUnsubscribes",
+    "SaveLoadAndDeleteKeepOnlyMatchingEvents",
+    "ResolveKeepsOnlyMatchingEventsInTheSharedResolveList",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
