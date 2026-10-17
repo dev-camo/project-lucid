@@ -155,7 +155,9 @@ namespace Hardlight
 
 		// 0x06000558 (0x1b65350): an overridden margin collapses to NoRatio unless forced.
 		// Anything that is not a dodged landscape or portrait orientation lerps back to
-		// the initial anchors; a missing ScreenManager leaves the anchors alone.
+		// the initial anchors. The ScreenManager is read before its IsNull guard: natively
+		// ScreenHasSafeArea (0x1b13110) ignores `this`, so the guard returns only once a safe
+		// area is reported, while in managed C# a null Instance faults in IsSafeAreaEnabled.
 		private void Apply(bool force)
 		{
 			EnsureInitialisation();

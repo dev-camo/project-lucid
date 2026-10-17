@@ -103,14 +103,12 @@ namespace ProjectLucid.Tests
             public int[] PendingIds => Pending.Select(record => record.m_identifier).ToArray();
             public void Raise(string evt) => ((Action)Get(system, evt)).Invoke();
 
-            // The only queued command, checked against the original closure class.
-            public object Command(string displayClass, string method)
+            // The only queued command's closure. Its captured fields identify the queuing
+            // method; generated closure names are checked by the dedicated emission tests.
+            public object Command()
             {
                 Assert.That(Commands.Count, Is.EqualTo(1), "Exactly one deferred command");
-                Action command = Commands.Peek();
-                Assert.That(command.Method.DeclaringType.Name, Is.EqualTo(displayClass));
-                Assert.That(command.Method.Name, Is.EqualTo(method));
-                return command.Target;
+                return Commands.Peek().Target;
             }
 
             public void Dispose()
@@ -127,7 +125,12 @@ namespace ProjectLucid.Tests
             }
         }
 
-        static object Captured(object closure, string name) => closure.GetType().GetField(name).GetValue(closure);
+        static object Captured(object closure, string name)
+        {
+            FieldInfo field = closure.GetType().GetField(name);
+            Assert.That(field, Is.Not.Null, "Deferred command captures " + name);
+            return field.GetValue(closure);
+        }
 
         static T Component<T>(List<GameObject> owned) where T : Component
         {
@@ -162,7 +165,7 @@ namespace ProjectLucid.Tests
                         Set(component, "m_replaceCurrent", replace);
                         component.OpenPage();
 
-                        object closure = stack.Command("<>c__DisplayClass45_0", "<AddPage>b__0");
+                        object closure = stack.Command();
                         Assert.That(Captured(closure, "identifier"), Is.EqualTo(1234));
                         Assert.That(Captured(closure, "replaceCurrent"), Is.EqualTo(replace));
                         Assert.That(Captured(closure, "data"), Is.Null);
@@ -197,7 +200,7 @@ namespace ProjectLucid.Tests
                     Set(component, "m_dynamicPageChoice", (DynamicPageEntry)321);
                     component.OpenPage();
 
-                    object closure = stack.Command("<>c__DisplayClass45_0", "<AddPage>b__0");
+                    object closure = stack.Command();
                     Assert.That(Captured(closure, "identifier"), Is.EqualTo(55));
                     Assert.That(Captured(closure, "replaceCurrent"), Is.True);
                     Assert.That(Captured(closure, "callback"), Is.Null);
@@ -236,7 +239,7 @@ namespace ProjectLucid.Tests
                     component.OpenPage();
 
                     // MoveToPreviousPage -> CloseCurrent(true, StandardClose), deferred by the transition.
-                    object closure = stack.Command("<>c__DisplayClass53_0", "<CloseCurrent>b__0");
+                    object closure = stack.Command();
                     Assert.That(Captured(closure, "removeFromStack"), Is.True);
                     Assert.That(Captured(closure, "reasonForClosure"), Is.EqualTo(UISystemClosureReason.StandardClose));
                 }
@@ -272,7 +275,7 @@ namespace ProjectLucid.Tests
                     component.OpenPage();
 
                     // MoveToPage(m_defaultPage, true) at 0x1b633a4 (edx = 1).
-                    object closure = stack.Command("<>c__DisplayClass45_0", "<AddPage>b__0");
+                    object closure = stack.Command();
                     Assert.That(Captured(closure, "identifier"), Is.EqualTo(99));
                     Assert.That(Captured(closure, "replaceCurrent"), Is.True);
                 }
@@ -302,7 +305,7 @@ namespace ProjectLucid.Tests
                     Component<CloseAllMenuPages>(owned).CloseAllPages();
 
                     Assert.That(stack.PendingIds, Is.Empty, "CloseAllPages clears pending records");
-                    object closure = stack.Command("<>c__DisplayClass53_0", "<CloseCurrent>b__0");
+                    object closure = stack.Command();
                     Assert.That(Captured(closure, "reasonForClosure"), Is.EqualTo(UISystemClosureReason.StandardClose));
                     Assert.That(Captured(closure, "removeFromStack"), Is.True);
                     Assert.That(stack.QueueIds, Is.EqualTo(new[] { 1 }));
@@ -327,7 +330,7 @@ namespace ProjectLucid.Tests
                     Component<CloseDialogPage>(owned).ClosePage();
 
                     // CloseCurrentPage -> CloseCurrent(true, StandardClose); pending records stay.
-                    object closure = stack.Command("<>c__DisplayClass53_0", "<CloseCurrent>b__0");
+                    object closure = stack.Command();
                     Assert.That(Captured(closure, "removeFromStack"), Is.True);
                     Assert.That(Captured(closure, "reasonForClosure"), Is.EqualTo(UISystemClosureReason.StandardClose));
                     Assert.That(stack.PendingIds, Is.EqualTo(new[] { 9 }));
@@ -343,7 +346,7 @@ namespace ProjectLucid.Tests
                     component.ClosePage();
 
                     Assert.That(stack.PendingIds, Is.Empty, "CloseAllPages clears pending records");
-                    object closure = stack.Command("<>c__DisplayClass53_0", "<CloseCurrent>b__0");
+                    object closure = stack.Command();
                     Assert.That(Captured(closure, "reasonForClosure"), Is.EqualTo(UISystemClosureReason.StandardClose));
                 }
             }

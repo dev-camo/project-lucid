@@ -4,8 +4,7 @@
 //
 // The six no-op event initializers are genuine callbacks in the original constructor.
 // Their field initializers and three collection allocations run before the Object base
-// constructor. Ordinary C# emits the delegate/cache/captured closure families; exact
-// generated metadata names and native layout still require separate compiler checks.
+// constructor. Ordinary C# emits the delegate/cache/captured closure families.
 //
 // Transition callbacks intentionally read live fields after invoking user/page callbacks.
 // OpenNext calls the record's callback before assigning CurrentPage, then records the
@@ -16,10 +15,12 @@
 // releases at most one queued command; UnfreezeSystem does not release any command.
 //
 // Member placement reproduces the original closure ordinals (<>c__DisplayClass45_0 for
-// AddPage, 53_0 for CloseCurrent, 55_0 for OpenNext, <>c <.ctor>b__65_*): only three
-// members besides the events and properties precede AddPage, and six fields follow
-// OnEmpty. Metadata fixes the field order, not which fields sit where, so the split
-// between m_systemFrozen and the rest is inferred.
+// AddPage, 53_0 for CloseCurrent, 55_0 for OpenNext, <>c <.ctor>b__65_*), which the
+// closure emission test checks with the capture order: three members (m_systemFrozen,
+// FreezeSystem, UnfreezeSystem) sit between the last property and AddPage, and six fields
+// follow OnEmpty. Metadata fixes the field order, not which fields sit where; other splits
+// may give the same counts (for example the two nested types plus four fields after OnEmpty),
+// so the split is inferred. Native layout is not checked.
 //
 // Source/native spelling and control-flow evidence does not qualify supplier behavior,
 // native shared generics as closed bodies, current compiler emission, Unity bindings,
