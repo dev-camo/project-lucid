@@ -4,11 +4,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 using Hardlight;
 using Hardlight.Utils;
 using NUnit.Framework;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
+using UnityEngine.Networking;
 using Country = Hardlight.CountryRegulationIndexAPI.Country;
 
 namespace ProjectLucid.Tests
@@ -20,7 +22,8 @@ namespace ProjectLucid.Tests
     // borrowed by the fixture and restored afterwards. Flow iterators are
     // driven by MoveNext directly; RequestAccess is given an empty coroutine
     // host so it faults at the host fetch, after its field writes. The
-    // HLUnityCore tracking bridge static is swapped and restored per case.
+    // HLUnityCore tracking bridge static is swapped and restored per case, and
+    // the tracking case registers an owned, inactive HLUnityCore.
     [TestFixture]
     public sealed class OriginalLegalModuleTests
     {
@@ -649,6 +652,424 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // <CheckForConsent>d__74.MoveNext (RVA 0x1AF5640) and <>c__DisplayClass74_0:
+        // an under-age player switches to restricted ads before the prompt, the
+        // accept callback records the cached L and C versions, and the flow
+        // moves on by m_appUsesBehaviouralAds. Unregulated countries never ask.
+        [Test]
+        public void ConsentAcceptRecordsVersionsAndAdvancesTheFlow()
+        {
+            using (var fixture = new OwnedModule())
+            {
+                var plugin = new RecordingPlugin();
+                fixture.Module.RegisterPlugin(plugin);
+                fixture.Write("m_cacheData", new LegalModule.LegalModuleCacheAPI { m_versionData = new VersionAPI { L = 3, C = 9 } });
+                var data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                fixture.SetCountry(new Country { id = "GB", type = "consent", age = 13 });
+
+                IEnumerator check = fixture.Invoke<IEnumerator>("CheckForConsent");
+                Assert.IsTrue(check.MoveNext());
+                Assert.IsNull(check.Current);
+                CollectionAssert.AreEqual(new[] { "RequestConsent:False" }, plugin.Calls, "rejection is not allowed");
+                Assert.IsTrue(check.MoveNext(), "waits for the answer");
+                plugin.Accept();
+                CollectionAssert.AreEqual(new[] { "RequestConsent:False", "OnDataChange" }, plugin.Calls);
+                Assert.AreEqual(20, data.m_lastConsentedAge);
+                Assert.AreEqual(13, data.m_lastConsentedTargetAge);
+                Assert.AreEqual(3, data.m_lastConsentedLegalVersion);
+                Assert.AreEqual(9, data.m_lastConsentedCountryVersion);
+                Assert.AreEqual("GB", data.m_lastConsentedCountryCode);
+                Assert.AreEqual("1.10.1", data.m_lastConsentedAppVersion);
+                Assert.IsFalse(check.MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.GrantAccess, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+                Assert.IsFalse(fixture.Read<bool>("m_useRestrictedAds"));
+
+                plugin.Calls.Clear();
+                fixture.Data.m_appUsesBehaviouralAds = true;
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForConsent").MoveNext(), "a valid consent is not asked again");
+                CollectionAssert.IsEmpty(plugin.Calls);
+                Assert.AreEqual(LegalModule.LegalFlowState.AdImprovement, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                data.m_playerAge = 10;
+                Assert.IsTrue(fixture.Invoke<IEnumerator>("CheckForConsent").MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestConsent:True" }, plugin.Calls, "a changed age needs consent");
+                Assert.IsTrue(fixture.Read<bool>("m_useRestrictedAds"));
+
+                plugin.Calls.Clear();
+                fixture.Write("m_useRestrictedAds", false);
+                data.m_playerAge = 10;
+                fixture.SetCountry(new Country { id = "GB", type = "none", age = 13 });
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForConsent").MoveNext());
+                CollectionAssert.IsEmpty(plugin.Calls, "an unregulated country never asks");
+                Assert.IsTrue(fixture.Read<bool>("m_useRestrictedAds"), "the under-age switch does not depend on the country");
+            }
+        }
+
+        // <>c__DisplayClass74_0.<CheckForConsent>b__1: with m_rejectionAllowed the
+        // three-argument overload is used; a rejection revokes for opt-out and
+        // completes the flow, which the iterator then leaves unchanged.
+        [Test]
+        public void ConsentRejectionRevokesAndCompletesTheFlow()
+        {
+            using (var fixture = new OwnedModule())
+            {
+                var plugin = new RecordingPlugin();
+                fixture.Module.RegisterPlugin(plugin);
+                fixture.Write("m_cacheData", new LegalModule.LegalModuleCacheAPI { m_versionData = new VersionAPI { L = 3, C = 9 } });
+                var data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                fixture.SetCountry(new Country { id = "GB", type = "consent", age = 13 });
+                fixture.Write("m_rejectionAllowed", true);
+                fixture.Data.m_appUsesBehaviouralAds = true;
+
+                IEnumerator check = fixture.Invoke<IEnumerator>("CheckForConsent");
+                Assert.IsTrue(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestConsentRejectable:False" }, plugin.Calls);
+                plugin.Reject();
+                CollectionAssert.AreEqual(new[] { "RequestConsentRejectable:False", "OnAccessRevoked:True" }, plugin.Calls);
+                Assert.AreEqual(LegalModule.LegalFlowState.Complete, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+                Assert.IsFalse(check.MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.Complete, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"), "a completed flow is not advanced");
+                Assert.AreEqual(0, data.m_lastConsentedAge, "a rejection records nothing");
+                Assert.AreEqual(0, data.m_lastConsentedLegalVersion);
+            }
+        }
+
+        // <CheckForAdImprovementConsent>d__76 and <>c__DisplayClass76_0.b__0
+        // (RVA 0x1AF4650): an accept without a needed confirmation records a
+        // behavioural consent, a needed confirmation only redirects the flow,
+        // and both write the country version. A cancel changes nothing.
+        [Test]
+        public void AdImprovementConsentAcceptAndCancel()
+        {
+            using (var bridge = new TrackingBridge())
+            using (var fixture = new OwnedModule())
+            {
+                var plugin = new AdRecordingPlugin();
+                fixture.Module.RegisterPlugin(plugin);
+                fixture.Write("m_cacheData", new LegalModule.LegalModuleCacheAPI { m_versionData = new VersionAPI { L = 3, C = 9 } });
+                var data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                fixture.SetCountry(new Country { id = "US", type = "ccpa", age = 13, overAge = 16 });
+                fixture.Invoke("SetupCountryData");
+
+                IEnumerator check = fixture.Invoke<IEnumerator>("CheckForAdImprovementConsent");
+                Assert.IsTrue(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestAdImprovementConsent" }, plugin.Calls);
+                Assert.IsTrue(check.MoveNext(), "waits for the answer");
+                plugin.Accept();
+                CollectionAssert.AreEqual(new[] { "RequestAdImprovementConsent", "OnDataChange" }, plugin.Calls);
+                Assert.AreEqual(LegalModule.AdType.Behavioural, data.m_adType);
+                Assert.AreEqual(20, data.m_lastConsentedAdAge);
+                Assert.AreEqual(13, data.m_lastConsentedTargetAdAge);
+                Assert.AreEqual(9, data.m_lastConsentedCountryVersion);
+                Assert.IsFalse(check.MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.AdTypeSelection, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+                CollectionAssert.IsEmpty(bridge.Calls, "over age needs no confirmation");
+
+                // Mid age with no tracking prompt available needs a confirmation.
+                plugin.Calls.Clear();
+                data = new LegalModule.RequestAccessData { m_playerAge = 14 };
+                fixture.Module.SetRequestAccessData(data);
+                check = fixture.Invoke<IEnumerator>("CheckForAdImprovementConsent");
+                Assert.IsTrue(check.MoveNext());
+                plugin.Accept();
+                CollectionAssert.AreEqual(new[] { "RequestAdImprovementConsent", "OnDataChange" }, plugin.Calls);
+                CollectionAssert.AreEqual(new[] { "Can" }, bridge.Calls);
+                Assert.AreEqual(LegalModule.AdType.None, data.m_adType, "the confirmation step records the consent");
+                Assert.AreEqual(0, data.m_lastConsentedAdAge);
+                Assert.AreEqual(9, data.m_lastConsentedCountryVersion);
+                Assert.IsFalse(check.MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.AdImprovementConfirmation, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                plugin.Calls.Clear();
+                data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                check = fixture.Invoke<IEnumerator>("CheckForAdImprovementConsent");
+                Assert.IsTrue(check.MoveNext());
+                plugin.Reject();
+                Assert.IsFalse(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestAdImprovementConsent" }, plugin.Calls, "a cancel saves nothing");
+                Assert.AreEqual(LegalModule.AdType.None, data.m_adType);
+                Assert.AreEqual(0, data.m_lastConsentedCountryVersion);
+                Assert.AreEqual(LegalModule.LegalFlowState.AdTypeSelection, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+            }
+        }
+
+        // <CheckForAdImprovementConsent>d__76.MoveNext (RVA 0x1AF5350): without a
+        // prompt an unset ad type is Generic for under-age players and a recorded
+        // Behavioural consent otherwise; a set type is left alone. A plugin
+        // without IAdLegalPlugin errors the flow.
+        [Test]
+        public void AdImprovementWithoutAPromptChoosesTheTypeFromTheAgeClass()
+        {
+            using (new TrackingBridge())
+            using (var fixture = new OwnedModule())
+            {
+                var plugin = new AdRecordingPlugin();
+                fixture.Module.RegisterPlugin(plugin);
+                fixture.SetCountry(new Country { id = "US", type = "ccpa", age = 13, overAge = 16 });
+                fixture.Invoke("SetupCountryData");
+
+                var data = new LegalModule.RequestAccessData { m_playerAge = 10 };
+                fixture.Module.SetRequestAccessData(data);
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdImprovementConsent").MoveNext());
+                CollectionAssert.AreEqual(new[] { "OnDataChange" }, plugin.Calls);
+                Assert.AreEqual(LegalModule.AdType.Generic, data.m_adType);
+                Assert.AreEqual(0, data.m_lastConsentedAdAge, "a Generic choice records no age");
+                Assert.AreEqual(LegalModule.LegalFlowState.AdTypeSelection, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                plugin.Calls.Clear();
+                data = new LegalModule.RequestAccessData { m_playerAge = 20, m_initialBoot = true };
+                fixture.Module.SetRequestAccessData(data);
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdImprovementConsent").MoveNext(), "over age is excluded on the initial boot");
+                CollectionAssert.AreEqual(new[] { "OnDataChange" }, plugin.Calls);
+                Assert.AreEqual(LegalModule.AdType.Behavioural, data.m_adType);
+                Assert.AreEqual(20, data.m_lastConsentedAdAge);
+                Assert.AreEqual(0, data.m_lastConsentedTargetAdAge);
+
+                plugin.Calls.Clear();
+                data.m_adType = LegalModule.AdType.Generic;
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdImprovementConsent").MoveNext());
+                CollectionAssert.IsEmpty(plugin.Calls, "a set ad type is not saved again");
+                Assert.AreEqual(LegalModule.AdType.Generic, data.m_adType);
+
+                fixture.Module.RegisterPlugin(new RecordingPlugin());
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdImprovementConsent").MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.Error, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+            }
+        }
+
+        // <CheckForAdImprovementConfirmation>d__77 and <>c__DisplayClass77_0:
+        // the accept records a behavioural consent, the cancel returns to
+        // AdImprovement, and over age needs no confirmation.
+        [Test]
+        public void AdImprovementConfirmationAcceptAndCancel()
+        {
+            using (new TrackingBridge())
+            using (var fixture = new OwnedModule())
+            {
+                var plugin = new AdRecordingPlugin();
+                fixture.Module.RegisterPlugin(plugin);
+                var data = new LegalModule.RequestAccessData { m_playerAge = 14 };
+                fixture.Module.SetRequestAccessData(data);
+                fixture.SetCountry(new Country { id = "US", type = "ccpa", age = 13, overAge = 16 });
+                fixture.Invoke("SetupCountryData");
+
+                IEnumerator check = fixture.Invoke<IEnumerator>("CheckForAdImprovementConfirmation");
+                Assert.IsTrue(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestAdImprovementConfirmation" }, plugin.Calls);
+                plugin.Accept();
+                CollectionAssert.AreEqual(new[] { "RequestAdImprovementConfirmation", "OnDataChange" }, plugin.Calls);
+                Assert.AreEqual(14, data.m_lastConsentedAdAge);
+                Assert.AreEqual(13, data.m_lastConsentedTargetAdAge);
+                Assert.AreEqual(LegalModule.AdType.Behavioural, data.m_adType);
+                Assert.IsFalse(check.MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.AdTypeSelection, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                plugin.Calls.Clear();
+                data = new LegalModule.RequestAccessData { m_playerAge = 14 };
+                fixture.Module.SetRequestAccessData(data);
+                check = fixture.Invoke<IEnumerator>("CheckForAdImprovementConfirmation");
+                Assert.IsTrue(check.MoveNext());
+                plugin.Reject();
+                Assert.IsFalse(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestAdImprovementConfirmation" }, plugin.Calls);
+                Assert.AreEqual(LegalModule.AdType.None, data.m_adType);
+                Assert.AreEqual(LegalModule.LegalFlowState.AdImprovement, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                plugin.Calls.Clear();
+                data.m_playerAge = 20;
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdImprovementConfirmation").MoveNext());
+                CollectionAssert.IsEmpty(plugin.Calls);
+                Assert.AreEqual(LegalModule.LegalFlowState.AdTypeSelection, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                fixture.Module.RegisterPlugin(new RecordingPlugin());
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdImprovementConfirmation").MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.Error, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+            }
+        }
+
+        // <>c__DisplayClass78_0.<CheckForAdType>b__0 (RVA 0x1AF4900): the
+        // selection is saved before m_useRestrictedAds is set, and announced only
+        // when m_previousAdType is set and differs (0x1AF49F6..0x1AF4A08).
+        // b__1 returns to AdImprovement; a skipped prompt keeps the saved type.
+        [Test]
+        public void AdTypeSelectionAnnouncesOnlyAChangeFromAPreviousType()
+        {
+            using (new TrackingBridge())
+            using (var fixture = new OwnedModule())
+            {
+                var plugin = new AdRecordingPlugin();
+                fixture.Module.RegisterPlugin(plugin);
+                var data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                fixture.SetCountry(new Country { id = "US", type = "ccpa", age = 13, overAge = 16 });
+                fixture.Invoke("SetupCountryData");
+
+                IEnumerator check = fixture.Invoke<IEnumerator>("CheckForAdType");
+                Assert.IsTrue(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestAdType" }, plugin.Calls);
+                plugin.SelectAdType(LegalModule.AdType.Generic);
+                CollectionAssert.AreEqual(new[] { "RequestAdType", "OnDataChange" }, plugin.Calls, "no previous type, no announcement");
+                Assert.AreEqual(LegalModule.AdType.Generic, data.m_adType);
+                Assert.AreEqual(20, data.m_lastConsentedAdAge);
+                Assert.AreEqual(13, data.m_lastConsentedTargetAdAge);
+                Assert.IsTrue(fixture.Read<bool>("m_useRestrictedAds"));
+                Assert.IsFalse(check.MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.TrackingAuthorisation, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                plugin.Calls.Clear();
+                fixture.Write("m_previousAdType", LegalModule.AdType.Generic);
+                data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                Assert.IsTrue(fixture.Invoke<IEnumerator>("CheckForAdType").MoveNext());
+                plugin.SelectAdType(LegalModule.AdType.Behavioural);
+                CollectionAssert.AreEqual(new[] { "RequestAdType", "OnDataChange", "OnAdTypeSelectionChanged:Behavioural" }, plugin.Calls);
+                Assert.IsFalse(fixture.Read<bool>("m_useRestrictedAds"));
+
+                plugin.Calls.Clear();
+                data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                Assert.IsTrue(fixture.Invoke<IEnumerator>("CheckForAdType").MoveNext());
+                plugin.SelectAdType(LegalModule.AdType.Generic);
+                CollectionAssert.AreEqual(new[] { "RequestAdType", "OnDataChange" }, plugin.Calls, "the same type is not announced");
+
+                plugin.Calls.Clear();
+                data = new LegalModule.RequestAccessData { m_playerAge = 20 };
+                fixture.Module.SetRequestAccessData(data);
+                check = fixture.Invoke<IEnumerator>("CheckForAdType");
+                Assert.IsTrue(check.MoveNext());
+                plugin.Reject();
+                Assert.IsFalse(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "RequestAdType" }, plugin.Calls);
+                Assert.AreEqual(LegalModule.AdType.None, data.m_adType);
+                Assert.AreEqual(LegalModule.LegalFlowState.AdImprovement, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                // A valid ad consent skips the prompt and restricts by the saved type.
+                plugin.Calls.Clear();
+                fixture.Write("m_useRestrictedAds", false);
+                data = new LegalModule.RequestAccessData { m_playerAge = 20, m_lastConsentedAdAge = 20, m_adType = LegalModule.AdType.Generic };
+                fixture.Module.SetRequestAccessData(data);
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdType").MoveNext());
+                CollectionAssert.IsEmpty(plugin.Calls);
+                Assert.IsTrue(fixture.Read<bool>("m_useRestrictedAds"));
+                Assert.AreEqual(LegalModule.LegalFlowState.TrackingAuthorisation, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                fixture.Module.RegisterPlugin(new RecordingPlugin());
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForAdType").MoveNext());
+                Assert.AreEqual(LegalModule.LegalFlowState.Error, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+            }
+        }
+
+        // <CheckForTrackingRequestConformation>d__79.MoveNext (RVA 0x1AF5C90):
+        // restricted ads skip the bridge; only NotDetermined subscribes
+        // TrackingAuthorisationCallback on the registered HLUnityCore, prompts,
+        // waits for a status and unsubscribes; an unknown status is reported.
+        // Every path grants access.
+        [Test]
+        public void TrackingNotDeterminedWaitsForTheCallback()
+        {
+            using (var bridge = new TrackingBridge { CanRequest = true })
+            using (var capture = new OwnedHLOutputErrorCapture())
+            using (var fixture = new OwnedModule())
+            {
+                HLUnityCore core = ProcessManager.GetSystem<HLUnityCore>();
+                var handlers = (FastAction<int>)typeof(HLUnityCore).GetField("m_trackingAuthorisationHandler", Instance).GetValue(core);
+
+                fixture.Write("m_useRestrictedAds", true);
+                fixture.Write("m_trackingAuthorisationStatus", LegalModule.TrackingAuthorisationStatus.NotDetermined);
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForTrackingRequestConformation").MoveNext());
+                CollectionAssert.IsEmpty(bridge.Calls, "restricted ads never ask");
+                Assert.AreEqual(LegalModule.LegalFlowState.GrantAccess, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                fixture.Write("m_useRestrictedAds", false);
+                fixture.Write("m_legalFlowState", LegalModule.LegalFlowState.None);
+                IEnumerator check = fixture.Invoke<IEnumerator>("CheckForTrackingRequestConformation");
+                Assert.IsTrue(check.MoveNext());
+                CollectionAssert.AreEqual(new[] { "Can", "Request" }, bridge.Calls);
+                Assert.AreEqual(1, handlers.GetInvocationListCount());
+                Assert.IsTrue(check.MoveNext(), "waits while the status is undetermined");
+                core.Native_TrackingAuthorisationStatus("3");
+                Assert.AreEqual(LegalModule.TrackingAuthorisationStatus.Authorised, fixture.Read<LegalModule.TrackingAuthorisationStatus>("m_trackingAuthorisationStatus"));
+                Assert.AreEqual(LegalModule.LegalFlowState.None, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"), "the callback only stores the status");
+                Assert.IsFalse(check.MoveNext());
+                Assert.AreEqual(0, handlers.GetInvocationListCount(), "the callback is unsubscribed");
+                Assert.AreEqual(LegalModule.LegalFlowState.GrantAccess, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+                core.Native_TrackingAuthorisationStatus("2");
+                Assert.AreEqual(LegalModule.TrackingAuthorisationStatus.Authorised, fixture.Read<LegalModule.TrackingAuthorisationStatus>("m_trackingAuthorisationStatus"));
+
+                bridge.Calls.Clear();
+                fixture.Write("m_trackingAuthorisationStatus", LegalModule.TrackingAuthorisationStatus.Denied);
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForTrackingRequestConformation").MoveNext());
+                CollectionAssert.AreEqual(new[] { "Can" }, bridge.Calls, "a determined status is not asked again");
+
+                fixture.Write("m_trackingAuthorisationStatus", (LegalModule.TrackingAuthorisationStatus)7);
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForTrackingRequestConformation").MoveNext());
+                CollectionAssert.AreEqual(new[] { "Legal Module - Unsupported tracking status: 7|0" }, capture.Errors);
+                Assert.AreEqual(LegalModule.LegalFlowState.GrantAccess, fixture.Read<LegalModule.LegalFlowState>("m_legalFlowState"));
+
+                bridge.Calls.Clear();
+                bridge.CanRequest = false;
+                fixture.Write("m_trackingAuthorisationStatus", LegalModule.TrackingAuthorisationStatus.NotDetermined);
+                Assert.IsFalse(fixture.Invoke<IEnumerator>("CheckForTrackingRequestConformation").MoveNext());
+                CollectionAssert.AreEqual(new[] { "Can" }, bridge.Calls);
+                Assert.AreEqual(0, handlers.GetInvocationListCount());
+            }
+        }
+
+        // <RetrieveLegalDocumentURLCoroutine>d__68.MoveNext (RVA 0x1AF67E0): after a
+        // response, m_legalDocumentCoroutine is cleared in the finally at
+        // 0x1AF6B3E, which the catch's callback fault also reaches (0x1AF6D9A).
+        // The iterator is resumed at its post-yield state with an unsent request,
+        // because EditMode has no network.
+        [Test]
+        public void LegalDocumentClearRunsInAFinallyEvenWhenTheCallbackThrows()
+        {
+            using (var fixture = new OwnedModule())
+            {
+                var coroutine = (Coroutine)FormatterServices.GetUninitializedObject(typeof(Coroutine));
+                GC.SuppressFinalize(coroutine);
+                try
+                {
+                    var reports = new List<string>();
+                    fixture.Write("m_legalDocumentCoroutine", coroutine);
+                    IEnumerator retrieve = ResumedLegalDocumentRetrieval(fixture, (ok, url) =>
+                    {
+                        reports.Add(ok + ":" + (url ?? "null"));
+                        throw new InvalidOperationException("callback");
+                    });
+                    var exception = Assert.Throws<InvalidOperationException>(() => retrieve.MoveNext());
+                    Assert.AreEqual("callback", exception.Message);
+                    CollectionAssert.AreEqual(new[] { "False:null" }, reports, "the parse fault reaches the catch once");
+                    Assert.IsNull(fixture.Read<Coroutine>("m_legalDocumentCoroutine"));
+
+                    reports.Clear();
+                    fixture.Write("m_legalDocumentCoroutine", coroutine);
+                    retrieve = ResumedLegalDocumentRetrieval(fixture, (ok, url) => reports.Add(ok + ":" + (url ?? "null")));
+                    Assert.IsFalse(retrieve.MoveNext());
+                    CollectionAssert.AreEqual(new[] { "False:null" }, reports);
+                    Assert.IsNull(fixture.Read<Coroutine>("m_legalDocumentCoroutine"));
+                }
+                finally
+                {
+                    fixture.Write("m_legalDocumentCoroutine", null);
+                }
+            }
+        }
+
+        private static IEnumerator ResumedLegalDocumentRetrieval(OwnedModule fixture, Action<bool, string> callback)
+        {
+            IEnumerator retrieve = fixture.Invoke<IEnumerator>("RetrieveLegalDocumentURLCoroutine", LegalModule.LegalDocumentType.TermsOfUse, callback);
+            Type type = retrieve.GetType();
+            FieldInfo request = type.GetFields(Instance | BindingFlags.Public).SingleOrDefault(field => field.Name.StartsWith("<webRequest>5__", StringComparison.Ordinal));
+            Assert.IsNotNull(request, "hoisted webRequest");
+            request.SetValue(retrieve, new UnityWebRequest("https://lucid.invalid/legal", UnityWebRequest.kHttpVerbGET, new NullDataHandler(), null));
+            type.GetField("<>1__state", Instance | BindingFlags.Public).SetValue(retrieve, 1);
+            return retrieve;
+        }
+
         private static void AssertCountryFlags(OwnedModule fixture, string type, bool mid, bool over, bool excluded)
         {
             fixture.SetCountry(new Country { type = type, age = 13 });
@@ -719,20 +1140,34 @@ namespace ProjectLucid.Tests
             public ProbeLegalModule(InitialisationData data) : base(data) { }
         }
 
-        private sealed class RecordingPlugin : ILegalPlugin
+        private class RecordingPlugin : ILegalPlugin
         {
             public readonly List<string> Calls = new List<string>();
             public LegalModule.RequestAccessData LastData;
 
             public Action<int> AgeCallback;
+            public Action Accept;
+            public Action Reject;
 
             public void RequestPlayerAge(Action<int> callback)
             {
                 Calls.Add("RequestPlayerAge");
                 AgeCallback = callback;
             }
-            public void RequestConsent(bool underAge, Action callback) => Calls.Add("RequestConsent");
-            public void RequestConsent(bool underAge, Action callbackAccept, Action callbackReject) => Calls.Add("RequestConsentRejectable");
+
+            public void RequestConsent(bool underAge, Action callback)
+            {
+                Calls.Add("RequestConsent:" + underAge);
+                Accept = callback;
+                Reject = null;
+            }
+
+            public void RequestConsent(bool underAge, Action callbackAccept, Action callbackReject)
+            {
+                Calls.Add("RequestConsentRejectable:" + underAge);
+                Accept = callbackAccept;
+                Reject = callbackReject;
+            }
 
             public void OnDataChange(LegalModule.RequestAccessData newDataToSave)
             {
@@ -743,6 +1178,40 @@ namespace ProjectLucid.Tests
             public void OnAccessGranted(bool restrictedMode) => Calls.Add("OnAccessGranted:" + restrictedMode);
             public void OnAccessRevoked(bool dueToOptOut) => Calls.Add("OnAccessRevoked:" + dueToOptOut);
             public string GetLegalDocumentsFileURL() => null;
+        }
+
+        private sealed class AdRecordingPlugin : RecordingPlugin, IAdLegalPlugin
+        {
+            public Action<LegalModule.AdType> SelectAdType;
+
+            public void RequestAdImprovementConsent(Action callbackAccept, Action callbackReject)
+            {
+                Calls.Add("RequestAdImprovementConsent");
+                Accept = callbackAccept;
+                Reject = callbackReject;
+            }
+
+            public void RequestAdImprovementConfirmation(Action callbackAccept, Action callbackCancel)
+            {
+                Calls.Add("RequestAdImprovementConfirmation");
+                Accept = callbackAccept;
+                Reject = callbackCancel;
+            }
+
+            public void RequestAdType(Action<LegalModule.AdType> callbackAccept, Action callbackCancel)
+            {
+                Calls.Add("RequestAdType");
+                SelectAdType = callbackAccept;
+                Reject = callbackCancel;
+            }
+
+            public void OnAdTypeSelectionChanged(LegalModule.AdType adType) => Calls.Add("OnAdTypeSelectionChanged:" + adType);
+        }
+
+        // An unsent request reports no error; a null body makes the parse fault.
+        private sealed class NullDataHandler : DownloadHandlerScript
+        {
+            protected override byte[] GetData() => null;
         }
 
         // Swaps HLUnityCore.s_trackingAuthorisationNativeBridge for a recording

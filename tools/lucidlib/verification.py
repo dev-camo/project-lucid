@@ -2246,4 +2246,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLegalModuleTests.CountryUpdateAndSaveUpgradeChecks",
     "ProjectLucid.Tests.OriginalLegalModuleTests.LegalFlowDispatchesTheOriginalStateTable",
     "ProjectLucid.Tests.OriginalLegalModuleTests.PlayerAgeIsRequestedOnlyWhenUnset",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.ConsentAcceptRecordsVersionsAndAdvancesTheFlow",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.ConsentRejectionRevokesAndCompletesTheFlow",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.AdImprovementConsentAcceptAndCancel",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.AdImprovementWithoutAPromptChoosesTheTypeFromTheAgeClass",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.AdImprovementConfirmationAcceptAndCancel",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.AdTypeSelectionAnnouncesOnlyAChangeFromAPreviousType",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.TrackingNotDeterminedWaitsForTheCallback",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.LegalDocumentClearRunsInAFinallyEvenWhenTheCallbackThrows",
 )

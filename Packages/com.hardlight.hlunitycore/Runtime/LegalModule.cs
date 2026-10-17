@@ -423,8 +423,8 @@ namespace Hardlight
         }
 
         // 0x06000961; MoveNext 0x060009bc. A request error exits without
-        // clearing m_legalDocumentCoroutine; parse or callback faults report
-        // (false, null) and fall through to the clear.
+        // clearing m_legalDocumentCoroutine; after a response, the clear runs
+        // in a finally, even when the catch's callback throws.
         private IEnumerator RetrieveLegalDocumentURLCoroutine(LegalDocumentType documentType, Action<bool, string> callback)
         {
             using (UnityWebRequest webRequest = UnityWebRequest.Get(UrlUtils.GetEscaped(m_plugin.GetLegalDocumentsFileURL())))
@@ -456,7 +456,10 @@ namespace Hardlight
                 {
                     callback(false, null);
                 }
-                m_legalDocumentCoroutine = null;
+                finally
+                {
+                    m_legalDocumentCoroutine = null;
+                }
             }
         }
 
@@ -812,7 +815,6 @@ namespace Hardlight
                 throw new ArgumentException("m_cacheFilePath is null or empty.");
             if (string.IsNullOrEmpty(m_initialisationData.m_isoCountryCode))
             {
-                // Retail build: the editor-only Log call that lived here was removed.
             }
             m_coroutineUtils = ProcessManager.GetSystemRef<CoroutineUtils>();
         }
