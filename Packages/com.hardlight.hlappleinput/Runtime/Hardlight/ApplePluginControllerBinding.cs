@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x02000008. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Serializable]
@@ -20,16 +19,19 @@ namespace Hardlight
         [SerializeField]
         private GCControllerInputName m_inputName;
 
+        // Original 0x06000010
         public GCControllerInputName Key
         {
             get { return m_inputName; }
         }
 
+        // Original 0x06000011
         public GCControllerInputName Axis
         {
             get { return m_inputName; }
         }
 
+        // Original 0x06000012
         public ApplePluginControllerBinding(List<InputModifier> modifiers) : base(modifiers)
         {
         }

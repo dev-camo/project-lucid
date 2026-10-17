@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x0200000c. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Serializable]
@@ -15,12 +14,10 @@ namespace Hardlight
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ApplePluginControllerInputAxis : BaseInputAxis<GCControllerInputName, ApplePluginControllerBinding>
     {
-        protected override void UpdateAxisBinding(
-            GameInput gameInput,
+        // Original 0x0600001e
+        protected override void UpdateAxisBinding(GameInput gameInput,
             IAxisProvider<GCControllerInputName> axisProvider,
-            IBaseInputAxisSource<GCControllerInputName> inputAxisSource,
-            InputType inputType,
-            int joystickIndex,
+            IBaseInputAxisSource<GCControllerInputName> inputAxisSource, InputType inputType, int joystickIndex,
             IReadOnlyList<InputModifier> modifiers)
         {
             GCControllerInputName axis = axisProvider.Axis;
@@ -29,6 +26,7 @@ namespace Hardlight
             ProcessAxis(gameInput, axis, inputAxisSource, trackingKey, inputType, joystickIndex, modifiers);
         }
 
+        // Original 0x0600001f
         public ApplePluginControllerInputAxis()
         {
         }

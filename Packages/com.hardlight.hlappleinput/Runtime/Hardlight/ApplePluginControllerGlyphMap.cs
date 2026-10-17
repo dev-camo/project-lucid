@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x02000012. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [CreateAssetMenu(menuName = "Hardlight/HLInput/GameInputGlyphMaps/Create ApplePluginControllerGlyphMap")]
@@ -15,6 +14,7 @@ namespace Hardlight
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ApplePluginControllerGlyphMap : BaseGlyphMap<GCControllerInputName>
     {
+        // Original 0x06000033
         public ApplePluginControllerGlyphMap()
         {
         }

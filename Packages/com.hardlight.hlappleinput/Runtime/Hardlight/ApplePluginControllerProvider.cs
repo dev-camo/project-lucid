@@ -19,11 +19,13 @@ namespace Hardlight
         private readonly List<string> m_applePluginControllerNames = new List<string>();
         private readonly HashSet<string> m_applePluginControllerUniqueIds = new HashSet<string>();
 
+        // Original 0x06000013
         public ApplePluginControllerProvider(float controllerConnectionPollingRateInSeconds)
             : base(controllerConnectionPollingRateInSeconds)
         {
         }
 
+        // Original 0x06000014
         public override void Initialise()
         {
             base.Initialise();
@@ -38,6 +40,7 @@ namespace Hardlight
             GCControllerService.ControllerDisconnected += OnControllerDisconnected;
         }
 
+        // Original 0x06000015
         public override void Shutdown()
         {
             base.Shutdown();
@@ -48,16 +51,19 @@ namespace Hardlight
             m_applePluginControllerUniqueIds.Clear();
         }
 
+        // Original 0x06000016
         public IReadOnlyList<GCController> GetControllers()
         {
             return m_applePluginControllers;
         }
 
+        // Original 0x06000017
         public override IReadOnlyList<string> GetControllerNames()
         {
             return m_applePluginControllerNames;
         }
 
+        // Original 0x06000018
         private void OnControllerConnected(object sender, ControllerConnectedEventArgs args)
         {
             GCController controller = args.Controller;
@@ -76,6 +82,7 @@ namespace Hardlight
             m_applePluginControllerUniqueIds.Add(uniqueId);
         }
 
+        // Original 0x06000019
         private void OnControllerDisconnected(object sender, ControllerConnectedEventArgs args)
         {
             GCController controller = args.Controller;

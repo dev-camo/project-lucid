@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x02000006. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Il2CppSetOption(Option.NullChecks, false)]
@@ -23,6 +22,7 @@ namespace Hardlight
         private List<ApplePluginControllerInputBinding> m_macOSBindings;
         public const string DefaultFileName = "ActiveApplePluginControllerInputBindings";
 
+        // Original 0x06000009
         protected override void SetupBindings()
         {
             // Both shipping macOS architectures select the macOS list. The other authored
@@ -30,6 +30,7 @@ namespace Hardlight
             SetActiveBindings(m_macOSBindings);
         }
 
+        // Original 0x0600000a
         public ActiveApplePluginControllerInputBindings()
         {
         }

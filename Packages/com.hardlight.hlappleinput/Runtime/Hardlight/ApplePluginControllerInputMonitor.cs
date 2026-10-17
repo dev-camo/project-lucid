@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x0200000f. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Serializable]
@@ -52,11 +51,13 @@ namespace Hardlight
             new SourceApplePluginControllerProvider();
         private Func<GCControllerInputName, InputType, int, Texture2D> m_getGlyphForGCControllerInputNameAndInputType;
 
+        // Original 0x06000023
         protected override BaseSourceProvider BaseSourceProvider
         {
             get { return m_sourceProvider; }
         }
 
+        // Original 0x06000024
         protected override void InitialiseControlMap(ControlMap controlMap)
         {
             controlMap.Initialise(m_axis);
@@ -64,6 +65,7 @@ namespace Hardlight
             controlMap.Initialise(m_vectorisedGameInput);
         }
 
+        // Original 0x06000025
         protected override void InitialiseInputProcessors(IGlyphLookupSystemSetter glyphLookupSystemSetter,
             IReadOnlyList<ApplePluginControllerInputBinding> currentInputBindings)
         {
@@ -78,6 +80,7 @@ namespace Hardlight
             GlyphLookupSystemSetter.SetGameInputGlyphMap(gameInputGlyphMap);
         }
 
+        // Original 0x06000026
         protected override void InitialiseGlyphMapSuppliers()
         {
             m_glyphMapButtonSupplier.Initialise();
@@ -86,12 +89,14 @@ namespace Hardlight
                 m_glyphPointSize, m_glyphSymbolWeight, m_useGlyphFilledStyle);
         }
 
+        // Original 0x06000027
         protected override void ShutdownGlyphMapSuppliers()
         {
             m_getGlyphForGCControllerInputNameAndInputType = null;
             m_glyphMapButtonSupplier.Shutdown();
         }
 
+        // Original 0x06000028
         protected override void ShutdownInputProcessors()
         {
             m_button.Shutdown();
@@ -99,6 +104,7 @@ namespace Hardlight
             m_vectorisedGameInput.Shutdown();
         }
 
+        // Original 0x06000029
         protected override void ShutdownControlMap(ControlMap controlMap)
         {
             controlMap.Shutdown(m_vectorisedGameInput);
@@ -106,6 +112,7 @@ namespace Hardlight
             controlMap.Shutdown(m_button);
         }
 
+        // Original 0x0600002a
         public override void Update()
         {
             base.Update();
@@ -114,6 +121,7 @@ namespace Hardlight
             m_vectorisedGameInput.Update();
         }
 
+        // Original 0x0600002b
         private Texture2D GetGlyphForKeyAndInputType(GCControllerInputName key, InputType inputType, int joystickIndex)
         {
             Texture2D texture;
@@ -122,10 +130,12 @@ namespace Hardlight
             return m_glyphMapButtonSupplier.GetGlyphForKeyAndInputType(key, inputType);
         }
 
+        // Original 0x0600002c
         public void OnValidate()
         {
         }
 
+        // Original 0x0600002d
         public ApplePluginControllerInputMonitor()
         {
         }

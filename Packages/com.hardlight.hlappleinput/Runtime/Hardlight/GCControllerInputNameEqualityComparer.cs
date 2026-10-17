@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x02000005. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Il2CppSetOption(Option.NullChecks, false)]
@@ -17,16 +16,19 @@ namespace Hardlight
         public static readonly GCControllerInputNameEqualityComparer GCControllerInputNameComparer =
             new GCControllerInputNameEqualityComparer();
 
+        // Original 0x06000005
         public bool Equals(GCControllerInputName a, GCControllerInputName b)
         {
             return a == b;
         }
 
+        // Original 0x06000006
         public int GetHashCode(GCControllerInputName a)
         {
             return (int)a;
         }
 
+        // Original 0x06000007
         public GCControllerInputNameEqualityComparer()
         {
         }

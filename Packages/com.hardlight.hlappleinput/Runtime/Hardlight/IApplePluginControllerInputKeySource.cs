@@ -6,7 +6,7 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x02000019. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x02000019.
 namespace Hardlight
 {
     public interface IApplePluginControllerInputKeySource

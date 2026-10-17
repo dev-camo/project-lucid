@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x0200000a. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Il2CppSetOption(Option.NullChecks, false)]
@@ -18,6 +17,7 @@ namespace Hardlight
         public const string ControllerProviders = "ControllerProviders/";
         public const string InputBindings = "Input Bindings/";
 
+        // Original 0x0600001a
         public HLAppleInputPathConstants()
         {
         }

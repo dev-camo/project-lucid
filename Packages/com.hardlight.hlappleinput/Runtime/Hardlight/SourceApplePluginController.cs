@@ -27,11 +27,13 @@ namespace Hardlight
         private GCControllerSymbolWeight m_glyphSymbolWeight = GCControllerSymbolWeight.Medium;
         private bool m_useGlyphFilledStyle = true;
 
+        // Original 0x06000037
         public SourceApplePluginController(IControllerProvider<GCController> controllerProvider)
         {
             m_controllerProvider = controllerProvider;
         }
 
+        // Original 0x06000038
         public bool GetKey(GCControllerInputName inputName, int joystickIndex)
         {
             if (joystickIndex < 0 || m_controllerProvider == null)
@@ -42,6 +44,7 @@ namespace Hardlight
             return Mathf.Abs(controllers[joystickIndex].GetInputValue(inputName)) >= 0.25f;
         }
 
+        // Original 0x06000039
         public bool GetKeyDown(GCControllerInputName inputName, int joystickIndex)
         {
             if (joystickIndex < 0 || m_controllerProvider == null)
@@ -52,6 +55,7 @@ namespace Hardlight
             return controllers[joystickIndex].GetButtonDown(inputName, 0.25f);
         }
 
+        // Original 0x0600003a
         public bool GetKeyUp(GCControllerInputName inputName, int joystickIndex)
         {
             if (joystickIndex < 0 || m_controllerProvider == null)
@@ -62,6 +66,7 @@ namespace Hardlight
             return controllers[joystickIndex].GetButtonUp(inputName, 0.25f);
         }
 
+        // Original 0x0600003b
         public float GetAxis(GCControllerInputName inputName, int joystickIndex)
         {
             if (joystickIndex < 0 || m_controllerProvider == null)
@@ -72,6 +77,7 @@ namespace Hardlight
             return controllers[joystickIndex].GetInputValue(inputName);
         }
 
+        // Original 0x0600003c
         public void Update()
         {
             if (m_controllerProvider == null)
@@ -81,6 +87,7 @@ namespace Hardlight
                 controllers[i].Poll();
         }
 
+        // Original 0x0600003d
         public bool TryGetGlyph(GCControllerInputName inputName, int joystickIndex, out Texture2D texture)
         {
             texture = null;
@@ -99,6 +106,7 @@ namespace Hardlight
             return texture != null;
         }
 
+        // Original 0x0600003e
         public void SetGlyphRenderSettings(GCControllerSymbolScale symbolScale, GCControllerRenderingMode renderingMode,
             float pointSize, GCControllerSymbolWeight symbolWeight, bool useFillStyle)
         {

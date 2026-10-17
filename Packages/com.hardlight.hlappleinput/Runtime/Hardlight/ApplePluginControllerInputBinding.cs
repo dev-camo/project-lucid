@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x0200000b. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Il2CppSetOption(Option.NullChecks, false)]
@@ -19,16 +18,19 @@ namespace Hardlight
           IBaseInputBindingProvider,
           IInputAxisProvider<ApplePluginControllerBinding>
     {
+        // Original 0x0600001b
         public IReadOnlyList<IButtonBindingProvider<ApplePluginControllerBinding>> ButtonProviders
         {
             get { return BindingData; }
         }
 
+        // Original 0x0600001c
         public IReadOnlyList<IAxisBindingProvider<ApplePluginControllerBinding>> AxisProviders
         {
             get { return BindingData; }
         }
 
+        // Original 0x0600001d
         public ApplePluginControllerInputBinding()
         {
         }

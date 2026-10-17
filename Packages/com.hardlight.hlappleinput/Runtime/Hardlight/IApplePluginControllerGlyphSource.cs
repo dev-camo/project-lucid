@@ -6,11 +6,12 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x02000017. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x02000017.
 namespace Hardlight
 {
     public interface IApplePluginControllerGlyphSource : IBaseInputGlyphSource<GCControllerInputName>
     {
+        // Original 0x06000046
         void SetGlyphRenderSettings(GCControllerSymbolScale symbolScale, GCControllerRenderingMode renderingMode,
             float pointSize, GCControllerSymbolWeight symbolWeight, bool useFillStyle);
     }

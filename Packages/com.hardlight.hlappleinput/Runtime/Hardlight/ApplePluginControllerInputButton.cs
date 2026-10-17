@@ -7,7 +7,6 @@ using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
 // Original HLAppleInput.Runtime 0x0200000d. Every method body follows the complete ARM64 and x86-64 originals.
-// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Serializable]
@@ -15,12 +14,10 @@ namespace Hardlight
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ApplePluginControllerInputButton : BaseInputButton<GCControllerInputName, ApplePluginControllerBinding>
     {
-        protected override void UpdateButtonBinding(
-            GameInput gameInput,
+        // Original 0x06000020
+        protected override void UpdateButtonBinding(GameInput gameInput,
             IKeyProvider<GCControllerInputName> keyProvider,
-            IBaseInputKeySource<GCControllerInputName> inputKeySource,
-            InputType inputTypeOverride,
-            int joystickIndex,
+            IBaseInputKeySource<GCControllerInputName> inputKeySource, InputType inputTypeOverride, int joystickIndex,
             IReadOnlyList<InputModifier> modifiers)
         {
             InputType inputType = InputTypeResolver.ResolveButtonInput(joystickIndex, inputTypeOverride, false);
@@ -28,6 +25,7 @@ namespace Hardlight
             ProcessKey(gameInput, key, inputKeySource, inputType, joystickIndex, modifiers);
         }
 
+        // Original 0x06000021
         public ApplePluginControllerInputButton()
         {
         }
