@@ -2,6 +2,9 @@
 
 import json
 import base64
+import contextlib
+import errno
+import io
 from pathlib import Path
 import tempfile
 import unittest
@@ -399,6 +402,27 @@ class AssetTests(unittest.TestCase):
         self.assertEqual((self.root / "first/value").read_text(), "old")
         self.assertEqual((self.root / "second/value").read_text(), "old")
 
+    def assets_snapshot(self):
+        root = self.repo / "Assets"
+        return {path.relative_to(root).as_posix(): path.read_bytes() if path.is_file() else None
+                for path in sorted(root.rglob("*"))}
+
+    def change_export_scene(self, project):
+        scene = project / "Assets/Scenes/demo.unity"
+        scene.write_text(scene.read_text() + "# second export\n")
+        assets._json_write(project.parent / "asset-map.json", assets.build_asset_map(project))
+
+    def cross_volume_work_cache(self):
+        """Fail renames into or out of the work cache as a separate volume does."""
+        original_rename = assets.os.rename
+        work = str(self.work)
+
+        def rename(source, target):
+            if any(str(path).startswith(work + "/") for path in (source, target)):
+                raise OSError(errno.EXDEV, "Cross-device link", str(source))
+            return original_rename(source, target)
+        return mock.patch.object(assets.os, "rename", rename)
+
     def test_failed_backup_retention_or_receipt_write_restores_prior_prepared_trees(self):
         project = self.make_export()
         maintained = self.repo / "Assets/Scripts/Maintained.cs"
@@ -407,83 +431,141 @@ class AssetTests(unittest.TestCase):
         assets.prepare_assets(self.repo, self.work)
         receipt = self.work / "assets/latest-prepare.json"
         backups_root = self.work / "assets/backups"
+        prior_tree, prior_receipt = self.assets_snapshot(), receipt.read_bytes()
+        self.change_export_scene(project)
+        original_relocate, original_write = assets._relocate_tree, assets._json_write
+        original_copytree, original_rmtree = assets.shutil.copytree, assets.shutil.rmtree
 
-        def snapshot():
-            root = self.repo / "Assets"
-            return {path.relative_to(root).as_posix(): path.read_bytes() if path.is_file() else None
-                    for path in sorted(root.rglob("*"))}
-
-        prior_tree, prior_receipt = snapshot(), receipt.read_bytes()
-        scene = project / "Assets/Scenes/demo.unity"
-        scene.write_text(scene.read_text() + "# second export\n")
-        assets._json_write(project.parent / "asset-map.json", assets.build_asset_map(project))
-        original_move, original_write = assets.shutil.move, assets._json_write
-
-        def failing_move(fail_at):
+        def failing_retention(fail_at):
+            # Count only moves of a prior tree into the retained backups directory.
             calls = []
 
-            def move(source, destination):
-                calls.append(source)
-                if len(calls) == fail_at:
-                    raise OSError("injected backup retention failure")
-                return original_move(source, destination)
-            return mock.patch.object(assets.shutil, "move", move)
+            def relocate(source, target):
+                if Path(target).parent.parent == backups_root:
+                    calls.append(target)
+                    if len(calls) == fail_at:
+                        raise OSError("injected backup retention failure")
+                return original_relocate(source, target)
+            return mock.patch.object(assets, "_relocate_tree", relocate)
 
         def failing_receipt_write(path, value):
             if Path(path).name == "latest-prepare.json":
                 raise OSError("injected receipt write failure")
             return original_write(path, value)
 
-        faults = {"first backup move": failing_move(1), "second backup move": failing_move(2),
-                  "receipt write": mock.patch.object(assets, "_json_write", failing_receipt_write)}
-        for name, fault in faults.items():
+        def partial_copy():
+            fired = []
+
+            def copytree(source, target, *args, **options):
+                # Nested directories recurse through the patched name with copy_once bound.
+                if fired:
+                    return original_copytree(source, target, *args, **options)
+                fired.append(target)
+
+                def copy_once(src, dst):
+                    if Path(target).exists() and any(path.is_file() for path in Path(target).rglob("*")):
+                        raise OSError("injected cross-volume copy failure")
+                    return assets.shutil.copy2(src, dst)
+                return original_copytree(source, target, copy_function=copy_once, **options)
+            return mock.patch.object(assets.shutil, "copytree", copytree)
+
+        def partial_source_delete():
+            fired = []
+
+            def rmtree(path, ignore_errors=False):
+                path = Path(path)
+                if not fired and path.parent == self.repo / "Assets" and ".backup-" in path.name:
+                    fired.append(path)
+                    next(item for item in path.rglob("*") if item.is_file()).unlink()
+                    raise OSError("injected cross-volume source delete failure")
+                return original_rmtree(path, ignore_errors=ignore_errors)
+            return mock.patch.object(assets.shutil, "rmtree", rmtree)
+
+        faults = {"first backup move": (failing_retention(1),), "second backup move": (failing_retention(2),),
+                  "receipt write": (mock.patch.object(assets, "_json_write", failing_receipt_write),),
+                  "cross-volume partial copy": (self.cross_volume_work_cache(), partial_copy()),
+                  "cross-volume partial source delete": (self.cross_volume_work_cache(), partial_source_delete())}
+        for name, patches in faults.items():
             with self.subTest(fault=name):
-                with fault, self.assertRaisesRegex(OSError, "injected"):
-                    assets.prepare_assets(self.repo, self.work)
-                self.assertEqual(prior_tree, snapshot())
+                with contextlib.ExitStack() as stack:
+                    for patch in patches:
+                        stack.enter_context(patch)
+                    with self.assertRaisesRegex(OSError, "injected"):
+                        assets.prepare_assets(self.repo, self.work)
+                # Snapshot equality also rules out staging, backup and set-aside siblings.
+                self.assertEqual(prior_tree, self.assets_snapshot())
                 self.assertEqual(prior_receipt, receipt.read_bytes())
-                self.assertEqual([], list((self.repo / "Assets").glob(".lucid-assets-*")))
-                self.assertEqual([], list((self.repo / "Assets").glob(".*.backup-*")))
                 self.assertEqual([], list(backups_root.iterdir()) if backups_root.exists() else [])
 
-        result = assets.prepare_assets(self.repo, self.work)
+        with self.cross_volume_work_cache():
+            result = assets.prepare_assets(self.repo, self.work)
         self.assertIn("# second export", (self.repo / "Assets/Recovered/Scenes/demo.unity").read_text())
         recorded = json.loads(receipt.read_text())
         self.assertEqual(result, recorded)
         self.assertEqual("test", recorded["run_id"])
         retained = sorted(path for directory in backups_root.iterdir() for path in directory.iterdir())
-        self.assertEqual(2, len(retained))
         self.assertEqual(sorted(str(path) for path in retained), sorted(recorded["backup_paths"]))
-        self.assertEqual([prior_tree["Recovered/Scenes/demo.unity"]],
-                         [(Path(path) / "Scenes/demo.unity").read_bytes() for path in recorded["backup_paths"]
-                          if (Path(path) / "Scenes/demo.unity").is_file()])
+        by_name = {path.name.split(".backup-")[0].lstrip("."): path for path in retained}
+        self.assertEqual({"Recovered", "StreamingAssets"}, set(by_name))
+        self.assertEqual(prior_tree["Recovered/Scenes/demo.unity"],
+                         (by_name["Recovered"] / "Scenes/demo.unity").read_bytes())
+        self.assertEqual(prior_tree["StreamingAssets/FSM.json"], (by_name["StreamingAssets"] / "FSM.json").read_bytes())
+        self.assertEqual([], [path for path in (self.repo / "Assets").iterdir() if path.name.startswith(".")])
         self.assertEqual("class Maintained {}", maintained.read_text())
 
-    def test_failed_restore_after_receipt_failure_retains_prior_copies_and_names_them(self):
-        self.make_export()
+    def failed_restore_fixture(self, restore_error):
+        """Prepare twice; the second receipt write fails and so does restoring into Assets."""
+        project = self.make_export()
         assets.prepare_assets(self.repo, self.work)
-        original_move, original_write = assets.shutil.move, assets._json_write
+        self.change_export_scene(project)
+        original_relocate, original_write = assets._relocate_tree, assets._json_write
 
         def failing_receipt_write(path, value):
             if Path(path).name == "latest-prepare.json":
                 raise OSError("injected receipt write failure")
             return original_write(path, value)
 
-        def move(source, destination):
-            if Path(destination).parent.name == "Assets":
-                raise OSError("injected restore failure")
-            return original_move(source, destination)
+        def relocate(source, target):
+            if Path(target).parent == self.repo / "Assets":
+                raise restore_error
+            return original_relocate(source, target)
 
-        with mock.patch.object(assets, "_json_write", failing_receipt_write), \
-                mock.patch.object(assets.shutil, "move", move):
+        stack = contextlib.ExitStack()
+        stack.enter_context(mock.patch.object(assets, "_json_write", failing_receipt_write))
+        stack.enter_context(mock.patch.object(assets, "_relocate_tree", relocate))
+        return stack
+
+    def assert_failed_restore_kept_new_trees_and_backups(self, message):
+        active = self.repo / "Assets"
+        # Restore runs in reverse; StreamingAssets fails first and keeps its new tree, Recovered is never reached.
+        self.assertIn("# second export", (active / "Recovered/Scenes/demo.unity").read_text())
+        self.assertEqual('{"FSMs": []}', (active / "StreamingAssets/FSM.json").read_text())
+        self.assertTrue((active / "StreamingAssets" / assets.MARKER).is_file())
+        self.assertEqual([], [path.name for path in active.iterdir() if path.name.startswith(".")])
+        self.assertIn(f"newly prepared tree: {active / 'StreamingAssets'};", message)
+        retained = [path for directory in (self.work / "assets/backups").iterdir() for path in directory.iterdir()]
+        self.assertEqual(2, len(retained))
+        self.assertTrue(all(str(path) in message for path in retained))
+        self.assertTrue(all((path / assets.MARKER).is_file() for path in retained))
+        self.assertNotIn("# second export", next(path for path in retained if "Recovered" in path.name)
+                         .joinpath("Scenes/demo.unity").read_text())
+
+    def test_failed_restore_after_receipt_failure_retains_prior_copies_and_names_them(self):
+        with self.failed_restore_fixture(OSError("injected restore failure")):
             with self.assertRaisesRegex(RuntimeError, "retained prior copies") as caught:
                 assets.prepare_assets(self.repo, self.work)
         self.assertRegex(str(caught.exception.__cause__), "injected restore failure")
         self.assertRegex(str(caught.exception.__cause__.__context__), "injected receipt write failure")
-        retained = [path for directory in (self.work / "assets/backups").iterdir() for path in directory.iterdir()]
-        self.assertEqual(2, len(retained))
-        self.assertTrue(all(str(path) in str(caught.exception) for path in retained))
-        self.assertTrue(all((path / assets.MARKER).is_file() for path in retained))
+        self.assert_failed_restore_kept_new_trees_and_backups(str(caught.exception))
+
+    def test_interrupted_restore_propagates_the_interrupt_after_reporting_retained_copies(self):
+        stderr = io.StringIO()
+        with self.failed_restore_fixture(KeyboardInterrupt()), mock.patch.object(assets.sys, "stderr", stderr):
+            with self.assertRaises(KeyboardInterrupt) as caught:
+                assets.prepare_assets(self.repo, self.work)
+        self.assertRegex(str(caught.exception.__context__), "injected receipt write failure")
+        self.assertIn("retained prior copies", stderr.getvalue())
+        self.assert_failed_restore_kept_new_trees_and_backups(stderr.getvalue())
 
     def test_work_directory_cannot_overlap_input(self):
         app = self.root / "Game.app"

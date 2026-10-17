@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 import base64
+import errno
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -17,6 +18,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import struct
 import time
 from urllib import error, parse, request
@@ -720,24 +722,66 @@ def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[tu
     return [(destination, prior.get(destination)) for destination in installed]
 
 
+def _relocate_tree(source: Path, target: Path) -> bool:
+    """Move a directory tree to an absent target.
+
+    Renames when both paths share a filesystem. The work cache may sit on
+    another volume from Assets; then the tree is copied in full first, a
+    partial copy is removed, and True is returned so the caller records the
+    complete copy before deleting the source itself."""
+    try:
+        os.rename(source, target)
+        return False
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise
+    try:
+        shutil.copytree(source, target, symlinks=True)
+    except BaseException:
+        shutil.rmtree(target, ignore_errors=True)
+        raise
+    return True
+
+
 def _restore_swapped_directories(swapped: list[tuple[Path, Path | None]], locations: dict[Path, Path],
                                  backup_dir: Path) -> None:
     """Reinstate the prior owned copies after a post-swap failure.
 
-    locations maps each destination to where its prior copy lives now. If a
-    restore step fails, nothing further is touched and the retained copies are
-    named so recovery stays manual."""
+    locations maps each destination to where its complete prior copy lives
+    now. Each new tree is set aside, not erased, until its prior copy is back,
+    so a failed restore leaves that destination on the new tree. The first
+    failure stops the restore and names every retained copy for manual
+    recovery."""
     for destination, backup in reversed(swapped):
+        aside = None
         try:
             if destination.exists():
-                shutil.rmtree(destination)
+                aside = destination.with_name("." + destination.name + ".failed-" + uuid.uuid4().hex)
+                os.rename(destination, aside)
             if backup is not None:
-                shutil.move(str(locations[destination]), str(destination))
+                source = locations[destination]
+                copied = _relocate_tree(source, destination)
                 del locations[destination]
+                if copied:
+                    # The prior tree is active again; a leftover source copy is surplus.
+                    shutil.rmtree(source, ignore_errors=True)
+                if backup != source:
+                    # Cross-volume retention copied the tree but failed while deleting this sibling.
+                    shutil.rmtree(backup, ignore_errors=True)
+            if aside is not None:
+                shutil.rmtree(aside)
         except BaseException as exc:
+            if aside is not None and aside.exists() and not destination.exists():
+                os.rename(aside, destination)
+            current = destination if aside is None or not aside.exists() else aside
             retained = ", ".join(str(path) for path in locations.values()) or "none"
-            raise RuntimeError(f"Could not restore prior prepared assets at {destination}; "
-                               f"retained prior copies: {retained}") from exc
+            message = (f"Could not restore prior prepared assets at {destination}; newly prepared tree: {current}; "
+                       f"retained prior copies: {retained}")
+            if not isinstance(exc, Exception):
+                # Let interrupts and exits propagate as themselves once recovery is reported.
+                print(message, file=sys.stderr)
+                raise
+            raise RuntimeError(message) from exc
     if backup_dir.is_dir() and not any(backup_dir.iterdir()):
         backup_dir.rmdir()
 
@@ -833,8 +877,11 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                     if backup is None:
                         continue
                     retained_path = _cache_path(work, backup_dir / backup.name)
-                    shutil.move(str(backup), str(retained_path))
+                    copied = _relocate_tree(backup, retained_path)
+                    # Record the complete retained copy before deleting a cross-volume source.
                     locations[destination] = retained_path
+                    if copied:
+                        shutil.rmtree(backup)
                     backups.append(retained_path)
             result = {"schema_version": SCHEMA_VERSION, "status": "prepared", "run_id": report["run_id"],
                       "recovered_path": str(assets / "Recovered"), "streaming_assets_path": str(assets / "StreamingAssets"),
