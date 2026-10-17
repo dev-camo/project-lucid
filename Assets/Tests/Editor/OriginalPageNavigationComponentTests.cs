@@ -73,6 +73,13 @@ namespace ProjectLucid.Tests
                 Set(system, "m_currentPage", null);
                 Set(system, "m_pageQueue", new LinkedList<GuiPageRecord<T>>());
                 Set(system, "m_pendingPageStackCommands", new Queue<Action>());
+                // Fresh empty delegates, like the field initializers at
+                // PageStackSystem.cs:48-53, so raising them reaches only the
+                // fixture's own handlers and never a subscriber saved above.
+                Set(system, "OnSystemClosed", new Action(() => { }));
+                Set(system, "OnSystemOpened", new Action(() => { }));
+                foreach (string name in new[] { "OnGUIPageClosed", "OnGUIPageOpened", "OnGUIPageClosing", "OnGUIPageOpening" })
+                    Set(system, name, new Action<T>(page => { }));
             }
 
             public void SetState(int state) =>
@@ -434,6 +441,42 @@ namespace ProjectLucid.Tests
         public void MenuSystemListenerRelaysTheMenuSystemEvents() =>
             AssertListener<MenuSystemListener, MenuPage>(MenuSystem.Instance, "m_onMenuSystemOpened", "m_onMenuSystemClosed");
 
+        // Negative control for StackScope and OverlayScope: handlers already on the
+        // shared systems throw if raised, so a scope that saved but did not clear
+        // them fails here. Each one is subscribed again once its scope ends.
+        [Test]
+        public void PageScopesKeepEarlierSubscribersOutOfTheRaisedEvents()
+        {
+            MenuSystem menu = MenuSystem.Instance;
+            OverlaySystem overlay = OverlaySystem.Instance;
+            string[] menuEvents = { "OnSystemOpened", "OnSystemClosed" };
+            object[] menuSaved = menuEvents.Select(name => Get(menu, name)).ToArray();
+            object overlaySaved = Get(overlay, "OnGUIPageClosed");
+            var reached = new List<string>();
+            Action opened = () => { reached.Add("OnSystemOpened"); throw new InvalidOperationException("earlier OnSystemOpened subscriber ran"); };
+            Action closed = () => { reached.Add("OnSystemClosed"); throw new InvalidOperationException("earlier OnSystemClosed subscriber ran"); };
+            Action<OverlayPage> overlayClosed = page => { reached.Add("overlay OnGUIPageClosed"); throw new InvalidOperationException("earlier overlay OnGUIPageClosed subscriber ran"); };
+            try
+            {
+                menu.OnSystemOpened += opened;
+                menu.OnSystemClosed += closed;
+                overlay.OnGUIPageClosed += overlayClosed;
+
+                AssertListener<MenuSystemListener, MenuPage>(menu, "m_onMenuSystemOpened", "m_onMenuSystemClosed");
+                ToggleOverlayPageShowsAClosedPageAndHidesAnOpenOneWithoutFilteringNone();
+
+                Assert.That(reached, Is.Empty, "A scope raised an earlier subscriber");
+                Assert.That(((Action)Get(menu, "OnSystemOpened")).GetInvocationList(), Does.Contain(opened), "StackScope restores OnSystemOpened");
+                Assert.That(((Action)Get(menu, "OnSystemClosed")).GetInvocationList(), Does.Contain(closed), "StackScope restores OnSystemClosed");
+                Assert.That(((Action<OverlayPage>)Get(overlay, "OnGUIPageClosed")).GetInvocationList(), Does.Contain(overlayClosed), "OverlayScope restores OnGUIPageClosed");
+            }
+            finally
+            {
+                for (int i = 0; i < menuEvents.Length; i++) Set(menu, menuEvents[i], menuSaved[i]);
+                Set(overlay, "OnGUIPageClosed", overlaySaved);
+            }
+        }
+
         // ---- overlay components ---------------------------------------------------
 
         sealed class OverlayScope : IDisposable
@@ -465,6 +508,10 @@ namespace ProjectLucid.Tests
                 }
                 values = SystemValues.Select(name => Get(system, name)).ToArray();
                 Set(system, "m_systemFrozen", false);
+                // HidePage raises OnGUIPageClosed. Fresh empty delegates, like the
+                // field initializers at OverlaySystem.cs:37-38, keep saved subscribers out.
+                Set(system, "OnGUIPageClosed", new Action<OverlayPage>(page => { }));
+                Set(system, "OnGUIPageOpened", new Action<OverlayPage>(page => { }));
             }
 
             void Save(IList list)

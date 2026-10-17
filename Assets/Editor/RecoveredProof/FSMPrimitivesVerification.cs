@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Hardlight;
 using UnityEngine;
 
@@ -29,6 +30,40 @@ namespace ProjectLucid
             string first = "Lucid-recovery-collision-A";
             string second = "Lucid-recovery-collision-\u0141";
             Check(HLCRC32.Generate(first, HLCRC32.Case.AsIs) == HLCRC32.Generate(second, HLCRC32.Case.AsIs), "natural CRC collision");
+            using (new NameTableScope()) NameAndKeyChecks(first, second);
+
+            var context = new FSMUpdateContext(-0.125f, FSMUpdateType.Manual);
+            Check(context.DeltaTime == -0.125f && context.UpdateType == FSMUpdateType.Manual, "explicit update context");
+            Check(new FSMUpdateContext(2.5f).UpdateType == FSMUpdateType.Update, "default update type");
+            Check((int)FSMUpdateType.InitialiseUser == 3 && (int)FSMActionReason.Forced == 4, "enum identities");
+            Debug.Log("FSM primitive source-based verification passed. Unknown-name logging and the full original-game interpreter remain unverified.");
+        }
+
+        // GraphNameLookup keeps one process-wide static readonly table (0x060008af).
+        // The probes run against it emptied in place, so names other code already
+        // registered cannot shift the collision IDs, and Dispose puts back exactly
+        // the prior entries, dropping the names the probes registered.
+        private sealed class NameTableScope : IDisposable
+        {
+            private readonly Dictionary<int, string> table = (Dictionary<int, string>)typeof(GraphNameLookup)
+                .GetField("s_nameLookup", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            private readonly KeyValuePair<int, string>[] prior;
+
+            public NameTableScope()
+            {
+                prior = new List<KeyValuePair<int, string>>(table).ToArray();
+                table.Clear();
+            }
+
+            public void Dispose()
+            {
+                table.Clear();
+                foreach (KeyValuePair<int, string> entry in prior) table.Add(entry.Key, entry.Value);
+            }
+        }
+
+        private static void NameAndKeyChecks(string first, string second)
+        {
             int firstId = GraphNameLookup.ConvertNameToId(first);
             int secondId = GraphNameLookup.ConvertNameToId(second);
             Check(secondId == unchecked(firstId + 1), "collision probes next ID");
@@ -55,12 +90,6 @@ namespace ProjectLucid
             Check(key.ToString() == "Lucid-recovery-graph_Lucid-recovery-node_Lucid-recovery-value", "key string field order");
             Check(new GraphStorageKey(key.NameId).ToString() == "null_null_Lucid-recovery-value", "omitted graph and node");
             Check(default(GraphStorageKey).ToString() == "null_null_" && default(GraphStorageKey).GetHashCode() == 0, "default key");
-
-            var context = new FSMUpdateContext(-0.125f, FSMUpdateType.Manual);
-            Check(context.DeltaTime == -0.125f && context.UpdateType == FSMUpdateType.Manual, "explicit update context");
-            Check(new FSMUpdateContext(2.5f).UpdateType == FSMUpdateType.Update, "default update type");
-            Check((int)FSMUpdateType.InitialiseUser == 3 && (int)FSMActionReason.Forced == 4, "enum identities");
-            Debug.Log("FSM primitive source-based verification passed. Unknown-name logging and the full original-game interpreter remain unverified.");
         }
 
         private static void Check(bool condition, string name)

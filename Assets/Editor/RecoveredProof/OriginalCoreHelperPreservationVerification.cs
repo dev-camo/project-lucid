@@ -109,26 +109,14 @@ namespace ProjectLucid.RecoveredProof
             return n;
         }
 
-        sealed class CacheScope : IDisposable
-        {
-            readonly FieldInfo instance = Field("instance"), thread = Field("singletonThread");
-            readonly object oldInstance, oldThread; public readonly OpString Owned;
-            public CacheScope()
-            {
-                RuntimeHelpers.RunClassConstructor(typeof(OpString).TypeHandle);
-                oldInstance = instance.GetValue(null); oldThread = thread.GetValue(null);
-                Owned = OpString.Create(1024); instance.SetValue(null, Owned); thread.SetValue(null, null);
-            }
-            public void Dispose() { instance.SetValue(null, oldInstance); thread.SetValue(null, oldThread); }
-        }
-
+        // The cache scope is the shared OpStringCacheScope; these cases also prove it.
         public static int OpStringThreadCacheAndExceptionalRestoration()
         {
             int n = 0;
             RuntimeHelpers.RunClassConstructor(typeof(OpString).TypeHandle);
             var oldInstance = Field("instance").GetValue(null); var oldThread = Field("singletonThread").GetValue(null);
             var oldBuilder = Builder((OpString)oldInstance); string oldText = oldBuilder.ToString();
-            using (var scope = new CacheScope())
+            using (var scope = new OpStringCacheScope())
             {
                 var first = OpString.i; var builder = Builder(first);
                 Check(ref n, ReferenceEquals(first, scope.Owned), "first accessor owned cache");
@@ -157,7 +145,7 @@ namespace ProjectLucid.RecoveredProof
             Check(ref n, ReferenceEquals(Field("singletonThread").GetValue(null), oldThread), "cache thread reference restored");
             Check(ref n, ReferenceEquals(Builder((OpString)oldInstance), oldBuilder) && oldBuilder.ToString() == oldText, "preexisting builder untouched");
             var expected = new InvalidOperationException("owned fault");
-            Check(ref n, ReferenceEquals(Fault(() => { using (var scope = new CacheScope()) { var v = OpString.i + "fault"; throw expected; } }), expected), "exception not replaced during cleanup");
+            Check(ref n, ReferenceEquals(Fault(() => { using (var scope = new OpStringCacheScope()) { var v = OpString.i + "fault"; throw expected; } }), expected), "exception not replaced during cleanup");
             Check(ref n, ReferenceEquals(Field("instance").GetValue(null), oldInstance) && ReferenceEquals(Field("singletonThread").GetValue(null), oldThread), "exception restores exact old cache references");
             Check(ref n, oldBuilder.ToString() == oldText, "exception leaves preexisting builder content");
             return n;
@@ -336,7 +324,7 @@ namespace ProjectLucid.RecoveredProof
             var oldInstance = Field("instance").GetValue(null); var oldThread = Field("singletonThread").GetValue(null);
             var oldBuilder = Builder((OpString)oldInstance); string oldText = oldBuilder.ToString();
             var a = new string(new[] { 'a' }); var b = new string(new[] { 'b' });
-            using (var scope = new CacheScope())
+            using (var scope = new OpStringCacheScope())
             {
                 var cache = OpString.i + "untouched";
                 Check(ref n, ReferenceEquals(ResourceUtils.CombinePaths(a, ""), a), "empty second exact first alias");

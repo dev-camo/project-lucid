@@ -13,6 +13,23 @@ namespace ProjectLucid.Editor
         private static Type component;
         private static void Check(bool ok,string message) { if(!ok)throw new InvalidOperationException("Spline shared runtime proof: "+message); ++checks; }
         private static float F(uint bits) { return BitConverter.ToSingle(BitConverter.GetBytes(bits),0); }
+        // True when the type initializer is exactly ldc.i4 2048, newarr System.Single,
+        // stsfld into the cache, ret (nop padding from a debug build is skipped).
+        private static bool InitializerOnlyAllocates(FieldInfo cacheField)
+        {
+            byte[] il=component.TypeInitializer.GetMethodBody().GetILAsByteArray();
+            var ops=new List<(byte op,int operand)>();
+            for(int i=0;i<il.Length;)
+            {
+                byte op=il[i++];
+                if(op==0x00)continue;
+                if(op==0x2A){ops.Add((op,0));continue;}
+                if(op!=0x20&&op!=0x8D&&op!=0x80||i+4>il.Length)return false;
+                ops.Add((op,BitConverter.ToInt32(il,i)));i+=4;
+            }
+            return ops.Count==4&&ops[0]==(0x20,2048)&&ops[1].op==0x8D&&component.Module.ResolveType(ops[1].operand)==typeof(float)&&
+                ops[2].op==0x80&&component.Module.ResolveField(ops[2].operand)==cacheField&&ops[3].op==0x2A;
+        }
         private static uint Bits(float value) { return BitConverter.ToUInt32(BitConverter.GetBytes(value),0); }
         private static void Scalar(float actual,float expected,string message) { Check(float.IsNaN(expected)?float.IsNaN(actual):Bits(actual)==Bits(expected),message); }
         private static void Vector(Vector3 actual,Vector3 expected,string message) { Scalar(actual.x,expected.x,message+" x");Scalar(actual.y,expected.y,message+" y");Scalar(actual.z,expected.z,message+" z"); }
@@ -62,7 +79,12 @@ namespace ProjectLucid.Editor
             var cacheField=component.GetField("s_lutCache",BindingFlags.Static|BindingFlags.NonPublic);
             Check(cacheField!=null&&cacheField.IsInitOnly,"original readonly cache");
             float[] cache=(float[])cacheField.GetValue(null);Check(cache.Length==2048,"real initializer cache size");
-            Check(Array.TrueForAll(cache,value=>value==0f),"cache initializer zero state, no provider run");
+            // Native .cctor 0x1A70D10 only calls SZArrayNew(Single[], 0x800) and stores
+            // the zeroed array in static slot 0; nothing fills it. The reconstructed
+            // initializer is checked the same way, on its IL, because the live array
+            // is written by genuine knot-length recalculation (SplineRuntimeComponent.cs
+            // 160-168) for the rest of the domain once any spline has been used.
+            Check(InitializerOnlyAllocates(cacheField),"cache initializer zero state, no provider run");
             Check((component.Attributes&TypeAttributes.BeforeFieldInit)!=0,"genuine field-initializer scheduling flag");
             Check((int)component.GetField("SampleLUTSize",BindingFlags.Static|BindingFlags.NonPublic).GetRawConstantValue()==2048,"original sample constant");
             Scalar((float)component.GetField("EndEdgeDistanceTolerance",BindingFlags.Static|BindingFlags.NonPublic).GetRawConstantValue(),.1f,"original edge distance constant");

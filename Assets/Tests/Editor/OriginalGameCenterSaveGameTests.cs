@@ -33,20 +33,36 @@ namespace ProjectLucid.Tests
             m_priorIgnoreFailingMessages = LogAssert.ignoreFailingMessages;
         }
 
-        // HLOutput.LogError only reaches a registered HLUnityCore system; whether one
-        // exists is foreign state, so the case that builds an unsupported service
-        // tolerates its possible error output. The factory case asserts the exact text.
-        private static void TolerateUnsupportedPlatformError() => LogAssert.ignoreFailingMessages = true;
+        // HLOutput.LogError only reaches a registered HLUnityCore system. The case that
+        // builds an unsupported service sends its error output to an owned core, whose
+        // row it acquires absent, so a live host never receives it; it still tolerates
+        // Unity error output. The factory case asserts the exact text.
+        private OwnedCoreErrorLog m_unsupportedPlatformLog;
+
+        private void TolerateUnsupportedPlatformError()
+        {
+            LogAssert.ignoreFailingMessages = true;
+            m_unsupportedPlatformLog = new OwnedCoreErrorLog();
+        }
 
         [TearDown]
         public void TearDown()
         {
-            foreach (ISystem system in m_ownedSystems) ProcessManager.UnsubscribeFromAllActions(system);
-            m_ownedSystems.Clear();
-            foreach (SystemAction action in new List<SystemAction>(m_actions.Keys))
-                if (!m_priorActionRows.Contains(action) && m_actions[action].Count == 0) m_actions.Remove(action);
-            CultureInfo.CurrentCulture = m_priorCulture;
-            LogAssert.ignoreFailingMessages = m_priorIgnoreFailingMessages;
+            try
+            {
+                foreach (ISystem system in m_ownedSystems) ProcessManager.UnsubscribeFromAllActions(system);
+                m_ownedSystems.Clear();
+                foreach (SystemAction action in new List<SystemAction>(m_actions.Keys))
+                    if (!m_priorActionRows.Contains(action) && m_actions[action].Count == 0) m_actions.Remove(action);
+                CultureInfo.CurrentCulture = m_priorCulture;
+                LogAssert.ignoreFailingMessages = m_priorIgnoreFailingMessages;
+            }
+            finally
+            {
+                OwnedCoreErrorLog log = m_unsupportedPlatformLog;
+                m_unsupportedPlatformLog = null;
+                log?.Dispose();
+            }
         }
 
         // 0x060008a5 @0x1AEB1A0: DateTime.TryParse(..., InvariantCulture, AdjustToUniversal (0x10)).

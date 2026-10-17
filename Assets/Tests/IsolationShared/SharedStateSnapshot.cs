@@ -9,11 +9,18 @@ namespace ProjectLucid.Tests
     // The process-wide state test fixtures borrow: every ProcessManager system
     // row with its untyped and typed references, their observers and deferred
     // work, each live FSMManager's machines, the action subscription table and
-    // dispatch flag, the HardlightEnumExtensions EnumToString caches and the
-    // ConditionalOutput toggle observers. Capture reads fields only, so it
-    // creates no row, runs no callback and consumes no deferred work.
+    // dispatch flag, the HardlightEnumExtensions EnumToString caches, the
+    // ConditionalOutput toggle observers, the plugin cloud m_onConnect
+    // subscribers and the cached OpString instance. Capture reads fields only,
+    // so it creates no row, runs no callback and consumes no deferred work.
     //
-    // Left out: ProcessManager.s_actionList, a scratch list each dispatch
+    // Left out, because production use changes them in ordinary tests and the
+    // fixtures that borrow them own scopes with negative controls instead:
+    // OpString's owner thread and builder content, UnityEngine.Random.state,
+    // the GraphNameLookup name table, the spline LUT cache and the page-system
+    // event delegates (reading those would create their singletons).
+    //
+    // Also left out: ProcessManager.s_actionList, a scratch list each dispatch
     // clears before use and nothing else reads; and the shared
     // ObjectPool<FSMStateChangeAction>. Live FSM storage keeps pool leases for
     // its state history by design, and the snapshot does not separate those
@@ -48,6 +55,11 @@ namespace ProjectLucid.Tests
             snapshot.CaptureEnumCaches();
             snapshot.Add("ConditionalOutput.OnConditionalLoggerToggled",
                 Invocation((Delegate)typeof(ConditionalOutput).GetField("OnConditionalLoggerToggled", StaticFields).GetValue(null)));
+            snapshot.Add("HLCloud.Plugin.Cloud.m_onConnect",
+                Invocation((Delegate)typeof(HLCloud.Plugin.Cloud).GetField("m_onConnect", StaticFields).GetValue(null)));
+            // The cached instance only: its owner thread is set by the first
+            // production reader and its content changes on every owner read.
+            snapshot.Add("OpString.instance", typeof(OpString).GetField("instance", StaticFields).GetValue(null));
             return snapshot;
         }
 

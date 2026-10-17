@@ -903,7 +903,11 @@ namespace ProjectLucid
             object priorCache=cache.GetValue(null),priorEnum=enumConfig.GetValue(null);
             IDictionary multiplies=(IDictionary)Field(typeof(StackableData),"Multiplies").GetValue(null);
             bool hadMultiply=multiplies.Contains(typeof(TimeSetting));object priorMultiply=multiplies[typeof(TimeSetting)];
-            bool hadSystem=!ProcessManager.IsSystemNull<SystemConfiguration>();
+            // Field-only admission: a live configuration is borrowed for its overrides only;
+            // an absent or idle row is registered into and released, and a row that holds
+            // observers or deferred work without a system is refused before any change.
+            var configurationRow=new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>(),borrowLiveSystem:true);
+            bool hadSystem=configurationRow.BorrowsLiveSystem,completed=false;
             TimeCategoryObject a=null,b=null,g=null,spare=null,equalA=null;
             TimeCategoryConfiguration config=null;TimeCategoryLookup lookup=null;GameObject host=null;TimeManager manager=null;
             SystemConfiguration system=null;StackableDataHandle configHandle=null,lookupHandle=null;
@@ -1035,6 +1039,7 @@ namespace ProjectLucid
                 enumTick.ThrowAt=null;Pending(manager).Clear();
                 Call(manager,"OnDestroy");destroyed=true;
                 Check(Time.timeScale==1f && !config.PrioritisedCategories.Contains(g) && ProcessManager.IsSystemNull<TimeManager>(),"original destruction resets global scale, removes one category and unregisters");
+                completed=true;
             }
             finally
             {
@@ -1050,6 +1055,9 @@ namespace ProjectLucid
                 cache.SetValue(null,priorCache);enumConfig.SetValue(null,priorEnum);
                 if(hadMultiply)multiplies[typeof(TimeSetting)]=priorMultiply;else multiplies.Remove(typeof(TimeSetting));
                 Time.timeScale=priorScale;Time.fixedDeltaTime=priorFixed;
+                // A release report never replaces the proof's own first failure.
+                if(completed)configurationRow.Dispose();
+                else try{configurationRow.Dispose();}catch(Exception failure){Debug.LogWarning("Time scheduler configuration row release also failed: "+failure);}
             }
             },timeManagerRow.Dispose,configurationRow.Dispose);
             return checks-start;

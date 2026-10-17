@@ -1,0 +1,225 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading;
+using Hardlight;
+using NUnit.Framework;
+
+namespace ProjectLucid.Tests
+{
+    // Negative controls for the recovered-proof fixtures that borrow process-wide
+    // state the registry snapshot does not cover: the OpString cache, the plugin
+    // cloud notification list, a dormant SystemConfiguration row, the
+    // GraphNameLookup table and the spline LUT cache. Each case plants foreign
+    // state the fixture must neither depend on nor touch, runs the fixture's
+    // registered entry point, and restores the planted state itself afterwards.
+    public sealed class RecoveredFixtureBorrowedStateTests
+    {
+        private const BindingFlags PrivateStatic = BindingFlags.Static | BindingFlags.NonPublic;
+        private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+
+        private static readonly FieldInfo OpStringInstance = typeof(OpString).GetField("instance", PrivateStatic);
+        private static readonly FieldInfo OpStringThread = typeof(OpString).GetField("singletonThread", PrivateStatic);
+        private static StringBuilder Builder(object value) => (StringBuilder)typeof(OpString).GetField("sb", Instance).GetValue(value);
+
+        // A thread that has already finished: a foreign owner that can never read the cache.
+        private static Thread FinishedThread()
+        {
+            var thread = new Thread(() => { });
+            thread.Start();
+            thread.Join();
+            return thread;
+        }
+
+        // Installs a sentinel cache with the given owner, runs body, and checks the
+        // sentinel's identity, owner and content survive; the real cache is put back
+        // by raw reflection, independently of OpStringCacheScope.
+        private static void WithSentinelCache(Thread owner, Action body)
+        {
+            RuntimeHelpers.RunClassConstructor(typeof(OpString).TypeHandle);
+            object priorInstance = OpStringInstance.GetValue(null), priorThread = OpStringThread.GetValue(null);
+            try
+            {
+                OpString sentinel = OpString.Create(1024) + "sentinel";
+                StringBuilder builder = Builder(sentinel);
+                OpStringInstance.SetValue(null, sentinel);
+                OpStringThread.SetValue(null, owner);
+                body();
+                Assert.That(OpStringInstance.GetValue(null), Is.SameAs(sentinel), "cached instance restored");
+                Assert.That(OpStringThread.GetValue(null), Is.SameAs(owner), "owner thread restored");
+                Assert.That(Builder(sentinel), Is.SameAs(builder), "sentinel builder kept");
+                Assert.That(builder.ToString(), Is.EqualTo("sentinel"), "sentinel content untouched");
+            }
+            finally
+            {
+                OpStringInstance.SetValue(null, priorInstance);
+                OpStringThread.SetValue(null, priorThread);
+            }
+        }
+
+        private static IEnumerable<int> Owners() => new[] { 0, 1, 2 };
+
+        private static Thread Owner(int owner) => owner == 0 ? null : owner == 1 ? Thread.CurrentThread : FinishedThread();
+
+        // Cold (no owner), current-thread and other-thread ownership.
+        [TestCaseSource(nameof(Owners))]
+        public void OpStringCacheScopeOwnsAFreshCacheAndRestoresEachPriorOwner(int owner)
+        {
+            WithSentinelCache(Owner(owner), () =>
+            {
+                using (var scope = new OpStringCacheScope())
+                {
+                    OpString cache = OpString.i;
+                    Assert.That(cache, Is.SameAs(scope.Owned), "the scope's cache serves the first reader");
+                    Assert.That(OpStringThread.GetValue(null), Is.SameAs(Thread.CurrentThread));
+                    cache += "owned";
+                    Assert.That(OpString.i.ToString(), Is.Empty, "owner reads still clear the owned cache");
+                }
+            });
+        }
+
+        // The ToDebugString and cloud-key fixtures each read OpString.i. Under another
+        // thread's ownership their held-builder checks would read a fresh small builder.
+        [TestCaseSource(nameof(Owners))]
+        public void OpStringFixturesNeitherNeedNorTouchTheSharedCache(int owner)
+        {
+            WithSentinelCache(Owner(owner), () =>
+            {
+                Assert.That(Vector3FoundationVerification.Run(), Is.EqualTo(317));
+                Assert.That(MovementFoundationVerification.Run(), Is.EqualTo(182));
+                CloudFacadeVerification.Run();
+            });
+        }
+
+        // ReceiveNativeNotification invokes the whole static m_onConnect list.
+        [Test]
+        public void LocalCloudNotificationsNeverReachEarlierSubscribers()
+        {
+            FieldInfo field = typeof(HLCloud.Plugin.Cloud).GetField("m_onConnect", PrivateStatic);
+            object prior = field.GetValue(null);
+            var reached = new List<string>();
+            Action<string> earlier = message =>
+            {
+                reached.Add(message);
+                throw new InvalidOperationException("earlier cloud subscriber ran");
+            };
+            try
+            {
+                field.SetValue(null, earlier);
+                LocalCloudVerification.Run();
+                Assert.That(reached, Is.Empty);
+                Assert.That(field.GetValue(null), Is.SameAs(earlier), "the borrowed delegate is restored exactly");
+            }
+            finally { field.SetValue(null, prior); }
+        }
+
+        private static IDictionary Rows() => (IDictionary)typeof(ProcessManager)
+            .GetField("s_systemDictionary", PrivateStatic).GetValue(null);
+
+        // Runs body against a test-owned dormant SystemConfiguration row (no system),
+        // with or without a startup observer, then puts the prior row and layout back.
+        private static void WithDormantConfigurationRow(bool observed, Action<object, SystemRef, Func<int>> body)
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            string name = ProcessManager.GetDefaultName<SystemConfiguration>();
+            object retained = rows.Contains(name) ? rows[name] : null;
+            int notifications = 0;
+            try
+            {
+                rows.Remove(name);
+                SystemRef reference = ProcessManager.GetSystemRef(name);
+                if (observed) reference.OnSystemStartup += system => notifications++;
+                body(rows[name], reference, () => notifications);
+            }
+            finally
+            {
+                rows.Remove(name);
+                if (retained != null) rows[name] = retained;
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        // RegisterSystem into an existing row replaces its references and runs their
+        // startup observers (0x06000e25); the time scheduler engine proof must refuse
+        // a dormant row that holds one, before any registry or configuration step.
+        [Test]
+        public void TimeSchedulerRefusesADormantConfigurationRowWithAnObserver()
+        {
+            WithDormantConfigurationRow(true, (row, reference, notifications) =>
+            {
+                string name = ProcessManager.GetDefaultName<SystemConfiguration>();
+                var failure = Assert.Throws<InvalidOperationException>(() => TimeSchedulerVerification.Run());
+                Assert.That(failure.Message, Is.EqualTo("Fixture registry row retains unowned state: " + name + "/OnSystemStartup"));
+                Assert.That(notifications(), Is.Zero, "the dormant row's observer ran");
+                Assert.That(Rows()[name], Is.SameAs(row));
+                Assert.That(reference.IsNull(), Is.True);
+            });
+        }
+
+        // Positive control for the same admission: an idle dormant row is borrowed,
+        // registered into and returned idle, keeping its identity.
+        [Test]
+        public void TimeSchedulerBorrowsAnIdleConfigurationRowAndReturnsItIdle()
+        {
+            WithDormantConfigurationRow(false, (row, reference, notifications) =>
+            {
+                string name = ProcessManager.GetDefaultName<SystemConfiguration>();
+                var typedCache = (IDictionary)row.GetType().GetField("SystemRefDictionary", Instance).GetValue(row);
+                List<object> typedKeys = typedCache.Keys.Cast<object>().ToList();
+                Assert.That(TimeSchedulerVerification.Run(), Is.EqualTo(532));
+                Assert.That(Rows()[name], Is.SameAs(row));
+                Assert.That(row.GetType().GetField("SystemRef", Instance).GetValue(row), Is.SameAs(reference));
+                Assert.That(reference.IsNull(), Is.True, "the borrowed row is returned without a system");
+                Assert.That(typedCache.Keys.Cast<object>(), Is.EqualTo(typedKeys), "typed entries added while borrowed are removed");
+            });
+        }
+
+        // The collision probes need an empty table: the same two names registered
+        // earlier in the reverse order would swap their probe IDs.
+        [Test]
+        public void FSMPrimitivesNeitherNeedNorChangeEarlierGraphNames()
+        {
+            var table = (Dictionary<int, string>)typeof(GraphNameLookup).GetField("s_nameLookup", PrivateStatic).GetValue(null);
+            var prior = new List<KeyValuePair<int, string>>(table);
+            try
+            {
+                int reversedFirst = GraphNameLookup.ConvertNameToId("Lucid-recovery-collision-Ł");
+                int reversedSecond = GraphNameLookup.ConvertNameToId("Lucid-recovery-collision-A");
+                Assert.That(reversedSecond, Is.EqualTo(unchecked(reversedFirst + 1)), "the planted pair occupies the probe IDs in reverse");
+                var planted = new List<KeyValuePair<int, string>>(table);
+
+                FSMPrimitivesVerification.Run();
+
+                Assert.That(new List<KeyValuePair<int, string>>(table), Is.EquivalentTo(planted), "the table holds exactly its earlier names");
+                Assert.That(GraphNameLookup.LookupNameUsingId(reversedFirst), Is.EqualTo("Lucid-recovery-collision-Ł"));
+            }
+            finally
+            {
+                table.Clear();
+                foreach (KeyValuePair<int, string> entry in prior) table.Add(entry.Key, entry.Value);
+            }
+        }
+
+        // Genuine knot-length recalculation writes the shared LUT for the rest of the
+        // domain; the spline proof's initializer check must not depend on it.
+        [Test]
+        public void SplineProofDoesNotNeedAPristineLutCache()
+        {
+            Type component = typeof(SplineLocation).Assembly.GetType("Hardlight.SplineRuntimeComponent", true);
+            var cache = (float[])component.GetField("s_lutCache", PrivateStatic).GetValue(null);
+            float[] prior = (float[])cache.Clone();
+            try
+            {
+                cache[5] = 1.5f;
+                Assert.That(ProjectLucid.Editor.SplineSharedRuntimeVerification.RunManaged(), Is.EqualTo(201));
+                Assert.That(cache[5], Is.EqualTo(1.5f), "the proof leaves the shared cache as it found it");
+            }
+            finally { Array.Copy(prior, cache, prior.Length); }
+        }
+    }
+}

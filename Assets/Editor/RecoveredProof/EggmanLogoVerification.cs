@@ -30,43 +30,51 @@ namespace ProjectLucid
             Require(shader.isSupported, "shader unsupported on current graphics device");
             Require(SystemInfo.supportedRenderTargetCount >= 2, "rendering-layer variant requires two render targets");
 
-            Material material = new Material(shader);
-            string[] passNames = new string[material.passCount];
-            for (int pass = 0; pass < passNames.Length; pass++) passNames[pass] = material.GetPassName(pass);
-            Require(material.passCount == 1 && material.GetPassName(0) == "Universal Forward",
-                    "original single pass: count=" + material.passCount + " names=" + string.Join(" | ", passNames));
-            Require(material.renderQueue == (int)RenderQueue.Transparent, "original transparent queue");
-            Require(material.GetVector("_Colour_A") == new Vector4(1, 0, 0, 1) &&
-                    material.GetVector("_Colour_B") == new Vector4(0, 1, 0, 1) &&
-                    material.GetVector("_Colour_C") == new Vector4(0, 0, 1, 1) &&
-                    material.GetFloat("_Alpha") == 1f, "original defaults");
-
-            Texture2D mask = new Texture2D(4, 4, TextureFormat.RGBAFloat, true, true);
-            mask.filterMode = FilterMode.Point;
-            mask.wrapMode = TextureWrapMode.Clamp;
-            Mesh mesh = new Mesh();
-            mesh.vertices = new[] { new Vector3(-1,-1,0), new Vector3(1,-1,0), new Vector3(1,1,0), new Vector3(-1,1,0) };
-            mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
-            mesh.uv = new[] { new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1) };
-            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
-            mesh.RecalculateBounds();
-            RenderTexture target = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-            RenderTexture layers = new RenderTexture(32, 32, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-            Texture2D sample = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
-            GameObject cameraObject = new GameObject("EggmanLogoVerificationCamera");
-            Camera camera = cameraObject.AddComponent<Camera>();
-            camera.enabled = false;
-            camera.orthographic = true;
-            camera.orthographicSize = 1;
-            camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 10;
-            camera.transform.position = new Vector3(0, 0, -2);
+            // Every object below is owned from its allocation: a failed Require or
+            // setup step still releases what was already made. The shader is borrowed.
+            Material material = null;
+            Texture2D mask = null, sample = null;
+            Mesh mesh = null;
+            RenderTexture target = null, layers = null;
+            GameObject cameraObject = null;
             RenderTexture previous = RenderTexture.active;
             Vector4 previousMipBias = Shader.GetGlobalVector("_GlobalMipBias");
             int previousLayerMaximum = Shader.GetGlobalInt("_RenderingLayerMaxInt");
             float previousLayerReciprocal = Shader.GetGlobalFloat("_RenderingLayerRcpMaxInt");
+            bool completed = false;
             try
             {
+                material = new Material(shader);
+                string[] passNames = new string[material.passCount];
+                for (int pass = 0; pass < passNames.Length; pass++) passNames[pass] = material.GetPassName(pass);
+                Require(material.passCount == 1 && material.GetPassName(0) == "Universal Forward",
+                        "original single pass: count=" + material.passCount + " names=" + string.Join(" | ", passNames));
+                Require(material.renderQueue == (int)RenderQueue.Transparent, "original transparent queue");
+                Require(material.GetVector("_Colour_A") == new Vector4(1, 0, 0, 1) &&
+                        material.GetVector("_Colour_B") == new Vector4(0, 1, 0, 1) &&
+                        material.GetVector("_Colour_C") == new Vector4(0, 0, 1, 1) &&
+                        material.GetFloat("_Alpha") == 1f, "original defaults");
+
+                mask = new Texture2D(4, 4, TextureFormat.RGBAFloat, true, true);
+                mask.filterMode = FilterMode.Point;
+                mask.wrapMode = TextureWrapMode.Clamp;
+                mesh = new Mesh();
+                mesh.vertices = new[] { new Vector3(-1,-1,0), new Vector3(1,-1,0), new Vector3(1,1,0), new Vector3(-1,1,0) };
+                mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+                mesh.uv = new[] { new Vector2(0,0), new Vector2(1,0), new Vector2(1,1), new Vector2(0,1) };
+                mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+                mesh.RecalculateBounds();
+                target = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                layers = new RenderTexture(32, 32, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                sample = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
+                cameraObject = new GameObject("EggmanLogoVerificationCamera");
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.enabled = false;
+                camera.orthographic = true;
+                camera.orthographicSize = 1;
+                camera.nearClipPlane = 0.1f;
+                camera.farClipPlane = 10;
+                camera.transform.position = new Vector3(0, 0, -2);
                 target.Create();
                 layers.Create();
                 material.SetTexture("_Mask", mask);
@@ -137,23 +145,48 @@ namespace ProjectLucid
                 Debug.Log("Project Lucid Eggman logo GPU verification passed: " + calculations +
                           " fragment/blend cases, both surviving variants, mip bias, depth writes and culling on " +
                           SystemInfo.graphicsDeviceType + ". Original-game presentation QA remains unverified.");
+                completed = true;
             }
             finally
             {
-                Shader.SetGlobalVector("_GlobalMipBias", previousMipBias);
-                Shader.SetGlobalInt("_RenderingLayerMaxInt", previousLayerMaximum);
-                Shader.SetGlobalFloat("_RenderingLayerRcpMaxInt", previousLayerReciprocal);
-                RenderTexture.active = previous;
-                target.Release();
-                layers.Release();
-                UnityEngine.Object.DestroyImmediate(cameraObject);
-                UnityEngine.Object.DestroyImmediate(sample);
-                UnityEngine.Object.DestroyImmediate(target);
-                UnityEngine.Object.DestroyImmediate(layers);
-                UnityEngine.Object.DestroyImmediate(mesh);
-                UnityEngine.Object.DestroyImmediate(material);
-                UnityEngine.Object.DestroyImmediate(mask);
+                CleanUp(completed,
+                    () => Shader.SetGlobalVector("_GlobalMipBias", previousMipBias),
+                    () => Shader.SetGlobalInt("_RenderingLayerMaxInt", previousLayerMaximum),
+                    () => Shader.SetGlobalFloat("_RenderingLayerRcpMaxInt", previousLayerReciprocal),
+                    () => RenderTexture.active = previous,
+                    () => { if (target != null) target.Release(); },
+                    () => { if (layers != null) layers.Release(); },
+                    () => Destroy(cameraObject),
+                    () => Destroy(sample),
+                    () => Destroy(target),
+                    () => Destroy(layers),
+                    () => Destroy(mesh),
+                    () => Destroy(material),
+                    () => Destroy(mask));
             }
+        }
+
+        private static void Destroy(UnityEngine.Object owned)
+        {
+            if (owned != null) UnityEngine.Object.DestroyImmediate(owned);
+        }
+
+        // Runs every step even after one fails. After a completed proof the first
+        // step failure propagates; after a failed one the proof's own exception
+        // stays the result and step failures are logged as warnings.
+        private static void CleanUp(bool completed, params Action[] steps)
+        {
+            Exception first = null;
+            foreach (Action step in steps)
+            {
+                try { step(); }
+                catch (Exception failure)
+                {
+                    if (completed && first == null) first = failure;
+                    else Debug.LogWarning("Eggman logo verification cleanup failed: " + failure);
+                }
+            }
+            if (first != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(first).Throw();
         }
 
         private static Color MetalReference(Color mask, Vector4 a, Vector4 b, Vector4 c, float alpha)

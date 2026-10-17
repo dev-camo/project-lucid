@@ -35,9 +35,13 @@ namespace ProjectLucid.Tests
             readonly UISoundEffectManager m_soundManager;
             readonly object m_previousSound;
             readonly object m_previousEffect;
+            // The randomised route draws through UnityEngine.Random.Range
+            // (RangePropertyInt.NextValue), so the shared generator state is restored too.
+            readonly UnityEngine.Random.State m_previousRandom;
 
             public Fixture(bool effectActive)
             {
+                m_previousRandom = UnityEngine.Random.state;
                 m_previousSound = InstanceProperty(typeof(UISoundEffectManager)).GetValue(null);
                 m_previousEffect = InstanceProperty(typeof(HLUIEffectManager)).GetValue(null);
                 Root = new GameObject("UISoundEffect fixture") { hideFlags = HideFlags.HideAndDontSave };
@@ -73,6 +77,7 @@ namespace ProjectLucid.Tests
 
             public void Dispose()
             {
+                UnityEngine.Random.state = m_previousRandom;
                 SetInstance(typeof(UISoundEffectManager), m_previousSound);
                 SetInstance(typeof(HLUIEffectManager), m_previousEffect);
                 Object.DestroyImmediate(Root);
@@ -144,6 +149,29 @@ namespace ProjectLucid.Tests
                 fixture.Effect.Play();
                 Assert.That(fixture.Source.pitch, Is.EqualTo(Mathf.Pow(BasePitch, 3f)).Within(1e-5f));
             }
+        }
+
+        // Negative control for the Fixture's generator restore: the randomised play
+        // does advance UnityEngine.Random, and a sentinel state survives the case.
+        [Test]
+        public void RandomisedPlayLeavesTheSharedRandomStateAsFound()
+        {
+            UnityEngine.Random.State before = UnityEngine.Random.state;
+            try
+            {
+                UnityEngine.Random.InitState(0x5EED);
+                UnityEngine.Random.State sentinel = UnityEngine.Random.state;
+                using (var fixture = new Fixture(true))
+                {
+                    fixture.Set("m_audioClip", fixture.Clip);
+                    fixture.Set("m_randomiseSemitonePitch", true);
+                    fixture.Set("m_semitoneOffsetRange", new RangePropertyInt(-12, 2));
+                    fixture.Effect.Play();
+                    Assert.That(UnityEngine.Random.state, Is.Not.EqualTo(sentinel), "Play draws through UnityEngine.Random.Range");
+                }
+                Assert.That(UnityEngine.Random.state, Is.EqualTo(sentinel), "the fixture restores the generator state");
+            }
+            finally { UnityEngine.Random.state = before; }
         }
 
         [Test]

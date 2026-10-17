@@ -173,8 +173,18 @@ namespace ProjectLucid.Tests
             listener.SetGameCenterLeaderboardReferencesHolder(holder);
             listener.SetHashCode("5");
 
+            // The empty-data texture never reaches OnLoadImage, so it is found by
+            // instance ID and owned before any assertion can end the case.
+            var before = new HashSet<int>(Resources.FindObjectsOfTypeAll<Texture2D>().Select(texture => texture.GetInstanceID()));
             listener.LoadImage(string.Empty);
+            Texture2D[] unreported = Resources.FindObjectsOfTypeAll<Texture2D>().Where(texture => !before.Contains(texture.GetInstanceID())).ToArray();
+            m_owned.AddRange(unreported);
             Assert.That(images, Is.Empty, "Empty image data raises no event.");
+            Assert.That(unreported.Length, Is.EqualTo(1), "The public path also builds the texture before the data check.");
+            Assert.That(unreported[0].width, Is.EqualTo(24));
+            Assert.That(unreported[0].height, Is.EqualTo(12));
+            Assert.That(unreported[0].format, Is.EqualTo((TextureFormat)53));
+            Assert.That(unreported[0].mipmapCount, Is.EqualTo(1));
             Assert.That(native.Calls, Is.EqualTo(new[] { "Height", "Width" }), "The sizes are read before the data check.");
 
             // 24x12 ASTC 12x12 is two 16-byte blocks.

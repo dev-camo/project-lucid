@@ -1946,6 +1946,21 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.SystemConfigurationVerificationOwnershipTests.RunFromAnAbsentRowLeavesNoConfigurationRow",
 )
 
+# Recovered-proof fixtures neither need nor touch borrowed OpString, cloud, configuration-row, name-table or LUT state.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredFixtureBorrowedStateTests." + name for name in (
+    "OpStringCacheScopeOwnsAFreshCacheAndRestoresEachPriorOwner(0)",
+    "OpStringCacheScopeOwnsAFreshCacheAndRestoresEachPriorOwner(1)",
+    "OpStringCacheScopeOwnsAFreshCacheAndRestoresEachPriorOwner(2)",
+    "OpStringFixturesNeitherNeedNorTouchTheSharedCache(0)",
+    "OpStringFixturesNeitherNeedNorTouchTheSharedCache(1)",
+    "OpStringFixturesNeitherNeedNorTouchTheSharedCache(2)",
+    "LocalCloudNotificationsNeverReachEarlierSubscribers",
+    "TimeSchedulerRefusesADormantConfigurationRowWithAnObserver",
+    "TimeSchedulerBorrowsAnIdleConfigurationRowAndReturnsItIdle",
+    "FSMPrimitivesNeitherNeedNorChangeEarlierGraphNames",
+    "SplineProofDoesNotNeedAPristineLutCache",
+))
+
 # Fixture ownership of the global property store; production save behavior stays separate.
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ForeignSaveHandlerSurvivesARefusedVerification",
@@ -2143,6 +2158,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RegistrationCallbackFailureAfterForeignReplacementClaimsNothing",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RegistrationCallbackFailureAfterPublicationStillReleasesTheOwnedRow",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RegistrationCallbackFailureBeforePublicationLeavesNothingToRelease",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.ReplacementThatThrowsAfterPublishingStillReleasesTheOwnedRow",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(0)",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(1)",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardRejectsRetainedRowsAndForeignReferences(2)",
@@ -3241,6 +3257,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISoundEffectTests." + name 
     "ConstructionSeedsASemitoneRangeFromMinusTwelveToTwo",
     "AssignedClipPlaysThroughTheSoundManagerAtItsBasePitch",
     "RandomisedClipUsesTheNextSemitoneOffset",
+    "RandomisedPlayLeavesTheSharedRandomStateAsFound",
     "ClipWinsOverTheAudioType",
     "AudioTypeWithoutAClipPlaysThroughTheEffectManager",
     "ZeroAudioTypeIsSkippedEvenWithACueForIt",
@@ -3727,6 +3744,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPageNavigationComponentTests
     "OpenDialogPageFollowsTheOpeningBehaviour",
     "DialogSystemListenerRelaysTheDialogSystemEvents",
     "MenuSystemListenerRelaysTheMenuSystemEvents",
+    "PageScopesKeepEarlierSubscribersOutOfTheRaisedEvents",
     "OpenCloseOverlayPageShowsOnTheFirstOpenAndHidesWhenTheCountReturnsToZero",
     "OpenCloseOverlayPageIgnoresTheNoneIdentifier",
     "ToggleOverlayPageShowsAClosedPageAndHidesAnOpenOneWithoutFilteringNone",
@@ -3894,6 +3912,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.SharedStateSnapshotTests.ObserversDeferredWorkAndSystemsOnAnExistingRowAreReported",
     "ProjectLucid.Tests.SharedStateSnapshotTests.ActionSubscriptionAndAKeptEmptyRowAreReported",
     "ProjectLucid.Tests.SharedStateSnapshotTests.CachedEnumMissIsReported",
+    "ProjectLucid.Tests.SharedStateSnapshotTests.CloudConnectSubscriberIsReportedUntilRemoved",
+    "ProjectLucid.Tests.SharedStateSnapshotTests.ReplacedOpStringCacheIsReportedUntilRestored",
 )
 
 # Original managed declaration contracts restored for issue #295.

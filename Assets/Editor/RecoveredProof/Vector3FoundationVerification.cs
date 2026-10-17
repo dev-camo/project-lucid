@@ -202,6 +202,8 @@ namespace ProjectLucid
             Require(Vector3Extensions.ProjectPointOnLine(Vector3.zero, new Vector3(10, 0, 0), ref point) && float.IsNaN(point.x) && float.IsNaN(point.y) && float.IsNaN(point.z), "unordered point commits original NaN projection");
 
             CultureInfo original = CultureInfo.CurrentCulture;
+            // ToDebugString reads OpString.i; the held-builder check runs on an owned cache.
+            var opString = new OpStringCacheScope();
             try
             {
                 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -226,7 +228,7 @@ namespace ProjectLucid
                 a = default;
                 Require(Vector3Extensions.TryParse("(1, 2, 3)", ref a) && Same(a, new Vector3(1, 2, 3)) && !Vector3Extensions.TryParse("(1.5, 2, 3)", ref a), "parse retains culture-specific decimal syntax");
             }
-            finally { CultureInfo.CurrentCulture = original; }
+            finally { CultureInfo.CurrentCulture = original; opString.Dispose(); }
 
             Vector3 centre = new Vector3(10, float.NaN, -4);
             Require(Same(centre.PointOnCircleWithFixedY(0, 3, 7), new Vector3(13, 7, -4)), "normal circle zero angle uses cosine on X and fixed Y");

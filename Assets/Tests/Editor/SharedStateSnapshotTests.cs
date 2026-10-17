@@ -129,5 +129,28 @@ namespace ProjectLucid.Tests
             }
             Assert.IsNull(Change(before));
         }
+
+        [Test]
+        public void CloudConnectSubscriberIsReportedUntilRemoved()
+        {
+            SharedStateSnapshot before = SharedStateSnapshot.Capture();
+            Action<string> subscriber = message => { };
+            HLCloud.Plugin.Cloud.SubscribeOnConnect(subscriber);
+            try
+            {
+                StringAssert.Contains("changed HLCloud.Plugin.Cloud.m_onConnect", Change(before));
+            }
+            finally { HLCloud.Plugin.Cloud.UnsubscribeOnConnect(subscriber); }
+            Assert.IsNull(Change(before));
+        }
+
+        [Test]
+        public void ReplacedOpStringCacheIsReportedUntilRestored()
+        {
+            SharedStateSnapshot before = SharedStateSnapshot.Capture();
+            using (new OpStringCacheScope())
+                StringAssert.Contains("changed OpString.instance", Change(before));
+            Assert.IsNull(Change(before));
+        }
     }
 }

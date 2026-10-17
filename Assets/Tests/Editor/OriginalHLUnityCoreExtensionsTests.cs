@@ -13,8 +13,9 @@ namespace ProjectLucid.Tests
 {
     // Behaviour of the original HLUnityCore.Runtime string, type, enum, nullable
     // and array helpers against their 1.10.1 x86-64 bodies. Shared static state
-    // touched here (the StringExtensions builder, OpString's owner thread and the
-    // EnumExtensions cache) is captured in SetUp and restored in TearDown.
+    // touched here (the StringExtensions builder, OpString's cached instance and
+    // owner thread, and the EnumExtensions cache) is captured in SetUp and restored
+    // in TearDown.
     [TestFixture]
     public sealed class OriginalHLUnityCoreExtensionsTests
     {
@@ -34,13 +35,11 @@ namespace ProjectLucid.Tests
         private const BindingFlags PrivateStatic = BindingFlags.NonPublic | BindingFlags.Static;
 
         private string m_stringBuilderSnapshot;
-        private object m_opStringThreadSnapshot;
+        private OpStringCacheScope m_opStringCache;
         private Dictionary<UpdateOn, string> m_updateOnCacheSnapshot;
 
         private static StringBuilder SharedStringBuilder =>
             (StringBuilder)typeof(StringExtensions).GetField("s_stringBuilder", PrivateStatic).GetValue(null);
-
-        private static FieldInfo OpStringThreadField => typeof(OpString).GetField("singletonThread", PrivateStatic);
 
         private static Dictionary<UpdateOn, string> UpdateOnCache =>
             (Dictionary<UpdateOn, string>)typeof(EnumExtensions).GetField("UpdateOnEnumToString", PrivateStatic).GetValue(null);
@@ -49,7 +48,9 @@ namespace ProjectLucid.Tests
         public void SetUp()
         {
             m_stringBuilderSnapshot = SharedStringBuilder.ToString();
-            m_opStringThreadSnapshot = OpStringThreadField.GetValue(null);
+            // Format0PlaceholderTime reads OpString.i, which clears the cached builder;
+            // it runs on an owned cache so the shared builder's content is never touched.
+            m_opStringCache = new OpStringCacheScope();
             m_updateOnCacheSnapshot = new Dictionary<UpdateOn, string>(UpdateOnCache);
         }
 
@@ -57,7 +58,8 @@ namespace ProjectLucid.Tests
         public void TearDown()
         {
             SharedStringBuilder.Clear().Append(m_stringBuilderSnapshot);
-            OpStringThreadField.SetValue(null, m_opStringThreadSnapshot);
+            m_opStringCache?.Dispose();
+            m_opStringCache = null;
             Dictionary<UpdateOn, string> cache = UpdateOnCache;
             cache.Clear();
             foreach (KeyValuePair<UpdateOn, string> entry in m_updateOnCacheSnapshot)

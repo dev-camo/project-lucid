@@ -141,6 +141,8 @@ namespace ProjectLucid
             Require(Same(damped, new Quaternion(1, 2, 3, 4)) && Near(velocity.x, 10f / 3f) && Near(velocity.y, 5f / 3f) && Near(velocity.z, 0) && Near(velocity.w, -5f / 3f), "zero elapsed time still projects the initial velocity");
 
             CultureInfo original = CultureInfo.CurrentCulture;
+            // ToDebugString reads OpString.i; the held-builder check runs on an owned cache.
+            var opString = new OpStringCacheScope();
             try
             {
                 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -179,7 +181,7 @@ namespace ProjectLucid
                 Require(!QuaternionExtensions.TryParse("(1.5, 2, 3, 4)", ref q), "parse retains current-culture decimal syntax");
                 Require(new Quaternion(1.5f, -2.25f, 30, 4).ToDebugString() == "(1,50, -2,25, 30,00, 4,00)", "debug retains current-culture decimal comma");
             }
-            finally { CultureInfo.CurrentCulture = original; }
+            finally { CultureInfo.CurrentCulture = original; opString.Dispose(); }
             return checks;
         }
 

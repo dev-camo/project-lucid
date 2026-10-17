@@ -65,7 +65,7 @@ ALLOWED = {
     "Assets/Tests/Editor/OriginalUIWidgetRetainLastSelectedBehaviourTests.cs": (3, UNLEASED),
     "Assets/Tests/Editor/SharedStateSnapshotTests.cs": (4, OWNED),
     "Assets/Tests/Editor/SystemConfigurationVerificationOwnershipTests.cs": (1, OWNED),
-    "Assets/Tests/Editor/VerificationFixtureOwnershipTests.cs": (18, OWNED),
+    "Assets/Tests/Editor/VerificationFixtureOwnershipTests.cs": (19, OWNED),
     "Assets/Tests/PlayMode/CloudFacadeTests.cs": (2, PROOF),
     "Assets/Tests/PlayMode/FSMComponentTests.cs": (3, OWNED),
     "Assets/Tests/PlayMode/LevelManagerSystemsLifecycleTests.cs": (2, PROOF),

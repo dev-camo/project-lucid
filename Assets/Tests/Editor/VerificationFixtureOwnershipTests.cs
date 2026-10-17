@@ -214,6 +214,44 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Fault injection on RegistryRow.Register's throw-after-publish path: the
+        // replacement's startup observer throws after InternalReplaceSystem
+        // (0x06000e25) has published it. Register records the system before the
+        // call, so Dispose still recognises the published owner and releases the
+        // row; recording it only after a successful call would leave it behind.
+        [Test]
+        public void ReplacementThatThrowsAfterPublishingStillReleasesTheOwnedRow()
+        {
+            string name = "ProjectLucid.ThrowAfterPublish." + Guid.NewGuid().ToString("N");
+            var scope = new VerificationFixtureOwnership.RegistryRow(name);
+            var first = new Marker();
+            var second = new Marker();
+            SystemRef reference = null;
+            try
+            {
+                reference = scope.Register(first);
+                var fault = new ApplicationException("startup after publish");
+                int shutdowns = 0;
+                reference.OnSystemStartup += system => throw fault;
+                reference.OnSystemShutdown += system => shutdowns++;
+
+                Assert.AreSame(fault, Assert.Throws<ApplicationException>(() => scope.Register(second, canReplace: true)));
+                Assert.AreSame(second, reference.GetSafe(), "the replacement was published before its observer threw");
+                scope.Dispose();
+                Assert.IsFalse(Registry.Contains(name));
+                Assert.IsTrue(reference.IsNull());
+                Assert.AreEqual(1, shutdowns, "the release revoked the published replacement once");
+            }
+            finally
+            {
+                if (Registry.Contains(name))
+                {
+                    ProcessManager.UnregisterSystem(name);
+                    if (reference == null || reference.IsNull()) Registry.Remove(name);
+                }
+            }
+        }
+
         [Test]
         public void RegistrationCallbackFailureAfterForeignReplacementClaimsNothing()
         {

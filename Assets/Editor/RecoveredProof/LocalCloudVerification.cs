@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using HLCloud.Plugin;
 using UnityEngine;
 
@@ -26,6 +27,10 @@ namespace ProjectLucid
                 receiver.plugin = cloud;
                 int delivered = 0;
                 Action<string> callback = message => { delivered++; receiver.Native_CloudDidChange(message); };
+                // ReceiveNativeNotification invokes the whole static m_onConnect list,
+                // so the fixture subscribes into an owned baseline instead of the
+                // borrowed one, whose subscribers then receive nothing.
+                var notification = new NotificationScope();
                 Cloud.SubscribeOnConnect(callback);
                 try
                 {
@@ -65,7 +70,11 @@ namespace ProjectLucid
                     direct.ReceiveNativeNotification(message);
                     Require(receiver.changes == 2 && delivered == 1, "direct ICloud notification route");
                 }
-                finally { Cloud.UnsubscribeOnConnect(callback); }
+                finally
+                {
+                    Cloud.UnsubscribeOnConnect(callback);
+                    notification.Dispose();
+                }
 
                 string checksumPath = Path.Combine(directory, "checksum.json");
                 File.Copy(path + ".bak", checksumPath);
@@ -184,6 +193,18 @@ namespace ProjectLucid
             public void Native_CloudDidChange(string cloudMessage) { plugin.CloudDidChange(cloudMessage); }
             public void OnCloudChange(string[] changedKeys, ChangeReason changeReason)
             { changes++; keys = changedKeys; reason = changeReason; }
+        }
+
+        // Puts a fresh no-op baseline, the shape of the Cloud.cs:13 initializer, in
+        // the static m_onConnect and restores the exact prior delegate on Dispose.
+        private sealed class NotificationScope : IDisposable
+        {
+            private static readonly FieldInfo Field = typeof(Cloud).GetField("m_onConnect", BindingFlags.Static | BindingFlags.NonPublic);
+            private readonly object prior = Field.GetValue(null);
+
+            public NotificationScope() { Field.SetValue(null, new Action<string>(message => { })); }
+
+            public void Dispose() { Field.SetValue(null, prior); }
         }
     }
 }

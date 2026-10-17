@@ -29,6 +29,8 @@ namespace ProjectLucid
             Adapter priorPlugin = (Adapter)Field(typeof(Facade), "m_plugin", true).GetValue(null);
             var registration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<HLPropertyStore>(), previous.Concat(new object[] { priorPlugin }).ToArray());
             var objects = new List<GameObject>();
+            // The builder checks and GetCloudKey read OpString.i; they run on an owned cache.
+            var opString = new OpStringCacheScope();
             try
             {
                 VerifyContractsAndStringBuilder();
@@ -53,7 +55,8 @@ namespace ProjectLucid
             }
             finally
             {
-                foreach (GameObject item in objects) if (item != null) UnityEngine.Object.DestroyImmediate(item);
+                try { foreach (GameObject item in objects) if (item != null) UnityEngine.Object.DestroyImmediate(item); }
+                finally { opString.Dispose(); }
                 try { registration.Dispose(); }
                 finally
                 {
