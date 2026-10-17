@@ -79,7 +79,6 @@ namespace ProjectLucid
         private static string Scan(MethodInfo scan, string directory, string name, string text, out string[] invalidScriptBindings,
             out string[] unresolvedObjectReferences, out int unresolvedReferences)
         {
-            Directory.CreateDirectory(directory);
             string file = Path.Combine(directory, name);
             File.WriteAllText(file, text);
             object[] arguments = { file, "Assets/Recovered/" + name, null, null, null };
@@ -92,6 +91,9 @@ namespace ProjectLucid
 
         // Non-script PPtrs: an owned material, its subasset and its folder supply
         // identities that Unity itself assigns; each YAML fixture names one of them.
+        // LucidReferenceAudit.Run scans the whole prepared Assets/Recovered tree and
+        // writes the release report, so it is exercised by the native audit run of a
+        // clean prepare, not by this owned fixture.
         public static void RunObjectPointers()
         {
             MethodInfo scan = AuditMethod("ScanSerializedFile");
@@ -99,8 +101,10 @@ namespace ProjectLucid
             string folder = "Assets/ProjectLucidOwnedReferenceAudit_" + Guid.NewGuid().ToString("N");
             bool created = false;
             Material main = null, sub = null;
+            Exception primary = null;
             try
             {
+                Directory.CreateDirectory(directory);
                 Require(!AssetDatabase.IsValidFolder(folder), "owned fixture folder is new");
                 string folderGuid = AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
                 created = !string.IsNullOrEmpty(folderGuid);
@@ -151,27 +155,57 @@ namespace ProjectLucid
                     out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 &&
                     objects.SequenceEqual(new[] { "Assets/Recovered/malformed.prefab {fileID: " + mainID + ", guid: " + guid + "}: Unsupported or malformed object pointer" }),
                     "pointer without its type is reported instead of passing");
+
+                // Unity's emitter wraps a long flow mapping when it reserializes a file.
+                Func<long, string> wrapped = id => yaml("--- !u!23 &5\nMeshRenderer:\n  m_Materials:\n  - {fileID: " + id + ", guid: " + guid + ",\n    type: 2}\n");
+                Require(Scan(scan, directory, "wrapped.prefab", wrapped(mainID), out bad, out objects, out unresolved) == "complete" &&
+                    objects.Length == 0 && unresolved == 0, "wrapped exact material pointer is complete");
+                Require(Scan(scan, directory, "wrapped-wrong-id.prefab", wrapped(absentID), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.SequenceEqual(new[] { "{fileID: 999999999, guid: " + guid + ", type: 2}: Local identifier does not resolve at " + path }),
+                    "wrapped pointer with an absent local identifier is checked whole");
+                Require(Scan(scan, directory, "open.prefab", yaml("--- !u!23 &5\nMeshRenderer:\n  m_Materials:\n  - {fileID: " + mainID + ", guid: " + guid + ",\n" +
+                    "--- !u!4 &6\nTransform:\n  m_GameObject: {fileID: 0}\n"), out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 &&
+                    objects.SequenceEqual(new[] { "Assets/Recovered/open.prefab {fileID: " + mainID + ", guid: " + guid + ",: Unsupported or malformed object pointer" }),
+                    "a pointer left open before the next document is reported instead of joined");
+
+                // Outside the project check: builtin resources and {fileID: 0} nulls.
+                Require(Scan(scan, directory, "builtin.prefab", renderer(10303, "0000000000000000f000000000000000"), out bad, out objects, out unresolved) == "complete" &&
+                    objects.Length == 0 && unresolved == 0, "builtin resource pointer is outside the project check");
+                Require(Scan(scan, directory, "null-guid.prefab", renderer(0, guid), out bad, out objects, out unresolved) == "complete" &&
+                    objects.Length == 0 && unresolved == 0, "null local identifier with a GUID is a null pointer");
+                Require(Scan(scan, directory, "overflow.prefab", renderer(0, guid).Replace("{fileID: 0,", "{fileID: 9223372036854775808,"), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.SequenceEqual(new[] {
+                        "Assets/Recovered/overflow.prefab {fileID: 9223372036854775808, guid: " + guid + ", type: 2}: Local identifier is not a signed 64-bit value" }),
+                    "a local identifier above Int64.MaxValue is reported instead of wrapping");
+                string missingGuid = Guid.NewGuid().ToString("N");
+                Require(string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(missingGuid)), "fixture GUID is unassigned");
+                Require(Scan(scan, directory, "missing-guid.prefab", renderer(mainID, missingGuid), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.Length == 0 && bad.Length == 0, "a missing GUID counts once, in missing_guids only");
+            }
+            catch (Exception exception)
+            {
+                primary = exception;
+                throw;
             }
             finally
             {
+                // Cleanup runs on every path; a cleanup failure never hides the first failure.
+                var cleanup = new System.Collections.Generic.List<Exception>();
+                try { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+                catch (Exception exception) { cleanup.Add(exception); }
+                try { if (created && !AssetDatabase.DeleteAsset(folder)) cleanup.Add(new InvalidOperationException("owned fixture folder is removed")); }
+                catch (Exception exception) { cleanup.Add(exception); }
                 try
                 {
-                    if (Directory.Exists(directory)) Directory.Delete(directory, true);
+                    if (sub != null && !AssetDatabase.Contains(sub)) UnityEngine.Object.DestroyImmediate(sub);
+                    if (main != null && !AssetDatabase.Contains(main)) UnityEngine.Object.DestroyImmediate(main);
                 }
-                finally
-                {
-                    try
-                    {
-                        if (created) Require(AssetDatabase.DeleteAsset(folder), "owned fixture folder is removed");
-                    }
-                    finally
-                    {
-                        if (sub != null && !AssetDatabase.Contains(sub)) UnityEngine.Object.DestroyImmediate(sub);
-                        if (main != null && !AssetDatabase.Contains(main)) UnityEngine.Object.DestroyImmediate(main);
-                    }
-                }
+                catch (Exception exception) { cleanup.Add(exception); }
+                if (cleanup.Count > 0)
+                    throw new AggregateException("Owned reference audit fixture cleanup failed",
+                        primary == null ? cleanup : new[] { primary }.Concat(cleanup));
             }
-            Debug.Log("[Project Lucid] Recovered YAML object pointer checks passed: 7");
+            Debug.Log("[Project Lucid] Recovered YAML object pointer checks passed: 14");
         }
 
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

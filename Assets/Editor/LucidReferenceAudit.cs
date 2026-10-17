@@ -41,7 +41,8 @@ namespace ProjectLucid.Editor
             public UnresolvedObjectReference[] unresolved_object_references;
             public string[] invalid_script_bindings;
             public string[] shader_errors;
-            public string limitation = "Reference resolution does not verify implemented behavior, authored flow, or presentation parity.";
+            public string limitation = "Reference resolution does not verify implemented behavior, authored flow, or presentation parity. " +
+                "Non-script object pointers are checked by GUID and local identifier only: their type field and the local identifiers of builtin resources are not checked.";
         }
 
         private static readonly Regex GuidReference = new Regex(@"guid:\s*([0-9a-fA-F]{32})", RegexOptions.Compiled);
@@ -140,7 +141,7 @@ namespace ProjectLucid.Editor
         // Reference state for the serialized YAML files of one audit.
         private sealed class ReferenceScan
         {
-            private const int ExampleLimit = 8, ExampleLength = 256, LoadsPerUnload = 256;
+            private const int ExampleLimit = 8, ExampleLength = 256, LoadsPerUnload = 256, ContinuationLimit = 4;
             private static readonly Regex ObjectHeader = new Regex(@"^--- !u!(\d+) &(-?\d+)", RegexOptions.Compiled);
             private readonly Dictionary<string, string> resolved = new Dictionary<string, string>();
             private readonly Dictionary<string, string> scriptResults = new Dictionary<string, string>();
@@ -165,8 +166,21 @@ namespace ProjectLucid.Editor
                     // later document, so local pointers are checked after the file.
                     var anchors = new HashSet<long>();
                     var locals = new List<KeyValuePair<long, string>>();
-                    while ((line = reader.ReadLine()) != null)
+                    string pending = reader.ReadLine();
+                    while ((line = pending) != null)
                     {
+                        pending = reader.ReadLine();
+                        // Unity's YAML emitter wraps a long flow mapping onto indented
+                        // continuation lines when it reserializes an asset, for example
+                        // "{fileID: N, guid: G," then "  type: 3}". Join an open pointer
+                        // with them so it is checked whole; one still open after the
+                        // bound is reported as malformed.
+                        for (int joined = 0; joined < ContinuationLimit && OpensPointer(line) && pending != null &&
+                            pending.Length > 0 && (pending[0] == ' ' || pending[0] == '\t'); joined++)
+                        {
+                            line = line.TrimEnd() + " " + pending.TrimStart();
+                            pending = reader.ReadLine();
+                        }
                         Match header = line.StartsWith("--- ", StringComparison.Ordinal) ? ObjectHeader.Match(line) : Match.Empty;
                         if (header.Success)
                         {
@@ -223,6 +237,12 @@ namespace ProjectLucid.Editor
                         if (!anchors.Contains(local.Key))
                             AddObject(relative + " {fileID: " + local.Key + "}", "Local identifier names no document in this file", local.Value);
                 }
+            }
+
+            private static bool OpensPointer(string line)
+            {
+                int open = line.LastIndexOf("{fileID:", StringComparison.Ordinal);
+                return open >= 0 && line.IndexOf('}', open) < 0;
             }
 
             private string Resolve(string guid)

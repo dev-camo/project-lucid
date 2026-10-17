@@ -804,13 +804,20 @@ def _audit_check_report(report, identity, *, nonce=None, context_digest=None):
                 not isinstance(item.get("examples"), list) or not 0 < len(item["examples"]) <= 8 or
                 any(not isinstance(value, str) or not value for value in item["examples"])):
             raise ValueError("Invalid missing reference diagnostic")
-    targets = set()
+    # The Editor emits targets and examples in .NET ordinal (UTF-16 code unit)
+    # order, at most eight distinct examples of at most 256 code units each.
+    def ordinal(value):
+        return value.encode("utf-16-be", "surrogatepass")
+
+    previous = None
     for item in report["unresolved_object_references"]:
         if (not isinstance(item, dict) or any(not isinstance(item.get(key), str) or not item[key] for key in ("target", "reason")) or
-                item["target"] in targets or not isinstance(item.get("examples"), list) or not 0 < len(item["examples"]) <= 8 or
-                any(not isinstance(value, str) or not value for value in item["examples"])):
+                (previous is not None and ordinal(item["target"]) <= previous) or
+                not isinstance(item.get("examples"), list) or not 0 < len(item["examples"]) <= 8 or
+                any(not isinstance(value, str) or not value or len(ordinal(value)) > 512 for value in item["examples"]) or
+                any(ordinal(left) >= ordinal(right) for left, right in zip(item["examples"], item["examples"][1:]))):
             raise ValueError("Invalid object reference diagnostic")
-        targets.add(item["target"])
+        previous = ordinal(item["target"])
     for key in ("invalid_script_bindings", "shader_errors"):
         if any(not isinstance(value, str) or not value for value in report[key]):
             raise ValueError("Invalid reference audit diagnostic text")

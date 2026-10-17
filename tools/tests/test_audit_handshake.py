@@ -116,6 +116,15 @@ class AuditHandshakeTests(unittest.TestCase):
         self.assertEqual(published["unresolved_references"], 1)
         self.assertEqual(published["unresolved_object_references"], [pointer])
 
+    def test_object_pointer_diagnostics_in_editor_ordinal_order_publish(self):
+        # .NET ordinal order: the surrogate pair of U+10000 precedes U+E000.
+        pointers = [{"target": "\U00010000", "reason": "r", "examples": ["a", "b" * 256]},
+                    {"target": "\ue000", "reason": "r", "examples": ["e"]}]
+        self.action = lambda report, *_: report.update(reference_status="incomplete", unresolved_references=2,
+                                                       unresolved_object_references=pointers)
+        self.assertEqual(self.run_audit()["status"], "incomplete")
+        self.assertEqual(json.loads(self.latest.read_text())["unresolved_object_references"], pointers)
+
     def test_source_drift_and_same_size_asset_drift_with_restored_mtime_reject_publication(self):
         for source in (False, True):
             with self.subTest(source=source):
@@ -207,6 +216,17 @@ class AuditHandshakeTests(unittest.TestCase):
                        {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": ["e"] * 9}],
                         "unresolved_references": 1, "reference_status": "incomplete"},
                        {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": ["e"]}]},
+                       {"unresolved_object_references": [{"target": "u", "reason": "r", "examples": ["e"]},
+                                                         {"target": "t", "reason": "r", "examples": ["e"]}],
+                        "unresolved_references": 2, "reference_status": "incomplete"},
+                       {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": ["f", "e"]}],
+                        "unresolved_references": 1, "reference_status": "incomplete"},
+                       {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": ["e" * 257]}],
+                        "unresolved_references": 1, "reference_status": "incomplete"},
+                       # U+E000 precedes U+10000 by code point but follows it in UTF-16 order.
+                       {"unresolved_object_references": [{"target": "\ue000", "reason": "r", "examples": ["e"]},
+                                                         {"target": "\U00010000", "reason": "r", "examples": ["e"]}],
+                        "unresolved_references": 2, "reference_status": "incomplete"},
                        {"unresolved_references": 1}, {"reference_status": "incomplete"}):
             with self.subTest(change=change):
                 self.action = lambda report, *_, change=change: report.update(change)
