@@ -8,6 +8,10 @@ namespace ProjectLucid
 {
     public static class FSMCompositionVerification
     {
+        // Fault sites for the EditMode cleanup controls, each after shared-pool actions are leased.
+        internal const string GroupLeasedSite = "FSMCompositionVerification.VerifyGroupCallbacks";
+        internal const string SubMachineLeasedSite = "FSMCompositionVerification.VerifySubMachineCallbacks";
+
         private sealed class ProbeState : FSMState
         {
             private readonly List<string> trace; private readonly string label;
@@ -41,20 +45,24 @@ namespace ProjectLucid
         }
         private static void VerifyGroupCallbacks()
         {
-            var fsm = Machine(); var trace = new List<string>(); var a = new ProbeState(fsm,Name(),trace,"a"); var b = new ProbeState(fsm,Name(),trace,"b");
-            var group = new FSMStateGroup(fsm,Name(),a,a); group.AddState(null); group.AddState(b);
-            Check(group.States.SequenceEqual(new IFSMState[]{a,a,b}) && !group.HasFinished(null) && !group.IsEndState() && group.GetDependencies()==null,"group duplicates and inherited completion/dependency behavior");
-            var action = FSMStateChangeAction.Create(FSMActionReason.Forced); var user = new FSMUser(); var context = new FSMUpdateContext(0.375f,FSMUpdateType.FixedUpdate);
-            group.OnEnter(user,action); group.Update(user,context); group.OnLeave(user,action);
-            Trace(trace,"a:enter","a:enter","b:enter","a:update","a:update","b:update","a:leave","a:leave","b:leave");
-            Check(ReferenceEquals(a.SeenAction,action) && ReferenceEquals(b.SeenAction,action) && b.SeenContext.DeltaTime==0.375f && b.SeenContext.UpdateType==FSMUpdateType.FixedUpdate,"group passes action/context unchanged"); action.Destroy();
-            group.States.Clear(); group.States.Add(a); group.States.Add(b); trace.Clear(); a.UpdateCallback=()=>group.States.Add(b);
-            Throws<InvalidOperationException>(()=>group.Update(user,context),"group detects live list additions"); Trace(trace,"a:update"); a.UpdateCallback=null;
-            group.States.Clear(); group.States.Add(a); group.States.Add(b); trace.Clear(); a.EnterCallback=()=>throw new InvalidOperationException("fixture");
-            Throws<InvalidOperationException>(()=>group.OnEnter(user,null),"child errors propagate before later callbacks"); Trace(trace,"a:enter");a.EnterCallback=null;
-            group.States.Clear(); group.States.Add(null); Throws<NullReferenceException>(()=>group.Update(user,context),"directly inserted null child fails");
-            var replaced = new GroupAccess(fsm,Name()); replaced.AddState(a);replaced.AddState(b);trace.Clear();a.UpdateCallback=()=>replaced.Replace(new List<IFSMState>());
-            replaced.Update(user,context);Trace(trace,"a:update","b:update");Check(replaced.States.Count==0,"foreach retains original list after property replacement");a.UpdateCallback=null;
+            using (new VerificationFixtureOwnership.ActionPoolLease())
+            {
+                var fsm = Machine(); var trace = new List<string>(); var a = new ProbeState(fsm,Name(),trace,"a"); var b = new ProbeState(fsm,Name(),trace,"b");
+                var group = new FSMStateGroup(fsm,Name(),a,a); group.AddState(null); group.AddState(b);
+                Check(group.States.SequenceEqual(new IFSMState[]{a,a,b}) && !group.HasFinished(null) && !group.IsEndState() && group.GetDependencies()==null,"group duplicates and inherited completion/dependency behavior");
+                var action = FSMStateChangeAction.Create(FSMActionReason.Forced); var user = new FSMUser(); var context = new FSMUpdateContext(0.375f,FSMUpdateType.FixedUpdate);
+                group.OnEnter(user,action); group.Update(user,context); group.OnLeave(user,action);
+                VerificationFixtureOwnership.FaultPoint(GroupLeasedSite);
+                Trace(trace,"a:enter","a:enter","b:enter","a:update","a:update","b:update","a:leave","a:leave","b:leave");
+                Check(ReferenceEquals(a.SeenAction,action) && ReferenceEquals(b.SeenAction,action) && b.SeenContext.DeltaTime==0.375f && b.SeenContext.UpdateType==FSMUpdateType.FixedUpdate,"group passes action/context unchanged"); action.Destroy();
+                group.States.Clear(); group.States.Add(a); group.States.Add(b); trace.Clear(); a.UpdateCallback=()=>group.States.Add(b);
+                Throws<InvalidOperationException>(()=>group.Update(user,context),"group detects live list additions"); Trace(trace,"a:update"); a.UpdateCallback=null;
+                group.States.Clear(); group.States.Add(a); group.States.Add(b); trace.Clear(); a.EnterCallback=()=>throw new InvalidOperationException("fixture");
+                Throws<InvalidOperationException>(()=>group.OnEnter(user,null),"child errors propagate before later callbacks"); Trace(trace,"a:enter");a.EnterCallback=null;
+                group.States.Clear(); group.States.Add(null); Throws<NullReferenceException>(()=>group.Update(user,context),"directly inserted null child fails");
+                var replaced = new GroupAccess(fsm,Name()); replaced.AddState(a);replaced.AddState(b);trace.Clear();a.UpdateCallback=()=>replaced.Replace(new List<IFSMState>());
+                replaced.Update(user,context);Trace(trace,"a:update","b:update");Check(replaced.States.Count==0,"foreach retains original list after property replacement");a.UpdateCallback=null;
+            }
         }
         private static void VerifyGroupFactory()
         {
@@ -71,17 +79,21 @@ namespace ProjectLucid
         [Serializable] private class GroupJSON { public List<string> States; }
         private static void VerifySubMachineCallbacks()
         {
-            var parent=Machine();var child=Machine();var trace=new List<string>();var a=new ProbeState(child,Name(),trace,"a");var b=new ProbeState(child,Name(),trace,"b");child.DefaultState=a;
-            var user=new FSMUser();var action=FSMStateChangeAction.Create(FSMActionReason.Forced);var context=new FSMUpdateContext(0.5f,FSMUpdateType.LateUpdate);
-            var retained=new FSMStateSubFSM(parent,Name(),child,false,false,b);retained.OnEnter(user,action);
-            Check(ReferenceEquals(child.GetActiveState(user),b)&&b.SeenAction.Reason==FSMActionReason.InitialiseUser&&ReferenceEquals(b.SeenAction.ParentAction,action),"first nonreset enter uses retained default and parent action");Trace(trace,"b:enter");
-            trace.Clear();retained.OnLeave(user,action);retained.OnEnter(user,action);Trace(trace,"b:leave","b:enter");Check(ReferenceEquals(child.GetActiveState(user),b)&&ReferenceEquals(b.SeenAction,action),"nonreset leave/reenter preserves child selection and original action");
-            trace.Clear();retained.Update(user,context);Trace(trace,"b:update");Check(b.SeenContext.DeltaTime==0.5f&&b.SeenContext.UpdateType==FSMUpdateType.LateUpdate,"child engine receives context");
-            trace.Clear();Check(!retained.HasFinished(user),"unfinished child");Trace(trace,"b:finished");b.Finished=true;trace.Clear();Check(retained.HasFinished(user),"completion without end-only flag");Trace(trace,"b:finished");
-            var endOnly=new FSMStateSubFSM(parent,Name(),child,false,true);trace.Clear();Check(!endOnly.HasFinished(user),"finished nonend child blocked");Trace(trace,"b:finished","b:end");b.End=true;trace.Clear();Check(endOnly.HasFinished(user),"finished end child allowed");Trace(trace,"b:finished","b:end");
-            var reset=new FSMStateSubFSM(parent,Name(),child,true,false,a);trace.Clear();reset.OnEnter(user,action);Trace(trace,"b:leave","a:enter");Check(ReferenceEquals(child.GetActiveState(user),a),"reset enters requested default");trace.Clear();reset.OnLeave(user,action);Trace(trace,"a:leave");Check(child.GetActiveState(user)==null&&!reset.HasFinished(user),"reset leave clears active child and null completion is false");
-            Check(retained.GetDependencies().Count==1&&ReferenceEquals(retained.GetDependencies()[0],child)&&!ReferenceEquals(retained.GetDependencies(),retained.GetDependencies()),"fresh retained dependency list");
-            var invalid=new FSMStateSubFSM(parent,Name(),null);Check(invalid.GetDependencies().Count==1&&invalid.GetDependencies()[0]==null,"direct null dependency retained");Throws<NullReferenceException>(()=>invalid.HasFinished(user),"null dependency fails on use");action.Destroy();
+            using (new VerificationFixtureOwnership.ActionPoolLease())
+            {
+                var parent=Machine();var child=Machine();var trace=new List<string>();var a=new ProbeState(child,Name(),trace,"a");var b=new ProbeState(child,Name(),trace,"b");child.DefaultState=a;
+                var user=new FSMUser();var action=FSMStateChangeAction.Create(FSMActionReason.Forced);var context=new FSMUpdateContext(0.5f,FSMUpdateType.LateUpdate);
+                var retained=new FSMStateSubFSM(parent,Name(),child,false,false,b);retained.OnEnter(user,action);
+                VerificationFixtureOwnership.FaultPoint(SubMachineLeasedSite);
+                Check(ReferenceEquals(child.GetActiveState(user),b)&&b.SeenAction.Reason==FSMActionReason.InitialiseUser&&ReferenceEquals(b.SeenAction.ParentAction,action),"first nonreset enter uses retained default and parent action");Trace(trace,"b:enter");
+                trace.Clear();retained.OnLeave(user,action);retained.OnEnter(user,action);Trace(trace,"b:leave","b:enter");Check(ReferenceEquals(child.GetActiveState(user),b)&&ReferenceEquals(b.SeenAction,action),"nonreset leave/reenter preserves child selection and original action");
+                trace.Clear();retained.Update(user,context);Trace(trace,"b:update");Check(b.SeenContext.DeltaTime==0.5f&&b.SeenContext.UpdateType==FSMUpdateType.LateUpdate,"child engine receives context");
+                trace.Clear();Check(!retained.HasFinished(user),"unfinished child");Trace(trace,"b:finished");b.Finished=true;trace.Clear();Check(retained.HasFinished(user),"completion without end-only flag");Trace(trace,"b:finished");
+                var endOnly=new FSMStateSubFSM(parent,Name(),child,false,true);trace.Clear();Check(!endOnly.HasFinished(user),"finished nonend child blocked");Trace(trace,"b:finished","b:end");b.End=true;trace.Clear();Check(endOnly.HasFinished(user),"finished end child allowed");Trace(trace,"b:finished","b:end");
+                var reset=new FSMStateSubFSM(parent,Name(),child,true,false,a);trace.Clear();reset.OnEnter(user,action);Trace(trace,"b:leave","a:enter");Check(ReferenceEquals(child.GetActiveState(user),a),"reset enters requested default");trace.Clear();reset.OnLeave(user,action);Trace(trace,"a:leave");Check(child.GetActiveState(user)==null&&!reset.HasFinished(user),"reset leave clears active child and null completion is false");
+                Check(retained.GetDependencies().Count==1&&ReferenceEquals(retained.GetDependencies()[0],child)&&!ReferenceEquals(retained.GetDependencies(),retained.GetDependencies()),"fresh retained dependency list");
+                var invalid=new FSMStateSubFSM(parent,Name(),null);Check(invalid.GetDependencies().Count==1&&invalid.GetDependencies()[0]==null,"direct null dependency retained");Throws<NullReferenceException>(()=>invalid.HasFinished(user),"null dependency fails on use");action.Destroy();
+            }
         }
         private static void VerifySubMachineFactory()
         {

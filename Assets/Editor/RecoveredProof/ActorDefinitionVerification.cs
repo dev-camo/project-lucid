@@ -45,7 +45,21 @@ namespace ProjectLucid
                 new Dictionary<ActorParticleTriggerType, ParticleEffectType>(HardlightProject.HardlightEnumComparers.ActorParticleTriggerTypeComparer));
             return lookup;
         }
+        // Fault site for the EditMode cleanup control, after misses are cached in the live tables.
+        internal const string ParticleDisplayCachedSite = "ActorDefinitionVerification.ParticleDisplayCached";
+
+        // The genuine GetString calls below, direct and through the original
+        // serialization callbacks, cache the non-native ActorParticleTriggerType 17,
+        // ParticleEffectType 23 and LevelSetupTypes 0 in the shared native tables.
+        // The lease returns those tables to their admitted entries on every path.
         public static int RunManaged()
+        {
+            using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions),
+                "ActorParticleTriggerTypeEnumToString", "ParticleEffectTypeEnumToString", "LevelSetupTypesEnumToString"))
+                return RunManagedLeased();
+        }
+
+        private static int RunManagedLeased()
         {
             int checks = 0;
             var audio = new ActorAudioReference();
@@ -166,6 +180,7 @@ namespace ProjectLucid
             Require((string)Field(e0.GetType(), "Name").GetValue(e0) == "retained", ref checks, "particle after-deserialize genuine RET");
             object e1 = Element((ActorParticleTriggerType)17, (ParticleEffectType)23), e2 = Element((ActorParticleTriggerType)17, (ParticleEffectType)29);
             ((ISerializationCallbackReceiver)e1).OnBeforeSerialize();
+            VerificationFixtureOwnership.FaultPoint(ParticleDisplayCachedSite);
             Require((string)Field(e1.GetType(), "Name").GetValue(e1) == ((ActorParticleTriggerType)17).GetString() + " -> " + ((ParticleEffectType)23).GetString(), ref checks, "particle nonzero registry display");
             var particles = ParticleLookup(e0, e1, e2); particles.Lookup[(ActorParticleTriggerType)37] = (ParticleEffectType)41;
             particles.UpdateCachedValues(); Require(particles.Lookup.Count == 2 && (int)particles.Lookup[(ActorParticleTriggerType)17] == 29 && !particles.Lookup.ContainsKey((ActorParticleTriggerType)37), ref checks, "particle refresh clears and last entry wins");

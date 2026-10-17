@@ -11,6 +11,28 @@ namespace ProjectLucid
     // execute their observers while borrowing an apparently empty row.
     public static class VerificationFixtureOwnership
     {
+        private static readonly string[] OwnershipFields = { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" };
+
+        // Reads, never clears, the system value, both observer events and the
+        // deferred InvokeOnValid work on the untyped reference and on every
+        // typed entry of a SystemInfo row; the first field holding state is reported.
+        private static void RequireIdleRow(object row, string failurePrefix)
+        {
+            const BindingFlags fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            RequireIdleReference(row.GetType().GetField("SystemRef", fields).GetValue(row), failurePrefix);
+            foreach (DictionaryEntry entry in (IDictionary)row.GetType().GetField("SystemRefDictionary", fields).GetValue(row))
+                RequireIdleReference(entry.Value, failurePrefix);
+        }
+
+        private static void RequireIdleReference(object reference, string failurePrefix)
+        {
+            Type type = reference.GetType();
+            while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
+            foreach (string field in OwnershipFields)
+                if (type.GetField(field, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference) != null)
+                    throw new InvalidOperationException(failurePrefix + field);
+        }
+
         public static void RequireAbsent(IDictionary registry, string name, params object[] sharedState)
         {
             if (registry.Contains(name))
@@ -38,7 +60,6 @@ namespace ProjectLucid
         // removed only when its untyped and every typed reference are cleared.
         public sealed class LifecycleRow : IDisposable
         {
-            private static readonly string[] OwnershipFields = { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" };
             private readonly IDictionary registry;
             private readonly string name;
             private readonly object borrowedRow;
@@ -77,20 +98,8 @@ namespace ProjectLucid
             private static object Read(object value, string field) =>
                 value.GetType().GetField(field, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(value);
 
-            private static void RequireIdle(object row, string name)
-            {
-                RequireIdleReference(Reference(row), name);
-                foreach (DictionaryEntry entry in TypedCache(row)) RequireIdleReference(entry.Value, name);
-            }
-
-            private static void RequireIdleReference(object reference, string name)
-            {
-                Type type = reference.GetType();
-                while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
-                foreach (string field in OwnershipFields)
-                    if (type.GetField(field, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference) != null)
-                        throw new InvalidOperationException("Fixture registry row retains unowned state: " + name + "/" + field);
-            }
+            private static void RequireIdle(object row, string name) =>
+                RequireIdleRow(row, "Fixture registry row retains unowned state: " + name + "/");
 
             // Call after the proof has unregistered its systems. A row that
             // still holds state is left in place and reported.
@@ -130,19 +139,12 @@ namespace ProjectLucid
 
         // Removes a row the fixture's own construction created, only while every reference in
         // it is still empty; a row that gained a system or observer is foreign state and stays.
+        // The untyped reference is checked like every typed entry: GetSystemRef(name)
+        // hands it out directly, and a later registration under a removed row's
+        // name builds a new row that never reaches its observers or deferred work.
         public static void ReleaseEmptyRow(IDictionary registry, string name, object row)
         {
-            var untyped = (SystemRef)row.GetType().GetField("SystemRef").GetValue(row);
-            var cache = (IDictionary)row.GetType().GetField("SystemRefDictionary").GetValue(row);
-            if (!untyped.IsNull()) throw new InvalidOperationException("Fixture row gained a system: " + name);
-            foreach (DictionaryEntry entry in cache)
-            {
-                Type type = entry.Value.GetType();
-                while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
-                foreach (string field in new[] { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" })
-                    if (type.GetField(field, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.DeclaredOnly).GetValue(entry.Value) != null)
-                        throw new InvalidOperationException("Fixture row reference retains state: " + name + "." + field);
-            }
+            RequireIdleRow(row, "Fixture row reference retains state: " + name + ".");
             registry.Remove(name);
         }
 
@@ -218,5 +220,159 @@ namespace ProjectLucid
                 ownedRow = null;
             }
         }
+
+        // SubscribeToAction (x86-64 0x1B11E20) creates a missing outer action
+        // row through TryGetOrNew, and neither UnsubscribeFromAction (0x1B13970)
+        // nor UnsubscribeFromAllActions (0x1B13A30) removes one. A fixture that
+        // constructs a subscribing service therefore owns only the named rows it
+        // found absent. Admission reads fields only and runs no callback.
+        //
+        // Release after the fixture has unsubscribed. A row that existed keeps its
+        // dictionary and exactly its admitted subscriber/callback pairs. A row the
+        // fixture created is removed only while empty; one that still has a
+        // subscriber stays and is reported.
+        public sealed class ActionRows : IDisposable
+        {
+            private readonly Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> lookup = SharedActionLookup;
+            private readonly SystemAction[] actions;
+            private readonly Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> priorRows =
+                new Dictionary<SystemAction, Dictionary<ISystem, Action<object>>>();
+            private readonly Dictionary<SystemAction, List<KeyValuePair<ISystem, Action<object>>>> priorPairs =
+                new Dictionary<SystemAction, List<KeyValuePair<ISystem, Action<object>>>>();
+            private bool released;
+
+            public ActionRows(params SystemAction[] actions)
+            {
+                this.actions = (SystemAction[])actions.Clone();
+                foreach (SystemAction action in this.actions)
+                {
+                    if (!lookup.TryGetValue(action, out Dictionary<ISystem, Action<object>> row)) continue;
+                    priorRows[action] = row;
+                    priorPairs[action] = new List<KeyValuePair<ISystem, Action<object>>>(row);
+                }
+            }
+
+            internal static Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> SharedActionLookup =>
+                (Dictionary<SystemAction, Dictionary<ISystem, Action<object>>>)typeof(ProcessManager)
+                    .GetField("s_systemActionLookup", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+
+            public void Dispose()
+            {
+                if (released) return;
+                released = true;
+                if (!ReferenceEquals(SharedActionLookup, lookup))
+                    throw new InvalidOperationException("Fixture action lookup was replaced");
+                var retained = new List<string>();
+                foreach (SystemAction action in actions)
+                {
+                    lookup.TryGetValue(action, out Dictionary<ISystem, Action<object>> row);
+                    if (priorRows.TryGetValue(action, out Dictionary<ISystem, Action<object>> prior))
+                    {
+                        if (!ReferenceEquals(row, prior)) retained.Add(action + " row replaced");
+                        else if (!SamePairs(row, priorPairs[action])) retained.Add(action + " subscribers changed");
+                    }
+                    else if (row != null)
+                    {
+                        if (row.Count == 0) lookup.Remove(action);
+                        else retained.Add(action + " row gained subscribers");
+                    }
+                }
+                if (retained.Count != 0)
+                    throw new InvalidOperationException("Fixture action rows retain unowned state: " + string.Join(", ", retained));
+            }
+
+            private static bool SamePairs(Dictionary<ISystem, Action<object>> row, List<KeyValuePair<ISystem, Action<object>>> pairs)
+            {
+                if (row.Count != pairs.Count) return false;
+                foreach (KeyValuePair<ISystem, Action<object>> pair in pairs)
+                    if (!row.TryGetValue(pair.Key, out Action<object> callback) || !ReferenceEquals(callback, pair.Value)) return false;
+                return true;
+            }
+        }
+
+        // Mutable static dictionaries whose original lookups cache a miss through
+        // the indexer, such as the HardlightEnumExtensions EnumToString tables.
+        // Dispose puts back the admitted dictionary object, removes keys added
+        // since, and reassigns every admitted value by reference. It never throws
+        // for changed contents, so a fixture's own failure stays the result.
+        public sealed class StaticDictionaryLease : IDisposable
+        {
+            private readonly FieldInfo[] fields;
+            private readonly IDictionary[] dictionaries;
+            private readonly List<DictionaryEntry>[] entries;
+            private bool released;
+
+            public StaticDictionaryLease(Type owner, params string[] fieldNames)
+                : this(Array.ConvertAll(fieldNames, name => owner.GetField(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                    ?? throw new MissingFieldException(owner.FullName, name))) { }
+
+            public StaticDictionaryLease(params FieldInfo[] fields)
+            {
+                this.fields = (FieldInfo[])fields.Clone();
+                dictionaries = new IDictionary[fields.Length];
+                entries = new List<DictionaryEntry>[fields.Length];
+                for (int i = 0; i < fields.Length; ++i)
+                {
+                    dictionaries[i] = (IDictionary)fields[i].GetValue(null);
+                    entries[i] = new List<DictionaryEntry>();
+                    foreach (DictionaryEntry entry in dictionaries[i]) entries[i].Add(entry);
+                }
+            }
+
+            public void Dispose()
+            {
+                if (released) return;
+                released = true;
+                for (int i = 0; i < fields.Length; ++i)
+                {
+                    fields[i].SetValue(null, dictionaries[i]);
+                    var admitted = new HashSet<object>();
+                    foreach (DictionaryEntry entry in entries[i]) admitted.Add(entry.Key);
+                    var added = new List<object>();
+                    foreach (object key in dictionaries[i].Keys) if (!admitted.Contains(key)) added.Add(key);
+                    foreach (object key in added) dictionaries[i].Remove(key);
+                    foreach (DictionaryEntry entry in entries[i]) dictionaries[i][entry.Key] = entry.Value;
+                }
+            }
+        }
+
+        // ObjectPool<FSMStateChangeAction> is one static pool shared with runtime
+        // states. Admission records the actions already leased; Dispose despawns
+        // only actions leased while the fixture ran, newest first, and leaves
+        // every admitted lease, with its parent graph, in place. The fixture's own
+        // Destroy calls are unchanged: on success nothing is left for Dispose.
+        // Never DespawnEntirePool here, which would also free borrowed actions.
+        public sealed class ActionPoolLease : IDisposable
+        {
+            private readonly HashSet<FSMStateChangeAction> borrowed;
+            private bool released;
+
+            public ActionPoolLease() { borrowed = new HashSet<FSMStateChangeAction>(UsedActions()); }
+
+            // FSMStateChangeAction keeps object equality, so the set compares by reference.
+            internal static List<FSMStateChangeAction> UsedActions()
+            {
+                const BindingFlags fields = BindingFlags.Instance | BindingFlags.Static | BindingFlags.NonPublic;
+                object pool = typeof(Hardlight.Pooling.ObjectPool<FSMStateChangeAction>).GetField("s_objectPool", fields).GetValue(null);
+                if (pool == null) return new List<FSMStateChangeAction>();
+                return new List<FSMStateChangeAction>((List<FSMStateChangeAction>)pool.GetType().GetField("m_usedObjects", fields).GetValue(pool));
+            }
+
+            public void Dispose()
+            {
+                if (released) return;
+                released = true;
+                List<FSMStateChangeAction> used = UsedActions();
+                for (int i = used.Count - 1; i >= 0; --i)
+                    if (!borrowed.Contains(used[i])) Hardlight.Pooling.ObjectPool<FSMStateChangeAction>.Despawn(used[i]);
+            }
+        }
+
+        // Test-only fault point for the EditMode cleanup controls: a control sets
+        // it to throw at one named site inside a fixture's leased region. Null
+        // outside those controls, so the fixtures run unchanged.
+        internal static Action<string> FaultInjection;
+
+        internal static void FaultPoint(string site) => FaultInjection?.Invoke(site);
     }
 }

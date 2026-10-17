@@ -11,6 +11,12 @@ namespace ProjectLucid
     // source-based checks and do not establish original-game equivalence.
     public static class FSMInterpreterVerification
     {
+        // Fault sites for the EditMode cleanup controls, each after shared-pool
+        // actions are leased; every leased method returns only its own actions.
+        internal const string ActionsLeasedSite = "FSMInterpreterVerification.VerifyActions";
+        internal const string UpdateOrderingLeasedSite = "FSMInterpreterVerification.VerifyUpdateOrdering";
+        internal const string HistoryLeasedSite = "FSMInterpreterVerification.VerifyInitialiseClearAndHistory";
+
         public static void Run()
         {
             VerifyStorage();
@@ -91,114 +97,126 @@ namespace ProjectLucid
 
         private static void VerifyActions()
         {
-            int before = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
-            DateTime fixedTime = new DateTime(2023, 1, 2, 3, 4, 5, DateTimeKind.Utc);
-            object context = new object();
-            var grandparent = FSMStateChangeAction.Create(FSMActionReason.InitialiseUser, context: context, actionTime: fixedTime);
-            var parent = FSMStateChangeAction.Create(FSMActionReason.Forced, parentAction: grandparent, context: context, actionTime: fixedTime);
-            var action = FSMStateChangeAction.Create(FSMActionReason.TransitionFired, parentAction: parent, context: context, actionTime: fixedTime);
-            var clone = action.Clone();
-            Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before + 6, "clone allocates complete parent chain");
-            Check(!ReferenceEquals(clone, action) && !ReferenceEquals(clone.ParentAction, parent) && !ReferenceEquals(clone.ParentAction.ParentAction, grandparent), "parent chain deep clone");
-            Check(ReferenceEquals(clone.Context, context) && clone.ActionTime == fixedTime && clone.ParentAction.Reason == FSMActionReason.Forced, "clone shares context and timestamp");
-            action.Destroy(true);
-            Check(ReferenceEquals(action.ParentAction, parent) && ObjectPool<FSMStateChangeAction>.UsedObjectCount == before + 3, "destroy parents without clearing fields");
-            var reused = FSMStateChangeAction.Create(FSMActionReason.ClearUser, actionTime: fixedTime);
-            Check(ReferenceEquals(reused, action) && reused.ParentAction == null && reused.Context == null, "parent-first destruction and field reset");
-            reused.Destroy();
-            clone.Destroy(true);
-            DateTime lower = DateTime.Now;
-            var now = FSMStateChangeAction.Create(FSMActionReason.Forced);
-            Check(now.ActionTime >= lower && now.ActionTime <= DateTime.Now, "default timestamp selects local Now");
-            now.Destroy();
-            Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before, "action pool balanced");
+            using (new VerificationFixtureOwnership.ActionPoolLease())
+            {
+                int before = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
+                DateTime fixedTime = new DateTime(2023, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+                object context = new object();
+                var grandparent = FSMStateChangeAction.Create(FSMActionReason.InitialiseUser, context: context, actionTime: fixedTime);
+                var parent = FSMStateChangeAction.Create(FSMActionReason.Forced, parentAction: grandparent, context: context, actionTime: fixedTime);
+                var action = FSMStateChangeAction.Create(FSMActionReason.TransitionFired, parentAction: parent, context: context, actionTime: fixedTime);
+                var clone = action.Clone();
+                VerificationFixtureOwnership.FaultPoint(ActionsLeasedSite);
+                Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before + 6, "clone allocates complete parent chain");
+                Check(!ReferenceEquals(clone, action) && !ReferenceEquals(clone.ParentAction, parent) && !ReferenceEquals(clone.ParentAction.ParentAction, grandparent), "parent chain deep clone");
+                Check(ReferenceEquals(clone.Context, context) && clone.ActionTime == fixedTime && clone.ParentAction.Reason == FSMActionReason.Forced, "clone shares context and timestamp");
+                action.Destroy(true);
+                Check(ReferenceEquals(action.ParentAction, parent) && ObjectPool<FSMStateChangeAction>.UsedObjectCount == before + 3, "destroy parents without clearing fields");
+                var reused = FSMStateChangeAction.Create(FSMActionReason.ClearUser, actionTime: fixedTime);
+                Check(ReferenceEquals(reused, action) && reused.ParentAction == null && reused.Context == null, "parent-first destruction and field reset");
+                reused.Destroy();
+                clone.Destroy(true);
+                DateTime lower = DateTime.Now;
+                var now = FSMStateChangeAction.Create(FSMActionReason.Forced);
+                Check(now.ActionTime >= lower && now.ActionTime <= DateTime.Now, "default timestamp selects local Now");
+                now.Destroy();
+                Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before, "action pool balanced");
+            }
         }
 
         private static void VerifyUpdateOrdering()
         {
-            var trace = new List<string>();
-            var fsm = Machine("ordering");
-            var user = new User(new FSMStorage(0));
-            var a = new State("A", fsm, trace);
-            var b = new State("B", fsm, trace);
-            var c = new State("C", fsm, trace);
-            fsm.DefaultState = a;
-            Check(fsm.DoMultipleTransitions && !fsm.UpdateTransientStates, "constructor flags");
-            fsm.Update(user, new FSMUpdateContext(2f));
-            Check(trace.Count == 0 && user.Storage.GetCollection().Count == 1, "empty active state is stored and update stops");
-            fsm.InitialiseUser(user);
-            trace.Clear();
-            a.Next = b; b.Next = c;
-            fsm.UpdateTransientStates = true;
-            fsm.Update(user, new FSMUpdateContext(2f, FSMUpdateType.FixedUpdate));
-            Trace(trace, "A.check:2:FixedUpdate", "A.leave", "B.enter", "B.update:0:FixedUpdate", "B.check:0:FixedUpdate", "B.leave", "C.enter", "C.update:0:FixedUpdate", "C.check:0:FixedUpdate", "C.update:2:FixedUpdate");
-            Check(ReferenceEquals(fsm.GetActiveState(user), c), "final active state");
+            using (new VerificationFixtureOwnership.ActionPoolLease())
+            {
+                var trace = new List<string>();
+                var fsm = Machine("ordering");
+                var user = new User(new FSMStorage(0));
+                var a = new State("A", fsm, trace);
+                var b = new State("B", fsm, trace);
+                var c = new State("C", fsm, trace);
+                fsm.DefaultState = a;
+                Check(fsm.DoMultipleTransitions && !fsm.UpdateTransientStates, "constructor flags");
+                fsm.Update(user, new FSMUpdateContext(2f));
+                Check(trace.Count == 0 && user.Storage.GetCollection().Count == 1, "empty active state is stored and update stops");
+                fsm.InitialiseUser(user);
+                trace.Clear();
+                a.Next = b; b.Next = c;
+                fsm.UpdateTransientStates = true;
+                fsm.Update(user, new FSMUpdateContext(2f, FSMUpdateType.FixedUpdate));
+                Trace(trace, "A.check:2:FixedUpdate", "A.leave", "B.enter", "B.update:0:FixedUpdate", "B.check:0:FixedUpdate", "B.leave", "C.enter", "C.update:0:FixedUpdate", "C.check:0:FixedUpdate", "C.update:2:FixedUpdate");
+                Check(ReferenceEquals(fsm.GetActiveState(user), c), "final active state");
 
-            fsm.InitialiseUser(user, toState: a); trace.Clear();
-            fsm.DoMultipleTransitions = false;
-            fsm.Update(user, new FSMUpdateContext(2f));
-            Trace(trace, "A.check:2:Update", "A.leave", "B.enter", "B.update:2:Update");
+                fsm.InitialiseUser(user, toState: a); trace.Clear();
+                fsm.DoMultipleTransitions = false;
+                fsm.Update(user, new FSMUpdateContext(2f));
+                Trace(trace, "A.check:2:Update", "A.leave", "B.enter", "B.update:2:Update");
 
-            fsm.InitialiseUser(user, toState: a); trace.Clear();
-            fsm.DoMultipleTransitions = true; b.Next = a;
-            fsm.Update(user, new FSMUpdateContext(2f));
-            Trace(trace, "A.check:2:Update", "A.leave", "B.enter", "B.update:0:Update", "B.check:0:Update", "B.leave", "A.enter", "A.update:2:Update");
+                fsm.InitialiseUser(user, toState: a); trace.Clear();
+                fsm.DoMultipleTransitions = true; b.Next = a;
+                fsm.Update(user, new FSMUpdateContext(2f));
+                Trace(trace, "A.check:2:Update", "A.leave", "B.enter", "B.update:0:Update", "B.check:0:Update", "B.leave", "A.enter", "A.update:2:Update");
 
-            fsm.UpdateTransientStates = false; b.Next = c;
-            trace.Clear();
-            fsm.Update(user, new FSMUpdateContext(2f));
-            Trace(trace, "A.check:2:Update", "A.leave", "B.enter", "B.check:0:Update", "B.leave", "C.enter", "C.check:0:Update", "C.update:2:Update");
+                fsm.UpdateTransientStates = false; b.Next = c;
+                trace.Clear();
+                fsm.Update(user, new FSMUpdateContext(2f));
+                Trace(trace, "A.check:2:Update", "A.leave", "B.enter", "B.check:0:Update", "B.leave", "C.enter", "C.check:0:Update", "C.update:2:Update");
 
-            fsm.InitialiseUser(user, toState: a); trace.Clear();
-            var d = new State("D", fsm, trace);
-            var forced = FSMStateChangeAction.Create(FSMActionReason.Forced, d, c);
-            fsm.SetActiveState(user, forced);
-            Trace(trace, "D.leave", "C.enter");
-            forced.Destroy();
+                fsm.InitialiseUser(user, toState: a); trace.Clear();
+                var d = new State("D", fsm, trace);
+                var forced = FSMStateChangeAction.Create(FSMActionReason.Forced, d, c);
+                fsm.SetActiveState(user, forced);
+                VerificationFixtureOwnership.FaultPoint(UpdateOrderingLeasedSite);
+                Trace(trace, "D.leave", "C.enter");
+                forced.Destroy();
 
-            fsm.InitialiseUser(user, toState: a); trace.Clear(); a.Next = null; a.ReturnNullDestination = true;
-            int used = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
-            fsm.Update(user, new FSMUpdateContext(2f));
-            Trace(trace, "A.check:2:Update", "A.update:2:Update");
-            Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == used + 1, "action with null destination is not destroyed by Update");
-            a.LastAction.Destroy();
+                fsm.InitialiseUser(user, toState: a); trace.Clear(); a.Next = null; a.ReturnNullDestination = true;
+                int used = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
+                fsm.Update(user, new FSMUpdateContext(2f));
+                Trace(trace, "A.check:2:Update", "A.update:2:Update");
+                Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == used + 1, "action with null destination is not destroyed by Update");
+                a.LastAction.Destroy();
+            }
         }
 
         private static void VerifyInitialiseClearAndHistory()
         {
-            var trace = new List<string>();
-            var fsm = Machine("history");
-            var storage = new FSMStorage(2);
-            var user = new User(storage);
-            var other = new User(new FSMStorage(0));
-            var a = new State("A", fsm, trace);
-            var b = new State("B", fsm, trace);
-            fsm.DefaultState = a; fsm.UpdateTransientStates = true;
-            int before = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
-            fsm.InitialiseUser(user);
-            Trace(trace, "A.enter", "A.update:0:InitialiseUser");
-            Check(fsm.GetActiveState(other) == null, "active state belongs to user storage");
-            var history = storage.StateHistory[fsm.FSMId];
-            Check(history.Count == 1 && history.Peek().Reason == FSMActionReason.InitialiseUser, "initial action cloned into history");
-            var context = new object();
-            var parent = FSMStateChangeAction.Create(FSMActionReason.Forced, context: context);
-            var transition = FSMStateChangeAction.Create(FSMActionReason.TransitionFired, toState: b, parentAction: parent, context: context);
-            fsm.SetActiveState(user, transition);
-            transition.Destroy(true);
-            Check(history.Count == 2, "history bounded");
-            var snapshot = history.ToArray()[1];
-            Check(!ReferenceEquals(snapshot, transition) && !ReferenceEquals(snapshot.ParentAction, parent) && ReferenceEquals(snapshot.Context, context), "history owns independent action chain");
-            trace.Clear(); fsm.ClearUser(user);
-            Trace(trace, "B.leave");
-            Check(b.LastLeaveAction == null && fsm.GetActiveState(user) == null, "clear passes caller null action");
-            Check(history.Count == 2, "native identifier comparison skips removal history");
-            storage.ClearStateHistory();
-            Check(history.Count == 0 && storage.StateHistory.ContainsKey(fsm.FSMId), "clear history retains empty queues");
-            Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before, "history returns parent clones to pool");
-            storage.Clear();
-            Check(storage.GetCollection().Count == 0 && storage.StateHistoryMaxCount == 0 && storage.StateHistory == null, "clear does not reinitialize history");
-            storage.Initialise();
-            Check(storage.StateHistoryMaxCount == 2 && storage.StateHistory.Count == 0, "explicit reinitialize");
+            using (new VerificationFixtureOwnership.ActionPoolLease())
+            {
+                var trace = new List<string>();
+                var fsm = Machine("history");
+                var storage = new FSMStorage(2);
+                var user = new User(storage);
+                var other = new User(new FSMStorage(0));
+                var a = new State("A", fsm, trace);
+                var b = new State("B", fsm, trace);
+                fsm.DefaultState = a; fsm.UpdateTransientStates = true;
+                int before = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
+                fsm.InitialiseUser(user);
+                Trace(trace, "A.enter", "A.update:0:InitialiseUser");
+                Check(fsm.GetActiveState(other) == null, "active state belongs to user storage");
+                var history = storage.StateHistory[fsm.FSMId];
+                Check(history.Count == 1 && history.Peek().Reason == FSMActionReason.InitialiseUser, "initial action cloned into history");
+                var context = new object();
+                var parent = FSMStateChangeAction.Create(FSMActionReason.Forced, context: context);
+                var transition = FSMStateChangeAction.Create(FSMActionReason.TransitionFired, toState: b, parentAction: parent, context: context);
+                fsm.SetActiveState(user, transition);
+                VerificationFixtureOwnership.FaultPoint(HistoryLeasedSite);
+                transition.Destroy(true);
+                Check(history.Count == 2, "history bounded");
+                var snapshot = history.ToArray()[1];
+                Check(!ReferenceEquals(snapshot, transition) && !ReferenceEquals(snapshot.ParentAction, parent) && ReferenceEquals(snapshot.Context, context), "history owns independent action chain");
+                trace.Clear(); fsm.ClearUser(user);
+                Trace(trace, "B.leave");
+                Check(b.LastLeaveAction == null && fsm.GetActiveState(user) == null, "clear passes caller null action");
+                Check(history.Count == 2, "native identifier comparison skips removal history");
+                storage.ClearStateHistory();
+                Check(history.Count == 0 && storage.StateHistory.ContainsKey(fsm.FSMId), "clear history retains empty queues");
+                Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before, "history returns parent clones to pool");
+                storage.Clear();
+                Check(storage.GetCollection().Count == 0 && storage.StateHistoryMaxCount == 0 && storage.StateHistory == null, "clear does not reinitialize history");
+                storage.Initialise();
+                Check(storage.StateHistoryMaxCount == 2 && storage.StateHistory.Count == 0, "explicit reinitialize");
+            }
         }
 
         private static void VerifyOwnershipAndDependencies()

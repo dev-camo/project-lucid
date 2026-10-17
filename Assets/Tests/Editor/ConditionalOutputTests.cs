@@ -189,8 +189,11 @@ namespace ProjectLucid.Tests
         // 0x1aa1e40: null inverts the entry, values are taken as given, the full name
         // keys PlayerPrefs as 0/1, and the event follows each write.
         [Test]
-        public void ToggleLogInvertsOnNullPersistsByFullNameAndRaisesAfterwards()
+        public void ToggleLogInvertsOnNullPersistsByFullNameAndRaisesAfterwards() => ToggleLogProof();
+
+        private static void ToggleLogProof()
         {
+            RequireNoBorrowedToggleObservers();
             Type type = typeof(OwnedLogger);
             int raised = 0;
             Action handler = () =>
@@ -226,8 +229,12 @@ namespace ProjectLucid.Tests
 
         // 0x1aa1fd2: a null request on an unknown type fails before any write or event.
         [Test]
-        public void ToggleLogNullOnUnknownTypeThrowsBeforeWriting()
+        public void ToggleLogNullOnUnknownTypeThrowsBeforeWriting() => UnknownToggleProof();
+
+        private static void UnknownToggleProof()
         {
+            // Nothing is raised on this path, but a regression would raise to every observer.
+            RequireNoBorrowedToggleObservers();
             Type type = typeof(OwnedLogger);
             Lookup.Remove(type);
             int raised = 0;
@@ -243,6 +250,46 @@ namespace ProjectLucid.Tests
             finally
             {
                 ConditionalOutput.OnConditionalLoggerToggled -= handler;
+            }
+        }
+
+        // ToggleLog raises the whole public event, so a proof that toggles must
+        // not run observers it does not own. Admission reads the event's backing
+        // field without writing it; this control adds and removes its observers
+        // only through the public accessors. Neither proof may run, replace or
+        // reorder a borrowed observer, or touch the lookup or the owned key.
+        [Test]
+        public void ToggleProofsRefuseBorrowedObserversWithoutRunningThem()
+        {
+            Type type = typeof(OwnedLogger);
+            int counted = 0, thrown = 0;
+            Action counting = () => counted++;
+            Action throwing = () => { thrown++; throw new InvalidProgramException("borrowed toggle observer"); };
+            Lookup[type] = false;
+            ConditionalOutput.OnConditionalLoggerToggled += counting;
+            ConditionalOutput.OnConditionalLoggerToggled += throwing;
+            try
+            {
+                var installed = (Action)Field("OnConditionalLoggerToggled").GetValue(null);
+                Delegate[] invocation = installed.GetInvocationList();
+                foreach (Action proof in new Action[] { ToggleLogProof, UnknownToggleProof })
+                {
+                    var error = Assert.Throws<InvalidOperationException>(() => proof());
+                    Assert.That(error.Message, Is.EqualTo("Fixture requires no borrowed OnConditionalLoggerToggled observers"));
+                    Assert.That(counted, Is.EqualTo(0));
+                    Assert.That(thrown, Is.EqualTo(0));
+                    var current = (Action)Field("OnConditionalLoggerToggled").GetValue(null);
+                    Assert.That(current, Is.SameAs(installed));
+                    Assert.That(current.GetInvocationList(), Is.EqualTo(invocation));
+                    Assert.That(Lookup.ContainsKey(type), Is.True);
+                    Assert.That(Lookup[type], Is.False, "the owned proof writes true first");
+                    Assert.That(PlayerPrefs.HasKey(PrefKey), Is.False);
+                }
+            }
+            finally
+            {
+                ConditionalOutput.OnConditionalLoggerToggled -= throwing;
+                ConditionalOutput.OnConditionalLoggerToggled -= counting;
             }
         }
 
@@ -500,6 +547,13 @@ namespace ProjectLucid.Tests
             FieldInfo field = typeof(ConditionalOutput).GetField(name, StaticMembers);
             Assert.That(field, Is.Not.Null, name);
             return field;
+        }
+
+        // Read-only admission: the backing field is never nulled, replaced or restored.
+        private static void RequireNoBorrowedToggleObservers()
+        {
+            if (Field("OnConditionalLoggerToggled").GetValue(null) != null)
+                throw new InvalidOperationException("Fixture requires no borrowed OnConditionalLoggerToggled observers");
         }
 
         private static Dictionary<Type, bool> Lookup => (Dictionary<Type, bool>)Field("s_conditionalLoggerLookup").GetValue(null);

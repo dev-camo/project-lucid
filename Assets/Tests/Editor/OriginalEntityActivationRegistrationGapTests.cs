@@ -127,6 +127,8 @@ namespace ProjectLucid.Tests
         private sealed class Owned : IDisposable
         {
             private readonly List<Object> m_objects = new List<Object>();
+            // Taken before the manager's constructor can create the Update row.
+            private readonly VerificationFixtureOwnership.ActionRows m_actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
             private EntityActivationManager m_manager;
 
             public EntityActivationManager Manager() => m_manager = new EntityActivationManager();
@@ -168,7 +170,14 @@ namespace ProjectLucid.Tests
                 }
                 finally
                 {
-                    foreach (Object value in m_objects) if (value != null) Object.DestroyImmediate(value);
+                    try
+                    {
+                        foreach (Object value in m_objects) if (value != null) Object.DestroyImmediate(value);
+                    }
+                    finally
+                    {
+                        m_actionRows.Dispose();
+                    }
                 }
             }
         }

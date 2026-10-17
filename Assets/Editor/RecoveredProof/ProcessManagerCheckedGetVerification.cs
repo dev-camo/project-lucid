@@ -87,25 +87,39 @@ namespace ProjectLucid
             }
             finally { RestoreRows(registry, rows); }
         }
+        internal const string HostName = "ProjectLucid.ProcessManager.GenuineHostFixture";
+        internal const string RowPrefix = "ProjectLucid.ProcessManager.CheckedGet.";
+        // Every row the engine fixture registers into, auto-registers or removes.
+        internal static readonly string[] PrefixRows = { "throw", "twice", "same", "detached", "changed", "policy", "fault", "incompatible" };
+
         private static void CheckEngine()
         {
             Check(HLUnityCore.IsNull(), "engine fixture starts without logging singleton");
-            IDictionary registry = Registry; var rows = CopyRows(registry);
+            IDictionary registry = Registry;
             var singleton = typeof(MonoSingleton<HLUnityCore>).GetField("<Instance>k__BackingField", BindingFlags.Static | BindingFlags.NonPublic);
             object previousSingleton = singleton.GetValue(null);
-            var config = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
-            var gameObject = new GameObject("Lucid original ProcessManager checked-get fixture"); gameObject.SetActive(false);
-            var host = gameObject.AddComponent<HLUnityCore>();
-            const string hostName = "ProjectLucid.ProcessManager.GenuineHostFixture";
-            const string prefix = "ProjectLucid.ProcessManager.CheckedGet.";
+            const string hostName = HostName;
+            const string prefix = RowPrefix;
+            // Admission precedes every engine object and registry change. RestoreRows
+            // is shallow, so the fixture's own rows must have been absent; the host row
+            // is unregistered only when this fixture owns it.
+            foreach (string row in PrefixRows) VerificationFixtureOwnership.RequireAbsent(registry, prefix + row);
+            var registration = new VerificationFixtureOwnership.RegistryRow(hostName, previousSingleton);
+            var rows = CopyRows(registry);
+            HLUnityCoreConfigurationAsset config = null;
+            GameObject gameObject = null;
             var messages = new List<string>(); var stacks = new List<string>(); var codes = new List<int>();
             Action<string, string, int> capture = (message, stack, code) => { messages.Add(message); stacks.Add(stack); codes.Add(code); };
+            HLUnityCore host = null;
             try
             {
+                config = ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
+                gameObject = new GameObject("Lucid original ProcessManager checked-get fixture"); gameObject.SetActive(false);
+                host = gameObject.AddComponent<HLUnityCore>();
                 // Genuine inactive engine component; manually arranged singleton/config
                 // isolates lookup callbacks and does not assert Awake startup behavior.
                 singleton.SetValue(null, host); Field(typeof(HLUnityCore), "m_unityCoreConfigurationAsset").SetValue(host, config);
-                ProcessManager.RegisterSystem(host, hostName);
+                registration.Register(host);
                 Check(ReferenceEquals(HLUnityCore.Instance, host) && ReferenceEquals(ProcessManager.GetSystem<HLUnityCore>(hostName), host), "genuine host and named registry row");
                 host.AddLogExceptionHandler(capture);
                 Field(typeof(HLUnityCoreConfigurationAsset), "m_logInPlaceOfException").SetValue(config, false);
@@ -150,10 +164,10 @@ namespace ProjectLucid
             }
             finally
             {
-                try { host.RemoveLogExceptionHandler(capture); }
+                try { if (host != null) host.RemoveLogExceptionHandler(capture); }
                 finally
                 {
-                    try { ProcessManager.UnregisterSystem(hostName); }
+                    try { registration.Dispose(); }
                     finally
                     {
                         try { singleton.SetValue(null, previousSingleton); }
@@ -162,8 +176,8 @@ namespace ProjectLucid
                             try { RestoreRows(registry, rows); }
                             finally
                             {
-                                try { UnityEngine.Object.DestroyImmediate(gameObject); }
-                                finally { UnityEngine.Object.DestroyImmediate(config); }
+                                try { if (gameObject != null) UnityEngine.Object.DestroyImmediate(gameObject); }
+                                finally { if (config != null) UnityEngine.Object.DestroyImmediate(config); }
                             }
                         }
                     }

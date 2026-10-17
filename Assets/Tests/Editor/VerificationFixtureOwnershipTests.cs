@@ -1,7 +1,9 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using Hardlight;
+using HardlightProject;
 using NUnit.Framework;
 
 namespace ProjectLucid.Tests
@@ -55,37 +57,41 @@ namespace ProjectLucid.Tests
         [Test]
         public void CollisionRejectionKeepsOwnedSentinelObserversAndActionSubscription()
         {
-            // This sentinel is owned by this regression, under a fresh key;
-            // the attempted second fixture must treat it as borrowed state.
-            string name = "ProjectLucid.OwnershipSentinel." + Guid.NewGuid().ToString("N");
-            var sentinel = new Marker();
-            SystemRef untyped = ProcessManager.RegisterSystem(sentinel, name);
-            object row = Registry[name];
-            var typed = ProcessManager.GetSystemRef<Marker>(name);
-            int callbacks = 0, updates = 0;
-            Action<ISystem> shutdown = _ => callbacks++;
-            Action<Marker> typedShutdown = _ => callbacks++;
-            untyped.OnSystemShutdown += shutdown;
-            typed.OnSystemShutdown += typedShutdown;
-            sentinel.SubscribeToAction(SystemAction.Update, _ => updates++);
-            try
+            // The sentinel's subscription and dispatch create the Update row when it is absent.
+            using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
             {
-                sentinel.ProcessSystemAction(SystemAction.Update);
-                Assert.Throws<InvalidOperationException>(() => new VerificationFixtureOwnership.RegistryRow(name));
-                Assert.AreSame(row, Registry[name]);
-                Assert.AreSame(sentinel, untyped.GetSafe());
-                Assert.AreSame(sentinel, typed.GetSafe());
-                Assert.IsTrue(ProcessManager.IsSystemValid(name));
-                sentinel.ProcessSystemAction(SystemAction.Update);
-                Assert.AreEqual(2, updates);
-                Assert.AreEqual(0, callbacks);
-            }
-            finally
-            {
-                untyped.OnSystemShutdown -= shutdown;
-                typed.OnSystemShutdown -= typedShutdown;
-                ProcessManager.UnregisterSystem(sentinel);
-                if (ReferenceEquals(Registry[name], row) && untyped.IsNull()) Registry.Remove(name);
+                // This sentinel is owned by this regression, under a fresh key;
+                // the attempted second fixture must treat it as borrowed state.
+                string name = "ProjectLucid.OwnershipSentinel." + Guid.NewGuid().ToString("N");
+                var sentinel = new Marker();
+                SystemRef untyped = ProcessManager.RegisterSystem(sentinel, name);
+                object row = Registry[name];
+                var typed = ProcessManager.GetSystemRef<Marker>(name);
+                int callbacks = 0, updates = 0;
+                Action<ISystem> shutdown = _ => callbacks++;
+                Action<Marker> typedShutdown = _ => callbacks++;
+                untyped.OnSystemShutdown += shutdown;
+                typed.OnSystemShutdown += typedShutdown;
+                sentinel.SubscribeToAction(SystemAction.Update, _ => updates++);
+                try
+                {
+                    sentinel.ProcessSystemAction(SystemAction.Update);
+                    Assert.Throws<InvalidOperationException>(() => new VerificationFixtureOwnership.RegistryRow(name));
+                    Assert.AreSame(row, Registry[name]);
+                    Assert.AreSame(sentinel, untyped.GetSafe());
+                    Assert.AreSame(sentinel, typed.GetSafe());
+                    Assert.IsTrue(ProcessManager.IsSystemValid(name));
+                    sentinel.ProcessSystemAction(SystemAction.Update);
+                    Assert.AreEqual(2, updates);
+                    Assert.AreEqual(0, callbacks);
+                }
+                finally
+                {
+                    untyped.OnSystemShutdown -= shutdown;
+                    typed.OnSystemShutdown -= typedShutdown;
+                    ProcessManager.UnregisterSystem(sentinel);
+                    if (ReferenceEquals(Registry[name], row) && untyped.IsNull()) Registry.Remove(name);
+                }
             }
         }
 
@@ -124,52 +130,56 @@ namespace ProjectLucid.Tests
         [Test]
         public void RegistrationCallbackFailureAfterPublicationStillReleasesTheOwnedRow()
         {
-            string name = "ProjectLucid.PartialRegistration." + Guid.NewGuid().ToString("N");
-            string sentinelName = "ProjectLucid.PartialRegistrationSentinel." + Guid.NewGuid().ToString("N");
-            var sentinel = new Marker();
-            SystemRef sentinelReference = ProcessManager.RegisterSystem(sentinel, sentinelName);
-            object sentinelRow = Registry[sentinelName];
-            int sentinelShutdowns = 0, updates = 0, shutdowns = 0;
-            Action<ISystem> sentinelShutdown = _ => sentinelShutdowns++;
-            Action<ISystem> shutdown = _ => shutdowns++;
-            sentinelReference.OnSystemShutdown += sentinelShutdown;
-            sentinel.SubscribeToAction(SystemAction.Update, _ => updates++);
-            var marker = new Marker();
-            SystemRef reference = null;
-            try
+            // The sentinel's subscription and dispatch create the Update row when it is absent.
+            using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
             {
-                var scope = new VerificationFixtureOwnership.RegistryRow(name);
-                var error = Assert.Throws<ApplicationException>(() => scope.RegisterUsing(marker, () =>
+                string name = "ProjectLucid.PartialRegistration." + Guid.NewGuid().ToString("N");
+                string sentinelName = "ProjectLucid.PartialRegistrationSentinel." + Guid.NewGuid().ToString("N");
+                var sentinel = new Marker();
+                SystemRef sentinelReference = ProcessManager.RegisterSystem(sentinel, sentinelName);
+                object sentinelRow = Registry[sentinelName];
+                int sentinelShutdowns = 0, updates = 0, shutdowns = 0;
+                Action<ISystem> sentinelShutdown = _ => sentinelShutdowns++;
+                Action<ISystem> shutdown = _ => shutdowns++;
+                sentinelReference.OnSystemShutdown += sentinelShutdown;
+                sentinel.SubscribeToAction(SystemAction.Update, _ => updates++);
+                var marker = new Marker();
+                SystemRef reference = null;
+                try
                 {
-                    reference = ProcessManager.RegisterSystem(marker, name);
-                    reference.OnSystemShutdown += shutdown;
-                    throw new ApplicationException("after publish");
-                }));
-                Assert.AreEqual("after publish", error.Message);
-                Assert.AreSame(marker, reference.GetSafe());
-                scope.Dispose();
-                Assert.IsFalse(Registry.Contains(name));
-                Assert.IsTrue(reference.IsNull());
-                // UnregisterSystemInternal revokes the live untyped reference,
-                // which notifies its shutdown observers once.
-                Assert.AreEqual(1, shutdowns);
-                Assert.AreSame(sentinelRow, Registry[sentinelName]);
-                Assert.AreSame(sentinel, sentinelReference.GetSafe());
-                sentinel.ProcessSystemAction(SystemAction.Update);
-                Assert.AreEqual(1, updates);
-                Assert.AreEqual(0, sentinelShutdowns);
-            }
-            finally
-            {
-                if (reference != null)
-                {
-                    reference.OnSystemShutdown -= shutdown;
-                    ProcessManager.UnregisterSystem(marker);
-                    if (Registry.Contains(name) && reference.IsNull()) Registry.Remove(name);
+                    var scope = new VerificationFixtureOwnership.RegistryRow(name);
+                    var error = Assert.Throws<ApplicationException>(() => scope.RegisterUsing(marker, () =>
+                    {
+                        reference = ProcessManager.RegisterSystem(marker, name);
+                        reference.OnSystemShutdown += shutdown;
+                        throw new ApplicationException("after publish");
+                    }));
+                    Assert.AreEqual("after publish", error.Message);
+                    Assert.AreSame(marker, reference.GetSafe());
+                    scope.Dispose();
+                    Assert.IsFalse(Registry.Contains(name));
+                    Assert.IsTrue(reference.IsNull());
+                    // UnregisterSystemInternal revokes the live untyped reference,
+                    // which notifies its shutdown observers once.
+                    Assert.AreEqual(1, shutdowns);
+                    Assert.AreSame(sentinelRow, Registry[sentinelName]);
+                    Assert.AreSame(sentinel, sentinelReference.GetSafe());
+                    sentinel.ProcessSystemAction(SystemAction.Update);
+                    Assert.AreEqual(1, updates);
+                    Assert.AreEqual(0, sentinelShutdowns);
                 }
-                sentinelReference.OnSystemShutdown -= sentinelShutdown;
-                ProcessManager.UnregisterSystem(sentinel);
-                if (ReferenceEquals(Registry[sentinelName], sentinelRow) && sentinelReference.IsNull()) Registry.Remove(sentinelName);
+                finally
+                {
+                    if (reference != null)
+                    {
+                        reference.OnSystemShutdown -= shutdown;
+                        ProcessManager.UnregisterSystem(marker);
+                        if (Registry.Contains(name) && reference.IsNull()) Registry.Remove(name);
+                    }
+                    sentinelReference.OnSystemShutdown -= sentinelShutdown;
+                    ProcessManager.UnregisterSystem(sentinel);
+                    if (ReferenceEquals(Registry[sentinelName], sentinelRow) && sentinelReference.IsNull()) Registry.Remove(sentinelName);
+                }
             }
         }
 
@@ -400,6 +410,348 @@ namespace ProjectLucid.Tests
             finally
             {
                 Hardlight.Localisation.StringTable.OnRequestStringTable -= sentinel;
+            }
+        }
+
+        private static Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> Actions =>
+            VerificationFixtureOwnership.ActionRows.SharedActionLookup;
+
+        // Sets one shared action row aside so a control starts from an absent row,
+        // and puts the same row object back afterwards. A row the control leaves
+        // under that action is its own: removed when empty, otherwise reported.
+        private sealed class AsideActionRow : IDisposable
+        {
+            private readonly SystemAction m_action;
+            private readonly Dictionary<ISystem, Action<object>> m_aside;
+
+            public AsideActionRow(SystemAction action)
+            {
+                m_action = action;
+                if (Actions.TryGetValue(action, out m_aside)) Actions.Remove(action);
+            }
+
+            public void Dispose()
+            {
+                if (Actions.TryGetValue(m_action, out Dictionary<ISystem, Action<object>> left))
+                {
+                    if (left.Count != 0) throw new InvalidOperationException("Control left subscribers on its own row: " + m_action);
+                    Actions.Remove(m_action);
+                }
+                if (m_aside != null) Actions.Add(m_action, m_aside);
+            }
+        }
+
+        // SubscribeToAction creates the absent row and UnsubscribeFromAction keeps
+        // it empty: the old cleanup shape, an unsubscribe alone, leaves the row.
+        [Test]
+        public void ActionRowsRemoveAnAbsentRowTheFixtureCreated()
+        {
+            using (new AsideActionRow(SystemAction.Update))
+            {
+                var marker = new Marker();
+                var scope = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
+                marker.SubscribeToAction(SystemAction.Update, _ => { });
+                marker.UnsubscribeFromAction(SystemAction.Update);
+                Assert.IsTrue(Actions.TryGetValue(SystemAction.Update, out Dictionary<ISystem, Action<object>> row) && row.Count == 0,
+                    "Unsubscribing keeps the created empty row");
+                scope.Dispose();
+                Assert.IsFalse(Actions.ContainsKey(SystemAction.Update));
+            }
+        }
+
+        [Test]
+        public void ActionRowsRemoveTheCreatedRowWhenTheFixtureFailsAfterConstruction()
+        {
+            using (new AsideActionRow(SystemAction.Update))
+            {
+                var primary = new InvalidProgramException("owned failure after the constructor subscribed");
+                var error = Assert.Throws<InvalidProgramException>(() =>
+                {
+                    using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
+                    {
+                        EntityActivationManager manager = null;
+                        try
+                        {
+                            manager = new EntityActivationManager();
+                            Assert.IsTrue(Actions[SystemAction.Update].ContainsKey(manager), "The constructor subscribed");
+                            throw primary;
+                        }
+                        finally
+                        {
+                            if (manager != null) manager.UnsubscribeFromAction(SystemAction.Update);
+                        }
+                    }
+                });
+                Assert.AreSame(primary, error);
+                Assert.IsFalse(Actions.ContainsKey(SystemAction.Update));
+            }
+        }
+
+        // A cleanup that removes any empty row would also remove this borrowed one.
+        [Test]
+        public void ActionRowsKeepABorrowedEmptyRow()
+        {
+            using (new AsideActionRow(SystemAction.Update))
+            {
+                var borrowed = new Dictionary<ISystem, Action<object>>();
+                Actions.Add(SystemAction.Update, borrowed);
+                var marker = new Marker();
+                using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
+                {
+                    marker.SubscribeToAction(SystemAction.Update, _ => { });
+                    marker.UnsubscribeFromAction(SystemAction.Update);
+                }
+                Assert.AreSame(borrowed, Actions[SystemAction.Update]);
+                Assert.AreEqual(0, borrowed.Count);
+            }
+        }
+
+        [Test]
+        public void ActionRowsKeepABorrowedRowItsSubscribersAndCallbacks()
+        {
+            using (new AsideActionRow(SystemAction.Update))
+            {
+                var sentinel = new Marker();
+                var marker = new Marker();
+                int sentinelUpdates = 0;
+                Action<object> callback = _ => sentinelUpdates++;
+                sentinel.SubscribeToAction(SystemAction.Update, callback);
+                Dictionary<ISystem, Action<object>> borrowed = Actions[SystemAction.Update];
+                try
+                {
+                    using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
+                    {
+                        marker.SubscribeToAction(SystemAction.Update, _ => { });
+                        marker.UnsubscribeFromAction(SystemAction.Update);
+                    }
+                    Assert.AreSame(borrowed, Actions[SystemAction.Update]);
+                    Assert.AreEqual(1, borrowed.Count);
+                    Assert.AreSame(callback, borrowed[sentinel]);
+
+                    // A fixture subscription left in the borrowed row is reported, not removed.
+                    var scope = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
+                    Action<object> left = _ => { };
+                    marker.SubscribeToAction(SystemAction.Update, left);
+                    StringAssert.Contains("Update subscribers changed", Assert.Throws<InvalidOperationException>(scope.Dispose).Message);
+                    Assert.AreSame(borrowed, Actions[SystemAction.Update]);
+                    Assert.AreSame(left, borrowed[marker]);
+                    Assert.AreSame(callback, borrowed[sentinel]);
+                    Assert.AreEqual(0, sentinelUpdates);
+                }
+                finally
+                {
+                    marker.UnsubscribeFromAction(SystemAction.Update);
+                    sentinel.UnsubscribeFromAction(SystemAction.Update);
+                }
+            }
+        }
+
+        [Test]
+        public void ActionRowsLeaveUnrelatedActionRowsUntouched()
+        {
+            using (new AsideActionRow(SystemAction.Update))
+            {
+                var unrelated = new List<KeyValuePair<SystemAction, Dictionary<ISystem, Action<object>>>>(Actions);
+                var unrelatedPairs = unrelated.ConvertAll(row => new List<KeyValuePair<ISystem, Action<object>>>(row.Value));
+                var marker = new Marker();
+                using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
+                {
+                    marker.SubscribeToAction(SystemAction.Update, _ => { });
+                    marker.UnsubscribeFromAction(SystemAction.Update);
+                }
+                Assert.AreEqual(unrelated.Count, Actions.Count);
+                for (int i = 0; i < unrelated.Count; ++i)
+                {
+                    Assert.AreSame(unrelated[i].Value, Actions[unrelated[i].Key]);
+                    CollectionAssert.AreEqual(unrelatedPairs[i], new List<KeyValuePair<ISystem, Action<object>>>(unrelated[i].Value));
+                }
+            }
+        }
+
+        [Test]
+        public void ActionRowsKeepAndReportACreatedRowThatGainedASubscriber()
+        {
+            using (new AsideActionRow(SystemAction.Update))
+            {
+                var foreign = new Marker();
+                int updates = 0;
+                Action<object> callback = _ => updates++;
+                var scope = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
+                try
+                {
+                    foreign.SubscribeToAction(SystemAction.Update, callback);
+                    StringAssert.Contains("Update row gained subscribers", Assert.Throws<InvalidOperationException>(scope.Dispose).Message);
+                    Assert.AreSame(callback, Actions[SystemAction.Update][foreign]);
+                    Assert.AreEqual(0, updates);
+                }
+                finally
+                {
+                    foreign.UnsubscribeFromAction(SystemAction.Update);
+                }
+            }
+        }
+
+        // ReleaseEmptyRow inspects the untyped reference as well as each typed
+        // entry: GetSystemRef(name) hands out the untyped reference, and a removed
+        // row strands its work, because registration builds a new row. Before, an
+        // idle-looking untyped reference with observers or deferred work was removed.
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void ReleaseEmptyRowRefusesUntypedObserversAndDeferredWork(int state)
+        {
+            string name = "ProjectLucid.UntypedReleaseSentinel." + Guid.NewGuid().ToString("N");
+            VerificationFixtureOwnership.RequireAbsent(Registry, name);
+            SystemRef untyped = ProcessManager.GetSystemRef(name);
+            object row = Registry[name];
+            int calls = 0;
+            Action<ISystem> observer = _ => calls++;
+            if (state == 0) untyped.OnSystemStartup += observer;
+            if (state == 1) untyped.OnSystemShutdown += observer;
+            if (state == 2) untyped.InvokeOnValid(observer);
+            var marker = new Marker();
+            try
+            {
+                var error = Assert.Throws<InvalidOperationException>(() => VerificationFixtureOwnership.ReleaseEmptyRow(Registry, name, row));
+                StringAssert.Contains("retains state", error.Message);
+                Assert.AreSame(row, Registry[name]);
+                Assert.AreSame(untyped, ProcessManager.GetSystemRef(name, false));
+                Assert.AreEqual(0, calls);
+
+                // The retained row still delivers its work to a genuine registration once.
+                ProcessManager.RegisterSystem(marker, name);
+                Assert.AreSame(untyped, ProcessManager.GetSystemRef(name, false));
+                Assert.AreEqual(state == 1 ? 0 : 1, calls);
+                ProcessManager.UnregisterSystem(name);
+                Assert.AreEqual(1, calls);
+            }
+            finally
+            {
+                untyped.OnSystemStartup -= observer;
+                untyped.OnSystemShutdown -= observer;
+                ProcessManager.UnregisterSystem(name);
+            }
+            // With its own work gone the same row is idle and released.
+            VerificationFixtureOwnership.ReleaseEmptyRow(Registry, name, row);
+            Assert.IsFalse(Registry.Contains(name));
+        }
+
+        // The engine fixture registered its host and its CheckedGet rows directly,
+        // and unregistered the host name unconditionally. A live system or an
+        // observed null row under one of those names is now refused before any
+        // engine object, registry change or callback.
+        [TestCase(0)]
+        [TestCase(1)]
+        public void CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(int state)
+        {
+            string name = state == 0 ? ProcessManagerCheckedGetVerification.HostName
+                : ProcessManagerCheckedGetVerification.RowPrefix + ProcessManagerCheckedGetVerification.PrefixRows[0];
+            var sentinel = new Marker();
+            int startups = 0, shutdowns = 0, updates = 0;
+            Action<ISystem> startup = _ => startups++;
+            Action<ISystem> shutdown = _ => shutdowns++;
+            Action<object> update = _ => updates++;
+            using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
+            {
+                var lease = new VerificationFixtureOwnership.RegistryRow(name);
+                SystemRef untyped = state == 0 ? lease.Register(sentinel) : ProcessManager.GetSystemRef(name);
+                object row = Registry[name];
+                SystemRef<Marker> typed = ProcessManager.GetSystemRef<Marker>(name);
+                untyped.OnSystemStartup += startup;
+                untyped.OnSystemShutdown += shutdown;
+                if (state == 0) sentinel.SubscribeToAction(SystemAction.Update, update);
+                try
+                {
+                    var error = Assert.Throws<InvalidOperationException>(ProcessManagerCheckedGetVerification.Run);
+                    Assert.AreEqual("Fixture requires an absent registry row: " + name, error.Message);
+                    Assert.AreSame(row, Registry[name]);
+                    Assert.AreSame(untyped, ProcessManager.GetSystemRef(name, false));
+                    Assert.AreSame(typed, ProcessManager.GetSystemRef<Marker>(name, false));
+                    Assert.AreSame(state == 0 ? sentinel : null, untyped.GetSafe());
+                    Assert.AreSame(state == 0 ? sentinel : null, typed.GetSafe());
+                    if (state == 0) Assert.AreSame(update, Actions[SystemAction.Update][sentinel]);
+                    Assert.AreEqual(0, startups + shutdowns + updates);
+                }
+                finally
+                {
+                    untyped.OnSystemStartup -= startup;
+                    untyped.OnSystemShutdown -= shutdown;
+                    if (state == 0) sentinel.UnsubscribeFromAction(SystemAction.Update);
+                    if (state == 0) lease.Dispose();
+                    else VerificationFixtureOwnership.ReleaseEmptyRow(Registry, name, row);
+                }
+            }
+            Assert.IsFalse(Registry.Contains(name));
+        }
+
+        // Fault injection after acquisition: the pool lease returns only actions
+        // spawned inside it, including a reused LIFO slot, and leaves a borrowed
+        // lease and its parent graph in place; the failure propagates unchanged.
+        [Test]
+        public void ActionPoolLeaseReturnsOnlyItsOwnActionsAfterAFailure()
+        {
+            var borrowedParent = FSMStateChangeAction.Create(FSMActionReason.Forced);
+            var borrowed = FSMStateChangeAction.Create(FSMActionReason.TransitionFired, parentAction: borrowedParent);
+            try
+            {
+                int prior = Hardlight.Pooling.ObjectPool<FSMStateChangeAction>.UsedObjectCount;
+                var primary = new InvalidProgramException("owned failure after pool acquisition");
+                var error = Assert.Throws<InvalidProgramException>(() =>
+                {
+                    using (new VerificationFixtureOwnership.ActionPoolLease())
+                    {
+                        var released = FSMStateChangeAction.Create(FSMActionReason.Forced);
+                        released.Destroy();
+                        var reused = FSMStateChangeAction.Create(FSMActionReason.ClearUser);
+                        Assert.AreSame(released, reused, "LIFO reuse hands the released slot back out");
+                        var parent = FSMStateChangeAction.Create(FSMActionReason.Forced);
+                        FSMStateChangeAction.Create(FSMActionReason.TransitionFired, parentAction: parent).Clone();
+                        Assert.AreEqual(prior + 5, Hardlight.Pooling.ObjectPool<FSMStateChangeAction>.UsedObjectCount);
+                        throw primary;
+                    }
+                });
+                Assert.AreSame(primary, error);
+                Assert.AreEqual(prior, Hardlight.Pooling.ObjectPool<FSMStateChangeAction>.UsedObjectCount);
+                List<FSMStateChangeAction> used = VerificationFixtureOwnership.ActionPoolLease.UsedActions();
+                Assert.IsTrue(used.Contains(borrowed) && used.Contains(borrowedParent));
+                Assert.AreSame(borrowedParent, borrowed.ParentAction);
+                Assert.AreEqual(FSMActionReason.TransitionFired, borrowed.Reason);
+            }
+            finally
+            {
+                borrowed.Destroy(true);
+            }
+        }
+
+        private static Dictionary<int, string> s_leasedTable;
+
+        [Test]
+        public void StaticDictionaryLeaseRestoresTheAdmittedTableAfterAFailure()
+        {
+            string value = new string('a', 1);
+            var table = new Dictionary<int, string> { [1] = value };
+            s_leasedTable = table;
+            try
+            {
+                var primary = new InvalidProgramException("owned failure after a cached miss");
+                var error = Assert.Throws<InvalidProgramException>(() =>
+                {
+                    using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(VerificationFixtureOwnershipTests), nameof(s_leasedTable)))
+                    {
+                        s_leasedTable[2] = "miss";
+                        s_leasedTable[1] = "mutated";
+                        s_leasedTable = new Dictionary<int, string>();
+                        throw primary;
+                    }
+                });
+                Assert.AreSame(primary, error);
+                Assert.AreSame(table, s_leasedTable);
+                CollectionAssert.AreEqual(new[] { 1 }, table.Keys);
+                Assert.AreSame(value, table[1]);
+            }
+            finally
+            {
+                s_leasedTable = null;
             }
         }
     }

@@ -22,6 +22,8 @@ public static partial class HardlightEnumStringsVerification
         internal Row(string e, string f, string c, int[] k, string[] l, string[] n)
         { Enum=e; Field=f; Comparer=c; Keys=k; Literals=l; Names=n; }
     }
+    // Fault site for the EditMode cleanup control, after a miss is cached in the live table.
+    internal const string UnknownMissCachedSite = "HardlightEnumStringsVerification.UnknownMissCached";
     public static void Run() { Execute(); UnityEngine.Debug.Log("Original enum string registry verified checks=" + checks); }
     public static int RunManaged() { Execute(); return checks; }
     private static void Execute()
@@ -81,37 +83,43 @@ public static partial class HardlightEnumStringsVerification
                 ++entries;
             }
             Check(dictionary.Count==row.Keys.Length, "known lookups preserve dictionary");
-            foreach(int keyValue in new[]{0x1234,int.MaxValue,int.MinValue,-1,0})
+            // The probes below write to the live native table; the lease puts back its
+            // object, entries and value references even when a check fails midway.
+            using(new VerificationFixtureOwnership.StaticDictionaryLease(field))
             {
-                object key=Enum.ToObject(e,keyValue);
-                if(dictionary.Contains(key)) continue;
-                int oldCount=dictionary.Count;
-                string expected="0x"+unchecked((uint)keyValue).ToString("X8",CultureInfo.InvariantCulture);
-                string result=(string)get.Invoke(null,new[]{key});
-                Check(result==expected, "unknown enum uses original padded hex format");
-                Check(dictionary.Count==oldCount+1 && object.ReferenceEquals(dictionary[key],result), "unknown result cached through indexer");
-                Check(object.ReferenceEquals(get.Invoke(null,new[]{key}),result), "repeat unknown returns cached reference");
-                dictionary.Remove(key);
+                foreach(int keyValue in new[]{0x1234,int.MaxValue,int.MinValue,-1,0})
+                {
+                    object key=Enum.ToObject(e,keyValue);
+                    if(dictionary.Contains(key)) continue;
+                    int oldCount=dictionary.Count;
+                    string expected="0x"+unchecked((uint)keyValue).ToString("X8",CultureInfo.InvariantCulture);
+                    string result=(string)get.Invoke(null,new[]{key});
+                    Check(result==expected, "unknown enum uses original padded hex format");
+                    Check(dictionary.Count==oldCount+1 && object.ReferenceEquals(dictionary[key],result), "unknown result cached through indexer");
+                    VerificationFixtureOwnership.FaultPoint(UnknownMissCachedSite);
+                    Check(object.ReferenceEquals(get.Invoke(null,new[]{key}),result), "repeat unknown returns cached reference");
+                    dictionary.Remove(key);
+                }
+                object known=Enum.ToObject(e,row.Keys[0]);
+                object original=dictionary[known];
+                string injected=new string(new[]{'m','u','t','a','t','e','d'});
+                dictionary[known]=injected;
+                Check(object.ReferenceEquals(get.Invoke(null,new[]{known}),injected), "existing mutation observed");
+                dictionary[known]=null;
+                Check(get.Invoke(null,new[]{known})==null && dictionary.Contains(known), "existing null is present and returned");
+                dictionary[known]=original;
+                // Whole field replacement proves the helper reads the current mutable dictionary.
+                IDictionary replacement=(IDictionary)Activator.CreateInstance(field.FieldType);
+                field.SetValue(null,replacement);
+                try
+                {
+                    string value=(string)get.Invoke(null,new[]{known});
+                    string expected="0x"+unchecked((uint)row.Keys[0]).ToString("X8",CultureInfo.InvariantCulture);
+                    Check(value==expected && replacement.Count==1 && object.ReferenceEquals(replacement[known],value), "replacement dictionary receives authored fallback");
+                    Check(object.ReferenceEquals(get.Invoke(null,new[]{known}),value), "replacement fallback cached");
+                }
+                finally {field.SetValue(null,dictionary);}
             }
-            object known=Enum.ToObject(e,row.Keys[0]);
-            object original=dictionary[known];
-            string injected=new string(new[]{'m','u','t','a','t','e','d'});
-            dictionary[known]=injected;
-            Check(object.ReferenceEquals(get.Invoke(null,new[]{known}),injected), "existing mutation observed");
-            dictionary[known]=null;
-            Check(get.Invoke(null,new[]{known})==null && dictionary.Contains(known), "existing null is present and returned");
-            dictionary[known]=original;
-            // Whole field replacement proves the helper reads the current mutable dictionary.
-            IDictionary replacement=(IDictionary)Activator.CreateInstance(field.FieldType);
-            field.SetValue(null,replacement);
-            try
-            {
-                string value=(string)get.Invoke(null,new[]{known});
-                string expected="0x"+unchecked((uint)row.Keys[0]).ToString("X8",CultureInfo.InvariantCulture);
-                Check(value==expected && replacement.Count==1 && object.ReferenceEquals(replacement[known],value), "replacement dictionary receives authored fallback");
-                Check(object.ReferenceEquals(get.Invoke(null,new[]{known}),value), "replacement fallback cached");
-            }
-            finally {field.SetValue(null,dictionary);}
             Check(dictionary.Count==row.Keys.Length, "private checks restore original dictionary");
         }
         Check(entries==2676, "all original native entries exercised");

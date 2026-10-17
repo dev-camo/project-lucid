@@ -73,9 +73,7 @@ namespace ProjectLucid.Tests
             EntityActivationManager manager = null;
             // The constructor's SubscribeToAction creates a missing Update row (TryGetOrNew) and
             // UnsubscribeFromAction keeps empty rows, so a row this test created is removed again.
-            var lookup = (Dictionary<SystemAction, Dictionary<ISystem, Action<object>>>)typeof(ProcessManager)
-                .GetField("s_systemActionLookup", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-            bool hadUpdateRow = lookup.ContainsKey(SystemAction.Update);
+            var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
             s_trace.Clear(); s_answers.Clear();
             try
             {
@@ -120,8 +118,7 @@ namespace ProjectLucid.Tests
                     manager.UnsubscribeFromAction(SystemAction.Update);
                     manager.Clear();
                 }
-                if (!hadUpdateRow && lookup.TryGetValue(SystemAction.Update, out Dictionary<ISystem, Action<object>> row) && row.Count == 0)
-                    lookup.Remove(SystemAction.Update);
+                actionRows.Dispose();
                 foreach (Object item in owned) Object.DestroyImmediate(item);
                 s_trace.Clear(); s_answers.Clear();
             }

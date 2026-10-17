@@ -1004,5 +1004,80 @@ namespace ProjectLucid.Tests
         {
             EggmanLogoVerification.Run();
         }
+
+        // The shared tables the two enum-string verifiers write through the genuine
+        // GetString miss path: the three ActorDefinitionVerification tables and the
+        // first HardlightEnumStringsVerification row.
+        private static readonly string[] EnumVerifierTables =
+        {
+            "AbilityAimTargetTypeEnumToString", "ActorParticleTriggerTypeEnumToString",
+            "ParticleEffectTypeEnumToString", "LevelSetupTypesEnumToString",
+        };
+
+        // Each table's dictionary object, then its keys and value references in order.
+        private static System.Collections.Generic.List<object> EnumTables()
+        {
+            var state = new System.Collections.Generic.List<object>();
+            foreach (string name in EnumVerifierTables)
+            {
+                var table = (IDictionary)typeof(HardlightProject.HardlightEnumExtensions)
+                    .GetField(name, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null);
+                state.Add(table);
+                foreach (DictionaryEntry entry in table) { state.Add(entry.Key); state.Add(entry.Value); }
+            }
+            return state;
+        }
+
+        private static void AssertEnumTables(System.Collections.Generic.List<object> before, string step)
+        {
+            System.Collections.Generic.List<object> after = EnumTables();
+            Assert.That(after.Count, Is.EqualTo(before.Count), step + ": table entry count");
+            for (int i = 0; i < before.Count; ++i)
+                Assert.That(before[i] is System.Enum ? Equals(before[i], after[i]) : ReferenceEquals(before[i], after[i]), Is.True, step + ": entry " + i);
+        }
+
+        // Before their leases, ActorDefinitionVerification grew three tables by one
+        // cached miss each and a later HardlightEnumStringsVerification run failed at
+        // 'native initializer entry count'. Both orders, each twice.
+        [Test]
+        public void EnumStringVerifiersLeaveTheNativeTablesAsFoundInEitherOrder()
+        {
+            System.Collections.Generic.List<object> before = EnumTables();
+            Assert.That(ActorDefinitionVerification.RunManaged(), Is.EqualTo(100));
+            AssertEnumTables(before, "actor first");
+            HardlightEnumStringsVerification.Run();
+            AssertEnumTables(before, "enum strings after actor");
+            HardlightEnumStringsVerification.Run();
+            AssertEnumTables(before, "enum strings twice");
+            Assert.That(ActorDefinitionVerification.RunManaged(), Is.EqualTo(100));
+            AssertEnumTables(before, "actor after enum strings");
+        }
+
+        // A failure after a miss is cached still returns every table to its admitted
+        // entries, so the next enum-string run sees the native tables.
+        [TestCase(0)]
+        [TestCase(1)]
+        public void EnumStringVerifierFailuresStillRestoreTheNativeTables(int verifier)
+        {
+            System.Collections.Generic.List<object> before = EnumTables();
+            var primary = new System.InvalidProgramException("injected after a cached miss");
+            string site = verifier == 0 ? HardlightEnumStringsVerification.UnknownMissCachedSite : ActorDefinitionVerification.ParticleDisplayCachedSite;
+            VerificationFixtureOwnership.FaultInjection = reached => { if (reached == site) throw primary; };
+            try
+            {
+                var error = Assert.Throws<System.InvalidProgramException>(() =>
+                {
+                    if (verifier == 0) HardlightEnumStringsVerification.Run();
+                    else ActorDefinitionVerification.RunManaged();
+                });
+                Assert.That(error, Is.SameAs(primary));
+            }
+            finally
+            {
+                VerificationFixtureOwnership.FaultInjection = null;
+            }
+            AssertEnumTables(before, "after the injected failure");
+            Assert.DoesNotThrow(HardlightEnumStringsVerification.Run);
+        }
     }
 }

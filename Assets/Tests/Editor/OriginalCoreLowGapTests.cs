@@ -75,42 +75,46 @@ namespace ProjectLucid.Tests
         [Test]
         public void ForeignPhotoHashLeavesTheMatchingPhotoInPlace()
         {
-            GameCenterLocalPlayer local = ShippingGameCenterObjects.CreateLocalPlayer();
-            var holder = (IGameCenterLocalPlayerReferencesHolder)local;
-            var listener = (GameCenterLocalPlayerListenerStub)holder.GameCenterLocalPlayerListener;
-            bool raising = false;
-            int foreignRaised = 0;
-            Action<int, bool> raiseForeign = (hash, success) =>
+            // The constructor subscribes to AppInitialise and AppShutdown; own those rows first.
+            using (new VerificationFixtureOwnership.ActionRows(SystemAction.AppInitialise, SystemAction.AppShutdown))
             {
-                if (raising) return;
-                raising = true;
-                try { listener.TriggerLoadPhotoForSizeEvent(hash ^ 1, null); ++foreignRaised; }
-                finally { raising = false; }
-            };
-            listener.OnLoadPhotoForSizeCompleted += raiseForeign;
-            try
-            {
-                Assert.That(Player.TryParseProperties("lucid-owned|Owned", "lucid-owned", holder, out Player player), Is.True);
-                int callbacks = 0;
-                bool reportedSuccess = false;
-                Texture2D reportedPhoto = null;
-                var routine = player.LoadPhotoForSize(PhotoSize.PhotoSizeNormal, (success, photo) =>
+                GameCenterLocalPlayer local = ShippingGameCenterObjects.CreateLocalPlayer();
+                var holder = (IGameCenterLocalPlayerReferencesHolder)local;
+                var listener = (GameCenterLocalPlayerListenerStub)holder.GameCenterLocalPlayerListener;
+                bool raising = false;
+                int foreignRaised = 0;
+                Action<int, bool> raiseForeign = (hash, success) =>
                 {
-                    ++callbacks;
-                    reportedSuccess = success;
-                    reportedPhoto = photo;
-                });
-                Assert.That(routine.MoveNext(), Is.False, "the shipping stub completes without a yield");
-                Assert.That(foreignRaised, Is.EqualTo(1));
-                Assert.That(callbacks, Is.EqualTo(1));
-                Assert.That(reportedSuccess, Is.True);
-                Assert.That(ReferenceEquals(reportedPhoto, null), Is.False, "the foreign null photo was not stored");
-                Assert.That(reportedPhoto == Texture2D.whiteTexture, Is.True, "the stub's matching photo is reported");
-            }
-            finally
-            {
-                listener.OnLoadPhotoForSizeCompleted -= raiseForeign;
-                ProcessManager.UnsubscribeFromAllActions(local);
+                    if (raising) return;
+                    raising = true;
+                    try { listener.TriggerLoadPhotoForSizeEvent(hash ^ 1, null); ++foreignRaised; }
+                    finally { raising = false; }
+                };
+                listener.OnLoadPhotoForSizeCompleted += raiseForeign;
+                try
+                {
+                    Assert.That(Player.TryParseProperties("lucid-owned|Owned", "lucid-owned", holder, out Player player), Is.True);
+                    int callbacks = 0;
+                    bool reportedSuccess = false;
+                    Texture2D reportedPhoto = null;
+                    var routine = player.LoadPhotoForSize(PhotoSize.PhotoSizeNormal, (success, photo) =>
+                    {
+                        ++callbacks;
+                        reportedSuccess = success;
+                        reportedPhoto = photo;
+                    });
+                    Assert.That(routine.MoveNext(), Is.False, "the shipping stub completes without a yield");
+                    Assert.That(foreignRaised, Is.EqualTo(1));
+                    Assert.That(callbacks, Is.EqualTo(1));
+                    Assert.That(reportedSuccess, Is.True);
+                    Assert.That(ReferenceEquals(reportedPhoto, null), Is.False, "the foreign null photo was not stored");
+                    Assert.That(reportedPhoto == Texture2D.whiteTexture, Is.True, "the stub's matching photo is reported");
+                }
+                finally
+                {
+                    listener.OnLoadPhotoForSizeCompleted -= raiseForeign;
+                    ProcessManager.UnsubscribeFromAllActions(local);
+                }
             }
         }
 

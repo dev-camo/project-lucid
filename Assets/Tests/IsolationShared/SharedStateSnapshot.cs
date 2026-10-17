@@ -1,0 +1,179 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using Hardlight;
+
+namespace ProjectLucid.Tests
+{
+    // The process-wide state test fixtures borrow: every ProcessManager system
+    // row with its untyped and typed references, their observers and deferred
+    // work, each live FSMManager's machines, the action subscription table and
+    // dispatch flag, the HardlightEnumExtensions EnumToString caches and the
+    // ConditionalOutput toggle observers. Capture reads fields only, so it
+    // creates no row, runs no callback and consumes no deferred work.
+    //
+    // Left out on purpose: ProcessManager.s_actionList, a scratch list each
+    // dispatch clears before use and nothing else reads; and the shared
+    // ObjectPool<FSMStateChangeAction>, whose leases original FSM storage keeps
+    // for its state history by design.
+    public sealed class SharedStateSnapshot
+    {
+        private const BindingFlags StaticFields = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        private const BindingFlags DeclaredFields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        private static readonly string[] ReferenceFields = { "m_system", "m_isystem" };
+        private static readonly string[] ObserverFields = { "OnSystemStartup", "OnSystemShutdown" };
+
+        private readonly Dictionary<string, object[]> m_state = new Dictionary<string, object[]>();
+        private readonly List<string> m_paths = new List<string>();
+
+        private void Add(string path, params object[] values)
+        {
+            m_state.Add(path, values);
+            m_paths.Add(path);
+        }
+
+        public static SharedStateSnapshot Capture()
+        {
+            var snapshot = new SharedStateSnapshot();
+            snapshot.CaptureRegistry();
+            snapshot.CaptureActions();
+            snapshot.CaptureEnumCaches();
+            snapshot.Add("ConditionalOutput.OnConditionalLoggerToggled",
+                Invocation((Delegate)typeof(ConditionalOutput).GetField("OnConditionalLoggerToggled", StaticFields).GetValue(null)));
+            return snapshot;
+        }
+
+        private void CaptureRegistry()
+        {
+            var registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", StaticFields).GetValue(null);
+            var names = new List<object>();
+            foreach (DictionaryEntry row in registry)
+            {
+                string path = "system row '" + row.Key + "'";
+                names.Add(row.Key);
+                object untyped = Read(row.Value, "SystemRef");
+                var typed = (IDictionary)Read(row.Value, "SystemRefDictionary");
+                Add(path, row.Value, untyped, typed);
+                AddReference(path + " untyped reference", untyped);
+                var typedNames = new List<object>();
+                foreach (DictionaryEntry entry in typed)
+                {
+                    typedNames.Add(entry.Key);
+                    AddReference(path + " typed reference '" + entry.Key + "'", entry.Value);
+                }
+                Add(path + " typed reference names", typedNames.ToArray());
+                if (ReadReference(untyped, "m_isystem") is FSMManager manager)
+                {
+                    Add(path + " FSMManager machines", Pairs((IDictionary)Read(manager, "m_fsmLookUp")));
+                    Add(path + " FSMManager reference counts", Pairs((IDictionary)Read(manager, "m_fsmRefs")));
+                }
+            }
+            Add("system row order", names.ToArray());
+        }
+
+        private void AddReference(string path, object reference)
+        {
+            var values = new List<object> { reference };
+            foreach (string field in ReferenceFields) values.Add(ReadReference(reference, field));
+            Add(path, values.ToArray());
+            foreach (string field in ObserverFields)
+                Add(path + " " + field + " observers", Invocation((Delegate)ReadReference(reference, field)));
+            // FastAction<T> keeps its listeners in m_invocationList.
+            object deferred = ReadReference(reference, "m_actionOnSystemValid");
+            var deferredValues = new List<object> { deferred };
+            if (deferred != null)
+                foreach (object listener in (IList)FindField(deferred.GetType(), "m_invocationList").GetValue(deferred)) deferredValues.Add(listener);
+            Add(path + " deferred InvokeOnValid work", deferredValues.ToArray());
+        }
+
+        private void CaptureActions()
+        {
+            // Subscriber order within a row is dispatch order and is compared; the
+            // order of the rows themselves is never observable and is not.
+            var lookup = (IDictionary)typeof(ProcessManager).GetField("s_systemActionLookup", StaticFields).GetValue(null);
+            foreach (DictionaryEntry row in lookup)
+            {
+                Add("action row " + row.Key, row.Value);
+                Add("action row " + row.Key + " subscribers", Pairs((IDictionary)row.Value));
+            }
+            Add("action dispatch in progress", typeof(ProcessManager).GetField("s_systemActionInProgress", StaticFields).GetValue(null));
+        }
+
+        // The original GetString overloads cache each miss in these tables.
+        private void CaptureEnumCaches()
+        {
+            Type owner = typeof(HardlightProject.HardlightEnumExtensions);
+            foreach (FieldInfo field in owner.GetFields(StaticFields | BindingFlags.DeclaredOnly))
+            {
+                if (!(field.GetValue(null) is IDictionary cache)) continue;
+                Add("HardlightEnumExtensions." + field.Name, cache);
+                Add("HardlightEnumExtensions." + field.Name + " entries", Pairs(cache));
+            }
+        }
+
+        private static object Read(object value, string field) => FindField(value.GetType(), field).GetValue(value);
+
+        private static FieldInfo FindField(Type type, string field)
+        {
+            for (; type != null; type = type.BaseType)
+            {
+                FieldInfo found = type.GetField(field, DeclaredFields);
+                if (found != null) return found;
+            }
+            throw new MissingFieldException(field);
+        }
+
+        // SystemRef derives from SystemRef<ISystem>; the fields live on the generic base.
+        private static object ReadReference(object reference, string field)
+        {
+            Type type = reference.GetType();
+            while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
+            return type.GetField(field, DeclaredFields).GetValue(reference);
+        }
+
+        private static object[] Invocation(Delegate value) => value == null ? Array.Empty<object>() : value.GetInvocationList();
+
+        private static object[] Pairs(IDictionary dictionary)
+        {
+            var values = new List<object>();
+            foreach (DictionaryEntry entry in dictionary)
+            {
+                values.Add(entry.Key);
+                values.Add(entry.Value);
+            }
+            return values.ToArray();
+        }
+
+        // Reference types by identity; value types and strings by value.
+        private static bool Same(object before, object after)
+        {
+            if (ReferenceEquals(before, after)) return true;
+            if (before == null || after == null) return false;
+            if (before is string || before.GetType().IsValueType) return before.Equals(after);
+            return false;
+        }
+
+        private static bool Same(object[] before, object[] after)
+        {
+            if (before.Length != after.Length) return false;
+            for (int i = 0; i < before.Length; ++i)
+                if (!Same(before[i], after[i])) return false;
+            return true;
+        }
+
+        // Null when nothing changed; otherwise every changed, removed and added path.
+        public string DifferenceFrom(SharedStateSnapshot before)
+        {
+            var changes = new List<string>();
+            foreach (string path in before.m_paths)
+            {
+                if (!m_state.TryGetValue(path, out object[] now)) changes.Add("removed " + path);
+                else if (!Same(before.m_state[path], now)) changes.Add("changed " + path);
+            }
+            foreach (string path in m_paths)
+                if (!before.m_state.ContainsKey(path)) changes.Add("added " + path);
+            return changes.Count == 0 ? null : string.Join("; ", changes);
+        }
+    }
+}

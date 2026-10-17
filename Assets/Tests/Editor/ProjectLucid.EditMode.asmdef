@@ -33,7 +33,8 @@
     "HLAutoPlay.Runtime",
     "HLPhysics.Runtime",
     "HLNotifications.Runtime",
-    "HLEventSystems.Runtime"
+    "HLEventSystems.Runtime",
+    "ProjectLucid.SharedStateIsolation"
   ],
   "includePlatforms": [
     "Editor"

@@ -10,6 +10,10 @@ namespace ProjectLucid
     // methods. Test subclasses expose virtual dispatch; they are not game states.
     public static class FSMStateVerification
     {
+        // Fault sites for the EditMode cleanup controls, each after shared-pool actions are leased.
+        internal const string TransitionsLeasedSite = "FSMStateVerification.VerifyLifecycleAndSelection";
+        internal const string FailureLeasedSite = "FSMStateVerification.VerifyFailureAndMutation";
+
         public static void Run()
         {
             VerifyRegistrationAndDefaults();
@@ -51,78 +55,86 @@ namespace ProjectLucid
 
         private static void VerifyLifecycleAndSelection()
         {
-            var fsm = Machine("lifecycle");
-            var trace = new List<string>();
-            var from = new TraceState(fsm, "from", trace);
-            var to = new TraceState(fsm, "to", trace);
-            var first = new TraceTransition(fsm, "first", trace);
-            var second = new TraceTransition(fsm, "second", trace) { Fires = true };
-            var third = new TraceTransition(fsm, "third", trace) { Fires = true };
-            var view = from.GetStateTransitions();
-            from.AddTransition(first, to);
-            from.AddTransition(second, to);
-            from.AddTransition(third, from);
-            Check(view.Count == 3 && !ReferenceEquals(view, from.GetStateTransitions()), "read-only views reflect list changes");
-            Throws<NotSupportedException>(() => ((ICollection<FSMStateTransition>)view).Add(new FSMStateTransition(first, to)), "view prohibits mutation");
-            var user = new FSMUser(new FSMStorage(0));
-            var original = FSMStateChangeAction.Create(FSMActionReason.Forced);
-            from.OnEnter(user, original);
-            Trace(trace, "first.enter", "second.enter", "third.enter", "from.enter");
-            trace.Clear();
-            from.OnLeave(user, original);
-            Trace(trace, "first.leave", "second.leave", "third.leave", "from.leave");
-            trace.Clear();
-            var context = new FSMUpdateContext(3f, FSMUpdateType.FixedUpdate);
-            from.Update(user, context);
-            Trace(trace, "from.update:3:FixedUpdate");
-            trace.Clear();
-            var action = from.ShouldTransition(user, context);
-            Trace(trace, "first.check:3:FixedUpdate", "second.check:3:FixedUpdate", "second.fire");
-            Check(action != null && ReferenceEquals(action.FromState, from) && ReferenceEquals(action.ToState, to) && ReferenceEquals(action.TransitionThatFired, second), "first true transition action identity");
-            Check(ReferenceEquals(second.FiredAction, action) && ReferenceEquals(second.FiredUser, user) && second.FiredContext.DeltaTime == 3f && second.FiredContext.UpdateType == FSMUpdateType.FixedUpdate, "fire callback receives original context and action");
-            Check(action.Reason == FSMActionReason.TransitionFired && action.ParentAction == null && action.Context == null, "native action defaults");
-            Check(from.FinishChecks == 0 && from.EndChecks == 0, "transition checks do not consult completion hooks");
-            action.Destroy();
-            first.Fires = false; second.Fires = false; third.Fires = false;
-            trace.Clear();
-            Check(from.ShouldTransition(user, context) == null, "no true transition returns null");
-            Trace(trace, "first.check:3:FixedUpdate", "second.check:3:FixedUpdate", "third.check:3:FixedUpdate");
-            from.AddTransition(first, null);
-            trace.Clear();
-            from.OnEnter(user, original);
-            Trace(trace, "first.enter", "second.enter", "third.enter", "first.enter", "from.enter");
-            Check(view.Count == 4, "duplicate transition attachment retained");
-            var nullDestination = new TraceState(fsm, "null-destination", trace);
-            nullDestination.AddTransition(second, null); second.Fires = true;
-            action = nullDestination.ShouldTransition(user, context);
-            Check(action != null && action.ToState == null, "true transition may target null");
-            action.Destroy(); original.Destroy(); user.DestroyUser();
+            using (new VerificationFixtureOwnership.ActionPoolLease())
+            {
+                var fsm = Machine("lifecycle");
+                var trace = new List<string>();
+                var from = new TraceState(fsm, "from", trace);
+                var to = new TraceState(fsm, "to", trace);
+                var first = new TraceTransition(fsm, "first", trace);
+                var second = new TraceTransition(fsm, "second", trace) { Fires = true };
+                var third = new TraceTransition(fsm, "third", trace) { Fires = true };
+                var view = from.GetStateTransitions();
+                from.AddTransition(first, to);
+                from.AddTransition(second, to);
+                from.AddTransition(third, from);
+                Check(view.Count == 3 && !ReferenceEquals(view, from.GetStateTransitions()), "read-only views reflect list changes");
+                Throws<NotSupportedException>(() => ((ICollection<FSMStateTransition>)view).Add(new FSMStateTransition(first, to)), "view prohibits mutation");
+                var user = new FSMUser(new FSMStorage(0));
+                var original = FSMStateChangeAction.Create(FSMActionReason.Forced);
+                from.OnEnter(user, original);
+                Trace(trace, "first.enter", "second.enter", "third.enter", "from.enter");
+                trace.Clear();
+                from.OnLeave(user, original);
+                Trace(trace, "first.leave", "second.leave", "third.leave", "from.leave");
+                trace.Clear();
+                var context = new FSMUpdateContext(3f, FSMUpdateType.FixedUpdate);
+                from.Update(user, context);
+                Trace(trace, "from.update:3:FixedUpdate");
+                trace.Clear();
+                var action = from.ShouldTransition(user, context);
+                VerificationFixtureOwnership.FaultPoint(TransitionsLeasedSite);
+                Trace(trace, "first.check:3:FixedUpdate", "second.check:3:FixedUpdate", "second.fire");
+                Check(action != null && ReferenceEquals(action.FromState, from) && ReferenceEquals(action.ToState, to) && ReferenceEquals(action.TransitionThatFired, second), "first true transition action identity");
+                Check(ReferenceEquals(second.FiredAction, action) && ReferenceEquals(second.FiredUser, user) && second.FiredContext.DeltaTime == 3f && second.FiredContext.UpdateType == FSMUpdateType.FixedUpdate, "fire callback receives original context and action");
+                Check(action.Reason == FSMActionReason.TransitionFired && action.ParentAction == null && action.Context == null, "native action defaults");
+                Check(from.FinishChecks == 0 && from.EndChecks == 0, "transition checks do not consult completion hooks");
+                action.Destroy();
+                first.Fires = false; second.Fires = false; third.Fires = false;
+                trace.Clear();
+                Check(from.ShouldTransition(user, context) == null, "no true transition returns null");
+                Trace(trace, "first.check:3:FixedUpdate", "second.check:3:FixedUpdate", "third.check:3:FixedUpdate");
+                from.AddTransition(first, null);
+                trace.Clear();
+                from.OnEnter(user, original);
+                Trace(trace, "first.enter", "second.enter", "third.enter", "first.enter", "from.enter");
+                Check(view.Count == 4, "duplicate transition attachment retained");
+                var nullDestination = new TraceState(fsm, "null-destination", trace);
+                nullDestination.AddTransition(second, null); second.Fires = true;
+                action = nullDestination.ShouldTransition(user, context);
+                Check(action != null && action.ToState == null, "true transition may target null");
+                action.Destroy(); original.Destroy(); user.DestroyUser();
+            }
         }
 
         private static void VerifyFailureAndMutation()
         {
-            var fsm = Machine("failure");
-            var trace = new List<string>();
-            var state = new TraceState(fsm, "state", trace);
-            var transition = new TraceTransition(fsm, "throw", trace) { Fires = true, ThrowOnFire = true };
-            state.AddTransition(transition, state);
-            var user = new FSMUser(new FSMStorage(0));
-            int before = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
-            Throws<InvalidOperationException>(() => state.ShouldTransition(user, new FSMUpdateContext(1f)), "fire failure propagates");
-            Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before + 1, "fire failure leaves action allocated");
-            transition.FiredAction.Destroy();
-            var changing = new TraceState(fsm, "changing", trace);
-            var mutate = new TraceTransition(fsm, "mutate", trace);
-            changing.AddTransition(mutate, state);
-            mutate.OnEntering = () => changing.AddTransition(transition, state);
-            trace.Clear();
-            Throws<InvalidOperationException>(() => changing.OnEnter(user, null), "list mutation during lifecycle follows original enumerator checks");
-            Trace(trace, "mutate.enter");
-            var invalid = new TraceState(fsm, "invalid", trace);
-            invalid.AddTransition(null, null);
-            Check(invalid.GetStateTransitions().Count == 1, "null attachment accepted");
-            Throws<NullReferenceException>(() => invalid.OnEnter(user, null), "null transition fails when used");
-            user.DestroyUser();
+            using (new VerificationFixtureOwnership.ActionPoolLease())
+            {
+                var fsm = Machine("failure");
+                var trace = new List<string>();
+                var state = new TraceState(fsm, "state", trace);
+                var transition = new TraceTransition(fsm, "throw", trace) { Fires = true, ThrowOnFire = true };
+                state.AddTransition(transition, state);
+                var user = new FSMUser(new FSMStorage(0));
+                int before = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
+                Throws<InvalidOperationException>(() => state.ShouldTransition(user, new FSMUpdateContext(1f)), "fire failure propagates");
+                VerificationFixtureOwnership.FaultPoint(FailureLeasedSite);
+                Check(ObjectPool<FSMStateChangeAction>.UsedObjectCount == before + 1, "fire failure leaves action allocated");
+                transition.FiredAction.Destroy();
+                var changing = new TraceState(fsm, "changing", trace);
+                var mutate = new TraceTransition(fsm, "mutate", trace);
+                changing.AddTransition(mutate, state);
+                mutate.OnEntering = () => changing.AddTransition(transition, state);
+                trace.Clear();
+                Throws<InvalidOperationException>(() => changing.OnEnter(user, null), "list mutation during lifecycle follows original enumerator checks");
+                Trace(trace, "mutate.enter");
+                var invalid = new TraceState(fsm, "invalid", trace);
+                invalid.AddTransition(null, null);
+                Check(invalid.GetStateTransitions().Count == 1, "null attachment accepted");
+                Throws<NullReferenceException>(() => invalid.OnEnter(user, null), "null transition fails when used");
+                user.DestroyUser();
+            }
         }
 
         private sealed class TraceState : FSMState
