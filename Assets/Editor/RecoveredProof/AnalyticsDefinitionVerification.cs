@@ -39,7 +39,7 @@ namespace ProjectLucid
             Check((int)band.Attributes == 1057026 && band.BaseType == typeof(object), "original sealed serializable nested band");
             Check((int)group.Attributes == 1048577 && group.BaseType == typeof(DefinitionDataType<string, AnalyticsConfiguration>), "original group complete genuine base");
             Check((int)evt.Attributes == 1048577 && evt.BaseType == typeof(ScriptableObjectWithGuid), "original event genuine GUID base");
-            Check((int)utils.Attributes == 1048577 && utils.BaseType == typeof(object), "original utility class flags; API subset explicitly incomplete");
+            Check((int)utils.Attributes == 1048577 && utils.BaseType == typeof(object), "original utility class flags");
             Options(config, Option.ArrayBoundsChecks, Option.NullChecks); Options(band, Option.NullChecks, Option.ArrayBoundsChecks); Options(group, Option.ArrayBoundsChecks, Option.NullChecks); Options(evt, Option.NullChecks, Option.ArrayBoundsChecks);
             var fields = config.GetFields(BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).OrderBy(x => x.MetadataToken).ToArray();
             Check(fields.Select(x => x.Name).SequenceEqual(new[] { "m_blueCoinsBands", "m_rewardTrackXPBands", "m_buttonsToTrack" }) && fields.Select(x => x.FieldType).SequenceEqual(new[] { typeof(AnalyticsConfiguration.AnalyticsBand[]), typeof(AnalyticsConfiguration.AnalyticsBand[]), typeof(UIModernEvent[]) }), "full original three ordered configuration fields");
@@ -51,9 +51,14 @@ namespace ProjectLucid
             {
                 var attr = row.Type.GetCustomAttribute<CreateAssetMenuAttribute>(); Check(attr != null && attr.fileName == row.File && attr.menuName == row.Menu && attr.order == row.Order, row.Type.Name + " exact asset menu metadata");
             }
-            foreach (MethodInfo method in utils.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
-                Check(method.IsGenericMethodDefinition && method.GetGenericArguments().Single().GetGenericParameterConstraints().SequenceEqual(new[] { typeof(UObject) }) && method.GetParameters().Single().Name == "name", "genuine helper Unity object constraint and original parameter name");
-            Check(utils.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly).Select(x => x.Name).SequenceEqual(new[] { "FindByName", "FindByNameSafe" }), "only traced two static original helper methods; remaining32 original methods unresolved");
+            // ObjectUtils is now fully restored: the name-lookup pair keeps its Unity
+            // object constraint and parameter name, and the whole static surface
+            // follows MethodDefs 0x06001216..0x06001237 in order (private 0x06001230/31).
+            MethodInfo[] utilityMethods = utils.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(x => x.MetadataToken).ToArray();
+            foreach (MethodInfo method in utilityMethods.Where(x => x.Name == "FindByName" || x.Name == "FindByNameSafe"))
+                Check(method.IsPublic && method.IsGenericMethodDefinition && method.GetGenericArguments().Single().GetGenericParameterConstraints().SequenceEqual(new[] { typeof(UObject) }) && method.GetParameters().Single().Name == "name", "genuine helper Unity object constraint and original parameter name");
+            string[] originalUtilityMethods = { "FindObjectOfType", "FindObjectsOfType", "FindObjectsOfTypeAll", "GetAllObjectsOfTypeFromScene", "GetComponentInChildren", "GetComponentsInChildrenNonRecursive", "GetComponentInParent", "GetComponentInSelfOrChildren", "GetComponentInSelfOrParent", "FindComponentInTree", "FindComponentInTree", "FindComponentInRaycastHits", "SpawnPrefab", "SpawnPrefab", "SpawnPrefab", "SpawnPrefab", "FindInChildren", "FindTagInChildren", "GetGameObjectPath", "EnsureComponent", "SetLayerRecursively", "SetLayerRecursively", "SetChildrenActive", "DestroyChildren", "SortChildrenByName", "GameObjectsHierarchySort", "GetGlobalHierarchyIndex", "GetDepthInHierarchy", "ActionForEachChildAtDepth", "GetAllChildren_LeafFirst", "AddMeshFilterAndRenderer", "CopyComponent", "FindByName", "FindByNameSafe" };
+            Check(utilityMethods.Select(x => x.Name).SequenceEqual(originalUtilityMethods) && utilityMethods.Count(x => x.IsPrivate) == 2 && utilityMethods[26].IsPrivate && utilityMethods[27].IsPrivate, "full original 34 ordered static methods 0x06001216..0x06001237 with the two private hierarchy helpers");
         }
         public static int RunManaged()
         {
