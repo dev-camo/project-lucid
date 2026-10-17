@@ -3441,3 +3441,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationLifecycleRowTests.BorrowedRowReleaseRemovesOnlyClearedTypedEntriesAddedWhileBorrowed",
     "ProjectLucid.Tests.VerificationLifecycleRowTests.EngineProofRefusesAnObservedDormantHostRowBeforeAnyStep",
 )
+
+
+# CharacterTransition_Target.DoUpdate (Game.Runtime 0600179e) reads the active homing target.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalCharacterTransitionTargetTests.DoUpdateReadsTheActiveHomingTargetAndNeverThePendingCandidate",
+    "ProjectLucid.Tests.OriginalCharacterTransitionTargetTests.DoUpdateTestsTheActiveTargetObjectThenTypeDistanceAndSurfaceInOriginalOrder",
+)

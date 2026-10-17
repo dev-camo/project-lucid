@@ -20,12 +20,14 @@ namespace HardlightProject
 			if (base.DoUpdate(user, updateContext))
 				return true;
 			Character character = user.GetAs<Character>();
-			CharacterTargetObjectData target = character.HomingPool.PendingTarget.Object;
-			if (target.Target == null || !IsValidType(target.Type))
+			// The locked-on target, not the pending candidate; no active target reads as a null object.
+			ActiveHomingTarget activeTarget = character.HomingPool.ActiveTarget;
+			GameObject targetObject = activeTarget != null ? activeTarget.Object.Target : null;
+			if (targetObject == null || !IsValidType(activeTarget.Object.Type))
 				return false;
-			if ((target.WorldPosition - character.WorldPosition).sqrMagnitude > character.Constants.HomingTargetHitDistance)
+			if ((activeTarget.Object.WorldPosition - character.WorldPosition).sqrMagnitude > character.Constants.HomingTargetHitDistance)
 				return false;
-			ISurface surface = target.Target.GetComponent<ISurface>();
+			ISurface surface = activeTarget.Object.Target.GetComponent<ISurface>();
 			return surface != null && !ProcessManager.IsSystemNull<TrackManager>() && IsValidSurface(character.TrackManager, surface);
 		}
 
