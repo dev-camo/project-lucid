@@ -14,12 +14,16 @@ namespace ProjectLucid.Tests
     // Behaviour of UnityEngine.UI.Extensions.TableLayoutGroup (HLUnityUI.Runtime
     // 0x060000a8..bb) against the shipped x86-64 bodies. Each case owns its root,
     // cells and component. The component is disabled before its GameObject is
-    // activated, so property setters and the layout passes driven here never mark
-    // the shared CanvasUpdateRegistry. Only the OnEnable case touches global state:
-    // like the original it calls Canvas.ForceUpdateCanvases, which raises the static
+    // activated, so in most cases property setters and the layout passes driven
+    // here never mark the shared CanvasUpdateRegistry.
+    // The OnEnable and enabled-setter cases do touch global state: like the
+    // original they reach Canvas.ForceUpdateCanvases, which raises the static
     // willRenderCanvases event for every subscriber and so also drains the global
-    // CanvasUpdateRegistry (and TMP update manager) queues; it counts through a
-    // handler it adds and removes itself.
+    // CanvasUpdateRegistry (and TMP update manager) queues, including rebuilds
+    // queued by other tests or open scenes. Destroying an enabled group in Dispose
+    // runs LayoutGroup.OnDisable, which marks the destroyed rect for rebuild; the
+    // registry drops that dead entry on its next update. The counting case removes
+    // its willRenderCanvases handler in a finally block.
     [TestFixture]
     public sealed class OriginalTableLayoutGroupTests
     {
@@ -268,6 +272,34 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0x1b3e599 divides the free width by m_columnWidths.Length, not by the
+        // occupied column count: two cells in three columns share 162 three ways.
+        [Test]
+        public void UniformHorizontalInputDividesByTheDeclaredColumnCount()
+        {
+            using (var table = new Table(2, new Vector2(200f, 100f)))
+            {
+                TableLayoutGroup group = table.Group;
+                RectTransform[] cells = table.Cells;
+                group.padding = new RectOffset(3, 5, 0, 0);
+                group.childAlignment = TextAnchor.UpperCenter;
+                group.ColumnWidths = new[] { 10f, 20f, 30f };
+                group.UniformColumnSpacing = true;
+                group.MinColumnSpacing = 4f;
+
+                // content 8 + 10 + 20 = 38, free 162, 162 / 3 = 54 (162 / 2 would give 81).
+                group.CalculateLayoutInputHorizontal();
+                Assert.That(Get(group, "m_columnSpacing"), Is.EqualTo(54f));
+                Assert.That(group.minWidth, Is.EqualTo(146f));
+                Assert.That(group.preferredWidth, Is.EqualTo(146f));
+                Assert.That(group.flexibleWidth, Is.Zero);
+
+                // Row width 10 + 20 + 54 = 84: start 3 + (200 - 92) / 2 = 57.
+                group.SetLayoutHorizontal();
+                Assert.That(new[] { X(cells[0]), X(cells[1]) }, Is.EqualTo(new[] { 57f, 121f }));
+            }
+        }
+
         // 0x1b3e5f0: ceil(cells / columns) rows; flexible rows take the largest cell
         // minimum and preferred heights (floored by the minimum row height), stop at
         // the last cell, and report flexible height 1.
@@ -302,8 +334,8 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // 0x1b3e5f0: row spacing is added only between two or more rows, and each pass
-        // allocates a new row-height array.
+        // 0x1b3e5f0: one row adds no row spacing, and each pass allocates a new
+        // row-height array. The rowCount >= 2 guard itself is pinned by the zero-row case.
         [Test]
         public void SingleRowVerticalInputAddsNoRowSpacing()
         {
@@ -324,6 +356,31 @@ namespace ProjectLucid.Tests
 
                 group.CalculateLayoutInputVertical();
                 Assert.That(Get(group, "m_preferredRowHeights"), Is.Not.SameAs(first));
+            }
+        }
+
+        // 0x1b3e702 (cmp r14d, 2; jl): with no rows the (rows - 1) * spacing term is
+        // skipped, so the input is the padding alone rather than 8 - 5 = 3.
+        [Test]
+        public void ZeroRowVerticalInputAddsNoNegativeRowSpacing()
+        {
+            using (var table = new Table(0, new Vector2(200f, 100f)))
+            {
+                TableLayoutGroup group = table.Group;
+                group.padding = new RectOffset(0, 0, 2, 6);
+                group.RowSpacing = 5f;
+                group.MinimumRowHeight = 12f;
+
+                foreach (bool flexible in new[] { true, false })
+                {
+                    group.FlexibleRowHeight = flexible;
+                    group.CalculateLayoutInputHorizontal();
+                    group.CalculateLayoutInputVertical();
+                    Assert.That(Get(group, "m_preferredRowHeights"), Is.EqualTo(new float[0]), flexible.ToString());
+                    Assert.That(group.minHeight, Is.EqualTo(8f), flexible.ToString());
+                    Assert.That(group.preferredHeight, Is.EqualTo(8f), flexible.ToString());
+                    Assert.That(group.flexibleHeight, Is.EqualTo(1f), flexible.ToString());
+                }
             }
         }
 
@@ -470,6 +527,45 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0x1b3ed40: GetStartOffset(1, tableHeight) receives the stored heights plus
+        // (rows - 1) * m_rowSpacing (0x1b3ee33), visible once the alignment centres it.
+        [Test]
+        public void VerticalLayoutAlignsTheTableHeightIncludingRowSpacing()
+        {
+            var heights = new[] { new Vector2(7f, 30f), new Vector2(15f, 10f), new Vector2(3f, 4f) };
+            using (var table = new Table(3, new Vector2(200f, 100f), heights))
+            {
+                TableLayoutGroup group = table.Group;
+                RectTransform[] cells = table.Cells;
+                group.padding = new RectOffset(0, 0, 2, 6);
+                group.childAlignment = TextAnchor.MiddleLeft;
+                group.ColumnWidths = new[] { 10f, 20f };
+                group.MinimumRowHeight = 12f;
+                group.RowSpacing = 5f;
+
+                // Table 30 + 12 + 5 = 47, required 55: start 2 + (100 - 55) * 0.5 = 24.5
+                // (27 if the spacing were left out of the argument).
+                foreach (TableLayoutGroup.Corner corner in new[] { TableLayoutGroup.Corner.UpperLeft, TableLayoutGroup.Corner.UpperRight })
+                {
+                    group.StartCorner = corner;
+                    group.CalculateLayoutInputHorizontal();
+                    group.CalculateLayoutInputVertical();
+                    group.SetLayoutVertical();
+                    Assert.That(new[] { Y(cells[0]), Y(cells[1]), Y(cells[2]) }, Is.EqualTo(new[] { 24.5f, 24.5f, 59.5f }), corner.ToString());
+                }
+
+                // Lower corners start from 24.5 + 47 = 71.5 and stack upwards.
+                foreach (TableLayoutGroup.Corner corner in new[] { TableLayoutGroup.Corner.LowerLeft, TableLayoutGroup.Corner.LowerRight })
+                {
+                    group.StartCorner = corner;
+                    group.CalculateLayoutInputHorizontal();
+                    group.CalculateLayoutInputVertical();
+                    group.SetLayoutVertical();
+                    Assert.That(new[] { Y(cells[0]), Y(cells[1]), Y(cells[2]) }, Is.EqualTo(new[] { 41.5f, 41.5f, 24.5f }), corner.ToString());
+                }
+            }
+        }
+
         // 0x1b3efc0: LayoutGroup.OnEnable then Canvas.ForceUpdateCanvases, which raises
         // willRenderCanvases once; a plain LayoutGroup's OnEnable raises nothing.
         [Test]
@@ -500,6 +596,84 @@ namespace ProjectLucid.Tests
                     Canvas.willRenderCanvases -= handler;
                     if (control != null)
                         Object.DestroyImmediate(control);
+                }
+            }
+        }
+
+        // 0x1b3efc0 calls LayoutGroup.OnEnable (SetDirty queues this root) before
+        // Canvas.ForceUpdateCanvases, so the rebuild has already run when enabling
+        // returns. Reversed or without the base call the cells would stay at X 0.
+        [Test]
+        public void EnablingRebuildsTheLayoutWithinTheSameCall()
+        {
+            using (var table = new Table(2, new Vector2(200f, 100f)))
+            {
+                TableLayoutGroup group = table.Group;
+                RectTransform[] cells = table.Cells;
+                group.padding = new RectOffset(3, 5, 0, 0);
+                group.childAlignment = TextAnchor.UpperCenter;
+                group.ColumnWidths = new[] { 20f, 30f };
+                group.MinColumnSpacing = 4f;
+                Assert.That(new[] { X(cells[0]), X(cells[1]) }, Is.EqualTo(new[] { 0f, 0f }));
+
+                group.enabled = true;
+
+                // Row width 20 + 30 + 4 = 54: start 3 + (200 - 62) / 2 = 72.
+                Assert.That(new[] { X(cells[0]), X(cells[1]) }, Is.EqualTo(new[] { 72f, 96f }));
+                Assert.That(new[] { cells[0].sizeDelta.x, cells[1].sizeDelta.x }, Is.EqualTo(new[] { 20f, 30f }));
+            }
+        }
+
+        // Setters 0x060000a9..b5 tail-jump to LayoutGroup.SetProperty<T>: a new value
+        // is written and marks the enabled group dirty, an equal value returns first.
+        // Cell 0 holds a hand-set sentinel to show whether the forced update rebuilt it.
+        [Test]
+        public void SettersMarkTheLayoutForRebuildOnlyWhenTheValueChanges()
+        {
+            using (var table = new Table(2, new Vector2(200f, 100f)))
+            {
+                TableLayoutGroup group = table.Group;
+                RectTransform[] cells = table.Cells;
+                group.padding = new RectOffset(3, 5, 0, 0);
+                group.childAlignment = TextAnchor.UpperCenter;
+                group.ColumnWidths = new[] { 20f, 30f };
+                group.MinColumnSpacing = 4f;
+                // Enabling flushes the first rebuild, so nothing of this group stays queued.
+                group.enabled = true;
+                Canvas.ForceUpdateCanvases();
+                Assert.That(new[] { X(cells[0]), X(cells[1]) }, Is.EqualTo(new[] { 72f, 96f }));
+
+                // Row width 20 + 30 + 10 = 60: start 3 + (200 - 68) / 2 = 69.
+                group.MinColumnSpacing = 10f;
+                Canvas.ForceUpdateCanvases();
+                Assert.That(new[] { X(cells[0]), X(cells[1]) }, Is.EqualTo(new[] { 69f, 99f }));
+
+                var sentinel = new Vector2(1f, 1f);
+                cells[0].sizeDelta = sentinel;
+                group.MinColumnSpacing = 10f;
+                Canvas.ForceUpdateCanvases();
+                Assert.That(cells[0].sizeDelta, Is.EqualTo(sentinel), "MinColumnSpacing with an equal value");
+
+                var setters = new (string Name, Action Same, Action Changed)[]
+                {
+                    ("StartCorner", () => group.StartCorner = group.StartCorner, () => group.StartCorner = TableLayoutGroup.Corner.UpperRight),
+                    ("ColumnWidths", () => group.ColumnWidths = group.ColumnWidths, () => group.ColumnWidths = new[] { 20f, 30f }),
+                    ("MinimumRowHeight", () => group.MinimumRowHeight = group.MinimumRowHeight, () => group.MinimumRowHeight = 10f),
+                    ("FlexibleRowHeight", () => group.FlexibleRowHeight = group.FlexibleRowHeight, () => group.FlexibleRowHeight = false),
+                    ("MinColumnSpacing", () => group.MinColumnSpacing = group.MinColumnSpacing, () => group.MinColumnSpacing = 6f),
+                    ("UniformColumnSpacing", () => group.UniformColumnSpacing = group.UniformColumnSpacing, () => group.UniformColumnSpacing = true),
+                    ("RowSpacing", () => group.RowSpacing = group.RowSpacing, () => group.RowSpacing = 4f),
+                };
+                foreach (var setter in setters)
+                {
+                    cells[0].sizeDelta = sentinel;
+                    setter.Same();
+                    Canvas.ForceUpdateCanvases();
+                    Assert.That(cells[0].sizeDelta, Is.EqualTo(sentinel), setter.Name + " with an equal value");
+
+                    setter.Changed();
+                    Canvas.ForceUpdateCanvases();
+                    Assert.That(cells[0].sizeDelta, Is.Not.EqualTo(sentinel), setter.Name + " with a new value");
                 }
             }
         }
