@@ -8,11 +8,13 @@
 //
 // Member order fixes the generated iterator name: WaitForRootObjects is member
 // ordinal 74 only with two nested types ahead of it (auto-property backing
-// fields count as members), so SelectionState is declared after it. Which of
-// the three nested types follows the iterator is not recoverable.
+// fields count as members). The nested TypeDef order (UIEventInfo,
+// GraphicAndMaterialPair, SelectionState) therefore places SelectionState
+// after WaitForRootObjects; only its exact position after it is unrecoverable.
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Hardlight.Utils;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
@@ -634,7 +636,8 @@ namespace Hardlight
             InternalEvaluateAndTransitionToSelectionState(false);
         }
 
-        // An inactive selectable leaves Disabled for Normal. The transition
+        // Disabled is entered only while active and non-interactable; otherwise
+        // a Disabled state returns to Normal. The transition
         // fires whenever the stored states differ, even when this call changed
         // neither of them (0x1B557A3).
         private void InternalEvaluateAndTransitionToSelectionState(bool instant)
@@ -702,7 +705,7 @@ namespace Hardlight
         public override void OnPointerExit(PointerEventData eventData)
         {
             // Read and discarded, unlike OnPointerEnter (0x1B51FD3).
-            EventSystem eventSystem = EventSystem.current;
+            _ = EventSystem.current;
             if (!m_inputBridge.GetHardwareCursorVisibility())
             {
                 return;
@@ -727,7 +730,9 @@ namespace Hardlight
             InvokeEvent(UIEventType.OnDeselect);
         }
 
-        // FTUE buttons hold screen-space corners, others world-space corners.
+        // Both branches read GetWorldCorners; isFTUEButton maps them with
+        // ScreenToViewportPoint instead of WorldToViewportPoint before testing
+        // camera.rect.
         public bool AnyCornersVisible(bool isFTUEButton)
         {
             RectTransform rectTransform = transform as RectTransform;
@@ -775,7 +780,7 @@ namespace Hardlight
                 return;
             }
 
-            m_inputBridge.SetSelectedGameObjectWithMemory(gameObject);
+            m_inputBridge.SetSelectedGameObjectWithMemory(gameObject, null);
         }
 
         public virtual void Deselect()

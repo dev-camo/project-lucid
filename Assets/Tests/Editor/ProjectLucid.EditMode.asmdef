@@ -19,6 +19,7 @@
     "HLInput.Runtime",
     "HLModernUI.Runtime",
     "HLUnityUI.Runtime",
+    "HLHaptics.Runtime",
     "ProjectLucid.Screen.EngineVerification",
     "UnityEngine.UI",
     "HLRTLTextMeshPro.Runtime",

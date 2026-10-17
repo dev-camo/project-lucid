@@ -2,6 +2,7 @@
 // 0x060002f8..fa), translated from the x86-64 bodies. A directly assigned clip
 // plays through UISoundEffectManager; otherwise a non-zero audio type plays
 // through HLUIEffectManager. Both singletons are read without a null check.
+using Hardlight.Utils;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 

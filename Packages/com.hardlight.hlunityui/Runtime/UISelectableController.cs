@@ -9,6 +9,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Hardlight.Utils;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
@@ -276,7 +277,7 @@ namespace Hardlight
             UISelectable uiSelectable = selectable as UISelectable;
             if (!m_systemEnabled)
             {
-                m_inputBridge.SetSelectedGameObjectWithMemory(selectable.gameObject);
+                m_inputBridge.SetSelectedGameObjectWithMemory(selectable.gameObject, null);
                 m_currentlySelected = uiSelectable;
                 return;
             }
@@ -296,7 +297,7 @@ namespace Hardlight
             m_currentlySelected = uiSelectable;
             m_setInstantTransition |= instantTransition | m_forceInstantSelection;
             OnSelect.Invoke(m_currentlySelected);
-            m_inputBridge.SetSelectedGameObjectWithMemory(m_currentlySelected.gameObject);
+            m_inputBridge.SetSelectedGameObjectWithMemory(m_currentlySelected.gameObject, null);
         }
 
         public void HighlightThis(UISelectable selectable)

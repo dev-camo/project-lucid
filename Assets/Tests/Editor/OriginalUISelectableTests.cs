@@ -107,8 +107,7 @@ namespace ProjectLucid.Tests
         static void PrepareEvents(RecordingUISelectable selectable, params UISelectable.UIEventInfo[] entries)
         {
             Set(selectable, "m_events", entries.ToList());
-            FieldInfo vibration = typeof(UISelectable).GetField("m_vibrationManager", Any);
-            Set(selectable, "m_vibrationManager", Activator.CreateInstance(vibration.FieldType, "VibrationManager", null));
+            Set(selectable, "m_vibrationManager", new SystemRef<VibrationManager>("VibrationManager", null));
         }
 
         static UISelectable.UIEventInfo Entry(UIEventType type, RecordingUISelectable recorder, string label, int sfx = 0)

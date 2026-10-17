@@ -9,7 +9,9 @@ namespace ProjectLucid.Tests.UISelectionShared
     // Test-only InputBridge for the UISelectable and UISelectableController
     // fixtures. The selection, cursor and input-type routes answer from public
     // fields and record each call with its arguments; input listener routes are
-    // outside these fixtures and fail loudly.
+    // outside these fixtures and fail loudly. OwnedInputBridgeProbe is not
+    // reused because its selection and cursor routes must keep failing loudly
+    // for the UIRuntimeConfiguration fixtures.
     public sealed class RecordingSelectionInputBridge : InputBridge
     {
         public UIInputType LastInputType;
