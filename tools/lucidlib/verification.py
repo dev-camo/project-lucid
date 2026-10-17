@@ -655,23 +655,42 @@ def test_verdict(path, required):
             "xml_sha256": hashlib.sha256(data).hexdigest()}
 
 
-# Shared-state leaks a run may carry while the fixture is being fixed: exact
-# test fullname -> the reason and the issue that tracks the fix. Only status
-# "leak" can be listed; a listed test that runs clean fails the run until its
-# entry is removed. Each entry is temporary and needs review.
+# Shared-state leaks a run may carry: exact test fullname -> the reason and the
+# exact, ordered change list its leak record must carry. Only status "leak" can
+# be listed, and a record whose changes differ in any line fails the run, so an
+# entry never hides a further leak. A listed test that runs clean fails the run
+# until its entry is removed. An entry is either temporary, naming the issue
+# that tracks the fix, or a reviewed process-lifetime side effect of original
+# code that no fixture can undo, naming its native evidence.
+_TIME_MANAGER_ROW = "added system row 'Hardlight.TimeManager'"
 ISOLATION_ALLOWLIST = {
-    # Not a fixture defect. The first test to run TimeScaledUtilities code runs
-    # its BeforeFieldInit initializer (0x06000ecc), whose readonly
-    # s_timeManagerRef = GetSystemRef<TimeManager>(null, true) auto-registers a
-    # null 'Hardlight.TimeManager' row (0x06000e3f) appended last. The row holds
-    # that cached reference: removing it would make every later registration
-    # build a new row the readonly reference never sees. The fixture's own
-    # SystemConfiguration and TimeManager rows are released. Alphabetical order
-    # makes this the first such test; if it runs clean, the initializer ran
-    # earlier and this entry must go.
-    "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests.OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes":
-        "TimeScaledUtilities' first static initialization appends the 'Hardlight.TimeManager' row that holds its "
-        "readonly s_timeManagerRef; that row must outlive the test, which also changes the row order.",
+    # Process lifetime, not a fixture defect. The first test to run
+    # TimeScaledUtilities code runs its BeforeFieldInit initializer
+    # (0x06000ecc), whose readonly s_timeManagerRef =
+    # GetSystemRef<TimeManager>(null, true) auto-registers a null
+    # 'Hardlight.TimeManager' row (0x06000e3f) appended last. The row holds that
+    # cached reference: removing it would make every later registration build a
+    # new row the readonly reference never sees. The fixture finds that row
+    # already present, so the only row it creates and releases is
+    # SystemConfiguration's. Native run19 (run19-928e689 editmode-isolation.jsonl
+    # line 773) shows this case first in run order; any test that runs
+    # TimeScaledUtilities code earlier moves the row there, this case then runs
+    # clean, and the entry must move or go.
+    "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests.OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes": {
+        "reason": "TimeScaledUtilities' first static initialization appends the 'Hardlight.TimeManager' row that holds "
+                  "its readonly s_timeManagerRef; that row must outlive the test, which also changes the row order.",
+        "changes": ("changed system row order",
+                    _TIME_MANAGER_ROW,
+                    _TIME_MANAGER_ROW + " untyped reference",
+                    _TIME_MANAGER_ROW + " untyped reference OnSystemStartup observers",
+                    _TIME_MANAGER_ROW + " untyped reference OnSystemShutdown observers",
+                    _TIME_MANAGER_ROW + " untyped reference deferred InvokeOnValid work",
+                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager'",
+                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' OnSystemStartup observers",
+                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' OnSystemShutdown observers",
+                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' deferred InvokeOnValid work",
+                    _TIME_MANAGER_ROW + " typed reference names"),
+    },
 }
 
 # Each mode's hook controls need their own single clean line. The first fails
@@ -707,8 +726,9 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None):
     """Check SharedStateIsolationRecorder's JSON lines against the run's test XML.
 
     Every project test case needs a line carrying this run's nonce, and every
-    line must be clean or an allowlisted leak. A missing report means the
-    detector did not run, which fails rather than passes.
+    line must be clean or a leak with exactly its allowlisted changes. A
+    missing report means the detector did not run, which fails rather than
+    passes.
     """
     allowlist = ISOLATION_ALLOWLIST if allowlist is None else allowlist
     path = Path(path)
@@ -738,8 +758,11 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None):
             detail = "; ".join(record["changes"])
             if record["status"] == "unchecked":
                 errors.append("Isolation unchecked for " + test + ": " + detail)
+            elif record["status"] == "leak" and test in allowlist and record["changes"] == list(allowlist[test]["changes"]):
+                allowlisted.append({"test": test, "changes": record["changes"], "reason": allowlist[test]["reason"]})
             elif record["status"] == "leak" and test in allowlist:
-                allowlisted.append({"test": test, "changes": record["changes"], "reason": allowlist[test]})
+                leaks.append({"test": test, "changes": record["changes"]})
+                errors.append("Isolation leak in " + test + " differs from its allowlisted changes: " + detail)
             elif record["status"] == "leak":
                 leaks.append({"test": test, "changes": record["changes"]})
                 errors.append("Isolation leak in " + test + ": " + detail)

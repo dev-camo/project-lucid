@@ -40,10 +40,10 @@ class ProjectTests(unittest.TestCase):
         """Supplied isolation lines for each name, clean unless allowlisted; returns the receipt's isolation entry."""
         nonce = mode + "-synthetic-nonce"
         path = work / "reports" / (mode + "-isolation.jsonl")
-        # An allowlisted test must still leak, or the verdict asks for its entry to be removed.
+        # An allowlisted test must still leak exactly its listed changes, or the verdict fails.
         path.write_text("".join(json.dumps({"nonce": nonce, "test": name,
                                             "status": "leak" if name in verification.ISOLATION_ALLOWLIST else "clean",
-                                            "changes": ["synthetic allowlisted change"]
+                                            "changes": list(verification.ISOLATION_ALLOWLIST[name]["changes"])
                                             if name in verification.ISOLATION_ALLOWLIST else []}) + "\n"
                                 for name in names))
         return {"nonce": nonce, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}

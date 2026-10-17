@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Text.RegularExpressions;
 using UnityEngine.TestTools;
 using Hardlight;
@@ -255,33 +256,54 @@ public static class OriginalTimeScaledUtilitiesVerification
             // registration in a new row the cached reference never sees.
             RuntimeHelpers.RunClassConstructor(typeof(TimeScaledUtilities).TypeHandle);
             bool hadTime = rows.Contains(timeName);
-            ProcessManager.GetSystemSafe<TimeManager>();
-            ProcessManager.GetSystemSafe<SystemConfiguration>();
             if (!hadTime) createdRows.Add(timeName);
             if (!hadConfig) createdRows.Add(configName);
-            originalTimeReference = Field(typeof(TimeScaledUtilities), "s_timeManagerRef").GetValue(null);
-            priorTime = ProcessManager.GetSystemRef(timeName).GetSafe();
-            priorConfig = ProcessManager.GetSystemRef(configName).GetSafe();
-            systems = new DictionarySnapshot(rows);
-            foreach (DictionaryEntry entry in rows)
+            try
             {
-                IDictionary cache = (IDictionary)Read(entry.Value, "SystemRefDictionary");
-                typedCaches.Add(new DictionarySnapshot(cache));
-                if ((string)entry.Key != timeName && (string)entry.Key != configName) continue;
-                var references = new List<object> { Read(entry.Value, "SystemRef") };
-                foreach (object reference in cache.Values) references.Add(reference);
-                foreach (object reference in references)
+                ProcessManager.GetSystemSafe<TimeManager>();
+                ProcessManager.GetSystemSafe<SystemConfiguration>();
+                originalTimeReference = Field(typeof(TimeScaledUtilities), "s_timeManagerRef").GetValue(null);
+                priorTime = ProcessManager.GetSystemRef(timeName).GetSafe();
+                priorConfig = ProcessManager.GetSystemRef(configName).GetSafe();
+                systems = new DictionarySnapshot(rows);
+                foreach (DictionaryEntry entry in rows)
                 {
-                    callbacks.Add(new SavedMutableField(reference, "OnSystemStartup"));
-                    callbacks.Add(new SavedMutableField(reference, "OnSystemShutdown"));
-                    callbacks.Add(new SavedMutableField(reference, "m_actionOnSystemValid"));
+                    IDictionary cache = (IDictionary)Read(entry.Value, "SystemRefDictionary");
+                    typedCaches.Add(new DictionarySnapshot(cache));
+                    if ((string)entry.Key != timeName && (string)entry.Key != configName) continue;
+                    var references = new List<object> { Read(entry.Value, "SystemRef") };
+                    foreach (object reference in cache.Values) references.Add(reference);
+                    foreach (object reference in references)
+                    {
+                        callbacks.Add(new SavedMutableField(reference, "OnSystemStartup"));
+                        callbacks.Add(new SavedMutableField(reference, "OnSystemShutdown"));
+                        callbacks.Add(new SavedMutableField(reference, "m_actionOnSystemValid"));
+                    }
                 }
+                // Real unregistration unsubscribes the prior system's action entries;
+                // preserve each live row and restore it after the real registration.
+                IDictionary lookup = (IDictionary)Field(typeof(ProcessManager), "s_systemActionLookup").GetValue(null);
+                actions = new DictionarySnapshot(lookup);
+                foreach (IDictionary row in lookup.Values) actionRows.Add(new DictionarySnapshot(row));
             }
-            // Real unregistration unsubscribes the prior system's action entries;
-            // preserve each live row and restore it after the real registration.
-            IDictionary lookup = (IDictionary)Field(typeof(ProcessManager), "s_systemActionLookup").GetValue(null);
-            actions = new DictionarySnapshot(lookup);
-            foreach (IDictionary row in lookup.Values) actionRows.Add(new DictionarySnapshot(row));
+            catch (Exception failure)
+            {
+                // Dispose never runs for a constructor that throws: put back the
+                // callbacks already nulled and release the rows priming created.
+                // RunThenCleanUp rethrows this failure after both steps.
+                VerificationFixtureOwnership.RunThenCleanUp(
+                    () => ExceptionDispatchInfo.Capture(failure).Throw(),
+                    () => { foreach (SavedMutableField callback in callbacks) callback.Restore(); },
+                    ReleaseCreatedRows);
+            }
+        }
+
+        // A created row that gained a system, observer or deferred work is
+        // foreign state; ReleaseEmptyRow leaves it and reports it.
+        private void ReleaseCreatedRows()
+        {
+            foreach (string name in createdRows)
+                if (rows.Contains(name)) VerificationFixtureOwnership.ReleaseEmptyRow(rows, name, rows[name]);
         }
 
         public void Dispose()
@@ -313,13 +335,7 @@ public static class OriginalTimeScaledUtilitiesVerification
                     foreach (DictionarySnapshot row in actionRows) Require(row.Matches(), "Original action entries are restored");
                     foreach (SavedMutableField callback in callbacks) Require(callback.Matches(), "Prior startup/shutdown/deferred callbacks are restored without invocation");
                 },
-                () =>
-                {
-                    // A created row that gained a system, observer or deferred work
-                    // is foreign state; ReleaseEmptyRow leaves it and reports it.
-                    foreach (string name in createdRows)
-                        if (rows.Contains(name)) VerificationFixtureOwnership.ReleaseEmptyRow(rows, name, rows[name]);
-                });
+                ReleaseCreatedRows);
             Require(ReferenceEquals(Field(typeof(TimeScaledUtilities), "s_timeManagerRef").GetValue(null), originalTimeReference),
                 "Original readonly cached reference identity survives isolation");
             // Read without auto-registration so the check cannot recreate a released row.
@@ -332,12 +348,12 @@ public static class OriginalTimeScaledUtilitiesVerification
     {
         private readonly RegistryScope registry = new RegistryScope();
         private readonly float priorTimeScale = Time.timeScale, priorFixedDelta = Time.fixedDeltaTime;
-        private readonly FieldInfo settingCache = Field(typeof(TimeManager), "s_cachedTimeSettingResult");
+        private readonly FieldInfo settingCache;
         private readonly object priorSettingCache;
         private readonly IDictionary multiplies;
         private readonly bool hadMultiply;
         private readonly object priorMultiply;
-        private readonly SystemConfiguration configurationSystem = new SystemConfiguration();
+        private readonly SystemConfiguration configurationSystem;
         private StackableDataHandle scaleHandle;
         private GameObject host;
         private TimeCategoryConfiguration configuration;
@@ -349,10 +365,22 @@ public static class OriginalTimeScaledUtilitiesVerification
 
         public EngineScope()
         {
-            priorSettingCache = settingCache.GetValue(null);
-            multiplies = (IDictionary)Field(typeof(StackableData), "Multiplies").GetValue(null);
-            hadMultiply = multiplies.Contains(typeof(TimeSetting));
-            priorMultiply = multiplies[typeof(TimeSetting)];
+            // Until the guarded body below can run Dispose, a failure here only
+            // needs the registry scope, which cleans up its own constructor.
+            try
+            {
+                settingCache = Field(typeof(TimeManager), "s_cachedTimeSettingResult");
+                configurationSystem = new SystemConfiguration();
+                priorSettingCache = settingCache.GetValue(null);
+                multiplies = (IDictionary)Field(typeof(StackableData), "Multiplies").GetValue(null);
+                hadMultiply = multiplies.Contains(typeof(TimeSetting));
+                priorMultiply = multiplies[typeof(TimeSetting)];
+            }
+            catch (Exception failure)
+            {
+                // RunThenCleanUp rethrows this failure after releasing the registry.
+                VerificationFixtureOwnership.RunThenCleanUp(() => ExceptionDispatchInfo.Capture(failure).Throw(), registry.Dispose);
+            }
             try
             {
                 ProcessManager.UnregisterSystem<TimeManager>();

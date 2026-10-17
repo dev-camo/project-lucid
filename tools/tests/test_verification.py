@@ -383,15 +383,39 @@ class IsolationVerdictTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             report, xml = self.write(Path(temporary), lines=self.control_lines() +
                                      [self.line(self.CASE, "leak", ["added system row 'X'"])])
-            allowlist = {self.CASE: "synthetic reason; issue #0"}
+            allowlist = {self.CASE: {"reason": "synthetic reason; issue #0", "changes": ("added system row 'X'",)}}
             verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode", allowlist)
             self.assertEqual("complete", verdict["status"], verdict["errors"])
             self.assertEqual([], verdict["leaks"])
-            self.assertEqual([{"test": self.CASE, "changes": ["added system row 'X'"], "reason": allowlist[self.CASE]}],
+            self.assertEqual([{"test": self.CASE, "changes": ["added system row 'X'"], "reason": "synthetic reason; issue #0"}],
                              verdict["allowlisted"])
 
+    def test_allowlisted_leak_with_any_other_change_list_fails(self):
+        # The real entry with run19's extra SystemConfiguration row, a missing
+        # line and a reordering: each is a leak, not the allowlisted one.
+        test = next(iter(verification.ISOLATION_ALLOWLIST))
+        expected = list(verification.ISOLATION_ALLOWLIST[test]["changes"])
+        with tempfile.TemporaryDirectory() as temporary:
+            for changes in (expected + ["added system row 'Hardlight.SystemConfiguration'"],
+                            expected[:-1], expected[1:] + expected[:1]):
+                with self.subTest(changes=changes[-1]):
+                    report, xml = self.write(Path(temporary), lines=self.control_lines() +
+                                             [self.line(test, "leak", changes)])
+                    xml.write_text(xml.read_text().replace(self.CASE, test))
+                    verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode")
+                    self.assertEqual("incomplete", verdict["status"])
+                    self.assertEqual([], verdict["allowlisted"])
+                    self.assertEqual([{"test": test, "changes": changes}], verdict["leaks"])
+                    self.assertEqual(["Isolation leak in " + test + " differs from its allowlisted changes: " +
+                                      "; ".join(changes)], verdict["errors"])
+            report, xml = self.write(Path(temporary), lines=self.control_lines() + [self.line(test, "leak", expected)])
+            xml.write_text(xml.read_text().replace(self.CASE, test))
+            verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode")
+            self.assertEqual("complete", verdict["status"], verdict["errors"])
+            self.assertEqual([test], [entry["test"] for entry in verdict["allowlisted"]])
+
     def test_allowlist_cannot_hide_unchecked_tests_or_outlive_its_leak(self):
-        allowlist = {self.CASE: "synthetic reason"}
+        allowlist = {self.CASE: {"reason": "synthetic reason", "changes": ("x",)}}
         with tempfile.TemporaryDirectory() as temporary:
             for status, changes, expected in (
                     ("unchecked", ["no start snapshot: the hook did not see this test start"],
@@ -433,9 +457,18 @@ class IsolationVerdictTests(unittest.TestCase):
                           "OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes"},
                          set(verification.ISOLATION_ALLOWLIST))
         registered = set(verification.EDITMODE_TESTS) | set(verification.PLAYMODE_TESTS)
-        for test, reason in verification.ISOLATION_ALLOWLIST.items():
+        for test, entry in verification.ISOLATION_ALLOWLIST.items():
             self.assertIn(test, registered)
-            self.assertTrue(isinstance(reason, str) and reason.strip())
+            self.assertEqual({"reason", "changes"}, set(entry))
+            self.assertTrue(isinstance(entry["reason"], str) and entry["reason"].strip())
+            self.assertTrue(isinstance(entry["changes"], tuple) and entry["changes"])
+            self.assertTrue(all(isinstance(change, str) and change for change in entry["changes"]))
+        # Run19's record for that case without its SystemConfiguration lines,
+        # which the fixture now releases.
+        changes = verification.ISOLATION_ALLOWLIST[next(iter(verification.ISOLATION_ALLOWLIST))]["changes"]
+        self.assertEqual("changed system row order", changes[0])
+        self.assertEqual(11, len(changes))
+        self.assertFalse([change for change in changes if "SystemConfiguration" in change])
 
     def test_recorder_source_writes_the_fields_and_variables_the_verdict_reads(self):
         # A source check that the C# side and this verdict agree; the native run proves the hook fires.
