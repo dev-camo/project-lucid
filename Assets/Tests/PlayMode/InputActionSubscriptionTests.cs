@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.Utils;
 using HardlightProject;
@@ -25,6 +26,23 @@ namespace ProjectLucid.Tests
             protected override void OnHeld(float value) => Trace.Add(FormattableString.Invariant($"held:{value}"));
             protected override void OnUp(float value) { Trace.Add(FormattableString.Invariant($"up:{value}")); UpFrame = Time.frameCount; }
             protected override void OnDisabled() => Trace.Add("disabled");
+        }
+
+        // The original .cctor (IL 1417285300002B80C30300042A, recorded in
+        // ControllerActionCurrentFacts) stores
+        // ProcessManager.GetSystemRef<InputSystem>(null, true) in
+        // m_inputSystemRef, creating the 'HardlightProject.InputSystem' row on
+        // the type's first use and holding its typed reference for the whole
+        // domain. A test cannot remove that row: m_inputSystemRef would keep
+        // the orphaned reference and never see a later InputSystem. Run the
+        // initializer once for the fixture, before any test case starts, so
+        // each case finds the row already in place and leaves it as found.
+        [OneTimeSetUp]
+        public void InitializeTheCachedInputSystemReference()
+        {
+            RuntimeHelpers.RunClassConstructor(typeof(InputActionSubscription).TypeHandle);
+            Assert.IsNotNull(typeof(InputActionSubscription).GetField("m_inputSystemRef", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null),
+                "The type initializer caches its InputSystem reference.");
         }
 
         // Original 060023c1 (x86-64 0x58ab40) captures the value in display
