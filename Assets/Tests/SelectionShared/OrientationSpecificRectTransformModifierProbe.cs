@@ -9,6 +9,7 @@ namespace ProjectLucid.Tests
     // so tests can observe that OnEnable, the coroutine and InitialiseAndSetValues
     // dispatch through the vtable. Both overrides call the original base bodies
     // unless a test injects its own InitialiseValues content.
+    // Editor-only assemblies cannot supply attachable components, so it lives in this runtime test assembly.
     public sealed class OrientationSpecificRectTransformModifierProbe : OrientationSpecificRectTransformModifier
     {
         [NonSerialized] public readonly List<string> Calls = new List<string>();
