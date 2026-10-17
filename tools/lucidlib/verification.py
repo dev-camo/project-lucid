@@ -722,6 +722,26 @@ ISOLATION_SIDE_EFFECTS = {
                                   "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests"),
                      "playmode": ("ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests",)},
     },
+    # InputActionSubscription's type initializer (IL 14 17 28 53 00 00 2B 80
+    # C3 03 00 04 2A as ControllerActionCurrentFacts records it: ldnull;
+    # ldc.i4.1; call GetSystemRef<InputSystem>; stsfld m_inputSystemRef; ret)
+    # stores GetSystemRef<InputSystem>(null, true) in
+    # its readonly m_inputSystemRef, appending the null
+    # 'HardlightProject.InputSystem' row on the type's first use; removing it
+    # would detach that reference from every later InputSystem registration.
+    # Native run20 (run20-b487b1d editmode-isolation.jsonl line 324) recorded
+    # these eleven changes for ControllerActionTests'
+    # GenuineConstructorsAndPersistentSystemCache, the first case in run order
+    # to use the type. Only these two Edit Mode fixtures construct an
+    # InputActionSubscription; the Play Mode fixture runs the initializer in
+    # OneTimeSetUp, outside every per-case comparison.
+    "InputActionSubscription..cctor": {
+        "reason": "InputActionSubscription's type initializer appends the permanent 'HardlightProject.InputSystem' row "
+                  "that holds its readonly m_inputSystemRef; removing it would detach that reference",
+        "changes": _first_use_row_changes("HardlightProject.InputSystem"),
+        "fixtures": {"editmode": ("ProjectLucid.Tests.ControllerActionTests",
+                                  "ProjectLucid.Tests.OriginalControllerSubscriptionGapTests")},
+    },
 }
 
 

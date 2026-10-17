@@ -472,10 +472,13 @@ class IsolationVerdictTests(unittest.TestCase):
     GAP = "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests"
     PRESERVATION = "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests"
     DESTROY_PLAY = "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests"
+    CONTROLLER = "ProjectLucid.Tests.ControllerActionTests"
+    CONTROLLER_GAP = "ProjectLucid.Tests.OriginalControllerSubscriptionGapTests"
 
     def test_side_effects_pin_the_native_changes_modes_and_registered_fixtures(self):
         effects = verification.ISOLATION_SIDE_EFFECTS
-        self.assertEqual({"TimeScaledUtilities..cctor", "PerformanceDependency..cctor"}, set(effects))
+        self.assertEqual({"TimeScaledUtilities..cctor", "PerformanceDependency..cctor", "InputActionSubscription..cctor"},
+                         set(effects))
         self.assertEqual(tuple(self.native_row_changes("Hardlight.TimeManager")),
                          effects["TimeScaledUtilities..cctor"]["changes"])
         self.assertEqual(tuple(self.native_row_changes("Hardlight.ScalablePerformance")),
@@ -483,6 +486,10 @@ class IsolationVerdictTests(unittest.TestCase):
         self.assertEqual({"editmode": (self.TIMING, self.TIMING_PRESERVATION)}, effects["TimeScaledUtilities..cctor"]["fixtures"])
         self.assertEqual({"editmode": (self.GAP, self.PRESERVATION), "playmode": (self.DESTROY_PLAY,)},
                          effects["PerformanceDependency..cctor"]["fixtures"])
+        self.assertEqual(tuple(self.native_row_changes("HardlightProject.InputSystem")),
+                         effects["InputActionSubscription..cctor"]["changes"])
+        self.assertEqual({"editmode": (self.CONTROLLER, self.CONTROLLER_GAP)},
+                         effects["InputActionSubscription..cctor"]["fixtures"])
         for name, entry in effects.items():
             with self.subTest(side_effect=name):
                 self.assertEqual({"reason", "changes", "fixtures"}, set(entry))
