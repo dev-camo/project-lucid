@@ -2368,3 +2368,50 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDispatchUtilitiesTests." + n
     "StructExchangeKeysHandlesByPayloadTypeAndPublishesDefaults",
     "CompilerGeneratedNamesMatchTheOriginalMemberOrdinals",
 ))
+
+# HLUnityCore payload, key/value, serialised type reference and debug utility types.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalKeyValueParserTests." + name for name in (
+    "DefaultParserSplitsLinesAtTheFirstEqualsAndTrimsKeysAndValues",
+    "DisabledTrimKeepsSurroundingWhitespaceOnKeyAndValue",
+    "TrimNullValuesDropsOnlyLinesWithoutASeparator",
+    "RepeatedKeyKeepsTheLastValue",
+    "CustomSeparatorsReplaceTheDefaultsForTheirOwnSplitOnly",
+    "FluentSettersReturnTheSameParser",
+    "BlankTextAndNullLinesGiveEmptyDictionaries",
+    "BuildMetaDataWithoutItsResourceReturnsNullForEveryKey",
+    "BuildMetaDataLookupReturnsStoredValuesAndNullForMissingKeys",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSerialisedTypeReferenceTests." + name for name in (
+    "InspectableTypeStoresFullNameWithTheSimpleAssemblyName",
+    "InspectableTypeWithoutATypeSerialisesEmptyAndPrintsNone",
+    "InspectableTypeResolvesItsNameAfterDeserialisation",
+    "InspectableTypeBeforeSerialiseLeavesTheStoredNameUnchanged",
+    "SerialisableEnumWritesTheQualifiedTypeAndValueTextOnlyWhenSerialised",
+    "SerialisableEnumWithoutAValueSerialisesNulls",
+    "SerialisableEnumParsesTheStoredTextBackAfterDeserialisation",
+    "SerialisableEnumLogsAndClearsTheValueWhenTheTextDoesNotParse",
+    "SerialisableEnumReportsAnUnknownTypeOnlyWhenAValueIsPresent",
+    "ImplementsTypeAcceptsOnlyVisibleConcreteAssignableClasses",
+    "ImplementsTypeWithAnInterfaceBaseRejectsStructsAndInterfaces",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPayloadJsonTests." + name for name in (
+    "ScalarHelpersReadOnlyMatchingJsonTypes",
+    "StringArrayClearsTheExistingListEvenWhenTheArrayIsMissing",
+    "StringArrayCreatesTheListOnlyForAConvertedEntry",
+    "StringArrayLogsAndSkipsEntriesThatAreNotStrings",
+    "ReaderTargetsPayloadJsonAndAcceptsEveryEntry",
+    "PopulatorBuildsItsPropertiesAndBindsTheGateToTheOverride",
+    "PopulatorGateDefaultsToOpen",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLDebugUtilityTests." + name for name in (
+    "FormatMemorySizeSwitchesUnitStrictlyAboveEachBoundary",
+    "FormatMemorySizeUsesTheCurrentCulture",
+    "ConditionalNamesAndRetailDevelopmentCheck",
+    "EveryAssertIsConditionalOnDevelopmentBuilds",
+    "PredicateAssertsNeverInvokeTheirPredicate",
+    "BoolErrorReportsOnlyAFailedTestAndWarnAndFalseStaySilent",
+    "BoolTrueReportsAFailureWithTheContextName",
+    "ArrowHeadDirectionTurnsBackByTheHeadAngle",
+    "HealthDataUsesTheRetailFallbackOfThreeZeros",
+    "ProfileBeginPushesAndEndPopsOnlyWhileEntriesRemain",
+))
