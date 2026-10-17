@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.ExceptionServices;
 using Hardlight;
 using NUnit.Framework;
 using UnityEngine;
@@ -256,39 +257,48 @@ namespace ProjectLucid.Tests
                     Assert.AreEqual(ListenerName, Holder.GameCenterLocalPlayerListener.GetType().FullName);
                     Assert.AreEqual(PlayerName, Holder.NativeGameCenterLocalPlayer.GetType().FullName);
                 }
-                catch
+                catch (Exception failure)
                 {
-                    try
-                    {
-                        if (Facade != null)
-                        {
-                            try { ProcessManager.ProcessSystemAction(Facade, SystemAction.AppShutdown); }
-                            finally
-                            {
-                                try { Facade.Deinitialise(); }
-                                finally { ProcessManager.UnsubscribeFromAllActions(Facade); }
-                            }
-                        }
-                    }
-                    finally
-                    {
-                        facadeLeaseBusy = false;
-                        // Keep the construction failure as the result.
-                        try { lifecycleRows.Dispose(); }
-                        catch (Exception release) { Debug.LogWarning("Facade lease row release failed after an earlier failure: " + release); }
-                    }
+                    // Every cleanup step runs and the construction failure stays
+                    // the result; later cleanup failures are only logged.
+                    VerificationFixtureOwnership.RunThenCleanUp(
+                        ExceptionDispatchInfo.Capture(failure).Throw,
+                        () => { if (Facade != null) ProcessManager.ProcessSystemAction(Facade, SystemAction.AppShutdown); },
+                        () => Facade?.Deinitialise(),
+                        () => { if (Facade != null) ProcessManager.UnsubscribeFromAllActions(Facade); },
+                        () => facadeLeaseBusy = false,
+                        lifecycleRows.Dispose);
                     throw;
                 }
             }
-            // Every step runs; the first failure stays the result and the
-            // empty lifecycle rows are released last.
+            // Every step runs; the first failure stays the result. The empty
+            // lifecycle rows are released, then the lookup must hold exactly
+            // the rows it held when the lease began.
             public void Dispose() => VerificationFixtureOwnership.RunThenCleanUp(
                 () => ProcessManager.ProcessSystemAction(Facade, SystemAction.AppShutdown),
                 () => Facade.Deinitialise(),
                 () => ProcessManager.UnsubscribeFromAllActions(Facade),
                 RequireRestoredSharedState,
                 () => facadeLeaseBusy = false,
-                lifecycleRows.Dispose);
+                lifecycleRows.Dispose,
+                RequireNoAddedActionRows);
+
+            private void RequireNoAddedActionRows()
+            {
+                Assert.AreEqual(prior.Count, actions.Count);
+                foreach (var entry in actions)
+                {
+                    Assert.IsTrue(priorRows.TryGetValue(entry.Key, out object row), "Facade lease left an added action row: " + entry.Key);
+                    Assert.AreSame(row, entry.Value);
+                }
+            }
+
+            // The test body's failure stays the result over any lease cleanup failure.
+            internal static void Run(Func<GameCenterLocalPlayer> create, Action<FacadeLease> body)
+            {
+                var lease = new FacadeLease(create);
+                VerificationFixtureOwnership.RunThenCleanUp(() => body(lease), lease.Dispose);
+            }
 
             private void RequireRestoredSharedState()
             {
@@ -321,7 +331,7 @@ namespace ProjectLucid.Tests
         {
             foreach (Func<GameCenterLocalPlayer> create in new Func<GameCenterLocalPlayer>[]
                 { () => new GameCenterLocalPlayer(), () => new GameCenterLocalPlayer(false), () => new GameCenterLocalPlayer(true) })
-                using (var lease = new FacadeLease(create))
+                FacadeLease.Run(create, lease =>
                 {
                     int auth = 0, changes = 0;
                     lease.Facade.OnAuthenticateHandler += success => { Assert.IsFalse(success); auth++; };
@@ -345,7 +355,7 @@ namespace ProjectLucid.Tests
                     lease.Facade.RegisterAuthenticateHandler();
                     callbacks.TriggerPlayerDidChange(null);
                     Assert.AreEqual(1, auth); Assert.AreEqual(1, changes);
-                }
+                });
         }
 
         private static object ReadOwnedListenerEvent(IGameCenterLocalPlayerListener listener, string name)
@@ -360,7 +370,7 @@ namespace ProjectLucid.Tests
 
         public static void GenuinePlayerPhotoIteratorCompletesWithoutYieldThroughLocalCallbacks()
         {
-            using (var lease = new FacadeLease(() => new GameCenterLocalPlayer()))
+            FacadeLease.Run(() => new GameCenterLocalPlayer(), lease =>
             {
                 Assert.IsTrue(Player.TryParseProperties("owned-id|Owned", "owned-id", lease.Holder, out Player player));
                 object priorPhoto = ReadOwnedListenerEvent(lease.Holder.GameCenterLocalPlayerListener, "OnLoadPhotoForSize");
@@ -385,7 +395,7 @@ namespace ProjectLucid.Tests
                 finally { (next as IDisposable)?.Dispose(); }
                 Assert.AreSame(priorPhoto, ReadOwnedListenerEvent(lease.Holder.GameCenterLocalPlayerListener, "OnLoadPhotoForSize"));
                 Assert.AreSame(priorCompleted, ReadOwnedListenerEvent(lease.Holder.GameCenterLocalPlayerListener, "OnLoadPhotoForSizeCompleted"));
-            }
+            });
         }
     }
 }
