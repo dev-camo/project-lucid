@@ -71,7 +71,7 @@ namespace ProjectLucid.Tests
             for (int i = 0; i < instructions.Count; i++)
             {
                 object operand = instructions[i].Value;
-                if (operand is int value && value != 0x7642df2f)
+                if (instructions[i].Key == OpCodes.Ldc_I4 && operand is int value && value != 0x7642df2f)
                 {
                     Assert.That(IsEqualityGuard(instructions, i), Is.True, "0x" + value.ToString("x8") + " guards on equality");
                     route.Add("0x" + value.ToString("x8"));
@@ -138,7 +138,7 @@ namespace ProjectLucid.Tests
             for (int i = call - 1; i >= 0; i--)
             {
                 object operand = instructions[i].Value;
-                if (operand is int value) return value;
+                if (instructions[i].Key == OpCodes.Ldc_I4 && operand is int value) return value;
                 Assert.That(operand, Is.Not.InstanceOf<MethodBase>(), "no other call between the immediate and its call");
             }
             Assert.Fail("no immediate before the call");
