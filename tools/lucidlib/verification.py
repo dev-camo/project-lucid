@@ -1882,6 +1882,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSplashSelectionTests.UnmatchedAspectFallsBackToTheFirstEntry",
     "ProjectLucid.Tests.OriginalSplashSelectionTests.FractionalWidthDifferencesFollowTheSelectionTolerance",
     "ProjectLucid.Tests.OriginalSplashSelectionTests.AspectRatioMatchesWithinToleranceButNotJustOutside",
+    "ProjectLucid.Tests.OriginalSplashSelectionTests.VideoAssignmentUsesTheSelectedEntryUpToTheShorterList",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetMergesLaterGroupsIntoFirstAndFaultsOnDuplicateKeys",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetKeepsTheFirstGroupDictionaryWithItsKeyComparer",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetKeepsAnEmptyFirstGroupDictionaryAndItsKeyComparer",
