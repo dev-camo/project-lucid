@@ -2150,6 +2150,21 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLLogHandlerTests." + name f
     "DependenciesKeepTheirShippedBehaviour",
 ))
 
+# Restored Hardlight.HLLogConsole (HLUnityCore.Runtime 0x060009ec..0x06000a27) and its settings asset.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLLogConsoleTests." + name for name in (
+    "ConstructorsUseTheShippedInitialisers",
+    "ConfigurationCheckDisablesWithoutAssetOrSkin",
+    "AwakeCopiesAssetDefaultsAndInitialisesStylesAndContents",
+    "OnEnableSizesListsOnceAndSubscribesOnEveryEnable",
+    "ReceivedMessagesRouteThroughImportantExtractAndDisplayMasks",
+    "DynamicExclusionsCountRepeatsAndCollapseOtherCopies",
+    "SortedRebuildClearAndTrimFollowTheirMasks",
+    "ShowHideAndPageCountFollowTheShippedState",
+    "ImportantMessageCheckOpensTheNextImportantMessage",
+    "WindowRectInsetsTheSafeAreaAndClampsThePosition",
+    "HelpersUseTheNativeLiteralsAndLimits",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
