@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
@@ -6,6 +7,8 @@ namespace Hardlight
     // Interface declarations describe shape only; they contain no inferred behavior.
     public interface IGraphStorage
     {
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public sealed class Var<T>
         {
             public T Value;

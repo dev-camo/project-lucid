@@ -1,9 +1,12 @@
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight.Pooling
 {
     // Original HLUnityCore.Runtime.dll type, recovered from shared generic arm64
     // implementations at 0x18bef40..0x18c0250. Kept here as an FSM dependency.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public sealed class ObjectPool<TType> where TType : class, new()
     {
         // 0x06001025; arm64 0x18c0130 calls UnityEngine.Object's constructor.

@@ -1,9 +1,12 @@
 using System;
 using Hardlight.Pooling;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
     // Original type and method identities are in HLUnityCore.Runtime.dll.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class FSMStateChangeAction
     {
         // 0x06000420; arm64 0x1ac71f4.

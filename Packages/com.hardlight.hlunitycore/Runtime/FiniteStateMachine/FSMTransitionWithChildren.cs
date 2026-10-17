@@ -12,6 +12,8 @@ namespace Hardlight
     {
         [Serializable]
         [GraphNodeDefaultName("TransitionWithChildren")]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         private class JSONCtorArgs
         {
             [GraphNodeFocus("Hardlight", "FSMTransitionGraphNode", null, false)]

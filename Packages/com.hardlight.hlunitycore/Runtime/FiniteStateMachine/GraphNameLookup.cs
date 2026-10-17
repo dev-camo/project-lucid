@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public static class GraphNameLookup
     {
         // HLUnityCore.Runtime.dll:Hardlight.GraphNameLookup:0x060008af;

@@ -12,6 +12,8 @@ namespace Hardlight
         [Serializable]
         [GraphNodeDefaultName("StateGroup")]
         [GraphNodeColour(0f, 0.75f, 1f)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         private class JSONCtorArgs
         {
             [GraphNodePopup("Hardlight", "FSMStateGraphNode", null, false, false)]

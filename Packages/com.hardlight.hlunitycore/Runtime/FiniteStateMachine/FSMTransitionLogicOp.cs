@@ -20,6 +20,8 @@ namespace Hardlight
 
         [Serializable]
         [GraphNodeDefaultName("LogicOp")]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         private class JSONCtorArgs
         {
             [GraphEnumPopup(typeof(LogicOperator))]

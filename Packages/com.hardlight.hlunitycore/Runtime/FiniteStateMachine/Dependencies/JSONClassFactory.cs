@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public static class JSONClassFactory
     {
         // HLUnityCore.Runtime.dll:Hardlight.JSONClassFactory:0x06000935;

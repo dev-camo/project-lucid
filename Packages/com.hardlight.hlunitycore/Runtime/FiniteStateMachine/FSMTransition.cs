@@ -1,9 +1,12 @@
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
     // Original HLUnityCore.Runtime.dll base type. Native base hooks are empty
     // and its default update is false; authored subclasses remain separate work.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     [GraphNodeMenuFormat("Core/{0}")]
     public class FSMTransition : IFSMTransition
     {

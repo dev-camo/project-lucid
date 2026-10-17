@@ -1,5 +1,9 @@
+using Unity.IL2CPP.CompilerServices;
+
 namespace Hardlight
 {
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class FSMUser : IGraphUser
     {
         // HLUnityCore.Runtime.dll:Hardlight.FSMUser:0x060004d9/0x060004da;

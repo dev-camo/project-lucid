@@ -10,7 +10,9 @@ namespace Hardlight
     public class FSMStateSubFSM : FSMState
     {
         [Serializable]
+        [Il2CppSetOption(Option.NullChecks, false)]
         [GraphNodeColour(0f, 1f, 0f)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         private class JSONCtorArgs
         {
             [GraphHorizontalBreak(false)]

@@ -3474,3 +3474,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCharacterTransitionTargetTests.DoUpdateReadsTheActiveHomingTargetAndNeverThePendingCandidate",
     "ProjectLucid.Tests.OriginalCharacterTransitionTargetTests.DoUpdateTestsTheActiveTargetObjectThenTypeDistanceAndSurfaceInOriginalOrder",
 )
+
+
+# Own Il2CppSetOption check-option annotations on HLUnityCore owners (dump.cs metadata order).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLUnityCoreCheckOptionTests.CoreTypesKeepTheShippedOwnCheckOptionAnnotationsInOrder",
+)

@@ -2,14 +2,19 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
     // Original synchronous construction path. Multi-FSM/includes/file loading
     // and graph serialization continue, in original order, in FSMMultipleConstruction.cs.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public static partial class FSMClassFactory
     {
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class NodeMetadataWithRouting : NodeMetadata
         {
             public NodeMetadata[] StateRoutingMetadata;
@@ -26,6 +31,8 @@ namespace Hardlight
         }
 
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class JSONStateTransition
         {
             public string Transition;
@@ -36,6 +43,8 @@ namespace Hardlight
         }
 
         [Serializable]
+        [Il2CppSetOption(Option.NullChecks, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         public class JSONTransitionClass
         {
             public string Class;
@@ -47,6 +56,8 @@ namespace Hardlight
         }
 
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class JSONStateClass
         {
             public string Class;
@@ -59,6 +70,8 @@ namespace Hardlight
         }
 
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class JSONFiniteStateMachineClass
         {
             public string Name;
@@ -75,6 +88,8 @@ namespace Hardlight
         }
 
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class JSONMultipleFSMs
         {
             public List<string> Includes;

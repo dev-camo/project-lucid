@@ -1,7 +1,11 @@
+using Unity.IL2CPP.CompilerServices;
+
 namespace Hardlight
 {
     // Original assembly: HLUnityCore.Runtime.dll. Native-derived implementation;
     // method tokens refer to the supplied 1.10.1 release, not this rebuild.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class HLCRC32
     {
         public enum Case { Upper = 0, Lower = 1, AsIs = 2 }

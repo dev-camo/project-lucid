@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
@@ -8,6 +9,8 @@ namespace Hardlight
     // by a lowercase CRC, not by the display name.
     public partial class HLPropertyList
     {
+        [Il2CppSetOption(Option.NullChecks, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         public class Property
         {
             public string m_value;

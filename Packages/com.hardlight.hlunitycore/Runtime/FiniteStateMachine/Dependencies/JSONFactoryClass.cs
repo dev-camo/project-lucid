@@ -1,8 +1,11 @@
 using System;
 using System.Reflection;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class JSONFactoryClass
     {
         public readonly Type ClassType;

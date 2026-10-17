@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
@@ -6,6 +7,8 @@ namespace Hardlight
     // arm64 methods. Empty base hooks and false results are present in the native
     // release, not placeholders for the still-unrecovered concrete game states.
     [GraphNodeMenuFormat("Core/{0}")]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class FSMState : IFSMState
     {
         public readonly FiniteStateMachine FSM;

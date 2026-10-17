@@ -1,10 +1,13 @@
 using System;
 using System.Globalization;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
     // HLUnityCore.Runtime.dll, original type 0x0200028c. Behavior follows
     // the named ARM64 TimeUtils bodies; units and date-kind rules are intentional.
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public static class TimeUtils
     {
         public const int NanosecondsPerMicrosecond = 1000;

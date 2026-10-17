@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class FSMStorage : IGraphStorage
     {
         // 0x060004c2; arm64 0x1ad1684, original registration order.

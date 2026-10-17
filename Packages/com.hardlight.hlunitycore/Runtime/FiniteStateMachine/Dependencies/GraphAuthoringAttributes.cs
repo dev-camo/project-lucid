@@ -1,8 +1,11 @@
 using System;
 using UnityEngine;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     [AttributeUsage(AttributeTargets.Field, AllowMultiple = true)]
     public abstract class GraphAttributeBase : Attribute
     {
@@ -78,6 +81,8 @@ namespace Hardlight
         public GraphEnumPopupAttribute(Type enumType) { EnumType = enumType; }
     }
 
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Field)]
     public class GraphDisplayNameAttribute : Attribute
     {

@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
     // Original HLUnityCore.Runtime.dll type. Named arm64 native functions
     // establish reference counts, overwrite behavior and registry interaction.
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class FSMManager : ISystem
     {
         private struct FSMRef

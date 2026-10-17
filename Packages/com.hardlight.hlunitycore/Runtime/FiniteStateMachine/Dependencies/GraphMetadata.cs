@@ -1,9 +1,12 @@
 using System;
 using UnityEngine;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
     [Serializable]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class NodeMetadataBasic
     {
         public Vector2 Position;
@@ -13,6 +16,8 @@ namespace Hardlight
     }
 
     [Serializable]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class NodeMetadata : NodeMetadataBasic
     {
         public string Guid;
@@ -39,6 +44,8 @@ namespace Hardlight
     }
 
     [Serializable]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class ViewMetadata
     {
         public Vector2 Translation;
@@ -52,6 +59,8 @@ namespace Hardlight
     }
 
     [Serializable]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BackgroundMetadata : NodeMetadata
     {
         public string Title;

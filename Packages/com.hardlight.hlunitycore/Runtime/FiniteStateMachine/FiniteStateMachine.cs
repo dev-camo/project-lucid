@@ -2,11 +2,14 @@ using System;
 using System.Collections.Generic;
 using Hardlight.Pooling;
 using Unity.Profiling;
+using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
     // HLUnityCore.Runtime.dll:Hardlight.FiniteStateMachine. Bodies reconstructed
     // from named arm64 native functions, including original manager registration.
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class FiniteStateMachine
     {
         public readonly int FSMId;
