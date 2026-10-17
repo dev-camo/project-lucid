@@ -2958,5 +2958,5 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSelectableGeneratedMembers
     "WaitForRootObjectsStateMachineKeepsTheShippingName",
     "ButtonSelectedClosureKeepsTheShippingDisplayClassName",
     "WaitForRootObjectsYieldsOnceThenRecordsTheSceneAndRegisters",
-    "WaitForRootObjectsResetIsNotSupported",
+    "WaitForRootObjectsIteratorEmissionShape",
 ))

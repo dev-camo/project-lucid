@@ -88,9 +88,8 @@ namespace ProjectLucid.Tests
             Assert.That(type.GetProperties(Declared).Length, Is.EqualTo(1));
             Assert.That(type.GetEvents(Declared), Is.Empty);
             Method(type, "get_Text", 3526, typeof(string), new Type[] {  }, new string[] {  });
-            // Shipping metadata names this role <>c__DisplayClass12_0. Discover
-            // the current compiler's literal owner through the same capture/callback
-            // contract; its generated ordinal is not an original identity oracle.
+            // Shipping metadata (TypeDef 0x02000092) names this capture/callback
+            // owner <>c__DisplayClass12_0; find it by contract, then pin the name.
             Type[] callbackOwners = typeof(HLSelectableInputListener).GetNestedTypes(Declared)
                 .Where(candidate => candidate.DeclaringType == typeof(HLSelectableInputListener)
                     && candidate.GetCustomAttributesData().Any(attribute => attribute.AttributeType == typeof(System.Runtime.CompilerServices.CompilerGeneratedAttribute))
@@ -100,6 +99,7 @@ namespace ProjectLucid.Tests
                 .ToArray();
             Assert.That(callbackOwners.Length, Is.EqualTo(1), "exactly one natural capture/callback owner is required");
             Type currentCallbackOwner = callbackOwners.Single();
+            Assert.That(currentCallbackOwner.Name, Is.EqualTo("<>c__DisplayClass12_0"));
             Assert.That(currentCallbackOwner.BaseType, Is.EqualTo(typeof(object)));
             Assert.That(currentCallbackOwner.IsNestedPrivate, Is.True);
             Assert.That(currentCallbackOwner.GetNestedTypes(Declared), Is.Empty);

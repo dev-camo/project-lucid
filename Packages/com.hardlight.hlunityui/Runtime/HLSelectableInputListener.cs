@@ -1,5 +1,6 @@
 // Original HLUnityUI.Runtime Hardlight.HLSelectableInputListener complete family reconstruction.
 // C# spelling and local names are inferred; source/native fault equivalence and current emission remain held.
+// Closure ordinal 12 is from metadata; placing both nested types before the fields is the simplest layout consistent with it and TypeDef order 0x90/0x91 (inferred).
 // All thirty concrete ARM64/x86_64 spans were personally read; the text-provider interface has two genuine zero definition pointers.
 // Setup subscribes shutdown before SystemRef.IsNull. ClearUp deselects before checking/removing controller subscriptions; no idempotence/rollback added.
 // ButtonSelected appends per-index closures without clearing the delegate list. Callback supplier and ProcessTriggers entries are reread, including after Press/event reentry.
@@ -36,8 +37,8 @@ namespace Hardlight
     [Il2CppSetOption(Option.NullChecks, false)]
     public class HLSelectableInputListener : MonoBehaviour
     {
-        // Both nested types precede the fields: the shipping closure is
-        // <>c__DisplayClass12_0 (0x02000092), so ButtonSelected is member ordinal 12.
+        // The shipping closure is <>c__DisplayClass12_0 (0x02000092): ButtonSelected
+        // is member ordinal 12, which holds with both nested types declared first.
         [Serializable]
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [Il2CppSetOption(Option.NullChecks, false)]

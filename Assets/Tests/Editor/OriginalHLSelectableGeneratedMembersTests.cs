@@ -46,30 +46,24 @@ namespace ProjectLucid.Tests
         }
 
         // Shipping metadata: TypeDef 0x02000092 HLSelectableInputListener+<>c__DisplayClass12_0
-        // holding gameInputIndex (+0x10) and <>4__this (+0x18); its <ButtonSelected>b__0
-        // (0x06000480, x86-64 0x1b5f5f0) is the per-entry closure that ButtonSelected
-        // (0x06000476) appends. Ordinal 12 places both nested types before the fields.
+        // is the only compiler-generated nested type. Its fields and <ButtonSelected>b__0
+        // are pinned by ListenerWholeNaturalFamilyKeepsOriginalFlagsAndTypedSignatures.
         [Test]
         public void ButtonSelectedClosureKeepsTheShippingDisplayClassName()
         {
-            Type[] generated = typeof(HLSelectableInputListener).GetNestedTypes(Declared)
-                .Where(nested => nested.IsDefined(typeof(CompilerGeneratedAttribute), false)).ToArray();
-            Assert.That(generated.Select(nested => nested.Name), Is.EqualTo(new[] { "<>c__DisplayClass12_0" }));
-            Type closure = generated[0];
-            Assert.That(closure.GetFields(Declared).OrderBy(field => field.MetadataToken).Select(field => field.Name),
-                Is.EqualTo(new[] { "gameInputIndex", "<>4__this" }));
-            MethodInfo body = closure.GetMethod("<ButtonSelected>b__0", Declared, null, new[] { typeof(float) }, null);
-            Assert.That(body, Is.Not.Null);
-            Assert.That(body.ReturnType, Is.EqualTo(typeof(void)));
+            string[] generated = typeof(HLSelectableInputListener).GetNestedTypes(Declared)
+                .Where(nested => nested.IsDefined(typeof(CompilerGeneratedAttribute), false))
+                .Select(nested => nested.Name).ToArray();
+            Assert.That(generated, Is.EqualTo(new[] { "<>c__DisplayClass12_0" }));
         }
 
-        // Kickoff 0x060006c7 (x86-64 0x1b722b0) only builds the machine with state 0
-        // and <>4__this. MoveNext 0x060006f0 (0x1b737a0): state 0 sets state -1,
-        // clears <>2__current, sets state 1 and returns true; state 1 sets state -1,
-        // stores gameObject.scene.name into m_sceneName (+0xf0) and calls
-        // ActiveSelectables.Add(this, m_sceneName), then returns false; any other
-        // state returns false untouched. Registering before the first yield, or on
-        // every later MoveNext, fails here.
+        // MoveNext 0x060006f0 (x86-64 0x1b737a0): the first call clears <>2__current
+        // and yields; the second stores gameObject.scene.name into m_sceneName (+0xf0),
+        // re-reads it for ActiveSelectables.Add(this, m_sceneName) (0x1b73836) and
+        // finishes; a finished machine returns false untouched. Registering before the
+        // yield, or again on a later MoveNext, fails here. The per-scene row is asserted
+        // when the EditMode scene has a name; otherwise Add's blank-name early return
+        // must leave the scene table without any new row.
         [Test]
         public void WaitForRootObjectsYieldsOnceThenRecordsTheSceneAndRegisters()
         {
@@ -82,43 +76,58 @@ namespace ProjectLucid.Tests
 
                 var routine = (IEnumerator)typeof(HLSelectable).GetMethod("WaitForRootObjects", Declared).Invoke(selectable, null);
                 Assert.That(routine, Is.Not.Null);
-                Assert.That(State(routine), Is.EqualTo(0));
-                Assert.That(ReferenceEquals(This(routine), selectable), Is.True);
                 Assert.That(sceneName.GetValue(selectable), Is.EqualTo(sentinel), "kickoff runs no body");
                 Assert.That(fixture.Registered(selectable), Is.Zero);
 
                 Assert.That(routine.MoveNext(), Is.True);
                 Assert.That(routine.Current, Is.Null);
-                Assert.That(State(routine), Is.EqualTo(1));
                 Assert.That(sceneName.GetValue(selectable), Is.EqualTo(sentinel), "the scene is read only after the yield");
                 Assert.That(fixture.Registered(selectable), Is.Zero);
 
                 string expected = selectable.gameObject.scene.name;
+                bool named = !string.IsNullOrWhiteSpace(expected);
                 Assert.That(routine.MoveNext(), Is.False);
-                Assert.That(State(routine), Is.EqualTo(-1));
                 Assert.That(sceneName.GetValue(selectable), Is.EqualTo(expected));
                 Assert.That(selectable.SceneName, Is.EqualTo(expected));
                 Assert.That(fixture.Registered(selectable), Is.EqualTo(1));
-                if (!string.IsNullOrWhiteSpace(expected))
-                    Assert.That(fixture.RegisteredInScene(selectable, expected), Is.EqualTo(1));
+                AssertSceneRow(fixture, selectable, expected, named);
 
                 Assert.That(routine.MoveNext(), Is.False);
                 Assert.That(routine.Current, Is.Null);
-                Assert.That(fixture.Registered(selectable), Is.EqualTo(1), "a finished machine does not register again");
+                Assert.That(fixture.Registered(selectable), Is.EqualTo(1));
+                // The global list uses AddUnique, so only the per-scene list shows a repeat Add.
+                AssertSceneRow(fixture, selectable, expected, named);
             }
         }
 
-        // Reset 0x060006f2 (x86-64 0x1b738b0) raises NotSupportedException.
+        // Emission-shape self-check, not an original-behaviour oracle: Roslyn iterator
+        // lowering fixes these for any C# iterator. Kickoff 0x060006c7 (x86-64 0x1b722b0)
+        // builds the machine with <>1__state 0 and <>4__this; MoveNext moves it to 1 then
+        // -1; Reset 0x060006f2 (0x1b738b0) raises NotSupportedException.
         [Test]
-        public void WaitForRootObjectsResetIsNotSupported()
+        public void WaitForRootObjectsIteratorEmissionShape()
         {
             using (var fixture = new Fixture())
             {
                 var routine = (IEnumerator)typeof(HLSelectable).GetMethod("WaitForRootObjects", Declared).Invoke(fixture.Selectable, null);
+                Assert.That(State(routine), Is.EqualTo(0));
+                Assert.That(ReferenceEquals(This(routine), fixture.Selectable), Is.True);
                 Assert.Throws<NotSupportedException>(() => routine.Reset());
                 Assert.That(State(routine), Is.EqualTo(0));
                 Assert.That(fixture.Registered(fixture.Selectable), Is.Zero);
+                Assert.That(routine.MoveNext(), Is.True);
+                Assert.That(State(routine), Is.EqualTo(1));
+                Assert.That(routine.MoveNext(), Is.False);
+                Assert.That(State(routine), Is.EqualTo(-1));
             }
+        }
+
+        private static void AssertSceneRow(Fixture fixture, HLSelectable selectable, string scene, bool named)
+        {
+            if (named)
+                Assert.That(fixture.RegisteredInScene(selectable, scene), Is.EqualTo(1));
+            else
+                Assert.That(fixture.SceneKeysUnchanged(), Is.True, "a blank scene name adds no scene row");
         }
 
         private static int State(IEnumerator routine)
@@ -164,6 +173,12 @@ namespace ProjectLucid.Tests
             {
                 List<HLSelectable> list;
                 return m_byScene.TryGetValue(scene, out list) ? list.Count(entry => ReferenceEquals(entry, selectable)) : 0;
+            }
+
+            public bool SceneKeysUnchanged()
+            {
+                return m_byScene.Count == m_byBefore.Count && m_byScene.Keys.All(m_byBefore.ContainsKey)
+                    && m_byScene.All(pair => pair.Value.Count == m_byBefore[pair.Key].Value.Length);
             }
 
             public void Dispose()

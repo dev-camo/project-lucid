@@ -1,6 +1,7 @@
 // Original HLUnityUI.Runtime research reconstruction.
-// Source/native preservation only: provider algorithms, current generated layout,
-// Unity/menu/bootstrap/native faults and full gameplay remain unqualified.
+// Source/native preservation only: provider algorithms, Unity/menu/bootstrap/native
+// faults and full gameplay remain unqualified. The d__77 iterator name is from metadata;
+// SelectionState's slot after WaitForRootObjects and Unity-compiler emission are unconfirmed.
 // 0x020000f2 Hardlight.HLSelectable+ClickableEvent
 // 0x060006eb System.Void .ctor() | arm64 0x1b79bbc..0x1b79bc4; x86_64 0x1b71530..0x1b71540
 // 0x020000f3 Hardlight.HLSelectable+UnclickableEvent
@@ -320,9 +321,9 @@ namespace Hardlight
             base.OnDisable();
         }
 
-        // The shipping iterator is <WaitForRootObjects>d__77 (0x020000f6); its member
-        // ordinal is 77 only when one nested type follows WaitForRootObjects. Which
-        // one is not recorded in metadata; this enum is placed beside the state code.
+        // Ordinal 77 (<WaitForRootObjects>d__77, 0x020000f6) needs one nested type
+        // after WaitForRootObjects. In nested TypeDef order SelectionState (0x020000f5)
+        // is last, so it is that one; its exact slot after the iterator is inferred.
         protected enum SelectionState
         {
             Normal = 0,
