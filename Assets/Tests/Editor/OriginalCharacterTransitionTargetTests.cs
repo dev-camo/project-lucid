@@ -13,6 +13,8 @@ namespace ProjectLucid.Tests
     // Running it needs a started Character (HomingPool and Constants come from OnStart and the
     // data manager), which a test cannot build without fakes. Expected references and order
     // come from the x86-64 body; only member references and their relative order are checked.
+    // The runtime cases (no active target with a valid pending one, distinct active and pending
+    // targets, a destroyed active Object.Target) are therefore covered only structurally.
     public sealed class OriginalCharacterTransitionTargetTests
     {
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Static |

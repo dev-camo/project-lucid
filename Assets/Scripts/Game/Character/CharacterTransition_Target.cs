@@ -20,7 +20,7 @@ namespace HardlightProject
 			if (base.DoUpdate(user, updateContext))
 				return true;
 			Character character = user.GetAs<Character>();
-			// The locked-on target, not the pending candidate; no active target reads as a null object.
+			// A missing active target is a null object, so it fails the same Unity null test as a destroyed one.
 			ActiveHomingTarget activeTarget = character.HomingPool.ActiveTarget;
 			GameObject targetObject = activeTarget != null ? activeTarget.Object.Target : null;
 			if (targetObject == null || !IsValidType(activeTarget.Object.Type))
