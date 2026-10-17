@@ -17,6 +17,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import struct
@@ -26,7 +27,8 @@ import uuid
 
 from .audio import normalize_audio
 from .bootstrap import (ToolError, executable as native_executable, host_lock,
-                        managed_path, tool_work_dir, validate_work_dir, verified_tool_path)
+                        managed_path, tool_work_dir, tree_seal, validate_work_dir,
+                        verified_install_seal, verified_tool_path)
 from . import inputvariants
 from .inspection import _manifest, sha256_file
 
@@ -351,6 +353,52 @@ def _request(base: str, endpoint: str, fields: dict | None = None, timeout: int 
         return response.read()
 
 
+def _runtime_ripper(install: Path, runtime: Path, seal: dict) -> None:
+    """Copy the verified AssetRipper closure into a fresh, empty per-run directory.
+
+    AssetRipper writes temp/<random> beside its executable (its base directory),
+    not under the working directory, so it must never run from the sealed install.
+    The copy is checked against the seal recorded from the pinned archive, so a
+    change to the install after verification cannot reach the launched closure.
+    """
+    directories = []
+    for path in sorted(install.rglob("*")):
+        info = path.lstat()
+        target = runtime / path.relative_to(install)
+        if stat.S_ISDIR(info.st_mode):
+            target.mkdir(mode=0o700)
+            directories.append((target, stat.S_IMODE(info.st_mode)))
+        elif stat.S_ISREG(info.st_mode) and info.st_nlink == 1:
+            with path.open("rb") as source, target.open("xb") as output:
+                shutil.copyfileobj(source, output)
+            target.chmod(stat.S_IMODE(info.st_mode))
+        else:
+            raise ToolError(f"AssetRipper installation contains a link or special file: {path}")
+    # Apply directory modes last so read-only directories can still be filled.
+    for target, mode in reversed(directories):
+        target.chmod(mode)
+    if tree_seal(runtime) != seal:
+        raise ToolError("AssetRipper runtime copy differs from the pinned verified closure")
+
+
+def _discard_runtime_ripper(runtime: Path, run: Path, work: Path, result: dict | None) -> None:
+    """Remove the per-run copy and its tool-owned output; record it if it must stay."""
+    try:
+        # The copy is ours; make pinned read-only directories removable first.
+        for directory, _, _ in os.walk(runtime):
+            if not os.path.islink(directory):
+                os.chmod(directory, 0o700)
+        shutil.rmtree(runtime)
+    except OSError as exc:
+        retained = {"path": str(runtime), "error": str(exc)}
+        report_path = _cache_path(work, run / "report.json")
+        report = json.loads(report_path.read_text())
+        report["retained_runtime_copy"] = retained
+        _json_write(report_path, report)
+        if result is not None:
+            result["retained_runtime_copy"] = retained
+
+
 def _start_ripper(executable: Path, run_dir: Path) -> tuple[subprocess.Popen, str, object]:
     run_dir = _physical_path(run_dir)
     log = _physical_path(run_dir / "assetripper.log")
@@ -627,16 +675,23 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
                            "Compiled shader data is preserved; shader source has not been reconstructed.",
                            "Catalog path matches require review before generating Addressables bindings."]}
     _json_write(_cache_path(work, run / "report.json"), report)
-    process = console = None
+    install = managed_path(tool_work_dir(work), "tools", "assetripper")
+    runtime = managed_path(tool_work_dir(work), "tools", f".run-assetripper-{run_id}")
+    process = console = result = None
+    owned_runtime = False
     try:
-        process, base, console = _start_ripper(executable.resolve(), run)
+        runtime.mkdir(mode=0o700, exist_ok=False)
+        owned_runtime = True
+        _runtime_ripper(install, runtime, verified_install_seal(install))
+        # Run the copy so AssetRipper's base-directory output stays in this run's tree.
+        process, base, console = _start_ripper(runtime / executable.relative_to(install), run)
         _request(base, "/Settings/Update", EXPORT_SETTINGS)
         _request(base, "/LoadFolder", {"Path": str(app)})
         project = _cache_path(work, project)
         if project.exists():
             raise RuntimeError("Fresh export destination unexpectedly exists; refusing destructive export")
         _request(base, "/Export/UnityProject", {"Path": str(project), "CreateSubfolder": "false"})
-        return finalize_asset_export(run, work)
+        result = finalize_asset_export(run, work)
     except BaseException as exc:
         report.update(status="failed", error=str(exc))
         _json_write(_cache_path(work, run / "report.json"), report)
@@ -644,6 +699,11 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
     finally:
         if process is not None:
             _stop_ripper(process, console)
+        if owned_runtime:
+            _discard_runtime_ripper(runtime, run, work, result)
+    # The pinned closure itself must still match after the run.
+    verified_tool_path(work, "assetripper")
+    return result
 
 
 def finalize_asset_export(run_dir: Path, work_dir: Path) -> dict:

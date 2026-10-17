@@ -539,6 +539,14 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
     return destination
 
 
+def verified_install_seal(directory: Path) -> dict:
+    """Return the closure this process verified from the pinned archive for an install."""
+    recorded = _INSTALL_SEALS.get(directory)
+    if recorded is None:
+        raise ToolError(f"No pinned installation was verified in this process: {directory}")
+    return recorded[1]
+
+
 def verified_tool_path(work_dir: Path, name: str) -> Path:
     """Verify an installed tool's entire closure before selecting its executable."""
     lock = load_lock()

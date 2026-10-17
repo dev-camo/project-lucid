@@ -610,7 +610,9 @@ class AssetTests(unittest.TestCase):
         assets._json_write(pointer, {"status": "exported", "run_id": "previous"})
         console = mock.Mock()
         process = mock.Mock()
+        # Stand in for the closure verified_tool_path records from the pinned archive.
         with mock.patch.dict(assets.inputvariants.VARIANTS, {"synthetic": synthetic}), \
+             mock.patch.dict(bootstrap._INSTALL_SEALS, {tool.parent: ({}, bootstrap.tree_seal(tool.parent))}), \
              mock.patch.object(assets, "verified_tool_path", return_value=tool), \
              mock.patch.object(assets, "_start_ripper", return_value=(process, "http://127.0.0.1:1", console)), \
              mock.patch.object(assets, "_request", side_effect=RuntimeError("synthetic export failure")), \
