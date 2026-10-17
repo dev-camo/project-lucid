@@ -2271,3 +2271,19 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLegalModuleTests.TrackingNotDeterminedWaitsForTheCallback",
     "ProjectLucid.Tests.OriginalLegalModuleTests.LegalDocumentClearRunsInAFinallyEvenWhenTheCallbackThrows",
 )
+
+# Original GameCenter listener components, stub save-game listener and MacOS access-point plugin.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.ListenerComponentsNameTheirOwningGameObjectOnEveryRead",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.LeaderboardCompletionsParseBooleansAndReportTheLastParsedHash",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.LeaderboardParsingUsesTheFirstNonNullHolderUntilClear",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.LeaderboardRemainingCompletionsReadTheirOwnFieldsAndReportTheHash",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.LeaderboardImageReadsHeightBeforeWidthAndBuildsTheTextureBeforeTheDataCheck",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.LeaderboardEntriesParseThroughTheFirstLocalPlayerHolderUntilClear",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.SaveGameCallbacksForwardDataUnparsedAndParseCompletions",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.SaveGameParsedCallbacksForwardTheSavedGameWithOrWithoutTheHash",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.SaveGameRejectsUnparsableSavedGamesAndConflictNotificationsCarryNoHash",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.StubSaveGameListenerHasNoNameAndEachTriggerRaisesOnlyItsEvent",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.MacOSAccessPointFocusIsANoOpThatReportsUnfocused",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.MacOSAccessPointOverridesForwardToTheirOriginalImports",
+)

@@ -35,62 +35,84 @@
 // 0x06000542 0x1ad2998, 0x1acebf0
 // 0x06000543 0x1ad29a0, 0x1acec00
 // 0x06000544 0x1ad1f80, 0x1ace140
-#if PROJECT_LUCID_ORIGINAL_GAME_CENTER_ACCESS_POINT
+using System.Runtime.InteropServices;
 using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
-#error Original PInvoke library and import descriptors are not yet qualified; research source only.
+    // Original HLUnityCore.Runtime 0x020000ef. Every import is a direct call
+    // into a statically linked _Unity_* symbol with no lazy PInvoke resolver,
+    // which is how IL2CPP emits "__Internal" imports. The stripped metadata
+    // does not carry the library string, so "__Internal" is inferred (the
+    // dynamically resolved leaderboard imports name HLMacCore instead).
+    // GameCenterAccessPoint selects this plugin only under the original
+    // access-point define; the default build keeps the offline plugin.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class GameCenterAccessPointPluginMacOS : GameCenterAccessPointPlugin
     {
         // Original 0x06000522; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern void Unity_ShowGameCenter();
 
         // Original 0x06000523; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern void Unity_ShowAchievements();
 
         // Original 0x06000524; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern bool Unity_IsAccessPointAvailable();
 
         // Original 0x06000525; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern void Unity_ShowAccessPoint(int location, bool showHighlights);
 
         // Original 0x06000526; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern bool Unity_IsAccessPointShown();
 
         // Original 0x06000527; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern void Unity_HideAccessPoint();
 
         // Original 0x06000528; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointScreenCoordinateX();
 
         // Original 0x06000529; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointOriginX();
 
         // Original 0x0600052a; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointScreenCoordinateY();
 
         // Original 0x0600052b; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointOriginY();
 
         // Original 0x0600052c; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointScreenCoordinateHeight();
 
         // Original 0x0600052d; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointSizeHeight();
 
         // Original 0x0600052e; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointScreenCoordinateWidth();
 
         // Original 0x0600052f; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern float Unity_GetAccessPointSizeWidth();
 
         // Original 0x06000530; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern bool Unity_IsPresentingGameCenter();
 
         // Original 0x06000531; dual CPU body evidence retained.
+        [DllImport("__Internal")]
         private static extern void Unity_SetShowHighlights(bool showHighlights);
 
         // Original 0x06000532; dual CPU body evidence retained.
@@ -153,10 +175,11 @@ namespace Hardlight
             return Unity_GetAccessPointOriginY();
         }
 
-        // Original 0x0600053c; dual CPU body evidence retained.
+        // Original 0x0600053c; x86-64 0x1aceb95 jumps to the import without
+        // "Size" in its name, _Unity_GetAccessPointScreenCoordinateHeight.
         public override float GetAccessPointSizeScreenCoordinateHeight()
         {
-            return Unity_GetAccessPointSizeScreenCoordinateHeight();
+            return Unity_GetAccessPointScreenCoordinateHeight();
         }
 
         // Original 0x0600053d; dual CPU body evidence retained.
@@ -165,10 +188,11 @@ namespace Hardlight
             return Unity_GetAccessPointSizeHeight();
         }
 
-        // Original 0x0600053e; dual CPU body evidence retained.
+        // Original 0x0600053e; x86-64 0x1acebb5 likewise jumps to
+        // _Unity_GetAccessPointScreenCoordinateWidth.
         public override float GetAccessPointSizeScreenCoordinateWidth()
         {
-            return Unity_GetAccessPointSizeScreenCoordinateWidth();
+            return Unity_GetAccessPointScreenCoordinateWidth();
         }
 
         // Original 0x0600053f; dual CPU body evidence retained.
@@ -208,4 +232,3 @@ namespace Hardlight
 
     }
 }
-#endif
