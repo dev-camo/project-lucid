@@ -5,6 +5,7 @@ using System.Reflection;
 using Hardlight;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.Events;
 using Object = UnityEngine.Object;
 
@@ -246,6 +247,8 @@ namespace ProjectLucid.Tests
         {
             Rig rig = Build(true);
             Set(rig.Widget, "m_progress", float.NaN);
+            // The cancel branch hands the NaN progress to the pull animation's normalizedTime.
+            LogAssert.Expect(LogType.Assert, "Invalid parameter time in AnimationState.SetTime because it was infinity or NaN");
             rig.Widget.OnEndDrag();
             Assert.That(rig.Cancelled, Is.EqualTo(1));
             Assert.That(rig.Activations, Is.Empty);
