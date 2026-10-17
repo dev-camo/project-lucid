@@ -38,10 +38,11 @@ namespace ProjectLucid.Tests
 
         // Original 060011c1 (x86-64 0x74B100) returns true when
         // IsRollingTriggered (+0xE8) is set, otherwise IsRollingExiting (+0xE9).
-        // ActorTransition_AbilityTriggered reads it through IAbilityTrigger.
-        // The (false, true) state, reachable from UpdateTrigger(false) after a
-        // triggered roll, is the negative control: a getter that returns only
-        // IsRollingTriggered reports false there.
+        // The flags are set directly here; in the original, UpdateTrigger
+        // (0x74B1A0) produces (false, true) when a triggered roll is released.
+        // That state is the negative control: a getter that returns only
+        // IsRollingTriggered reports false there. The IAbilityTrigger read
+        // checks interface dispatch only, not ActorTransition_AbilityTriggered.
         [Test]
         public void IsTriggeredReportsTriggeredOrExiting()
         {
