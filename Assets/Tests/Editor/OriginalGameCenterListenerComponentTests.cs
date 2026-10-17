@@ -10,9 +10,10 @@ using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
 {
-    // Original UnitySendMessage listener components, the stub save-game
-    // listener and the MacOS access-point plugin. Every component lives on an
-    // owned GameObject destroyed by the test; none of these types has statics.
+    // Original GameCenter listener components (UnitySendMessage receiver role
+    // inferred, not shown in any body), the stub save-game listener and the
+    // MacOS access-point plugin. Every component lives on an owned GameObject
+    // destroyed by the test; none of these types has statics.
     [TestFixture]
     public sealed class OriginalGameCenterListenerComponentTests
     {
@@ -54,6 +55,8 @@ namespace ProjectLucid.Tests
             Assert.That(saveGame.Name, Is.EqualTo("lucid-save-listener"));
             leaderboard.gameObject.name = "lucid-renamed";
             Assert.That(leaderboard.Name, Is.EqualTo("lucid-renamed"));
+            saveGame.gameObject.name = "lucid-save-renamed";
+            Assert.That(saveGame.Name, Is.EqualTo("lucid-save-renamed"));
         }
 
         // 0x060005f4 0x1ad7a47 passes &m_hashCode to Int32.TryParse, so a failed
@@ -400,8 +403,7 @@ namespace ProjectLucid.Tests
         // _Unity_* symbol. The two "Size...ScreenCoordinate" overrides target
         // the imports without "Size" (0x1aceb95 -> _Unity_GetAccessPoint
         // ScreenCoordinateHeight, 0x1acebb5 -> ...Width). Read from IL so no
-        // native import runs. The "__Internal" library string is inferred (see
-        // the plugin header); this pins it so any change is reviewed.
+        // native import runs.
         [Test]
         public void MacOSAccessPointOverridesForwardToTheirOriginalImports()
         {
@@ -428,9 +430,29 @@ namespace ProjectLucid.Tests
             {
                 MethodBase[] calls = Calls(pair.Key);
                 Assert.That(calls.Select(call => call.Name), Is.EqualTo(new[] { pair.Value }), pair.Key);
-                Assert.That((calls[0].Attributes & MethodAttributes.PinvokeImpl) != 0, Is.True, pair.Value);
-                CustomAttributeData dll = calls[0].GetCustomAttributesData().Single(a => a.AttributeType == typeof(DllImportAttribute));
-                Assert.That(dll.ConstructorArguments.Single().Value, Is.EqualTo("__Internal"), pair.Value);
+            }
+        }
+
+        // Emission-only check: no native source gives the import library. The
+        // "__Internal" string is inferred (see the plugin header); this pins
+        // the emitted declaration so any change is reviewed.
+        [Test]
+        public void MacOSAccessPointImportLibraryIsTheInferredInternalEmissionCheck()
+        {
+            string[] overrides =
+            {
+                "Show", "ShowAchievements", "IsAccessPointAvailable", "ShowAccessPoint", "IsAccessPointShown",
+                "HideAccessPoint", "GetAccessPointScreenCoordinateX", "GetAccessPointOriginX",
+                "GetAccessPointScreenCoordinateY", "GetAccessPointOriginY", "GetAccessPointSizeScreenCoordinateHeight",
+                "GetAccessPointSizeHeight", "GetAccessPointSizeScreenCoordinateWidth", "GetAccessPointSizeWidth",
+                "IsPresentingGameCenter", "SetShowHighlights",
+            };
+            foreach (string name in overrides)
+            {
+                MethodBase import = Calls(name).Single();
+                Assert.That((import.Attributes & MethodAttributes.PinvokeImpl) != 0, Is.True, import.Name);
+                CustomAttributeData dll = import.GetCustomAttributesData().Single(a => a.AttributeType == typeof(DllImportAttribute));
+                Assert.That(dll.ConstructorArguments.Single().Value, Is.EqualTo("__Internal"), import.Name);
             }
         }
 

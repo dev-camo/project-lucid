@@ -2286,4 +2286,5 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.StubSaveGameListenerHasNoNameAndEachTriggerRaisesOnlyItsEvent",
     "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.MacOSAccessPointFocusIsANoOpThatReportsUnfocused",
     "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.MacOSAccessPointOverridesForwardToTheirOriginalImports",
+    "ProjectLucid.Tests.OriginalGameCenterListenerComponentTests.MacOSAccessPointImportLibraryIsTheInferredInternalEmissionCheck",
 )

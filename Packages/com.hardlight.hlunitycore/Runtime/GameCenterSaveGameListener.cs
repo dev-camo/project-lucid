@@ -97,8 +97,7 @@ namespace Hardlight
                 OnResolveConflictingSavedGamesCompleted?.Invoke(m_hashCode, success);
         }
 
-        // 0x0600082f..0x06000832: the modification and conflict notifications
-        // are unsolicited, so none of them reads m_hashCode.
+        // 0x0600082f..0x06000832 do not read m_hashCode.
         public void DidModifySavedGame(string propertiesJoinToIdentifySavedGame)
         {
             if (SavedGame.TryParseProperties(propertiesJoinToIdentifySavedGame, out SavedGame savedGame))
