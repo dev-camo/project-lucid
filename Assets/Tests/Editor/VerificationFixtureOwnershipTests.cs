@@ -225,5 +225,65 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(1, registry.Count);
             Assert.IsTrue(unrelated.IsNull());
         }
+
+        [Test]
+        public void BundledLanguagesRejectABorrowedStringRequestWithoutCallingIt()
+        {
+            RequireBorrowedRequestRejectedBeforeMutation(() => { });
+        }
+
+        [Test]
+        public void BundledLanguagesRejectAThrowingBorrowedStringRequestWithoutCallingIt()
+        {
+            RequireBorrowedRequestRejectedBeforeMutation(() => throw new InvalidProgramException("borrowed request sentinel"));
+        }
+
+        // The sentinel is subscribed through the public event and removed by its
+        // own delegate identity, so no other subscriber is touched. Rejection
+        // must precede every fixture mutation: zero sentinel calls, no row, and
+        // every StringTable static and the Language event left as they were.
+        private static void RequireBorrowedRequestRejectedBeforeMutation(Action effect)
+        {
+            const BindingFlags declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly;
+            string tableName = ProcessManager.GetDefaultName<Hardlight.Localisation.StringTable>();
+            string languageName = ProcessManager.GetDefaultName<Hardlight.Localisation.Language>();
+            Assert.IsFalse(Registry.Contains(tableName) || Registry.Contains(languageName), "Control requires cold language rows.");
+            // Witness that the sentinel is the only rejected state: the same
+            // guards accept the current state while the request is absent.
+            Assert.IsNull(typeof(Hardlight.Localisation.StringTable).GetField("OnRequestStringTable", declared).GetValue(null),
+                "Control requires no other request subscriber.");
+            Assert.DoesNotThrow(() => StringTableVerification.RequireColdState(Registry,
+                MonoSingleton<Hardlight.Localisation.StringTable>.Instance, MonoSingleton<Hardlight.Localisation.Language>.Instance,
+                Hardlight.Localisation.StringTable.StringsTableHandlers, null));
+            Assert.DoesNotThrow(() => StringTableVerification.RequireOriginalReadiness((Func<bool>)typeof(Hardlight.Localisation.StringTable)
+                .GetField("ShouldInvokeStringHandlers", declared).GetValue(null)));
+            FieldInfo[] statics = Array.FindAll(typeof(Hardlight.Localisation.StringTable).GetFields(declared), f => !f.IsLiteral);
+            FieldInfo languageEvent = typeof(Hardlight.Localisation.Language).GetField("OnLanguageChanged", declared);
+            int calls = 0;
+            Action sentinel = () => { calls++; effect(); };
+            Hardlight.Localisation.StringTable.OnRequestStringTable += sentinel;
+            try
+            {
+                object[] before = Array.ConvertAll(statics, f => f.GetValue(null));
+                object languageBefore = languageEvent.GetValue(null);
+                int rowsBefore = Registry.Count;
+                var error = Assert.Throws<InvalidOperationException>(() => BundledStringTableVerification.Run());
+                Assert.AreEqual("Fixture requires unowned static state: " + tableName, error.Message);
+                Assert.AreEqual(0, calls);
+                Assert.AreEqual(rowsBefore, Registry.Count);
+                Assert.IsFalse(Registry.Contains(tableName) || Registry.Contains(languageName));
+                for (int i = 0; i < statics.Length; ++i)
+                {
+                    object now = statics[i].GetValue(null);
+                    Assert.IsTrue(ReferenceEquals(now, before[i]) || (now != null && now.GetType().IsValueType && now.Equals(before[i])),
+                        "StringTable static changed: " + statics[i].Name);
+                }
+                Assert.AreSame(languageBefore, languageEvent.GetValue(null));
+            }
+            finally
+            {
+                Hardlight.Localisation.StringTable.OnRequestStringTable -= sentinel;
+            }
+        }
     }
 }

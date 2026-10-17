@@ -1711,3 +1711,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableGuardAcceptsOnlyTheOriginalReadinessInitializer",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StringTableColdGuardAcceptsEmptyStateAndUnrelatedRows",
 )
+
+# Borrowed request subscribers are rejected before the bundled-language fixture mutates.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.BundledLanguagesRejectABorrowedStringRequestWithoutCallingIt",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.BundledLanguagesRejectAThrowingBorrowedStringRequestWithoutCallingIt",
+)

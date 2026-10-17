@@ -80,6 +80,18 @@ namespace ProjectLucid
             Require(ProcessManager.IsSystemNull<Table>() && ReferenceEquals(MonoSingleton<Table>.Instance, null) &&
                 ProcessManager.IsSystemNull<Language>() && ReferenceEquals(MonoSingleton<Language>.Instance, null),
                 "An original language/table host is already registered.");
+            // Each apply below reaches OnLanguageDefinitionLoaded (0x0600005d),
+            // InvokeStringTableHandlers (0x0600005f) and RequestStringTable
+            // (0x0600006c), so a borrowed request subscriber would run once per
+            // language, and static restoration cannot undo its effects. Borrowed
+            // handlers and readiness would be replaced. Reject all of them with
+            // the StringTable fixture guards before any mutation.
+            var registry = (System.Collections.IDictionary)typeof(ProcessManager)
+                .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            StringTableVerification.RequireColdState(registry, MonoSingleton<Table>.Instance, MonoSingleton<Language>.Instance,
+                Table.StringsTableHandlers, typeof(Table).GetField("OnRequestStringTable", Own).GetValue(null));
+            StringTableVerification.RequireOriginalReadiness(
+                (Func<bool>)typeof(Table).GetField("ShouldInvokeStringHandlers", Own).GetValue(null));
             string directory = Path.Combine(Application.streamingAssetsPath, "LanguageStrings");
             // Supplied inputs are ignored extracted files; their absence is a
             // precondition failure, not a pass.
