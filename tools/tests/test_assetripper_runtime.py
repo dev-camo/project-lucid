@@ -1,7 +1,9 @@
 """AssetRipper runs from a per-run copy so its runtime output never enters the sealed install (#301).
 
-Inert fixtures only: the pinned archive is a synthetic tar and the launch is a stand-in
-that writes what AssetRipper 2.0.0 leaves beside its executable (temp/<4 hex>/<file>).
+Inert fixtures only: the pinned archive is a synthetic tar and the launch is a stand-in.
+The stand-in creates temp/<hex> directories beside its executable, as issue #301 observed
+AssetRipper 2.0.0 doing on Linux (macOS and Windows base-directory behaviour is unverified),
+plus one file so cleanup is exercised on a non-empty tree.
 No supplied executable, game binary or network service is ever run.
 """
 
@@ -95,20 +97,30 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
         return sorted((self.work / "tools").glob(".run-assetripper-*"))
 
     def launch(self, executable, run):
-        """Stand in for AssetRipper: it writes temp/<hex>/<guid> beside its executable."""
+        """Stand in for AssetRipper: temp/<hex> beside its executable, plus a fixture file."""
         self.launches.append(Path(executable))
         self.assertTrue(Path(executable).is_file())
-        self.assertNotIn(self.install, Path(executable).parents)
         output = Path(executable).parent / "temp" / "40d0"
         output.mkdir(parents=True, mode=0o700)
         (output / ("e" * 32)).write_bytes(b"runtime output")
         return mock.Mock(), "http://127.0.0.1:1", mock.Mock()
 
-    def extract(self, request):
+    def extract(self, request, finalize=None):
+        finalize = finalize or (lambda run, work: {"status": "exported"})
         with mock.patch.object(assets, "_start_ripper", side_effect=self.launch), \
              mock.patch.object(assets, "_request", side_effect=request), \
-             mock.patch.object(assets, "finalize_asset_export", return_value={"status": "exported"}):
+             mock.patch.object(assets, "finalize_asset_export", side_effect=finalize):
             return assets.extract_assets(self.app, self.work)
+
+    def failing_runtime_removal(self):
+        """Fail shutil.rmtree only for runtime copies; every other removal stays real."""
+        remove = assets.shutil.rmtree
+
+        def rmtree(path, *args, **kwargs):
+            if Path(path).name.startswith(".run-assetripper-"):
+                raise OSError("synthetic removal failure")
+            return remove(path, *args, **kwargs)
+        return mock.patch.object(assets.shutil, "rmtree", side_effect=rmtree)
 
     def reports(self):
         return [json.loads(path.read_text()) for path in sorted((self.work / "assets/runs").glob("*/report.json"))]
@@ -118,8 +130,9 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
         seal = bootstrap.tree_seal(self.install)
         with self.assertRaisesRegex(RuntimeError, "synthetic export failure"):
             self.extract(RuntimeError("synthetic export failure"))
-        self.assertEqual(seal, bootstrap.tree_seal(self.install))
+        # The symptom in #301: the next selection rejected the closure after real runtime output.
         self.assertEqual({"status": "exported"}, self.extract(lambda *args, **kwargs: b""))
+        self.assertEqual(seal, bootstrap.tree_seal(self.install))
         self.assertEqual(2, len(self.launches))
         self.assertNotEqual(self.launches[0].parent, self.launches[1].parent)
         for launched in self.launches:
@@ -136,6 +149,14 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
         # The executable identity recorded for the run is the pinned executable's.
         self.assertEqual(hashlib.sha256(b"inert pinned executable").hexdigest(),
                          self.reports()[0]["tool"]["executable_sha256"])
+
+    def test_the_launched_executable_is_outside_the_pinned_install(self):
+        bootstrap.verified_tool_path(self.work, "assetripper")
+        self.extract(lambda *args, **kwargs: b"")
+        [launched] = self.launches
+        self.assertNotIn(self.install, launched.parents)
+        self.assertEqual(self.work / "tools", launched.parent.parent)
+        self.assertTrue(launched.parent.name.startswith(".run-assetripper-"))
 
     def discard_install(self):
         bootstrap._INSTALL_SEALS.pop(self.install, None)
@@ -198,14 +219,74 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
 
     def test_runtime_copy_is_kept_and_recorded_only_when_removal_fails(self):
         bootstrap.verified_tool_path(self.work, "assetripper")
-        with mock.patch.object(assets.shutil, "rmtree", side_effect=OSError("synthetic removal failure")):
-            result = self.extract(lambda *args, **kwargs: b"")
-        [copy] = self.runtime_copies()
-        self.assertEqual({"path": str(copy), "error": "synthetic removal failure"}, result["retained_runtime_copy"])
-        self.assertEqual(result["retained_runtime_copy"], self.reports()[0]["retained_runtime_copy"])
-        self.assertTrue((copy / "temp/40d0").is_dir())
+        with self.subTest(path="success"):
+            with self.failing_runtime_removal():
+                result = self.extract(lambda *args, **kwargs: b"")
+            [copy] = self.runtime_copies()
+            self.assertEqual({"path": str(copy), "error": "synthetic removal failure"},
+                             result["retained_runtime_copy"])
+            [report] = self.reports()
+            self.assertEqual(result["retained_runtime_copy"], report["retained_runtime_copy"])
+            self.assertTrue((copy / "temp/40d0").is_dir())
+        with self.subTest(path="failure"):
+            with self.failing_runtime_removal(), \
+                 self.assertRaisesRegex(RuntimeError, "synthetic export failure"):
+                self.extract(RuntimeError("synthetic export failure"))
+            retained = [path for path in self.runtime_copies() if path != copy]
+            self.assertEqual(1, len(retained))
+            [report] = [report for report in self.reports() if report["status"] == "failed"]
+            self.assertEqual({"path": str(retained[0]), "error": "synthetic removal failure"},
+                             report["retained_runtime_copy"])
+            self.assertEqual("synthetic export failure", report["error"])
+            # The earlier copy left behind is reported, never removed, by the next run.
+            self.assertEqual([str(copy)], report["stale_runtime_copies"])
         self.assertFalse((self.install / "temp").exists())
 
+    def test_runtime_copy_is_removed_when_stopping_the_tool_fails(self):
+        bootstrap.verified_tool_path(self.work, "assetripper")
+        with mock.patch.object(assets, "_stop_ripper", side_effect=RuntimeError("synthetic stop failure")), \
+             self.assertRaisesRegex(RuntimeError, "synthetic stop failure"):
+            self.extract(RuntimeError("synthetic export failure"))
+        self.assertEqual([], self.runtime_copies())
+        self.assertEqual(bootstrap.tree_seal(self.install), bootstrap.verified_install_seal(self.install))
+
+    def test_report_failure_while_recording_a_kept_copy_does_not_mask_the_export_error(self):
+        bootstrap.verified_tool_path(self.work, "assetripper")
+        write = assets._json_write
+
+        def json_write(path, value):
+            if "retained_runtime_copy" in value:
+                raise ValueError("synthetic report failure")
+            return write(path, value)
+        with self.failing_runtime_removal(), mock.patch.object(assets, "_json_write", side_effect=json_write), \
+             mock.patch.object(assets.sys, "stderr", new_callable=io.StringIO) as stderr, \
+             self.assertRaisesRegex(RuntimeError, "synthetic export failure"):
+            self.extract(RuntimeError("synthetic export failure"))
+        [copy] = self.runtime_copies()
+        self.assertIn(str(copy), stderr.getvalue())
+        self.assertIn("synthetic report failure", stderr.getvalue())
+        [report] = self.reports()
+        self.assertEqual("failed", report["status"])
+        self.assertNotIn("retained_runtime_copy", report)
+
+    def test_install_changed_during_the_run_fails_the_run_before_publication(self):
+        bootstrap.verified_tool_path(self.work, "assetripper")
+        finalized = []
+
+        def change_install(*args, **kwargs):
+            if args[1] == "/Export/UnityProject":
+                (self.install / "extra-plugin.dll").write_bytes(b"extra plugin")
+            return b""
+        try:
+            with self.assertRaisesRegex(bootstrap.ToolError, "closure changed"):
+                self.extract(change_install, finalize=lambda run, work: finalized.append(run))
+            self.assertEqual([], finalized)
+            [report] = self.reports()
+            self.assertEqual("failed", report["status"])
+            self.assertFalse((self.work / "assets/latest-assets.json").exists())
+            self.assertEqual([], self.runtime_copies())
+        finally:
+            self.discard_install()
 
 if __name__ == "__main__":
     unittest.main()

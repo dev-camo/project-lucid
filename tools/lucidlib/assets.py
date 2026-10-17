@@ -21,6 +21,7 @@ import stat
 import subprocess
 import sys
 import struct
+import sys
 import time
 from urllib import error, parse, request
 import uuid
@@ -381,8 +382,8 @@ def _runtime_ripper(install: Path, runtime: Path, seal: dict) -> None:
         raise ToolError("AssetRipper runtime copy differs from the pinned verified closure")
 
 
-def _discard_runtime_ripper(runtime: Path, run: Path, work: Path, result: dict | None) -> None:
-    """Remove the per-run copy and its tool-owned output; record it if it must stay."""
+def _discard_runtime_ripper(runtime: Path) -> dict | None:
+    """Remove the per-run copy and its tool-owned output; describe it if it must stay."""
     try:
         # The copy is ours; make pinned read-only directories removable first.
         for directory, _, _ in os.walk(runtime):
@@ -390,13 +391,34 @@ def _discard_runtime_ripper(runtime: Path, run: Path, work: Path, result: dict |
                 os.chmod(directory, 0o700)
         shutil.rmtree(runtime)
     except OSError as exc:
-        retained = {"path": str(runtime), "error": str(exc)}
+        return {"path": str(runtime), "error": str(exc)}
+    return None
+
+
+def _record_retained_runtime(run: Path, work: Path, retained: dict, result: dict | None,
+                             failure: BaseException | None) -> None:
+    """Record a kept runtime copy in the run report without masking an extraction failure."""
+    if result is not None:
+        result["retained_runtime_copy"] = retained
+    try:
         report_path = _cache_path(work, run / "report.json")
         report = json.loads(report_path.read_text())
         report["retained_runtime_copy"] = retained
         _json_write(report_path, report)
-        if result is not None:
-            result["retained_runtime_copy"] = retained
+    except Exception as exc:
+        if failure is None:
+            raise
+        # The extraction error is already propagating; report the kept copy beside it.
+        print(f"AssetRipper runtime copy kept at {retained['path']} ({retained['error']}); "
+              f"recording it in the run report also failed: {exc}", file=sys.stderr)
+
+
+def _stale_runtime_copies(tools: Path) -> list[str]:
+    """List runtime copies an earlier, interrupted extraction left; never remove them here.
+
+    A copy can belong to a live extraction in another process, so it is only reported.
+    """
+    return sorted(str(path) for path in tools.glob(".run-assetripper-*"))
 
 
 def _start_ripper(executable: Path, run_dir: Path) -> tuple[subprocess.Popen, str, object]:
@@ -674,10 +696,13 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
               "input_variant": variant, "warnings": ["Generated script bodies are placeholders and remain quarantined.",
                            "Compiled shader data is preserved; shader source has not been reconstructed.",
                            "Catalog path matches require review before generating Addressables bindings."]}
-    _json_write(_cache_path(work, run / "report.json"), report)
     install = managed_path(tool_work_dir(work), "tools", "assetripper")
     runtime = managed_path(tool_work_dir(work), "tools", f".run-assetripper-{run_id}")
-    process = console = result = None
+    stale = _stale_runtime_copies(install.parent)
+    if stale:
+        report["stale_runtime_copies"] = stale
+    _json_write(_cache_path(work, run / "report.json"), report)
+    process = console = result = failure = None
     owned_runtime = False
     try:
         runtime.mkdir(mode=0o700, exist_ok=False)
@@ -691,18 +716,23 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
         if project.exists():
             raise RuntimeError("Fresh export destination unexpectedly exists; refusing destructive export")
         _request(base, "/Export/UnityProject", {"Path": str(project), "CreateSubfolder": "false"})
+        # The pinned closure itself must still match before the export is published.
+        verified_tool_path(work, "assetripper")
         result = finalize_asset_export(run, work)
     except BaseException as exc:
+        failure = exc
         report.update(status="failed", error=str(exc))
         _json_write(_cache_path(work, run / "report.json"), report)
         raise
     finally:
-        if process is not None:
-            _stop_ripper(process, console)
-        if owned_runtime:
-            _discard_runtime_ripper(runtime, run, work, result)
-    # The pinned closure itself must still match after the run.
-    verified_tool_path(work, "assetripper")
+        try:
+            if process is not None:
+                _stop_ripper(process, console)
+        finally:
+            if owned_runtime:
+                retained = _discard_runtime_ripper(runtime)
+                if retained is not None:
+                    _record_retained_runtime(run, work, retained, result, failure)
     return result
 
 
