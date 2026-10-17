@@ -469,9 +469,12 @@ namespace ProjectLucid.Tests
             public string PathToManifestFile => null;
         }
 
-        // Original DummyDll HLUnityCore.Runtime Param rows: these parameters carry
-        // Optional|HasDefault (0x1010) with a null/default constant, which
-        // dump.cs omits. LegalModule data and GUIColourScope condition are 0x0000.
+        // Original DummyDll HLUnityCore.Runtime Param rows: these parameters are
+        // Optional|HasDefault (0x1010) with no Constant row; global-metadata
+        // parameter_defaults records them with dataIndex -1 (null/default), and
+        // dump.cs prints no default. LegalModule data and GUIColourScope condition
+        // are 0x0000. RawDefaultValue == null checks the C# `= null`/`default(T)`
+        // authoring that sentinel implies; it is not read from the DummyDll.
         [Test]
         public void OptionalParametersKeepTheOriginalDefaultFlags()
         {
@@ -496,6 +499,18 @@ namespace ProjectLucid.Tests
                 owner.GetMethods(Declared).Single(m => m.Name == name);
             MethodBase Constructor(Type owner, int arity) =>
                 owner.GetConstructors(AnyInstance).Single(c => c.GetParameters().Length == arity);
+
+            // Compile-time probe of the shortened public calls; never invoked, so
+            // losing a default fails compilation without running side effects.
+            Action shortenedCalls = () =>
+            {
+                FSMClassFactory.GenerateJSONMultipleFSMsClass();
+                LegalModule.CreateAndInitialise(default(LegalModule.InitialisationData));
+                _ = new Observable<int>(7);
+                _ = new GUIColourScope(true);
+                _ = new GUIColourScope(Color.red);
+            };
+            Assert.That(shortenedCalls, Is.Not.Null);
 
             // 0x060003ae.
             Expect(Single(typeof(FSMClassFactory), nameof(FSMClassFactory.GenerateJSONMultipleFSMsClass)), ("fsm", Optional), ("json", Optional));
