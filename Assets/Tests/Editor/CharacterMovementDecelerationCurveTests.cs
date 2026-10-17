@@ -17,6 +17,7 @@ namespace ProjectLucid.Tests
             Assert.IsTrue(float.IsNaN(Accelerate(float.NaN)), "minss returns its source operand when unordered.");
         }
 
+        // The finite cases are order-insensitive controls for the clamp itself.
         [Test]
         public void AccelerationClampsAFiniteSumToTheMinimum()
         {
