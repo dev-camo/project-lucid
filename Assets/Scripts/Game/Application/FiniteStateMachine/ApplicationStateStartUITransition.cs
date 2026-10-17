@@ -1,7 +1,6 @@
 using Unity.IL2CPP.CompilerServices;
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Hardlight;
 using UnityEngine;
 
@@ -33,30 +32,6 @@ namespace HardlightProject
 			{;}
 		}
 
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass7_0
-		{
-			public ApplicationStateStartUITransition _003C_003E4__this;
-
-			public IGraphUser user;
-
-			// 06000761 (1.10.1 RVA 0x654A50)
-			public _003C_003Ec__DisplayClass7_0()
-			{;}
-
-			// 06000762 (1.10.1 RVA 0x654C80)
-			internal void _003CDoOnEnter_003Eb__0()
-			{
-				_003C_003E4__this.PublishMessage(user);
-			}
-
-			// 06000763 (1.10.1 RVA 0x654CA0)
-			internal void _003CDoOnEnter_003Eb__1()
-			{
-				_003C_003E4__this.OnTransitionTimeout(user);
-			}
-		}
-
 		private readonly ApplicationStateEvent m_eventOnMidpoint;
 
 		private readonly UIContainerIdentifier m_transitionContainerId;
@@ -85,7 +60,8 @@ namespace HardlightProject
 			return new ApplicationStateStartUITransition(fsm, stateId, eventOnMidpoint, transitionContainer, waitAtMidpoint, queueIfTransitionInProgress);
 		}
 
-		// 0600075d (1.10.1 RVA 0x654860)
+		// 0600075d (1.10.1 RVA 0x654860). The lambdas compile to <>c__DisplayClass7_0:
+		// .ctor 06000761 (0x654A50), b__0 06000762 (0x654C80), b__1 06000763 (0x654CA0).
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
 			base.DoOnEnter(user, action);

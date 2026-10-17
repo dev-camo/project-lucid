@@ -140,6 +140,47 @@ namespace ProjectLucid.Editor
                 StateMachine("<UnloadAllLevels>d__5", new[] { "<>4__this", "user" }));
         }
 
+        // DummyDll Game.Runtime: ApplicationStateFadeTransition 0x020000ce nests JSONCtorArgs
+        // 0x020000cf and <>c__DisplayClass4_0 0x020000d0 (fields 0x040003e4-6 user,
+        // fadeParameters, <>4__this; methods 0x0600065e-60). DoOnEnter is member 4, after
+        // JSONCtorArgs, m_eventOnMidpoint, the constructor and ConstructInstance. A
+        // hand-written nested class before it shifts the natural closure to DisplayClass5_0
+        // and stays behind as an escaped "_003C" type, which the "<" filter would not see.
+        [Test]
+        public void FadeTransitionMatchesTheOriginalGeneratedMembers()
+        {
+            AssertGenerated(typeof(ApplicationStateFadeTransition),
+                Array.Empty<(string, string)>(),
+                Array.Empty<string>(),
+                Closure("<>c__DisplayClass4_0", new[] { "user", "fadeParameters", "<>4__this" }, "<DoOnEnter>b__0", "<DoOnEnter>b__1"));
+            AssertOnlyNested(typeof(ApplicationStateFadeTransition), "JSONCtorArgs", "<>c__DisplayClass4_0");
+        }
+
+        // DummyDll Game.Runtime: ApplicationStateStartUITransition 0x02000124 nests
+        // JSONCtorArgs 0x02000125 and <>c__DisplayClass7_0 0x02000126 (fields 0x040004ad-e
+        // <>4__this, user; methods 0x06000761-63). DoOnEnter is member 7, after JSONCtorArgs,
+        // the four fields, the constructor and ConstructInstance.
+        [Test]
+        public void StartUITransitionMatchesTheOriginalGeneratedMembers()
+        {
+            AssertGenerated(typeof(ApplicationStateStartUITransition),
+                Array.Empty<(string, string)>(),
+                Array.Empty<string>(),
+                Closure("<>c__DisplayClass7_0", new[] { "<>4__this", "user" }, "<DoOnEnter>b__0", "<DoOnEnter>b__1"));
+            AssertOnlyNested(typeof(ApplicationStateStartUITransition), "JSONCtorArgs", "<>c__DisplayClass7_0");
+        }
+
+        // Every nested type in token order, so escaped compiler names cannot hide, and the
+        // closure's exact TypeDef flags 0x00100103 (NestedPrivate|Sealed|BeforeFieldInit).
+        private static void AssertOnlyNested(Type owner, params string[] names)
+        {
+            Type[] nested = owner.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic).OrderBy(t => t.MetadataToken).ToArray();
+            Assert.That(nested.Select(t => t.Name), Is.EqualTo(names), $"{owner.Name} nested types");
+            Assert.That(nested.Where(t => t.Name.StartsWith("_003C")), Is.Empty, $"{owner.Name} escaped compiler names");
+            foreach (Type type in nested.Where(t => t.Name.StartsWith("<>c__DisplayClass")))
+                Assert.That((int)type.Attributes, Is.EqualTo(0x00100103), $"{owner.Name}+{type.Name} flags");
+        }
+
         private static (string name, string[] fields, string[] methods) Closure(string name, string[] fields, params string[] methods) => (name, fields, methods);
 
         private static (string name, string[] fields, string[] methods) StateMachine(string name, string[] hoisted, params string[] methods) =>

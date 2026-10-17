@@ -2064,6 +2064,14 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.MetaGameSetupMatchesTheOriginalGeneratedMembers",
     "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.PlayIntroSequencesMatchesTheOriginalGeneratedMembers",
     "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.UnloadAllLevelsMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.FadeTransitionMatchesTheOriginalGeneratedMembers",
+    "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.StartUITransitionMatchesTheOriginalGeneratedMembers",
+)
+
+# ApplicationStateFadeTransition and ApplicationStateStartUITransition DoOnEnter closures (x86-64 0x645300, 0x654c00).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationTransitionCallbackTests.FadeMidpointRunsTheCallbackBeforeRemovingItsParametersAndCompletionPublishesOnce",
+    "ProjectLucid.Tests.OriginalApplicationTransitionCallbackTests.StartUIMidpointPublishesAndTimeoutReportsBeforePublishing",
 )
 
 EDITMODE_TESTS += (

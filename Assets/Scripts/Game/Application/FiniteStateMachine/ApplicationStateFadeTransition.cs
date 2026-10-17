@@ -1,7 +1,6 @@
 using Unity.IL2CPP.CompilerServices;
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Hardlight;
 using UnityEngine;
 
@@ -26,32 +25,6 @@ namespace HardlightProject
 			{;}
 		}
 
-		[CompilerGenerated]
-		private sealed class _003C_003Ec__DisplayClass4_0
-		{
-			public IGraphUser user;
-
-			public FadeTransitionParameters fadeParameters;
-
-			public ApplicationStateFadeTransition _003C_003E4__this;
-
-			// 0600065e (1.10.1 RVA 0x6452F0)
-			public _003C_003Ec__DisplayClass4_0()
-			{;}
-
-			// 0600065f (1.10.1 RVA 0x645640)
-			internal void _003CDoOnEnter_003Eb__0()
-			{
-				Midpoint(user, fadeParameters.OnMidpointCallback);
-			}
-
-			// 06000660 (1.10.1 RVA 0x645660)
-			internal void _003CDoOnEnter_003Eb__1()
-			{
-				_003C_003E4__this.PublishMessage(user);
-			}
-		}
-
 		private readonly ApplicationStateEvent m_eventOnMidpoint;
 
 		// 06000658 (1.10.1 RVA 0x644F10)
@@ -68,7 +41,8 @@ namespace HardlightProject
 			return new ApplicationStateFadeTransition(fsm, (string)stateId, eventOnMidpoint);
 		}
 
-		// 0600065a (1.10.1 RVA 0x645020)
+		// 0600065a (1.10.1 RVA 0x645020). The lambdas compile to <>c__DisplayClass4_0:
+		// .ctor 0600065e (0x6452F0), b__0 0600065f (0x645640), b__1 06000660 (0x645660).
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
 			base.DoOnEnter(user, action);
