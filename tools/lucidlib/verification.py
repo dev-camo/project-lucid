@@ -2791,3 +2791,91 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTouchableTests." + name for 
     "DeclarationIsABareMaskableGraphicOverride",
     "PopulateMeshOnlyClearsTheHelper",
 ))
+
+# Restored Hardlight.UINavigation (HLUnityUI.Runtime 0x0600037f..8d).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUINavigationTests." + name for name in (
+    "DeclarationKeepsOriginalFieldsFlagsAndAccessors",
+    "DefaultNavigationIsAutomaticWithNoTargetsAndNoFlags",
+    "SettersWriteOnlyTheirOwnField",
+    "EqualsAlsoComparesEachOfTheThreeFlags",
+    "EqualsUsesEngineEqualityForTargets",
+))
+
+# Restored Hardlight.UIEvent (HLUnityUI.Runtime 0x0600037b..7d).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUIEventTests." + name for name in (
+    "DeclarationIsAFieldlessCreatableAsset",
+    "FindByNameReturnsOnlyAUIEventWithThatName",
+))
+
+# Restored Hardlight.UISoundEffect (HLUnityUI.Runtime 0x060002f8..fa).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISoundEffectTests." + name for name in (
+    "DeclarationKeepsOriginalOptionsAndSerializedFields",
+    "ConstructionSeedsASemitoneRangeFromMinusTwelveToTwo",
+    "AssignedClipPlaysThroughTheSoundManagerAtItsBasePitch",
+    "RandomisedClipUsesTheNextSemitoneOffset",
+    "ClipWinsOverTheAudioType",
+    "AudioTypeWithoutAClipPlaysThroughTheEffectManager",
+    "ZeroAudioTypeIsSkippedEvenWithACueForIt",
+    "PlayOnlyWhenActiveSkipsAnInactiveComponent",
+    "OnEnablePlaysOnlyWithPlayOnAwake",
+))
+
+# Restored Hardlight.UISelectable (HLUnityUI.Runtime 0x0600038e..0x060003da).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableTests." + name for name in (
+    "DeclarationKeepsOriginalAttributesFieldOrderAndGeneratedIterator",
+    "ConstructionEnablesInteractionHighlightingAndGroupsButNoNavigation",
+    "AddKeepsTheGlobalListUniqueButAppendsToTheSceneList",
+    "BlankSceneNamesUseOnlyTheGlobalList",
+    "GetSelectablesRegistersAnEmptyListForAnUnknownScene",
+    "RemoveTakesOneSceneEntryAndTheGlobalEntry",
+    "InteractableSetterSkipsUnchangedValuesAndRespectsTheOverride",
+    "InteractableChangeInvokesTheMatchingEventThenReevaluates",
+    "ActiveNonInteractableSelectableBecomesDisabled",
+    "DisabledSelectableReturnsToNormalWhenInactiveOrInteractable",
+    "DifferingStoredStatesTransitionWithoutAChange",
+    "OnEnableEvaluatesInstantlyAndRegistersAndOnDisableUndoesIt",
+    "NonPointerEventsUsePointerInsideWithoutAConfiguration",
+    "PointerHighlightNeedsNavigationValidityWhenSelectionIsHighlighted",
+    "PointerEventsRequireTheConfiguration",
+    "PointerDownHonoursOnlyTheLeftButton",
+    "PointerDownOnANonInteractableSelectableSkipsTheBridgeAndDisables",
+    "PointerEnterAndExitNeedAVisibleCursorAndCanRaiseNavigationEvents",
+    "InvokeEventRunsTheEntryEventBeforeTheTypeSound",
+    "MissingEventEntryStillPlaysTheTypeSoundWithIdZero",
+    "GetEventInfoStoresAMissingEntryOnlyWhenAsked",
+    "SetEventHandlerReplacesTheHandlerOfTheFirstMatchingEntry",
+    "SetNavigationActionListensOnTheNavigateTowardEntry",
+    "ExplicitNavigationReturnsEachDirectionTargetUnchecked",
+    "AutomaticNavigationSearchesOnlyTheModeAxes",
+    "MoveNavigatesOnlyAfterFindingATarget",
+    "GetPointOnRectEdgeScalesByTheLargerComponent",
+    "MaterialSwapCachesStartMaterialsAndSwapsOnDisabled",
+    "CanvasGroupSearchStopsAtIgnoreParentGroups",
+    "TransformSettersReevaluateOnlyOnChangeAndHighlightParentFallsBack",
+))
+
+# Restored Hardlight.UISelectableController (HLUnityUI.Runtime 0x060003db..0x06000407).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableControllerTests." + name for name in (
+    "DeclarationKeepsOriginalFieldsAndGeneratedNames",
+    "ConstructionSeedsTransitionTimeWeightingAndUnsupportedInput",
+    "TrackRecentlySubmittedKeepsTheFiveNewestAndCopiesTheCurrentSelection",
+    "ExclusiveScenesAreRegisteredOnceAndRemovedOnDemand",
+    "ActivationForASelectionInputEnablesAndHidesTheCursor",
+    "EnablingSelectsTheBestCandidateBelowTheRecoveryOrigin",
+    "ActivationWithoutASelectionInputStaysDisabled",
+    "InputTypeChangesAreIgnoredWhileInactiveOrRepeated",
+    "InputTypeChangesToggleTheEnabledSystem",
+    "DeactivateSystemOnlyActsWhileActive",
+    "DisabledSystemRecordsAnySelectionWithoutValidation",
+    "EnabledSelectionDeselectsThePreviousAndAnnouncesTheNew",
+    "EnabledSelectionIgnoresAnInvalidSelectable",
+    "DeselectWithNothingSelectedOnlyClearsTheLastKnown",
+    "IsValidSelectableForNavigationRejectsEachFailingCondition",
+    "FindSelectablePrefersAlignmentOverDistance",
+    "FindSelectableSkipsTheCallerAndCandidatesNotAhead",
+    "ExclusiveSceneLimitsTheSearchToItsOwnList",
+    "FindSelectableFromATransformStartsAtItsRectEdge",
+    "TryGetCachedSelectablePrefersLastKnownThenNewestValidSubmission",
+    "TryGetCachedSelectableFallsBackToADownwardSearchFromTheRecoveryOrigin",
+    "AppReloadingResetsTheBlockDelegateAndDisables",
+))
