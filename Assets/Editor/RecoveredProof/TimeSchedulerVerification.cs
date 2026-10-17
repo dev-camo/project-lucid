@@ -908,6 +908,13 @@ namespace ProjectLucid
             TimeCategoryConfiguration config=null;TimeCategoryLookup lookup=null;GameObject host=null;TimeManager manager=null;
             SystemConfiguration system=null;StackableDataHandle configHandle=null,lookupHandle=null;
             var applied=new List<StackableDataHandle>();bool initialised=false,destroyed=false;
+            // RegisterSystem(new SystemConfiguration()) and Awake's RegisterSystem(this)
+            // create a missing row, and UnregisterSystem keeps it. Own each row found
+            // absent and remove it once idle again; a live SystemConfiguration is
+            // borrowed as before, and an existing TimeManager row must be idle.
+            var configurationRow=new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>(),borrowLiveSystem:true);
+            var timeManagerRow=new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>());
+            VerificationFixtureOwnership.RunThenCleanUp(()=>{
             try
             {
                 a=ScriptableObject.CreateInstance<TimeCategoryObject>();b=ScriptableObject.CreateInstance<TimeCategoryObject>();g=ScriptableObject.CreateInstance<TimeCategoryObject>();spare=ScriptableObject.CreateInstance<TimeCategoryObject>();equalA=ScriptableObject.CreateInstance<TimeCategoryObject>();
@@ -1044,6 +1051,7 @@ namespace ProjectLucid
                 if(hadMultiply)multiplies[typeof(TimeSetting)]=priorMultiply;else multiplies.Remove(typeof(TimeSetting));
                 Time.timeScale=priorScale;Time.fixedDeltaTime=priorFixed;
             }
+            },timeManagerRow.Dispose,configurationRow.Dispose);
             return checks-start;
         }
         public static int Run() { int managed=RunManaged();return managed+EngineChecks(); }

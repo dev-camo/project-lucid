@@ -47,7 +47,7 @@ ALLOWED = {
     "Assets/Editor/RecoveredProof/ProcessUnregistrationVerification.cs": (26, PROOF),
     "Assets/Editor/RecoveredProof/SystemConfigurationVerification.cs": (3, OWNED),
     "Assets/Editor/RecoveredProof/SystemRefVerification.cs": (1, OWNED),
-    "Assets/Editor/RecoveredProof/TimeSchedulerVerification.cs": (4, UNLEASED),
+    "Assets/Editor/RecoveredProof/TimeSchedulerVerification.cs": (4, OWNED),
     "Assets/Editor/RecoveredProof/UIOriginalLeafVerification.cs": (1, OWNED),
     "Assets/Tests/CoroutineScrollShared/OriginalCoroutineEngineVerification.cs": (1, PROOF),
     "Assets/Tests/Editor/CloudFacadeHandlerTests.cs": (1, OWNED),
