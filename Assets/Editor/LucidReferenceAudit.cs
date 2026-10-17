@@ -251,9 +251,11 @@ namespace ProjectLucid.Editor
         // A matching GUID alone can select a different subasset in a DLL or an
         // unrelated script. This checks loaded class eligibility; original type
         // equivalence and runtime behavior remain separate reconstruction gates.
+        // A null pointer is a missing-script component in Unity, not an optional
+        // reference, so it is reported like any other unbound script.
         public static string GetScriptBindingError(string line)
         {
-            if (NullScriptReference.IsMatch(line)) return null;
+            if (NullScriptReference.IsMatch(line)) return "MonoScript pointer is null: " + line.Trim();
             Match pointer = ScriptReference.Match(line);
             if (!pointer.Success || !long.TryParse(pointer.Groups[1].Value, out long fileID))
                 return "Unsupported or invalid MonoScript pointer: " + line.Trim();

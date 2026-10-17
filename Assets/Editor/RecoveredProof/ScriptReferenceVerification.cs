@@ -24,7 +24,7 @@ namespace ProjectLucid
             Require(error(pointer.Replace("fileID: " + id + ",", "fileID: " + (id + 1) + ",")) != null, "correct GUID with wrong local ID is rejected");
             Require(error(pointer.Replace("fileID: " + id + ",", "fileID: 4294967297,")) != null, "64-bit IDs cannot truncate into another subasset");
             Require(error(pointer.Replace("type: 3", "type: 2")) != null, "wrong pointer type is rejected");
-            Require(error("m_Script: {fileID: 0}") == null, "explicit null script pointer is accepted as null");
+            Require(error("m_Script: {fileID: 0}") != null, "null MonoScript pointer is rejected");
             Require(error("m_Script: {fileID: 11500000, guid: incomplete, type: 3}") != null, "malformed pointer is reported");
             MonoScript plain = AssetDatabase.LoadAssetAtPath<MonoScript>("Packages/com.hardlight.hlunitycore/Runtime/HLPropertyStore.cs");
             Require(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(plain, out guid, out id), "plain maintained class has script identity");
