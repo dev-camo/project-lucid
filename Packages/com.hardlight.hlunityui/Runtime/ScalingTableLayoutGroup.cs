@@ -126,8 +126,9 @@ namespace UnityEngine.UI.Extensions
             float totalPreferredWidth = padding.horizontal;
 
             int columns = Mathf.Min(rectChildren.Count, m_maximumColumns);
-            // Computed before the remainder: its inlined CeilToInt System.Math class
-            // init runs at 0x1B3D2FD, ahead of the idiv (0x1B3D329) and the guard.
+            // Kept ahead of the remainder as the inlined CeilToInt's System.Math class
+            // init is (0x1B3D2FD); its float division itself follows the guard
+            // (0x1B3D33E), and has no observable effect in either position.
             int rows = Mathf.CeilToInt((float)rectChildren.Count / m_maximumColumns);
             int lastRowCells = rectChildren.Count % columns;
             if (lastRowCells == 0)
@@ -302,7 +303,8 @@ namespace UnityEngine.UI.Extensions
             m_preferredRowHeights = null;
         }
 
-        // 0x060000a6: lays the table out immediately instead of waiting for the canvas.
+        // 0x060000a6: base.OnEnable queues the rebuild; ForceUpdateCanvases then runs
+        // the global canvas update, which performs it.
         protected override void OnEnable()
         {
             base.OnEnable();

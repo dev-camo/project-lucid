@@ -26,7 +26,8 @@ namespace ProjectLucid.Tests
     // for rebuild in the shared registry (disabling first would mark it the same
     // way; the registry drops the dead entry on its next update). Children use a
     // (0, 1) pivot, so anchoredPosition reads back the exact pos SetChildAlongAxis
-    // received (x = pos, y = -pos).
+    // received (x = pos, y = -pos). The OnEnable case removes its
+    // Canvas.willRenderCanvases handler in a finally block.
     [TestFixture]
     public sealed class OriginalScalingTableLayoutGroupTests
     {
@@ -283,6 +284,22 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0x1B3D329..0x1B3D338: the remainder count % columns (idiv) runs before the
+        // columns == 0 guard, so MaximumColumns 0 (the setter only calls SetProperty;
+        // Range applies in the inspector) throws before the width table is allocated
+        // (GenArrayNew 0x1B3D385) or SetLayoutInputForAxis runs.
+        [Test]
+        public void HorizontalInputWithZeroMaximumColumnsThrowsBeforeTheDeadGuard()
+        {
+            using (var table = new Table(100f, 100f, 3))
+            {
+                table.Group.MaximumColumns = 0;
+                Assert.Throws<DivideByZeroException>(() => table.Group.CalculateLayoutInputHorizontal());
+                Assert.That(table.Widths, Is.Null);
+                Assert.That(table.Group.preferredWidth, Is.EqualTo(0f));
+            }
+        }
+
         // 0x1B3D2EF..0x1B3D2F9: fewer cells than MaximumColumns narrows the table to the
         // cell count, one row wide, and spacing counts only between those cells.
         [Test]
@@ -442,6 +459,27 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The corner tests are bit tests: right to left when corner % 2 == 1 (and edx,
+        // 0x80000001; cmp 1 at 0x1B3DCBF), so 5 counts and -1 does not; bottom to top
+        // only when (corner & ~1) == 2 (0x1B3E074), so only 2 and 3.
+        [TestCase(-1)]
+        [TestCase(4)]
+        [TestCase(5)]
+        public void SetLayoutAppliesTheCornerBitTestsToOutOfRangeCorners(int corner)
+        {
+            using (var table = SevenCells((ScalingTableLayoutGroup.Corner)corner))
+            {
+                table.Group.CalculateLayoutInputHorizontal();
+                table.Group.SetLayoutHorizontal();
+                table.Group.CalculateLayoutInputVertical();
+                table.Group.SetLayoutVertical();
+                Assert.That(table.Lefts, Is.EqualTo(corner == 5
+                    ? new[] { 260f, 135f, 10f, 260f, 135f, 10f, 10f }
+                    : new[] { 10f, 135f, 260f, 10f, 135f, 260f, 10f }), corner.ToString());
+                Assert.That(table.Tops, Is.EqualTo(new[] { 10f, 10f, 10f, 102f, 102f, 102f, 194f }), corner.ToString());
+            }
+        }
+
         // 0x1B3DDDE: rows wider than the rect are offset by GetStartOffset with the
         // child alignment, here UpperCenter: (100 - 128) * 0.5 = -14.
         [TestCase(0)]
@@ -478,6 +516,23 @@ namespace ProjectLucid.Tests
                 table.Group.SetLayoutHorizontal();
                 Assert.That(table.Lefts, Is.EqualTo(new[] { 60f, 100f, 60f, 70f }));
                 Assert.That(table.CellWidths, Is.EqualTo(new[] { 40f, 40f, 10f, 10f }));
+            }
+        }
+
+        // 0x1B3DC9B / 0x1B3DCAE: columns and rows come from the width table's
+        // GetLength(1) and GetLength(0), not MaximumColumns. A 1 x 4 table replacing
+        // the 2 x 2 input places all four cells in one row from GetStartOffset 0.
+        [Test]
+        public void SetLayoutHorizontalTakesTheTableShapeFromTheWidthTable()
+        {
+            using (var table = new Table(200f, 100f, 4))
+            {
+                table.Group.MaximumColumns = 2;
+                table.Group.CalculateLayoutInputHorizontal();
+                table.Widths = new float[,] { { 10f, 20f, 30f, 40f } };
+                table.Group.SetLayoutHorizontal();
+                Assert.That(table.Lefts, Is.EqualTo(new[] { 0f, 10f, 30f, 60f }));
+                Assert.That(table.CellWidths, Is.EqualTo(new[] { 10f, 20f, 30f, 40f }));
             }
         }
 
@@ -546,6 +601,28 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0x1B3DF84 / 0x1B3DF97: rows and columns come from the width table, not
+        // MaximumColumns or the row heights' length. One row of four (Heights {50, 50}
+        // from the input) totals 50 with no spacing term, and MiddleLeft offsets it by
+        // GetStartOffset(1, 50) = (100 - 50) * 0.5 = 25.
+        [Test]
+        public void SetLayoutVerticalTakesTheTableShapeFromTheWidthTable()
+        {
+            using (var table = new Table(200f, 100f, 4))
+            {
+                table.Group.MaximumColumns = 2;
+                table.Group.childAlignment = TextAnchor.MiddleLeft;
+                table.Group.CalculateLayoutInputHorizontal();
+                table.Group.CalculateLayoutInputVertical();
+                Assert.That(table.Heights, Is.EqualTo(new[] { 50f, 50f }));
+                table.Widths = new float[1, 4];
+                table.Group.SetLayoutVertical();
+                Assert.That(table.Tops, Is.EqualTo(new[] { 25f, 25f, 25f, 25f }));
+                Assert.That(table.CellHeights, Is.EqualTo(new[] { 50f, 50f, 50f, 50f }));
+                Assert.That(table.Heights, Is.Null);
+            }
+        }
+
         // With no layout children every pass returns before touching its state:
         // 0x1B3D2BC skips SetLayoutInputForAxis and the width table, 0x1B3DA21 the
         // height table, and 0x1B3DC84 / 0x1B3DF74 return before reading either table
@@ -578,8 +655,10 @@ namespace ProjectLucid.Tests
         }
 
         // OnEnable 0x1B3E1B0: base.OnEnable (which marks the layout for rebuild), then
-        // Canvas.ForceUpdateCanvases, so the queued rebuild has run, children placed
-        // and the row heights released, before enabling returns.
+        // a tail call to Canvas.ForceUpdateCanvases, so the queued rebuild has run,
+        // children placed and the row heights released, before enabling returns. The
+        // global update raises Canvas.willRenderCanvases once, which a rebuild of only
+        // this group (LayoutRebuilder.ForceRebuildLayoutImmediate) would not.
         [Test]
         public void OnEnableRunsTheQueuedLayoutRebuildImmediately()
         {
@@ -589,8 +668,19 @@ namespace ProjectLucid.Tests
                 Assert.That(table.CellWidths, Is.EqualTo(new[] { 100f, 100f }));
                 Assert.That(table.Widths, Is.Null);
 
-                table.Group.enabled = true;
+                int fired = 0;
+                Canvas.WillRenderCanvases handler = () => fired++;
+                Canvas.willRenderCanvases += handler;
+                try
+                {
+                    table.Group.enabled = true;
+                }
+                finally
+                {
+                    Canvas.willRenderCanvases -= handler;
+                }
 
+                Assert.That(fired, Is.EqualTo(1));
                 Assert.That(table.CellWidths, Is.EqualTo(new[] { 150f, 150f }));
                 Assert.That(table.CellHeights, Is.EqualTo(new[] { 80f, 80f }));
                 Assert.That(table.Lefts, Is.EqualTo(new[] { 0f, 150f }));
