@@ -70,19 +70,31 @@ namespace ProjectLucid.Tests
             yield return (9408, typeof(ObjectPool<>), false, new[] { Bounds, Null });
         }
 
-        // Fails per owner with the full actual list, so one run reports every gap.
+        // Collects every owner's resolution, assembly, attribute-list and
+        // Serializable mismatch before failing, so one run reports every gap.
         [Test]
         public void CoreTypesKeepTheShippedOwnCheckOptionAnnotationsInOrder()
         {
             var owners = Expected().ToArray();
             Assert.AreEqual(33, owners.Length);
-            Assert.AreEqual(33, owners.Select(o => o.Type).Distinct().Count());
+            // Unresolved owners are reported in the loop, not collapsed here.
+            Type[] resolved = owners.Select(o => o.Type).Where(t => t != null).ToArray();
+            Assert.AreEqual(resolved.Length, resolved.Distinct().Count());
 
             var failures = new List<string>();
             foreach (var (index, type, serializable, attributes) in owners)
             {
-                Assert.IsNotNull(type, "TypeDefIndex " + index + " owner not found");
-                Assert.AreEqual("HLUnityCore.Runtime", type.Assembly.GetName().Name, type.FullName);
+                if (type == null)
+                {
+                    failures.Add(index + " owner not found");
+                    continue;
+                }
+                string assembly = type.Assembly.GetName().Name;
+                if (assembly != "HLUnityCore.Runtime")
+                {
+                    failures.Add(index + " " + type.FullName + ": assembly " + assembly);
+                    continue;
+                }
                 IList<CustomAttributeData> data = type.GetCustomAttributesData();
                 string[] actual = data.Where(a => a.AttributeType != typeof(SerializableAttribute)).Select(Describe).ToArray();
                 if (!actual.SequenceEqual(attributes))
