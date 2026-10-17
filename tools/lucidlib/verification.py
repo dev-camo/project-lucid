@@ -2218,6 +2218,19 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGreyscaleAndBrightnessModifi
     "ActiveModifyMeshWithAnEmptyStreamKeepsUntriangulatedVertices",
 ))
 
+# Restored Hardlight.HLExclusiveStateGroup (HLUnityUI.Runtime 0x06000633..3d) and HLStateSwitcher.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLExclusiveStateGroupTests." + name for name in (
+    "DeclarationsKeepTheShippedAttributesAndFields",
+    "SwitcherEnabledRaisesOnlyOnChangeAndStartReplaysTheState",
+    "SwitcherEnabledWithoutOnEnabledFallsThroughToOnDisabled",
+    "ElementKeyIsTheInstanceIdUntilSetKeyAndTheSetterIsEmpty",
+    "ActivateDisablesOthersInOrderThenEnablesTheMatch",
+    "DuplicateKeysEnableTheLastMatchAndNoMatchThrowsAfterDisabling",
+    "SetKeysAlsoKeysTheDefaultElementThatOnEnableActivates",
+    "SetKeysLogsEachMissingKeyAndSurplusKeysOnce",
+    "SetKeysThrowsForNullKeysAndForADefaultWithoutASwitcher",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
