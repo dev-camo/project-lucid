@@ -2941,6 +2941,14 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLUnityCoreMiscTests." + nam
     "OptionalParametersKeepTheOriginalDefaultFlags",
 ))
 
+# Own Il2CppSetOption rows of Game.Runtime 0x02000a09, 0x02000a13 and 0x02000770 (DummyDll metadata order).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameRuntimeCheckOptionTests." + name for name in (
+    "FSMStateLoaderDisablesArrayBoundsThenNullChecks",
+    "FSMStateLoaderIteratorCarriesOnlyCompilerGenerated",
+    "MeshGenerationUtilitiesDisablesArrayBoundsThenNullChecks",
+    "RigidbodyForceTriggerAndLockRoutineInfoKeepTheirOwnOptionOrders",
+))
+
 # Specification of Hardlight.Flip (HLUnityUI.Runtime 0x060002c6..cd) from the x86-64 bodies.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFlipTests." + name for name in (
     "DeclarationKeepsTheOriginalAttributesFieldsAndMethodOrder",

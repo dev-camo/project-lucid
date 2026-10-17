@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
@@ -7,6 +8,9 @@ namespace HardlightProject
     /// The pyramid points along Z; width sets both dimensions of its square XY base.
     /// Native-derived geometry; original method identities are retained below.
     /// </summary>
+    // Original TypeDef 0x02000a13 metadata order: ArrayBoundsChecks (2), then NullChecks (1).
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public static class MeshGenerationUtilities
     {
         // Game.Runtime.dll:HardlightProject.MeshGenerationUtilities:0x060039b9

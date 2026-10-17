@@ -3,9 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using Hardlight;
 using Hardlight.Utils;
+using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
+    // Original TypeDef 0x02000a09 metadata order: ArrayBoundsChecks (2), then NullChecks (1).
+    // The nested iterator 0x02000a0a carries only CompilerGenerated.
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public sealed class FSMStateLoader
     {
         // Game.Runtime.dll:HardlightProject.FSMStateLoader:0x0600398b..0x0600398e;
