@@ -1569,6 +1569,11 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.GenuineOwnedElementCallbacksRetainCurrentNameAndNullOrDestroyedNone',
 )
 
+# Hardlight.FiniteStateMachine field rows against dump.cs TypeDefIndex 8894.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalFiniteStateMachineDeclarationTests.FieldRowsKeepOriginalBackingFieldPlacement',
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.VerificationAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.PlayModeAssemblyDeclaresAndResolvesPinnedUI",

@@ -10,13 +10,15 @@ namespace Hardlight
     public class FiniteStateMachine
     {
         public readonly int FSMId;
-        private readonly Dictionary<int, IFSMState> m_ownedStates;
-        private readonly Dictionary<int, IFSMTransition> m_ownedTransitions;
-        private readonly ProfilerMarker m_profilerMarker;
-        // 0x06000365..0x0600036c: auto-properties and dictionary views.
+        // 0x06000365..0x0600036c: auto-properties and dictionary views. The
+        // auto-properties precede the m_ fields so their backing fields keep
+        // the original row order (0x14, 0x15, 0x18 before m_ownedStates 0x20).
         public bool DoMultipleTransitions { get; set; }
         public bool UpdateTransientStates { get; set; }
         public IFSMState DefaultState { get; set; }
+        private readonly Dictionary<int, IFSMState> m_ownedStates;
+        private readonly Dictionary<int, IFSMTransition> m_ownedTransitions;
+        private readonly ProfilerMarker m_profilerMarker;
         public IReadOnlyDictionary<int, IFSMState> States => m_ownedStates;
         public IReadOnlyDictionary<int, IFSMTransition> Transitions => m_ownedTransitions;
 
