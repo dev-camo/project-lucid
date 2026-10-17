@@ -2604,3 +2604,26 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalScalingTableLayoutGroupTests
     "OnEnableRunsTheQueuedLayoutRebuildImmediately",
 ))
 
+
+
+# Original HLUnityUI.Runtime Hardlight.Skew behaviour specification from its x86-64 bodies.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalSkewTests.SkewRetainsWholeDeclarationAndOrderedAnnotations",
+    "ProjectLucid.Tests.OriginalSkewTests.LerpIteratorRetainsTheOriginalGeneratedShape",
+    "ProjectLucid.Tests.OriginalSkewTests.ConstructionDefaultsLerpTimeToTwoTenthsAndEverythingElseToZero",
+    "ProjectLucid.Tests.OriginalSkewTests.InstantChangeStoresXAndYWithoutStartingACoroutine",
+    "ProjectLucid.Tests.OriginalSkewTests.NonInstantChangeStoresFirstAndThenAsksTheEngineForACoroutine",
+    "ProjectLucid.Tests.OriginalSkewTests.NonInstantChangeOnAnActiveOwnerCompletesSynchronouslyWithoutLerping",
+    "ProjectLucid.Tests.OriginalSkewTests.EnableWithLerpFlagZeroesBothAxesAndReEnableCachesTheLiveValues",
+    "ProjectLucid.Tests.OriginalSkewTests.EnableWithoutLerpFlagLeavesAuthoredSkew",
+    "ProjectLucid.Tests.OriginalSkewTests.EnableWithLerpFlagRestoresAtOnceWhenAuthoredXIsNotPositive",
+    "ProjectLucid.Tests.OriginalSkewTests.LerpFactoryCapturesOwnerAndArgumentLazily",
+    "ProjectLucid.Tests.OriginalSkewTests.ResettingLerpScalesBothAxesByTheClampedTimerAndFinishesOnTheNextStep",
+    "ProjectLucid.Tests.OriginalSkewTests.ExternalXAtOrAboveTheCachedValueEndsTheLerpAndRestoresTheCachedPair",
+    "ProjectLucid.Tests.OriginalSkewTests.NonResettingLerpFinishesOnTheFirstStepWithoutYielding",
+    "ProjectLucid.Tests.OriginalSkewTests.LerpTimerAdvancesByDeltaTimeOverLerpTime",
+    "ProjectLucid.Tests.OriginalSkewTests.IteratorResetThrowsAndDisposeDoesNotStopTheLerp",
+    "ProjectLucid.Tests.OriginalSkewTests.ModifyVerticesShearsAboutTheStreamWeightedCentre",
+    "ProjectLucid.Tests.OriginalSkewTests.DisabledModifyMeshLeavesTheIndexedMeshUntouched",
+    "ProjectLucid.Tests.OriginalSkewTests.ActiveModifyMeshRebuildsASkewedTriangleStream",
+)
