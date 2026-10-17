@@ -242,9 +242,18 @@ namespace ProjectLucid.Tests
             Assert.That(lab.Equals(null), Is.False);
             Assert.That(lab.Equals(new Color(1f, 2f, 3f)), Is.False);
             Assert.That(lab.Equals("L:1 A:2 B:3"), Is.False);
+            // The runtime types must match exactly (Type.op_Inequality at 0x1B39DF2), so
+            // equal channels in a subclass are not equal in either direction.
+            Assert.That(lab.Equals(new DerivedLab()), Is.False);
+            Assert.That(new DerivedLab().Equals(lab), Is.False);
             var nan = new LABColor(float.NaN, 0f, 0f);
             Assert.That(nan.Equals(nan), Is.False);
             Assert.That(new LABColor(0f, 0f, 0f).Equals(new LABColor(-0f, 0f, 0f)), Is.True);
+        }
+
+        sealed class DerivedLab : LABColor
+        {
+            public DerivedLab() : base(1f, 2f, 3f) { }
         }
 
         // op_Equality 0x1B39E80 / op_Inequality 0x1B39F40: both operands are dereferenced

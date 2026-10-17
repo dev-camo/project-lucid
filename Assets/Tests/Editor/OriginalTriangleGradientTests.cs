@@ -193,6 +193,24 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The range folds minss/maxss (0x1B38DCA/0x1B38DCF) from +float.MaxValue
+        // (0x29A6DF8) and -float.MaxValue (0x29A7504), so an all-positive stream keeps
+        // its own minimum. Up projections 2, 4, 6: t = 0, 0.5, 1, red->blue gives
+        // (255, 0, 0), (127, 0, 127) and (0, 0, 255). A range starting at zero would give
+        // t = 1/3 and 2/3 for the first two.
+        [Test]
+        public void ApplyGradientNormalisesOverTheProjectedRangeOnly()
+        {
+            using (var owned = new Owned(new Vector2(10f, 10f), new Vector2(0.5f, 0.5f)))
+            {
+                SetColours(owned.Gradient, Color.red, Color.blue);
+                List<UIVertex> verts = Vertices(new Vector3(-3f, 2f, 0f), new Vector3(5f, 4f, 0f), new Vector3(1f, 6f, 0f));
+                Apply(owned.Gradient, verts);
+                Assert.That(Get<float[]>(owned.Gradient, "m_distances"), Is.EqualTo(new[] { 2f, 4f, 6f }));
+                Assert.That(verts.Select(v => v.color).ToArray(), Is.EqualTo(new[] { new Color32(255, 0, 0, 255), new Color32(127, 0, 127, 255), new Color32(0, 0, 255, 255) }));
+            }
+        }
+
         // 0x1B38CFA..0x1B38D00: an empty list returns before m_distances is replaced.
         [Test]
         public void ApplyGradientLeavesTheDistancesAloneForAnEmptyList()

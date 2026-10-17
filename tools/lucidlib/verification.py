@@ -2757,6 +2757,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalRaycastMaskTests." + name fo
     "SimpleImagesTruncateNegativeTexelCoordinatesTowardZero",
     "PreserveAspectSamplesTheCentredSquare",
     "SlicedImagesFloorEachBorderBandSeparately",
+    "EveryMappingStartsAtTheSpriteTextureRectOrigin",
+    "SlicedImagesTakeEachAxisFromItsOwnBorderPair",
     "TiledAndFilledImagesAlwaysHit",
 ))
 
@@ -2767,6 +2769,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGUIBlockerBoxColliderResizer
     "EnablingFitsTheColliderToTheTrackedRect",
     "DimensionChangesRefitTheColliderToAnyTrackedRect",
     "MissingReferencesLeaveTheColliderUntouched",
+    "DestroyedReferencesLeaveTheColliderUntouched",
 ))
 
 
@@ -2778,6 +2781,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTriangleGradientTests." + na
     "PopulateMeshNegatesTheRectOriginRatherThanUsingTheTopEdge",
     "ApplyGradientOffsetsAndScalesAboutTheMiddleThenLerpsColour32",
     "ApplyGradientStoresEachProjectionInAFreshDistanceArray",
+    "ApplyGradientNormalisesOverTheProjectedRangeOnly",
     "ApplyGradientLeavesTheDistancesAloneForAnEmptyList",
 ))
 

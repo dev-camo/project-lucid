@@ -131,6 +131,38 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The guards are UnityEngine.Object.op_Equality (0x1B65F7F, 0x1B65FA4), so a
+        // destroyed tracked rect or collider counts as missing too; a reference null
+        // check would go on to read it and throw MissingReferenceException.
+        [Test]
+        public void DestroyedReferencesLeaveTheColliderUntouched()
+        {
+            using (var owned = new Owned())
+            {
+                owned.Rect.sizeDelta = new Vector2(200f, 100f);
+                owned.Collider.size = new Vector3(5f, 6f, 7f);
+                owned.Collider.center = new Vector3(1f, 2f, 3f);
+
+                var destroyedRect = (RectTransform)new GameObject("OriginalResizer destroyed rect", typeof(RectTransform)) { hideFlags = HideFlags.HideAndDontSave }.transform;
+                Object.DestroyImmediate(destroyedRect.gameObject);
+                Assert.That(ReferenceEquals(destroyedRect, null), Is.False);
+                Assert.That(destroyedRect == null, Is.True);
+                owned.Wire(destroyedRect, owned.Collider);
+                Assert.DoesNotThrow(() => Invoke(owned.Resizer, "UpdateCollider"));
+
+                var colliderOwner = new GameObject("OriginalResizer destroyed collider") { hideFlags = HideFlags.HideAndDontSave };
+                BoxCollider destroyedCollider = colliderOwner.AddComponent<BoxCollider>();
+                Object.DestroyImmediate(colliderOwner);
+                Assert.That(ReferenceEquals(destroyedCollider, null), Is.False);
+                Assert.That(destroyedCollider == null, Is.True);
+                owned.Wire(owned.Rect, destroyedCollider);
+                Assert.DoesNotThrow(() => Invoke(owned.Resizer, "UpdateCollider"));
+
+                Assert.That(owned.Collider.size, Is.EqualTo(new Vector3(5f, 6f, 7f)));
+                Assert.That(owned.Collider.center, Is.EqualTo(new Vector3(1f, 2f, 3f)));
+            }
+        }
+
         static void Invoke(object target, string name)
         {
             try { typeof(OriginalResizer).GetMethod(name, Declared).Invoke(target, null); }
