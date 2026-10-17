@@ -11,7 +11,7 @@ import uuid
 import xml.etree.ElementTree as ET
 
 from .bootstrap import (REPO_ROOT, ToolError, bootstrap, download_artifact,
-                        dotnet_environment, fcntl, host_lock, load_lock, managed_path,
+                        dotnet_environment, exclusive_lock, executable, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json, tool_work_dir,
                         seal_built_tool, verify_built_tool, retain_failure, unpack_archive, tree_seal)
 from .inspection import sha256_file
@@ -118,13 +118,10 @@ def build_native_harness(work_dir: Path) -> dict:
         sdk = installed.get("tools", {}).get("dotnet", {})
         if installed.get("status") != "ready" or sdk.get("status") != "ready":
             raise ToolError(sdk.get("error", "Pinned SDK bootstrap failed"))
-        dotnet = managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet")
+        dotnet = executable(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet"))
         build_lock = managed_path(work_dir, "native-recovery", ".build.lock")
         build_lock.parent.mkdir(parents=True, exist_ok=True)
-        if fcntl is None:
-            raise ToolError("Native harness requires the platform supported by the tool lock")
-        with build_lock.open("a") as build_stream:
-            fcntl.flock(build_stream, fcntl.LOCK_EX)
+        with build_lock.open("a+b") as build_stream, exclusive_lock(build_stream):
             artifact = host_lock(lock)["artifacts"]["cpp2il-source"]
             archive = download_artifact(artifact, work_dir)
             stage = managed_path(work_dir, "native-recovery", "builds", f".stage-{run_id}")
@@ -300,7 +297,7 @@ def _native_evidence(input_path: Path, work_dir: Path, command: str, assembly: s
             raise ToolError(build.get("error", "Pinned native harness build failed"))
         environment = dotnet_environment(work_dir, managed_path(tool_work_dir(work_dir), "tools", "dotnet"))
         environment.update(DOTNET_TieredCompilation="0", COMPlus_TieredCompilation="0", DOTNET_TieredPGO="0")
-        args = [str(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet")), build["path"], command,
+        args = [str(executable(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet"))), build["path"], command,
                 "--binary", str(thin), "--metadata", str(metadata_path), "--unity-version", version,
                 "--output", str(evidence_dir)]
         if assembly is not None:

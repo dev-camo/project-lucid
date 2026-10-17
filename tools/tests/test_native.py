@@ -1,17 +1,41 @@
 """Atomic native evidence runs and conservative provenance/selection checks."""
 
+import errno
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
 import tarfile
+import threading
 import unittest
 from unittest import mock
 
 from tools.lucidlib import native, bootstrap as bootstrap_module
 from tools.lucidlib.bootstrap import CACHE_ROOT, ToolError, load_lock
+
+
+class RegionMsvcrt:
+    """msvcrt.locking over real descriptors: one owner per file, like Windows byte-range locks."""
+    LK_UNLCK, LK_LOCK, LK_NBLCK = 0, 1, 2
+
+    def __init__(self):
+        self.held = {}
+        self.guard = threading.Lock()
+
+    def locking(self, fd, mode, length):
+        info = os.fstat(fd)
+        key = (info.st_dev, info.st_ino)
+        with self.guard:
+            if mode == self.LK_UNLCK:
+                if self.held.pop(key, None) != fd:
+                    raise OSError(errno.EACCES, "region not held by this descriptor")
+                return
+            if self.held.get(key, fd) != fd:
+                raise OSError(errno.EACCES if mode == self.LK_NBLCK else errno.EDEADLK, "region held")
+            self.held[key] = fd
 
 
 class NativeHelpersTests(unittest.TestCase):
@@ -371,6 +395,57 @@ class NativeHelpersTests(unittest.TestCase):
             removed = native.build_native_harness(self.work)
             self.assertNotEqual(changed["fingerprint"], removed["fingerprint"])
             self.assertEqual(run.call_count, 3)
+
+    def windows_host(self):
+        fake = RegionMsvcrt()
+        (self.work / "tools/dotnet/dotnet.exe").write_bytes(b"pinned windows dotnet fixture")
+        return fake, mock.patch.multiple(bootstrap_module, fcntl=None, msvcrt=fake,
+                                         _windows_host=mock.Mock(return_value=True))
+
+    def test_windows_build_serializes_on_msvcrt_and_runs_dotnet_exe(self):
+        fake, host = self.windows_host()
+        patches = self.build_patches()
+        held = []
+        def runner(command, *args, **kwargs):
+            held.append(len(fake.held))
+            return self.build_runner(command, *args, **kwargs)
+        results = []
+        with host, patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, "run_logged", side_effect=runner) as run:
+            build_lock = self.work / "native-recovery/.build.lock"
+            build_lock.parent.mkdir(parents=True)
+            contender = threading.Thread(target=lambda: results.append(native.build_native_harness(self.work)))
+            with build_lock.open("a+b") as stream, bootstrap_module.exclusive_lock(stream):
+                contender.start()
+                contender.join(timeout=0.5)
+                self.assertTrue(contender.is_alive())
+                run.assert_not_called()
+            contender.join(timeout=15)
+        self.assertFalse(contender.is_alive())
+        self.assertEqual("ready", results[0]["status"])
+        self.assertEqual([1], held)
+        self.assertEqual({}, fake.held)
+        self.assertEqual(str(self.work / "tools/dotnet/dotnet.exe"), run.call_args.args[0][0])
+        self.assertEqual(hashlib.sha256(b"pinned windows dotnet fixture").hexdigest(),
+                         results[0]["dotnet_host_sha256"])
+
+    def test_windows_build_lock_is_released_when_the_build_fails(self):
+        fake, host = self.windows_host()
+        patches = self.build_patches()
+        with host, patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, "run_logged", return_value={"returncode": 1, "timed_out": False, "log": "failed.log"}):
+            result = native.build_native_harness(self.work)
+        self.assertEqual("failed", result["status"])
+        self.assertIn("Native harness build failed", result["error"])
+        self.assertEqual({}, fake.held)
+
+    def test_evidence_run_selects_the_host_dotnet_executable(self):
+        for windows, name in ((True, "dotnet.exe"), (False, "dotnet")):
+            with self.subTest(windows=windows), \
+                 mock.patch.object(bootstrap_module, "_windows_host", return_value=windows):
+                report, run = self.invoke()
+                self.assertEqual("ready", report["status"])
+                self.assertEqual(str(self.work / "tools/dotnet" / name), run.call_args.args[0][0])
 
     def test_work_dir_and_symlink_boundaries_are_enforced(self):
         with self.assertRaises(ValueError):

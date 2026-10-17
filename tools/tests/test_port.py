@@ -1,5 +1,7 @@
 """Synthetic workflow/filesystem controls; they do not prove a playable port."""
+import errno
 import json
+import os
 from pathlib import Path
 import platform
 import plistlib
@@ -11,6 +13,27 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib import port
+
+
+class RegionMsvcrt:
+    """msvcrt.locking over real descriptors: one owner per file, like Windows byte-range locks."""
+    LK_UNLCK, LK_LOCK, LK_NBLCK = 0, 1, 2
+
+    def __init__(self):
+        self.held = {}
+        self.calls = []
+
+    def locking(self, fd, mode, length):
+        info = os.fstat(fd)
+        key = (info.st_dev, info.st_ino)
+        self.calls.append(mode)
+        if mode == self.LK_UNLCK:
+            if self.held.pop(key, None) != fd:
+                raise OSError(errno.EACCES, "region not held by this descriptor")
+            return
+        if self.held.get(key, fd) != fd:
+            raise OSError(errno.EACCES if mode == self.LK_NBLCK else errno.EDEADLK, "region held")
+        self.held[key] = fd
 
 
 class SyntheticStages:
@@ -549,6 +572,32 @@ class PortTests(unittest.TestCase):
         self.assertNotEqual(0, result["exit_code"])
         self.assertIn("Another port attempt", result["error"])
         self.assertEqual([], self.stages.calls)
+
+    def test_windows_project_lock_uses_msvcrt_and_excludes_another_attempt(self):
+        fake = RegionMsvcrt()
+        with patch.multiple(port.bootstrap, fcntl=None, msvcrt=fake):
+            with port._project_lock(self.root):
+                self.assertEqual(1, len(fake.held))
+                with self.assertRaisesRegex(ValueError, "Another port attempt"):
+                    with port._project_lock(self.root):
+                        self.fail("a second owner must not enter the project lock")
+                result = self.run_port()
+            self.assertEqual({}, fake.held)
+        self.assertNotEqual(0, result["exit_code"])
+        self.assertIn("Another port attempt", result["error"])
+        self.assertEqual([], self.stages.calls)
+        self.assertEqual([fake.LK_NBLCK, fake.LK_NBLCK, fake.LK_NBLCK, fake.LK_UNLCK], fake.calls)
+
+    def test_windows_project_lock_is_released_when_the_attempt_fails(self):
+        fake = RegionMsvcrt()
+        with patch.multiple(port.bootstrap, fcntl=None, msvcrt=fake):
+            with self.assertRaisesRegex(RuntimeError, "attempt failed"):
+                with port._project_lock(self.root):
+                    raise RuntimeError("attempt failed")
+            self.assertEqual({}, fake.held)
+            with port._project_lock(self.root):
+                self.assertEqual(1, len(fake.held))
+        self.assertEqual({}, fake.held)
 
     def test_missing_physical_data_or_game_assembly_prevents_selection(self):
         original = self.stages.build

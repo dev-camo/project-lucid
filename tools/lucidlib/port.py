@@ -157,19 +157,15 @@ def _locations(repo_root, work_dir, input_path, output_root):
 @contextmanager
 def _project_lock(root):
     """A process-held project-wide lock; a leftover file is not a live owner."""
-    if bootstrap.fcntl is None:
-        raise ValueError("The supported extraction host requires process-held file locks")
     path = _physical(root / ".cache/project-lucid/locks/port.lock")
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as stream:
-        try:
-            bootstrap.fcntl.flock(stream, bootstrap.fcntl.LOCK_EX | bootstrap.fcntl.LOCK_NB)
-        except BlockingIOError as error:
-            raise ValueError("Another port attempt owns this project") from error
+        if not bootstrap._try_lock(stream):
+            raise ValueError("Another port attempt owns this project")
         try:
             yield
         finally:
-            bootstrap.fcntl.flock(stream, bootstrap.fcntl.LOCK_UN)
+            bootstrap.unlock(stream)
 
 
 def _copy_reports(work, attempt, stage, report):

@@ -9,7 +9,7 @@ import subprocess
 import uuid
 
 from . import bindings, playercode, playerschema, themebindings, themecontracts
-from .bootstrap import (dotnet_environment, host_lock, load_lock, managed_path,
+from .bootstrap import (dotnet_environment, executable, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
@@ -298,7 +298,7 @@ def _reader_check(root, work, run, reader):
         work=host_work
     else:
         project_root=root/"tools/theme-contracts"
-    expected_host=managed_path(work,"tools","dotnet","dotnet")
+    expected_host=executable(managed_path(work,"tools","dotnet","dotnet"))
     expected_sources=[project_root/name for name in ("ThemeContracts.csproj","Program.cs","LoadedDeclarations.cs")]
     expected_binary=run/"reader/ProjectLucid.ThemeContracts.dll"
     if (not isinstance(host,dict) or host.get("path")!=str(expected_host) or

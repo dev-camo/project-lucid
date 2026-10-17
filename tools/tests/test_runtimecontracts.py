@@ -524,6 +524,14 @@ class RuntimeContractReaderBuildTests(unittest.TestCase):
         del self.reader['sdk_archive_sha512']
         with self.assertRaises(ValueError): self.invoke()
 
+    def test_windows_reader_host_is_the_verified_dotnet_exe(self):
+        windows_host = self.work / 'tools/dotnet/dotnet.exe'
+        windows_host.write_bytes(b'not invoked either')
+        with mock.patch.object(bootstrap, '_windows_host', return_value=True):
+            with self.assertRaises(ValueError): self.invoke()
+            self.reader['host'] = rc.playercode._file_record(windows_host)
+            self.assertEqual(self.invoke(), self.reader)
+
 
 class RuntimeLoadedAttestationInvocationTests(unittest.TestCase):
     def test_failure_is_not_a_boolean_claim(self):

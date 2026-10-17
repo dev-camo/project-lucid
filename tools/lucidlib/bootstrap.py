@@ -266,6 +266,14 @@ def exclusive_lock(stream):
     try:
         yield
     finally:
+        unlock(stream)
+
+
+def unlock(stream) -> None:
+    """Release a lock taken by exclusive_lock or _try_lock on this host."""
+    if fcntl is not None:
+        fcntl.flock(stream, fcntl.LOCK_UN)
+    elif msvcrt is not None:
         stream.seek(0)
         msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
 
@@ -530,11 +538,7 @@ def _open_lease(path: Path, *, create: bool):
 
 def _release_lease(stream) -> None:
     try:
-        if fcntl is not None:
-            fcntl.flock(stream, fcntl.LOCK_UN)
-        elif msvcrt is not None:
-            stream.seek(0)
-            msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+        unlock(stream)
     finally:
         stream.close()
 
