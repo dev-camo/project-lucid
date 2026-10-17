@@ -208,6 +208,63 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The same (bound, p) order on the min side and on the y lane (packed maxps/minps).
+        // x = [2, NaN, 10, 4]: max 2, NaN, 10, 10 and min 2, NaN, 10, 4, so the bounds
+        // are [4, 10], sum 14. Swapped Min(p, min) keeps min at 2 (sum 12, [10, NaN, 2, 8]).
+        // The y lane repeats both orders with only flipVertical and x copied back.
+        [Test]
+        public void ModifyVerticesMinBoundAndYLaneFollowTheOperandOrderForNaN()
+        {
+            using (var owned = new Owned(withGraphic: false))
+            {
+                SetFlags(owned.Flip, true, false);
+                List<UIVertex> verts = Vertices(new Vector3(2f, 0f, 0f), new Vector3(float.NaN, 1f, 0f), new Vector3(10f, 2f, 0f), new Vector3(4f, 3f, 0f));
+                owned.Flip.ModifyVertices(verts);
+                Assert.That(verts[0].position.x, Is.EqualTo(12f));
+                Assert.That(float.IsNaN(verts[1].position.x), Is.True);
+                Assert.That(verts[2].position.x, Is.EqualTo(4f));
+                Assert.That(verts[3].position.x, Is.EqualTo(10f));
+                Assert.That(verts.Select(v => v.position.y).ToArray(), Is.EqualTo(new[] { 0f, 1f, 2f, 3f }));
+
+                SetFlags(owned.Flip, false, true);
+                verts = Vertices(new Vector3(0f, 10f, 0f), new Vector3(1f, float.NaN, 0f), new Vector3(2f, 2f, 0f), new Vector3(3f, 4f, 0f));
+                owned.Flip.ModifyVertices(verts);
+                Assert.That(verts[0].position.y, Is.EqualTo(-4f));
+                Assert.That(float.IsNaN(verts[1].position.y), Is.True);
+                Assert.That(verts[2].position.y, Is.EqualTo(4f));
+                Assert.That(verts[3].position.y, Is.EqualTo(2f));
+                Assert.That(verts.Select(v => v.position.x).ToArray(), Is.EqualTo(new[] { 0f, 1f, 2f, 3f }));
+
+                verts = Vertices(new Vector3(0f, 2f, 0f), new Vector3(1f, float.NaN, 0f), new Vector3(2f, 10f, 0f), new Vector3(3f, 4f, 0f));
+                owned.Flip.ModifyVertices(verts);
+                Assert.That(verts[0].position.y, Is.EqualTo(12f));
+                Assert.That(float.IsNaN(verts[1].position.y), Is.True);
+                Assert.That(verts[2].position.y, Is.EqualTo(4f));
+                Assert.That(verts[3].position.y, Is.EqualTo(10f));
+                Assert.That(verts.Select(v => v.position.x).ToArray(), Is.EqualTo(new[] { 0f, 1f, 2f, 3f }));
+            }
+        }
+
+        // addps 0x1b4db6e forms sum = min + max once, then subps 0x1b4dc0a gives sum - p.
+        // x = [3e38, 2e38]: the float sum 5e38 overflows to +Infinity, so both mirror
+        // to +Infinity; min + (max - p) or max - (p - min) stays finite ([2e38, 3e38]).
+        [Test]
+        public void ModifyVerticesSubtractsFromTheSummedBounds()
+        {
+            using (var owned = new Owned(withGraphic: false))
+            {
+                SetFlags(owned.Flip, true, false);
+                List<UIVertex> verts = Vertices(new Vector3(3e38f, -1f, 6f), new Vector3(2e38f, 7f, -2f));
+                owned.Flip.ModifyVertices(verts);
+                Assert.That(verts[0].position.x, Is.EqualTo(float.PositiveInfinity));
+                Assert.That(verts[1].position.x, Is.EqualTo(float.PositiveInfinity));
+                Assert.That(verts[0].position.y, Is.EqualTo(-1f));
+                Assert.That(verts[1].position.y, Is.EqualTo(7f));
+                Assert.That(verts[0].position.z, Is.EqualTo(6f));
+                Assert.That(verts[1].position.z, Is.EqualTo(-2f));
+            }
+        }
+
         // ModifyMesh 0x1b4d990: new List, vh.GetUIVertexStream, ModifyVertices,
         // vh.Clear, vh.AddUIVertexTriangleStream. A two-triangle quad therefore comes
         // back as six unindexed stream vertices in index order, mirrored.

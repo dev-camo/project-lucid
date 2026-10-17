@@ -2,8 +2,9 @@
 // reconstructed from the x86-64 bodies and original metadata. Local names are inferred.
 // Shipped assets use this script: in the 2026-10-05 reference export,
 // Assets/Scripts/HLUnityUI.Runtime/Hardlight/Flip.cs.meta has script GUID
-// 17e3576bbd50325148195785409a2cc1, referenced by 129 UI prefabs (for example
-// uicontainer_game_hud, uicontainer_start_menu, uicontainer_character_select).
+// 17e3576bbd50325148195785409a2cc1, referenced by 129 prefabs (63 under Data/UI/Prefabs,
+// for example uicontainer_game_hud; 12 uiwidget_* under GameObject; 54 cutscene
+// prefabs under Data/Art/Cutscenes).
 // The script binding is still pending (no Unity serialization proof yet), so
 // those assets do not bind to this type and the .meta GUID is not the export's.
 using System.Collections.Generic;
@@ -42,11 +43,7 @@ namespace Hardlight
 
             Vector2 min = new Vector2(float.MaxValue, float.MaxValue);
             Vector2 max = new Vector2(float.MinValue, float.MinValue);
-            // A bare enumerator loop, not foreach: the init list (0x1b4da53..96) has
-            // GetEnumerator, MoveNext and get_Current but no Enumerator.Dispose, and the
-            // body has no finally. script.json has a Dispose MethodInfo for every other
-            // List.Enumerator<T> with MoveNext (336 of 337); UIVertex is the exception.
-            // Whether Current is read once or twice per step is not visible (inlined).
+            // Bare enumerator loop, not foreach: the native init list and body have no Enumerator.Dispose or finally.
             List<UIVertex>.Enumerator e = verts.GetEnumerator();
             while (e.MoveNext())
             {

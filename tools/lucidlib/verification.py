@@ -2444,6 +2444,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFlipTests." + name for name 
     "ModifyVerticesReadsTheCountBeforeTheFlags",
     "ModifyVerticesKeepsASingleVertexInPlace",
     "ModifyVerticesBoundsFollowTheMinMaxOperandOrderForNaN",
+    "ModifyVerticesMinBoundAndYLaneFollowTheOperandOrderForNaN",
+    "ModifyVerticesSubtractsFromTheSummedBounds",
     "ModifyMeshRebuildsTheHelperFromTheMirroredTriangleStream",
     "ModifyMeshRunsWithoutAnActiveGuardOrFlagShortcut",
     "SettersWriteOnlyTheirOwnFieldAndDirtyVerticesOnlyOnChange(True)",
