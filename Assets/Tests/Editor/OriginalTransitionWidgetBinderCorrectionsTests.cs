@@ -15,11 +15,11 @@ using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Editor
 {
-    // Corrections to the restored HLBinders component-menu owners and AddToDateTime and AnimationCurve nodes, the Game.Runtime
-    // ActorTransition_AbilityTriggered ctor args and HLModernUI UIWidgetRadioButtonGroup, each grounded
-    // in the original 1.10.1 metadata or x86-64 body. Every object is owned and destroyed afterwards;
-    // serialized references go in through SerializedObject, and only the private Unity Start message is
-    // invoked by reflection.
+    // Corrections to the restored HLBinders component-menu owners (including the AddToDateTime and
+    // AnimationCurve nodes), the Game.Runtime ActorTransition_AbilityTriggered ctor args and HLModernUI
+    // UIWidgetRadioButtonGroup, each grounded in the original 1.10.1 metadata or x86-64 body. Every
+    // object is owned and destroyed afterwards; serialized references go in through SerializedObject,
+    // and only the private Unity Start message is invoked by reflection.
     public sealed class OriginalTransitionWidgetBinderCorrectionsTests
     {
         private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
@@ -67,9 +67,11 @@ namespace ProjectLucid.Editor
             }
         }
 
-        // Every other HLBinders.Runtime owner of AddComponentMenu (tokens 0200000c, 0200001e-0200002e,
-        // 0200002f-0200003d, 02000040, 02000055-02000059, 0200006d-0200006e) passes ctor 0xc753 a string
-        // argument encoded 0e 00: zero length, where null would be 0e 01. BinderInput's raw blob is
+        // The 38 restored HLBinders.Runtime owners below (tokens 0200000c, 0200001e-0200002b,
+        // 0200002d-02000039, 0200003c-0200003d, 02000040, 02000055-02000059, 0200006d-0200006e) pass
+        // ctor 0xc753 a string argument encoded 0e 00: zero length, where null would be 0e 01. The
+        // original's TMP_Gradient owners (0200002c, 0200003a) and ConstantValue (0200003b) between them
+        // are not restored yet. BinderInput's raw blob is
         // 0253c70000645c01000100000e000200000e0a496e7075740800. Catches [AddComponentMenu(null)].
         [Test]
         public void BinderOwnersHideFromTheComponentMenuWithAnEmptyString()
