@@ -63,7 +63,8 @@ class AuditHandshakeTests(unittest.TestCase):
                   "reference_status": "complete", "identity_status": "pending-wrapper" if fast else "complete",
                   "identity_mode": "wrapper-prepost-v1" if fast else "editor-content-sha256-v1",
                   "unity_version": verification.UNITY_VERSION, "scanned_assets": 1,
-                  "unresolved_references": 0, "missing_guids": [], "invalid_script_bindings": [], "shader_errors": [],
+                  "unresolved_references": 0, "missing_guids": [], "unresolved_object_references": [],
+                  "invalid_script_bindings": [], "shader_errors": [],
                   "identity_nonce": values["nonce"] if fast else None,
                   "identity_context_sha256": hashlib.sha256(data).hexdigest() if fast else None, **identity}
         if self.action:
@@ -103,6 +104,17 @@ class AuditHandshakeTests(unittest.TestCase):
         self.action = diagnostics
         self.assertEqual(self.run_audit()["status"], "incomplete")
         self.assertEqual(json.loads(self.latest.read_text())["unresolved_references"], 2)
+
+    def test_unresolved_object_pointer_with_resolving_guid_leaves_audit_incomplete(self):
+        pointer = {"target": "{fileID: 999999999, guid: " + "b" * 32 + ", type: 2}",
+                   "reason": "Local identifier does not resolve at Assets/Recovered/m.mat",
+                   "examples": ["Assets/Recovered/r.prefab !u!23 &5: - {fileID: 999999999, guid: " + "b" * 32 + ", type: 2}"]}
+        self.action = lambda report, *_: report.update(reference_status="incomplete", unresolved_references=1,
+                                                       unresolved_object_references=[pointer])
+        self.assertEqual(self.run_audit()["status"], "incomplete")
+        published = json.loads(self.latest.read_text())
+        self.assertEqual(published["unresolved_references"], 1)
+        self.assertEqual(published["unresolved_object_references"], [pointer])
 
     def test_source_drift_and_same_size_asset_drift_with_restored_mtime_reject_publication(self):
         for source in (False, True):
@@ -174,10 +186,27 @@ class AuditHandshakeTests(unittest.TestCase):
                         self.run_audit()
                 self.assert_preserved()
 
+    def test_report_without_object_pointer_diagnostics_rejects(self):
+        # An audit written before full PPtr checks cannot claim completeness.
+        self.action = lambda report, *_: report.pop("unresolved_object_references")
+        with self.assertRaisesRegex(ValueError, "unresolved_object_references"):
+            self.run_audit()
+        self.assert_preserved()
+
     def test_malformed_diagnostic_types_and_inconsistent_counts_reject(self):
         for change in ({"scanned_assets": True}, {"unresolved_references": "0"},
                        {"missing_guids": [{"guid": 1, "examples": ["asset"]}]},
                        {"invalid_script_bindings": [None]}, {"shader_errors": {}},
+                       {"unresolved_object_references": None},
+                       {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": []}],
+                        "unresolved_references": 1, "reference_status": "incomplete"},
+                       {"unresolved_object_references": [{"target": "", "reason": "r", "examples": ["e"]}],
+                        "unresolved_references": 1, "reference_status": "incomplete"},
+                       {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": ["e"]}] * 2,
+                        "unresolved_references": 2, "reference_status": "incomplete"},
+                       {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": ["e"] * 9}],
+                        "unresolved_references": 1, "reference_status": "incomplete"},
+                       {"unresolved_object_references": [{"target": "t", "reason": "r", "examples": ["e"]}]},
                        {"unresolved_references": 1}, {"reference_status": "incomplete"}):
             with self.subTest(change=change):
                 self.action = lambda report, *_, change=change: report.update(change)

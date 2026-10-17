@@ -958,6 +958,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void RecoveredYamlObjectPointersRequireExactLocalOrLoadedTargets()
+        {
+            ScriptReferenceVerification.RunObjectPointers();
+        }
+
+        [Test]
         public void SuppliedLayoutComponentsRetainAuthoredScalarsAfterScriptBinding()
         {
             UguiLayoutBindingVerification.RunAuthored();

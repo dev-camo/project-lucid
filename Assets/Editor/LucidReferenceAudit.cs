@@ -18,6 +18,12 @@ namespace ProjectLucid.Editor
             public string guid;
             public string[] examples;
         }
+        [Serializable] private sealed class UnresolvedObjectReference
+        {
+            public string target;
+            public string reason;
+            public string[] examples;
+        }
         [Serializable] private sealed class Audit
         {
             public string status;
@@ -32,6 +38,7 @@ namespace ProjectLucid.Editor
             public int scanned_assets;
             public int unresolved_references;
             public MissingReference[] missing_guids;
+            public UnresolvedObjectReference[] unresolved_object_references;
             public string[] invalid_script_bindings;
             public string[] shader_errors;
             public string limitation = "Reference resolution does not verify implemented behavior, authored flow, or presentation parity.";
@@ -39,6 +46,11 @@ namespace ProjectLucid.Editor
 
         private static readonly Regex GuidReference = new Regex(@"guid:\s*([0-9a-fA-F]{32})", RegexOptions.Compiled);
         private static readonly Regex ScriptReference = new Regex(@"^\s*m_Script:\s*\{fileID:\s*(-?\d+),\s*guid:\s*([0-9a-fA-F]{32}),\s*type:\s*(\d+)\}\s*$", RegexOptions.Compiled);
+        // Unity's YAML PPtr: {fileID: N} names a document in the same file;
+        // {fileID: N, guid: G, type: T} names a loaded object of another asset.
+        // Every "{fileID:" opens a candidate, so a malformed pointer cannot pass unseen.
+        private static readonly Regex ObjectPointerCandidate = new Regex(@"\{fileID:[^{}]*\}?", RegexOptions.Compiled);
+        private static readonly Regex ObjectPointer = new Regex(@"\A\{fileID:\s*(-?\d+)(?:,\s*guid:\s*([0-9a-fA-F]{32}),\s*type:\s*(-?\d+))?\}\z", RegexOptions.Compiled);
         private static readonly Regex NullScriptReference = new Regex(@"^\s*m_Script:\s*\{fileID:\s*0\}\s*$", RegexOptions.Compiled);
         private static readonly HashSet<string> SerializedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -105,6 +117,8 @@ namespace ProjectLucid.Editor
                 unresolved_references = scan.Unresolved(shaderErrors.Count),
                 missing_guids = scan.Missing.OrderBy(pair => pair.Key, StringComparer.Ordinal)
                     .Select(pair => new MissingReference { guid = pair.Key, examples = pair.Value.OrderBy(s => s, StringComparer.Ordinal).ToArray() }).ToArray(),
+                unresolved_object_references = scan.ObjectReferences().Select(entry => new UnresolvedObjectReference
+                    { target = entry.Target, reason = entry.Reason, examples = entry.Examples }).ToArray(),
                 invalid_script_bindings = scan.InvalidScriptBindings(),
                 shader_errors = shaderErrors.ToArray()
             };
@@ -126,10 +140,16 @@ namespace ProjectLucid.Editor
         // Reference state for the serialized YAML files of one audit.
         private sealed class ReferenceScan
         {
+            private const int ExampleLimit = 8, ExampleLength = 256, LoadsPerUnload = 256;
             private static readonly Regex ObjectHeader = new Regex(@"^--- !u!(\d+) &(-?\d+)", RegexOptions.Compiled);
             private readonly Dictionary<string, string> resolved = new Dictionary<string, string>();
             private readonly Dictionary<string, string> scriptResults = new Dictionary<string, string>();
             private readonly HashSet<string> badScripts = new HashSet<string>();
+            // Local identifiers loaded per external GUID, with their multiplicity;
+            // null means the target path enumerated no loadable objects at all.
+            private readonly Dictionary<string, Dictionary<long, int>> loadedIdentifiers = new Dictionary<string, Dictionary<long, int>>();
+            private readonly SortedDictionary<string, ObjectReferenceEntry> badObjects = new SortedDictionary<string, ObjectReferenceEntry>(StringComparer.Ordinal);
+            private int loadsSinceUnload;
             public readonly Dictionary<string, HashSet<string>> Missing = new Dictionary<string, HashSet<string>>();
             public int Scanned;
 
@@ -141,11 +161,21 @@ namespace ProjectLucid.Editor
                     if (line == null || !line.StartsWith("%YAML", StringComparison.Ordinal)) return;
                     Scanned++;
                     string currentObject = null;
+                    // Stripped documents are anchors too. A local pointer may name a
+                    // later document, so local pointers are checked after the file.
+                    var anchors = new HashSet<long>();
+                    var locals = new List<KeyValuePair<long, string>>();
                     while ((line = reader.ReadLine()) != null)
                     {
                         Match header = line.StartsWith("--- ", StringComparison.Ordinal) ? ObjectHeader.Match(line) : Match.Empty;
-                        if (header.Success) currentObject = "!u!" + header.Groups[1].Value + " &" + header.Groups[2].Value;
-                        if (line.TrimStart().StartsWith("m_Script:", StringComparison.Ordinal))
+                        if (header.Success)
+                        {
+                            currentObject = "!u!" + header.Groups[1].Value + " &" + header.Groups[2].Value;
+                            if (long.TryParse(header.Groups[2].Value, out long anchor)) anchors.Add(anchor);
+                            continue;
+                        }
+                        bool scriptLine = line.TrimStart().StartsWith("m_Script:", StringComparison.Ordinal);
+                        if (scriptLine)
                         {
                             string error;
                             if (!scriptResults.TryGetValue(line, out error))
@@ -158,41 +188,115 @@ namespace ProjectLucid.Editor
                             if (error != null)
                                 badScripts.Add(relative + (NullScriptReference.IsMatch(line) && currentObject != null ? " " + currentObject : "") + ": " + error);
                         }
+                        // m_Script keeps its stricter MonoScript class check above.
+                        else if (line.IndexOf("{fileID:", StringComparison.Ordinal) >= 0)
+                        {
+                            string example = Example(relative, currentObject, line);
+                            foreach (Match candidate in ObjectPointerCandidate.Matches(line))
+                            {
+                                Match pointer = ObjectPointer.Match(candidate.Value);
+                                if (!pointer.Success)
+                                    AddObject(relative + " " + candidate.Value, "Unsupported or malformed object pointer", example);
+                                else if (!long.TryParse(pointer.Groups[1].Value, out long fileID))
+                                    AddObject(relative + " " + candidate.Value, "Local identifier is not a signed 64-bit value", example);
+                                else if (!pointer.Groups[2].Success)
+                                {
+                                    if (fileID != 0) locals.Add(new KeyValuePair<long, string>(fileID, example));
+                                }
+                                else CheckExternal(pointer.Groups[2].Value.ToLowerInvariant(), fileID, pointer.Groups[3].Value, example);
+                            }
+                        }
                         if (line.IndexOf("guid:", StringComparison.Ordinal) < 0) continue;
                         foreach (Match match in GuidReference.Matches(line))
                         {
                             string guid = match.Groups[1].Value.ToLowerInvariant();
                             if (IsBuiltinGuid(guid)) continue;
-                            string destination;
-                            if (!resolved.TryGetValue(guid, out destination))
-                            {
-                                destination = AssetDatabase.GUIDToAssetPath(guid);
-                                resolved.Add(guid, destination);
-                            }
-                            if (String.IsNullOrEmpty(destination))
+                            if (String.IsNullOrEmpty(Resolve(guid)))
                             {
                                 HashSet<string> examples;
                                 if (!Missing.TryGetValue(guid, out examples)) Missing.Add(guid, examples = new HashSet<string>());
-                                if (examples.Count < 8) examples.Add(relative);
+                                if (examples.Count < ExampleLimit) examples.Add(relative);
                             }
                         }
                     }
+                    foreach (var local in locals)
+                        if (!anchors.Contains(local.Key))
+                            AddObject(relative + " {fileID: " + local.Key + "}", "Local identifier names no document in this file", local.Value);
                 }
             }
 
+            private string Resolve(string guid)
+            {
+                string destination;
+                if (!resolved.TryGetValue(guid, out destination))
+                {
+                    destination = AssetDatabase.GUIDToAssetPath(guid);
+                    resolved.Add(guid, destination);
+                }
+                return destination;
+            }
+
+            // A missing GUID is reported once, in missing_guids. Builtin
+            // resources and {fileID: 0} nulls are outside this project check.
+            private void CheckExternal(string guid, long fileID, string type, string example)
+            {
+                if (IsBuiltinGuid(guid) || fileID == 0) return;
+                string path = Resolve(guid);
+                if (String.IsNullOrEmpty(path)) return;
+                Dictionary<long, int> identifiers;
+                if (!loadedIdentifiers.TryGetValue(guid, out identifiers))
+                {
+                    identifiers = LoadedIdentifierCounts(path, guid);
+                    loadedIdentifiers.Add(guid, identifiers);
+                    // Only identifiers are cached, so loaded targets can be released.
+                    if (++loadsSinceUnload >= LoadsPerUnload) { loadsSinceUnload = 0; EditorUtility.UnloadUnusedAssetsImmediate(); }
+                }
+                string target = "{fileID: " + fileID + ", guid: " + guid + ", type: " + type + "}";
+                int count;
+                if (identifiers == null) AddObject(target, "Unsupported target: no loadable objects at " + path, example);
+                else if (!identifiers.TryGetValue(fileID, out count)) AddObject(target, "Local identifier does not resolve at " + path, example);
+                else if (count != 1) AddObject(target, "Duplicate local identifier at " + path, example);
+            }
+
+            private void AddObject(string target, string reason, string example)
+            {
+                ObjectReferenceEntry entry;
+                if (!badObjects.TryGetValue(target, out entry)) badObjects.Add(target, entry = new ObjectReferenceEntry(target, reason));
+                if (entry.ExampleSet.Count < ExampleLimit) entry.ExampleSet.Add(example);
+            }
+
+            // Source asset, object and field line, bounded like missing_guids.
+            private static string Example(string relative, string currentObject, string line)
+            {
+                string text = relative + (currentObject != null ? " " + currentObject : "") + ": " + line.Trim();
+                return text.Length <= ExampleLength ? text : text.Substring(0, ExampleLength);
+            }
+
+            public IEnumerable<ObjectReferenceEntry> ObjectReferences() { return badObjects.Values; }
             public string[] InvalidScriptBindings() { return badScripts.OrderBy(s => s, StringComparer.Ordinal).ToArray(); }
-            public int Unresolved(int shaderErrors) { return Missing.Count + badScripts.Count + shaderErrors; }
+            public int Unresolved(int shaderErrors) { return Missing.Count + badScripts.Count + badObjects.Count + shaderErrors; }
             public string Status(int shaderErrors) { return Unresolved(shaderErrors) == 0 ? "complete" : "incomplete"; }
+        }
+
+        private sealed class ObjectReferenceEntry
+        {
+            public readonly string Target, Reason;
+            public readonly HashSet<string> ExampleSet = new HashSet<string>();
+            public ObjectReferenceEntry(string target, string reason) { Target = target; Reason = reason; }
+            public string[] Examples { get { return ExampleSet.OrderBy(s => s, StringComparer.Ordinal).ToArray(); } }
         }
 
         // Applies Run's YAML reference rules to one file outside Assets/Recovered,
         // so isolated fixtures can check the status the audit would report.
-        public static string ScanSerializedFile(string file, string relative, out string[] invalidScriptBindings, out int unresolvedReferences)
+        // Each unresolved object pointer is reported as "target: reason".
+        public static string ScanSerializedFile(string file, string relative, out string[] invalidScriptBindings,
+            out string[] unresolvedObjectReferences, out int unresolvedReferences)
         {
             var scan = new ReferenceScan();
             scan.ScanFile(file, relative);
             if (scan.Scanned != 1) throw new InvalidDataException("Not a serialized YAML file: " + file);
             invalidScriptBindings = scan.InvalidScriptBindings();
+            unresolvedObjectReferences = scan.ObjectReferences().Select(entry => entry.Target + ": " + entry.Reason).ToArray();
             unresolvedReferences = scan.Unresolved(0);
             return scan.Status(0);
         }
@@ -298,14 +402,11 @@ namespace ProjectLucid.Editor
             string path = AssetDatabase.GUIDToAssetPath(guid);
             if (string.IsNullOrEmpty(path)) return "MonoScript GUID is unresolved: " + guid;
             UnityEngine.Object selected = null;
-            foreach (UnityEngine.Object asset in AssetDatabase.LoadAllAssetsAtPath(path))
+            foreach (KeyValuePair<long, UnityEngine.Object> loaded in LoadedObjects(path, guid))
             {
-                string actualGuid;
-                long actualID;
-                if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out actualGuid, out actualID) ||
-                    !string.Equals(actualGuid, guid, StringComparison.OrdinalIgnoreCase) || actualID != fileID) continue;
+                if (loaded.Key != fileID) continue;
                 if (selected != null) return "Duplicate MonoScript local identifier at " + path;
-                selected = asset;
+                selected = loaded.Value;
             }
             MonoScript script = selected as MonoScript;
             if (script == null) return "MonoScript local identifier does not resolve at " + path + ": " + fileID;
@@ -315,6 +416,35 @@ namespace ProjectLucid.Editor
                 (!typeof(MonoBehaviour).IsAssignableFrom(type) && !typeof(ScriptableObject).IsAssignableFrom(type)))
                 return "MonoScript class is not a concrete component or data asset at " + path;
             return null;
+        }
+
+        // Every object the AssetDatabase loads at path under this GUID, keyed by its
+        // local identifier. LoadAllAssetsAtPath does not enumerate scenes or
+        // folders, so the main object is included and deduplicated by reference.
+        private static IEnumerable<KeyValuePair<long, UnityEngine.Object>> LoadedObjects(string path, string guid)
+        {
+            var seen = new HashSet<UnityEngine.Object>();
+            UnityEngine.Object main = AssetDatabase.LoadMainAssetAtPath(path);
+            IEnumerable<UnityEngine.Object> candidates = AssetDatabase.LoadAllAssetsAtPath(path);
+            if (main != null) candidates = candidates.Concat(new[] { main });
+            foreach (UnityEngine.Object asset in candidates)
+            {
+                string actualGuid;
+                long actualID;
+                if (asset == null || !seen.Add(asset) ||
+                    !AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out actualGuid, out actualID) ||
+                    !string.Equals(actualGuid, guid, StringComparison.OrdinalIgnoreCase)) continue;
+                yield return new KeyValuePair<long, UnityEngine.Object>(actualID, asset);
+            }
+        }
+
+        // Multiplicity per local identifier, or null when nothing loads.
+        private static Dictionary<long, int> LoadedIdentifierCounts(string path, string guid)
+        {
+            var counts = new Dictionary<long, int>();
+            foreach (KeyValuePair<long, UnityEngine.Object> loaded in LoadedObjects(path, guid))
+                counts[loaded.Key] = counts.TryGetValue(loaded.Key, out int count) ? count + 1 : 1;
+            return counts.Count == 0 ? null : counts;
         }
 
         private static bool IsBuiltinGuid(string guid)

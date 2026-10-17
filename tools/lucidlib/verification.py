@@ -155,6 +155,7 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "SaveDataRetainsOriginalDefaultsDirtyChildrenAndJson",
     "ScriptPointersRequireExactLoadedAssetAndComponentIdentities",
     "RecoveredYamlMissingScriptsLeaveTheReferenceAuditIncomplete",
+    "RecoveredYamlObjectPointersRequireExactLocalOrLoadedTargets",
     "SuppliedLayoutComponentsRetainAuthoredScalarsAfterScriptBinding",
     "UpstreamLayoutSizingPreservesPriorityFitAndAspectRules",
     "OriginalPipelineMarkerRetainsEngineFieldsAfterScriptBinding",
@@ -794,7 +795,8 @@ def _audit_check_report(report, identity, *, nonce=None, context_digest=None):
     for key in ("scanned_assets", "unresolved_references"):
         if type(report.get(key)) is not int or not 0 <= report[key] <= 0x7fffffff:
             raise ValueError("Invalid reference audit count: " + key)
-    for key in ("missing_guids", "invalid_script_bindings", "shader_errors"):
+    diagnostics = ("missing_guids", "unresolved_object_references", "invalid_script_bindings", "shader_errors")
+    for key in diagnostics:
         if not isinstance(report.get(key), list):
             raise ValueError("Invalid reference audit diagnostics: " + key)
     for item in report["missing_guids"]:
@@ -802,10 +804,17 @@ def _audit_check_report(report, identity, *, nonce=None, context_digest=None):
                 not isinstance(item.get("examples"), list) or not 0 < len(item["examples"]) <= 8 or
                 any(not isinstance(value, str) or not value for value in item["examples"])):
             raise ValueError("Invalid missing reference diagnostic")
+    targets = set()
+    for item in report["unresolved_object_references"]:
+        if (not isinstance(item, dict) or any(not isinstance(item.get(key), str) or not item[key] for key in ("target", "reason")) or
+                item["target"] in targets or not isinstance(item.get("examples"), list) or not 0 < len(item["examples"]) <= 8 or
+                any(not isinstance(value, str) or not value for value in item["examples"])):
+            raise ValueError("Invalid object reference diagnostic")
+        targets.add(item["target"])
     for key in ("invalid_script_bindings", "shader_errors"):
         if any(not isinstance(value, str) or not value for value in report[key]):
             raise ValueError("Invalid reference audit diagnostic text")
-    unresolved = sum(len(report[key]) for key in ("missing_guids", "invalid_script_bindings", "shader_errors"))
+    unresolved = sum(len(report[key]) for key in diagnostics)
     reference_status = "complete" if unresolved == 0 else "incomplete"
     if report["unresolved_references"] != unresolved or report.get("reference_status") != reference_status or (
             nonce is None and report.get("status") != reference_status):

@@ -59,15 +59,15 @@ namespace ProjectLucid
                 Func<string, string> yaml = body => "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" + body;
                 string bound = InstalledComponentPointer(out _, out _);
 
-                Require(Scan(scan, directory, "bound.asset", yaml(document("--- !u!114 &11400000", bound)), out string[] bad, out int unresolved) == "complete" &&
-                    bad.Length == 0 && unresolved == 0, "exact installed binding with optional null PPtrs is complete");
+                Require(Scan(scan, directory, "bound.asset", yaml(document("--- !u!114 &11400000", bound)), out string[] bad, out string[] objects, out int unresolved) == "complete" &&
+                    bad.Length == 0 && objects.Length == 0 && unresolved == 0, "exact installed binding with optional null PPtrs is complete");
                 Require(Scan(scan, directory, "optional.prefab", yaml("--- !u!1 &100\nGameObject:\n  m_CorrespondingSourceObject: {fileID: 0}\n  m_PrefabInstance: {fileID: 0}\n  m_PrefabAsset: {fileID: 0}\n"),
-                    out bad, out unresolved) == "complete" && bad.Length == 0 && unresolved == 0, "a document with only optional null PPtrs is complete");
-                Require(Scan(scan, directory, "missing.asset", yaml(document("--- !u!114 &11400000", "  m_Script: {fileID: 0}")), out bad, out unresolved) == "incomplete" &&
-                    unresolved == 1 && bad.SequenceEqual(new[] { "Assets/Recovered/missing.asset !u!114 &11400000: MonoScript pointer is null: m_Script: {fileID: 0}" }),
+                    out bad, out objects, out unresolved) == "complete" && bad.Length == 0 && objects.Length == 0 && unresolved == 0, "a document with only optional null PPtrs is complete");
+                Require(Scan(scan, directory, "missing.asset", yaml(document("--- !u!114 &11400000", "  m_Script: {fileID: 0}")), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.Length == 0 && bad.SequenceEqual(new[] { "Assets/Recovered/missing.asset !u!114 &11400000: MonoScript pointer is null: m_Script: {fileID: 0}" }),
                     "data asset with a null script is incomplete and names its object");
                 Require(Scan(scan, directory, "scene.unity", yaml(document("--- !u!114 &7", "  m_Script: {fileID: 0}") + document("--- !u!114 &-9", "  m_Script: {fileID: 0}") +
-                    document("--- !u!114 &8", bound)), out bad, out unresolved) == "incomplete" && unresolved == 2 &&
+                    document("--- !u!114 &8", bound)), out bad, out objects, out unresolved) == "incomplete" && unresolved == 2 && objects.Length == 0 &&
                     bad.SequenceEqual(new[] { "Assets/Recovered/scene.unity !u!114 &-9: MonoScript pointer is null: m_Script: {fileID: 0}",
                         "Assets/Recovered/scene.unity !u!114 &7: MonoScript pointer is null: m_Script: {fileID: 0}" }),
                     "each null-script component is reported once beside a bound one");
@@ -76,15 +76,102 @@ namespace ProjectLucid
             Debug.Log("[Project Lucid] Recovered YAML reference status checks passed: 4");
         }
 
-        private static string Scan(MethodInfo scan, string directory, string name, string text, out string[] invalidScriptBindings, out int unresolvedReferences)
+        private static string Scan(MethodInfo scan, string directory, string name, string text, out string[] invalidScriptBindings,
+            out string[] unresolvedObjectReferences, out int unresolvedReferences)
         {
+            Directory.CreateDirectory(directory);
             string file = Path.Combine(directory, name);
             File.WriteAllText(file, text);
-            object[] arguments = { file, "Assets/Recovered/" + name, null, null };
+            object[] arguments = { file, "Assets/Recovered/" + name, null, null, null };
             string status = (string)scan.Invoke(null, arguments);
             invalidScriptBindings = (string[])arguments[2];
-            unresolvedReferences = (int)arguments[3];
+            unresolvedObjectReferences = (string[])arguments[3];
+            unresolvedReferences = (int)arguments[4];
             return status;
+        }
+
+        // Non-script PPtrs: an owned material, its subasset and its folder supply
+        // identities that Unity itself assigns; each YAML fixture names one of them.
+        public static void RunObjectPointers()
+        {
+            MethodInfo scan = AuditMethod("ScanSerializedFile");
+            string directory = Path.Combine(Path.GetTempPath(), "lucid-reference-audit-" + Guid.NewGuid().ToString("N"));
+            string folder = "Assets/ProjectLucidOwnedReferenceAudit_" + Guid.NewGuid().ToString("N");
+            bool created = false;
+            Material main = null, sub = null;
+            try
+            {
+                Require(!AssetDatabase.IsValidFolder(folder), "owned fixture folder is new");
+                string folderGuid = AssetDatabase.CreateFolder("Assets", folder.Substring("Assets/".Length));
+                created = !string.IsNullOrEmpty(folderGuid);
+                Require(created && AssetDatabase.GUIDToAssetPath(folderGuid) == folder, "owned fixture folder is imported");
+                Shader shader = Shader.Find("Hidden/InternalErrorShader");
+                Require(shader != null, "builtin fixture shader is available");
+                string path = folder + "/OwnedMaterial.mat";
+                main = new Material(shader);
+                AssetDatabase.CreateAsset(main, path);
+                sub = new Material(shader) { name = "OwnedSubMaterial" };
+                AssetDatabase.AddObjectToAsset(sub, main);
+                AssetDatabase.SaveAssetIfDirty(main);
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+                Material loadedMain = AssetDatabase.LoadMainAssetAtPath(path) as Material;
+                Material loadedSub = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Material>().Single(material => material != loadedMain);
+                Require(loadedMain != null, "owned material is the main asset");
+                Require(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(loadedMain, out string guid, out long mainID), "owned material has an exact asset identity");
+                Require(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(loadedSub, out string subGuid, out long subID) && subGuid == guid && subID != mainID,
+                    "owned subasset shares the material GUID under its own local identifier");
+                Require(AssetDatabase.TryGetGUIDAndLocalFileIdentifier(AssetDatabase.LoadMainAssetAtPath(folder), out string mainFolderGuid, out long folderID) &&
+                    mainFolderGuid == folderGuid, "owned folder has an exact main-object identity");
+                const long absentID = 999999999;
+                Require(mainID != absentID && subID != absentID, "fixture identifiers differ from the absent local identifier");
+
+                Func<string, string> yaml = body => "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" + body;
+                Func<long, string, string> renderer = (id, pointerGuid) => yaml("--- !u!23 &5\nMeshRenderer:\n  m_GameObject: {fileID: 0}\n  m_Materials:\n  - {fileID: " +
+                    id + ", guid: " + pointerGuid + ", type: 2}\n");
+                Require(Scan(scan, directory, "material.prefab", renderer(mainID, guid), out string[] bad, out string[] objects, out int unresolved) == "complete" &&
+                    bad.Length == 0 && objects.Length == 0 && unresolved == 0, "exact material pointer is complete");
+                Require(Scan(scan, directory, "wrong-id.prefab", renderer(absentID, guid), out bad, out objects, out unresolved) == "incomplete" &&
+                    bad.Length == 0 && unresolved == 1 && objects.SequenceEqual(new[] {
+                        "{fileID: 999999999, guid: " + guid + ", type: 2}: Local identifier does not resolve at " + path }),
+                    "resolving GUID with an absent local identifier is incomplete and names the pointer");
+                Require(Scan(scan, directory, "subasset.prefab", renderer(subID, guid), out bad, out objects, out unresolved) == "complete" &&
+                    objects.Length == 0 && unresolved == 0, "exact subasset pointer is complete");
+                Require(Scan(scan, directory, "folder.spriteatlas", yaml("--- !u!687078895 &4343727234628468602\nSpriteAtlas:\n  m_EditorData:\n    packables:\n    - {fileID: " +
+                    folderID + ", guid: " + folderGuid + ", type: 3}\n"), out bad, out objects, out unresolved) == "complete" && objects.Length == 0 && unresolved == 0,
+                    "folder main-object pointer is complete");
+                Require(Scan(scan, directory, "local.prefab", yaml("--- !u!1 &1\nGameObject:\n  m_Component:\n  - component: {fileID: 2}\n  - component: {fileID: -3}\n" +
+                    "  m_PrefabInstance: {fileID: 0}\n--- !u!4 &2\nTransform:\n  m_GameObject: {fileID: 1}\n--- !u!4 &-3 stripped\nTransform:\n  m_PrefabInstance: {fileID: 0}\n"),
+                    out bad, out objects, out unresolved) == "complete" && objects.Length == 0 && unresolved == 0,
+                    "earlier, later, stripped and null local pointers are complete");
+                Require(Scan(scan, directory, "absent.prefab", yaml("--- !u!1 &1\nGameObject:\n  m_Component:\n  - component: {fileID: 2}\n  - component: {fileID: 77}\n" +
+                    "--- !u!4 &2\nTransform:\n  m_GameObject: {fileID: 1}\n"), out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 &&
+                    objects.SequenceEqual(new[] { "Assets/Recovered/absent.prefab {fileID: 77}: Local identifier names no document in this file" }),
+                    "local pointer without its document is incomplete");
+                Require(Scan(scan, directory, "malformed.prefab", yaml("--- !u!23 &5\nMeshRenderer:\n  m_Materials:\n  - {fileID: " + mainID + ", guid: " + guid + "}\n"),
+                    out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 &&
+                    objects.SequenceEqual(new[] { "Assets/Recovered/malformed.prefab {fileID: " + mainID + ", guid: " + guid + "}: Unsupported or malformed object pointer" }),
+                    "pointer without its type is reported instead of passing");
+            }
+            finally
+            {
+                try
+                {
+                    if (Directory.Exists(directory)) Directory.Delete(directory, true);
+                }
+                finally
+                {
+                    try
+                    {
+                        if (created) Require(AssetDatabase.DeleteAsset(folder), "owned fixture folder is removed");
+                    }
+                    finally
+                    {
+                        if (sub != null && !AssetDatabase.Contains(sub)) UnityEngine.Object.DestroyImmediate(sub);
+                        if (main != null && !AssetDatabase.Contains(main)) UnityEngine.Object.DestroyImmediate(main);
+                    }
+                }
+            }
+            Debug.Log("[Project Lucid] Recovered YAML object pointer checks passed: 7");
         }
 
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
