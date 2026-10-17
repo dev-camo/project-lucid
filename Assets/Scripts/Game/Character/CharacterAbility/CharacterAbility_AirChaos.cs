@@ -72,10 +72,11 @@ namespace HardlightProject
 			m_character.ActivateAudioFilter(false, true);
 		}
 
-		// 06001038 (1.10.1 RVA 0xE5D960)
+		// 06001038 (1.10.1 RVA 0xE5D960): tests SaveDataSettings+0x40
+		// (m_airAbilityHold) only; unlike the base it ignores Definition.Input.
 		protected override bool IsControlContinuous()
 		{
-			return !m_character.SaveDataSettings.GameSpeedToggleEnabled;
+			return !m_character.SaveDataSettings.AirAbilityHold;
 		}
 
 		// 06001039 (1.10.1 RVA 0xE5D980)
