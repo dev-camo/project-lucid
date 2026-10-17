@@ -110,11 +110,13 @@ namespace HardlightProject
 			if (m_leanStart == 0f)
 			{
 				float deadzone = Definition.ExitLeanDeadzone;
-				if (Mathf.Abs(input) > deadzone)
+				// 0xE61333 ucomiss / 0xE61339 jae: only an ordered deadzone >= |input| returns zero;
+				// a NaN input or deadzone falls through to the arithmetic.
+				if (deadzone >= Mathf.Abs(input))
 				{
-					return Mathf.Sign(input) * (Mathf.Abs(input) - deadzone) - deadzone;
+					return 0f;
 				}
-				return 0f;
+				return Mathf.Sign(input) * (Mathf.Abs(input) - deadzone) - deadzone;
 			}
 			m_leanStart = input;
 			return 0f;

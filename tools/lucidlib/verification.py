@@ -1841,6 +1841,17 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCharacterExitTransitionTests.ShouldRespawnReadsBothFlagsBeforeCombiningThem",
 )
 
+# Original HalfPipe LeanValue deadzone gate (x86-64 0xE61333 ucomiss / 0xE61339 jae).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.PositiveInputAboveTheDeadzoneKeepsItsSignAndSubtractsTheDeadzoneTwice",
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NegativeInputAboveTheDeadzoneNegatesBeforeSubtractingTheDeadzone",
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.InputEqualToTheDeadzoneReturnsZero",
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.ZeroInputInsideTheDeadzoneReturnsZero",
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NaNInputFallsThroughToTheArithmetic",
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NaNDeadzoneFallsThroughToTheArithmetic",
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NonZeroLeanStartStoresTheInputAndReturnsZero",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.ProcessAirControlDirectionFlowTests.GroundInputDirectionStoresThePreUpdateDirectionWhileTheVelocityUsesTheUpdatedOne",
     "ProjectLucid.Editor.ProcessAirControlDirectionFlowTests.AirUpdateForwardSpeedTurnsTheRefDirectionForFiniteSteering",
