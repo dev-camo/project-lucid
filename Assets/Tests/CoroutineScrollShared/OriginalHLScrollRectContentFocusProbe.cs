@@ -10,8 +10,9 @@ namespace ProjectLucid.Tests
     // and gives the fixture typed access to the protected original state; the
     // original subclasses (HLHorizontal/HLVerticalScrollRectContentFocus) are not
     // used, so only the base bodies are under test. It is a top-level class in its
-    // own same-named file because AddComponent needs a MonoScript for it; nesting
-    // it in the fixture would break AddComponent.
+    // own same-named file because AddComponent needs a MonoScript for it, and it
+    // lives in this runtime test assembly because Unity refuses to attach a
+    // component whose script belongs to an Editor-only assembly.
     public sealed class OriginalHLScrollRectContentFocusProbe : HLScrollRectContentFocus
     {
         public readonly List<string> Calls = new List<string>();
