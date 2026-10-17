@@ -172,8 +172,9 @@ namespace ProjectLucid.Tests
         // 0x1B66180 / 0x1B6B170: with m_preserveVelocity set, the previous velocity is
         // restored (and the flag cleared) only when Mathf.Sign of the current axis
         // velocity is +1 (so 0 counts), the previous sign differs and the previous
-        // axis velocity is nonzero; the other axis is ignored (its values here would
-        // pass). The current velocity is then always sampled.
+        // axis velocity is nonzero. The other axis is ignored: its values (+4 after
+        // -8) would restore on their own, so reading it fails the False rows. The
+        // current velocity is then always sampled.
         [TestCase(true, 5, -3, true)]
         [TestCase(true, 0, -3, true)]
         [TestCase(true, -5, 3, false)]
@@ -186,8 +187,8 @@ namespace ProjectLucid.Tests
         public void LateUpdateRestoresThePreviousVelocityOnlyAfterANegativeToPositiveFlip(bool horizontal, int current, int previous, bool restores)
         {
             Rig rig = Build(horizontal);
-            Vector2 currentVelocity = horizontal ? new Vector2(current, -4f) : new Vector2(-4f, current);
-            Vector2 previousVelocity = horizontal ? new Vector2(previous, 8f) : new Vector2(8f, previous);
+            Vector2 currentVelocity = horizontal ? new Vector2(current, 4f) : new Vector2(4f, current);
+            Vector2 previousVelocity = horizontal ? new Vector2(previous, -8f) : new Vector2(-8f, previous);
             rig.Scroll.velocity = currentVelocity;
             Set(rig.Focus, "m_previousScrollRectVelocity", previousVelocity);
             Set(rig.Focus, "m_preserveVelocity", true);

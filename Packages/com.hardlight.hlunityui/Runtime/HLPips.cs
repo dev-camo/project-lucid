@@ -34,10 +34,7 @@ public sealed class HLPips : MonoBehaviour
         for (int i = 0; i < m_pipCount; i++)
         {
             HLPipsElement pip = Instantiate(m_pipsElementPrefab, m_pipRoot);
-            if (i == activePipIndex)
-                pip.OnInitialiseActive.Invoke();
-            else
-                pip.OnInitialiseInactive.Invoke();
+            (i == activePipIndex ? pip.OnInitialiseActive : pip.OnInitialiseInactive).Invoke();
             m_pips.Add(pip);
         }
         m_currentPipIndex = activePipIndex;

@@ -326,8 +326,9 @@ namespace ProjectLucid.Tests
             Assert.That(rig.Carousel.velocity, Is.EqualTo(new Vector2(12f, -5f)));
         }
 
-        // 0x1B3C760: with both axes enabled only x wraps, using m_wrapOffset.x; the
-        // y offset (0.5) would not wrap 1.3. Unrestricted movement and zero velocity
+        // 0x1B3C760: with both axes enabled only x wraps, using m_wrapOffset.x. The
+        // y offset (0.1) would wrap y = -160 (1.3) to 80, and passed for x it would
+        // give 80 instead of 140. Unrestricted movement and zero velocity
         // keep ScrollRect.LateUpdate from moving the content first.
         [Test]
         public void LateUpdateWrapsOnlyTheHorizontalAxisWhenBothAreEnabled()
@@ -336,7 +337,7 @@ namespace ProjectLucid.Tests
             rig.Content.anchoredPosition = new Vector2(-160f, -160f);
             rig.Carousel.horizontal = true;
             rig.Carousel.vertical = true;
-            rig.Carousel.SetWrapOffset(new Vector2(0.25f, 0.5f));
+            rig.Carousel.SetWrapOffset(new Vector2(0.25f, 0.1f));
 
             Call(rig.Carousel, "LateUpdate");
 

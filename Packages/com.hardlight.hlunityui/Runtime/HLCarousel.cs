@@ -2,7 +2,9 @@
 // 0x06000089..91) and its nested ScrollDirection enum 02000016, translated from
 // the x86-64 bodies. The carousel is an HLScrollRect whose content is flanked by
 // two cap copies (the last child before the first, the first child after the
-// last), and whose normalised position wraps by one item past either end.
+// last). Once the normalised position passes either end by more than the wrap
+// offset (m_wrapOffset, half an item step) it jumps back or forward by 1 plus one
+// item step.
 using System;
 using Hardlight;
 using Unity.IL2CPP.CompilerServices;
@@ -48,8 +50,9 @@ namespace UnityEngine.UI
         }
 
         // 0x0600008a @0x1B3C7D0. Moving the position also moves the drag origin by the
-        // same content shift, and the velocity from before the jump is kept. A zero
-        // wrap offset pins an in-range position to the start (0x1b3c888..8c7).
+        // same content shift, and the velocity from before the jump is kept. An
+        // approximately-zero wrap offset (Mathf.Approximately, inlined at
+        // 0x1b3c888..8c7) pins an in-range position to the start.
         private void WrapAxis(float axisNormalisedPosition, int axis, float wrapOffset)
         {
             float previousContentPosition = content.anchoredPosition[axis];
@@ -59,7 +62,7 @@ namespace UnityEngine.UI
                 wrappedPosition = axisNormalisedPosition - (wrapOffset * DoubleFloat + MaxBound);
             else if (axisNormalisedPosition < MinBound - wrapOffset)
                 wrappedPosition = axisNormalisedPosition + (wrapOffset * DoubleFloat + MaxBound);
-            else if (Mathf.Approximately(wrapOffset, MinBound))
+            else if (Mathf.Approximately(wrapOffset, 0f))
                 wrappedPosition = MinBound;
             else
                 return;
@@ -88,10 +91,10 @@ namespace UnityEngine.UI
             if (m_endCap != null)
                 itemCount--;
 
-            float itemWrapOffset = itemCount < 2 ? MinBound : HalfFloat / (itemCount - 1);
+            float itemWrapOffset = itemCount < 2 ? 0f : HalfFloat / (itemCount - 1);
             m_wrapOffset = m_scrollDirection == ScrollDirection.Horizontal
-                ? new Vector2(itemWrapOffset, MinBound)
-                : new Vector2(MinBound, itemWrapOffset);
+                ? new Vector2(itemWrapOffset, 0f)
+                : new Vector2(0f, itemWrapOffset);
             if (itemCount >= 2)
             {
                 horizontal = m_scrollDirection == ScrollDirection.Horizontal;
