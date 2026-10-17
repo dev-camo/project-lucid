@@ -9,6 +9,7 @@ using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Offline;
 using UnityEngine;
+using LifecycleRow = ProjectLucid.VerificationFixtureOwnership.LifecycleRow;
 
 namespace ProjectLucid.Tests.EditMode
 {
@@ -209,58 +210,68 @@ namespace ProjectLucid.Tests.EditMode
         public void OwnedDisposalPreservesASeparatelyNamedRegistrationOfTheSameManager()
         {
             string aliasName = "LucidAchievementOwnedAlias" + Guid.NewGuid().ToString("N");
-            SystemRef alias = ProcessManager.GetSystemRef(aliasName, true);
-            Assert.That(alias.IsNull(), Is.True);
-            using (var world = new OwnedCoreWorld())
+            // The alias row is created here and removed once idle on every path.
+            var aliasRow = new LifecycleRow(aliasName);
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                var lease = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier },
-                    () => true, () => { }, () => { }));
-                try
+                SystemRef alias = ProcessManager.GetSystemRef(aliasName, true);
+                Assert.That(alias.IsNull(), Is.True);
+                using (var world = new OwnedCoreWorld())
                 {
-                    ProcessManager.RegisterSystem(lease.Manager, aliasName);
-                    Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
-                    lease.Start();
-                    Assert.That(lease.IsReady, Is.True);
-                    lease.Dispose();
-                    Assert.That(ProcessManager.IsSystemNull<AchievementsManager>(), Is.True);
-                    Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
-                    Assert.That(lease.IsReady, Is.False);
-                    Assert.That(lease.Manager.Achievements.Count, Is.Zero);
-                    lease.Dispose();
-                    Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
+                    var lease = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier },
+                        () => true, () => { }, () => { }));
+                    try
+                    {
+                        ProcessManager.RegisterSystem(lease.Manager, aliasName);
+                        Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
+                        lease.Start();
+                        Assert.That(lease.IsReady, Is.True);
+                        lease.Dispose();
+                        Assert.That(ProcessManager.IsSystemNull<AchievementsManager>(), Is.True);
+                        Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
+                        Assert.That(lease.IsReady, Is.False);
+                        Assert.That(lease.Manager.Achievements.Count, Is.Zero);
+                        lease.Dispose();
+                        Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
+                    }
+                    finally { ProcessManager.UnregisterSystem(aliasName); }
                 }
-                finally { ProcessManager.UnregisterSystem(aliasName); }
-            }
+            }, aliasRow.Dispose);
         }
 
         [Test]
         public void OwnedCompletionFaultPreservesTheSameManagerAliasAndThePrimaryError()
         {
             string aliasName = "LucidAchievementFaultAlias" + Guid.NewGuid().ToString("N");
-            SystemRef alias = ProcessManager.GetSystemRef(aliasName, true);
-            Assert.That(alias.IsNull(), Is.True);
-            using (var world = new OwnedCoreWorld())
+            // The alias row is created here and removed once idle on every path.
+            var aliasRow = new LifecycleRow(aliasName);
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                var primary = new InvalidOperationException("owned alias completion fault");
-                LocalAchievementManagerLease lease = null;
-                lease = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier },
-                    () => true, () =>
-                    {
-                        ProcessManager.RegisterSystem(lease.Manager, aliasName);
-                        throw primary;
-                    }, () => { }));
-                try
+                SystemRef alias = ProcessManager.GetSystemRef(aliasName, true);
+                Assert.That(alias.IsNull(), Is.True);
+                using (var world = new OwnedCoreWorld())
                 {
-                    Assert.That(Assert.Throws<InvalidOperationException>(() => lease.Start()), Is.SameAs(primary));
-                    Assert.That(ProcessManager.IsSystemNull<AchievementsManager>(), Is.True);
-                    Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
-                    Assert.That(lease.IsReady, Is.False);
-                    Assert.That(lease.Manager.Achievements.Count, Is.Zero);
-                    lease.Dispose();
-                    Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
+                    var primary = new InvalidOperationException("owned alias completion fault");
+                    LocalAchievementManagerLease lease = null;
+                    lease = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier },
+                        () => true, () =>
+                        {
+                            ProcessManager.RegisterSystem(lease.Manager, aliasName);
+                            throw primary;
+                        }, () => { }));
+                    try
+                    {
+                        Assert.That(Assert.Throws<InvalidOperationException>(() => lease.Start()), Is.SameAs(primary));
+                        Assert.That(ProcessManager.IsSystemNull<AchievementsManager>(), Is.True);
+                        Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
+                        Assert.That(lease.IsReady, Is.False);
+                        Assert.That(lease.Manager.Achievements.Count, Is.Zero);
+                        lease.Dispose();
+                        Assert.That(alias.GetSafe(), Is.SameAs(lease.Manager));
+                    }
+                    finally { ProcessManager.UnregisterSystem(aliasName); }
                 }
-                finally { ProcessManager.UnregisterSystem(aliasName); }
-            }
+            }, aliasRow.Dispose);
         }
 
         [Test]
@@ -270,6 +281,13 @@ namespace ProjectLucid.Tests.EditMode
             throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
 #endif
             string aliasName = "LucidLeaderboardStartupAlias" + Guid.NewGuid().ToString("N");
+            LifecycleRow[] rows = LeaderboardRows(aliasName, ProcessManager.GetDefaultName<GameCenter>(),
+                ProcessManager.GetDefaultName<GameCenterLeaderboard>());
+            VerificationFixtureOwnership.RunThenCleanUp(() => LeaderboardStartupFault(aliasName), Release(rows));
+        }
+
+        private static void LeaderboardStartupFault(string aliasName)
+        {
             var observation = new OwnedLeaderboardLookupObservation(aliasName);
             string name = ProcessManager.GetDefaultName<LeaderboardManager>();
             SystemRef reference = ProcessManager.GetSystemRef(name, true);
@@ -317,6 +335,34 @@ namespace ProjectLucid.Tests.EditMode
 #endif
             RequireEmptyOwnedRecords();
             string aliasName = "LucidLeaderboardShutdownAlias" + Guid.NewGuid().ToString("N");
+            LifecycleRow[] rows = LeaderboardRows(aliasName, ProcessManager.GetDefaultName<GameCenter>(),
+                ProcessManager.GetDefaultName<GameCenterLeaderboard>(), ProcessManager.GetDefaultName<SaveManager>(),
+                ProcessManager.GetDefaultName<TimeTrialLeaderboardManager>());
+            VerificationFixtureOwnership.RunThenCleanUp(() => LeaderboardSubscribedShutdown(aliasName), Release(rows));
+        }
+
+        // The leaderboard cases create the manager, alias and lookup rows below
+        // through GetSystemRef (the manager's field initializers read GameCenter
+        // and GameCenterLeaderboard). Each is admitted before the first lookup
+        // and released after the observation has checked it: a created row is
+        // removed once idle, and a borrowed idle row loses only the typed entries
+        // added here. The manager and alias rows must be absent or idle; a
+        // looked-up row whose system is live is foreign and is borrowed as it is.
+        private static LifecycleRow[] LeaderboardRows(string aliasName, params string[] lookups)
+        {
+            var rows = new List<LifecycleRow>
+            {
+                new LifecycleRow(ProcessManager.GetDefaultName<LeaderboardManager>()),
+                new LifecycleRow(aliasName)
+            };
+            foreach (string lookup in lookups) rows.Add(new LifecycleRow(lookup, borrowLiveSystem: true));
+            return rows.ToArray();
+        }
+
+        private static Action[] Release(LifecycleRow[] rows) => Array.ConvertAll(rows, row => (Action)row.Dispose);
+
+        private static void LeaderboardSubscribedShutdown(string aliasName)
+        {
             var observation = new OwnedLeaderboardLookupObservation(aliasName);
             // Normal lookup preparation is fully observed by the outer snapshot.
             // The existing Core world then preserves these exact rows and caches.
@@ -571,6 +617,13 @@ namespace ProjectLucid.Tests.EditMode
             private readonly object priorStore;
             private readonly List<LocalAchievementManagerLease> leases = new List<LocalAchievementManagerLease>();
             private readonly OwnedProcessObservation process;
+            // A lease registers the manager into its default row, and the manager's
+            // field initializer caches a typed GameCenterLocalPlayer reference. Both
+            // rows are admitted before any lease and released after the process
+            // observation: a created row is removed once idle, a borrowed idle row
+            // loses only its added typed entries, and a live local player is foreign.
+            private readonly LifecycleRow managerRow = new LifecycleRow(ProcessManager.GetDefaultName<AchievementsManager>());
+            private readonly LifecycleRow playerRow = new LifecycleRow(ProcessManager.GetDefaultName<GameCenterLocalPlayer>(), borrowLiveSystem: true);
             internal HLPropertyStore Store { get; private set; }
             internal OwnedCoreWorld()
             {
@@ -617,6 +670,10 @@ namespace ProjectLucid.Tests.EditMode
                 foreach (var lease in leases)
                     try { lease.Dispose(); } catch (Exception error) { errors.Add(error); }
                 try { RequireEmptyLocalContexts(); process.AssertRestored(); }
+                catch (Exception error) { errors.Add(error); }
+                try { managerRow.Dispose(); }
+                catch (Exception error) { errors.Add(error); }
+                try { playerRow.Dispose(); }
                 catch (Exception error) { errors.Add(error); }
                 try { singleton.SetValue(null, priorStore); }
                 catch (Exception error) { errors.Add(error); }
