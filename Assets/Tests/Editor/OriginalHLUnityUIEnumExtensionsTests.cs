@@ -54,6 +54,8 @@ namespace ProjectLucid.Tests
         {
             Dictionary<UIInputType, string> map = Map();
             Assert.That(map.Comparer, Is.SameAs(HardlightUIEnumComparers.UIInputTypeComparer));
+            // The .cctor (0x1b4ffd0) Add order is observed through Dictionary's
+            // insertion-ordered entry array; valid while slots 0..11 are never removed.
             Assert.That(map.Take(12).Select(entry => ((int)entry.Key, entry.Value)), Is.EqualTo(new[]
             {
                 (0x35821dfb, "DefaultController"),

@@ -24,8 +24,8 @@ namespace Hardlight
 		private OrientationSpecificRectSettings[] m_landscapeRightNotchSettings;
 
 		// 0x06000539 (0x1b64260): hides the base OnEnable, so no WaitForRequiredSystems
-		// coroutine runs; the refresh is immediate and happens even without a live
-		// ScreenManager, where the base InitialiseValues then dereferences a null Instance.
+		// coroutine runs; the refresh is immediate even when IsNull is true. A CLR-null
+		// Instance makes the base InitialiseValues throw, while a destroyed one is still read.
 		private void OnEnable()
 		{
 			if (!MonoSingleton<ScreenManager>.IsNull())

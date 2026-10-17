@@ -208,7 +208,7 @@ namespace ProjectLucid.Editor
             // The genuine GetString caches unknown values in its mutable table.
             // Preserve that runtime behavior while isolating this fixture's misses
             // from the complete original table verification and other consumers.
-            FieldInfo tableField = typeof(HardlightEnumExtensions).GetField("ComparisonTypeEnumToString",
+            FieldInfo tableField = typeof(HardlightProject.HardlightEnumExtensions).GetField("ComparisonTypeEnumToString",
                 BindingFlags.NonPublic | BindingFlags.Static);
             var table = (Dictionary<ComparisonType, string>)tableField.GetValue(null);
             var before = new Dictionary<ComparisonType, string>(table);

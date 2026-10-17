@@ -4,8 +4,9 @@ using UnityEngine;
 namespace Hardlight
 {
 	// Original HLUnityUI.Runtime 0x0200001d (TypeDefIndex 11853), methods 0x060000c7..0x060000dc.
-	// Editor-side settings for the UI code generators and scene validation. The
-	// second "GUI Scenes" header on the reference resolution is the original's.
+	// Settings for the UI code generators and scene validation (purpose inferred
+	// from the field names). The second "GUI Scenes" header on the reference
+	// resolution is the original's.
 	// No shipped asset references this script (reference export GUID
 	// ef9332403cbb725d8a8791ac12ffe188), so the .meta GUID is fresh.
 	[Il2CppSetOption(Option.NullChecks, false)]
