@@ -69,7 +69,8 @@ namespace ProjectLucid.Editor
 
         // The 38 restored HLBinders.Runtime owners below (tokens 0200000c, 0200001e-0200002b,
         // 0200002d-02000039, 0200003c-0200003d, 02000040, 02000055-02000059, 0200006d-0200006e) pass
-        // ctor 0xc753 a string argument encoded 0e 00: zero length, where null would be 0e 01. The
+        // ctor 0xc753 a string argument that the IL2CPP metadata blob encodes as 0e 00 (zero length;
+        // a null string would be 0e 01, a compressed -1). The
         // original's TMP_Gradient owners (0200002c, 0200003a) and ConstantValue (0200003b) between them
         // are not restored yet. BinderInput's raw blob is
         // 0253c70000645c01000100000e000200000e0a496e7075740800. Catches [AddComponentMenu(null)].
