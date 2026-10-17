@@ -2257,6 +2257,37 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLScrollRectContentFocusTest
     "IsChildVisibleToViewportWalksInwardAndRequiresStrictOverlap",
 ))
 
+# Hardlight.OrientationSpecificRectTransformModifier (HLUnityUI.Runtime 0x0600053f..4d) behaviour specification.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOrientationSpecificRectTransformModifierTests." + name for name in (
+    "SettingTypeLiteralsAndIteratorNameMatchTheOriginal",
+    "ConstructorCreatesAnEmptyDesiredListPerComponent",
+    "AwakeFetchesTheSiblingModifierOnlyWhenTheFieldIsUnityNull",
+    "SetAllValuesRoutesEverySettingTypeToItsModifierSetter",
+    "SetAllValuesAppliesEntriesInListOrder",
+    "SetAllValuesSkipsUnknownSettingTypesAndContinues",
+    "SetAllValuesWithNoEntriesNeverReadsTheModifier",
+    "InitialiseValuesSelectsLandscapeOnlyForTheLandscapeOrientation",
+    "InitialiseValuesAppendsWithoutClearing",
+    "InitialiseValuesWithoutTheSingletonFaultsBeforeWriting",
+    "InitialiseAndSetValuesInitialisesVirtuallyThenApplies",
+    "InitialiseAndSetValuesReappliesStaleEntriesAfterAnOrientationChange",
+    "OnEnableSubscribesTheVirtualRefreshAndStartsTheCoroutine",
+    "OnEnableWithoutALiveScreenManagerOnlyStartsTheCoroutine",
+    "OnEnableStartsTheWaitForRequiredSystemsIterator",
+    "OnDisableRemovesOnlyItsOwnSubscription",
+    "WaitForRequiredSystemsPollsTheRegistryNotTheSingleton",
+    "WaitForRequiredSystemsRefreshesImmediatelyWhenRegistered",
+    "WaitForRequiredSystemsIteratorRejectsReset",
+))
+
+# RectTransformModifier (HLUnityUI.Runtime 0x0600002b..62) caching, getters and setter guards.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalRectTransformModifierTests." + name for name in (
+    "RectTransformIsCachedLazilyFromTheOwnTransform",
+    "GettersReadTheRectTransformComponents",
+    "RightAndTopOffsetSkipWhenTheRawComponentEqualsTheValue",
+    "LocalScaleSettersReplaceOneComponent",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
