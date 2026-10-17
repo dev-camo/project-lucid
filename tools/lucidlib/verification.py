@@ -2134,6 +2134,21 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLButtonWeakRemediationTests.InactiveButtonPropertiesRouteToTheirOwnBackingFields",
 )
 
+# Restored Hardlight.HLLogHandler (HLUnityCore.Runtime 0x06000a44..59) and its dependencies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLLogHandlerTests." + name for name in (
+    "ConstructorCreatesOnlyTheQueueAndAwakeFallsBackToDefaults",
+    "AwakeSelectsTheFirstCaseInsensitivePlatformRowAndSizesTheList",
+    "MasksFilterTypesAndOnlyTheCurrentAllLogTypesValueAcceptsUnmappedTypes",
+    "ExclusionListsSkipMatchesAndEnableExclusionListChangesTheFirstNamedList",
+    "QueueUpdateCountsStackThenMessageLengthsAndRaisesAfterListing",
+    "UpdateFlushesAtTheWrappedIntThresholdOnlyWithAutoExport",
+    "PauseAndQuitFlushByConfiguredStageIgnoringThePauseArgument",
+    "TextMarkdownAndJsonFormatsUseTheNativeLiterals",
+    "ExportWritesChainedExtensionNamesAndSwallowsFailures",
+    "OnEnableReceivesThreadedLogMessagesUntilOnDisable",
+    "DependenciesKeepTheirShippedBehaviour",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
