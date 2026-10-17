@@ -257,12 +257,14 @@ namespace Hardlight
 		}
 
 		// 060001f0
+		[ContextMenu("Log Profiler Active Data Snapshot")]
 		public void Action_ProfilerLogActiveDataSnapshot()
 		{
 			LogProfilerSnapshot(true);
 		}
 
 		// 060001f1
+		[ContextMenu("Log Profiler All Data Snapshot")]
 		public void Action_ProfilerLogDataSnapshot()
 		{
 			LogProfilerSnapshot(false);

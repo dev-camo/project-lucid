@@ -3894,6 +3894,17 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.SharedStateSnapshotTests.CachedEnumMissIsReported",
 )
 
+# Original managed declaration contracts restored for issue #295.
+EDITMODE_TESTS += tuple("OriginalManagedDeclarationContractsTests." + name for name in (
+    "NestedTypesKeepOriginalVisibilityAndSerializableFlags",
+    "OutroSequenceDreamOrbBeginStaysPrivate",
+    "SaveDataSettingsKeepsReadOnlyEditableListAndBeforeFieldInit",
+    "DevelopmentOnlyMethodsKeepConditionalAttribute",
+    "GameRuntimeOptionalParametersKeepOriginalDefaults",
+    "UnityUiOptionalParametersKeepOriginalNullDefaults",
+    "ProfilerAndLocalisationMenusKeepOriginalAttributeArguments",
+))
+
 # Per-test isolation hook controls; the verdict also requires each one's own
 # clean line in the mode's isolation report (ISOLATION_HOOK_CONTROLS).
 EDITMODE_TESTS += (

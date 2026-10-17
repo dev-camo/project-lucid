@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using Hardlight;
 using Unity.IL2CPP.CompilerServices;
@@ -11,8 +12,10 @@ namespace HardlightProject
         [FiniteStateMachineJsonCtorArgs]
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [Il2CppSetOption(Option.NullChecks, false)]
+        [Serializable]
         protected class BaseJSONCtorArgs
         {
+            [GraphUnityObject(typeof(ActorAnimationDefinition))]
             public string StateAnimationDefinitionName;
 
             // Original 0x06000417: the field retains its CLR default.

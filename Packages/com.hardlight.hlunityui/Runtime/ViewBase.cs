@@ -15,7 +15,7 @@ namespace Hardlight
 		public ViewParameters ViewParameters;
 
 		// 0x060002b2 (0x1b4d060): the parameters are stored before the subclass sees them.
-		public void Setup(ViewParameters viewParams)
+		public void Setup(ViewParameters viewParams = null)
 		{
 			ViewParameters = viewParams;
 			OnSetup(viewParams);

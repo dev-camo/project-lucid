@@ -129,7 +129,7 @@ namespace HardlightProject
             });
         }
 
-        private static bool PlayOneShot(AudioClip audioClip, AudioSource oneShotAudioSource, List<AudioSource> audioSources, int slotIndex, int slotCount)
+        private static bool PlayOneShot(AudioClip audioClip, AudioSource oneShotAudioSource, List<AudioSource> audioSources = null, int slotIndex = -1, int slotCount = 0)
         {
             AudioSource source;
             if (oneShotAudioSource != null) source = oneShotAudioSource;

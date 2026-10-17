@@ -189,7 +189,7 @@ namespace Hardlight
 
         // Every selectable joins the global list once; a named scene list
         // accepts duplicates (0x1B54940).
-        public static void Add(UISelectable selectable, string sceneName)
+        public static void Add(UISelectable selectable, string sceneName = null)
         {
             s_allSelectables.AddUnique(selectable);
             if (string.IsNullOrWhiteSpace(sceneName))
@@ -205,7 +205,7 @@ namespace Hardlight
             s_selectables[sceneName].Add(selectable);
         }
 
-        public static void Remove(UISelectable selectable, string sceneName)
+        public static void Remove(UISelectable selectable, string sceneName = null)
         {
             s_allSelectables.Remove(selectable);
             if (string.IsNullOrWhiteSpace(sceneName))
@@ -221,7 +221,7 @@ namespace Hardlight
 
         // A blank name returns the global list; an unknown scene gets an empty
         // list added to the table (0x1B54CF0).
-        public static IReadOnlyCollection<UISelectable> GetSelectables(string sceneName)
+        public static IReadOnlyCollection<UISelectable> GetSelectables(string sceneName = null)
         {
             if (string.IsNullOrWhiteSpace(sceneName))
             {

@@ -560,6 +560,7 @@ namespace HardlightProject
             MarkDirty();
         }
         // 0x06002c22: absent keys leave dirty state unchanged.
+        [System.Diagnostics.Conditional("BUILD_DEVELOPMENT")]
         public void RemoveUnlockedOrnamentGuid(string unlockedOrnamentGUID)
         {
             if (!m_ornamentsByGuid.TryGetValue(unlockedOrnamentGUID, out SaveDataOrnament ornament)) return;

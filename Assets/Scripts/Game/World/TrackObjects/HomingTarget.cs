@@ -82,7 +82,7 @@ namespace HardlightProject
         public void DoOnTargeted() { m_onTargeted.Invoke(); }
         public void DoOnCancelled() { m_onCancelled.Invoke(); }
         // Original06003e34.
-        public void DoOnCharacterHit(IHomingAttack homingAttackAbility)
+        public void DoOnCharacterHit(IHomingAttack homingAttackAbility = null)
         {
             if (m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character))
             {
@@ -119,7 +119,7 @@ namespace HardlightProject
             return gameObject != target.Object.Target ? null : target;
         }
         // Original06003e38: callback/order retained; current effect data is only the target transform.
-        private void OnCharacterHit(Character character, bool enableForceTrigger, IHomingAttack homingAttackAbility)
+        private void OnCharacterHit(Character character, bool enableForceTrigger, IHomingAttack homingAttackAbility = null)
         {
             m_onHit?.Invoke();
             if (enableForceTrigger && m_forceTrigger != null) m_forceTrigger.TryTrigger(character.ColliderCollision);

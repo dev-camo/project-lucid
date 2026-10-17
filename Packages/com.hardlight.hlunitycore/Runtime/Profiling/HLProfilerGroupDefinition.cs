@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Hardlight
 {
 	// Original HLUnityCore.Runtime 02000050; bodies translated from the 1.10.1 x86-64 binary.
-	[CreateAssetMenu]
+	[CreateAssetMenu(fileName = "ProfilerGroup_", menuName = "Hardlight/HLUnityCore/Profiler/Group Definition")]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	public class HLProfilerGroupDefinition : ScriptableObject

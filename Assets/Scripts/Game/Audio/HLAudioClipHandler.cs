@@ -125,7 +125,7 @@ namespace HardlightProject
                 onComplete(onCompleteParameters);
         }
 
-        private void LoadAudioClip(HLMusicClipDefinition audioClipDefinition, Action<LoadedAudioParameters> onComplete)
+        private void LoadAudioClip(HLMusicClipDefinition audioClipDefinition, Action<LoadedAudioParameters> onComplete = null)
         {
             AsyncOperationHandle<AudioClip> handle = m_addressableManagerRef.Get().LoadAsset(audioClipDefinition.AudioClipReference, audioClip =>
             {
@@ -146,7 +146,7 @@ namespace HardlightProject
             m_loadedAudioClips.Add(audioClipDefinition.Identifier, data);
         }
 
-        private void LoadAudioClip(HLSfxClipDefinition audioClipDefinition, Action<LoadedAudioParameters> onComplete)
+        private void LoadAudioClip(HLSfxClipDefinition audioClipDefinition, Action<LoadedAudioParameters> onComplete = null)
         {
             AsyncOperationHandle<AudioClip> handle = m_addressableManagerRef.Get().LoadAsset(audioClipDefinition.AudioClipReference, audioClip =>
             {

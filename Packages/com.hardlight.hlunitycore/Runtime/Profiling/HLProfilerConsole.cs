@@ -525,12 +525,14 @@ namespace Hardlight
 		}
 
 		// 060001b5
+		[ContextMenu("Show Profiler")]
 		public void Action_ProfilerShow()
 		{
 			OpenProfiler();
 		}
 
 		// 060001b6
+		[ContextMenu("Hide Profiler")]
 		public void Action_ProfilerHide()
 		{
 			CloseProfiler();

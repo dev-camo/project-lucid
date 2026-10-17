@@ -84,14 +84,14 @@ namespace HardlightProject
             messageManager.ComponentMessagesWithCompletion.SubscribeToMessage<IEffectData>(in m_triggeringComponent, ValidateAndBegin);
         }
         // Original0600208a: rejected verification neither calls completion nor changes the saved callback.
-        private void ValidateAndBegin(in IEffectData data, Action onComplete)
+        private void ValidateAndBegin(in IEffectData data, Action onComplete = null)
         {
             if (m_verifyFunction != null && !m_verifyFunction()) return;
             m_onComplete = onComplete;
             TriggerEffect(data, 0);
         }
         // Original0600208b: direct sequence entry does not consult the verifier.
-        public void BeginSequence(in IEffectData data, Action onComplete)
+        public void BeginSequence(in IEffectData data, Action onComplete = null)
         {
             m_onComplete = onComplete;
             TriggerEffect(data, 0);

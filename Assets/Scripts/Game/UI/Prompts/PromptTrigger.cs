@@ -85,7 +85,7 @@ namespace HardlightProject
         [Serializable]
         [Il2CppSetOption(Option.NullChecks, false)]
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        private class PromptTriggerChoiceAction
+        public class PromptTriggerChoiceAction
         {
             [SerializeField]
             [Tooltip("If ticked, this triggers when the prompt is dismissed without any user choice (e.g. walking away) and no default choice exists.")]

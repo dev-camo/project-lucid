@@ -66,7 +66,9 @@ namespace HardlightProject
         private Action<CameraSensitivityType> m_onCameraSensitivityChanged;
         private Action<CameraSensitivityType> m_onCameraSecondarySensitivityChanged;
         private const StringComparison EditableUIComponentsIDComparison = StringComparison.InvariantCultureIgnoreCase;
-        private static readonly Dictionary<string, SaveDataSettingsEditableUIComponent> s_editableUIComponentsTempDictionary;
+        // Game.Runtime.dll .cctor 0x06002cfc: a field initializer keeps the original BeforeFieldInit.
+        private static readonly Dictionary<string, SaveDataSettingsEditableUIComponent> s_editableUIComponentsTempDictionary =
+            new Dictionary<string, SaveDataSettingsEditableUIComponent>(StringComparer.FromComparison(EditableUIComponentsIDComparison));
         // Game.Runtime.dll 0x06002cb4.
         public float MusicVolume
         {
@@ -477,7 +479,7 @@ namespace HardlightProject
         }
 
         // Game.Runtime.dll 0x06002cec.
-        public List<SaveDataSettingsEditableUIComponent> EditableUIComponents
+        public IReadOnlyList<SaveDataSettingsEditableUIComponent> EditableUIComponents
         {
             get
             {
@@ -737,12 +739,6 @@ namespace HardlightProject
             m_editableUIComponents.Add(created);
             MarkDirty();
             return created;
-        }
-
-        // Game.Runtime.dll 0x06002cfc.
-        static SaveDataSettings()
-        {
-            s_editableUIComponentsTempDictionary = new Dictionary<string, SaveDataSettingsEditableUIComponent>(StringComparer.FromComparison(EditableUIComponentsIDComparison));
         }
     }
 }

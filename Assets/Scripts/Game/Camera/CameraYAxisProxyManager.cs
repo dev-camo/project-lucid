@@ -305,7 +305,7 @@ namespace HardlightProject
         }
 
         [Serializable]
-        private struct TransformStackLayerDefinition : ISerializationCallbackReceiver // 02000267.
+        public struct TransformStackLayerDefinition : ISerializationCallbackReceiver // 02000267.
         {
             [HideInInspector] public string Name;
             public CameraYOverrideLayer LayerType;

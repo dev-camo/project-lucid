@@ -322,7 +322,9 @@ namespace HardlightProject
             if (rendererFeatureIndex < features.Count) return features[rendererFeatureIndex];
             return null;
         }
+        [System.Diagnostics.Conditional("BUILD_DEVELOPMENT")]
         private void SetupDebugMenu() { }
+        [System.Diagnostics.Conditional("BUILD_DEVELOPMENT")]
         private void RemoveDebugMenu() { }
         // Original 060035d2: the field initializers precede the genuine base constructor.
         public FullscreenShaderManager() { }

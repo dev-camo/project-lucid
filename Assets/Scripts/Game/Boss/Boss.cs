@@ -484,7 +484,7 @@ namespace HardlightProject
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [Il2CppSetOption(Option.NullChecks, false)]
         [Serializable]
-        public class BossBodyComponents
+        private class BossBodyComponents
         {
             public ActorAttachPointType AttachPoint;
             public BossAttackTypes AttackType;
@@ -526,7 +526,7 @@ namespace HardlightProject
         [Il2CppSetOption(Option.NullChecks, false)]
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [Serializable]
-        public class BossGeneralEventTriggers
+        private class BossGeneralEventTriggers
         {
             public EffectSequence Effects;
             public BossEffectTriggerTypes Trigger;

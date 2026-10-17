@@ -9,7 +9,7 @@ using UnityEngine;
 // "AllLangaugeFallBacksCollection" is original.
 [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 [Il2CppSetOption(Option.NullChecks, false)]
-[CreateAssetMenu]
+[CreateAssetMenu(fileName = "FontAssetLanguageFallbackData", menuName = "Hardlight/Localisation/FontAsset Language Fallback Data", order = 0)]
 public sealed class FontAssetLanguageFallbackData : ScriptableObject
 {
     [Serializable]

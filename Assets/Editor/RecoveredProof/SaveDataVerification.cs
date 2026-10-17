@@ -237,8 +237,10 @@ namespace ProjectLucid
             {
                 Scale = 3
             };
-            s.EditableUIComponents.Clear();
-            s.EditableUIComponents.AddRange(new[] { a, null, new SaveDataSettingsEditableUIComponent("  "), b, c });
+            // The getter is IReadOnlyList in the original (0x06002cec); seed the backing list directly.
+            var editable = Get<List<SaveDataSettingsEditableUIComponent>>(s, "m_editableUIComponents");
+            editable.Clear();
+            editable.AddRange(new[] { a, null, new SaveDataSettingsEditableUIComponent("  "), b, c });
             s.MarkDirty();
             s.OnAfterDeserialize();
             Check(s.EditableUIComponents.Count == 1 && ReferenceEquals(s.EditableUIComponents[0], b), "dedupe user winner");
@@ -271,7 +273,7 @@ namespace ProjectLucid
             old.Debug = oldDebug;
             old.CopyFrom(newer);
             Check(old.CameraSecondarySensitivity == CameraSensitivityType.High && old.AirStompAttackMapping == ButtonMappingType.Primary && old.SkipFTUE && ReferenceEquals(old.Debug, oldDebug), "copy omitted fields");
-            newer.EditableUIComponents.Add(new SaveDataSettingsEditableUIComponent("new") { Scale = 3 });
+            Get<List<SaveDataSettingsEditableUIComponent>>(newer, "m_editableUIComponents").Add(new SaveDataSettingsEditableUIComponent("new") { Scale = 3 });
             old.CopyFrom(newer);
             Check(old.EditableUIComponents.Count == 1 && old.EditableUIComponents[0].Scale == 3 && !ReferenceEquals(old.EditableUIComponents[0], newer.EditableUIComponents[0]), "copy clones ui");
             old.MarkSaved();

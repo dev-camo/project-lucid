@@ -72,7 +72,7 @@ namespace HardlightProject
 
         // 0x06003cb8; ARM 0x6a976c. The supplied instance is used directly;
         // no ownership transfer, guard, or completion callback is added.
-        public void BeginSequence(IEffectData targetedEffect, EffectSequence dreamOrbInstance)
+        private void BeginSequence(IEffectData targetedEffect, EffectSequence dreamOrbInstance)
         {
             dreamOrbInstance.BeginSequence(in targetedEffect, null);
             m_effectSequence.BeginSequence(in targetedEffect, null);
