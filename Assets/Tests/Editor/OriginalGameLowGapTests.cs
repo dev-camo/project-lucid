@@ -91,42 +91,38 @@ namespace ProjectLucid.Tests
         {
             string nl = Environment.NewLine;
             // The constructor subscribes to Update; own that row before it runs.
-            using (new VerificationFixtureOwnership.ActionRows(SystemAction.Update))
+            var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
+            EntityActivationManager manager = null;
+            EntityActivationDefinition definition = null;
+            GameObject owner = null;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                EntityActivationManager manager = null;
-                EntityActivationDefinition definition = null;
-                GameObject owner = null;
-                try
-                {
-                    manager = new EntityActivationManager();
-                    var empty = new StringBuilder("prior");
-                    manager.GetDebugInfo(empty);
-                    Assert.That(empty.ToString(), Is.EqualTo("prior" + nl + "Active objects (0): " + nl + nl + nl + "Inactive objects (0): " + nl));
+                manager = new EntityActivationManager();
+                var empty = new StringBuilder("prior");
+                manager.GetDebugInfo(empty);
+                Assert.That(empty.ToString(), Is.EqualTo("prior" + nl + "Active objects (0): " + nl + nl + nl + "Inactive objects (0): " + nl));
 
-                    definition = ScriptableObject.CreateInstance<EntityActivationDefinition>();
-                    typeof(EntityActivationDefinition).GetField("m_type", Instance).SetValue(definition, EntityActivationType.Collectable);
-                    typeof(EntityActivationDefinition).GetField("m_activateLogicDefinitions", Instance).SetValue(definition, new List<EntityActivationLogicDefinition>());
-                    typeof(EntityActivationDefinition).GetField("m_deactivateLogicDefinitions", Instance).SetValue(definition, new List<EntityActivationLogicDefinition>());
-                    owner = new GameObject("Lucid debug entity");
-                    owner.SetActive(false);
-                    manager.Register(new OwnedEntity(definition, owner.transform), true);
+                definition = ScriptableObject.CreateInstance<EntityActivationDefinition>();
+                typeof(EntityActivationDefinition).GetField("m_type", Instance).SetValue(definition, EntityActivationType.Collectable);
+                typeof(EntityActivationDefinition).GetField("m_activateLogicDefinitions", Instance).SetValue(definition, new List<EntityActivationLogicDefinition>());
+                typeof(EntityActivationDefinition).GetField("m_deactivateLogicDefinitions", Instance).SetValue(definition, new List<EntityActivationLogicDefinition>());
+                owner = new GameObject("Lucid debug entity");
+                owner.SetActive(false);
+                manager.Register(new OwnedEntity(definition, owner.transform), true);
 
-                    var populated = new StringBuilder();
-                    manager.GetDebugInfo(populated);
-                    Assert.That(populated.ToString(), Is.EqualTo(
-                        nl + "Active objects (1): " + nl +
-                        "Collectable (1): Lucid debug entity, " + nl +
-                        nl +
-                        nl + "Inactive objects (0): " + nl +
-                        "Collectable (0): <Empty>" + nl));
-                }
-                finally
-                {
-                    if (manager != null) ProcessManager.UnsubscribeFromAllActions(manager);
-                    if (owner != null) UnityEngine.Object.DestroyImmediate(owner);
-                    if (definition != null) UnityEngine.Object.DestroyImmediate(definition);
-                }
-            }
+                var populated = new StringBuilder();
+                manager.GetDebugInfo(populated);
+                Assert.That(populated.ToString(), Is.EqualTo(
+                    nl + "Active objects (1): " + nl +
+                    "Collectable (1): Lucid debug entity, " + nl +
+                    nl +
+                    nl + "Inactive objects (0): " + nl +
+                    "Collectable (0): <Empty>" + nl));
+            },
+            () => { if (manager != null) ProcessManager.UnsubscribeFromAllActions(manager); },
+            () => { if (owner != null) UnityEngine.Object.DestroyImmediate(owner); },
+            () => { if (definition != null) UnityEngine.Object.DestroyImmediate(definition); },
+            actionRows.Dispose);
         }
 
         private sealed class ShutdownProbe : EntityActivationLogic

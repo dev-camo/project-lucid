@@ -89,8 +89,11 @@ namespace ProjectLucid
         }
         internal const string HostName = "ProjectLucid.ProcessManager.GenuineHostFixture";
         internal const string RowPrefix = "ProjectLucid.ProcessManager.CheckedGet.";
-        // Every row the engine fixture registers into, auto-registers or removes.
-        internal static readonly string[] PrefixRows = { "throw", "twice", "same", "detached", "changed", "policy", "fault", "incompatible" };
+        // Every row the engine fixture registers into, auto-registers or removes,
+        // as the suffixes of its prefix + "..." names; tools/tests checks that
+        // this list matches CheckEngine.
+        internal static readonly IReadOnlyList<string> PrefixRows =
+            Array.AsReadOnly(new[] { "throw", "twice", "same", "detached", "changed", "policy", "fault", "incompatible" });
 
         private static void CheckEngine()
         {

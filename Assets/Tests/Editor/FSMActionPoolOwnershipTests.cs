@@ -42,11 +42,11 @@ namespace ProjectLucid.Tests
             {
                 int prior = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
                 var primary = new InvalidProgramException("injected at " + site);
-                bool reached = false;
+                int leasedAtFault = -1;
                 VerificationFixtureOwnership.FaultInjection = current =>
                 {
                     if (current != site) return;
-                    reached = true;
+                    leasedAtFault = ObjectPool<FSMStateChangeAction>.UsedObjectCount;
                     throw primary;
                 };
                 try
@@ -57,7 +57,8 @@ namespace ProjectLucid.Tests
                 {
                     VerificationFixtureOwnership.FaultInjection = null;
                 }
-                Assert.IsTrue(reached);
+                // The site must hold fixture leases when it fails, or the lease has nothing to return.
+                Assert.Greater(leasedAtFault, prior, "fault fired while the fixture held its own actions");
                 Assert.AreEqual(prior, ObjectPool<FSMStateChangeAction>.UsedObjectCount, "fixture actions returned");
                 List<FSMStateChangeAction> used = VerificationFixtureOwnership.ActionPoolLease.UsedActions();
                 Assert.IsTrue(used.Contains(borrowed) && used.Contains(borrowedParent), "borrowed actions stay leased");

@@ -75,7 +75,9 @@ namespace ProjectLucid.Tests
             // UnsubscribeFromAction keeps empty rows, so a row this test created is removed again.
             var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
             s_trace.Clear(); s_answers.Clear();
-            try
+            // Each cleanup step runs even after an earlier failure; the action-row
+            // release is last, so its report never replaces the first failure.
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
                 var activate = ScriptableObject.CreateInstance<ProbeLogicDefinition>(); activate.Kind = "activate"; owned.Add(activate);
                 var deactivate = ScriptableObject.CreateInstance<ProbeLogicDefinition>(); deactivate.Kind = "deactivate"; owned.Add(deactivate);
@@ -110,18 +112,16 @@ namespace ProjectLucid.Tests
                     "can-deactivate B", "deactivated B", "can-deactivate D" }));
                 Assert.That(Names(manager, "m_inactive"), Is.EqualTo(new[] { "A", "C", "B" }));
                 Assert.That(Names(manager, "m_active"), Is.EqualTo(new[] { "D" }));
-            }
-            finally
+            },
+            () =>
             {
-                if (manager != null)
-                {
-                    manager.UnsubscribeFromAction(SystemAction.Update);
-                    manager.Clear();
-                }
-                actionRows.Dispose();
-                foreach (Object item in owned) Object.DestroyImmediate(item);
-                s_trace.Clear(); s_answers.Clear();
-            }
+                if (manager == null) return;
+                manager.UnsubscribeFromAction(SystemAction.Update);
+                manager.Clear();
+            },
+            () => { foreach (Object item in owned) Object.DestroyImmediate(item); },
+            () => { s_trace.Clear(); s_answers.Clear(); },
+            actionRows.Dispose);
         }
     }
 }

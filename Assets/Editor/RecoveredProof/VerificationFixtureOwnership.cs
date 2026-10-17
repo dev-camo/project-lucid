@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Hardlight;
 
 namespace ProjectLucid
@@ -230,7 +231,9 @@ namespace ProjectLucid
         // Release after the fixture has unsubscribed. A row that existed keeps its
         // dictionary and exactly its admitted subscriber/callback pairs. A row the
         // fixture created is removed only while empty; one that still has a
-        // subscriber stays and is reported.
+        // subscriber stays and is reported. Release it as the last
+        // RunThenCleanUp step, so that report never replaces the fixture's own
+        // first failure.
         public sealed class ActionRows : IDisposable
         {
             private readonly Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> lookup = SharedActionLookup;
@@ -288,6 +291,38 @@ namespace ProjectLucid
                     if (!row.TryGetValue(pair.Key, out Action<object> callback) || !ReferenceEquals(callback, pair.Value)) return false;
                 return true;
             }
+        }
+
+        // Runs body, then every cleanup step in order, each one even after an
+        // earlier failure. The first failure, the body's or else the first
+        // step's, propagates unchanged with its stack trace. A step that fails
+        // after it is logged as a warning, so a release report such as
+        // ActionRows' never replaces the failure that caused it. State such a
+        // step could not return stays in place.
+        public static void RunThenCleanUp(Action body, params Action[] cleanup)
+        {
+            ExceptionDispatchInfo first = null;
+            try
+            {
+                body();
+            }
+            catch (Exception failure)
+            {
+                first = ExceptionDispatchInfo.Capture(failure);
+            }
+            foreach (Action step in cleanup)
+            {
+                try
+                {
+                    step();
+                }
+                catch (Exception failure)
+                {
+                    if (first == null) first = ExceptionDispatchInfo.Capture(failure);
+                    else UnityEngine.Debug.LogWarning("Fixture cleanup failed after an earlier failure: " + failure);
+                }
+            }
+            first?.Throw();
         }
 
         // Mutable static dictionaries whose original lookups cache a miss through

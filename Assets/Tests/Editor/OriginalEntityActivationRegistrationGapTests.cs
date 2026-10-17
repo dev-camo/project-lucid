@@ -38,7 +38,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void RegisterCreatesBothRowsInactiveFirstAndDeregisterRemovesBeforeShutdown()
         {
-            using (var owned = new Owned())
+            Owned.Run(owned =>
             {
                 EntityActivationManager manager = owned.Manager();
                 EntityActivationDefinition definition = owned.Definition(EntityActivationType.Collectable, out List<string> trace);
@@ -70,7 +70,7 @@ namespace ProjectLucid.Tests
                 manager.Deregister(active);
                 Assert.That(Entities(manager, "m_active"), Is.Empty);
                 Assert.That(trace, Is.EqualTo(new[] { "shutdown activate", "shutdown deactivate" }));
-            }
+            });
         }
 
         // Activate 0x06003bb2 (x86-64 0x6bf5f0) reads m_inactive through the
@@ -82,7 +82,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void ActivateIndexesTheSourceRowWhileDeactivateProbesItAndNeitherRollsBack()
         {
-            using (var owned = new Owned())
+            Owned.Run(owned =>
             {
                 EntityActivationManager manager = owned.Manager();
                 EntityActivationDefinition unregistered = owned.Definition(EntityActivationType.CollectableNoRespawn, out _);
@@ -114,7 +114,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Entities(manager, "m_active"), Is.Empty);
                 Assert.That(Entities(manager, "m_inactive"), Is.EqualTo(new[] { entity }));
                 Assert.That(trace, Is.EqualTo(new[] { "end deactivate" }));
-            }
+            });
         }
 
         private static Dictionary<EntityActivationType, List<EntityActivationInstance>> Rows(EntityActivationManager manager, string field) =>
@@ -124,8 +124,10 @@ namespace ProjectLucid.Tests
         private static List<IEntityActivatable> Entities(EntityActivationManager manager, string field) =>
             Rows(manager, field)[EntityActivationType.Collectable].ConvertAll(instance => instance.Entity);
 
-        private sealed class Owned : IDisposable
+        private sealed class Owned
         {
+            private Owned() { }
+
             private readonly List<Object> m_objects = new List<Object>();
             // Taken before the manager's constructor can create the Update row.
             private readonly VerificationFixtureOwnership.ActionRows m_actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
@@ -162,23 +164,16 @@ namespace ProjectLucid.Tests
             private static void Set(EntityActivationDefinition definition, string name, object value) =>
                 typeof(EntityActivationDefinition).GetField(name, Instance).SetValue(definition, value);
 
-            public void Dispose()
+            // Runs body on a fresh fixture, then unsubscribes the manager, destroys
+            // the owned objects and releases the Update row last. Each step runs
+            // even after an earlier failure, and the first failure stays the result.
+            public static void Run(Action<Owned> body)
             {
-                try
-                {
-                    if (m_manager != null) m_manager.UnsubscribeFromAction(SystemAction.Update);
-                }
-                finally
-                {
-                    try
-                    {
-                        foreach (Object value in m_objects) if (value != null) Object.DestroyImmediate(value);
-                    }
-                    finally
-                    {
-                        m_actionRows.Dispose();
-                    }
-                }
+                var owned = new Owned();
+                VerificationFixtureOwnership.RunThenCleanUp(() => body(owned),
+                    () => { if (owned.m_manager != null) owned.m_manager.UnsubscribeFromAction(SystemAction.Update); },
+                    () => { foreach (Object value in owned.m_objects) if (value != null) Object.DestroyImmediate(value); },
+                    owned.m_actionRows.Dispose);
             }
         }
     }

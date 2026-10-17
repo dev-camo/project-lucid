@@ -17,8 +17,7 @@
     "ProjectLucid.CoroutineScroll.EngineVerification",
     "ProjectLucid.Haptics.EngineVerification",
     "ProjectLucid.Screen.EngineVerification",
-    "ProjectLucid.UISelection.EngineVerification",
-    "ProjectLucid.SharedStateIsolation"
+    "ProjectLucid.UISelection.EngineVerification"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

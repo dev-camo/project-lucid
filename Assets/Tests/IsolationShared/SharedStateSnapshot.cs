@@ -13,10 +13,20 @@ namespace ProjectLucid.Tests
     // ConditionalOutput toggle observers. Capture reads fields only, so it
     // creates no row, runs no callback and consumes no deferred work.
     //
-    // Left out on purpose: ProcessManager.s_actionList, a scratch list each
-    // dispatch clears before use and nothing else reads; and the shared
-    // ObjectPool<FSMStateChangeAction>, whose leases original FSM storage keeps
-    // for its state history by design.
+    // Left out: ProcessManager.s_actionList, a scratch list each dispatch
+    // clears before use and nothing else reads; and the shared
+    // ObjectPool<FSMStateChangeAction>. Live FSM storage keeps pool leases for
+    // its state history by design, and the snapshot does not separate those
+    // from leases a fixture failed to return, so pool isolation is enforced
+    // only where a fixture holds an ActionPoolLease.
+    //
+    // Not yet run around every test. Test Framework 1.1.33 (the pinned
+    // package) builds each test's command in TestCommandBuilder.BuildTestCommand,
+    // whose TestActionCommand reads ITestAction attributes from the test method
+    // only; an assembly- or fixture-level action targeting tests is added to
+    // UnityTestExecutionContext.UpstreamActions (CompositeWorkItem) and never
+    // invoked. Wiring this snapshot into every test needs a hook that the
+    // framework actually runs.
     public sealed class SharedStateSnapshot
     {
         private const BindingFlags StaticFields = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;

@@ -119,8 +119,9 @@ public static partial class HardlightEnumStringsVerification
                     Check(object.ReferenceEquals(get.Invoke(null,new[]{known}),value), "replacement fallback cached");
                 }
                 finally {field.SetValue(null,dictionary);}
+                // Checked before the lease restores anything, so it still proves the probes' own cleanup.
+                Check(dictionary.Count==row.Keys.Length, "private checks restore original dictionary");
             }
-            Check(dictionary.Count==row.Keys.Length, "private checks restore original dictionary");
         }
         Check(entries==2676, "all original native entries exercised");
         Check(HardlightProject.HardlightEnumExtensions.GetString(HardlightProject.ApplicationSettings.SceneOperation)=="SceneOperation", "AppFSMKeys SceneOpKey dependency");

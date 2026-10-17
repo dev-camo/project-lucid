@@ -3573,7 +3573,7 @@ EDITMODE_TESTS += (
 
 # Fixture isolation of borrowed shared state: the action-row, enum-table and
 # action-pool leases, the untyped ReleaseEmptyRow check, the CheckedGet engine
-# admission, and the SharedStateIsolation test-assembly guard.
+# admission, first-failure cleanup, and the SharedStateSnapshot reader.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.RecoveredBehaviorTests.EnumStringVerifiersLeaveTheNativeTablesAsFoundInEitherOrder",
     "ProjectLucid.Tests.RecoveredBehaviorTests.EnumStringVerifierFailuresStillRestoreTheNativeTables(0)",
@@ -3589,8 +3589,18 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.ReleaseEmptyRowRefusesUntypedObserversAndDeferredWork(2)",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(0)",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(1)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(2)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(3)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(4)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(5)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(6)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(7)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(8)",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.ActionPoolLeaseReturnsOnlyItsOwnActionsAfterAFailure",
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.StaticDictionaryLeaseRestoresTheAdmittedTableAfterAFailure",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpRunsEveryStepAndKeepsTheFirstFailure(0)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpRunsEveryStepAndKeepsTheFirstFailure(1)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpRunsEveryStepAndKeepsTheFirstFailure(2)",
     "ProjectLucid.Tests.FSMActionPoolOwnershipTests.FailureAfterAcquisitionReturnsOnlyTheFixturesActions(0)",
     "ProjectLucid.Tests.FSMActionPoolOwnershipTests.FailureAfterAcquisitionReturnsOnlyTheFixturesActions(1)",
     "ProjectLucid.Tests.FSMActionPoolOwnershipTests.FailureAfterAcquisitionReturnsOnlyTheFixturesActions(2)",
@@ -3598,10 +3608,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.FSMActionPoolOwnershipTests.FailureAfterAcquisitionReturnsOnlyTheFixturesActions(4)",
     "ProjectLucid.Tests.FSMActionPoolOwnershipTests.FailureAfterAcquisitionReturnsOnlyTheFixturesActions(5)",
     "ProjectLucid.Tests.FSMActionPoolOwnershipTests.FailureAfterAcquisitionReturnsOnlyTheFixturesActions(6)",
-    "ProjectLucid.Tests.SharedStateIsolationGuardTests.UnchangedStateHasNoDifference",
-    "ProjectLucid.Tests.SharedStateIsolationGuardTests.CreatedRowIsReportedUntilTheTestRemovesIt",
-    "ProjectLucid.Tests.SharedStateIsolationGuardTests.ObserversDeferredWorkAndSystemsOnAnExistingRowAreReported",
-    "ProjectLucid.Tests.SharedStateIsolationGuardTests.ActionSubscriptionAndAKeptEmptyRowAreReported",
-    "ProjectLucid.Tests.SharedStateIsolationGuardTests.CachedEnumMissIsReported",
-    "ProjectLucid.Tests.SharedStateIsolationGuardTests.GuardFailsTheTestThatLeavesAChangeAndNamesIt",
+    "ProjectLucid.Tests.SharedStateSnapshotTests.UnchangedStateHasNoDifference",
+    "ProjectLucid.Tests.SharedStateSnapshotTests.CreatedRowIsReportedUntilTheTestRemovesIt",
+    "ProjectLucid.Tests.SharedStateSnapshotTests.ObserversDeferredWorkAndSystemsOnAnExistingRowAreReported",
+    "ProjectLucid.Tests.SharedStateSnapshotTests.ActionSubscriptionAndAKeptEmptyRowAreReported",
+    "ProjectLucid.Tests.SharedStateSnapshotTests.CachedEnumMissIsReported",
 )

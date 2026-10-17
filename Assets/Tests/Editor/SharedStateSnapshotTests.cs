@@ -1,18 +1,16 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
-using NUnit.Framework.Interfaces;
-using NUnit.Framework.Internal;
 
 namespace ProjectLucid.Tests
 {
-    // Controls for the assembly-wide SharedStateIsolation guard. Each change is
-    // made on state this test owns and undone before it ends, so the guard
-    // around the test itself sees nothing.
-    public sealed class SharedStateIsolationGuardTests
+    // Controls for SharedStateSnapshot's reporting. Each change is made on
+    // state this test owns and undone before it ends.
+    public sealed class SharedStateSnapshotTests
     {
         private sealed class Marker : ISystem { }
 
@@ -59,7 +57,8 @@ namespace ProjectLucid.Tests
             int calls = 0;
             Action<ISystem> observer = _ => calls++;
             Action<Marker> typedObserver = _ => calls++;
-            try
+            bool typedQueued = false;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
                 SharedStateSnapshot before = SharedStateSnapshot.Capture();
                 untyped.OnSystemShutdown += observer;
@@ -68,35 +67,54 @@ namespace ProjectLucid.Tests
                 Assert.IsNull(Change(before));
 
                 typed.InvokeOnValid(typedObserver);
+                typedQueued = true;
                 StringAssert.Contains("changed system row '" + name + "' typed reference '" + typeof(Marker) + "' deferred InvokeOnValid work", Change(before));
                 ProcessManager.RegisterSystem(marker, name);
                 Assert.AreEqual(1, calls);
                 StringAssert.Contains("changed system row '" + name + "' untyped reference", Change(before));
                 ProcessManager.UnregisterSystem(name);
                 Assert.IsNull(Change(before));
-            }
-            finally
-            {
-                untyped.OnSystemShutdown -= observer;
-                ProcessManager.UnregisterSystem(name);
-            }
-            VerificationFixtureOwnership.ReleaseEmptyRow(Registry, name, row);
+            },
+            () => untyped.OnSystemShutdown -= observer,
+            // A failure before the registration leaves the typed work queued on this
+            // owned row; registering the owned marker delivers it once, so the row is idle.
+            () => { if (typedQueued && calls == 0) ProcessManager.RegisterSystem(marker, name); },
+            () => ProcessManager.UnregisterSystem(name),
+            () => VerificationFixtureOwnership.ReleaseEmptyRow(Registry, name, row));
         }
 
         // SubscribeToAction creates an absent row and unsubscribing keeps it, so an
-        // unsubscribe alone still leaves a change for the guard.
+        // unsubscribe alone still leaves a change for the guard. The control sets
+        // any borrowed AppShutdown row aside to start from an absent one, and puts
+        // the same row object back.
         [Test]
         public void ActionSubscriptionAndAKeptEmptyRowAreReported()
         {
-            var marker = new Marker();
-            SharedStateSnapshot before = SharedStateSnapshot.Capture();
-            using (new VerificationFixtureOwnership.ActionRows(SystemAction.AppShutdown))
+            var lookup = VerificationFixtureOwnership.ActionRows.SharedActionLookup;
+            lookup.TryGetValue(SystemAction.AppShutdown, out Dictionary<ISystem, Action<object>> aside);
+            lookup.Remove(SystemAction.AppShutdown);
+            try
             {
-                marker.SubscribeToAction(SystemAction.AppShutdown, _ => { });
-                StringAssert.Contains("action row AppShutdown", Change(before));
-                marker.UnsubscribeFromAction(SystemAction.AppShutdown);
+                var marker = new Marker();
+                SharedStateSnapshot before = SharedStateSnapshot.Capture();
+                var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.AppShutdown);
+                VerificationFixtureOwnership.RunThenCleanUp(() =>
+                {
+                    marker.SubscribeToAction(SystemAction.AppShutdown, _ => { });
+                    StringAssert.Contains("added action row AppShutdown subscribers", Change(before));
+                    marker.UnsubscribeFromAction(SystemAction.AppShutdown);
+                    Assert.IsTrue(lookup.TryGetValue(SystemAction.AppShutdown, out Dictionary<ISystem, Action<object>> kept) && kept.Count == 0,
+                        "unsubscribing keeps the created empty row");
+                    Assert.AreEqual("added action row AppShutdown; added action row AppShutdown subscribers", Change(before));
+                },
+                () => marker.UnsubscribeFromAction(SystemAction.AppShutdown),
+                actionRows.Dispose);
+                Assert.IsNull(Change(before));
             }
-            Assert.IsNull(Change(before));
+            finally
+            {
+                if (aside != null) lookup[SystemAction.AppShutdown] = aside;
+            }
         }
 
         [Test]
@@ -110,30 +128,6 @@ namespace ProjectLucid.Tests
                 StringAssert.Contains("changed HardlightEnumExtensions.LevelSetupTypesEnumToString entries", Change(before));
             }
             Assert.IsNull(Change(before));
-        }
-
-        [Test]
-        public void GuardFailsTheTestThatLeavesAChangeAndNamesIt()
-        {
-            ITest current = TestExecutionContext.CurrentContext.CurrentTest;
-            var guard = new SharedStateIsolationAttribute();
-            Assert.AreEqual(ActionTargets.Test, guard.Targets);
-            string name = "ProjectLucid.GuardLeft." + Guid.NewGuid().ToString("N");
-            VerificationFixtureOwnership.RequireAbsent(Registry, name);
-            guard.BeforeTest(current);
-            ProcessManager.GetSystemRef(name);
-            object row = Registry[name];
-            try
-            {
-                var failure = Assert.Throws<AssertionException>(() => guard.AfterTest(current));
-                StringAssert.Contains("Test left shared state changed: added system row '" + name + "'", failure.Message);
-            }
-            finally
-            {
-                VerificationFixtureOwnership.ReleaseEmptyRow(Registry, name, row);
-            }
-            guard.BeforeTest(current);
-            Assert.DoesNotThrow(() => guard.AfterTest(current));
         }
     }
 }

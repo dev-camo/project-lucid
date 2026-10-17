@@ -2,9 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
+using UnityEngine.TestTools;
 
 namespace ProjectLucid.Tests
 {
@@ -430,14 +432,16 @@ namespace ProjectLucid.Tests
                 if (Actions.TryGetValue(action, out m_aside)) Actions.Remove(action);
             }
 
+            // The borrowed row goes back before anything is reported. With no
+            // borrowed row, a row the control left with subscribers stays in
+            // place, as ActionRows leaves one.
             public void Dispose()
             {
-                if (Actions.TryGetValue(m_action, out Dictionary<ISystem, Action<object>> left))
-                {
-                    if (left.Count != 0) throw new InvalidOperationException("Control left subscribers on its own row: " + m_action);
-                    Actions.Remove(m_action);
-                }
-                if (m_aside != null) Actions.Add(m_action, m_aside);
+                Actions.TryGetValue(m_action, out Dictionary<ISystem, Action<object>> left);
+                bool leftSubscribers = left != null && left.Count != 0;
+                if (m_aside != null) Actions[m_action] = m_aside;
+                else if (left != null && !leftSubscribers) Actions.Remove(m_action);
+                if (leftSubscribers) throw new InvalidOperationException("Control left subscribers on its own row: " + m_action);
             }
         }
 
@@ -640,12 +644,21 @@ namespace ProjectLucid.Tests
         // and unregistered the host name unconditionally. A live system or an
         // observed null row under one of those names is now refused before any
         // engine object, registry change or callback.
+        // State 0 borrows the host row; state n borrows PrefixRows[n - 1], so every
+        // admitted row has a case (tools/tests checks the count).
         [TestCase(0)]
         [TestCase(1)]
+        [TestCase(2)]
+        [TestCase(3)]
+        [TestCase(4)]
+        [TestCase(5)]
+        [TestCase(6)]
+        [TestCase(7)]
+        [TestCase(8)]
         public void CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem(int state)
         {
             string name = state == 0 ? ProcessManagerCheckedGetVerification.HostName
-                : ProcessManagerCheckedGetVerification.RowPrefix + ProcessManagerCheckedGetVerification.PrefixRows[0];
+                : ProcessManagerCheckedGetVerification.RowPrefix + ProcessManagerCheckedGetVerification.PrefixRows[state - 1];
             var sentinel = new Marker();
             int startups = 0, shutdowns = 0, updates = 0;
             Action<ISystem> startup = _ => startups++;
@@ -753,6 +766,40 @@ namespace ProjectLucid.Tests
             {
                 s_leasedTable = null;
             }
+        }
+
+        // Case 0: the body fails and a step fails after it. Case 1: the body passes
+        // and two steps fail. Case 2: nothing fails. Every step runs in order, the
+        // first failure propagates as the same object, and a later failure is only
+        // logged. A plain finally would surface the step's failure in case 0; a
+        // cleanup that stops at its first failure would skip the later steps.
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void RunThenCleanUpRunsEveryStepAndKeepsTheFirstFailure(int failures)
+        {
+            var trace = new List<string>();
+            var body = new InvalidProgramException("body");
+            var first = new InvalidOperationException("first step");
+            var second = new InvalidOperationException("second step");
+            Action run = () => VerificationFixtureOwnership.RunThenCleanUp(
+                () => { trace.Add("body"); if (failures == 0) throw body; },
+                () => { trace.Add("first"); if (failures != 2) throw first; },
+                () => { trace.Add("second"); if (failures == 1) throw second; },
+                () => trace.Add("last"));
+            if (failures == 0)
+            {
+                LogAssert.Expect(UnityEngine.LogType.Warning, new Regex("^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: first step"));
+                Assert.AreSame(body, Assert.Throws<InvalidProgramException>(() => run()));
+            }
+            else if (failures == 1)
+            {
+                LogAssert.Expect(UnityEngine.LogType.Warning, new Regex("^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: second step"));
+                Assert.AreSame(first, Assert.Throws<InvalidOperationException>(() => run()));
+            }
+            else Assert.DoesNotThrow(() => run());
+            CollectionAssert.AreEqual(new[] { "body", "first", "second", "last" }, trace);
+            LogAssert.NoUnexpectedReceived();
         }
     }
 }

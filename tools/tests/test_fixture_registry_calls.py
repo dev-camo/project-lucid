@@ -6,8 +6,8 @@ row through GetSystemSafe must do so through the ownership helpers, so that a
 borrowed row, observer or subscription is never replaced or run. Each file
 with such a direct call today is listed below with its exact call count and
 the reason it is allowed; a new direct call fails until it is moved onto a
-helper or justified here. The SharedStateIsolation test-assembly guard checks
-the same state at run time.
+helper or justified here. No run-time check covers this state around every
+test yet (see SharedStateSnapshot), so an UNLEASED file is a known gap.
 """
 
 import re
@@ -27,7 +27,7 @@ HELPERS = {
 
 PROOF = "ProcessManager semantics proof: it clears or copies the registry and puts back the same rows"
 OWNED = "registers only into rows it first admits as absent or idle through the ownership helpers"
-UNLEASED = "not yet on a lease helper; the SharedStateIsolation guard reports any state it leaves"
+UNLEASED = "not yet on a lease helper; a known isolation gap with no run-time check"
 
 # path: (direct call count, reason)
 ALLOWED = {
@@ -61,7 +61,7 @@ ALLOWED = {
     "Assets/Tests/Editor/OriginalStringTimeoutFSMTests.cs": (1, OWNED),
     "Assets/Tests/Editor/OriginalUIClickableTests.cs": (1, UNLEASED),
     "Assets/Tests/Editor/OriginalUIWidgetRetainLastSelectedBehaviourTests.cs": (3, UNLEASED),
-    "Assets/Tests/Editor/SharedStateIsolationGuardTests.cs": (3, OWNED),
+    "Assets/Tests/Editor/SharedStateSnapshotTests.cs": (4, OWNED),
     "Assets/Tests/Editor/SystemConfigurationVerificationOwnershipTests.cs": (1, OWNED),
     "Assets/Tests/Editor/VerificationFixtureOwnershipTests.cs": (18, OWNED),
     "Assets/Tests/PlayMode/CloudFacadeTests.cs": (2, PROOF),
@@ -174,56 +174,62 @@ class FixtureRegistryCallTests(unittest.TestCase):
             self.assertEqual({"Assets/Tests/Editor/NewFixture.cs": [1]}, scan(root))
 
 
-GUARD = "Assets/Tests/IsolationShared/SharedStateIsolationAttribute.cs"
-GUARD_ASSEMBLY = "ProjectLucid.SharedStateIsolation"
-GUARDED = {
-    "Assets/Tests/Editor/ProjectLucid.EditMode.asmdef": "Assets/Tests/Editor/SharedStateIsolationGuard.cs",
-    "Assets/Tests/PlayMode/ProjectLucid.PlayMode.asmdef": "Assets/Tests/PlayMode/SharedStateIsolationGuard.cs",
-}
-ALLOWLIST_ENTRY = re.compile(r'\{\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\}')
-
-
-def guard_allowlist(source):
-    """(fullname, reason) pairs of the guard's TemporaryAllowlist initializer."""
-    body = re.search(r"TemporaryAllowlist\s*=\s*new\s+Dictionary<string,\s*string>\s*\{(.*?)\n\s*\};", source, re.S)
-    if body is None:
-        raise AssertionError("TemporaryAllowlist initializer not found")
-    return ALLOWLIST_ENTRY.findall(code_only_keep_strings(body.group(1)))
-
-
 def code_only_keep_strings(source):
-    """Blank comments only, so allowlist literals stay readable."""
+    """Blank comments only, so string literals stay readable."""
     return re.sub(r"//[^\n]*|/\*.*?\*/", lambda match: re.sub(r"[^\n]", " ", match.group(0)), source, flags=re.S)
 
 
-class SharedStateGuardTests(unittest.TestCase):
-    def test_both_test_assemblies_apply_the_guard(self):
-        import json
-        for asmdef, attribute in GUARDED.items():
-            with self.subTest(asmdef=asmdef):
-                references = json.loads((ROOT / asmdef).read_text(encoding="utf-8-sig"))["references"]
-                self.assertIn(GUARD_ASSEMBLY, references)
-                code = code_only_keep_strings((ROOT / attribute).read_text(encoding="utf-8-sig"))
-                self.assertEqual(1, len(re.findall(r"\[\s*assembly\s*:\s*ProjectLucid\.Tests\.SharedStateIsolation\s*\]", code)))
+CHECKED_GET = "Assets/Editor/RecoveredProof/ProcessManagerCheckedGetVerification.cs"
+CHECKED_GET_CONTROL = "Assets/Tests/Editor/VerificationFixtureOwnershipTests.cs"
+CHECKED_GET_CASE = "CheckedGetEngineFixtureRefusesBorrowedRowsWithoutTouchingThem"
 
-    def test_temporary_allowlist_names_registered_tests_with_reasons(self):
+
+def checked_get_rows(source):
+    """(PrefixRows as listed, prefix + "<literal>" suffixes CheckEngine uses, every prefix + use)."""
+    code = code_only_keep_strings(source)
+    listed = re.search(r"PrefixRows\s*=\s*Array\.AsReadOnly\(\s*new\s*\[\s*\]\s*\{([^}]*)\}", code)
+    if listed is None:
+        raise AssertionError("PrefixRows initializer not found")
+    engine = code[code.index("void CheckEngine()"):]
+    # A diagnostic such as "System '" + prefix + "throw' is null" names its row
+    # by the suffix's leading identifier.
+    used = [re.match(r"\w*", suffix).group(0) for suffix in re.findall(r'\bprefix\s*\+\s*"([^"]*)"', engine)]
+    # The admission loop itself is the one non-literal use.
+    uses = re.findall(r"\bprefix\s*\+", re.sub(r"foreach\s*\(\s*string\s+row\s+in\s+PrefixRows\s*\)[^;]*\bprefix\s*\+\s*row\b", "", engine))
+    return re.findall(r'"([^"]*)"', listed.group(1)), used, uses
+
+
+class CheckedGetAdmissionTests(unittest.TestCase):
+    # RestoreRows in CheckEngine is shallow, so a row missing from PrefixRows
+    # is never admitted and a borrowed one would be overwritten (#250).
+    def test_prefix_rows_match_the_rows_check_engine_uses(self):
+        listed, used, uses = checked_get_rows((ROOT / CHECKED_GET).read_text(encoding="utf-8-sig"))
+        self.assertEqual(len(listed), len(set(listed)), "duplicate PrefixRows entries")
+        self.assertEqual(len(uses), len(used), "every prefix + name in CheckEngine is a literal")
+        self.assertEqual(set(used), set(listed))
+
+    def test_borrowed_row_control_has_a_case_for_the_host_and_each_prefix_row(self):
+        listed, _, _ = checked_get_rows((ROOT / CHECKED_GET).read_text(encoding="utf-8-sig"))
+        source = (ROOT / CHECKED_GET_CONTROL).read_text(encoding="utf-8-sig")
+        header = re.search(r"((?:\s*\[TestCase\(\d+\)\])+)\s*public void " + CHECKED_GET_CASE + r"\(", source)
+        self.assertIsNotNone(header)
+        cases = [int(value) for value in re.findall(r"\[TestCase\((\d+)\)\]", header.group(1))]
+        self.assertEqual(list(range(len(listed) + 1)), cases)
         import sys
         sys.path.insert(0, str(ROOT / "tools"))
         from lucidlib import verification
-        registered = set(verification.EDITMODE_TESTS) | set(verification.PLAYMODE_TESTS)
-        entries = guard_allowlist((ROOT / GUARD).read_text(encoding="utf-8-sig"))
-        self.assertEqual(len(entries), len({name for name, _ in entries}), "duplicate allowlist entries")
-        for name, reason in entries:
-            with self.subTest(name=name):
-                self.assertIn(name, registered)
-                self.assertTrue(reason.strip())
+        for case in cases:
+            self.assertIn("ProjectLucid.Tests.VerificationFixtureOwnershipTests.%s(%d)" % (CHECKED_GET_CASE, case),
+                          verification.EDITMODE_TESTS)
 
-    def test_allowlist_parser_reads_entries_and_ignores_comments(self):
-        source = ('TemporaryAllowlist = new Dictionary<string, string>\n        {\n'
-                  '            // { "Commented.Out", "no" },\n'
-                  '            { "A.B.C(1)", "leaves row X until #1" },\n'
-                  '        };')
-        self.assertEqual([("A.B.C(1)", "leaves row X until #1")], guard_allowlist(source))
+    def test_row_reader_reports_a_row_missing_from_the_list(self):
+        source = ('internal static readonly IReadOnlyList<string> PrefixRows = Array.AsReadOnly(new[] { "a" });\n'
+                  'private static void CheckEngine() { foreach (string row in PrefixRows) Admit(prefix + row);\n'
+                  'Get(prefix + "a"); Log("System \'" + prefix + "b\' is null"); Get(prefix + name); }\n')
+        listed, used, uses = checked_get_rows(source)
+        self.assertEqual(["a"], listed)
+        self.assertEqual(["a", "b"], used)
+        self.assertEqual(3, len(uses))
 
 
 if __name__ == "__main__":
