@@ -3,17 +3,21 @@
 import json
 from pathlib import Path
 import platform
+import plistlib
 import shutil
 import subprocess
 import sys
 from .verification import artifact_fingerprint, current_identity, find_editor, verified_receipt
 from .bootstrap import managed_path, write_json
 from .scriptmetadata import validate_script_metadata
+from .macho import inspect_macho
 
 UNITY_VERSION = "2022.3.54f1"
-# LucidBuild selects the macOS slice in the Library build settings; the original
-# SonicDreamTeam.app binaries are universal (x86_64 + arm64).
-MAC_ARCHITECTURE = "x64ARM64"
+# Public fields of LucidBuild.BuildRecord, as JsonUtility writes them.
+BUILD_RECORD_FIELDS = ("target", "output", "architecture")
+# The original SonicDreamTeam.app executable, UnityPlayer.dylib and
+# GameAssembly.dylib are each universal x86_64 + arm64 Mach-O files.
+MAC_SLICES = ("arm64", "x86_64")
 
 
 def doctor(repo_root, work_dir):
@@ -162,13 +166,46 @@ def build_project(repo_root, work_dir, target, *, destination=None):
     try:
         built = json.loads(record.read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        built = None
+    if not isinstance(built, dict) or sorted(built) != sorted(BUILD_RECORD_FIELDS) or \
+            not all(isinstance(value, str) for value in built.values()):
         built = {}
     if built.get("target") != target or built.get("output") != str(destination):
         errors.append("The build record does not identify this target and destination")
-    architecture = built.get("architecture")
-    if target == "macos" and architecture != MAC_ARCHITECTURE:
-        errors.append("The macOS build architecture is " + repr(architecture) + ", not " + MAC_ARCHITECTURE)
+    slices = None
+    if target == "macos" and destination.exists():
+        slices, problems = _macos_slices(destination)
+        errors += problems
     success = process.returncode == 0 and destination.exists() and not errors
     return {"status": "complete" if success else "failed", "target": target,
             "output_dir": str(destination), "log": str(log), "exit_code": process.returncode,
-            "architecture": architecture, "source_fingerprint": source, "errors": errors}
+            "architecture_setting": built.get("architecture"), "slices": slices,
+            "source_fingerprint": source, "errors": errors}
+
+
+def _macos_slices(app):
+    """Read the CPU slices of the built player's executable and Unity dylibs."""
+    contents = Path(app) / "Contents"
+    try:
+        with (contents / "Info.plist").open("rb") as stream:
+            executable = plistlib.load(stream)["CFBundleExecutable"]
+    except (OSError, ValueError, KeyError, TypeError, plistlib.InvalidFileException):
+        executable = None
+    if not isinstance(executable, str) or not executable or Path(executable).name != executable:
+        return None, ["The macOS build has no readable CFBundleExecutable"]
+    binaries = [contents / "MacOS" / executable] + [
+        path for path in (contents / "Frameworks" / name for name in ("UnityPlayer.dylib", "GameAssembly.dylib"))
+        if path.exists()]
+    slices, problems = {}, []
+    for binary in binaries:
+        relative = str(binary.relative_to(contents))
+        try:
+            names = sorted(row["name"] for row in inspect_macho(binary)["architectures"])
+        except ValueError as error:
+            problems.append("The macOS build binary " + relative + " is not readable Mach-O: " + str(error))
+            continue
+        slices[relative] = names
+        if names != list(MAC_SLICES):
+            problems.append("The macOS build binary " + relative + " has slices " + ", ".join(names) +
+                            ", not " + ", ".join(MAC_SLICES))
+    return slices, problems

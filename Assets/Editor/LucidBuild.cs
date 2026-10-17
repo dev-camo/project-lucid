@@ -20,6 +20,7 @@ namespace ProjectLucid.Editor
             public string prepared_asset_fingerprint;
         }
 
+        // Field names are read by tools/lucidlib/project.py (BUILD_RECORD_FIELDS).
         [Serializable]
         private sealed class BuildRecord
         {
@@ -32,7 +33,8 @@ namespace ProjectLucid.Editor
         // UnityEditor.OSXStandalone.UserBuildSettings.architecture, which stores it
         // under this key in Library/EditorUserBuildSettings.asset (not fingerprinted);
         // no managed macOS build code reads PlayerSettings' Standalone architecture.
-        // The original SonicDreamTeam.app executable and dylibs are x86_64 + arm64.
+        // The original SonicDreamTeam.app executable and dylibs are x86_64 + arm64;
+        // tools/lucidlib/project.py (MAC_SLICES) checks the built player's slices.
         private const string MacArchitectureKey = "Architecture";
         private const OSArchitecture MacArchitecture = OSArchitecture.x64ARM64;
 
@@ -87,7 +89,7 @@ namespace ProjectLucid.Editor
             var platform = BuildPipeline.GetBuildTargetName(BuildTarget.StandaloneOSX);
             EditorUserBuildSettings.SetPlatformSettings(platform, MacArchitectureKey, MacArchitecture.ToString());
             var stored = EditorUserBuildSettings.GetPlatformSettings(platform, MacArchitectureKey);
-            if (!string.Equals(stored, MacArchitecture.ToString(), StringComparison.OrdinalIgnoreCase))
+            if (!string.Equals(stored, MacArchitecture.ToString(), StringComparison.Ordinal))
                 throw new InvalidOperationException("macOS build architecture is '" + stored + "', not " + MacArchitecture + "; release build is blocked.");
             return stored;
         }
