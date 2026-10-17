@@ -1817,6 +1817,10 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCharacterExitTransitionTests.ShouldRespawnReadsBothFlagsBeforeCombiningThem",
 )
 
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.ProcessAirControlDirectionFlowTests.GroundInputDirectionStoresThePreUpdateDirectionWhileTheVelocityUsesTheUpdatedOne",
+)
+
 
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (

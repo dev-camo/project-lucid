@@ -166,11 +166,13 @@ namespace HardlightProject
             }
             float intendedDelta = CalculateIntendedTurnDelta(character, intendedForward, ref turnAngle);
             float effective = CalculateEffectiveInputMagnitude(inputMagnitude, intendedDelta, turnTraits);
-            ability.UpdateForwardSpeed(ref forwardSpeed, ref forwardDirection, deltaTime, intendedDelta,
+            // The velocity uses the updated direction; storage keeps the pre-update one.
+            Vector3 updatedDirection = forwardDirection;
+            ability.UpdateForwardSpeed(ref forwardSpeed, ref updatedDirection, deltaTime, intendedDelta,
                 effective, turnTraits.AccelerationMultiplier, applyDeceleration);
             character.Storage.SetValue(ActorFSMKeys.GroundInputDirection, forwardDirection);
             Vector3 velocity = character.WorldRotation * new Vector3(
-                forwardDirection.x * forwardSpeed, localVelocity.y, forwardDirection.z * forwardSpeed);
+                updatedDirection.x * forwardSpeed, localVelocity.y, updatedDirection.z * forwardSpeed);
             ability.UpdateClampedVelocity(ref velocity);
             character.SetWorldVelocity(velocity);
             if (!Mathf.Approximately(0f, inputMagnitude))
