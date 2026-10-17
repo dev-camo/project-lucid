@@ -4,9 +4,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 using Hardlight;
 using NUnit.Framework;
 using ProjectLucid.Tests.UISelectionShared;
+using RTLTMPro;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.Events;
@@ -20,8 +22,9 @@ namespace ProjectLucid.Tests
     // recording UnityEvent per UIEventType), an empty vibration reference and the target transform,
     // and restores both UIClickable statics, the EventSystem list and the ProcessManager rows it uses.
     // Probes steer the original virtual IsActive/IsInteractable/InteractionOverride calls.
-    // Not covered here: Awake/OnEnable/OnDisable (they chain into the UISelectable lifecycle) and any
-    // path that starts a coroutine on an active owner (StartCoroutine, CoroutineUtils.RunCoroutine).
+    // Not covered here: Awake/OnEnable (they chain into the UISelectable lifecycle) and every path
+    // gated on an active owner: the press/release animation starts in DoStateTransition and the
+    // cooldown start in Press (StartCoroutine, CoroutineUtils.RunCoroutine).
     public sealed class OriginalUIClickableTests
     {
         private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic |
@@ -176,7 +179,7 @@ namespace ProjectLucid.Tests
                 Assert.That(button.AnimationDisabled, Is.False);
                 owned.WriteClickable("m_cooldownTimeInSeconds", 2.5f);
                 Assert.That(button.CooldownTimeInSeconds, Is.EqualTo(2.5f));
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -206,7 +209,7 @@ namespace ProjectLucid.Tests
                 owned.WriteClickable("m_currentAnimatingState", Animation(1));
                 Assert.That(clickable.Press(), Is.True);
                 Assert.That(owned.Events, Is.Empty, "UIClickable.Press raises no event itself");
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -233,7 +236,49 @@ namespace ProjectLucid.Tests
                     Assert.That(owned.ReadClickable("m_shouldResetInactiveAnim"), Is.EqualTo(false));
                 }
                 Assert.That(owned.ReadClickable("s_globalInputOnCooldown"), Is.EqualTo(true), "a rejected press leaves the flag alone");
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
+            }
+        }
+
+        // Rejected branch 0x1B519F7..0x1B51A11: only a held m_animatingCoroutine (raw reference test) in
+        // state AnimatingDisabled sets m_shouldResetInactiveAnim and returns, before SafeStopCoroutine
+        // or the m_animationDisabled check. The held coroutine is an unstarted placeholder that the
+        // branch never passes to Unity.
+        [Test]
+        public void RejectedPressDuringTheShakeRestartsItOnlyWhenItsCoroutineIsHeld()
+        {
+            using (var owned = new Owned<UIClickableProbe>())
+            {
+                UIClickableProbe clickable = owned.Component;
+                clickable.AnimationDisabled = true;
+                clickable.ActiveResult = false;
+                clickable.InteractableResult = true;
+
+                owned.WriteClickable("m_currentAnimatingState", Animation(3));
+                owned.WriteClickable("m_clickAccepted", true);
+                Assert.That(clickable.Press(), Is.False);
+                Assert.That(owned.ReadClickable("m_clickAccepted"), Is.EqualTo(false));
+                Assert.That(owned.ReadClickable("m_shouldResetInactiveAnim"), Is.EqualTo(false), "no coroutine is held");
+                Assert.That(owned.ReadClickable("m_currentAnimatingState"), Is.EqualTo(Animation(3)), "no coroutine, so no stop either");
+
+                var running = (Coroutine)FormatterServices.GetUninitializedObject(typeof(Coroutine));
+                GC.SuppressFinalize(running);
+                try
+                {
+                    owned.WriteClickable("m_animatingCoroutine", running);
+                    owned.WriteClickable("m_clickAccepted", true);
+                    Assert.That(clickable.Press(), Is.False);
+                    Assert.That(owned.ReadClickable("m_clickAccepted"), Is.EqualTo(false));
+                    Assert.That(owned.ReadClickable("m_shouldResetInactiveAnim"), Is.EqualTo(true));
+                    Assert.That(owned.ReadClickable("m_animatingCoroutine"), Is.SameAs(running), "the shake keeps running");
+                    Assert.That(owned.ReadClickable("m_currentAnimatingState"), Is.EqualTo(Animation(3)));
+                }
+                finally
+                {
+                    owned.WriteClickable("m_animatingCoroutine", null);
+                }
+                Assert.That(owned.Events, Is.Empty);
+                owned.AssertNoLogs();
             }
         }
 
@@ -275,7 +320,7 @@ namespace ProjectLucid.Tests
                 owned.WriteClickable("m_currentAnimatingState", Animation(3));
                 Assert.That(button.Press(), Is.False);
                 Assert.That(owned.TakeEvents(), Is.Empty);
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -315,7 +360,7 @@ namespace ProjectLucid.Tests
                 Assert.That(owned.TakeEvents(), Is.Empty);
                 button.Action_OnDisabledClick();
                 Assert.That(owned.TakeEvents(), Is.EqualTo(new[] { UIEventType.OnDisabledClick }));
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -349,7 +394,7 @@ namespace ProjectLucid.Tests
                 int count = owned.EventTable.Count;
                 Assert.That(button.OnClick, Is.Null);
                 Assert.That(owned.EventTable.Count, Is.EqualTo(count));
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -374,7 +419,7 @@ namespace ProjectLucid.Tests
                     button.OnPointerClick(Pointer(PointerEventData.InputButton.Left, pointerId));
                     Assert.That(owned.TakeEvents(), Is.EqualTo(new[] { UIEventType.OnDisabledClick }), "pointer " + pointerId);
                 }
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -392,7 +437,50 @@ namespace ProjectLucid.Tests
                 button.ActiveResult = false;
                 button.OnSubmit(null);
                 Assert.That(owned.TakeEvents(), Is.EqualTo(new[] { UIEventType.OnDisabledClick }));
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
+            }
+        }
+
+        // OnPointerClick 0x1B52A87..0x1B52AA9 transitions behind IsActive alone and then clears
+        // m_clickAccepted; OnSubmit 0x1B52C0A..0x1B52C35 also needs IsInteractable and never clears it.
+        // The pointer is held inside, so UpdateSelectionState settles on Pressed without reading a
+        // UIRuntimeConfiguration; an uninteractable owner then goes on to Disabled.
+        [Test]
+        public void PointerClickClearsTheAcceptedClickWhileSubmitTransitionsOnlyWhenInteractable()
+        {
+            Assert.That(ProcessManager.IsSystemNull<UIRuntimeConfiguration>(), Is.True, "fixture needs no UIRuntimeConfiguration system");
+            using (var owned = new Owned<UIClickableProbe>())
+            {
+                UIClickableProbe clickable = owned.Component;
+                clickable.AnimationDisabled = true;
+                clickable.ActiveResult = true;
+                clickable.InteractableResult = true;
+                owned.WriteClickable("m_cooldownTimeInSeconds", 0f);
+                owned.IsPointerDown = true;
+                owned.IsPointerInside = true;
+                PointerEventData left = Pointer(PointerEventData.InputButton.Left, 0);
+
+                owned.WriteSelection(previous: 0, current: 0);
+                clickable.OnPointerClick(left);
+                Assert.That(owned.ReadClickable("m_clickAccepted"), Is.EqualTo(false), "the accepted click is cleared after the transition");
+                Assert.That(owned.ReadSelection(), Is.EqualTo((0, 2)));
+
+                owned.WriteSelection(previous: 0, current: 0);
+                clickable.OnSubmit(new BaseEventData(null));
+                Assert.That(owned.ReadClickable("m_clickAccepted"), Is.EqualTo(true), "submit keeps the accepted click");
+                Assert.That(owned.ReadSelection(), Is.EqualTo((0, 2)));
+
+                clickable.InteractableResult = false;
+                owned.WriteSelection(previous: 0, current: 1);
+                clickable.OnSubmit(new BaseEventData(null));
+                Assert.That(owned.ReadClickable("m_clickAccepted"), Is.EqualTo(false));
+                Assert.That(owned.ReadSelection(), Is.EqualTo((0, 1)), "no transition while uninteractable");
+
+                clickable.OnPointerClick(left);
+                Assert.That(owned.ReadSelection(), Is.EqualTo((2, 3)), "Highlighted -> Pressed, then Pressed -> Disabled");
+                Assert.That(owned.ReadClickable("m_clickAccepted"), Is.EqualTo(false));
+                Assert.That(owned.Events, Is.Empty);
+                owned.AssertNoLogs();
             }
         }
 
@@ -436,7 +524,7 @@ namespace ProjectLucid.Tests
                 Assert.That(owned.IsPointerDown, Is.True);
 
                 Assert.Throws<NullReferenceException>(() => button.OnPointerDown(null));
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -482,7 +570,7 @@ namespace ProjectLucid.Tests
                 Assert.Throws<NullReferenceException>(() => button.OnPointerUp(null));
                 Assert.That(owned.ReadButton("m_wasPointerDownAndInside"), Is.EqualTo(false), "cleared before the base faults");
                 Assert.That(owned.TakeEvents(), Is.Empty);
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -527,7 +615,7 @@ namespace ProjectLucid.Tests
                 Assert.Throws<NullReferenceException>(() => button.OnPointerExit(left));
                 Assert.That(owned.ReadButton("m_wasPointerDownAndInside"), Is.EqualTo(true), "stored before the base faults");
                 Assert.That(owned.TakeEvents(), Is.Empty);
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -570,8 +658,45 @@ namespace ProjectLucid.Tests
                 button.OnPointerEnter(left);
                 Assert.That(owned.TakeEvents(), Is.EqualTo(new[] { UIEventType.OnNavigateToward }), "not held");
                 Assert.That(bridge.Calls, Is.All.EqualTo("GetHardwareCursorVisibility"), "enter only asks for the cursor");
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
+        }
+
+        // UIButton.OnDisable 0x1B511D0 runs UISelectable.OnDisable (Remove with the unset scene name,
+        // InstantClearState, highlight unsubscription) and the inlined UIClickable tail, then raises
+        // OnDisabledSelected (13) only for m_currentSelectionState == Highlighted (0x1B51216). With no
+        // input bridge, Deselect returns before touching any EventSystem.
+        [Test]
+        public void ButtonDisabledWhileHighlightedReportsDisabledSelectedAfterTheBaseDisable()
+        {
+            FieldInfo highlightChanged = typeof(UISelectable).GetField("m_onShouldHighlightChanged", Declared);
+            object priorHighlightChanged = highlightChanged.GetValue(null);
+            using (var owned = new Owned<UIButtonProbe>())
+            {
+                var pointerDownAtEvent = new List<bool>();
+                owned.Entry(UIEventType.OnDisabledSelected).m_onEvent.AddListener(() => pointerDownAtEvent.Add(owned.IsPointerDown));
+                // current, previous -> OnDisabledSelected
+                foreach ((int current, int previous, bool raised) in new[] { (1, 0, true), (0, 1, false), (2, 1, false) })
+                {
+                    string label = current + "<-" + previous;
+                    owned.IsPointerDown = true;
+                    owned.IsPointerInside = true;
+                    owned.WriteClickable("m_onCooldown", true);
+                    owned.WriteClickable("m_currentAnimatingState", Animation(2));
+                    owned.WriteSelection(previous, current);
+                    Invoke(typeof(UIButton), owned.Component, "OnDisable");
+                    Assert.That(owned.TakeEvents(), Is.EqualTo(raised ? new[] { UIEventType.OnDisabledSelected } : new UIEventType[0]), label);
+                    Assert.That(pointerDownAtEvent, Is.EqualTo(raised ? new[] { false } : new bool[0]), label + ": raised after InstantClearState");
+                    pointerDownAtEvent.Clear();
+                    Assert.That(owned.IsPointerDown, Is.False, label);
+                    Assert.That(owned.IsPointerInside, Is.False, label);
+                    Assert.That(owned.ReadClickable("m_onCooldown"), Is.EqualTo(false), label);
+                    Assert.That(owned.ReadClickable("m_currentAnimatingState"), Is.EqualTo(Animation(0)), label);
+                    Assert.That(owned.ReadSelection(), Is.EqualTo((previous, current)), label);
+                }
+                owned.AssertNoLogs();
+            }
+            Assert.That(highlightChanged.GetValue(null), Is.SameAs(priorHighlightChanged), "removing an absent listener keeps the shared action");
         }
 
         // PublishUIMessage 0x1B52030 publishes eventId under UIMessage(type) on the auto-created
@@ -601,9 +726,9 @@ namespace ProjectLucid.Tests
                 Assert.That(received.Select(r => r.Item1), Is.EqualTo(new[] { UIEventType.OnClick, UIEventType.OnDisabledClick,
                     UIEventType.OnOfflineClick, UIEventType.OnButtonDown, UIEventType.OnButtonUp, UIEventType.OnButtonExit, UIEventType.OnRelease }));
                 Assert.That(received.Select(r => r.Item2), Is.All.SameAs(eventId));
-                Assert.That(ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>(), Is.SameAs(exchange));
+                Assert.That(ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>(null), Is.SameAs(exchange));
                 Assert.That(owned.Events, Is.Empty, "publishing raises no selectable event");
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
 
             Assert.That(rows.Contains(name), Is.EqualTo(hadRow), "the exchange row is put back as it was");
@@ -645,7 +770,45 @@ namespace ProjectLucid.Tests
                     Assert.That(owned.ReadClickable("m_clickAccepted"), Is.EqualTo(accepted), label + ": cleared only when a press animation starts");
                     Assert.That(owned.ReadClickable("m_animatingCoroutine"), Is.Null, label);
                 }
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
+            }
+        }
+
+        // DoStateTransition 0x1B52D75 always calls UISelectable.DoStateTransition 0x1B52F80 first, which
+        // gives every cached graphic m_nonInteractiveMaterial for Disabled and its cached start
+        // material for any other state.
+        [Test]
+        public void StateTransitionsApplyTheSelectableMaterialSwap()
+        {
+            using (var owned = new Owned<UIClickableProbe>())
+            {
+                Shader shader = Shader.Find("UI/Default");
+                Assert.That(shader, Is.Not.Null, "Requires the genuine Unity UI shader; no replacement shader is supplied.");
+                Material start = owned.Own(new Material(shader) { name = "owned-original-ui-clickable-start" });
+                Material disabled = owned.Own(new Material(shader) { name = "owned-original-ui-clickable-disabled" });
+                GameObject holder = owned.Own(new GameObject("owned-original-ui-clickable-graphic", typeof(RectTransform)));
+                holder.SetActive(false);
+                UnityEngine.UI.Image graphic = holder.AddComponent<UnityEngine.UI.Image>();
+                graphic.material = start;
+
+                Type pairType = typeof(UISelectable).GetNestedType("GraphicAndMaterialPair", BindingFlags.NonPublic);
+                var pairs = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(pairType));
+                pairs.Add(Activator.CreateInstance(pairType, graphic, start));
+                Write(typeof(UISelectable), owned.Component, "m_graphicAndMaterialPairs", pairs);
+                Write(typeof(UISelectable), owned.Component, "m_nonInteractiveMaterial", disabled);
+
+                foreach (int state in new[] { 0, 1, 2 })
+                {
+                    owned.WriteSelection(previous: 0, current: 3);
+                    Invoke(typeof(UIClickable), owned.Component, "DoStateTransition", Enum.ToObject(SelectionState, 3), true);
+                    Assert.That(graphic.material, Is.SameAs(disabled), "disabled before state " + state);
+                    owned.WriteSelection(previous: 3, current: state);
+                    Invoke(typeof(UIClickable), owned.Component, "DoStateTransition", Enum.ToObject(SelectionState, state), true);
+                    Assert.That(graphic.material, Is.SameAs(start), "state " + state);
+                }
+                Assert.That(owned.ReadClickable("m_currentAnimatingState"), Is.EqualTo(Animation(0)));
+                Assert.That(owned.Events, Is.Empty);
+                owned.AssertNoLogs();
             }
         }
 
@@ -675,7 +838,7 @@ namespace ProjectLucid.Tests
                 Invoke(typeof(UIClickable), owned.Component, "ResetTransformToCache");
                 Assert.That(target.localPosition, Is.EqualTo(new Vector3(-7f, 8f, 9f)));
                 Assert.That(target.localScale, Is.EqualTo(Vector3.one));
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -722,7 +885,7 @@ namespace ProjectLucid.Tests
                     Assert.That(owned.ReadClickable("m_currentAnimatingState"), Is.EqualTo(Animation(release ? 2 : 1)));
                 }
                 Assert.That(owned.Events, Is.Empty, "the event is raised once per animation");
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -767,7 +930,7 @@ namespace ProjectLucid.Tests
                 Assert.That(owned.Target.localPosition, Is.EqualTo(new Vector3(10f, 20f, 30f)));
                 Assert.That(owned.ReadClickable("m_currentAnimatingState"), Is.EqualTo(Animation(0)));
                 Assert.That(owned.Events, Is.Empty);
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -795,7 +958,7 @@ namespace ProjectLucid.Tests
                 Assert.That(cooldown.MoveNext(), Is.False);
                 Assert.That(owned.ReadClickable("s_globalInputOnCooldown"), Is.EqualTo(false));
                 Assert.That(cooldown.MoveNext(), Is.False);
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
             }
         }
 
@@ -821,7 +984,54 @@ namespace ProjectLucid.Tests
                 Assert.That(effects, Is.EqualTo(new[] { effector }));
                 Assert.That(owned.ReadClickable("m_hasStatusEffects"), Is.EqualTo(true));
                 Assert.That(Read(typeof(ButtonStatusEffects), effector, "m_isInitialised"), Is.EqualTo(true));
-                owned.AssertUnchanged();
+                owned.AssertNoLogs();
+            }
+        }
+
+        // TriggerButtonStatusAffectors 0x1B53460 returns on a clear m_hasStatusEffects (0x1B53496) whatever
+        // the list holds, and per effector reads the m_interactable field directly (0x1B534D5), not the
+        // virtual IsInteractable(): set means SetEnabledButtonState, clear SetDisabledButtonState. The
+        // effector is already initialised, so the text material is the only observable and no
+        // HLUIEffectManager is consulted.
+        [Test]
+        public void StatusEffectorsFollowTheInteractableFieldOnlyOnceRegistered()
+        {
+            using (var owned = new Owned<UIClickableProbe>())
+            {
+                Shader shader = Shader.Find("UI/Default");
+                Assert.That(shader, Is.Not.Null, "Requires the genuine Unity UI shader; no replacement shader is supplied.");
+                Material current = owned.Own(new Material(shader) { name = "owned-original-ui-clickable-current" });
+                Material enabled = owned.Own(new Material(shader) { name = "owned-original-ui-clickable-enabled" });
+                Material disabled = owned.Own(new Material(shader) { name = "owned-original-ui-clickable-disabled" });
+                GameObject textHolder = owned.Own(new GameObject("owned-original-ui-clickable-text", typeof(RectTransform)));
+                textHolder.SetActive(false);
+                RTLTextMeshPro text = textHolder.AddComponent<RTLTextMeshPro>();
+                text.fontSharedMaterial = current;
+                Assert.That(text.fontSharedMaterial, Is.SameAs(current));
+
+                ButtonStatusEffects effector = owned.AddStatusEffector();
+                Write(typeof(ButtonStatusEffects), effector, "m_isInitialised", true);
+                Write(typeof(ButtonStatusEffects), effector, "m_targetTMPUI", text);
+                Write(typeof(ButtonStatusEffects), effector, "m_enabledTextMeshProMaterial", enabled);
+                Write(typeof(ButtonStatusEffects), effector, "m_disabledTextMeshProMaterial", disabled);
+
+                // Listed but not registered: the flag alone gates the loop.
+                var effects = (List<ButtonStatusEffects>)owned.ReadClickable("m_buttonStatusEffects");
+                effects.Add(effector);
+                Write(typeof(UISelectable), owned.Component, "m_interactable", true);
+                Invoke(typeof(UIClickable), owned.Component, "TriggerButtonStatusAffectors");
+                Assert.That(text.fontSharedMaterial, Is.SameAs(current), "m_hasStatusEffects is still clear");
+                effects.Clear();
+
+                owned.Component.InteractableResult = false;
+                owned.Component.RegisterButtonStatusEffector(effector);
+                Assert.That(text.fontSharedMaterial, Is.SameAs(enabled), "m_interactable set, IsInteractable() false");
+
+                Write(typeof(UISelectable), owned.Component, "m_interactable", false);
+                owned.Component.InteractableResult = true;
+                Invoke(typeof(UIClickable), owned.Component, "TriggerButtonStatusAffectors");
+                Assert.That(text.fontSharedMaterial, Is.SameAs(disabled), "m_interactable clear, IsInteractable() true");
+                owned.AssertNoLogs();
             }
         }
 
@@ -909,6 +1119,16 @@ namespace ProjectLucid.Tests
             public object ReadButton(string name) => Read(typeof(UIButton), Component, name);
             public void WriteButton(string name, object value) => Write(typeof(UIButton), Component, name, value);
 
+            public void WriteSelection(int previous, int current)
+            {
+                Write(typeof(UISelectable), Component, "m_previousSelectionState", Enum.ToObject(SelectionState, previous));
+                Write(typeof(UISelectable), Component, "m_currentSelectionState", Enum.ToObject(SelectionState, current));
+            }
+
+            public (int previous, int current) ReadSelection() =>
+                (Convert.ToInt32(Read(typeof(UISelectable), Component, "m_previousSelectionState")),
+                 Convert.ToInt32(Read(typeof(UISelectable), Component, "m_currentSelectionState")));
+
             public TObject Own<TObject>(TObject value) where TObject : UnityEngine.Object
             {
                 objects.Add(value);
@@ -990,7 +1210,7 @@ namespace ProjectLucid.Tests
                     rows.Remove(name);
                     if (hadRow) rows[name] = priorRow;
                 });
-                MessageExchangeBoundCallbackArg<UIMessage> exchange = ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>();
+                MessageExchangeBoundCallbackArg<UIMessage> exchange = ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>(null);
                 foreach (UIEventType type in Enum.GetValues(typeof(UIEventType)))
                 {
                     UIEventType subscribed = type;
@@ -1002,7 +1222,7 @@ namespace ProjectLucid.Tests
                 return exchange;
             }
 
-            public void AssertUnchanged()
+            public void AssertNoLogs()
             {
                 Assert.That(logs, Is.Empty);
             }

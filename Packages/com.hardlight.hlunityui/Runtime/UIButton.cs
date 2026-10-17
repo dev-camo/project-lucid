@@ -156,7 +156,7 @@ namespace Hardlight
 
         public void PublishUIMessage(UIEventType type, UIEvent eventId)
         {
-            ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>()
+            ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>(null)
                 .PublishMessage(new UIMessage(type), eventId);
         }
 
