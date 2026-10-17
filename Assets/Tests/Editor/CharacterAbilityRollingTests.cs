@@ -111,7 +111,8 @@ namespace ProjectLucid.Tests
 
         // ClampToSpeedMin with input 2: effective max(20, 10) = 20. Acceleration
         // 15 stops at the configured 10 (an effective cap gives 15), and 10 < 20
-        // still applies the zero-direction fallback.
+        // still applies the zero-direction fallback. The direction assertion
+        // guards against comparing with the configured minimum instead.
         [Test]
         public void ClampedForwardSpeedStopsAtConfiguredMinimumAndFallsBackBelowTheEffectiveOne()
         {
@@ -125,8 +126,9 @@ namespace ProjectLucid.Tests
         }
 
         // Negative control for the floor: with zero acceleration, deceleration 10
-        // and input 0.5, fs 15 falls to 5 but stops at the effective 7.5, not the
-        // configured 10.
+        // and input 0.5, fs 15 falls to 5 but stops at the effective 7.5. It
+        // guards against flooring at the configured 10; a body that uses the
+        // effective minimum everywhere also passes it.
         [Test]
         public void ForwardSpeedDecelerationFloorIsTheEffectiveMinimum()
         {
@@ -152,6 +154,11 @@ namespace ProjectLucid.Tests
             UnityEngine.AnimationCurve accelerationCurve = null)
         {
             MethodInfo method = typeof(CharacterAbility).GetMethod("UpdateForwardSpeed", Instance);
+            // The original Rolling and MovementGround<T> declare no override, so
+            // Invoke must dispatch to the base body these cases specify.
+            MethodInfo resolved = ability.GetType().GetMethod("UpdateForwardSpeed", Instance, null,
+                Array.ConvertAll(method.GetParameters(), parameter => parameter.ParameterType), null);
+            Assert.AreEqual(typeof(CharacterAbility), resolved.DeclaringType);
             var args = new object[]
             {
                 forwardSpeed, UnityEngine.Vector3.zero, 1f, motion, 1f, effectiveInputMagnitude,
