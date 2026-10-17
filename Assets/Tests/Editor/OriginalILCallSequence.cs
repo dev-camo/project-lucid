@@ -26,6 +26,10 @@ namespace ProjectLucid.Tests
             .Select(field => (OpCode)field.GetValue(null))
             .ToDictionary(code => code.Value);
 
+        // call, callvirt and newobj invoke their method token; ldftn and ldvirtftn only load it.
+        // Every EditMode call witness uses this one predicate.
+        internal static bool IsInvocation(OpCode code) => code == OpCodes.Call || code == OpCodes.Callvirt || code == OpCodes.Newobj;
+
         internal static List<Call> Calls(MethodBase method)
         {
             byte[] il = method.GetMethodBody().GetILAsByteArray();
@@ -59,7 +63,7 @@ namespace ProjectLucid.Tests
                         position += 4 + 4 * BitConverter.ToInt32(il, position);
                         break;
                     case OperandType.InlineMethod:
-                        if (code == OpCodes.Call || code == OpCodes.Callvirt || code == OpCodes.Newobj)
+                        if (IsInvocation(code))
                         {
                             calls.Add(new Call
                             {

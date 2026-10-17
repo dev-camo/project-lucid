@@ -333,8 +333,7 @@ namespace ProjectLucid.Tests
             return result;
         }
 
-        private static bool IsCall(Instruction instruction) =>
-            instruction.Code == OpCodes.Call || instruction.Code == OpCodes.Callvirt || instruction.Code == OpCodes.Newobj;
+        private static bool IsCall(Instruction instruction) => OriginalILCallSequence.IsInvocation(instruction.Code);
 
         private static bool IsConditional(Instruction instruction) =>
             instruction.Code.FlowControl == FlowControl.Cond_Branch;

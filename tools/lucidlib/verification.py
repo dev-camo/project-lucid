@@ -2058,6 +2058,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.EngineVectorInequalityMatchesTheNativeAirGravityGate",
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.AirContinuousCheckReadsTheDefinitionInputBeforeTheAirAbilityHoldSetting",
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.ChaosControlContinuousCheckNegatesOnlyTheAirAbilityHoldSetting",
+    "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.DelegateOnlyBodyIsNotACallOrMoveWitness",
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.HalfPipeEarlyAirSuppressionEndsOnlyTheAirActiveImpulse",
     "ProjectLucid.Editor.OriginalCharacterAbilityBodyOrderTests.TargetedLocationRaycastDividesByOneMagnitudeWithoutNormalizing",
 )

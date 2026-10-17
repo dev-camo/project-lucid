@@ -179,6 +179,50 @@ namespace ProjectLucid.Editor
                 Is.Ordered.Ascending.And.Unique);
         }
 
+        // Method-group delegates, never invoked, for the calls and moves these tests claim, in
+        // their expected order and ending with EndAirActiveImpulse. Each is ldftn or ldvirtftn
+        // followed by a newobj of the delegate type.
+        private static class DelegateOnly
+        {
+            public static object Sink;
+
+            public static void Body(Actor actor, Character character)
+            {
+                Sink = new Func<Vector3, Vector3, float>(Vector3.Dot);
+                Sink = new Func<float, float>(Mathf.Abs);
+                Sink = new Action<Vector3>(actor.SetWorldPosition);
+                Sink = new Func<Vector3, Vector3, float, int, QueryTriggerInteraction, bool>(Physics.Raycast);
+                Sink = new Action(character.EndAirActiveImpulse);
+            }
+        }
+
+        // A body that only loads the targets must give no SetWorldPosition move, no Raycast and no
+        // EndAirActiveImpulse call, so the one-move, one-raycast and final-call claims above fail on it.
+        [Test]
+        public void DelegateOnlyBodyIsNotACallOrMoveWitness()
+        {
+            MethodInfo body = typeof(DelegateOnly).GetMethod(nameof(DelegateOnly.Body));
+            MethodInfo setPosition = typeof(Actor).GetMethod("SetWorldPosition", new[] { typeof(Vector3) });
+            MethodInfo raycast = typeof(Physics).GetMethod("Raycast",
+                new[] { typeof(Vector3), typeof(Vector3), typeof(float), typeof(int), typeof(QueryTriggerInteraction) });
+            MethodInfo endActive = Method(typeof(Character), "EndAirActiveImpulse");
+            Predicate<MemberInfo> isSetPosition = m => m is MethodInfo mi && Same(mi.GetBaseDefinition(), setPosition);
+
+            List<KeyValuePair<OpCode, MemberInfo>> operands = Operands(body);
+            List<KeyValuePair<OpCode, MemberInfo>> loads = operands
+                .Where(operand => operand.Key == OpCodes.Ldftn || operand.Key == OpCodes.Ldvirtftn).ToList();
+            Assert.That(loads.Count, Is.EqualTo(5), "the fixture loads each target once");
+            Assert.That(loads.Count(operand => isSetPosition(operand.Value)), Is.EqualTo(1));
+            Assert.That(loads.Count(operand => Same(operand.Value, raycast)), Is.EqualTo(1));
+            Assert.That(Same(loads.Last().Value, endActive), Is.True, "EndAirActiveImpulse is the last loaded method");
+
+            List<MemberInfo> refs = References(body);
+            Assert.That(refs.Count(m => isSetPosition(m)), Is.EqualTo(0), "no move");
+            Assert.That(refs.Count(m => Same(m, raycast)), Is.EqualTo(0), "no raycast");
+            Assert.That(refs.Count(m => Same(m, endActive)), Is.EqualTo(0), "no EndAirActiveImpulse call");
+            Assert.That(refs.OfType<MethodBase>().Select(m => m.Name), Is.All.EqualTo(".ctor"), "only the delegate constructors are calls");
+        }
+
         private static readonly Dictionary<short, OpCode> OpCodesByValue = BuildOpCodes();
 
         private static Dictionary<short, OpCode> BuildOpCodes()
@@ -192,14 +236,22 @@ namespace ProjectLucid.Editor
             return table;
         }
 
-        // Every method and field operand in IL order, resolved in the declaring type's generic context.
-        private static List<MemberInfo> References(MethodBase method)
+        // Field operands and invoked methods in IL order. ldftn and ldvirtftn only load a method
+        // pointer (ECMA-335 III.3.41, III.4.18), so a method-group delegate is not a call and is
+        // left out; the call and move claims in these tests depend on that.
+        private static List<MemberInfo> References(MethodBase method) =>
+            Operands(method).Where(operand => operand.Value is FieldInfo || ProjectLucid.Tests.OriginalILCallSequence.IsInvocation(operand.Key))
+                .Select(operand => operand.Value).ToList();
+
+        // Every method and field operand in IL order with its opcode, resolved in the declaring
+        // type's generic context.
+        private static List<KeyValuePair<OpCode, MemberInfo>> Operands(MethodBase method)
         {
             MethodBody body = method.GetMethodBody();
             Assert.That(body, Is.Not.Null, method.Name + " has an IL body");
             byte[] il = body.GetILAsByteArray();
             Type[] typeArguments = method.DeclaringType.IsGenericTypeDefinition ? method.DeclaringType.GetGenericArguments() : null;
-            var result = new List<MemberInfo>();
+            var result = new List<KeyValuePair<OpCode, MemberInfo>>();
             for (int i = 0; i < il.Length;)
             {
                 short value = il[i] == 0xFE ? (short)(0xFE00 | il[i + 1]) : il[i];
@@ -209,7 +261,7 @@ namespace ProjectLucid.Editor
                 {
                     case OperandType.InlineMethod:
                     case OperandType.InlineField:
-                        result.Add(method.Module.ResolveMember(BitConverter.ToInt32(il, i), typeArguments, null));
+                        result.Add(new KeyValuePair<OpCode, MemberInfo>(op, method.Module.ResolveMember(BitConverter.ToInt32(il, i), typeArguments, null)));
                         i += 4;
                         break;
                     case OperandType.InlineNone: break;

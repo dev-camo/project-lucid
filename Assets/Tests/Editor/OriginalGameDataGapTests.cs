@@ -146,8 +146,8 @@ namespace ProjectLucid.Tests
                     Is.EqualTo("124DBEEBD32D0CE760E293BF46E477BAE35E7F666457E80A8B7F77AEDBC3221F"));
         }
 
-        // Method-group delegates for the three Mesh methods that have a method group, in the
-        // CreateMesh order and never invoked. Each is ldvirtftn or ldftn (ECMA-335 III.4.18,
+        // Action delegates for the three parameterless Mesh calls in CreateMesh order, never
+        // invoked. Each is ldvirtftn or ldftn (ECMA-335 III.4.18,
         // III.3.41) and a newobj of Action, which calls neither Mesh method.
         private static class MeshDelegateOnly
         {
@@ -176,7 +176,7 @@ namespace ProjectLucid.Tests
         // their method token; ldftn and ldvirtftn only load it.
         private static string[] MeshCalls(MethodBase body) =>
             OriginalMethodBodyReader.Instructions(body)
-                .Where(instruction => instruction.Key == OpCodes.Call || instruction.Key == OpCodes.Callvirt || instruction.Key == OpCodes.Newobj)
+                .Where(instruction => OriginalILCallSequence.IsInvocation(instruction.Key))
                 .Select(instruction => instruction.Value).OfType<MethodBase>()
                 .Where(method => method.DeclaringType == typeof(Mesh)).Select(method => method.Name).ToArray();
     }

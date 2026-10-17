@@ -147,7 +147,8 @@ namespace ProjectLucid.Tests
             Assert.That(referenced, Is.EqualTo(new[] { "TryGetAbility", "MinDurationExceeded" }), "the fixture references both targets");
 
             Predicate<MethodBase> lookup = m => m.DeclaringType == typeof(Actor) && m.Name == "TryGetAbility";
-            Assert.That(FindImmediate(body, lookup, out _), Is.EqualTo("call is missing"));
+            Assert.That(TryFindImmediate(body, lookup, out _, out string failure), Is.False, "no lookup call");
+            Assert.That(failure, Is.EqualTo("call is missing"));
             Assert.That(Calls(body).Select(method => method.DeclaringType),
                 Is.EqualTo(new[] { typeof(DelegateOnly.AbilityLookup), typeof(Func<bool>) }), "only the delegate constructors are calls");
         }
@@ -168,14 +169,11 @@ namespace ProjectLucid.Tests
             Assert.That(guards.Select(i => IsEqualityGuard(instructions, i)), Is.EqualTo(new[] { true, true }));
         }
 
-        // call, callvirt and newobj invoke their method token; ldftn and ldvirtftn only load it.
-        private static bool IsInvocation(OpCode code) => code == OpCodes.Call || code == OpCodes.Callvirt || code == OpCodes.Newobj;
-
         private static bool Invokes(KeyValuePair<OpCode, object> instruction, Predicate<MethodBase> target) =>
-            IsInvocation(instruction.Key) && instruction.Value is MethodBase method && target(method);
+            OriginalILCallSequence.IsInvocation(instruction.Key) && instruction.Value is MethodBase method && target(method);
 
         private static IEnumerable<MethodBase> Calls(MethodBase body) =>
-            OriginalMethodBodyReader.Instructions(body).Where(instruction => IsInvocation(instruction.Key))
+            OriginalMethodBodyReader.Instructions(body).Where(instruction => OriginalILCallSequence.IsInvocation(instruction.Key))
                 .Select(instruction => instruction.Value).OfType<MethodBase>();
 
         // Source constants (other than the Main mixer key) and HLAudioMixerDefinition calls in IL
@@ -205,30 +203,44 @@ namespace ProjectLucid.Tests
         private static int ImmediateFor(MethodBase body, Predicate<MethodBase> target)
         {
             Assert.That(body, Is.Not.Null, "body exists");
-            Assert.That(FindImmediate(body, target, out int value), Is.Null);
+            Assert.That(TryFindImmediate(body, target, out int value, out string failure), Is.True, failure);
             return value;
         }
 
-        // null when the immediate is found, otherwise the first condition that fails.
-        private static string FindImmediate(MethodBase body, Predicate<MethodBase> target, out int value)
+        // True with the immediate, or false with the first condition that fails.
+        private static bool TryFindImmediate(MethodBase body, Predicate<MethodBase> target, out int value, out string failure)
         {
             value = 0;
+            failure = null;
             List<KeyValuePair<OpCode, object>> instructions = OriginalMethodBodyReader.Instructions(body);
             int call = instructions.FindIndex(instruction => Invokes(instruction, target));
-            if (call < 0) return "call is missing";
-            if (instructions.FindLastIndex(instruction => Invokes(instruction, target)) != call) return "call appears more than once";
+            if (call < 0)
+            {
+                failure = "call is missing";
+                return false;
+            }
+            if (instructions.FindLastIndex(instruction => Invokes(instruction, target)) != call)
+            {
+                failure = "call appears more than once";
+                return false;
+            }
             for (int i = call - 1; i >= 0; i--)
             {
                 object operand = instructions[i].Value;
                 if (instructions[i].Key == OpCodes.Ldc_I4 && operand is int immediate)
                 {
                     value = immediate;
-                    return null;
+                    return true;
                 }
                 // Any method token, delegate loads included, separates the immediate from the call.
-                if (operand is MethodBase) return "another method token between the immediate and its call";
+                if (operand is MethodBase)
+                {
+                    failure = "another method token between the immediate and its call";
+                    return false;
+                }
             }
-            return "no immediate before the call";
+            failure = "no immediate before the call";
+            return false;
         }
 
         // Release IL branches away with bne.un when unequal; Debug IL stores ceq and tests it
