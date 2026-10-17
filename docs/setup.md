@@ -100,23 +100,28 @@ asset bindings still require separate import and roundtrip validation.
 The README's code progress is measured with `python3 tools/lucid.py progress`,
 which needs the supplied bundle and a current `player-code` result for the
 target. It rewrites the README table and `docs/code-progress.json` locally for
-inspection only; do not commit them. Main Actions publish both after each merge,
-and detailed method inventories remain in the local cache. Use
-`python3 tools/lucid.py progress --check` to check the published table without
-the game bundle, Unity, or downloads.
+inspection only; do not commit them. The Refresh native progress workflow
+publishes both for the current main head after merges, and detailed method
+inventories remain in the local cache. Use `python3 tools/lucid.py progress
+--check` to check the published table without the game bundle, Unity, or
+downloads.
 
 `git config core.hooksPath tools/hooks` installs a pre-commit check that runs
 `python3 tools/lucid.py progress --stage`. It requires the staged index to match
-the working tree for tracked source, rejects staged changes to
-`docs/code-progress.json` and the generated README progress section, and checks
-the public counts of the existing snapshot. It needs no bundle, Unity, or
-`player-code` result, and it does not compile, measure, or refresh progress.
+every source file on disk under `Assets`, `Packages`, `ProjectSettings`, and
+`tools`, excluding the generated `Assets/Recovered` and `Assets/StreamingAssets`,
+so stage new files and remove untracked or ignored local files there before
+committing. It rejects staged changes to `docs/code-progress.json` and the
+generated README progress section, requires that section to match the rendering
+of the published snapshot, and checks the snapshot's public counts. It
+needs no bundle, Unity, or `player-code` result, and it does not compile,
+measure, or refresh progress.
 Automatic pushing is opt-in: `git config lucid.pushOnCommit true` pushes each
 successful commit to `origin`.
 
 Passing the hook proves nothing about compilation or behaviour. Compilation is
 established by `player-code` locally and by the pull-request compilation check;
-behaviour is established only by the tests described below.
+behavioural evidence comes only from the test reports described below.
 
 Validation uses generated asset audits and test reports. Changing code or assets
 requires fresh checks. The current implementation has passing subsystem tests;
