@@ -1984,6 +1984,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.ObservedAppReferenceIsRetainedAndReportedWithoutReplacingThePrimary",
 )
 
+# Original deceleration-curve acceleration branch minss operand order.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationKeepsAnUnorderedSum",
+    "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationClampsAFiniteSumToTheMinimum",
+    "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationKeepsAFiniteSumBelowTheMinimum",
+)
+
 # Original action-subscription release timing on a real coroutine host.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.InputActionSubscriptionTests.UnheldReleaseDefersOnUpToTheNextFrameAfterClearingDown",

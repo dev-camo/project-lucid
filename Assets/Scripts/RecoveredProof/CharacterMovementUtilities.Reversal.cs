@@ -219,7 +219,8 @@ namespace HardlightProject
                 forwardSpeed = Mathf.Max(forwardSpeed - factor * deceleration * deltaTime, 0f);
             }
             else if (forwardSpeed < minimum)
-                forwardSpeed = Mathf.Min(forwardSpeed + motion.Acceleration * deltaTime, minimum);
+                // Native minss keeps the minimum first, so an unordered or tied sum is returned.
+                forwardSpeed = Mathf.Min(minimum, forwardSpeed + motion.Acceleration * deltaTime);
         }
 
         // 0x06003903. Neither reversal predicate has a method ExtensionAttribute.
