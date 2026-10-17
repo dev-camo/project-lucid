@@ -94,28 +94,62 @@ namespace ProjectLucid.Tests
             {
                 MethodInfo method = typeof(GameCenterAccessPoint).GetMethod(facade, BindingFlags.Static | BindingFlags.Public);
                 Assert.That(method, Is.Not.Null, facade);
-                List<MemberInfo> operands = Operands(method);
-                FieldInfo[] fields = operands.OfType<FieldInfo>().ToArray();
+                List<(OpCode Code, MemberInfo Member)> operands = Operands(method);
+                FieldInfo[] fields = operands.Select(operand => operand.Member).OfType<FieldInfo>().ToArray();
                 Assert.That(fields.Length, Is.EqualTo(1), facade);
                 Assert.That(fields[0].Module == plugin.Module && fields[0].MetadataToken == plugin.MetadataToken, Is.True, facade);
-                MethodBase target = operands.OfType<MethodBase>().Single();
-                Assert.That(target.DeclaringType, Is.EqualTo(typeof(GameCenterAccessPointPlugin)), facade);
+                Assert.That(operands.Count(operand => operand.Member is MethodBase), Is.EqualTo(1), facade + " has one method token");
+                MethodBase target = PluginDispatches(method).Single();
                 Assert.That(target.Name, Is.EqualTo(slot), facade);
             }
-            MethodBase[] show = Operands(typeof(GameCenterAccessPoint).GetMethod("ShowAccessPoint"))
-                .OfType<MethodBase>().Where(m => m.DeclaringType == typeof(GameCenterAccessPointPlugin)).ToArray();
+            MethodBase[] show = PluginDispatches(typeof(GameCenterAccessPoint).GetMethod("ShowAccessPoint"));
             Assert.That(show, Is.Not.Empty);
             Assert.That(show.Select(m => m.Name).Distinct(), Is.EqualTo(new[] { "ShowAccessPoint" }));
         }
 
+        // Delegates to plugin slots built through the same static field and never
+        // invoked: ldsfld; dup; ldvirtftn; newobj (ECMA-335 III.4.18). A facade
+        // written this way performs no dispatch.
+        private static class DelegateOnly
+        {
+            public static GameCenterAccessPointPlugin Plugin;
+
+            public static object Sink;
+
+            public static void Show() => Sink = new Action(Plugin.Show);
+
+            public static void ShowAccessPoint() => Sink = new Action<int, bool>(Plugin.ShowAccessPoint);
+        }
+
+        // The forwarding witness counts only callvirt, the IL form of the native
+        // vtable dispatch, so a delegate load of the right slot is not forwarding.
+        [Test]
+        public void PluginSlotDelegatesWithoutDispatchAreNotForwardingCalls()
+        {
+            foreach (var (body, slot) in new[] { ("Show", "Show"), ("ShowAccessPoint", "ShowAccessPoint") })
+            {
+                MethodInfo method = typeof(DelegateOnly).GetMethod(body);
+                List<(OpCode Code, MemberInfo Member)> operands = Operands(method);
+                Assert.That(operands.Where(operand => operand.Member is MethodBase m && m.DeclaringType == typeof(GameCenterAccessPointPlugin))
+                    .Select(operand => operand.Code.Name + " " + operand.Member.Name), Is.EqualTo(new[] { "ldvirtftn " + slot }), body);
+                Assert.That(PluginDispatches(method), Is.Empty, body);
+            }
+        }
+
+        // The plugin methods a body dispatches through callvirt, in IL order.
+        private static MethodBase[] PluginDispatches(MethodInfo method) =>
+            Operands(method).Where(operand => operand.Code == OpCodes.Callvirt).Select(operand => operand.Member).OfType<MethodBase>()
+                .Where(target => target.DeclaringType == typeof(GameCenterAccessPointPlugin)).ToArray();
+
         // Minimal ECMA-335 operand walk: returns the field and method tokens a
-        // body references, in order. Other operands are skipped by their size.
-        private static List<MemberInfo> Operands(MethodInfo method)
+        // body references, in order, with the opcode that carries each one.
+        // Other operands are skipped by their size.
+        private static List<(OpCode Code, MemberInfo Member)> Operands(MethodInfo method)
         {
             var opcodes = typeof(OpCodes).GetFields(BindingFlags.Static | BindingFlags.Public)
                 .Select(f => (OpCode)f.GetValue(null)).ToDictionary(o => (ushort)o.Value);
             byte[] il = method.GetMethodBody().GetILAsByteArray();
-            var members = new List<MemberInfo>();
+            var members = new List<(OpCode Code, MemberInfo Member)>();
             for (int at = 0; at < il.Length;)
             {
                 ushort value = il[at] == 0xfe ? (ushort)(0xfe00 | il[at + 1]) : il[at];
@@ -128,8 +162,8 @@ namespace ProjectLucid.Tests
                     case OperandType.InlineVar: at += 2; break;
                     case OperandType.InlineI8: case OperandType.InlineR: at += 8; break;
                     case OperandType.InlineSwitch: at += 4 + 4 * BitConverter.ToInt32(il, at); break;
-                    case OperandType.InlineField: members.Add(method.Module.ResolveField(BitConverter.ToInt32(il, at))); at += 4; break;
-                    case OperandType.InlineMethod: members.Add(method.Module.ResolveMethod(BitConverter.ToInt32(il, at))); at += 4; break;
+                    case OperandType.InlineField: members.Add((code, method.Module.ResolveField(BitConverter.ToInt32(il, at)))); at += 4; break;
+                    case OperandType.InlineMethod: members.Add((code, method.Module.ResolveMethod(BitConverter.ToInt32(il, at)))); at += 4; break;
                     default: at += 4; break;
                 }
             }

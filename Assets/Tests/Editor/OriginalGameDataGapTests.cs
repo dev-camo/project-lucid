@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using Hardlight.Analytics;
@@ -129,9 +130,7 @@ namespace ProjectLucid.Tests
         {
             MethodInfo create = typeof(MeshGenerationUtilities).GetMethod("CreateMesh", Declared);
             Assert.That(create, Is.Not.Null);
-            string[] calls = OriginalMethodBodyReader.Instructions(create).Select(instruction => instruction.Value).OfType<MethodBase>()
-                .Where(method => method.DeclaringType == typeof(Mesh)).Select(method => method.Name).ToArray();
-            Assert.That(calls, Is.EqualTo(new[] { ".ctor", "set_vertices", "set_triangles", "RecalculateNormals", "RecalculateBounds", "Optimize" }));
+            Assert.That(MeshCalls(create), Is.EqualTo(new[] { ".ctor", "set_vertices", "set_triangles", "RecalculateNormals", "RecalculateBounds", "Optimize" }));
 
             MethodInfo pyramid = typeof(MeshGenerationUtilities).GetMethod("CreateMeshPyramid", Declared);
             FieldInfo[] initializers = OriginalMethodBodyReader.Instructions(pyramid).Select(instruction => instruction.Value).OfType<FieldInfo>().ToArray();
@@ -146,5 +145,39 @@ namespace ProjectLucid.Tests
                 Assert.That(BitConverter.ToString(sha.ComputeHash(bytes)).Replace("-", string.Empty),
                     Is.EqualTo("124DBEEBD32D0CE760E293BF46E477BAE35E7F666457E80A8B7F77AEDBC3221F"));
         }
+
+        // Method-group delegates for the three Mesh methods that have a method group, in the
+        // CreateMesh order and never invoked. Each is ldvirtftn or ldftn (ECMA-335 III.4.18,
+        // III.3.41) and a newobj of Action, which calls neither Mesh method.
+        private static class MeshDelegateOnly
+        {
+            public static object Sink;
+
+            public static void Body(Mesh mesh)
+            {
+                Sink = new Action(mesh.RecalculateNormals);
+                Sink = new Action(mesh.RecalculateBounds);
+                Sink = new Action(mesh.Optimize);
+            }
+        }
+
+        // The call-order witness must not read delegate loads as Mesh calls.
+        [Test]
+        public void MeshDelegatesWithoutCallsLeaveTheMeshCallOrderEmpty()
+        {
+            MethodInfo body = typeof(MeshDelegateOnly).GetMethod(nameof(MeshDelegateOnly.Body));
+            Assert.That(OriginalMethodBodyReader.Instructions(body).Select(instruction => instruction.Value).OfType<MethodBase>()
+                    .Where(method => method.DeclaringType == typeof(Mesh)).Select(method => method.Name),
+                Is.EqualTo(new[] { "RecalculateNormals", "RecalculateBounds", "Optimize" }), "the fixture references the methods");
+            Assert.That(MeshCalls(body), Is.Empty);
+        }
+
+        // Mesh members a body invokes in IL order. call, callvirt and newobj (the .ctor) invoke
+        // their method token; ldftn and ldvirtftn only load it.
+        private static string[] MeshCalls(MethodBase body) =>
+            OriginalMethodBodyReader.Instructions(body)
+                .Where(instruction => instruction.Key == OpCodes.Call || instruction.Key == OpCodes.Callvirt || instruction.Key == OpCodes.Newobj)
+                .Select(instruction => instruction.Value).OfType<MethodBase>()
+                .Where(method => method.DeclaringType == typeof(Mesh)).Select(method => method.Name).ToArray();
     }
 }

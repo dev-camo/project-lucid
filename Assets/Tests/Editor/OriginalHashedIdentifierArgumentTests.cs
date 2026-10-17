@@ -67,20 +67,10 @@ namespace ProjectLucid.Tests
             Assert.That(Enum.GetName(typeof(HLAudioMixerIdentifier), mixer), Is.EqualTo("Main"));
 
             List<KeyValuePair<OpCode, object>> instructions = OriginalMethodBodyReader.Instructions(body);
-            var route = new List<string>();
-            for (int i = 0; i < instructions.Count; i++)
-            {
-                object operand = instructions[i].Value;
-                if (instructions[i].Key == OpCodes.Ldc_I4 && operand is int value && value != 0x7642df2f)
-                {
-                    Assert.That(IsEqualityGuard(instructions, i), Is.True, "0x" + value.ToString("x8") + " guards on equality");
-                    route.Add("0x" + value.ToString("x8"));
-                }
-                else if (operand is MethodBase method && method.DeclaringType == typeof(HLAudioMixerDefinition))
-                {
-                    route.Add(method.Name);
-                }
-            }
+            var guards = new List<int>();
+            List<string> route = MixerRoute(instructions, guards);
+            foreach (int i in guards)
+                Assert.That(IsEqualityGuard(instructions, i), Is.True, "0x" + ((int)instructions[i].Value).ToString("x8") + " guards on equality");
             Assert.That(route, Is.EqualTo(new[] { "0xadd78741", "SetSfxVolume", "0x83abe32d", "SetAmbientVolume", "SetMusicVolume" }));
             Assert.That(Enum.GetName(typeof(HLAudioSourceIdentifier), unchecked((int)0xadd78741)), Is.EqualTo("Sfx"));
             Assert.That(Enum.GetName(typeof(HLAudioSourceIdentifier), unchecked((int)0x83abe32d)), Is.EqualTo("Ambient"));
@@ -121,28 +111,124 @@ namespace ProjectLucid.Tests
             }
         }
 
-        private static IEnumerable<MethodBase> Calls(MethodBase body) =>
-            OriginalMethodBodyReader.Instructions(body).Select(instruction => instruction.Value).OfType<MethodBase>();
+        // Method-group delegates built in the order of the witnesses above and never invoked.
+        // A delegate load is ldftn or ldvirtftn (ECMA-335 III.3.41, III.4.18) followed by
+        // newobj of the delegate constructor; neither calls the referenced method.
+        private static class DelegateOnly
+        {
+            public delegate bool AbilityLookup(ActorAbilityType abilityType, out CharacterAbility_Knockback ability);
 
-        // The last ldc.i4 immediate before the single matching call, with no other call between.
-        // Only 32-bit ldc.i4 operands are boxed by the reader, so ldc.i4.s and ldc.i4.N short
-        // forms are not seen; every hashed identifier checked here needs the 32-bit form.
+            public static object Sink;
+
+            public static void Knockback(Character character, CharacterAbility_Knockback ability)
+            {
+                Sink = unchecked((int)0xbae93dc5);
+                Sink = new AbilityLookup(character.TryGetAbility<CharacterAbility_Knockback>);
+                Sink = new Func<bool>(ability.MinDurationExceeded);
+            }
+
+            public static void Mixer(HLAudioMixerDefinition mixer, int source)
+            {
+                if (source == unchecked((int)0xadd78741)) Sink = new Action<float>(mixer.SetSfxVolume);
+                else if (source == unchecked((int)0x83abe32d)) Sink = new Action<float>(mixer.SetAmbientVolume);
+                else Sink = new Action<float>(mixer.SetMusicVolume);
+            }
+        }
+
+        // The key immediate precedes the TryGetAbility delegate load just as it precedes the
+        // real call, so a witness that took every method token as a call would accept both the
+        // key and the lookup. The witnesses must find no lookup call and no MinDurationExceeded call.
+        [Test]
+        public void DelegateOnlyKnockbackBodyIsNotALookupCallWitness()
+        {
+            MethodInfo body = typeof(DelegateOnly).GetMethod(nameof(DelegateOnly.Knockback));
+            string[] referenced = OriginalMethodBodyReader.Instructions(body).Select(instruction => instruction.Value).OfType<MethodBase>()
+                .Where(method => method.Name != ".ctor").Select(method => method.Name).ToArray();
+            Assert.That(referenced, Is.EqualTo(new[] { "TryGetAbility", "MinDurationExceeded" }), "the fixture references both targets");
+
+            Predicate<MethodBase> lookup = m => m.DeclaringType == typeof(Actor) && m.Name == "TryGetAbility";
+            Assert.That(FindImmediate(body, lookup, out _), Is.EqualTo("call is missing"));
+            Assert.That(Calls(body).Select(method => method.DeclaringType),
+                Is.EqualTo(new[] { typeof(DelegateOnly.AbilityLookup), typeof(Func<bool>) }), "only the delegate constructors are calls");
+        }
+
+        // The fixture keeps the original source guards and builds delegates for the three
+        // setters in route order; only the guards may remain in the route.
+        [Test]
+        public void DelegateOnlyMixerBodyLeavesOnlyTheSourceGuardsInTheRoute()
+        {
+            MethodInfo body = typeof(DelegateOnly).GetMethod(nameof(DelegateOnly.Mixer));
+            List<KeyValuePair<OpCode, object>> instructions = OriginalMethodBodyReader.Instructions(body);
+            Assert.That(instructions.Select(instruction => instruction.Value).OfType<MethodBase>()
+                    .Where(method => method.DeclaringType == typeof(HLAudioMixerDefinition)).Select(method => method.Name),
+                Is.EqualTo(new[] { "SetSfxVolume", "SetAmbientVolume", "SetMusicVolume" }), "the fixture references every setter");
+
+            var guards = new List<int>();
+            Assert.That(MixerRoute(instructions, guards), Is.EqualTo(new[] { "0xadd78741", "0x83abe32d" }));
+            Assert.That(guards.Select(i => IsEqualityGuard(instructions, i)), Is.EqualTo(new[] { true, true }));
+        }
+
+        // call, callvirt and newobj invoke their method token; ldftn and ldvirtftn only load it.
+        private static bool IsInvocation(OpCode code) => code == OpCodes.Call || code == OpCodes.Callvirt || code == OpCodes.Newobj;
+
+        private static bool Invokes(KeyValuePair<OpCode, object> instruction, Predicate<MethodBase> target) =>
+            IsInvocation(instruction.Key) && instruction.Value is MethodBase method && target(method);
+
+        private static IEnumerable<MethodBase> Calls(MethodBase body) =>
+            OriginalMethodBodyReader.Instructions(body).Where(instruction => IsInvocation(instruction.Key))
+                .Select(instruction => instruction.Value).OfType<MethodBase>();
+
+        // Source constants (other than the Main mixer key) and HLAudioMixerDefinition calls in IL
+        // order; guards receives each constant's instruction index for the equality check.
+        private static List<string> MixerRoute(List<KeyValuePair<OpCode, object>> instructions, List<int> guards)
+        {
+            var route = new List<string>();
+            for (int i = 0; i < instructions.Count; i++)
+            {
+                object operand = instructions[i].Value;
+                if (instructions[i].Key == OpCodes.Ldc_I4 && operand is int value && value != 0x7642df2f)
+                {
+                    guards.Add(i);
+                    route.Add("0x" + value.ToString("x8"));
+                }
+                else if (Invokes(instructions[i], method => method.DeclaringType == typeof(HLAudioMixerDefinition)))
+                {
+                    route.Add(((MethodBase)operand).Name);
+                }
+            }
+            return route;
+        }
+
+        // The last ldc.i4 immediate before the single matching call, with no other method token
+        // between. Only 32-bit ldc.i4 operands are boxed by the reader, so ldc.i4.s and ldc.i4.N
+        // short forms are not seen; every hashed identifier checked here needs the 32-bit form.
         private static int ImmediateFor(MethodBase body, Predicate<MethodBase> target)
         {
             Assert.That(body, Is.Not.Null, "body exists");
+            Assert.That(FindImmediate(body, target, out int value), Is.Null);
+            return value;
+        }
+
+        // null when the immediate is found, otherwise the first condition that fails.
+        private static string FindImmediate(MethodBase body, Predicate<MethodBase> target, out int value)
+        {
+            value = 0;
             List<KeyValuePair<OpCode, object>> instructions = OriginalMethodBodyReader.Instructions(body);
-            int call = instructions.FindIndex(instruction => instruction.Value is MethodBase method && target(method));
-            Assert.That(call, Is.GreaterThanOrEqualTo(0), "call is present");
-            Assert.That(instructions.FindLastIndex(instruction => instruction.Value is MethodBase method && target(method)), Is.EqualTo(call),
-                "call appears once");
+            int call = instructions.FindIndex(instruction => Invokes(instruction, target));
+            if (call < 0) return "call is missing";
+            if (instructions.FindLastIndex(instruction => Invokes(instruction, target)) != call) return "call appears more than once";
             for (int i = call - 1; i >= 0; i--)
             {
                 object operand = instructions[i].Value;
-                if (instructions[i].Key == OpCodes.Ldc_I4 && operand is int value) return value;
-                Assert.That(operand, Is.Not.InstanceOf<MethodBase>(), "no other call between the immediate and its call");
+                if (instructions[i].Key == OpCodes.Ldc_I4 && operand is int immediate)
+                {
+                    value = immediate;
+                    return null;
+                }
+                // Any method token, delegate loads included, separates the immediate from the call.
+                if (operand is MethodBase) return "another method token between the immediate and its call";
             }
-            Assert.Fail("no immediate before the call");
-            return 0;
+            return "no immediate before the call";
         }
 
         // Release IL branches away with bne.un when unequal; Debug IL stores ceq and tests it

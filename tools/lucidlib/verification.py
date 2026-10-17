@@ -1379,6 +1379,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGameDataGapTests.AnalyticsEnumsKeepTheOriginalHashedLiteralsAndLabels",
     "ProjectLucid.Tests.OriginalGameDataGapTests.LedgeBrakeFieldsKeepTheOriginalPerFieldAttributeOrder",
     "ProjectLucid.Tests.OriginalGameDataGapTests.PyramidMeshUsesTheOriginalCallOrderAndIndexInitializer",
+    "ProjectLucid.Tests.OriginalGameDataGapTests.MeshDelegatesWithoutCallsLeaveTheMeshCallOrderEmpty",
 )
 
 # Low-priority coverage-gap cases: core utilities and registries.
@@ -2230,6 +2231,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.KnockbackTransitionLooksUpTheCharacterKnockbackAbility",
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.AudioSourceEntryRoutesSfxThenAmbientAndOtherwiseMusic",
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.CharacterActionFlagsAcceptsCharacterRollAndRejectsAnUndeclaredAction",
+    "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.DelegateOnlyKnockbackBodyIsNotALookupCallWitness",
+    "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.DelegateOnlyMixerBodyLeavesOnlyTheSourceGuardsInTheRoute",
 )
 
 # Original base forward-speed configured and effective minima (x86-64 0x739500).
@@ -2470,6 +2473,7 @@ PLAYMODE_TESTS += (
 # Discriminating cases for tests the audit judged weak.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OfflineAccessPointTests.FacadeForwardsEachCallToItsOriginalPluginSlotIncludingWidthQuirk",
+    "ProjectLucid.Tests.OfflineAccessPointTests.PluginSlotDelegatesWithoutDispatchAreNotForwardingCalls",
     "ProjectLucid.Tests.OriginalMainMenuFSMWeakRemediationTests.AudioClipParsePrecedesSourceParseWhenBothFail",
     "ProjectLucid.Tests.OriginalMainMenuFSMWeakRemediationTests.MainMenuFamiliesKeepOriginalCompleteAttributeRowOrder",
     "ProjectLucid.Tests.EditMode.AbilityLeafDefinitionTests.OriginalRestoreRecordSerializesEveryOriginalFieldInTokenOrder",
