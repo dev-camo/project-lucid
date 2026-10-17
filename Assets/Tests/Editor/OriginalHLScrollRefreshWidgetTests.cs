@@ -5,8 +5,8 @@ using System.Reflection;
 using Hardlight;
 using NUnit.Framework;
 using UnityEngine;
-using UnityEngine.TestTools;
 using UnityEngine.Events;
+using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
