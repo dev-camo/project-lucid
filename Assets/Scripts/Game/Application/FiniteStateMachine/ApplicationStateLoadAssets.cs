@@ -31,8 +31,11 @@ namespace HardlightProject
 #if PROJECT_LUCID_ORIGINAL_GAMECENTER
 			Social.localUser.Authenticate(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)));
 #else
-			// Offline adaptation: no platform authentication (GameKit on macOS); the same
-			// cached callback reports a failed login, as GameCenter.NativeLoginRequest does.
+			// Offline adaptation: no platform Social authentication. The same cached
+			// callback reports a failed login, as GameCenter.NativeLoginRequest does.
+			// It runs synchronously, before LoadDefinitionData; the original platform
+			// decided when to call it. An OnLoginComplete fault, such as a stopped
+			// local lifecycle, therefore escapes this entry before definition loading.
 			new Action<bool>(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)))(false);
 #endif
 			user.GetAs<App>().DataManager.LoadDefinitionData();

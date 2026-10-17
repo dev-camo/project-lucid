@@ -2129,7 +2129,13 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineNotifiesGameCenterWithoutPlatformAuthentication",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryInvokesTheCachedCallbackThenLoadsInTheOriginalOrder",
-    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOriginalGameCenterBranchKeepsThePlatformAuthentication",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsAuthoredBootAndFastLoadStatesEnterWithoutPlatformAuthentication",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryPropagatesAStoppedLocalLifecycleBeforeDefinitionLoading",
+)
+
+# LoadAssets original-define source branch: emission-only source self-check.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOriginalGameCenterSourceBranchIsUnchanged",
 )
 
 # Borrowed registry rows lose only the typed references cached while borrowed.

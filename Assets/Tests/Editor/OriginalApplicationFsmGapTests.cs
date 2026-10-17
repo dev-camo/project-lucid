@@ -308,17 +308,155 @@ namespace ProjectLucid.Tests
             Assert.That(body[body.IndexOf(calls[0]) - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_0), "the callback reports a failed login");
         }
 
-        // The original-define branch keeps the native statement verbatim.
+        // Source-preservation self-check, not behaviour evidence: EditMode and CI
+        // compile only the offline branch. It pins the original-define statement
+        // that 0x648C00 translates: Social.get_localUser, then the lazily cached
+        // <>c.<>9__2_0 Action<bool>, then ILocalUser.Authenticate, before GetAs<App>.
+        // Whitespace and line wrapping inside the branch are ignored. A build with
+        // PROJECT_LUCID_ORIGINAL_GAMECENTER also checks that compiled order.
         [Test]
-        public void LoadAssetsOriginalGameCenterBranchKeepsThePlatformAuthentication()
+        public void LoadAssetsOriginalGameCenterSourceBranchIsUnchanged()
         {
             string path = Path.Combine(Application.dataPath, "Scripts", "Game", "Application", "FiniteStateMachine", "ApplicationStateLoadAssets.cs");
             string[] lines = File.ReadAllLines(path).Select(l => l.Trim()).ToArray();
             int open = Array.IndexOf(lines, "#if PROJECT_LUCID_ORIGINAL_GAMECENTER");
             Assert.That(open, Is.GreaterThanOrEqualTo(0));
-            Assert.That(lines[open + 1], Is.EqualTo(
-                "Social.localUser.Authenticate(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)));"));
-            Assert.That(lines[open + 2], Is.EqualTo("#else"));
+            Assert.That(Array.IndexOf(lines, "#if PROJECT_LUCID_ORIGINAL_GAMECENTER", open + 1), Is.EqualTo(-1), "one original branch");
+            int otherwise = Array.IndexOf(lines, "#else", open);
+            Assert.That(otherwise, Is.GreaterThan(open));
+            string branch = string.Concat(lines.Skip(open + 1).Take(otherwise - open - 1).Select(l => string.Concat(l.Where(c => !char.IsWhiteSpace(c)))));
+            Assert.That(branch, Is.EqualTo(
+                "Social.localUser.Authenticate(loginSuccess=>ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter=>gameCenter.OnLoginComplete(loginSuccess)));"));
+#if PROJECT_LUCID_ORIGINAL_GAMECENTER
+            MethodInfo enter = typeof(ApplicationStateLoadAssets).GetMethod("DoOnEnter", Instance | BindingFlags.DeclaredOnly);
+            List<Instruction> body = Read(enter);
+            List<Instruction> calls = body.Where(i => i.Code == OpCodes.Call || i.Code == OpCodes.Callvirt).ToList();
+            string[] expected =
+            {
+                typeof(Social).FullName + "::get_localUser",
+                typeof(ILocalUser).FullName + "::Authenticate",
+                typeof(IGraphUserExtensions).FullName + "::GetAs<" + typeof(App).FullName + ">",
+                typeof(App).FullName + "::get_DataManager",
+                typeof(DataManager).FullName + "::LoadDefinitionData",
+                typeof(ProcessManager).FullName + "::GetSystem<" + typeof(SaveManager).FullName + ">",
+                typeof(ApplicationStateLoadAssets).FullName + "::InitialiseSaveData",
+                typeof(Hardlight.Utils.CoroutineUtils).FullName + "::RunCoroutine",
+            };
+            Assert.That(calls.Select(c => Describe(enter, c)).ToArray(), Is.EqualTo(expected));
+            Instruction cache = body.First(i => i.Code == OpCodes.Ldsfld);
+            Assert.That(enter.Module.ResolveField(cache.Operand).Name, Is.EqualTo("<>9__2_0"));
+            Assert.That(body.IndexOf(cache), Is.GreaterThan(body.IndexOf(calls[0])).And.LessThan(body.IndexOf(calls[1])));
+#endif
+        }
+
+        // Prepared Application_BootFlow.json (FSMApplication_BootFlow, LoadAssets,
+        // a LoadingGroup member) and Application.json (FSMApplication,
+        // FastLoadAssets) name ApplicationStateLoadAssets. The sha256 values are
+        // those of the 2026-10-05 reference export's StreamingAssets copies. Each
+        // authored entry is constructed through the genuine FSMClassFactory and
+        // entered under the owned throwing Social.Active: neither reads
+        // Social.localUser, and each reaches the App cast that precedes
+        // LoadDefinitionData. Graph traversal, definition loading, save
+        // initialisation and local readiness are not exercised here.
+        [Test]
+        public void LoadAssetsAuthoredBootAndFastLoadStatesEnterWithoutPlatformAuthentication()
+        {
+#if PROJECT_LUCID_ORIGINAL_GAMECENTER
+            throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
+#endif
+            var authored = new[]
+            {
+                ("Application_BootFlow.json", "a45f7f51f44e1ce3d4dfe415bdf849856e30ec7c7442ac856493d544b7d92879", "FSMApplication_BootFlow", "LoadAssets"),
+                ("Application.json", "5471978370b5743cc3f2ed7bf32f219026d3ef3abe0db811a550da0b497eac2f", "FSMApplication", "FastLoadAssets"),
+            };
+            foreach ((string file, string sha256, string machineName, string stateName) in authored)
+            {
+                byte[] bytes = File.ReadAllBytes(Path.Combine(Application.streamingAssetsPath, "FSM", "Application", file));
+                using (var hash = System.Security.Cryptography.SHA256.Create())
+                    Assert.That(string.Concat(hash.ComputeHash(bytes).Select(b => b.ToString("x2"))), Is.EqualTo(sha256), file);
+                var graphs = JsonUtility.FromJson<FSMClassFactory.JSONMultipleFSMs>(System.Text.Encoding.UTF8.GetString(bytes));
+                FSMClassFactory.JSONFiniteStateMachineClass graph = graphs.FSMs.Single(m => m.Name == machineName);
+                FSMClassFactory.JSONStateClass[] loads = graph.States.Where(st => st.Class == nameof(ApplicationStateLoadAssets)).ToArray();
+                Assert.That(loads.Select(st => st.Name), Is.EqualTo(new[] { stateName }), file);
+                Assert.That(loads[0].CtorArgs, Is.Empty);
+                if (stateName == "LoadAssets")
+                {
+                    FSMClassFactory.JSONStateClass group = graph.States.Single(st => st.Name == "LoadingGroup");
+                    Assert.That(group.Class, Is.EqualTo(nameof(FSMStateGroup)));
+                    Assert.That(JsonUtility.FromJson<GroupArgs>(group.CtorArgs).States, Does.Contain(stateName));
+                }
+
+                using (var owned = new OwnedServices())
+                using (var social = new OwnedSocialPlatform())
+                {
+                    owned.Row<GameCenter>();
+                    // A fresh state name keeps the authored names out of the global lookup.
+                    IFSMState state = FSMClassFactory.ConstructState(Machine(), loads[0].Class, new FSMIdentifier(Name()), loads[0].CtorArgs);
+                    Assert.That(state, Is.TypeOf<ApplicationStateLoadAssets>(), file);
+                    FSMUser user = User();
+                    Assert.Throws<InvalidCastException>(() => state.OnEnter(user, null), file);
+                    Assert.That((social.LocalUserReads, social.Authentications), Is.EqualTo((0, 0)), file);
+                }
+            }
+        }
+
+        // With a registered offline GameCenter, the synchronous callback reaches
+        // OnLoginComplete(false) and LocalGameCenterLifecycle.Begin during entry.
+        // Control: a running lifecycle leaves the login pending (no App) and entry
+        // reaches the App cast before LoadDefinitionData. After Stop, the state a
+        // failed provider callback also leaves, Begin throws and that fault escapes
+        // DoOnEnter before the cast, so definitions and save initialisation do not
+        // start. The fault propagates as other OnLoginComplete faults do; nothing
+        // catches it. Stop only clears LocalProfilePresentation's binding, which
+        // must already be unbound.
+        [Test]
+        public void LoadAssetsOfflineEntryPropagatesAStoppedLocalLifecycleBeforeDefinitionLoading()
+        {
+#if PROJECT_LUCID_ORIGINAL_GAMECENTER
+            throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
+#endif
+            FieldInfo bound = typeof(ProjectLucid.Offline.LocalProfilePresentation).GetField("achievements", BindingFlags.Static | BindingFlags.NonPublic);
+            Assert.That(bound, Is.Not.Null);
+            Assert.That(bound.GetValue(null), Is.Null, "foreign bound local achievements stay untouched");
+            Assert.That(ProcessManager.IsSystemNull<App>(), Is.True, "no foreign live App for the pending login to reach");
+            using (var owned = new OwnedServices())
+            using (var social = new OwnedSocialPlatform())
+            {
+                owned.ReadOnlyRow<App>();
+                owned.Row<GameCenter>();
+                owned.Row<GameCenterLocalPlayer>();
+                try
+                {
+                    var gameCenter = new GameCenter();
+                    Assert.That(ProcessManager.GetSystemSafe<GameCenter>(null, false), Is.SameAs(gameCenter));
+                    object lifecycle = typeof(GameCenter).GetField("m_offlineLifecycle", Instance).GetValue(gameCenter);
+                    FieldInfo pending = lifecycle.GetType().GetField("complete", Instance);
+
+                    IFSMState running = ApplicationStateLoadAssets.ConstructInstance(Machine(), Name(), null);
+                    Assert.Throws<InvalidCastException>(() => running.OnEnter(User(), null));
+                    Assert.That(pending.GetValue(lifecycle), Is.Not.Null, "the local login is pending, not published");
+                    Assert.That(gameCenter.SystemIsReady, Is.False);
+
+                    lifecycle.GetType().GetMethod("Stop", Instance).Invoke(lifecycle, null);
+                    IFSMState stopped = ApplicationStateLoadAssets.ConstructInstance(Machine(), Name(), null);
+                    var fault = Assert.Throws<InvalidOperationException>(() => stopped.OnEnter(User(), null));
+                    Assert.That(fault.Message, Is.EqualTo("Local account lifecycle is stopped."));
+                    Assert.That(gameCenter.SystemIsReady, Is.False);
+                    Assert.That((social.LocalUserReads, social.Authentications), Is.EqualTo((0, 0)), "no platform authentication");
+                }
+                finally
+                {
+                    // Both rows were acquired absent, so whatever they hold is this test's.
+                    ProcessManager.UnregisterSystem(ProcessManager.GetDefaultName<GameCenterLocalPlayer>());
+                    ProcessManager.UnregisterSystem(ProcessManager.GetDefaultName<GameCenter>());
+                }
+            }
+        }
+
+        [Serializable]
+        private sealed class GroupArgs
+        {
+            public List<string> States;
         }
 
         private sealed class SocialPlatformReached : Exception { }
@@ -410,11 +548,11 @@ namespace ProjectLucid.Tests
                 row.Register(null);
             }
 
-            // App's field initializers (App.cs m_saveManagerRef and
-            // m_screenTransitionManagerRef) only read or create these rows, but
-            // GetSystemRef<T> caches a typed reference in either. An absent row
-            // is acquired owned; a borrowed row has those added entries removed.
-            private void ReadOnlyRow<T>() where T : class, ISystem
+            // A row the case only reads (App's field initializers read SaveManager
+            // and UIScreenTransitionManager), where GetSystemRef<T> still caches a
+            // typed reference. An absent row is acquired owned; a borrowed row has
+            // those added entries removed.
+            public void ReadOnlyRow<T>() where T : class, ISystem
             {
                 BorrowedSystemRowTypedCache borrowed = BorrowedSystemRowTypedCache.TryBorrow(ProcessManager.GetDefaultName<T>());
                 if (borrowed == null) Row<T>();
