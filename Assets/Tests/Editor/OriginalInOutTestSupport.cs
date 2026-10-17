@@ -15,7 +15,7 @@ namespace ProjectLucid.Tests
     // Shared reflection and ownership helpers for the HLUIAnimationInOut family, AnimatableEvent
     // and FullScreenTransitionManager cases. Every Unity object a case creates is registered with
     // an Owned scope and destroyed with it; none of these helpers touch static state.
-    internal static class InOutTestSupport
+    internal static class OriginalInOutTestSupport
     {
         public const BindingFlags Any = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
         public const BindingFlags Declared = Any | BindingFlags.DeclaredOnly;

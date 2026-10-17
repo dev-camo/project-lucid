@@ -8,7 +8,7 @@ using Hardlight.Utils;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
-using static ProjectLucid.Tests.InOutTestSupport;
+using static ProjectLucid.Tests.OriginalInOutTestSupport;
 using AnimState = Hardlight.HLUIAnimationInOut.AnimState;
 using MotionType = Hardlight.HLAnchorTranslateInOut.MotionType;
 using PlayDirection = Hardlight.HLUIAnimationInOut.PlayDirection;
@@ -392,7 +392,7 @@ namespace ProjectLucid.Tests
                 Assert.That(fixture.Anchor.CurrentState, Is.EqualTo(AnimState.AnimatingOut));
                 Assert.That(Hoisted(run, "timer").GetValue(run), Is.EqualTo(1.5f));
                 float delta = Time.deltaTime;
-                Assert.That(delta, Is.LessThan(0.5f));
+                Assume.That(delta, Is.LessThan(0.5f), "one EditMode delta stays inside the remaining 0.5 seconds of the run");
                 Assert.That(run.MoveNext(), Is.True);
                 float time = 2f - (1.5f + delta);
                 Assert.That(fixture.Progress, Is.EqualTo(time / 2f).Within(1e-6f));

@@ -153,8 +153,8 @@ namespace Hardlight
             m_trackedAnimation = null;
         }
 
-        // Derives the out/in anchor pairs from the current anchors: the in pair is the current span
-        // and the out pair is the same span moved just off the parent on the side it enters from.
+        // Despite the name, the pairs come from the current anchors: the in pair is the current
+        // anchors on the direction's axis and the out pair is (0 - span, 0) or (span + 1, 1).
         public void SetAnchorTargetsFromConstants()
         {
             Vector2 anchorMin = m_targetTransform.anchorMin;
@@ -190,8 +190,8 @@ namespace Hardlight
             }
         }
 
-        // The clamped value is the trailing edge (anchorMin for LeftToRight and BottomToTop, anchorMax
-        // otherwise) and the stretched value the leading one; values outside 0..3 change nothing.
+        // LeftToRight and BottomToTop write clamped to anchorMin and stretched to anchorMax;
+        // RightToLeft and TopToBottom swap them; values outside 0..3 change nothing.
         public void SetAnchors(float clamped, float stretched)
         {
             switch (translationOnDirection)

@@ -8,7 +8,7 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.Events;
-using static ProjectLucid.Tests.InOutTestSupport;
+using static ProjectLucid.Tests.OriginalInOutTestSupport;
 using Object = UnityEngine.Object;
 using State = Hardlight.FullScreenTransitionController.State;
 
@@ -322,6 +322,27 @@ namespace ProjectLucid.Tests
                 Assert.That(fixture.Canvas.sortingOrder, Is.EqualTo(-2));
                 Call(fixture.Manager, "SetSortingLayerAndOrder", "Default", 0);
                 Assert.That(fixture.Canvas.sortingOrder, Is.EqualTo(-2));
+                Assert.That(fixture.Canvas.sortingLayerName, Is.EqualTo("Default"));
+            }
+        }
+
+        // SetSortingLayerAndOrder 0x060000f6 @0x1B40610: a different name (String.op_Inequality
+        // against get_sortingLayerName) writes set_sortingLayerID(SortingLayer.NameToID(name)) at
+        // 0x1B4063F..0x1B40654 and then set_sortingLayerName. ProjectSettings/TagManager.asset
+        // declares "FX Background effects" with uniqueID 5; order 0 keeps the canvas order.
+        [Test]
+        public void ADifferentLayerNameMovesTheCanvasToThatLayer()
+        {
+            using (var fixture = new Fixture("TransitionManager-layer"))
+            {
+                Assert.That(SortingLayer.NameToID("FX Background effects"), Is.EqualTo(5), "project sorting layer");
+                Assert.That(fixture.Canvas.sortingLayerID, Is.EqualTo(0));
+                Call(fixture.Manager, "SetSortingLayerAndOrder", "FX Background effects", 0);
+                Assert.That(fixture.Canvas.sortingLayerID, Is.EqualTo(5));
+                Assert.That(fixture.Canvas.sortingLayerName, Is.EqualTo("FX Background effects"));
+                Assert.That(fixture.Canvas.sortingOrder, Is.EqualTo(5));
+                Call(fixture.Manager, "SetSortingLayerAndOrder", "Default", 0);
+                Assert.That(fixture.Canvas.sortingLayerID, Is.EqualTo(0));
                 Assert.That(fixture.Canvas.sortingLayerName, Is.EqualTo("Default"));
             }
         }

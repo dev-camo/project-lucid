@@ -1,8 +1,8 @@
 // Original HLUnityUI.Runtime Hardlight.HLUIAnimationInOut 020000ab with PlayDirection 020000ac,
 // AnimState 020000ad and <AutoAnimateOut>d__36 020000ae, from the x86-64 bodies
-// (0x060004fe..0x06000512, 0x1B616D0..0x1B6301A) and metadata. The nested enums, the constants
-// and the CurrentState property precede the fields as declared, which makes AutoAnimateOut
-// member ordinal 36.
+// (0x060004fe..0x06000512 at 0x1B61390..0x1B6301A, interleaved with the subclass bodies) and
+// metadata. The nested enums, the constants and the CurrentState property precede the fields as
+// declared, which makes AutoAnimateOut member ordinal 36.
 using System.Collections;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;

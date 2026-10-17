@@ -10,7 +10,7 @@ using NUnit.Framework;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.Events;
-using static ProjectLucid.Tests.InOutTestSupport;
+using static ProjectLucid.Tests.OriginalInOutTestSupport;
 using AnimState = Hardlight.HLUIAnimationInOut.AnimState;
 using PlayDirection = Hardlight.HLUIAnimationInOut.PlayDirection;
 
@@ -341,7 +341,8 @@ namespace ProjectLucid.Tests
         }
 
         // IndependentTimeDelta 0x0600050b @0x1B619B0: +0x2C selects Time.unscaledDeltaTime, otherwise
-        // Time.deltaTime. EditMode may report equal values, in which case only the flag read is shown.
+        // Time.deltaTime. EditMode usually reports equal values, so this case only shows both calls
+        // succeed; OriginalHLUIAnimationInOutPlayTests separates the branches at time scale zero.
         [Test]
         public void IndependentTimeDeltaFollowsTheUnscaledFlag()
         {
@@ -366,8 +367,10 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // The hoisted fields are those of dump.cs; an optimised compile (as Unity uses) hoists only the
-        // locals that live across a yield, which fixes both the set and the 5__N numbering.
+        // The hoisted fields are those of dump.cs. Only an optimised (/optimize+) compile hoists just
+        // the locals that live across a yield and numbers them from 5__2; Unity compiles optimised
+        // only in Release code optimisation, so a Debug-mode Editor reports the field check as
+        // inconclusive rather than as a declaration failure.
         internal static void CheckIterator(Type owner, string name, params string[] hoisted)
         {
             Type iterator = owner.GetNestedType(name, BindingFlags.NonPublic);
@@ -375,13 +378,17 @@ namespace ProjectLucid.Tests
             Assert.That((int)iterator.Attributes, Is.EqualTo(0x100103), name);
             Assert.That(iterator.GetCustomAttributesData().Select(a => a.AttributeType).ToArray(), Is.EqualTo(new[] { typeof(CompilerGeneratedAttribute) }));
             CollectionAssert.AreEquivalent(new[] { typeof(IEnumerator<object>), typeof(IEnumerator), typeof(IDisposable) }, iterator.GetInterfaces());
+            MethodInfo run = owner.GetMethod("RunAnimation", Declared);
+            Assert.That(run.GetCustomAttribute<IteratorStateMachineAttribute>().StateMachineType, Is.EqualTo(iterator));
+            Assert.That((int)run.Attributes, Is.EqualTo(0xC4), "protected override");
+
+            Assume.That(UnityEditor.Compilation.CompilationPipeline.codeOptimization,
+                Is.EqualTo(UnityEditor.Compilation.CodeOptimization.Release),
+                "the hoisted iterator fields of dump.cs only match an optimised compile");
             FieldInfo[] fields = iterator.GetFields(Declared);
             Assert.That(fields.Select(f => f.Name).ToArray(), Is.EqualTo(new[] { "<>1__state", "<>2__current", "<>4__this" }.Concat(hoisted).ToArray()), name);
             Assert.That(fields[2].FieldType, Is.EqualTo(owner), name);
             Assert.That(fields.Skip(3).Select(f => f.FieldType).ToArray(), Is.EqualTo(new[] { typeof(bool), typeof(float), typeof(float) }), name);
-            MethodInfo run = owner.GetMethod("RunAnimation", Declared);
-            Assert.That(run.GetCustomAttribute<IteratorStateMachineAttribute>().StateMachineType, Is.EqualTo(iterator));
-            Assert.That((int)run.Attributes, Is.EqualTo(0xC4), "protected override");
         }
     }
 }

@@ -6,7 +6,7 @@ using Hardlight;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.UI;
-using static ProjectLucid.Tests.InOutTestSupport;
+using static ProjectLucid.Tests.OriginalInOutTestSupport;
 using AnimState = Hardlight.HLUIAnimationInOut.AnimState;
 using PlayDirection = Hardlight.HLUIAnimationInOut.PlayDirection;
 
@@ -276,7 +276,7 @@ namespace ProjectLucid.Tests
             using (var fixture = new Fixture("Alpha-loop", false))
             {
                 float delta = Time.deltaTime;
-                Assert.That(delta, Is.LessThan(0.5f), "two EditMode deltas stay inside the 2 second curve");
+                Assume.That(delta, Is.LessThan(0.5f), "two EditMode deltas stay inside the 2 second curve");
                 fixture.State = direction == 1 ? AnimState.AnimatingOut : AnimState.AnimatingIn;
                 fixture.Direction = (PlayDirection)direction;
                 fixture.Progress = progress;

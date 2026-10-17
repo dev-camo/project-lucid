@@ -100,7 +100,7 @@ namespace Hardlight
                 m_onAnimateOutStart.Invoke();
             }
 
-            float timer = 0f;
+            float timer = Zero;
             float longestEndTime = Mathf.Max(m_xCurve.EndTime(), m_yCurve.EndTime());
             do
             {

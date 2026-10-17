@@ -6,7 +6,7 @@ using Hardlight;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Events;
-using static ProjectLucid.Tests.InOutTestSupport;
+using static ProjectLucid.Tests.OriginalInOutTestSupport;
 
 namespace ProjectLucid.Tests
 {

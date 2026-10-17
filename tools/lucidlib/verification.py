@@ -2635,6 +2635,9 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSkewPlayTests.ZeroTimeScaleHoldsTheResetLerpAtZeroSkew",
 )
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLUIAnimationInOutPlayTests.ZeroTimeScaleSeparatesTheScaledAndUnscaledDelta",
+)
 
 
 # Restored UnityEngine.UI.Extensions.TableLayoutGroup (HLUnityUI.Runtime 0x060000a8..bb).
@@ -3252,4 +3255,5 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalFullScreenTransitionManagerTests.ContinueTransitionOnlyContinuesAHeldInController",
     "ProjectLucid.Tests.OriginalFullScreenTransitionManagerTests.ResetTransitionsResetsOnlyRegisteredControllers",
     "ProjectLucid.Tests.OriginalFullScreenTransitionManagerTests.SortingOrderZeroNeverOverridesTheCanvas",
+    "ProjectLucid.Tests.OriginalFullScreenTransitionManagerTests.ADifferentLayerNameMovesTheCanvasToThatLayer",
 )
