@@ -2166,3 +2166,18 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ConditionalOutputTests." + name for 
     "SettingsDefaultTrueAndOverridesKeyedByFullName",
     "PreInitialiseSettingsDefaultsAndVirtualReadOrder",
 ))
+
+# PayloadPropertyBuilder reflection, gating and pending-update bookkeeping.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.ConstructorCreatesOnlyMissingPayloadPropertiesAndLeavesCreatedCollectionsEmpty",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.PropertiesIteratorWaitsForTheGateThenAppliesEveryAcceptedEntryInOrder",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.PropertiesIteratorClearsMatchingCollectionsOnceBeforeAppending(True)",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.PropertiesIteratorClearsMatchingCollectionsOnceBeforeAppending(False)",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.SinglePropertyIteratorHonoursItsClearFlagAndReadsThePayloadTypeLast(True)",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.SinglePropertyIteratorHonoursItsClearFlagAndReadsThePayloadTypeLast(False)",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.SinglePropertyIteratorStillCompletesWhenTheReaderRejectsTheEntry",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.ClearCollectionsOfTypeMatchesOpenGenericBasesOfTheElementType",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.DuplicateIdentifierRoutesUpdatesToTheFirstRegisteredPropertyOnly",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.SingleCleanupKeepsThePendingEntryWhileFullCleanupClearsTheTable",
+    "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.IteratorsKeepTheOriginalGeneratedNamesAndHoistedParameters",
+)
