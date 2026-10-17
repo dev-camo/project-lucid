@@ -187,28 +187,23 @@ namespace ProjectLucid
             {
                 if (ownedRow != null) throw new InvalidOperationException("Fixture already acquired this row: " + name);
                 RequireAbsent(registry, name);
-                object row;
                 try
                 {
                     registration();
                 }
-                catch
+                finally
                 {
                     // A lifecycle callback can throw after publishing this owned
                     // system in the newly admitted row; keep it eligible for cleanup.
-                    row = registry[name];
+                    object row = registry[name];
                     if (row != null && ReferenceEquals(Reference(row).GetSafe(), system))
                     {
                         systems.Add(system);
                         ownedRow = row;
                     }
-                    throw;
                 }
-                row = registry[name];
-                if (row == null || !ReferenceEquals(Reference(row).GetSafe(), system))
+                if (ownedRow == null)
                     throw new InvalidOperationException("Fixture registration did not acquire its expected system: " + name);
-                systems.Add(system);
-                ownedRow = row;
             }
 
             public void Dispose()

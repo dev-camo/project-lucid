@@ -178,10 +178,28 @@ namespace ProjectLucid.Tests
         {
             string name = "ProjectLucid.UnpublishedRegistration." + Guid.NewGuid().ToString("N");
             var scope = new VerificationFixtureOwnership.RegistryRow(name);
-            Assert.Throws<ApplicationException>(() => scope.RegisterUsing(new Marker(), () => throw new ApplicationException("before publish")));
-            Assert.IsFalse(Registry.Contains(name));
-            Assert.DoesNotThrow(() => scope.Dispose());
-            Assert.IsFalse(Registry.Contains(name));
+            var marker = new Marker();
+            SystemRef reference = null;
+            try
+            {
+                Assert.Throws<ApplicationException>(() => scope.RegisterUsing(marker, () => throw new ApplicationException("before publish")));
+                Assert.IsFalse(Registry.Contains(name));
+                // The failed attempt leaves the lease unacquired, so a later
+                // registration acquires the row and Dispose releases it.
+                Assert.DoesNotThrow(() => scope.RegisterUsing(marker, () => reference = ProcessManager.RegisterSystem(marker, name)));
+                Assert.AreSame(marker, reference.GetSafe());
+                scope.Dispose();
+                Assert.IsFalse(Registry.Contains(name));
+                Assert.IsTrue(reference.IsNull());
+            }
+            finally
+            {
+                if (reference != null)
+                {
+                    ProcessManager.UnregisterSystem(marker);
+                    if (Registry.Contains(name) && reference.IsNull()) Registry.Remove(name);
+                }
+            }
         }
 
         [Test]
