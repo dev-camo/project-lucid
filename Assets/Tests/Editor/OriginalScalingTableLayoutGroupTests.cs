@@ -143,7 +143,7 @@ namespace ProjectLucid.Tests
             Assert.That(fields.Take(8).Select(f => f.GetCustomAttributesData().Count).ToArray(), Is.EqualTo(new[] { 2, 3, 3, 2, 2, 2, 2, 2 }));
             foreach (var ranged in new[] { fields[1], fields[2] })
             {
-                var range = (RangeAttribute)ranged.GetCustomAttribute(typeof(RangeAttribute), false);
+                var range = (UnityEngine.RangeAttribute)ranged.GetCustomAttribute(typeof(UnityEngine.RangeAttribute), false);
                 Assert.That(new[] { range.min, range.max }, Is.EqualTo(new[] { 1f, 100f }), ranged.Name);
             }
 
