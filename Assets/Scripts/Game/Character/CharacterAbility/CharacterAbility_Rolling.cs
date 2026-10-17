@@ -24,7 +24,7 @@ namespace HardlightProject
 		protected override void DoOnEnter()
 		{
 			base.DoOnEnter();
-			bool rollApplied = m_character.GetBrainAppliedState((GameAction)(-238612048));
+			bool rollApplied = m_character.GetBrainAppliedState(GameAction.CharacterRoll);
 			bool charging = m_character.SpinDashRoll.ChargeTime > 0f;
 			UpdateTrigger(rollApplied || charging);
 		}

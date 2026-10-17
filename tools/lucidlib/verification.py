@@ -1902,6 +1902,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.LeaveClearsTriggeredAndExitingFlags",
 )
 
+# Original hashed identifiers passed or compared by rolling, knockback and audio-source bodies.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.RollingEntryQueriesTheCharacterRollAction",
+    "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.KnockbackTransitionLooksUpTheCharacterKnockbackAbility",
+    "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.AudioSourceEntryRoutesSfxThenAmbientAndOtherwiseMusic",
+)
+
 # Owned App-row cleanup failure controls; no original-behavior claim.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.OwnedFailureAfterAppReferenceCreationReleasesTheEmptyRowAndKeepsThePrimary",

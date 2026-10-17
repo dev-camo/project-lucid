@@ -25,7 +25,7 @@ namespace HardlightProject
 		protected override bool DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			Character character = user.GetAs<Character>();
-			return character.TryGetAbility((ActorAbilityType)(-1159123515), out CharacterAbility_Knockback ability) && ability.IsTriggered && ability.MinDurationExceeded();
+			return character.TryGetAbility(ActorAbilityType.Character_Knockback, out CharacterAbility_Knockback ability) && ability.IsTriggered && ability.MinDurationExceeded();
 		}
 	}
 }

@@ -49,11 +49,11 @@ namespace HardlightProject
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
 			HLAudioMixerDefinition mixer = ProcessManager.GetSystem<AudioManager>().GetMixer((HLAudioMixerIdentifier)0x7642df2f);
-			if (m_audioSource == (HLAudioSourceIdentifier)(-1378388159))
+			if (m_audioSource == HLAudioSourceIdentifier.Sfx)
 			{
 				mixer.SetSfxVolume(m_volume);
 			}
-			else if (m_audioSource == (HLAudioSourceIdentifier)(-2085887187))
+			else if (m_audioSource == HLAudioSourceIdentifier.Ambient)
 			{
 				mixer.SetAmbientVolume(m_volume);
 			}

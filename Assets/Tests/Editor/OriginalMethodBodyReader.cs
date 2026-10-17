@@ -22,7 +22,8 @@ namespace ProjectLucid.Tests
             return codes;
         }
 
-        // Every instruction in order, with method/field/token operands resolved.
+        // Every instruction in order, with method/field/token operands resolved and
+        // 32-bit immediates (ldc.i4) boxed as int.
         public static List<KeyValuePair<OpCode, object>> Instructions(MethodBase method)
         {
             byte[] il = method.GetMethodBody().GetILAsByteArray();
@@ -44,6 +45,7 @@ namespace ProjectLucid.Tests
                     case OperandType.InlineI8:
                     case OperandType.InlineR: i += 8; break;
                     case OperandType.InlineSwitch: i += 4 + 4 * BitConverter.ToInt32(il, i); break;
+                    case OperandType.InlineI: operand = BitConverter.ToInt32(il, i); i += 4; break;
                     case OperandType.InlineMethod:
                         operand = method.Module.ResolveMethod(BitConverter.ToInt32(il, i), typeArguments, methodArguments); i += 4; break;
                     case OperandType.InlineField:
