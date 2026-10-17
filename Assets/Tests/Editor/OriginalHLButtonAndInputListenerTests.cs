@@ -381,6 +381,22 @@ namespace ProjectLucid.Tests
                     data[0].m_inputSupplierToListenFor = second;
                     delegates[3](0f);
                     Assert.That(log, Is.EqualTo(new[] { "press", "event0", "event1" }));
+                    log.Clear();
+
+                    // 0x1b5f600..0x1b5f61c reload m_buttonInputData, bounds-check the
+                    // captured index and read the element on every call, so a replaced
+                    // element and a replaced array are both seen.
+                    var replacement = new HLSelectableInputListener.SelectedButtonInput();
+                    Entry(replacement, first, null, "event0b", log);
+                    data[0] = replacement;
+                    delegates[0](0f);
+                    Assert.That(log, Is.EqualTo(new[] { "event0b", "event2" }));
+                    log.Clear();
+                    FieldInfo dataField = typeof(HLSelectableInputListener).GetField("m_buttonInputData", Declared);
+                    dataField.SetValue(listener, new[] { new HLSelectableInputListener.SelectedButtonInput() });
+                    Assert.Throws<IndexOutOfRangeException>(() => delegates[2](0f));
+                    Assert.That(log, Is.Empty);
+                    dataField.SetValue(listener, data);
 
                     Assert.Throws<NullReferenceException>(() => Call(listener, "Setup"));
                     FastAction shutdown = InputBridge.OnShutdown;

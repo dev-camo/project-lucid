@@ -1,7 +1,7 @@
 // Original HLUnityUI.Runtime research reconstruction.
 // Source/native preservation only: provider algorithms, Unity/menu/bootstrap/native
-// faults and full gameplay remain unqualified. The d__77 iterator name is from metadata;
-// SelectionState's slot after WaitForRootObjects and Unity-compiler emission are unconfirmed.
+// faults and full gameplay remain unqualified. Unity-compiler emission is unconfirmed;
+// the comment on SelectionState covers the d__77 iterator ordinal.
 // 0x020000f2 Hardlight.HLSelectable+ClickableEvent
 // 0x060006eb System.Void .ctor() | arm64 0x1b79bbc..0x1b79bc4; x86_64 0x1b71530..0x1b71540
 // 0x020000f3 Hardlight.HLSelectable+UnclickableEvent

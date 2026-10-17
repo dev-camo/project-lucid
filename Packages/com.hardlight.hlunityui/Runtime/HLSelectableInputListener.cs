@@ -37,8 +37,6 @@ namespace Hardlight
     [Il2CppSetOption(Option.NullChecks, false)]
     public class HLSelectableInputListener : MonoBehaviour
     {
-        // The shipping closure is <>c__DisplayClass12_0 (0x02000092): ButtonSelected
-        // is member ordinal 12, which holds with both nested types declared first.
         [Serializable]
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [Il2CppSetOption(Option.NullChecks, false)]

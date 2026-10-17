@@ -2957,6 +2957,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLTappableTests." + name for
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSelectableGeneratedMembersTests." + name for name in (
     "WaitForRootObjectsStateMachineKeepsTheShippingName",
     "ButtonSelectedClosureKeepsTheShippingDisplayClassName",
-    "WaitForRootObjectsYieldsOnceThenRecordsTheSceneAndRegisters",
     "WaitForRootObjectsIteratorEmissionShape",
 ))
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLSelectableScenePlayTests.WaitForRootObjectsYieldsOnceThenRecordsTheSceneAndRegisters",
+)

@@ -57,49 +57,6 @@ namespace ProjectLucid.Tests
             Assert.That(generated, Is.EqualTo(new[] { "<>c__DisplayClass12_0" }));
         }
 
-        // MoveNext 0x060006f0 (x86-64 0x1b737a0): the first call clears <>2__current
-        // and yields; the second stores gameObject.scene.name into m_sceneName (+0xf0),
-        // re-reads it for ActiveSelectables.Add(this, m_sceneName) (0x1b73836) and
-        // finishes; a finished machine returns false untouched. Registering before the
-        // yield, or again on a later MoveNext, fails here. The per-scene row is asserted
-        // when the EditMode scene has a name; otherwise Add's blank-name early return
-        // must leave the scene table without any new row.
-        [Test]
-        public void WaitForRootObjectsYieldsOnceThenRecordsTheSceneAndRegisters()
-        {
-            using (var fixture = new Fixture())
-            {
-                HLSelectable selectable = fixture.Selectable;
-                FieldInfo sceneName = typeof(HLSelectable).GetField("m_sceneName", Declared);
-                const string sentinel = "lucid-owned-sentinel-scene";
-                sceneName.SetValue(selectable, sentinel);
-
-                var routine = (IEnumerator)typeof(HLSelectable).GetMethod("WaitForRootObjects", Declared).Invoke(selectable, null);
-                Assert.That(routine, Is.Not.Null);
-                Assert.That(sceneName.GetValue(selectable), Is.EqualTo(sentinel), "kickoff runs no body");
-                Assert.That(fixture.Registered(selectable), Is.Zero);
-
-                Assert.That(routine.MoveNext(), Is.True);
-                Assert.That(routine.Current, Is.Null);
-                Assert.That(sceneName.GetValue(selectable), Is.EqualTo(sentinel), "the scene is read only after the yield");
-                Assert.That(fixture.Registered(selectable), Is.Zero);
-
-                string expected = selectable.gameObject.scene.name;
-                bool named = !string.IsNullOrWhiteSpace(expected);
-                Assert.That(routine.MoveNext(), Is.False);
-                Assert.That(sceneName.GetValue(selectable), Is.EqualTo(expected));
-                Assert.That(selectable.SceneName, Is.EqualTo(expected));
-                Assert.That(fixture.Registered(selectable), Is.EqualTo(1));
-                AssertSceneRow(fixture, selectable, expected, named);
-
-                Assert.That(routine.MoveNext(), Is.False);
-                Assert.That(routine.Current, Is.Null);
-                Assert.That(fixture.Registered(selectable), Is.EqualTo(1));
-                // The global list uses AddUnique, so only the per-scene list shows a repeat Add.
-                AssertSceneRow(fixture, selectable, expected, named);
-            }
-        }
-
         // Emission-shape self-check, not an original-behaviour oracle: Roslyn iterator
         // lowering fixes these for any C# iterator. Kickoff 0x060006c7 (x86-64 0x1b722b0)
         // builds the machine with <>1__state 0 and <>4__this; MoveNext moves it to 1 then
@@ -120,14 +77,6 @@ namespace ProjectLucid.Tests
                 Assert.That(routine.MoveNext(), Is.False);
                 Assert.That(State(routine), Is.EqualTo(-1));
             }
-        }
-
-        private static void AssertSceneRow(Fixture fixture, HLSelectable selectable, string scene, bool named)
-        {
-            if (named)
-                Assert.That(fixture.RegisteredInScene(selectable, scene), Is.EqualTo(1));
-            else
-                Assert.That(fixture.SceneKeysUnchanged(), Is.True, "a blank scene name adds no scene row");
         }
 
         private static int State(IEnumerator routine)
@@ -167,18 +116,6 @@ namespace ProjectLucid.Tests
             public int Registered(HLSelectable selectable)
             {
                 return m_all.Count(entry => ReferenceEquals(entry, selectable));
-            }
-
-            public int RegisteredInScene(HLSelectable selectable, string scene)
-            {
-                List<HLSelectable> list;
-                return m_byScene.TryGetValue(scene, out list) ? list.Count(entry => ReferenceEquals(entry, selectable)) : 0;
-            }
-
-            public bool SceneKeysUnchanged()
-            {
-                return m_byScene.Count == m_byBefore.Count && m_byScene.Keys.All(m_byBefore.ContainsKey)
-                    && m_byScene.All(pair => pair.Value.Count == m_byBefore[pair.Key].Value.Length);
             }
 
             public void Dispose()
