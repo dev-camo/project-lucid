@@ -557,6 +557,9 @@ namespace ProjectLucid.Tests
                 Set(handler, "m_currentSetting", Setting(types: SupportedLogTypes.Log));
                 string first = "HLLogHandler fixture " + Guid.NewGuid().ToString("N");
                 string second = "HLLogHandler fixture " + Guid.NewGuid().ToString("N");
+                // The fixture's own two log lines are expected; nothing else may be logged.
+                LogAssert.Expect(LogType.Log, first);
+                LogAssert.Expect(LogType.Log, second);
                 Call(handler, "OnEnable");
                 try { Debug.Log(first); }
                 finally { Call(handler, "OnDisable"); }
