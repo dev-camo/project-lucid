@@ -25,7 +25,10 @@ namespace Hardlight
 
         // 0x06000f9b; shared 0x7B73D0. An existing registration of another
         // dispatcher type reads back as null, so a new TGenericDispatcherType is
-        // created, registered under its default name and becomes the reference.
+        // created (0x7B75C7) and registered under its default name (0x7B75F7)
+        // before it is stored as the reference. If that name still holds a live
+        // system, RegisterSystem throws before the store, after the new
+        // dispatcher's constructor has already subscribed Update.
         public static void AddAction<TGenericDispatcherType>(Action<T> action, T parameter)
             where TGenericDispatcherType : MainThreadGenericDispatcher<T>, new()
         {
@@ -63,7 +66,8 @@ namespace Hardlight
                 entry.Action(entry.Parameter1, entry.Parameter2);
         }
 
-        // 0x06000f9e; shared 0x7B7810.
+        // 0x06000f9e; shared 0x7B7810. Same lookup, registration and throw
+        // path as the one-parameter AddAction.
         public static void AddAction<TGenericDispatcherType>(Action<T1, T2> action, T1 parameter1, T2 parameter2)
             where TGenericDispatcherType : MainThreadGenericDispatcher<T1, T2>, new()
         {

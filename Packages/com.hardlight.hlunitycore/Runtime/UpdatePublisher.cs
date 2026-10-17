@@ -4,7 +4,8 @@ using Unity.IL2CPP.CompilerServices;
 namespace Hardlight
 {
     // Original HLUnityCore.Runtime 0x02000256. Each subscription is keyed by
-    // its subscriber identity and advanced by the derived publisher's clock.
+    // its subscriber's own Equals/GetHashCode (the update type is ignored) and
+    // advanced by the derived publisher's clock.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public abstract class UpdatePublisher<TUpdateType> : ISystem

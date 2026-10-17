@@ -5,7 +5,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace Hardlight
 {
-    // Original020001b8: all5 owner methods plus full original natural completion graph.
+    // Original HLUnityCore.Runtime 0x020001b8.
     // The nested types are declared ahead of TryGetCompletionData / SetData so
     // the original closure and state-machine names (<>c__DisplayClass8_0,
     // CompletionData's <>c__DisplayClass9_0/12_0, <RunTimeout>d__11,
@@ -15,7 +15,7 @@ namespace Hardlight
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class ExchangeHandleWithCompletionBase<TDelegate> : ExchangeHandleBase<TDelegate> where TDelegate : Delegate
     {
-        // Original020001b9, full2 abstract methods. Protected nested interface, not a replacement contract.
+        // Original 0x020001b9; a protected nested interface.
         protected interface ICompletionData
         {
             void RunTimeout(int timeoutMs);
@@ -31,20 +31,20 @@ namespace Hardlight
             private class CompletionDataDebug
             {
                 private readonly List<Delegate> m_subscribers = new List<Delegate>();
-                // Original06000c1c: live AddRange after Clear.
+                // 0x06000c1c. Clear, then AddRange of the live collection.
                 public void Setup(IReadOnlyCollection<Delegate> subscribers)
                 {
                     m_subscribers.Clear();
                     m_subscribers.AddRange(subscribers);
                 }
-                // Original06000c1d: unchecked source indexer, fault occurs before owner count mutation.
+                // 0x06000c1d. Unchecked indexer; a fault here precedes the owner's count change.
                 public void OnSubscriberFinished(int subscriberIndex) { m_subscribers[subscriberIndex] = null; }
-                // Original06000c1e: shipped body retains enumeration/disposal, with no emitted log calls.
+                // 0x06000c1e. The shipped body enumerates and disposes but emits no log calls.
                 public void LogTimedOutSubscribers()
                 {
                     foreach (Delegate subscriber in m_subscribers) { }
                 }
-                // Implicit original public06000c1f; List initializer precedes Object ctor.
+                // Implicit public ctor 0x06000c1f; the List initializer precedes Object's constructor.
             }
 
             private int m_id;
@@ -55,13 +55,13 @@ namespace Hardlight
             private int m_finishedCount;
             private readonly CompletionDataDebug m_completionDataDebug;
 
-            // Original06000c14: Object ctor precedes optional debug allocation.
+            // 0x06000c14. Object's constructor precedes the optional debug allocation.
             public CompletionData(bool includeDebugInformation)
             {
                 if (includeDebugInformation) m_completionDataDebug = new CompletionDataDebug();
             }
 
-            // Original06000c15 + closure06000c22/23. Count and optional debug setup precede callback replacement.
+            // 0x06000c15; closure 0x06000c22/0x06000c23. Count and optional debug setup precede callback replacement.
             public void SetData(int id, IReadOnlyCollection<Delegate> subscribers, Action finishedCallback)
             {
                 m_id = id;
@@ -73,16 +73,16 @@ namespace Hardlight
                 m_subscriberCallback = () => OnSubscriberFinished(id, -1);
             }
 
-            // Original06000c16 leaves all callback/count/id fields in place.
+            // 0x06000c16. Leaves the callback, count and id fields in place.
             public void Invalidate() { m_complete = true; }
 
-            // Original06000c17 + full async-void06000c24/25. Every negative timeout skips the delay.
+            // 0x06000c17; async void state machine 0x06000c24/0x06000c25. Every negative timeout skips the delay.
             public async void RunTimeout(int timeoutMs)
             {
                 if (timeoutMs >= 0 && !m_complete) await Timeout(timeoutMs);
             }
 
-            // Original06000c18 + closure06000c20/21: debug path captures current id and actual subscriber index.
+            // 0x06000c18; closure 0x06000c20/0x06000c21. The debug path captures the current id and the actual subscriber index.
             public Action GetSubscriberCompletedCallback(int subscriberIndex)
             {
                 if (m_completionDataDebug != null)
@@ -93,7 +93,7 @@ namespace Hardlight
                 return m_subscriberCallback;
             }
 
-            // Original06000c19: duplicate callbacks count again; debug write precedes count mutation.
+            // 0x06000c19. Duplicate callbacks count again; the debug write precedes the count change.
             private void OnSubscriberFinished(int id, int subscriberIndex)
             {
                 if (m_complete || m_id != id) return;
@@ -103,7 +103,7 @@ namespace Hardlight
                 if (m_complete) m_finishedCallback();
             }
 
-            // Original06000c1a + full async-task06000c26/27: current id captured before await; stale data is ignored.
+            // 0x06000c1a; async Task state machine 0x06000c26/0x06000c27. The current id is captured before the await; stale data is ignored.
             private async Task Timeout(int timeoutMs)
             {
                 int id = m_id;
@@ -114,7 +114,7 @@ namespace Hardlight
                 m_finishedCallback();
             }
 
-            // Original06000c1b: complete short-circuits current id read.
+            // 0x06000c1b. m_complete short-circuits the id read.
             private bool IsComplete(int id) => m_complete || m_id != id;
         }
 
@@ -123,10 +123,10 @@ namespace Hardlight
         private readonly Dictionary<int, CompletionData> m_completionDataLookup = new Dictionary<int, CompletionData>();
         private bool m_includeDebugInformation;
 
-        // Original06000c0d. Changes future allocations only; pooled data retains its debug choice.
+        // 0x06000c0d. Changes future allocations only; pooled data keeps its debug choice.
         public void EnableDebugInformation(bool enabled) { m_includeDebugInformation = enabled; }
 
-        // Original06000c0e: base clear/invalidation before live lookup enumeration, then lookup/pool clear.
+        // 0x06000c0e. Base invalidation precedes enumerating the live lookup, then the lookup and pool are cleared.
         public override void Invalidate()
         {
             base.Invalidate();
@@ -135,7 +135,7 @@ namespace Hardlight
             m_completionDataPool.Clear();
         }
 
-        // Original06000c0f + natural closure06000c28/29. Empty subscriber path invokes callback before out=null.
+        // 0x06000c0f; closure 0x06000c28/0x06000c29. With no subscribers the callback runs before the out value is set to null.
         protected bool TryGetCompletionData(Action finishedCallback, out ICompletionData completionData)
         {
             if (Subscribers.Count == 0)
@@ -158,12 +158,12 @@ namespace Hardlight
             return true;
         }
 
-        // Original06000c10; pop an existing object without changing its readonly debug record.
+        // 0x06000c10. Pops an existing object without changing its readonly debug record.
         private CompletionData GetCompletionData()
         {
             if (m_completionDataPool.Count > 0) return m_completionDataPool.Pop();
             return new CompletionData(m_includeDebugInformation);
         }
-        // Implicit original protected06000c11: original Stack/Dictionary initializers precede genuine base ctor.
+        // Implicit protected ctor 0x06000c11; the Stack and Dictionary initializers precede the base constructor.
     }
 }
