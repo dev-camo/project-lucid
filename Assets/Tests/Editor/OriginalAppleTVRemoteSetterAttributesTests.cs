@@ -17,24 +17,38 @@ namespace ProjectLucid.Editor
         // [ShowIfAttribute("m_setOnAwake", (object)(string)null)] then [SerializeField].
         private const string OriginalShowIfBlob = "01000c6d5f7365744f6e4177616b650eff0000";
 
-        // Binding control: same ShowIf(String,Object) constructor, but the boxed
-        // null is typed System.Type (element tag 0x50), not String (0x0e).
-        private sealed class WrongTypedNullFixture
+        // Correctly encoded ShowIf rows on other members. Roslyn emits every null
+        // reaching ShowIf's object parameter as 0x0e 0xff (a (Type)null fixture
+        // compiles byte-identical to the target), so wrong encodings are tested on
+        // mutated copies of the original blob instead of compiled fixtures.
+        private sealed class OtherShowIfRowsFixture
         {
 #pragma warning disable 0169
-            [ShowIf("m_setOnAwake", (Type)null)]
+            [ShowIf("m_setOnAwake", null)]
             [SerializeField]
-            private bool m_allowExitToHome;
+            private bool m_first;
+            [ShowIf("m_setOnAwake", null)]
+            [SerializeField]
+            private bool m_second;
+            [ShowIf("m_other", null)]
+            [SerializeField]
+            private bool m_third;
 #pragma warning restore 0169
         }
 
-        private static FieldInfo Field(Type owner) =>
-            owner.GetField("m_allowExitToHome", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+        private static FieldInfo Field(Type owner, string name) =>
+            owner.GetField(name, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+
+        private static CustomAttributeData ShowIf(FieldInfo field) =>
+            field.GetCustomAttributesData().Single(attribute => attribute.AttributeType == typeof(ShowIfAttribute));
+
+        private static byte[] Bytes(string hex) =>
+            Enumerable.Range(0, hex.Length / 2).Select(index => Convert.ToByte(hex.Substring(index * 2, 2), 16)).ToArray();
 
         [Test]
         public void AllowExitToHomeRetainsOriginalOrderedAttributes() // field token 0x0400000f
         {
-            FieldInfo field = Field(typeof(AppleTVRemoteSetter));
+            FieldInfo field = Field(typeof(AppleTVRemoteSetter), "m_allowExitToHome");
             Assert.That(field, Is.Not.Null);
             CustomAttributeData[] attributes = field.GetCustomAttributesData().ToArray();
             Assert.That(attributes.Select(attribute => attribute.AttributeType), Is.EqualTo(new[] { typeof(ShowIfAttribute), typeof(SerializeField) }));
@@ -50,17 +64,45 @@ namespace ProjectLucid.Editor
             // Mono reflection reports this null as object, so read this field's own
             // ShowIf row (by its loaded token) and compare the complete blob.
             Dictionary<string, object> evidence = LoadedAttributeBlobEvidence.ReadBoxedStringNull(field, showIf);
-            Assert.That(evidence["member_token"], Is.EqualTo("0x" + field.MetadataToken.ToString("x8")));
             Assert.That(evidence["raw_encoding_hex"], Is.EqualTo(OriginalShowIfBlob));
-            Assert.That(evidence["boxed_element_tag"], Is.EqualTo(0x0e));
+        }
 
-            // The reader is bound to the inspected member: a differently typed null
-            // on the same constructor is rejected even though the target passes.
-            FieldInfo control = Field(typeof(WrongTypedNullFixture));
-            CustomAttributeData controlShowIf = control.GetCustomAttributesData().Single(attribute => attribute.AttributeType == typeof(ShowIfAttribute));
-            Assert.That(controlShowIf.Constructor, Is.EqualTo(showIf.Constructor));
-            Assert.That(controlShowIf.ConstructorArguments[1].Value, Is.Null);
-            Assert.Throws<InvalidDataException>(() => LoadedAttributeBlobEvidence.ReadBoxedStringNull(control, controlShowIf));
+        [Test]
+        public void ShowIfBlobDecoderRejectsNonStringBoxedNull()
+        {
+            // Predicate: the boxed argument passes only when its tag is 0x0e (String)
+            // AND its value is 0xff (null). Each mutation fails exactly one conjunct.
+            Assert.DoesNotThrow(() => LoadedAttributeBlobEvidence.VerifyBoxedStringNull(Bytes(OriginalShowIfBlob), "m_setOnAwake"));
+            string typeNull = OriginalShowIfBlob.Replace("0eff0000", "50ff0000");   // System.Type null
+            string emptyString = OriginalShowIfBlob.Replace("0eff0000", "0e000000"); // String "", not null
+            foreach (string mutated in new[] { typeNull, emptyString })
+            {
+                InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+                    LoadedAttributeBlobEvidence.VerifyBoxedStringNull(Bytes(mutated), "m_setOnAwake"));
+                Assert.That(exception.Message, Is.EqualTo("Boxed argument is not a String null."), mutated);
+            }
+        }
+
+        [Test]
+        public void ShowIfBlobReaderReadsEachMembersOwnRow()
+        {
+            // Identical correct rows on other members do not disturb each other's read.
+            foreach (string name in new[] { "m_first", "m_second" })
+            {
+                FieldInfo field = Field(typeof(OtherShowIfRowsFixture), name);
+                CustomAttributeData showIf = ShowIf(field);
+                Assert.That(showIf.ConstructorArguments[1].ArgumentType, Is.EqualTo(typeof(object)), name);
+                Assert.That(LoadedAttributeBlobEvidence.ReadBoxedStringNull(field, showIf)["raw_encoding_hex"], Is.EqualTo(OriginalShowIfBlob), name);
+            }
+            FieldInfo first = Field(typeof(OtherShowIfRowsFixture), "m_first");
+            FieldInfo third = Field(typeof(OtherShowIfRowsFixture), "m_third");
+            Assert.That(LoadedAttributeBlobEvidence.ReadBoxedStringNull(third, ShowIf(third))["raw_encoding_hex"], Is.EqualTo("0100076d5f6f746865720eff0000"));
+
+            // The blob comes from the member's own row: m_first's row ("m_setOnAwake")
+            // does not satisfy m_third's reflected argument ("m_other").
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(() =>
+                LoadedAttributeBlobEvidence.ReadBoxedStringNull(first, ShowIf(third)));
+            Assert.That(exception.Message, Is.EqualTo("Blob string differs from loaded Reflection argument."));
         }
     }
 }

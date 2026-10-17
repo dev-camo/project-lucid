@@ -1630,6 +1630,8 @@ EDITMODE_TESTS += (
 # Compiled declaration attributes only; inspector and tvOS remote behavior stay separate.
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalAppleTVRemoteSetterAttributesTests.AllowExitToHomeRetainsOriginalOrderedAttributes",
+    "ProjectLucid.Editor.OriginalAppleTVRemoteSetterAttributesTests.ShowIfBlobDecoderRejectsNonStringBoxedNull",
+    "ProjectLucid.Editor.OriginalAppleTVRemoteSetterAttributesTests.ShowIfBlobReaderReadsEachMembersOwnRow",
 )
 
 # Compiled attributes and owned inactive serialization; scenes and gameplay stay separate.
