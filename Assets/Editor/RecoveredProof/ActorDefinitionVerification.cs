@@ -211,10 +211,16 @@ namespace ProjectLucid
             return checks;
         }
         private static float Single(float value) => BitConverter.ToSingle(BitConverter.GetBytes(value), 0);
+        // Fault site for the EditMode cleanup control, after every engine check ran inside the lease.
+        internal const string EngineChecksDoneSite = "ActorDefinitionVerification.EngineChecksDone";
         public static int RunEngine()
         {
             using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions), CachedEnumTables))
-                return RunEngineLeased();
+            {
+                int checks = RunEngineLeased();
+                VerificationFixtureOwnership.FaultPoint(EngineChecksDoneSite);
+                return checks;
+            }
         }
 
         private static int RunEngineLeased()

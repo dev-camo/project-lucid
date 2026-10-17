@@ -1006,8 +1006,9 @@ namespace ProjectLucid.Tests
         }
 
         // The shared tables the two enum-string verifiers write through the genuine
-        // GetString miss path: the three ActorDefinitionVerification tables and the
-        // first HardlightEnumStringsVerification row.
+        // GetString miss path: three of the ActorDefinitionVerification tables (all
+        // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)
+        // and the first HardlightEnumStringsVerification row.
         private static readonly string[] EnumVerifierTables =
         {
             "AbilityAimTargetTypeEnumToString", "ActorParticleTriggerTypeEnumToString",
@@ -1084,6 +1085,52 @@ namespace ProjectLucid.Tests
                 Assert.That(ActorAnimationVerification.RunEngine(), Is.EqualTo(23));
                 AssertEnumTables(before, ActorVerifierTables, "actor animation engine " + pass);
             }
+        }
+
+        // A failure at the end of each newly leased body still returns every table to
+        // its admitted entries. The fault callback first caches its own genuine
+        // GetString miss in a table that body leases, so the restore is observable
+        // even where the fixture's own keys were already admitted.
+        [TestCase(0)]
+        [TestCase(1)]
+        [TestCase(2)]
+        public void ActorVerifierFailuresStillRestoreTheirCachedEnumTables(int verifier)
+        {
+            System.Collections.Generic.List<object> before = EnumTables(ActorVerifierTables);
+            var primary = new System.InvalidProgramException("injected after a cached miss");
+            string site = verifier == 0 ? ActorDefinitionVerification.EngineChecksDoneSite
+                : verifier == 1 ? ActorAnimationVerification.ManagedChecksDoneSite
+                : ActorAnimationVerification.EngineChecksDoneSite;
+            string tableName = verifier == 0 ? "HLAudioClipIdentifierEnumToString" : "ActorAnimationTypeEnumToString";
+            var table = (IDictionary)typeof(HardlightProject.HardlightEnumExtensions)
+                .GetField(tableName, System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null);
+            object missKey = verifier == 0 ? (object)(HardlightProject.HLAudioClipIdentifier)int.MinValue : (HardlightProject.ActorAnimationType)int.MinValue;
+            Assert.That(table.Contains(missKey), Is.False, "control key is absent before the run");
+            bool cachedInsideLease = false;
+            VerificationFixtureOwnership.FaultInjection = reached =>
+            {
+                if (reached != site) return;
+                if (verifier == 0) HardlightProject.HardlightEnumExtensions.GetString((HardlightProject.HLAudioClipIdentifier)missKey);
+                else HardlightProject.HardlightEnumExtensions.GetString((HardlightProject.ActorAnimationType)missKey);
+                cachedInsideLease = table.Contains(missKey);
+                throw primary;
+            };
+            try
+            {
+                var error = Assert.Throws<System.InvalidProgramException>(() =>
+                {
+                    if (verifier == 0) ActorDefinitionVerification.RunEngine();
+                    else if (verifier == 1) ActorAnimationVerification.RunManaged();
+                    else ActorAnimationVerification.RunEngine();
+                });
+                Assert.That(error, Is.SameAs(primary));
+            }
+            finally
+            {
+                VerificationFixtureOwnership.FaultInjection = null;
+            }
+            Assert.That(cachedInsideLease, Is.True, "the control's miss was cached inside the lease");
+            AssertEnumTables(before, ActorVerifierTables, "after the injected failure");
         }
 
         // A failure after a miss is cached still returns every table to its admitted

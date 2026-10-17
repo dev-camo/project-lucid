@@ -71,10 +71,16 @@ namespace ProjectLucid
         // shared HardlightEnumExtensions tables. Both runs lease those tables so they
         // return to their admitted entries on every path.
         private static readonly string[] CachedEnumTables = { "ActorAnimationTypeEnumToString", "FullscreenShaderParametersTypeEnumToString" };
+        // Fault site for the EditMode cleanup control, after every managed check ran inside the lease.
+        internal const string ManagedChecksDoneSite = "ActorAnimationVerification.ManagedChecksDone";
         public static int RunManaged()
         {
             using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions), CachedEnumTables))
-                return RunManagedLeased();
+            {
+                int result = RunManagedLeased();
+                VerificationFixtureOwnership.FaultPoint(ManagedChecksDoneSite);
+                return result;
+            }
         }
 
         private static int RunManagedLeased()
@@ -513,10 +519,16 @@ namespace ProjectLucid
 
         // Genuine Unity object constructors/hash/JSON paths are separate from managed tests.
         // Root owns executing this method in the real Editor.
+        // Fault site for the EditMode cleanup control, after every engine check ran inside the lease.
+        internal const string EngineChecksDoneSite = "ActorAnimationVerification.EngineChecksDone";
         public static int RunEngine()
         {
             using (new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions), CachedEnumTables))
-                return RunEngineLeased();
+            {
+                int result = RunEngineLeased();
+                VerificationFixtureOwnership.FaultPoint(EngineChecksDoneSite);
+                return result;
+            }
         }
 
         private static int RunEngineLeased()
