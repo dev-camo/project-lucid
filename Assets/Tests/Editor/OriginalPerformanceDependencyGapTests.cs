@@ -135,7 +135,13 @@ namespace ProjectLucid.Tests
                 if (managerHost != null) UObj.DestroyImmediate(managerHost);
             }
             Assert.That(ReferenceEquals(Registry()[name], row), Is.True);
-            foreach (object rowReference in RowReferences(row))
+            // The row the type initializer created stays (ISOLATION_ALLOWLIST);
+            // it keeps exactly the references it had when this case began.
+            List<object> finalReferences = RowReferences(row);
+            Assert.That(finalReferences.Count, Is.EqualTo(rowReferences.Count));
+            for (int i = 0; i < finalReferences.Count; ++i)
+                Assert.That(ReferenceEquals(finalReferences[i], rowReferences[i]), Is.True, "The row keeps its own cached references.");
+            foreach (object rowReference in finalReferences)
                 Assert.That(Idle(rowReference), Is.True, "The shared row returns to its unowned state.");
         }
 

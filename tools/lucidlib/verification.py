@@ -655,6 +655,18 @@ def test_verdict(path, required):
             "xml_sha256": hashlib.sha256(data).hexdigest()}
 
 
+def _first_use_row_changes(row_name):
+    """The exact change list of a production first use that appends a null row."""
+    row = "added system row '" + row_name + "'"
+    typed = row + " typed reference '" + row_name + "'"
+    return ("changed system row order", row, row + " untyped reference",
+            row + " untyped reference OnSystemStartup observers",
+            row + " untyped reference OnSystemShutdown observers",
+            row + " untyped reference deferred InvokeOnValid work",
+            typed, typed + " OnSystemStartup observers", typed + " OnSystemShutdown observers",
+            typed + " deferred InvokeOnValid work", row + " typed reference names")
+
+
 # Shared-state leaks a run may carry: exact test fullname -> the reason and the
 # exact, ordered change list its leak record must carry. Only status "leak" can
 # be listed, and a record whose changes differ in any line fails the run, so an
@@ -690,6 +702,23 @@ ISOLATION_ALLOWLIST = {
                     _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' OnSystemShutdown observers",
                     _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' deferred InvokeOnValid work",
                     _TIME_MANAGER_ROW + " typed reference names"),
+    },
+    # Process lifetime, not a fixture defect. PerformanceDependency's static
+    # initializer (06000d75) stores GetSystemRef<ScalablePerformance>(null, true)
+    # in its readonly s_scalablePerformanceRef, appending the null
+    # 'Hardlight.ScalablePerformance' row on the first use of the type in each
+    # mode's run. Removing it would detach that reference from every later
+    # registration. Native run19 shows these cases first in run order; if another
+    # test uses the type earlier, the case runs clean and its entry must move or go.
+    "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests.DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers": {
+        "reason": "PerformanceDependency's first static initialization appends the 'Hardlight.ScalablePerformance' row "
+                  "that holds its readonly s_scalablePerformanceRef; the case asserts the row ends idle.",
+        "changes": _first_use_row_changes("Hardlight.ScalablePerformance"),
+    },
+    "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests.InvalidProfileDestroysTheWholeGameObject": {
+        "reason": "PerformanceDependency's first static initialization in the PlayMode run appends the "
+                  "'Hardlight.ScalablePerformance' row that holds its readonly s_scalablePerformanceRef.",
+        "changes": _first_use_row_changes("Hardlight.ScalablePerformance"),
     },
 }
 

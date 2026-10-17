@@ -452,9 +452,13 @@ class IsolationVerdictTests(unittest.TestCase):
                     self.assertEqual(expected, verdict["errors"])
 
     def test_allowlist_names_exactly_the_reviewed_registered_tests(self):
-        # Only the TimeScaledUtilities static-initializer row is accepted.
+        # Only the reviewed static-initializer rows (TimeScaledUtilities, PerformanceDependency) are accepted.
         self.assertEqual({"ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests."
-                          "OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes"},
+                          "OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes",
+                          "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests."
+                          "DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers",
+                          "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests."
+                          "InvalidProfileDestroysTheWholeGameObject"},
                          set(verification.ISOLATION_ALLOWLIST))
         registered = set(verification.EDITMODE_TESTS) | set(verification.PLAYMODE_TESTS)
         for test, entry in verification.ISOLATION_ALLOWLIST.items():
@@ -501,8 +505,12 @@ class IsolationVerdictTests(unittest.TestCase):
                 '</test-suite></test-run>')
             Path(command[command.index("-logFile") + 1]).write_text("Unity Editor version: " + verification.UNITY_VERSION)
             if write_isolation:
+                # An allowlisted test must still leak exactly its listed changes.
+                allowlist = verification.ISOLATION_ALLOWLIST
                 Path(env["LUCID_ISOLATION_REPORT"]).write_text("".join(
-                    self.line(name, nonce=env["LUCID_ISOLATION_NONCE"]) + "\n" for name in names))
+                    (self.line(name, "leak", allowlist[name]["changes"], nonce=env["LUCID_ISOLATION_NONCE"])
+                     if name in allowlist else self.line(name, nonce=env["LUCID_ISOLATION_NONCE"])) + "\n"
+                    for name in names))
             return SimpleNamespace(returncode=0)
 
         identity = {"source_fingerprint": "synthetic-source", "prepared_asset_fingerprint": "synthetic-assets"}
