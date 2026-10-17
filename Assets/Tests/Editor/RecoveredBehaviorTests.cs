@@ -356,7 +356,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void OriginalDeviceProfilesRetainPlatformMatchingAndFallbacks()
         {
-            Assert.That(DevicePlatformVerification.RunManaged(), Is.EqualTo(305));
+            Assert.That(DevicePlatformVerification.RunManaged(), Is.EqualTo(531));
             Assert.That(DevicePlatformVerification.RunEngine(), Is.EqualTo(27));
         }
 

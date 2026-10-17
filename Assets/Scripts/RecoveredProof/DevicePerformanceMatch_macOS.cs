@@ -20,11 +20,15 @@ namespace HardlightProject
         // Original06002da7 uses the shared engine model query once, then
         // exact case-sensitive original model strings. Unknown models return
         // High; no current-hardware inference or portable tier is substituted.
+        // All 72 original literals are kept, including the explicit High ones,
+        // in the order their native hash-dispatch branches appear.
         public MacDeviceGeneration MatchMacToDeviceGeneration()
         {
             switch (SystemInfo.deviceModel)
             {
                 case "iMac13,2": return MacDeviceGeneration.VeryLow;
+                case "iMac21,2": return MacDeviceGeneration.High;
+                case "MacBookPro18,4": return MacDeviceGeneration.Ultra;
                 case "MacBookPro13,3": return MacDeviceGeneration.VeryLow;
                 case "iMac14,3": return MacDeviceGeneration.VeryLow;
                 case "MacBookAir7,2": return MacDeviceGeneration.VeryLow;
@@ -35,16 +39,22 @@ namespace HardlightProject
                 case "iMac18,2": return MacDeviceGeneration.Medium;
                 case "MacBookAir9,1": return MacDeviceGeneration.VeryLow;
                 case "MacBookPro16,3": return MacDeviceGeneration.Medium;
+                case "Mac14,9": return MacDeviceGeneration.High;
                 case "Macmini7,1": return MacDeviceGeneration.VeryLow;
+                case "Mac14,12": return MacDeviceGeneration.High;
                 case "iMac15,1": return MacDeviceGeneration.VeryLow;
                 case "MacBookPro11,4": return MacDeviceGeneration.VeryLow;
+                case "MacBookPro18,2": return MacDeviceGeneration.Ultra;
                 case "MacBook8,1": return MacDeviceGeneration.VeryLow;
                 case "iMac14,4": return MacDeviceGeneration.VeryLow;
+                case "Mac14,6": return MacDeviceGeneration.Ultra;
                 case "MacBookAir6,1": return MacDeviceGeneration.VeryLow;
                 case "iMac19,2": return MacDeviceGeneration.Medium;
                 case "MacBookPro14,1": return MacDeviceGeneration.Low;
+                case "Mac14,3": return MacDeviceGeneration.High;
                 case "iMac18,1": return MacDeviceGeneration.Medium;
                 case "MacBookPro15,1": return MacDeviceGeneration.Medium;
+                case "MacBookPro16,4": return MacDeviceGeneration.High;
                 case "MacBookPro13,2": return MacDeviceGeneration.VeryLow;
                 case "MacBookPro10,2": return MacDeviceGeneration.VeryLow;
                 case "iMac20,1": return MacDeviceGeneration.Medium;
@@ -56,12 +66,17 @@ namespace HardlightProject
                 case "MacBookAir7,1": return MacDeviceGeneration.VeryLow;
                 case "IMac16,2": return MacDeviceGeneration.Low;
                 case "MacBookPro15,4": return MacDeviceGeneration.Medium;
+                case "MacPro7,1": return MacDeviceGeneration.High;
                 case "MacBookPro11,2": return MacDeviceGeneration.VeryLow;
+                case "MacBookPro18,1": return MacDeviceGeneration.High;
                 case "MacBook10,1": return MacDeviceGeneration.Low;
                 case "MacBookPro16,1": return MacDeviceGeneration.Medium;
+                case "Mac14,5": return MacDeviceGeneration.Ultra;
                 case "Macmini6,2": return MacDeviceGeneration.VeryLow;
                 case "iMac19,1": return MacDeviceGeneration.Medium;
                 case "MacBookPro12,1": return MacDeviceGeneration.VeryLow;
+                case "iMac21,1": return MacDeviceGeneration.High;
+                case "MacBookPro18,3": return MacDeviceGeneration.High;
                 case "MacBookAir8,1": return MacDeviceGeneration.VeryLow;
                 case "iMac14,1": return MacDeviceGeneration.VeryLow;
                 case "Mac14,7": return MacDeviceGeneration.Ultra;
@@ -75,6 +90,8 @@ namespace HardlightProject
                 case "iMac18,3": return MacDeviceGeneration.Medium;
                 case "MacBookPro15,2": return MacDeviceGeneration.Medium;
                 case "MacBookPro15,3": return MacDeviceGeneration.Medium;
+                case "MacBookPro16,2": return MacDeviceGeneration.High;
+                case "MacBookPro17,1": return MacDeviceGeneration.High;
                 case "MacPro6,1": return MacDeviceGeneration.Low;
                 case "MacBookPro13,1": return MacDeviceGeneration.VeryLow;
                 case "MacBookAir6,2": return MacDeviceGeneration.VeryLow;
