@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using Hardlight;
 using UnityEngine;
 using UnityEngine.Events;
@@ -47,19 +48,65 @@ namespace ProjectLucid.Verification
         private static Action<bool> Callback(PerformanceDependency owner)
         { return (Action<bool>)DependencyGet(owner, "ValidateDependencyCallback"); }
         private static int Length(Delegate value) { return value == null ? 0 : value.GetInvocationList().Length; }
-        // Real construction (field initializers included) without Awake.
-        private sealed class OwnedDependencies : IDisposable
+        // Real construction (field initializers included) without Awake. Each
+        // host is tracked as soon as it exists, before any setup that can throw.
+        // The two hooks are failure-control seams only; the groups below use
+        // neither.
+        public sealed class OwnedDependencies
         {
             private readonly List<GameObject> hosts = new List<GameObject>();
+            private readonly Action<GameObject> beforeComponent, release;
+            public OwnedDependencies(Action<GameObject> beforeComponent = null, Action<GameObject> release = null)
+            {
+                this.beforeComponent = beforeComponent;
+                this.release = release ?? (host => UObj.DestroyImmediate(host));
+            }
             public PerformanceDependency Create()
             {
                 var host = new GameObject("Owned original performance dependency");
+                hosts.Add(host);
                 host.hideFlags = HideFlags.HideAndDontSave;
                 host.SetActive(false);
-                hosts.Add(host);
+                beforeComponent?.Invoke(host);
                 return host.AddComponent<PerformanceDependency>();
             }
-            public void Dispose() { foreach (GameObject host in hosts) if (host != null) UObj.DestroyImmediate(host); }
+            // Attempt every host independently; a throwing release never
+            // prevents a later one.
+            internal List<Exception> Release()
+            {
+                var failures = new List<Exception>();
+                foreach (GameObject host in hosts)
+                {
+                    try { if (host != null) release(host); }
+                    catch (Exception failure) { failures.Add(failure); }
+                }
+                hosts.Clear();
+                return failures;
+            }
+        }
+        // One owned-component group: genuine type initialization, then the
+        // registry observation, then the body. A body or acquisition failure
+        // stays primary with its own stack. Every host release and the registry
+        // check still run, and their failures are kept after the primary.
+        public static int RunOwned(OwnedDependencies owned, Func<OwnedDependencies, int> body)
+        {
+            InitialiseOriginalReference();
+            var registry = new RegistryObservation();
+            int result = 0;
+            ExceptionDispatchInfo primary = null;
+            try { result = body(owned); }
+            catch (Exception failure) { primary = ExceptionDispatchInfo.Capture(failure); }
+            List<Exception> failures = owned.Release();
+            try { registry.AssertUnchanged(); }
+            catch (Exception failure) { failures.Add(failure); }
+            if (failures.Count == 0)
+            {
+                primary?.Throw();
+                return result;
+            }
+            if (primary == null && failures.Count == 1) ExceptionDispatchInfo.Capture(failures[0]).Throw();
+            if (primary != null) failures.Insert(0, primary.SourceException);
+            throw new AggregateException("Owned PerformanceDependency group or its cleanup failed", failures);
         }
         private static void InitialiseOriginalReference()
         {
@@ -71,12 +118,9 @@ namespace ProjectLucid.Verification
 
         public static int RunCopyOwned20()
         {
-            InitialiseOriginalReference();
-            var registry = new RegistryObservation();
-            int count = 0;
-            try
+            return RunOwned(new OwnedDependencies(), owned =>
             {
-                using var owned = new OwnedDependencies();
+                int count = 0;
                 PerformanceDependency source = owned.Create(), target = owned.Create();
                 var attribute = new PerformanceAttribute { Level = PerformanceProfile.QualityLevel.High };
                 object sourceEvent = new UnityEvent();
@@ -113,18 +157,14 @@ namespace ProjectLucid.Verification
                 Check(ReferenceEquals(DependencyGet(target, "m_triggeredEvent"), targetEvent), ref count, "Null source retains event");
                 Check(ReferenceEquals(Callback(target), targetCallback), ref count, "Null source retains callback");
                 return count;
-            }
-            finally { registry.AssertUnchanged(); }
+            });
         }
 
         public static int RunDelegateAccessorsOwned18()
         {
-            InitialiseOriginalReference();
-            var registry = new RegistryObservation();
-            int count = 0;
-            try
+            return RunOwned(new OwnedDependencies(), owned =>
             {
-                using var owned = new OwnedDependencies();
+                int count = 0;
                 PerformanceDependency owner = owned.Create();
                 var trace = new List<string>();
                 Action<bool> a = value => trace.Add("A" + value), b = value => trace.Add("B" + value);
@@ -170,8 +210,7 @@ namespace ProjectLucid.Verification
                 Change(owner, null);
                 Check(Callback(owner) == null, ref count, "Null profile returns before callback state");
                 return count;
-            }
-            finally { registry.AssertUnchanged(); }
+            });
         }
 
         public static int RunComparisonsEngine44()

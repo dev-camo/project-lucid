@@ -857,6 +857,13 @@ def run_audit(repo_root, work_dir):
         lock.rmdir()
 
 EDITMODE_TESTS += ('ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.CopyPreservesAliasesAndDestinationCallbacks', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.DelegateAccessorsPreserveDuplicatesAndCapturedOrder', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ComparisonsPreserveThresholdsAndMissingFeatureFallback', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ProfileCallbacksPreserveReentryAndFaultPrefixes', 'ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.ProfileSubscriptionsPreserveDuplicateAndFaultState')
+# Owned-component cleanup failure controls; no original-behavior claim.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.OwnedGroupBodyFailureStaysPrimaryAndReleasesEveryHost",
+    "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.OwnedGroupSecondHostAcquisitionFailureStaysPrimaryAndReleasesBothHosts",
+    "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.OwnedGroupBodyFailureStaysFirstAheadOfReleaseFailures",
+    "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests.OwnedGroupThrowingReleaseStillReleasesLaterHostsAndRunsTheRegistryCheck",
+)
 
 EDITMODE_TESTS += ('ProjectLucid.Tests.OriginalNotificationsPreservationTests.ReceivedTokenPreservesStoreReentryAndFaultOrder', 'ProjectLucid.Tests.OriginalNotificationsPreservationTests.ConfigurationPreservesDefaultsAndOverrideAliases', 'ProjectLucid.Tests.OriginalGraphUserPreservationTests.TypedReferenceCastPreservesIdentityAndInvalidCastFault', 'ProjectLucid.Tests.OriginalGraphUserPreservationTests.TypedValueCastPreservesUnboxingCopyAndNullFault')
 
