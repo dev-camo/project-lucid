@@ -176,8 +176,7 @@ namespace HardlightProject
             m_targetGracePeriodTimer -= deltaTime;
             // Original ARM FCMP unordered NZCV=0011 satisfies B.LE through N!=V;
             // original x86 UCOMISS unordered satisfies JBE through CF/ZF. Both skip
-            // grace for NaN, matching this >0 comparison. The prior inference of
-            // a backend difference was rejected; frozen predecessor bytes remain.
+            // grace for NaN, matching this >0 comparison.
             if (m_targetGracePeriodTimer > 0f)
             {
                 if (m_pendingTarget.Object.Target == null) return;

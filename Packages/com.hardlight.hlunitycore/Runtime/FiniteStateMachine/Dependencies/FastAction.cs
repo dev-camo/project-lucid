@@ -105,8 +105,10 @@ namespace Hardlight
         }
     }
 
-    // This is the recovered one-argument original type. Other arities and
-    // extension methods are separate, unresolved types rather than substitutes.
+    // The recovered one-argument original type. The zero-, two- and
+    // three-argument types and FastActionExtensions are separate original
+    // types in Runtime/Logging/FastAction.NonGeneric.cs,
+    // FastAction.MultiArgument.cs and FastActionExtensions.cs.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class FastAction<T1> : FastActionBase<FastAction<T1>, Action<T1>>

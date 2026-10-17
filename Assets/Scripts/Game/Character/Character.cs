@@ -8,8 +8,13 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type020002aa; all89 own fields, with genuine native-derived
-    // bodies added in original-class groups. This source graph is incomplete/unaccepted.
+    // Original Game.Runtime type020002aa; all89 own fields, with native-derived bodies.
+    // Still incomplete: the compiler-generated auto-property accessors in
+    // 0x06000eaf..0x06000eee, the OnEnterLevel lambda 0x06000fac, the ClampIfNeeded
+    // local function 0x06000fad and the nested <>c and iterator classes are not yet
+    // verified against their original bodies; eleven methods, e.g. Initialise
+    // 0x06000ef2 and TryTakeDamage 0x06000f68, still differ from their original
+    // signatures; and the constant-returning GetTimeCategory 0x06000f57 is unverified.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class Character : Actor, IGameplayModifiable, IDamageable
@@ -94,8 +99,8 @@ namespace HardlightProject
 
         // Native-derived original method bodies follow; absent methods are unresolved
         // rather than emitted as default returns, exceptions or dependency shells.
-        // 06000eac..ee6: actual original accessors. Actor base and genuine field
-        // dependencies remain source-open; original method order is not yet approved.
+        // 06000eac..ee6: actual original accessors. The Actor base class is itself
+        // incomplete, and source method order is not yet checked against the original.
         public SaveDataSettings SaveDataSettings => m_saveManagerRef.Get().GetSaveDataSettings();
         public TransformFakeParent FakeParent => m_fakeParent;
         public GameObject BlobShadowObject => m_blobShadowObject;

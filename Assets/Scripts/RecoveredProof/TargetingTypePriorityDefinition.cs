@@ -23,6 +23,6 @@ namespace HardlightProject
         public System.Int32 Priority => m_priority;
 
         // Original Game.Runtime 0x06001f5c, ARM 0x531fc4.
-        // Natural original constructor; field initializers precede the genuine base.
+        // Natural original constructor; there are no own field initializers.
     }
 }

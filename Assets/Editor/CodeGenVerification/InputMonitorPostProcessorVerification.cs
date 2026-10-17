@@ -287,8 +287,7 @@ namespace ProjectLucid
                 m => check(AllTypes(m.Types).Single(t => t.FullName == "Hardlight.IBaseSourceProvider`4").GenericParameters[0].Name == "TKeySource" && AllTypes(m.Types).Single(t => t.FullName == "Hardlight.IBaseSourceProvider`4").GenericParameters[0].Constraints.Count == 0, "Original key-source constraint removed in reopened bytes"));
             rejectMutation("Invented stripped API", m => AllTypes(m.Types).Single(t => t.FullName == "Hardlight.IBaseSourceProvider`4").Methods.Add(new MethodDefinition("Invented", Mono.Cecil.MethodAttributes.Public | Mono.Cecil.MethodAttributes.Virtual | Mono.Cecil.MethodAttributes.NewSlot | Mono.Cecil.MethodAttributes.Abstract, m.TypeSystem.Void)),
                 m => { var marker = AllTypes(m.Types).Single(t => t.FullName == "Hardlight.IBaseSourceProvider`4"); check(marker.Methods.Count == 1 && marker.Methods[0].Name == "Invented" && marker.Methods[0].IsAbstract, "Invented stripped-interface member persisted in reopened bytes"); });
-            // Keep all fifty-three prior actions/witnesses above byte-identical.
-            // Every added action has an explicit witness on the finished bytes.
+            // Each AddedTargetKeys mutation has an explicit witness on the finished bytes.
             foreach (string key in AddedTargetKeys)
             {
                 string selectedKey = key;
@@ -381,7 +380,7 @@ namespace ProjectLucid
         }
         // Consume a genuine separately compiled maintained package. The root
         // caller supplies its actual compiler-plan source count and records that
-        // receipt; no hardcoded historical12/current13/prospective15 label.
+        // receipt; no source count is hardcoded here.
         internal static int CheckActualSmallPackage(string path, string[] references, int actualSourceCount)
         {
             if (actualSourceCount <= 0) throw new InvalidOperationException("Missing actual maintained source-count receipt.");

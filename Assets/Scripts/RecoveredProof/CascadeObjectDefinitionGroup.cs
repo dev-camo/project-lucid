@@ -16,6 +16,6 @@ namespace HardlightProject
         protected override IEqualityComparer<HardlightProject.CascadeObjectType> GetKeyComparer() => HardlightEnumComparers.CascadeObjectTypeComparer;
 
         // Original Game.Runtime 0x06001a90, ARM 0x516b68.
-        // Natural original constructor; field initializers precede the genuine base.
+        // Natural original constructor; there are no own field initializers.
     }
 }

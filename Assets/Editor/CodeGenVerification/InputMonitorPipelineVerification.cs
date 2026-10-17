@@ -10,7 +10,7 @@ using UnityEditor.Compilation;
 namespace ProjectLucid
 {
     // Check the loaded module against its compiler input and exact slot restoration.
-    // Reflection avoids a compile-time reference to a currently absent owner.
+    // Reflection is used because this assembly does not reference HLInput.Runtime.
     public static class InputMonitorPipelineVerification
     {
         private static void Require(bool value, string message) { if (!value) throw new InvalidOperationException(message); }

@@ -100,8 +100,9 @@ namespace ProjectLucid.CodeGen
             internal ProviderTypeContract(string name, int flags, string baseType, string[] attributes, string[] fields, string[] interfaces, string[] generics, string[] methods, string[] properties)
             { Name = name; Flags = flags; Base = baseType; Attributes = attributes; Fields = fields; Interfaces = interfaces; Generics = generics; Methods = methods; Properties = properties; }
         }
-        // Derived only from the different-author complete ten-owner original/current
-        // capsule. Genuine stripped marker APIs remain empty; no getter invented.
+        // Expected declaration shape of the original HLInput.Runtime provider types
+        // (dump.cs entries, e.g. Hardlight.BaseSourceProvider TypeDefIndex 13033).
+        // Genuine stripped marker APIs remain empty; no getter invented.
         private static readonly ProviderTypeContract[] ProviderTypes = new[] {
             new ProviderTypeContract("Hardlight.BaseSourceProvider", 1048705, "System.Object",
                 new string[] { "Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute|System.Void Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute::.ctor(Unity.IL2CPP.CompilerServices.Option,System.Object)|01000100000002000000", "Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute|System.Void Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute::.ctor(Unity.IL2CPP.CompilerServices.Option,System.Object)|01000200000002000000" },

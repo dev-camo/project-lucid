@@ -16,6 +16,6 @@ namespace HardlightProject
         protected override IEqualityComparer<HardlightProject.ChallengeZoneIdentifier> GetKeyComparer() => HardlightEnumComparers.ChallengeZoneIdentifierComparer;
 
         // Original Game.Runtime 0x06001aab, ARM 0x517548.
-        // Natural original constructor; field initializers precede the genuine base.
+        // Natural original constructor; there are no own field initializers.
     }
 }

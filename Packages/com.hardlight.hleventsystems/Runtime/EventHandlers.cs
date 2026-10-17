@@ -28,13 +28,13 @@ public static class EventHandlers
     private static void Execute(IScrollUpHandler handler, BaseEventData data) { handler.OnScrollUp(ExecuteEvents.ValidateEventData<ScrollEventData>(data)); }
     // Original06000008; the original scroll routes validate their custom event data first.
     private static void Execute(IScrollDownHandler handler, BaseEventData data) { handler.OnScrollDown(ExecuteEvents.ValidateEventData<ScrollEventData>(data)); }
-    // Original06000009; the original scroll routes validate their custom event data first.
+    // Original06000009; passes the BaseEventData through without ValidateEventData.
     private static void Execute(ITabNextHandler handler, BaseEventData data) { handler.OnTabNext(data); }
-    // Original0600000a; the original scroll routes validate their custom event data first.
+    // Original0600000a; passes the BaseEventData through without ValidateEventData.
     private static void Execute(ITabPreviousHandler handler, BaseEventData data) { handler.OnTabPrevious(data); }
-    // Original0600000b; the original scroll routes validate their custom event data first.
+    // Original0600000b; passes the BaseEventData through without ValidateEventData.
     private static void Execute(ITooltipToggleHandler handler, BaseEventData data) { handler.OnTooltipToggle(data); }
-    // Original0600000c; the original scroll routes validate their custom event data first.
+    // Original0600000c; passes the BaseEventData through without ValidateEventData.
     private static void Execute(ILastInputTypeUpdateHandler handler, BaseEventData data) { handler.OnLastInputTypeUpdate(data); }
     // Original0600000d is explicit, preserving the absence of BeforeFieldInit and the six allocation/store pairs.
     static EventHandlers()

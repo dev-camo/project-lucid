@@ -73,15 +73,12 @@ namespace Hardlight
 		private bool m_debug;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000030
-		// Returns the original serialized field directly.
 		public string MetaFilename => m_metaFilename;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000031
-		// Returns the original serialized field directly.
 		public string DestinationFolder => m_destinationFolder;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000032
-		// Returns the original serialized field directly.
 		public string IncomingFolder => m_incomingFolder;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000033
@@ -89,35 +86,27 @@ namespace Hardlight
 		public string Server => m_server == ServerType.Dev ? ServerDev : ServerProd;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000034
-		// Returns the original serialized field directly.
 		public string GameTitle => m_gameTitle;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000035
-		// Returns the original serialized field directly.
 		public string RouterPropertyName => m_routerPropertyName;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000036
-		// Returns the original serialized field directly.
 		public string PlatformName => m_platformName;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000037
-		// Returns the original serialized field directly.
 		public bool CanUseLocalStorage => m_canUseLocalStorage;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000038
-		// Returns the original serialized field directly.
 		public int IconImagePoolSize => m_iconImagePoolSize;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x06000039
-		// Returns the original serialized field directly.
 		public int MainImagePoolSize => m_mainImagePoolSize;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x0600003a
-		// Returns the original serialized field directly.
 		public long InvalidContentLengthThreshold => m_invalidContentLengthThreshold;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x0600003b
-		// Returns the original serialized field directly.
 		public bool Debug => m_debug;
 
 		// original-configuration22/HLCrossPromo.Runtime.dll/Hardlight.CrossPromoConfigurationAsset/0x0600003c

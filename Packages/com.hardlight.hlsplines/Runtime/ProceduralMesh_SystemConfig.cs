@@ -31,27 +31,21 @@ namespace Hardlight
 		private bool m_loadBalanceUnpopulate;
 
 		// original-configuration22/HLSplines.Runtime.dll/Hardlight.ProceduralMesh_SystemConfig/0x0600016a
-		// Returns the original serialized field directly.
 		public bool PrecomputeMeshLocations => m_precomputeMeshLocations;
 
 		// original-configuration22/HLSplines.Runtime.dll/Hardlight.ProceduralMesh_SystemConfig/0x0600016b
-		// Returns the original serialized field directly.
 		public bool ResetMeshStorage => m_resetMeshStorage;
 
 		// original-configuration22/HLSplines.Runtime.dll/Hardlight.ProceduralMesh_SystemConfig/0x0600016c
-		// Returns the original serialized field directly.
 		public bool LockToGameCamera => m_lockToGameCamera;
 
 		// original-configuration22/HLSplines.Runtime.dll/Hardlight.ProceduralMesh_SystemConfig/0x0600016d
-		// Returns the original serialized field directly.
 		public bool UseCameraFrustum => m_useCameraFrustum;
 
 		// original-configuration22/HLSplines.Runtime.dll/Hardlight.ProceduralMesh_SystemConfig/0x0600016e
-		// Returns the original serialized field directly.
 		public bool LoadBalancePopulate => m_loadBalancePopulate;
 
 		// original-configuration22/HLSplines.Runtime.dll/Hardlight.ProceduralMesh_SystemConfig/0x0600016f
-		// Returns the original serialized field directly.
 		public bool LoadBalanceUnpopulate => m_loadBalanceUnpopulate;
 
 		// original-configuration22/HLSplines.Runtime.dll/Hardlight.ProceduralMesh_SystemConfig/0x06000170
