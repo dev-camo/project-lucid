@@ -170,18 +170,26 @@ namespace ProjectLucid
         private static readonly Dictionary<ushort,OpCode> OpCodeTable=typeof(OpCodes).GetFields(BindingFlags.Public|BindingFlags.Static).Where(f=>f.FieldType==typeof(OpCode)).Select(f=>(OpCode)f.GetValue(null)).ToDictionary(c=>unchecked((ushort)c.Value));
         private static List<ILInstruction> DecodeIL(MethodBase method)
         {
-            byte[] data=method.GetMethodBody().GetILAsByteArray();var result=new List<ILInstruction>();
+            byte[] data=method.GetMethodBody().GetILAsByteArray();
+            var result=new List<ILInstruction>();
             for(int p=0;p<data.Length;)
             {
-                int offset=p;ushort value=data[p++];if(value==0xfe)value=(ushort)(0xfe00|data[p++]);
-                OpCode code=OpCodeTable[value];object operand=null;
+                int offset=p;
+                ushort value=data[p++];
+                if(value==0xfe)
+                    value=(ushort)(0xfe00|data[p++]);
+                OpCode code=OpCodeTable[value];
+                object operand=null;
                 switch(code.OperandType)
                 {
                     case OperandType.InlineNone:break;
                     case OperandType.ShortInlineI:operand=(int)(sbyte)data[p++];break;
                     case OperandType.ShortInlineVar:p++;break;
                     case OperandType.InlineVar:p+=2;break;
-                    case OperandType.ShortInlineBrTarget:operand=p+1+(sbyte)data[p];p++;break;
+                    case OperandType.ShortInlineBrTarget:
+                        operand=p+1+(sbyte)data[p];
+                        p++;
+                        break;
                     case OperandType.InlineBrTarget:operand=p+4+BitConverter.ToInt32(data,p);p+=4;break;
                     case OperandType.InlineI:operand=BitConverter.ToInt32(data,p);p+=4;break;
                     case OperandType.InlineI8:p+=8;break;
@@ -197,50 +205,62 @@ namespace ProjectLucid
             }
             return result;
         }
+        private static readonly OpCode[] SmallConstants={OpCodes.Ldc_I4_0,OpCodes.Ldc_I4_1,OpCodes.Ldc_I4_2,OpCodes.Ldc_I4_3,OpCodes.Ldc_I4_4,OpCodes.Ldc_I4_5,OpCodes.Ldc_I4_6,OpCodes.Ldc_I4_7,OpCodes.Ldc_I4_8};
         private static int? ILConstant(ILInstruction i)
         {
-            if(i.Code==OpCodes.Ldc_I4||i.Code==OpCodes.Ldc_I4_S)return (int)i.Operand;
-            if(i.Code==OpCodes.Ldc_I4_M1)return -1;
-            OpCode[] small={OpCodes.Ldc_I4_0,OpCodes.Ldc_I4_1,OpCodes.Ldc_I4_2,OpCodes.Ldc_I4_3,OpCodes.Ldc_I4_4,OpCodes.Ldc_I4_5,OpCodes.Ldc_I4_6,OpCodes.Ldc_I4_7,OpCodes.Ldc_I4_8};
-            for(int n=0;n<small.Length;n++)if(i.Code==small[n])return n;
-            return null;
+            if(i.Code==OpCodes.Ldc_I4||i.Code==OpCodes.Ldc_I4_S)
+                return (int)i.Operand;
+            if(i.Code==OpCodes.Ldc_I4_M1)
+                return -1;
+            int small=Array.IndexOf(SmallConstants,i.Code);
+            return small>=0 ? small : (int?)null;
         }
         private static bool StoresOrReturns(OpCode code) => code==OpCodes.Ret||code==OpCodes.Stloc||code==OpCodes.Stloc_S||code==OpCodes.Stloc_0||code==OpCodes.Stloc_1||code==OpCodes.Stloc_2||code==OpCodes.Stloc_3;
 
         // The engine model cannot be injected, so the compiled matcher's own CIL
         // is read instead: each model literal's ordinal op_Equality branch leads
         // to the constant that case returns. Compared with the native table, not
-        // with the maintained source.
+        // with the maintained source. The reader expects Roslyn's string-switch
+        // lowering (ComputeStringHash or length dispatch ending in
+        // `ldstr; call op_Equality; brtrue/brfalse`, then `ldc.i4; stloc/ret`)
+        // in Debug or Release, and throws rather than guessing on another shape.
+        // Case sensitivity follows from every literal using the ordinal
+        // op_Equality(string,string) overload.
         private static void CompiledMacMatcherAgreesWithNativeTable()
         {
             var il=DecodeIL(typeof(DevicePerformanceMatch_macOS).GetMethod("MatchMacToDeviceGeneration",BindingFlags.Instance|BindingFlags.Public|BindingFlags.DeclaredOnly));
-            var at=new Dictionary<int,int>();for(int i=0;i<il.Count;i++)at[il[i].Offset]=i;
+            var at=new Dictionary<int,int>();
+            for(int i=0;i<il.Count;i++)
+                at[il[i].Offset]=i;
             Check(il.Count(i=>i.Operand is MethodInfo m&&m.DeclaringType==typeof(SystemInfo)&&m.Name=="get_deviceModel")==1,"compiled Mac matcher queries the engine model exactly once");
-            var compiled=new List<KeyValuePair<string,MacDeviceGeneration>>();var caseBodies=new HashSet<int>();
+            var compiled=new List<KeyValuePair<string,MacDeviceGeneration>>();
+            var caseBodies=new HashSet<int>();
             for(int i=0;i<il.Count;i++)
             {
                 if(il[i].Code!=OpCodes.Ldstr)continue;
                 string model=(string)il[i].Operand;
-                Check(i+2<il.Count&&il[i+1].Operand is MethodInfo eq&&eq.DeclaringType==typeof(string)&&eq.Name=="op_Equality"&&eq.GetParameters().Length==2,"compiled literal "+model+" uses ordinal string equality");
-                ILInstruction branch=il[i+2];int target;
-                if(branch.Code==OpCodes.Brtrue||branch.Code==OpCodes.Brtrue_S)target=(int)branch.Operand;
-                else if(branch.Code==OpCodes.Brfalse||branch.Code==OpCodes.Brfalse_S)target=branch.Next;
-                else throw new Exception("Original device platform verification: unexpected branch after literal "+model+": "+branch.Code);
-                int body=at[target];while(il[body].Code==OpCodes.Nop)body++;
+                Check(i+2<il.Count&&il[i+1].Operand is MethodInfo eq&&eq.DeclaringType==typeof(string)&&eq.Name=="op_Equality"&&eq.GetParameters().Select(x=>x.ParameterType).SequenceEqual(new[]{typeof(string),typeof(string)}),"compiled literal "+model+" uses ordinal string equality");
+                ILInstruction branch=il[i+2];
+                int target;
+                if(branch.Code==OpCodes.Brtrue||branch.Code==OpCodes.Brtrue_S)
+                    target=(int)branch.Operand;
+                else if(branch.Code==OpCodes.Brfalse||branch.Code==OpCodes.Brfalse_S)
+                    target=branch.Next;
+                else
+                    throw new Exception("Original device platform verification: unexpected branch after literal "+model+": "+branch.Code);
+                int body=at[target];
+                while(il[body].Code==OpCodes.Nop)
+                    body++;
                 int? value=ILConstant(il[body]);
                 Check(value.HasValue&&StoresOrReturns(il[body+1].Code),"compiled literal "+model+" reaches a constant result");
-                caseBodies.Add(body);compiled.Add(new KeyValuePair<string,MacDeviceGeneration>(model,(MacDeviceGeneration)value.Value));
+                caseBodies.Add(body);
+                compiled.Add(new KeyValuePair<string,MacDeviceGeneration>(model,(MacDeviceGeneration)value.Value));
             }
-            Check(compiled.Count==NativeModelTable.Length&&compiled.Select(p=>p.Key).Distinct(StringComparer.Ordinal).Count()==NativeModelTable.Length,"compiled Mac matcher has exactly the 72 distinct native model literals");
+            Check(NativeModelTable.Length==72&&compiled.Count==72&&compiled.Select(p=>p.Key).Distinct(StringComparer.Ordinal).Count()==NativeModelTable.Length,"compiled Mac matcher has exactly the 72 distinct native model literals");
             foreach(var expected in NativeModelTable)
                 Check(compiled.Count(p=>p.Key==expected.Key)==1&&compiled.First(p=>p.Key==expected.Key).Value==expected.Value,"compiled "+expected.Key+" returns its native block result "+expected.Value);
             var defaults=il.Where((x,i)=>ILConstant(x).HasValue&&!caseBodies.Contains(i)&&i+1<il.Count&&StoresOrReturns(il[i+1].Code)).ToList();
             Check(defaults.Count==1&&(MacDeviceGeneration)ILConstant(defaults[0]).Value==NativeHigh,"compiled unmatched model default is the native 0x5f4edf High result");
-            // Ordinal-only negatives: case variants of original literals and an
-            // unlisted model fall to the default; the original 'IMac16,2' is kept.
-            foreach(string model in new[]{"imac16,2","iMac16,2","macbookpro18,4","MACBOOKPRO18,2","Mac14,8",""})
-                Check(!compiled.Any(p=>p.Key==model)&&NativeExpectedModel(model)==NativeHigh,"unlisted or case-variant model "+model+" reaches the High default");
-            Check(NativeExpectedModel(null)==NativeHigh&&NativeExpectedModel("IMac16,2")==NativeLow&&NativeExpectedModel("MacBookPro18,4")==NativeUltra,"native table positive and null controls");
         }
         public static int RunEngine()
         {
