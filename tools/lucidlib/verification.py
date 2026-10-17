@@ -2209,9 +2209,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGreyscaleAndBrightnessModifi
     "KeepsTheOriginalDeclaration",
     "ConstructionDefaultsBrightnessToOne",
     "SettersStoreUnclampedValuesAndDirtyTheGraphicOncePerCall",
+    "SettersDirtyTheGraphicEvenWhenTheValueIsUnchanged",
     "SettersWithoutAGraphicOnlyStoreValues",
     "InactiveModifyMeshLeavesTheHelperUntouched",
     "DisabledModifyMeshLeavesTheHelperUntouched",
+    "ModifyMeshReadsTheHelperOnlyWhenActive",
     "ActiveModifyMeshRewritesOnlyUV1AndUnsharesTheStream",
     "ActiveModifyMeshWithAnEmptyStreamKeepsUntriangulatedVertices",
 ))

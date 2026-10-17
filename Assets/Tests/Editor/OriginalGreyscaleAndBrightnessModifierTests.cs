@@ -120,7 +120,9 @@ namespace ProjectLucid.Tests
 
         // 0x1b4ebf0 / 0x1b4eca0 / 0x1b4ef60: store without clamping, then call
         // graphic.SetVerticesDirty (Graphic vtable slot 28) once when graphic
-        // != null. Getters 0x1b4ebe0 / 0x1b4ec90 only read the field.
+        // != null. Getters 0x1b4ebe0 / 0x1b4ec90 only read the field. The
+        // callback records the fields it sees: every store (movss +0x28 and
+        // +0x2c) precedes the tail-jump to SetVerticesDirty.
         [Test]
         public void SettersStoreUnclampedValuesAndDirtyTheGraphicOncePerCall()
         {
@@ -131,22 +133,51 @@ namespace ProjectLucid.Tests
                 Image image = owner.AddComponent<Image>();
                 GreyscaleAndBrightnessModifier modifier = owner.AddComponent<GreyscaleAndBrightnessModifier>();
                 Assert.That(image.IsActive(), Is.True, "SetVerticesDirty only notifies for an active graphic");
+                var seen = new List<Vector2>();
+                image.RegisterDirtyVerticesCallback(() => seen.Add(new Vector2(modifier.GreyscaleFactor, modifier.Brightness)));
+
+                modifier.GreyscaleFactor = 2.5f;
+                Assert.That(seen, Is.EqualTo(new[] { new Vector2(2.5f, 1f) }));
+                modifier.Brightness = -3f;
+                Assert.That(seen, Is.EqualTo(new[] { new Vector2(2.5f, 1f), new Vector2(2.5f, -3f) }));
+                Assert.That(modifier.GreyscaleFactor, Is.EqualTo(2.5f));
+                Assert.That(modifier.Brightness, Is.EqualTo(-3f));
+                Assert.That(seen.Count, Is.EqualTo(2), "getters do not dirty");
+
+                // One dirty for both fields, after both are stored.
+                modifier.SetGreyscaleFactorAndBrightness(-0.75f, 150f);
+                Assert.That(seen.Count, Is.EqualTo(3));
+                Assert.That(seen[2].x, Is.EqualTo(-0.75f));
+                Assert.That(seen[2].y, Is.EqualTo(150f));
+                Assert.That(modifier.GreyscaleFactor, Is.EqualTo(-0.75f));
+                Assert.That(modifier.Brightness, Is.EqualTo(150f));
+            }
+            finally { if (owner != null) Object.DestroyImmediate(owner); }
+        }
+
+        // The setters have no equality check before SetVerticesDirty, so
+        // rewriting the constructor defaults (0, 1) still dirties each time.
+        [Test]
+        public void SettersDirtyTheGraphicEvenWhenTheValueIsUnchanged()
+        {
+            GameObject owner = null;
+            try
+            {
+                owner = new GameObject("GreyscaleAndBrightnessModifier-unchanged", typeof(RectTransform));
+                Image image = owner.AddComponent<Image>();
+                GreyscaleAndBrightnessModifier modifier = owner.AddComponent<GreyscaleAndBrightnessModifier>();
+                Assert.That(image.IsActive(), Is.True, "SetVerticesDirty only notifies for an active graphic");
+                Assert.That(modifier.GreyscaleFactor, Is.Zero);
+                Assert.That(modifier.Brightness, Is.EqualTo(1f));
                 int dirtied = 0;
                 image.RegisterDirtyVerticesCallback(() => dirtied++);
 
-                modifier.GreyscaleFactor = 2.5f;
+                modifier.GreyscaleFactor = 0f;
                 Assert.That(dirtied, Is.EqualTo(1));
-                modifier.Brightness = -3f;
+                modifier.Brightness = 1f;
                 Assert.That(dirtied, Is.EqualTo(2));
-                Assert.That(modifier.GreyscaleFactor, Is.EqualTo(2.5f));
-                Assert.That(modifier.Brightness, Is.EqualTo(-3f));
-                Assert.That(dirtied, Is.EqualTo(2), "getters do not dirty");
-
-                // One dirty for both fields, not one per field.
-                modifier.SetGreyscaleFactorAndBrightness(-0.75f, 150f);
+                modifier.SetGreyscaleFactorAndBrightness(0f, 1f);
                 Assert.That(dirtied, Is.EqualTo(3));
-                Assert.That(modifier.GreyscaleFactor, Is.EqualTo(-0.75f));
-                Assert.That(modifier.Brightness, Is.EqualTo(150f));
             }
             finally { if (owner != null) Object.DestroyImmediate(owner); }
         }
@@ -207,6 +238,33 @@ namespace ProjectLucid.Tests
                 Assert.That(owner.activeInHierarchy, Is.True);
                 Assert.That(modifier.IsActive(), Is.False);
                 CheckModifyMeshLeavesTheQuadUntouched(modifier);
+            }
+            finally { if (owner != null) Object.DestroyImmediate(owner); }
+        }
+
+        // 0x1b4ed40 tests IsActive before it allocates the List or reads vh, so
+        // an inactive modifier ignores a null helper; the active control
+        // reaches GetUIVertexStream on it. There is no vh null guard.
+        [Test]
+        public void ModifyMeshReadsTheHelperOnlyWhenActive()
+        {
+            GameObject owner = null;
+            try
+            {
+                owner = new GameObject("GreyscaleAndBrightnessModifier-null-helper", typeof(RectTransform));
+                owner.AddComponent<Image>();
+                GreyscaleAndBrightnessModifier modifier = owner.AddComponent<GreyscaleAndBrightnessModifier>();
+                Assert.That(modifier.IsActive(), Is.True);
+                Assert.Throws<NullReferenceException>(() => modifier.ModifyMesh((VertexHelper)null));
+
+                modifier.enabled = false;
+                Assert.That(modifier.IsActive(), Is.False);
+                Assert.DoesNotThrow(() => modifier.ModifyMesh((VertexHelper)null));
+
+                modifier.enabled = true;
+                owner.SetActive(false);
+                Assert.That(modifier.IsActive(), Is.False);
+                Assert.DoesNotThrow(() => modifier.ModifyMesh((VertexHelper)null));
             }
             finally { if (owner != null) Object.DestroyImmediate(owner); }
         }
