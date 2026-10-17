@@ -6,70 +6,78 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x0200000f. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x0200000f. Every method body follows the complete ARM64 and x86-64 originals.
+// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Serializable]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    public sealed class ApplePluginControllerInputMonitor : Hardlight.ActiveBindingsInputMonitor<Hardlight.ActiveApplePluginControllerInputBindings,Hardlight.ApplePluginControllerInputBinding,Hardlight.ApplePluginControllerBindingData,Apple.GameController.Controller.GCControllerInputName,Apple.GameController.Controller.GCControllerInputName>
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    public sealed class ApplePluginControllerInputMonitor
+        : ActiveBindingsInputMonitor<
+            ActiveApplePluginControllerInputBindings,
+            ApplePluginControllerInputBinding,
+            ApplePluginControllerBindingData,
+            GCControllerInputName,
+            GCControllerInputName>
     {
-        [UnityEngine.SerializeField]
-        [UnityEngine.Header("Input Processors")]
-        private Hardlight.ApplePluginControllerInputButton m_button;
-        [UnityEngine.SerializeField]
-        private Hardlight.ApplePluginControllerInputAxis m_axis;
-        [UnityEngine.SerializeField]
-        private Hardlight.ApplePluginControllerInputVectorised m_vectorisedGameInput;
-        [UnityEngine.Header("Glyph Map Suppliers")]
-        [UnityEngine.SerializeField]
-        private Hardlight.ApplePluginControllerGlyphMap m_glyphMapButtonSupplier;
-        [UnityEngine.SerializeField]
-        [UnityEngine.Tooltip("Specify a different scale variant for a symbol to change the emphasis of the symbol relative to its adjacent text.")]
-        [UnityEngine.Header("Glyph Settings")]
-        private Apple.GameController.Controller.GCControllerSymbolScale m_glyphSymbolScale = GCControllerSymbolScale.Medium;
-        [UnityEngine.SerializeField]
-        [UnityEngine.Tooltip("The rendering mode controls how UIKit uses color information to display an image. iOS and tvOS only.")]
-        private Apple.GameController.Controller.GCControllerRenderingMode m_glyphRenderingMode = GCControllerRenderingMode.Automatic;
-        [UnityEngine.SerializeField]
-        [UnityEngine.Tooltip("The system font point size to use for the configuration. Higher value results in higher resolution texture returned.")]
-        private System.Single m_glyphPointSize = 60f;
-        [UnityEngine.SerializeField]
-        [UnityEngine.Tooltip("Weight changes the thickness of the lines of the glyph.")]
-        private Apple.GameController.Controller.GCControllerSymbolWeight m_glyphSymbolWeight = GCControllerSymbolWeight.Medium;
-        [UnityEngine.Tooltip("Use the 'filled in' variant of the glyph where the text is transparent and the button shape is filled in.")]
-        [UnityEngine.SerializeField]
-        private System.Boolean m_useGlyphFilledStyle = true;
-        public const System.String DefaultFileName = "ApplePluginControllerInputMonitor";
-        private readonly Hardlight.SourceApplePluginControllerProvider m_sourceProvider = new SourceApplePluginControllerProvider();
-        private System.Func<Apple.GameController.Controller.GCControllerInputName,Hardlight.InputType,System.Int32,UnityEngine.Texture2D> m_getGlyphForGCControllerInputNameAndInputType;
+        [SerializeField]
+        [Header("Input Processors")]
+        private ApplePluginControllerInputButton m_button;
+        [SerializeField]
+        private ApplePluginControllerInputAxis m_axis;
+        [SerializeField]
+        private ApplePluginControllerInputVectorised m_vectorisedGameInput;
+        [Header("Glyph Map Suppliers")]
+        [SerializeField]
+        private ApplePluginControllerGlyphMap m_glyphMapButtonSupplier;
+        [SerializeField]
+        [Tooltip("Specify a different scale variant for a symbol to change the emphasis of the symbol relative to its adjacent text.")]
+        [Header("Glyph Settings")]
+        private GCControllerSymbolScale m_glyphSymbolScale = GCControllerSymbolScale.Medium;
+        [SerializeField]
+        [Tooltip("The rendering mode controls how UIKit uses color information to display an image. iOS and tvOS only.")]
+        private GCControllerRenderingMode m_glyphRenderingMode = GCControllerRenderingMode.Automatic;
+        [SerializeField]
+        [Tooltip("The system font point size to use for the configuration. Higher value results in higher resolution texture returned.")]
+        private float m_glyphPointSize = 60f;
+        [SerializeField]
+        [Tooltip("Weight changes the thickness of the lines of the glyph.")]
+        private GCControllerSymbolWeight m_glyphSymbolWeight = GCControllerSymbolWeight.Medium;
+        [Tooltip("Use the 'filled in' variant of the glyph where the text is transparent and the button shape is filled in.")]
+        [SerializeField]
+        private bool m_useGlyphFilledStyle = true;
+        public const string DefaultFileName = "ApplePluginControllerInputMonitor";
+        private readonly SourceApplePluginControllerProvider m_sourceProvider =
+            new SourceApplePluginControllerProvider();
+        private Func<GCControllerInputName, InputType, int, Texture2D> m_getGlyphForGCControllerInputNameAndInputType;
 
-        // Original 0x06000023; complete ARM64 and x86-64 bodies retained.
-        protected override Hardlight.BaseSourceProvider BaseSourceProvider
+        protected override BaseSourceProvider BaseSourceProvider
         {
             get { return m_sourceProvider; }
         }
 
-        // Original 0x06000024; complete ARM64 and x86-64 bodies retained.
-        protected override void InitialiseControlMap(Hardlight.ControlMap controlMap)
+        protected override void InitialiseControlMap(ControlMap controlMap)
         {
             controlMap.Initialise(m_axis);
             controlMap.Initialise(m_button);
             controlMap.Initialise(m_vectorisedGameInput);
         }
 
-        // Original 0x06000025; complete ARM64 and x86-64 bodies retained.
-        protected override void InitialiseInputProcessors(Hardlight.IGlyphLookupSystemSetter glyphLookupSystemSetter, System.Collections.Generic.IReadOnlyList<Hardlight.ApplePluginControllerInputBinding> currentInputBindings)
+        protected override void InitialiseInputProcessors(IGlyphLookupSystemSetter glyphLookupSystemSetter,
+            IReadOnlyList<ApplePluginControllerInputBinding> currentInputBindings)
         {
             Dictionary<GameInput, Dictionary<InputType, List<Texture2D>>> gameInputGlyphMap =
-                new Dictionary<GameInput, Dictionary<InputType, List<Texture2D>>>(HardlightEnumComparers.GameInputComparer);
-            m_button.Initialise(ref gameInputGlyphMap, m_getGlyphForGCControllerInputNameAndInputType, m_sourceProvider.KeySource, currentInputBindings);
-            m_axis.Initialise(ref gameInputGlyphMap, m_getGlyphForGCControllerInputNameAndInputType, m_sourceProvider.AxisSource, currentInputBindings);
+                new Dictionary<GameInput, Dictionary<InputType, List<Texture2D>>>(
+                    HardlightEnumComparers.GameInputComparer);
+            m_button.Initialise(ref gameInputGlyphMap, m_getGlyphForGCControllerInputNameAndInputType,
+                m_sourceProvider.KeySource, currentInputBindings);
+            m_axis.Initialise(ref gameInputGlyphMap, m_getGlyphForGCControllerInputNameAndInputType,
+                m_sourceProvider.AxisSource, currentInputBindings);
             m_vectorisedGameInput.Initialise(currentInputBindings);
             GlyphLookupSystemSetter.SetGameInputGlyphMap(gameInputGlyphMap);
         }
 
-        // Original 0x06000026; complete ARM64 and x86-64 bodies retained.
         protected override void InitialiseGlyphMapSuppliers()
         {
             m_glyphMapButtonSupplier.Initialise();
@@ -78,14 +86,12 @@ namespace Hardlight
                 m_glyphPointSize, m_glyphSymbolWeight, m_useGlyphFilledStyle);
         }
 
-        // Original 0x06000027; complete ARM64 and x86-64 bodies retained.
         protected override void ShutdownGlyphMapSuppliers()
         {
             m_getGlyphForGCControllerInputNameAndInputType = null;
             m_glyphMapButtonSupplier.Shutdown();
         }
 
-        // Original 0x06000028; complete ARM64 and x86-64 bodies retained.
         protected override void ShutdownInputProcessors()
         {
             m_button.Shutdown();
@@ -93,15 +99,13 @@ namespace Hardlight
             m_vectorisedGameInput.Shutdown();
         }
 
-        // Original 0x06000029; complete ARM64 and x86-64 bodies retained.
-        protected override void ShutdownControlMap(Hardlight.ControlMap controlMap)
+        protected override void ShutdownControlMap(ControlMap controlMap)
         {
             controlMap.Shutdown(m_vectorisedGameInput);
             controlMap.Shutdown(m_axis);
             controlMap.Shutdown(m_button);
         }
 
-        // Original 0x0600002a; complete ARM64 and x86-64 bodies retained.
         public override void Update()
         {
             base.Update();
@@ -110,8 +114,7 @@ namespace Hardlight
             m_vectorisedGameInput.Update();
         }
 
-        // Original 0x0600002b; complete ARM64 and x86-64 bodies retained.
-        private UnityEngine.Texture2D GetGlyphForKeyAndInputType(Apple.GameController.Controller.GCControllerInputName key, Hardlight.InputType inputType, System.Int32 joystickIndex)
+        private Texture2D GetGlyphForKeyAndInputType(GCControllerInputName key, InputType inputType, int joystickIndex)
         {
             Texture2D texture;
             if (m_sourceProvider.GlyphSource.TryGetGlyph(key, joystickIndex, out texture))
@@ -119,15 +122,12 @@ namespace Hardlight
             return m_glyphMapButtonSupplier.GetGlyphForKeyAndInputType(key, inputType);
         }
 
-        // Original 0x0600002c; complete ARM64 and x86-64 bodies retained.
         public void OnValidate()
         {
         }
 
-        // Original 0x0600002d; complete ARM64 and x86-64 bodies retained.
         public ApplePluginControllerInputMonitor()
         {
         }
-
     }
 }

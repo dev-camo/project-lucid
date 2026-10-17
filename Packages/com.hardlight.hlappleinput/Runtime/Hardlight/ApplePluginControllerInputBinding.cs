@@ -6,30 +6,31 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x0200000b. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x0200000b. Every method body follows the complete ARM64 and x86-64 originals.
+// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    [UnityEngine.CreateAssetMenu(menuName = "Hardlight/HLAppleInput/Input Bindings/Apple Plugin Controller Input Binding")]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    public class ApplePluginControllerInputBinding : Hardlight.BaseInputBinding<Hardlight.ApplePluginControllerBindingData>, Hardlight.IInputButtonProvider<Hardlight.ApplePluginControllerBinding>, Hardlight.IBaseInputBindingProvider, Hardlight.IInputAxisProvider<Hardlight.ApplePluginControllerBinding>
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [CreateAssetMenu(menuName = "Hardlight/HLAppleInput/Input Bindings/Apple Plugin Controller Input Binding")]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    public class ApplePluginControllerInputBinding
+        : BaseInputBinding<ApplePluginControllerBindingData>,
+          IInputButtonProvider<ApplePluginControllerBinding>,
+          IBaseInputBindingProvider,
+          IInputAxisProvider<ApplePluginControllerBinding>
     {
-        // Original 0x0600001b; complete ARM64 and x86-64 bodies retained.
-        public System.Collections.Generic.IReadOnlyList<Hardlight.IButtonBindingProvider<Hardlight.ApplePluginControllerBinding>> ButtonProviders
+        public IReadOnlyList<IButtonBindingProvider<ApplePluginControllerBinding>> ButtonProviders
         {
             get { return BindingData; }
         }
 
-        // Original 0x0600001c; complete ARM64 and x86-64 bodies retained.
-        public System.Collections.Generic.IReadOnlyList<Hardlight.IAxisBindingProvider<Hardlight.ApplePluginControllerBinding>> AxisProviders
+        public IReadOnlyList<IAxisBindingProvider<ApplePluginControllerBinding>> AxisProviders
         {
             get { return BindingData; }
         }
 
-        // Original 0x0600001d; complete ARM64 and x86-64 bodies retained.
         public ApplePluginControllerInputBinding()
         {
         }
-
     }
 }

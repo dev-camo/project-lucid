@@ -6,22 +6,23 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x02000006. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x02000006. Every method body follows the complete ARM64 and x86-64 originals.
+// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    public class ActiveApplePluginControllerInputBindings : Hardlight.BaseActiveBindings<Hardlight.ApplePluginControllerInputBinding,Hardlight.ApplePluginControllerBindingData>
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    public class ActiveApplePluginControllerInputBindings
+        : BaseActiveBindings<ApplePluginControllerInputBinding, ApplePluginControllerBindingData>
     {
-        [UnityEngine.SerializeField]
-        private System.Collections.Generic.List<Hardlight.ApplePluginControllerInputBinding> m_iOSBindings;
-        [UnityEngine.SerializeField]
-        private System.Collections.Generic.List<Hardlight.ApplePluginControllerInputBinding> m_tvOSBindings;
-        [UnityEngine.SerializeField]
-        private System.Collections.Generic.List<Hardlight.ApplePluginControllerInputBinding> m_macOSBindings;
-        public const System.String DefaultFileName = "ActiveApplePluginControllerInputBindings";
+        [SerializeField]
+        private List<ApplePluginControllerInputBinding> m_iOSBindings;
+        [SerializeField]
+        private List<ApplePluginControllerInputBinding> m_tvOSBindings;
+        [SerializeField]
+        private List<ApplePluginControllerInputBinding> m_macOSBindings;
+        public const string DefaultFileName = "ActiveApplePluginControllerInputBindings";
 
-        // Original 0x06000009; complete ARM64 and x86-64 bodies retained.
         protected override void SetupBindings()
         {
             // Both shipping macOS architectures select the macOS list. The other authored
@@ -29,10 +30,8 @@ namespace Hardlight
             SetActiveBindings(m_macOSBindings);
         }
 
-        // Original 0x0600000a; complete ARM64 and x86-64 bodies retained.
         public ActiveApplePluginControllerInputBindings()
         {
         }
-
     }
 }

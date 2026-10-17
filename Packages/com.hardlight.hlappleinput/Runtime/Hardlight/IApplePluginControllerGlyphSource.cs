@@ -9,10 +9,9 @@ using Unity.IL2CPP.CompilerServices;
 // Original HLAppleInput.Runtime 0x02000017. Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
-    public interface IApplePluginControllerGlyphSource : Hardlight.IBaseInputGlyphSource<Apple.GameController.Controller.GCControllerInputName>
+    public interface IApplePluginControllerGlyphSource : IBaseInputGlyphSource<GCControllerInputName>
     {
-        // Original 0x06000046; genuine abstract declaration.
-        void SetGlyphRenderSettings(Apple.GameController.Controller.GCControllerSymbolScale symbolScale, Apple.GameController.Controller.GCControllerRenderingMode renderingMode, System.Single pointSize, Apple.GameController.Controller.GCControllerSymbolWeight symbolWeight, System.Boolean useFillStyle);
-
+        void SetGlyphRenderSettings(GCControllerSymbolScale symbolScale, GCControllerRenderingMode renderingMode,
+            float pointSize, GCControllerSymbolWeight symbolWeight, bool useFillStyle);
     }
 }

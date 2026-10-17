@@ -6,34 +6,31 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x02000013. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x02000013. Every method body follows the complete ARM64 and x86-64 originals.
+// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
-    [UnityEngine.CreateAssetMenu(menuName = "Hardlight/HLAppleInput/ControllerProviders/Create ApplePluginControllerProvider")]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    public class ApplePluginControllerProviderScriptableObject : Hardlight.ScriptableControllerProvider
+    [CreateAssetMenu(menuName = "Hardlight/HLAppleInput/ControllerProviders/Create ApplePluginControllerProvider")]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    public class ApplePluginControllerProviderScriptableObject : ScriptableControllerProvider
     {
-        [UnityEngine.SerializeField]
-        private System.Boolean m_useInOSXStandaloneEditor;
+        [SerializeField]
+        private bool m_useInOSXStandaloneEditor;
 
-        // Original 0x06000034; complete ARM64 and x86-64 bodies retained.
-        public override Hardlight.BaseControllerProvider GetControllerNameProvider(System.Single controllerConnectionPollingRateInSeconds)
+        public override BaseControllerProvider GetControllerNameProvider(float controllerConnectionPollingRateInSeconds)
         {
             return new ApplePluginControllerProvider(controllerConnectionPollingRateInSeconds);
         }
 
-        // Original 0x06000035; complete ARM64 and x86-64 bodies retained.
-        public override System.Boolean IsActiveProvider()
+        public override bool IsActiveProvider()
         {
             // Both shipping macOS slices return true without reading the authored Editor flag.
             return true;
         }
 
-        // Original 0x06000036; complete ARM64 and x86-64 bodies retained.
         public ApplePluginControllerProviderScriptableObject()
         {
         }
-
     }
 }

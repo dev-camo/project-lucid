@@ -6,26 +6,31 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x0200000c. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x0200000c. Every method body follows the complete ARM64 and x86-64 originals.
+// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Serializable]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    public class ApplePluginControllerInputAxis : Hardlight.BaseInputAxis<Apple.GameController.Controller.GCControllerInputName,Hardlight.ApplePluginControllerBinding>
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    public class ApplePluginControllerInputAxis : BaseInputAxis<GCControllerInputName, ApplePluginControllerBinding>
     {
-        // Original 0x0600001e; complete ARM64 and x86-64 bodies retained.
-        protected override void UpdateAxisBinding(Hardlight.GameInput gameInput, Hardlight.IAxisProvider<Apple.GameController.Controller.GCControllerInputName> axisProvider, Hardlight.IBaseInputAxisSource<Apple.GameController.Controller.GCControllerInputName> inputAxisSource, Hardlight.InputType inputType, System.Int32 joystickIndex, System.Collections.Generic.IReadOnlyList<Hardlight.InputModifier> modifiers)
+        protected override void UpdateAxisBinding(
+            GameInput gameInput,
+            IAxisProvider<GCControllerInputName> axisProvider,
+            IBaseInputAxisSource<GCControllerInputName> inputAxisSource,
+            InputType inputType,
+            int joystickIndex,
+            IReadOnlyList<InputModifier> modifiers)
         {
             GCControllerInputName axis = axisProvider.Axis;
-            string trackingKey = AppleInputUtilities.GetTrackingKeyGameInputMappedApplePluginControllerAxis(gameInput, joystickIndex, axis);
+            string trackingKey = AppleInputUtilities.GetTrackingKeyGameInputMappedApplePluginControllerAxis(
+                gameInput, joystickIndex, axis);
             ProcessAxis(gameInput, axis, inputAxisSource, trackingKey, inputType, joystickIndex, modifiers);
         }
 
-        // Original 0x0600001f; complete ARM64 and x86-64 bodies retained.
         public ApplePluginControllerInputAxis()
         {
         }
-
     }
 }

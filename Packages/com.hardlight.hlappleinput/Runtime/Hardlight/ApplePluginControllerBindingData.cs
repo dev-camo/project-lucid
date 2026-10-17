@@ -6,32 +6,34 @@ using Hardlight.Utils;
 using UnityEngine;
 using Unity.IL2CPP.CompilerServices;
 
-// Original HLAppleInput.Runtime 0x02000007. Apple service calls are preserved and remain unexecuted.
+// Original HLAppleInput.Runtime 0x02000007. Every method body follows the complete ARM64 and x86-64 originals.
+// Apple service calls are preserved and remain unexecuted.
 namespace Hardlight
 {
     [Serializable]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOption(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
-    public class ApplePluginControllerBindingData : Hardlight.BaseBindingData, Hardlight.IButtonBindingProvider<Hardlight.ApplePluginControllerBinding>, Hardlight.IBaseBindingDataProvider, Hardlight.IAxisBindingProvider<Hardlight.ApplePluginControllerBinding>
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    public class ApplePluginControllerBindingData
+        : BaseBindingData,
+          IButtonBindingProvider<ApplePluginControllerBinding>,
+          IBaseBindingDataProvider,
+          IAxisBindingProvider<ApplePluginControllerBinding>
     {
-        [UnityEngine.SerializeField]
-        private System.Collections.Generic.List<Hardlight.ApplePluginControllerBinding> m_buttonBindings;
-        [UnityEngine.SerializeField]
-        private System.Collections.Generic.List<Hardlight.ApplePluginControllerBinding> m_axisBindings;
+        [SerializeField]
+        private List<ApplePluginControllerBinding> m_buttonBindings;
+        [SerializeField]
+        private List<ApplePluginControllerBinding> m_axisBindings;
 
-        // Original 0x0600000b; complete ARM64 and x86-64 bodies retained.
-        public System.Collections.Generic.IReadOnlyList<Hardlight.ApplePluginControllerBinding> ButtonBindings
+        public IReadOnlyList<ApplePluginControllerBinding> ButtonBindings
         {
             get { return m_buttonBindings; }
         }
 
-        // Original 0x0600000c; complete ARM64 and x86-64 bodies retained.
-        public System.Collections.Generic.IReadOnlyList<Hardlight.ApplePluginControllerBinding> AxisBindings
+        public IReadOnlyList<ApplePluginControllerBinding> AxisBindings
         {
             get { return m_axisBindings; }
         }
 
-        // Original 0x0600000d; complete ARM64 and x86-64 bodies retained.
         public override void SaveModifierNames()
         {
             InternalSaveModifierNames(m_buttonBindings);
@@ -39,7 +41,6 @@ namespace Hardlight
             InternalSaveModifierNames(m_vectorisedBindings);
         }
 
-        // Original 0x0600000e; complete ARM64 and x86-64 bodies retained.
         public override void LoadModifiersByName()
         {
             InternalLoadModifiersByName(m_buttonBindings);
@@ -47,10 +48,8 @@ namespace Hardlight
             InternalLoadModifiersByName(m_vectorisedBindings);
         }
 
-        // Original 0x0600000f; complete ARM64 and x86-64 bodies retained.
         public ApplePluginControllerBindingData()
         {
         }
-
     }
 }
