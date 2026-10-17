@@ -34,13 +34,10 @@ namespace ProjectLucid
         private static void Execute(bool unity)
         {
             checks = 0;
-            SystemConfiguration previous = ProcessManager.GetSystemSafe<SystemConfiguration>(autoRegister: false);
-            try { VerifyPaths(); VerifyManagedConfigShape(); if (unity) VerifyUnityResourceBodies(); }
-            finally
-            {
-                ProcessManager.UnregisterSystem<SystemConfiguration>();
-                if (previous != null) ProcessManager.RegisterSystem(previous);
-            }
+            // The fixture registers and unregisters the default configuration row itself, which
+            // would strip a live system's action subscriptions, so refuse before touching it.
+            Check(ProcessManager.IsSystemNull<SystemConfiguration>(), "configuration proof requires no live SystemConfiguration");
+            VerifyPaths(); VerifyManagedConfigShape(); if (unity) VerifyUnityResourceBodies();
         }
         private static void VerifyPaths()
         {
