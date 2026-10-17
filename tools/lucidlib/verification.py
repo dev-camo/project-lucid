@@ -2068,7 +2068,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalApplicationCoroutineIdentityTests.StartUITransitionMatchesTheOriginalGeneratedMembers",
 )
 
-# ApplicationStateFadeTransition and ApplicationStateStartUITransition DoOnEnter closures (x86-64 0x645300, 0x654c00).
+# ApplicationStateFadeTransition and ApplicationStateStartUITransition DoOnEnter closures
+# (<>c__DisplayClass4_0 b__0/b__1 x86-64 0x645640/0x645660; <>c__DisplayClass7_0 b__0/b__1 0x654c80/0x654ca0).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationTransitionCallbackTests.FadeMidpointRunsTheCallbackBeforeRemovingItsParametersAndCompletionPublishesOnce",
     "ProjectLucid.Tests.OriginalApplicationTransitionCallbackTests.StartUIMidpointPublishesAndTimeoutReportsBeforePublishing",
