@@ -48,7 +48,7 @@ namespace HardlightProject
 		// 06000635 (1.10.1 RVA 0x53BDC0)
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
-			HLAudioMixerDefinition mixer = ProcessManager.GetSystem<AudioManager>().GetMixer((HLAudioMixerIdentifier)0x7642df2f);
+			HLAudioMixerDefinition mixer = ProcessManager.GetSystem<AudioManager>().GetMixer(HLAudioMixerIdentifier.Main);
 			if (m_audioSource == HLAudioSourceIdentifier.Sfx)
 			{
 				mixer.SetSfxVolume(m_volume);

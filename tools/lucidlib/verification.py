@@ -1907,6 +1907,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.RollingEntryQueriesTheCharacterRollAction",
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.KnockbackTransitionLooksUpTheCharacterKnockbackAbility",
     "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.AudioSourceEntryRoutesSfxThenAmbientAndOtherwiseMusic",
+    "ProjectLucid.Tests.OriginalHashedIdentifierArgumentTests.CharacterActionFlagsAcceptsCharacterRollAndRejectsAnUndeclaredAction",
 )
 
 # Owned App-row cleanup failure controls; no original-behavior claim.
