@@ -1662,6 +1662,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMManagerVerificationOwnershipTests.CallbackCreatedReferenceNotifiedElsewhereIsNotNotifiedAgain",
 )
 
+# FSM fixture ownership of the default FSMManager row; original GetManager registration stays separate.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.ColdRegistryRunsLeaveNoDefaultManagerRow",
+    "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.EarlyFailureInsideTheRowScopeLeavesNoDefaultManagerRow",
+    "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.CleanupThatAcquiresTheManagerLeavesALiveRow",
+    "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.BorrowedLiveManagerKeepsItsInstanceAndHoldsNoFixtureMachines",
+    "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.BorrowedEmptyRowKeepsItsObjectReferencesAndObservers",
+)
+
 # Fixture ownership of the global property store; production save behavior stays separate.
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.PropertyListVerificationOwnershipTests.ForeignSaveHandlerSurvivesARefusedVerification",
@@ -1853,6 +1862,9 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.CoroutineHostTests.OriginalCoroutineHost_StartStopAndRegistryLifecycle",
     "ProjectLucid.Tests.CoroutinePrerequisitesTests.OriginalCoroutineHelpers_NestedTwoFramesAndBothStopOverloads",
     "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle",
+    "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_ColdRegistryLeavesNoDefaultManagerRow",
+    "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_BorrowedLiveManagerKeepsOnlyItsOwnMachines",
+    "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_BorrowedIdleRowStaysRegisteredAndEmpty",
     "ProjectLucid.Tests.InstancedPoolingLifecycleTests.OriginalInstancedPool_CloneDestroyAndManagerLifecycle",
     "ProjectLucid.Tests.LanguageLifecycleTests.OriginalLanguage_AutomaticSavedOverrideAndCallbackCleanup",
     "ProjectLucid.Tests.LevelManagerSystemsLifecycleTests.OriginalLevelManagedSystemsLifecycle",

@@ -23,20 +23,24 @@ namespace ProjectLucid
             Directory.CreateDirectory(directory);
             try
             {
-                VerifyDefaultsAndJSON(directory);
-                VerifyProcessRetention();
-                VerifyAcquireAndRelease();
-                VerifyLoaderOrdering();
-                VerifyLoaderErrorsAndReentry();
+                FSMManagerVerification.WithDefaultManagerRow(() =>
+                {
+                    try
+                    {
+                        VerifyDefaultsAndJSON(directory);
+                        VerifyProcessRetention();
+                        VerifyAcquireAndRelease();
+                        VerifyLoaderOrdering();
+                        VerifyLoaderErrorsAndReentry();
+                    }
+                    finally
+                    {
+                        foreach (var item in Objects) if (item != null) UnityEngine.Object.DestroyImmediate(item);
+                        Objects.Clear();
+                    }
+                }, manager => { foreach (string name in Names) while (manager.FSMExists(name)) manager.ReleaseFSM(name); });
             }
-            finally
-            {
-                foreach (var item in Objects) if (item != null) UnityEngine.Object.DestroyImmediate(item);
-                Objects.Clear();
-                var manager = FSMManager.GetManager();
-                foreach (string name in Names) while (manager.FSMExists(name)) manager.ReleaseFSM(name);
-                Names.Clear(); Directory.Delete(directory, true);
-            }
+            finally { Names.Clear(); Directory.Delete(directory, true); }
             Debug.Log("Original FSM ScriptableObject selection/acquisition and authored-loader boundary source-based verification passed. Concrete authored states and full game startup remain unresolved.");
         }
         private static FiniteStateMachineScriptableObject Asset()

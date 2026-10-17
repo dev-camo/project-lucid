@@ -30,8 +30,13 @@ namespace ProjectLucid
         }
         public static void Run()
         {
-            try { VerifyGroupCallbacks(); VerifyGroupFactory(); VerifySubMachineCallbacks(); VerifySubMachineFactory(); FSMTransitionLogicVerification.Run(); }
-            finally { foreach (var machine in Registered) FSMManager.GetManager().ReleaseFSM(machine); Registered.Clear(); }
+            try
+            {
+                FSMManagerVerification.WithDefaultManagerRow(
+                    () => { VerifyGroupCallbacks(); VerifyGroupFactory(); VerifySubMachineCallbacks(); VerifySubMachineFactory(); FSMTransitionLogicVerification.Run(); },
+                    manager => { foreach (var machine in Registered) manager.ReleaseFSM(machine); });
+            }
+            finally { Registered.Clear(); }
             Debug.Log("Original FSM group/submachine source-based verification passed. Concrete game states and full startup remain unresolved.");
         }
         private static void VerifyGroupCallbacks()

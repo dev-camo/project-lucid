@@ -16,12 +16,16 @@ namespace ProjectLucid
 
         public static void Run()
         {
-            VerifyMetadata();
-            VerifyDiscoveryAndHelpers();
-            VerifyRetryOrder();
-            VerifyFatalErrorsAndLimits();
-            VerifyDefaultsAndRouting();
-            VerifyJSONAndRegistration();
+            // VerifyJSONAndRegistration releases its own machine; the scope owns the manager row.
+            FSMManagerVerification.WithDefaultManagerRow(() =>
+            {
+                VerifyMetadata();
+                VerifyDiscoveryAndHelpers();
+                VerifyRetryOrder();
+                VerifyFatalErrorsAndLimits();
+                VerifyDefaultsAndRouting();
+                VerifyJSONAndRegistration();
+            }, manager => { });
             Debug.Log("Original synchronous FSM construction source-based verification passed. Asynchronous loading and authored gameplay remain unresolved.");
         }
 

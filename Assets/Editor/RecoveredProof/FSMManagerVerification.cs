@@ -67,6 +67,49 @@ namespace ProjectLucid
             }
         }
 
+        // Runs a fixture that reaches FSMManager.GetManager (0x060003eb), which registers a new
+        // default manager whenever the default row is null. The row's ownership is settled before
+        // the body runs, exactly as Run settles it: a borrowed empty row is set aside untouched,
+        // observers included, and an absent row is owned. Afterwards releaseMachines removes the
+        // fixture's own machines from whatever manager is registered then, looked up without
+        // creating one; an owned row is released and a borrowed row put back. A borrowed live
+        // manager stays registered. The body's own failure outranks a cleanup failure.
+        internal static void WithDefaultManagerRow(Action body, Action<FSMManager> releaseMachines)
+        {
+            string defaultManager = ProcessManager.GetDefaultName<FSMManager>();
+            IDictionary rows = RegistryRows();
+            var original = new List<DictionaryEntry>();
+            foreach (DictionaryEntry row in rows) original.Add(row);
+            object[] layout = CaptureLayout(rows);
+            object borrowedDefault = null;
+            if (rows.Contains(defaultManager) && ProcessManager.IsSystemNull(defaultManager))
+            {
+                borrowedDefault = rows[defaultManager];
+                rows.Remove(defaultManager);
+            }
+            var owned = new List<string>();
+            if (!rows.Contains(defaultManager)) owned.Add(defaultManager);
+            Exception failure = null, cleanup = null;
+            try { body(); }
+            catch (Exception error) { failure = error; }
+            try
+            {
+                // IsSystemNull reads the row without registering; GetSystem then only reads it.
+                if (!ProcessManager.IsSystemNull(defaultManager))
+                    releaseMachines(ProcessManager.GetSystem<FSMManager>(defaultManager));
+            }
+            catch (Exception error) { cleanup = error; }
+            try { if (owned.Count > 0) ReleaseOwnedRows(owned); }
+            catch (Exception error) { if (cleanup == null) cleanup = error; }
+            finally
+            {
+                if (borrowedDefault != null) rows[defaultManager] = borrowedDefault;
+                if (HoldsExactly(rows, original)) RestoreLayout(rows, layout);
+            }
+            if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
+            if (cleanup != null) ExceptionDispatchInfo.Capture(cleanup).Throw();
+        }
+
         // The original private registry; only rows named by the caller are ever removed.
         private static IDictionary RegistryRows() =>
             (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);

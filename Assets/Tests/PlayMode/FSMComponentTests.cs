@@ -18,6 +18,14 @@ namespace ProjectLucid.Tests
         public IEnumerator OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle()
         {
             string name = "Lucid-live-fsm-" + Guid.NewGuid().ToString("N");
+            // FSMManager.GetManager (0x060003eb) registers a default manager whenever that row is
+            // null. A live manager is borrowed in place and loses only this test's machine; an
+            // absent or idle row is leased, so the manager the acquisition registers is the
+            // test's own and its row is released afterwards.
+            string managerName = ProcessManager.GetDefaultName<FSMManager>();
+            LifecycleSystemRowLease managerLease = ProcessManager.IsSystemNull(managerName)
+                ? LifecycleSystemRowLease.AdmitAbsentOrIdle(LifecycleSystemRowLease.SharedRegistry, managerName)
+                : null;
             GameObject machineObject = null, userObject = null;
             FiniteStateMachineScriptableObject asset = null;
             try
@@ -52,7 +60,7 @@ namespace ProjectLucid.Tests
                 Assert.AreEqual(1, completions); Assert.IsTrue(selectionDeferred, "Asset completion precedes component selection and pending-user initialization.");
                 Assert.AreEqual(1, Get<int>(asset, "m_refCount"));
                 Assert.IsEmpty(Get<List<IGraphUser>>(component, "m_fsmUsersPendingInitialise"));
-                Assert.IsTrue(FSMManager.GetManager().FSMExists(name));
+                Assert.IsTrue(RegisteredManager().FSMExists(name));
                 Assert.AreEqual("idle", machine.GetActiveState(user).ToString());
 
                 SetUpdateType(component, 0);
@@ -100,16 +108,143 @@ namespace ProjectLucid.Tests
                 Assert.AreEqual(1, Get<int>(asset, "m_refCount"));
                 UnityEngine.Object.Destroy(machineObject); yield return null;
                 Assert.AreEqual(0, Get<int>(asset, "m_refCount"));
-                Assert.IsFalse(FSMManager.GetManager().FSMExists(name), "The final component release revokes manager ownership.");
+                Assert.IsFalse(RegisteredManager().FSMExists(name), "The final component release revokes manager ownership.");
                 Assert.AreSame(machine, asset.FSM, "Original asset release retains its selected machine reference.");
             }
             finally
             {
                 if (userObject != null) UnityEngine.Object.DestroyImmediate(userObject);
                 if (machineObject != null) UnityEngine.Object.DestroyImmediate(machineObject);
-                var manager = FSMManager.GetManager(); while (manager.FSMExists(name)) manager.ReleaseFSM(name);
+                // Look the manager up without registering one.
+                Action releaseMachine = () =>
+                {
+                    if (ProcessManager.IsSystemNull(managerName)) return;
+                    var manager = ProcessManager.GetSystem<FSMManager>(managerName);
+                    while (manager.FSMExists(name)) manager.ReleaseFSM(name);
+                };
+                if (managerLease == null) releaseMachine();
+                else
+                {
+                    managerLease.RunCleanup("release-fsm", releaseMachine);
+                    managerLease.RunCleanup("unregister-fsm-manager", () =>
+                    {
+                        if (!LifecycleSystemRowLease.SharedRegistry.Contains(managerName)) return;
+                        if (!managerLease.IsBorrowed) managerLease.CaptureCreatedRow(ProcessManager.GetSystemRef(managerName));
+                        ProcessManager.UnregisterSystem(managerName);
+                    });
+                    managerLease.Dispose();
+                }
                 if (asset != null) UnityEngine.Object.DestroyImmediate(asset);
             }
+            if (managerLease != null)
+            {
+                Assert.IsEmpty(managerLease.CleanupFailures, "Fixture cleanup failed; retained failures were reported separately.");
+                Assert.IsEmpty(managerLease.DiagnosticFailures, "Fixture cleanup reporting failed; diagnostic failures remain retained.");
+            }
+        }
+
+        // With no default manager row, the manager the live acquisition registers is the
+        // test's own and no row is left behind.
+        [UnityTest]
+        public IEnumerator OriginalFSMComponents_ColdRegistryLeavesNoDefaultManagerRow()
+        {
+            var registry = new DefaultManagerRowSnapshot();
+            try
+            {
+                IEnumerator run = OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle();
+                try { while (run.MoveNext()) yield return run.Current; }
+                finally { (run as IDisposable)?.Dispose(); }
+                Assert.IsFalse(LifecycleSystemRowLease.SharedRegistry.Contains(DefaultManagerRowSnapshot.Name), "The test left a default FSM manager row.");
+            }
+            finally { registry.Restore(); }
+        }
+
+        // A live default manager is borrowed in place: it stays registered and keeps only the
+        // machines it already held.
+        [UnityTest]
+        public IEnumerator OriginalFSMComponents_BorrowedLiveManagerKeepsOnlyItsOwnMachines()
+        {
+            var registry = new DefaultManagerRowSnapshot();
+            try
+            {
+                var live = new FSMManager();
+                ProcessManager.RegisterSystem(live, DefaultManagerRowSnapshot.Name);
+                object row = LifecycleSystemRowLease.SharedRegistry[DefaultManagerRowSnapshot.Name];
+                var foreign = new FiniteStateMachine("Lucid-live-borrowed-" + Guid.NewGuid().ToString("N"), skipAddToManager: true);
+                live.AddFSM(foreign);
+                IEnumerator run = OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle();
+                try { while (run.MoveNext()) yield return run.Current; }
+                finally { (run as IDisposable)?.Dispose(); }
+                Assert.AreSame(row, LifecycleSystemRowLease.SharedRegistry[DefaultManagerRowSnapshot.Name]);
+                Assert.AreSame(live, ProcessManager.GetSystem<FSMManager>());
+                CollectionAssert.AreEquivalent(new[] { foreign.FSMId }, live.FSMs.Keys.ToArray(), "The test left machines in the borrowed manager.");
+            }
+            finally { registry.Restore(); }
+        }
+
+        // An idle empty default row is borrowed: the test's manager registers into it and is
+        // revoked again, and the row object and its cached references stay.
+        [UnityTest]
+        public IEnumerator OriginalFSMComponents_BorrowedIdleRowStaysRegisteredAndEmpty()
+        {
+            var registry = new DefaultManagerRowSnapshot();
+            try
+            {
+                SystemRef untyped = ProcessManager.GetSystemRef(DefaultManagerRowSnapshot.Name);
+                object row = LifecycleSystemRowLease.SharedRegistry[DefaultManagerRowSnapshot.Name];
+                IEnumerator run = OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle();
+                try { while (run.MoveNext()) yield return run.Current; }
+                finally { (run as IDisposable)?.Dispose(); }
+                Assert.AreSame(row, LifecycleSystemRowLease.SharedRegistry[DefaultManagerRowSnapshot.Name]);
+                Assert.AreSame(untyped, ProcessManager.GetSystemRef(DefaultManagerRowSnapshot.Name));
+                Assert.IsTrue(untyped.IsNull(), "The borrowed idle row kept the test's manager.");
+            }
+            finally { registry.Restore(); }
+        }
+
+        // Sets the default manager row aside for one case and puts the registry back afterwards:
+        // the case's own row is unregistered and removed, the set-aside row returns, and the
+        // dictionary's complete state, free slots included, is restored once it holds exactly
+        // its original rows again.
+        private sealed class DefaultManagerRowSnapshot
+        {
+            internal static readonly string Name = ProcessManager.GetDefaultName<FSMManager>();
+            private readonly IDictionary rows = LifecycleSystemRowLease.SharedRegistry;
+            private readonly List<DictionaryEntry> original = new List<DictionaryEntry>();
+            private readonly FieldInfo[] fields;
+            private readonly object[] layout;
+            private readonly object setAside;
+
+            internal DefaultManagerRowSnapshot()
+            {
+                foreach (DictionaryEntry row in rows) original.Add(row);
+                fields = rows.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                layout = fields.Select(field => field.GetValue(rows) is Array array ? array.Clone() : field.GetValue(rows)).ToArray();
+                if (rows.Contains(Name)) setAside = rows[Name];
+                rows.Remove(Name);
+            }
+
+            internal void Restore()
+            {
+                if (rows.Contains(Name))
+                {
+                    ProcessManager.UnregisterSystem(Name);
+                    rows.Remove(Name);
+                }
+                if (setAside != null) rows[Name] = setAside;
+                if (rows.Count != original.Count) return;
+                foreach (DictionaryEntry row in original)
+                    if (!rows.Contains(row.Key) || !ReferenceEquals(rows[row.Key], row.Value)) return;
+                for (int i = 0; i < fields.Length; i++)
+                    fields[i].SetValue(rows, layout[i] is Array array ? array.Clone() : layout[i]);
+            }
+        }
+
+        // Reads the registered default manager; unlike GetManager it never registers one.
+        private static FSMManager RegisteredManager()
+        {
+            Assert.IsFalse(ProcessManager.IsSystemNull<FSMManager>(), "The original acquisition registered the default FSM manager.");
+            return ProcessManager.GetSystem<FSMManager>();
         }
 
         private static string GraphJSON(string name) => JsonUtility.ToJson(new FSMClassFactory.JSONMultipleFSMs

@@ -450,31 +450,13 @@ namespace ProjectLucid.Tests
 
         // Null fsm (0x1abdd1f): FSMManager.GetManager(null).FSMs is walked through
         // IEnumerable<KeyValuePair<int, FiniteStateMachine>> and each value is written.
-        // The default manager row is borrowed or owned exactly as FSMManagerVerification.Run
-        // does, the owned machine is released, and both manager tables and the registry
-        // dictionary get their original layout back.
+        // The default manager row is borrowed or owned through FSMManagerVerification's row
+        // scope, and both manager tables get their original layout back, dropping the machine.
         [Test]
         public void GenerateMultipleFSMsWithoutMachineWritesEveryManagerRegisteredFSM()
         {
-            string defaultName = ProcessManager.GetDefaultName<FSMManager>();
-            var rows = (IDictionary)typeof(ProcessManager)
-                .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-            // IDictionary's own enumerator yields DictionaryEntry; Cast<> would see KeyValuePair.
-            var original = new List<DictionaryEntry>();
-            foreach (DictionaryEntry row in rows) original.Add(row);
-            object[] layout = FSMManagerVerification.CaptureLayout(rows);
-            // A retained empty default row belongs to someone else; set it aside so the
-            // fixture's own manager never fires its observers.
-            object borrowedDefault = null;
-            if (rows.Contains(defaultName) && ProcessManager.IsSystemNull(defaultName))
-            {
-                borrowedDefault = rows[defaultName];
-                rows.Remove(defaultName);
-            }
-            var ownedRows = new List<string>();
-            if (!rows.Contains(defaultName)) ownedRows.Add(defaultName);
             var tables = new List<KeyValuePair<IDictionary, object[]>>();
-            try
+            FSMManagerVerification.WithDefaultManagerRow(() =>
             {
                 FSMManager manager = FSMManager.GetManager();
                 foreach (string field in new[] { "m_fsmRefs", "m_fsmLookUp" })
@@ -489,21 +471,11 @@ namespace ProjectLucid.Tests
 
                 FSMClassFactory.JSONMultipleFSMs json = FSMClassFactory.GenerateJSONMultipleFSMsClass(null, null);
                 Assert.That(json.FSMs.Select(item => item.Name).ToList(), Is.EqualTo(registered));
-            }
-            finally
+            }, manager =>
             {
                 foreach (KeyValuePair<IDictionary, object[]> table in tables)
                     FSMManagerVerification.RestoreLayout(table.Key, table.Value);
-                try
-                {
-                    if (ownedRows.Count > 0) FSMManagerVerification.ReleaseOwnedRows(ownedRows);
-                }
-                finally
-                {
-                    if (borrowedDefault != null) rows[defaultName] = borrowedDefault;
-                    if (HoldsExactly(rows, original)) FSMManagerVerification.RestoreLayout(rows, layout);
-                }
-            }
+            });
         }
 
         // SerialiseFSMsToFile 0x060003b0, 0x1abf110: pretty ToJson (esi=1, 0x1abf1e7), then
@@ -553,17 +525,6 @@ namespace ProjectLucid.Tests
                     if (Directory.Exists(root)) Directory.Delete(root, true);
                 }
             }
-        }
-
-        // Rows the case did not create are never dropped by restoring the layout.
-        private static bool HoldsExactly(IDictionary rows, List<DictionaryEntry> original)
-        {
-            if (rows.Count != original.Count) return false;
-            foreach (DictionaryEntry row in original)
-            {
-                if (!rows.Contains(row.Key) || !ReferenceEquals(rows[row.Key], row.Value)) return false;
-            }
-            return true;
         }
 
         [Serializable]

@@ -25,17 +25,21 @@ namespace ProjectLucid
             Directory.CreateDirectory(directory);
             try
             {
-                VerifyURIHelpers();
-                VerifyJSONIterator();
-                VerifyRegistrationAndReuse();
-                VerifyFailuresAndPartialMachines();
-                VerifyFileImportAndIncludes(directory);
+                FSMManagerVerification.WithDefaultManagerRow(() =>
+                {
+                    VerifyURIHelpers();
+                    VerifyJSONIterator();
+                    VerifyRegistrationAndReuse();
+                    VerifyFailuresAndPartialMachines();
+                    VerifyFileImportAndIncludes(directory);
+                }, manager =>
+                {
+                    foreach (string name in OwnedNames)
+                        for (int attempt = 0; attempt < 20 && manager.FSMExists(name); ++attempt) manager.ReleaseFSM(name);
+                });
             }
             finally
             {
-                var manager = FSMManager.GetManager();
-                foreach (string name in OwnedNames)
-                    for (int attempt = 0; attempt < 20 && manager.FSMExists(name); ++attempt) manager.ReleaseFSM(name);
                 OwnedNames.Clear();
                 Directory.Delete(directory, true);
             }
