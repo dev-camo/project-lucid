@@ -32,8 +32,10 @@ namespace Hardlight
         // Register before the unguarded args access; resolve node, graph, then name.
         public FSMStateSetString(FiniteStateMachine fsm, FSMIdentifier stateId, JSONCtorArgs ctorArgs) : base(fsm, stateId)
         {
-            int node = ConvertNameToId(ctorArgs.Node); int graph = ConvertNameToId(ctorArgs.FSM);
-            m_storageKey = new GraphStorageKey(ctorArgs.Name, node, graph); m_value = ctorArgs.Value;
+            int node = ConvertNameToId(ctorArgs.Node);
+            int graph = ConvertNameToId(ctorArgs.FSM);
+            m_storageKey = new GraphStorageKey(ctorArgs.Name, node, graph);
+            m_value = ctorArgs.Value;
         }
         public new static IFSMState ConstructInstance(FiniteStateMachine fsm, FSMIdentifier stateId, string jsonCtorArgs)
             => new FSMStateSetString(fsm, stateId, JsonUtility.FromJson<JSONCtorArgs>(jsonCtorArgs));

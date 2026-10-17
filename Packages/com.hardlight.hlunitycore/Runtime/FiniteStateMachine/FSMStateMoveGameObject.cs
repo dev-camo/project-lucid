@@ -29,7 +29,11 @@ namespace Hardlight
         private readonly Vector3 m_rotation;
 
         public FSMStateMoveGameObject(FiniteStateMachine fsm, FSMIdentifier stateId, Vector3 translation, Vector3 rotation)
-            : base(fsm, stateId) { m_translation = translation; m_rotation = rotation; }
+            : base(fsm, stateId)
+        {
+            m_translation = translation;
+            m_rotation = rotation;
+        }
         public new static IFSMState ConstructInstance(FiniteStateMachine fsm, FSMIdentifier stateId, string jsonCtorArgs)
         {
             JSONCtorArgs args = JsonUtility.FromJson<JSONCtorArgs>(jsonCtorArgs);

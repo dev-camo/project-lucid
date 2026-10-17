@@ -71,13 +71,11 @@ namespace Hardlight
         // GetValue keeps its defaults: a missing timeout reads as zero and is stored.
         public float GetTimeoutSeconds(IGraphUser user) => user.Storage.GetValue<float>(TimeoutVariableName);
         public void SetTimeoutSeconds(IGraphUser user, float value) => user.Storage.SetValue(TimeoutVariableName, value);
-        // Roll the timeout before resetting elapsed time.
         protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
         {
             SetTimeoutSeconds(user, UnityEngine.Random.Range(MinTimeoutSeconds, MaxTimeoutSeconds));
             SetElapsedSeconds(user, 0f);
         }
-        // Remove the timeout first, then the elapsed value.
         protected override void DoOnLeave(IGraphUser user, FSMStateChangeAction action)
         {
             user.Storage.RemoveValue<float>(TimeoutVariableName);

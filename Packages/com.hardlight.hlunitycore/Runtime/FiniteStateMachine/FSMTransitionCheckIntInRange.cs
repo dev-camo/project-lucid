@@ -35,7 +35,12 @@ namespace Hardlight
         public readonly int High;
 
         public FSMTransitionCheckIntInRange(FiniteStateMachine fsm, FSMIdentifier transitionId, GraphStorageKey storageKey, int low, int high)
-            : base(fsm, transitionId) { StorageKey = storageKey; Low = low; High = high; }
+            : base(fsm, transitionId)
+        {
+            StorageKey = storageKey;
+            Low = low;
+            High = high;
+        }
         public FSMTransitionCheckIntInRange(FiniteStateMachine fsm, GraphStorageKey storageKey, int low, int high)
             : this(fsm, CreateDefaultIdentifier(storageKey, low, high), storageKey, low, high) { }
         private static FSMIdentifier CreateDefaultIdentifier(GraphStorageKey storageKey, int low, int high)
@@ -43,7 +48,8 @@ namespace Hardlight
         public static IFSMTransition ConstructInstance(FiniteStateMachine fsm, FSMIdentifier transitionId, string jsonCtorArgs)
         {
             JSONCtorArgs args = JsonUtility.FromJson<JSONCtorArgs>(jsonCtorArgs);
-            int node = ConvertNameToId(args.Node); int graph = ConvertNameToId(args.FSM);
+            int node = ConvertNameToId(args.Node);
+            int graph = ConvertNameToId(args.FSM);
             var key = new GraphStorageKey(args.Name, node, graph);
             return new FSMTransitionCheckIntInRange(fsm, transitionId, key, args.Low, args.High);
         }

@@ -361,8 +361,8 @@ namespace ProjectLucid.Tests
         }
 
         // FSMClassFactory.GenerateJSONFiniteStateMachineClass 0x060003af, 0x1abe010: name,
-        // flags and default state, then states (Name, GetType().Name via MemberInfo slot 8,
-        // node serialiser, links) and transitions. No node metadata is produced.
+        // flags and default state, then states (Name, GetType() then virtual slot 8, inferred
+        // MemberInfo.get_Name; node serialiser, links) and transitions. No node metadata is produced.
         [Test]
         public void GenerateFiniteStateMachineClassWritesShortClassNamesArgumentsAndLinks()
         {

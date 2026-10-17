@@ -37,7 +37,12 @@ namespace Hardlight
 
         public FSMTransitionCheckString(FiniteStateMachine fsm, FSMIdentifier transitionId, GraphStorageKey storageKey, string triggerOn,
             Comparison compare = Comparison.EqualCaseSensitive)
-            : base(fsm, transitionId) { StorageKey = storageKey; TriggerOn = triggerOn; Compare = compare; }
+            : base(fsm, transitionId)
+        {
+            StorageKey = storageKey;
+            TriggerOn = triggerOn;
+            Compare = compare;
+        }
         public FSMTransitionCheckString(FiniteStateMachine fsm, GraphStorageKey storageKey, string triggerOn, Comparison compare)
             : this(fsm, CreateDefaultIdentifier(storageKey, triggerOn, compare), storageKey, triggerOn, compare) { }
         // The comparison precedes the trigger text in the generated name.
@@ -46,7 +51,8 @@ namespace Hardlight
         public static IFSMTransition ConstructInstance(FiniteStateMachine fsm, FSMIdentifier transitionId, string jsonCtorArgs)
         {
             JSONCtorArgs args = JsonUtility.FromJson<JSONCtorArgs>(jsonCtorArgs);
-            int node = ConvertNameToId(args.Node); int graph = ConvertNameToId(args.FSM);
+            int node = ConvertNameToId(args.Node);
+            int graph = ConvertNameToId(args.FSM);
             var key = new GraphStorageKey(args.Name, node, graph);
             // Parse (ignoring case) before allocation, so a bad literal never registers.
             var compare = (Comparison)Enum.Parse(typeof(Comparison), args.Compare, true);
