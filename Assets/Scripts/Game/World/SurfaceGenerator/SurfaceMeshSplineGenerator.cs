@@ -40,7 +40,8 @@ namespace HardlightProject
         protected override TimeCategory GetDefaultTimeCategoryEnum() => TimeCategory.GameplayUnscaled; //06003d5f, 90ae2b46
         protected Tracker2D GetTracker(int i) => m_trackers[i]; //06003d60
 
-        //06003d61. Vertex read precedes pool subscriptions and the original virtual Reset call.
+        //06003d61. Vertex read precedes pool subscriptions; the tail is the virtual
+        // InitialiseSplineTrackers (x86-64 0x6d9c25..0x6d9c47 jumps through class+0x328, slot 31).
         protected override void Awake()
         {
             base.Awake();
@@ -49,7 +50,7 @@ namespace HardlightProject
             m_poolManagerRef.InvokeOnValid(RegisterMesh);
             m_poolManagerRef.OnSystemStartup += RegisterMesh;
             m_poolManagerRef.OnSystemShutdown += UnregisterMesh;
-            Reset();
+            InitialiseSplineTrackers();
         }
         //06003d62. Original teardown removes startup before shutdown, after release and identity reset.
         public override void OnDestroy()

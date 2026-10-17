@@ -474,16 +474,21 @@ class IsolationVerdictTests(unittest.TestCase):
     DESTROY_PLAY = "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests"
     CONTROLLER = "ProjectLucid.Tests.ControllerActionTests"
     CONTROLLER_GAP = "ProjectLucid.Tests.OriginalControllerSubscriptionGapTests"
+    SURFACE_MESH_PLAY = "ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests"
 
     def test_side_effects_pin_the_native_changes_modes_and_registered_fixtures(self):
         effects = verification.ISOLATION_SIDE_EFFECTS
-        self.assertEqual({"TimeScaledUtilities..cctor", "PerformanceDependency..cctor", "InputActionSubscription..cctor"},
+        self.assertEqual({"TimeScaledUtilities..cctor", "TimeScaledComponent..cctor", "PerformanceDependency..cctor",
+                          "InputActionSubscription..cctor"},
                          set(effects))
         self.assertEqual(tuple(self.native_row_changes("Hardlight.TimeManager")),
                          effects["TimeScaledUtilities..cctor"]["changes"])
+        self.assertEqual(tuple(self.native_row_changes("Hardlight.TimeManager")),
+                         effects["TimeScaledComponent..cctor"]["changes"])
         self.assertEqual(tuple(self.native_row_changes("Hardlight.ScalablePerformance")),
                          effects["PerformanceDependency..cctor"]["changes"])
         self.assertEqual({"editmode": (self.TIMING, self.TIMING_PRESERVATION)}, effects["TimeScaledUtilities..cctor"]["fixtures"])
+        self.assertEqual({"playmode": (self.SURFACE_MESH_PLAY,)}, effects["TimeScaledComponent..cctor"]["fixtures"])
         self.assertEqual({"editmode": (self.GAP, self.PRESERVATION), "playmode": (self.DESTROY_PLAY,)},
                          effects["PerformanceDependency..cctor"]["fixtures"])
         self.assertEqual(tuple(self.native_row_changes("HardlightProject.InputSystem")),
@@ -647,7 +652,9 @@ class IsolationVerdictTests(unittest.TestCase):
             self.assertEqual("complete", report["status"], report["errors"])
             self.assertEqual(seen["LUCID_ISOLATION_NONCE"], report["isolation"]["nonce"])
             self.assertEqual(len(verification.PLAYMODE_TESTS), report["isolation"]["checked"])
-            self.assertEqual([(self.DESTROY_PLAY + ".InvalidProfileDestroysTheWholeGameObject", "PerformanceDependency..cctor")],
+            self.assertEqual([(self.DESTROY_PLAY + ".InvalidProfileDestroysTheWholeGameObject", "PerformanceDependency..cctor"),
+                              (self.SURFACE_MESH_PLAY + ".AwakeDispatchesInitialiseSplineTrackersOnceAfterTheShutdownSubscriptionAndNeverReset",
+                               "TimeScaledComponent..cctor")],
                              [(entry["test"], entry["side_effect"]) for entry in report["isolation"]["side_effects"]])
             verified_receipt(work, "playmode", identity)
 

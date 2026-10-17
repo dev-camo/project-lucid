@@ -703,6 +703,20 @@ ISOLATION_SIDE_EFFECTS = {
         "fixtures": {"editmode": ("ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests",
                                   "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests")},
     },
+    # TimeScaledComponent's BeforeFieldInit initializer 0x06000ec7 (x86-64
+    # 0x1b19ff0) stores GetSystemRef<TimeManager>(null, true) (0x1b1a04a..
+    # 0x1b1a051) in its readonly static m_timeManagerRef, which every
+    # descendant shares, appending the same null 'Hardlight.TimeManager' row as
+    # TimeScaledUtilities above. No other Play Mode fixture runs a
+    # TimeScaledComponent descendant; the SurfaceMeshSplineGenerator Awake
+    # fixture does (its OnDisable reads the reference), so its first case in
+    # Play Mode order causes these changes once. Not yet recorded natively.
+    "TimeScaledComponent..cctor": {
+        "reason": "TimeScaledComponent's type initializer 0x06000ec7 appends the permanent 'Hardlight.TimeManager' "
+                  "row that holds its readonly m_timeManagerRef; removing it would detach that reference",
+        "changes": _first_use_row_changes("Hardlight.TimeManager"),
+        "fixtures": {"playmode": ("ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests",)},
+    },
     # PerformanceDependency's static initializer 06000d75 (x86-64 0x1b10280)
     # stores GetSystemRef<ScalablePerformance>(null, true) (0x1b102e1) in its
     # readonly s_scalablePerformanceRef, appending the null
@@ -3858,4 +3872,10 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.SharedStateIsolationPlayModeHookTests.HookCapturedThisTestBeforeItsBody",
     "ProjectLucid.Tests.SharedStateIsolationPlayModeHookTests.HookStaysOpenAcrossFrames",
+)
+
+# Issue #288: SurfaceMeshSplineGenerator.Awake 0x06003d61 dispatches InitialiseSplineTrackers.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests.AwakeDispatchesInitialiseSplineTrackersOnceAfterTheShutdownSubscriptionAndNeverReset",
+    "ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests.PipeAwakeBuildsTrackerAndProfileFromTheSuppliedSplineBeforeTheFirstDirtyUpdate",
 )
