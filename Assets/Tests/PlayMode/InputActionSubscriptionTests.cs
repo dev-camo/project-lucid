@@ -33,10 +33,13 @@ namespace ProjectLucid.Tests
         // ProcessManager.GetSystemRef<InputSystem>(null, true) in
         // m_inputSystemRef, creating the 'HardlightProject.InputSystem' row on
         // the type's first use and holding its typed reference for the whole
-        // domain. A test cannot remove that row: m_inputSystemRef would keep
-        // the orphaned reference and never see a later InputSystem. Run the
-        // initializer once for the fixture, before any test case starts, so
-        // each case finds the row already in place and leaves it as found.
+        // domain. That row cannot be removed: m_inputSystemRef would keep the
+        // orphaned reference and never see a later InputSystem. The fixture
+        // therefore triggers this type initialization deliberately, as the
+        // game's first use would, and does not revert it; the row stays for
+        // the domain and the per-test recorder, which compares only cases,
+        // does not see it. Only an initializer that cannot be undone belongs
+        // here; reversible setup stays inside the case and is cleaned up there.
         [OneTimeSetUp]
         public void InitializeTheCachedInputSystemReference()
         {
