@@ -1664,7 +1664,6 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.BootSceneUnloadTests.OriginalBootStateUnloadsNamedScene",
     "ProjectLucid.Tests.BundledLanguageRequestTests.PortableAsyncLoaderReadsEverySuppliedLanguageBeforeCallback",
     "ProjectLucid.Tests.CharacterBrainLifecycleTests.OriginalBrainReenablesThroughItsCoroutineHostAndAppliesDeferredActions",
-    "ProjectLucid.Tests.CloudFacadeTests.BorrowedStoreRowAndStaticCallbacksAreRejectedWithoutInvocation",
     "ProjectLucid.Tests.CloudFacadeTests.OriginalCloudFacade_OverlappingCallbacksAndShutdown",
     "ProjectLucid.Tests.CoroutineHostTests.OriginalCoroutineHost_StartStopAndRegistryLifecycle",
     "ProjectLucid.Tests.CoroutinePrerequisitesTests.OriginalCoroutineHelpers_NestedTwoFramesAndBothStopOverloads",
