@@ -42,7 +42,11 @@ namespace ProjectLucid.Tests
             var trace = new List<string>();
             var created = new List<OrderedSystem>();
             OrderedSystem.Trace = trace;
-            try
+            // Each OrderedSystem constructor subscribes to Initialise and Shutdown, and
+            // SubscribeToAction creates a missing action row that unsubscribing keeps;
+            // own those rows and release them last, after every system unsubscribed.
+            var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Initialise, SystemAction.Shutdown);
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
                 var owner = new LevelManagerSystems(null);
                 var first = new OrderedSystem();
@@ -74,18 +78,22 @@ namespace ProjectLucid.Tests
                 OrderedSystem third = ProcessManager.GetSystemSafe<OrderedSystem>();
                 created.Add(third);
                 Assert.That(trace, Is.EqualTo(new[] { "construct " + third.Number, "initialise " + third.Number }));
-            }
-            finally
+            },
+            () =>
             {
                 OrderedSystem.Trace = null;
                 foreach (OrderedSystem system in created)
                     if (system != null) ProcessManager.UnsubscribeFromAllActions(system);
+            },
+            () =>
+            {
                 if (registry.Contains(name))
                 {
                     ProcessManager.UnregisterSystem(name);
                     registry.Remove(name);
                 }
-            }
+            },
+            actionRows.Dispose);
         }
     }
 }
