@@ -1501,6 +1501,13 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.StoppingTheOwnedCoroutineDoesNotInventCancellationCleanup",
 )
 
+# Original automatic getters carry one CompilerGenerated each (DummyDll metadata).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalAutoGetterCompilerGeneratedTests.EntityActivationInstanceEntityGetterCarriesOneCompilerGenerated",
+    "ProjectLucid.Tests.OriginalAutoGetterCompilerGeneratedTests.UIContainerLoadingParametersGettersCarryOneCompilerGenerated",
+    "ProjectLucid.Tests.OriginalAutoGetterCompilerGeneratedTests.MetaGameStateGettersCarryOneCompilerGenerated",
+)
+
 # Original mutable Pair generic helper: owned declarations and behavior.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalPairPreservationTests.OriginalOwnerRetainsUnconstrainedMutableStaticAndGeneratedProperties",

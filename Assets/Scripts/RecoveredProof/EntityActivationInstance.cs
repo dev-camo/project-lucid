@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
@@ -10,7 +9,7 @@ namespace HardlightProject
     public class EntityActivationInstance
     {
         // Original 0x06003b56; original field offset 0x10.
-        public IEntityActivatable Entity { [CompilerGenerated] get; }
+        public IEntityActivatable Entity { get; }
         private readonly List<EntityActivationLogic> m_activateLogics;
         private readonly List<EntityActivationLogic> m_deactivateLogics;
         private readonly Action m_onActivateCallback;

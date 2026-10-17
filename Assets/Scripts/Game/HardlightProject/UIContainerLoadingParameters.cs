@@ -1,5 +1,4 @@
 using Hardlight;
-using System.Runtime.CompilerServices;
 using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
@@ -9,8 +8,8 @@ namespace HardlightProject
     public class UIContainerLoadingParameters : IUIContainerParameters
     {
         // Original 0x060032f9/0x060032fa: these are stored references, not copies.
-        public GameplayLevelDefinition LevelDefinition { [CompilerGenerated] get; }
-        public MissionDefinition MissionDefinition { [CompilerGenerated] get; }
+        public GameplayLevelDefinition LevelDefinition { get; }
+        public MissionDefinition MissionDefinition { get; }
 
         // Original 0x060032fb. Only the mission argument has an optional default.
         public UIContainerLoadingParameters(GameplayLevelDefinition levelDefinition, MissionDefinition missionDefinition = null)

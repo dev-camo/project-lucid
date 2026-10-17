@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
@@ -9,8 +8,8 @@ namespace HardlightProject
     {
         // Original 0x06002500/0x06002501: retain the two readonly backing fields
         // and reference identity, including null definitions.
-        public GameplayLevelDefinition LevelDefinition { [CompilerGenerated] get; }
-        public MissionDefinition MissionDefinition { [CompilerGenerated] get; }
+        public GameplayLevelDefinition LevelDefinition { get; }
+        public MissionDefinition MissionDefinition { get; }
 
         // Original 0x06002502. Base construction precedes the ordered stores.
         public MetaGameState(GameplayLevelDefinition levelDefinition, MissionDefinition missionDefinition)
