@@ -104,6 +104,8 @@ namespace ProjectLucid.Verification
    }
   }
   sealed class ReferenceComparer:IEqualityComparer<object>{public static readonly ReferenceComparer Instance=new ReferenceComparer();public new bool Equals(object a,object b)=>ReferenceEquals(a,b);public int GetHashCode(object x)=>System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(x);}
+  // OwnedDefault* name the row an earlier lease created. Each lease removes its own row on close,
+  // so Preflight borrows one only when that removal failed; normal leases always start without it.
   static readonly object OwnLeaseLock=new object();static bool OwnLeaseBusy;static object OwnedDefaultInfo,OwnedDefaultRef,OwnedDefaultCache,OwnedDefaultKey;
   sealed class ManagerLease:IDisposable
   {
