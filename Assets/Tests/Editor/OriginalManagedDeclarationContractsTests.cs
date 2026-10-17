@@ -25,9 +25,10 @@ public sealed class OriginalManagedDeclarationContractsTests
 
     private static MethodInfo Method(Type owner, string name, params Type[] parameterTypes)
     {
-        MethodInfo method = owner.GetMethods(Declared).Single(m => m.Name == name &&
-            m.GetParameters().Select(p => p.ParameterType).SequenceEqual(parameterTypes));
-        return method;
+        MethodInfo[] matches = owner.GetMethods(Declared).Where(m => m.Name == name &&
+            m.GetParameters().Select(p => p.ParameterType).SequenceEqual(parameterTypes)).ToArray();
+        Assert.AreEqual(1, matches.Length, owner.FullName + "." + name);
+        return matches[0];
     }
 
     private static void NullDefault(ParameterInfo parameter)
@@ -98,7 +99,6 @@ public sealed class OriginalManagedDeclarationContractsTests
 
         Type args = Nested(typeof(ActorState), "BaseJSONCtorArgs");
         Assert.AreEqual(0x00102004, (int)args.Attributes);
-        Assert.IsTrue((args.Attributes & TypeAttributes.Serializable) != 0);
         // Field 0x0400025c carries GraphUnityObject(typeof(ActorAnimationDefinition)).
         FieldInfo field = args.GetField("StateAnimationDefinitionName", Declared);
         CustomAttributeData graph = field.GetCustomAttributesData().Single();
@@ -168,8 +168,11 @@ public sealed class OriginalManagedDeclarationContractsTests
         {
             ParameterInfo[] parameters = Method(typeof(EffectSequence), name, inData, typeof(Action)).GetParameters();
             Assert.AreEqual(ParameterAttributes.In, parameters[0].Attributes, name);
-            Assert.AreEqual("System.Runtime.CompilerServices.IsReadOnlyAttribute",
-                parameters[0].GetCustomAttributesData().Single().AttributeType.FullName, name);
+            // Stored row: IsReadOnlyAttribute (blob 01000000). Mono also projects the In
+            // flag (0x0001) as an InAttribute pseudoattribute, so compare as a set.
+            CollectionAssert.AreEquivalent(
+                new[] { "System.Runtime.CompilerServices.IsReadOnlyAttribute", "System.Runtime.InteropServices.InAttribute" },
+                parameters[0].GetCustomAttributesData().Select(a => a.AttributeType.FullName).ToArray(), name);
             NullDefault(parameters[1]);
         }
 
@@ -189,9 +192,10 @@ public sealed class OriginalManagedDeclarationContractsTests
         NullDefault(Method(typeof(UISelectable), "Remove", typeof(UISelectable), typeof(string)).GetParameters()[1]);
         NullDefault(Method(typeof(UISelectable), "GetSelectables", typeof(string)).GetParameters()[0]);
         NullDefault(Method(typeof(ViewBase), "Setup", typeof(ViewParameters)).GetParameters()[0]);
-        // The abstract OnSetup override point keeps a required parameter.
-        foreach (ParameterInfo parameter in typeof(ViewBase).GetMethods(Declared).Where(m => m.Name == "OnSetup").SelectMany(m => m.GetParameters()))
-            Assert.AreEqual(ParameterAttributes.None, parameter.Attributes);
+        // Negative control: the abstract OnSetup 0x060002b3 keeps a required parameter (no param flags, no default).
+        ParameterInfo onSetup = Method(typeof(ViewBase), "OnSetup", typeof(ViewParameters)).GetParameters().Single();
+        Assert.AreEqual(ParameterAttributes.None, onSetup.Attributes);
+        Assert.IsFalse(onSetup.HasDefaultValue);
     }
 
     [Test]
