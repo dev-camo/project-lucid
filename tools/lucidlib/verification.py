@@ -575,7 +575,7 @@ def find_editor():
     return candidate
 
 
-def test_verdict(path, required):
+def _read_test_xml(path):
     path = Path(path)
     if not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
         raise ValueError("Unity test XML is absent or exceeds the supported size")
@@ -583,9 +583,21 @@ def test_verdict(path, required):
     if b"<!DOCTYPE" in data.upper() or b"<!ENTITY" in data.upper():
         raise ValueError("Unsupported declarations in Unity test XML")
     try:
-        root = ET.fromstring(data)
+        return data, ET.fromstring(data)
     except ET.ParseError as error:
         raise ValueError("Invalid Unity test XML: " + str(error)) from error
+
+
+def _project_cases(root):
+    """Fullnames of the test cases inside ProjectLucid.* test assembly suites."""
+    return {case.get("fullname") or "<unnamed>" for suite in root.iter("test-suite")
+            if suite.get("type") == "Assembly" and
+            re.split(r"[\\/]", suite.get("name") or "")[-1].startswith("ProjectLucid.")
+            for case in suite.iter("test-case")}
+
+
+def test_verdict(path, required):
+    data, root = _read_test_xml(path)
     diagnostics = []
     outcomes = {"Passed": "passed", "Failed": "failed", "Inconclusive": "inconclusive", "Skipped": "skipped"}
     named_outcomes = {}
@@ -632,11 +644,7 @@ def test_verdict(path, required):
         errors.append("Conflicting required test outcomes: " + ", ".join(conflicting))
     # Every case of a project test assembly must be required by its exact fullname, so a project
     # test cannot be skipped, renamed or dropped without a visible registry change.
-    project_cases = {case.get("fullname") or "<unnamed>" for suite in root.iter("test-suite")
-                     if suite.get("type") == "Assembly" and
-                     re.split(r"[\\/]", suite.get("name") or "")[-1].startswith("ProjectLucid.")
-                     for case in suite.iter("test-case")}
-    unregistered = sorted(project_cases - required_names)
+    unregistered = sorted(_project_cases(root) - required_names)
     if unregistered:
         errors.append("Unregistered project tests: " + ", ".join(unregistered))
     success = (root.tag == "test-run" and root.get("result") == "Passed" and root.get("failed") == "0"
@@ -645,6 +653,95 @@ def test_verdict(path, required):
             "passed": len(passed), "missing_required_tests": missing,
             "conflicting_required_tests": conflicting, "errors": errors,
             "xml_sha256": hashlib.sha256(data).hexdigest()}
+
+
+# Shared-state leaks a run may carry while the fixture is being fixed: exact
+# test fullname -> the reason and the issue that tracks the fix. Only status
+# "leak" can be listed; a listed test that runs clean fails the run until its
+# entry is removed. Each entry is temporary and needs review.
+ISOLATION_ALLOWLIST = {}
+
+# Each mode's hook controls need their own single clean line. The first fails
+# in Unity unless the recorder saw it start, so a passing control and its line
+# show the hook ran in that mode.
+ISOLATION_HOOK_CONTROLS = {
+    "editmode": ("ProjectLucid.Tests.SharedStateIsolationHookTests.HookCapturedThisTestBeforeItsBody",
+                 "ProjectLucid.Tests.SharedStateIsolationHookTests.LeakRecordNamesTheTestAndEachChange"),
+    "playmode": ("ProjectLucid.Tests.SharedStateIsolationPlayModeHookTests.HookCapturedThisTestBeforeItsBody",
+                 "ProjectLucid.Tests.SharedStateIsolationPlayModeHookTests.HookStaysOpenAcrossFrames"),
+}
+ISOLATION_FIELDS = {"nonce", "test", "status", "changes"}
+
+
+def _isolation_record(line):
+    """One SharedStateIsolationRecorder line, or None when it is malformed."""
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(record, dict) or set(record) != ISOLATION_FIELDS:
+        return None
+    changes = record["changes"]
+    if (not isinstance(record["nonce"], str) or not isinstance(record["test"], str) or not record["test"] or
+            record["status"] not in ("clean", "leak", "unchecked") or not isinstance(changes, list) or
+            not all(isinstance(change, str) and change for change in changes) or
+            (record["status"] == "clean") != (not changes)):
+        return None
+    return record
+
+
+def isolation_verdict(path, nonce, xml, mode, allowlist=None):
+    """Check SharedStateIsolationRecorder's JSON lines against the run's test XML.
+
+    Every project test case needs a line carrying this run's nonce, and every
+    line must be clean or an allowlisted leak. A missing report means the
+    detector did not run, which fails rather than passes.
+    """
+    allowlist = ISOLATION_ALLOWLIST if allowlist is None else allowlist
+    path = Path(path)
+    if not path.is_file():
+        raise ValueError("Isolation report missing: " + str(path) + "; the per-test detector did not run")
+    if path.stat().st_size > 64 * 1024 * 1024:
+        raise ValueError("Isolation report exceeds the supported size: " + str(path))
+    data = path.read_bytes()
+    try:
+        lines = data.decode("utf-8").splitlines()
+    except UnicodeDecodeError as error:
+        raise ValueError("Isolation report is not UTF-8: " + str(path)) from error
+    _, root = _read_test_xml(xml)
+    errors = []
+    records = {}
+    for number, line in enumerate(lines, 1):
+        record = _isolation_record(line)
+        if record is None:
+            errors.append("Malformed isolation report line " + str(number))
+        elif record["nonce"] != nonce:
+            errors.append("Isolation report line " + str(number) + " is not from this run: " + record["test"])
+        else:
+            records.setdefault(record["test"], []).append(record)
+    leaks, allowlisted = [], []
+    for test in sorted(records):
+        for record in records[test]:
+            detail = "; ".join(record["changes"])
+            if record["status"] == "unchecked":
+                errors.append("Isolation unchecked for " + test + ": " + detail)
+            elif record["status"] == "leak" and test in allowlist:
+                allowlisted.append({"test": test, "changes": record["changes"], "reason": allowlist[test]})
+            elif record["status"] == "leak":
+                leaks.append({"test": test, "changes": record["changes"]})
+                errors.append("Isolation leak in " + test + ": " + detail)
+    for test in sorted(set(allowlist) & set(records)):
+        if all(record["status"] == "clean" for record in records[test]):
+            errors.append("Allowlisted isolation leak no longer leaks; remove its entry: " + test)
+    for test in ISOLATION_HOOK_CONTROLS[mode]:
+        if [record["status"] for record in records.get(test, ())] != ["clean"]:
+            errors.append("Isolation hook control has no single clean line: " + test)
+    unseen = sorted(_project_cases(root) - set(records))
+    if unseen:
+        errors.append("Isolation report has no line for: " + ", ".join(unseen))
+    return {"status": "complete" if not errors else "incomplete", "report": str(path), "nonce": nonce,
+            "sha256": hashlib.sha256(data).hexdigest(), "checked": sum(map(len, records.values())),
+            "leaks": leaks, "allowlisted": allowlisted, "errors": errors}
 
 
 def run_tests(repo_root, work_dir, mode):
@@ -656,13 +753,19 @@ def run_tests(repo_root, work_dir, mode):
     log = managed_path(work_dir, "reports", mode + ".log")
     xml.parent.mkdir(parents=True, exist_ok=True)
     # A failed Editor invocation must never accidentally reuse a passing result.
+    isolation = managed_path(work_dir, "reports", mode + "-isolation.jsonl")
     xml.unlink(missing_ok=True)
     log.unlink(missing_ok=True)
+    # The recorder appends, so an earlier run's lines must not be read as this run's.
+    isolation.unlink(missing_ok=True)
     command = [str(editor), "-batchmode", "-projectPath", str(Path(repo_root).resolve()),
                "-runTests", "-testPlatform", "EditMode" if mode == "editmode" else "PlayMode",
                "-testResults", str(xml), "-logFile", str(log)]
     environment = os.environ.copy()
     environment["LUCID_RECOVERY_WORK_DIR"] = str(Path(work_dir).resolve())
+    isolation_nonce = uuid.uuid4().hex
+    environment["LUCID_ISOLATION_REPORT"] = str(isolation.resolve())
+    environment["LUCID_ISOLATION_NONCE"] = isolation_nonce
     if mode == "editmode":
         from .fontreferencefixtures import build_import_fixture
         carrier_meta = Path(repo_root) / "Assets/Tests/Editor/ProjectLucidFontReferenceConversionCarrier.cs.meta"
@@ -696,10 +799,18 @@ def run_tests(repo_root, work_dir, mode):
     except ValueError as error:
         errors.append(str(error))
         verdict = {"status": "incomplete"}
+    try:
+        isolation_result = isolation_verdict(isolation, isolation_nonce, xml, mode)
+        errors.extend(isolation_result["errors"])
+    except ValueError as error:
+        errors.append(str(error))
+        isolation_result = {"status": "incomplete", "report": str(isolation), "nonce": isolation_nonce}
     report = {"schema_version": 1, "generated_by": "ProjectLucid.run_tests", "mode": mode,
-              "status": "complete" if not errors and verdict["status"] == "complete" else "incomplete",
+              "status": "complete" if not errors and verdict["status"] == "complete" and
+              isolation_result["status"] == "complete" else "incomplete",
               "unity_version": actual_version, "editor": str(editor), "exit_code": result.returncode,
-              "xml": str(xml), "log": str(log), "verdict": verdict, "errors": errors, **after}
+              "xml": str(xml), "log": str(log), "verdict": verdict, "isolation": isolation_result,
+              "errors": errors, **after}
     write_json(managed_path(work_dir, "reports", mode + "-verification.json"), report)
     return report
 
@@ -717,6 +828,12 @@ def verified_receipt(work_dir, mode, identity):
     verdict = test_verdict(xml, EDITMODE_TESTS if mode == "editmode" else PLAYMODE_TESTS)
     if verdict["status"] != "complete" or verdict["xml_sha256"] != receipt.get("verdict", {}).get("xml_sha256"):
         raise ValueError(mode + " test result is incomplete or differs from its generated receipt")
+    recorded = receipt.get("isolation")
+    if not isinstance(recorded, dict) or not isinstance(recorded.get("nonce"), str):
+        raise ValueError(mode + " test receipt has no isolation verdict")
+    isolation = isolation_verdict(Path(work_dir) / "reports" / (mode + "-isolation.jsonl"), recorded["nonce"], xml, mode)
+    if isolation["status"] != "complete" or isolation["sha256"] != recorded.get("sha256"):
+        raise ValueError(mode + " isolation report is incomplete or differs from its generated receipt")
     return verdict
 
 
@@ -3613,4 +3730,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.SharedStateSnapshotTests.ObserversDeferredWorkAndSystemsOnAnExistingRowAreReported",
     "ProjectLucid.Tests.SharedStateSnapshotTests.ActionSubscriptionAndAKeptEmptyRowAreReported",
     "ProjectLucid.Tests.SharedStateSnapshotTests.CachedEnumMissIsReported",
+)
+
+# Per-test isolation hook controls; the verdict also requires each one's own
+# clean line in the mode's isolation report (ISOLATION_HOOK_CONTROLS).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.SharedStateIsolationHookTests.HookCapturedThisTestBeforeItsBody",
+    "ProjectLucid.Tests.SharedStateIsolationHookTests.LeakRecordNamesTheTestAndEachChange",
+)
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.SharedStateIsolationPlayModeHookTests.HookCapturedThisTestBeforeItsBody",
+    "ProjectLucid.Tests.SharedStateIsolationPlayModeHookTests.HookStaysOpenAcrossFrames",
 )

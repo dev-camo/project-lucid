@@ -1,6 +1,7 @@
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 import tempfile
 import unittest
@@ -323,6 +324,196 @@ class VerificationTests(unittest.TestCase):
             (work / "reports/editmode-verification.json").write_text(json.dumps(receipt))
             with self.assertRaisesRegex(ValueError, "stale"):
                 verified_receipt(work, "editmode", {"source_fingerprint": "newer", "prepared_asset_fingerprint": "same"})
+
+
+class IsolationVerdictTests(unittest.TestCase):
+    """Supplied recorder lines and XML exercise the verdict; no Unity runs here."""
+
+    NONCE = "a" * 32
+    CASE = "ProjectLucid.Tests.Sample.Case(1)"
+
+    def write(self, directory, mode="editmode", lines=None):
+        from xml.sax.saxutils import quoteattr
+        names = verification.ISOLATION_HOOK_CONTROLS[mode] + (self.CASE,)
+        xml = directory / "tests.xml"
+        xml.write_text('<test-run result="Passed" failed="0"><test-suite type="Assembly" name="ProjectLucid.EditMode.dll" result="Passed">' +
+                       ''.join('<test-case fullname=' + quoteattr(name) + ' result="Passed"/>' for name in names) +
+                       '</test-suite></test-run>')
+        if lines is None:
+            lines = [self.line(name) for name in names]
+        report = directory / (mode + "-isolation.jsonl")
+        report.write_text("".join(line + "\n" for line in lines))
+        return report, xml
+
+    def line(self, test, status="clean", changes=(), nonce=None):
+        return json.dumps({"nonce": self.NONCE if nonce is None else nonce, "test": test,
+                           "status": status, "changes": list(changes)})
+
+    def control_lines(self, mode="editmode"):
+        return [self.line(name) for name in verification.ISOLATION_HOOK_CONTROLS[mode]]
+
+    def test_clean_report_passes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            for mode in ("editmode", "playmode"):
+                with self.subTest(mode=mode):
+                    report, xml = self.write(Path(temporary), mode)
+                    verdict = verification.isolation_verdict(report, self.NONCE, xml, mode)
+                    self.assertEqual("complete", verdict["status"], verdict["errors"])
+                    self.assertEqual(3, verdict["checked"])
+                    self.assertEqual(([], []), (verdict["leaks"], verdict["allowlisted"]))
+                    self.assertEqual(hashlib.sha256(report.read_bytes()).hexdigest(), verdict["sha256"])
+
+    def test_leak_fails_and_names_the_test_and_each_change(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            changes = ["added system row 'X'", "changed action row AppShutdown subscribers"]
+            report, xml = self.write(Path(temporary), lines=self.control_lines() + [self.line(self.CASE, "leak", changes)])
+            verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode")
+            self.assertEqual("incomplete", verdict["status"])
+            self.assertEqual([{"test": self.CASE, "changes": changes}], verdict["leaks"])
+            self.assertEqual(["Isolation leak in " + self.CASE + ": " + "; ".join(changes)], verdict["errors"])
+
+    def test_missing_report_fails_rather_than_passing(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report, xml = self.write(Path(temporary))
+            report.unlink()
+            with self.assertRaisesRegex(ValueError, "Isolation report missing"):
+                verification.isolation_verdict(report, self.NONCE, xml, "editmode")
+
+    def test_allowlisted_leak_passes_but_is_listed(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            report, xml = self.write(Path(temporary), lines=self.control_lines() +
+                                     [self.line(self.CASE, "leak", ["added system row 'X'"])])
+            allowlist = {self.CASE: "synthetic reason; issue #0"}
+            verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode", allowlist)
+            self.assertEqual("complete", verdict["status"], verdict["errors"])
+            self.assertEqual([], verdict["leaks"])
+            self.assertEqual([{"test": self.CASE, "changes": ["added system row 'X'"], "reason": allowlist[self.CASE]}],
+                             verdict["allowlisted"])
+
+    def test_allowlist_cannot_hide_unchecked_tests_or_outlive_its_leak(self):
+        allowlist = {self.CASE: "synthetic reason"}
+        with tempfile.TemporaryDirectory() as temporary:
+            for status, changes, expected in (
+                    ("unchecked", ["no start snapshot: the hook did not see this test start"],
+                     "Isolation unchecked for " + self.CASE + ": no start snapshot: the hook did not see this test start"),
+                    ("clean", [], "Allowlisted isolation leak no longer leaks; remove its entry: " + self.CASE)):
+                with self.subTest(status=status):
+                    report, xml = self.write(Path(temporary), lines=self.control_lines() + [self.line(self.CASE, status, changes)])
+                    verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode", allowlist)
+                    self.assertEqual("incomplete", verdict["status"])
+                    self.assertEqual([expected], verdict["errors"])
+
+    def test_every_project_case_and_hook_control_needs_its_own_line_from_this_run(self):
+        control = verification.ISOLATION_HOOK_CONTROLS["editmode"][0]
+        others = [self.line(name) for name in verification.ISOLATION_HOOK_CONTROLS["editmode"][1:]]
+        with tempfile.TemporaryDirectory() as temporary:
+            for lines, expected in (
+                    (self.control_lines(), ["Isolation report has no line for: " + self.CASE]),
+                    (others + [self.line(self.CASE)],
+                     ["Isolation hook control has no single clean line: " + control,
+                      "Isolation report has no line for: " + control]),
+                    (others + [self.line(self.CASE), self.line(control, nonce="b" * 32)],
+                     ["Isolation report line 3 is not from this run: " + control,
+                      "Isolation hook control has no single clean line: " + control,
+                      "Isolation report has no line for: " + control]),
+                    (self.control_lines() + [self.line(self.CASE), self.line(control)],
+                     ["Isolation hook control has no single clean line: " + control]),
+                    (self.control_lines() + [self.line(self.CASE), "{}", "not json", self.line(self.CASE, "clean", ["x"]),
+                                             self.line(self.CASE, "leaked", ["x"]), self.line(self.CASE, "leak", [])],
+                     ["Malformed isolation report line " + str(number) for number in (4, 5, 6, 7, 8)])):
+                with self.subTest(expected=expected[0]):
+                    report, xml = self.write(Path(temporary), lines=lines)
+                    verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode")
+                    self.assertEqual("incomplete", verdict["status"])
+                    self.assertEqual(expected, verdict["errors"])
+
+    def test_allowlist_starts_empty_and_names_only_registered_tests(self):
+        self.assertEqual({}, verification.ISOLATION_ALLOWLIST)
+        registered = set(verification.EDITMODE_TESTS) | set(verification.PLAYMODE_TESTS)
+        for test, reason in verification.ISOLATION_ALLOWLIST.items():
+            self.assertIn(test, registered)
+            self.assertTrue(isinstance(reason, str) and reason.strip())
+
+    def test_recorder_source_writes_the_fields_and_variables_the_verdict_reads(self):
+        # A source check that the C# side and this verdict agree; the native run proves the hook fires.
+        root = Path(__file__).resolve().parents[2]
+        source = (root / "Assets/Tests/IsolationShared/SharedStateIsolationRecorder.cs").read_text(encoding="utf-8")
+        self.assertIn("[assembly: TestRunCallback(typeof(ProjectLucid.Tests.SharedStateIsolationRecorder))]", source)
+        self.assertEqual(verification.ISOLATION_FIELDS, set(re.findall(r"public string(?:\[\])? (\w+);", source)))
+        self.assertIn('ReportVariable = "LUCID_ISOLATION_REPORT"', source)
+        self.assertIn('NonceVariable = "LUCID_ISOLATION_NONCE"', source)
+        for mode, directory in (("editmode", "Editor"), ("playmode", "PlayMode")):
+            required = verification.EDITMODE_TESTS if mode == "editmode" else verification.PLAYMODE_TESTS
+            for fullname in verification.ISOLATION_HOOK_CONTROLS[mode]:
+                fixture, method = fullname.split(".")[-2:]
+                control = (root / "Assets/Tests" / directory / (fixture + ".cs")).read_text(encoding="utf-8")
+                self.assertIn("namespace ProjectLucid.Tests", control)
+                self.assertIn("public sealed class " + fixture, control)
+                self.assertRegex(control, r"public (?:void|IEnumerator) " + method + r"\(\)")
+                self.assertEqual(1, required.count(fullname))
+
+    def supplied_run(self, root, work, mode, write_isolation):
+        from xml.sax.saxutils import quoteattr
+        names = verification.EDITMODE_TESTS if mode == "editmode" else verification.PLAYMODE_TESTS
+        seen = {}
+
+        def supplied(command, env, **kwargs):
+            seen.update(env)
+            Path(command[command.index("-testResults") + 1]).write_text(
+                '<test-run result="Passed" failed="0"><test-suite type="Assembly" name="ProjectLucid.PlayMode.dll" result="Passed">' +
+                ''.join('<test-case fullname=' + quoteattr(name) + ' result="Passed"/>' for name in names) +
+                '</test-suite></test-run>')
+            Path(command[command.index("-logFile") + 1]).write_text("Unity Editor version: " + verification.UNITY_VERSION)
+            if write_isolation:
+                Path(env["LUCID_ISOLATION_REPORT"]).write_text("".join(
+                    self.line(name, nonce=env["LUCID_ISOLATION_NONCE"]) + "\n" for name in names))
+            return SimpleNamespace(returncode=0)
+
+        identity = {"source_fingerprint": "synthetic-source", "prepared_asset_fingerprint": "synthetic-assets"}
+        with patch("lucidlib.bootstrap.CACHE_ROOT", work), patch.object(
+                verification, "find_editor", return_value=root / "inert-editor"), patch.object(
+                verification, "current_identity", return_value=identity), patch.object(
+                verification.subprocess, "run", side_effect=supplied):
+            return verification.run_tests(root, work, mode), seen, identity
+
+    def test_run_tests_requires_this_runs_isolation_report_and_receipts_recheck_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            work = root / "cache"
+            report_path = work / "reports/playmode-isolation.jsonl"
+            report_path.parent.mkdir(parents=True)
+            # A passing report from an earlier run is removed before the Editor starts.
+            report_path.write_text("".join(self.line(name) + "\n" for name in verification.PLAYMODE_TESTS))
+            report, seen, identity = self.supplied_run(root, work, "playmode", write_isolation=False)
+            self.assertFalse(report_path.exists())
+            self.assertEqual(str(report_path), seen["LUCID_ISOLATION_REPORT"])
+            self.assertRegex(seen["LUCID_ISOLATION_NONCE"], "^[0-9a-f]{32}$")
+            self.assertEqual("incomplete", report["status"])
+            self.assertEqual("complete", report["verdict"]["status"])
+            self.assertEqual("incomplete", report["isolation"]["status"])
+            self.assertEqual(["Isolation report missing: " + str(report_path) + "; the per-test detector did not run"],
+                             report["errors"])
+
+            report, seen, identity = self.supplied_run(root, work, "playmode", write_isolation=True)
+            self.assertEqual("complete", report["status"], report["errors"])
+            self.assertEqual(seen["LUCID_ISOLATION_NONCE"], report["isolation"]["nonce"])
+            self.assertEqual(len(verification.PLAYMODE_TESTS), report["isolation"]["checked"])
+            verified_receipt(work, "playmode", identity)
+
+            with report_path.open("a") as stream:
+                stream.write(self.line(verification.PLAYMODE_TESTS[0], "leak", ["added system row 'X'"],
+                                       nonce=seen["LUCID_ISOLATION_NONCE"]) + "\n")
+            with self.assertRaisesRegex(ValueError, "isolation report is incomplete or differs"):
+                verified_receipt(work, "playmode", identity)
+            report_path.unlink()
+            with self.assertRaisesRegex(ValueError, "Isolation report missing"):
+                verified_receipt(work, "playmode", identity)
+            receipt_path = work / "reports/playmode-verification.json"
+            receipt = json.loads(receipt_path.read_text())
+            del receipt["isolation"]
+            receipt_path.write_text(json.dumps(receipt))
+            with self.assertRaisesRegex(ValueError, "no isolation verdict"):
+                verified_receipt(work, "playmode", identity)
 
 
 if __name__ == "__main__":

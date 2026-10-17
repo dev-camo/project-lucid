@@ -6,8 +6,10 @@ row through GetSystemSafe must do so through the ownership helpers, so that a
 borrowed row, observer or subscription is never replaced or run. Each file
 with such a direct call today is listed below with its exact call count and
 the reason it is allowed; a new direct call fails until it is moved onto a
-helper or justified here. No run-time check covers this state around every
-test yet (see SharedStateSnapshot), so an UNLEASED file is a known gap.
+helper or justified here. SharedStateIsolationRecorder compares this state
+around every test and the verdict fails on a leak it reports, so an UNLEASED
+file has no lease but is checked at run time. The recorder does not check the
+FSMStateChangeAction pool (see SharedStateSnapshot).
 """
 
 import re
@@ -27,7 +29,7 @@ HELPERS = {
 
 PROOF = "ProcessManager semantics proof: it clears or copies the registry and puts back the same rows"
 OWNED = "registers only into rows it first admits as absent or idle through the ownership helpers"
-UNLEASED = "not yet on a lease helper; a known isolation gap with no run-time check"
+UNLEASED = "not yet on a lease helper; only the per-test isolation report checks it"
 
 # path: (direct call count, reason)
 ALLOWED = {

@@ -20,13 +20,10 @@ namespace ProjectLucid.Tests
     // from leases a fixture failed to return, so pool isolation is enforced
     // only where a fixture holds an ActionPoolLease.
     //
-    // Not yet run around every test. Test Framework 1.1.33 (the pinned
-    // package) builds each test's command in TestCommandBuilder.BuildTestCommand,
-    // whose TestActionCommand reads ITestAction attributes from the test method
-    // only; an assembly- or fixture-level action targeting tests is added to
-    // UnityTestExecutionContext.UpstreamActions (CompositeWorkItem) and never
-    // invoked. Wiring this snapshot into every test needs a hook that the
-    // framework actually runs.
+    // SharedStateIsolationRecorder runs this snapshot around every test. An
+    // assembly-level NUnit ITestAction would not: in Test Framework 1.1.33
+    // TestActionCommand reads ITestAction attributes from the test method only,
+    // and UnityTestExecutionContext.UpstreamActions is never invoked.
     public sealed class SharedStateSnapshot
     {
         private const BindingFlags StaticFields = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -175,6 +172,13 @@ namespace ProjectLucid.Tests
         // Null when nothing changed; otherwise every changed, removed and added path.
         public string DifferenceFrom(SharedStateSnapshot before)
         {
+            List<string> changes = Differences(before);
+            return changes.Count == 0 ? null : string.Join("; ", changes);
+        }
+
+        // Every changed, removed and added path in capture order; empty when nothing changed.
+        public List<string> Differences(SharedStateSnapshot before)
+        {
             var changes = new List<string>();
             foreach (string path in before.m_paths)
             {
@@ -183,7 +187,7 @@ namespace ProjectLucid.Tests
             }
             foreach (string path in m_paths)
                 if (!before.m_state.ContainsKey(path)) changes.Add("added " + path);
-            return changes.Count == 0 ? null : string.Join("; ", changes);
+            return changes;
         }
     }
 }

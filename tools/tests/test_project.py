@@ -35,6 +35,15 @@ class ProjectTests(unittest.TestCase):
             "tool": _tool_lock(), "settings": EXPORT_SETTINGS}))
         return work, player, mapping
 
+    @staticmethod
+    def isolation(work, mode, names):
+        """Supplied clean isolation lines for each name; returns the receipt's isolation entry."""
+        nonce = mode + "-synthetic-nonce"
+        path = work / "reports" / (mode + "-isolation.jsonl")
+        path.write_text("".join(json.dumps({"nonce": nonce, "test": name, "status": "clean", "changes": []}) + "\n"
+                                for name in names))
+        return {"nonce": nonce, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
     def test_release_build_never_runs_editor_when_game_unresolved(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -72,7 +81,8 @@ class ProjectTests(unittest.TestCase):
                 xml.write_text('<test-run result="Passed" failed="0">' + cases + '</test-run>')
                 receipt = {"generated_by": "ProjectLucid.run_tests", "status": "complete",
                            "unity_version": verification.UNITY_VERSION, **identity,
-                           "verdict": {"xml_sha256": hashlib.sha256(xml.read_bytes()).hexdigest()}}
+                           "verdict": {"xml_sha256": hashlib.sha256(xml.read_bytes()).hexdigest()},
+                           "isolation": self.isolation(work, mode, names)}
                 (work / "reports" / (mode + "-verification.json")).write_text(json.dumps(receipt))
             self.assertEqual("complete", validate_project(root, work)["status"])
             xml = work / "reports/playmode.xml"
@@ -122,7 +132,8 @@ class ProjectTests(unittest.TestCase):
                 (work / "reports" / (mode + "-verification.json")).write_text(json.dumps(
                     {"generated_by": "ProjectLucid.run_tests", "status": "complete",
                      "unity_version": verification.UNITY_VERSION, **identity,
-                     "verdict": {"xml_sha256": hashlib.sha256(xml.read_bytes()).hexdigest()}}))
+                     "verdict": {"xml_sha256": hashlib.sha256(xml.read_bytes()).hexdigest()},
+                     "isolation": self.isolation(work, mode, names)}))
             validation = validate_project(root, work)
             self.assertEqual("failed", validation["status"])
             self.assertTrue(any("script metadata" in error and "MonImporter" in error for error in validation["errors"]))
