@@ -66,6 +66,9 @@ namespace ProjectLucid.Tests
         public void DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers()
         {
             RuntimeHelpers.RunClassConstructor(typeof(PerformanceDependency).TypeHandle);
+            // The initializer's row is permanent (ISOLATION_SIDE_EFFECTS); all
+            // shared state the isolation recorder compares must end as it is now.
+            SharedStateSnapshot initialized = SharedStateSnapshot.Capture();
             var reference = (SystemRef<ScalablePerformance>)typeof(PerformanceDependency)
                 .GetField("s_scalablePerformanceRef", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             string name = ProcessManager.GetDefaultName<ScalablePerformance>();
@@ -135,14 +138,14 @@ namespace ProjectLucid.Tests
                 if (managerHost != null) UObj.DestroyImmediate(managerHost);
             }
             Assert.That(ReferenceEquals(Registry()[name], row), Is.True);
-            // The row the type initializer created stays (ISOLATION_ALLOWLIST);
-            // it keeps exactly the references it had when this case began.
             List<object> finalReferences = RowReferences(row);
             Assert.That(finalReferences.Count, Is.EqualTo(rowReferences.Count));
             for (int i = 0; i < finalReferences.Count; ++i)
                 Assert.That(ReferenceEquals(finalReferences[i], rowReferences[i]), Is.True, "The row keeps its own cached references.");
             foreach (object rowReference in finalReferences)
                 Assert.That(Idle(rowReference), Is.True, "The shared row returns to its unowned state.");
+            Assert.That(SharedStateSnapshot.Capture().DifferenceFrom(initialized), Is.Null,
+                "Rows, references, observers, deferred work, action rows and caches end as the initializer left them.");
         }
 
         private static IDictionary Registry() => (IDictionary)typeof(ProcessManager)
