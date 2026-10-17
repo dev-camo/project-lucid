@@ -2204,6 +2204,18 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFullScreenTransitionControll
     "MissingAnimatorFaultsAfterTheStateAndCachesAreWritten",
 ))
 
+# Restored Hardlight.GreyscaleAndBrightnessModifier (HLUnityUI.Runtime 0x060002e1..e7).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGreyscaleAndBrightnessModifierTests." + name for name in (
+    "KeepsTheOriginalDeclaration",
+    "ConstructionDefaultsBrightnessToOne",
+    "SettersStoreUnclampedValuesAndDirtyTheGraphicOncePerCall",
+    "SettersWithoutAGraphicOnlyStoreValues",
+    "InactiveModifyMeshLeavesTheHelperUntouched",
+    "DisabledModifyMeshLeavesTheHelperUntouched",
+    "ActiveModifyMeshRewritesOnlyUV1AndUnsharesTheStream",
+    "ActiveModifyMeshWithAnEmptyStreamKeepsUntriangulatedVertices",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
