@@ -1,12 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Unity.IL2CPP.CompilerServices;
-using UnityEngine;
 
 namespace Hardlight
 {
-    // Original HLUnityCore.Runtime 0x02000025. Main control methods/instance fields
-    // live in the coordinated partial; this file preserves original nested types.
+    // Original HLUnityCore.Runtime 0x02000025. All outer fields and methods live in
+    // the coordinated partial; this file holds only the original nested types.
     public partial class StackableData
     {
         public enum RetrievalOperation
@@ -114,108 +113,6 @@ namespace Hardlight
             public StackableDataContainer(T value) { Value = value; }
             // 0x06000137; native value copy, including reference write barrier.
             public void Set(T value) { Value = value; }
-        }
-
-        // 0x0600011b; ARM64 0x1aa2a84. A present false value skips container access.
-        private static OperationAction BoolLogicalAnd(StackableDataContainer<bool> stackableDataContainer,
-            ref ResultCarrier<bool> result)
-        {
-            result.SetValue((!result.HasValue || result.Value) && stackableDataContainer.Value);
-            return result.Value ? OperationAction.Continue : OperationAction.EarlyExit;
-        }
-
-        // 0x0600011c; ARM64 0x1aa2b1c. Original OR always returns Continue.
-        private static OperationAction BoolLogicalOr(StackableDataContainer<bool> stackableDataContainer,
-            ref ResultCarrier<bool> result)
-        {
-            result.SetValue((result.HasValue && result.Value) || stackableDataContainer.Value);
-            return OperationAction.Continue;
-        }
-
-        // 0x0600011d; ARM64 0x1aa2bac. Int32 wrapping multiplication, stop at zero.
-        private static OperationAction IntMultiply(StackableDataContainer<int> stackableDataContainer,
-            ref ResultCarrier<int> result)
-        {
-            result.SetValue(result.HasValue ? unchecked(stackableDataContainer.Value * result.Value) : stackableDataContainer.Value);
-            return result.Value == 0 ? OperationAction.EarlyExit : OperationAction.Continue;
-        }
-
-        // 0x0600011e; ARM64 0x1aa2c3c. Addition always continues.
-        private static OperationAction IntAddition(StackableDataContainer<int> stackableDataContainer,
-            ref ResultCarrier<int> result)
-        {
-            result.SetValue(result.HasValue ? unchecked(stackableDataContainer.Value + result.Value) : stackableDataContainer.Value);
-            return OperationAction.Continue;
-        }
-
-        // 0x0600011f; ARM64 0x1aa2cc4. Single-precision multiply and exact zero.
-        private static OperationAction FloatMultiply(StackableDataContainer<float> stackableDataContainer,
-            ref ResultCarrier<float> result)
-        {
-            result.SetValue(result.HasValue ? result.Value * stackableDataContainer.Value : stackableDataContainer.Value);
-            return result.Value == 0f ? OperationAction.EarlyExit : OperationAction.Continue;
-        }
-
-        // 0x06000120; ARM64 0x1aa2d54. Single-precision addition, no early exit.
-        private static OperationAction FloatAddition(StackableDataContainer<float> stackableDataContainer,
-            ref ResultCarrier<float> result)
-        {
-            result.SetValue(result.HasValue ? result.Value + stackableDataContainer.Value : stackableDataContainer.Value);
-            return OperationAction.Continue;
-        }
-
-        // 0x06000121; ARM64 0x1aa2ddc. Preserve full Int64 wrap and zero test.
-        private static OperationAction LongMultiply(StackableDataContainer<long> stackableDataContainer,
-            ref ResultCarrier<long> result)
-        {
-            result.SetValue(result.HasValue ? unchecked(stackableDataContainer.Value * result.Value) : stackableDataContainer.Value);
-            return result.Value == 0L ? OperationAction.EarlyExit : OperationAction.Continue;
-        }
-
-        // 0x06000122; ARM64 0x1aa2e6c.
-        private static OperationAction LongAddition(StackableDataContainer<long> stackableDataContainer,
-            ref ResultCarrier<long> result)
-        {
-            result.SetValue(result.HasValue ? unchecked(stackableDataContainer.Value + result.Value) : stackableDataContainer.Value);
-            return OperationAction.Continue;
-        }
-
-        // 0x06000123; ARM64 0x1aa2ef4. Component-wise multiplication followed by
-        // Unity Vector3.operator== zero (squared-distance threshold), not exact zero.
-        private static OperationAction Vector3Multiply(StackableDataContainer<Vector3> stackableDataContainer,
-            ref ResultCarrier<Vector3> result)
-        {
-            result.SetValue(result.HasValue ? Vector3.Scale(stackableDataContainer.Value, result.Value) : stackableDataContainer.Value);
-            return result.Value == Vector3.zero ? OperationAction.EarlyExit : OperationAction.Continue;
-        }
-
-        // 0x06000124; ARM64 0x1aa2ff4.
-        private static OperationAction Vector3Addition(StackableDataContainer<Vector3> stackableDataContainer,
-            ref ResultCarrier<Vector3> result)
-        {
-            result.SetValue(result.HasValue ? result.Value + stackableDataContainer.Value : stackableDataContainer.Value);
-            return OperationAction.Continue;
-        }
-
-        // 0x06000125; ARM64 0x1aa26c0. Mark an existing cache dirty before reading
-        // and invoking the event once; subscribers may change/read that same cache.
-        private void DataUpdated(int id)
-        {
-            if (m_stackableCache.TryGetValue(id, out var cached)) cached.IsDirty = true;
-            OnDataUpdated?.Invoke(id);
-        }
-
-        // 0x06000126; ARM64 specialized instances e.g. bool0x9aeec4.
-        // Null callbacks leave previous registrations intact; supplied callbacks
-        // replace their own type entry in AND,OR,multiply,addition order.
-        public static void RegisterTypeOperations<T>(ResultCarrier<T>.Operation logicalAnd = null,
-            ResultCarrier<T>.Operation logicalOr = null, ResultCarrier<T>.Operation multiply = null,
-            ResultCarrier<T>.Operation addition = null)
-        {
-            if (logicalAnd != null) LogicalAnds[typeof(T)] = logicalAnd;
-            if (logicalOr != null) LogicalOrs[typeof(T)] = logicalOr;
-            if (multiply != null) Multiplies[typeof(T)] = multiply;
-            if (addition != null) Additions[typeof(T)] = addition;
         }
     }
 
