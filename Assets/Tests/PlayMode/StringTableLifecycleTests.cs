@@ -41,13 +41,22 @@ namespace ProjectLucid.Tests
         // taken before any reference, configuration or Unity activation. A
         // null row can still hold foreign observers and deferred work that
         // registration would run and consume.
-        internal static LifecycleSystemRowLease[] AdmitRows(IDictionary registry) =>
-            LifecycleSystemRowLease.AdmitAllAbsentOrIdle(registry, ProcessManager.GetDefaultName<Table>(), ProcessManager.GetDefaultName<Language>(), ProcessManager.GetDefaultName<HLUnityCore>());
+        internal static LifecycleSystemRowLease[] AdmitRows(IDictionary registry) => AdmitRows(registry,null);
+
+        private static LifecycleSystemRowLease[] AdmitRows(IDictionary registry, Action<string> reportCleanupFailure) =>
+            LifecycleSystemRowLease.AdmitAllAbsentOrIdle(registry, reportCleanupFailure, ProcessManager.GetDefaultName<Table>(), ProcessManager.GetDefaultName<Language>(), ProcessManager.GetDefaultName<HLUnityCore>());
+
+        private static void Step(List<Exception> failures, Action action)
+        {
+            try { action(); }
+            catch (Exception failure) { failures.Add(failure); }
+        }
 
         [UnityTest]
         public IEnumerator OriginalStringTable_AutomaticLoadingDeferredHandlersAndCleanup()
         {
-            LifecycleSystemRowLease[] rows=AdmitRows(LifecycleSystemRowLease.SharedRegistry);
+            // The fixture reports every cleanup failure once, below.
+            LifecycleSystemRowLease[] rows=AdmitRows(LifecycleSystemRowLease.SharedRegistry,message=>{});
             LifecycleSystemRowLease tableRow=rows[0],languageRow=rows[1],coreRow=rows[2];
             string temporary=Path.Combine(Path.GetTempPath(),"project-lucid-live-strings-"+Guid.NewGuid().ToString("N"));
             Type tableType=typeof(Table),storeType=typeof(HLPropertyStore),coreType=typeof(HLUnityCore);
@@ -55,7 +64,7 @@ namespace ProjectLucid.Tests
             foreach (FieldInfo field in tableType.GetFields(Declared)) if (field.IsStatic && !field.IsLiteral) { tableFields.Add(field);tableValues.Add(field.GetValue(null)); }
             FieldInfo storeInstance=Field(storeType,"s_internalInstance"),loads=Field(storeType,"LoadHandlers"),saves=Field(storeType,"SaveHandlers"),languageEvent=Field(typeof(Language),"OnLanguageChanged"),bridge=Field(coreType,"s_unityCoreNativeBridge"),tracking=Field(coreType,"s_trackingAuthorisationNativeBridge");
             object oldStore=storeInstance.GetValue(null),oldLoads=loads.GetValue(null),oldSaves=saves.GetValue(null),oldLanguageEvent=languageEvent.GetValue(null),oldBridge=bridge.GetValue(null),oldTracking=tracking.GetValue(null);
-            LoggingHostTests.OwnedConfiguration configuration=null;var configurationFailures=new List<Exception>();
+            LoggingHostTests.OwnedConfiguration configuration=null;var cleanup=new List<Exception>();var diagnostics=new List<Exception>();bool completed=false;
             var config=ScriptableObject.CreateInstance<HLLocalisationConfigurationAsset>();var coreConfig=ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
             GameObject coreOwner=null,languageOwner=null,tableOwner=null;HLUnityCore core=null;Language language=null;Table table=null;Application.LogCallback retainedCoreCallback=null;
             bool ready=false;int readinessCalls=0,handlerCalls=0,requestCalls=0;var trace=new List<string>();var customKeys=new List<string>();
@@ -79,8 +88,6 @@ namespace ProjectLucid.Tests
                 configuration=new LoggingHostTests.OwnedConfiguration();
                 tableRow.CaptureCreatedRow(ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<Table>()));
                 reference=ProcessManager.GetSystemRef<Table>();tableRow.CaptureTypedReference(reference);
-                languageRow.CaptureCreatedRow(ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<Language>()));
-                coreRow.CaptureCreatedRow(ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<HLUnityCore>()));
                 Directory.CreateDirectory(temporary);
                 File.WriteAllBytes(Path.Combine(temporary,"Japanese.bytes"),Data(Languages.Japanese,"live-japanese","japanese proof").encode());
                 File.WriteAllBytes(Path.Combine(temporary,"Korean.bytes"),Data(Languages.Korean,"live-korean","korean proof").encode());
@@ -91,10 +98,10 @@ namespace ProjectLucid.Tests
                 // storage provider or constructor/file/transport replacement.
                 var store=(HLPropertyStore)FormatterServices.GetUninitializedObject(storeType);Field(storeType,"m_isLoaded").SetValue(store,true);Field(storeType,"ActiveProperties").SetValue(store,properties);
                 storeInstance.SetValue(null,store);loads.SetValue(null,null);saves.SetValue(null,null);languageEvent.SetValue(null,null);
-                coreOwner=new GameObject("Lucid original localisation logging host");core=coreOwner.AddComponent<HLUnityCore>();
+                coreOwner=new GameObject("Lucid original localisation logging host");core=coreOwner.AddComponent<HLUnityCore>();coreRow.CaptureRowIfCreated();
                 retainedCoreCallback=(Application.LogCallback)Delegate.CreateDelegate(typeof(Application.LogCallback),core,coreType.GetMethod("OnHandleLog",Declared));
                 core.AddCustomKeyStringHandler((key,value)=>customKeys.Add(key+":"+value));
-                languageOwner=new GameObject("Lucid original localisation Language");language=languageOwner.AddComponent<Language>();
+                languageOwner=new GameObject("Lucid original localisation Language");language=languageOwner.AddComponent<Language>();languageRow.CaptureRowIfCreated();
                 yield return null;
                 Assert.IsTrue(language.LanguageLoaded && language.CurrentLanguage==Languages.Japanese && Language.IsLanguageOverriden(),"real automatic Language.Start consumes genuine saved override");
                 Field(tableType,"StringsTableHandlers").SetValue(null,null);Field(tableType,"OnRequestStringTable").SetValue(null,null);Field(tableType,"<Hash>k__BackingField").SetValue(null,null);
@@ -131,29 +138,39 @@ namespace ProjectLucid.Tests
                 Assert.IsFalse(Table.AreStringsLoaded());Assert.AreEqual("live-korean",Table.Hash,"original destruction retains global last hash");
                 Assert.IsNotNull(Field(tableType,"OnRequestStringTable").GetValue(null),"original destruction retains static request event");
                 Assert.IsTrue(Language.OverrideLanguage(Languages.Japanese));Assert.AreEqual(2,handlerCalls,"destroyed table removed original language subscription");
+                completed=true;
             }
             finally
             {
-                // Each step is attempted and retained without replacing a body failure.
-                tableRow.RunCleanup("detach-table-shutdown",()=>{ if (reference!=null) reference.OnSystemShutdown-=shutdown; });
-                tableRow.RunCleanup("destroy-table",()=>{ if (tableOwner!=null) Object.DestroyImmediate(tableOwner); });
-                tableRow.RunCleanup("destroy-language",()=>{ if (languageOwner!=null) Object.DestroyImmediate(languageOwner); });
-                tableRow.RunCleanup("destroy-logging-host",()=>{ if (coreOwner!=null) Object.DestroyImmediate(coreOwner); });
-                tableRow.RunCleanup("detach-retained-log-callback",()=>{ if (retainedCoreCallback!=null) Application.logMessageReceived-=retainedCoreCallback; });
-                tableRow.RunCleanup("restore-native-bridges",()=>{ bridge.SetValue(null,oldBridge);tracking.SetValue(null,oldTracking); });
-                tableRow.RunCleanup("release-configuration",()=>{ if (configuration!=null) configurationFailures.AddRange(configuration.Release()); });
-                tableRow.RunCleanup("destroy-configuration-assets",()=>{ if (config!=null) Object.DestroyImmediate(config);if (coreConfig!=null) Object.DestroyImmediate(coreConfig); });
-                tableRow.RunCleanup("restore-store-statics",()=>{ storeInstance.SetValue(null,oldStore);loads.SetValue(null,oldLoads);saves.SetValue(null,oldSaves);languageEvent.SetValue(null,oldLanguageEvent); });
-                tableRow.RunCleanup("restore-table-statics",()=>{ for (int i=0;i<tableFields.Count;++i) tableFields[i].SetValue(null,tableValues[i]); });
-                tableRow.RunCleanup("delete-generated-definitions",()=>{ if (Directory.Exists(temporary)) Directory.Delete(temporary,true); });
-                foreach (LifecycleSystemRowLease row in rows) row.Dispose();
+                // Each step is attempted; none may replace a body failure.
+                foreach (LifecycleSystemRowLease row in rows) Step(cleanup,row.CaptureRowIfCreated);
+                Step(cleanup,()=>{ if (reference!=null) reference.OnSystemShutdown-=shutdown; });
+                Step(cleanup,()=>{ if (tableOwner!=null) Object.DestroyImmediate(tableOwner); });
+                Step(cleanup,()=>{ if (languageOwner!=null) Object.DestroyImmediate(languageOwner); });
+                Step(cleanup,()=>{ if (coreOwner!=null) Object.DestroyImmediate(coreOwner); });
+                Step(cleanup,()=>{ if (retainedCoreCallback!=null) Application.logMessageReceived-=retainedCoreCallback; });
+                Step(cleanup,()=>{ bridge.SetValue(null,oldBridge);tracking.SetValue(null,oldTracking); });
+                Step(cleanup,()=>{ if (configuration!=null) cleanup.AddRange(configuration.Release()); });
+                Step(cleanup,()=>{ if (config!=null) Object.DestroyImmediate(config);if (coreConfig!=null) Object.DestroyImmediate(coreConfig); });
+                Step(cleanup,()=>{ storeInstance.SetValue(null,oldStore);loads.SetValue(null,oldLoads);saves.SetValue(null,oldSaves);languageEvent.SetValue(null,oldLanguageEvent); });
+                Step(cleanup,()=>{ for (int i=0;i<tableFields.Count;++i) tableFields[i].SetValue(null,tableValues[i]); });
+                Step(cleanup,()=>{ if (Directory.Exists(temporary)) Directory.Delete(temporary,true); });
+                foreach (LifecycleSystemRowLease row in rows)
+                    Step(cleanup,()=>
+                    {
+                        row.Dispose();
+                        foreach (LifecycleSystemRowLease.FailureRecord record in row.CleanupFailures) cleanup.Add(record.Failure);
+                    });
+                // As in LoggingHostTests, a failing diagnostic is recorded rather
+                // than thrown, so the body failure stays primary.
+                if (!completed)
+                    foreach (Exception failure in cleanup)
+                    {
+                        try { TestContext.Error.WriteLine("StringTable lifecycle cleanup also failed: "+failure); }
+                        catch (Exception diagnosticFailure) { diagnostics.Add(diagnosticFailure); }
+                    }
             }
-            Assert.IsEmpty(configurationFailures,"Configuration release failed.");
-            foreach (LifecycleSystemRowLease row in rows)
-            {
-                Assert.IsEmpty(row.CleanupFailures,"Fixture cleanup failed; retained failures were reported separately.");
-                Assert.IsEmpty(row.DiagnosticFailures,"Fixture cleanup reporting failed; diagnostic failures remain retained.");
-            }
+            Assert.IsEmpty(cleanup,"Every StringTable lifecycle cleanup step completes.");
         }
     }
 }

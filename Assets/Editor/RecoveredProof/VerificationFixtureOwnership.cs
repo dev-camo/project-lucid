@@ -22,17 +22,29 @@ namespace ProjectLucid
 
         // Admits a row that the original lifecycle registers into, reading
         // fields only so a refused row's observers and deferred work are neither
-        // run nor consumed. An absent row becomes the fixture's own and is
-        // removed once cleared; an existing row must be idle on its untyped and
-        // every typed reference, and stays. With borrowLiveSystem, a row whose
-        // system is already registered is borrowed as it is, because the
-        // fixture then never registers into it.
+        // run nor consumed. Same admission and release model as the PlayMode
+        // LifecycleSystemRowLease, which this Editor assembly cannot reference.
+        // An absent row becomes the proof's own and is removed once cleared; an
+        // existing row must be idle on its untyped and every typed reference,
+        // and stays, losing only the cleared typed entries added while
+        // borrowed. With borrowLiveSystem, a row whose system is already
+        // registered is borrowed as it is, because the proof then never
+        // registers into it.
+        //
+        // The proofs never hand their references to the row, so a created row
+        // or typed entry is not captured as the PlayMode lease does. Each proof
+        // is synchronous and holds the key from admission to release, so a row
+        // or typed entry first found at release was created while it ran; it is
+        // removed only when its untyped and every typed reference are cleared.
         public sealed class LifecycleRow : IDisposable
         {
             private static readonly string[] OwnershipFields = { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" };
             private readonly IDictionary registry;
             private readonly string name;
             private readonly object borrowedRow;
+            private readonly object borrowedReference;
+            private readonly IDictionary borrowedCache;
+            private readonly Dictionary<object, object> priorTypedEntries;
             private bool released;
 
             public bool Existed { get; }
@@ -52,9 +64,15 @@ namespace ProjectLucid
                 else RequireIdle(row, name);
                 Existed = true;
                 borrowedRow = row;
+                borrowedReference = Reference(row);
+                borrowedCache = TypedCache(row);
+                priorTypedEntries = new Dictionary<object, object>();
+                foreach (DictionaryEntry entry in borrowedCache) priorTypedEntries.Add(entry.Key, entry.Value);
             }
 
             private static SystemRef Reference(object row) => (SystemRef)Read(row, "SystemRef");
+
+            private static IDictionary TypedCache(object row) => (IDictionary)Read(row, "SystemRefDictionary");
 
             private static object Read(object value, string field) =>
                 value.GetType().GetField(field, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetValue(value);
@@ -62,7 +80,7 @@ namespace ProjectLucid
             private static void RequireIdle(object row, string name)
             {
                 RequireIdleReference(Reference(row), name);
-                foreach (DictionaryEntry entry in (IDictionary)Read(row, "SystemRefDictionary")) RequireIdleReference(entry.Value, name);
+                foreach (DictionaryEntry entry in TypedCache(row)) RequireIdleReference(entry.Value, name);
             }
 
             private static void RequireIdleReference(object reference, string name)
@@ -74,7 +92,7 @@ namespace ProjectLucid
                         throw new InvalidOperationException("Fixture registry row retains unowned state: " + name + "/" + field);
             }
 
-            // Call after the fixture has unregistered its systems. A row that
+            // Call after the proof has unregistered its systems. A row that
             // still holds state is left in place and reported.
             public void Dispose()
             {
@@ -83,14 +101,30 @@ namespace ProjectLucid
                 if (BorrowsLiveSystem) return;
                 if (Existed)
                 {
-                    if (!ReferenceEquals(registry[name], borrowedRow))
-                        throw new InvalidOperationException("Fixture borrowed registry row was replaced: " + name);
-                    RequireIdle(borrowedRow, name);
+                    ReturnBorrowedRow();
                     return;
                 }
                 if (!registry.Contains(name)) return;
                 RequireIdle(registry[name], name);
                 registry.Remove(name);
+            }
+
+            // The borrowed row and its prior typed entries stay as admitted;
+            // typed entries added while borrowed are removed once cleared.
+            private void ReturnBorrowedRow()
+            {
+                if (!ReferenceEquals(registry[name], borrowedRow) ||
+                    !ReferenceEquals(Reference(borrowedRow), borrowedReference) ||
+                    !ReferenceEquals(TypedCache(borrowedRow), borrowedCache))
+                    throw new InvalidOperationException("Fixture borrowed registry row was replaced: " + name);
+                foreach (KeyValuePair<object, object> entry in priorTypedEntries)
+                    if (!borrowedCache.Contains(entry.Key) || !ReferenceEquals(borrowedCache[entry.Key], entry.Value))
+                        throw new InvalidOperationException("Fixture borrowed typed cache changed: " + name);
+                RequireIdle(borrowedRow, name);
+                var added = new List<object>();
+                foreach (DictionaryEntry entry in borrowedCache)
+                    if (!priorTypedEntries.ContainsKey(entry.Key)) added.Add(entry.Key);
+                foreach (object key in added) borrowedCache.Remove(key);
             }
         }
 

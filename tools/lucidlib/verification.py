@@ -3414,8 +3414,8 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.MenuBloomFixture_RefusesObservedBloomRow(True)",
     "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusalLeavesEarlierIdleRowsUnchanged",
     "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.FixturesAdmitAbsentAndIdleRowsWithoutChangingThem",
-    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRefusesAnObservedDormantRowWithoutInvokingIt(False)",
-    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRefusesAnObservedDormantRowWithoutInvokingIt(True)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.CreatedRowIsCapturedFromTheRawEntryAfterActivation",
+    "ProjectLucid.Tests.OriginalMenuBloomLifecycleTests.OwnedBloomRefusesAnObservedDormantRowBeforeActivation",
 )
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(False,0)",
@@ -3428,4 +3428,6 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(True,3)",
     "ProjectLucid.Tests.VerificationLifecycleRowTests.ConfigurationRowIsBorrowedWhenLiveAndRefusedWhenDormantWithForeignWork",
     "ProjectLucid.Tests.VerificationLifecycleRowTests.ReleaseRemovesOnlyAnIdleCreatedRow",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.BorrowedRowReleaseRemovesOnlyClearedTypedEntriesAddedWhileBorrowed",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.EngineProofRefusesAnObservedDormantHostRowBeforeAnyStep",
 )

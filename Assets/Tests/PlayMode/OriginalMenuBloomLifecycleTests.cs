@@ -136,6 +136,38 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Wiring control: OwnedBloom admits the shared row before activation,
+        // so a dormant bloom row with a foreign startup observer is refused
+        // before the singleton's Awake could register into it and run it.
+        [Test]
+        public void OwnedBloomRefusesAnObservedDormantRowBeforeActivation()
+        {
+            IDictionary registry = LifecycleSystemRowLease.SharedRegistry;
+            string name = ProcessManager.GetDefaultName<MenuBloomTransition>();
+            LifecycleSystemRowLease seed = AdmitBloomRow(registry);
+            SystemRef dormant = null;
+            int calls = 0;
+            Action<ISystem> observer = value => ++calls;
+            try
+            {
+                dormant = ProcessManager.GetSystemRef(name);
+                seed.CaptureCreatedRow(dormant);
+                dormant.OnSystemStartup += observer;
+                object row = registry[name];
+                StringAssert.Contains("retains unowned state", Assert.Throws<InvalidOperationException>(() => new OwnedBloom()).Message);
+                Assert.AreSame(row, registry[name]);
+                Assert.IsTrue(dormant.IsNull());
+                Assert.That(MonoSingleton<MenuBloomTransition>.Instance == null, Is.True);
+                Assert.AreEqual(0, calls, "No activation registered into the seeded row.");
+            }
+            finally
+            {
+                if (dormant != null) dormant.OnSystemStartup -= observer;
+                seed.Dispose();
+            }
+            Assert.IsEmpty(seed.CleanupFailures);
+        }
+
         // Field-only admission of the bloom row before activation: a null row
         // can still hold foreign observers and deferred work that the
         // singleton's registration would run and consume.
@@ -159,9 +191,9 @@ namespace ProjectLucid.Tests
                     Assert.That(ProcessManager.IsSystemNull<MenuBloomTransition>(), Is.True,
                         "the real registry must have no prior bloom; no reset is permitted");
                     Assert.That(MonoSingleton<MenuBloomTransition>.Instance == null, Is.True);
-                    row.CaptureCreatedRow(ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<MenuBloomTransition>()));
                     host = new GameObject("Project Lucid owned scheduled bloom fixture");
                     Bloom = host.AddComponent<MenuBloomTransition>();
+                    row.CaptureRowIfCreated();
                     Group = host.GetComponent<CanvasGroup>();
                     Assert.That(Group, Is.Not.Null);
                     Assert.That(MonoSingleton<MenuBloomTransition>.Instance, Is.SameAs(Bloom));
@@ -173,6 +205,7 @@ namespace ProjectLucid.Tests
 
             public void Dispose()
             {
+                row.RunCleanup("capture-created-row", row.CaptureRowIfCreated);
                 row.RunCleanup("destroy-bloom-host", () => { if (host != null) Object.DestroyImmediate(host); });
                 row.Dispose();
                 Assert.That(MonoSingleton<MenuBloomTransition>.Instance == null, Is.True);

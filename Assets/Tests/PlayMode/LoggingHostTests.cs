@@ -21,13 +21,16 @@ namespace ProjectLucid.Tests
         // Field-only admission of the logging-host row before any reference or
         // activation: a null row can still hold foreign observers and deferred
         // work that the host's registration would run and consume.
-        internal static LifecycleSystemRowLease AdmitHostRow(IDictionary registry) =>
-            LifecycleSystemRowLease.AdmitAbsentOrIdle(registry, ProcessManager.GetDefaultName<HLUnityCore>());
+        internal static LifecycleSystemRowLease AdmitHostRow(IDictionary registry) => AdmitHostRow(registry, null);
+
+        private static LifecycleSystemRowLease AdmitHostRow(IDictionary registry, Action<string> reportCleanupFailure) =>
+            LifecycleSystemRowLease.AdmitAbsentOrIdle(registry, ProcessManager.GetDefaultName<HLUnityCore>(), reportCleanupFailure);
 
         [UnityTest]
         public IEnumerator OriginalLoggingHost_RegisteredCallbacksAndRetainedNativeBridgeLifecycle()
         {
-            LifecycleSystemRowLease hostRow = AdmitHostRow(LifecycleSystemRowLease.SharedRegistry);
+            // The fixture reports every cleanup failure once, below.
+            LifecycleSystemRowLease hostRow = AdmitHostRow(LifecycleSystemRowLease.SharedRegistry, message => { });
             OwnedConfiguration configuration;
             try
             {
@@ -438,68 +441,6 @@ namespace ProjectLucid.Tests
             Assert.IsEmpty(seed.CleanupFailures);
             Assert.IsFalse(Registry.Contains(ConfigurationName));
         }
-
-        // A dormant row carrying observers and queued work is refused by field reads before AddConfig,
-        // whose registration would otherwise run and consume them. The queued work is this control's
-        // own, so it clears it by field before releasing the seeded row.
-        [TestCase(false)]
-        [TestCase(true)]
-        public void OwnedConfigurationRefusesAnObservedDormantRowWithoutInvokingIt(bool throwObservers)
-        {
-            Assert.IsFalse(Registry.Contains(ConfigurationName), "The control owns the configuration row.");
-            var seed = new LifecycleSystemRowLease(Registry, ConfigurationName);
-            SystemRef dormant = null;
-            SystemRef<SystemConfiguration> typed = null;
-            int calls = 0;
-            Action<ISystem> untypedObserver = value => { ++calls; if (throwObservers) throw new InvalidOperationException("borrowed observer"); };
-            Action<SystemConfiguration> typedObserver = value => { ++calls; if (throwObservers) throw new InvalidOperationException("borrowed observer"); };
-            try
-            {
-                dormant = ProcessManager.GetSystemRef(ConfigurationName);
-                seed.CaptureCreatedRow(dormant);
-                typed = ProcessManager.GetSystemRef<SystemConfiguration>();
-                seed.CaptureTypedReference(typed);
-                dormant.OnSystemStartup += untypedObserver;
-                dormant.OnSystemShutdown += untypedObserver;
-                dormant.InvokeOnValid(untypedObserver);
-                typed.OnSystemStartup += typedObserver;
-                typed.OnSystemShutdown += typedObserver;
-                typed.InvokeOnValid(typedObserver);
-                object row = Registry[ConfigurationName];
-                Assert.Throws<InvalidOperationException>(() => new LoggingHostTests.OwnedConfiguration());
-                Assert.AreSame(row, Registry[ConfigurationName]);
-                Assert.AreSame(typed, ProcessManager.GetSystemRef<SystemConfiguration>());
-                Assert.IsTrue(dormant.IsNull() && typed.IsNull());
-                Assert.IsNotNull(PendingWork(dormant));
-                Assert.IsNotNull(PendingWork(typed));
-                Assert.AreEqual(0, calls);
-            }
-            finally
-            {
-                if (dormant != null)
-                {
-                    dormant.OnSystemStartup -= untypedObserver;
-                    dormant.OnSystemShutdown -= untypedObserver;
-                    ClearPendingWork(dormant);
-                }
-                if (typed != null)
-                {
-                    typed.OnSystemStartup -= typedObserver;
-                    typed.OnSystemShutdown -= typedObserver;
-                    ClearPendingWork(typed);
-                }
-                seed.Dispose();
-            }
-            Assert.IsEmpty(seed.CleanupFailures);
-            Assert.IsFalse(Registry.Contains(ConfigurationName));
-        }
-
-        private static FieldInfo PendingField<T>() where T : class, ISystem =>
-            typeof(SystemRef<T>).GetField("m_actionOnSystemValid", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
-
-        private static object PendingWork<T>(SystemRef<T> reference) where T : class, ISystem => PendingField<T>().GetValue(reference);
-
-        private static void ClearPendingWork<T>(SystemRef<T> reference) where T : class, ISystem => PendingField<T>().SetValue(reference, null);
 
         // Injected cleanup failure before the row is released: a throwing listener during override
         // removal must not stop unregistration and row removal, and must be reported, not swallowed.

@@ -86,12 +86,12 @@ namespace ProjectLucid.Tests
         // Admits every named row before the fixture takes any reference. A
         // refusal releases the leases already taken, which hold no created
         // row yet, so the registry is left exactly as it was.
-        internal static LifecycleSystemRowLease[] AdmitAllAbsentOrIdle(IDictionary registry, params string[] names)
+        internal static LifecycleSystemRowLease[] AdmitAllAbsentOrIdle(IDictionary registry, Action<string> reportCleanupFailure, params string[] names)
         {
             var leases = new List<LifecycleSystemRowLease>();
             try
             {
-                foreach (string name in names) leases.Add(AdmitAbsentOrIdle(registry, name));
+                foreach (string name in names) leases.Add(AdmitAbsentOrIdle(registry, name, reportCleanupFailure));
             }
             catch
             {
@@ -124,6 +124,17 @@ namespace ProjectLucid.Tests
             if (typedCache.Count != 0)
                 throw new InvalidOperationException("Lifecycle fixture found an unowned typed cache: " + name);
             row = created;
+        }
+
+        // For an owned absent row that the original registration creates: read
+        // the raw entry after activation, so the fixture takes no reference
+        // first and registration keeps ProcessManager's new-row branch. A
+        // borrowed, captured or released row, or a key still absent, is left
+        // as it is; the usual capture checks apply to a newly found row.
+        internal void CaptureRowIfCreated()
+        {
+            if (releaseAttempted || row != null || !registry.Contains(name)) return;
+            CaptureCreatedRow((SystemRef)ReadRowField(registry[name], "SystemRef"));
         }
 
         internal void CaptureTypedReference<T>(SystemRef<T> reference) where T : class, ISystem

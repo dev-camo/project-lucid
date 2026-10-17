@@ -134,5 +134,38 @@ namespace ProjectLucid.Tests
             Assert.AreSame(idle, registry[languageName]);
             Assert.AreEqual(0, idle.SystemRefDictionary.Count);
         }
+
+        // The fixtures take no reference to an absent row before activation, so
+        // the original registration creates it through ProcessManager's
+        // new-row branch; the lease then captures the raw entry. A still
+        // absent key is left alone, and a found row with a typed cache it did
+        // not create is refused and stays.
+        [Test]
+        public void CreatedRowIsCapturedFromTheRawEntryAfterActivation()
+        {
+            string name = ProcessManager.GetDefaultName<MenuBloomTransition>();
+            IDictionary registry = new Dictionary<string, object>();
+            LifecycleSystemRowLease lease = OriginalMenuBloomLifecycleTests.AdmitBloomRow(registry);
+            lease.CaptureRowIfCreated();
+            Assert.AreEqual(0, registry.Count, "Capture creates no row.");
+            var created = new IsolatedRow(new SystemRef(name, null));
+            registry.Add(name, created);
+            lease.CaptureRowIfCreated();
+            lease.CaptureRowIfCreated();
+            lease.Dispose();
+            Assert.IsEmpty(lease.CleanupFailures);
+            Assert.AreEqual(0, registry.Count, "The captured created row is removed once cleared.");
+
+            LifecycleSystemRowLease refused = OriginalMenuBloomLifecycleTests.AdmitBloomRow(registry);
+            var foreign = new IsolatedRow(new SystemRef(name, null));
+            var foreignTyped = new SystemRef<MenuBloomTransition>(name, null);
+            foreign.SystemRefDictionary.Add(name, foreignTyped);
+            registry.Add(name, foreign);
+            StringAssert.Contains("unowned typed cache", Assert.Throws<InvalidOperationException>(refused.CaptureRowIfCreated).Message);
+            refused.Dispose();
+            Assert.IsEmpty(refused.CleanupFailures);
+            Assert.AreSame(foreign, registry[name], "An uncaptured row is never removed.");
+            Assert.AreSame(foreignTyped, foreign.SystemRefDictionary[name]);
+        }
     }
 }

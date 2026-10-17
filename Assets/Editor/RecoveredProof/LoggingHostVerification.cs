@@ -390,17 +390,20 @@ namespace ProjectLucid
             }
         }
 
-        // Every row is released; a release failure is raised only when it
-        // cannot replace an earlier proof failure.
+        // Every row is released. After a completed proof the first release
+        // failure is raised; every other one, and all of them after a proof
+        // failure that must stay primary, is written to the error stream.
         private static void ReleaseRows(bool completed, params VerificationFixtureOwnership.LifecycleRow[] rows)
         {
-            Exception failure = null;
+            Exception raised = null;
             foreach (VerificationFixtureOwnership.LifecycleRow row in rows)
             {
-                Exception rowFailure = Capture(row.Dispose);
-                if (failure == null) failure = rowFailure;
+                Exception failure = Capture(row.Dispose);
+                if (failure == null) continue;
+                if (completed && raised == null) raised = failure;
+                else Console.Error.WriteLine("Logging host proof row release also failed: " + failure);
             }
-            if (completed && failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
+            if (raised != null) ExceptionDispatchInfo.Capture(raised).Throw();
         }
 
         private static void CheckNativeValueMethods()

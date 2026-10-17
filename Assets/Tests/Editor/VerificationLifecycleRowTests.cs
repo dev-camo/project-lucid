@@ -22,8 +22,17 @@ namespace ProjectLucid.Tests
         private static string HostName => ProcessManager.GetDefaultName<HLUnityCore>();
         private static string ConfigurationName => ProcessManager.GetDefaultName<SystemConfiguration>();
 
-        private static object Pending<T>(SystemRef<T> reference) where T : class, ISystem =>
-            typeof(SystemRef<T>).GetField("m_actionOnSystemValid", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
+        private const BindingFlags ReferenceFields = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+
+        // Reads a SystemRef<T> field on any closed reference type.
+        private static object Read(object reference, string field)
+        {
+            Type type = reference.GetType();
+            while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
+            return type.GetField(field, ReferenceFields).GetValue(reference);
+        }
+
+        private static object Pending(object reference) => Read(reference, "m_actionOnSystemValid");
 
         private static void Observe<T>(SystemRef<T> reference, int kind, Action<T> work) where T : class, ISystem
         {
@@ -33,8 +42,11 @@ namespace ProjectLucid.Tests
         }
 
         // kind 0 startup, 1 shutdown, 2 deferred, 3 registered system; on the
-        // untyped or the typed reference. A value-only IsSystemNull guard
-        // admits kinds 0-2 and the typed kind 3.
+        // untyped or a typed reference. A value-only IsSystemNull guard admits
+        // kinds 0-2 and the typed kind 3. The registered value is a
+        // constructible SystemConfiguration: admission reads only its identity,
+        // and the typed kind-3 entry is the row's SystemRef<SystemConfiguration>
+        // that GetSystemRef<SystemConfiguration>(HostName) would cache.
         [TestCase(false, 0)]
         [TestCase(false, 1)]
         [TestCase(false, 2)]
@@ -48,29 +60,41 @@ namespace ProjectLucid.Tests
             int calls = 0;
             Action<ISystem> untypedWork = value => { ++calls; throw new InvalidOperationException("foreign work"); };
             Action<HLUnityCore> typedWork = value => { ++calls; throw new InvalidOperationException("foreign work"); };
-            var system = (HLUnityCore)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(HLUnityCore));
+            var system = new SystemConfiguration();
             var untyped = new SystemRef(HostName, kind == 3 && !onTyped ? system : null);
-            var typed = new SystemRef<HLUnityCore>(HostName, kind == 3 && onTyped ? system : null);
-            if (kind != 3)
+            object typed;
+            string typedKey;
+            if (kind == 3 && onTyped)
             {
-                if (onTyped) Observe(typed, kind, typedWork);
-                else Observe(untyped, kind, untypedWork);
+                typed = new SystemRef<SystemConfiguration>(HostName, system);
+                typedKey = ConfigurationName;
+            }
+            else
+            {
+                var host = new SystemRef<HLUnityCore>(HostName, null);
+                if (kind != 3)
+                {
+                    if (onTyped) Observe(host, kind, typedWork);
+                    else Observe(untyped, kind, untypedWork);
+                }
+                typed = host;
+                typedKey = HostName;
             }
             var row = new IsolatedRow(untyped);
-            row.SystemRefDictionary.Add(HostName, typed);
+            row.SystemRefDictionary.Add(typedKey, typed);
             IDictionary registry = new Dictionary<string, object> { { HostName, row } };
             object untypedPending = Pending(untyped), typedPending = Pending(typed);
 
             StringAssert.Contains("retains unowned state",
                 Assert.Throws<InvalidOperationException>(() => new VerificationFixtureOwnership.LifecycleRow(registry, HostName)).Message);
             Assert.AreSame(row, registry[HostName]);
-            Assert.AreSame(typed, row.SystemRefDictionary[HostName]);
+            Assert.AreSame(typed, row.SystemRefDictionary[typedKey]);
             Assert.AreEqual(1, row.SystemRefDictionary.Count);
             Assert.AreEqual(0, calls);
             Assert.AreSame(untypedPending, Pending(untyped));
             Assert.AreSame(typedPending, Pending(typed));
             Assert.AreSame(kind == 3 && !onTyped ? system : null, untyped.GetSafe());
-            Assert.AreSame(kind == 3 && onTyped ? system : null, typed.GetSafe());
+            Assert.AreSame(kind == 3 && onTyped ? system : null, Read(typed, "m_isystem"));
         }
 
         // RunEngine borrows a registered configuration (AddConfig then never
@@ -136,6 +160,64 @@ namespace ProjectLucid.Tests
             Assert.AreSame(busyRow, registry[HostName]);
             Assert.IsNotNull(Pending(busy));
             Assert.AreEqual(0, calls);
+        }
+
+        // A borrowed idle row keeps its prior typed entries and loses only the
+        // cleared entries added while borrowed; an added entry that still holds
+        // state refuses release and stays.
+        [Test]
+        public void BorrowedRowReleaseRemovesOnlyClearedTypedEntriesAddedWhileBorrowed()
+        {
+            var prior = new SystemRef<HLUnityCore>(HostName, null);
+            var idleRow = new IsolatedRow(new SystemRef(HostName, null));
+            idleRow.SystemRefDictionary.Add(HostName, prior);
+            IDictionary registry = new Dictionary<string, object> { { HostName, idleRow } };
+
+            var borrowed = new VerificationFixtureOwnership.LifecycleRow(registry, HostName);
+            idleRow.SystemRefDictionary.Add(ConfigurationName, new SystemRef<SystemConfiguration>(HostName, null));
+            borrowed.Dispose();
+            Assert.AreSame(idleRow, registry[HostName]);
+            Assert.AreEqual(1, idleRow.SystemRefDictionary.Count);
+            Assert.AreSame(prior, idleRow.SystemRefDictionary[HostName]);
+
+            var retained = new VerificationFixtureOwnership.LifecycleRow(registry, HostName);
+            int calls = 0;
+            var busy = new SystemRef<SystemConfiguration>(HostName, null);
+            busy.InvokeOnValid(value => ++calls);
+            idleRow.SystemRefDictionary.Add(ConfigurationName, busy);
+            StringAssert.Contains("retains unowned state", Assert.Throws<InvalidOperationException>(retained.Dispose).Message);
+            Assert.AreSame(busy, idleRow.SystemRefDictionary[ConfigurationName]);
+            Assert.IsNotNull(Pending(busy));
+            Assert.AreEqual(0, calls);
+        }
+
+        // Wiring control: RunEngine admits the shared logging-host row before
+        // any configuration or lifecycle step, so a dormant row with a foreign
+        // startup observer is refused before the explicit Awake could register
+        // into it and run the observer.
+        [Test]
+        public void EngineProofRefusesAnObservedDormantHostRowBeforeAnyStep()
+        {
+            IDictionary registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            var seed = new VerificationFixtureOwnership.LifecycleRow(registry, HostName);
+            SystemRef dormant = null;
+            int calls = 0;
+            Action<ISystem> observer = value => ++calls;
+            try
+            {
+                dormant = ProcessManager.GetSystemRef(HostName);
+                dormant.OnSystemStartup += observer;
+                object row = registry[HostName];
+                StringAssert.Contains("retains unowned state", Assert.Throws<InvalidOperationException>(() => LoggingHostVerification.RunEngine()).Message);
+                Assert.AreSame(row, registry[HostName]);
+                Assert.IsTrue(dormant.IsNull());
+                Assert.AreEqual(0, calls, "No lifecycle step registered into the seeded row.");
+            }
+            finally
+            {
+                if (dormant != null) dormant.OnSystemStartup -= observer;
+                seed.Dispose();
+            }
         }
     }
 }
