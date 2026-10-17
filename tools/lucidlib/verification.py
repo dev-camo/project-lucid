@@ -2226,3 +2226,24 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalGenericMathsTests.UnsupportedTypesFailInitialisationWithTheOriginalMessage",
     "ProjectLucid.Tests.OriginalGenericMathsTests.EnumTypesFailInitialisationOnTheImplementationCast",
 )
+
+# HLUnityCore LegalModule and CountryRegulationIndexAPI restoration.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLegalModuleTests.CountryEqualityMixesStringOperatorsAndChecksEveryField",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.CountryHashUsesOriginalMultiplierAndNullStringZero",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.DataConstructorsKeepOriginalDefaults",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.ConstructorValidatesInputsInOriginalOrderBeforeTheRegistry",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.ConstructedModuleGuardsPluginAndCountryAccess",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.AgeTypeFollowsOriginalThresholds",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.OptOutResetsConsentAndAdsThenRevokes",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.OptOutAdsRequiresAConsentedAdAgeMatchingThePlayer",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.ChangeAgeRevokesOnlyForExactRegulatedTypes",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.ConsentChecksUseCachedVersionAndModuleAdType",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.DeclarationsKeepOriginalOrdinalsAndAttributes",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.RequestAccessFoldsReconsentAndSamplesTracking",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.CountrySelectionIgnoresCaseAndFallsBackToDefault",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.ImproveExperienceGatesFollowCountryAndAgeClass",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.CountryUpdateAndSaveUpgradeChecks",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.LegalFlowDispatchesTheOriginalStateTable",
+    "ProjectLucid.Tests.OriginalLegalModuleTests.PlayerAgeIsRequestedOnlyWhenUnset",
+)
