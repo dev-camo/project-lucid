@@ -58,5 +58,29 @@ namespace ProjectLucid.Tests.Editor
                 "LongMultiply", "LongAddition", "Vector3Multiply", "Vector3Addition", "DataUpdated",
                 "RegisterTypeOperations" }, declared.OrderBy(m => m.MetadataToken).Select(m => m.Name));
         }
+
+        // The same DummyDll rows as (name, parameter count, MethodAttributes) from the
+        // metadata section, so a swapped same-name overload pair (SetBaseValue, AddOverride,
+        // GetStack, or the public and private Get<T>) cannot pass on names alone.
+        [Test]
+        public void MethodRowsKeepOriginalOverloadOrderAndFlags()
+        {
+            IEnumerable<MethodBase> declared = typeof(StackableData).GetConstructors(Declared)
+                .Cast<MethodBase>().Concat(typeof(StackableData).GetMethods(Declared));
+            CollectionAssert.AreEqual(new[] {
+                ".cctor/0/0x1891", ".ctor/0/0x1886", "add_OnDataUpdated/1/0x0886", "remove_OnDataUpdated/1/0x0886",
+                "SetBaseValue/2/0x0086", "SetBaseValue/3/0x0086", "CreateOverride/0/0x0086",
+                "AddOverride/2/0x0086", "AddOverride/3/0x0086", "ClearOverrides/1/0x0086",
+                "RemoveOverrides/1/0x0086", "GetOverride/2/0x0086", "SetRetrievalOperation/3/0x0086",
+                "HasData/1/0x0086", "Get/3/0x0086", "TryGet/4/0x0086", "GetStack/3/0x0086", "GetStack/2/0x0086",
+                "UpdateCachedValue/2/0x0081", "Get/3/0x0081", "GetBase/2/0x0081", "LogicalAnd/2/0x0091",
+                "LogicalOr/2/0x0091", "Multiply/2/0x0091", "Addition/2/0x0091", "BoolLogicalAnd/2/0x0091",
+                "BoolLogicalOr/2/0x0091", "IntMultiply/2/0x0091", "IntAddition/2/0x0091",
+                "FloatMultiply/2/0x0091", "FloatAddition/2/0x0091", "LongMultiply/2/0x0091",
+                "LongAddition/2/0x0091", "Vector3Multiply/2/0x0091", "Vector3Addition/2/0x0091",
+                "DataUpdated/1/0x0081", "RegisterTypeOperations/4/0x0096" },
+                declared.OrderBy(m => m.MetadataToken)
+                    .Select(m => $"{m.Name}/{m.GetParameters().Length}/0x{(int)m.Attributes:X4}"));
+        }
     }
 }

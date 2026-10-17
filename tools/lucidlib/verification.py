@@ -1842,6 +1842,7 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalStackableDataDeclarationTests.FieldRowsKeepOriginalInstanceStaticAndEventOrder',
     'ProjectLucid.Tests.Editor.OriginalStackableDataDeclarationTests.MethodRowsKeepOriginalOrder',
+    'ProjectLucid.Tests.Editor.OriginalStackableDataDeclarationTests.MethodRowsKeepOriginalOverloadOrderAndFlags',
 )
 
 EDITMODE_TESTS += (

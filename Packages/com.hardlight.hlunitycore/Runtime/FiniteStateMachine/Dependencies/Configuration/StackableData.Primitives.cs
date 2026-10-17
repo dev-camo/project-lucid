@@ -5,7 +5,7 @@ using Unity.IL2CPP.CompilerServices;
 namespace Hardlight
 {
     // Original HLUnityCore.Runtime 0x02000025. All outer fields and methods live in
-    // the coordinated partial; this file holds only the original nested types.
+    // StackableData.cs; this file holds only the original nested types.
     public partial class StackableData
     {
         public enum RetrievalOperation
