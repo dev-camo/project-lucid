@@ -16,8 +16,10 @@ namespace ProjectLucid.Tests
     // Hardlight.UISelectableInputListener (HLUnityUI.Runtime, TypeDef 0x02000082), x86-64 bodies
     // 0x1b59c60..0x1b5a870. Every case runs on an inactive owned listener, so Awake never queries
     // ProcessManager; the shipped static InputBridge.OnShutdown is restored after each case.
-    // Not covered here: Awake (needs a registered UISelectableController and UIRuntimeConfiguration)
-    // and the m_triggerButton Press dispatch (needs an active UIButton).
+    // Not covered here: Awake (needs a registered UISelectableController and UIRuntimeConfiguration),
+    // the controller OnSelect/OnDeselect subscription and inlined IsCurrentSelection path of Setup
+    // (0x1b59e68..0x1b59fe3, needs an owned UISelectableController), and the m_triggerButton Press
+    // dispatch before the event (0x1b5a671..0x1b5a6a0, needs an owned UIButton).
     public sealed class OriginalUISelectableInputListenerTests
     {
         private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic |
@@ -25,7 +27,8 @@ namespace ProjectLucid.Tests
 
         // Flags, member order and attribute rows from dump.cs TypeDefIndex 11954..11957 and the
         // custom-attribute rows they print. <>c__DisplayClass12_0 is the shipped capture class name;
-        // it only comes out of the compiler if the nested types are declared before the fields.
+        // it requires both nested types to be declared before ButtonSelected (their exact source
+        // position is inferred).
         [Test]
         public void DeclarationsKeepOriginalFlagsSignaturesAndAttributeRows()
         {
@@ -291,31 +294,70 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // A watched selectable matches only itself: a null selection no longer matches once
+        // m_selectableToWatch is set, so this catches a reference or null-tolerant comparison.
+        [Test]
+        public void SelectAndDeselectMatchOnlyTheWatchedSelectable()
+        {
+            using (var owned = new Owned())
+            {
+                UISelectableInputListener.SelectedButtonInput[] data = owned.Configure(2);
+                UISelectableInputListenerBridgeProbe bridge = owned.AttachBridge();
+                UISelectable watched = owned.AddInactiveSelectable();
+                Write(owned.Listener, "m_selectableToWatch", watched);
+
+                Call(owned.Listener, "ButtonSelected", (UISelectable)null);
+                Assert.That(owned.Delegates, Is.Empty);
+                Assert.That(bridge.Calls, Is.Empty);
+
+                Call(owned.Listener, "ButtonSelected", watched);
+                Assert.That(owned.Delegates.Count, Is.EqualTo(2));
+                Assert.That(bridge.Calls.Select(c => c.Name), Is.EqualTo(Enumerable.Repeat("RegisterOnDown", 2)));
+                Assert.That(bridge.Calls.Select(c => c.Supplier), Is.EqualTo(data.Select(d => d.m_inputSupplierToListenFor)));
+
+                bridge.Calls.Clear();
+                Call(owned.Listener, "ButtonDeselected", (UISelectable)null);
+                Assert.That(owned.Delegates.Count, Is.EqualTo(2));
+                Assert.That(bridge.Calls, Is.Empty);
+
+                Action<float>[] appended = owned.Delegates.ToArray();
+                Call(owned.Listener, "ButtonDeselected", watched);
+                Assert.That(bridge.Calls.Select(c => c.Name), Is.EqualTo(Enumerable.Repeat("Unregister", 2)));
+                Assert.That(bridge.Calls.Select(c => c.Callback), Is.EqualTo(appended));
+                Assert.That(owned.Delegates, Is.Empty);
+                owned.AssertUnchanged();
+            }
+        }
+
         // OnEnable 0x06000409 tail-calls Setup 0x0600040b, which adds ClearUp to InputBridge.OnShutdown
         // before SystemRef.IsNull; OnDisable 0x0600040a tail-calls ClearUp 0x0600040c, which removes the
-        // hook and deselects m_selectableToWatch before IsNull. With Awake never run the SystemRef field is
-        // null, so both IsNull calls fault after those earlier effects.
+        // hook and deselects m_selectableToWatch before IsNull. The reference names an unregistered
+        // controller (the shape Awake's GetSystemRef gives when none is registered), so IsNull is true
+        // and both return without touching a controller.
         [Test]
-        public void EnableAndDisableOrderTheShutdownHookAndDeselectAroundTheControllerFault()
+        public void EnableAndDisableOrderTheShutdownHookAndDeselectAroundAnUnregisteredController()
         {
             using (var owned = new Owned())
             {
                 owned.Configure(2);
                 UISelectableInputListenerBridgeProbe bridge = owned.AttachBridge();
+                Write(owned.Listener, "m_selectableController",
+                    new SystemRef<UISelectableController>("owned-original-ui-selectable-controller", null));
                 InputBridge.OnShutdown = null;
 
-                Assert.Throws<NullReferenceException>(() => Call(owned.Listener, "OnEnable"));
+                Call(owned.Listener, "OnEnable");
                 FastAction shutdown = InputBridge.OnShutdown;
                 Assert.That(shutdown, Is.Not.Null);
                 Assert.That(shutdown.GetInvocationListCount(), Is.EqualTo(1));
                 Assert.That(ReferenceEquals(shutdown.GetInvocationList()[0].Target, owned.Listener), Is.True);
                 Assert.That(shutdown.GetInvocationList()[0].Method.Name, Is.EqualTo("ClearUp"));
-                Assert.That(owned.Delegates, Is.Empty, "the controller fault precedes any selection");
+                Assert.That(owned.Delegates, Is.Empty, "no controller means no initial selection");
+                Assert.That(bridge.Calls, Is.Empty);
 
                 Call(owned.Listener, "ButtonSelected", (UISelectable)null);
                 Action<float>[] appended = owned.Delegates.ToArray();
                 bridge.Calls.Clear();
-                Assert.Throws<NullReferenceException>(() => Call(owned.Listener, "OnDisable"));
+                Call(owned.Listener, "OnDisable");
                 Assert.That(ReferenceEquals(InputBridge.OnShutdown, shutdown), Is.True);
                 Assert.That(shutdown.GetInvocationListCount(), Is.Zero);
                 Assert.That(bridge.Calls.Select(c => c.Callback), Is.EqualTo(appended));
@@ -332,7 +374,9 @@ namespace ProjectLucid.Tests
         }
 
         // Owns an inactive listener, its suppliers, bridge and any extra objects, captures the shipped
-        // static InputBridge.OnShutdown and restores it, and fails on any log message.
+        // static InputBridge.OnShutdown and restores it. AssertUnchanged, called at the end of each
+        // case body, fails on any log message or a changed shipped hook; Dispose never throws, so it
+        // cannot hide the first failure of a case.
         private sealed class Owned : IDisposable
         {
             private readonly FastAction priorShutdown;
@@ -401,6 +445,7 @@ namespace ProjectLucid.Tests
 
             public void AssertUnchanged()
             {
+                Assert.That(priorShutdown == null ? -1 : priorShutdown.GetInvocationListCount(), Is.EqualTo(priorShutdownCount));
                 Assert.That(logs, Is.Empty);
             }
 
@@ -420,8 +465,6 @@ namespace ProjectLucid.Tests
                     InputBridge.OnShutdown = priorShutdown;
                     Application.logMessageReceived -= Log;
                 }
-                Assert.That(priorShutdown == null ? -1 : priorShutdown.GetInvocationListCount(), Is.EqualTo(priorShutdownCount));
-                Assert.That(logs, Is.Empty);
             }
 
             private void Log(string message, string stackTrace, LogType type)

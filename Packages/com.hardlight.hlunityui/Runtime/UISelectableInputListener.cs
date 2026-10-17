@@ -1,7 +1,9 @@
 // Original HLUnityUI.Runtime Hardlight.UISelectableInputListener (TypeDef 0x02000082), restored from
 // the x86-64 bodies 0x1b59c60..0x1b5a870. It is the UISelectable/UIButton twin of HLSelectableInputListener.
-// The nested types are declared first: with them, the five fields and the methods before it, ButtonSelected
-// is member 12, which matches the shipped capture class name <>c__DisplayClass12_0.
+// Nested types are declared first so that ButtonSelected is source member 12 (two nested types, five fields,
+// five methods before it), which yields the shipped <>c__DisplayClass12_0; their exact position before
+// ButtonSelected is inferred. No shipped prefab, scene or asset references the exported script GUID
+// 53c048f87f9851e4716ec54557d28003, so the script has a fresh GUID and no binding rule.
 // Attribute order follows the shipped custom-attribute rows.
 
 using System;
@@ -65,10 +67,12 @@ namespace Hardlight
         private List<Action<float>> m_delegates = new List<Action<float>>();
         private InputBridge m_inputBridge;
 
+        // 0x06000408: GetSystemRef(null, true) and GetSystemSafe(null, true) at 0x1b59ccc/0x1b59cf2, then
+        // Object != null; get_InputBridge (0x060000bf) is inlined as the +0x40 load at 0x1b59d29.
         private void Awake()
         {
-            m_selectableController = ProcessManager.GetSystemRef<UISelectableController>();
-            UIRuntimeConfiguration configuration = ProcessManager.GetSystemSafe<UIRuntimeConfiguration>();
+            m_selectableController = ProcessManager.GetSystemRef<UISelectableController>(null);
+            UIRuntimeConfiguration configuration = ProcessManager.GetSystemSafe<UIRuntimeConfiguration>(null);
             if (configuration != null)
             {
                 m_inputBridge = configuration.InputBridge;
@@ -86,6 +90,8 @@ namespace Hardlight
         }
 
         // 0x0600040b: the shutdown hook is added before the controller reference is checked.
+        // IsCurrentSelection (0x060003ea) is inlined at 0x1b59f81..0x1b59fc5: watched is loaded first and
+        // its own s_Il2CppMethodInitialized flag (0x33FD2ED, UnityEngine.Object TypeInfo) is checked.
         private void Setup()
         {
             InputBridge.OnShutdown += ClearUp;
@@ -93,7 +99,7 @@ namespace Hardlight
             {
                 m_selectableController.Get().OnSelect += ButtonSelected;
                 m_selectableController.Get().OnDeselect += ButtonDeselected;
-                if (m_selectableController.Get().CurrentlySelected == m_selectableToWatch)
+                if (m_selectableController.Get().IsCurrentSelection(m_selectableToWatch))
                 {
                     ButtonSelected(m_selectableToWatch);
                 }

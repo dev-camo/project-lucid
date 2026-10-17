@@ -2906,5 +2906,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableInputListenerTes
     "ClosuresRereadTheEntrySupplierAndFireEveryMatchingEntryInOrder",
     "ButtonDeselectedUnregistersOnlyTheFirstEntryCountThenClearsInPlace",
     "SelectAndDeselectIgnoreAnotherSelectable",
-    "EnableAndDisableOrderTheShutdownHookAndDeselectAroundTheControllerFault",
+    "SelectAndDeselectMatchOnlyTheWatchedSelectable",
+    "EnableAndDisableOrderTheShutdownHookAndDeselectAroundAnUnregisteredController",
 ))
