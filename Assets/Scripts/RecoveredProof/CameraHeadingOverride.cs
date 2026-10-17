@@ -7,8 +7,8 @@ using Unity.IL2CPP.CompilerServices;
 namespace HardlightProject
 {
     [Serializable]
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)2, false)]
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)1, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class CameraHeadingOverride
     {
         public Transform Target;
@@ -18,8 +18,8 @@ namespace HardlightProject
         public CameraHeadingOverride() { }
 
         [Serializable]
-        [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)2, false)]
-        [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)1, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class CameraHeadingOverrideSettings
         {
             [Tooltip("If enabled, camera X axis will orientate to face the forward of target transform.")]

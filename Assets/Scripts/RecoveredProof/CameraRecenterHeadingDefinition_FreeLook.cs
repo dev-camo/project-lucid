@@ -6,8 +6,8 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)1, false)]
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)2, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [CreateAssetMenu(fileName = "CameraRecenterHeadingDefinition_FreeLook", menuName = "HardlightProject/DefinitionData/Definitions/CameraRecenterHeadingDefinition_FreeLook")]
     public class CameraRecenterHeadingDefinition_FreeLook : CameraRecenterHeadingDefinition
     {

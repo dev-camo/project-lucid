@@ -327,8 +327,8 @@ namespace HardlightProject
             extraInfo.Append(string.Format("IsTriggered = {0}, Active = {1}, Stamina = {2} ", IsTriggered, Active, Stamina));
 
         [Serializable]
-        [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)2, false)]
-        [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)1, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class Definition
         {
             [Tooltip("Character collision radius for the duration of being active.")]

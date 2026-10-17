@@ -84,7 +84,7 @@ namespace HardlightProject
             m_leaderboardSystemRef.Get().ReportScore((long)score, GetLeaderboardIdentifier());
         }
 
-        // Original06002575 retains the real service and original time scope numeric0.
+        // Original06002575 retains the real service and passes TimeScope.Today (0).
         public override void ShowLeaderboard()
         {
             m_leaderboardSystemRef.Get().ShowLeaderboardUI(GetLeaderboardIdentifier(), TimeScope.Today);

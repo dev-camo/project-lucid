@@ -6,8 +6,8 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)1, false)]
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)2, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class CameraRecenterHeadingDefinition : ScriptableObject
     {
         [Tooltip("How long before we stop trying to snap behind the character e.g. they are rotating at the same speed as we are trying to snap behind.")]

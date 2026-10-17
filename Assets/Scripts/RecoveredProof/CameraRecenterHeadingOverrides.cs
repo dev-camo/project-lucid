@@ -6,8 +6,8 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)1, false)]
-    [Il2CppSetOption((Unity.IL2CPP.CompilerServices.Option)2, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [CreateAssetMenu(fileName = "CameraRecenterHeadingOverrides", menuName = "HardlightProject/DefinitionData/Definitions/CameraRecenterHeadingOverrides")]
     public class CameraRecenterHeadingOverrides : ScriptableObject
     {
