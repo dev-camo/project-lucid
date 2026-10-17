@@ -523,9 +523,56 @@ namespace ProjectLucid.Tests.ScreenShared
                 }
                 finally
                 {
-                    try { screen.Restore(); }
-                    finally { leaseBusy = false; }
+                    try { ReleaseOwnedRows(); }
+                    finally
+                    {
+                        try { screen.Restore(); }
+                        finally { leaseBusy = false; }
+                    }
                 }
+            }
+
+            // Awake registers the singleton row and SubscribeToAction creates the
+            // Initialise and Shutdown rows; UnregisterSystem and the unsubscribes
+            // remove neither. A row absent at admission is this lease's own and is
+            // removed once every reference in it is cleared; a row that still holds
+            // state stays, so Verify's report stands. Rows found at admission stay.
+            // Reads fields only and never throws, so a body failure stays the result.
+            private void ReleaseOwnedRows()
+            {
+                if (!priorSystems.ContainsKey(screenName) && systems.Contains(screenName))
+                {
+                    object info = systems[screenName];
+                    if (info != null && IsIdleRow(info))
+                    {
+                        systems.Remove(screenName);
+                        if (ReferenceEquals(info, suiteScreenInfo))
+                        {
+                            suiteScreenInfo = null;
+                            suiteScreenRef = null;
+                        }
+                    }
+                }
+                foreach (SystemAction action in new[] { SystemAction.Initialise, SystemAction.Shutdown })
+                    if (!priorActionRows.ContainsKey(action) && actions.Contains(action) &&
+                        actions[action] is IDictionary row && row.Count == 0)
+                        actions.Remove(action);
+            }
+
+            private static bool IsIdleRow(object info)
+            {
+                if (!IsIdleReference(Read(info, "SystemRef"))) return false;
+                foreach (DictionaryEntry entry in (IDictionary)Read(info, "SystemRefDictionary"))
+                    if (!IsIdleReference(entry.Value)) return false;
+                return true;
+            }
+
+            private static bool IsIdleReference(object reference)
+            {
+                if (reference == null) return false;
+                foreach (string name in new[] { "m_system", "m_isystem", "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" })
+                    if (Read(reference, name) != null) return false;
+                return true;
             }
         }
 
