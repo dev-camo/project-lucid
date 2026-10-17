@@ -329,6 +329,28 @@ class RecoverySafetyTests(unittest.TestCase):
         self.assertEqual(report["missing_assemblies"], [])
         self.assertTrue(inspect.call_args.kwargs["schemas"])
 
+    def test_failed_managed_inspection_is_reported_as_a_missing_inventory(self):
+        app = self.work.parent / "source-recovery-fixture.app"
+        binary, metadata = app / "binary", app / "metadata"
+        fixture = {"image_count": 1, "type_count": 1, "method_count": 1, "field_count": 1,
+                   "version": 31, "images": [{"name": "Game"}]}
+        succeeded = {"tool": "cpp2il", "status": "ready", "output_dir": str(self.work),
+                     "assembly_files": [str(self.work / "Game.dll")], "process": {"log": "schema.log"}}
+        with mock.patch("tools.lucidlib.recovery._resolve_input", return_value=(app, binary, metadata, "2022.3.54f1")), \
+             mock.patch("tools.lucidlib.recovery.parse_metadata", return_value=fixture), \
+             mock.patch("tools.lucidlib.recovery.sha256_file", return_value="source-hash"), \
+             mock.patch("tools.lucidlib.recovery._thin_binary", return_value=(binary, {"name": "x86_64"})), \
+             mock.patch("tools.lucidlib.recovery._cpp2il", return_value=succeeded), \
+             mock.patch("tools.lucidlib.recovery._inspect_managed_output",
+                        side_effect=ToolError("injected inspector failure")):
+            report = recover_code(app, self.work)
+        # Emitted declarations stay ready; the lost inventory is explicit, not silent.
+        self.assertEqual(report["status"], "ready")
+        self.assertEqual({"status": "failed", "error": "injected inspector failure", "method_inventory": None},
+                         report["quality"])
+        self.assertNotIn("output_methods", report["counts"])
+        self.assertIn("Managed-output inspection could not finish: injected inspector failure", report["limitations"])
+
     def test_extensionless_managed_assembly_is_included_in_output_coverage(self):
         generated = self.work / "__Generated"
         generated.write_bytes(b"MZ" + b"\0" * 30)

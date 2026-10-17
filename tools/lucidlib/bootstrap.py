@@ -37,7 +37,7 @@ HOST_CACHE_ROOT: Path | None = None
 DIAGNOSTICS_ROOT: Path | None = None
 _BUILD_SEALS: dict[Path, tuple[dict, dict]] = {}
 _INSTALL_SEALS: dict[Path, tuple[dict, dict]] = {}
-_CPP2IL_LEASES: dict[Path, object] = {}
+_BUILD_LEASES: dict[Path, object] = {}
 
 
 class ToolError(RuntimeError):
@@ -94,9 +94,9 @@ def isolated_host_cache(parent: Path, *, diagnostics: bool = False):
                 for path in list(seals):
                     if HOST_CACHE_ROOT in path.parents:
                         del seals[path]
-            for path in list(_CPP2IL_LEASES):
+            for path in list(_BUILD_LEASES):
                 if HOST_CACHE_ROOT in path.parents:
-                    _release_lease(_CPP2IL_LEASES.pop(path))
+                    _release_lease(_BUILD_LEASES.pop(path))
             HOST_CACHE_ROOT = None
             DIAGNOSTICS_ROOT = None
 
@@ -571,7 +571,7 @@ def try_lock(stream) -> bool:
 def _open_lease(path: Path, *, create: bool):
     """Open a lease file without following links or blocking on special files."""
     if _is_link(path):
-        raise ToolError(f"Cpp2IL lease must not be a link: {path}")
+        raise ToolError(f"Build lease must not be a link: {path}")
     flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     if create:
         flags |= os.O_CREAT | os.O_EXCL
@@ -579,7 +579,7 @@ def _open_lease(path: Path, *, create: bool):
     try:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-            raise ToolError(f"Cpp2IL lease must be a regular file: {path}")
+            raise ToolError(f"Build lease must be a regular file: {path}")
         return os.fdopen(descriptor, "r+b")
     except BaseException:
         os.close(descriptor)
@@ -610,20 +610,20 @@ def _remove_tree(path: Path, warnings: list) -> None:
         warnings.append(f"Could not remove {path}: {exc}")
 
 
-def _prune_cpp2il_builds(tools: Path, builds: Path, warnings: list) -> None:
+def _prune_leased_builds(builds: Path, stale: list[Path], warnings: list) -> None:
     """Remove builds whose owning process has exited, plus stale build temporaries.
 
-    Callers hold the exclusive Cpp2IL build lock, so no other build is in progress.
+    Callers hold the tool's exclusive build lock, so no other build is in progress.
     A build whose owner lock is still held by a live process is never touched.
     """
     for lease in sorted(builds.glob("*.lock")):
         directory = lease.with_suffix("")
-        if directory in _CPP2IL_LEASES:
+        if directory in _BUILD_LEASES:
             continue
         try:
             stream = _open_lease(lease, create=False)
         except (OSError, ToolError) as exc:
-            warnings.append(f"Skipped untrusted Cpp2IL lease {lease}: {exc}")
+            warnings.append(f"Skipped untrusted build lease {lease}: {exc}")
             continue
         if not try_lock(stream):
             stream.close()
@@ -636,8 +636,60 @@ def _prune_cpp2il_builds(tools: Path, builds: Path, warnings: list) -> None:
         _remove_tree(directory, warnings)
         if not directory.exists() and not _is_link(directory):
             _remove_tree(lease, warnings)
-    for stale in [*builds.glob(".build-*"), *tools.glob(".cpp2il-source-*")]:
-        _remove_tree(stale, warnings)
+    for path in [*builds.glob(".build-*"), *stale]:
+        _remove_tree(path, warnings)
+
+
+def leased_build(work_dir: Path, name: str, label: str, identity: dict, build, *,
+                 scratch: str | None = None) -> tuple[Path, object, list]:
+    """Select this process's sealed build of a generated tool, or build a fresh leased one.
+
+    Each process uses only its own immutable build, kept under a lease for the
+    process lifetime, so another process never replaces an executable in use and
+    neither a public marker nor an earlier process's tree is ever trusted. Callers
+    hold the tool's exclusive build lock. build(stage, build_id, warnings) creates
+    and fills the stage; scratch is a glob, relative to tools/, matching its own
+    temporaries. Returns (directory, build result or None when reused, warnings).
+    """
+    tools = managed_path(work_dir, "tools")
+    builds = managed_path(work_dir, "tools", f"{name}-builds")
+    for directory in list(_BUILD_LEASES):
+        if builds not in directory.parents:
+            continue
+        if not verify_built_tool(directory, identity):
+            raise ToolError(f"Sealed {label} build changed during this process: {directory}")
+        return directory, None, []
+    if _is_link(builds) or (builds.exists() and not builds.is_dir()):
+        raise ToolError(f"{label} builds must be a physical directory: {builds}")
+    builds.mkdir(parents=True, exist_ok=True)
+    # Recheck the whole chain from the cache root once it exists, before anything is pruned.
+    managed_path(work_dir, "tools", f"{name}-builds")
+    warnings: list = []
+    _prune_leased_builds(builds, sorted(tools.glob(scratch)) if scratch else [], warnings)
+    build_id = uuid.uuid4().hex
+    directory = builds / build_id
+    lease = _open_lease(builds / f"{build_id}.lock", create=True)
+    if not try_lock(lease):
+        lease.close()
+        raise ToolError(f"Fresh {label} build lease is unexpectedly held: {directory}")
+    stage = builds / f".build-{build_id}"
+    published = False
+    try:
+        result = build(stage, build_id, warnings)
+        # A fresh name: publication never displaces another build.
+        stage.rename(directory)
+        seal_built_tool(directory, identity)
+        _BUILD_LEASES[directory] = lease
+        published = True
+    finally:
+        if not published:
+            _remove_tree(directory, warnings)
+            _release_lease(lease)
+            # Keep the lease while the directory survives so a later prune retries it.
+            if not directory.exists() and not _is_link(directory):
+                _remove_tree(builds / f"{build_id}.lock", warnings)
+        _remove_tree(stage, warnings)
+    return directory, result, warnings
 
 
 def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
@@ -649,62 +701,34 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
                 "sdk": lock["artifacts"]["dotnet"]["version"], "runtime": rid,
                 "build_schema": 2}
     tools = managed_path(work_dir, "tools")
-    builds = managed_path(work_dir, "tools", "cpp2il-builds")
-    # Each process uses only its own immutable build, kept under a lease for the
-    # process lifetime, so another process never replaces an executable in use.
-    for directory in list(_CPP2IL_LEASES):
-        if builds not in directory.parents:
-            continue
-        if not verify_built_tool(directory, identity):
-            raise ToolError(f"Sealed Cpp2IL build changed during this process: {directory}")
-        return {"status": "ready", "path": str(executable(directory / "Cpp2IL")), "version": identity["commit"]}
-    if _is_link(builds) or (builds.exists() and not builds.is_dir()):
-        raise ToolError(f"Cpp2IL builds must be a physical directory: {builds}")
-    builds.mkdir(parents=True, exist_ok=True)
-    # Recheck the whole chain from the cache root once it exists, before anything is pruned.
-    managed_path(work_dir, "tools", "cpp2il-builds")
-    warnings: list = []
-    _prune_cpp2il_builds(tools, builds, warnings)
-    build_id = uuid.uuid4().hex
-    directory = builds / build_id
-    lease = _open_lease(builds / f"{build_id}.lock", create=True)
-    if not try_lock(lease):
-        lease.close()
-        raise ToolError(f"Fresh Cpp2IL build lease is unexpectedly held: {directory}")
-    stage = builds / f".build-{build_id}"
-    build_source = tools / f".cpp2il-source-{build_id}"
-    published = False
-    try:
-        shutil.copytree(source, build_source)
-        process = run_logged([
-            str(executable(dotnet_root / "dotnet")), "publish", str(build_source / "Cpp2IL" / "Cpp2IL.csproj"),
-            "-c", "Release", "-f", "net10.0", "-r", rid, "--self-contained", "true",
-            "-p:PublishSingleFile=true", "-p:PublishTrimmed=false", "-p:RestorePackagesWithLockFile=true",
-            "-p:SourceRevisionId=" + identity["commit"],
-            "-o", str(stage),
-        ], work_dir, "cpp2il-build.log", timeout=1200,
-            env=dotnet_environment(work_dir, dotnet_root), cwd=build_source)
-        if process["returncode"] or process["timed_out"] or not executable(stage / "Cpp2IL").is_file():
-            raise ToolError(f"Pinned Cpp2IL build failed; inspect {process['log']}")
-        for filename in ("LICENSE", "nuget.config"):
-            if (source / filename).is_file():
-                shutil.copyfile(source / filename, stage / filename)
-        write_json(stage / "lucid-build.json", identity)
-        # A fresh name: publication never displaces another build.
-        stage.rename(directory)
-        seal_built_tool(directory, identity)
-        _CPP2IL_LEASES[directory] = lease
-        published = True
-    finally:
-        if not published:
-            _remove_tree(directory, warnings)
-            _release_lease(lease)
-            # Keep the lease while the directory survives so a later prune retries it.
-            if not directory.exists() and not _is_link(directory):
-                _remove_tree(builds / f"{build_id}.lock", warnings)
-        _remove_tree(stage, warnings)
-        _remove_tree(build_source, warnings)
-    result = {"status": "ready", "path": str(executable(directory / "Cpp2IL")), "version": identity["commit"], "build": process}
+
+    def build(stage: Path, build_id: str, warnings: list) -> dict:
+        build_source = tools / f".cpp2il-source-{build_id}"
+        try:
+            shutil.copytree(source, build_source)
+            process = run_logged([
+                str(executable(dotnet_root / "dotnet")), "publish", str(build_source / "Cpp2IL" / "Cpp2IL.csproj"),
+                "-c", "Release", "-f", "net10.0", "-r", rid, "--self-contained", "true",
+                "-p:PublishSingleFile=true", "-p:PublishTrimmed=false", "-p:RestorePackagesWithLockFile=true",
+                "-p:SourceRevisionId=" + identity["commit"],
+                "-o", str(stage),
+            ], work_dir, "cpp2il-build.log", timeout=1200,
+                env=dotnet_environment(work_dir, dotnet_root), cwd=build_source)
+            if process["returncode"] or process["timed_out"] or not executable(stage / "Cpp2IL").is_file():
+                raise ToolError(f"Pinned Cpp2IL build failed; inspect {process['log']}")
+            for filename in ("LICENSE", "nuget.config"):
+                if (source / filename).is_file():
+                    shutil.copyfile(source / filename, stage / filename)
+            write_json(stage / "lucid-build.json", identity)
+            return process
+        finally:
+            _remove_tree(build_source, warnings)
+
+    directory, process, warnings = leased_build(work_dir, "cpp2il", "Cpp2IL", identity, build,
+                                                scratch=".cpp2il-source-*")
+    result = {"status": "ready", "path": str(executable(directory / "Cpp2IL")), "version": identity["commit"]}
+    if process is not None:
+        result["build"] = process
     if warnings:
         result["cleanup_warnings"] = warnings
     return result
