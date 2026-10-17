@@ -7,10 +7,12 @@ using NUnit.Framework;
 
 namespace ProjectLucid.Tests
 {
-    // Oracle: original Game.Runtime DummyDll metadata. Each getter below and
-    // its backing field carry exactly one CompilerGeneratedAttribute (blob
-    // 01000000), and each backing field is Private|InitOnly (0x0021). An
-    // explicit [CompilerGenerated] on an automatic accessor compiles to two.
+    // Oracle: original Game.Runtime DummyDll metadata. Each getter below
+    // carries exactly one custom attribute, CompilerGeneratedAttribute (blob
+    // 01000000); each property row has no flags or attributes; each backing
+    // field carries CompilerGeneratedAttribute and is Private|InitOnly
+    // (0x0021). An explicit [CompilerGenerated] on an automatic accessor
+    // compiles to two.
     public sealed class OriginalAutoGetterCompilerGeneratedTests
     {
         private const BindingFlags Own = BindingFlags.Public | BindingFlags.NonPublic |
@@ -21,6 +23,10 @@ namespace ProjectLucid.Tests
             PropertyInfo info = type.GetProperty(property, Own);
             Assert.That(info, Is.Not.Null, type.FullName + "." + property);
             Assert.That(info.SetMethod, Is.Null, property + " stays get-only");
+            Assert.That(info.GetCustomAttributesData(), Is.Empty, property + " property attributes");
+            // The getter's whole attribute list, not only its CompilerGenerated count.
+            Assert.That(info.GetMethod.GetCustomAttributesData().Select(x => x.AttributeType),
+                Is.EqualTo(new[] { typeof(CompilerGeneratedAttribute) }), type.FullName + ".get_" + property);
             AssertSingleCompilerGenerated(info.GetMethod, type.FullName + ".get_" + property);
             FieldInfo field = type.GetField("<" + property + ">k__BackingField", Own);
             Assert.That(field, Is.Not.Null, property + " backing field");
