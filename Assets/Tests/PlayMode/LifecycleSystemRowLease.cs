@@ -76,6 +76,17 @@ namespace ProjectLucid.Tests
             typedReferences.Add(typeName, reference);
         }
 
+        // Failure path only: capture a typed reference a partially completed
+        // constructor already left in this fixture's own row, reading the cache
+        // directly so no reference is created. A capture that already happened,
+        // an uncaptured row or an absent entry is left as it is.
+        internal void CaptureTypedReferenceIfCreated<T>() where T : class, ISystem
+        {
+            string typeName = ProcessManager.GetDefaultName<T>();
+            if (row == null || typedReferences.ContainsKey(typeName) || !typedCache.Contains(typeName)) return;
+            CaptureTypedReference(typedCache[typeName] as SystemRef<T>);
+        }
+
         internal void RunCleanup(string step, Action action)
         {
             try { action(); }

@@ -25,6 +25,7 @@ namespace ProjectLucid.Tests
             // App row; only an absent row can be owned and removed afterwards.
             VerificationFixtureOwnership.RequireAbsent(registry, appName);
             object ownedRow = null;
+            Exception primary = null;
             try
             {
                 var ability = new CharacterAbility_Rolling();
@@ -43,9 +44,24 @@ namespace ProjectLucid.Tests
                     Assert.IsFalse(ability.IsTriggered);
                 }
             }
+            catch (Exception failure) { primary = failure; throw; }
             finally
             {
-                if (ownedRow != null && ReferenceEquals(registry[appName], ownedRow)) ReleaseNullRow(registry, appName, ownedRow);
+                // A constructor that throws after its initializer created the
+                // App row still leaves that row to this owner: it was absent
+                // just before construction and nothing else ran in between.
+                // The lookup never creates a row; ReleaseNullRow still refuses
+                // any row that gained a system or observer.
+                if (ownedRow == null) ownedRow = registry[appName];
+                if (ownedRow != null && ReferenceEquals(registry[appName], ownedRow))
+                {
+                    try { ReleaseNullRow(registry, appName, ownedRow); }
+                    catch (Exception cleanup) when (primary != null)
+                    {
+                        // Keep the body failure as the result; report cleanup separately.
+                        TestContext.Error.WriteLine("Rolling fixture cleanup failed after a body failure: " + cleanup);
+                    }
+                }
             }
         }
 

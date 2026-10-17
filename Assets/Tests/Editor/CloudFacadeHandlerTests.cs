@@ -31,7 +31,7 @@ namespace ProjectLucid.Tests
         // 0x1a9a620) removes load, then calls RemoveSaveHandler (0x1a9a79e),
         // modify-save and save-success: the after-conflicts handler stays
         // subscribed. Fails if shutdown is "fixed" to remove the registered
-        // after-conflicts handler, or if any of the other three removals is lost.
+        // after-conflicts handler, or if any of the four removals is lost.
         [Test]
         public void ShutdownRemovesSaveHandlerAndLeavesAfterConflictsHandlerSubscribed()
         {
@@ -51,12 +51,22 @@ namespace ProjectLucid.Tests
                 Assert.IsTrue(HLPropertyStore.IsThereAnySaveSuccessHandler);
                 Assert.IsFalse(HLPropertyStore.IsThereAnySaveHandler, "Initialisation never adds a SaveHandler.");
 
+                // Shutdown builds SaveHandler(this.OnPropertyStoreSave) (0x1a9a782)
+                // and passes it to RemoveSaveHandler (0x1a9a79e). Add an owned
+                // delegate for that same method and target through the public
+                // API, so only equal-delegate removal can clear it; an unrelated
+                // sentinel would survive even a correct removal.
+                var ownedSave = (HLPropertyStore.SaveHandler)Delegate.CreateDelegate(typeof(HLPropertyStore.SaveHandler), cloud,
+                    typeof(Facade).GetMethod("OnPropertyStoreSave", Instance));
+                HLPropertyStore.AddSaveHandler(ownedSave);
+                Assert.IsTrue(HLPropertyStore.IsThereAnySaveHandler, "The owned SaveHandler is present before shutdown.");
+
                 Invoke(cloud, "OnShutdown");
                 Assert.IsFalse((bool)typeof(Facade).GetField("m_isInitialised", Instance).GetValue(cloud));
                 Assert.IsFalse(HLPropertyStore.IsThereAnyLoadHandler);
                 Assert.IsFalse(HLPropertyStore.IsThereAnyModifySaveHandler);
                 Assert.IsFalse(HLPropertyStore.IsThereAnySaveSuccessHandler);
-                Assert.IsFalse(HLPropertyStore.IsThereAnySaveHandler);
+                Assert.IsFalse(HLPropertyStore.IsThereAnySaveHandler, "Shutdown removes this cloud's OnPropertyStoreSave SaveHandler.");
                 var retained = (Delegate)afterConflictsField.GetValue(null);
                 Assert.IsNotNull(retained, "The original shutdown leaves its after-conflicts handler subscribed.");
                 Delegate[] handlers = retained.GetInvocationList();

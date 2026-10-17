@@ -36,12 +36,13 @@ namespace ProjectLucid.Tests
             Require(HLInputModule.OnShutdown == null, "Cursor fixture must not invoke foreign input-module shutdown observers.");
             IDictionary registry = LifecycleSystemRowLease.SharedRegistry;
             var leases = new List<LifecycleSystemRowLease>();
+            var partialCaptures = new List<Action>();
             var objects = new List<GameObject>();
             bool previousCursor = Cursor.visible;
             App app = null;
             try
             {
-                LifecycleSystemRowLease hostLease = Lease<CoroutineUtils>(leases, registry, true);
+                LifecycleSystemRowLease hostLease = Lease<CoroutineUtils>(leases, partialCaptures, registry, true);
 #pragma warning disable CS0618
                 Require(CoroutineUtils.Instance == null, "Cursor fixture starts without a utility host.");
 #pragma warning restore CS0618
@@ -50,10 +51,10 @@ namespace ProjectLucid.Tests
                 objects[0].AddComponent<CoroutineUtils>();
 
                 // Rows the App and cursor field initializers create are owned first.
-                LifecycleSystemRowLease saveLease = Lease<SaveManager>(leases, registry, true);
-                LifecycleSystemRowLease transitionLease = Lease<UIScreenTransitionManager>(leases, registry, true);
-                LifecycleSystemRowLease configurationLease = Lease<UIRuntimeConfiguration>(leases, registry, true);
-                LifecycleSystemRowLease appLease = Lease<App>(leases, registry, false);
+                LifecycleSystemRowLease saveLease = Lease<SaveManager>(leases, partialCaptures, registry, true);
+                LifecycleSystemRowLease transitionLease = Lease<UIScreenTransitionManager>(leases, partialCaptures, registry, true);
+                LifecycleSystemRowLease configurationLease = Lease<UIRuntimeConfiguration>(leases, partialCaptures, registry, true);
+                LifecycleSystemRowLease appLease = Lease<App>(leases, partialCaptures, registry, false);
                 GameObject appObject = Inactive(objects, "Lucid cursor fixture app");
                 app = appObject.AddComponent<App>();
                 saveLease.CaptureTypedReference(ProcessManager.GetSystemRef<SaveManager>());
@@ -120,6 +121,11 @@ namespace ProjectLucid.Tests
                 // coroutine on the owned host, which is destroyed last.
                 LifecycleSystemRowLease cleanup = leases.Count == 0 ? null : leases[0];
                 Action<string, Action> step = (name, action) => { if (cleanup != null) cleanup.RunCleanup(name, action); else action(); };
+                // Every success-path capture precedes the first yield, so a typed
+                // reference still uncaptured here was left by a constructor or
+                // capture that failed before any other frame ran. Capture it
+                // without creating one, so the owned row can still be released.
+                foreach (Action capture in partialCaptures) step("capture-partial-typed-reference", capture);
                 step("unregister-cursor-app", () => { if (app != null) ProcessManager.UnregisterSystem(app); });
                 for (int i = objects.Count - 1; i >= 0; --i)
                 {
@@ -136,11 +142,13 @@ namespace ProjectLucid.Tests
             }
         }
 
-        private static LifecycleSystemRowLease Lease<T>(List<LifecycleSystemRowLease> leases, IDictionary registry, bool createRow) where T : class, ISystem
+        private static LifecycleSystemRowLease Lease<T>(List<LifecycleSystemRowLease> leases, List<Action> partialCaptures,
+            IDictionary registry, bool createRow) where T : class, ISystem
         {
             string name = ProcessManager.GetDefaultName<T>();
             var lease = new LifecycleSystemRowLease(registry, name);
             leases.Add(lease);
+            partialCaptures.Add(() => lease.CaptureTypedReferenceIfCreated<T>());
             if (createRow) lease.CaptureCreatedRow(ProcessManager.GetSystemRef(name));
             return lease;
         }
