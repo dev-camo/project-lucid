@@ -2895,3 +2895,16 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableControllerTests.
     "DisabledSystemStoresANonUISelectableAsNullButSelectsItsObject",
     "AppReloadingDeselectsTheCurrentSelectionAfterShowingTheCursor",
 ))
+
+# Original HLUnityUI.Runtime UISelectableInputListener against its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableInputListenerTests." + name for name in (
+    "DeclarationsKeepOriginalFlagsSignaturesAndAttributeRows",
+    "InactiveListenerReturnsSerializedArrayAndStartsWithEmptyDelegateList",
+    "SelectedButtonInputDefaultsGiveNullTextWhateverTheStringId",
+    "SelectedButtonInputKeepsFirstProviderAndReadsItsTextEachTime",
+    "ButtonSelectedAppendsClosuresAndRegistersTheDelegateAtTheEntryIndex",
+    "ClosuresRereadTheEntrySupplierAndFireEveryMatchingEntryInOrder",
+    "ButtonDeselectedUnregistersOnlyTheFirstEntryCountThenClearsInPlace",
+    "SelectAndDeselectIgnoreAnotherSelectable",
+    "EnableAndDisableOrderTheShutdownHookAndDeselectAroundTheControllerFault",
+))
