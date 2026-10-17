@@ -3323,3 +3323,54 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalViewAndDynamicPageTests." + 
     "OnHideForwardsToTheActiveEntryOnly",
     "OnShowWithOtherParametersFaultsAtTheFirstEntry",
 ))
+
+
+# Original HLUnityUI.Runtime ModifiedOnUISelection layers (0x02000094..98) from their x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSelectionModifierTests." + name for name in (
+    "ActivateRetainsTheOriginalDeclaration",
+    "ResizeRetainsTheOriginalDeclaration",
+    "SkewRetainsTheOriginalDeclaration",
+    "SwapColourRetainsTheOriginalDeclaration",
+    "SwapSpriteRetainsTheOriginalDeclaration",
+    "ActivateUpdateFollowsTheCurrentEnabledFlagAtAnyLerp",
+    "ActivateUpdateWithoutACurrentSourceThrowsAndLeavesTheObject",
+    "ActivateDeactivatesWithoutReadingTheSourceAndInheritsANoOpActivate",
+    "ResizeResetTakesTheOwnRectTransformOrNull",
+    "ResizeUpdateMapsLeftBottomToOffsetMinAndNegatedRightTopToOffsetMax",
+    "ResizeUpdateClampsTheLerpValue",
+    "ResizeUpdateWithoutASourceThrowsBeforeStoringAnything",
+    "ResizeUpdateWithoutARectStoresTheFirstPairThenThrows",
+    "SkewResetTakesTheSiblingSkew",
+    "SkewUpdateLerpsBothAxesAndAppliesThemInstantly",
+    "SkewUpdateClampsTheLerpValue",
+    "SkewUpdateFaultsOnSourcesBeforeStoringAndOnTheSkewAfterStoring",
+    "SwapColourResetTakesTheSiblingImage",
+    "SwapColourBlendsRgbThroughLabAndLerpsAlphaSeparately",
+    "SwapColourClampsTheAlphaLerp",
+    "SwapColourFaultsBeforeStoringAnything",
+    "SwapSpriteResetTakesTheSiblingImage",
+    "SwapSpriteBeginMarksSwappedOnlyForTheSameSourceInstance",
+    "SwapSpriteUpdateBelowHalfChangesNothing",
+    "SwapSpriteUpdateFromHalfSwapsOnceToTheCurrentSource",
+    "SwapSpriteUpdateWithANaNLerpSwaps",
+    "SwapSpriteUpdateWithoutAnImageThrowsAndStaysUnswapped",
+    "SwapSpriteActivateAppliesTheSourceAndKeepsTheSwappedFlag",
+))
+
+
+# Original HLUnityUI.Runtime HLEnumSelector`1 (0x0200000b) from its shared x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLEnumSelectorTests." + name for name in (
+    "EnumSelectorRetainsTheOriginalDeclaration",
+    "InitLoadsTheEnumValuesAndStartsAtTheFirstMatch",
+    "InitWithoutAMatchFallsBackToTheFirstValue",
+    "InitSearchesWithTheSubclassCompare",
+    "OnEnableRunsInit",
+    "OnValidateRunsInit",
+    "ValueReadsTheCurrentValueField",
+    "IncrementWrapsAtTheCachedValueCount",
+    "DecrementWrapsToTheLastCachedIndex",
+    "SetCurrentValueStoresTheValueAndMovesToTheFirstMatch",
+    "SetCurrentValueWithoutAMatchKeepsTheValueAndTheIndex",
+    "SetCurrentValueSearchesOnlyTheCachedCount",
+    "InitOverAnEmptyEnumThrowsBeforeValidate",
+))

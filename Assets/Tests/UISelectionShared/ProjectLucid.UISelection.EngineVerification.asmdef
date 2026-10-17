@@ -3,7 +3,8 @@
   "references": [
     "HLUnityCore.Runtime",
     "HLUnityUI.Runtime",
-    "UnityEngine.UI"
+    "UnityEngine.UI",
+    "Unity.TextMeshPro"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"
