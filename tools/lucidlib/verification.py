@@ -1819,6 +1819,7 @@ EDITMODE_TESTS += (
 
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.ProcessAirControlDirectionFlowTests.GroundInputDirectionStoresThePreUpdateDirectionWhileTheVelocityUsesTheUpdatedOne",
+    "ProjectLucid.Editor.ProcessAirControlDirectionFlowTests.AirUpdateForwardSpeedTurnsTheRefDirectionForFiniteSteering",
 )
 
 

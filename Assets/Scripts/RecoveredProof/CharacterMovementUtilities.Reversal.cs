@@ -170,9 +170,9 @@ namespace HardlightProject
             Vector3 updatedDirection = forwardDirection;
             ability.UpdateForwardSpeed(ref forwardSpeed, ref updatedDirection, deltaTime, intendedDelta,
                 effective, turnTraits.AccelerationMultiplier, applyDeceleration);
+            Vector3 velocity = new Vector3(updatedDirection.x * forwardSpeed, localVelocity.y, updatedDirection.z * forwardSpeed);
             character.Storage.SetValue(ActorFSMKeys.GroundInputDirection, forwardDirection);
-            Vector3 velocity = character.WorldRotation * new Vector3(
-                updatedDirection.x * forwardSpeed, localVelocity.y, updatedDirection.z * forwardSpeed);
+            velocity = character.WorldRotation * velocity;
             ability.UpdateClampedVelocity(ref velocity);
             character.SetWorldVelocity(velocity);
             if (!Mathf.Approximately(0f, inputMagnitude))

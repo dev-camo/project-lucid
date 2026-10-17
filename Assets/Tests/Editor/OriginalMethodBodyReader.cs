@@ -22,8 +22,9 @@ namespace ProjectLucid.Tests
             return codes;
         }
 
-        // Every instruction in order, with method/field/token operands resolved and
-        // 32-bit immediates (ldc.i4) boxed as int.
+        // Every instruction in order, with method/field/token operands resolved,
+        // 32-bit immediates (ldc.i4) boxed as int and variable operands (ldloc.s,
+        // stloc, ldarg.s, ...) reported as their index.
         public static List<KeyValuePair<OpCode, object>> Instructions(MethodBase method)
         {
             byte[] il = method.GetMethodBody().GetILAsByteArray();
@@ -39,9 +40,9 @@ namespace ProjectLucid.Tests
                 {
                     case OperandType.InlineNone: break;
                     case OperandType.ShortInlineBrTarget:
-                    case OperandType.ShortInlineI:
-                    case OperandType.ShortInlineVar: i += 1; break;
-                    case OperandType.InlineVar: i += 2; break;
+                    case OperandType.ShortInlineI: i += 1; break;
+                    case OperandType.ShortInlineVar: operand = (int)il[i]; i += 1; break;
+                    case OperandType.InlineVar: operand = (int)BitConverter.ToUInt16(il, i); i += 2; break;
                     case OperandType.InlineI8:
                     case OperandType.InlineR: i += 8; break;
                     case OperandType.InlineSwitch: i += 4 + 4 * BitConverter.ToInt32(il, i); break;
@@ -57,6 +58,19 @@ namespace ProjectLucid.Tests
                 instructions.Add(new KeyValuePair<OpCode, object>(code, operand));
             }
             return instructions;
+        }
+
+        // The local an ldloc, ldloca or stloc form names, or -1 for any other instruction.
+        public static int LocalIndex(KeyValuePair<OpCode, object> instruction)
+        {
+            short value = instruction.Key.Value;
+            if (value >= OpCodes.Ldloc_0.Value && value <= OpCodes.Ldloc_3.Value) return value - OpCodes.Ldloc_0.Value;
+            if (value >= OpCodes.Stloc_0.Value && value <= OpCodes.Stloc_3.Value) return value - OpCodes.Stloc_0.Value;
+            OpCode code = instruction.Key;
+            if (code == OpCodes.Ldloc_S || code == OpCodes.Ldloca_S || code == OpCodes.Stloc_S ||
+                code == OpCodes.Ldloc || code == OpCodes.Ldloca || code == OpCodes.Stloc)
+                return (int)instruction.Value;
+            return -1;
         }
     }
 }
