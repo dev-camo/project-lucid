@@ -320,6 +320,135 @@ namespace ProjectLucid.Tests
             else reference.InvokeOnValid(observer);
         }
 
+        // CaptureTypedReferenceIfCreated: the failure-path capture used by the
+        // cursor fixture. It must adopt only an entry already in this lease's own
+        // row, never create one, and never invoke or remove foreign work.
+        private static LifecycleSystemRowLease CapturedRow(IDictionary registry, string name, List<string> reports, out IsolatedRow row)
+        {
+            var lease = new LifecycleSystemRowLease(registry, name, reports.Add);
+            var untyped = new SystemRef(name, null);
+            row = new IsolatedRow(untyped);
+            registry.Add(name, row);
+            lease.CaptureCreatedRow(untyped);
+            return lease;
+        }
+
+        [Test]
+        public void CaptureIfCreated_ReleasesAnUncapturedConstructorEntryAfterBodyFailureWithoutCreatingOne()
+        {
+            const string name = "isolated partial constructor";
+            string key = ProcessManager.GetDefaultName<FixtureSystem>();
+            IDictionary registry = new Dictionary<string, object>();
+            var reports = new List<string>();
+            LifecycleSystemRowLease lease = CapturedRow(registry, name, reports, out IsolatedRow row);
+            // Left by a constructor that failed before its success-path capture.
+            var typed = new SystemRef<FixtureSystem>(name, null);
+            row.SystemRefDictionary.Add(key, typed);
+            var bodyFault = new InvalidOperationException("owned partial acquisition");
+            Assert.AreSame(bodyFault, Assert.Throws<InvalidOperationException>(() =>
+            {
+                using (lease)
+                {
+                    try { throw bodyFault; }
+                    finally
+                    {
+                        lease.RunCleanup("capture-partial-typed-reference", lease.CaptureTypedReferenceIfCreated<FixtureSystem>);
+                        Assert.AreEqual(1, row.SystemRefDictionary.Count, "The capture creates no reference.");
+                        Assert.AreSame(typed, row.SystemRefDictionary[key]);
+                    }
+                }
+            }));
+            Assert.IsEmpty(lease.CleanupFailures);
+            Assert.IsEmpty(reports);
+            Assert.IsFalse(registry.Contains(name), "The adopted entry lets the owned row be released.");
+        }
+
+        [Test]
+        public void CaptureIfCreated_UncapturedRowAndAbsentEntryAreNoOpsAndCreateNothing()
+        {
+            const string name = "isolated absent typed entry";
+            IDictionary registry = new Dictionary<string, object>();
+            var reports = new List<string>();
+            var early = new LifecycleSystemRowLease(registry, name, reports.Add);
+            Assert.DoesNotThrow(early.CaptureTypedReferenceIfCreated<FixtureSystem>, "No captured row: nothing to adopt.");
+            Assert.IsEmpty(registry);
+            early.Dispose();
+            LifecycleSystemRowLease lease = CapturedRow(registry, name, reports, out IsolatedRow row);
+            Assert.DoesNotThrow(lease.CaptureTypedReferenceIfCreated<FixtureSystem>);
+            Assert.AreEqual(0, row.SystemRefDictionary.Count, "An absent entry is never created.");
+            lease.Dispose();
+            Assert.IsEmpty(lease.CleanupFailures);
+            Assert.IsEmpty(reports);
+            Assert.IsEmpty(registry);
+        }
+
+        [Test]
+        public void CaptureIfCreated_AlreadyCapturedEntryIsANoOp()
+        {
+            const string name = "isolated captured typed entry";
+            IDictionary registry = new Dictionary<string, object>();
+            var reports = new List<string>();
+            LifecycleSystemRowLease lease = CapturedRow(registry, name, reports, out IsolatedRow row);
+            var typed = new SystemRef<FixtureSystem>(name, null);
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<FixtureSystem>(), typed);
+            lease.CaptureTypedReference(typed);
+            Assert.DoesNotThrow(lease.CaptureTypedReferenceIfCreated<FixtureSystem>);
+            lease.Dispose();
+            Assert.IsEmpty(lease.CleanupFailures);
+            Assert.IsEmpty(reports);
+            Assert.IsEmpty(registry);
+        }
+
+        [Test]
+        public void CaptureIfCreated_ReplacedRowIsRefusedWithoutDeletionOrInvocationAndLaterCleanupContinues()
+        {
+            const string name = "isolated replaced row";
+            IDictionary registry = new Dictionary<string, object>();
+            var reports = new List<string>();
+            LifecycleSystemRowLease lease = CapturedRow(registry, name, reports, out IsolatedRow row);
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<FixtureSystem>(), new SystemRef<FixtureSystem>(name, null));
+            // A foreign owner replaces the row and attaches its own work.
+            var foreign = new SystemRef(name, null);
+            int foreignCalls = 0;
+            foreign.OnSystemShutdown += value => { ++foreignCalls; throw new InvalidOperationException("foreign work"); };
+            var replacement = new IsolatedRow(foreign);
+            registry[name] = replacement;
+            var before = new ReferenceSnapshot<ISystem>(foreign);
+            bool laterStepRan = false;
+            lease.RunCleanup("capture-partial-typed-reference", lease.CaptureTypedReferenceIfCreated<FixtureSystem>);
+            lease.RunCleanup("later-owned-step", () => laterStepRan = true);
+            lease.Dispose();
+            Assert.IsTrue(laterStepRan, "A refused capture does not stop later cleanup.");
+            Assert.AreEqual(2, lease.CleanupFailures.Count);
+            StringAssert.Contains("cannot capture its typed reference", lease.CleanupFailures[0].Failure.Message);
+            StringAssert.Contains("row ownership changed", lease.CleanupFailures[1].Failure.Message);
+            Assert.AreEqual(2, reports.Count);
+            Assert.AreSame(replacement, registry[name], "The replacement row is never deleted.");
+            Assert.AreEqual(0, foreignCalls);
+            before.AssertUnchanged(foreign);
+        }
+
+        [Test]
+        public void CaptureIfCreated_PendingForeignObserverIsNeitherInvokedNorDeleted()
+        {
+            const string name = "isolated observed typed entry";
+            IDictionary registry = new Dictionary<string, object>();
+            var reports = new List<string>();
+            LifecycleSystemRowLease lease = CapturedRow(registry, name, reports, out IsolatedRow row);
+            var typed = new SystemRef<FixtureSystem>(name, null);
+            int foreignCalls = 0;
+            typed.OnSystemShutdown += value => { ++foreignCalls; throw new InvalidOperationException("foreign observer"); };
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<FixtureSystem>(), typed);
+            var before = new ReferenceSnapshot<FixtureSystem>(typed);
+            lease.RunCleanup("capture-partial-typed-reference", lease.CaptureTypedReferenceIfCreated<FixtureSystem>);
+            lease.Dispose();
+            Assert.AreEqual(1, lease.CleanupFailures.Count, "The adopted entry is checked, not cleared.");
+            StringAssert.Contains("retains unowned state", lease.CleanupFailures[0].Failure.Message);
+            Assert.AreSame(row, registry[name], "The observed row is retained.");
+            Assert.AreEqual(0, foreignCalls);
+            before.AssertUnchanged(typed);
+        }
+
         private sealed class ReferenceSnapshot<T> where T : class, ISystem
         {
             private const BindingFlags Fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;

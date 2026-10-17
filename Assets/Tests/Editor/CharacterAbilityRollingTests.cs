@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Reflection;
 using Hardlight;
 using HardlightProject;
@@ -19,19 +20,8 @@ namespace ProjectLucid.Tests
         [Test]
         public void LeaveClearsTriggeredAndExitingFlags()
         {
-            var registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
-            string appName = ProcessManager.GetDefaultName<App>();
-            // The real constructor's CharacterAbility initializer creates this
-            // App row; only an absent row can be owned and removed afterwards.
-            VerificationFixtureOwnership.RequireAbsent(registry, appName);
-            object ownedRow = null;
-            Exception primary = null;
-            try
+            WithOwnedAppRow(ability =>
             {
-                var ability = new CharacterAbility_Rolling();
-                ownedRow = registry[appName];
-                Assert.IsNotNull(ownedRow, "Construction creates the App reference row.");
-
                 foreach (bool triggered in new[] { true, false })
                 {
                     Set(ability, "Enabled", true);
@@ -43,6 +33,76 @@ namespace ProjectLucid.Tests
                     Assert.IsFalse(ability.IsRollingExiting, "Leave clears exiting (triggered=" + triggered + ").");
                     Assert.IsFalse(ability.IsTriggered);
                 }
+            });
+        }
+
+        // Owned failure controls for the App row cleanup; they make no
+        // original-behavior claim. Each failure is raised by the fixture itself
+        // after the real constructor has created the App reference.
+        [Test]
+        public void OwnedFailureAfterAppReferenceCreationReleasesTheEmptyRowAndKeepsThePrimary()
+        {
+            var primary = new InvalidProgramException("owned failure after App reference creation");
+            var reports = new List<string>();
+            Assert.AreSame(primary, Assert.Throws<InvalidProgramException>(() => WithOwnedAppRow(_ => throw primary, reports.Add)));
+            Assert.IsFalse(Registry.Contains(ProcessManager.GetDefaultName<App>()), "The empty owned row is released.");
+            Assert.IsEmpty(reports);
+        }
+
+        [Test]
+        public void ObservedAppReferenceIsRetainedAndReportedWithoutReplacingThePrimary()
+        {
+            string appName = ProcessManager.GetDefaultName<App>();
+            var primary = new InvalidProgramException("owned failure with an observed App reference");
+            var reports = new List<string>();
+            SystemRef<App> typed = null;
+            int calls = 0;
+            Action<App> observer = _ => calls++;
+            try
+            {
+                Assert.AreSame(primary, Assert.Throws<InvalidProgramException>(() => WithOwnedAppRow(_ =>
+                {
+                    // Stands in for foreign work on the row: cleanup must refuse
+                    // to remove it rather than clear the observer.
+                    typed = ProcessManager.GetSystemRef<App>();
+                    typed.OnSystemShutdown += observer;
+                    throw primary;
+                }, reports.Add)));
+                Assert.AreEqual(1, reports.Count, "The refused release is reported separately.");
+                StringAssert.Contains("retains state", reports[0]);
+                Assert.IsTrue(Registry.Contains(appName), "The observed row is preserved.");
+                Assert.AreEqual(0, calls);
+            }
+            finally
+            {
+                // Remove only this control's observer, then its now-empty row.
+                if (typed != null) typed.OnSystemShutdown -= observer;
+                object row = Registry[appName];
+                if (row != null) ReleaseNullRow(Registry, appName, row);
+            }
+            Assert.IsFalse(Registry.Contains(appName));
+        }
+
+        private static IDictionary Registry =>
+            (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+
+        // The real constructor's CharacterAbility initializer creates the App
+        // row; only an absent row can be owned and removed afterwards. A body
+        // failure stays the result, and a cleanup failure after it goes to the
+        // reporter instead.
+        private static void WithOwnedAppRow(Action<CharacterAbility_Rolling> body, Action<string> report = null)
+        {
+            IDictionary registry = Registry;
+            string appName = ProcessManager.GetDefaultName<App>();
+            VerificationFixtureOwnership.RequireAbsent(registry, appName);
+            object ownedRow = null;
+            Exception primary = null;
+            try
+            {
+                var ability = new CharacterAbility_Rolling();
+                ownedRow = registry[appName];
+                Assert.IsNotNull(ownedRow, "Construction creates the App reference row.");
+                body(ability);
             }
             catch (Exception failure) { primary = failure; throw; }
             finally
@@ -58,8 +118,9 @@ namespace ProjectLucid.Tests
                     try { ReleaseNullRow(registry, appName, ownedRow); }
                     catch (Exception cleanup) when (primary != null)
                     {
-                        // Keep the body failure as the result; report cleanup separately.
-                        TestContext.Error.WriteLine("Rolling fixture cleanup failed after a body failure: " + cleanup);
+                        string message = "Rolling fixture cleanup failed after a body failure: " + cleanup;
+                        if (report != null) report(message);
+                        else TestContext.Error.WriteLine(message);
                     }
                 }
             }

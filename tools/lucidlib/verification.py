@@ -1783,6 +1783,12 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.LeaveClearsTriggeredAndExitingFlags",
 )
 
+# Owned App-row cleanup failure controls; no original-behavior claim.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.OwnedFailureAfterAppReferenceCreationReleasesTheEmptyRowAndKeepsThePrimary",
+    "ProjectLucid.Tests.CharacterAbilityRollingTests.ObservedAppReferenceIsRetainedAndReportedWithoutReplacingThePrimary",
+)
+
 # Original action-subscription release timing on a real coroutine host.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.InputActionSubscriptionTests.UnheldReleaseDefersOnUpToTheNextFrameAfterClearingDown",
@@ -1791,4 +1797,13 @@ PLAYMODE_TESTS += (
 # Original cursor input-type handling with a genuine EventSystem and HLInputModule.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.ToggleCursorVisibilityInputTypeTests.InputTypeChoosesCursorUnlessForceReleased",
+)
+
+# Isolated failure-path typed-reference capture controls for the lifecycle lease.
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CaptureIfCreated_ReleasesAnUncapturedConstructorEntryAfterBodyFailureWithoutCreatingOne",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CaptureIfCreated_UncapturedRowAndAbsentEntryAreNoOpsAndCreateNothing",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CaptureIfCreated_AlreadyCapturedEntryIsANoOp",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CaptureIfCreated_ReplacedRowIsRefusedWithoutDeletionOrInvocationAndLaterCleanupContinues",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CaptureIfCreated_PendingForeignObserverIsNeitherInvokedNorDeleted",
 )
