@@ -23,6 +23,9 @@ namespace ProjectLucid.Tests
                 Is.EqualTo(Enumerable.Repeat(typeof(Il2CppSetOptionAttribute), options.Length).ToArray()), type.FullName);
             for (int i = 0; i < options.Length; ++i)
             {
+                // Metadata binds Il2CppSetOptionAttribute::.ctor(Option, object).
+                Assert.That(attributes[i].Constructor.GetParameters().Select(p => p.ParameterType).ToArray(),
+                    Is.EqualTo(new[] { typeof(Option), typeof(object) }), type.FullName);
                 Assert.That(attributes[i].ConstructorArguments.Count, Is.EqualTo(2), type.FullName);
                 Assert.That(attributes[i].ConstructorArguments[0].ArgumentType, Is.EqualTo(typeof(Option)), type.FullName);
                 Assert.That(Convert.ToInt32(attributes[i].ConstructorArguments[0].Value), Is.EqualTo(options[i]), type.FullName);
@@ -40,8 +43,9 @@ namespace ProjectLucid.Tests
             AssertOwnCheckOptions(typeof(FSMStateLoader), 2, 1);
         }
 
-        // TypeDef 0x02000a0a (<LoadStatesCoroutine>d__14) carries only
-        // CompilerGenerated; the owner's options must not reach the iterator.
+        // Declaration check of TypeDef 0x02000a0a (<LoadStatesCoroutine>d__14),
+        // which carries only CompilerGenerated. Not a control for the owner's
+        // options: the compiler never copies them onto its iterator.
         [Test]
         public void FSMStateLoaderIteratorCarriesOnlyCompilerGenerated()
         {
@@ -66,6 +70,7 @@ namespace ProjectLucid.Tests
         public void RigidbodyForceTriggerAndLockRoutineInfoKeepTheirOwnOptionOrders()
         {
             Type lockRoutineInfo = typeof(RigidbodyForceTrigger).GetNestedType("LockRoutineInfo", BindingFlags.NonPublic);
+            Assert.That(typeof(RigidbodyForceTrigger).Assembly.GetName().Name, Is.EqualTo("Game.Runtime"));
             Assert.That(lockRoutineInfo, Is.Not.Null);
             Assert.That(lockRoutineInfo.IsNestedPrivate, Is.True);
             AssertOwnCheckOptions(lockRoutineInfo, 2, 1);

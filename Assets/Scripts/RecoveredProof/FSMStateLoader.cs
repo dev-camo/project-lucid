@@ -8,7 +8,6 @@ using Unity.IL2CPP.CompilerServices;
 namespace HardlightProject
 {
     // Original TypeDef 0x02000a09 metadata order: ArrayBoundsChecks (2), then NullChecks (1).
-    // The nested iterator 0x02000a0a carries only CompilerGenerated.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public sealed class FSMStateLoader
