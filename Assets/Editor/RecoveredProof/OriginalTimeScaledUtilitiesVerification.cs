@@ -237,19 +237,31 @@ public static class OriginalTimeScaledUtilitiesVerification
         private readonly List<DictionarySnapshot> typedCaches = new List<DictionarySnapshot>();
         private readonly List<DictionarySnapshot> actionRows = new List<DictionarySnapshot>();
         private readonly List<SavedMutableField> callbacks = new List<SavedMutableField>();
+        // Rows this scope's priming GetSystemSafe calls created; they are the
+        // fixture's own and are removed once restored and idle.
+        private readonly IDictionary rows;
+        private readonly List<string> createdRows = new List<string>();
         private bool disposed;
 
         public RegistryScope()
         {
+            rows = (IDictionary)Field(typeof(ProcessManager), "s_systemDictionary").GetValue(null);
+            bool hadConfig = rows.Contains(configName);
             // Prime genuine static/typed caches before the fixture snapshot. Never
             // ForceReset or replace TimeScaledUtilities' readonly cached reference.
+            // Its BeforeFieldInit initializer (0x06000ecc) auto-registers the
+            // TimeManager row when it first runs; that row holds the readonly
+            // reference and stays, because removing it would leave every later
+            // registration in a new row the cached reference never sees.
             RuntimeHelpers.RunClassConstructor(typeof(TimeScaledUtilities).TypeHandle);
+            bool hadTime = rows.Contains(timeName);
             ProcessManager.GetSystemSafe<TimeManager>();
             ProcessManager.GetSystemSafe<SystemConfiguration>();
+            if (!hadTime) createdRows.Add(timeName);
+            if (!hadConfig) createdRows.Add(configName);
             originalTimeReference = Field(typeof(TimeScaledUtilities), "s_timeManagerRef").GetValue(null);
             priorTime = ProcessManager.GetSystemRef(timeName).GetSafe();
             priorConfig = ProcessManager.GetSystemRef(configName).GetSafe();
-            IDictionary rows = (IDictionary)Field(typeof(ProcessManager), "s_systemDictionary").GetValue(null);
             systems = new DictionarySnapshot(rows);
             foreach (DictionaryEntry entry in rows)
             {
@@ -276,29 +288,43 @@ public static class OriginalTimeScaledUtilitiesVerification
         {
             if (disposed) return;
             disposed = true;
-            try
-            {
-                ProcessManager.UnregisterSystem(timeName);
-                ProcessManager.UnregisterSystem(configName);
-                if (priorTime != null) ProcessManager.RegisterSystem(priorTime, timeName, canReplace: true);
-                if (priorConfig != null) ProcessManager.RegisterSystem(priorConfig, configName, canReplace: true);
-            }
-            finally
-            {
-                foreach (DictionarySnapshot row in actionRows) row.Restore();
-                actions.Restore();
-                foreach (DictionarySnapshot cache in typedCaches) cache.Restore();
-                systems.Restore();
-                foreach (SavedMutableField callback in callbacks) callback.Restore();
-            }
-            Require(systems.Matches() && actions.Matches(), "Registry and action row identities are restored");
-            foreach (DictionarySnapshot row in typedCaches) Require(row.Matches(), "Original typed reference caches are restored");
-            foreach (DictionarySnapshot row in actionRows) Require(row.Matches(), "Original action entries are restored");
-            foreach (SavedMutableField callback in callbacks) Require(callback.Matches(), "Prior startup/shutdown/deferred callbacks are restored without invocation");
+            // Each step runs even after an earlier failure, and the first failure
+            // propagates, so the fixture's own rows are released on every path.
+            VerificationFixtureOwnership.RunThenCleanUp(
+                () =>
+                {
+                    ProcessManager.UnregisterSystem(timeName);
+                    ProcessManager.UnregisterSystem(configName);
+                    if (priorTime != null) ProcessManager.RegisterSystem(priorTime, timeName, canReplace: true);
+                    if (priorConfig != null) ProcessManager.RegisterSystem(priorConfig, configName, canReplace: true);
+                },
+                () =>
+                {
+                    foreach (DictionarySnapshot row in actionRows) row.Restore();
+                    actions.Restore();
+                    foreach (DictionarySnapshot cache in typedCaches) cache.Restore();
+                    systems.Restore();
+                    foreach (SavedMutableField callback in callbacks) callback.Restore();
+                },
+                () =>
+                {
+                    Require(systems.Matches() && actions.Matches(), "Registry and action row identities are restored");
+                    foreach (DictionarySnapshot row in typedCaches) Require(row.Matches(), "Original typed reference caches are restored");
+                    foreach (DictionarySnapshot row in actionRows) Require(row.Matches(), "Original action entries are restored");
+                    foreach (SavedMutableField callback in callbacks) Require(callback.Matches(), "Prior startup/shutdown/deferred callbacks are restored without invocation");
+                },
+                () =>
+                {
+                    // A created row that gained a system, observer or deferred work
+                    // is foreign state; ReleaseEmptyRow leaves it and reports it.
+                    foreach (string name in createdRows)
+                        if (rows.Contains(name)) VerificationFixtureOwnership.ReleaseEmptyRow(rows, name, rows[name]);
+                });
             Require(ReferenceEquals(Field(typeof(TimeScaledUtilities), "s_timeManagerRef").GetValue(null), originalTimeReference),
                 "Original readonly cached reference identity survives isolation");
-            Require(ReferenceEquals(ProcessManager.GetSystemRef(timeName).GetSafe(), priorTime) &&
-                ReferenceEquals(ProcessManager.GetSystemRef(configName).GetSafe(), priorConfig), "Prior real systems are restored");
+            // Read without auto-registration so the check cannot recreate a released row.
+            Require(ReferenceEquals(ProcessManager.GetSystemRef(timeName, autoRegister: false).GetSafe(), priorTime) &&
+                ReferenceEquals(ProcessManager.GetSystemRef(configName, autoRegister: false).GetSafe(), priorConfig), "Prior real systems are restored");
         }
     }
 

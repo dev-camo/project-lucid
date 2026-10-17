@@ -427,8 +427,11 @@ class IsolationVerdictTests(unittest.TestCase):
                     self.assertEqual("incomplete", verdict["status"])
                     self.assertEqual(expected, verdict["errors"])
 
-    def test_allowlist_starts_empty_and_names_only_registered_tests(self):
-        self.assertEqual({}, verification.ISOLATION_ALLOWLIST)
+    def test_allowlist_names_exactly_the_reviewed_registered_tests(self):
+        # Only the TimeScaledUtilities static-initializer row is accepted.
+        self.assertEqual({"ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests."
+                          "OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes"},
+                         set(verification.ISOLATION_ALLOWLIST))
         registered = set(verification.EDITMODE_TESTS) | set(verification.PLAYMODE_TESTS)
         for test, reason in verification.ISOLATION_ALLOWLIST.items():
             self.assertIn(test, registered)

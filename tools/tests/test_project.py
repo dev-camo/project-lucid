@@ -37,10 +37,14 @@ class ProjectTests(unittest.TestCase):
 
     @staticmethod
     def isolation(work, mode, names):
-        """Supplied clean isolation lines for each name; returns the receipt's isolation entry."""
+        """Supplied isolation lines for each name, clean unless allowlisted; returns the receipt's isolation entry."""
         nonce = mode + "-synthetic-nonce"
         path = work / "reports" / (mode + "-isolation.jsonl")
-        path.write_text("".join(json.dumps({"nonce": nonce, "test": name, "status": "clean", "changes": []}) + "\n"
+        # An allowlisted test must still leak, or the verdict asks for its entry to be removed.
+        path.write_text("".join(json.dumps({"nonce": nonce, "test": name,
+                                            "status": "leak" if name in verification.ISOLATION_ALLOWLIST else "clean",
+                                            "changes": ["synthetic allowlisted change"]
+                                            if name in verification.ISOLATION_ALLOWLIST else []}) + "\n"
                                 for name in names))
         return {"nonce": nonce, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 

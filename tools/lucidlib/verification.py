@@ -659,7 +659,20 @@ def test_verdict(path, required):
 # test fullname -> the reason and the issue that tracks the fix. Only status
 # "leak" can be listed; a listed test that runs clean fails the run until its
 # entry is removed. Each entry is temporary and needs review.
-ISOLATION_ALLOWLIST = {}
+ISOLATION_ALLOWLIST = {
+    # Not a fixture defect. The first test to run TimeScaledUtilities code runs
+    # its BeforeFieldInit initializer (0x06000ecc), whose readonly
+    # s_timeManagerRef = GetSystemRef<TimeManager>(null, true) auto-registers a
+    # null 'Hardlight.TimeManager' row (0x06000e3f) appended last. The row holds
+    # that cached reference: removing it would make every later registration
+    # build a new row the readonly reference never sees. The fixture's own
+    # SystemConfiguration and TimeManager rows are released. Alphabetical order
+    # makes this the first such test; if it runs clean, the initializer ran
+    # earlier and this entry must go.
+    "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests.OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes":
+        "TimeScaledUtilities' first static initialization appends the 'Hardlight.TimeManager' row that holds its "
+        "readonly s_timeManagerRef; that row must outlive the test, which also changes the row order.",
+}
 
 # Each mode's hook controls need their own single clean line. The first fails
 # in Unity unless the recorder saw it start, so a passing control and its line
