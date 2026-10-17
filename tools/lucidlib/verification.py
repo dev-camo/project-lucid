@@ -2146,3 +2146,18 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(False,True,True)",
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageCreatedRow_UnwindRetainsFirstCauseOrderAndOwnedRelease(True,True,True)",
 )
+
+# Restored ConditionalOutput and its settings types against the x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ConditionalOutputTests." + name for name in (
+    "QueueBeforeInitialiseStoresRawArgumentsWithoutReadingLookupOrCondition",
+    "LookupGateAppliesOnlyAfterInitialiseAndFormatsOnlyEnabledConditionedCalls",
+    "UnhandledBehaviourReportsAndNeitherQueuesNorFormatsTheMessage",
+    "DumpLogQueueDrainsInOrderFormattingEachMessageOnce",
+    "ToggleLogInvertsOnNullPersistsByFullNameAndRaisesAfterwards",
+    "ToggleLogNullOnUnknownTypeThrowsBeforeWriting",
+    "GenericEntryPointsMatchTheirRetailBodies",
+    "InitialiseOnlyLatchesTheInitialisedFlag",
+    "StaticDefaultStateReadsAlwaysButWritesOnlyAfterInitialise",
+    "SettingsDefaultTrueAndOverridesKeyedByFullName",
+    "PreInitialiseSettingsDefaultsAndVirtualReadOrder",
+))
