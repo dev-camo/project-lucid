@@ -469,6 +469,50 @@ namespace ProjectLucid.Tests
             public string PathToManifestFile => null;
         }
 
+        // Original DummyDll HLUnityCore.Runtime Param rows: these parameters carry
+        // Optional|HasDefault (0x1010) with a null/default constant, which
+        // dump.cs omits. LegalModule data and GUIColourScope condition are 0x0000.
+        [Test]
+        public void OptionalParametersKeepTheOriginalDefaultFlags()
+        {
+            const ParameterAttributes Optional = ParameterAttributes.Optional | ParameterAttributes.HasDefault;
+            const ParameterAttributes Required = ParameterAttributes.None;
+            const BindingFlags Declared = AnyInstance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+            void Expect(MethodBase member, params (string Name, ParameterAttributes Attributes)[] expected)
+            {
+                Assert.That(member, Is.Not.Null);
+                ParameterInfo[] actual = member.GetParameters();
+                Assert.That(actual.Select(p => p.Name).ToArray(), Is.EqualTo(expected.Select(e => e.Name).ToArray()), member.Name);
+                for (int i = 0; i < actual.Length; ++i)
+                {
+                    Assert.That(actual[i].Attributes, Is.EqualTo(expected[i].Attributes), member.Name + " " + actual[i].Name);
+                    if (expected[i].Attributes == Optional)
+                        Assert.That(actual[i].RawDefaultValue, Is.Null, member.Name + " " + actual[i].Name);
+                }
+            }
+
+            MethodBase Single(Type owner, string name) =>
+                owner.GetMethods(Declared).Single(m => m.Name == name);
+            MethodBase Constructor(Type owner, int arity) =>
+                owner.GetConstructors(AnyInstance).Single(c => c.GetParameters().Length == arity);
+
+            // 0x060003ae.
+            Expect(Single(typeof(FSMClassFactory), nameof(FSMClassFactory.GenerateJSONMultipleFSMsClass)), ("fsm", Optional), ("json", Optional));
+            // 0x060007bc, 0x060007bd.
+            Expect(Single(typeof(GameCenterSaveGame), "OnAppInitialise"), ("context", Optional));
+            Expect(Single(typeof(GameCenterSaveGame), "OnAppShutdown"), ("context", Optional));
+            // 0x0600094b.
+            Expect(Single(typeof(LegalModule), nameof(LegalModule.CreateAndInitialise)), ("data", Required), ("onOutput", Optional));
+            // 0x06000c5f.
+            Expect(Constructor(typeof(Observable<>), 2), ("defaultValue", Optional), ("comparer", Optional));
+            // 0x06000f05.
+            Expect(Single(typeof(UpdatePublisher<>), "OnUpdate"), ("context", Optional));
+            // 0x06000f68, 0x06000f69.
+            Expect(Constructor(typeof(GUIColourScope), 4), ("condition", Required), ("newColour", Optional), ("newContentColour", Optional), ("newBackgroundColour", Optional));
+            Expect(Constructor(typeof(GUIColourScope), 3), ("newColour", Optional), ("newContentColour", Optional), ("newBackgroundColour", Optional));
+        }
+
         private static string[] ParameterNames(Type owner, string method) =>
             owner.GetMethod(method, AnyInstance).GetParameters().Select(p => p.Name).ToArray();
     }

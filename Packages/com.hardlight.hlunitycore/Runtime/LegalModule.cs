@@ -172,7 +172,7 @@ namespace Hardlight
         private bool m_improveExperienceExcludedFromBootFlowOverage;
 
         // 0x0600094b: a null output handler is not subscribed.
-        public static LegalModule CreateAndInitialise(InitialisationData data, Action<string> onOutput)
+        public static LegalModule CreateAndInitialise(InitialisationData data, Action<string> onOutput = null)
         {
             LegalModule legalModule = new LegalModule(data);
             if (onOutput != null) legalModule.OnOutput += onOutput;

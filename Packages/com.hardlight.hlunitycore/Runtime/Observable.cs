@@ -22,7 +22,7 @@ namespace Hardlight
 
         // 0x06000c5f; shared 0x18C1710. The value is stored before the
         // comparer, which falls back to the default comparer for null.
-        public Observable(T defaultValue, IEqualityComparer<T> comparer)
+        public Observable(T defaultValue = default(T), IEqualityComparer<T> comparer = null)
         {
             m_value = defaultValue;
             m_comparer = comparer ?? EqualityComparer<T>.Default;

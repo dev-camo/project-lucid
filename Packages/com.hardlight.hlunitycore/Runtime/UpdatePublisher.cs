@@ -97,7 +97,7 @@ namespace Hardlight
 
         // 0x06000f05; 0xCB4050. Live enumeration: a callback that subscribes
         // or unsubscribes invalidates the enumerator.
-        protected virtual void OnUpdate(object context)
+        protected virtual void OnUpdate(object context = null)
         {
             foreach (KeyValuePair<UpdateHandle, UpdateInfo> update in m_updateLookup)
                 AdvanceUpdateInfo(update.Key.UpdateType, update.Value);

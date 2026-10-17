@@ -147,7 +147,7 @@ namespace Hardlight
         // replaced. A machine serialises itself, then each dependency as listed
         // (duplicates kept); without one, every manager-registered FSM is written.
         // Includes and view metadata of a supplied container are left untouched.
-        public static JSONMultipleFSMs GenerateJSONMultipleFSMsClass(FiniteStateMachine fsm, JSONMultipleFSMs json)
+        public static JSONMultipleFSMs GenerateJSONMultipleFSMsClass(FiniteStateMachine fsm = null, JSONMultipleFSMs json = null)
         {
             if (json == null) json = new JSONMultipleFSMs();
             json.FSMs = new List<JSONFiniteStateMachineClass>();

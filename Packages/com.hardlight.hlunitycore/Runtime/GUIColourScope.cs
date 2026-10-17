@@ -13,7 +13,7 @@ namespace Hardlight
         private readonly Color m_originalBackgroundColour;
 
         // 0x06000f68.
-        public GUIColourScope(bool condition, Color? newColour, Color? newContentColour, Color? newBackgroundColour)
+        public GUIColourScope(bool condition, Color? newColour = null, Color? newContentColour = null, Color? newBackgroundColour = null)
         {
             m_originalColour = GUI.color;
             m_originalContentColour = GUI.contentColor;
@@ -27,7 +27,7 @@ namespace Hardlight
         }
 
         // 0x06000f69: tail call into the conditional constructor with true.
-        public GUIColourScope(Color? newColour, Color? newContentColour, Color? newBackgroundColour)
+        public GUIColourScope(Color? newColour = null, Color? newContentColour = null, Color? newBackgroundColour = null)
             : this(true, newColour, newContentColour, newBackgroundColour) { }
 
         // 0x06000f6a.

@@ -2584,6 +2584,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLUnityCoreMiscTests." + nam
     "FirebaseAssetDefaultsAndSilentValidation",
     "BillOfMaterialsValidatesItsUnsetArrayDuringConstruction",
     "ManifestConfigDefaultPathsAreTheShippedLiterals",
+    "OptionalParametersKeepTheOriginalDefaultFlags",
 ))
 
 # Specification of Hardlight.Flip (HLUnityUI.Runtime 0x060002c6..cd) from the x86-64 bodies.

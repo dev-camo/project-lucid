@@ -35,7 +35,7 @@ namespace Hardlight
             ProcessManager.SubscribeToAction(this, SystemAction.AppShutdown, OnAppShutdown);
         }
 
-        private void OnAppInitialise(object context)
+        private void OnAppInitialise(object context = null)
         {
             if (!IsGameCenterSaveGameValid()) return;
             m_gameCenterSaveGameListener.OnDidModifySavedGame += TriggerOnDidModifySavedGameEvent;
@@ -47,7 +47,7 @@ namespace Hardlight
         // 0x060007bd: removals mirror OnAppInitialise; a MonoBehaviour listener's
         // GameObject is then destroyed. Native Deinitialise and the ProcessManager
         // subscriptions are left untouched.
-        private void OnAppShutdown(object context)
+        private void OnAppShutdown(object context = null)
         {
             if (!IsGameCenterSaveGameValid()) return;
             m_gameCenterSaveGameListener.OnDidModifySavedGame -= TriggerOnDidModifySavedGameEvent;
