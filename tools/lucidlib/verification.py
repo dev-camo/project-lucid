@@ -2658,3 +2658,48 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTableLayoutGroupTests." + na
     "EnablingRebuildsTheLayoutWithinTheSameCall",
     "SettersMarkTheLayoutForRebuildOnlyWhenTheValueChanges",
 ))
+
+
+# Restored orientation and configuration types of HLUnityUI.Runtime:
+# Hardlight.UISystemConfiguration (0x060000c7..dc), Hardlight.NamedUnityEvent (0x060005d1),
+# Hardlight.HardlightEnumExtensions (0x060002fe..ff),
+# Hardlight.HLOrientationSpecificCanvasScalerSettings (0x06000534..38) and
+# Hardlight.OrientationAndNotchSpecificRectTransformModifier (0x06000539..3e).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISystemConfigurationTests." + name for name in (
+    "DeclarationKeepsTheOriginalConstantsFieldsAndHeaders",
+    "ConstructorSeedsTheOriginalDefaults",
+    "EachGetterReadsItsOwnField",
+    "SceneFolderPathsConcatenateTheirPartsWithoutSeparators",
+    "NamedUnityEventKeepsTwoPublicFieldsThatStartNull",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLUnityUIEnumExtensionsTests." + name for name in (
+    "DeclarationKeepsTheOriginalStaticClassShape",
+    "StaticMapUsesTheUIComparerAndTheOriginalEntryOrder",
+    "GetStringReturnsTheCurrentMapEntry",
+    "UnmappedValuesFormatAsPaddedHexAndAreCached",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLOrientationSpecificCanvasScalerSettingsTests." + name for name in (
+    "DeclarationKeepsTheOriginalFieldsAndNestedSettingsClass",
+    "SettingsConstructorDefaultsToExpandWithAFullMatch",
+    "EvaluateWithoutAScalerReturnsBeforeReadingTheScreenManager",
+    "EvaluateWithAScalerButNoScreenManagerThrows",
+    "OnlyLandscapeUsesTheLandscapeSettings",
+    "EachFlippedEvaluationSwapsTheCurrentReferenceResolutionAgain",
+    "OnEnableWithoutALiveScreenManagerDoesNothing",
+    "OnEnableSubscribesEvaluateAndEvaluatesImmediately",
+    "OnDisableRemovesOnlyThisComponentsListener",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOrientationAndNotchSpecificRectTransformModifierTests." + name for name in (
+    "DeclarationKeepsTheOriginalBaseFieldsAndAttributes",
+    "SetNotchEvaluatorReplacesTheStaticEvaluator",
+    "WithoutANotchOnlyTheOrientationSettingsAreAppended",
+    "NotchArrayFollowsTheUIAndDeviceOrientationPair",
+    "TheEvaluatorRunsAfterTheOrientationSettingsAreAppended",
+    "AnEmptyNotchArrayAddsNothingAndANullOneThrows",
+    "RefreshAppliesTheNotchEntryAfterTheOrientationEntry",
+    "OnEnableSubscribesAndRefreshesImmediatelyWithoutACoroutine",
+    "OnEnableWithoutAScreenManagerThrowsFromTheRefresh",
+    "OnEnableWithADestroyedScreenManagerRefreshesWithoutSubscribing",
+    "OnDisableRemovesOnlyThisComponentsListener",
+    "OnDisableWithoutALiveScreenManagerDoesNothing",
+))

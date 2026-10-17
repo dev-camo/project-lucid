@@ -1,0 +1,116 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Hardlight;
+using NUnit.Framework;
+using Unity.IL2CPP.CompilerServices;
+
+namespace ProjectLucid.Tests
+{
+    // Behaviour specification for Hardlight.HardlightEnumExtensions in HLUnityUI.Runtime
+    // (TypeDefIndex 11929, MethodDefs 0x060002fe..0x060002ff), written from the shipped
+    // x86-64 bodies. The UIInputType map is shared static state: every case that writes
+    // to it removes or restores exactly the entries it touched.
+    [TestFixture]
+    public sealed class OriginalHLUnityUIEnumExtensionsTests
+    {
+        static readonly Type Subject = typeof(Hardlight.HardlightEnumExtensions);
+
+        static Dictionary<UIInputType, string> Map() =>
+            (Dictionary<UIInputType, string>)Subject.GetField("UIInputTypeEnumToString", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+
+        // dump.cs TypeDefIndex 11929: a beforefieldinit static class (the .cctor
+        // 0x060002ff is the field initializer) with one private, non-readonly map and the
+        // GetString extension.
+        [Test]
+        public void DeclarationKeepsTheOriginalStaticClassShape()
+        {
+            Assert.That(Subject.IsAbstract && Subject.IsSealed, Is.True, "static class");
+            Assert.That(Subject.Attributes.HasFlag(TypeAttributes.BeforeFieldInit), Is.True);
+            Assert.That(Subject.GetCustomAttributesData()
+                    .Where(a => a.AttributeType == typeof(Il2CppSetOptionAttribute))
+                    .Select(a => (int)a.ConstructorArguments[0].Value),
+                Is.EqualTo(new[] { (int)Option.NullChecks, (int)Option.ArrayBoundsChecks }));
+
+            FieldInfo map = Subject.GetField("UIInputTypeEnumToString", BindingFlags.NonPublic | BindingFlags.Static);
+            Assert.That(map, Is.Not.Null);
+            Assert.That(map.IsPrivate, Is.True);
+            Assert.That(map.IsInitOnly, Is.False);
+            Assert.That(map.FieldType, Is.EqualTo(typeof(Dictionary<UIInputType, string>)));
+
+            MethodInfo getString = Subject.GetMethod("GetString", BindingFlags.Public | BindingFlags.Static);
+            Assert.That(getString.IsDefined(typeof(ExtensionAttribute), false), Is.True);
+            Assert.That(getString.GetParameters().Single().Name, Is.EqualTo("value"));
+            Assert.That(getString.GetParameters().Single().ParameterType, Is.EqualTo(typeof(UIInputType)));
+        }
+
+        // .cctor 0x1b4ffd0 passes HardlightUIEnumComparers.UIInputTypeComparer (+0x8) to the
+        // Dictionary constructor and then calls Add with these raw literals and strings,
+        // in this order (0x1b5011b..0x1b50239).
+        [Test]
+        public void StaticMapUsesTheUIComparerAndTheOriginalEntryOrder()
+        {
+            Dictionary<UIInputType, string> map = Map();
+            Assert.That(map.Comparer, Is.SameAs(HardlightUIEnumComparers.UIInputTypeComparer));
+            Assert.That(map.Take(12).Select(entry => ((int)entry.Key, entry.Value)), Is.EqualTo(new[]
+            {
+                (0x35821dfb, "DefaultController"),
+                (unchecked((int)0xbab8e326), "Keyboard"),
+                (unchecked((int)0xdc966e01), "MfiController"),
+                (unchecked((int)0xa79e8ba2), "Mouse"),
+                (unchecked((int)0xc45c9119), "NpadController"),
+                (unchecked((int)0x8eb02dbd), "PS4Controller"),
+                (0x4f3ef27d, "PS5Controller"),
+                (0x55b147cb, "Remote"),
+                (unchecked((int)0xfe1d10bd), "Touch"),
+                (0x6d9ca622, "Unknown"),
+                (0x480dd923, "Unsupported"),
+                (unchecked((int)0x89bc61ff), "XboneController"),
+            }));
+        }
+
+        // GetString (0x1b4fec0) reads the map with TryGetValue first, so it returns the
+        // map's current string rather than a fixed switch result.
+        [Test]
+        public void GetStringReturnsTheCurrentMapEntry()
+        {
+            Assert.That(UIInputType.Mouse.GetString(), Is.EqualTo("Mouse"));
+            Assert.That(((UIInputType)0x6d9ca622).GetString(), Is.EqualTo("Unknown"));
+            Dictionary<UIInputType, string> map = Map();
+            string original = map[UIInputType.Touch];
+            try
+            {
+                map[UIInputType.Touch] = "Replaced";
+                Assert.That(UIInputType.Touch.GetString(), Is.EqualTo("Replaced"));
+            }
+            finally { map[UIInputType.Touch] = original; }
+        }
+
+        // A miss boxes the UIInputType and formats it with "0x{0:X}" (0x1b4ff84). Enum
+        // "X" formatting pads to the eight digits of the Int32 underlying type, so 0x1F
+        // becomes 0x0000001F and -1 becomes 0xFFFFFFFF. The result is stored with set_Item
+        // (0x1b4ffbe), so a second call returns the same cached string instance.
+        [Test]
+        public void UnmappedValuesFormatAsPaddedHexAndAreCached()
+        {
+            var probes = new[] { (UIInputType)0x1F, (UIInputType)(-1) };
+            Dictionary<UIInputType, string> map = Map();
+            foreach (UIInputType probe in probes)
+                Assert.That(map.ContainsKey(probe), Is.False, "fixture requires an unmapped value: " + (int)probe);
+            try
+            {
+                string small = probes[0].GetString();
+                Assert.That(small, Is.EqualTo("0x0000001F"));
+                Assert.That(probes[1].GetString(), Is.EqualTo("0xFFFFFFFF"));
+                Assert.That(map[probes[0]], Is.SameAs(small), "cached in the map");
+                Assert.That(probes[0].GetString(), Is.SameAs(small), "second call hits the cache");
+            }
+            finally
+            {
+                foreach (UIInputType probe in probes) map.Remove(probe);
+            }
+        }
+    }
+}
