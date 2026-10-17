@@ -85,6 +85,8 @@ namespace ProjectLucid.Tests
             Method(type, ".ctor", 6278, null, Type.EmptyTypes, new string[0]);
 
             type = typeof(UISelectableInputListener.ISelectedButtonInputTextProvider);
+            // Unity 2022.3's compiler emits no BeforeFieldInit here: the same 162 check on
+            // HLSelectableInputListener.ISelectedButtonInputTextProvider passed natively (Editor660 run, 2026-10-11).
             Assert.That((int)type.Attributes, Is.EqualTo(162));
             Assert.That(type.GetMethods(Declared).Length, Is.EqualTo(1));
             Method(type, "get_Text", 3526, typeof(string), Type.EmptyTypes, new string[0]);

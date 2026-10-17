@@ -1,7 +1,8 @@
 // Original HLUnityUI.Runtime Hardlight.UIButton (TypeDef 0x0200006e), from the x86-64 bodies
 // 0x1B510C0..0x1B521B0 (methods 0x0600032d..0x0600034c). Its UnityEvent properties are views onto the
 // UISelectable event table; button down/up/exit are raised on top of the inherited pointer handling.
-// No shipped prefab, scene or asset references the exported script GUID d2eaed523afd040961e01de9618bdad0.
+// Four MonoBehaviours in uicontainer_on_screen_controls.prefab reference the exported script GUID
+// 6513bff3f0ae036d0752c1619a9d8165; their binding to this script is not yet established.
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.Events;
@@ -76,7 +77,7 @@ namespace Hardlight
                 Press();
         }
 
-        // 0x0600033c presses exactly like Action_OnClick (vtable slot 49 at 0x1B517E7);
+        // 0x0600033c presses exactly like Action_OnClick (vtable slot 49, `jmp rcx` at 0x1B51827);
         // the disabled-click event comes from Press itself.
         public void Action_OnDisabledClick()
         {

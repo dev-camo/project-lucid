@@ -1,6 +1,6 @@
 // Original HLUnityUI.Runtime Hardlight.HLTappable (TypeDef 0x020000f8) and TappedEvent (0x020000f9),
 // from the x86-64 bodies 0x1B73980..0x1B73A90 (methods 0x060006f9..0x060006fe).
-// No shipped prefab, scene or asset references the exported script GUID 6513bff3f0ae036d0752c1619a9d8165.
+// No shipped prefab, scene or asset references the exported script GUID c8f5642dfc008bc66e8d60dd1a2cb300.
 using System;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;

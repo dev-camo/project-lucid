@@ -405,7 +405,7 @@ namespace ProjectLucid.Tests
             using (var owned = new Owned<UIButtonProbe>())
             {
                 UIButtonProbe button = owned.Component;
-                UIClickableInputBridgeProbe bridge = owned.AttachBridge();
+                RecordingSelectionInputBridge bridge = owned.AttachBridge();
 
                 PointerEventData right = Pointer(PointerEventData.InputButton.Right, 0);
                 button.OnPointerDown(right);
@@ -426,8 +426,8 @@ namespace ProjectLucid.Tests
                 button.InteractableResult = true;
                 button.OnPointerDown(left);
                 Assert.That(bridge.Calls, Is.EqualTo(new[] { "SetSelectedGameObjectWithMemory" }));
-                Assert.That(bridge.SelectedObjects.Single(), Is.SameAs(button.gameObject));
-                Assert.That(bridge.SelectedEventData.Single(), Is.SameAs(left));
+                Assert.That(bridge.GameObjects.Single(), Is.SameAs(button.gameObject));
+                Assert.That(bridge.EventData.Single(), Is.SameAs(left));
                 Assert.That(owned.TakeEvents(), Is.EqualTo(new[] { UIEventType.OnButtonDown }));
 
                 button.InteractionOverrideResult = false;
@@ -495,7 +495,7 @@ namespace ProjectLucid.Tests
             using (var owned = new Owned<UIButtonProbe>())
             {
                 UIButtonProbe button = owned.Component;
-                UIClickableInputBridgeProbe bridge = owned.AttachBridge();
+                RecordingSelectionInputBridge bridge = owned.AttachBridge();
                 PointerEventData left = Pointer(PointerEventData.InputButton.Left, 0);
 
                 owned.IsPointerDown = true;
@@ -520,6 +520,7 @@ namespace ProjectLucid.Tests
                 button.OnPointerExit(left);
                 Assert.That(owned.TakeEvents(), Is.Empty);
                 Assert.That(owned.ReadButton("m_wasPointerDownAndInside"), Is.EqualTo(false));
+                Assert.That(bridge.Calls, Is.All.EqualTo("GetHardwareCursorVisibility"), "exit only asks for the cursor");
 
                 owned.IsPointerInside = true;
                 Write(typeof(UISelectable), button, "m_inputBridge", null);
@@ -539,7 +540,7 @@ namespace ProjectLucid.Tests
             using (var owned = new Owned<UIButtonProbe>())
             {
                 UIButtonProbe button = owned.Component;
-                UIClickableInputBridgeProbe bridge = owned.AttachBridge();
+                RecordingSelectionInputBridge bridge = owned.AttachBridge();
                 EventSystem system = owned.InstallEventSystem();
                 PointerEventData left = Pointer(PointerEventData.InputButton.Left, 0);
 
@@ -568,6 +569,7 @@ namespace ProjectLucid.Tests
                 owned.Select(system, button.gameObject);
                 button.OnPointerEnter(left);
                 Assert.That(owned.TakeEvents(), Is.EqualTo(new[] { UIEventType.OnNavigateToward }), "not held");
+                Assert.That(bridge.Calls, Is.All.EqualTo("GetHardwareCursorVisibility"), "enter only asks for the cursor");
                 owned.AssertUnchanged();
             }
         }
@@ -577,6 +579,11 @@ namespace ProjectLucid.Tests
         [Test]
         public void PublishedMessagesCarryTheEventUnderTheirUIMessageType()
         {
+            string name = ProcessManager.GetDefaultName<MessageExchangeBoundCallbackArg<UIMessage>>();
+            var rows = (System.Collections.IDictionary)typeof(ProcessManager)
+                .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            bool hadRow = rows.Contains(name);
+            object priorRow = hadRow ? rows[name] : null;
             using (var owned = new Owned<UIButtonProbe>())
             {
                 UIButtonProbe button = owned.Component;
@@ -598,6 +605,9 @@ namespace ProjectLucid.Tests
                 Assert.That(owned.Events, Is.Empty, "publishing raises no selectable event");
                 owned.AssertUnchanged();
             }
+
+            Assert.That(rows.Contains(name), Is.EqualTo(hadRow), "the exchange row is put back as it was");
+            if (hadRow) Assert.That(rows[name], Is.SameAs(priorRow));
         }
 
         // DoStateTransition 0x1B52D60 (jump table 0x1B52F64), on an owner that is not active in the
@@ -905,9 +915,9 @@ namespace ProjectLucid.Tests
                 return value;
             }
 
-            public UIClickableInputBridgeProbe AttachBridge()
+            public RecordingSelectionInputBridge AttachBridge()
             {
-                UIClickableInputBridgeProbe bridge = Own(ScriptableObject.CreateInstance<UIClickableInputBridgeProbe>());
+                RecordingSelectionInputBridge bridge = Own(ScriptableObject.CreateInstance<RecordingSelectionInputBridge>());
                 Write(typeof(UISelectable), Component, "m_inputBridge", bridge);
                 return bridge;
             }
@@ -963,22 +973,24 @@ namespace ProjectLucid.Tests
                 navigation.SetValue(Component, boxed);
             }
 
-            // Subscribes to every UIMessage type on the shared exchange, creating it only if absent;
-            // the subscriptions, and an exchange row this fixture created, are removed on disposal.
-            // A pre-existing exchange keeps the empty bound-subscriber list that each Both publish
-            // creates for the owned UIEvent key (GetSubscriberList's TryGetOrNew).
+            // Swaps in a fixture-owned exchange row and subscribes to every UIMessage type on it. Any
+            // prior row is detached untouched and put back on disposal, so the bound-subscriber list
+            // each Both publish creates for the owned UIEvent key (GetSubscriberList's TryGetOrNew)
+            // never reaches a shared exchange.
             public MessageExchangeBoundCallbackArg<UIMessage> UseExchange(List<(UIEventType, UIEvent)> received)
             {
                 string name = ProcessManager.GetDefaultName<MessageExchangeBoundCallbackArg<UIMessage>>();
                 var rows = (System.Collections.IDictionary)Systems.GetValue(null);
                 bool hadRow = rows.Contains(name);
-                bool hadSystem = ProcessManager.IsSystemValid(name);
-                MessageExchangeBoundCallbackArg<UIMessage> exchange = ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>();
+                object priorRow = hadRow ? rows[name] : null;
+                rows.Remove(name);
                 restores.Add(() =>
                 {
-                    if (!hadSystem) ProcessManager.UnregisterSystem(name);
-                    if (!hadRow) rows.Remove(name);
+                    ProcessManager.UnregisterSystem(name);
+                    rows.Remove(name);
+                    if (hadRow) rows[name] = priorRow;
                 });
+                MessageExchangeBoundCallbackArg<UIMessage> exchange = ProcessManager.GetSystemAutoCreate<MessageExchangeBoundCallbackArg<UIMessage>>();
                 foreach (UIEventType type in Enum.GetValues(typeof(UIEventType)))
                 {
                     UIEventType subscribed = type;

@@ -5,7 +5,7 @@
 // (18 fields, the nested enum, two properties with three accessors and ten methods precede them);
 // the nested enum's exact position before AnimateOnPress is inferred.
 // The x/y sample locals keep the observed order: both curves are sampled before the target is read.
-// No shipped prefab, scene or asset references the exported script GUID c8f5642dfc008bc66e8d60dd1a2cb300.
+// No shipped prefab, scene or asset references the exported script GUID d2eaed523afd040961e01de9618bdad0.
 using System.Collections;
 using System.Collections.Generic;
 using Hardlight.Utils;
