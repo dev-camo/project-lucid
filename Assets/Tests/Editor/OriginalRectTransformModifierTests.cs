@@ -97,15 +97,22 @@ namespace ProjectLucid.Tests
             {
                 var rect = (RectTransform)owner.transform;
                 rect.offsetMax = new Vector2(-5f, 4f);
+                // Unity stores offsetMax through sizeDelta and anchoredPosition with
+                // the fractional pivot, so the read-back components drift slightly;
+                // the equality guard is exercised with the values actually stored.
+                float rawRight = rect.offsetMax.x;
+                float rawTop = rect.offsetMax.y;
+                Assert.That(rawRight, Is.EqualTo(-5f).Within(Tolerance));
+                Assert.That(rawTop, Is.EqualTo(4f).Within(Tolerance));
 
-                modifier.RightOffset = -5f;
-                Assert.That(rect.offsetMax.x, Is.EqualTo(-5f).Within(Tolerance), "raw -5 equals the value: skipped");
-                Assert.That(modifier.RightOffset, Is.EqualTo(5f).Within(Tolerance));
+                modifier.RightOffset = rawRight;
+                Assert.That(rect.offsetMax.x, Is.EqualTo(rawRight), "raw component equals the value: skipped");
+                Assert.That(modifier.RightOffset, Is.EqualTo(-rawRight));
                 modifier.RightOffset = 3f;
                 Assert.That(rect.offsetMax.x, Is.EqualTo(-3f).Within(Tolerance), "other values are stored negated");
 
-                modifier.TopOffset = 4f;
-                Assert.That(rect.offsetMax.y, Is.EqualTo(4f).Within(Tolerance), "raw 4 equals the value: skipped");
+                modifier.TopOffset = rawTop;
+                Assert.That(rect.offsetMax.y, Is.EqualTo(rawTop), "raw component equals the value: skipped");
                 modifier.TopOffset = 6f;
                 Assert.That(rect.offsetMax.y, Is.EqualTo(-6f).Within(Tolerance), "other values are stored negated");
                 Assert.That(modifier.TopOffset, Is.EqualTo(-6f).Within(Tolerance), "the getter does not negate back");
