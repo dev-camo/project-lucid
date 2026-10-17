@@ -221,6 +221,9 @@ namespace ProjectLucid.Tests
             private readonly Dictionary<object, object> priorRegistry;
             private readonly List<Action<object>> pending;
             private readonly Action<object>[] priorPending;
+            // The facade's AppInitialise/AppShutdown subscriptions can introduce
+            // these rows; genuine Unsubscribe leaves them empty, so release them.
+            private readonly VerificationFixtureOwnership.ActionRows lifecycleRows;
             private static FieldInfo Field(string name)
             {
                 FieldInfo result = typeof(ProcessManager).GetField(name, BindingFlags.NonPublic | BindingFlags.Static);
@@ -244,6 +247,7 @@ namespace ProjectLucid.Tests
                     prior.Add(entry.Key, new Dictionary<ISystem, Action<object>>(entry.Value));
                     priorRows.Add(entry.Key, entry.Value);
                 }
+                lifecycleRows = new VerificationFixtureOwnership.ActionRows(SystemAction.AppInitialise, SystemAction.AppShutdown);
                 facadeLeaseBusy = true;
                 try
                 {
@@ -266,50 +270,50 @@ namespace ProjectLucid.Tests
                             }
                         }
                     }
-                    finally { facadeLeaseBusy = false; }
+                    finally
+                    {
+                        facadeLeaseBusy = false;
+                        // Keep the construction failure as the result.
+                        try { lifecycleRows.Dispose(); }
+                        catch (Exception release) { Debug.LogWarning("Facade lease row release failed after an earlier failure: " + release); }
+                    }
                     throw;
                 }
             }
-            public void Dispose()
+            // Every step runs; the first failure stays the result and the
+            // empty lifecycle rows are released last.
+            public void Dispose() => VerificationFixtureOwnership.RunThenCleanUp(
+                () => ProcessManager.ProcessSystemAction(Facade, SystemAction.AppShutdown),
+                () => Facade.Deinitialise(),
+                () => ProcessManager.UnsubscribeFromAllActions(Facade),
+                RequireRestoredSharedState,
+                () => facadeLeaseBusy = false,
+                lifecycleRows.Dispose);
+
+            private void RequireRestoredSharedState()
             {
-                try { ProcessManager.ProcessSystemAction(Facade, SystemAction.AppShutdown); }
-                finally
+                Assert.IsFalse((bool)Field("s_systemActionInProgress").GetValue(null));
+                Assert.AreSame(actions, Field("s_systemActionLookup").GetValue(null));
+                Assert.AreSame(registry, Field("s_systemDictionary").GetValue(null));
+                Assert.AreSame(pending, Field("s_actionList").GetValue(null));
+                Assert.AreEqual(priorRegistry.Count, registry.Count);
+                foreach (var entry in priorRegistry) Assert.AreSame(entry.Value, registry[entry.Key]);
+                Assert.AreEqual(priorPending.Length, pending.Count);
+                for (int i = 0; i < priorPending.Length; i++) Assert.AreSame(priorPending[i], pending[i]);
+                foreach (var entry in actions)
                 {
-                    try { Facade.Deinitialise(); }
-                    finally
+                    if (!prior.TryGetValue(entry.Key, out var original))
                     {
-                        try { ProcessManager.UnsubscribeFromAllActions(Facade); }
-                        finally
-                        {
-                            try
-                            {
-                                Assert.IsFalse((bool)Field("s_systemActionInProgress").GetValue(null));
-                                Assert.AreSame(actions, Field("s_systemActionLookup").GetValue(null));
-                                Assert.AreSame(registry, Field("s_systemDictionary").GetValue(null));
-                                Assert.AreSame(pending, Field("s_actionList").GetValue(null));
-                                Assert.AreEqual(priorRegistry.Count, registry.Count);
-                                foreach (var entry in priorRegistry) Assert.AreSame(entry.Value, registry[entry.Key]);
-                                Assert.AreEqual(priorPending.Length, pending.Count);
-                                for (int i = 0; i < priorPending.Length; i++) Assert.AreSame(priorPending[i], pending[i]);
-                                foreach (var entry in actions)
-                                {
-                                    if (!prior.TryGetValue(entry.Key, out var original))
-                                    {
-                                        // Genuine Unsubscribe retains newly introduced empty action rows.
-                                        Assert.IsTrue(entry.Key == SystemAction.AppInitialise || entry.Key == SystemAction.AppShutdown);
-                                        Assert.AreEqual(0, entry.Value.Count);
-                                        continue;
-                                    }
-                                    Assert.AreSame(priorRows[entry.Key], entry.Value);
-                                    Assert.AreEqual(original.Count, entry.Value.Count);
-                                    foreach (var callback in original) Assert.AreSame(callback.Value, entry.Value[callback.Key]);
-                                }
-                                foreach (var entry in prior) Assert.IsTrue(actions.ContainsKey(entry.Key));
-                            }
-                            finally { facadeLeaseBusy = false; }
-                        }
+                        // Genuine Unsubscribe retains newly introduced empty action rows.
+                        Assert.IsTrue(entry.Key == SystemAction.AppInitialise || entry.Key == SystemAction.AppShutdown);
+                        Assert.AreEqual(0, entry.Value.Count);
+                        continue;
                     }
+                    Assert.AreSame(priorRows[entry.Key], entry.Value);
+                    Assert.AreEqual(original.Count, entry.Value.Count);
+                    foreach (var callback in original) Assert.AreSame(callback.Value, entry.Value[callback.Key]);
                 }
+                foreach (var entry in prior) Assert.IsTrue(actions.ContainsKey(entry.Key));
             }
         }
 
