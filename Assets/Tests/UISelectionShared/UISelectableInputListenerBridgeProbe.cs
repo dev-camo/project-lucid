@@ -4,7 +4,7 @@ using Hardlight;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-namespace ProjectLucid.Tests
+namespace ProjectLucid.Tests.UISelectionShared
 {
     // Test-only concrete host for the abstract original InputBridge. It records the
     // Action<float> down-listener registrations UISelectableInputListener makes;

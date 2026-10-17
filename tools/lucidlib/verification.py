@@ -2904,8 +2904,45 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUISelectableInputListenerTes
     "SelectedButtonInputKeepsFirstProviderAndReadsItsTextEachTime",
     "ButtonSelectedAppendsClosuresAndRegistersTheDelegateAtTheEntryIndex",
     "ClosuresRereadTheEntrySupplierAndFireEveryMatchingEntryInOrder",
+    "TriggeredButtonsArePressedBeforeTheirEntryEvent",
     "ButtonDeselectedUnregistersOnlyTheFirstEntryCountThenClearsInPlace",
     "SelectAndDeselectIgnoreAnotherSelectable",
     "SelectAndDeselectMatchOnlyTheWatchedSelectable",
     "EnableAndDisableOrderTheShutdownHookAndDeselectAroundAnUnregisteredController",
+))
+
+# Original HLUnityUI.Runtime UIClickable and UIButton against their x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalUIClickableTests." + name for name in (
+    "ClickableDeclarationsKeepOriginalFlagsFieldsAndIteratorNames",
+    "ButtonDeclarationsKeepOriginalFlagsFieldsAndAttributeRows",
+    "ConstructorsSeedCooldownListAndExitFlagAndAccessorsUseTheirFields",
+    "AcceptedPressIsRefusedOnlyDuringTheDisabledShakeAndStartsNoCooldownWhenInactive",
+    "RejectedPressClearsTheClickWithoutAnimatingWhenAnimationIsDisabled",
+    "ButtonPressReportsClickOrDisabledClickByInteractability",
+    "ActionsPressBehindActivityAndRaiseButtonEventsOnlyWhenInteractable",
+    "EventPropertiesAreViewsOntoTheirEventTableEntries",
+    "PointerClickPressesOnlyForMouseOrFirstTouchUnlessClickthroughIsAllowed",
+    "SubmitAlwaysPresses",
+    "PointerDownRaisesButtonDownWhileHeldForAnyButton",
+    "PointerUpDecidesButtonUpBeforeReleasingAndClearsTheExitMemory",
+    "PointerExitRemembersAHeldExitOrReleasesItAfterTheBase",
+    "PointerEnterReportsButtonDownForASelectedHeldReentryWhateverTheCursor",
+    "PublishedMessagesCarryTheEventUnderTheirUIMessageType",
+    "StateTransitionsStopAnimationsOnlyOnTheOriginalEdges",
+    "TransformCacheIsTakenDirectlyButRestoredAndRefreshedOnlyInPlayMode",
+    "PressAndReleaseAnimationsStepOnceBeforeTheirFirstCheck(True,True)",
+    "PressAndReleaseAnimationsStepOnceBeforeTheirFirstCheck(True,False)",
+    "PressAndReleaseAnimationsStepOnceBeforeTheirFirstCheck(False,True)",
+    "PressAndReleaseAnimationsStepOnceBeforeTheirFirstCheck(False,False)",
+    "DisabledShakeOffsetsTheCachedPositionAndRestartsAfterAYield",
+    "GlobalCooldownSetsTheFlagAcrossOneRealTimeWait",
+    "StatusEffectorsRegisterOnceAndAreAppliedOnRegistration",
+))
+
+# Original HLUnityUI.Runtime HLTappable against its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLTappableTests." + name for name in (
+    "DeclarationsKeepOriginalFlagsFieldsAndAttributeRows",
+    "ConstructorSeedsTheEventAndThresholdAndTheAccessorsUseTheField",
+    "PointerDownRecordsTheStartTimeOnly",
+    "PointerUpTapsOnlyWhenStrictlyShorterThanTheThreshold",
 ))

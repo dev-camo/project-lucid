@@ -1,5 +1,5 @@
-// Original HLUnityUI.Runtime Hardlight.UISelectableInputListener (TypeDef 0x02000082), restored from
-// the x86-64 bodies 0x1b59c60..0x1b5a870. It is the UISelectable/UIButton twin of HLSelectableInputListener.
+// Original HLUnityUI.Runtime Hardlight.UISelectableInputListener (TypeDef 0x02000082), from the
+// x86-64 bodies 0x1b59c60..0x1b5a870. It is the UISelectable/UIButton twin of HLSelectableInputListener.
 // Nested types are declared first so that ButtonSelected is source member 12 (two nested types, five fields,
 // five methods before it), which yields the shipped <>c__DisplayClass12_0; their exact position before
 // ButtonSelected is inferred. No shipped prefab, scene or asset references the exported script GUID

@@ -6,6 +6,7 @@ using Hardlight;
 using Hardlight.Enums;
 using Hardlight.Utils;
 using NUnit.Framework;
+using ProjectLucid.Tests.UISelectionShared;
 using Unity.IL2CPP.CompilerServices;
 using UnityEditor;
 using UnityEngine;
@@ -18,8 +19,7 @@ namespace ProjectLucid.Tests
     // ProcessManager; the shipped static InputBridge.OnShutdown is restored after each case.
     // Not covered here: Awake (needs a registered UISelectableController and UIRuntimeConfiguration),
     // the controller OnSelect/OnDeselect subscription and inlined IsCurrentSelection path of Setup
-    // (0x1b59e68..0x1b59fe3, needs an owned UISelectableController), and the m_triggerButton Press
-    // dispatch before the event (0x1b5a671..0x1b5a6a0, needs an owned UIButton).
+    // (0x1b59e68..0x1b59fe3, needs an owned UISelectableController).
     public sealed class OriginalUISelectableInputListenerTests
     {
         private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic |
@@ -237,6 +237,39 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // ProcessTriggers 0x1b5a671..0x1b5a6a0: a matching entry with m_triggerButton dispatches the
+        // button's virtual Press (slot 49) before its own event; m_buttonToTrigger is read only then.
+        [Test]
+        public void TriggeredButtonsArePressedBeforeTheirEntryEvent()
+        {
+            using (var owned = new Owned())
+            {
+                var log = new List<string>();
+                UISelectableInputListener.SelectedButtonInput[] data = owned.Configure(3);
+                InputSupplier supplier = data[0].m_inputSupplierToListenFor;
+                data[1].m_inputSupplierToListenFor = supplier;
+                data[0].m_triggerButton = true;
+                data[0].m_buttonToTrigger = owned.AddInactiveButton(() => log.Add("press0"));
+                data[0].m_triggerEvent = true;
+                data[0].m_eventToTrigger = new UnityEvent();
+                data[0].m_eventToTrigger.AddListener(() => log.Add("event0"));
+                data[1].m_triggerButton = true;
+                data[1].m_buttonToTrigger = owned.AddInactiveButton(() => log.Add("press1"));
+                data[2].m_triggerButton = true;
+                data[2].m_buttonToTrigger = owned.AddInactiveButton(() => log.Add("press2"));
+
+                Call(owned.Listener, "ProcessTriggers", 0f, supplier);
+                Assert.That(log, Is.EqualTo(new[] { "press0", "event0", "press1" }));
+
+                log.Clear();
+                data[0].m_triggerButton = false;
+                data[0].m_buttonToTrigger = null;
+                Call(owned.Listener, "ProcessTriggers", 0f, supplier);
+                Assert.That(log, Is.EqualTo(new[] { "event0", "press1" }));
+                owned.AssertUnchanged();
+            }
+        }
+
         // 0x0600040f x86-64 0x1b5a460: unregisters (slot 22, ecx = -1) only while
         // i < m_buttonInputData.Length && i < m_delegates.Count, then clears the whole list in place.
         [Test]
@@ -433,6 +466,20 @@ namespace ProjectLucid.Tests
                 objects.Add(bridge);
                 Write(Listener, "m_inputBridge", bridge);
                 return bridge;
+            }
+
+            // An inactive probe button whose own Press refuses quietly (inactive, interactable,
+            // no animation), so only the dispatch is observed.
+            public UIButton AddInactiveButton(Action pressed)
+            {
+                var holder = new GameObject("owned-original-ui-selectable-button", typeof(RectTransform));
+                objects.Add(holder);
+                holder.SetActive(false);
+                UIButtonProbe button = holder.AddComponent<UIButtonProbe>();
+                button.InteractableResult = true;
+                button.AnimationDisabled = true;
+                button.Pressed = pressed;
+                return button;
             }
 
             public UISelectable AddInactiveSelectable()
