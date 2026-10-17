@@ -283,8 +283,26 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // ForceFinishAnimation 0x060004e3 @0x1B61E40: stop, then SetFinalState(direction == In); None
-        // and Out both finish out, and the direction is never cleared.
+        // The in branch inlines its own ScheduleAutoAnimateOut (0x1B62041..0x1B62081); the out branch
+        // never schedules.
+        [Test]
+        public void SetFinalStateInSchedulesTheAutoAnimateOutOnlyWhenFlagged()
+        {
+            using (var fixture = new Fixture("Anchor-final-auto", true))
+            {
+                Set(fixture.Anchor, "m_autoAnimateOutAfterTimeout", true);
+                Call(fixture.Anchor, "SetFinalState", false);
+                Assert.That(Get(fixture.Anchor, "m_trackedAutoAnimateOut"), Is.Null);
+                Call(fixture.Anchor, "SetFinalState", true);
+                Assert.That(Get(fixture.Anchor, "m_trackedAutoAnimateOut"), Is.Not.Null);
+                Assert.That(fixture.Anchor.CurrentState, Is.EqualTo(AnimState.In), "the timeout has not elapsed");
+                fixture.Anchor.StopAllCoroutines();
+            }
+        }
+
+        // ForceFinishAnimation 0x060004e3 @0x1B61E40: an unconditional stop (0x1B61E52, even while
+        // inactive), then SetFinalState(direction == In); None and Out both finish out, and the
+        // direction is never cleared.
         [TestCase(0, 3)]
         [TestCase(1, 1)]
         [TestCase(2, 3)]
@@ -293,7 +311,9 @@ namespace ProjectLucid.Tests
             using (var fixture = new Fixture("Anchor-force", false))
             {
                 fixture.Direction = (PlayDirection)direction;
+                Set(fixture.Anchor, "m_trackedAnimation", StartedCoroutine(fixture.Anchor));
                 fixture.Anchor.ForceFinishAnimation();
+                Assert.That(Get(fixture.Anchor, "m_trackedAnimation"), Is.Null);
                 Assert.That(fixture.Anchor.CurrentState, Is.EqualTo((AnimState)state));
                 Assert.That(fixture.Direction, Is.EqualTo((PlayDirection)direction));
                 if (state == 1) fixture.AssertAnchors(0.2f, 0.2f, 0.9f, 0.8f);
@@ -403,7 +423,7 @@ namespace ProjectLucid.Tests
         }
 
         // 0x1B621F5..0x1B6223D: after the last body the run calls SetFinalState(animatingIn), clears
-        // +0x80 and returns false, leaving the direction set.
+        // +0x80 (0x1B62227) and returns false, leaving the direction set.
         [Test]
         public void RunFinishesInAndKeepsTheDirection()
         {
@@ -412,9 +432,11 @@ namespace ProjectLucid.Tests
                 fixture.Direction = PlayDirection.In;
                 fixture.State = AnimState.AnimatingOut;
                 fixture.Progress = 1f;
+                Set(fixture.Anchor, "m_trackedAnimation", StartedCoroutine(fixture.Anchor));
                 IEnumerator run = fixture.Run();
                 Assert.That(run.MoveNext(), Is.True);
                 Assert.That(run.MoveNext(), Is.False);
+                Assert.That(Get(fixture.Anchor, "m_trackedAnimation"), Is.Null);
                 Assert.That(fixture.Anchor.CurrentState, Is.EqualTo(AnimState.In));
                 fixture.AssertAnchors(0.2f, 0.2f, 0.9f, 0.8f);
                 Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.In));

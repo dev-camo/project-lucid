@@ -53,6 +53,26 @@ namespace ProjectLucid.Tests
             return field;
         }
 
+        // A non-null coroutine handle started on the owner itself, so the owner's own StopCoroutine
+        // accepts it. The owner's object is active only while the coroutine starts; restoring an
+        // inactive object stops it but leaves the handle non-null.
+        public static Coroutine StartedCoroutine(MonoBehaviour owner)
+        {
+            GameObject host = owner.gameObject;
+            bool wasActive = host.activeSelf;
+            host.SetActive(true);
+            Coroutine coroutine = owner.StartCoroutine(Idle());
+            host.SetActive(wasActive);
+            Assert.That(coroutine, Is.Not.Null, "precondition: a coroutine handle");
+            return coroutine;
+        }
+
+        private static IEnumerator Idle()
+        {
+            while (true)
+                yield return null;
+        }
+
         public static float Seconds(WaitForSeconds wait) => (float)typeof(WaitForSeconds).GetField("m_Seconds", Any).GetValue(wait);
 
         public static int RawBits(float value) => BitConverter.ToInt32(BitConverter.GetBytes(value), 0);

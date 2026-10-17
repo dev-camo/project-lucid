@@ -234,6 +234,8 @@ namespace ProjectLucid.Tests
         // StartTransition 0x060000f3 @0x1B40560: SetSortingLayerAndOrder runs before the lookup, so the
         // order changes even when no controller is registered or the controller refuses; otherwise the
         // controller's StartTransition result is returned (Held: speed 1 / 0.5 = 2, TransitioningIn).
+        // Both callbacks pass straight through (0x1B405E3..0x1B405EA: midpoint r14 -> rsi, completion
+        // -> rdx); Held caches the midpoint unwrapped.
         [Test]
         public void StartTransitionAppliesTheSortingFirstAndDelegates()
         {
@@ -245,7 +247,11 @@ namespace ProjectLucid.Tests
                 Assert.That(fixture.Canvas.sortingOrder, Is.EqualTo(3));
 
                 var calls = new List<string>();
-                Assert.That(fixture.Manager.StartTransition(FullScreenTransitionType.Held, "Default", 4, 0.5f, () => calls.Add("mid"), () => calls.Add("done")), Is.True);
+                Action midpoint = () => calls.Add("mid");
+                Action completion = () => calls.Add("done");
+                Assert.That(fixture.Manager.StartTransition(FullScreenTransitionType.Held, "Default", 4, 0.5f, midpoint, completion), Is.True);
+                Assert.That(Get(held, "m_cachedMidpointCallback"), Is.SameAs(midpoint));
+                Assert.That(Get(held, "m_cachedCompletionCallback"), Is.SameAs(completion));
                 Assert.That(fixture.Canvas.sortingOrder, Is.EqualTo(4));
                 Assert.That(held.CurrentState, Is.EqualTo(State.TransitioningIn));
                 Assert.That(held.GetComponent<Animator>().speed, Is.EqualTo(2f));

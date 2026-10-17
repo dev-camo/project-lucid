@@ -151,6 +151,8 @@ namespace ProjectLucid.Tests
         // ForceFinishAnimation 0x060004f3 @0x1B626A0: nothing at all while inactive in the hierarchy
         // or without a direction; otherwise each axis is sampled at its own curve's end (In: x(4) = 3,
         // y(2) = 7) or at zero (Out: x(0) = 1, y(0) = 5), SetFinalState runs and the direction clears.
+        // The activeInHierarchy test (0x1B626C3) precedes SafeStopCoroutine (0x1B626E2), so a hidden
+        // object keeps its tracked coroutine handle.
         [Test]
         public void ForceFinishRequiresAnActiveHierarchyAndADirection()
         {
@@ -158,7 +160,10 @@ namespace ProjectLucid.Tests
             using (var idle = new Fixture("Scale-force-idle", true))
             {
                 hidden.Direction = PlayDirection.In;
+                Coroutine tracked = StartedCoroutine(hidden.Scale);
+                Set(hidden.Scale, "m_trackedAnimation", tracked);
                 hidden.Scale.ForceFinishAnimation();
+                Assert.That(Get(hidden.Scale, "m_trackedAnimation"), Is.SameAs(tracked), "no stop while hidden");
                 Assert.That(hidden.Direction, Is.EqualTo(PlayDirection.In));
                 Assert.That(hidden.Target.localScale, Is.EqualTo(new Vector3(9f, 9f, 9f)));
                 Assert.That(hidden.Scale.CurrentState, Is.EqualTo(AnimState.None));
@@ -184,6 +189,20 @@ namespace ProjectLucid.Tests
                 Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.None));
                 Assert.That(fixture.Scale.CurrentState, Is.EqualTo(direction == 1 ? AnimState.In : AnimState.Out));
                 Assert.That(fixture.Owned.Log, Is.EqualTo(new[] { direction == 1 ? "onAnimateInComplete:In 1" : "onAnimateOutComplete:Out 0" }));
+            }
+        }
+
+        // 0x1B626F7..0x1B62790 reads each curve's own last key (x +0xB8, y +0xC0). With y ping-ponging
+        // on [-2, 2], its own end gives y(2) = 7, where the longer end 4 would mirror back to y(0) = 5.
+        [Test]
+        public void ForceFinishInSamplesThePingPongAxisAtItsOwnEnd()
+        {
+            using (var fixture = new Fixture("Scale-force-pingpong", true))
+            {
+                Set(fixture.Scale, "m_yCurve", fixture.Owned.Linear(-2f, 3f, 2f, 7f, WrapMode.PingPong));
+                fixture.Direction = PlayDirection.In;
+                fixture.Scale.ForceFinishAnimation();
+                AssertScale(fixture.Target, 3f, 7f);
             }
         }
 
@@ -265,13 +284,30 @@ namespace ProjectLucid.Tests
                 Assert.That(Hoisted(run, "longestEndTime").GetValue(run), Is.EqualTo(4f));
                 Assert.That(Hoisted(run, "timer").GetValue(run), Is.EqualTo(delta));
                 float time = animatingIn ? delta : 4f - delta;
-                AssertScale(fixture.Target, 1f + 0.5f * time, 5f + time);
+                // The time is clamped to the longer end (4) only; past its last key at 2 the
+                // ClampForever y curve holds 7.
+                AssertScale(fixture.Target, 1f + 0.5f * time, 5f + Mathf.Min(time, 2f));
                 Assert.That(Get(fixture.Scale, "m_normalisedInOutProgress"), Is.EqualTo(0.5f), "the scale run never writes progress");
             }
         }
 
-        // State 3 (0x1B62B4A): once timer >= longest end, clear +0x80, SetFinalState(animatingIn) and
-        // clear the direction (0x1B62D2D). Single-key curves end at time 0, so the first check ends it.
+        // 0x1B62BE9 `maxss`: with x ending at 1 and y at 2 the shared end is y's 2, not x's.
+        [Test]
+        public void RunUsesTheYEndWhenTheYCurveIsLonger()
+        {
+            using (var fixture = new Fixture("Scale-run-longer-y", false))
+            {
+                Set(fixture.Scale, "m_xCurve", fixture.Owned.Linear(-2f, 0f, 1f, 1.5f));
+                fixture.Direction = PlayDirection.In;
+                IEnumerator run = fixture.Run();
+                Assert.That(run.MoveNext(), Is.True);
+                Assert.That(run.MoveNext(), Is.True);
+                Assert.That(Hoisted(run, "longestEndTime").GetValue(run), Is.EqualTo(2f));
+            }
+        }
+
+        // State 3 (0x1B62B4A): once timer >= longest end, clear +0x80 (0x1B62D01), SetFinalState(animatingIn)
+        // and clear the direction (0x1B62D2D). Single-key curves end at time 0, so the first check ends it.
         [Test]
         public void RunFinishesWithTheFinalStateAndClearsTheDirection()
         {
@@ -280,11 +316,13 @@ namespace ProjectLucid.Tests
                 Set(fixture.Scale, "m_xCurve", fixture.Owned.Curve(WrapMode.ClampForever, new Keyframe(0f, 2f)));
                 Set(fixture.Scale, "m_yCurve", fixture.Owned.Curve(WrapMode.ClampForever, new Keyframe(0f, 4f)));
                 fixture.Direction = PlayDirection.Out;
+                Set(fixture.Scale, "m_trackedAnimation", StartedCoroutine(fixture.Scale));
                 IEnumerator run = fixture.Run();
                 Assert.That(run.MoveNext(), Is.True);
                 Assert.That(run.MoveNext(), Is.True);
                 AssertScale(fixture.Target, 2f, 4f);
                 Assert.That(run.MoveNext(), Is.False);
+                Assert.That(Get(fixture.Scale, "m_trackedAnimation"), Is.Null);
                 Assert.That(fixture.Scale.CurrentState, Is.EqualTo(AnimState.Out));
                 Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.None));
                 Assert.That(fixture.Owned.Log, Is.EqualTo(new[] { "onAnimateOut:AnimatingOut 0", "onAnimateOutStart:AnimatingOut 0", "onAnimateOutComplete:Out 0" }));
@@ -306,6 +344,40 @@ namespace ProjectLucid.Tests
                 Assert.That(fixture.Scale.CurrentState, Is.EqualTo(AnimState.Out));
                 Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.None));
                 Assert.That(fixture.Owned.Log, Is.EqualTo(new[] { "onAnimateOutComplete:Out 0" }));
+            }
+        }
+
+        // OnEnable 0x060004f0 @0x1B6256F: an initial In force finishes in on an active object (scale
+        // (3, 7, 1), complete-in) and the matching target dispatches nothing.
+        [Test]
+        public void OnEnableForceFinishesAnInitialIn()
+        {
+            using (var fixture = new Fixture("Scale-onenable-in", true))
+            {
+                Set(fixture.Scale, "m_initialState", AnimState.In);
+                Set(fixture.Scale, "m_animateToStateOnEnable", AnimState.In);
+                Call(fixture.Scale, "OnEnable");
+                AssertScale(fixture.Target, 3f, 7f);
+                Assert.That(fixture.Scale.CurrentState, Is.EqualTo(AnimState.In));
+                Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.None));
+                Assert.That(fixture.Owned.Log, Is.EqualTo(new[] { "onAnimateInComplete:In 1" }));
+            }
+        }
+
+        // SetFinalState 0x060004f6 inlines its own ScheduleAutoAnimateOut (0x1B6297D..0x1B629B9) in the
+        // in branch only.
+        [Test]
+        public void SetFinalStateInSchedulesTheAutoAnimateOutOnlyWhenFlagged()
+        {
+            using (var fixture = new Fixture("Scale-final-auto", true))
+            {
+                Set(fixture.Scale, "m_autoAnimateOutAfterTimeout", true);
+                Call(fixture.Scale, "SetFinalState", false);
+                Assert.That(Get(fixture.Scale, "m_trackedAutoAnimateOut"), Is.Null);
+                Call(fixture.Scale, "SetFinalState", true);
+                Assert.That(Get(fixture.Scale, "m_trackedAutoAnimateOut"), Is.Not.Null);
+                Assert.That(fixture.Scale.CurrentState, Is.EqualTo(AnimState.In), "the timeout has not elapsed");
+                fixture.Scale.StopAllCoroutines();
             }
         }
     }

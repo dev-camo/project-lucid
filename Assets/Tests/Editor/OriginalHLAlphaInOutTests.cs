@@ -143,7 +143,8 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // 0x1B614F5: with no direction only the coroutine stop runs; no alpha, state or event changes.
+        // 0x1B614E9..0x1B614F5: the coroutine stop runs unconditionally, even while inactive; with no
+        // direction nothing else does (no alpha, state or event changes).
         [Test]
         public void ForceFinishWithoutADirectionOnlyStops()
         {
@@ -151,7 +152,9 @@ namespace ProjectLucid.Tests
             {
                 fixture.State = AnimState.AnimatingOut;
                 fixture.Progress = 0.5f;
+                Set(fixture.Alpha, "m_trackedAnimation", StartedCoroutine(fixture.Alpha));
                 fixture.Alpha.ForceFinishAnimation();
+                Assert.That(Get(fixture.Alpha, "m_trackedAnimation"), Is.Null);
                 Assert.That(fixture.Group.alpha, Is.EqualTo(0.5f));
                 Assert.That(fixture.Image.color.a, Is.EqualTo(0.5f));
                 Assert.That(fixture.Alpha.CurrentState, Is.EqualTo(AnimState.AnimatingOut));
@@ -190,6 +193,25 @@ namespace ProjectLucid.Tests
                 Assert.That(fixture.Group.alpha, Is.EqualTo(0.75f).Within(1e-6f));
                 Assert.That(fixture.Alpha.CurrentState, Is.EqualTo(AnimState.In));
                 Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.Out));
+            }
+        }
+
+        // 0x1B61311..0x1B6131B: an initial Out (3) is remapped to direction Out (2) before the force
+        // finish, which samples the curve at zero (0.25) and fires complete-out; the matching target
+        // dispatches nothing.
+        [Test]
+        public void OnEnableForceFinishesAnInitialOut()
+        {
+            using (var fixture = new Fixture("Alpha-onenable-out", false))
+            {
+                Set(fixture.Alpha, "m_initialState", AnimState.Out);
+                Set(fixture.Alpha, "m_animateToStateOnEnable", AnimState.Out);
+                Call(fixture.Alpha, "OnEnable");
+                Assert.That(fixture.Owned.Log, Is.EqualTo(new[] { "onAnimateOutComplete:Out 0" }));
+                Assert.That(fixture.Group.alpha, Is.EqualTo(0.25f).Within(1e-6f));
+                Assert.That(fixture.Image.color.a, Is.EqualTo(0.25f).Within(1e-6f));
+                Assert.That(fixture.Alpha.CurrentState, Is.EqualTo(AnimState.Out));
+                Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.None));
             }
         }
 
@@ -295,7 +317,7 @@ namespace ProjectLucid.Tests
 
         // 0x1B617E5: the loop condition is checked only after a yield (do/while). Resuming in from
         // progress 1 starts at the end time, still runs one body (alpha at the clamped end) and then
-        // SetFinalState(true) and clears +0x80 (0x1B61811..0x1B6182D) and returns false.
+        // SetFinalState(true) and clears +0x80 (0x1B61817) and returns false.
         [Test]
         public void RunCompletesAfterOneBodyWhenResumedAtTheEnd()
         {
@@ -304,10 +326,12 @@ namespace ProjectLucid.Tests
                 fixture.State = AnimState.AnimatingOut;
                 fixture.Direction = PlayDirection.In;
                 fixture.Progress = 1f;
+                Set(fixture.Alpha, "m_trackedAnimation", StartedCoroutine(fixture.Alpha));
                 IEnumerator run = fixture.Run();
                 Assert.That(run.MoveNext(), Is.True);
                 Assert.That(fixture.Group.alpha, Is.EqualTo(0.75f).Within(1e-6f));
                 Assert.That(run.MoveNext(), Is.False);
+                Assert.That(Get(fixture.Alpha, "m_trackedAnimation"), Is.Null);
                 Assert.That(fixture.Alpha.CurrentState, Is.EqualTo(AnimState.In));
                 Assert.That(fixture.Progress, Is.EqualTo(1f));
                 Assert.That(fixture.Direction, Is.EqualTo(PlayDirection.In), "the run does not clear the direction");
