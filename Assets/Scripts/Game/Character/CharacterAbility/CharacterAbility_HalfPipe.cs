@@ -107,7 +107,9 @@ namespace HardlightProject
 		private float LeanValue()
 		{
 			float input = m_character.ControllerMovement.x;
-			if (m_leanStart == 0f)
+			// 0xE612AD ucomiss / 0xE612B4 je (no jp): ZF is set for equal or unordered, so a NaN
+			// m_leanStart also takes the deadzone path.
+			if (m_leanStart == 0f || float.IsNaN(m_leanStart))
 			{
 				float deadzone = Definition.ExitLeanDeadzone;
 				// 0xE61333 ucomiss / 0xE61339 jae: only an ordered deadzone >= |input| returns zero;

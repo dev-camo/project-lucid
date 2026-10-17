@@ -1850,6 +1850,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NaNInputFallsThroughToTheArithmetic",
     "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NaNDeadzoneFallsThroughToTheArithmetic",
     "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NonZeroLeanStartStoresTheInputAndReturnsZero",
+    "ProjectLucid.Tests.OriginalHalfPipeLeanValueTests.NaNLeanStartTakesTheDeadzonePathAndIsNotOverwritten",
 )
 
 EDITMODE_TESTS += (

@@ -25,12 +25,15 @@ namespace ProjectLucid.Tests
     // values read from the 1.10.1 x86-64 shared body at 0xE61290..0xE61370, not from the
     // maintained formula. Evidence is x86-64 only; no ARM or cross-platform parity is claimed.
     //
-    // With m_leanStart (+0xC4) equal to zero (0xE612AD ucomiss / 0xE612B4 je), the body loads
+    // With m_leanStart (+0xC4) equal to zero or unordered (0xE612AD ucomiss / 0xE612B4 je, no
+    // jp, so ZF from a NaN compare also takes the branch), the body loads
     // ExitLeanDeadzone (+0xCC) into xmm3 and |input| into xmm4, then 0xE61333 ucomiss xmm4,xmm3
     // and 0xE61339 jae return the zeroed xmm0 only for an ordered deadzone >= |input|. An
     // unordered compare sets CF and falls through to (|input| - deadzone), negated when
     // !(0 <= input) (0xE61349 cmpnless), minus deadzone (0xE6135B), so NaN propagates.
-    // The two NaN cases separate this from an ordered |input| > deadzone gate, which returns 0.
+    // The two NaN cases separate this from an ordered |input| > deadzone gate, which returns 0,
+    // and the NaN m_leanStart case separates the je gate from an ordered m_leanStart == 0 test,
+    // which would store the input and return 0.
     //
     // The Character comes from its real constructor through AddComponent; in EditMode its
     // Awake never runs. Only ControllerMovement (+0x2A8) and the definition are supplied.
@@ -98,6 +101,19 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // NaN m_leanStart: the unordered ucomiss sets ZF, je at 0xE612B4 is taken, so 0.5 against
+        // 0.1 gives about 0.3 and the store at 0xE612B6 is skipped, leaving m_leanStart NaN.
+        [Test]
+        public void NaNLeanStartTakesTheDeadzonePathAndIsNotOverwritten()
+        {
+            WithProbe((probe, character, definition) =>
+            {
+                LeanStart.SetValue(probe, float.NaN);
+                Assert.AreEqual(0.3f, Lean(probe, character, definition, 0.5f, 0.1f, resetLeanStart: false), 1e-6f);
+                Assert.IsTrue(float.IsNaN((float)LeanStart.GetValue(probe)), "m_leanStart is not overwritten");
+            });
+        }
+
         private static readonly FieldInfo LeanStart =
             typeof(CharacterAbility_HalfPipe<HalfPipeLeanProbeDefinition>).GetField("m_leanStart", Instance);
 
@@ -139,13 +155,14 @@ namespace ProjectLucid.Tests
                 typeof(CharacterAbility<HalfPipeLeanProbeDefinition>).GetField("m_definition", Instance).SetValue(probe, definition);
                 Assert.AreSame(definition, probe.Definition, "no override is set");
                 body(probe, character, definition);
-                foreach (string key in registry.Keys)
-                    if (!before.Contains(key) && Array.IndexOf(owned, key) < 0)
-                        Assert.Fail("Fixture created an unowned registry row: " + key);
             }
             catch (Exception failure) { primary = failure; throw; }
             finally
             {
+                // Unowned rows are reported on every path; they are never removed here.
+                var unowned = new List<string>();
+                foreach (string key in registry.Keys)
+                    if (!before.Contains(key) && Array.IndexOf(owned, key) < 0) unowned.Add(key);
                 if (definition != null) UnityEngine.Object.DestroyImmediate(definition);
                 UnityEngine.Object.DestroyImmediate(gameObject);
                 // Every owned row is released even when an earlier one refuses.
@@ -155,6 +172,12 @@ namespace ProjectLucid.Tests
                     if (!registry.Contains(name)) continue;
                     try { VerificationFixtureOwnership.ReleaseEmptyRow(registry, name, registry[name]); }
                     catch (Exception cleanup) { cleanupFailures.Add(cleanup); }
+                }
+                if (unowned.Count > 0)
+                {
+                    string message = "Fixture created unowned registry rows: " + string.Join(", ", unowned);
+                    if (primary == null && cleanupFailures.Count == 0) Assert.Fail(message);
+                    TestContext.Error.WriteLine(message);
                 }
                 if (cleanupFailures.Count > 0)
                 {
