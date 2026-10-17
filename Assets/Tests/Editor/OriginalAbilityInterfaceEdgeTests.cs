@@ -11,10 +11,14 @@ namespace ProjectLucid.Tests
     //   IAbilityTriggerable 0x02000081 flags 0xa1, implements IAbilityTrigger, methods { DoTrigger, ClearTrigger }
     //   IHomingAbility      0x02000310 flags 0xa1, implements IAbility, eight methods below
     //   IAbility            0x0200040e flags 0xa1, no interfaces, no members
+    // Each method row is checked by return type, name, parameter types and names, and flags:
+    // 0x05c6 Public|Virtual|HideBySig|NewSlot|Abstract, 0x0dc6 adds SpecialName on accessors.
     public sealed class OriginalAbilityInterfaceEdgeTests
     {
         private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
         private const TypeAttributes PublicAbstractInterface = TypeAttributes.Public | TypeAttributes.Interface | TypeAttributes.Abstract;
+        private const string Method = "0x05c6";
+        private const string Accessor = "0x0dc6";
 
         [Test]
         public void TriggerableInheritsTheTriggerGetterAndDeclaresOnlyItsTwoContracts()
@@ -23,13 +27,17 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(PublicAbstractInterface, type.Attributes);
             CollectionAssert.AreEqual(new[] { typeof(IAbilityTrigger) }, type.GetInterfaces());
             Assert.IsTrue(typeof(IAbilityTrigger).IsAssignableFrom(type));
-            CollectionAssert.AreEqual(new[] { "DoTrigger", "ClearTrigger" }, DeclaredMethodNames(type));
+            CollectionAssert.AreEqual(new[]
+            {
+                Method + " System.Void DoTrigger()",
+                Method + " System.Void ClearTrigger()",
+            }, DeclaredMethodRows(type));
             Assert.AreEqual(0, type.GetFields(Declared).Length);
 
             Type trigger = typeof(IAbilityTrigger);
             Assert.AreEqual(PublicAbstractInterface, trigger.Attributes);
             Assert.AreEqual(0, trigger.GetInterfaces().Length);
-            CollectionAssert.AreEqual(new[] { "get_IsTriggered" }, DeclaredMethodNames(trigger));
+            CollectionAssert.AreEqual(new[] { Accessor + " System.Boolean get_IsTriggered()" }, DeclaredMethodRows(trigger));
             // The inherited getter is IAbilityTrigger's own row, not a redeclaration.
             Assert.IsNull(type.GetProperty("IsTriggered", Declared));
         }
@@ -43,9 +51,15 @@ namespace ProjectLucid.Tests
             Assert.IsTrue(typeof(IAbility).IsAssignableFrom(type));
             CollectionAssert.AreEqual(new[]
             {
-                "Reset", "get_CanActivate", "get_IsTriggered", "set_IsTriggered",
-                "get_OverridesTargeting", "ShouldProjectFromCamera", "GetAdditionalSpeed", "get_TargetingDefinition",
-            }, DeclaredMethodNames(type));
+                Method + " System.Void Reset()",
+                Accessor + " System.Boolean get_CanActivate()",
+                Accessor + " System.Boolean get_IsTriggered()",
+                Accessor + " System.Void set_IsTriggered(System.Boolean value)",
+                Accessor + " System.Boolean get_OverridesTargeting()",
+                Method + " System.Boolean ShouldProjectFromCamera()",
+                Method + " System.Single GetAdditionalSpeed(System.Single time)",
+                Accessor + " HardlightProject.CharacterAbilityDefinition_Targeting get_TargetingDefinition()",
+            }, DeclaredMethodRows(type));
             Assert.AreEqual(0, type.GetFields(Declared).Length);
 
             // Negative control: IHomingAbility declares its own IsTriggered get/set and has no
@@ -65,7 +79,10 @@ namespace ProjectLucid.Tests
             Assert.IsFalse(type.IsAssignableFrom(typeof(IAbilityTriggerable)));
         }
 
-        private static string[] DeclaredMethodNames(Type type) =>
-            type.GetMethods(Declared).OrderBy(method => method.MetadataToken).Select(method => method.Name).ToArray();
+        // One row per declared method in metadata order: flags, return type, name and parameters.
+        private static string[] DeclaredMethodRows(Type type) =>
+            type.GetMethods(Declared).OrderBy(method => method.MetadataToken).Select(method =>
+                "0x" + ((int)method.Attributes).ToString("x4") + " " + method.ReturnType.FullName + " " + method.Name + "("
+                + string.Join(", ", method.GetParameters().Select(parameter => parameter.ParameterType.FullName + " " + parameter.Name)) + ")").ToArray();
     }
 }
