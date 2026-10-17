@@ -209,6 +209,135 @@ namespace ProjectLucid.Tests
             beforeForeign.AssertUnchanged(foreign);
         }
 
+        // AdmitAbsentOrIdle: an earlier static initializer (for example
+        // PerformanceDependency..cctor, x86-64 0x1b10280) can leave an idle row
+        // and typed reference for the whole run. Borrowing keeps that row and
+        // its prior entry, removes only the entry added while borrowed, and
+        // returns the prior entry to the same idle state.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void IdleRow_IsBorrowedAndOnlyItsAddedTypedEntryIsRemoved(bool failBody)
+        {
+            const string name = "isolated idle borrowed row";
+            var untyped = new SystemRef(name, null);
+            var row = new IsolatedRow(untyped);
+            var prior = new SystemRef<FixtureSystem>(name, null);
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<FixtureSystem>(), prior);
+            IDictionary registry = new Dictionary<string, object> { { name, row } };
+            var beforePrior = new ReferenceSnapshot<FixtureSystem>(prior);
+            var fixtureFault = new InvalidOperationException("borrowed fixture body");
+            LifecycleSystemRowLease lease = LifecycleSystemRowLease.AdmitAbsentOrIdle(registry, name);
+            Assert.IsTrue(lease.IsBorrowed);
+            Action body = () =>
+            {
+                using (lease)
+                {
+                    lease.CaptureCreatedRow(untyped);
+                    lease.CaptureTypedReference(prior);
+                    var added = new SystemRef<OtherFixtureSystem>(name, null);
+                    row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<OtherFixtureSystem>(), added);
+                    lease.CaptureTypedReference(added);
+                    Action<FixtureSystem> ownedStartup = value => Assert.Fail("No host is registered in this isolated lease test.");
+                    prior.OnSystemStartup += ownedStartup;
+                    try
+                    {
+                        if (failBody) throw fixtureFault;
+                    }
+                    finally { lease.RunCleanup("detach-borrowed-startup", () => prior.OnSystemStartup -= ownedStartup); }
+                }
+            };
+            if (failBody) Assert.AreSame(fixtureFault, Assert.Throws<InvalidOperationException>(() => body()));
+            else Assert.DoesNotThrow(() => body());
+            Assert.IsNull(lease.CleanupFailure);
+            Assert.IsNull(lease.CleanupDiagnosticFailure);
+            Assert.AreSame(row, registry[name], "A borrowed row is never removed.");
+            Assert.AreEqual(1, row.SystemRefDictionary.Count, "Only the entry added while borrowed is removed.");
+            Assert.AreSame(prior, row.SystemRefDictionary[ProcessManager.GetDefaultName<FixtureSystem>()]);
+            beforePrior.AssertUnchanged(prior);
+            Assert.DoesNotThrow(lease.Dispose, "Successful release is idempotent.");
+            Assert.AreSame(row, registry[name]);
+        }
+
+        // Admission must refuse a row whose untyped or typed reference holds a
+        // system, an observer or deferred work, reading fields only, so the
+        // issue-87 guarantee holds for borrowed rows too. A raw null row is
+        // also refused. A lease that admitted any of these fails.
+        [TestCase(false, "startup")]
+        [TestCase(false, "shutdown")]
+        [TestCase(false, "deferred")]
+        [TestCase(false, "system")]
+        [TestCase(true, "startup")]
+        [TestCase(true, "shutdown")]
+        [TestCase(true, "deferred")]
+        [TestCase(true, "system")]
+        public void ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(bool typedObserver, string observerKind)
+        {
+            const string name = "isolated observed borrowed row";
+            int foreignCalls = 0;
+            Action<ISystem> untypedWork = value => { ++foreignCalls; throw new InvalidOperationException("foreign work"); };
+            Action<FixtureSystem> typedWork = value => { ++foreignCalls; throw new InvalidOperationException("foreign work"); };
+            bool owned = observerKind == "system";
+            var untyped = new SystemRef(name, owned && !typedObserver ? new FixtureSystem() : null);
+            var typed = new SystemRef<FixtureSystem>(name, owned && typedObserver ? new FixtureSystem() : null);
+            if (!owned)
+            {
+                if (typedObserver) AttachObserver(typed, observerKind, typedWork);
+                else AttachObserver(untyped, observerKind, untypedWork);
+            }
+            var row = new IsolatedRow(untyped);
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<FixtureSystem>(), typed);
+            IDictionary registry = new Dictionary<string, object> { { name, row } };
+            var beforeUntyped = new ReferenceSnapshot<ISystem>(untyped);
+            var beforeTyped = new ReferenceSnapshot<FixtureSystem>(typed);
+
+            InvalidOperationException failure = Assert.Throws<InvalidOperationException>(() => LifecycleSystemRowLease.AdmitAbsentOrIdle(registry, name));
+            StringAssert.Contains("retains unowned state", failure.Message);
+            Assert.AreSame(row, registry[name]);
+            Assert.AreSame(typed, row.SystemRefDictionary[ProcessManager.GetDefaultName<FixtureSystem>()]);
+            Assert.AreEqual(0, foreignCalls);
+            beforeUntyped.AssertUnchanged(untyped);
+            beforeTyped.AssertUnchanged(typed);
+
+            IDictionary nullRow = new Dictionary<string, object> { { name, null } };
+            StringAssert.Contains("requires an absent or idle system row",
+                Assert.Throws<InvalidOperationException>(() => LifecycleSystemRowLease.AdmitAbsentOrIdle(nullRow, name)).Message);
+            Assert.IsNull(nullRow[name]);
+        }
+
+        // Work gained while borrowed belongs to someone else: the prior or
+        // added entry is checked, never cleared, and the row and that entry stay.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void BorrowedRow_GainingUnownedWorkIsRetainedWithoutInvokingIt(bool onPriorEntry)
+        {
+            const string name = "isolated changed borrowed row";
+            var untyped = new SystemRef(name, null);
+            var row = new IsolatedRow(untyped);
+            var prior = new SystemRef<FixtureSystem>(name, null);
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<FixtureSystem>(), prior);
+            IDictionary registry = new Dictionary<string, object> { { name, row } };
+            LifecycleSystemRowLease lease = LifecycleSystemRowLease.AdmitAbsentOrIdle(registry, name);
+            lease.CaptureCreatedRow(untyped);
+            var added = new SystemRef<OtherFixtureSystem>(name, null);
+            row.SystemRefDictionary.Add(ProcessManager.GetDefaultName<OtherFixtureSystem>(), added);
+            lease.CaptureTypedReference(added);
+            int foreignCalls = 0;
+            if (onPriorEntry) prior.InvokeOnValid(value => { ++foreignCalls; throw new InvalidOperationException("foreign deferred work"); });
+            else added.InvokeOnValid(value => { ++foreignCalls; throw new InvalidOperationException("foreign deferred work"); });
+            var beforePrior = new ReferenceSnapshot<FixtureSystem>(prior);
+            var beforeAdded = new ReferenceSnapshot<OtherFixtureSystem>(added);
+
+            Assert.DoesNotThrow(lease.Dispose);
+            Assert.IsInstanceOf<InvalidOperationException>(lease.CleanupFailure);
+            StringAssert.Contains("retains unowned state", lease.CleanupFailure.Message);
+            Assert.AreSame(row, registry[name]);
+            Assert.AreEqual(2, row.SystemRefDictionary.Count, "The added entry with foreign work is retained.");
+            Assert.AreSame(added, row.SystemRefDictionary[ProcessManager.GetDefaultName<OtherFixtureSystem>()]);
+            Assert.AreEqual(0, foreignCalls);
+            beforePrior.AssertUnchanged(prior);
+            beforeAdded.AssertUnchanged(added);
+        }
+
         [Test]
         public void BodyFailureAndUnownedPendingWork_RetainFirstCauseAndCleanupFailure()
         {

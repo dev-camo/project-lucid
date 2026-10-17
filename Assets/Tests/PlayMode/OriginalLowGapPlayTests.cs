@@ -16,7 +16,7 @@ using UnityEngine.Video;
 namespace ProjectLucid.Tests
 {
     // Low-priority gaps that need real Awake/OnDestroy messages or an active
-    // scene object. Each case owns its registry row through
+    // scene object. Each case owns or borrows its registry row through
     // LifecycleSystemRowLease and destroys every object it creates.
     public sealed class OriginalLowGapPlayTests
     {
@@ -123,11 +123,16 @@ namespace ProjectLucid.Tests
         // ProcessManager.UnregisterSystem (0x1b1173f). Real startup and
         // shutdown notifications observe both boundaries. Applying the default
         // before registering, or unregistering before detaching, fails.
+        // PerformanceDependency..cctor (x86-64 0x1b10280) calls
+        // GetSystemRef<ScalablePerformance>(null, true) (0x1b102e1), so an
+        // earlier case can leave this row and its typed reference for the rest
+        // of the run. An idle row is borrowed; one with observers or pending
+        // work is still refused.
         [Test]
         public void AwakeRegistersBeforeApplyingAndDestroyDetachesBeforeUnregistering()
         {
             string name = ProcessManager.GetDefaultName<ScalablePerformance>();
-            var rowLease = new LifecycleSystemRowLease(LifecycleSystemRowLease.SharedRegistry, name);
+            var rowLease = LifecycleSystemRowLease.AdmitAbsentOrIdle(LifecycleSystemRowLease.SharedRegistry, name);
             using (rowLease)
             {
                 GameObject owner = null;

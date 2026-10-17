@@ -8,7 +8,10 @@ using NUnit.Framework;
 namespace ProjectLucid.Tests
 {
     // A null cached row can still own observers and deferred work. This lease
-    // admits only an absent key and removes only the fixture's cleared row.
+    // admits an absent key and removes only the fixture's cleared row.
+    // AdmitAbsentOrIdle also borrows a row whose every reference already holds
+    // no system, observer or deferred work; that row and its prior typed
+    // entries stay, and only entries added while borrowed are removed.
     internal sealed class LifecycleSystemRowLease : IDisposable
     {
         private const BindingFlags InstanceFields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
@@ -22,6 +25,8 @@ namespace ProjectLucid.Tests
         private SystemRef untypedReference;
         private IDictionary typedCache;
         private bool releaseAttempted;
+        // Borrowed rows only: the row's typed entries at admission.
+        private Dictionary<object, object> priorTypedEntries;
 
         internal sealed class FailureRecord
         {
@@ -50,9 +55,47 @@ namespace ProjectLucid.Tests
             this.reportCleanupFailure = reportCleanupFailure ?? (message => TestContext.Error.WriteLine(message));
         }
 
+        private LifecycleSystemRowLease(IDictionary registry, string name, object idleRow, Action<string> reportCleanupFailure)
+        {
+            this.registry = registry;
+            this.name = name;
+            this.reportCleanupFailure = reportCleanupFailure ?? (message => TestContext.Error.WriteLine(message));
+            row = idleRow;
+            untypedReference = (SystemRef)ReadRowField(idleRow, "SystemRef");
+            typedCache = (IDictionary)ReadRowField(idleRow, "SystemRefDictionary");
+            priorTypedEntries = new Dictionary<object, object>();
+            foreach (DictionaryEntry entry in typedCache) priorTypedEntries.Add(entry.Key, entry.Value);
+        }
+
+        // Admission reads fields only, so a rejected row's observers and
+        // deferred work are neither invoked nor consumed.
+        internal static LifecycleSystemRowLease AdmitAbsentOrIdle(IDictionary registry, string name, Action<string> reportCleanupFailure = null)
+        {
+            if (registry == null) throw new ArgumentNullException(nameof(registry));
+            if (name == null) throw new ArgumentNullException(nameof(name));
+            if (!registry.Contains(name)) return new LifecycleSystemRowLease(registry, name, reportCleanupFailure);
+            object existing = registry[name];
+            if (existing == null)
+                throw new InvalidOperationException("Lifecycle fixture requires an absent or idle system row: " + name);
+            RequireClearedReference(ReadRowField(existing, "SystemRef"), name);
+            foreach (DictionaryEntry entry in (IDictionary)ReadRowField(existing, "SystemRefDictionary"))
+                RequireClearedReference(entry.Value, name);
+            return new LifecycleSystemRowLease(registry, name, existing, reportCleanupFailure);
+        }
+
+        internal bool IsBorrowed => priorTypedEntries != null;
+
         internal void CaptureCreatedRow(SystemRef reference)
         {
             if (reference == null) throw new ArgumentNullException(nameof(reference));
+            if (IsBorrowed)
+            {
+                // The admitted row is already held; confirm GetSystemRef reused it.
+                if (!ReferenceEquals(registry[name], row) || !ReferenceEquals(reference, untypedReference) ||
+                    typedCache.Count != priorTypedEntries.Count)
+                    throw new InvalidOperationException("Lifecycle fixture borrowed row changed: " + name);
+                return;
+            }
             if (row != null || !registry.Contains(name))
                 throw new InvalidOperationException("Lifecycle fixture cannot capture its system row: " + name);
             object created = registry[name];
@@ -110,6 +153,11 @@ namespace ProjectLucid.Tests
         private void RemoveClearedRow()
         {
             if (row == null) return;
+            if (IsBorrowed)
+            {
+                ReturnBorrowedRow();
+                return;
+            }
             if (!ReferenceEquals(registry[name], row) ||
                 !ReferenceEquals(ReadRowField(row, "SystemRef"), untypedReference) ||
                 !ReferenceEquals(ReadRowField(row, "SystemRefDictionary"), typedCache) ||
@@ -126,10 +174,39 @@ namespace ProjectLucid.Tests
             row = null;
         }
 
+        // The borrowed row stays registered. Every prior entry must be the
+        // same idle reference, and the only other entries are the captured
+        // ones this lease added; those are removed once cleared.
+        private void ReturnBorrowedRow()
+        {
+            if (!ReferenceEquals(registry[name], row) ||
+                !ReferenceEquals(ReadRowField(row, "SystemRef"), untypedReference) ||
+                !ReferenceEquals(ReadRowField(row, "SystemRefDictionary"), typedCache))
+                throw new InvalidOperationException("Lifecycle fixture row ownership changed: " + name);
+            var added = new List<object>();
+            foreach (KeyValuePair<string, object> reference in typedReferences)
+                if (!priorTypedEntries.ContainsKey(reference.Key)) added.Add(reference.Key);
+            if (typedCache.Count != priorTypedEntries.Count + added.Count)
+                throw new InvalidOperationException("Lifecycle fixture row ownership changed: " + name);
+            foreach (KeyValuePair<object, object> entry in priorTypedEntries)
+                if (!typedCache.Contains(entry.Key) || !ReferenceEquals(typedCache[entry.Key], entry.Value))
+                    throw new InvalidOperationException("Lifecycle fixture typed cache ownership changed: " + name);
+            foreach (KeyValuePair<string, object> reference in typedReferences)
+                if (!typedCache.Contains(reference.Key) || !ReferenceEquals(typedCache[reference.Key], reference.Value))
+                    throw new InvalidOperationException("Lifecycle fixture typed cache ownership changed: " + name);
+            RequireClearedReference(untypedReference);
+            foreach (KeyValuePair<object, object> entry in priorTypedEntries) RequireClearedReference(entry.Value);
+            foreach (object key in added) RequireClearedReference(typedCache[key]);
+            foreach (object key in added) typedCache.Remove(key);
+            row = null;
+        }
+
         private static object ReadRowField(object value, string fieldName) =>
             value.GetType().GetField(fieldName, InstanceFields).GetValue(value);
 
-        private void RequireClearedReference(object reference)
+        private void RequireClearedReference(object reference) => RequireClearedReference(reference, name);
+
+        private static void RequireClearedReference(object reference, string name)
         {
             Type type = reference.GetType();
             while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>))

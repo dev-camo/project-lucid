@@ -2111,6 +2111,18 @@ EDITMODE_TESTS += (
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(False)",
     "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.CreatedRow_ReplacedOrExtraTypedEntryIsRetainedWithoutInvokingIt(True)",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.IdleRow_IsBorrowedAndOnlyItsAddedTypedEntryIsRemoved(False)",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.IdleRow_IsBorrowedAndOnlyItsAddedTypedEntryIsRemoved(True)",
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(False,"startup")',
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(False,"shutdown")',
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(False,"deferred")',
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(False,"system")',
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(True,"startup")',
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(True,"shutdown")',
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(True,"deferred")',
+    'ProjectLucid.Tests.LifecycleSystemRowLeaseTests.ObservedOrOwnedRow_IsNotBorrowedAndItsWorkIsNotInvoked(True,"system")',
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.BorrowedRow_GainingUnownedWorkIsRetainedWithoutInvokingIt(False)",
+    "ProjectLucid.Tests.LifecycleSystemRowLeaseTests.BorrowedRow_GainingUnownedWorkIsRetainedWithoutInvokingIt(True)",
 )
 
 # Native-grounded strengthening of weak original-behavior cases, kept in their own files.
