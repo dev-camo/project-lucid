@@ -201,6 +201,28 @@ namespace ProjectLucid.Tests
             Assert.That(Get(rig.Focus, "m_previousScrollRectVelocity"), Is.EqualTo(expected));
         }
 
+        // The third test, |previous axis| > float.Epsilon (andps 0x29a6c20 / ucomiss
+        // 0x29a6bf0 at 0x1b66279 and its vertical counterpart), decides only for
+        // previous = -float.Epsilon: its Mathf.Sign is -1, so the sign test passes,
+        // but its magnitude is not above Epsilon, so nothing is restored.
+        [TestCase(true)]
+        [TestCase(false)]
+        public void LateUpdateDoesNotRestoreAPreviousVelocityOfMinusEpsilon(bool horizontal)
+        {
+            Rig rig = Build(horizontal);
+            Vector2 currentVelocity = horizontal ? new Vector2(5f, 4f) : new Vector2(4f, 5f);
+            Vector2 previousVelocity = horizontal ? new Vector2(-float.Epsilon, -8f) : new Vector2(-8f, -float.Epsilon);
+            rig.Scroll.velocity = currentVelocity;
+            Set(rig.Focus, "m_previousScrollRectVelocity", previousVelocity);
+            Set(rig.Focus, "m_preserveVelocity", true);
+
+            Call(rig.Focus, "LateUpdate");
+
+            Assert.That(rig.Scroll.velocity, Is.EqualTo(currentVelocity));
+            Assert.That(Get(rig.Focus, "m_preserveVelocity"), Is.True);
+            Assert.That(Get(rig.Focus, "m_previousScrollRectVelocity"), Is.EqualTo(currentVelocity));
+        }
+
         [TestCase(true)]
         [TestCase(false)]
         public void LateUpdateWithoutPreserveVelocityOnlySamplesTheVelocity(bool horizontal)

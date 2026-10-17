@@ -23,9 +23,10 @@ namespace Hardlight
             InternalCalculatePositionDelta(RectTransform.Axis.Horizontal, child.rect.width, interactionType, index);
         }
 
-        // 0x0600056a @0x1B66180. After a refocus the previous x velocity is restored
-        // once, and only when the current sign is non-negative (Mathf.Sign) while the
-        // previous one differed and was nonzero. The velocity is sampled every frame.
+        // 0x0600056a @0x1B66180. Once an add or remove has armed m_preserveVelocity,
+        // the previous x velocity is restored once, and only when Mathf.Sign of the
+        // current one is +1 while the previous sign differed and its magnitude
+        // exceeds float.Epsilon. The velocity is sampled every frame.
         private new void LateUpdate()
         {
             base.LateUpdate();

@@ -189,6 +189,54 @@ namespace ProjectLucid.Tests
             Assert.That(rig.Carousel.vertical, Is.True);
         }
 
+        // The two-item boundary of the `itemCount >= 2` test (cmp r14d, 2 / jge at
+        // 0x1b3ca2b and 0x1b3ca81): 0.5 / (2 - 1) with the rodata 0.5 at 0x29a6c08.
+        [Test]
+        public void SetupCarouselWithExactlyTwoItemsEnablesTheAxis()
+        {
+            Rig rig = Build(new Vector2(300f, 300f));
+            Children(rig, 2);
+            SetDirection(rig.Carousel, 0);
+            rig.Carousel.horizontal = false;
+            rig.Carousel.vertical = true;
+
+            rig.Carousel.SetupCarousel();
+
+            Assert.That(WrapOffset(rig.Carousel), Is.EqualTo(new Vector2(0.5f, 0f)));
+            Assert.That(rig.Carousel.horizontal, Is.True);
+            Assert.That(rig.Carousel.vertical, Is.False);
+        }
+
+        // Each cap is compared with null and subtracted on its own (0x1b3c9f5..9fd,
+        // 0x1b3ca20..a28): four children less one cap leave three items, 0.5 / 2.
+        [Test]
+        public void SetupCarouselSubtractsOnlyTheEndCapWhenTheStartCapIsMissing()
+        {
+            Rig rig = Build(new Vector2(300f, 300f));
+            RectTransform[] items = Children(rig, 4);
+            Set(rig.Carousel, typeof(HLCarousel), "m_endCap", items[3]);
+            SetDirection(rig.Carousel, 0);
+
+            rig.Carousel.SetupCarousel();
+
+            Assert.That(WrapOffset(rig.Carousel), Is.EqualTo(new Vector2(0.25f, 0f)));
+            Assert.That(rig.Carousel.horizontal, Is.True);
+        }
+
+        [Test]
+        public void SetupCarouselSubtractsOnlyTheStartCapWhenTheEndCapIsMissing()
+        {
+            Rig rig = Build(new Vector2(300f, 300f));
+            RectTransform[] items = Children(rig, 4);
+            Set(rig.Carousel, typeof(HLCarousel), "m_startCap", items[0]);
+            SetDirection(rig.Carousel, 0);
+
+            rig.Carousel.SetupCarousel();
+
+            Assert.That(WrapOffset(rig.Carousel), Is.EqualTo(new Vector2(0.25f, 0f)));
+            Assert.That(rig.Carousel.horizontal, Is.True);
+        }
+
         // The caps are only compared with null (0x1b3c9f5, 0x1b3ca20), so caps outside
         // the content still reduce the count; below two items both axes stay off and
         // the offset is zero.
@@ -312,6 +360,20 @@ namespace ProjectLucid.Tests
             Near(ContentStart(rig.Carousel), new Vector2(107f, 3f));
         }
 
+        // The inlined test is max(|w| * 1e-6 (0x29a6e18), Mathf.Epsilon * 8 (0x29a6e1c))
+        // > |0 - w|, so a denormal offset below 8 * Epsilon also counts as zero.
+        [Test]
+        public void WrapAxisWithADenormalOffsetPinsAnInRangePositionToTheStart()
+        {
+            Rig rig = Build(new Vector2(300f, 300f));
+            Set(rig.Carousel, typeof(ScrollRect), "m_ContentStartPosition", new Vector2(7f, 3f));
+
+            Call(rig.Carousel, "WrapAxis", 0.6f, 0, 5e-45f);
+
+            Near(rig.Content.anchoredPosition, new Vector2(100f, 0f));
+            Near(ContentStart(rig.Carousel), new Vector2(107f, 3f));
+        }
+
         // The inlined Vector2 indexer throws "Invalid Vector2 index!" (0x1b3c92e) on
         // the first read, before anything is written.
         [Test]
@@ -370,6 +432,27 @@ namespace ProjectLucid.Tests
             Call(rig.Carousel, "LateUpdate");
 
             Assert.That(rig.Content.anchoredPosition, Is.EqualTo(new Vector2(-160f, -160f)));
+        }
+
+        // HLScrollRect.LateUpdate (0x0600068e, called at 0x1b3c76b) runs first and
+        // zeroes a velocity whose square magnitude is in (Epsilon, 100]: 25 here.
+        // Unit deceleration keeps ScrollRect.LateUpdate from damping it, and the
+        // content stays near normalised 0.5, inside the wrap bounds.
+        [Test]
+        public void LateUpdateRunsTheHLScrollRectSmallVelocityStopFirst()
+        {
+            Rig rig = Build(new Vector2(300f, 300f));
+            rig.Carousel.horizontal = true;
+            rig.Carousel.vertical = false;
+            rig.Carousel.inertia = true;
+            rig.Carousel.decelerationRate = 1f;
+            rig.Carousel.SetWrapOffset(new Vector2(0.25f, 0f));
+            rig.Carousel.velocity = new Vector2(5f, 0f);
+
+            Call(rig.Carousel, "LateUpdate");
+
+            Assert.That(rig.Carousel.velocity, Is.EqualTo(Vector2.zero));
+            Assert.That(Mathf.Abs(rig.Content.anchoredPosition.x), Is.LessThan(50f), "No wrap happened.");
         }
 
         sealed class CapSources

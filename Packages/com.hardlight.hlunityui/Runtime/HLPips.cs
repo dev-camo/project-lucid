@@ -2,8 +2,9 @@ using System.Collections.Generic;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
-// Original HLUnityUI.Runtime 0200000e (MethodDefs 0x06000076..7a): a row of page
-// indicator elements with one active pip that steps without wrapping.
+// Original HLUnityUI.Runtime 0200000e (MethodDefs 0x06000076..7a). Spawns one
+// HLPipsElement per pip under m_pipRoot and steps a single current pip without
+// wrapping, raising each element's activate and deactivate events.
 [Il2CppSetOption(Option.NullChecks, false)]
 [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 public sealed class HLPips : MonoBehaviour

@@ -262,6 +262,20 @@ namespace ProjectLucid.Tests
             Assert.That(State(rig.Pips), Is.EqualTo(new[] { 3, 0, 1 }));
         }
 
+        // Previous stops only on exactly 0 (test esi, esi / je at 0x1b3bdb9): from -1
+        // both indices are written before m_pips[-1] throws at 0x1b3bdd4.
+        [Test]
+        public void PreviousWithANegativeIndexAdvancesBeforeThrowing()
+        {
+            Rig rig = Build(false);
+            PipList(rig.Pips).AddRange(Logged(rig, 3));
+            SetState(rig.Pips, 3, -1, -1);
+
+            Assert.Throws<ArgumentOutOfRangeException>(() => rig.Pips.Previous());
+            Assert.That(State(rig.Pips), Is.EqualTo(new[] { 3, -2, -1 }));
+            Assert.That(rig.Log, Is.Empty);
+        }
+
         // The end test uses m_pipCount (0x1b3bd36), not the list size.
         [Test]
         public void NextStopsAtThePipCountEvenWithMorePipsInTheList()
