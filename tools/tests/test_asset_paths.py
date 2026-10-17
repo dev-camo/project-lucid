@@ -66,9 +66,9 @@ class AssetPathTests(unittest.TestCase):
         (run / "assetripper.log").write_text("Finished post-export\n")
         return run
 
-    def assert_preserved(self, action, protected):
+    def assert_preserved(self, action, protected, message=None):
         before = {path: snapshot(path) for path in protected}
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, message or ""):
             action()
         for path, original in before.items():
             self.assertEqual(snapshot(path), original, str(path))
@@ -97,10 +97,21 @@ class AssetPathTests(unittest.TestCase):
         link = self.work / "assets/latest-assets.json"
         link.parent.mkdir()
         link.symlink_to(self.foreign / "missing.json")
-        with mock.patch.object(assets, "verified_tool_path", return_value=self.tool), \
+        # Declare the fixture bundle so variant admission cannot be what rejects it.
+        for relative in (assets.inputvariants.GAME_ASSEMBLY, assets.inputvariants.METADATA, assets.inputvariants.INFO_PLIST):
+            (self.app / relative).parent.mkdir(parents=True, exist_ok=True)
+            (self.app / relative).write_bytes(b"synthetic " + relative.encode())
+        fingerprint = assets.fingerprint_manifest(assets._manifest(self.app))["critical_files"]
+        declared = {"binary_sha256": fingerprint.get(assets.inputvariants.GAME_ASSEMBLY),
+                    "metadata_sha256": fingerprint.get(assets.inputvariants.METADATA),
+                    "info_plist_sha256": fingerprint.get(assets.inputvariants.INFO_PLIST), "x86_64_slice_sha256": None,
+                    "qualified": frozenset((assets.inputvariants.ASSET_PREPARATION,))}
+        with mock.patch.dict(assets.inputvariants.VARIANTS, {"fixture": declared}), \
+             mock.patch.object(assets, "verified_tool_path", return_value=self.tool), \
              mock.patch.object(assets, "_start_ripper") as start:
+            self.assertEqual("fixture", assets.inputvariants.admit(fingerprint, assets.inputvariants.ASSET_PREPARATION))
             self.assert_preserved(lambda: assets.extract_assets(self.app, self.work),
-                                  (self.app, self.foreign, self.work))
+                                  (self.app, self.foreign, self.work), "cannot contain a symbolic link")
             start.assert_not_called()
 
     def test_work_alias_is_rejected_without_writing_foreign_cache(self):

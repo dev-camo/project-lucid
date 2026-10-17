@@ -69,6 +69,20 @@ class VariantTableTests(unittest.TestCase):
                 self.assertNotIn("e94d-88af (", text)
 
 
+    def test_every_asset_preparation_variant_records_its_info_plist(self):
+        for name, profile in inputvariants.VARIANTS.items():
+            if inputvariants.ASSET_PREPARATION in profile["qualified"]:
+                with self.subTest(variant=name):
+                    self.assertRegex(profile["info_plist_sha256"] or "", "^[0-9a-f]{64}$")
+
+    def test_admission_of_a_variant_without_a_recorded_info_plist_names_the_gap(self):
+        unrecorded = dict(inputvariants.VARIANTS["6c89-acb"], info_plist_sha256=None)
+        with mock.patch.dict(inputvariants.VARIANTS, {"6c89-acb": unrecorded}):
+            with self.assertRaisesRegex(ValueError, "Info.plist for declared variant 6c89-acb was never recorded") as raised:
+                inputvariants.admit(dict(LOCAL), inputvariants.ASSET_PREPARATION)
+        self.assertNotIn("differs", str(raised.exception))
+
+
 class ExportAdmissionTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()

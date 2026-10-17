@@ -356,8 +356,7 @@ def public_counts(measurement, *, source, input_binary, input_metadata, scope_sh
                   "scope_sha256": scope_sha256, "compiler_receipt_sha256": compiler_receipt_sha256}
     if any(not isinstance(value, str) or HASH.fullmatch(value) is None for value in identities.values()):
         raise ValueError("Invalid sealed code-work identity")
-    # Progress is published per declared variant and never mixed with another
-    # variant's binding evidence; an undeclared input cannot be published.
+    # Publish progress only for a declared code/metadata variant qualified for progress measurement.
     inputvariants.require_code_variant(input_binary, input_metadata, inputvariants.CODE_PROGRESS)
     groups, totals = _count_groups(measurement)
     return {"schema_version": measurement["schema_version"], "generated_by": "ProjectLucid.code_progress", "measure": measurement["measure"], **identities,
@@ -509,6 +508,9 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
     app, binary, metadata, version = recovery._resolve_input(input_path)
     if version != UNITY_VERSION: raise ValueError("Original Unity version differs")
     binary_seal = playercode._file_record(binary, 2 * 1024**3); metadata_seal = playercode._file_record(metadata)
+    # Reject an undeclared input before any slice, lock, run or reader exists;
+    # public_counts repeats the check on the sealed hashes it publishes.
+    inputvariants.require_code_variant(binary_seal["sha256"], metadata_seal["sha256"], inputvariants.CODE_PROGRESS)
     thin, _ = recovery._thin_binary(binary, work, binary_seal["sha256"])
     thin_seal = playercode._file_record(thin, 2 * 1024**3)
     lock = managed_path(work, "locks", "code-progress.lock"); lock.parent.mkdir(parents=True, exist_ok=True)

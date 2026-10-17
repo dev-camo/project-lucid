@@ -578,6 +578,18 @@ class WrapperPublicationTests(unittest.TestCase):
                 self.assert_retained()
                 self.binary.write_bytes(self.thin.read_bytes()); self.doc.write_text("class Sample {}\n")
 
+    def test_undeclared_input_rejected_before_slice_lock_run_or_reader(self):
+        # The sealed binary still matches the declared synthetic variant; only the
+        # metadata half differs, so the pair is not a declared variant.
+        self.metadata.write_bytes(b"undeclared original metadata")
+        with patch.object(codeprogress.recovery, "_thin_binary", side_effect=AssertionError("must not thin")) as thin, \
+             patch.object(codeprogress, "_build_reader", side_effect=AssertionError("must not build")) as build, \
+             patch.object(codeprogress.subprocess, "run", side_effect=AssertionError("must not run")) as run:
+            with self.assertRaisesRegex(ValueError, "variant is not declared"): self.invoke()
+        thin.assert_not_called(); build.assert_not_called(); run.assert_not_called()
+        self.assertFalse((self.work / "code-progress/runs").exists())
+        self.assert_retained()
+
     def test_current_source_stale_on_final_recheck_cannot_publish(self):
         with patch.object(codeprogress, "artifact_fingerprint", side_effect=["a" * 64, "a" * 64, "f" * 64]):
             with self.assertRaisesRegex(ValueError, "Source changed before"): self.invoke()

@@ -93,7 +93,10 @@ def admit(critical_files, purpose):
     if purpose not in VARIANTS[name]["qualified"]:
         raise ValueError("Original input variant " + name + " is declared but not qualified for " + purpose +
                          ": supplied " + _describe(supplied) + "; supported: " + _supported(purpose))
-    if VARIANTS[name]["info_plist_sha256"] is None or supplied["info_plist_sha256"] != VARIANTS[name]["info_plist_sha256"]:
+    if VARIANTS[name]["info_plist_sha256"] is None:
+        raise ValueError("Info.plist for declared variant " + name + " was never recorded; admission requires it: supplied " +
+                         _describe(supplied))
+    if supplied["info_plist_sha256"] != VARIANTS[name]["info_plist_sha256"]:
         raise ValueError("Original input Info.plist differs from declared variant " + name + ": supplied " +
                          _describe(supplied) + "; supported for " + purpose + ": " + _supported(purpose))
     return name
