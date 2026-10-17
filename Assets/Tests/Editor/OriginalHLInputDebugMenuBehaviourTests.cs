@@ -210,17 +210,18 @@ namespace ProjectLucid.Tests
         }
 
         // An owned inactive App in an absent default row. Its field initialisers
-        // auto-register the SaveManager and UIScreenTransitionManager rows; only
-        // rows created here are removed, after checking they never held a system.
+        // auto-register the SaveManager and UIScreenTransitionManager rows; rows
+        // created here are removed after checking they never held a system, and
+        // a borrowed row loses only the typed references GetSystemRef<T> cached.
         private static void WithOwnedApp(Action<App, List<Object>> body)
         {
             IDictionary registry = Registry();
             string[] fieldRows = { ProcessManager.GetDefaultName<SaveManager>(), ProcessManager.GetDefaultName<UIScreenTransitionManager>() };
-            bool[] existed = new bool[fieldRows.Length];
+            var borrowed = new BorrowedSystemRowTypedCache[fieldRows.Length];
             for (int i = 0; i < fieldRows.Length; i++)
             {
-                existed[i] = registry.Contains(fieldRows[i]);
-                if (existed[i]) Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), "Occupied row " + fieldRows[i]);
+                if (registry.Contains(fieldRows[i])) Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), "Occupied row " + fieldRows[i]);
+                borrowed[i] = BorrowedSystemRowTypedCache.TryBorrow(fieldRows[i]);
             }
             var owned = new List<Object>();
             try
@@ -241,7 +242,8 @@ namespace ProjectLucid.Tests
             {
                 for (int i = 0; i < fieldRows.Length; i++)
                 {
-                    if (existed[i] || !registry.Contains(fieldRows[i])) continue;
+                    if (borrowed[i] != null) { borrowed[i].Dispose(); continue; }
+                    if (!registry.Contains(fieldRows[i])) continue;
                     Assert.IsTrue(ProcessManager.IsSystemNull(fieldRows[i]), fieldRows[i]);
                     registry.Remove(fieldRows[i]);
                 }
