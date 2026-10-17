@@ -2221,14 +2221,19 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGreyscaleAndBrightnessModifi
 # Restored Hardlight.HLExclusiveStateGroup (HLUnityUI.Runtime 0x06000633..3d) and HLStateSwitcher.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLExclusiveStateGroupTests." + name for name in (
     "DeclarationsKeepTheShippedAttributesAndFields",
+    "DeclarationsKeepTheShippedMethodOrder",
     "SwitcherEnabledRaisesOnlyOnChangeAndStartReplaysTheState",
     "SwitcherEnabledWithoutOnEnabledFallsThroughToOnDisabled",
     "ElementKeyIsTheInstanceIdUntilSetKeyAndTheSetterIsEmpty",
     "ActivateDisablesOthersInOrderThenEnablesTheMatch",
     "DuplicateKeysEnableTheLastMatchAndNoMatchThrowsAfterDisabling",
+    "ActivateEnableWithoutOnEnabledFallsThroughToOnDisabled",
+    "ActivateDisablesADestroyedSwitcherAndThrowsForAMissingOne",
+    "OnEnableIgnoresADestroyedDefaultSwitcher",
     "SetKeysAlsoKeysTheDefaultElementThatOnEnableActivates",
     "SetKeysLogsEachMissingKeyAndSurplusKeysOnce",
     "SetKeysThrowsForNullKeysAndForADefaultWithoutASwitcher",
+    "SetKeysReadsTheSwitcherInstanceIdsOnlyForKeyedIndices",
 ))
 
 # Issue #87: Language row admission and unwind controls.

@@ -148,6 +148,26 @@ namespace ProjectLucid.Tests
             }, Fields(typeof(HLStateSwitcher)));
         }
 
+        // Method order follows the dump.cs tokens 0x06000633..39 (group),
+        // 0x0600063a..3d (element) and 0x060006f4..f8 (switcher).
+        [Test]
+        public void DeclarationsKeepTheShippedMethodOrder()
+        {
+            CollectionAssert.AreEqual(new[]
+            {
+                "Action_Activate(HLStateSwitcher)", "Action_Activate(Int32)", "Activate(Int32)", "SetKeys(Int32[])",
+                "OnEnable()", "ActivateStateGroupElement(Int32)", ".ctor()",
+            }, Methods(typeof(HLExclusiveStateGroup)));
+            CollectionAssert.AreEqual(new[] { "get_Key()", "set_Key(Int32)", "SetKey(Int32)", ".ctor()" }, Methods(ElementType));
+            CollectionAssert.AreEqual(new[] { "get_Enabled()", "set_Enabled(Boolean)", "Start()", "InvokeEvents(Boolean)", ".ctor()" },
+                Methods(typeof(HLStateSwitcher)));
+        }
+
+        static string[] Methods(Type type) => type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared))
+            .OrderBy(m => m.MetadataToken)
+            .Select(m => m.Name + "(" + string.Join(",", m.GetParameters().Select(p => p.ParameterType.Name)) + ")")
+            .ToArray();
+
         static string[] Fields(Type type) => type.GetFields(Declared).OrderBy(f => f.MetadataToken)
             .Select(f => f.Name + "|" + f.Attributes + "|" + f.FieldType.Name + "|"
                 + string.Join(",", f.GetCustomAttributesData().Select(a => a.AttributeType.Name)))
@@ -189,9 +209,10 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // InvokeEvents 0x1b73910 (and its inlined copies) reloads m_onDisabled
-        // (+0x30) when enabled and m_onEnabled (+0x28) is null; with both null
-        // nothing is invoked. Mutation caught: (enabled ? on : off)?.Invoke().
+        // InvokeEvents 0x1b73910 and the copy inlined into set_Enabled reload
+        // m_onDisabled (+0x30) when enabled and m_onEnabled (+0x28) is null;
+        // with both null nothing is invoked. Mutation caught:
+        // (enabled ? on : off)?.Invoke().
         [Test]
         public void SwitcherEnabledWithoutOnEnabledFallsThroughToOnDisabled()
         {
@@ -305,6 +326,65 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The enable inlined into ActivateStateGroupElement (0x1b6fa29..39)
+        // also falls through to m_onDisabled when m_onEnabled is null.
+        // Mutation caught: a group-side m_onEnabled?.Invoke() enable.
+        [Test]
+        public void ActivateEnableWithoutOnEnabledFallsThroughToOnDisabled()
+        {
+            using (var rig = new Rig(true, false))
+            {
+                Set(rig.Switchers[1], "m_onEnabled", null);
+                rig.Group.Activate(rig.Switchers[1].GetInstanceID());
+                Assert.AreEqual("01", rig.States());
+                CollectionAssert.AreEqual(new[] { "0-", "1-" }, rig.Events);
+            }
+        }
+
+        // The disable path checks the element and its switcher only for a raw
+        // null (0x1b6f9b7, 0x1b6f9c4), so a destroyed switcher is still
+        // disabled and raises m_onDisabled, and a missing one throws.
+        // Mutation caught: a UnityEngine.Object null guard before the disable.
+        [Test]
+        public void ActivateDisablesADestroyedSwitcherAndThrowsForAMissingOne()
+        {
+            using (var rig = new Rig(true, true))
+            {
+                Object.DestroyImmediate(rig.Switchers[0].gameObject);
+                rig.Group.Activate(rig.Switchers[1].GetInstanceID());
+                CollectionAssert.AreEqual(new[] { "0-" }, rig.Events);
+                Assert.IsFalse((bool)Get(rig.Switchers[0], "m_enabled"));
+                Assert.IsTrue(rig.Switchers[1].Enabled);
+            }
+
+            using (var rig = new Rig(true, true))
+            {
+                rig.DefaultSwitcher = rig.Switchers[1];
+                rig.Group.SetKeys(new[] { 1, 2 });
+                Set(rig.Elements[0], "StateSwitcher", null);
+                Assert.Throws<NullReferenceException>(() => rig.Group.Activate(2));
+                Assert.AreEqual("11", rig.States());
+                Assert.IsEmpty(rig.Events);
+            }
+        }
+
+        // OnEnable 0x1b6fc40 gates on UnityEngine.Object inequality (0x1b6fc92),
+        // so a destroyed default switcher activates nothing. Mutation caught: a
+        // reference-null gate, which would disable 0 and then throw.
+        [Test]
+        public void OnEnableIgnoresADestroyedDefaultSwitcher()
+        {
+            using (var rig = new Rig(true, false))
+            {
+                HLStateSwitcher destroyed = rig.NewSwitcher("gone", false);
+                rig.DefaultSwitcher = destroyed;
+                Object.DestroyImmediate(destroyed.gameObject);
+                Assert.DoesNotThrow(() => Call(rig.Group, "OnEnable"));
+                Assert.AreEqual("10", rig.States());
+                Assert.IsEmpty(rig.Events);
+            }
+        }
+
         // SetKeys 0x1b6fa60 pairs keys with elements by index and copies the
         // key to the separate default element whose switcher has the same
         // instance ID. OnEnable 0x1b6fc40 activates by the default's Key and
@@ -350,6 +430,7 @@ namespace ProjectLucid.Tests
                     CollectionAssert.AreEqual(new[] { missing, missing }, capture.Errors);
                     Assert.AreEqual(4, Key(rig.Elements[0]));
                     Assert.AreEqual(rig.Switchers[1].GetInstanceID(), Key(rig.Elements[1]));
+                    Assert.AreEqual(4, Key(rig.Default), "the default still takes its key");
 
                     capture.Errors.Clear();
                     rig.Group.SetKeys(new[] { 1, 2, 3 });
@@ -392,6 +473,32 @@ namespace ProjectLucid.Tests
             {
                 Assert.Throws<NullReferenceException>(() => rig.Group.SetKeys(new[] { 1, 2 }));
                 Assert.IsFalse((bool)Get(rig.Elements[0], "m_keysSet"), "nothing stored before the throw");
+            }
+        }
+
+        // Both instance IDs are read only when i < keys.Length (the jge at
+        // 0x1b6fb17 skips to the log), and the element's switcher is read
+        // first with a raw null check (0x1b6fb2e). Mutations caught: hoisting
+        // the default's instance ID out of the length check, and comparing the
+        // switchers with UnityEngine.Object equality.
+        [Test]
+        public void SetKeysReadsTheSwitcherInstanceIdsOnlyForKeyedIndices()
+        {
+            using (var capture = new OwnedHLOutputErrorCapture())
+            using (var rig = new Rig(false, false))
+            {
+                Assert.DoesNotThrow(() => rig.Group.SetKeys(new int[0]));
+                const string missing = "Not enough keys provided, more state switchers exist than keys|0";
+                CollectionAssert.AreEqual(new[] { missing, missing }, capture.Errors);
+            }
+
+            using (var rig = new Rig(false, false))
+            {
+                rig.DefaultSwitcher = rig.Switchers[1];
+                Set(rig.Elements[0], "StateSwitcher", null);
+                Assert.Throws<NullReferenceException>(() => rig.Group.SetKeys(new[] { 1, 2 }));
+                Assert.IsFalse((bool)Get(rig.Elements[0], "m_keysSet"));
+                Assert.IsFalse((bool)Get(rig.Elements[1], "m_keysSet"));
             }
         }
     }
