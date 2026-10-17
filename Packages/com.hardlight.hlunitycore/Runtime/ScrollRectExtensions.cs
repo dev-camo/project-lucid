@@ -7,7 +7,7 @@ namespace Hardlight
     public static class ScrollRectExtensions
     {
         // 0x06000305 (0x1ab39a0): stop, then snap each enabled axis to its start;
-        // the vertical start is 1 (constant 0x3f800000 at 0x29a6be0).
+        // the vertical start is 1 (top).
         public static void ResetScroll(this ScrollRect scrollRect)
         {
             if (scrollRect != null)

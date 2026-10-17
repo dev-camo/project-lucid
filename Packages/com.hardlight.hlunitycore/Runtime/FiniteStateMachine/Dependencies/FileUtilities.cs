@@ -8,8 +8,8 @@ using Unity.IL2CPP.CompilerServices;
 namespace Hardlight.Utils
 {
     // Original HLUnityCore.Runtime 020002c8 (0600120a..06001214), bodies from the
-    // 1.10.1 x86-64 binary. Null checks are off for the whole type, so null paths
-    // and callbacks fail inside the framework calls rather than here.
+    // 1.10.1 x86-64 binary. Null checks are off for the whole type: null paths
+    // fail inside the framework calls, and a null callback is invoked unchecked.
     [PublicAPI]
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
@@ -165,12 +165,13 @@ namespace Hardlight.Utils
                     {
                         index += 2;
                     }
+                    else if (appendSlash)
+                    {
+                        index++;
+                    }
                     else
                     {
-                        // The native loop re-reads this '/' once the flag is set; the
-                        // probes are pure, so the second pass only advances.
                         appendSlash = true;
-                        index++;
                     }
                 }
                 else

@@ -56,7 +56,9 @@ namespace Hardlight
                     argumentIndex -= argumentCount;
                     if (argumentCount > 0)
                     {
-                        // Concat(3) 0x1ab675b, then Concat(2) 0x1ab6768.
+                        // Kept as a local: the shipped body builds "<" + Join + ">" first
+                        // (Concat(3) at 0x1ab675b) and then appends it to name (Concat(2)
+                        // at 0x1ab6768).
                         string arguments = "<" + string.Join(", ", genericArguments, argumentIndex, argumentCount) + ">";
                         name += arguments;
                     }

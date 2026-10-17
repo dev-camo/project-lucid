@@ -51,9 +51,9 @@ namespace ProjectLucid
             {
                 var attr = row.Type.GetCustomAttribute<CreateAssetMenuAttribute>(); Check(attr != null && attr.fileName == row.File && attr.menuName == row.Menu && attr.order == row.Order, row.Type.Name + " exact asset menu metadata");
             }
-            // ObjectUtils is now fully restored: the name-lookup pair keeps its Unity
-            // object constraint and parameter name, and the whole static surface
-            // follows MethodDefs 0x06001216..0x06001237 in order (private 0x06001230/31).
+            // ObjectUtils static surface: MethodDefs 0x06001216..0x06001237 in order,
+            // 0x06001230/31 private; the name-lookup pair keeps its UnityEngine.Object
+            // constraint and parameter name.
             MethodInfo[] utilityMethods = utils.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly).OrderBy(x => x.MetadataToken).ToArray();
             foreach (MethodInfo method in utilityMethods.Where(x => x.Name == "FindByName" || x.Name == "FindByNameSafe"))
                 Check(method.IsPublic && method.IsGenericMethodDefinition && method.GetGenericArguments().Single().GetGenericParameterConstraints().SequenceEqual(new[] { typeof(UObject) }) && method.GetParameters().Single().Name == "name", "genuine helper Unity object constraint and original parameter name");

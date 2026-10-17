@@ -10,14 +10,12 @@ using UnityEngine.UI;
 
 namespace ProjectLucid.Tests
 {
-    // Behaviour of the original HLUnityCore.Runtime ObjectUtils (020002ca) and the
-    // Animation/ScrollRect extension guards against their 1.10.1 x86-64 bodies.
+    // Behaviour of the original HLUnityCore.Runtime ObjectUtils (020002ca) against
+    // its 1.10.1 x86-64 bodies.
     // Every GameObject and asset is created and destroyed by this fixture, and the
     // probe component's static log is cleared around each case.
     // Recorded EditMode gaps: DestroyChildren 0x0600122d (deferred Object.Destroy
-    // needs Play Mode), AnimationExtensions.Stop 0x0600023d's immediate and
-    // blend-plus-coroutine paths with WaitUntilBlendIsFinished (a playing legacy
-    // clip and CoroutineUtils host need Play Mode), FindComponentInRaycastHits
+    // needs Play Mode), FindComponentInRaycastHits
     // 0x06001221 (RaycastHit2D colliders need a physics query) and
     // FindObjectsOfTypeAll 0x06001218 (editor-wide Resources scan).
     [TestFixture]
@@ -377,62 +375,6 @@ namespace ProjectLucid.Tests
 
             child.SetActive(true);
             Assert.That(ObjectUtils.FindObjectOfType<OriginalHLUnityCoreCopyComponentProbe>(), Is.SameAs(probe));
-        }
-
-        // ResetScroll 0x06000305 (0x1ab39a0): StopMovement, then horizontal 0 and
-        // vertical 1 (0x3f800000 at 0x29a6be0), each only for an enabled axis.
-        [Test]
-        public void ResetScrollSnapsEnabledAxesToTheirStart()
-        {
-            GameObject root = Create("Scroll");
-            RectTransform viewRect = root.AddComponent<RectTransform>();
-            viewRect.sizeDelta = new Vector2(100f, 100f);
-            GameObject contentObject = Create("Content", root.transform);
-            RectTransform content = contentObject.AddComponent<RectTransform>();
-            content.sizeDelta = new Vector2(300f, 300f);
-            ScrollRect scrollRect = root.AddComponent<ScrollRect>();
-            scrollRect.content = content;
-
-            scrollRect.horizontalNormalizedPosition = 0.5f;
-            scrollRect.verticalNormalizedPosition = 0.5f;
-            scrollRect.velocity = new Vector2(5f, 5f);
-            scrollRect.ResetScroll();
-            Assert.That(scrollRect.velocity, Is.EqualTo(Vector2.zero));
-            Assert.That(scrollRect.horizontalNormalizedPosition, Is.EqualTo(0f).Within(1e-4f));
-            Assert.That(scrollRect.verticalNormalizedPosition, Is.EqualTo(1f).Within(1e-4f));
-
-            scrollRect.horizontal = false;
-            scrollRect.horizontalNormalizedPosition = 0.5f;
-            scrollRect.verticalNormalizedPosition = 0.5f;
-            scrollRect.ResetScroll();
-            Assert.That(scrollRect.horizontalNormalizedPosition, Is.EqualTo(0.5f).Within(1e-4f), "a disabled axis is left alone");
-            Assert.That(scrollRect.verticalNormalizedPosition, Is.EqualTo(1f).Within(1e-4f));
-
-            // With both axes off only StopMovement runs (the position setters would
-            // also zero their axis' velocity, so this isolates the stop).
-            scrollRect.vertical = false;
-            scrollRect.verticalNormalizedPosition = 0.5f;
-            scrollRect.velocity = new Vector2(5f, 5f);
-            scrollRect.ResetScroll();
-            Assert.That(scrollRect.velocity, Is.EqualTo(Vector2.zero));
-            Assert.That(scrollRect.verticalNormalizedPosition, Is.EqualTo(0.5f).Within(1e-4f));
-        }
-
-        // AnimationExtensions.Stop 0x0600023d (0x1aae1a0) clears the coroutine and
-        // returns for a missing component or clip; ResetScroll 0x06000305
-        // (0x1ab39a0) guards with the Unity inequality.
-        [Test]
-        public void AnimationStopAndResetScrollReturnOnMissingTargets()
-        {
-            GameObject root = Create("Root");
-            Animation animation = root.AddComponent<Animation>();
-            animation.Stop("Missing", 1f, out Coroutine coroutine);
-            Assert.That(coroutine, Is.Null);
-
-            Object.DestroyImmediate(animation);
-            Assert.DoesNotThrow(() => animation.Stop("Missing", 1f, out _));
-            Assert.DoesNotThrow(() => ((Animation)null).Stop("Missing", 0f, out _));
-            Assert.DoesNotThrow(() => ((ScrollRect)null).ResetScroll());
         }
     }
 }

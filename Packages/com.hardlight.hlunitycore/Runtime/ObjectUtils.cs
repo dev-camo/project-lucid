@@ -209,14 +209,14 @@ namespace Hardlight.Utils
         }
 
         // 0x06001222 (0x1b355d0): Object.Instantiate<GameObject>(original, parent,
-        // worldPositionStays: false) [0x06000FA9], edx = 0 at 0x1b3562d.
+        // worldPositionStays: false) [0x06000FA9].
         public static GameObject SpawnPrefab(GameObject prefab, Transform parent)
         {
             return Object.Instantiate(prefab, parent, false);
         }
 
         // 0x06001223 (0x985680): method RGCTX [1] is Instantiate<T>(original, parent,
-        // worldPositionStays: false) [0x06000FA9], edx = 0 at 0x9856d3.
+        // worldPositionStays: false) [0x06000FA9].
         public static T SpawnPrefab<T>(T prefab, Transform parent) where T : Component
         {
             return Object.Instantiate(prefab, parent, false);
