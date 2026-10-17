@@ -4,7 +4,7 @@ using System;
 namespace Hardlight.UI.Binding.Nodes
 {
 	// Original HLBinders.Runtime 0200002f; bodies translated from the 1.10.1 x86-64 binary.
-	[AddComponentMenu(null)]
+	[AddComponentMenu("")]
 	public abstract class Constant<T> : BinderNode
 	{
 		[NodeOutput]

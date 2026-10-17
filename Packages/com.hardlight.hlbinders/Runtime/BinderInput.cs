@@ -5,7 +5,7 @@ using UnityEngine;
 namespace Hardlight.UI.Binding
 {
 	// Original HLBinders.Runtime 0200000c; bodies translated from the 1.10.1 x86-64 binary.
-	[AddComponentMenu(null)]
+	[AddComponentMenu("")]
 	[AddNodeMenu("Input", 0)]
 	public class BinderInput : BinderNode
 	{

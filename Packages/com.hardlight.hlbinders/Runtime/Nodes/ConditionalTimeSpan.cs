@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Hardlight.UI.Binding.Nodes
 {
 	// Original HLBinders.Runtime 0200002b; bodies translated from the 1.10.1 x86-64 binary.
-	[AddComponentMenu(null)]
+	[AddComponentMenu("")]
 	[AddNodeMenu("Conditional/TimeSpan", int.MaxValue)]
 	public class ConditionalTimeSpan : Conditional<TimeSpan>
 	{

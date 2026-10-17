@@ -5,7 +5,7 @@ using System;
 namespace Hardlight.UI.Binding.Nodes
 {
 	// Original HLBinders.Runtime 0200006d; bodies translated from the 1.10.1 x86-64 binary.
-	[AddComponentMenu(null)]
+	[AddComponentMenu("")]
 	public abstract class NumberConditional<T> : BinderNode
 	{
 		[NodeInput]

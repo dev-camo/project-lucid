@@ -10,11 +10,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using AddToDateTimeNode = Hardlight.UI.Binding.Nodes.AddToDateTime;
 using AnimationCurveNode = Hardlight.UI.Binding.Nodes.AnimationCurve;
+using BindingNodes = Hardlight.UI.Binding.Nodes;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Editor
 {
-    // Corrections to the restored HLBinders AddToDateTime and AnimationCurve nodes, the Game.Runtime
+    // Corrections to the restored HLBinders component-menu owners and AddToDateTime and AnimationCurve nodes, the Game.Runtime
     // ActorTransition_AbilityTriggered ctor args and HLModernUI UIWidgetRadioButtonGroup, each grounded
     // in the original 1.10.1 metadata or x86-64 body. Every object is owned and destroyed afterwards;
     // serialized references go in through SerializedObject, and only the private Unity Start message is
@@ -63,6 +64,62 @@ namespace ProjectLucid.Editor
                 Assert.That(menu.ConstructorArguments[0].ArgumentType, Is.EqualTo(typeof(string)), node.Name);
                 Assert.That(menu.ConstructorArguments[0].Value, Is.Not.Null.And.EqualTo(string.Empty), node.Name);
                 Assert.That(node.GetCustomAttribute<AddComponentMenu>(false).componentMenu, Is.EqualTo(string.Empty), node.Name);
+            }
+        }
+
+        // Every other HLBinders.Runtime owner of AddComponentMenu (tokens 0200000c, 0200001e-0200002e,
+        // 0200002f-0200003d, 02000040, 02000055-02000059, 0200006d-0200006e) passes ctor 0xc753 a string
+        // argument encoded 0e 00: zero length, where null would be 0e 01. BinderInput's raw blob is
+        // 0253c70000645c01000100000e000200000e0a496e7075740800. Catches [AddComponentMenu(null)].
+        [Test]
+        public void BinderOwnersHideFromTheComponentMenuWithAnEmptyString()
+        {
+            Type[] owners =
+            {
+                typeof(Hardlight.UI.Binding.BinderInput),
+                typeof(BindingNodes.Conditional<>),
+                typeof(BindingNodes.ConditionalAnimation),
+                typeof(BindingNodes.ConditionalAudio),
+                typeof(BindingNodes.ConditionalBool),
+                typeof(BindingNodes.ConditionalColour),
+                typeof(BindingNodes.ConditionalDateTime),
+                typeof(BindingNodes.ConditionalEnum),
+                typeof(BindingNodes.ConditionalFloat),
+                typeof(BindingNodes.ConditionalInt),
+                typeof(BindingNodes.ConditionalLong),
+                typeof(BindingNodes.ConditionalMaterial),
+                typeof(BindingNodes.ConditionalSprite),
+                typeof(BindingNodes.ConditionalString),
+                typeof(BindingNodes.ConditionalTimeSpan),
+                typeof(BindingNodes.ConditionalVector2),
+                typeof(BindingNodes.ConditionalVector3),
+                typeof(BindingNodes.Constant<>),
+                typeof(BindingNodes.ConstantAnimation),
+                typeof(BindingNodes.ConstantBool),
+                typeof(BindingNodes.ConstantColour),
+                typeof(BindingNodes.ConstantFloat),
+                typeof(BindingNodes.ConstantInt),
+                typeof(BindingNodes.ConstantLong),
+                typeof(BindingNodes.ConstantMaterial),
+                typeof(BindingNodes.ConstantNull),
+                typeof(BindingNodes.ConstantSprite),
+                typeof(BindingNodes.ConstantString),
+                typeof(BindingNodes.ConstantVector2),
+                typeof(BindingNodes.ConstantVector3),
+                typeof(BindingNodes.DebugLogNode),
+                typeof(BindingNodes.LogicalSwitch<>),
+                typeof(BindingNodes.LogicalSwitchColour),
+                typeof(BindingNodes.LogicalSwitchInt),
+                typeof(BindingNodes.LogicalSwitchMaterial),
+                typeof(BindingNodes.LogicalSwitchSprite),
+                typeof(BindingNodes.NumberConditional<>),
+                typeof(BindingNodes.NumberConditionalColour),
+            };
+            foreach (Type owner in owners)
+            {
+                CustomAttributeData menu = owner.GetCustomAttributesData().Single(a => a.AttributeType == typeof(AddComponentMenu));
+                Assert.That(menu.ConstructorArguments[0].ArgumentType, Is.EqualTo(typeof(string)), owner.Name);
+                Assert.That(menu.ConstructorArguments[0].Value, Is.Not.Null.And.EqualTo(string.Empty), owner.Name);
             }
         }
 
