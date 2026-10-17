@@ -2216,6 +2216,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalILCallSequenceTests.DelegateCreationAddsNoCallForTheReferencedMethods",
     "ProjectLucid.Tests.OriginalILCallSequenceTests.RealCallsKeepIlOrderAroundAnInterleavedFunctionPointerLoad",
     "ProjectLucid.Tests.OriginalILCallSequenceTests.FindByNameDelegatesDoNotSatisfyTheLookupOrderFilter",
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.RealFindByNameCallsSatisfyTheLookupOrderFilterInIlOrder",
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.DelegateThenRealCallRecordsOnlyTheCallInstruction",
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.ConstrainedCallvirtIsRecordedAfterItsPrefix",
 )
 
 # Low-priority gap cases that need real Awake/OnDestroy messages or an active scene object.
