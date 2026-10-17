@@ -419,38 +419,48 @@ namespace ProjectLucid.Tests
             Assert.That(bound, Is.Not.Null);
             Assert.That(bound.GetValue(null), Is.Null, "foreign bound local achievements stay untouched");
             Assert.That(ProcessManager.IsSystemNull<App>(), Is.True, "no foreign live App for the pending login to reach");
-            using (var owned = new OwnedServices())
-            using (var social = new OwnedSocialPlatform())
+            // The GameCenter constructor subscribes to these actions and creates
+            // a missing row; own them before it runs.
+            var actionRows = new VerificationFixtureOwnership.ActionRows(
+                SystemAction.Initialise, SystemAction.AppShutdown, SystemAction.Update);
+            GameCenter gameCenter = null;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                owned.ReadOnlyRow<App>();
-                owned.Row<GameCenter>();
-                owned.Row<GameCenterLocalPlayer>();
-                try
+                using (var owned = new OwnedServices())
+                using (var social = new OwnedSocialPlatform())
                 {
-                    var gameCenter = new GameCenter();
-                    Assert.That(ProcessManager.GetSystemSafe<GameCenter>(null, false), Is.SameAs(gameCenter));
-                    object lifecycle = typeof(GameCenter).GetField("m_offlineLifecycle", Instance).GetValue(gameCenter);
-                    FieldInfo pending = lifecycle.GetType().GetField("complete", Instance);
+                    owned.ReadOnlyRow<App>();
+                    owned.Row<GameCenter>();
+                    owned.Row<GameCenterLocalPlayer>();
+                    try
+                    {
+                        gameCenter = new GameCenter();
+                        Assert.That(ProcessManager.GetSystemSafe<GameCenter>(null, false), Is.SameAs(gameCenter));
+                        object lifecycle = typeof(GameCenter).GetField("m_offlineLifecycle", Instance).GetValue(gameCenter);
+                        FieldInfo pending = lifecycle.GetType().GetField("complete", Instance);
 
-                    IFSMState running = ApplicationStateLoadAssets.ConstructInstance(Machine(), Name(), null);
-                    Assert.Throws<InvalidCastException>(() => running.OnEnter(User(), null));
-                    Assert.That(pending.GetValue(lifecycle), Is.Not.Null, "the local login is pending, not published");
-                    Assert.That(gameCenter.SystemIsReady, Is.False);
+                        IFSMState running = ApplicationStateLoadAssets.ConstructInstance(Machine(), Name(), null);
+                        Assert.Throws<InvalidCastException>(() => running.OnEnter(User(), null));
+                        Assert.That(pending.GetValue(lifecycle), Is.Not.Null, "the local login is pending, not published");
+                        Assert.That(gameCenter.SystemIsReady, Is.False);
 
-                    lifecycle.GetType().GetMethod("Stop", Instance).Invoke(lifecycle, null);
-                    IFSMState stopped = ApplicationStateLoadAssets.ConstructInstance(Machine(), Name(), null);
-                    var fault = Assert.Throws<InvalidOperationException>(() => stopped.OnEnter(User(), null));
-                    Assert.That(fault.Message, Is.EqualTo("Local account lifecycle is stopped."));
-                    Assert.That(gameCenter.SystemIsReady, Is.False);
-                    Assert.That((social.LocalUserReads, social.Authentications), Is.EqualTo((0, 0)), "no platform authentication");
+                        lifecycle.GetType().GetMethod("Stop", Instance).Invoke(lifecycle, null);
+                        IFSMState stopped = ApplicationStateLoadAssets.ConstructInstance(Machine(), Name(), null);
+                        var fault = Assert.Throws<InvalidOperationException>(() => stopped.OnEnter(User(), null));
+                        Assert.That(fault.Message, Is.EqualTo("Local account lifecycle is stopped."));
+                        Assert.That(gameCenter.SystemIsReady, Is.False);
+                        Assert.That((social.LocalUserReads, social.Authentications), Is.EqualTo((0, 0)), "no platform authentication");
+                    }
+                    finally
+                    {
+                        // GameCenter registers itself and its local player into the owned rows.
+                        owned.AdoptCurrent<GameCenterLocalPlayer>();
+                        owned.AdoptCurrent<GameCenter>();
+                    }
                 }
-                finally
-                {
-                    // GameCenter registers itself and its local player into the owned rows.
-                    owned.AdoptCurrent<GameCenterLocalPlayer>();
-                    owned.AdoptCurrent<GameCenter>();
-                }
-            }
+            },
+            () => { if (gameCenter != null) ProcessManager.UnsubscribeFromAllActions(gameCenter); },
+            actionRows.Dispose);
         }
 
         [Serializable]
