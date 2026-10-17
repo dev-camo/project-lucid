@@ -5,6 +5,7 @@ using System.Reflection;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
+using UnityEngine.TestTools;
 using ProjectLucid.Tests.UISelectionShared;
 using Value = ProjectLucid.Tests.UISelectionShared.EnumSelectorProbeValue;
 
@@ -15,7 +16,8 @@ namespace ProjectLucid.Tests
     // 0x1392370..0x1392F80 and the type RGCTX ([5] Init, [6] EnumUtilities.GetValues<T>,
     // [7] SetStartingValue). Field slots by FieldInfo offset: +0x00 m_startingValue,
     // +0x20 m_label, +0x40 m_currentValue, +0x60 m_values, +0x80 m_valueCount,
-    // +0xA0 m_currentIndex. Validate is vtable slot 4 (+0x178) and Compare slot 5 (+0x188).
+    // +0xA0 m_currentIndex. Validate is vtable slot 4 (+0x178, direct call); Compare is
+    // vtable slot 5, called through its MethodInfo invoker at +0x190 (fully shared).
     // The probe enum is declared as Seven, Zero, Two, AlsoTwo, so GetValues gives 0, 2, 2, 7.
     public sealed class OriginalHLEnumSelectorTests
     {
@@ -247,13 +249,26 @@ namespace ProjectLucid.Tests
 
         // An enum with no values: Init stores the empty array and a zero count, the search
         // never runs, and SetStartingValue's m_values[0] (0x1392EEB) throws before Validate.
+        // The Editor may already send OnValidate (and so Init) during AddComponent, which
+        // would log the same exception; only that call tolerates failing logs (LogScope
+        // 1.1.33 filters them as they arrive), so the explicit Init below is still checked.
         [Test]
         public void InitOverAnEmptyEnumThrowsBeforeValidate()
         {
             var owner = new GameObject("OriginalHLEnumSelector-empty");
             m_owned.Add(owner);
             owner.SetActive(false);
-            EmptyEnumSelectorProbe probe = owner.AddComponent<EmptyEnumSelectorProbe>();
+            EmptyEnumSelectorProbe probe;
+            bool priorIgnoreFailingMessages = LogAssert.ignoreFailingMessages;
+            LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                probe = owner.AddComponent<EmptyEnumSelectorProbe>();
+            }
+            finally
+            {
+                LogAssert.ignoreFailingMessages = priorIgnoreFailingMessages;
+            }
             probe.Log = new List<string>();
             Assert.Throws<IndexOutOfRangeException>(() => probe.Init());
             Type closed = typeof(HLEnumSelector<EmptyEnumSelectorProbeValue>);

@@ -17,8 +17,8 @@ namespace Hardlight
             m_image = GetComponent<Image>();
         }
 
-        // 0x06000491: the colour is blended through LAB space, which does not carry alpha, so
-        // the image colour is read back and its alpha is lerped separately in RGB space.
+        // 0x06000491: LABColor (L, A, B only) drops alpha; the colour is read back and its
+        // alpha set to a clamped Mathf.Lerp of the two source alphas.
         public override void OnHighlightUpdated(HLButtonHighlightCustomisations.ButtonHighlightChangeSource previousSource, HLButtonHighlightCustomisations.ButtonHighlightChangeSource currentSource, float lerpValue)
         {
             m_image.color = LABColor.Lerp(previousSource.Color, currentSource.Color, lerpValue);

@@ -19,12 +19,10 @@ namespace Hardlight
         // becomes the negated offsetMax; the field keeps the un-negated Right/Top pair.
         public override void OnHighlightUpdated(HLButtonHighlightCustomisations.ButtonHighlightChangeSource previousSource, HLButtonHighlightCustomisations.ButtonHighlightChangeSource currentSource, float lerpValue)
         {
-            m_reusableVector2.x = Mathf.Lerp(previousSource.Left, currentSource.Left, lerpValue);
-            m_reusableVector2.y = Mathf.Lerp(previousSource.Bottom, currentSource.Bottom, lerpValue);
+            m_reusableVector2 = Vector2.Lerp(new Vector2(previousSource.Left, previousSource.Bottom), new Vector2(currentSource.Left, currentSource.Bottom), lerpValue);
             m_rectTransform.offsetMin = m_reusableVector2;
 
-            m_reusableVector2.x = Mathf.Lerp(previousSource.Right, currentSource.Right, lerpValue);
-            m_reusableVector2.y = Mathf.Lerp(previousSource.Top, currentSource.Top, lerpValue);
+            m_reusableVector2 = Vector2.Lerp(new Vector2(previousSource.Right, previousSource.Top), new Vector2(currentSource.Right, currentSource.Top), lerpValue);
             m_rectTransform.offsetMax = -m_reusableVector2;
         }
     }

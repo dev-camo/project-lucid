@@ -15,8 +15,9 @@ namespace ProjectLucid.Tests
     // layers (TypeDefs 0x02000094..98), from their x86-64 bodies in the pinned 6c89 dylib.
     // ButtonHighlightChangeSource layout (dump.cs 11829): Enabled +0x10, Top +0x14, Right
     // +0x18, Bottom +0x1C, Left +0x20, Sprite +0x28, Material +0x30, Color +0x38, SkewX
-    // +0x48, SkewY +0x4C. The lerps are Mathf.Lerp: minss with 1.0f (0x29a6be0), then the
-    // `< 0` mask, then a + (b - a) * t. Owners stay inactive unless a case needs otherwise.
+    // +0x48, SkewY +0x4C. Each lerp clamps t to [0, 1] once (minss with 1.0f at 0x29a6be0,
+    // then the `< 0` mask), then computes a + (b - a) * t (Mathf.Lerp or Vector2.Lerp
+    // semantics). Owners stay inactive unless a case needs otherwise.
     public sealed class OriginalSelectionModifierTests
     {
         private const BindingFlags Declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
@@ -138,7 +139,9 @@ namespace ProjectLucid.Tests
         public void ResizeResetTakesTheOwnRectTransformOrNull()
         {
             OnUISelectionResize rect = Make<OnUISelectionResize>("OriginalResize-reset-rect", true);
-            RectTransform other = Make<RectTransform>("OriginalResize-reset-other", true);
+            var otherOwner = new GameObject("OriginalResize-reset-other", typeof(RectTransform));
+            m_owned.Add(otherOwner);
+            var other = (RectTransform)otherOwner.transform;
             Set(rect, "m_rectTransform", other);
             Invoke(rect, "Reset");
             Assert.That(Get(rect, "m_rectTransform"), Is.SameAs(rect.transform));
@@ -165,7 +168,7 @@ namespace ProjectLucid.Tests
             Assert.That(Get(layer, "m_reusableVector2"), Is.EqualTo(new Vector2(4f, 3f)), "The field keeps the un-negated Right/Top pair.");
         }
 
-        // Mathf.Lerp clamps t to [0, 1]: t = 4 lands on the current insets, t = -3 on the
+        // The lerp clamps t to [0, 1]: t = 4 lands on the current insets, t = -3 on the
         // previous ones. Fails for an unclamped lerp.
         [Test]
         public void ResizeUpdateClampsTheLerpValue()
@@ -285,7 +288,9 @@ namespace ProjectLucid.Tests
         // 0x06000491 @0x1B5F960: color (vslot 23) = LABColor.Lerp(prev.Color, cur.Color, t)
         // (0x06000015 @0x1B5F9AD); +0x28 m_currentColourBlend = color (vslot 22); blend.a
         // (+0x34) = Mathf.Lerp(prev.Color.a +0x44, cur.Color.a +0x44, t); color = blend.
-        // Alphas 0.25 -> 0.75 at t = 0.5 give exactly 0.5; the RGB channels are LABColor's.
+        // Alphas 0.25 -> 0.75 at t = 0.5 give exactly 0.5. The RGB expectation calls
+        // LABColor.Lerp itself, so it checks delegation only; LABColor's own tests (graphics
+        // cluster) are the oracle for the RGB values.
         [Test]
         public void SwapColourBlendsRgbThroughLabAndLerpsAlphaSeparately()
         {
@@ -302,8 +307,9 @@ namespace ProjectLucid.Tests
             Assert.That(image.color, Is.Not.EqualTo(Color.Lerp(from, to, 0.5f)), "RGB is not an RGB-space lerp.");
         }
 
-        // The alpha lerp clamps like the LAB one: t = 3 gives the current alpha, t = -2 the
-        // previous alpha.
+        // The alpha lerp clamps like the LAB one (LABColor.Lerp 0x1B397F7 uses the same
+        // minss 1.0 / cmpltss 0 clamp): t = 3 gives the current alpha, t = -2 the previous
+        // alpha. The RGB checks are delegation-only, as above.
         [Test]
         public void SwapColourClampsTheAlphaLerp()
         {
@@ -457,7 +463,7 @@ namespace ProjectLucid.Tests
             GameObject owner = rectTransform ? new GameObject(name, typeof(RectTransform)) : new GameObject(name);
             m_owned.Add(owner);
             owner.SetActive(false);
-            return typeof(T) == typeof(RectTransform) ? (T)(Component)owner.transform : owner.AddComponent<T>();
+            return owner.AddComponent<T>();
         }
 
         private OnUISelectionResize MakeResize(string name)

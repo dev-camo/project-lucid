@@ -18,8 +18,7 @@ namespace Hardlight
 
         public override void OnHighlightUpdated(HLButtonHighlightCustomisations.ButtonHighlightChangeSource previousSource, HLButtonHighlightCustomisations.ButtonHighlightChangeSource currentSource, float lerpValue)
         {
-            m_skewAmount.x = Mathf.Lerp(previousSource.SkewX, currentSource.SkewX, lerpValue);
-            m_skewAmount.y = Mathf.Lerp(previousSource.SkewY, currentSource.SkewY, lerpValue);
+            m_skewAmount = Vector2.Lerp(new Vector2(previousSource.SkewX, previousSource.SkewY), new Vector2(currentSource.SkewX, currentSource.SkewY), lerpValue);
             m_skew.ChangeSkewAmount(m_skewAmount.x, m_skewAmount.y, true);
         }
     }

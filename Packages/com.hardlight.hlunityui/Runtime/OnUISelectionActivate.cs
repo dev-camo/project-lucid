@@ -1,5 +1,6 @@
 // Original HLUnityUI.Runtime Hardlight.OnUISelectionActivate 02000094, from the x86-64
-// bodies 0x1B5F680..0x1B5F700 and metadata. OnActivate is deliberately not overridden.
+// bodies 0x1B5F680..0x1B5F700 and metadata. OnActivate is not overridden
+// (dump.cs 11972 lists only slots 5 and 8).
 using UnityEngine;
 
 namespace Hardlight
