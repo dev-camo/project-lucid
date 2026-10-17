@@ -148,7 +148,7 @@ namespace ProjectLucid.Tests
             bool startupAtDispatch = false, shutdownAtDispatch = false;
             RunOwned<SurfaceMeshSplineGeneratorAwakeProbe>(4, (probe, owned) =>
             {
-                probe.Calls.Clear();
+                Assert.That(probe.Calls, Is.Empty, "nothing is dispatched between AddComponent and activation");
                 probe.AtInitialiseSplineTrackers = () =>
                 {
                     object reference = Read(probe, typeof(SurfaceMeshSplineGenerator), "m_poolManagerRef");
