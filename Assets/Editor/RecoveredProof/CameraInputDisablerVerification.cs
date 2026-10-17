@@ -232,16 +232,36 @@ namespace ProjectLucid.Verification
             foreach (string name in new[] { "s_onButtonsUp", "s_onAxisEnd" }) foreach (DictionaryEntry row in InputDictionary(name))
             { GameInput input = (GameInput)Field(row.Key.GetType(), "GameInput", typeof(GameInput), 6).GetValue(row.Key); Require(input != OwnedA && input != OwnedB, "owned disabler inputs have no unrelated release handlers"); }
         }
+        // GetSystemRef<InputSystem>(null, true) creates the InputSystem row, or a typed
+        // entry in an existing row, on first use. The fixture owns only what it found
+        // absent: a created row is removed and a typed entry added to a borrowed row is
+        // dropped, each only once idle again; a borrowed row keeps identity and position.
+        sealed class FirstUseRow : IDisposable
+        {
+            static readonly string[] Observers = { "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" };
+            readonly IDictionary registry = Registry(); readonly string name = typeof(InputSystem).ToString(); readonly object borrowed; readonly bool typedExisted; bool released;
+            public FirstUseRow() { if (!registry.Contains(name)) return; borrowed = registry[name]; Require(borrowed != null, "borrowed InputSystem row present"); typedExisted = TypedCache(borrowed).Contains(name); }
+            public void Dispose()
+            {
+                if (released) return; released = true;
+                if (borrowed == null) { if (registry.Contains(name)) VerificationFixtureOwnership.ReleaseEmptyRow(registry, name, registry[name]); return; }
+                Require(registry.Contains(name) && ReferenceEquals(registry[name], borrowed), "borrowed InputSystem row retained");
+                IDictionary cache = TypedCache(borrowed); if (typedExisted || !cache.Contains(name)) return;
+                object added = cache[name]; Type owner = added.GetType(); while (owner != null && (!owner.IsGenericType || owner.GetGenericTypeDefinition() != typeof(SystemRef<>))) owner = owner.BaseType; Require(owner != null, "real SystemRef base");
+                foreach (string field in Observers) Require(owner.GetField(field, Declared).GetValue(added) == null, "added typed InputSystem reference is idle: " + field);
+                cache.Remove(name);
+            }
+        }
         sealed class OwnedDisabler : IDisposable
         {
-            RegistryLease lease; GameObject owned; readonly List<Tuple<GameInput, Action<GameInput, bool>>> callbacks = new List<Tuple<GameInput, Action<GameInput, bool>>>();
+            FirstUseRow firstUse; RegistryLease lease; GameObject owned; readonly List<Tuple<GameInput, Action<GameInput, bool>>> callbacks = new List<Tuple<GameInput, Action<GameInput, bool>>>();
             public GameInputDisabler Value; public InputSystem System; public ControlMapping Mapping;
             public List<StackableDataHandle> Handles { get { return (List<StackableDataHandle>)Field(typeof(GameInputDisabler), "m_stackableDataHandles", typeof(List<StackableDataHandle>), 33).GetValue(Value); } }
             public OwnedDisabler()
             {
                 try
                 {
-                    NoSharedReleaseHandlers(); lease = new RegistryLease(PrepareSystemReference()); owned = new GameObject("Owned original game-input disabler fixture"); owned.SetActive(false); System = owned.AddComponent<InputSystem>(); Value = owned.AddComponent<GameInputDisabler>();
+                    NoSharedReleaseHandlers(); firstUse = new FirstUseRow(); lease = new RegistryLease(PrepareSystemReference()); owned = new GameObject("Owned original game-input disabler fixture"); owned.SetActive(false); System = owned.AddComponent<InputSystem>(); Value = owned.AddComponent<GameInputDisabler>();
                     Require(!owned.activeInHierarchy && Value.enabled && Handles.Count == 0 && ReferenceEquals(Field(typeof(GameInputDisabler), "m_inputSystemRef", typeof(SystemRef<InputSystem>), 33).GetValue(Value), lease.Typed) && ReferenceEquals(lease.Typed.GetSafe(), null), "genuine inactive constructors/cache/defaults");
                     Require(Field(typeof(GameInputDisabler), "m_gameInputs", typeof(GameInput[]), 1).GetValue(Value) == null && !(bool)Field(typeof(GameInputDisabler), "m_activateOnEnable", typeof(bool), 1).GetValue(Value) && Field(typeof(GameInputDisabler), "m_controlMapping", typeof(ControlMapping), 1).GetValue(Value) == null, "original authored defaults");
                     Mapping = ScriptableObject.CreateInstance<ControlMapping>(); Mapping.InitialiseStackableData(); SetMapping(Mapping); Inputs(new[] { OwnedA, OwnedB });
@@ -260,7 +280,7 @@ namespace ProjectLucid.Verification
                 var cleanup = new List<Action>(); foreach (var pair in callbacks) { var capture = pair; cleanup.Add(() => { if (!ReferenceEquals(Mapping, null)) Mapping.UnsubscribeInputDisabled(capture.Item1, capture.Item2); }); }
                 cleanup.Add(() => { if (!ReferenceEquals(Value, null)) SetMapping(null); }); cleanup.Add(() => { if (!ReferenceEquals(Value, null)) Value.Action_ReenableGameInputs(); });
                 cleanup.Add(() => { if (!ReferenceEquals(System, null)) Invoke(Method(typeof(InputSystem), "OnDestroy", typeof(void), 129), System); }); cleanup.Add(() => Destroy(owned));
-                cleanup.Add(() => { if (!ReferenceEquals(Mapping, null)) Mapping.ShutdownStackableData(); }); cleanup.Add(() => Destroy(Mapping)); cleanup.Add(() => CameraInputDisablerVerification.Dispose(lease)); Finish(() => { }, cleanup.ToArray());
+                cleanup.Add(() => { if (!ReferenceEquals(Mapping, null)) Mapping.ShutdownStackableData(); }); cleanup.Add(() => Destroy(Mapping)); cleanup.Add(() => CameraInputDisablerVerification.Dispose(lease)); cleanup.Add(() => CameraInputDisablerVerification.Dispose(firstUse)); Finish(() => { }, cleanup.ToArray());
             }
         }
         public static int VerifyDisablerGuardsAndOriginalEnableCallbacks()
