@@ -26,7 +26,7 @@ namespace Hardlight
         // 0x06000cd6 / 0x06000cd7; arm64 0x1b0cfc0 / 0x1b0cfc8.
         public List<Property> Properties { get; private set; }
 
-        // .cctor 0x06000cec; arm64 0x1b0e04c. Field initializers keep the
+        // .cctor 0x06000cec; arm64 0x1b0e04c, x86-64 0x1b09d60. Field initializers keep the
         // original BeforeFieldInit flag. The six-byte compiler initializer at
         // metadata offset 0x716778 is 2e002b002d00 (SHA256 f9f2b1ee...47aa636).
         private static readonly string[] m_invalidDecimalSeparators = new[] { ",", "/" };

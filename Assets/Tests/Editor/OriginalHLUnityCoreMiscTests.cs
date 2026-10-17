@@ -69,10 +69,14 @@ namespace ProjectLucid.Tests
 
         // Original metadata: HLPropertyList (TypeDefIndex 9256, token 0x020001f8)
         // flags 0x100001 and TimeUtils (9403, 0x0200028c) flags 0x100181, both
-        // BeforeFieldInit. Their .cctors only store field values: HLPropertyList
-        // 0x06000cec (x86-64 0x1b09d60) a string[] {",", "/"}, then the char[]
+        // BeforeFieldInit. Their .cctors only store private static readonly
+        // field values (dump.cs): HLPropertyList 0x06000cec (x86-64 0x1b09d60)
+        // a string[] {",", "/"}, then the char[]
         // from the 2e002b002d00 initializer blob; TimeUtils 0x0600100b (x86-64
-        // 0x1b20cc0) DateTime(1970, 1, 1, 0, 0, 0, Utc) into Epoch.
+        // 0x1b20cc0) DateTime(1970, 1, 1, 0, 0, 0, Utc) into Epoch. The exact
+        // flag values (stricter than the masked bit checked above) are the
+        // discriminating part; the value checks guard that the field
+        // initializers keep the original contents.
         [Test]
         public void PropertyListAndTimeUtilsKeepTheOriginalTypeFlagsAndStaticValues()
         {
@@ -82,10 +86,13 @@ namespace ProjectLucid.Tests
             Assert.That(typeof(HLPropertyList).TypeInitializer, Is.Not.Null);
             Assert.That(typeof(TimeUtils).TypeInitializer, Is.Not.Null);
 
-            Assert.That(typeof(HLPropertyList).GetField("m_invalidDecimalSeparators", privateStatic).GetValue(null),
-                Is.EqualTo(new[] { ",", "/" }));
-            Assert.That(typeof(HLPropertyList).GetField("m_decimalAdditionalCharacters", privateStatic).GetValue(null),
-                Is.EqualTo(new[] { '.', '+', '-' }));
+            FieldInfo separators = typeof(HLPropertyList).GetField("m_invalidDecimalSeparators", privateStatic);
+            FieldInfo additional = typeof(HLPropertyList).GetField("m_decimalAdditionalCharacters", privateStatic);
+            Assert.That(separators, Is.Not.Null, "m_invalidDecimalSeparators");
+            Assert.That(additional, Is.Not.Null, "m_decimalAdditionalCharacters");
+            Assert.That(separators.IsInitOnly && additional.IsInitOnly, Is.True);
+            Assert.That(separators.GetValue(null), Is.EqualTo(new[] { ",", "/" }));
+            Assert.That(additional.GetValue(null), Is.EqualTo(new[] { '.', '+', '-' }));
             Assert.That(TimeUtils.Epoch.Ticks, Is.EqualTo(621355968000000000L));
             Assert.That(TimeUtils.Epoch.Kind, Is.EqualTo(DateTimeKind.Utc));
         }
