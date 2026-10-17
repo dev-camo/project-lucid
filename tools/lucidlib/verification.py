@@ -2707,3 +2707,83 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOrientationAndNotchSpecificR
     "OnDisableRemovesOnlyThisComponentsListener",
     "OnDisableWithoutALiveScreenManagerDoesNothing",
 ))
+
+
+# Original HLUnityUI.Runtime LABColor specified from its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalLABColorTests." + name for name in (
+    "DeclarationKeepsTheOriginalFieldsPropertiesAndMethodOrder",
+    "ConstructorAndPropertiesUseTheirOwnChannel",
+    "FromColorFollowsTheShippedGammaAndCubeRootBranches(0)",
+    "FromColorFollowsTheShippedGammaAndCubeRootBranches(1)",
+    "FromColorFollowsTheShippedGammaAndCubeRootBranches(2)",
+    "FromColorFollowsTheShippedGammaAndCubeRootBranches(3)",
+    "FromColorClampsXyzToTheWhitePointAndZero",
+    "ColourConstructorCopiesFromColor",
+    "ToColorClampsOnlyNegativeChannelsAndSetsOpaqueAlpha(0)",
+    "ToColorClampsOnlyNegativeChannelsAndSetsOpaqueAlpha(1)",
+    "ToColorClampsOnlyNegativeChannelsAndSetsOpaqueAlpha(2)",
+    "ToColorClampsOnlyNegativeChannelsAndSetsOpaqueAlpha(3)",
+    "ToColorClampsOnlyNegativeChannelsAndSetsOpaqueAlpha(4)",
+    "LerpClampsTAndReturnsANewColour",
+    "ColourLerpInterpolatesInLabSpaceAndDropsAlpha",
+    "DistanceIsTheEuclideanDeltaE",
+    "ToStringJoinsTheChannelsWithTheirLabels",
+    "EqualsComparesChannelValuesAndNaNIsNeverEqual",
+    "OperatorsCompareChannelsAndThrowForANullOperand",
+    "HashCodeXorsTheChannelHashes",
+))
+
+
+# Original HLUnityUI.Runtime Hardlight.Rotate specified from its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalRotateTests." + name for name in (
+    "DeclarationKeepsTheOriginalAttributesFieldsAndNestedEnum",
+    "ConstructionFillsTheShippedIndexTablesAndDefaultsToNone",
+    "ModifyVerticesMovesOnlyPositionsThroughTheTable(1)",
+    "ModifyVerticesMovesOnlyPositionsThroughTheTable(2)",
+    "ModifyVerticesMovesOnlyPositionsThroughTheTable(3)",
+    "ModifyVerticesMovesOnlyPositionsThroughTheTable(0)",
+    "ModifyVerticesMovesOnlyPositionsThroughTheTable(7)",
+    "ModifyVerticesReturnsForAnInactiveEffectOrAnEmptyList",
+    "ModifyMeshRebuildsTheHelperFromTheRotatedStream",
+    "AnimationPropertiesDirtyTheGraphicVerticesTwice",
+))
+
+
+# Original HLUnityUI.Runtime Hardlight.RaycastMask specified from its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalRaycastMaskTests." + name for name in (
+    "DeclarationKeepsTheOriginalAttributesFieldsAndFilter",
+    "EveryPointHitsUntilStartHasRun",
+    "SimpleImagesMapThePivotShiftedPointOverTheRectSize",
+    "SimpleImagesTruncateNegativeTexelCoordinatesTowardZero",
+    "PreserveAspectSamplesTheCentredSquare",
+    "SlicedImagesFloorEachBorderBandSeparately",
+    "TiledAndFilledImagesAlwaysHit",
+))
+
+
+# Original HLUnityUI.Runtime Hardlight.GUIBlockerBoxColliderResizer specified from its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGUIBlockerBoxColliderResizerTests." + name for name in (
+    "DeclarationKeepsTheOriginalAttributesFieldsAndOverrides",
+    "EnablingFitsTheColliderToTheTrackedRect",
+    "DimensionChangesRefitTheColliderToAnyTrackedRect",
+    "MissingReferencesLeaveTheColliderUntouched",
+))
+
+
+# Original HLUnityUI.Runtime TriangleGradient specified from its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTriangleGradientTests." + name for name in (
+    "DeclarationKeepsTheOriginalAttributesFieldsAndConstants",
+    "ConstructionDefaultsToWhiteUpwardsAndUnitScale",
+    "PopulateMeshBuildsTheTriangleFromTheRectOriginAndRecoloursIt",
+    "PopulateMeshNegatesTheRectOriginRatherThanUsingTheTopEdge",
+    "ApplyGradientOffsetsAndScalesAboutTheMiddleThenLerpsColour32",
+    "ApplyGradientStoresEachProjectionInAFreshDistanceArray",
+    "ApplyGradientLeavesTheDistancesAloneForAnEmptyList",
+))
+
+
+# Original HLUnityUI.Runtime SonicDash.UI.Touchable specified from its x86-64 bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTouchableTests." + name for name in (
+    "DeclarationIsABareMaskableGraphicOverride",
+    "PopulateMeshOnlyClearsTheHelper",
+))
