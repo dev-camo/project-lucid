@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Hardlight;
+using Hardlight.Utils;
 using NUnit.Framework;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;

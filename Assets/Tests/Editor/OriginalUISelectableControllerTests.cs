@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using Hardlight;
+using Hardlight.Utils;
 using NUnit.Framework;
 using ProjectLucid.Tests.UISelectionShared;
 using Unity.IL2CPP.CompilerServices;

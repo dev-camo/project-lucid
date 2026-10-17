@@ -161,7 +161,7 @@ namespace ProjectLucid.Tests
             Assert.That(type.FullName, Is.EqualTo("Hardlight.UISelectable"));
             Assert.That(type.BaseType, Is.EqualTo(typeof(SelectableBase)));
             Assert.That(type.GetCustomAttributesData().Select(a => a.AttributeType).ToArray(), Is.EqualTo(new[] {
-                typeof(AddComponentMenu), typeof(ExecuteInEditMode), typeof(SelectionBase), typeof(DisallowMultipleComponent) }));
+                typeof(AddComponentMenu), typeof(ExecuteInEditMode), typeof(SelectionBaseAttribute), typeof(DisallowMultipleComponent) }));
             AddComponentMenu menu = type.GetCustomAttribute<AddComponentMenu>();
             Assert.That(menu.componentMenu, Is.EqualTo("Hardlight UI/UISelectable"));
             Assert.That(menu.componentOrder, Is.EqualTo(70));
