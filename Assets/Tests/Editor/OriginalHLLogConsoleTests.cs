@@ -224,13 +224,13 @@ namespace ProjectLucid.Tests
         // Awake 0x1af8be0 with a valid asset copies the default page limit and
         // display mask, runs GUIStyleInitialize 0x1af8da0 and clears both event
         // fields. GUIStyleInitialize adds the icons Log, Warning, Error, Assert,
-        // Exception (esi 3, 2, 0, 1, 4; insertion order only, since Dictionary
-        // enumeration order is not observable behaviour), indexes the custom
-        // styles by name, stores
-        // the header/label font size difference and sets the button contents;
-        // the apply-filter button takes the warning icon (0xa8) and the preview
-        // the info icon (0xa0). Mutations caught: icon slots swapped, the
-        // difference reversed, or the tooltip on a different content.
+        // Exception, indexes the custom styles by name, stores the header/label
+        // font size difference and sets the button contents; the apply-filter
+        // button takes the warning icon (0xa8) and the preview the info icon
+        // (0xa0). m_logIconPerType is only read by key, so the native insertion
+        // order (esi 3, 2, 0, 1, 4) is recorded but not asserted. Mutations
+        // caught: icon slots swapped, the difference reversed, or the tooltip on
+        // a different content.
         [Test]
         public void AwakeCopiesAssetDefaultsAndInitialisesStylesAndContents()
         {
@@ -284,6 +284,41 @@ namespace ProjectLucid.Tests
                 Content("m_settingPreviewContent",
                     "Assembly for Assembly Definition File 'Assets/Plugins/HLNetworking/Tests/Editor/HLNetworking.Editor.Tests.asmdef' will not be compiled, because it has no scripts associated with it.",
                     asset.InfoIcon);
+            }
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        // GeneralFontSizeUpdate 0x1aff180 skips the logmessage,
+        // logmessageselected and logmessagedarker styles by string compare
+        // (0x1aff31f..0x1aff34f), sets every other custom style, then
+        // skin.label and skin.button to the same argument, and finally adds
+        // m_headerLabelFontSizeDifference (+0x124, 20 - 14 here) to headerlabel.
+        // Mutations caught: dropping the header offset, skipping the wrong
+        // styles, or leaving skin.label or skin.button at their old sizes.
+        [Test]
+        public void GeneralFontSizeUpdateSkipsMessageStylesAndKeepsTheHeaderOffset()
+        {
+            using (var owned = new Owned())
+            {
+                HLLogConsole console = owned.Awaken().Console;
+                owned.Skin.button = new GUIStyle { fontSize = 9 };
+                var styles = (Dictionary<string, GUIStyle>)Get(console, "m_customStyles");
+                styles["logmessage"].fontSize = 11;
+                styles["logmessageselected"].fontSize = 12;
+                styles["logmessagedarker"].fontSize = 13;
+                styles["importantmessagewindow"].fontSize = 8;
+                Assert.AreEqual(6, Get(console, "m_headerLabelFontSizeDifference"));
+
+                Call(console, "GeneralFontSizeUpdate", 17);
+
+                Assert.AreEqual(11, styles["logmessage"].fontSize);
+                Assert.AreEqual(12, styles["logmessageselected"].fontSize);
+                Assert.AreEqual(13, styles["logmessagedarker"].fontSize);
+                Assert.AreEqual(17, styles["importantmessagewindow"].fontSize);
+                Assert.AreEqual(23, styles["headerlabel"].fontSize, "header keeps its offset");
+                Assert.AreEqual(17, owned.Skin.label.fontSize);
+                Assert.AreEqual(17, owned.Skin.button.fontSize);
+                Assert.AreEqual(6, Get(console, "m_headerLabelFontSizeDifference"), "the offset is not recomputed");
             }
             LogAssert.NoUnexpectedReceived();
         }

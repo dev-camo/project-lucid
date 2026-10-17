@@ -154,8 +154,7 @@ namespace Hardlight
 			OnConsoleClose = null;
 		}
 
-		// 0x1af8da0. The apply-filter button shows the warning icon and the
-		// preview the info icon.
+		// 0x1af8da0.
 		private void GUIStyleInitialize()
 		{
 			m_logIconPerType = new Dictionary<LogType, Texture2D>
@@ -563,7 +562,7 @@ namespace Hardlight
 			}
 		}
 
-		// 0x1afea80: the slider value is truncated back to int.
+		// 0x1afea80.
 		private int SettingCustomSliderDraw(string label, int sliderValue, int minSliderValue, int maxSliderValue, params GUILayoutOption[] layoutOption)
 		{
 			GUILayout.BeginHorizontal();
@@ -880,7 +879,7 @@ namespace Hardlight
 			}
 		}
 
-		// 0x1afb800: longer text keeps its first MaxLabelTextLength characters.
+		// 0x1afb800.
 		private static string LabelTextTruncate(string message)
 		{
 			if (!string.IsNullOrEmpty(message) && message.Length > MaxLabelTextLength)

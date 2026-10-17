@@ -2155,6 +2155,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLLogConsoleTests." + name f
     "ConstructorsUseTheShippedInitialisers",
     "ConfigurationCheckDisablesWithoutAssetOrSkin",
     "AwakeCopiesAssetDefaultsAndInitialisesStylesAndContents",
+    "GeneralFontSizeUpdateSkipsMessageStylesAndKeepsTheHeaderOffset",
     "OnEnableSizesListsOnceAndSubscribesOnEveryEnable",
     "ReceivedMessagesRouteThroughImportantExtractAndDisplayMasks",
     "DynamicExclusionsCountRepeatsAndCollapseOtherCopies",
