@@ -646,6 +646,26 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The m_UIOrientation store (0x1b646e9) precedes the tail-jump to
+        // List.AddRange (0x1b6470d), which receives the selected array with no null
+        // test: a null portrait array throws ArgumentNullException after the field
+        // already holds the new orientation, and the list stays empty.
+        [Test]
+        public void InitialiseValuesStoresTheOrientationBeforeAddingANullArray()
+        {
+            using (var screen = new ScreenFixture(UIOrientation.Portrait))
+            using (var hosts = new Hosts())
+            {
+                var modifier = hosts.Modifier<OrientationSpecificRectTransformModifier>();
+                Set(modifier, "m_landscapeSettings", Settings((Width, 1f)));
+                Set(modifier, "m_portraitSettings", null);
+                Set(modifier, "m_UIOrientation", UIOrientation.Landscape);
+                Assert.Throws<ArgumentNullException>(() => Call(modifier, "InitialiseValues"));
+                Assert.That(Get(modifier, "m_UIOrientation"), Is.EqualTo(UIOrientation.Portrait));
+                Assert.That(DesiredList(modifier).Count, Is.EqualTo(0));
+            }
+        }
+
         // ---- <WaitForRequiredSystems>d__9 0x06000548..0x0600054d ----------------
 
         static IEnumerator Iterator(OrientationSpecificRectTransformModifier modifier) =>
@@ -696,6 +716,33 @@ namespace ProjectLucid.Tests
                 Assert.That(iterator.MoveNext(), Is.False);
                 Assert.That(probe.Calls, Is.EqualTo(new[] { "InitialiseAndSetValues", "InitialiseValues" }));
                 Assert.That(Rect(probe).sizeDelta.x, Is.EqualTo(25f).Within(Tolerance));
+            }
+        }
+
+        // The registry row alone releases the wait: with the row registered and no
+        // published singleton the first MoveNext still calls slot 4. A probe that
+        // injects its entries completes the refresh; the base InitialiseValues then
+        // faults on the unguarded Instance read (0x1b646a1..0x1b646e6).
+        [Test]
+        public void WaitForRequiredSystemsDoesNotWaitForTheSingleton()
+        {
+            using (var screen = new ScreenFixture(UIOrientation.Landscape, register: true, publish: false))
+            using (var hosts = new Hosts())
+            {
+                Assert.That(ReferenceEquals(ScreenManager.Instance, null), Is.True, "singleton stays unpublished");
+                var probe = hosts.Awake<OrientationSpecificRectTransformModifierProbe>();
+                Baseline(Rect(probe));
+                probe.InjectedWidth = 12f;
+                IEnumerator iterator = Iterator(probe);
+                Assert.That(iterator.MoveNext(), Is.False);
+                Assert.That(probe.Calls, Is.EqualTo(new[] { "InitialiseAndSetValues", "InitialiseValues" }));
+                Assert.That(Rect(probe).sizeDelta.x, Is.EqualTo(12f).Within(Tolerance));
+
+                var modifier = hosts.Awake<OrientationSpecificRectTransformModifier>();
+                Configure(modifier, new[] { (Width, 15f) }, new[] { (Width, 25f) });
+                IEnumerator unguarded = Iterator(modifier);
+                Assert.Throws<NullReferenceException>(() => unguarded.MoveNext());
+                Assert.That(DesiredList(modifier).Count, Is.EqualTo(0));
             }
         }
 

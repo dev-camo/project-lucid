@@ -2269,6 +2269,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOrientationSpecificRectTrans
     "InitialiseValuesSelectsLandscapeOnlyForTheLandscapeOrientation",
     "InitialiseValuesAppendsWithoutClearing",
     "InitialiseValuesWithoutTheSingletonFaultsBeforeWriting",
+    "InitialiseValuesStoresTheOrientationBeforeAddingANullArray",
     "InitialiseAndSetValuesInitialisesVirtuallyThenApplies",
     "InitialiseAndSetValuesReappliesStaleEntriesAfterAnOrientationChange",
     "OnEnableSubscribesTheVirtualRefreshAndStartsTheCoroutine",
@@ -2277,12 +2278,14 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOrientationSpecificRectTrans
     "OnDisableRemovesOnlyItsOwnSubscription",
     "WaitForRequiredSystemsPollsTheRegistryNotTheSingleton",
     "WaitForRequiredSystemsRefreshesImmediatelyWhenRegistered",
+    "WaitForRequiredSystemsDoesNotWaitForTheSingleton",
     "WaitForRequiredSystemsIteratorRejectsReset",
 ))
 
 # RectTransformModifier (HLUnityUI.Runtime 0x0600002b..62) caching, getters and setter guards.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalRectTransformModifierTests." + name for name in (
     "RectTransformIsCachedLazilyFromTheOwnTransform",
+    "GetTransformReplacesOnlyAUnityNullCache",
     "GettersReadTheRectTransformComponents",
     "RightAndTopOffsetSkipWhenTheRawComponentEqualsTheValue",
     "LocalScaleSettersReplaceOneComponent",

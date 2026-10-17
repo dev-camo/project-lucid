@@ -10,7 +10,8 @@ namespace ProjectLucid.Tests
     // x86-64 bodies, covering what the OrientationSpecificRectTransformModifier
     // specification does not: lazy transform caching, the getters and the
     // equality-skip guards of the offset setters. Every case owns one inactive
-    // HideAndDontSave host and destroys it before returning.
+    // HideAndDontSave host (plus any foreign host it creates) and destroys them
+    // before returning.
     [TestFixture]
     public sealed class OriginalRectTransformModifierTests
     {
@@ -49,6 +50,37 @@ namespace ProjectLucid.Tests
                 Assert.That(TransformField.GetValue(awake), Is.SameAs(owner.transform));
             }
             finally { Object.DestroyImmediate(owner); }
+        }
+
+        // set_RectTransform 0x0600004e (0x1b3b870) is a raw store into m_transform.
+        // GetTransform's op_Equality test (0x1b3b80c) keeps a live cached
+        // RectTransform even when it belongs to another object, and replaces it with
+        // the own transform only once it is destroyed.
+        [Test]
+        public void GetTransformReplacesOnlyAUnityNullCache()
+        {
+            var modifier = Create(out GameObject owner);
+            var foreignHost = new GameObject("foreign", typeof(RectTransform)) { hideFlags = HideFlags.HideAndDontSave };
+            try
+            {
+                foreignHost.SetActive(false);
+                var foreignRect = (RectTransform)foreignHost.transform;
+                foreignRect.sizeDelta = new Vector2(11f, 12f);
+                typeof(RectTransformModifier).GetProperty("RectTransform").GetSetMethod(true)
+                    .Invoke(modifier, new object[] { foreignRect });
+                Assert.That(modifier.RectTransform, Is.SameAs(foreignRect), "a live foreign cache is kept");
+                Assert.That(modifier.Width, Is.EqualTo(11f).Within(Tolerance));
+
+                Object.DestroyImmediate(foreignHost);
+                Assert.That(modifier.RectTransform, Is.SameAs(owner.transform), "a destroyed cache is replaced");
+                Assert.That(TransformField.GetValue(modifier), Is.SameAs(owner.transform));
+                Assert.That(modifier.Width, Is.EqualTo(50f).Within(Tolerance));
+            }
+            finally
+            {
+                if (foreignHost != null) Object.DestroyImmediate(foreignHost);
+                Object.DestroyImmediate(owner);
+            }
         }
 
         // Each getter reads one RectTransform component; only get_RightOffset
