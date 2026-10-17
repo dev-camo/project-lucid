@@ -11,9 +11,10 @@ namespace ProjectLucid.Tests
 {
     // Original HLUnityCore.Runtime PayloadPropertyBuilder 0x020001ea, checked against the
     // 1.10.1 x86-64 bodies. Every fixture is owned by the test that builds it; the builder
-    // keeps no static state besides the IPayload<> definition it compares against, and the
-    // CoroutineUtils host is never touched: the private iterators are driven by hand and
-    // seeded pending handles are null, which StopUtilCoroutine ignores.
+    // keeps no static state besides the IPayload<> definition it compares against, and no
+    // coroutine is ever started on the CoroutineUtils host: the private iterators are driven
+    // by hand, and StopUtilCoroutine is reached only with null pending handles, which its
+    // null guard ignores.
     public sealed class OriginalPayloadPropertyBuilderTests
     {
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;

@@ -157,6 +157,8 @@ namespace Hardlight
         {
             foreach (KeyValuePair<string, PropertyData> propertyReference in m_propertyReferences)
             {
+                // The shipped body re-reads the entry by key (get_Item 0x1b07bbe)
+                // rather than using the pair's value.
                 PropertyData propertyData = m_propertyReferences[propertyReference.Key];
                 if (!propertyData.IsCollectionType())
                 {
@@ -177,8 +179,9 @@ namespace Hardlight
             }
         }
 
-        // 0x06000c7c: collections are recognised by the non-generic ICollection
-        // interface name. Missing property values are created and assigned; a
+        // 0x06000c7c: collections are recognised by GetInterface("ICollection")
+        // (simple-name match in any namespace, so ICollection`1 alone does not
+        // qualify). Missing property values are created and assigned; a
         // collection's identifier comes from a throwaway element instance.
         private void GeneratePropertyReferences()
         {
