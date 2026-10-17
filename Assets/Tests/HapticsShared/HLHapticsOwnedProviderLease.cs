@@ -156,8 +156,19 @@ namespace ProjectLucid.Verification
       {errors.Add(new InvalidOperationException("First lifecycle failure: owned destruction did not revoke its registered identity"));ProcessManager.UnregisterSystem(Manager);}
       shared.Check(newInfo);if(info!=null)CheckTarget(info,null);
      }
-    }catch(Exception e){errors.Add(e);}finally{if(ownsLock)lock(OwnLeaseLock){OwnLeaseBusy=false;ownsLock=false;}}
+    }catch(Exception e){errors.Add(e);}
+    try{RemoveCreatedRow();}catch(Exception e){errors.Add(e);}finally{if(ownsLock)lock(OwnLeaseLock){OwnLeaseBusy=false;ownsLock=false;}}
     if(errors.Count!=0)throw new AggregateException("Original HLHaptics first body and independent cleanup observations",errors);
+   }
+   // Awake creates the default row when preflight found it absent; destruction only clears the
+   // reference, so remove that cleared row here and leave the registry with its preflight rows and order.
+   // A row still holding a system, observer, deferred action or typed entry is refused, not erased.
+   void RemoveCreatedRow()
+   {
+    if(shared==null||beforeTarget!=null)return;IDictionary registry=(IDictionary)typeof(ProcessManager).GetField("s_systemDictionary",Declared).GetValue(null);string name=typeof(VibrationManager).ToString();if(!registry.Contains(name))return;
+    object info=registry[name];Require(newInfo==null||ReferenceEquals(info,newInfo),"created default row identity retained until removal");CheckTarget(info,null);registry.Remove(name);
+    if(ReferenceEquals(info,OwnedDefaultInfo)){OwnedDefaultInfo=null;OwnedDefaultRef=null;OwnedDefaultCache=null;OwnedDefaultKey=null;}
+    shared.Check(null);
    }
   }
   static FieldInfo ManagerField(string name)=>typeof(VibrationManager).GetField(name,Declared);
