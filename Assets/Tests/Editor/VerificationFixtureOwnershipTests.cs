@@ -122,6 +122,105 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void RegistrationCallbackFailureAfterPublicationStillReleasesTheOwnedRow()
+        {
+            string name = "ProjectLucid.PartialRegistration." + Guid.NewGuid().ToString("N");
+            string sentinelName = "ProjectLucid.PartialRegistrationSentinel." + Guid.NewGuid().ToString("N");
+            var sentinel = new Marker();
+            SystemRef sentinelReference = ProcessManager.RegisterSystem(sentinel, sentinelName);
+            object sentinelRow = Registry[sentinelName];
+            int sentinelShutdowns = 0, updates = 0, shutdowns = 0;
+            Action<ISystem> sentinelShutdown = _ => sentinelShutdowns++;
+            Action<ISystem> shutdown = _ => shutdowns++;
+            sentinelReference.OnSystemShutdown += sentinelShutdown;
+            sentinel.SubscribeToAction(SystemAction.Update, _ => updates++);
+            var marker = new Marker();
+            SystemRef reference = null;
+            try
+            {
+                var scope = new VerificationFixtureOwnership.RegistryRow(name);
+                var error = Assert.Throws<ApplicationException>(() => scope.RegisterUsing(marker, () =>
+                {
+                    reference = ProcessManager.RegisterSystem(marker, name);
+                    reference.OnSystemShutdown += shutdown;
+                    throw new ApplicationException("after publish");
+                }));
+                Assert.AreEqual("after publish", error.Message);
+                Assert.AreSame(marker, reference.GetSafe());
+                scope.Dispose();
+                Assert.IsFalse(Registry.Contains(name));
+                Assert.IsTrue(reference.IsNull());
+                // UnregisterSystemInternal revokes the live untyped reference,
+                // which notifies its shutdown observers once.
+                Assert.AreEqual(1, shutdowns);
+                Assert.AreSame(sentinelRow, Registry[sentinelName]);
+                Assert.AreSame(sentinel, sentinelReference.GetSafe());
+                sentinel.ProcessSystemAction(SystemAction.Update);
+                Assert.AreEqual(1, updates);
+                Assert.AreEqual(0, sentinelShutdowns);
+            }
+            finally
+            {
+                if (reference != null)
+                {
+                    reference.OnSystemShutdown -= shutdown;
+                    ProcessManager.UnregisterSystem(marker);
+                    if (Registry.Contains(name) && reference.IsNull()) Registry.Remove(name);
+                }
+                sentinelReference.OnSystemShutdown -= sentinelShutdown;
+                ProcessManager.UnregisterSystem(sentinel);
+                if (ReferenceEquals(Registry[sentinelName], sentinelRow) && sentinelReference.IsNull()) Registry.Remove(sentinelName);
+            }
+        }
+
+        [Test]
+        public void RegistrationCallbackFailureBeforePublicationLeavesNothingToRelease()
+        {
+            string name = "ProjectLucid.UnpublishedRegistration." + Guid.NewGuid().ToString("N");
+            var scope = new VerificationFixtureOwnership.RegistryRow(name);
+            Assert.Throws<ApplicationException>(() => scope.RegisterUsing(new Marker(), () => throw new ApplicationException("before publish")));
+            Assert.IsFalse(Registry.Contains(name));
+            Assert.DoesNotThrow(() => scope.Dispose());
+            Assert.IsFalse(Registry.Contains(name));
+        }
+
+        [Test]
+        public void RegistrationCallbackFailureAfterForeignReplacementClaimsNothing()
+        {
+            string name = "ProjectLucid.ReplacedRegistration." + Guid.NewGuid().ToString("N");
+            var scope = new VerificationFixtureOwnership.RegistryRow(name);
+            var marker = new Marker();
+            var sentinel = new Marker();
+            SystemRef reference = null;
+            int shutdowns = 0;
+            Action<ISystem> shutdown = _ => shutdowns++;
+            try
+            {
+                Assert.Throws<ApplicationException>(() => scope.RegisterUsing(marker, () =>
+                {
+                    reference = ProcessManager.RegisterSystem(marker, name);
+                    ProcessManager.RegisterSystem(sentinel, name, canReplace: true);
+                    throw new ApplicationException("after replacement");
+                }));
+                object row = Registry[name];
+                reference.OnSystemShutdown += shutdown;
+                Assert.DoesNotThrow(() => scope.Dispose());
+                Assert.AreSame(row, Registry[name]);
+                Assert.AreSame(sentinel, reference.GetSafe());
+                Assert.AreEqual(0, shutdowns);
+            }
+            finally
+            {
+                if (reference != null)
+                {
+                    reference.OnSystemShutdown -= shutdown;
+                    ProcessManager.UnregisterSystem(sentinel);
+                    if (Registry.Contains(name) && reference.IsNull()) Registry.Remove(name);
+                }
+            }
+        }
+
+        [Test]
         public void DisposalRejectsAReplacementOwnerWithoutRevokingItsReferences()
         {
             string name = "ProjectLucid.ReplacementSentinel." + Guid.NewGuid().ToString("N");
