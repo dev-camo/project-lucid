@@ -17,6 +17,10 @@ namespace Hardlight
     // Original metadata contract contains no members (type 0x02000057).
     public interface IConditionalLogger { }
 
+    // Original HLUnityCore.Runtime 0x02000236 (MethodDefs 0x06000e2e..
+    // 0x06000e4d). Keep the original member order: it fixes the compiler-
+    // generated closure names. Static fields use initializers because the
+    // type is beforefieldinit (.cctor 0x06000e4e).
     public static class ProcessManager
     {
         private class ProcessManagerLogger : IConditionalLogger
@@ -37,21 +41,19 @@ namespace Hardlight
             }
         }
 
-        private static readonly Dictionary<string, SystemInfo> s_systemDictionary;
-        private static readonly Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> s_systemActionLookup;
-        private static readonly List<Action<object>> s_actionList;
+        // 0x06000e4e (x86-64 0x1b15480): initialised in this order, with the
+        // explicit default enum comparer.
+        private static readonly Dictionary<string, SystemInfo> s_systemDictionary = new Dictionary<string, SystemInfo>();
+        private static readonly Dictionary<SystemAction, Dictionary<ISystem, Action<object>>> s_systemActionLookup =
+            new Dictionary<SystemAction, Dictionary<ISystem, Action<object>>>(EqualityComparer<SystemAction>.Default);
+        private static readonly List<Action<object>> s_actionList = new List<Action<object>>();
         private static bool s_systemActionInProgress;
-        private static readonly ProcessManagerLogger s_logger;
+        private static readonly ProcessManagerLogger s_logger = new ProcessManagerLogger();
 
-        // Original token 0x06000e4e; arm64 0x1b1a328. Preserve initialization
-        // order and the explicit default enum comparer.
-        static ProcessManager()
-        {
-            s_systemDictionary = new Dictionary<string, SystemInfo>();
-            s_systemActionLookup = new Dictionary<SystemAction, Dictionary<ISystem, Action<object>>>(EqualityComparer<SystemAction>.Default);
-            s_actionList = new List<Action<object>>();
-            s_logger = new ProcessManagerLogger();
-        }
+        // Original token 0x06000e2e; arm64 0x1b16984. One callback per
+        // system/action, overwritten through the ordinary dictionary indexer.
+        public static void SubscribeToAction(this ISystem system, SystemAction action, Action<object> callback) =>
+            s_systemActionLookup.TryGetOrNew(action)[system] = callback;
 
         // Original token 0x06000e2f; arm64 0x1b187c4. Empty action rows stay.
         public static bool UnsubscribeFromAction(this ISystem system, SystemAction action) =>
@@ -138,6 +140,11 @@ namespace Hardlight
             foreach (ISystemRef reference in existingSystemInfo.SystemRefDictionary.Values) reference.InternalRevokeSystem();
         }
 
+        // Original tokens 0x06000e3a/0x06000e3b; arm64 0x1b19224/0x974c70.
+        public static bool IsSystemValid(string systemName) =>
+            s_systemDictionary.TryGetValue(systemName, out SystemInfo info) && info.SystemRef.IsValid();
+        public static bool IsSystemValid<T>(string systemName = null) where T : class, ISystem => IsSystemValid(systemName ?? GetDefaultName<T>());
+
         // 0x06000e3c; arm64 0x1b19314. Missing rows are null without creation.
         public static bool IsSystemNull(string systemName) =>
             !s_systemDictionary.TryGetValue(systemName, out SystemInfo info) || info.SystemRef.IsNull();
@@ -182,16 +189,6 @@ namespace Hardlight
                 HLUnityCore.LogOrThrowException("System '" + reference.SystemName() + "' is null");
             return reference.Get<T>();
         }
-
-        // Original token 0x06000e2e; arm64 0x1b16984. One callback per
-        // system/action, overwritten through the ordinary dictionary indexer.
-        public static void SubscribeToAction(this ISystem system, SystemAction action, Action<object> callback) =>
-            s_systemActionLookup.TryGetOrNew(action)[system] = callback;
-
-        // Original tokens 0x06000e3a/0x06000e3b; arm64 0x1b19224/0x974c70.
-        public static bool IsSystemValid(string systemName) =>
-            s_systemDictionary.TryGetValue(systemName, out SystemInfo info) && info.SystemRef.IsValid();
-        public static bool IsSystemValid<T>(string systemName = null) where T : class, ISystem => IsSystemValid(systemName ?? GetDefaultName<T>());
 
         // Original token 0x06000e41; shared arm64 0x9748c0. Retrieve the
         // cached typed reference, including its original incompatible-null rules.
@@ -242,31 +239,31 @@ namespace Hardlight
             return null;
         }
 
-        // Original token 0x06000e47, closure 0x06000e58; shared arm64
-        // 0x974784/0xaf6bd8. Retain every matching registry alias.
+        // Original token 0x06000e47, closure <>c__DisplayClass32_0 0x06000e58;
+        // shared arm64 0x974784/0xaf6bd8. Retain every matching registry alias.
         public static List<SystemRef> GetSystemRefsOfType<T>() where T : class, ISystem
         {
-            var references = new List<SystemRef>();
-            ForEachSystemSafe((system, reference) => { if (system is T) references.Add(reference); });
-            return references;
+            var systemRefs = new List<SystemRef>();
+            ForEachSystemSafe((system, systemRef) => { if (system is T) systemRefs.Add(systemRef); });
+            return systemRefs;
         }
-        // Original token 0x06000e48, closure 0x06000e5a; shared arm64
-        // 0x974a10/0xaf6d14. Checked reference conversion is the observed call.
+        // Original token 0x06000e48, closure <>c__DisplayClass33_0 0x06000e5a;
+        // shared arm64 0x974a10/0xaf6d14. Checked reference conversion is the observed call.
         public static List<T> GetSystemsOfType<T>() where T : class, ISystem
         {
             var systems = new List<T>();
-            ForEachSystemSafe((system, reference) => { if (system is T) systems.Add(reference.Get<T>()); });
+            ForEachSystemSafe((system, systemRef) => { if (system is T) systems.Add(systemRef.Get<T>()); });
             return systems;
         }
-        // Original token 0x06000e49, predicate 0x06000e53; shared arm64
+        // Original token 0x06000e49, predicate <>c__34 0x06000e53; shared arm64
         // 0x974544/0xaf14e8. Cast the actual untyped reference; do not create a
         // typed cache here. This cast normally returns null for T != ISystem.
         public static SystemRef<T> GetSystemRefOfType<T>() where T : class, ISystem =>
-            FindSystemRefSafe((system, reference) => system is T) as SystemRef<T>;
-        // Original token 0x06000e4a, predicate 0x06000e56; shared arm64
+            FindSystemRefSafe((system, sysRef) => system is T) as SystemRef<T>;
+        // Original token 0x06000e4a, predicate <>c__35 0x06000e56; shared arm64
         // 0x973f5c/0xaf169c. No matching system returns null.
         public static T GetSystemOfType<T>() where T : class, ISystem =>
-            FindSystemRefSafe((system, reference) => system is T)?.Get<T>();
+            FindSystemRefSafe((system, sysRef) => system is T)?.Get<T>();
 
         // Original token 0x06000e4b; arm64 0x1b19e74. Missing action rows
         // are created. A stored null callback throws when that system is found.

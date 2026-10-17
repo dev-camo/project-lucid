@@ -2415,3 +2415,20 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLDebugUtilityTests." + name
     "HealthDataUsesTheRetailFallbackOfThreeZeros",
     "ProfileBeginPushesAndEndPopsOnlyWhileEntriesRemain",
 ))
+
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLUnityCoreMiscTests." + name for name in (
+    "ClosureAndIteratorNamesFollowTheOriginalMemberOrder",
+    "StaticInitialisersKeepTheOriginalBeforeFieldInitFlag",
+    "BarycentricWeightsVerticesInOrderWithTheNativeTolerance",
+    "ContentComparerUsesOrdinalTextAndToleratesNullContent",
+    "ManifestMetadataFormatsTheMappedAttributeVerbatim",
+    "ObjectWithGuidRoundTripsAndRegeneratesOnlyInMemory",
+    "GraphStorageAdjustFillAndRemoveKeepTheNativeArithmeticAndOrder",
+    "CustomProfileCyclesLevelsInEnumValueOrderAndAppendsMediumRows",
+    "CustomProfileLoadOrCreateAndDeleteTouchOnlyExistingFiles",
+    "PackageManifestReadsAuthorAndOptionalDependencies",
+    "ColourScopeCapturesFirstAndRestoresAllThree",
+    "FirebaseAssetDefaultsAndSilentValidation",
+    "BillOfMaterialsValidatesItsUnsetArrayDuringConstruction",
+    "ManifestConfigDefaultPathsAreTheShippedLiterals",
+))

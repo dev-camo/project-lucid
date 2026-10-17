@@ -4,11 +4,17 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using Hardlight.Utils;
+using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
 namespace Hardlight
 {
-    public partial class HLPropertyStore
+    // Original HLUnityCore.Runtime 0x020001fa (beforefieldinit; .cctor
+    // 0x06000d2d is the static initializers below). Keep the original member
+    // order: it fixes the compiler-generated <SaveAtEndOfFrame>d__71 name.
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    public class HLPropertyStore : ISystem
     {
         public enum FileType { Primary = 0, Backup = 1 }
         private enum State { None = 0, Loading = 1, Saving = 2, Reset = 3 }
@@ -19,24 +25,10 @@ namespace Hardlight
         public delegate void AfterConflictsResolvedHandler(HLPropertyList properties);
         public delegate void LoadHandler(HLPropertyList properties, bool isNewFile);
 
-        // Original backing field names; ordinary C# events generate the same
-        // Interlocked.CompareExchange add/remove loops as the native accessors.
-        private static event SaveHandler SaveHandlers;
-        private static event ModifySaveHandler ModifySaveHandlers;
-        private static event ResolveConflictHandler ResolveConflictHandlers;
-        private static event SaveSuccessHandler SaveSuccessHandlers;
-        private static event AfterConflictsResolvedHandler AfterConflictsResolvedHandlers;
-        private static event LoadHandler LoadHandlers;
-
-        private Coroutine m_delayedSaveCoroutine;
-        private bool m_isLoaded;
-        private State m_currentState;
-        private IHLSaveMethod m_propertyFileStorage;
-        private readonly int m_clientVersion;
-        private const int m_unencryptedSaveVersion = 2;
-        private readonly HLPropertyList ActiveProperties = new HLPropertyList();
-        private readonly HLPropertyList TempProperties = new HLPropertyList();
-        private string m_activeSaveIdentifier = DefaultSaveIdentifier;
+        // 0x06000d2d (x86-64 0x1b0d070): both defaults are String.Empty and the
+        // singleton slot is explicitly reset to null.
+        public static readonly string DefaultSaveIdentifier = string.Empty;
+        public static readonly string DefaultPropertyValue = string.Empty;
 
         // 0x06000cee..0x06000cf6; arm64 0x1b0e1ec..0x1b0e674.
         public int UnencryptedSaveVersion => m_unencryptedSaveVersion;
@@ -48,6 +40,28 @@ namespace Hardlight
         public static bool IsThereAnySaveSuccessHandler => SaveSuccessHandlers != null && SaveSuccessHandlers.GetInvocationList().Length != 0;
         public static bool IsThereAnyAfterConflictsResolvedHandler => AfterConflictsResolvedHandlers != null && AfterConflictsResolvedHandlers.GetInvocationList().Length != 0;
         public static bool IsThereAnyLoadHandler => LoadHandlers != null && LoadHandlers.GetInvocationList().Length != 0;
+
+        // Original backing field names; ordinary C# events generate the same
+        // Interlocked.CompareExchange add/remove loops as the native accessors
+        // 0x06000cf7..0x06000d02.
+        private static event SaveHandler SaveHandlers;
+        private static event ModifySaveHandler ModifySaveHandlers;
+        private static event ResolveConflictHandler ResolveConflictHandlers;
+        private static event SaveSuccessHandler SaveSuccessHandlers;
+        private static event AfterConflictsResolvedHandler AfterConflictsResolvedHandlers;
+        private static event LoadHandler LoadHandlers;
+
+        private static readonly WaitForEndOfFrame s_waitForEndOfFrame = new WaitForEndOfFrame();
+        private Coroutine m_delayedSaveCoroutine;
+        private static HLPropertyStore s_internalInstance = null;
+        private bool m_isLoaded;
+        private State m_currentState;
+        private IHLSaveMethod m_propertyFileStorage;
+        private readonly int m_clientVersion;
+        private const int m_unencryptedSaveVersion = 2;
+        private readonly HLPropertyList ActiveProperties = new HLPropertyList();
+        private readonly HLPropertyList TempProperties = new HLPropertyList();
+        private string m_activeSaveIdentifier = DefaultSaveIdentifier;
 
         // 0x06000d03; arm64 0x1b0f1b4. Construction does not load a save.
         // Publish the singleton before constructing the storage, as in the game.
@@ -101,7 +115,8 @@ namespace Hardlight
             return true;
         }
 
-        // 0x06000d11; original iterator MoveNext yields once before the write.
+        // 0x06000d11, iterator <SaveAtEndOfFrame>d__71 (MoveNext 0x06000d48,
+        // x86-64 0x1b0dc80): yields once before the write.
         private IEnumerator SaveAtEndOfFrame(bool canResolveConflicts)
         {
             yield return s_waitForEndOfFrame;
@@ -130,6 +145,9 @@ namespace Hardlight
             LoadInternal(ActiveProperties, m_activeSaveIdentifier);
         }
         public string GetSaveIdentifier() { return m_activeSaveIdentifier; }
+
+        // 0x06000d16; arm64 0x1b0dcf8 passes Case.Lower (1).
+        public static uint GetCRC(string value) { return HLCRC32.Generate(value, HLCRC32.Case.Lower); }
 
         // 0x06000d17 / 0x06000d18; arm64 0x1b104ac / 0x1b10570.
         public IReadOnlyList<string> GetAllSaveIdentifiers() { return m_propertyFileStorage?.GetAllSaveIdentifiers(); }
