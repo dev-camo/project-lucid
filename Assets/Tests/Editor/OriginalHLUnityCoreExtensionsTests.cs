@@ -57,14 +57,25 @@ namespace ProjectLucid.Tests
         [TearDown]
         public void TearDown()
         {
-            SharedStringBuilder.Clear().Append(m_stringBuilderSnapshot);
-            m_opStringCache?.Dispose();
-            m_opStringCache = null;
-            Dictionary<UpdateOn, string> cache = UpdateOnCache;
-            cache.Clear();
-            foreach (KeyValuePair<UpdateOn, string> entry in m_updateOnCacheSnapshot)
+            // Each restore runs even when an earlier one throws.
+            try { SharedStringBuilder.Clear().Append(m_stringBuilderSnapshot); }
+            finally
             {
-                cache.Add(entry.Key, entry.Value);
+                try
+                {
+                    Dictionary<UpdateOn, string> cache = UpdateOnCache;
+                    cache.Clear();
+                    foreach (KeyValuePair<UpdateOn, string> entry in m_updateOnCacheSnapshot)
+                    {
+                        cache.Add(entry.Key, entry.Value);
+                    }
+                }
+                finally
+                {
+                    OpStringCacheScope scope = m_opStringCache;
+                    m_opStringCache = null;
+                    scope?.Dispose();
+                }
             }
         }
 

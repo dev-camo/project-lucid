@@ -39,7 +39,8 @@ namespace ProjectLucid
             Debug.Log("FSM primitive source-based verification passed. Unknown-name logging and the full original-game interpreter remain unverified.");
         }
 
-        // GraphNameLookup keeps one process-wide static readonly table (0x060008af).
+        // GraphNameLookup keeps one process-wide table, field s_nameLookup (0x0400049e,
+        // Private|Static|InitOnly), initialised by .cctor 0x060008af.
         // The probes run against it emptied in place, so names other code already
         // registered cannot shift the collision IDs, and Dispose puts back exactly
         // the prior entries, dropping the names the probes registered.

@@ -903,11 +903,23 @@ namespace ProjectLucid
             object priorCache=cache.GetValue(null),priorEnum=enumConfig.GetValue(null);
             IDictionary multiplies=(IDictionary)Field(typeof(StackableData),"Multiplies").GetValue(null);
             bool hadMultiply=multiplies.Contains(typeof(TimeSetting));object priorMultiply=multiplies[typeof(TimeSetting)];
-            // Field-only admission: a live configuration is borrowed for its overrides only;
-            // an absent or idle row is registered into and released, and a row that holds
-            // observers or deferred work without a system is refused before any change.
-            var configurationRow=new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>(),borrowLiveSystem:true);
-            bool hadSystem=configurationRow.BorrowsLiveSystem,completed=false;
+            // A live configuration is borrowed for its overrides only. A retained dormant row
+            // belongs to someone else, observers and typed references included: RegisterSystem
+            // into an existing row replaces those references (0x06000e34) and fires its
+            // observers, so the row object is set aside untouched while the proof registers into
+            // a row it creates and removes, as FSMManagerVerification does for its default
+            // manager row. The set-aside row and the layout are put back last.
+            string configurationName=ProcessManager.GetDefaultName<SystemConfiguration>();
+            IDictionary rows=(IDictionary)typeof(ProcessManager).GetField("s_systemDictionary",BindingFlags.NonPublic|BindingFlags.Static).GetValue(null);
+            var originalRows=new List<DictionaryEntry>();foreach(DictionaryEntry row in rows)originalRows.Add(row);
+            object[] layout=FSMManagerVerification.CaptureLayout(rows);
+            object setAside=null;
+            if(rows.Contains(configurationName) && rows[configurationName]!=null && ProcessManager.IsSystemNull(configurationName))
+            {setAside=rows[configurationName];rows.Remove(configurationName);}
+            VerificationFixtureOwnership.LifecycleRow configurationRow;
+            try{configurationRow=new VerificationFixtureOwnership.LifecycleRow(configurationName,borrowLiveSystem:true);}
+            catch{PutBackConfigurationRow(rows,configurationName,setAside,originalRows,layout);throw;}
+            bool hadSystem=configurationRow.BorrowsLiveSystem,completed=false,restored=false;
             TimeCategoryObject a=null,b=null,g=null,spare=null,equalA=null;
             TimeCategoryConfiguration config=null;TimeCategoryLookup lookup=null;GameObject host=null;TimeManager manager=null;
             SystemConfiguration system=null;StackableDataHandle configHandle=null,lookupHandle=null;
@@ -1043,24 +1055,42 @@ namespace ProjectLucid
             }
             finally
             {
-                if(manager!=null && initialised && !destroyed)Call(manager,"OnDestroy");
-                if(host!=null)UnityEngine.Object.DestroyImmediate(host);
-                if(system!=null)
+                try
                 {
-                    if(configHandle!=null)system.StackableData.RemoveOverrides(configHandle);
-                    if(lookupHandle!=null)system.StackableData.RemoveOverrides(lookupHandle);
+                    if(manager!=null && initialised && !destroyed)Call(manager,"OnDestroy");
+                    if(host!=null)UnityEngine.Object.DestroyImmediate(host);
+                    if(system!=null)
+                    {
+                        if(configHandle!=null)system.StackableData.RemoveOverrides(configHandle);
+                        if(lookupHandle!=null)system.StackableData.RemoveOverrides(lookupHandle);
+                    }
+                    if(!hadSystem && system!=null)ProcessManager.UnregisterSystem(system);
+                    foreach(UnityEngine.Object item in new UnityEngine.Object[]{config,lookup,a,b,g,spare,equalA})if(item!=null)UnityEngine.Object.DestroyImmediate(item);
+                    cache.SetValue(null,priorCache);enumConfig.SetValue(null,priorEnum);
+                    if(hadMultiply)multiplies[typeof(TimeSetting)]=priorMultiply;else multiplies.Remove(typeof(TimeSetting));
+                    Time.timeScale=priorScale;Time.fixedDeltaTime=priorFixed;
+                    restored=true;
                 }
-                if(!hadSystem && system!=null)ProcessManager.UnregisterSystem(system);
-                foreach(UnityEngine.Object item in new UnityEngine.Object[]{config,lookup,a,b,g,spare,equalA})if(item!=null)UnityEngine.Object.DestroyImmediate(item);
-                cache.SetValue(null,priorCache);enumConfig.SetValue(null,priorEnum);
-                if(hadMultiply)multiplies[typeof(TimeSetting)]=priorMultiply;else multiplies.Remove(typeof(TimeSetting));
-                Time.timeScale=priorScale;Time.fixedDeltaTime=priorFixed;
-                // A release report never replaces the proof's own first failure.
-                if(completed)configurationRow.Dispose();
-                else try{configurationRow.Dispose();}catch(Exception failure){Debug.LogWarning("Time scheduler configuration row release also failed: "+failure);}
+                finally
+                {
+                    // The row is released even when an earlier restore threw; a release report
+                    // never replaces the proof's or a restore's own first failure.
+                    try
+                    {
+                        if(completed && restored)configurationRow.Dispose();
+                        else try{configurationRow.Dispose();}catch(Exception failure){Debug.LogWarning("Time scheduler configuration row release also failed: "+failure);}
+                    }
+                    finally{PutBackConfigurationRow(rows,configurationName,setAside,originalRows,layout);}
+                }
             }
             },timeManagerRow.Dispose,configurationRow.Dispose);
             return checks-start;
+        }
+        // Once the registry again holds exactly its original rows, its layout is restored too.
+        private static void PutBackConfigurationRow(IDictionary rows,string name,object setAside,List<DictionaryEntry> originalRows,object[] layout)
+        {
+            if(setAside!=null)rows[name]=setAside;
+            if(FSMManagerVerification.HoldsExactly(rows,originalRows))FSMManagerVerification.RestoreLayout(rows,layout);
         }
         public static int Run() { int managed=RunManaged();return managed+EngineChecks(); }
     }

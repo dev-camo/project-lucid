@@ -441,39 +441,70 @@ namespace ProjectLucid.Tests
         public void MenuSystemListenerRelaysTheMenuSystemEvents() =>
             AssertListener<MenuSystemListener, MenuPage>(MenuSystem.Instance, "m_onMenuSystemOpened", "m_onMenuSystemClosed");
 
-        // Negative control for StackScope and OverlayScope: handlers already on the
-        // shared systems throw if raised, so a scope that saved but did not clear
-        // them fails here. Each one is subscribed again once its scope ends.
+        // Negative control for StackScope and OverlayScope: a throwing subscriber is
+        // planted on each of the eight delegates the scopes replace (six on the page
+        // stack, two on the overlay system). Each scope raises every one of its
+        // delegates, then the menu listener and overlay toggle paths run, so a scope
+        // that saved but did not clear any one of them fails here. Each planted
+        // subscriber is back once its scope ends.
         [Test]
         public void PageScopesKeepEarlierSubscribersOutOfTheRaisedEvents()
         {
             MenuSystem menu = MenuSystem.Instance;
             OverlaySystem overlay = OverlaySystem.Instance;
-            string[] menuEvents = { "OnSystemOpened", "OnSystemClosed" };
-            object[] menuSaved = menuEvents.Select(name => Get(menu, name)).ToArray();
-            object overlaySaved = Get(overlay, "OnGUIPageClosed");
+            string[] stackSystemEvents = { "OnSystemOpened", "OnSystemClosed" };
+            string[] stackPageEvents = { "OnGUIPageClosed", "OnGUIPageOpened", "OnGUIPageClosing", "OnGUIPageOpening" };
+            string[] overlayEvents = { "OnGUIPageClosed", "OnGUIPageOpened" };
+            string[] stackEvents = stackSystemEvents.Concat(stackPageEvents).ToArray();
+            object[] stackSaved = stackEvents.Select(name => Get(menu, name)).ToArray();
+            object[] overlaySaved = overlayEvents.Select(name => Get(overlay, name)).ToArray();
             var reached = new List<string>();
-            Action opened = () => { reached.Add("OnSystemOpened"); throw new InvalidOperationException("earlier OnSystemOpened subscriber ran"); };
-            Action closed = () => { reached.Add("OnSystemClosed"); throw new InvalidOperationException("earlier OnSystemClosed subscriber ran"); };
-            Action<OverlayPage> overlayClosed = page => { reached.Add("overlay OnGUIPageClosed"); throw new InvalidOperationException("earlier overlay OnGUIPageClosed subscriber ran"); };
+            var planted = new Dictionary<string, Delegate>();
+            void Plant(object system, string name, string label, Delegate subscriber)
+            {
+                planted.Add(label, subscriber);
+                Set(system, name, Delegate.Combine((Delegate)Get(system, name), subscriber));
+            }
             try
             {
-                menu.OnSystemOpened += opened;
-                menu.OnSystemClosed += closed;
-                overlay.OnGUIPageClosed += overlayClosed;
+                foreach (string name in stackSystemEvents)
+                {
+                    string label = "menu " + name;
+                    Plant(menu, name, label, new Action(() => { reached.Add(label); throw new InvalidOperationException("earlier " + label + " subscriber ran"); }));
+                }
+                foreach (string name in stackPageEvents)
+                {
+                    string label = "menu " + name;
+                    Plant(menu, name, label, new Action<MenuPage>(page => { reached.Add(label); throw new InvalidOperationException("earlier " + label + " subscriber ran"); }));
+                }
+                foreach (string name in overlayEvents)
+                {
+                    string label = "overlay " + name;
+                    Plant(overlay, name, label, new Action<OverlayPage>(page => { reached.Add(label); throw new InvalidOperationException("earlier " + label + " subscriber ran"); }));
+                }
 
+                using (new StackScope<MenuPage>(menu))
+                {
+                    foreach (string name in stackSystemEvents) ((Action)Get(menu, name)).Invoke();
+                    foreach (string name in stackPageEvents) ((Action<MenuPage>)Get(menu, name)).Invoke(null);
+                }
+                using (new OverlayScope())
+                {
+                    foreach (string name in overlayEvents) ((Action<OverlayPage>)Get(overlay, name)).Invoke(null);
+                }
                 AssertListener<MenuSystemListener, MenuPage>(menu, "m_onMenuSystemOpened", "m_onMenuSystemClosed");
-                ToggleOverlayPageShowsAClosedPageAndHidesAnOpenOneWithoutFilteringNone();
+                ToggleOverlayPageBody();
 
                 Assert.That(reached, Is.Empty, "A scope raised an earlier subscriber");
-                Assert.That(((Action)Get(menu, "OnSystemOpened")).GetInvocationList(), Does.Contain(opened), "StackScope restores OnSystemOpened");
-                Assert.That(((Action)Get(menu, "OnSystemClosed")).GetInvocationList(), Does.Contain(closed), "StackScope restores OnSystemClosed");
-                Assert.That(((Action<OverlayPage>)Get(overlay, "OnGUIPageClosed")).GetInvocationList(), Does.Contain(overlayClosed), "OverlayScope restores OnGUIPageClosed");
+                foreach (string name in stackEvents)
+                    Assert.That(((Delegate)Get(menu, name)).GetInvocationList(), Does.Contain(planted["menu " + name]), "StackScope restores " + name);
+                foreach (string name in overlayEvents)
+                    Assert.That(((Delegate)Get(overlay, name)).GetInvocationList(), Does.Contain(planted["overlay " + name]), "OverlayScope restores " + name);
             }
             finally
             {
-                for (int i = 0; i < menuEvents.Length; i++) Set(menu, menuEvents[i], menuSaved[i]);
-                Set(overlay, "OnGUIPageClosed", overlaySaved);
+                for (int i = 0; i < stackEvents.Length; i++) Set(menu, stackEvents[i], stackSaved[i]);
+                for (int i = 0; i < overlayEvents.Length; i++) Set(overlay, overlayEvents[i], overlaySaved[i]);
             }
         }
 
@@ -627,7 +658,9 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
-        public void ToggleOverlayPageShowsAClosedPageAndHidesAnOpenOneWithoutFilteringNone()
+        public void ToggleOverlayPageShowsAClosedPageAndHidesAnOpenOneWithoutFilteringNone() => ToggleOverlayPageBody();
+
+        static void ToggleOverlayPageBody()
         {
             var owned = new List<GameObject>();
             try

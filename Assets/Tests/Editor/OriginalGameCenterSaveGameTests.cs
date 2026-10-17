@@ -5,7 +5,6 @@ using System.Globalization;
 using System.Reflection;
 using Hardlight;
 using NUnit.Framework;
-using UnityEngine.TestTools;
 
 namespace ProjectLucid.Tests
 {
@@ -21,7 +20,6 @@ namespace ProjectLucid.Tests
         private HashSet<SystemAction> m_priorActionRows;
         private readonly List<ISystem> m_ownedSystems = new List<ISystem>();
         private CultureInfo m_priorCulture;
-        private bool m_priorIgnoreFailingMessages;
 
         [SetUp]
         public void SetUp()
@@ -30,39 +28,16 @@ namespace ProjectLucid.Tests
                 .GetField("s_systemActionLookup", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
             m_priorActionRows = new HashSet<SystemAction>(m_actions.Keys);
             m_priorCulture = CultureInfo.CurrentCulture;
-            m_priorIgnoreFailingMessages = LogAssert.ignoreFailingMessages;
-        }
-
-        // HLOutput.LogError only reaches a registered HLUnityCore system. The case that
-        // builds an unsupported service sends its error output to an owned core, whose
-        // row it acquires absent, so a live host never receives it; it still tolerates
-        // Unity error output. The factory case asserts the exact text.
-        private OwnedCoreErrorLog m_unsupportedPlatformLog;
-
-        private void TolerateUnsupportedPlatformError()
-        {
-            LogAssert.ignoreFailingMessages = true;
-            m_unsupportedPlatformLog = new OwnedCoreErrorLog();
         }
 
         [TearDown]
         public void TearDown()
         {
-            try
-            {
-                foreach (ISystem system in m_ownedSystems) ProcessManager.UnsubscribeFromAllActions(system);
-                m_ownedSystems.Clear();
-                foreach (SystemAction action in new List<SystemAction>(m_actions.Keys))
-                    if (!m_priorActionRows.Contains(action) && m_actions[action].Count == 0) m_actions.Remove(action);
-                CultureInfo.CurrentCulture = m_priorCulture;
-                LogAssert.ignoreFailingMessages = m_priorIgnoreFailingMessages;
-            }
-            finally
-            {
-                OwnedCoreErrorLog log = m_unsupportedPlatformLog;
-                m_unsupportedPlatformLog = null;
-                log?.Dispose();
-            }
+            foreach (ISystem system in m_ownedSystems) ProcessManager.UnsubscribeFromAllActions(system);
+            m_ownedSystems.Clear();
+            foreach (SystemAction action in new List<SystemAction>(m_actions.Keys))
+                if (!m_priorActionRows.Contains(action) && m_actions[action].Count == 0) m_actions.Remove(action);
+            CultureInfo.CurrentCulture = m_priorCulture;
         }
 
         // 0x060008a5 @0x1AEB1A0: DateTime.TryParse(..., InvariantCulture, AdjustToUniversal (0x10)).
@@ -220,11 +195,27 @@ namespace ProjectLucid.Tests
         // Without native support every guarded entry point is inert, and each iterator
         // reports failure on its first step, not when it is created
         // (0x060007c6..0x060007fe @0x1AE7230..0x1AE9640).
+        // HLOutput.LogError only reaches a registered HLUnityCore, so construction's
+        // two factory errors go to an owned core and are asserted in 0x060007bb's
+        // order (listener factory, then native). That core forwards to its handler
+        // only, so no Unity error log is expected; nothing else in the service logs.
         [Test]
         public void UnsupportedServiceSubscribesAppActionsAndFailsEachRequestLazily()
         {
-            TolerateUnsupportedPlatformError();
+            using (var log = new OwnedCoreErrorLog())
+                UnsupportedServiceBody(log);
+        }
+
+        private void UnsupportedServiceBody(OwnedCoreErrorLog log)
+        {
             var saveGame = new GameCenterSaveGame();
+            Assert.That(log.Errors, Is.EqualTo(new[]
+            {
+                string.Format("[GameCenterSaveGame] CreateGameCenterSaveGameListener - GameCenter save game listener is not supporter on platform '{0}'.:0",
+                    UnityEngine.Application.platform),
+                string.Format("[GameCenterSaveGame] CreateNativeGameCenterSaveGame - Native gameCenter save game is not supporter on platform '{0}'.:0",
+                    UnityEngine.Application.platform),
+            }));
             m_ownedSystems.Add(saveGame);
             foreach (SystemAction action in Enum.GetValues(typeof(SystemAction)))
             {
@@ -260,6 +251,7 @@ namespace ProjectLucid.Tests
             Assert.That(((IEnumerator)resolve.Current).MoveNext(), Is.False);
             Assert.That(results[4], Is.EqualTo("resolve:False:True"));
             Assert.That(resolve.MoveNext(), Is.False);
+            Assert.That(log.Errors.Count, Is.EqualTo(2), "The unsupported requests and app actions report nothing further.");
         }
 
         // 0x060007bc/0x060007bd @0x1AE6760/0x1AE6A80 and 0x060007bf..0x060007c2: the four

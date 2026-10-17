@@ -17,6 +17,7 @@ namespace ProjectLucid.Tests
     // GraphNameLookup table and the spline LUT cache. Each case plants foreign
     // state the fixture must neither depend on nor touch, runs the fixture's
     // registered entry point, and restores the planted state itself afterwards.
+    // The Eggman logo case drives only the proof's release sequence (see there).
     public sealed class RecoveredFixtureBorrowedStateTests
     {
         private const BindingFlags PrivateStatic = BindingFlags.Static | BindingFlags.NonPublic;
@@ -95,6 +96,21 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The HLUnityCore extensions fixture's own SetUp, Format0PlaceholderTime case
+        // and TearDown. Without its owned scope a cold or current-thread owner would
+        // hand the sentinel to OpString.i, which clears its content.
+        [TestCaseSource(nameof(Owners))]
+        public void HLUnityCoreExtensionsFixtureNeitherNeedsNorTouchesTheSharedCache(int owner)
+        {
+            WithSentinelCache(Owner(owner), () =>
+            {
+                var fixture = new OriginalHLUnityCoreExtensionsTests();
+                fixture.SetUp();
+                try { fixture.Format0PlaceholderTimePadsAbsolutePartsWithOneLeadingSign(); }
+                finally { fixture.TearDown(); }
+            });
+        }
+
         // ReceiveNativeNotification invokes the whole static m_onConnect list.
         [Test]
         public void LocalCloudNotificationsNeverReachEarlierSubscribers()
@@ -115,6 +131,14 @@ namespace ProjectLucid.Tests
                 Assert.That(field.GetValue(null), Is.SameAs(earlier), "the borrowed delegate is restored exactly");
             }
             finally { field.SetValue(null, prior); }
+        }
+
+        // IDictionary's own enumerator yields DictionaryEntry; Cast<> would see KeyValuePair.
+        private static List<DictionaryEntry> Entries(IDictionary dictionary)
+        {
+            var entries = new List<DictionaryEntry>();
+            foreach (DictionaryEntry entry in dictionary) entries.Add(entry);
+            return entries;
         }
 
         private static IDictionary Rows() => (IDictionary)typeof(ProcessManager)
@@ -145,38 +169,58 @@ namespace ProjectLucid.Tests
         }
 
         // RegisterSystem into an existing row replaces its references and runs their
-        // startup observers (0x06000e25); the time scheduler engine proof must refuse
-        // a dormant row that holds one, before any registry or configuration step.
-        [Test]
-        public void TimeSchedulerRefusesADormantConfigurationRowWithAnObserver()
+        // startup observers (0x06000e25); the time scheduler engine proof sets a dormant
+        // row aside untouched and registers into a row of its own instead. The observer
+        // must see no notification and the row, its reference and its typed entries keep
+        // their identity, whether or not the row holds an observer.
+        [TestCase(true)]
+        [TestCase(false)]
+        public void TimeSchedulerSetsADormantConfigurationRowAsideUntouched(bool observed)
         {
-            WithDormantConfigurationRow(true, (row, reference, notifications) =>
-            {
-                string name = ProcessManager.GetDefaultName<SystemConfiguration>();
-                var failure = Assert.Throws<InvalidOperationException>(() => TimeSchedulerVerification.Run());
-                Assert.That(failure.Message, Is.EqualTo("Fixture registry row retains unowned state: " + name + "/OnSystemStartup"));
-                Assert.That(notifications(), Is.Zero, "the dormant row's observer ran");
-                Assert.That(Rows()[name], Is.SameAs(row));
-                Assert.That(reference.IsNull(), Is.True);
-            });
-        }
-
-        // Positive control for the same admission: an idle dormant row is borrowed,
-        // registered into and returned idle, keeping its identity.
-        [Test]
-        public void TimeSchedulerBorrowsAnIdleConfigurationRowAndReturnsItIdle()
-        {
-            WithDormantConfigurationRow(false, (row, reference, notifications) =>
+            WithDormantConfigurationRow(observed, (row, reference, notifications) =>
             {
                 string name = ProcessManager.GetDefaultName<SystemConfiguration>();
                 var typedCache = (IDictionary)row.GetType().GetField("SystemRefDictionary", Instance).GetValue(row);
-                List<object> typedKeys = typedCache.Keys.Cast<object>().ToList();
+                List<DictionaryEntry> typedEntries = Entries(typedCache);
                 Assert.That(TimeSchedulerVerification.Run(), Is.EqualTo(532));
+                Assert.That(notifications(), Is.Zero, "the dormant row's observer ran");
                 Assert.That(Rows()[name], Is.SameAs(row));
                 Assert.That(row.GetType().GetField("SystemRef", Instance).GetValue(row), Is.SameAs(reference));
-                Assert.That(reference.IsNull(), Is.True, "the borrowed row is returned without a system");
-                Assert.That(typedCache.Keys.Cast<object>(), Is.EqualTo(typedKeys), "typed entries added while borrowed are removed");
+                Assert.That(reference.IsNull(), Is.True, "the set-aside row never received a system");
+                List<DictionaryEntry> after = Entries(typedCache);
+                Assert.That(after.Count, Is.EqualTo(typedEntries.Count), "typed entries keep their count");
+                for (int i = 0; i < after.Count; i++)
+                {
+                    Assert.That(after[i].Key, Is.SameAs(typedEntries[i].Key), "typed entry key " + i);
+                    Assert.That(after[i].Value, Is.SameAs(typedEntries[i].Value), "typed entry reference " + i);
+                }
             });
+        }
+
+        // The Eggman logo proof needs a GPU, so its release sequence is driven here
+        // without one: a failing step must not stop the later releases. After a failed
+        // proof the step failure is only logged; after a completed one the first step
+        // failure propagates once every step has run. The whole-proof failure paths
+        // remain covered only by the pinned-Editor GPU run.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void EggmanCleanUpRunsEveryReleaseStepAfterAFailingOne(bool completed)
+        {
+            MethodInfo cleanUp = typeof(EggmanLogoVerification).GetMethod("CleanUp", PrivateStatic);
+            var ran = new List<string>();
+            var first = new InvalidOperationException("first release step failed");
+            var steps = new Action[]
+            {
+                () => { ran.Add("restore globals"); throw first; },
+                () => { ran.Add("release targets"); throw new InvalidOperationException("second release step failed"); },
+                () => ran.Add("destroy material"),
+            };
+            Exception thrown = null;
+            try { cleanUp.Invoke(null, new object[] { completed, steps }); }
+            catch (TargetInvocationException failure) { thrown = failure.InnerException; }
+            Assert.That(ran, Is.EqualTo(new[] { "restore globals", "release targets", "destroy material" }));
+            if (completed) Assert.That(thrown, Is.SameAs(first), "the first step failure propagates");
+            else Assert.That(thrown, Is.Null, "the failed proof's own exception stays the result");
         }
 
         // The collision probes need an empty table: the same two names registered

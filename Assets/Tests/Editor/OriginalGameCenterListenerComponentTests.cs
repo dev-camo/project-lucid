@@ -161,7 +161,36 @@ namespace ProjectLucid.Tests
         // 0x060005f3 builds Texture2D(width, height, 53, false) into the out
         // argument before the IsNullOrEmpty and length checks.
         [Test]
-        public void LeaderboardImageReadsHeightBeforeWidthAndBuildsTheTextureBeforeTheDataCheck()
+        public void LeaderboardImageReadsHeightBeforeWidthAndBuildsTheTextureBeforeTheDataCheck() => LeaderboardImageBody(null);
+
+        // #300 control: the image case plus teardown, run twice and once with a
+        // failure injected right after the empty-data call, leaves no texture of
+        // the listener's 24x12 ASTC shape behind.
+        [Test]
+        public void LeaderboardImageCaseLeavesNoTextureAfterRepeatedOrFailedRuns()
+        {
+            HashSet<int> baseline = ListenerShapedTextureIds();
+            for (int run = 0; run < 2; run++)
+            {
+                try { LeaderboardImageBody(null); }
+                finally { DestroyOwnedObjects(); }
+                Assert.That(ListenerShapedTextureIds().Except(baseline), Is.Empty, "run " + run);
+            }
+            try { Assert.Throws<InjectedBodyFailure>(() => LeaderboardImageBody(() => throw new InjectedBodyFailure())); }
+            finally { DestroyOwnedObjects(); }
+            Assert.That(ListenerShapedTextureIds().Except(baseline), Is.Empty, "after an injected failure");
+        }
+
+        private sealed class InjectedBodyFailure : Exception { }
+
+        // TryGetTexture2D builds Texture2D(width, height, 53, false); the image case uses 24x12.
+        private static bool IsListenerShapedTexture(Texture2D texture) =>
+            texture.width == 24 && texture.height == 12 && texture.format == (TextureFormat)53 && texture.mipmapCount == 1;
+
+        private static HashSet<int> ListenerShapedTextureIds() => new HashSet<int>(Resources.FindObjectsOfTypeAll<Texture2D>()
+            .Where(IsListenerShapedTexture).Select(texture => texture.GetInstanceID()));
+
+        private void LeaderboardImageBody(Action afterEmptyDataCall)
         {
             var listener = Owned<GameCenterLeaderboardListener>("lucid-leaderboard-listener");
             Assert.Throws<NullReferenceException>(() => listener.LoadImage("lucid-image"), "The holder is not null-checked.");
@@ -174,11 +203,18 @@ namespace ProjectLucid.Tests
             listener.SetHashCode("5");
 
             // The empty-data texture never reaches OnLoadImage, so it is found by
-            // instance ID and owned before any assertion can end the case.
+            // instance ID in a finally around the call, even if the call throws
+            // after allocating. Only a texture of the shape TryGetTexture2D builds
+            // is claimed, so another allocation in the window is never destroyed.
             var before = new HashSet<int>(Resources.FindObjectsOfTypeAll<Texture2D>().Select(texture => texture.GetInstanceID()));
-            listener.LoadImage(string.Empty);
-            Texture2D[] unreported = Resources.FindObjectsOfTypeAll<Texture2D>().Where(texture => !before.Contains(texture.GetInstanceID())).ToArray();
-            m_owned.AddRange(unreported);
+            Texture2D[] unreported;
+            try { listener.LoadImage(string.Empty); }
+            finally
+            {
+                unreported = Resources.FindObjectsOfTypeAll<Texture2D>().Where(texture => !before.Contains(texture.GetInstanceID())).ToArray();
+                m_owned.AddRange(unreported.Where(IsListenerShapedTexture));
+            }
+            afterEmptyDataCall?.Invoke();
             Assert.That(images, Is.Empty, "Empty image data raises no event.");
             Assert.That(unreported.Length, Is.EqualTo(1), "The public path also builds the texture before the data check.");
             Assert.That(unreported[0].width, Is.EqualTo(24));
