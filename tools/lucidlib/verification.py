@@ -2685,9 +2685,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLOrientationSpecificCanvasS
     "EvaluateWithAScalerButNoScreenManagerThrows",
     "OnlyLandscapeUsesTheLandscapeSettings",
     "EachFlippedEvaluationSwapsTheCurrentReferenceResolutionAgain",
+    "FlipFollowsTheSelectedSettingsFlagNotTheOrientation",
+    "EvaluateWithNullSelectedSettingsThrowsBeforeWritingTheScaler",
     "OnEnableWithoutALiveScreenManagerDoesNothing",
     "OnEnableSubscribesEvaluateAndEvaluatesImmediately",
     "OnDisableRemovesOnlyThisComponentsListener",
+    "OnDisableWithADestroyedScreenManagerDoesNothing",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOrientationAndNotchSpecificRectTransformModifierTests." + name for name in (
     "DeclarationKeepsTheOriginalBaseFieldsAndAttributes",
@@ -2695,6 +2698,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOrientationAndNotchSpecificR
     "WithoutANotchOnlyTheOrientationSettingsAreAppended",
     "NotchArrayFollowsTheUIAndDeviceOrientationPair",
     "TheEvaluatorRunsAfterTheOrientationSettingsAreAppended",
+    "NotchOrientationIsReadAfterTheEvaluatorReturns",
     "AnEmptyNotchArrayAddsNothingAndANullOneThrows",
     "RefreshAppliesTheNotchEntryAfterTheOrientationEntry",
     "OnEnableSubscribesAndRefreshesImmediatelyWithoutACoroutine",

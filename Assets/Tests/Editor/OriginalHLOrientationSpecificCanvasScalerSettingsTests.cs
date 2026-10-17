@@ -247,6 +247,49 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The swap tests FlipReferenceResolution (+0x18, 0x1b6408d) on whichever settings
+        // object 0x1b6406a selected, not the orientation: with the flags inverted from the
+        // shared fixture, landscape flips and portrait keeps the reference resolution.
+        [Test]
+        public void FlipFollowsTheSelectedSettingsFlagNotTheOrientation()
+        {
+            using (var hosts = new Hosts())
+            {
+                foreach (UIOrientation orientation in new[] { UIOrientation.Landscape, UIOrientation.Portrait })
+                {
+                    using (new ScreenFixture(orientation))
+                    {
+                        CanvasScaler scaler = hosts.Scaler();
+                        var subject = hosts.Component(scaler);
+                        Set(subject, "m_landscapeSettings", Settings(CanvasScaler.ScreenMatchMode.Shrink, 0.75f, true));
+                        Set(subject, "m_portraitSettings", Settings(CanvasScaler.ScreenMatchMode.Expand, 0.5f, false));
+                        Call(subject, "Evaluate");
+                        if (orientation == UIOrientation.Landscape)
+                            AssertScaler(scaler, CanvasScaler.ScreenMatchMode.Shrink, 0.75f, new Vector2(600f, 800f), "landscape flips");
+                        else
+                            AssertScaler(scaler, CanvasScaler.ScreenMatchMode.Expand, 0.5f, new Vector2(800f, 600f), "portrait keeps");
+                    }
+                }
+            }
+        }
+
+        // The selected settings object has no guard: a null one jumps to
+        // il2cpp_codegen_raise_null_reference_exception (0x1b6406f -> 0x1b640ac) before
+        // any scaler field is written.
+        [Test]
+        public void EvaluateWithNullSelectedSettingsThrowsBeforeWritingTheScaler()
+        {
+            using (var hosts = new Hosts())
+            using (new ScreenFixture(UIOrientation.Portrait))
+            {
+                CanvasScaler scaler = hosts.Scaler();
+                var subject = hosts.Component(scaler);
+                Set(subject, "m_portraitSettings", null);
+                Assert.Throws<NullReferenceException>(() => Call(subject, "Evaluate"));
+                AssertScaler(scaler, CanvasScaler.ScreenMatchMode.MatchWidthOrHeight, 0.25f, new Vector2(800f, 600f), "unchanged");
+            }
+        }
+
         // ---- OnEnable 0x06000534 (0x1b63e20) / OnDisable 0x06000535 (0x1b640c0) --
 
         // IsNull (0x1b63e87) returns before anything else, so with no singleton or a
@@ -294,6 +337,9 @@ namespace ProjectLucid.Tests
                 screen.Orientation = UIOrientation.Portrait;
                 FastAction.Invoke(screen.Manager.OnOrientationChange);
                 AssertScaler(scaler, CanvasScaler.ScreenMatchMode.Expand, 0.5f, new Vector2(600f, 800f), "after rotating to portrait");
+
+                Call(subject, "OnEnable");
+                Assert.That(screen.Manager.OnOrientationChange.GetInvocationListCount(), Is.EqualTo(2), "plain +=, not AddUnique");
             }
         }
 
@@ -315,6 +361,25 @@ namespace ProjectLucid.Tests
                     Call(subject, "OnDisable");
                     Assert.That(screen.Manager.OnOrientationChange.GetInvocationList(), Is.EqualTo(new[] { foreign }));
                 }
+            }
+        }
+
+        // NotNull uses Unity equality, so a destroyed singleton's FastAction is left as is.
+        [Test]
+        public void OnDisableWithADestroyedScreenManagerDoesNothing()
+        {
+            using (var hosts = new Hosts())
+            using (var screen = new ScreenFixture(UIOrientation.Landscape))
+            {
+                var subject = hosts.Component(hosts.Scaler());
+                Call(subject, "OnEnable");
+                Action foreign = () => { };
+                screen.Manager.OnOrientationChange += foreign;
+                FastAction before = screen.Manager.OnOrientationChange;
+                screen.DestroyHost();
+                Call(subject, "OnDisable");
+                Assert.That(screen.Manager.OnOrientationChange, Is.SameAs(before), "destroyed singleton untouched");
+                Assert.That(before.GetInvocationListCount(), Is.EqualTo(2));
             }
         }
     }

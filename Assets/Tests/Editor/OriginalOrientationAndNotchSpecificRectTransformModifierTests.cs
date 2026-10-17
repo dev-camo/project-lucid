@@ -298,6 +298,32 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Orientation (+0x50, 0x1b645ce) and DeviceOrientation (+0x54, 0x1b64610) are read
+        // only after the evaluator returns true (0x1b6457e), while the base call read the
+        // orientation before it: an evaluator that rotates the screen splits the two picks.
+        [Test]
+        public void NotchOrientationIsReadAfterTheEvaluatorReturns()
+        {
+            using (var hosts = new Hosts())
+            using (var screen = new ScreenFixture(UIOrientation.Portrait, ScreenOrientation.Portrait))
+            {
+                var modifier = hosts.Modifier();
+                ConfigureAll(modifier);
+                MethodInfo setOrientation = typeof(ScreenManager).GetProperty("Orientation").GetSetMethod(true);
+                MethodInfo setDeviceOrientation = typeof(ScreenManager).GetProperty("DeviceOrientation").GetSetMethod(true);
+                using (new NotchEvaluator(() =>
+                {
+                    setOrientation.Invoke(screen.Manager, new object[] { UIOrientation.Landscape });
+                    setDeviceOrientation.Invoke(screen.Manager, new object[] { ScreenOrientation.LandscapeLeft });
+                    return true;
+                }))
+                {
+                    Call(modifier, "InitialiseValues");
+                }
+                Assert.That(Desired(modifier), Is.EqualTo(new[] { PortraitEntry, LandscapeLeftNotchEntry }));
+            }
+        }
+
         // The selected array goes straight to List.AddRange (0x1b64663) with no guard:
         // an empty array adds nothing and a null one throws.
         [Test]
