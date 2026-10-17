@@ -16,9 +16,11 @@ namespace Hardlight.Utils
 
         public IReadOnlyList<AndroidGradleDependency> VersionControlledDependencies => m_versionControlledDependencies;
 
-        // 0x06001140..0x06001142: no own field initialisation. The base
-        // constructors' virtual Validate reaches the override below while the
-        // dependency array is still null.
+        // 0x06001140..0x06001142: no own field initialisation. The (name,
+        // version) and (name, versionNumber) constructors, and the single-string
+        // constructor with a non-empty dependency, run the virtual Validate from
+        // the base and reach the override below while the array is still null;
+        // a null or empty dependency skips Validate.
         public AndroidBillOfMaterials(string dependency) : base(dependency) { }
 
         public AndroidBillOfMaterials(string name, Version version) : base(name, version) { }

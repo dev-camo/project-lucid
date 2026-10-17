@@ -19,8 +19,7 @@ namespace Hardlight
 
     // Original HLUnityCore.Runtime 0x02000236 (MethodDefs 0x06000e2e..
     // 0x06000e4d). Keep the original member order: it fixes the compiler-
-    // generated closure names. Static fields use initializers because the
-    // type is beforefieldinit (.cctor 0x06000e4e).
+    // generated closure names; beforefieldinit.
     public static class ProcessManager
     {
         private class ProcessManagerLogger : IConditionalLogger

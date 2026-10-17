@@ -6,10 +6,8 @@ namespace ProjectLucid.Verification
   // Selected observed immutable Editor image; whole emission and runtime qualification remain separate.
   const string MainRecordSha256 = "eb3aa0b9fb3eeb5d3f6bc06f2bd15780ab928eef837b0a417a4e41c0db875c8b";
   const string ReferenceRecordSha256 = "cc5311839beea9ef7095e9485e11e0d6bb9eaaa01f657f27aa2185415e8b7c11";
-  // ProcessManager.cs re-pinned for the original member-order and beforefieldinit
-  // restore (previously c70904da...316b, 16032 bytes); needs independent review.
   static SourcePin[] TentativeProviderSourcePins() => new SourcePin[] {
-   new SourcePin("Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/ProcessManager.cs","01dd0ed6a92ae326b7a011775b676b00f7c7b1b901848fad4c47b78068c7a1a7",16190),
+   new SourcePin("Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/ProcessManager.cs","a51441a9b0ead623b7c4c39abeb27e1a9a95411850ee89d46a31ae4363ef5894",16112),
    new SourcePin("Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/SystemRef.cs","901b02f10721bd67c285bac87a888ee9e5a9c98cc437aa5228a7e2d8fb8ebfa4",3995),
    new SourcePin("Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/Dependencies/FastAction.cs","0ad821b9f3aa77b329a1adf93da6c070b6b20a405632bde162941c2964e0a6c5",5447),
    new SourcePin("Packages/com.hardlight.hlunitycore/Runtime/Logging/FastAction.NonGeneric.cs","0a45e58da6f6f2a88b133a5dda2e5ebe7c85c38cc6dab84b15b01dec0da2dc64",1094),

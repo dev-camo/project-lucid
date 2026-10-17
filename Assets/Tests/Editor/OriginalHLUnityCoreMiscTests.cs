@@ -30,8 +30,7 @@ namespace ProjectLucid.Tests
         // <>c__34`1/<>c__35`1 (lambdas (system, sysRef)); the HLPropertyStore
         // iterator is <SaveAtEndOfFrame>d__71; PerformanceProfileCustom's
         // UpdateAttribute closure is <>c__DisplayClass4_0. The ordinals come
-        // from member declaration order: the previous source order produced
-        // DisplayClass33/34, <>c__35/36 and d__67 instead.
+        // from member declaration order.
         [Test]
         public void ClosureAndIteratorNamesFollowTheOriginalMemberOrder()
         {
@@ -382,14 +381,17 @@ namespace ProjectLucid.Tests
 
         // FirebaseConfigurationAsset .ctor 0x06000146 (x86-64 0x1aa01c0) sets
         // m_automaticIntegration to 1 and both paths to String.Empty before the
-        // base constructor. ValidateAssetPath 0x06000145 only probes File.Exists;
-        // its report is compiled out, so a missing file is silent.
+        // base constructor. ValidateAssetPath 0x06000145 only probes File.Exists
+        // and discards the result (tail jmp at 0x1aa01b7); no report survives in
+        // the retail body, so a missing file is silent on both the HLOutput and
+        // the Debug route.
         [Test]
         public void FirebaseAssetDefaultsAndSilentValidation()
         {
             FirebaseConfigurationAsset asset = ScriptableObject.CreateInstance<FirebaseConfigurationAsset>();
             try
             {
+                using var capture = new OwnedHLOutputErrorCapture();
                 Assert.That(asset.AutomaticIntegration, Is.True);
                 Assert.That(typeof(FirebaseConfigurationAsset).GetField("m_googleServicesJsonPath", AnyInstance).GetValue(asset), Is.EqualTo(string.Empty));
                 Assert.That(typeof(FirebaseConfigurationAsset).GetField("m_googleServiceInfoPlist", AnyInstance).GetValue(asset), Is.EqualTo(string.Empty));
@@ -397,6 +399,7 @@ namespace ProjectLucid.Tests
                 typeof(FirebaseConfigurationAsset).GetField("m_googleServicesJsonPath", AnyInstance)
                     .SetValue(asset, "Missing/" + Guid.NewGuid().ToString("N") + ".json");
                 Assert.DoesNotThrow(asset.Validate);
+                Assert.That(capture.Errors, Is.Empty, "a missing file is not reported");
                 LogAssert.NoUnexpectedReceived();
             }
             finally
@@ -408,8 +411,9 @@ namespace ProjectLucid.Tests
         // AndroidBillOfMaterials: the (name, version) constructors are the
         // inlined base constructor ending in virtual Validate (0x1b30558/
         // 0x1b30640), and the override 0x06001143 (0x1b306e7) reads the
-        // still-null array without a null test. The empty-string constructor
-        // 0x06001140 skips Validate in the base branch.
+        // still-null array without a null test. The single-string constructor
+        // 0x06001140 with a null or empty dependency skips Validate (base
+        // IsNullOrEmpty branch, 0x1b30421).
         [Test]
         public void BillOfMaterialsValidatesItsUnsetArrayDuringConstruction()
         {
