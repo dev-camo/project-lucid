@@ -209,6 +209,17 @@ namespace ProjectLucid
                     throw new InvalidOperationException("Fixture registration did not acquire its expected system: " + name);
             }
 
+            // A system a constructor registered into this row while the fixture held it
+            // (the row was acquired absent, so whatever it now holds is the fixture's).
+            public void AdoptCurrent()
+            {
+                if (ownedRow == null || !ReferenceEquals(registry[name], ownedRow))
+                    throw new InvalidOperationException("Fixture does not hold this row: " + name);
+                ISystem current = Reference(ownedRow).GetSafe();
+                if (current != null && !systems.Any(system => ReferenceEquals(system, current)))
+                    systems.Add(current);
+            }
+
             public void Dispose()
             {
                 if (ownedRow == null) return;

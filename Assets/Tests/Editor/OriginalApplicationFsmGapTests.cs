@@ -446,9 +446,9 @@ namespace ProjectLucid.Tests
                 }
                 finally
                 {
-                    // Both rows were acquired absent, so whatever they hold is this test's.
-                    ProcessManager.UnregisterSystem(ProcessManager.GetDefaultName<GameCenterLocalPlayer>());
-                    ProcessManager.UnregisterSystem(ProcessManager.GetDefaultName<GameCenter>());
+                    // GameCenter registers itself and its local player into the owned rows.
+                    owned.AdoptCurrent<GameCenterLocalPlayer>();
+                    owned.AdoptCurrent<GameCenter>();
                 }
             }
         }
@@ -547,6 +547,8 @@ namespace ProjectLucid.Tests
                 m_order.Add(row);
                 row.Register(null);
             }
+
+            public void AdoptCurrent<T>() where T : class, ISystem => m_rows[ProcessManager.GetDefaultName<T>()].AdoptCurrent();
 
             // A row the case only reads (App's field initializers read SaveManager
             // and UIScreenTransitionManager), where GetSystemRef<T> still caches a
