@@ -15,7 +15,7 @@ namespace HardlightProject
             base.DoOnUpdate(brain, deltaTime);
             if (m_resetBrain)
             {
-                brain.EndAction((GameAction)0x78c13968);
+                brain.EndAction(GameAction.CharacterJump);
                 m_character.BoostStamina.UpdateDeactivation(false);
                 m_resetBrain = false;
                 return;
@@ -32,7 +32,7 @@ namespace HardlightProject
             if ((canJump && jump) || m_character.QueuedActions.Jump)
             {
                 m_character.QueuedActions.Jump = trackerClose || hitProjected;
-                if (!m_character.QueuedActions.Jump) brain.EndAction((GameAction)0x78c13968);
+                if (!m_character.QueuedActions.Jump) brain.EndAction(GameAction.CharacterJump);
             }
             bool canBoost = m_character.Storage.GetValue(ActorFSMKeys.CanQueueBoost, false, true);
             bool boost = brain.Boost;

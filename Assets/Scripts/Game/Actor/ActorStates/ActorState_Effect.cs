@@ -72,12 +72,12 @@ namespace HardlightProject
         }
 
         protected void SetBossMovementSpeed(ActorAnimator animator, float speed) =>
-            animator.TrySetFromAnimationType(m_stateAnimationDefinition, (ActorAnimationType)unchecked((int)0x8d0dfab4), speed);
+            animator.TrySetFromAnimationType(m_stateAnimationDefinition, ActorAnimationType.Boss_Speed, speed);
 
         protected void SetBossMovementDirections(ActorAnimator animator, float xMovement, float zMovement)
         {
-            animator.TrySetFromAnimationType(m_stateAnimationDefinition, (ActorAnimationType)0x7fdd921c, xMovement);
-            animator.TrySetFromAnimationType(m_stateAnimationDefinition, (ActorAnimationType)0x7b284221, zMovement);
+            animator.TrySetFromAnimationType(m_stateAnimationDefinition, ActorAnimationType.Boss_XDirection, xMovement);
+            animator.TrySetFromAnimationType(m_stateAnimationDefinition, ActorAnimationType.Boss_ZDirection, zMovement);
         }
 
         protected void SetAnimationBool(ActorAnimator animator, ActorAnimationType animType, bool setBool) =>

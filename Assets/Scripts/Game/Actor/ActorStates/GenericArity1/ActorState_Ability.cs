@@ -19,7 +19,7 @@ namespace HardlightProject
             T ability = GetAbility(actor);
             if (ability == null) return;
             ActorFormType form = ability.GetFormType();
-            if (form != (ActorFormType)unchecked((int)0xb6fa1284)) actor.SwitchToForm(form);
+            if (form != ActorFormType.None) actor.SwitchToForm(form);
             ability.RegisterForCollisions();
             AddAbilityInUse(actor);
         }

@@ -15,7 +15,7 @@ namespace HardlightProject
     public class Character : Actor, IGameplayModifiable, IDamageable
     {
         // Original 0x040009bf; native own offset0x0.
-        private const TimeCategory CharacterTimeCategory = (TimeCategory)(-172618227);
+        private const TimeCategory CharacterTimeCategory = TimeCategory.PlayerMovement;
         // Original 0x040009c0; native own offset0x150.
         private DataManager m_dataManager;
         // Original 0x040009c1; native own offset0x158.

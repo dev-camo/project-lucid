@@ -27,8 +27,8 @@ namespace HardlightProject
 
         // 06002a66, 06002a68: required definition accesses retain the original null fault.
         public override string GetId() => m_blueCoinDefinition.GetGUID();
-        // 06002a67: the original progression enum's serialized Int32 literal.
-        public override PlayerProgressionTypes GetProgressionType() => unchecked((PlayerProgressionTypes)0x862ff4c5);
+        // 06002a67
+        public override PlayerProgressionTypes GetProgressionType() => PlayerProgressionTypes.BlueCoins;
         public override UIWidgetProgression GetWidget() => m_blueCoinDefinition.ProgressionUnlockWidget;
         // 06002a69: the shipped unlock Save body returns without modifying the save.
         public override void Save(SaveManager saveManager) { }
