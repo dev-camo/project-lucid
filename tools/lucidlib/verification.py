@@ -2236,6 +2236,24 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLExclusiveStateGroupTests."
     "SetKeysReadsTheSwitcherInstanceIdsOnlyForKeyedIndices",
 ))
 
+# Restored Hardlight.HLScrollRectContentFocus (HLUnityUI.Runtime 0x0600056d..7c).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLScrollRectContentFocusTests." + name for name in (
+    "DeclarationsKeepTheDumpedEnumsConstantsAndFieldOrder",
+    "ConstructorAllocatesOnlyTheChildListAndFocusStartsDisabled",
+    "AwakeFillsMissingReferencesAndCastsTheAssignedScrollRect",
+    "AddToStartParentsAtSiblingZeroAndRecordsOnlyWithFocus",
+    "AddToStartAtTheLimitEvictsAndReturnsTheEndChild",
+    "AddToEndUsesTheLastSiblingAndEvictsTheStartChildAtTheLimit",
+    "RemoveFromStartAndEndKeepWorldPositionAndRecordOnlyWithFocus",
+    "RemoveContentChildReportsTheSearchIndexAndNeverSearchesTheLastNode",
+    "InternalCalculatePositionDeltaUsesThePivotShareAndFlipsHorizontal",
+    "RefocusAppliesTheOffsetAndPublishesCountersOnlyWhenPendingAndEnabled",
+    "AddedChildrenAndTheFlaggedHolderAreLaidOutImmediately",
+    "LateUpdateAndOnDisableDispatchRefocusThroughTheVirtualSlot",
+    "SetScrollRectNormalisedPositionMovesOnlyAnHLScrollRect",
+    "IsChildVisibleToViewportWalksInwardAndRequiresStrictOverlap",
+))
+
 # Issue #87: Language row admission and unwind controls.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.LanguageLifecycleAdmissionTests.LanguageObserverRow_RejectsWithoutInvokingOrConsuming(False)",
