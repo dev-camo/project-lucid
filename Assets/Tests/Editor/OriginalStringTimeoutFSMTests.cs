@@ -451,31 +451,36 @@ namespace ProjectLucid.Tests
         // Null fsm (0x1abdd1f): FSMManager.GetManager(null).FSMs is walked through
         // IEnumerable<KeyValuePair<int, FiniteStateMachine>> and each value is written.
         // The default manager row is borrowed or owned through FSMManagerVerification's row
-        // scope, and both manager tables get their original layout back, dropping the machine.
+        // scope. Both manager tables get their original layout back, dropping the machine, in the
+        // body's own finally, so the restore never depends on the row still being live at cleanup.
         [Test]
         public void GenerateMultipleFSMsWithoutMachineWritesEveryManagerRegisteredFSM()
         {
-            var tables = new List<KeyValuePair<IDictionary, object[]>>();
             FSMManagerVerification.WithDefaultManagerRow(() =>
             {
                 FSMManager manager = FSMManager.GetManager();
-                foreach (string field in new[] { "m_fsmRefs", "m_fsmLookUp" })
+                var tables = new List<KeyValuePair<IDictionary, object[]>>();
+                try
                 {
-                    var table = (IDictionary)typeof(FSMManager).GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(manager);
-                    tables.Add(new KeyValuePair<IDictionary, object[]>(table, FSMManagerVerification.CaptureLayout(table)));
-                }
-                var machine = Machine();
-                manager.AddFSM(machine);
-                List<string> registered = manager.FSMs.Select(entry => GraphNameLookup.LookupNameUsingId(entry.Value.FSMId)).ToList();
-                Assert.That(registered, Does.Contain(GraphNameLookup.LookupNameUsingId(machine.FSMId)));
+                    foreach (string field in new[] { "m_fsmRefs", "m_fsmLookUp" })
+                    {
+                        var table = (IDictionary)typeof(FSMManager).GetField(field, BindingFlags.NonPublic | BindingFlags.Instance).GetValue(manager);
+                        tables.Add(new KeyValuePair<IDictionary, object[]>(table, FSMManagerVerification.CaptureLayout(table)));
+                    }
+                    var machine = Machine();
+                    manager.AddFSM(machine);
+                    List<string> registered = manager.FSMs.Select(entry => GraphNameLookup.LookupNameUsingId(entry.Value.FSMId)).ToList();
+                    Assert.That(registered, Does.Contain(GraphNameLookup.LookupNameUsingId(machine.FSMId)));
 
-                FSMClassFactory.JSONMultipleFSMs json = FSMClassFactory.GenerateJSONMultipleFSMsClass(null, null);
-                Assert.That(json.FSMs.Select(item => item.Name).ToList(), Is.EqualTo(registered));
-            }, manager =>
-            {
-                foreach (KeyValuePair<IDictionary, object[]> table in tables)
-                    FSMManagerVerification.RestoreLayout(table.Key, table.Value);
-            });
+                    FSMClassFactory.JSONMultipleFSMs json = FSMClassFactory.GenerateJSONMultipleFSMsClass(null, null);
+                    Assert.That(json.FSMs.Select(item => item.Name).ToList(), Is.EqualTo(registered));
+                }
+                finally
+                {
+                    foreach (KeyValuePair<IDictionary, object[]> table in tables)
+                        FSMManagerVerification.RestoreLayout(table.Key, table.Value);
+                }
+            }, manager => { });
         }
 
         // SerialiseFSMsToFile 0x060003b0, 0x1abf110: pretty ToJson (esi=1, 0x1abf1e7), then

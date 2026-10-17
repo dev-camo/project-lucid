@@ -82,19 +82,52 @@ namespace ProjectLucid.Editor
             });
         }
 
-        // Negative control: the cleanup shape the fixtures used before acquires the manager in
-        // its finally block, which leaves a newly registered live manager behind.
+        // Control for the cold-registry cases. GetManager (0x060003eb, x86-64 0x1ab8ba0) tests
+        // IsSystemNull<FSMManager>(null) at 0x1ab8c11 and, when the row is null, constructs an
+        // FSMManager (0x1ab8c2f) and registers it (RegisterSystem, 0x1ab8c52). A cleanup that
+        // releases a fixture's machine through GetManager therefore leaves a live manager row on
+        // a cold registry, after success and after an early failure alike; the same bodies run
+        // inside the row scope leave none.
         [Test]
-        public void CleanupThatAcquiresTheManagerLeavesALiveRow()
+        public void CleanupThroughGetManagerLeavesALiveRowWhereTheRowScopeLeavesNone()
         {
+            string name = "Lucid-cleanup-shape-" + Guid.NewGuid().ToString("N");
+            // Success: the registering constructor reaches GetManager and AddFSM itself.
             WithColdDefaultRow(() =>
             {
-                FSMManagerVerification.WithDefaultManagerRow(() => { }, manager => { });
-                Assert.That(Rows().Contains(ManagerName), Is.False, "the row scope never registers a manager");
-                try { }
-                finally { FSMManager.GetManager(); }
-                Assert.That(Rows().Contains(ManagerName), Is.True);
-                Assert.That(ProcessManager.IsSystemValid<FSMManager>(), Is.True);
+                FiniteStateMachine machine = null;
+                try { machine = new FiniteStateMachine(name); }
+                finally { if (machine != null) FSMManager.GetManager().ReleaseFSM(machine); }
+                Assert.That(ProcessManager.IsSystemValid<FSMManager>(), Is.True, "acquiring cleanup after success");
+                Assert.That(ProcessManager.GetSystem<FSMManager>().FSMExists(name), Is.False);
+            });
+            WithColdDefaultRow(() =>
+            {
+                FSMManagerVerification.WithDefaultManagerRow(
+                    () => new FiniteStateMachine(name),
+                    manager => { while (manager.FSMExists(name)) manager.ReleaseFSM(name); });
+                Assert.That(Rows().Contains(ManagerName), Is.False, "row scope after success");
+            });
+
+            // Early failure: nothing acquired the manager before the cleanup ran.
+            var early = new InvalidOperationException("failure before any manager acquisition");
+            WithColdDefaultRow(() =>
+            {
+                Exception caught = Assert.Throws<InvalidOperationException>(() =>
+                {
+                    try { throw early; }
+                    finally { FSMManager.GetManager().ReleaseFSM(name); }
+                });
+                Assert.That(caught, Is.SameAs(early));
+                Assert.That(ProcessManager.IsSystemValid<FSMManager>(), Is.True, "acquiring cleanup after early failure");
+            });
+            WithColdDefaultRow(() =>
+            {
+                Exception caught = Assert.Throws<InvalidOperationException>(() =>
+                    FSMManagerVerification.WithDefaultManagerRow(() => throw early,
+                        manager => { while (manager.FSMExists(name)) manager.ReleaseFSM(name); }));
+                Assert.That(caught, Is.SameAs(early));
+                Assert.That(Rows().Contains(ManagerName), Is.False, "row scope after early failure");
             });
         }
 

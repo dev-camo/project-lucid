@@ -13,19 +13,25 @@ namespace ProjectLucid
     public static class FSMConstructionVerification
     {
         private static readonly List<string> Trace = new List<string>();
+        // Machines registered under these names reach the default manager through the
+        // FiniteStateMachine constructor's AddFSM, even when construction then throws.
+        private static readonly List<string> RegisteredNames = new List<string>();
 
         public static void Run()
         {
-            // VerifyJSONAndRegistration releases its own machine; the scope owns the manager row.
-            FSMManagerVerification.WithDefaultManagerRow(() =>
+            try
             {
-                VerifyMetadata();
-                VerifyDiscoveryAndHelpers();
-                VerifyRetryOrder();
-                VerifyFatalErrorsAndLimits();
-                VerifyDefaultsAndRouting();
-                VerifyJSONAndRegistration();
-            }, manager => { });
+                FSMManagerVerification.WithDefaultManagerRow(() =>
+                {
+                    VerifyMetadata();
+                    VerifyDiscoveryAndHelpers();
+                    VerifyRetryOrder();
+                    VerifyFatalErrorsAndLimits();
+                    VerifyDefaultsAndRouting();
+                    VerifyJSONAndRegistration();
+                }, manager => { foreach (string name in RegisteredNames) while (manager.FSMExists(name)) manager.ReleaseFSM(name); });
+            }
+            finally { RegisteredNames.Clear(); }
             Debug.Log("Original synchronous FSM construction source-based verification passed. Asynchronous loading and authored gameplay remain unresolved.");
         }
 
@@ -191,6 +197,7 @@ namespace ProjectLucid
 
             var setup = Setup();
             setup.Name = "Lucid-factory-registered-" + Guid.NewGuid();
+            RegisteredNames.Add(setup.Name);
             var manager = FSMManager.GetManager();
             FiniteStateMachine registered = FSMClassFactory.ConstructFSM(setup);
             try

@@ -15,17 +15,25 @@ namespace ProjectLucid.Tests
     public sealed class FSMComponentTests
     {
         [UnityTest]
-        public IEnumerator OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle()
+        public IEnumerator OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle() => EmbeddedStartDispatchAndLifecycle(null, null);
+
+        // afterAcquisition runs once the original acquisition has registered the machine, so a
+        // case can fail the flow there; admitted receives the manager row lease, if any.
+        private static IEnumerator EmbeddedStartDispatchAndLifecycle(Action afterAcquisition, Action<LifecycleSystemRowLease> admitted)
         {
             string name = "Lucid-live-fsm-" + Guid.NewGuid().ToString("N");
             // FSMManager.GetManager (0x060003eb) registers a default manager whenever that row is
             // null. A live manager is borrowed in place and loses only this test's machine; an
             // absent or idle row is leased, so the manager the acquisition registers is the
-            // test's own and its row is released afterwards.
+            // test's own and its row is released afterwards. A null row that still carries
+            // observers or deferred work is refused before anything runs, leaving it untouched:
+            // unlike the EditMode fixtures this test does not set such a row aside, so a session
+            // that leaked one fails here rather than hiding the leak.
             string managerName = ProcessManager.GetDefaultName<FSMManager>();
             LifecycleSystemRowLease managerLease = ProcessManager.IsSystemNull(managerName)
                 ? LifecycleSystemRowLease.AdmitAbsentOrIdle(LifecycleSystemRowLease.SharedRegistry, managerName)
                 : null;
+            admitted?.Invoke(managerLease);
             GameObject machineObject = null, userObject = null;
             FiniteStateMachineScriptableObject asset = null;
             try
@@ -61,6 +69,7 @@ namespace ProjectLucid.Tests
                 Assert.AreEqual(1, Get<int>(asset, "m_refCount"));
                 Assert.IsEmpty(Get<List<IGraphUser>>(component, "m_fsmUsersPendingInitialise"));
                 Assert.IsTrue(RegisteredManager().FSMExists(name));
+                afterAcquisition?.Invoke();
                 Assert.AreEqual("idle", machine.GetActiveState(user).ToString());
 
                 SetUpdateType(component, 0);
@@ -159,6 +168,85 @@ namespace ProjectLucid.Tests
             finally { registry.Restore(); }
         }
 
+        // A failure after the acquisition registered the test's manager still runs the leased
+        // cleanup: the machine and the owned row are released and no cleanup step fails.
+        [UnityTest]
+        public IEnumerator OriginalFSMComponents_ColdRegistryFailureAfterAcquisitionLeavesNoDefaultManagerRow()
+        {
+            var registry = new DefaultManagerRowSnapshot();
+            try
+            {
+                var injected = new InvalidOperationException("Lucid failure after the manager acquisition");
+                LifecycleSystemRowLease lease = null;
+                bool acquired = false;
+                IEnumerator run = EmbeddedStartDispatchAndLifecycle(() =>
+                {
+                    acquired = ProcessManager.IsSystemValid<FSMManager>();
+                    throw injected;
+                }, admitted => lease = admitted);
+                Exception caught = null;
+                try
+                {
+                    while (true)
+                    {
+                        try { if (!run.MoveNext()) break; }
+                        catch (Exception failure) { caught = failure; break; }
+                        yield return run.Current;
+                    }
+                }
+                finally { (run as IDisposable)?.Dispose(); }
+                Assert.AreSame(injected, caught);
+                Assert.IsTrue(acquired, "The failure ran after GetManager registered the test's manager.");
+                Assert.IsNotNull(lease, "A cold registry is leased.");
+                Assert.IsFalse(lease.IsBorrowed);
+                Assert.IsEmpty(lease.CleanupFailures, "Fixture cleanup failed after the injected failure.");
+                Assert.IsEmpty(lease.DiagnosticFailures);
+                Assert.IsFalse(LifecycleSystemRowLease.SharedRegistry.Contains(DefaultManagerRowSnapshot.Name), "The failed test left a default FSM manager row.");
+            }
+            finally { registry.Restore(); }
+        }
+
+        // A null default row whose references carry observers is refused before the test does
+        // anything: no observer runs, and the row, its references and the registry order stay.
+        [UnityTest]
+        public IEnumerator OriginalFSMComponents_ObservedNullRowIsRefusedUntouched()
+        {
+            var registry = new DefaultManagerRowSnapshot();
+            IDictionary rows = LifecycleSystemRowLease.SharedRegistry;
+            string later = "Lucid-fsm-row-order-" + Guid.NewGuid().ToString("N");
+            SystemRef untyped = ProcessManager.GetSystemRef(DefaultManagerRowSnapshot.Name);
+            SystemRef<FSMManager> typed = ProcessManager.GetSystemRef<FSMManager>();
+            int calls = 0;
+            Action<ISystem> untypedObserver = system => calls++;
+            Action<FSMManager> typedObserver = system => calls++;
+            try
+            {
+                object row = rows[DefaultManagerRowSnapshot.Name];
+                // A later row makes the observed row's position visible.
+                ProcessManager.GetSystemRef(later);
+                List<string> order = rows.Keys.Cast<string>().ToList();
+                untyped.OnSystemStartup += untypedObserver; untyped.OnSystemShutdown += untypedObserver;
+                typed.OnSystemStartup += typedObserver; typed.OnSystemShutdown += typedObserver;
+                IEnumerator run = EmbeddedStartDispatchAndLifecycle(null, null);
+                try { Assert.Throws<InvalidOperationException>(() => run.MoveNext()); }
+                finally { (run as IDisposable)?.Dispose(); }
+                Assert.AreEqual(0, calls, "The refused row's observers ran.");
+                Assert.AreSame(row, rows[DefaultManagerRowSnapshot.Name]);
+                Assert.AreSame(untyped, ProcessManager.GetSystemRef(DefaultManagerRowSnapshot.Name));
+                Assert.AreSame(typed, ProcessManager.GetSystemRef<FSMManager>());
+                Assert.IsTrue(untyped.IsNull() && typed.IsNull());
+                CollectionAssert.AreEqual(order, rows.Keys.Cast<string>().ToList(), "Registry order");
+                yield return null;
+            }
+            finally
+            {
+                untyped.OnSystemStartup -= untypedObserver; untyped.OnSystemShutdown -= untypedObserver;
+                typed.OnSystemStartup -= typedObserver; typed.OnSystemShutdown -= typedObserver;
+                rows.Remove(later);
+                registry.Restore();
+            }
+        }
+
         // A live default manager is borrowed in place: it stays registered and keeps only the
         // machines it already held.
         [UnityTest]
@@ -205,7 +293,13 @@ namespace ProjectLucid.Tests
         // Sets the default manager row aside for one case and puts the registry back afterwards:
         // the case's own row is unregistered and removed, the set-aside row returns, and the
         // dictionary's complete state, free slots included, is restored once it holds exactly
-        // its original rows again.
+        // its original rows again. This repeats FSMManagerVerification's layout helpers because
+        // that class lives in the Editor-only assembly, which this player test assembly cannot
+        // reference. Release is also simpler than its audited ReleaseOwnedRows teardown: the
+        // case's row holds only the test's own manager, already released through the lease, or
+        // a row the case built itself, so the original UnregisterSystem and a plain removal
+        // suffice. Failure ordering matches: the row is always removed, the set-aside row put
+        // back and the layout restored, and the unregister failure then propagates.
         private sealed class DefaultManagerRowSnapshot
         {
             internal static readonly string Name = ProcessManager.GetDefaultName<FSMManager>();
@@ -226,17 +320,26 @@ namespace ProjectLucid.Tests
 
             internal void Restore()
             {
-                if (rows.Contains(Name))
+                try
                 {
-                    ProcessManager.UnregisterSystem(Name);
-                    rows.Remove(Name);
+                    if (rows.Contains(Name)) ProcessManager.UnregisterSystem(Name);
                 }
-                if (setAside != null) rows[Name] = setAside;
-                if (rows.Count != original.Count) return;
+                finally
+                {
+                    rows.Remove(Name);
+                    if (setAside != null) rows[Name] = setAside;
+                    if (HoldsOriginalRows())
+                        for (int i = 0; i < fields.Length; i++)
+                            fields[i].SetValue(rows, layout[i] is Array array ? array.Clone() : layout[i]);
+                }
+            }
+
+            private bool HoldsOriginalRows()
+            {
+                if (rows.Count != original.Count) return false;
                 foreach (DictionaryEntry row in original)
-                    if (!rows.Contains(row.Key) || !ReferenceEquals(rows[row.Key], row.Value)) return;
-                for (int i = 0; i < fields.Length; i++)
-                    fields[i].SetValue(rows, layout[i] is Array array ? array.Clone() : layout[i]);
+                    if (!rows.Contains(row.Key) || !ReferenceEquals(rows[row.Key], row.Value)) return false;
+                return true;
             }
         }
 

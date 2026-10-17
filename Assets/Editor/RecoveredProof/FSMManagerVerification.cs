@@ -21,40 +21,21 @@ namespace ProjectLucid
         public static void Run()
         {
             s_ownedRows.Clear();
-            string defaultManager = ProcessManager.GetDefaultName<FSMManager>();
             IDictionary rows = RegistryRows();
-            var original = new List<DictionaryEntry>();
-            foreach (DictionaryEntry row in rows) original.Add(row);
+            List<DictionaryEntry> original = Entries(rows);
             object[] layout = CaptureLayout(rows);
-            // A retained empty default row belongs to someone else, observers included. Set the
-            // row object aside untouched so the fixture's own default manager never fires them.
-            object borrowedDefault = null;
-            if (rows.Contains(defaultManager) && ProcessManager.IsSystemNull(defaultManager))
-            {
-                borrowedDefault = rows[defaultManager];
-                rows.Remove(defaultManager);
-            }
-            if (!rows.Contains(defaultManager)) s_ownedRows.Add(defaultManager);
-            Exception failure = null, cleanup = null;
+            // The verifiers add the further rows they create to s_ownedRows.
             try
             {
-                VerifyFastActions();
-                VerifySystemReferences();
-                VerifyManagers();
-                VerifyDiagnostics();
+                WithDefaultManagerRow(() =>
+                {
+                    VerifyFastActions();
+                    VerifySystemReferences();
+                    VerifyManagers();
+                    VerifyDiagnostics();
+                }, null, s_ownedRows);
             }
-            catch (Exception error) { failure = error; }
-            try { ReleaseOwnedRows(s_ownedRows); }
-            catch (Exception error) { cleanup = error; }
-            finally
-            {
-                s_ownedRows.Clear();
-                if (borrowedDefault != null) rows[defaultManager] = borrowedDefault;
-                if (HoldsExactly(rows, original)) RestoreLayout(rows, layout);
-            }
-            // The fixture's own failure outranks a cleanup failure.
-            if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
-            if (cleanup != null) ExceptionDispatchInfo.Capture(cleanup).Throw();
+            finally { s_ownedRows.Clear(); }
             // The downstream verifiers clear and re-add the registry, so restore its layout again after them.
             try
             {
@@ -67,19 +48,24 @@ namespace ProjectLucid
             }
         }
 
-        // Runs a fixture that reaches FSMManager.GetManager (0x060003eb), which registers a new
-        // default manager whenever the default row is null. The row's ownership is settled before
-        // the body runs, exactly as Run settles it: a borrowed empty row is set aside untouched,
-        // observers included, and an absent row is owned. Afterwards releaseMachines removes the
-        // fixture's own machines from whatever manager is registered then, looked up without
-        // creating one; an owned row is released and a borrowed row put back. A borrowed live
-        // manager stays registered. The body's own failure outranks a cleanup failure.
-        internal static void WithDefaultManagerRow(Action body, Action<FSMManager> releaseMachines)
+        // Runs a fixture that reaches FSMManager.GetManager (0x060003eb, x86-64 0x1ab8ba0), which
+        // registers a new default manager whenever IsSystemNull<FSMManager> reports the default
+        // row null. Afterwards releaseMachines removes the fixture's own machines from whatever
+        // manager is registered then, looked up without creating one.
+        internal static void WithDefaultManagerRow(Action body, Action<FSMManager> releaseMachines) =>
+            WithDefaultManagerRow(body, releaseMachines, new List<string>());
+
+        // The one row-ownership protocol for the fixtures. A retained empty default row belongs to
+        // someone else, observers included: the row object is set aside untouched so the fixture's
+        // own manager never fires them, and put back afterwards. An absent row is owned and released
+        // with every other name in owned. A borrowed live manager stays registered. Once the
+        // registry holds exactly its original rows again its complete layout is restored. The
+        // body's own failure outranks a cleanup failure.
+        private static void WithDefaultManagerRow(Action body, Action<FSMManager> releaseMachines, List<string> owned)
         {
             string defaultManager = ProcessManager.GetDefaultName<FSMManager>();
             IDictionary rows = RegistryRows();
-            var original = new List<DictionaryEntry>();
-            foreach (DictionaryEntry row in rows) original.Add(row);
+            List<DictionaryEntry> original = Entries(rows);
             object[] layout = CaptureLayout(rows);
             object borrowedDefault = null;
             if (rows.Contains(defaultManager) && ProcessManager.IsSystemNull(defaultManager))
@@ -87,7 +73,6 @@ namespace ProjectLucid
                 borrowedDefault = rows[defaultManager];
                 rows.Remove(defaultManager);
             }
-            var owned = new List<string>();
             if (!rows.Contains(defaultManager)) owned.Add(defaultManager);
             Exception failure = null, cleanup = null;
             try { body(); }
@@ -95,7 +80,7 @@ namespace ProjectLucid
             try
             {
                 // IsSystemNull reads the row without registering; GetSystem then only reads it.
-                if (!ProcessManager.IsSystemNull(defaultManager))
+                if (releaseMachines != null && !ProcessManager.IsSystemNull(defaultManager))
                     releaseMachines(ProcessManager.GetSystem<FSMManager>(defaultManager));
             }
             catch (Exception error) { cleanup = error; }
@@ -108,6 +93,14 @@ namespace ProjectLucid
             }
             if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
             if (cleanup != null) ExceptionDispatchInfo.Capture(cleanup).Throw();
+        }
+
+        // IDictionary's own enumerator yields DictionaryEntry; Cast<> would see KeyValuePair.
+        private static List<DictionaryEntry> Entries(IDictionary rows)
+        {
+            var entries = new List<DictionaryEntry>();
+            foreach (DictionaryEntry row in rows) entries.Add(row);
+            return entries;
         }
 
         // The original private registry; only rows named by the caller are ever removed.

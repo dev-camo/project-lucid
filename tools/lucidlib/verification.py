@@ -1666,7 +1666,7 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.ColdRegistryRunsLeaveNoDefaultManagerRow",
     "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.EarlyFailureInsideTheRowScopeLeavesNoDefaultManagerRow",
-    "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.CleanupThatAcquiresTheManagerLeavesALiveRow",
+    "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.CleanupThroughGetManagerLeavesALiveRowWhereTheRowScopeLeavesNone",
     "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.BorrowedLiveManagerKeepsItsInstanceAndHoldsNoFixtureMachines",
     "ProjectLucid.Editor.FSMFixtureManagerRowOwnershipTests.BorrowedEmptyRowKeepsItsObjectReferencesAndObservers",
 )
@@ -1863,6 +1863,8 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.CoroutinePrerequisitesTests.OriginalCoroutineHelpers_NestedTwoFramesAndBothStopOverloads",
     "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle",
     "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_ColdRegistryLeavesNoDefaultManagerRow",
+    "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_ColdRegistryFailureAfterAcquisitionLeavesNoDefaultManagerRow",
+    "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_ObservedNullRowIsRefusedUntouched",
     "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_BorrowedLiveManagerKeepsOnlyItsOwnMachines",
     "ProjectLucid.Tests.FSMComponentTests.OriginalFSMComponents_BorrowedIdleRowStaysRegisteredAndEmpty",
     "ProjectLucid.Tests.InstancedPoolingLifecycleTests.OriginalInstancedPool_CloneDestroyAndManagerLifecycle",
