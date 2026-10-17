@@ -63,7 +63,7 @@ namespace HardlightProject
 			ability.UpdateVelocity(deltaTime);
 			Vector3 blendGravity = character.Storage.GetValue(ActorFSMKeys.AirAbilityBlendGravity, Vector3.zero, true);
 			Vector3 gravityNormalised = character.GetGravityAt(character.WorldPosition).normalized;
-			// Unity's Vector3 !=: refreshes unless the squared difference is below 9.99999944E-11f, so NaN refreshes too.
+			// Inlined Vector3 != (0x773941-0x77394C, threshold at VA 0x29a6e8c): refreshes unless the squared difference is below 9.99999944E-11f, so NaN refreshes too.
 			if (blendGravity != gravityNormalised)
 			{
 				EnableGravity(character, true);

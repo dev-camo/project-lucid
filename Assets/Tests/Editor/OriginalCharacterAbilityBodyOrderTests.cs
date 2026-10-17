@@ -9,8 +9,9 @@ using UnityEngine;
 
 namespace ProjectLucid.Editor
 {
-    // Static checks on four Game.Runtime bodies. Running them needs a fully started Character
-    // (brain from OnStart, App, FSM, physics), which a test cannot build without fakes.
+    // Static checks on four Game.Runtime bodies, plus one value check on an engine operator a gate
+    // binds to. Running the bodies needs a fully started Character (brain from OnStart, App, FSM,
+    // physics), which a test cannot build without fakes.
     // The expected call sets and order come from the 1.10.1 x86-64 bodies cited per test, not
     // from the reconstructed source. Only member references and their relative order are checked.
     // Nops, locals and branch layout depend on the compiler mode and are not checked.
@@ -58,9 +59,9 @@ namespace ProjectLucid.Editor
 
         // 06001510 (RVA 0x773590): the blend-gravity refresh is gated by Unity's inlined Vector3 !=.
         // The squared difference is compared with 9.99999944E-11f (0x2edbe6fe at VA 0x29a6e8c) by
-        // ucomiss/ja (0x773941-0x77394C), so equality at that value and a NaN difference both refresh.
-        // The refresh then calls EnableGravity (0x773963), OrientateToGravity (0x773992) and
-        // UpdateCachedValues (0x7739A6) in that order.
+        // ucomiss/ja (0x773941-0x77394C). The engine operator's values are checked separately by
+        // EngineVectorInequalityMatchesTheNativeAirGravityGate. The refresh then calls EnableGravity
+        // (0x773963), OrientateToGravity (0x773992) and UpdateCachedValues (0x7739A6) in that order.
         [Test]
         public void AirAbilityUpdateRefreshesGravityThroughVectorInequality()
         {
@@ -78,6 +79,33 @@ namespace ProjectLucid.Editor
             Assert.That(refs.Take(enable).Count(m => Same(m, sqrMagnitude)), Is.EqualTo(0),
                 "no hand-written sqrMagnitude threshold before the refresh");
         }
+
+        // Value check on the engine operator the DoUpdate gate binds to. Native 0x773941-0x77394C skips
+        // the refresh only when 9.99999944E-11f (0x2edbe6fe) is greater than the squared difference
+        // (ucomiss/ja is false when unordered), so a difference of exactly that value refreshes, a NaN
+        // difference refreshes, and anything below it does not.
+        [Test]
+        public void EngineVectorInequalityMatchesTheNativeAirGravityGate()
+        {
+            const int nativeThresholdBits = 0x2edbe6fe;
+            float epsilon = 1e-5f;
+            var atThreshold = new Vector3(epsilon, 1f, 0f);
+            Assert.That(Bits((atThreshold - Vector3.up).sqrMagnitude), Is.EqualTo(nativeThresholdBits),
+                "the witness difference squares to the native threshold");
+            Assert.That(atThreshold != Vector3.up, Is.True, "a squared difference equal to the threshold refreshes");
+
+            // One float below 1e-5f squares to 0x2edbe6fb, below the threshold.
+            float belowEpsilon = BitConverter.ToSingle(BitConverter.GetBytes(Bits(epsilon) - 1), 0);
+            var belowThreshold = new Vector3(belowEpsilon, 1f, 0f);
+            Assert.That(Bits((belowThreshold - Vector3.up).sqrMagnitude), Is.EqualTo(0x2edbe6fb));
+            Assert.That(belowThreshold != Vector3.up, Is.False, "a squared difference below the threshold skips");
+
+            Assert.That(new Vector3(float.NaN, 1f, 0f) != Vector3.up, Is.True, "an unordered NaN compare refreshes");
+            Assert.That(Vector3.up != Vector3.up, Is.False, "identical vectors skip");
+            Assert.That(Bits(1e-10f), Is.EqualTo(nativeThresholdBits + 1), "the literal 1e-10f is one ULP above the native threshold");
+        }
+
+        private static int Bits(float value) => BitConverter.ToInt32(BitConverter.GetBytes(value), 0);
 
         // 060010f1 (RVA 0xE60CF0): the early air-active branch stores AirActive = false
         // (0xE60ECA) and tail-jumps to Character_EndAirActiveImpulse (0xE60EE1). The body
