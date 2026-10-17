@@ -100,6 +100,7 @@ namespace ProjectLucid.Tests
             public Action CachedCompletion => (Action)Get(Transition, "m_cachedCompletionCallback");
             public float OverriddenIn => (float)Get(Transition, "m_overriddenTransitionInDuration");
             public float OverriddenOut => (float)Get(Transition, "m_overriddenTransitionOutDuration");
+            public UnityEvent EventField(string name) => (UnityEvent)Get(Transition, name);
 
             public void Dispose()
             {
@@ -414,13 +415,15 @@ namespace ProjectLucid.Tests
             using (var owned = new Owned(FullScreenTransitionType.Continuous))
             {
                 Action mid = () => { owned.Record("mid"); owned.Transition.ResetTransition(); };
+                Set(owned.Transition, "m_overriddenTransitionOutDuration", 0.625f);
                 Assert.IsTrue(owned.Transition.StartTransition(1f, mid, owned.Callback("done")));
+                Assert.AreEqual(0.625f, owned.OverriddenOut, "StartTransition does not write the out override");
                 owned.Transition.Action_TransitionAnimationComplete();
                 CollectionAssert.AreEqual(new[]
                 {
                     "onTransitionIn:1 2 100", "onTransitionInComplete:2 2 100", "mid:2 2 100", "onReset:0 2 101",
                 }, owned.Log);
-                Assert.AreEqual(0f, owned.OverriddenOut);
+                Assert.AreEqual(0.625f, owned.OverriddenOut, "the preempted closure does not store its half");
                 owned.Transition.Action_TransitionAnimationComplete();
                 Assert.AreEqual(4, owned.Log.Count);
             }
@@ -440,6 +443,7 @@ namespace ProjectLucid.Tests
                     "onTransitionIn:1 2 100", "onTransitionInComplete:2 2 100", "mid:2 2 100", "onTransitionOut:3 8 110",
                 }, owned.Log);
                 Assert.AreEqual(0.125f, owned.OverriddenOut, "the closure does not overwrite the midpoint's override");
+                Assert.AreEqual(0.5f, owned.OverriddenIn, "ContinueTransition does not write the in override");
                 owned.Transition.Action_TransitionAnimationComplete();
                 CollectionAssert.AreEqual(new[] { "onTransitionOutComplete:0 8 110", "done:0 8 110" }, owned.Log.Skip(4));
             }
@@ -608,6 +612,216 @@ namespace ProjectLucid.Tests
                     "onTransitionInComplete:2 8 110", "mid:2 8 110",
                     "onTransitionOutComplete:0 8 110", "done:0 8 110",
                 }, owned.Log);
+            }
+        }
+
+        // StartTransition (0x1b3feae/0x1b3feda) writes only the in override
+        // and ContinueTransition (0x1b40037) only the out override; neither
+        // touches the other leg. Seeded values start away from the default 0.
+        // Mutations caught: StartTransition clearing the out override,
+        // ContinueTransition clearing the in override.
+        [Test]
+        public void EachLegWritesOnlyItsOwnOverride()
+        {
+            using (var owned = new Owned(FullScreenTransitionType.Held))
+            {
+                Set(owned.Transition, "m_overriddenTransitionOutDuration", 0.625f);
+                Assert.IsTrue(owned.Transition.StartTransition(0.5f));
+                Assert.AreEqual(0.5f, owned.OverriddenIn);
+                Assert.AreEqual(0.625f, owned.OverriddenOut, "Held StartTransition keeps the out override");
+                owned.Transition.Action_TransitionAnimationComplete();
+                Assert.AreEqual(0.625f, owned.OverriddenOut, "the Held midpoint keeps the out override");
+                Assert.IsTrue(owned.Transition.ContinueTransition(0.125f));
+                Assert.AreEqual(0.5f, owned.OverriddenIn, "ContinueTransition keeps the in override");
+                Assert.AreEqual(0.125f, owned.OverriddenOut);
+                CollectionAssert.AreEqual(new[]
+                {
+                    "onTransitionIn:1 2 100", "onTransitionInComplete:2 2 100", "onTransitionOut:3 8 110",
+                }, owned.Log);
+            }
+
+            using (var owned = new Owned(FullScreenTransitionType.Continuous))
+            {
+                Set(owned.Transition, "m_overriddenTransitionOutDuration", 0.625f);
+                Assert.IsTrue(owned.Transition.StartTransition(0.5f));
+                Assert.AreEqual(0.25f, owned.OverriddenIn);
+                Assert.AreEqual(0.625f, owned.OverriddenOut, "Continuous StartTransition keeps the out override");
+            }
+        }
+
+        // Action_TransitionAnimationComplete 0x1b40199/0x1b401ce (and
+        // OnMidPointReached 0x1b40209, OnCompletion 0x1b40259) load the cached
+        // callback from the field only after UnityEvent.Invoke returns, so a
+        // listener that re-caches changes which callback runs. Expected logs
+        // follow the fixture speeds (in 4, out 5).
+        // Mutations caught: reading either cache into a local before the event.
+        [Test]
+        public void CachedCallbacksAreReadAfterTheCompletionEvents()
+        {
+            using (var owned = new Owned(FullScreenTransitionType.Held))
+            {
+                Action mid1 = owned.Callback("mid1"), done1 = owned.Callback("done1");
+                Action mid2 = owned.Callback("mid2"), done2 = owned.Callback("done2");
+                Assert.IsTrue(owned.Transition.StartTransition(0f, mid1, done1));
+                owned.Transition.Action_TransitionAnimationComplete();
+                Assert.IsTrue(owned.Transition.ContinueTransition());
+                bool fired = false;
+                owned.EventField("m_onTransitionOutComplete").AddListener(() =>
+                {
+                    if (fired) return;
+                    fired = true;
+                    Assert.IsTrue(owned.Transition.StartTransition(0f, mid2, done2));
+                });
+                owned.Transition.Action_TransitionAnimationComplete();
+                CollectionAssert.AreEqual(new[]
+                {
+                    "onTransitionIn:1 4 100", "onTransitionInComplete:2 4 100", "mid1:2 4 100", "onTransitionOut:3 5 110",
+                    "onTransitionOutComplete:0 5 110", "onTransitionIn:1 4 110", "done2:1 4 110",
+                }, owned.Log);
+                Assert.AreSame(done2, owned.CachedCompletion);
+                Assert.AreEqual(State.TransitioningIn, owned.Transition.CurrentState);
+            }
+
+            using (var owned = new Owned(FullScreenTransitionType.Held))
+            {
+                Action mid1 = owned.Callback("mid1"), mid2 = owned.Callback("mid2");
+                Assert.IsTrue(owned.Transition.StartTransition(0f, mid1, null));
+                owned.EventField("m_onTransitionInComplete").AddListener(() =>
+                {
+                    owned.Transition.ResetTransition();
+                    Set(owned.Transition, "m_cachedMidpointCallback", mid2);
+                });
+                owned.Transition.Action_TransitionAnimationComplete();
+                CollectionAssert.AreEqual(new[]
+                {
+                    "onTransitionIn:1 4 100", "onTransitionInComplete:2 4 100", "onReset:0 4 101", "mid2:0 4 101",
+                }, owned.Log);
+                Assert.AreEqual(State.HeldOut, owned.Transition.CurrentState);
+            }
+        }
+
+        // Neither OnMidPointReached (0x1b4020e..0x1b4022c) nor OnCompletion
+        // (0x1b4025e..0x1b4027c) re-checks the state after its event: a
+        // non-null cached callback always runs. Mutations caught: a HeldIn
+        // guard on the midpoint, a HeldOut guard on the completion.
+        [Test]
+        public void CachedCallbacksRunEvenWhenAListenerChangedTheState()
+        {
+            using (var owned = new Owned(FullScreenTransitionType.Held))
+            {
+                Assert.IsTrue(owned.Transition.StartTransition(0f, owned.Callback("mid"), owned.Callback("done")));
+                owned.EventField("m_onTransitionInComplete").AddListener(owned.Transition.ResetTransition);
+                owned.Transition.Action_TransitionAnimationComplete();
+                CollectionAssert.AreEqual(new[]
+                {
+                    "onTransitionIn:1 4 100", "onTransitionInComplete:2 4 100", "onReset:0 4 101", "mid:0 4 101",
+                }, owned.Log);
+            }
+
+            // StartTransition overwrites the completion cache, so the listener
+            // passes the same completion back to keep it cached.
+            using (var owned = new Owned(FullScreenTransitionType.Held))
+            {
+                Action done = owned.Callback("done");
+                Assert.IsTrue(owned.Transition.StartTransition(0f, null, done));
+                owned.Transition.Action_TransitionAnimationComplete();
+                Assert.IsTrue(owned.Transition.ContinueTransition());
+                bool fired = false;
+                owned.EventField("m_onTransitionOutComplete").AddListener(() =>
+                {
+                    if (fired) return;
+                    fired = true;
+                    Assert.IsTrue(owned.Transition.StartTransition(0f, null, done));
+                });
+                owned.Transition.Action_TransitionAnimationComplete();
+                CollectionAssert.AreEqual(new[]
+                {
+                    "onTransitionIn:1 4 100", "onTransitionInComplete:2 4 100", "onTransitionOut:3 5 110",
+                    "onTransitionOutComplete:0 5 110", "onTransitionIn:1 4 110", "done:1 4 110",
+                }, owned.Log);
+            }
+        }
+
+        // StartTransition 0x1b3fea3 takes the Continuous branch only when
+        // m_type == 0 (cmp dword [rbx+0x20],0; je); every other value, including
+        // an undeclared 2, takes the Held branch. Override 1 gives speed 1.
+        // Mutations caught: testing for Held instead of for Continuous.
+        [Test]
+        public void UndeclaredTransitionTypeTakesTheHeldBranch()
+        {
+            using (var owned = new Owned((FullScreenTransitionType)2))
+            {
+                Action mid = owned.Callback("mid"), done = owned.Callback("done");
+                Assert.IsTrue(owned.Transition.StartTransition(1f, mid, done));
+                Assert.AreSame(mid, owned.CachedMidpoint, "no closure outside Continuous");
+                Assert.AreSame(done, owned.CachedCompletion);
+                Assert.AreEqual(1f, owned.OverriddenIn);
+                CollectionAssert.AreEqual(new[] { "onTransitionIn:1 1 100" }, owned.Log);
+                owned.Transition.Action_TransitionAnimationComplete();
+                Assert.AreEqual(State.HeldIn, owned.Transition.CurrentState);
+                CollectionAssert.AreEqual(new[] { "onTransitionIn:1 1 100", "onTransitionInComplete:2 1 100", "mid:2 1 100" }, owned.Log);
+            }
+        }
+
+        // Action_TransitionAnimationComplete 0x1b4017f/0x1b40184 matches the
+        // state exactly against 3 and 1 (cmp eax,3; je / cmp eax,1; jne), so
+        // undeclared values below or above the State range are no-ops.
+        // Mutations caught: an ordered comparison (state >= TransitioningOut)
+        // or completing from a default branch.
+        [Test]
+        public void AnimationCompleteIgnoresUndeclaredStates()
+        {
+            foreach (State state in new[] { (State)4, (State)(-1) })
+            {
+                using (var owned = new Owned(FullScreenTransitionType.Held))
+                {
+                    owned.SetState(state);
+                    Set(owned.Transition, "m_cachedMidpointCallback", owned.Callback("mid"));
+                    Set(owned.Transition, "m_cachedCompletionCallback", owned.Callback("done"));
+                    owned.Transition.Action_TransitionAnimationComplete();
+                    CollectionAssert.IsEmpty(owned.Log, ((int)state).ToString(CultureInfo.InvariantCulture));
+                    Assert.AreEqual(state, owned.Transition.CurrentState);
+                    Assert.AreEqual(1f, owned.Animator.speed);
+                    Assert.AreEqual("000", owned.Triggers());
+                }
+            }
+        }
+
+        // Continuous 0x1b3fecc multiplies by 0.5f and stores the product raw
+        // into the closure (0x1b3fed4) and the in override (0x1b3feda); b__0
+        // later stores the same half as the out override. Negative and NaN
+        // halves are kept and only fall back at the speed choice.
+        // Mutations caught: clamping or guarding the half before storing it.
+        [Test]
+        public void ContinuousStoresNegativeAndNaNHalvesRaw()
+        {
+            foreach (float total in new[] { -2f, float.NaN })
+            {
+                using (var owned = new Owned(FullScreenTransitionType.Continuous))
+                {
+                    string label = total.ToString("R", CultureInfo.InvariantCulture);
+                    Assert.IsTrue(owned.Transition.StartTransition(total, owned.Callback("mid"), owned.Callback("done")));
+                    float closureHalf = (float)Get(owned.CachedMidpoint.Target, "halfTotalDurationOverride");
+                    if (float.IsNaN(total))
+                    {
+                        Assert.IsTrue(float.IsNaN(owned.OverriddenIn), label);
+                        Assert.IsTrue(float.IsNaN(closureHalf), label);
+                    }
+                    else
+                    {
+                        Assert.AreEqual(-1f, owned.OverriddenIn, label);
+                        Assert.AreEqual(-1f, closureHalf, label);
+                    }
+                    owned.Transition.Action_TransitionAnimationComplete();
+                    if (float.IsNaN(total))
+                        Assert.IsTrue(float.IsNaN(owned.OverriddenOut), label);
+                    else
+                        Assert.AreEqual(-1f, owned.OverriddenOut, label);
+                    CollectionAssert.AreEqual(new[]
+                    {
+                        "onTransitionIn:1 4 100", "onTransitionInComplete:2 4 100", "mid:2 4 100", "onTransitionOut:3 5 110",
+                    }, owned.Log, label);
+                }
             }
         }
 

@@ -29,7 +29,6 @@ namespace Hardlight
         private string m_animateOutTrigger;
         [SerializeField]
         private string m_animatorResetTrigger;
-        // .ctor 0x060000ed stores both 1.0f defaults as one 8-byte literal.
         [SerializeField]
         private float m_transitionInDuration = 1f;
         [SerializeField]

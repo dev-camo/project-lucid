@@ -2195,6 +2195,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFullScreenTransitionControll
     "ContinueTransitionOnlyFromHeldInAndAdoptsACompletionOnlyWhenNoneIsCached",
     "ResetTransitionFromAnyStateKeepsSpeedOverridesAndCaches",
     "PrivateStepsRunUnconditionallyFromAnyState",
+    "EachLegWritesOnlyItsOwnOverride",
+    "CachedCallbacksAreReadAfterTheCompletionEvents",
+    "CachedCallbacksRunEvenWhenAListenerChangedTheState",
+    "UndeclaredTransitionTypeTakesTheHeldBranch",
+    "AnimationCompleteIgnoresUndeclaredStates",
+    "ContinuousStoresNegativeAndNaNHalvesRaw",
     "MissingAnimatorFaultsAfterTheStateAndCachesAreWritten",
 ))
 
