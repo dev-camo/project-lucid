@@ -2,6 +2,9 @@
 // IsPendingOpen(identifier) deliberately checks the open list; transitions defer requests and callback dispatch precedes removal.
 // Freeze only blocks ShowPage. No new null guard, queue flush, listener teardown or scene filtering is added.
 // Original source spelling, closure allocation, optimizer fault ordering and rebuilt runtime equivalence remain held.
+// The nested types sit between the constructor and ShowPage(identifier) so that its closure keeps the original
+// ordinal (<>c__DisplayClass25_0); building the pending entry before reading m_pendingShows keeps the closure's
+// field order (parameters, <>4__this, callback) and the cast-before-receiver order seen at 0x1b4ceb9..0x1b4cf2e.
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -17,6 +20,14 @@ namespace Hardlight
             OpenPages = m_openPages.AsReadOnly();
             PendingPages = m_pendingShows.AsReadOnly();
         }
+
+        public struct OverlayPageAndParameters
+        {
+            public OverlayPage Page { get; set; }
+            public GuiPageParameters Parameters { get; set; }
+        }
+
+        public delegate void OnLoaded(OverlayPage page);
 
         public ReadOnlyCollection<OverlayPage> OpenPages { get; private set; }
         public ReadOnlyCollection<OverlayPageAndParameters> PendingPages { get; private set; }
@@ -65,7 +76,10 @@ namespace Hardlight
             GuiPageRegistry.Instance.LoadGuiPage<OverlayPage>((int)identifier, page =>
             {
                 if (page.IsClosing)
-                    m_pendingShows.Add(new OverlayPageAndParameters { Page = (OverlayPage)page, Parameters = parameters });
+                {
+                    OverlayPageAndParameters pendingShow = new OverlayPageAndParameters { Page = (OverlayPage)page, Parameters = parameters };
+                    m_pendingShows.Add(pendingShow);
+                }
                 if (!page.IsTranstioning)
                     ShowPage((OverlayPage)page, parameters);
                 if (callback != null)
@@ -179,13 +193,5 @@ namespace Hardlight
             foreach (int identifier in Enum.GetValues(typeof(OverlayPageIdentifier)))
                 GuiPageLoader.UnloadSceneFromValue(identifier, true);
         }
-
-        public struct OverlayPageAndParameters
-        {
-            public OverlayPage Page { get; set; }
-            public GuiPageParameters Parameters { get; set; }
-        }
-
-        public delegate void OnLoaded(OverlayPage page);
     }
 }

@@ -3263,3 +3263,59 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalFullScreenTransitionManagerTests.SortingOrderZeroNeverOverridesTheCanvas",
     "ProjectLucid.Tests.OriginalFullScreenTransitionManagerTests.ADifferentLayerNameMovesTheCanvasToThatLayer",
 )
+
+# Restored HLUnityUI.Runtime ContentFrameController (0x0600054e..5b) and ContentFrameControllerOverride (0x06000022..2a).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalContentFrameControllerTests." + name for name in (
+    "DeclarationsKeepTheOriginalConstantsAndFieldOrder",
+    "ConstructorSeedsTheLerpTimeAndLeavesTheFrameUninitialised",
+    "EnsureInitialisationMeasuresTheSafeAreaOnceAgainstTheResolutionHeight",
+    "ApplyWithoutAContentRootInitialisesButDoesNotLerp",
+    "ApplyWithoutADodgedOrientationLerpsBackToTheInitialAnchors(False,False,3)",
+    "ApplyWithoutADodgedOrientationLerpsBackToTheInitialAnchors(False,False,1)",
+    "ApplyWithoutADodgedOrientationLerpsBackToTheInitialAnchors(True,False,1)",
+    "ApplyWithoutADodgedOrientationLerpsBackToTheInitialAnchors(False,True,4)",
+    "ApplyWithoutADodgedOrientationLerpsBackToTheInitialAnchors(True,True,5)",
+    "UpdateAdvancesTheProgressAndLerpsFromTheStoredCurrentAnchors",
+    "UpdateClampsTheFractionToTheUnitRange",
+    "UpdateAtTheTransitionTimeOnlyClearsTheFlag",
+    "OnEnableWithoutAnOverrideSubscribesBothCallbacksAndApplies",
+    "OnEnableWithAnActiveOverrideRegistersApplyWithTheHandlerInstead",
+    "OnEnableWithAnInactiveOverrideKeepsTheOrientationCallback",
+    "OnEnableWithoutAScreenManagerOnlyRegistersWithTheHandler",
+    "SetOverrideMovesTheSubscriptionsOnlyForTheFirstOverride",
+    "SetNotchEvaluatorNeverCallsTheEvaluator",
+    "OverrideWithoutAHandlerReportsNothingAndIgnoresRegistrations",
+    "OverrideMarginsRequireTheirOwnFlagAndAnActiveHandler",
+    "OverrideKeepsTheFirstHandlerAndForwardsRegistrations",
+))
+
+# Restored HLUnityUI.Runtime page components (0x06000513..33) and the PageStackSystem`1/OverlaySystem closure identities.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPageNavigationComponentTests." + name for name in (
+    "OpenMenuPageForwardsThePageAndTheReplaceFlag",
+    "OpenDynamicMenuPageSendsTheChosenEntryAsPageData",
+    "MoveBackMenuPageMovesBackWhenItCanAndOnlyThenLeavesTheCurrentPage",
+    "MoveBackMenuPageReplacesWithTheDefaultPageOnlyWhenItCannotMoveBack",
+    "CloseAllMenuPagesClosesWithTheStandardReason",
+    "CloseDialogPageClosesTheCurrentPageOrEveryPage",
+    "OpenDialogPageFollowsTheOpeningBehaviour",
+    "DialogSystemListenerRelaysTheDialogSystemEvents",
+    "MenuSystemListenerRelaysTheMenuSystemEvents",
+    "OpenCloseOverlayPageShowsOnTheFirstOpenAndHidesWhenTheCountReturnsToZero",
+    "OpenCloseOverlayPageIgnoresTheNoneIdentifier",
+    "ToggleOverlayPageShowsAClosedPageAndHidesAnOpenOneWithoutFilteringNone",
+    "PageStackSystemClosuresKeepTheOriginalGeneratedNamesAndCaptures",
+    "OverlaySystemClosuresKeepTheOriginalGeneratedNamesAndCaptures",
+))
+
+# Restored HLUnityUI.Runtime ViewBase (0x060002b2..b6), ViewParameters (0x060002b7..ba) and DynamicPageLoad (0x06000518..1b).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalViewAndDynamicPageTests." + name for name in (
+    "SetupStoresTheParametersBeforeOnSetupAndCompletesAfterIt",
+    "SetupWithoutCompletionListenersStillCallsOnSetup",
+    "RectTransformFallsBackToTheOwnTransformAndKeepsAnAssignedOne",
+    "SetActiveSetsTheOwnGameObject",
+    "ViewParametersAreEqualExactlyWhenTheRuntimeTypesMatch",
+    "CloneIsAShallowCopyOfTheRuntimeType",
+    "OnShowShowsEveryMatchingEntryAndTheLastBecomesActive",
+    "OnHideForwardsToTheActiveEntryOnly",
+    "OnShowWithOtherParametersFaultsAtTheFirstEntry",
+))

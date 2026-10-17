@@ -15,6 +15,12 @@
 // guard and preserves the requested-record encounter-order behavior. Each completion
 // releases at most one queued command; UnfreezeSystem does not release any command.
 //
+// Member placement reproduces the original closure ordinals (<>c__DisplayClass45_0 for
+// AddPage, 53_0 for CloseCurrent, 55_0 for OpenNext, <>c <.ctor>b__65_*): only three
+// members besides the events and properties precede AddPage, and six fields follow
+// OnEmpty. Metadata fixes the field order, not which fields sit where, so the split
+// between m_systemFrozen and the rest is inferred.
+//
 // Source/native spelling and control-flow evidence does not qualify supplier behavior,
 // native shared generics as closed bodies, current compiler emission, Unity bindings,
 // scene readiness, bootstrap or full-game correctness. No shipping bodies were run.
@@ -45,14 +51,6 @@ namespace Hardlight
         public event Action<T> OnGUIPageClosing = delegate { };
         public event Action<T> OnGUIPageOpening = delegate { };
 
-        private bool m_systemFrozen;
-        private State m_state;
-        private bool m_removeFromStack;
-        private List<GuiPageRecord<T>> m_pending = new List<GuiPageRecord<T>>();
-        private T m_currentPage;
-        protected LinkedList<GuiPageRecord<T>> m_pageQueue = new LinkedList<GuiPageRecord<T>>();
-        private Queue<Action> m_pendingPageStackCommands = new Queue<Action>();
-
         public T CurrentPage => m_currentPage;
         public GuiPageRecord<T> CurrentPagePair => m_pageQueue.Count > 0 ? m_pageQueue.Last.Value : null;
         public int CurrentPageID => m_pageQueue.Count > 0 ? m_pageQueue.Last.Value.m_identifier : 0;
@@ -74,6 +72,8 @@ namespace Hardlight
         public bool Empty => m_pageQueue.Count == 0;
         public int PageCount => m_pageQueue.Count;
         public State CurrentState => m_state;
+
+        private bool m_systemFrozen;
 
         public void FreezeSystem()
         {
@@ -338,6 +338,13 @@ namespace Hardlight
         protected virtual void OnEmpty()
         {
         }
+
+        private State m_state;
+        private bool m_removeFromStack;
+        private List<GuiPageRecord<T>> m_pending = new List<GuiPageRecord<T>>();
+        private T m_currentPage;
+        protected LinkedList<GuiPageRecord<T>> m_pageQueue = new LinkedList<GuiPageRecord<T>>();
+        private Queue<Action> m_pendingPageStackCommands = new Queue<Action>();
 
         public PageStackSystem()
         {
