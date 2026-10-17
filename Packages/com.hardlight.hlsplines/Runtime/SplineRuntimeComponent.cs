@@ -25,10 +25,20 @@ namespace Hardlight
         }
 
         // Original 0x060001ca.
-        internal static int GetKnotIndex(ISplineRuntimeHandle splineHandle, ISplineKnotRuntimeHandle knotHandle) { int count = splineHandle.KnotCount; for (int i = 0; i < count; i++) if (splineHandle.GetKnotRuntimeHandle(i) == knotHandle) return i; return -1; }
+        internal static int GetKnotIndex(ISplineRuntimeHandle splineHandle, ISplineKnotRuntimeHandle knotHandle)
+        {
+            int count = splineHandle.KnotCount;
+            for (int i = 0; i < count; i++)
+                if (splineHandle.GetKnotRuntimeHandle(i) == knotHandle) return i;
+            return -1;
+        }
 
         // Original 0x060001cb.
-        internal static ISplineKnotRuntimeHandle GetKnot(ISplineRuntimeHandle splineHandle, int knotIndex) { if (splineHandle.KnotCount < 1) return null; return splineHandle.GetKnotRuntimeHandle(knotIndex); }
+        internal static ISplineKnotRuntimeHandle GetKnot(ISplineRuntimeHandle splineHandle, int knotIndex)
+        {
+            if (splineHandle.KnotCount < 1) return null;
+            return splineHandle.GetKnotRuntimeHandle(knotIndex);
+        }
 
         // Original 0x060001cc.
         internal static SurfaceKnotMetadata GetKnotMetadataFromDistance(ISplineRuntimeHandle splineHandle, float distance)
@@ -60,22 +70,82 @@ namespace Hardlight
         }
 
         // Original 0x060001ce.
-        internal static SurfaceKnotMetadata GetKnotMetadataFromLinearRatio(ISplineRuntimeHandle splineHandle, LinearRatio linearRatio) { if (linearRatio.KnotIndex == splineHandle.KnotCount - 1) return new SurfaceKnotMetadata(splineHandle.Metadata, splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex).Metadata); return new SurfaceKnotMetadata(splineHandle.Metadata, splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex).Metadata, splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex + 1).Metadata, linearRatio.T); }
+        internal static SurfaceKnotMetadata GetKnotMetadataFromLinearRatio(ISplineRuntimeHandle splineHandle, LinearRatio linearRatio)
+        {
+            if (linearRatio.KnotIndex == splineHandle.KnotCount - 1)
+                return new SurfaceKnotMetadata(splineHandle.Metadata,
+                    splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex).Metadata);
+            return new SurfaceKnotMetadata(splineHandle.Metadata,
+                splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex).Metadata,
+                splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex + 1).Metadata, linearRatio.T);
+        }
 
         // Original 0x060001cf.
-        private static LinearRatio GetLinearRatioFromLerpT(ISplineKnotHandle knotHandle, KnotT knotT, int lutIndex) { int count = knotHandle.TLUT.Length; float left = knotHandle.GetLUTValue(lutIndex); float right = knotHandle.GetLUTValue(lutIndex + 1); return new LinearRatio(knotT.KnotIndex, Mathf.Lerp((float)lutIndex / count, (float)(lutIndex + 1) / count, (knotT.T - left) / (right - left))); }
+        private static LinearRatio GetLinearRatioFromLerpT(ISplineKnotHandle knotHandle, KnotT knotT, int lutIndex)
+        {
+            int count = knotHandle.TLUT.Length;
+            float left = knotHandle.GetLUTValue(lutIndex);
+            float right = knotHandle.GetLUTValue(lutIndex + 1);
+            return new LinearRatio(knotT.KnotIndex, Mathf.Lerp((float)lutIndex / count,
+                (float)(lutIndex + 1) / count, (knotT.T - left) / (right - left)));
+        }
 
         // Original 0x060001d0.
-        internal static LinearRatio GetLinearRatioFromKnotT(ISplineKnotHandle knotHandle, KnotT knotT) { int count = knotHandle.TLUT.Length; float t = knotT.T; if (knotHandle.GetLUTValue(0) <= t && knotHandle.GetLUTValue(1) > t) return GetLinearRatioFromLerpT(knotHandle, knotT, 0); int index = count / 2; int step = index; while (index >= 1 && index < count) { if (step >= 2) step /= 2; float left = knotHandle.GetLUTValue(index); float right = knotHandle.GetLUTValue(index + 1); if (left <= t && right > t) return GetLinearRatioFromLerpT(knotHandle, knotT, index); index += left < t ? step : -step; } return new LinearRatio(knotT.KnotIndex, 1f); }
+        internal static LinearRatio GetLinearRatioFromKnotT(ISplineKnotHandle knotHandle, KnotT knotT)
+        {
+            int count = knotHandle.TLUT.Length;
+            float t = knotT.T;
+            if (knotHandle.GetLUTValue(0) <= t && knotHandle.GetLUTValue(1) > t)
+                return GetLinearRatioFromLerpT(knotHandle, knotT, 0);
+            int index = count / 2;
+            int step = index;
+            while (index >= 1 && index < count)
+            {
+                if (step >= 2) step /= 2;
+                float left = knotHandle.GetLUTValue(index);
+                float right = knotHandle.GetLUTValue(index + 1);
+                if (left <= t && right > t) return GetLinearRatioFromLerpT(knotHandle, knotT, index);
+                index += left < t ? step : -step;
+            }
+            return new LinearRatio(knotT.KnotIndex, 1f);
+        }
 
         // Original 0x060001d1.
-        internal static KnotT GetKnotTFromLinearRatio(ISplineRuntimeHandle splineHandle, LinearRatio linearRatio) { ISplineKnotRuntimeHandle knot = splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex); float scaled = linearRatio.T * splineHandle.LUTCount; int index = (int)scaled; float left = knot.GetLUTValue(index); float right = knot.GetLUTValue(index + 1); return new KnotT(linearRatio.KnotIndex, Mathf.Lerp(left, right, scaled - index)); }
+        internal static KnotT GetKnotTFromLinearRatio(ISplineRuntimeHandle splineHandle, LinearRatio linearRatio)
+        {
+            ISplineKnotRuntimeHandle knot = splineHandle.GetKnotRuntimeHandle(linearRatio.KnotIndex);
+            float scaled = linearRatio.T * splineHandle.LUTCount;
+            int index = (int)scaled;
+            float left = knot.GetLUTValue(index);
+            float right = knot.GetLUTValue(index + 1);
+            return new KnotT(linearRatio.KnotIndex, Mathf.Lerp(left, right, scaled - index));
+        }
 
         // Original 0x060001d2.
-        internal static Vector3 GetApproximateMidPoint(ISplineRuntimeHandle splineHandle) { int count = splineHandle.KnotCount; if (count == 0) return Vector3.zero; Vector3 first = splineHandle.GetKnotRuntimeHandle(0).Transform.Location; Vector3 last = splineHandle.GetKnotRuntimeHandle(count - 1).Transform.Location; return (first + last) * 0.5f; }
+        internal static Vector3 GetApproximateMidPoint(ISplineRuntimeHandle splineHandle)
+        {
+            int count = splineHandle.KnotCount;
+            if (count == 0) return Vector3.zero;
+            Vector3 first = splineHandle.GetKnotRuntimeHandle(0).Transform.Location;
+            Vector3 last = splineHandle.GetKnotRuntimeHandle(count - 1).Transform.Location;
+            return (first + last) * 0.5f;
+        }
 
         // Original 0x060001d3.
-        internal static float RecalculateKnotsLength(ISplineRuntimeHandle splineHandle, bool force = false) { float length = 0f; bool nextDirty = false; for (int i = splineHandle.KnotCount - 1; i >= 0; i--) { ISplineKnotRuntimeHandle knot = splineHandle.GetKnotRuntimeHandle(i); bool dirty = knot.IsLengthDirty(); if (nextDirty || force || dirty) knot.RecalculateLength(); nextDirty = dirty; length += knot.Length; } return length; }
+        internal static float RecalculateKnotsLength(ISplineRuntimeHandle splineHandle, bool force = false)
+        {
+            float length = 0f;
+            bool nextDirty = false;
+            for (int i = splineHandle.KnotCount - 1; i >= 0; i--)
+            {
+                ISplineKnotRuntimeHandle knot = splineHandle.GetKnotRuntimeHandle(i);
+                bool dirty = knot.IsLengthDirty();
+                if (nextDirty || force || dirty) knot.RecalculateLength();
+                nextDirty = dirty;
+                length += knot.Length;
+            }
+            return length;
+        }
 
         // Original 0x060001d4.
         internal static float RecalculateKnotLength(ISplineRuntimeHandle splineHandle, int knotIndex, ref float[] lut, int lutCount = -1)
@@ -137,7 +207,12 @@ namespace Hardlight
         }
 
         // Original 0x060001d6.
-        internal static Vector3 PointAlongSpline(ISplineRuntimeHandle splineHandle, float t, ref SplineControlPoints controls) { return splineHandle.SplineType == SplineType.Bezier ? Bezier.PointAlongSpline(t, ref controls) : CatmullRom.PointAlongSpline(t, ref controls); }
+        internal static Vector3 PointAlongSpline(ISplineRuntimeHandle splineHandle, float t, ref SplineControlPoints controls)
+        {
+            return splineHandle.SplineType == SplineType.Bezier
+                ? Bezier.PointAlongSpline(t, ref controls)
+                : CatmullRom.PointAlongSpline(t, ref controls);
+        }
 
         // Original 0x060001d7.
         internal static LightweightTransform PointAndRotationAlongSpline(ISplineRuntimeHandle splineHandle, KnotT knotT)
@@ -163,7 +238,11 @@ namespace Hardlight
         }
 
         // Original 0x060001d8.
-        internal static PositionAndTangent PointAndTangentAlongSpline(ISplineRuntimeHandle splineHandle, KnotT knotT, bool reverse) { PositionAndTangent result = splineHandle.GetLocalPosAndTangentFromKnotT(knotT); return new PositionAndTangent(result.Position, reverse ? -result.Tangent : result.Tangent); }
+        internal static PositionAndTangent PointAndTangentAlongSpline(ISplineRuntimeHandle splineHandle, KnotT knotT, bool reverse)
+        {
+            PositionAndTangent result = splineHandle.GetLocalPosAndTangentFromKnotT(knotT);
+            return new PositionAndTangent(result.Position, reverse ? -result.Tangent : result.Tangent);
+        }
 
         // Original 0x060001d9.
         internal static PositionAndTangent PointAndTangentAlongSpline(ISplineRuntimeHandle splineHandle, ref float tangentMagnitude, float t, ref SplineControlPoints controls)
@@ -182,7 +261,13 @@ namespace Hardlight
         }
 
         // Original 0x060001db.
-        internal static void FindNearestKnotPositionOnSpline(ISplineRuntimeHandle splineHandle, Vector3 localPosition, int knotIndex, out Vector3 knotPosition, out KnotT knotT) { SplineControlPoints controls = GetControlsForKnots(splineHandle, knotIndex, knotIndex + 1); float t = FindNearestPointOnSpline(splineHandle, localPosition, ref controls); knotPosition = PointAlongSpline(splineHandle, t, ref controls); knotT = new KnotT(knotIndex, t); }
+        internal static void FindNearestKnotPositionOnSpline(ISplineRuntimeHandle splineHandle, Vector3 localPosition, int knotIndex, out Vector3 knotPosition, out KnotT knotT)
+        {
+            SplineControlPoints controls = GetControlsForKnots(splineHandle, knotIndex, knotIndex + 1);
+            float t = FindNearestPointOnSpline(splineHandle, localPosition, ref controls);
+            knotPosition = PointAlongSpline(splineHandle, t, ref controls);
+            knotT = new KnotT(knotIndex, t);
+        }
 
         // Original 0x060001dc.
         private static bool FindAdjacentSplinePosition(ISplineRuntimeHandle splineHandle, Vector3 position, Vector3 forward, out Vector3 splinePosition, out LinearRatio knotLinearRatio, Func<Vector3, Vector3, int, FindAdjacentResult> findAdjacentCallback)
@@ -352,7 +437,27 @@ namespace Hardlight
 
         // Original 0x060001e3.
         // The initial native branch also treats NaN as the start location; retain the negated greater comparison.
-        internal static void GetSplineLocationFromDistance(ISplineRuntimeHandle splineHandle, float distance, out LinearRatio knotLinearRatio) { int count = splineHandle.KnotCount; if (!(distance > 0f) || count < 2) { knotLinearRatio = new LinearRatio(0, 0f); return; } float traversed = 0f; for (int i = 0; i < count - 1; i++) { ISplineKnotRuntimeHandle knot = splineHandle.GetKnotRuntimeHandle(i); if (traversed + knot.Length > distance) { knotLinearRatio = new LinearRatio(i, (distance - traversed) * knot.LengthInverse); return; } traversed += knot.Length; } knotLinearRatio = new LinearRatio(count - 2, 1f); }
+        internal static void GetSplineLocationFromDistance(ISplineRuntimeHandle splineHandle, float distance, out LinearRatio knotLinearRatio)
+        {
+            int count = splineHandle.KnotCount;
+            if (!(distance > 0f) || count < 2)
+            {
+                knotLinearRatio = new LinearRatio(0, 0f);
+                return;
+            }
+            float traversed = 0f;
+            for (int i = 0; i < count - 1; i++)
+            {
+                ISplineKnotRuntimeHandle knot = splineHandle.GetKnotRuntimeHandle(i);
+                if (traversed + knot.Length > distance)
+                {
+                    knotLinearRatio = new LinearRatio(i, (distance - traversed) * knot.LengthInverse);
+                    return;
+                }
+                traversed += knot.Length;
+            }
+            knotLinearRatio = new LinearRatio(count - 2, 1f);
+        }
 
         // Original 0x060001e4.
         public static Bounds RecalculateBounds(ISplineRuntimeHandle splineHandle)
@@ -394,7 +499,12 @@ namespace Hardlight
         }
 
         // Original 0x060001e6.
-        private static PositionBoundsInfo CalculatePositionBoundsInfo(Vector3 worldPosition, SplineLocation splineLocation) { bool end = splineLocation.SplineDistance < EndEdgeDistanceTolerance || splineLocation.SplineDistance > splineLocation.m_spline.Length - EndEdgeDistanceTolerance; return new PositionBoundsInfo(0f, 0f, end, worldPosition, worldPosition); }
+        private static PositionBoundsInfo CalculatePositionBoundsInfo(Vector3 worldPosition, SplineLocation splineLocation)
+        {
+            bool end = splineLocation.SplineDistance < EndEdgeDistanceTolerance
+                || splineLocation.SplineDistance > splineLocation.m_spline.Length - EndEdgeDistanceTolerance;
+            return new PositionBoundsInfo(0f, 0f, end, worldPosition, worldPosition);
+        }
 
     }
 }

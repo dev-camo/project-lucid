@@ -36,13 +36,48 @@ namespace Hardlight
         }
 
         // Original HLSplines.Runtime 0x060001b0: Convert distance through the supplied spline, then attach the corresponding ribbon metadata.
-        public static RibbonLocation GetRibbonLocationFromDistance(IRibbon ribbon, ISplineRuntimeHandle subSpline, float distance, RibbonAlignment alignment) { LinearRatio ratio; SplineRuntimeComponent.GetSplineLocationFromDistance(subSpline, distance, out ratio); SurfaceKnotMetadata metadata = ribbon.GetKnotMetadataFromLinearRatio(ratio); return new RibbonLocation { m_ribbon = ribbon, m_alignment = alignment, m_knotLinearRatio = ratio, m_metadata = metadata }; }
+        public static RibbonLocation GetRibbonLocationFromDistance(IRibbon ribbon, ISplineRuntimeHandle subSpline, float distance, RibbonAlignment alignment)
+        {
+            LinearRatio ratio;
+            SplineRuntimeComponent.GetSplineLocationFromDistance(subSpline, distance, out ratio);
+            SurfaceKnotMetadata metadata = ribbon.GetKnotMetadataFromLinearRatio(ratio);
+            return new RibbonLocation { m_ribbon = ribbon, m_alignment = alignment, m_knotLinearRatio = ratio, m_metadata = metadata };
+        }
 
         // Original HLSplines.Runtime 0x060001b1: Project ribbon-local coordinates through its center frame before resolving the surface location.
-        public static SurfaceLocation FindNearestSurfaceLocationFromLocal(IRibbon ribbon, Transform transform, Vector3 localPosition) { RibbonLocation distanceLocation = ribbon.GetRibbonLocationFromDistance(localPosition.z, RibbonAlignment.Center); LightweightTransform local = distanceLocation.GetLocalTransform(); float distance = distanceLocation.RibbonDistance; Vector3 adjusted = local.Location + local.Orientation * new Vector3(localPosition.x, localPosition.y, 0f); Vector3 world = transform.localToWorldMatrix.MultiplyPoint3x4(adjusted); RibbonLocation nearest = ribbon.FindNearestRibbonLocation(world, RibbonAlignment.Center); SurfaceLocation result = new SurfaceLocation(); result.m_surface = ribbon; result.m_worldPosition = world; result.m_worldRotation = transform.rotation * local.Orientation; result.m_localPosition = new Vector3(nearest.m_localOffset.x, 0f, distance); result.m_positionBoundsInfo = nearest.m_positionBoundsInfo; result.m_metadata = nearest.m_metadata; return result; }
+        public static SurfaceLocation FindNearestSurfaceLocationFromLocal(IRibbon ribbon, Transform transform, Vector3 localPosition)
+        {
+            RibbonLocation distanceLocation = ribbon.GetRibbonLocationFromDistance(localPosition.z, RibbonAlignment.Center);
+            LightweightTransform local = distanceLocation.GetLocalTransform();
+            float distance = distanceLocation.RibbonDistance;
+            Vector3 adjusted = local.Location + local.Orientation * new Vector3(localPosition.x, localPosition.y, 0f);
+            Vector3 world = transform.localToWorldMatrix.MultiplyPoint3x4(adjusted);
+            RibbonLocation nearest = ribbon.FindNearestRibbonLocation(world, RibbonAlignment.Center);
+            SurfaceLocation result = new SurfaceLocation();
+            result.m_surface = ribbon;
+            result.m_worldPosition = world;
+            result.m_worldRotation = transform.rotation * local.Orientation;
+            result.m_localPosition = new Vector3(nearest.m_localOffset.x, 0f, distance);
+            result.m_positionBoundsInfo = nearest.m_positionBoundsInfo;
+            result.m_metadata = nearest.m_metadata;
+            return result;
+        }
 
         // Original HLSplines.Runtime 0x060001b2: Keep the nearest frame, world orientation and accumulated ribbon distance.
-        public static SurfaceLocation FindNearestSurfaceLocationFromWorld(IRibbon ribbon, Transform transform, Vector3 worldPosition) { RibbonLocation nearest = ribbon.FindNearestRibbonLocation(worldPosition, RibbonAlignment.Center); LightweightTransform local = nearest.GetLocalTransform(); Vector3 world = transform.localToWorldMatrix.MultiplyPoint3x4(local.Location); SurfaceLocation result = new SurfaceLocation(); result.m_surface = ribbon; result.m_worldPosition = world; result.m_worldRotation = transform.rotation * local.Orientation; result.m_localPosition = new Vector3(nearest.m_localOffset.x, 0f, nearest.m_localOffset.z + nearest.RibbonDistance); result.m_positionBoundsInfo = nearest.m_positionBoundsInfo; result.m_metadata = nearest.m_metadata; return result; }
+        public static SurfaceLocation FindNearestSurfaceLocationFromWorld(IRibbon ribbon, Transform transform, Vector3 worldPosition)
+        {
+            RibbonLocation nearest = ribbon.FindNearestRibbonLocation(worldPosition, RibbonAlignment.Center);
+            LightweightTransform local = nearest.GetLocalTransform();
+            Vector3 world = transform.localToWorldMatrix.MultiplyPoint3x4(local.Location);
+            SurfaceLocation result = new SurfaceLocation();
+            result.m_surface = ribbon;
+            result.m_worldPosition = world;
+            result.m_worldRotation = transform.rotation * local.Orientation;
+            result.m_localPosition = new Vector3(nearest.m_localOffset.x, 0f, nearest.m_localOffset.z + nearest.RibbonDistance);
+            result.m_positionBoundsInfo = nearest.m_positionBoundsInfo;
+            result.m_metadata = nearest.m_metadata;
+            return result;
+        }
 
         // Original HLSplines.Runtime 0x060001b3: Prefer forward-plane proximity; ties within .005 use squared distance.
         internal static bool FindAdjacentRibbonPosition(IRibbonRuntimeHandle ribbonHandle, Vector3 worldPosition, Vector3 forward, out Vector3 ribbonPosition, out int knotIndex)
@@ -153,10 +188,24 @@ namespace Hardlight
         }
 
         // Original HLSplines.Runtime 0x060001b7: Sort only by squared distance using Single.CompareTo, including its unordered-value behavior.
-        internal static void SortKnotBounds(IRibbonRuntimeHandle ribbonHandle, Vector3 localPosition, List<Bounds> knotBounds, List<SortKnots> sortKnots) { int count = ribbonHandle.KnotCount - 1; for (int i = 0; i < count; i++) { Bounds bounds = knotBounds[i]; sortKnots[i] = new SortKnots { KnotIndex = i, SqrDistance = bounds.SqrDistance(localPosition) }; } sortKnots.Sort((a, b) => a.SqrDistance.CompareTo(b.SqrDistance)); }
+        internal static void SortKnotBounds(IRibbonRuntimeHandle ribbonHandle, Vector3 localPosition, List<Bounds> knotBounds, List<SortKnots> sortKnots)
+        {
+            int count = ribbonHandle.KnotCount - 1;
+            for (int i = 0; i < count; i++)
+            {
+                Bounds bounds = knotBounds[i];
+                sortKnots[i] = new SortKnots { KnotIndex = i, SqrDistance = bounds.SqrDistance(localPosition) };
+            }
+            sortKnots.Sort((a, b) => a.SqrDistance.CompareTo(b.SqrDistance));
+        }
 
         // Original HLSplines.Runtime 0x060001b8: Refresh each stored block bound in original knot order.
-        internal static void FillKnotBounds(IRibbonRuntimeHandle ribbonHandle, List<Bounds> knotBounds) { int count = ribbonHandle.KnotCount - 1; for (int i = 0; i < count; i++) knotBounds[i] = GetKnotBounds(ribbonHandle, i); }
+        internal static void FillKnotBounds(IRibbonRuntimeHandle ribbonHandle, List<Bounds> knotBounds)
+        {
+            int count = ribbonHandle.KnotCount - 1;
+            for (int i = 0; i < count; i++)
+                knotBounds[i] = GetKnotBounds(ribbonHandle, i);
+        }
 
         // Original HLSplines.Runtime 0x060001b9: Allocate actual list elements for knotCount-1 blocks before filling and sorting.
         internal static void FindNearestRibbonPosition(IRibbonRuntimeHandle ribbonHandle, Vector3 localPosition, out Vector3 ribbonPosition, out int knotIndex, out PositionBoundsInfo positionBoundsInfo)
@@ -222,7 +271,12 @@ namespace Hardlight
         }
 
         // Original HLSplines.Runtime 0x060001bc: The first edge compares only T; other edges query the supplied knot count.
-        private static bool IsEndEdge(IRibbonRuntimeHandle ribbonHandle, KnotT knotT) { if (knotT.KnotIndex == 0) return knotT.T <= EndEdgeTolerance; int count = ribbonHandle.KnotCount; return knotT.T >= 1f - EndEdgeTolerance && count - 2 == knotT.KnotIndex; }
+        private static bool IsEndEdge(IRibbonRuntimeHandle ribbonHandle, KnotT knotT)
+        {
+            if (knotT.KnotIndex == 0) return knotT.T <= EndEdgeTolerance;
+            int count = ribbonHandle.KnotCount;
+            return knotT.T >= 1f - EndEdgeTolerance && count - 2 == knotT.KnotIndex;
+        }
 
         // Original HLSplines.Runtime 0x060001bd: Unordered T also advances the knot index; retain border selection and strict improvement.
         private static bool AdjustAdjacentPositionWithBorders(IRibbonRuntimeHandle ribbonHandle, Vector3 position, Vector3 forward, Vector3 adjacentPosition, KnotT adjacentKnot, out Vector3 adjustedAdjacentPosition)
@@ -288,9 +342,24 @@ namespace Hardlight
         }
 
         // Original HLSplines.Runtime 0x060001c1: Keep the original editor-only diagnostic switch and draw call.
-        [System.Diagnostics.Conditional("UNITY_EDITOR")] private static void FindAdjacentBlockKnotPosition_DebugDraw(Vector3 startPosition, Vector3 leftPosition, Vector3 rightPosition, Vector3 blockPosition) { if (!RibbonEditorDefinition.Default.DisplayAdjacentBlockKnotPositionCalculation) return; Debug.DrawLine(startPosition, leftPosition, Color.blue); }
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        private static void FindAdjacentBlockKnotPosition_DebugDraw(Vector3 startPosition, Vector3 leftPosition, Vector3 rightPosition, Vector3 blockPosition)
+        {
+            if (!RibbonEditorDefinition.Default.DisplayAdjacentBlockKnotPositionCalculation) return;
+            Debug.DrawLine(startPosition, leftPosition, Color.blue);
+        }
 
         // Original HLSplines.Runtime 0x060001c2: Keep the original editor-only diagnostic switch and line order.
-        [System.Diagnostics.Conditional("UNITY_EDITOR")] private static void FindNearestBlockKnotPosition_DebugDraw(Vector3 startPosition, Vector3 leftPosition, Vector3 rightPosition, Vector3 leftAdjacentPosition, Vector3 rightAdjacentPosition, Vector3 leftClosestPosition, Vector3 rightClosestPosition, Vector3 blockPosition) { if (!RibbonEditorDefinition.Default.DisplayNearestBlockKnotPositionCalculation) return; Debug.DrawLine(startPosition, leftPosition, Color.blue); Debug.DrawLine(leftPosition, leftAdjacentPosition, Color.blue); Debug.DrawLine(startPosition, rightPosition, Color.red); Debug.DrawLine(rightPosition, rightAdjacentPosition, Color.red); Debug.DrawLine(leftClosestPosition, rightClosestPosition, Color.gray); Debug.DrawLine(startPosition, blockPosition); }
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        private static void FindNearestBlockKnotPosition_DebugDraw(Vector3 startPosition, Vector3 leftPosition, Vector3 rightPosition, Vector3 leftAdjacentPosition, Vector3 rightAdjacentPosition, Vector3 leftClosestPosition, Vector3 rightClosestPosition, Vector3 blockPosition)
+        {
+            if (!RibbonEditorDefinition.Default.DisplayNearestBlockKnotPositionCalculation) return;
+            Debug.DrawLine(startPosition, leftPosition, Color.blue);
+            Debug.DrawLine(leftPosition, leftAdjacentPosition, Color.blue);
+            Debug.DrawLine(startPosition, rightPosition, Color.red);
+            Debug.DrawLine(rightPosition, rightAdjacentPosition, Color.red);
+            Debug.DrawLine(leftClosestPosition, rightClosestPosition, Color.gray);
+            Debug.DrawLine(startPosition, blockPosition);
+        }
     }
 }
