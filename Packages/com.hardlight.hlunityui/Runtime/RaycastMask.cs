@@ -1,6 +1,6 @@
 // Original HLUnityUI.Runtime Hardlight.RaycastMask 020000d9 (MethodDefs 0x060005d2..d4),
 // translated from the x86-64 bodies (0x1B6B530..0x1B6BB20) and metadata. An alpha
-// hit-test filter: it stays open until Start, samples only Simple (with preserveAspect)
+// hit-test filter: it stays open until Start, samples only Simple (optionally with preserveAspect)
 // and Sliced images, and has no fallback for an unreadable texture. Local names are
 // inferred.
 // Shipped assets use this script: in the 2026-10-05 reference export,
@@ -50,8 +50,8 @@ namespace Hardlight
                 localPoint.y + rectTransform.pivot.y * maskRect.height);
 
             Rect spriteRect = sprite.textureRect;
-            int x;
-            int y;
+            // Both branches meet on one float texel (0x1B6BA6E), truncated once per axis.
+            Vector2 texel;
             switch (m_image.type)
             {
                 case Image.Type.Simple:
@@ -72,47 +72,52 @@ namespace Hardlight
                             size = new Vector2(maskRect.height, maskRect.height);
                         }
                     }
-                    x = (int)(spriteRect.x + (localPosition.x - offset.x) / size.x * spriteRect.width);
-                    y = (int)(spriteRect.y + (localPosition.y - offset.y) / size.y * spriteRect.height);
+                    texel = new Vector2(
+                        spriteRect.x + (localPosition.x - offset.x) / size.x * spriteRect.width,
+                        spriteRect.y + (localPosition.y - offset.y) / size.y * spriteRect.height);
                     break;
                 }
                 case Image.Type.Sliced:
                 {
                     Vector4 border = sprite.border;
+                    texel = Vector2.zero;
                     if (localPosition.x < border.x)
                     {
-                        x = Mathf.FloorToInt(spriteRect.x + localPosition.x);
+                        texel.x = Mathf.Floor(spriteRect.x + localPosition.x);
                     }
                     else if (localPosition.x > maskRect.width - border.z)
                     {
-                        x = Mathf.FloorToInt(spriteRect.x + spriteRect.width - (maskRect.width - localPosition.x));
+                        texel.x = Mathf.Floor(spriteRect.x + spriteRect.width - (maskRect.width - localPosition.x));
                     }
                     else
                     {
-                        x = Mathf.FloorToInt(spriteRect.x + border.x +
-                                             ((localPosition.x - border.x) / (maskRect.width - border.x - border.z)) *
-                                             (spriteRect.width - border.x - border.z));
+                        texel.x = Mathf.Floor(spriteRect.x + border.x +
+                                                 ((localPosition.x - border.x) / (maskRect.width - border.x - border.z)) *
+                                                 (spriteRect.width - border.x - border.z));
                     }
 
                     if (localPosition.y < border.y)
                     {
-                        y = Mathf.FloorToInt(spriteRect.y + localPosition.y);
+                        texel.y = Mathf.Floor(spriteRect.y + localPosition.y);
                     }
                     else if (localPosition.y > maskRect.height - border.w)
                     {
-                        y = Mathf.FloorToInt(spriteRect.y + spriteRect.height - (maskRect.height - localPosition.y));
+                        texel.y = Mathf.Floor(spriteRect.y + spriteRect.height - (maskRect.height - localPosition.y));
                     }
                     else
                     {
-                        y = Mathf.FloorToInt(spriteRect.y + border.y +
-                                             ((localPosition.y - border.y) / (maskRect.height - border.y - border.w)) *
-                                             (spriteRect.height - border.y - border.w));
+                        texel.y = Mathf.Floor(spriteRect.y + border.y +
+                                                 ((localPosition.y - border.y) / (maskRect.height - border.y - border.w)) *
+                                                 (spriteRect.height - border.y - border.w));
                     }
                     break;
                 }
                 default:
                     return true;
             }
+
+            int x = (int)texel.x;
+            int y = (int)texel.y;
 
             // A texel outside a packed sprite's own rect belongs to another atlas entry.
             if (sprite.packed && !spriteRect.Contains(new Vector2(x, y))) return false;

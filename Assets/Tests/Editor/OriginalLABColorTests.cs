@@ -260,13 +260,15 @@ namespace ProjectLucid.Tests
             Assert.That(lab == new LABColor(1f, 2f, -3f), Is.False);
             Assert.That(lab != new LABColor(1f, 2f, -3f), Is.True);
             var nan = new LABColor(1f, float.NaN, 3f);
-            Assert.That(nan == nan, Is.False);
-            Assert.That(nan != nan, Is.True);
+            LABColor alias = nan;
+            Assert.That(nan == alias, Is.False);
+            Assert.That(nan != alias, Is.True);
             LABColor none = null;
             Assert.Throws<NullReferenceException>(() => { bool unused = lab == none; });
             Assert.Throws<NullReferenceException>(() => { bool unused = none == lab; });
             Assert.Throws<NullReferenceException>(() => { bool unused = lab != none; });
-            Assert.Throws<NullReferenceException>(() => { bool unused = none != none; });
+            LABColor alsoNone = none;
+            Assert.Throws<NullReferenceException>(() => { bool unused = none != alsoNone; });
         }
 
         // GetHashCode 0x1B39ED0: Single.GetHashCode of L, A and B combined with xor, so

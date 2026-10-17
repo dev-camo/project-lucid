@@ -80,6 +80,8 @@ public class LABColor
         x = (x > 0.9505f) ? 0.9505f : ((x < 0f) ? 0f : x);
         y = (y > 1.0f) ? 1.0f : ((y < 0f) ? 0f : y);
         z = (z > 1.089f) ? 1.089f : ((z < 0f) ? 0f : z);
+        // Only the allocation point is evidenced (0x1B3968C); the constructor's stores are
+        // dead and eliminated, so its arguments are inferred.
         LABColor lab = new LABColor(0f, 0f, 0f);
         float fx = x / D65x;
         float fy = y / D65y;

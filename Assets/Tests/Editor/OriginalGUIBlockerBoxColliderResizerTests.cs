@@ -63,7 +63,9 @@ namespace ProjectLucid.Tests
         // then center = (size.x * (0.5 - pivot.x), size.y * (0.5 - pivot.y), 0) with the
         // 0.5 pair at 0x29A6D30 and the size read back from the collider. A 200 x 100 rect
         // pivoted at (0.25, 1): size (200, 100, 1), center (50, -50, 0). OnEnable
-        // 0x0600055c runs it after UIBehaviour.OnEnable, so activation applies it.
+        // 0x0600055c runs it after UIBehaviour.OnEnable. Neither the resizer nor UIBehaviour
+        // is [ExecuteAlways], so EditMode activation sends no OnEnable and the call is
+        // made directly.
         [Test]
         public void EnablingFitsTheColliderToTheTrackedRect()
         {
@@ -73,6 +75,9 @@ namespace ProjectLucid.Tests
                 owned.Rect.pivot = new Vector2(0.25f, 1f);
                 owned.Wire(owned.Rect, owned.Collider);
                 owned.Owner.SetActive(true);
+                Assert.That(owned.Collider.size, Is.EqualTo(Vector3.one));
+                Assert.That(owned.Collider.center, Is.EqualTo(Vector3.zero));
+                Invoke(owned.Resizer, "OnEnable");
                 Assert.That(owned.Collider.size, Is.EqualTo(new Vector3(200f, 100f, 1f)));
                 Assert.That(owned.Collider.center, Is.EqualTo(new Vector3(50f, -50f, 0f)));
             }

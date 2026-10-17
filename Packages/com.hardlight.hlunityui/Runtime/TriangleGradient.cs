@@ -36,7 +36,8 @@ public class TriangleGradient : Graphic
         float left = rectTransform.rect.x;
         float bottom = rectTransform.rect.y;
         float right = rectTransform.rect.x + rectTransform.rect.width;
-        // Read but never used (0x1B38AB9, 0x1B38AC3).
+        // Two more rect reads whose results are discarded (calls at 0x1B38ABE, 0x1B38AC8);
+        // only the calls are evidenced, the expression and its name are inferred.
         float top = rectTransform.rect.y + rectTransform.rect.height;
 
         vertexHelper.Clear();
