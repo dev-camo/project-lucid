@@ -66,7 +66,8 @@ namespace ProjectLucid.Tests
         public void DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers()
         {
             RuntimeHelpers.RunClassConstructor(typeof(PerformanceDependency).TypeHandle);
-            // The initializer's row is permanent (ISOLATION_SIDE_EFFECTS); all
+            // The initializer's row is permanent (ISOLATION_SIDE_EFFECTS
+            // "PerformanceDependency..cctor"); all
             // shared state the isolation recorder compares must end as it is now.
             SharedStateSnapshot initialized = SharedStateSnapshot.Capture();
             var reference = (SystemRef<ScalablePerformance>)typeof(PerformanceDependency)

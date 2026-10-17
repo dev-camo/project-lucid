@@ -667,60 +667,71 @@ def _first_use_row_changes(row_name):
             typed + " deferred InvokeOnValid work", row + " typed reference names")
 
 
-# Shared-state leaks a run may carry: exact test fullname -> the reason and the
-# exact, ordered change list its leak record must carry. Only status "leak" can
-# be listed, and a record whose changes differ in any line fails the run, so an
+# Shared-state leaks a run may carry while a fixture is being fixed: exact test
+# fullname -> the reason, naming the issue that tracks the fix, and the exact,
+# ordered change list its leak record must carry. Only status "leak" can be
+# listed, and a record whose changes differ in any line fails the run, so an
 # entry never hides a further leak. A listed test that runs clean fails the run
-# until its entry is removed. An entry is either temporary, naming the issue
-# that tracks the fix, or a reviewed process-lifetime side effect of original
-# code that no fixture can undo, naming its native evidence.
-_TIME_MANAGER_ROW = "added system row 'Hardlight.TimeManager'"
-ISOLATION_ALLOWLIST = {
-    # Process lifetime, not a fixture defect. The first test to run
-    # TimeScaledUtilities code runs its BeforeFieldInit initializer
-    # (0x06000ecc), whose readonly s_timeManagerRef =
-    # GetSystemRef<TimeManager>(null, true) auto-registers a null
-    # 'Hardlight.TimeManager' row (0x06000e3f) appended last. The row holds that
-    # cached reference: removing it would make every later registration build a
-    # new row the readonly reference never sees. The fixture finds that row
-    # already present, so the only row it creates and releases is
-    # SystemConfiguration's. Native run19 (run19-928e689 editmode-isolation.jsonl
-    # line 773) shows this case first in run order; any test that runs
-    # TimeScaledUtilities code earlier moves the row there, this case then runs
-    # clean, and the entry must move or go.
-    "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests.OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes": {
-        "reason": "TimeScaledUtilities' first static initialization appends the 'Hardlight.TimeManager' row that holds "
-                  "its readonly s_timeManagerRef; that row must outlive the test, which also changes the row order.",
-        "changes": ("changed system row order",
-                    _TIME_MANAGER_ROW,
-                    _TIME_MANAGER_ROW + " untyped reference",
-                    _TIME_MANAGER_ROW + " untyped reference OnSystemStartup observers",
-                    _TIME_MANAGER_ROW + " untyped reference OnSystemShutdown observers",
-                    _TIME_MANAGER_ROW + " untyped reference deferred InvokeOnValid work",
-                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager'",
-                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' OnSystemStartup observers",
-                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' OnSystemShutdown observers",
-                    _TIME_MANAGER_ROW + " typed reference 'Hardlight.TimeManager' deferred InvokeOnValid work",
-                    _TIME_MANAGER_ROW + " typed reference names"),
+# until its entry is removed. Every entry is temporary and needs review;
+# permanent production side effects belong in ISOLATION_SIDE_EFFECTS instead.
+ISOLATION_ALLOWLIST = {}
+
+# Permanent side effects of original code that no fixture can undo: name ->
+# the reason with its native evidence, the exact ordered change list, and, per
+# mode the entry applies to, the fixtures any of whose cases may be the first
+# in the run to cause it. A leak line is accepted as a side effect only when
+# its changes are exactly these, its test is a case of a listed fixture for
+# that mode, and no other line in the report already matched the entry. A side
+# effect may simply not occur in a given ordering (an earlier case caused it,
+# or the row already existed), so a run without it is still clean. Every entry
+# needs review.
+ISOLATION_SIDE_EFFECTS = {
+    # TimeScaledUtilities' BeforeFieldInit initializer 0x06000ecc stores
+    # GetSystemRef<TimeManager>(null, true) in its readonly s_timeManagerRef,
+    # which auto-registers (0x06000e3f) the null 'Hardlight.TimeManager' row,
+    # appended last. Removing the row would make every later registration build
+    # a new row the readonly reference never sees. Native run19
+    # (run19-928e689 editmode-isolation.jsonl line 773) recorded these changes,
+    # without the SystemConfiguration row the fixture now releases, for
+    # OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes, the first case
+    # in run order to run TimeScaledUtilities code. Only these two fixtures run
+    # it; OriginalCoreLowGapTests reads the iterator by reflection only.
+    "TimeScaledUtilities..cctor": {
+        "reason": "TimeScaledUtilities' type initializer 0x06000ecc appends the permanent 'Hardlight.TimeManager' row "
+                  "that holds its readonly s_timeManagerRef; removing it would detach that reference",
+        "changes": _first_use_row_changes("Hardlight.TimeManager"),
+        "fixtures": {"editmode": ("ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests",
+                                  "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests")},
     },
-    # Process lifetime, not a fixture defect. PerformanceDependency's static
-    # initializer (06000d75) stores GetSystemRef<ScalablePerformance>(null, true)
-    # in its readonly s_scalablePerformanceRef, appending the null
+    # PerformanceDependency's static initializer 06000d75 (x86-64 0x1b10280)
+    # stores GetSystemRef<ScalablePerformance>(null, true) (0x1b102e1) in its
+    # readonly s_scalablePerformanceRef, appending the null
     # 'Hardlight.ScalablePerformance' row on the first use of the type in each
-    # mode's run. Removing it would detach that reference from every later
-    # registration. Native run19 shows these cases first in run order; if another
-    # test uses the type earlier, the case runs clean and its entry must move or go.
-    "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests.DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers": {
-        "reason": "PerformanceDependency's first static initialization appends the 'Hardlight.ScalablePerformance' row "
-                  "that holds its readonly s_scalablePerformanceRef; the case asserts the row ends idle.",
+    # mode's run; removing it would detach that reference from every later
+    # registration. The native Edit Mode runs (run19 at 928e689, and 4beb125)
+    # recorded these eleven changes for the Gap fixture's Destroy case, the
+    # first in run order to use the type. In Play Mode the Destroy play case is
+    # the only case that runs the initializer; the other ScalablePerformance
+    # cases lease the row instead.
+    "PerformanceDependency..cctor": {
+        "reason": "PerformanceDependency's type initializer 06000d75 appends the permanent "
+                  "'Hardlight.ScalablePerformance' row that holds its readonly s_scalablePerformanceRef; removing it "
+                  "would detach that reference",
         "changes": _first_use_row_changes("Hardlight.ScalablePerformance"),
-    },
-    "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests.InvalidProfileDestroysTheWholeGameObject": {
-        "reason": "PerformanceDependency's first static initialization in the PlayMode run appends the "
-                  "'Hardlight.ScalablePerformance' row that holds its readonly s_scalablePerformanceRef.",
-        "changes": _first_use_row_changes("Hardlight.ScalablePerformance"),
+        "fixtures": {"editmode": ("ProjectLucid.Tests.OriginalPerformanceDependencyGapTests",
+                                  "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests"),
+                     "playmode": ("ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests",)},
     },
 }
+
+
+def isolation_side_effect(test, mode, changes, side_effects=None):
+    """The ISOLATION_SIDE_EFFECTS name a leak of test in mode with exactly these changes may be, or None."""
+    side_effects = ISOLATION_SIDE_EFFECTS if side_effects is None else side_effects
+    return next((name for name, entry in side_effects.items()
+                 if tuple(changes) == tuple(entry["changes"]) and
+                 any(test.startswith(fixture + ".") for fixture in entry["fixtures"].get(mode, ()))), None)
+
 
 # Each mode's hook controls need their own single clean line. The first fails
 # in Unity unless the recorder saw it start, so a passing control and its line
@@ -751,15 +762,16 @@ def _isolation_record(line):
     return record
 
 
-def isolation_verdict(path, nonce, xml, mode, allowlist=None):
+def isolation_verdict(path, nonce, xml, mode, allowlist=None, side_effects=None):
     """Check SharedStateIsolationRecorder's JSON lines against the run's test XML.
 
     Every project test case needs a line carrying this run's nonce, and every
-    line must be clean or a leak with exactly its allowlisted changes. A
-    missing report means the detector did not run, which fails rather than
-    passes.
+    line must be clean, a leak with exactly its allowlisted changes, or the
+    single occurrence of a listed side effect. A missing report means the
+    detector did not run, which fails rather than passes.
     """
     allowlist = ISOLATION_ALLOWLIST if allowlist is None else allowlist
+    side_effects = ISOLATION_SIDE_EFFECTS if side_effects is None else side_effects
     path = Path(path)
     if not path.is_file():
         raise ValueError("Isolation report missing: " + str(path) + "; the per-test detector did not run")
@@ -781,23 +793,34 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None):
             errors.append("Isolation report line " + str(number) + " is not from this run: " + record["test"])
         else:
             records.setdefault(record["test"], []).append(record)
-    leaks, allowlisted = [], []
+    leaks, allowlisted, permanent = [], [], []
+    seen_effects = {}
     for test in sorted(records):
         for record in records[test]:
             detail = "; ".join(record["changes"])
+            effect = isolation_side_effect(test, mode, record["changes"], side_effects)
             if record["status"] == "unchecked":
                 errors.append("Isolation unchecked for " + test + ": " + detail)
             elif record["status"] == "leak" and test in allowlist and record["changes"] == list(allowlist[test]["changes"]):
                 allowlisted.append({"test": test, "changes": record["changes"], "reason": allowlist[test]["reason"]})
+            elif record["status"] == "leak" and effect is not None:
+                seen_effects.setdefault(effect, []).append(test)
+                permanent.append({"test": test, "side_effect": effect, "changes": record["changes"],
+                                  "reason": side_effects[effect]["reason"]})
             elif record["status"] == "leak" and test in allowlist:
                 leaks.append({"test": test, "changes": record["changes"]})
                 errors.append("Isolation leak in " + test + " differs from its allowlisted changes: " + detail)
             elif record["status"] == "leak":
                 leaks.append({"test": test, "changes": record["changes"]})
                 errors.append("Isolation leak in " + test + ": " + detail)
+    # Only temporary allowlist entries must keep leaking; a side effect may not occur in this ordering.
     for test in sorted(set(allowlist) & set(records)):
         if all(record["status"] == "clean" for record in records[test]):
             errors.append("Allowlisted isolation leak no longer leaks; remove its entry: " + test)
+    for effect in sorted(seen_effects):
+        if len(seen_effects[effect]) > 1:
+            errors.append("Isolation side effect " + effect + " seen more than once in one report: " +
+                          ", ".join(seen_effects[effect]))
     for test in ISOLATION_HOOK_CONTROLS[mode]:
         if [record["status"] for record in records.get(test, ())] != ["clean"]:
             errors.append("Isolation hook control has no single clean line: " + test)
@@ -806,7 +829,7 @@ def isolation_verdict(path, nonce, xml, mode, allowlist=None):
         errors.append("Isolation report has no line for: " + ", ".join(unseen))
     return {"status": "complete" if not errors else "incomplete", "report": str(path), "nonce": nonce,
             "sha256": hashlib.sha256(data).hexdigest(), "checked": sum(map(len, records.values())),
-            "leaks": leaks, "allowlisted": allowlisted, "errors": errors}
+            "leaks": leaks, "allowlisted": allowlisted, "side_effects": permanent, "errors": errors}
 
 
 def run_tests(repo_root, work_dir, mode):

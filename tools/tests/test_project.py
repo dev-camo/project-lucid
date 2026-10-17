@@ -37,15 +37,25 @@ class ProjectTests(unittest.TestCase):
 
     @staticmethod
     def isolation(work, mode, names):
-        """Supplied isolation lines for each name, clean unless allowlisted; returns the receipt's isolation entry."""
+        """Supplied isolation lines for each name, as a native run writes them; returns the receipt's isolation entry.
+
+        Each side effect for this mode is reported once, by the first name in a
+        fixture allowed to cause it, with exactly its changes; an allowlisted
+        test leaks exactly its listed changes; every other line is clean.
+        """
         nonce = mode + "-synthetic-nonce"
         path = work / "reports" / (mode + "-isolation.jsonl")
-        # An allowlisted test must still leak exactly its listed changes, or the verdict fails.
-        path.write_text("".join(json.dumps({"nonce": nonce, "test": name,
-                                            "status": "leak" if name in verification.ISOLATION_ALLOWLIST else "clean",
-                                            "changes": list(verification.ISOLATION_ALLOWLIST[name]["changes"])
-                                            if name in verification.ISOLATION_ALLOWLIST else []}) + "\n"
-                                for name in names))
+        pending = dict(verification.ISOLATION_SIDE_EFFECTS)
+        lines = []
+        for name in names:
+            changes = list(verification.ISOLATION_ALLOWLIST[name]["changes"]) if name in verification.ISOLATION_ALLOWLIST else []
+            effect = next((key for key, entry in pending.items()
+                           if any(name.startswith(fixture + ".") for fixture in entry["fixtures"].get(mode, ()))), None)
+            if not changes and effect is not None:
+                changes = list(pending.pop(effect)["changes"])
+            lines.append(json.dumps({"nonce": nonce, "test": name, "status": "leak" if changes else "clean",
+                                     "changes": changes}) + "\n")
+        path.write_text("".join(lines))
         return {"nonce": nonce, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
     def test_release_build_never_runs_editor_when_game_unresolved(self):

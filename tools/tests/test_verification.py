@@ -360,7 +360,7 @@ class IsolationVerdictTests(unittest.TestCase):
                     verdict = verification.isolation_verdict(report, self.NONCE, xml, mode)
                     self.assertEqual("complete", verdict["status"], verdict["errors"])
                     self.assertEqual(3, verdict["checked"])
-                    self.assertEqual(([], []), (verdict["leaks"], verdict["allowlisted"]))
+                    self.assertEqual(([], [], []), (verdict["leaks"], verdict["allowlisted"], verdict["side_effects"]))
                     self.assertEqual(hashlib.sha256(report.read_bytes()).hexdigest(), verdict["sha256"])
 
     def test_leak_fails_and_names_the_test_and_each_change(self):
@@ -391,28 +391,25 @@ class IsolationVerdictTests(unittest.TestCase):
                              verdict["allowlisted"])
 
     def test_allowlisted_leak_with_any_other_change_list_fails(self):
-        # The real entry with run19's extra SystemConfiguration row, a missing
-        # line and a reordering: each is a leak, not the allowlisted one.
-        test = next(iter(verification.ISOLATION_ALLOWLIST))
-        expected = list(verification.ISOLATION_ALLOWLIST[test]["changes"])
+        # An extra line, a missing line and a reordering: each is a leak, not the allowlisted one.
+        expected = ["added system row 'X'", "added system row 'X' untyped reference"]
+        allowlist = {self.CASE: {"reason": "synthetic reason; issue #0", "changes": tuple(expected)}}
         with tempfile.TemporaryDirectory() as temporary:
             for changes in (expected + ["added system row 'Hardlight.SystemConfiguration'"],
                             expected[:-1], expected[1:] + expected[:1]):
-                with self.subTest(changes=changes[-1]):
+                with self.subTest(changes=changes):
                     report, xml = self.write(Path(temporary), lines=self.control_lines() +
-                                             [self.line(test, "leak", changes)])
-                    xml.write_text(xml.read_text().replace(self.CASE, test))
-                    verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode")
+                                             [self.line(self.CASE, "leak", changes)])
+                    verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode", allowlist)
                     self.assertEqual("incomplete", verdict["status"])
                     self.assertEqual([], verdict["allowlisted"])
-                    self.assertEqual([{"test": test, "changes": changes}], verdict["leaks"])
-                    self.assertEqual(["Isolation leak in " + test + " differs from its allowlisted changes: " +
+                    self.assertEqual([{"test": self.CASE, "changes": changes}], verdict["leaks"])
+                    self.assertEqual(["Isolation leak in " + self.CASE + " differs from its allowlisted changes: " +
                                       "; ".join(changes)], verdict["errors"])
-            report, xml = self.write(Path(temporary), lines=self.control_lines() + [self.line(test, "leak", expected)])
-            xml.write_text(xml.read_text().replace(self.CASE, test))
-            verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode")
+            report, xml = self.write(Path(temporary), lines=self.control_lines() + [self.line(self.CASE, "leak", expected)])
+            verdict = verification.isolation_verdict(report, self.NONCE, xml, "editmode", allowlist)
             self.assertEqual("complete", verdict["status"], verdict["errors"])
-            self.assertEqual([test], [entry["test"] for entry in verdict["allowlisted"]])
+            self.assertEqual([self.CASE], [entry["test"] for entry in verdict["allowlisted"]])
 
     def test_allowlist_cannot_hide_unchecked_tests_or_outlive_its_leak(self):
         allowlist = {self.CASE: {"reason": "synthetic reason", "changes": ("x",)}}
@@ -451,28 +448,123 @@ class IsolationVerdictTests(unittest.TestCase):
                     self.assertEqual("incomplete", verdict["status"])
                     self.assertEqual(expected, verdict["errors"])
 
-    def test_allowlist_names_exactly_the_reviewed_registered_tests(self):
-        # Only the reviewed static-initializer rows (TimeScaledUtilities, PerformanceDependency) are accepted.
-        self.assertEqual({"ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests."
-                          "OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes",
-                          "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests."
-                          "DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers",
-                          "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests."
-                          "InvalidProfileDestroysTheWholeGameObject"},
-                         set(verification.ISOLATION_ALLOWLIST))
-        registered = set(verification.EDITMODE_TESTS) | set(verification.PLAYMODE_TESTS)
-        for test, entry in verification.ISOLATION_ALLOWLIST.items():
-            self.assertIn(test, registered)
-            self.assertEqual({"reason", "changes"}, set(entry))
-            self.assertTrue(isinstance(entry["reason"], str) and entry["reason"].strip())
-            self.assertTrue(isinstance(entry["changes"], tuple) and entry["changes"])
-            self.assertTrue(all(isinstance(change, str) and change for change in entry["changes"]))
-        # Run19's record for that case without its SystemConfiguration lines,
-        # which the fixture now releases.
-        changes = verification.ISOLATION_ALLOWLIST[next(iter(verification.ISOLATION_ALLOWLIST))]["changes"]
-        self.assertEqual("changed system row order", changes[0])
-        self.assertEqual(11, len(changes))
-        self.assertFalse([change for change in changes if "SystemConfiguration" in change])
+    def test_allowlist_is_empty_and_permanent_effects_are_side_effects(self):
+        # The allowlist is temporary only; reviewed permanent production effects are side effects.
+        self.assertEqual({}, verification.ISOLATION_ALLOWLIST)
+
+    # The native recorder's change list for an initializer that appends one
+    # null row: run19 (928e689) line 773 for 'Hardlight.TimeManager', without
+    # the SystemConfiguration lines the timing fixture now releases.
+    @staticmethod
+    def native_row_changes(row):
+        added = "added system row '" + row + "'"
+        typed = added + " typed reference '" + row + "'"
+        return ["changed system row order", added,
+                added + " untyped reference",
+                added + " untyped reference OnSystemStartup observers",
+                added + " untyped reference OnSystemShutdown observers",
+                added + " untyped reference deferred InvokeOnValid work",
+                typed, typed + " OnSystemStartup observers", typed + " OnSystemShutdown observers",
+                typed + " deferred InvokeOnValid work", added + " typed reference names"]
+
+    TIMING = "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests"
+    TIMING_PRESERVATION = "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests"
+    GAP = "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests"
+    PRESERVATION = "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests"
+    DESTROY_PLAY = "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests"
+
+    def test_side_effects_pin_the_native_changes_modes_and_registered_fixtures(self):
+        effects = verification.ISOLATION_SIDE_EFFECTS
+        self.assertEqual({"TimeScaledUtilities..cctor", "PerformanceDependency..cctor"}, set(effects))
+        self.assertEqual(tuple(self.native_row_changes("Hardlight.TimeManager")),
+                         effects["TimeScaledUtilities..cctor"]["changes"])
+        self.assertEqual(tuple(self.native_row_changes("Hardlight.ScalablePerformance")),
+                         effects["PerformanceDependency..cctor"]["changes"])
+        self.assertEqual({"editmode": (self.TIMING, self.TIMING_PRESERVATION)}, effects["TimeScaledUtilities..cctor"]["fixtures"])
+        self.assertEqual({"editmode": (self.GAP, self.PRESERVATION), "playmode": (self.DESTROY_PLAY,)},
+                         effects["PerformanceDependency..cctor"]["fixtures"])
+        for name, entry in effects.items():
+            with self.subTest(side_effect=name):
+                self.assertEqual({"reason", "changes", "fixtures"}, set(entry))
+                self.assertTrue(isinstance(entry["reason"], str) and entry["reason"].strip())
+                self.assertTrue(set(entry["fixtures"]) <= {"editmode", "playmode"})
+                for mode, fixtures in entry["fixtures"].items():
+                    registered = verification.EDITMODE_TESTS if mode == "editmode" else verification.PLAYMODE_TESTS
+                    for fixture in fixtures:
+                        self.assertTrue(any(test.startswith(fixture + ".") for test in registered), fixture)
+
+    def side_effect_verdict(self, mode, cases):
+        """The default verdict for the mode's controls plus supplied (test, status, changes) case lines."""
+        with tempfile.TemporaryDirectory() as temporary:
+            report, xml = self.write(Path(temporary), mode, lines=self.control_lines(mode) +
+                                     [self.line(test, status, changes) for test, status, changes in cases])
+            xml.write_text(xml.read_text().replace(
+                '<test-case fullname="' + self.CASE + '" result="Passed"/>',
+                ''.join('<test-case fullname="' + test + '" result="Passed"/>' for test, _, _ in cases)))
+            return verification.isolation_verdict(report, self.NONCE, xml, mode)
+
+    def registered_cases(self, mode, fixture):
+        registered = verification.EDITMODE_TESTS if mode == "editmode" else verification.PLAYMODE_TESTS
+        return [test for test in registered if test.startswith(fixture + ".")]
+
+    def test_exact_side_effect_passes_once_from_any_case_of_an_allowed_fixture(self):
+        for name, entry in verification.ISOLATION_SIDE_EFFECTS.items():
+            for mode, fixtures in entry["fixtures"].items():
+                for fixture in fixtures:
+                    for first in self.registered_cases(mode, fixture):
+                        with self.subTest(side_effect=name, first=first):
+                            changes = list(entry["changes"])
+                            verdict = self.side_effect_verdict(mode, [(first, "leak", changes)])
+                            self.assertEqual("complete", verdict["status"], verdict["errors"])
+                            self.assertEqual(([], []), (verdict["leaks"], verdict["allowlisted"]))
+                            self.assertEqual([{"test": first, "side_effect": name, "changes": changes,
+                                               "reason": entry["reason"]}], verdict["side_effects"])
+        # Unlike an allowlist entry, a side effect an earlier ordering already caused may not occur at all.
+        verdict = self.side_effect_verdict("editmode", [(self.GAP + ".DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers",
+                                                         "clean", [])])
+        self.assertEqual(("complete", [], []), (verdict["status"], verdict["errors"], verdict["side_effects"]))
+
+    def test_side_effect_seen_twice_in_one_report_fails(self):
+        changes = list(verification.ISOLATION_SIDE_EFFECTS["PerformanceDependency..cctor"]["changes"])
+        destroy = self.GAP + ".DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers"
+        for second in (self.GAP + ".HideFollowsValidityAndDestroyKeepsAValidObject",
+                       self.PRESERVATION + ".CopyPreservesAliasesAndDestinationCallbacks"):
+            with self.subTest(second=second):
+                verdict = self.side_effect_verdict("editmode", [(destroy, "leak", changes), (second, "leak", changes)])
+                self.assertEqual("incomplete", verdict["status"])
+                self.assertEqual(["Isolation side effect PerformanceDependency..cctor seen more than once in one report: " +
+                                  ", ".join(sorted([destroy, second]))], verdict["errors"])
+
+    def test_side_effect_with_other_changes_or_from_a_disallowed_fixture_or_mode_is_a_leak(self):
+        timing = list(verification.ISOLATION_SIDE_EFFECTS["TimeScaledUtilities..cctor"]["changes"])
+        scalable = list(verification.ISOLATION_SIDE_EFFECTS["PerformanceDependency..cctor"]["changes"])
+        first = self.TIMING + ".OriginalGameTimingRetainsImmediateAndDeferredFaultPrefixes"
+        destroy_play = self.DESTROY_PLAY + ".InvalidProfileDestroysTheWholeGameObject"
+        low_gap = "ProjectLucid.Tests.OriginalCoreLowGapTests.FixedWaitReadsFixedDeltaTimeBeforeTheCategoryTimescale"
+        for mode, test, changes in (
+                # Extra, missing and reordered changes from the allowed first case.
+                ("editmode", first, timing + ["added system row 'Hardlight.SystemConfiguration'"]),
+                ("editmode", first, timing[:-1]),
+                ("editmode", first, timing[1:] + timing[:1]),
+                # Another entry's exact changes from this fixture.
+                ("editmode", first, scalable),
+                # Exact changes from a fixture outside the allowed set.
+                ("editmode", low_gap, timing),
+                ("editmode", self.CASE, scalable),
+                # Exact changes from an allowed fixture of another mode, and a mode the entry does not cover.
+                ("playmode", self.GAP + ".DestroyRemovesOnlyItsOwnProfileAndRegistryHandlers", scalable),
+                ("editmode", destroy_play, scalable),
+                ("playmode", destroy_play, timing)):
+            with self.subTest(mode=mode, test=test, last=changes[-1]):
+                verdict = self.side_effect_verdict(mode, [(test, "leak", changes)])
+                self.assertEqual("incomplete", verdict["status"])
+                self.assertEqual([], verdict["side_effects"])
+                self.assertEqual([{"test": test, "changes": changes}], verdict["leaks"])
+                self.assertEqual(["Isolation leak in " + test + ": " + "; ".join(changes)], verdict["errors"])
+        # The one occurrence is accepted, and a further leak in the same case still fails.
+        verdict = self.side_effect_verdict("playmode", [(destroy_play, "leak", scalable), (destroy_play, "leak", ["x"])])
+        self.assertEqual(["Isolation leak in " + destroy_play + ": x"], verdict["errors"])
+        self.assertEqual([destroy_play], [entry["test"] for entry in verdict["side_effects"]])
 
     def test_recorder_source_writes_the_fields_and_variables_the_verdict_reads(self):
         # A source check that the C# side and this verdict agree; the native run proves the hook fires.
@@ -505,12 +597,18 @@ class IsolationVerdictTests(unittest.TestCase):
                 '</test-suite></test-run>')
             Path(command[command.index("-logFile") + 1]).write_text("Unity Editor version: " + verification.UNITY_VERSION)
             if write_isolation:
-                # An allowlisted test must still leak exactly its listed changes.
-                allowlist = verification.ISOLATION_ALLOWLIST
-                Path(env["LUCID_ISOLATION_REPORT"]).write_text("".join(
-                    (self.line(name, "leak", allowlist[name]["changes"], nonce=env["LUCID_ISOLATION_NONCE"])
-                     if name in allowlist else self.line(name, nonce=env["LUCID_ISOLATION_NONCE"])) + "\n"
-                    for name in names))
+                # As a native run: each side effect once, from the first case of an
+                # allowed fixture, and an allowlisted test leaking exactly its changes.
+                allowlist, pending, lines = verification.ISOLATION_ALLOWLIST, dict(verification.ISOLATION_SIDE_EFFECTS), []
+                for name in names:
+                    changes = list(allowlist[name]["changes"]) if name in allowlist else []
+                    effect = next((key for key, entry in pending.items()
+                                   if any(name.startswith(fixture + ".") for fixture in entry["fixtures"].get(mode, ()))), None)
+                    if not changes and effect is not None:
+                        changes = list(pending.pop(effect)["changes"])
+                    lines.append(self.line(name, "leak" if changes else "clean", changes,
+                                           nonce=env["LUCID_ISOLATION_NONCE"]) + "\n")
+                Path(env["LUCID_ISOLATION_REPORT"]).write_text("".join(lines))
             return SimpleNamespace(returncode=0)
 
         identity = {"source_fingerprint": "synthetic-source", "prepared_asset_fingerprint": "synthetic-assets"}
@@ -542,6 +640,8 @@ class IsolationVerdictTests(unittest.TestCase):
             self.assertEqual("complete", report["status"], report["errors"])
             self.assertEqual(seen["LUCID_ISOLATION_NONCE"], report["isolation"]["nonce"])
             self.assertEqual(len(verification.PLAYMODE_TESTS), report["isolation"]["checked"])
+            self.assertEqual([(self.DESTROY_PLAY + ".InvalidProfileDestroysTheWholeGameObject", "PerformanceDependency..cctor")],
+                             [(entry["test"], entry["side_effect"]) for entry in report["isolation"]["side_effects"]])
             verified_receipt(work, "playmode", identity)
 
             with report_path.open("a") as stream:

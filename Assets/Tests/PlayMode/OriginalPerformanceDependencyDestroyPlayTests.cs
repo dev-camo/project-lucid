@@ -17,8 +17,9 @@ namespace ProjectLucid.Tests
     // GetSystemRef<ScalablePerformance>(null, true) in a static readonly
     // field, which adds the "Hardlight.ScalablePerformance" row when it is
     // absent. Removing that row would detach the static reference for the
-    // rest of the domain, so it stays (allowlisted by its exact changes). A
-    // row that existed before the case must be left exactly as it was.
+    // rest of the domain, so it stays (ISOLATION_SIDE_EFFECTS
+    // "PerformanceDependency..cctor"). All other shared state the isolation
+    // recorder compares must end as the initializer left it.
     public sealed class OriginalPerformanceDependencyDestroyPlayTests
     {
         private const BindingFlags Own = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -33,8 +34,10 @@ namespace ProjectLucid.Tests
         public IEnumerator InvalidProfileDestroysTheWholeGameObject()
         {
             string name = ProcessManager.GetDefaultName<ScalablePerformance>();
-            RowSnapshot borrowed = Registry().Contains(name) ? new RowSnapshot(Registry()[name]) : null;
+            bool absent = !Registry().Contains(name);
             RuntimeHelpers.RunClassConstructor(typeof(PerformanceDependency).TypeHandle);
+            if (absent && Registry().Contains(name)) AssertOnlyTheTypeInitializerRow(Registry()[name], name);
+            SharedStateSnapshot initialized = SharedStateSnapshot.Capture();
             GameObject host = null;
             PerformanceProfile profile = null;
             ScalableFeature feature = null;
@@ -67,9 +70,8 @@ namespace ProjectLucid.Tests
                 if ((Object)feature != null) Object.DestroyImmediate(feature);
                 if ((Object)profile != null) Object.DestroyImmediate(profile);
             }
-            // A row still absent means the initializer ran earlier and its row was removed; nothing changed here.
-            if (borrowed != null) borrowed.AssertUnchanged(Registry(), name);
-            else if (Registry().Contains(name)) AssertOnlyTheTypeInitializerRow(Registry()[name], name);
+            Assert.That(SharedStateSnapshot.Capture().DifferenceFrom(initialized), Is.Null,
+                "Rows, references, observers, deferred work, action rows and caches end as the initializer left them.");
         }
 
         private static IDictionary Registry() => (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", OwnStatic).GetValue(null);
@@ -103,50 +105,6 @@ namespace ProjectLucid.Tests
                 object[] ownership = Ownership(reference);
                 for (int i = 0; i < ownership.Length; i++)
                     Assert.That(ownership[i], Is.Null, "The ScalablePerformance row stays idle: " + OwnershipFields[i]);
-            }
-        }
-
-        // A row that existed before the case: the same row, references,
-        // typed entries, owners, observers and deferred work afterwards.
-        private sealed class RowSnapshot
-        {
-            private readonly object row;
-            private readonly object untyped;
-            private readonly object[] untypedOwnership;
-            private readonly List<KeyValuePair<object, object>> typed = new List<KeyValuePair<object, object>>();
-            private readonly List<object[]> typedOwnership = new List<object[]>();
-
-            internal RowSnapshot(object row)
-            {
-                this.row = row;
-                untyped = UntypedReference(row);
-                untypedOwnership = Ownership(untyped);
-                foreach (DictionaryEntry entry in TypedCache(row))
-                {
-                    typed.Add(new KeyValuePair<object, object>(entry.Key, entry.Value));
-                    typedOwnership.Add(Ownership(entry.Value));
-                }
-            }
-
-            internal void AssertUnchanged(IDictionary registry, string name)
-            {
-                Assert.That(registry.Contains(name) && ReferenceEquals(registry[name], row), Is.True, "The borrowed ScalablePerformance row stays registered.");
-                Assert.That(UntypedReference(row), Is.SameAs(untyped), "The borrowed row keeps its untyped reference.");
-                AssertSameOwnership(untypedOwnership, Ownership(untyped));
-                IDictionary typedCache = TypedCache(row);
-                Assert.That(typedCache.Count, Is.EqualTo(typed.Count), "The borrowed row keeps its typed entries.");
-                for (int i = 0; i < typed.Count; i++)
-                {
-                    Assert.That(typedCache.Contains(typed[i].Key) && ReferenceEquals(typedCache[typed[i].Key], typed[i].Value), Is.True,
-                        "The borrowed row keeps its typed entry " + typed[i].Key);
-                    AssertSameOwnership(typedOwnership[i], Ownership(typed[i].Value));
-                }
-            }
-
-            private static void AssertSameOwnership(object[] before, object[] after)
-            {
-                for (int i = 0; i < before.Length; i++)
-                    Assert.That(after[i], Is.SameAs(before[i]), "The borrowed row keeps " + OwnershipFields[i]);
             }
         }
     }
