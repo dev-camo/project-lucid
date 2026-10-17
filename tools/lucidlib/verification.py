@@ -2181,3 +2181,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.SingleCleanupKeepsThePendingEntryWhileFullCleanupClearsTheTable",
     "ProjectLucid.Tests.OriginalPayloadPropertyBuilderTests.IteratorsKeepTheOriginalGeneratedNamesAndHoistedParameters",
 )
+
+# Original HLUnityCore.Runtime GenericMaths<T> against its fully shared x86-64 bodies.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalGenericMathsTests.SubIntegerImplementationsWrapAndCompareWithTheirOwnSignedness",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.WordImplementationsUseUncheckedTruncatingArithmetic",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.FloatingComparisonsAreFalseForNaNAndInclusiveOnlyWhereNamed",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.DecimalForwardsToTheDecimalOperators",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.StringOnlyConcatenatesAndRejectsTheOtherOperationsByName",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.UnityVectorsOnlyAddAndSubtract",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.SelfImplementingTypesRunOnOneActivatorCreatedInstance",
+    "ProjectLucid.Tests.OriginalGenericMathsTests.UnsupportedTypesFailInitialisationWithTheOriginalMessage",
+)
