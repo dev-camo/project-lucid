@@ -83,6 +83,24 @@ namespace ProjectLucid.Tests
             return new LifecycleSystemRowLease(registry, name, existing, reportCleanupFailure);
         }
 
+        // Admits every named row before the fixture takes any reference. A
+        // refusal releases the leases already taken, which hold no created
+        // row yet, so the registry is left exactly as it was.
+        internal static LifecycleSystemRowLease[] AdmitAllAbsentOrIdle(IDictionary registry, params string[] names)
+        {
+            var leases = new List<LifecycleSystemRowLease>();
+            try
+            {
+                foreach (string name in names) leases.Add(AdmitAbsentOrIdle(registry, name));
+            }
+            catch
+            {
+                foreach (LifecycleSystemRowLease lease in leases) lease.Dispose();
+                throw;
+            }
+            return leases.ToArray();
+        }
+
         internal bool IsBorrowed => priorTypedEntries != null;
 
         internal void CaptureCreatedRow(SystemRef reference)

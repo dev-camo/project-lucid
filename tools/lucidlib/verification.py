@@ -3399,3 +3399,33 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLEnumSelectorTests." + name
     "SetCurrentValueSearchesOnlyTheCachedCount",
     "InitOverAnEmptyEnumThrowsBeforeValidate",
 ))
+
+# Field-only row admission for the StringTable, LoggingHost and MenuBloom lifecycle fixtures and the logging-host proof (issue #214).
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusesObservedTableRow(False)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusesObservedTableRow(True)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusesObservedLanguageRow(False)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusesObservedLanguageRow(True)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusesObservedLoggingHostRow(False)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusesObservedLoggingHostRow(True)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.LoggingHostFixture_RefusesObservedLoggingHostRow(False)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.LoggingHostFixture_RefusesObservedLoggingHostRow(True)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.MenuBloomFixture_RefusesObservedBloomRow(False)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.MenuBloomFixture_RefusesObservedBloomRow(True)",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.StringTableFixture_RefusalLeavesEarlierIdleRowsUnchanged",
+    "ProjectLucid.Tests.BorrowedLifecycleRowAdmissionTests.FixturesAdmitAbsentAndIdleRowsWithoutChangingThem",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRefusesAnObservedDormantRowWithoutInvokingIt(False)",
+    "ProjectLucid.Tests.LoggingHostConfigurationOwnershipTests.OwnedConfigurationRefusesAnObservedDormantRowWithoutInvokingIt(True)",
+)
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(False,0)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(False,1)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(False,2)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(False,3)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(True,0)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(True,1)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(True,2)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.LoggingHostRowWithForeignStateIsRefusedWithoutInvokingIt(True,3)",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.ConfigurationRowIsBorrowedWhenLiveAndRefusedWhenDormantWithForeignWork",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.ReleaseRemovesOnlyAnIdleCreatedRow",
+)

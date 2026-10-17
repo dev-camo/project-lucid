@@ -18,11 +18,27 @@ namespace ProjectLucid.Tests
         private static FieldInfo Field(Type type, string name) => type.GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly);
         private static Application.LogCallback Callback(HLUnityCore core) => (Application.LogCallback)Delegate.CreateDelegate(typeof(Application.LogCallback), core, typeof(HLUnityCore).GetMethod("OnHandleLog", BindingFlags.NonPublic | BindingFlags.Instance));
 
+        // Field-only admission of the logging-host row before any reference or
+        // activation: a null row can still hold foreign observers and deferred
+        // work that the host's registration would run and consume.
+        internal static LifecycleSystemRowLease AdmitHostRow(IDictionary registry) =>
+            LifecycleSystemRowLease.AdmitAbsentOrIdle(registry, ProcessManager.GetDefaultName<HLUnityCore>());
+
         [UnityTest]
         public IEnumerator OriginalLoggingHost_RegisteredCallbacksAndRetainedNativeBridgeLifecycle()
         {
-            Assert.IsTrue(HLUnityCore.IsNull() && ProcessManager.IsSystemNull<HLUnityCore>(), "The bounded runtime fixture starts without the game's real logging host.");
-            var configuration = new OwnedConfiguration();
+            LifecycleSystemRowLease hostRow = AdmitHostRow(LifecycleSystemRowLease.SharedRegistry);
+            OwnedConfiguration configuration;
+            try
+            {
+                Assert.IsTrue(HLUnityCore.IsNull() && ProcessManager.IsSystemNull<HLUnityCore>(), "The bounded runtime fixture starts without the game's real logging host.");
+                configuration = new OwnedConfiguration();
+            }
+            catch
+            {
+                hostRow.Dispose();
+                throw;
+            }
             Type type = typeof(HLUnityCore);
             object previousBridge = Field(type, "s_unityCoreNativeBridge").GetValue(null);
             object previousTracking = Field(type, "s_trackingAuthorisationNativeBridge").GetValue(null);
@@ -37,14 +53,18 @@ namespace ProjectLucid.Tests
             var objects = new List<GameObject>();
             var callbacks = new List<Application.LogCallback>();
             var shutdown = new List<string>();
-            SystemRef untyped = ProcessManager.GetSystemRef(typeof(HLUnityCore).ToString());
-            SystemRef<HLUnityCore> typed = ProcessManager.GetSystemRef<HLUnityCore>();
+            SystemRef untyped = null;
+            SystemRef<HLUnityCore> typed = null;
             Action<ISystem> onUntyped = value => shutdown.Add("untyped");
             Action<HLUnityCore> onTyped = value => shutdown.Add("typed");
-            untyped.OnSystemShutdown += onUntyped;
-            typed.OnSystemShutdown += onTyped;
             try
             {
+                untyped = ProcessManager.GetSystemRef(typeof(HLUnityCore).ToString());
+                hostRow.CaptureCreatedRow(untyped);
+                typed = ProcessManager.GetSystemRef<HLUnityCore>();
+                hostRow.CaptureTypedReference(typed);
+                untyped.OnSystemShutdown += onUntyped;
+                typed.OnSystemShutdown += onTyped;
                 // Original runtime configuration enumeration registers the base asset type.
                 configuration.Add(config);
                 Field(type, "s_unityCoreNativeBridge").SetValue(null, null);
@@ -136,8 +156,8 @@ namespace ProjectLucid.Tests
             finally
             {
                 // Every step is attempted; none may replace a body failure.
-                Step(cleanup, () => untyped.OnSystemShutdown -= onUntyped);
-                Step(cleanup, () => typed.OnSystemShutdown -= onTyped);
+                Step(cleanup, () => { if (untyped != null) untyped.OnSystemShutdown -= onUntyped; });
+                Step(cleanup, () => { if (typed != null) typed.OnSystemShutdown -= onTyped; });
                 foreach (GameObject item in objects) Step(cleanup, () => { if (item != null) Object.DestroyImmediate(item); });
                 // Probe cleanup only: preserve the original runtime's retained
                 // callback behavior while isolating the rest of the test suite.
@@ -148,6 +168,11 @@ namespace ProjectLucid.Tests
                 Step(cleanup, () => { if (config != null) Object.DestroyImmediate(config); });
                 Step(cleanup, () => Debug.unityLogger.logEnabled = previousLogging);
                 Step(cleanup, () => Debug.unityLogger.filterLogType = previousFilter);
+                Step(cleanup, () =>
+                {
+                    hostRow.Dispose();
+                    foreach (LifecycleSystemRowLease.FailureRecord record in hostRow.CleanupFailures) cleanup.Add(record.Failure);
+                });
                 // As in LifecycleSystemRowLease, a failing diagnostic is recorded rather than
                 // thrown, so the body failure stays primary.
                 if (!completed)
@@ -413,6 +438,68 @@ namespace ProjectLucid.Tests
             Assert.IsEmpty(seed.CleanupFailures);
             Assert.IsFalse(Registry.Contains(ConfigurationName));
         }
+
+        // A dormant row carrying observers and queued work is refused by field reads before AddConfig,
+        // whose registration would otherwise run and consume them. The queued work is this control's
+        // own, so it clears it by field before releasing the seeded row.
+        [TestCase(false)]
+        [TestCase(true)]
+        public void OwnedConfigurationRefusesAnObservedDormantRowWithoutInvokingIt(bool throwObservers)
+        {
+            Assert.IsFalse(Registry.Contains(ConfigurationName), "The control owns the configuration row.");
+            var seed = new LifecycleSystemRowLease(Registry, ConfigurationName);
+            SystemRef dormant = null;
+            SystemRef<SystemConfiguration> typed = null;
+            int calls = 0;
+            Action<ISystem> untypedObserver = value => { ++calls; if (throwObservers) throw new InvalidOperationException("borrowed observer"); };
+            Action<SystemConfiguration> typedObserver = value => { ++calls; if (throwObservers) throw new InvalidOperationException("borrowed observer"); };
+            try
+            {
+                dormant = ProcessManager.GetSystemRef(ConfigurationName);
+                seed.CaptureCreatedRow(dormant);
+                typed = ProcessManager.GetSystemRef<SystemConfiguration>();
+                seed.CaptureTypedReference(typed);
+                dormant.OnSystemStartup += untypedObserver;
+                dormant.OnSystemShutdown += untypedObserver;
+                dormant.InvokeOnValid(untypedObserver);
+                typed.OnSystemStartup += typedObserver;
+                typed.OnSystemShutdown += typedObserver;
+                typed.InvokeOnValid(typedObserver);
+                object row = Registry[ConfigurationName];
+                Assert.Throws<InvalidOperationException>(() => new LoggingHostTests.OwnedConfiguration());
+                Assert.AreSame(row, Registry[ConfigurationName]);
+                Assert.AreSame(typed, ProcessManager.GetSystemRef<SystemConfiguration>());
+                Assert.IsTrue(dormant.IsNull() && typed.IsNull());
+                Assert.IsNotNull(PendingWork(dormant));
+                Assert.IsNotNull(PendingWork(typed));
+                Assert.AreEqual(0, calls);
+            }
+            finally
+            {
+                if (dormant != null)
+                {
+                    dormant.OnSystemStartup -= untypedObserver;
+                    dormant.OnSystemShutdown -= untypedObserver;
+                    ClearPendingWork(dormant);
+                }
+                if (typed != null)
+                {
+                    typed.OnSystemStartup -= typedObserver;
+                    typed.OnSystemShutdown -= typedObserver;
+                    ClearPendingWork(typed);
+                }
+                seed.Dispose();
+            }
+            Assert.IsEmpty(seed.CleanupFailures);
+            Assert.IsFalse(Registry.Contains(ConfigurationName));
+        }
+
+        private static FieldInfo PendingField<T>() where T : class, ISystem =>
+            typeof(SystemRef<T>).GetField("m_actionOnSystemValid", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+
+        private static object PendingWork<T>(SystemRef<T> reference) where T : class, ISystem => PendingField<T>().GetValue(reference);
+
+        private static void ClearPendingWork<T>(SystemRef<T> reference) where T : class, ISystem => PendingField<T>().SetValue(reference, null);
 
         // Injected cleanup failure before the row is released: a throwing listener during override
         // removal must not stop unregistration and row removal, and must be reported, not swallowed.

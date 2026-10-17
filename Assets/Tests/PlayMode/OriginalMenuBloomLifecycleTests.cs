@@ -136,8 +136,15 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Field-only admission of the bloom row before activation: a null row
+        // can still hold foreign observers and deferred work that the
+        // singleton's registration would run and consume.
+        internal static LifecycleSystemRowLease AdmitBloomRow(IDictionary registry) =>
+            LifecycleSystemRowLease.AdmitAbsentOrIdle(registry, ProcessManager.GetDefaultName<MenuBloomTransition>());
+
         private sealed class OwnedBloom : IDisposable
         {
+            private readonly LifecycleSystemRowLease row;
             private GameObject host;
             public MenuBloomTransition Bloom { get; private set; }
             public CanvasGroup Group { get; private set; }
@@ -146,11 +153,13 @@ namespace ProjectLucid.Tests
 
             public OwnedBloom()
             {
-                Assert.That(ProcessManager.IsSystemNull<MenuBloomTransition>(), Is.True,
-                    "the real registry must have no prior bloom; no reset is permitted");
-                Assert.That(MonoSingleton<MenuBloomTransition>.Instance == null, Is.True);
+                row = AdmitBloomRow(LifecycleSystemRowLease.SharedRegistry);
                 try
                 {
+                    Assert.That(ProcessManager.IsSystemNull<MenuBloomTransition>(), Is.True,
+                        "the real registry must have no prior bloom; no reset is permitted");
+                    Assert.That(MonoSingleton<MenuBloomTransition>.Instance == null, Is.True);
+                    row.CaptureCreatedRow(ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<MenuBloomTransition>()));
                     host = new GameObject("Project Lucid owned scheduled bloom fixture");
                     Bloom = host.AddComponent<MenuBloomTransition>();
                     Group = host.GetComponent<CanvasGroup>();
@@ -164,10 +173,13 @@ namespace ProjectLucid.Tests
 
             public void Dispose()
             {
-                if (host != null) Object.DestroyImmediate(host);
+                row.RunCleanup("destroy-bloom-host", () => { if (host != null) Object.DestroyImmediate(host); });
+                row.Dispose();
                 Assert.That(MonoSingleton<MenuBloomTransition>.Instance == null, Is.True);
                 Assert.That(ProcessManager.IsSystemNull<MenuBloomTransition>(), Is.True,
                     "normal original OnDestroy must unregister only the owned component");
+                Assert.IsEmpty(row.CleanupFailures, "Fixture cleanup failed; retained failures were reported separately.");
+                Assert.IsEmpty(row.DiagnosticFailures, "Fixture cleanup reporting failed; diagnostic failures remain retained.");
             }
         }
     }

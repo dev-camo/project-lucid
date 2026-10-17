@@ -15,7 +15,7 @@ namespace ProjectLucid.Tests
     // and never create a Unity object, so they run in the shared complement.
     public sealed class LanguageLifecycleAdmissionTests
     {
-        private sealed class IsolatedRow
+        internal sealed class IsolatedRow
         {
             public readonly SystemRef SystemRef;
             public readonly IDictionary SystemRefDictionary = new Dictionary<string, object>();
@@ -182,7 +182,7 @@ namespace ProjectLucid.Tests
 
         // Read-only snapshot of all six reference fields and the FastAction
         // active flag, list and queue identities and contents.
-        private sealed class ReferenceSnapshot<T> where T : class, ISystem
+        internal sealed class ReferenceSnapshot<T> where T : class, ISystem
         {
             private const BindingFlags Fields = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
             private static readonly string[] Names = { "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid", "m_systemName", "m_system", "m_isystem" };

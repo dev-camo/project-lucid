@@ -67,6 +67,9 @@ namespace ProjectLucid
         public static int RunEngine()
         {
             checks = 0;
+            // Field-only admission before any configuration or lifecycle step.
+            var hostRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<HLUnityCore>());
+            var configurationRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>(), borrowLiveSystem: true);
             Check(HLUnityCore.IsNull() && ProcessManager.IsSystemNull<HLUnityCore>(), "engine proof starts without a live original host");
             var config = UnityEngine.ScriptableObject.CreateInstance<HLUnityCoreConfigurationAsset>();
             Set(config.LowMemoryConfig, "m_enabled", false);
@@ -80,7 +83,7 @@ namespace ProjectLucid
             bool priorConfiguration = !ProcessManager.IsSystemNull<SystemConfiguration>();
             SystemConfiguration createdConfiguration = null;
             UnityEngine.Application.LogCallback callback = null;
-            bool awake = false;
+            bool awake = false, completed = false;
             try
             {
                 // Original runtime configuration enumeration registers the base asset type.
@@ -159,6 +162,7 @@ namespace ProjectLucid
                 Check(ReferenceEquals(Field(type, "s_unityCoreNativeBridge").GetValue(null), bridge) && ReferenceEquals(Field(type, "s_trackingAuthorisationNativeBridge").GetValue(null), tracking), "original destruction retains both static bridges");
                 UnityEngine.Object.DestroyImmediate(gameObject);
                 Check(core == null, "actual Unity destruction invalidates original component wrapper");
+                completed = true;
             }
             finally
             {
@@ -170,6 +174,7 @@ namespace ProjectLucid
                 if (handle != null) ProcessManager.GetSystem<SystemConfiguration>().StackableData.RemoveOverrides(handle);
                 if (createdConfiguration != null) ProcessManager.UnregisterSystem(createdConfiguration);
                 if (config != null) UnityEngine.Object.DestroyImmediate(config);
+                ReleaseRows(completed, configurationRow, hostRow);
             }
             return checks;
         }
@@ -307,9 +312,7 @@ namespace ProjectLucid
 
         private static void CheckRegisteredRoutes()
         {
-            const string name = "Hardlight.HLUnityCore";
-            IDictionary registry = (IDictionary)Field(typeof(ProcessManager), "s_systemDictionary").GetValue(null);
-            bool existed = registry.Contains(name); object prior = existed ? registry[name] : null;
+            var hostRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<HLUnityCore>());
             Check(ProcessManager.IsSystemNull<HLUnityCore>(), "isolated proof requires no live original registered host");
             var core = CreateCLRFixture(); var replacement = CreateCLRFixture();
             List<string> trace = new List<string>();
@@ -318,6 +321,7 @@ namespace ProjectLucid
             Stack<StringBuilder> pool = (Stack<StringBuilder>)Field(typeof(HLOutput), "s_stringBuilderPool").GetValue(null);
             Func<string>[] oldGlobal = global.ToArray(); var oldSpecific = specific.ToArray(); StringBuilder[] oldPool = pool.ToArray();
             bool oldQuitting = (bool)Field(typeof(HLOutput), "s_quitting").GetValue(null);
+            bool completed = false;
             try
             {
                 global.Clear(); specific.Clear(); pool.Clear(); Field(typeof(HLOutput), "s_quitting").SetValue(null, false);
@@ -374,15 +378,29 @@ namespace ProjectLucid
 
                 trace.Clear(); HLUnityCore.OnHandleFirstChanceException(null, null); HLUnityCore.OnHandleUnresolvedException(null, null); HLUnityCore.OnHandleUnresolvedException(null, new UnhandledExceptionEventArgs("object", false));
                 Check(trace.Count == 0, "original exception notification invalid/null guards");
+                completed = true;
             }
             finally
             {
                 ProcessManager.UnregisterSystem(core); ProcessManager.UnregisterSystem(replacement);
-                if (existed) registry[name] = prior; else registry.Remove(name);
+                ReleaseRows(completed, hostRow);
                 global.Clear(); global.AddRange(oldGlobal); specific.Clear(); foreach (var entry in oldSpecific) specific.Add(entry.Key, entry.Value);
                 pool.Clear(); for (int i = oldPool.Length - 1; i >= 0; i--) pool.Push(oldPool[i]);
                 Field(typeof(HLOutput), "s_quitting").SetValue(null, oldQuitting);
             }
+        }
+
+        // Every row is released; a release failure is raised only when it
+        // cannot replace an earlier proof failure.
+        private static void ReleaseRows(bool completed, params VerificationFixtureOwnership.LifecycleRow[] rows)
+        {
+            Exception failure = null;
+            foreach (VerificationFixtureOwnership.LifecycleRow row in rows)
+            {
+                Exception rowFailure = Capture(row.Dispose);
+                if (failure == null) failure = rowFailure;
+            }
+            if (completed && failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         private static void CheckNativeValueMethods()
