@@ -1884,6 +1884,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSplashSelectionTests.AspectRatioMatchesWithinToleranceButNotJustOutside",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetMergesLaterGroupsIntoFirstAndFaultsOnDuplicateKeys",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetKeepsTheFirstGroupDictionaryWithItsKeyComparer",
+    "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetKeepsAnEmptyFirstGroupDictionaryAndItsKeyComparer",
     "ProjectLucid.Tests.OriginalDataDefinitionsLookupTests.GetGroupReturnsFirstClrMatchIncludingDestroyedGroup",
     "ProjectLucid.Tests.OriginalFontReadinessUpdateTests.UpdateReadsAndStoresBothKeysEagerlyFromTheRegisteredApp",
 )

@@ -85,6 +85,43 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Both Get bodies test only the running result for null (0x8fd43f/0x8fd52f
+        // `test r14, r14`) and never the GetData count, so an empty first group's
+        // dictionary is kept and returned even when nothing is merged into it.
+        // Catches skipping empty matches (null when every match is empty) and a
+        // fresh dictionary for an empty result (default comparer).
+        [Test]
+        public void GetKeepsAnEmptyFirstGroupDictionaryAndItsKeyComparer()
+        {
+            using (var owned = new Owned())
+            {
+                FadeTransitionDefinition black = owned.Fade(FadeTransitionType.Black);
+                FadeTransitionDefinitionGroup empty = owned.FadeGroup();
+                Assert.AreEqual(0, empty.m_elements.Length);
+                DataDefinitions definitions = owned.Add(ScriptableObject.CreateInstance<DataDefinitions>());
+
+                definitions.DataDefinitionsArray = new DefinitionDataType[] { null, empty };
+                Dictionary<FadeTransitionType, FadeTransitionDefinition> onlyEmpty =
+                    definitions.Get<FadeTransitionType, FadeTransitionDefinition>();
+                Assert.IsNotNull(onlyEmpty);
+                Assert.AreEqual(0, onlyEmpty.Count);
+                Assert.AreSame(HardlightEnumComparers.FadeTransitionTypeComparer, onlyEmpty.Comparer);
+
+                definitions.DataDefinitionsArray = new DefinitionDataType[] { empty, owned.FadeGroup(black), owned.FadeGroup() };
+                Dictionary<FadeTransitionType, FadeTransitionDefinition> merged =
+                    definitions.Get<FadeTransitionType, FadeTransitionDefinition>();
+                Assert.AreSame(HardlightEnumComparers.FadeTransitionTypeComparer, merged.Comparer);
+                CollectionAssert.AreEqual(new[] { FadeTransitionType.Black }, merged.Keys.ToArray());
+                Assert.AreSame(black, merged[FadeTransitionType.Black]);
+
+                // String-key body: an empty island group alone also yields an empty dictionary.
+                definitions.DataDefinitionsArray = new DefinitionDataType[] { owned.Group() };
+                Dictionary<string, GameplayIslandDefinition> islands = definitions.Get<string, GameplayIslandDefinition>();
+                Assert.IsNotNull(islands);
+                Assert.AreEqual(0, islands.Count);
+            }
+        }
+
         // 0x8fd6c3 IsInst on each slot returns the first CLR instance without a
         // Unity null test, so a destroyed group is still returned. Catches a Unity
         // equality guard (would return the later live group) and a last-match rule.
@@ -146,13 +183,12 @@ namespace ProjectLucid.Tests
                 return fade;
             }
 
-            public FadeTransitionDefinitionGroup FadeGroup(FadeTransitionDefinition fade)
+            public FadeTransitionDefinitionGroup FadeGroup(params FadeTransitionDefinition[] fades)
             {
                 FadeTransitionDefinitionGroup group = Add(ScriptableObject.CreateInstance<FadeTransitionDefinitionGroup>());
-                group.m_elements = new[]
-                {
-                    new DefinitionDataType<FadeTransitionType, FadeTransitionDefinition>.DefinitionElement<FadeTransitionDefinition>(fade),
-                };
+                group.m_elements = fades
+                    .Select(fade => new DefinitionDataType<FadeTransitionType, FadeTransitionDefinition>.DefinitionElement<FadeTransitionDefinition>(fade))
+                    .ToArray();
                 return group;
             }
 
