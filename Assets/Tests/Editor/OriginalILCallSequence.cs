@@ -7,8 +7,13 @@ using System.Reflection.Emit;
 namespace ProjectLucid.Tests
 {
     // Reads the call, callvirt and newobj targets of a compiled method body in
-    // IL order (ECMA-335 III). Used only where an original order has no other
-    // observable effect; it inspects metadata and never invokes the method.
+    // linear IL order (ECMA-335 III). Used only where an original order has no
+    // other observable effect; it inspects metadata and never invokes the method.
+    // Linear order does not prove that every runtime path executes each call.
+    // ldftn and ldvirtftn also carry a method token but only load a pointer
+    // (III.3.41, III.4.18), so they add no record; jmp (III.3.37) transfers
+    // control without a call and is rejected; calli has no method token and is
+    // not recorded.
     internal static class OriginalILCallSequence
     {
         internal struct Call
@@ -55,11 +60,18 @@ namespace ProjectLucid.Tests
                         position += 4 + 4 * BitConverter.ToInt32(il, position);
                         break;
                     case OperandType.InlineMethod:
-                        calls.Add(new Call
+                        if (code == OpCodes.Jmp)
                         {
-                            Offset = start,
-                            Target = method.Module.ResolveMethod(BitConverter.ToInt32(il, position), typeArguments, methodArguments),
-                        });
+                            throw new NotSupportedException($"jmp at IL_{start:x4} in {method.DeclaringType.FullName}.{method.Name}");
+                        }
+                        if (code == OpCodes.Call || code == OpCodes.Callvirt || code == OpCodes.Newobj)
+                        {
+                            calls.Add(new Call
+                            {
+                                Offset = start,
+                                Target = method.Module.ResolveMethod(BitConverter.ToInt32(il, position), typeArguments, methodArguments),
+                            });
+                        }
                         position += 4;
                         break;
                     default:

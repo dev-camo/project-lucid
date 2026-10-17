@@ -2211,6 +2211,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSplinePhysicsLowGapTests.GrowthChildrenUseTheOriginalOctantSignPattern",
 )
 
+# OriginalILCallSequence records only call, callvirt and newobj, never ldftn/ldvirtftn.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.DelegateCreationAddsNoCallForTheReferencedMethods",
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.RealCallsKeepIlOrderAroundAnInterleavedFunctionPointerLoad",
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.FindByNameDelegatesDoNotSatisfyTheLookupOrderFilter",
+)
+
 # Low-priority gap cases that need real Awake/OnDestroy messages or an active scene object.
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLowGapPlayTests.MacConnectCallbackFindsTheNamedObjectAndSendsTheCommandData",
