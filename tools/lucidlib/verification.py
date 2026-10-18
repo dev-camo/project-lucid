@@ -4632,3 +4632,58 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalEntityActivationEntityTests.
     "MissionVisibilityLevelActivationRestoresOnlyAChangedVisibility",
     "MissionVisibilityLevelActivationComparesTheObjectsOwnState",
 ))
+
+# Restored EventInvocationInfo, the global signal publisher and receiver, MessageNameKeys,
+# PersistentLevelObjectType`1/Boolean and the world-trigger components, timing and tracking utilities.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalEventInvocationInfoTests." + name for name in (
+    "DeclarationsSupportedTypesAndConstructorStores",
+    "DirectInvocationsSkipAMissingMethodAndPropagateFailures",
+    "EnumInvocationBoxesTheParameterEnumAndFaultsWithoutAMethod",
+    "TextInvocationConvertsSupportedParametersAndSwallowsEveryFault",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGlobalSignalTests." + name for name in (
+    "SignalComponentsKeepTheirDeclarationsAndDropASignalWithoutAManager",
+    "ReceiverRespondsOnlyToItsSignalWhileEnabled",
+    "ADeferredSubscriptionSurvivesDisableAndStartsWithTheManager",
+    "MessageNameKeysHoldTheirOwnNames",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPersistentLevelObjectTests." + name for name in (
+    "DeclarationsAndConstructorDefaults",
+    "AnUnsetIdAnnouncesTheDefaultWithoutTheLevelManager",
+    "AnIdWaitsForTheLevelManagerAndSubscribesToLevelActivation",
+    "ACurrentLevelIsHandledBeforeSubscribingAndChecksTheChallengeFirst",
+    "SetPersistentStateStoresTheValueBeforeTheChallengeTest",
+    "BooleanOverridesUseTheLevelSaveRecord",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalWorldTriggerComponentTests." + name for name in (
+    "VisibilityPublishesTheFlagBeforeItsEvent",
+    "ColliderGroupSetsEveryListedColliderAndStopsAtANullEntry",
+    "HideOnAwakeDeactivatesTheRenderersObjects",
+    "LevelDataActivationAppliesTheFlagAndItsInverse",
+    "MaterialTriggerSendsEveryTriggerType",
+    "MergeCollidersCombinesChildMeshesInWorldSpace",
+    "SequentialActivatorActivatesOneObjectPerResume",
+    "SiblingOrderEventMatchesFirstLastOrASpecificChild",
+    "StickyControlsTriggerForwardsItsHooksAndEvents",
+    "EnumMetadataValuesBindTheirEnumAndAssetMenu",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimedEventActivatorTests." + name for name in (
+    "DeclarationsAndConstructorDefaults",
+    "TimedEventFiresUnlessTheClockIsBelowItsTime",
+    "SequenceStartsAtMinusTheDelayUnlessStartedManually",
+    "UpdateFiresElapsedEventsAndWrapsOrDisablesAtTheEnd",
+    "UpdateUsesTheCountReadBeforeFiringAndANaNClockFiresEverything",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTargetTrackingUtilitiesTests." + name for name in (
+    "DeclarationsKeepTheOutTargetAndOptionalDelegate",
+    "TheConeGrowsByStepUntilATargetIsFound",
+    "TheClosestValidTargetWinsAndALaterTieReplacesIt",
+    "NoValidTargetClearsTheListAndReturnsNull",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSceneInformationTests." + name for name in (
+    "DeclarationsKeepTheReadonlyPropertiesAndDefaultCount",
+    "ChildCountAddsEveryDescendantToTheCount",
+    "ConstructionNamesTheSceneAndCountsEveryObject",
+    "ConstructionRequiresTheProfilerDataManager",
+    "SnapshotsAccumulateAndOutputKeepsThem",
+))
