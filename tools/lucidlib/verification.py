@@ -2625,6 +2625,44 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterAbilityRollingTests.ObservedAppReferenceIsRetainedAndReportedWithoutReplacingThePrimary",
 )
 
+# Original air stomp, braking and burst attack definitions, abilities and FSM nodes (gr2-char-moves-01).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterAirStompBrakingBurstTests." + name for name in (
+    "SlopeSettingsAreMinimumInclusiveMaximumExclusiveAndBoostOnlyWhenFlagged",
+    "SlopeSettingsFirstMatchingRangeWinsWhenRangesOverlap",
+    "SlopeSettingsMatchTheFirstEntryForANaNAngle",
+    "SlopeSettingsReportNothingForAnEmptyList",
+    "BrakingDefinitionStartsWithTheNativeThresholds",
+    "BrakingCachedValuesSquareEachThresholdIntoItsOwnProperty",
+    "BrakingCachedValuesFaultWithoutLedgeParametersBeforeSquaring",
+    "DefinitionsNameTheirOwnAbilityScript",
+    "BurstGroundLeavesKeepTheirOriginalBases",
+    "BrakingTriggerMirrorsTheBrakingFlag",
+    "BrakingDeceleratesOnlyWhileBrakingAndWhenDecelerationIsRequested",
+    "BrakingMotionMultiplierScalesTheMinimumSpeed",
+    "BrakingForwardSpeedOverrideKeepsTheOriginalOptionalDefaults",
+    "BrakingUpdateSmoothsTheBufferedIntentBeforeEvaluatingInput",
+    "BrakingEvaluateInputMeasuresTheThreeNativeAngles",
+    "BrakingForwardSpeedNeverCallsTheMovementBase",
+    "AirStompAbilityReadsTheStompActionAndEndsTheStompImpulse",
+    "AirStompResetRotatesDownhillAfterTheAirBase",
+    "AirStompDownhillRotationCallsTheNativeMathInOrder",
+    "NodesCarryTheirOriginalGraphAuthoringAttributes",
+    "BurstStatesKeepTheirGenericShape",
+    "ClassFactoryRegistersTheNodesWithTheirArgumentTypes",
+    "BurstStatesSizeTheOverlapBufferFromMaxTargets",
+    "OnlyTheAirChaosStatePreventsDeactivation",
+    "LedgeBufferStateSuppressesTheBoostSuspendCountdown",
+    "AbilityTransitionsReadTheAbilityTypeFromTheirJson",
+    "TriggerAbilityArgumentsDefaultToEnabled",
+    "AbilityFinishedTransitionReadsOnlyTheFinishedFlag",
+    "AirAbilityTransitionResetsALosingSecondaryBeforeReadingAirActive",
+    "LedgeBufferStateRunsAirControlBetweenTheBaseUpdateAndTheTimerWrite",
+    "BurstUpdateHitsOverlapsBeforeStrippingGroundVelocity",
+    "BurstEntryKeepsHorizontalVelocityThenSpendsBoostThenChaosStamina",
+    "ChaosEntryJudgesStaminaBeforeTheBaseEntryAndStartsDilationLast",
+    "DisableAbilitiesStateLeavesEveryNonPassiveNonExceptedAbility",
+))
+
 # Original deceleration-curve acceleration branch minss operand order.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationKeepsAnUnorderedSum",
