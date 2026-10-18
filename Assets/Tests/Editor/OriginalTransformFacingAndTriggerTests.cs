@@ -8,6 +8,7 @@ using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Events;
+using ProjectLucid.Tests.WorldTriggersShared;
 using static ProjectLucid.Tests.WorldMemberAccess;
 using Object = UnityEngine.Object;
 
@@ -216,6 +217,40 @@ namespace ProjectLucid.Tests
             }, objects.Dispose, row.Dispose);
         }
 
+        // With no manager registered the reference stays null after InvokeOnValid, so OnEnable
+        // disables (IsNull 0x5fd873, set_enabled(false) 0x5fd88d) and the deferred
+        // OnCameraInitialised runs when a manager is registered later. GetSystemRef creates
+        // the row, so it is admitted absent through LifecycleRow and released once idle.
+        [Test]
+        public void FaceCameraEnableDisablesUntilAManagerIsRegistered()
+        {
+            string name = ProcessManager.GetDefaultName<CinemachineCameraManager>();
+            var row = new VerificationFixtureOwnership.LifecycleRow(name);
+            var objects = new OwnedWorldObjects("lucid-face-camera-enable-missing");
+            bool registered = false;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
+            {
+                var face = objects.Create("face").AddComponent<TransformFaceCamera>();
+                Call(face, "OnEnable");
+                Assert.That(face.enabled, Is.False, "no camera manager");
+                var reference = (SystemRef<CinemachineCameraManager>)Get(face, "m_cameraManagerRef");
+                Assert.That(reference, Is.SameAs(ProcessManager.GetSystemRef<CinemachineCameraManager>()));
+                Assert.That(reference.IsNull(), Is.True);
+
+                var manager = Raw<CinemachineCameraManager>();
+                // Set first: a throwing deferred callback still leaves the system registered.
+                registered = true;
+                ProcessManager.RegisterSystem(manager, name);
+                Assert.That(HandlerNames(manager, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCameraManagerShutdown" }), "the deferred subscription ran");
+                Assert.That(HandlerNames(manager, "OnMainCameraReady"), Is.EqualTo(new[] { "SetMainCamera" }), "the camera is not ready");
+                Assert.That(face.enabled, Is.False, "re-enabled only by SetMainCamera");
+                Call(face, "OnDisable");
+                Assert.That(Get(manager, "OnSystemShutdown"), Is.Null);
+            },
+            () => { if (registered) ProcessManager.UnregisterSystem(name); },
+            objects.Dispose, row.Dispose);
+        }
+
         // FacePlayer.RegisterCharacterManager 0x5FDDB0 stores the manager and calls
         // RegisterOnCharacterChange(SetTarget, true) (edx 1, 0x5fde2b), so a valid character is
         // targeted at once; SetTarget 0x5FDE50 caches character.transform; OnDisable 0x5FDEB0
@@ -283,16 +318,19 @@ namespace ProjectLucid.Tests
             public TransformAssignEventTrigger Trigger;
 
             // The constructor's GetSystemRef<LevelManager> row must already be owned.
-            public TransformAssignEventTrigger Create()
+            public TransformAssignEventTrigger Create() => Create<TransformAssignEventTrigger>();
+
+            public T Create<T>() where T : TransformAssignEventTrigger
             {
-                Trigger = Objects.Create("trigger").AddComponent<TransformAssignEventTrigger>();
+                var trigger = Objects.Create("trigger").AddComponent<T>();
+                Trigger = trigger;
                 var enter = new UnityEvent<Transform>();
                 enter.AddListener(Entered.Add);
                 var exit = new UnityEvent<Transform>();
                 exit.AddListener(Exited.Add);
                 Set(Trigger, "m_onTriggerEnter", enter);
                 Set(Trigger, "m_onTriggerExit", exit);
-                return Trigger;
+                return trigger;
             }
 
             public Collider Collider(string tag)
@@ -350,6 +388,38 @@ namespace ProjectLucid.Tests
                 Call(trigger, "OnTriggerEnter", player);
                 Assert.That(fixture.Entered, Is.EqualTo(new[] { player.transform, untagged.transform, player.transform }), "an empty tag takes any collider");
                 Assert.That(Call(trigger, "GetTargetTransform", untagged), Is.SameAs(untagged.transform));
+            }
+        }
+
+        // OnTriggerEnter sends GetTargetTransform through vtable slot 5 (call [rax+0x188] at
+        // 0x5d4773); OnTriggerExit reads SetNullOnExit through slot 4 (0x5d483b) and calls slot 5
+        // (0x5d4863) only when it is false. CameraProxyAssignTrigger (TypeDefIndex 603) and
+        // CharacterProxyAssignTrigger (831) override both.
+        [Test]
+        public void TriggerDispatchesTheTargetAndNullOnExitVirtually()
+        {
+            using (var levelRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<LevelManager>()))
+            using (var fixture = new TriggerFixture())
+            {
+                var trigger = fixture.Create<TransformAssignEventTriggerProbe>();
+                trigger.Proxy = fixture.Objects.Create("proxy").transform;
+                Collider player = fixture.Collider("Player");
+
+                Call(trigger, "OnTriggerEnter", player);
+                Assert.That(fixture.Entered, Is.EqualTo(new[] { trigger.Proxy }), "enter sends the override's transform");
+                Assert.That(trigger.TargetRequests, Is.EqualTo(1));
+
+                trigger.NullOnExit = true;
+                Set(trigger, "m_setNullOnExit", false);
+                Call(trigger, "OnTriggerExit", player);
+                Assert.That(fixture.Exited, Is.EqualTo(new Transform[] { null }), "the overridden SetNullOnExit decides");
+                Assert.That(trigger.TargetRequests, Is.EqualTo(1), "no target is requested for a null exit");
+
+                trigger.NullOnExit = false;
+                Set(trigger, "m_setNullOnExit", true);
+                Call(trigger, "OnTriggerExit", player);
+                Assert.That(fixture.Exited, Is.EqualTo(new[] { null, trigger.Proxy }), "the field is not read");
+                Assert.That(trigger.TargetRequests, Is.EqualTo(2));
             }
         }
 

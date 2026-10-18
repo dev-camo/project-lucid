@@ -14,9 +14,9 @@ namespace ProjectLucid.Tests
     // HardlightProject.TransformMultiAxisRotator, TransformOscillator, TransformPanner,
     // TransformScaler (TypeDefs 0x02000820..0x0200082a, x86-64 0x604940..0x606811) and
     // ScaleToTarget (0x02000ad2, 0x6E96B0..0x6E9C49) on owned GameObjects. Start, Awake,
-    // InternalUpdate, OnSynchronise, the OnEnable lambda and the scaling iterator are invoked
-    // directly; the OnEnable and OnDisable bodies reach the shared TimeManager reference or
-    // CoroutineUtils and are not run here.
+    // InternalUpdate, OnSynchronise, the OnEnable lambda, the ScaleToTarget entry points and its
+    // scaling iterator are invoked directly; the TimeScaledComponent OnEnable and OnDisable
+    // bodies reach the shared TimeManager reference or CoroutineUtils and are not run here.
     public sealed class OriginalTransformAnimatorTests
     {
         private const BindingFlags All = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -224,9 +224,10 @@ namespace ProjectLucid.Tests
         }
 
         // The wrap tests (ucomiss against 2 pi at 0x29a73b8, jbe) use the phase, offset
-        // included, and subtract 2 pi from the timer only; the sines use the unwrapped phase.
+        // included, and subtract 2 pi from the timer only: y wraps from 6.0 + 0.2 pi. Sampling
+        // the wrapped or unwrapped phase gives the same sines, so that choice is not separated.
         [Test]
-        public void OscillatorWrapsTheTimerOnThePhaseButSamplesTheUnwrappedPhase()
+        public void OscillatorWrapsTheTimerWhenThePhaseIncludingOffsetPassesTwoPi()
         {
             using (var owned = new OwnedTimeScaledObjects("lucid-animator-oscillator-wrap"))
             {
@@ -238,7 +239,7 @@ namespace ProjectLucid.Tests
                 Set(oscillator, "m_shouldAnimate", true);
                 Call(oscillator, "InternalUpdate", 0f);
                 AreClose(new Vector3(6.3f - 2f * Pi, 6f - 2f * Pi, 6.2f), (Vector3)Get(oscillator, "m_timerSeconds"), "x and y wrap, z stays below 2 pi");
-                AreClose(new Vector3(1.0336278f, 2.0149661f, 0.6676424f), oscillator.transform.localPosition, "unwrapped sines", 1e-3f);
+                AreClose(new Vector3(1.0336278f, 2.0149661f, 0.6676424f), oscillator.transform.localPosition, "sines", 1e-3f);
             }
         }
 
@@ -312,7 +313,7 @@ namespace ProjectLucid.Tests
                 Set(scaler, "m_timerSeconds", new Vector3(0f, 1.6f * Pi, 0f));
                 Call(scaler, "InternalUpdate", 0f);
                 AreClose(new Vector3(0f, -0.4f * Pi, 0f), (Vector3)Get(scaler, "m_timerSeconds"), "y wraps on its phase");
-                AreClose(new Vector3(3f, 5.9021130f, 9f), scaler.transform.localScale, "unwrapped cosine", 1e-3f);
+                AreClose(new Vector3(3f, 5.9021130f, 9f), scaler.transform.localScale, "cosine", 1e-3f);
             }
         }
 
@@ -355,6 +356,34 @@ namespace ProjectLucid.Tests
                 scale.transform.localScale = Vector3.zero;
                 Assert.That(routine.MoveNext(), Is.False, "t equal to the total time ends");
                 Assert.That(scale.transform.localScale, Is.EqualTo(new Vector3(3f, 5f, 7f)));
+            }
+        }
+
+        // StartScaleToTarget 0x6E9720 starts ScaleTransform(m_scaleOriginal +0x34, m_scaleTarget
+        // +0x28) and RevertScaleToOriginal 0x6E98A0 the reverse, each after StopAllCoroutines.
+        // StartCoroutine runs the first step at once: with the curve held at 0.5 over a last key
+        // at 2, progress is 0.25. OnDisable 0x6E96E0 stops the coroutines and restores the
+        // original scale.
+        [Test]
+        public void StartAndRevertScaleFromEachEndAndDisableRestoresTheOriginal()
+        {
+            using (var owned = new OwnedTimeScaledObjects("lucid-animator-scale-start"))
+            using (var time = new OwnedSystemTime(owned.Objects, 1f))
+            {
+                var scale = owned.Add<ScaleToTarget>("scale");
+                Call(scale, "Awake");
+                Set(scale, "m_curve", new AnimationCurve(new Keyframe(0f, 0.5f), new Keyframe(2f, 0.5f)));
+                Set(scale, "m_scaleTarget", new Vector3(5f, 5f, 5f));
+                time.Register();
+                VerificationFixtureOwnership.RunThenCleanUp(() =>
+                {
+                    scale.StartScaleToTarget();
+                    AreClose(new Vector3(2f, 2f, 2f), scale.transform.localScale, "a quarter from the original");
+                    scale.RevertScaleToOriginal();
+                    AreClose(new Vector3(4f, 4f, 4f), scale.transform.localScale, "a quarter from the target");
+                    Call(scale, "OnDisable");
+                    Assert.That(scale.transform.localScale, Is.EqualTo(Vector3.one), "the original scale");
+                }, scale.StopAllCoroutines);
             }
         }
 

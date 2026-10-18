@@ -1,10 +1,13 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using System.Text.RegularExpressions;
+using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.TransformAnimationAccess;
 using static ProjectLucid.Tests.WorldMemberAccess;
 using Random = UnityEngine.Random;
@@ -14,9 +17,9 @@ namespace ProjectLucid.Tests
     // HardlightProject.TransformRotator, TransformRotatorLimits, TransformRotatorRandom,
     // TransformRotatorSingleCurve and TransformRotatorSnapped (TypeDefs 0x02000824..0x02000829,
     // x86-64 0x605160..0x6063F0) on owned GameObjects. Awake, InternalUpdate, OnSynchronise and
-    // the private helpers are invoked directly because EditMode sends no messages; the OnEnable
-    // and OnDisable bodies reach the shared TimeManager reference or start coroutines and are
-    // not run here.
+    // the private helpers are invoked directly because EditMode sends no messages; the
+    // TimeScaledComponent OnEnable and OnDisable bodies reach the shared TimeManager reference
+    // and are not run here, and the snapped OnEnable runs only on an inactive host.
     public sealed class OriginalTransformRotatorTests
     {
         private const BindingFlags All = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -211,6 +214,7 @@ namespace ProjectLucid.Tests
         [TestCase(8f, 5f, 10f, true, 10f, 2f, TestName = "ClampToLimitTakesBackAPositiveOvershoot")]
         [TestCase(-8f, -5f, 10f, true, -10f, -2f, TestName = "ClampToLimitTakesBackANegativeOvershoot")]
         [TestCase(8f, -20f, 10f, true, -10f, -18f, TestName = "ClampToLimitCrossingZeroHoldsTheNegativeLimit")]
+        [TestCase(-20f, 5f, 10f, true, -20f, 0f, TestName = "ClampToLimitTakesTheCorrectionSignFromTheRotation")]
         [TestCase(0f, 5f, -10f, true, -10f, -10f, TestName = "ClampToLimitWithANegativeLimitIsAlwaysReached")]
         [TestCase(0f, 5f, float.NaN, true, float.NaN, float.NaN, TestName = "ClampToLimitWithANaNLimitIsReached")]
         [TestCase(float.NaN, 1f, 10f, true, float.NaN, float.NaN, TestName = "ClampToLimitWithANaNAccumulationIsReached")]
@@ -228,8 +232,9 @@ namespace ProjectLucid.Tests
 
         // ApplyRotations 0x6055D0 tests x, then y, then z, and the first clamp jumps to the
         // rotate-and-invoke tail (0x60572b): later axes are neither accumulated nor clamped.
-        // The event (UnityEvent.Invoke 0x605748) follows Transform.Rotate on every reaching
-        // step; a step that reaches no limit only rotates (0x60574d).
+        // The event (UnityEvent.Invoke 0x605748) follows Transform.Rotate (0x605734) on every
+        // reaching step, so a listener sees the rotated transform; a step that reaches no limit
+        // only rotates (0x60574d).
         [Test]
         public void LimitsClampTheFirstReachedAxisAndRaiseTheEventEachStep()
         {
@@ -238,7 +243,11 @@ namespace ProjectLucid.Tests
                 var limits = owned.Add<TransformRotatorLimits>("limits");
                 Call(limits, "Awake");
                 int raised = 0;
-                ((UnityEvent)Get(limits, "m_onLimitReached")).AddListener(() => raised++);
+                Quaternion seenByFirstListener = Quaternion.identity;
+                ((UnityEvent)Get(limits, "m_onLimitReached")).AddListener(() =>
+                {
+                    if (raised++ == 0) seenByFirstListener = limits.transform.localRotation;
+                });
                 Set(limits, "m_limits", new Vector3(10f, 10f, 0f));
                 limits.RotationSpeed = new Vector3(12f, 4f, 7f);
 
@@ -247,6 +256,7 @@ namespace ProjectLucid.Tests
                 Assert.That(raised, Is.EqualTo(1));
                 Quaternion first = Quaternion.Euler(10f, 4f, 7f);
                 AreClose(first, limits.transform.localRotation, "x clamped, y and z unclamped");
+                AreClose(first, seenByFirstListener, "the event is raised after the rotation");
 
                 Call(limits, "InternalUpdate", 1f);
                 Assert.That(Get(limits, "m_rotationsAccumulated"), Is.EqualTo(new Vector3(10f, 0f, 0f)), "y never accumulates while x is held");
@@ -330,6 +340,49 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // InternalUpdate 0x605a8f..0x605aa7 selects maxSpeed = 0 < m_maxSpeed ? m_maxSpeed : +inf
+        // (cmpltss, then andnps with 0x7f800000 at 0x29a7198), so zero, negative and NaN speeds
+        // smooth unclamped. QuaternionExtensions.SmoothDamp (0x605ae1) receives the local
+        // rotation, the target, ref m_velocity (+0x90), m_smoothTime (xmm4), that speed (xmm5)
+        // and deltaTime (xmm6, spilled at 0x605949). A raw 0 would hold the rotation and a raw -1
+        // clamp each change to 1; a raw NaN clamps nothing either, so that row agrees with native
+        // without separating it from passing the field through.
+        [TestCase(0f, float.PositiveInfinity, TestName = "RandomRotatorSmoothsAZeroMaxSpeedUnclamped")]
+        [TestCase(-1f, float.PositiveInfinity, TestName = "RandomRotatorSmoothsANegativeMaxSpeedUnclamped")]
+        [TestCase(float.NaN, float.PositiveInfinity, TestName = "RandomRotatorSmoothsANaNMaxSpeedUnclamped")]
+        [TestCase(0.5f, 0.5f, TestName = "RandomRotatorSmoothsAtAPositiveMaxSpeed")]
+        public void RandomRotatorSmoothingMaxSpeedTruthTable(float maxSpeed, float expectedMaxSpeed)
+        {
+            using (var owned = new OwnedTimeScaledObjects("lucid-rotator-random-speed"))
+            {
+                var random = owned.Add<TransformRotatorRandom>("random");
+                Set(random, "m_anglesMin", new Vector3(0f, 90f, 0f));
+                Set(random, "m_anglesMax", new Vector3(0f, 90f, 0f));
+                Set(random, "m_smoothTime", 1f);
+                Set(random, "m_maxSpeed", maxSpeed);
+                Call(random, "Awake");
+                Quaternion start = random.transform.localRotation;
+                Random.InitState(11);
+                var angles = new Vector3(Random.Range(0f, 0f), Random.Range(90f, 90f), Random.Range(0f, 0f));
+                Random.InitState(11);
+                Quaternion target = (Quaternion)Get(random, "m_startRotation") * Quaternion.Euler(angles);
+                Call(random, "InternalUpdate", 0.1f);
+
+                Quaternion velocity = default;
+                Quaternion expected = QuaternionExtensions.SmoothDamp(start, target, ref velocity, 1f, expectedMaxSpeed, 0.1f);
+                AreClose(Quaternion.Normalize(expected), random.transform.localRotation, "smoothed");
+                Assert.That(Get(random, "m_velocity"), Is.EqualTo(velocity), "the velocity is carried by ref");
+                Assert.That(Quaternion.Angle(start, random.transform.localRotation), Is.GreaterThan(0.5f), "the step moves");
+                if (!float.IsPositiveInfinity(expectedMaxSpeed))
+                {
+                    Quaternion unclampedVelocity = default;
+                    Quaternion unclamped = QuaternionExtensions.SmoothDamp(start, target, ref unclampedVelocity, 1f, float.PositiveInfinity, 0.1f);
+                    Assert.That(Quaternion.Angle(Quaternion.Normalize(unclamped), random.transform.localRotation), Is.GreaterThan(0.2f),
+                        "the y change of 0.707 is clamped to 0.5");
+                }
+            }
+        }
+
         // Random OnSynchronise 0x605900 writes the Awake local rotation back with set_rotation
         // (0x60592b), a world rotation, and returns the base result.
         [Test]
@@ -409,6 +462,29 @@ namespace ProjectLucid.Tests
                 Call(curve, "Activate", false);
                 Assert.DoesNotThrow(() => Call(curve, "InternalUpdate", 2f));
                 Assert.That(Get(curve, "m_shouldRotate"), Is.False);
+            }
+        }
+
+        // Snapped OnEnable 0x605DC0 starts a coroutine for each axis whose angle != 0 (jne/jp at
+        // 0x605dd9, so NaN starts one). An inactive host refuses every StartCoroutine with one
+        // error, which counts the started axes; the per-axis unit vector and interval pairing
+        // needs the player loop and is not observed here.
+        [TestCase(30f, 0f, float.NaN, 2, TestName = "SnappedEnableStartsAnAxisForANaNAngleButNotForZero")]
+        [TestCase(0f, 0f, 0f, 0, TestName = "SnappedEnableStartsNothingForZeroAngles")]
+        [TestCase(0f, -5f, 0f, 1, TestName = "SnappedEnableStartsTheYAxisAlone")]
+        public void SnappedEnableStartsOneRotationPerNonZeroAxis(float x, float y, float z, int started)
+        {
+            using (var owned = new OwnedTimeScaledObjects("lucid-rotator-snapped-enable"))
+            {
+                GameObject host = owned.Objects.Create("snapped");
+                host.SetActive(false);
+                var snapped = host.AddComponent<TransformRotatorSnapped>();
+                Set(snapped, "m_rotationPerInterval", new Vector3(x, y, z));
+                Set(snapped, "m_timePerIntervalInSeconds", new Vector3(0.1f, 5f, 0.2f));
+                for (int i = 0; i < started; i++)
+                    LogAssert.Expect(LogType.Error, new Regex("Coroutine couldn't be started"));
+                Call(snapped, "OnEnable");
+                LogAssert.NoUnexpectedReceived();
             }
         }
 
