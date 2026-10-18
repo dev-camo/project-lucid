@@ -62,11 +62,12 @@ namespace ProjectLucid.Tests
             };
             var references = new List<SystemRef<CharacterManager>> { scene.ConditionReference };
             if (!ReferenceEquals(scene.CachedReference, scene.ConditionReference)) references.Add(scene.CachedReference);
+            // Admission precedes the try, so a reference that already holds a system is never revoked below.
+            foreach (SystemRef<CharacterManager> reference in references)
+                if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty CharacterManager reference");
             object[] priorObservers = references.Select(reference => StartupObservers.GetValue(reference)).ToArray();
             try
             {
-                foreach (SystemRef<CharacterManager> reference in references)
-                    if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty CharacterManager reference");
                 scene.Manager = (CharacterManager)FormatterServices.GetUninitializedObject(typeof(CharacterManager));
                 scene.Storage = new FSMStorage(0);
                 scene.Character = NewCharacter(owned, scene.Storage);
@@ -78,7 +79,8 @@ namespace ProjectLucid.Tests
             {
                 for (int index = 0; index < references.Count; index++)
                 {
-                    if (references[index].IsValid()) RevokeSystem.Invoke(references[index], null);
+                    // Only the system this run published is revoked; the body may have filled a reference itself.
+                    if (scene.Manager != null && ReferenceEquals(references[index].GetSafe(), scene.Manager)) RevokeSystem.Invoke(references[index], null);
                     StartupObservers.SetValue(references[index], priorObservers[index]);
                 }
             }
