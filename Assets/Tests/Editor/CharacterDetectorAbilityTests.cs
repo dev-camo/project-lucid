@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.CharCoreShared;
 using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
@@ -114,6 +116,9 @@ namespace ProjectLucid.Tests
             host.AddComponent<BoxCollider>();
             var character = host.AddComponent<CharacterGravityVectorProbe>();
             character.GravityVector = new Vector3(0f, -20f, 0f);
+            // CreateInstance sends Awake, whose UpdateCachedValues (0x7A8060) calls Settings.UpdateCachedValues on
+            // the unassigned Settings (+0x28) with no null test.
+            LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
             var characterDefinition = owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
             Set(characterDefinition, "m_archetype", characterIs);
             SetProperty(character, "Definition", characterDefinition);
@@ -207,6 +212,9 @@ namespace ProjectLucid.Tests
                 host.AddComponent<BoxCollider>();
                 var character = host.AddComponent<CharacterGravityVectorProbe>();
                 character.GravityVector = new Vector3(0f, -20f, 0f);
+                // CreateInstance sends Awake, whose UpdateCachedValues (0x7A8060) calls Settings.UpdateCachedValues on
+                // the unassigned Settings (+0x28) with no null test.
+                LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
                 var characterDefinition = owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
                 Set(characterDefinition, "m_archetype", CharacterArchetype.Dashing);
                 SetProperty(character, "Definition", characterDefinition);
