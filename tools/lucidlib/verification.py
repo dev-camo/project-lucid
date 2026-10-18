@@ -4277,3 +4277,47 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSplineMetadataTests." + name
     "RibbonTypeChangeLeaksTheOldEditableAndStacksSubscriptions",
     "StoreMeshClearsAPassedScheduleOnlyWithAnEditableSurface",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAddressableHostRedirectorTests." + name for name in (
+    "ConstructionChainsTheIdTransformAndFinalizeUnchainsIt",
+    "TheTargetHostReplacesEveryMatchedSchemeHostAndPort",
+    "ABlankTargetHostKeepsTheMatchedHost",
+    "ACustomRegexReplacesTheDefaultUntilItIsCleared",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxDeclarationTests." + name for name in (
+    "AddressableHostRedirectorKeepsItsDeclaration",
+    "TextureShadowAndCanvasHelpersKeepTheirDeclarations",
+    "RendererAndColourHelpersKeepTheirDeclarations",
+    "FullscreenShaderComponentsKeepTheirDeclarations",
+    "SpawnerQualityAndBinderTargetsKeepTheirDeclarations",
+    "CompilerGeneratedMembersKeepTheOriginalNames",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxComponentBehaviourTests." + name for name in (
+    "FlashRenderersInvertEveryRendererOncePerInterval",
+    "FlashRenderersFlashOnANaNTimer",
+    "FlashRenderersEnableAllRenderersEnablesEach",
+    "MaterialPropertyBlockSetterReplacesTheRendererBlock",
+    "LerpColourIgnoresNearTargetsAndSetsTheFirstValueDirectly",
+    "LerpColourIteratorClampsAndEndsOnTheTarget",
+    "LineRendererContainerAppendsUntilExactlyFullAndFlushes",
+    "CanvasShaderModifierSetsTheOffsetUntilARendererHasNoMaterial",
+    "PFXQualitySwitcherShowsTheVariantForTheCurrentLevel",
+    "BlobShadowModifierTogglesTheCurrentCharactersShadow",
+    "AssignAddressableTextureCallbackTargetsTheCamera",
+    "InstancedObjectSpawnerTogglesAllButTheLastEntry",
+    "InstancedObjectSpawnerThrowsOnTheEmptyMaterialListAndCleansUpChildren",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFullscreenShaderComponentsTests." + name for name in (
+    "AwakeTakesTheRegisteredManagerAndTheDurationDefaultsToOne",
+    "SetDurationTreatsOnlyAnExactZeroAsUntilStopped",
+    "StartEffectCountsAsPlayingEvenWhenTheOverrideFails",
+    "StopEffectStopsTheTrackedOverrideOnlyWhilePlaying",
+    "OnDestroyStopsAPlayingEffectUnlessItPersists",
+    "UIBlurHoldsOneBlurRequestWhileEnabled",
+    "UIBlurDisableWithoutAManagerDoesNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalParticleEffectBinderTargetTests." + name for name in (
+    "ResetFillsOnlyAMissingParticleSystem",
+    "SettersWriteTheirModuleProperty",
+    "ChannelSettersClampOneChannelAndKeepTheOthers",
+    "AChannelWriteFlattensAGradientStartColour",
+))

@@ -27,6 +27,7 @@
     "Unity.TextMeshPro",
     "Unity.Addressables",
     "Unity.ResourceManager",
+    "Unity.RenderPipelines.Universal.Runtime",
     "HLBinders.Runtime",
     "FairPlay.Runtime",
     "HLSplines.Runtime",

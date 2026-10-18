@@ -16,6 +16,19 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class ParticleEffectManager : MonoBehaviour, ISystem
     {
+        // Declared first: as a member it fixes the original closure and
+        // iterator ordinals (<>c__DisplayClass20_0, <AfterLevelExit>d__18).
+        private struct PoolInterest //0x02000a8f, true value type, no substitute class.
+        {
+            public readonly ObjectPool<ParticleEffectWrapper> Pool;
+            public readonly List<UnityEngine.Object> Interested;
+            public PoolInterest(ObjectPool<ParticleEffectWrapper> pool) //0x06003cdb: Pool first, list second.
+            {
+                Pool = pool;
+                Interested = new List<UnityEngine.Object>();
+            }
+        }
+
         [Tooltip("Where PFX will be spawn and held while they are pooled"), SerializeField]
         private Transform m_pfxHolder;
         [SerializeField] private bool m_actorPFXEnabled;
@@ -175,16 +188,19 @@ namespace HardlightProject
             }
             OnStartCallback();
 
+            // The early-out captures onComplete straight after pfx, which is the
+            // original <>c__DisplayClass30_0 field order (onComplete at +0x28).
             void OnStartCallback() //0x06003ce2
             {
-                if (GetFromPool(pfxType, out pfx))
+                if (!GetFromPool(pfxType, out pfx))
                 {
-                    pfx.SetUp(OnCompleteCallback, particleEffectDefinition);
-                    pfx.UpdateParameters(particleBindingParameters);
-                    m_activePFXGameObjects.Add(pfx);
-                    onStart?.Invoke(pfx, particleEffectDefinition, startEffect);
+                    onComplete?.Invoke(null);
+                    return;
                 }
-                else onComplete?.Invoke(null);
+                pfx.SetUp(OnCompleteCallback, particleEffectDefinition);
+                pfx.UpdateParameters(particleBindingParameters);
+                m_activePFXGameObjects.Add(pfx);
+                onStart?.Invoke(pfx, particleEffectDefinition, startEffect);
             }
 
             void OnCompleteCallback(ParticleEffectWrapper pfx) //0x06003ce3
@@ -267,16 +283,5 @@ namespace HardlightProject
         private string GetDebugMenuStopButtonText() =>
             string.Format("Stop active PFX ({0})", m_activePFXGameObjects.Count); //0x06003cd8
         public ParticleEffectManager() { } //0x06003cd9: exact initialized field order before original base.
-
-        private struct PoolInterest //0x02000a8f, true value type, no substitute class.
-        {
-            public readonly ObjectPool<ParticleEffectWrapper> Pool;
-            public readonly List<UnityEngine.Object> Interested;
-            public PoolInterest(ObjectPool<ParticleEffectWrapper> pool) //0x06003cdb: Pool first, list second.
-            {
-                Pool = pool;
-                Interested = new List<UnityEngine.Object>();
-            }
-        }
     }
 }

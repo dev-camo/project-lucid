@@ -15,6 +15,67 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class FullscreenShaderManager : TimeScaledComponent_SDT, ISystem
     {
+        // The nested types are declared first: as members they fix the
+        // original lambda ordinals (<Awake>b__51_0..2).
+        private struct CollectedFullscreenShaderParameters
+        {
+            public UnityEngine.Color FadeColour;
+            public System.Single FadeAmount;
+            public UnityEngine.Texture VignetteTexture;
+            public System.Single VignetteUVScale;
+            public System.Single VignetteAmount;
+            public System.Single VignetteOpacity;
+            public UnityEngine.Color VignetteTint;
+            public System.Single VignetteColourBoost;
+            public System.Single FlowMapStrength;
+            public System.Single FlowMapSpeed;
+            public System.Single EdgeDistortionAmount;
+            public UnityEngine.Texture SpeedLinesTexture;
+            public System.Single SpeedLinesOpacity;
+            public System.Single SpeedLinesAmount;
+            public System.Single SpeedLinesScale;
+            public System.Single SpeedLinesSpeed;
+            public UnityEngine.Color SpeedLinesColourTint;
+        }
+
+        [Il2CppSetOption(Option.NullChecks, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        public class ActiveParameters
+        {
+            public FullscreenShaderParametersDefinition Definition { get; private set; }
+            public float Duration { get; private set; }
+            public bool ApplyCurveOverDuration { get; private set; }
+            public float ElapsedSeconds { get; set; }
+            public bool UntilStopped { get; private set; }
+            public Action OnFinished { get; private set; }
+            public void Initialise(FullscreenShaderParametersDefinition definition, float duration,
+                bool applyCurveOverDuration, bool untilStopped, Action onFinished)
+            {
+                Definition = definition;
+                Duration = duration;
+                ApplyCurveOverDuration = applyCurveOverDuration;
+                ElapsedSeconds = 0f;
+                UntilStopped = untilStopped;
+                OnFinished = onFinished;
+            }
+            // Original retains all scalar state; only these two references are reset.
+            public void Deinitialise() { Definition = null; OnFinished = null; }
+            public ActiveParameters() { }
+        }
+
+        public struct ParametersHandle
+        {
+            public ActiveParameters ActiveParameters { get; }
+            public int InstanceID { get; }
+            public float DelayedStopTimeRemaining { get; set; }
+            public ParametersHandle(ActiveParameters activeParameters, int instanceID)
+            {
+                ActiveParameters = activeParameters;
+                InstanceID = instanceID;
+                DelayedStopTimeRemaining = 0f;
+            }
+        }
+
         [SerializeField]
         private FullscreenShaderParametersType m_baseParametersType;
         private UnityEngine.Material m_fullscreenShaderMaterial;
@@ -81,12 +142,12 @@ namespace HardlightProject
                     return parameters;
                 },
                 null,
-                parameters =>
+                activeParameters =>
                 {
-                    parameters.Deinitialise();
-                    m_activeParametersIDs[parameters] = m_activeParametersIDs[parameters] + 1;
+                    activeParameters.Deinitialise();
+                    m_activeParametersIDs[activeParameters] = m_activeParametersIDs[activeParameters] + 1;
                 },
-                parameters => { m_activeParametersIDs.Remove(parameters); },
+                activeParameters => { m_activeParametersIDs.Remove(activeParameters); },
                 true, 5, 10000);
             ProcessManager.GetSystemRef<DataManager>().InvokeOnValid(OnDataManagerValid);
             ProcessManager.GetSystemRef<LevelManager>().InvokeOnValid(OnLevelManagerValid);
@@ -328,64 +389,5 @@ namespace HardlightProject
         private void RemoveDebugMenu() { }
         // Original 060035d2: the field initializers precede the genuine base constructor.
         public FullscreenShaderManager() { }
-
-        private struct CollectedFullscreenShaderParameters
-        {
-            public UnityEngine.Color FadeColour;
-            public System.Single FadeAmount;
-            public UnityEngine.Texture VignetteTexture;
-            public System.Single VignetteUVScale;
-            public System.Single VignetteAmount;
-            public System.Single VignetteOpacity;
-            public UnityEngine.Color VignetteTint;
-            public System.Single VignetteColourBoost;
-            public System.Single FlowMapStrength;
-            public System.Single FlowMapSpeed;
-            public System.Single EdgeDistortionAmount;
-            public UnityEngine.Texture SpeedLinesTexture;
-            public System.Single SpeedLinesOpacity;
-            public System.Single SpeedLinesAmount;
-            public System.Single SpeedLinesScale;
-            public System.Single SpeedLinesSpeed;
-            public UnityEngine.Color SpeedLinesColourTint;
-        }
-
-        [Il2CppSetOption(Option.NullChecks, false)]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        public class ActiveParameters
-        {
-            public FullscreenShaderParametersDefinition Definition { get; private set; }
-            public float Duration { get; private set; }
-            public bool ApplyCurveOverDuration { get; private set; }
-            public float ElapsedSeconds { get; set; }
-            public bool UntilStopped { get; private set; }
-            public Action OnFinished { get; private set; }
-            public void Initialise(FullscreenShaderParametersDefinition definition, float duration,
-                bool applyCurveOverDuration, bool untilStopped, Action onFinished)
-            {
-                Definition = definition;
-                Duration = duration;
-                ApplyCurveOverDuration = applyCurveOverDuration;
-                ElapsedSeconds = 0f;
-                UntilStopped = untilStopped;
-                OnFinished = onFinished;
-            }
-            // Original retains all scalar state; only these two references are reset.
-            public void Deinitialise() { Definition = null; OnFinished = null; }
-            public ActiveParameters() { }
-        }
-
-        public struct ParametersHandle
-        {
-            public ActiveParameters ActiveParameters { get; }
-            public int InstanceID { get; }
-            public float DelayedStopTimeRemaining { get; set; }
-            public ParametersHandle(ActiveParameters activeParameters, int instanceID)
-            {
-                ActiveParameters = activeParameters;
-                InstanceID = instanceID;
-                DelayedStopTimeRemaining = 0f;
-            }
-        }
     }
 }
