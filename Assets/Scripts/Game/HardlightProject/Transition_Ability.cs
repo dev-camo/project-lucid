@@ -9,7 +9,7 @@ namespace HardlightProject
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public abstract class Transition_Ability : FSMTransition
 	{
-		// 060017a9 (1.10.1 RVA 0x7914C0) is the implicit constructor.
+		// AbilityJSONCtorArgs: its implicit constructor is 060017a9 (1.10.1 RVA 0x7914C0).
 		[Serializable]
 		[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 		[Il2CppSetOption(Option.NullChecks, false)]

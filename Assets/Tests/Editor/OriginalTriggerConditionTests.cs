@@ -322,6 +322,14 @@ namespace ProjectLucid.Tests
             return data;
         }
 
+        // An ability that was last used at a given fixed time and is no longer in use.
+        private static Dictionary<ActorAbilityType, ActorAbilityInUseData> LastUsed(ActorAbilityType ability, float time)
+        {
+            var data = new Dictionary<ActorAbilityType, ActorAbilityInUseData>(HardlightProject.HardlightEnumComparers.ActorAbilityTypeComparer);
+            data[ability] = new ActorAbilityInUseData { InUse = false, TimeLastUsedSeconds = time };
+            return data;
+        }
+
         private static CharacterAbilityTypeGroup Group(Owned owned, params ActorAbilityType[] abilities)
         {
             var group = owned.Track(ScriptableObject.CreateInstance<CharacterAbilityTypeGroup>());
@@ -368,6 +376,42 @@ namespace ProjectLucid.Tests
                 Assert.That(condition.Evaluate(scene.Character), Is.False, "an empty group is never in use");
                 Set(condition, "m_invert", true);
                 Assert.That(condition.Evaluate(scene.Character), Is.True);
+            });
+        }
+
+        // 0x5CCABA loads each AbilityTypeDefinition.GracePeriod (+0x14) as the time argument in group
+        // mode, while the single ability uses m_usedWithinSeconds (+0x34). The ability was last used
+        // 0.5s before the character's fixed time (10), so IsAbilityInUse is true only for a grace of
+        // at least 0.5: the group's own 1.0 passes where the component's 0.05 would not, and the
+        // single ability fails on its 0.05. The loop stops at the first ability in use, so a null
+        // entry after it is never read.
+        [Test]
+        public void AbilityInUseGroupUsesEachGracePeriodAndStopsAtTheFirstAbilityInUse()
+        {
+            Run((owned, scene) =>
+            {
+                Set(scene.Character, "m_totalFixedTime", 10f);
+                var condition = Add<TriggerCondition_AbilityInUse>(owned);
+                ActorAbilityType ability = ActorAbilityType.Boss_AttackArea;
+                CharacterAbilityTypeGroup group = Group(owned, ability);
+                Set(group.Abilities[0], "m_gracePeriod", 1.0f);
+                Set(condition, "m_abilityType", ability);
+                Set(condition, "m_abilityTypeGroup", group);
+                Set(condition, "m_usedWithinSeconds", 0.05f);
+                scene.Storage.SetValue(ActorFSMKeys.AbilitiesInUse, LastUsed(ability, 9.5f));
+
+                Assert.That(condition.Evaluate(scene.Character), Is.False, "the single ability uses m_usedWithinSeconds");
+                Set(condition, "m_useAbilityGroup", true);
+                Assert.That(condition.Evaluate(scene.Character), Is.True, "the group uses the definition's grace period");
+                Set(group.Abilities[0], "m_gracePeriod", 0.05f);
+                Set(condition, "m_usedWithinSeconds", 1.0f);
+                Assert.That(condition.Evaluate(scene.Character), Is.False, "the component's period is not used in group mode");
+
+                Set(group.Abilities[0], "m_gracePeriod", 1.0f);
+                group.Abilities.Add(null);
+                Assert.That(condition.Evaluate(scene.Character), Is.True, "the entry after the match is never read");
+                group.Abilities.Insert(0, null);
+                Assert.Throws<NullReferenceException>(() => condition.Evaluate(scene.Character), "an entry before the match is read");
             });
         }
 

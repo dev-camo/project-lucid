@@ -4,7 +4,8 @@ namespace ProjectLucid.Tests.WorldTriggersShared
 {
     // Test-only TriggerCondition_CachedBase asset. A case chooses what DoEvaluate(Character)
     // answers and reads how often it ran; UseBase forwards DoEvaluate() to the shipped
-    // current-character lookup. Editor-only assemblies cannot supply instantiable assets.
+    // current-character lookup. It sits beside TriggerConditionProbe in the shared runtime test
+    // assembly, which references Game.Runtime.
     public sealed class TriggerConditionCachedProbe : TriggerCondition_CachedBase
     {
         public bool UseBase;

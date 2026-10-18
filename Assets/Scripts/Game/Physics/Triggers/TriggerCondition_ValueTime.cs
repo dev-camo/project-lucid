@@ -6,7 +6,8 @@ using UnityEngine;
 namespace HardlightProject
 {
 	// Original Game.Runtime 0x0200075c; bodies translated from the 1.10.1 x86-64 binary.
-	// Accumulates the fixed delta time of timeCategory into the float value while enabled.
+	// Accumulates the fixed delta time of timeCategory into the float value from OnEnable until the
+	// TimeManager row is gone; OnDisable does not stop the running loop.
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	public class TriggerCondition_ValueTime : TriggerCondition_ValueFloat
@@ -25,7 +26,7 @@ namespace HardlightProject
 		}
 
 		// 06002938 (1.10.1 RVA 0x5CDF70): stops a fresh iterator, which is not the one OnEnable
-		// started, so the running coroutine is left to end on its own.
+		// started; disabling the component alone leaves the running loop going.
 		protected void OnDisable()
 		{
 			StopCoroutine(UpdateCoroutine());

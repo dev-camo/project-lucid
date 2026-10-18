@@ -36,6 +36,13 @@ namespace ProjectLucid.Tests
             return data;
         }
 
+        private static Dictionary<ActorAbilityType, ActorAbilityInUseData> LastUsed(ActorAbilityType ability, float time)
+        {
+            var data = new Dictionary<ActorAbilityType, ActorAbilityInUseData>(HardlightProject.HardlightEnumComparers.ActorAbilityTypeComparer);
+            data[ability] = new ActorAbilityInUseData { InUse = false, TimeLastUsedSeconds = time };
+            return data;
+        }
+
         private static CharacterAbilityTypeGroup Group(Owned owned, params ActorAbilityType[] abilities)
         {
             var group = Create<CharacterAbilityTypeGroup>(owned);
@@ -239,6 +246,37 @@ namespace ProjectLucid.Tests
                 Set(asset, "m_abilityTypeGroup", null);
                 ResetCache(asset, scene.Character);
                 Assert.Throws<NullReferenceException>(() => asset.Evaluate(scene.Character), "a recompute reads the group");
+            });
+        }
+
+        // The cached group asset passes each definition's GracePeriod to IsAbilityInUse (call at
+        // 0x5CCC60..) like the uncached condition. The ability was last used 0.5s before the
+        // character's fixed time (10) and is not in use, so a grace of 1.0 holds and 0.05 does not.
+        // The loop stops at the first ability in use, so a null entry after the match is never read.
+        [Test]
+        public void CachedAbilityGroupUsesEachGracePeriodAndStopsAtTheFirstAbilityInUse()
+        {
+            Run((owned, scene) =>
+            {
+                Set(scene.Character, "m_totalFixedTime", 10f);
+                ActorAbilityType ability = ActorAbilityType.Boss_AttackArea;
+                CharacterAbilityTypeGroup group = Group(owned, ability);
+                var asset = Create<TriggerCondition_CachedAbilityGroupInUse>(owned);
+                Set(asset, "m_abilityTypeGroup", group);
+                scene.Storage.SetValue(ActorFSMKeys.AbilitiesInUse, LastUsed(ability, 9.5f));
+
+                Set(group.Abilities[0], "m_gracePeriod", 0.05f);
+                Assert.That(asset.Evaluate(scene.Character), Is.False, "outside the definition's grace period");
+                Set(group.Abilities[0], "m_gracePeriod", 1.0f);
+                ResetCache(asset, scene.Character);
+                Assert.That(asset.Evaluate(scene.Character), Is.True, "inside the definition's grace period");
+
+                group.Abilities.Add(null);
+                ResetCache(asset, scene.Character);
+                Assert.That(asset.Evaluate(scene.Character), Is.True, "the entry after the match is never read");
+                group.Abilities.Insert(0, null);
+                ResetCache(asset, scene.Character);
+                Assert.Throws<NullReferenceException>(() => asset.Evaluate(scene.Character), "an entry before the match is read");
             });
         }
 

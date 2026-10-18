@@ -4888,6 +4888,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTriggerConditionTests." + na
     "ActionStateReportsTheConfiguredActionsAppliedState",
     "VelocityMagnitudeComparesTheMagnitudeWithTheThresholdInOrder",
     "AbilityInUseAsksAboutTheSingleAbilityOrAnyOfTheGroup",
+    "AbilityInUseGroupUsesEachGracePeriodAndStopsAtTheFirstAbilityInUse",
     "ScriptableObjectConditionAppliesTheAssetsInversionBeforeItsOwn",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCachedTriggerConditionTests." + name for name in (
@@ -4897,6 +4898,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCachedTriggerConditionTests.
     "AssetEvaluationNeedsAValidCurrentCharacterAndXorsTheInversion",
     "CachedAbilityInUseAnswersOnceUntilTheCacheIsReset",
     "CachedAbilityGroupRecomputesFromScratchAfterAReset",
+    "CachedAbilityGroupUsesEachGracePeriodAndStopsAtTheFirstAbilityInUse",
     "CachedFsmBoolCachesTheStoredValueButNotTheComparison",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalValueTriggerConditionTests." + name for name in (

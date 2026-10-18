@@ -359,11 +359,11 @@ namespace ProjectLucid.Tests
                 var other = Add<TriggerConditionProbe>(owned, "Lucid other condition");
 
                 Set(trigger, "m_conditions", new TriggerCondition[] { persistentCondition });
-                Assert.That(CaptureLogErrors(() => Call(trigger, "OnValidate")), Is.Empty);
+                Assert.That(HLOutputDiagnosticCapture.CaptureErrors(() => Call(trigger, "OnValidate")), Is.Empty);
                 Set(trigger, "m_conditions", new TriggerCondition[0]);
-                Assert.That(CaptureLogErrors(() => Call(trigger, "OnValidate")), Is.Empty);
+                Assert.That(HLOutputDiagnosticCapture.CaptureErrors(() => Call(trigger, "OnValidate")), Is.Empty);
                 Set(trigger, "m_conditions", new TriggerCondition[] { persistentCondition, other, null, persistentCondition });
-                Assert.That(CaptureLogErrors(() => Call(trigger, "OnValidate")), Is.EqualTo(new[] { Message + ":0", Message + ":0" }));
+                Assert.That(HLOutputDiagnosticCapture.CaptureErrors(() => Call(trigger, "OnValidate")), Is.EqualTo(new[] { Message + ":0", Message + ":0" }));
             });
         }
     }

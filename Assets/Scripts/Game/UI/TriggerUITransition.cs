@@ -14,7 +14,8 @@ namespace HardlightProject
 		private UIContainerIdentifier m_transitionContainer;
 
 		// 0600195a (1.10.1 RVA 0x7A65D0): holds the transition at its midpoint through a wait
-		// handle kept in the App storage, as App.AddWaitTransitionHandle does, then queues it.
+		// handle kept in the App storage (the same pattern as App.AddWaitTransitionHandle, but on the
+		// transition manager this method looked up itself), then queues it.
 		protected virtual void OnEnable()
 		{
 			App app = ProcessManager.GetSystem<App>(null, true);

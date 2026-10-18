@@ -108,41 +108,5 @@ namespace ProjectLucid.Tests
             (ComparisonType.LessThan, false, false, true),
             (ComparisonType.LessThanEqual, false, true, true),
         };
-
-        // The diagnostics HLOutput.LogError (x86-64 0x1af8470) sends to a registered HLUnityCore,
-        // captured the way OriginalHLOutputDiagnosticGapTests does: an owned, inactive,
-        // constructor-built core on a fresh row, with the registry layout restored afterwards.
-        internal static List<string> CaptureLogErrors(Action action)
-        {
-            IDictionary rows = (IDictionary)typeof(ProcessManager)
-                .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
-            object[] layout = FSMManagerVerification.CaptureLayout(rows);
-            string name = ProcessManager.GetDefaultName<HLUnityCore>();
-            var errors = new List<string>();
-            GameObject owner = null;
-            try
-            {
-                owner = new GameObject("Lucid trigger condition diagnostic host");
-                owner.SetActive(false);
-                HLUnityCore core = owner.AddComponent<HLUnityCore>();
-                rows.Remove(name);
-                ProcessManager.RegisterSystem(core, name);
-                core.AddLogErrorHandler((message, code) => errors.Add(message + ":" + code));
-                action();
-                ProcessManager.UnregisterSystem(name);
-            }
-            finally
-            {
-                try
-                {
-                    FSMManagerVerification.RestoreLayout(rows, layout);
-                }
-                finally
-                {
-                    if (owner != null) Object.DestroyImmediate(owner);
-                }
-            }
-            return errors;
-        }
     }
 }

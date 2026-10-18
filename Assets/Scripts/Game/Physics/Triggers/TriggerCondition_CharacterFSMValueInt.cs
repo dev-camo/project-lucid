@@ -13,7 +13,7 @@ namespace HardlightProject
 			return m_comparisonType.Evaluate(GetValue(character), m_valueThreshold);
 		}
 
-		// 0600291e (1.10.1 RVA 0x5CD790): the stored default is -1, not 0.
+		// 0600291e (1.10.1 RVA 0x5CD790): the fallback when the storage holds no value is -1, not 0.
 		protected override int GetValueDefault()
 		{
 			return -1;
