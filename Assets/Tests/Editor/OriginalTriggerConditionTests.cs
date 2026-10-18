@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.WorldTriggersShared;
 using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.TriggerConditionTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -208,6 +210,9 @@ namespace ProjectLucid.Tests
         {
             Run((owned, scene) =>
             {
+                // CreateInstance sends Awake, whose UpdateCachedValues (0x7A8060) calls
+                // Settings.UpdateCachedValues on the unassigned Settings (+0x28) with no null test.
+                LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
                 var definition = owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
                 Set(scene.Character, "<Definition>k__BackingField", definition);
                 var condition = Add<TriggerCondition_CharacterArchetype>(owned);
