@@ -1944,6 +1944,55 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProceduralMeshPlacementTests
     "ManagerSubscribesToUpdateAndDispatchesDoUpdateInOrder",
 ))
 
+# Original gravity volumes, hover fan, look-at and leave-checker bodies on owned objects.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGravityVolumeTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsMembersAndAttributes",
+    "ConstructorsStoreTheNativeDefaults",
+    "TriggerCachedValuesPublishTheDescriptionAndATriggerCollider",
+    "SphereGravityFollowsTheOffsetFromTheCentre",
+    "HemisphereRejectsOnlyPointsStrictlyBelowItsPlane",
+    "AxisGravityPointsAwayFromTheForwardAxis",
+    "AxisCachedValuesLayOutTheColliderAlongForward",
+    "CapsuleArcAppliesOnlyInsideItsInclusiveArc",
+    "CapPositionNegatesTheAngleAndAddsNoPosition",
+    "BoxCachedValuesRaiseTheColliderAboveTheTransform",
+    "BoxGravityTakesTheNearestFaceAndTheLastOfEqualFaces",
+    "PlaneGravityUsesOnlyTheHeightAlongUp",
+    "PlaneCachedValuesLeaveADecoupledColliderLayout",
+    "ClosestPointOnTorusMirrorsInsideAndClampsTheHeight",
+    "TorusGravityUsesTheNormalAndTheClosestPointDistance",
+    "TorusCachedValuesSpanTheGrownRing",
+    "SurfacePlaneRecordsTheHeightBeforeTheActiveGate",
+    "SurfacePlaneValidationTruthTable",
+    "RenderForwardsToTheSourceWithoutANullCheck",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalLookAtTargetTests." + name for name in (
+    "DeclarationsKeepTheOriginalFieldsAndMethods",
+    "AwakeFixesTheUpAxisAndTheDefaultTargetPosition",
+    "SetLookAtChoosesTheDefaultOnlyWithoutATarget",
+    "UpdateTurnsTowardsTheTargetAndCanRetainTheVerticalAxis",
+    "TheDefaultIsLookedAtOnceWithoutSmoothing",
+    "SmoothingKeepsTheDistanceAndHonoursAPositiveMaxSpeed",
+    "TargetConstraintMovesOnlyPositiveOrUnorderedDistances",
+    "ConstraintsPairTheParentAxesInTheNativeOrder(0)",
+    "ConstraintsPairTheParentAxesInTheNativeOrder(1)",
+    "ConstraintsPairTheParentAxesInTheNativeOrder(2)",
+    "ConstraintsPairTheParentAxesInTheNativeOrder(3)",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalObjectLeaveCheckerTests." + name for name in (
+    "DeclarationsAndConstructorDefaults",
+    "StartAndOnValidateCacheTheSquaredThresholdAndTheBounds",
+    "ActivateArmsTheCheckerAndClearsTheTimer",
+    "HasObjectLeftCountsTheThresholdAndAMissingObjectAsLeft",
+    "BoundsCheckRefreshesOnlyTheCachedCentre",
+    "InternalUpdateFiresAtTheMinimumTimeAndKeepsTheFiringDelta",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHoverFanTests." + name for name in (
+    "DeclarationsKeepTheOriginalFieldsAndMethods",
+    "EnterLendsTheHoverDataAndExitRemovesIt",
+    "ASecondEntryReplacesTheHandleWithoutRemovingTheFirst",
+))
+
 # Read-only supplied menu imports; initialization and provider payloads remain separate.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalMenuPreparedAssetImportTests.ActualSuppliedMenuAssetsRetainOriginalScriptsFieldsGraphAndRuntimeOrder',
