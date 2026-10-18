@@ -29,7 +29,7 @@ namespace Hardlight
 		// 060000a6 (1.10.1 RVA 0x1A15C90)
 		public override int GetHashCode()
 		{
-			return Name != null ? Name.GetHashCode() : 0;
+			return Name?.GetHashCode() ?? 0;
 		}
 	}
 }

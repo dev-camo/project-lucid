@@ -4021,4 +4021,5 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoCoreTests." + name
     "PoolWithoutCallbackStillRemovesReleasedEntries",
     "PageForwardsSpriteAndTextToItsComponents",
     "DeclarationsKeepOriginalFlagsFieldOrderAndDefaults",
+    "MethodsAndInterfacesKeepOriginalFlagsOrderAndAttributes",
 ))

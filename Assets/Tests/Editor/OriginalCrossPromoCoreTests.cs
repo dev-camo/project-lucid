@@ -187,7 +187,8 @@ namespace ProjectLucid.Tests
             Assert.That(released, Is.EqualTo(new[] { "abc", "second" }));
         }
 
-        // The callback defaults to null (no Constant row) and the null-conditional invoke skips it.
+        // The original metadata gives the callback a null default (IL2CPP stores no constant), and the
+        // null-conditional invoke skips it.
         [Test]
         public void PoolWithoutCallbackStillRemovesReleasedEntries()
         {
@@ -271,6 +272,100 @@ namespace ProjectLucid.Tests
             ParameterInfo[] pool = typeof(SharedResourcePool<,>).GetConstructors(Declared).Single().GetParameters();
             Assert.That(pool.Select(p => p.DefaultValue), Is.EqualTo(new object[] { 0, null }));
         }
+
+        // DummyDll MethodDef flags, member order and attributes: 0x06000022..0x0600002f (CrossPromoConfig),
+        // 0x060000a4..0x060000a6 (CrossPromoAd), 0x0600010f..0x06000113 (SharedResourcePool) and the
+        // interface rows 0x060000aa..0x060000bf, 0x060000c0 and 0x060000c3..0x060000cc.
+        [Test]
+        public void MethodsAndInterfacesKeepOriginalFlagsOrderAndAttributes()
+        {
+            MethodInfo[] getters = Methods(typeof(CrossPromoConfig)).OfType<MethodInfo>().ToArray();
+            Assert.That(getters.Select(m => m.Name), Is.EqualTo(new[] {
+                "get_RouterPropertyName", "get_AppVersion", "get_LanguageId", "get_MetaDataURL", "get_PlatformName",
+                "get_IncomingPath", "get_DestinationPath", "get_MetaFilePath", "get_IconImagePoolSize",
+                "get_MainImagePoolSize", "get_InvalidContentLengthThreshold", "get_CanUseLocalStorage" }));
+            foreach (MethodInfo getter in getters)
+            {
+                Assert.That((int)getter.Attributes, Is.EqualTo(0x0886), getter.Name);
+                Assert.That(AttributeNames(getter), Is.EquivalentTo(new[] {
+                    "System.Runtime.CompilerServices.IsReadOnlyAttribute",
+                    "System.Runtime.CompilerServices.CompilerGeneratedAttribute" }), getter.Name);
+            }
+            ConstructorInfo[] constructors = typeof(CrossPromoConfig).GetConstructors(Declared)
+                .OrderBy(c => c.MetadataToken).ToArray();
+            Assert.That(constructors.Select(c => (int)c.Attributes), Is.EqualTo(new[] { 0x1886, 0x1881 }));
+            Assert.That(constructors[1].GetParameters().Select(p => (int)p.Attributes),
+                Is.EqualTo(Enumerable.Repeat(0, 10).Concat(Enumerable.Repeat(0x1010, 5))));
+
+            // Equals(CrossPromoAd) implements IEquatable<CrossPromoAd>: Final|Virtual|NewSlot (0x01e6).
+            Assert.That(Methods(typeof(CrossPromoAd)).Select(Signature), Is.EqualTo(new[] {
+                "Equals(Object) 0x00c6", "Equals(CrossPromoAd) 0x01e6", "GetHashCode() 0x00c6" }));
+
+            MethodBase[] pool = Methods(typeof(SharedResourcePool<,>));
+            Assert.That(pool.Select(Signature), Is.EqualTo(new[] {
+                ".ctor(Int32,Action`1) 0x1886", "Add(TKey,TResource) 0x01e6", "TryGet(TKey,TResource&) 0x01e6",
+                "ReleaseResource(TResource) 0x01e6", "TryFindKey(TResource,TKey&) 0x0081" }));
+            Assert.That(pool[0].GetParameters().Select(p => (int)p.Attributes), Is.EqualTo(new[] { 0x1010, 0x1010 }));
+            Assert.That((int)pool[2].GetParameters()[1].Attributes, Is.EqualTo(0x0002));
+            Assert.That((int)pool[4].GetParameters()[1].Attributes, Is.EqualTo(0x0002));
+
+            Assert.That((int)typeof(ICrossPromo).Attributes, Is.EqualTo(0x000000a1));
+            Assert.That(typeof(ICrossPromo).GetInterfaces(), Has.Member(typeof(ISystem)));
+            AssertInterface(typeof(ICrossPromo), 12,
+                "add_Initialised", "remove_Initialised", "add_FullScreenViewRequested", "remove_FullScreenViewRequested",
+                "add_LaunchButtonShown", "remove_LaunchButtonShown", "add_FullScreenViewShown", "remove_FullScreenViewShown",
+                "add_FullScreenButtonClicked", "remove_FullScreenButtonClicked", "add_FullScreenViewClosed",
+                "remove_FullScreenViewClosed", "IsReady", "RequestIconTexture", "ReleaseIconTexture",
+                "RequestFullScreenTexture", "ReleaseFullScreenTexture", "RequestFullScreenView", "RaiseImpressionEvent",
+                "RaiseFullScreenClosedEvent", "RaiseFullScreenImpression", "RaiseFullScreenButtonClicked");
+
+            Assert.That((int)typeof(ICrossPromoDataParser).Attributes, Is.EqualTo(0x000000a1));
+            Assert.That(typeof(ICrossPromoDataParser).GetInterfaces(), Is.Empty);
+            AssertInterface(typeof(ICrossPromoDataParser), 0, "TryParseMetadata");
+            Assert.That((int)typeof(ICrossPromoDataParser).GetMethod("TryParseMetadata").GetParameters()[1].Attributes,
+                Is.EqualTo(0x0002));
+
+            Assert.That((int)typeof(ICrossPromoResourceManager).Attributes, Is.EqualTo(0x000000a1));
+            Assert.That(typeof(ICrossPromoResourceManager).GetInterfaces(), Is.Empty);
+            AssertInterface(typeof(ICrossPromoResourceManager), 2,
+                "add_DownloadCompleted", "remove_DownloadCompleted", "get_HasPendingDownloads", "DownloadMetaData",
+                "VerifyAdResources", "RequestFullScreenTexture", "ReleaseFullScreenTexture", "RequestIconTexture",
+                "ReleaseIconTexture", "RequestMetaData");
+            // The property getter is SpecialName but, unlike the event accessors, not CompilerGenerated.
+            Assert.That(AttributeNames(typeof(ICrossPromoResourceManager).GetMethod("get_HasPendingDownloads")), Is.Empty);
+        }
+
+        // Interface members are all Public|Virtual|HideBySig|NewSlot|Abstract (0x05c6); the leading
+        // eventAccessors are also SpecialName (0x0dc6) and carry CompilerGenerated, the rest carry nothing.
+        private static void AssertInterface(Type type, int eventAccessors, params string[] names)
+        {
+            MethodBase[] methods = Methods(type);
+            Assert.That(methods.Select(m => m.Name), Is.EqualTo(names), type.Name);
+            foreach (MethodBase method in methods.Take(eventAccessors))
+            {
+                Assert.That((int)method.Attributes, Is.EqualTo(0x0dc6), method.Name);
+                Assert.That(AttributeNames(method),
+                    Is.EqualTo(new[] { "System.Runtime.CompilerServices.CompilerGeneratedAttribute" }), method.Name);
+            }
+            foreach (MethodBase method in methods.Skip(eventAccessors))
+            {
+                bool specialName = method.Name.StartsWith("get_", StringComparison.Ordinal);
+                Assert.That((int)method.Attributes, Is.EqualTo(specialName ? 0x0dc6 : 0x05c6), method.Name);
+                if (!specialName)
+                    Assert.That(AttributeNames(method), Is.Empty, method.Name);
+            }
+        }
+
+        private static MethodBase[] Methods(Type type) =>
+            type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared))
+                .OrderBy(m => m.MetadataToken).ToArray();
+
+        private static string Signature(MethodBase method) =>
+            method.Name + "(" + string.Join(",", method.GetParameters().Select(p => p.ParameterType.Name)) + ") 0x" +
+            ((int)method.Attributes).ToString("x4");
+
+        private static string[] AttributeNames(MemberInfo member) =>
+            member.GetCustomAttributesData().Select(a => a.AttributeType.FullName).ToArray();
 
         private static string[] Fields(Type type) =>
             type.GetFields(Declared).OrderBy(f => f.MetadataToken).Select(f => f.Name).ToArray();
