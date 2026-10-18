@@ -193,20 +193,26 @@ namespace ProjectLucid.Tests
         [Test]
         public void SmoothingTreatsANonPositiveMaxSpeedAsUnclamped()
         {
-            Assume.That(Time.deltaTime, Is.GreaterThan(0.01f), "the rows need a frame delta that moves the direction");
+            // Time.deltaTime is not controllable in a batch Edit Mode run (it read 0.003..0.005), and the source
+            // reads it inside SmoothDamp. Using the observed delta as the smooth time makes omega * dt = 2
+            // whatever the delta is, so the damped direction moves a large, delta-independent distance.
+            float deltaTime = Time.deltaTime;
+            Assume.That(deltaTime, Is.GreaterThan(0f), "SmoothDamp only moves the direction with a nonzero frame delta");
+            Vector3 velocity = Vector3.zero;
+            Vector3 unclamped = Vector3.SmoothDamp(Vector3.forward, Vector3.right, ref velocity, deltaTime,
+                float.PositiveInfinity, deltaTime) * 10f;
+            Assume.That(Vector3.Distance(unclamped, new Vector3(0f, 0f, 10f)), Is.GreaterThan(5e-3f), "the unclamped step must be visible");
             using (var objects = new OwnedWorldObjects("lucid-look-smooth-unclamped"))
             {
                 LookAtTarget looker = Looker(objects);
-                Set(looker, "m_smoothTime", 1f);
+                Set(looker, "m_smoothTime", deltaTime);
                 foreach (float maxSpeed in new[] { 0f, -1f })
                 {
                     Set(looker, "m_maxSpeed", maxSpeed);
                     Set(looker, "m_velocity", Vector3.zero);
                     object[] args = { new Vector3(10f, 0f, 0f) };
                     Call(looker, "SmoothToTarget", args);
-                    Vector3 velocity = Vector3.zero;
-                    Vector3 unclamped = Vector3.SmoothDamp(Vector3.forward, Vector3.right, ref velocity, 1f,
-                        float.PositiveInfinity, Time.deltaTime) * 10f;
+                    // A raw 0 would hold at forward (x = 0) and a raw -1 would clamp the change to a negated tiny step.
                     Assert.That(((Vector3)args[0]).x, Is.GreaterThan(1e-3f), "max speed " + maxSpeed + " moves off forward");
                     AreClose(unclamped, (Vector3)args[0], "max speed " + maxSpeed + " is passed as +inf", 1e-5f);
                 }
@@ -219,7 +225,13 @@ namespace ProjectLucid.Tests
         [Test]
         public void SmoothingKeepsTheDistanceAndHonoursAPositiveMaxSpeed()
         {
-            Assume.That(Time.deltaTime, Is.GreaterThan(0.01f), "the tiny max speed only holds the direction with a nonzero delta");
+            // As above: the smooth time equals the observed (uncontrollable) delta, so the free step is large.
+            float deltaTime = Time.deltaTime;
+            Assume.That(deltaTime, Is.GreaterThan(0f), "the tiny max speed only holds the direction with a nonzero delta");
+            Vector3 velocity = Vector3.zero;
+            Vector3 free = Vector3.SmoothDamp(Vector3.forward, Vector3.right, ref velocity, deltaTime,
+                float.PositiveInfinity, deltaTime) * 10f;
+            Assume.That(Vector3.Distance(free, new Vector3(0f, 0f, 10f)), Is.GreaterThan(5e-3f), "an unclamped step must be visible");
             using (var objects = new OwnedWorldObjects("lucid-look-smooth"))
             {
                 LookAtTarget looker = Looker(objects);
@@ -227,10 +239,11 @@ namespace ProjectLucid.Tests
                 Call(looker, "SmoothToTarget", args);
                 Assert.That(args[0], Is.EqualTo(new Vector3(10f, 0f, 0f)), "zero smooth time");
 
-                Set(looker, "m_smoothTime", 1f);
+                Set(looker, "m_smoothTime", deltaTime);
                 Set(looker, "m_maxSpeed", 1e-6f);
                 Call(looker, "SmoothToTarget", args);
                 AreClose(new Vector3(0f, 0f, 10f), (Vector3)args[0], "held at forward, at the target's distance", 1e-3f);
+                Assert.That(Vector3.Distance(free, (Vector3)args[0]), Is.GreaterThan(1e-3f), "the clamp, not the free step, was applied");
             }
         }
 
