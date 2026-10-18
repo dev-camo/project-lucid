@@ -1822,6 +1822,27 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.CompleteDeclaredContractAndOrderedAttributesRemainOriginal',
 )
 
+# crosspromo-net: restored HLCrossPromo download handler and download/resource managers; no request is sent.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.Editor.OriginalCrossPromoNetworkTests." + name for name in (
+    "DownloadHandler_ConstructorCreatesIncomingFolderAndStagesUnderTheTargetFileName",
+    "DownloadHandler_CompleteContentNeedsMoreBytesThanTheThresholdAndAStream",
+    "DownloadHandler_ExistingTargetIsReplacedOnlyWhenDuplicatesAreDeleted",
+    "DownloadHandler_OpenFailureLogsReturnsFalseAndRetriesOnTheNextChunk",
+    "DownloadHandler_ErrorReportsTheServerMessageWhileTheTransportErrorIsEmpty",
+    "DownloadManager_StartsOneCoroutinePerLocalPathAndKeepsItPending",
+    "DownloadManagerCacheOnly_MetadataAndSpritesShareOneIdentifierClaim",
+    "DownloadManagerCacheOnly_FileDownloadIsNotImplementedAndClaimsNothing",
+    "ResourceManager_ConstructorKeepsDestinationFilesAndRecreatesAnEmptyIncomingFolder",
+    "ResourceManager_MetaDataDownloadsOverTheMetaFileAndReadsItBack",
+    "ResourceManager_VerifyAdResourcesDownloadsMissingImagesAndPrunesUnnamedFiles",
+    "ResourceManager_TextureRequestsUseThePoolThenTheDeviceThenADownload",
+    "ResourceManager_ReleasesAndPendingStateReachOnlyTheirOwnCollaborator",
+    "CacheOnly_MetaDataArrivesThroughTheMetadataCallbackAndVerifyOnlyRaisesPending",
+    "CacheOnly_TextureMissDownloadsOnceThenServesTheDecodedSprite",
+    "CacheOnly_TextureDownloadCopiesPendingFromTheDownloadManager",
+    "CacheOnly_DefaultCompletionHandlerAcceptsAnUnsubscribedNotification",
+))
+
 # Original procedural-mesh placement bodies on owned objects and in-memory surfaces.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProceduralMeshPlacementTests." + name for name in (
     "PerformanceSetupConstructorAndResetStoreTheNativeDefaults",
