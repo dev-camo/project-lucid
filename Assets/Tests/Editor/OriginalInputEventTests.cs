@@ -354,6 +354,11 @@ namespace ProjectLucid.Tests
                     var inputEvent = Event<InputEvent>(scope, new List<string>());
                     UIModernEvent eventId = scope.Own(ScriptableObject.CreateInstance<UIModernEvent>());
                     UIModernEvent otherId = scope.Own(ScriptableObject.CreateInstance<UIModernEvent>());
+                    // ScriptableObjectWithGuid equality and hash use m_guid (HLUnityCore 0x06000e5f/e60), and a bare
+                    // CreateInstance leaves it empty, which would make the two events one dictionary key.
+                    FieldInfo guid = typeof(ScriptableObjectWithGuid).GetField("m_guid", BindingFlags.Instance | BindingFlags.NonPublic);
+                    guid.SetValue(eventId, "lucid-input-event-publish-bound");
+                    guid.SetValue(otherId, "lucid-input-event-publish-other");
                     var received = new List<(UIModernEventType, UIModernEvent)>();
                     var bound = new List<(UIModernEvent subscribed, UIModernEvent value)>();
                     var unsubscribe = new List<Action>();
