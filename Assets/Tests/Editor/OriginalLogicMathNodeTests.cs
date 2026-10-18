@@ -225,6 +225,17 @@ namespace ProjectLucid.Tests
                 isEmpty.Refresh();
                 Assert.AreEqual(results[i], isEmpty.Output.Value, "value " + (values[i] ?? "null"));
             }
+
+            // The read is GetValue<string> (0x19fdb2e), so a non-string source arrives as its
+            // ToString() and a null one as the empty string (BindReference.GetValue<T>).
+            Bind(isEmpty.Input, "Int1");
+            carrier.Int1 = carrier.Recording("Input", 0);
+            isEmpty.Refresh();
+            Assert.IsFalse(isEmpty.Output.Value, "a boxed zero reads as \"0\"");
+            Bind(isEmpty.Input, "Object1");
+            carrier.Object1 = carrier.Recording<object>("Input", null);
+            isEmpty.Refresh();
+            Assert.IsTrue(isEmpty.Output.Value, "a null object reads as the empty string");
         }
 
         // LogicalAnd.Refresh 0x19FE110 skips Second when First is false (0x19fe157);
@@ -451,6 +462,24 @@ namespace ProjectLucid.Tests
             node.Refresh();
             Assert.IsFalse(node.Output.Value, "a null item is never in the set, even beside a null member");
             AssertReads("Item");
+
+            // Each test is the item's own virtual Equals (vtable slot 0, 0x138): no reference
+            // shortcut, and a null member is still offered to the item.
+            var never = new NeverEqual();
+            carrier.Object1 = carrier.Recording<object>("Item", never);
+            carrier.Object2 = carrier.Recording<object>("SetItem1", never);
+            carrier.Object3 = carrier.Recording<object>("SetItem2", never);
+            carrier.Object4 = carrier.Recording<object>("SetItem3", never);
+            carrier.Object5 = carrier.Recording<object>("SetItem4", never);
+            node.Refresh();
+            Assert.IsFalse(node.Output.Value, "the same instance is not in the set when its Equals says no");
+            AssertReads("Item", "SetItem1", "SetItem2", "SetItem3", "SetItem4");
+
+            carrier.Object1 = carrier.Recording<object>("Item", new AlwaysEqual());
+            carrier.Object2 = carrier.Recording<object>("SetItem1", null);
+            node.Refresh();
+            Assert.IsTrue(node.Output.Value, "a null member matches when the item's Equals says yes");
+            AssertReads("Item", "SetItem1");
         }
 
         // Unchecked integer arithmetic on First and Second in that order: MathAdd add
@@ -707,6 +736,17 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(TimeSpan.FromHours(12), node.RemainingTime.Value);
             Assert.AreEqual(TimeSpan.FromHours(-2), node.ElapsedTime.Value, "not clamped at the start");
             Assert.AreEqual(-0.2f, node.ProgressAmount.Value);
+
+            // The two TotalSeconds doubles are divided (divsd 0x1a07812) and narrowed once
+            // (cvtsd2ss 0x1a07819): (float)(16777217.0 / 16777219.0) has bits 0x3F7FFFFE, while
+            // dividing the narrowed operands (16777216f / 16777220f) would give 0x3F7FFFFC.
+            carrier.End = carrier.Recording("End", Origin.AddSeconds(16777219));
+            carrier.Current = carrier.Recording("Current", Origin.AddSeconds(16777217));
+            node.Refresh();
+            Assert.AreEqual(TimeSpan.FromSeconds(2), node.RemainingTime.Value);
+            Assert.AreEqual(TimeSpan.FromSeconds(16777217), node.ElapsedTime.Value);
+            Assert.AreEqual(0x3F7FFFFE, BitConverter.ToInt32(BitConverter.GetBytes(node.ProgressAmount.Value), 0),
+                "the ratio is narrowed after a double division");
 
             carrier.End = carrier.Recording("End", default(DateTime));
             carrier.Current = carrier.Recording("Current", Origin.AddHours(4));
