@@ -24,13 +24,17 @@ namespace ProjectLucid.Tests
         // PerformanceSetup..ctor 0x06000111 (x86-64 0x1A60E70): stores Medium (0),
         // the pair {40f, 1f} read from 0x29A8190, 5f (0x40A00000), true,
         // 1f (0x3F800000) and false. Reset 0x06000101 (0x1A60D80) appends the
-        // same inlined default. Fails if any default or the append changes.
+        // same inlined default; the Editor sends it once from CreateInstance, so
+        // the fixture sees exactly one profile in a List(1) that did not grow.
+        // Fails if any default or the append changes.
         [Test]
         public void PerformanceSetupConstructorAndResetStoreTheNativeDefaults()
         {
             AssertDefaultProfile(new ProceduralMesh_PlacementSetup.PerformanceSetup());
             using (var owned = new OwnedSetup())
             {
+                Assert.That(owned.EditorResetProfiles.Length, Is.EqualTo(1), "The Editor's CreateInstance Reset appends once.");
+                AssertDefaultProfile(owned.EditorResetProfiles[0]);
                 List<ProceduralMesh_PlacementSetup.PerformanceSetup> profiles = owned.Profiles;
                 Assert.That(profiles, Is.Empty);
                 Assert.That(profiles.Capacity, Is.EqualTo(1), "The constructor 0x1A612C0 allocates List(1).");
@@ -746,9 +750,11 @@ namespace ProjectLucid.Tests
         }
 
         // InitialiseSetup without an assigned setup creates one
-        // (CreateInstance 0x1A598E5, after the op_Equality test 0x1A598D2),
-        // whose empty profile list yields the native default {40, 1, 5}: 1600,
-        // 1681, 1225 and 2116.
+        // (CreateInstance 0x1A598E5, after the op_Equality test 0x1A598D2). In
+        // the Editor that CreateInstance also sends Reset 0x1A60D80, so the new
+        // setup lists one default profile and GetSetup selects it; a player
+        // keeps the list empty and caches an unlisted default instead. Both
+        // give the native default {40, 1, 5}: 1600, 1681, 1225 and 2116.
         [Test]
         public void InitialiseSetupCreatesADefaultSetupWhenNoneIsAssigned()
         {
@@ -769,8 +775,9 @@ namespace ProjectLucid.Tests
                     if (created != null) owned.Adopt(created);
                 }
                 Assert.That(owned.Setup, Is.Not.Null);
-                Assert.That(owned.Profiles, Is.Empty);
-                AssertDefaultProfile(owned.Setup.GetSetup());
+                Assert.That(owned.Profiles.Count, Is.EqualTo(1), "The Editor's CreateInstance Reset appends once.");
+                AssertDefaultProfile(owned.Profiles[0]);
+                Assert.That(owned.Setup.GetSetup(), Is.SameAs(owned.Profiles[0]));
                 AssertDistanceSquares(grid, 1600f, 1681f, 1225f, 2116f);
                 Assert.That(UpdatedHandlers(owned.Setup), Is.EqualTo(new[] { SetupUpdatedHandler(grid) }));
                 Assert.That(log.Errors.Count, Is.EqualTo(1));
@@ -1089,11 +1096,21 @@ namespace ProjectLucid.Tests
         {
             private readonly VerificationFixtureOwnership.LifecycleRow m_lease;
 
+            // The Editor sends Reset to a ScriptableObject made by CreateInstance, and Reset
+            // 0x1A60D80 appends one default profile; a player never sends it, and the
+            // constructor 0x1A612C0 only allocates the empty List(1). The appended profile is
+            // kept in EditorResetProfiles and the list is cleared, so each case starts from an
+            // asset authored with no profiles, as it would in a player.
             public OwnedSetup(bool create = true)
             {
                 m_lease = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<ScalablePerformance>());
-                if (create) Adopt(ScriptableObject.CreateInstance<ProceduralMesh_PlacementSetup>());
+                if (!create) return;
+                Adopt(ScriptableObject.CreateInstance<ProceduralMesh_PlacementSetup>());
+                EditorResetProfiles = Profiles.ToArray();
+                Profiles.Clear();
             }
+
+            public ProceduralMesh_PlacementSetup.PerformanceSetup[] EditorResetProfiles { get; private set; }
 
             public ProceduralMesh_PlacementSetup Setup { get; private set; }
             public Delegate Startup { get; private set; }
