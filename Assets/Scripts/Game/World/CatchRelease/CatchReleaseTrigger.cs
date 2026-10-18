@@ -9,7 +9,7 @@ namespace HardlightProject
 {
     // Original Game.Runtime 02000ac0 with iterator 02000ac1; bodies translated from the 1.10.1 x86-64
     // binary. A trigger volume that hands the entering character to its CatchRelease ability, either at
-    // once or, when the attach needs input, once the input has been held for the frames after entry.
+    // once or, when the attach needs input, two frames after entry, once the attach input is applied.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [RequireComponent(typeof(Collider))]
@@ -92,7 +92,8 @@ namespace HardlightProject
 
         // 06003e03 (1.10.1 RVA 0x6E58A0) with iterator 02000ac1 (MoveNext 0x6E5B80). Waits out the frames
         // before the trigger, then for the attach input, attaches, and (for a continuous input) releases
-        // when the input ends. A character that disappears stops the wait without releasing.
+        // when the input ends. A character that disappears before attaching stops without release; one that disappears
+        // during a continuous hold is released.
         private IEnumerator ProcessStayEvents(Character character)
         {
             for (int frameCount = 0; frameCount < WaitNumberOfFramesBeforeTrigger; frameCount++)

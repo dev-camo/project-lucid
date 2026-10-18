@@ -62,24 +62,22 @@ namespace HardlightProject
             if (IsTriggered)
                 return;
 
-            CatchReleaseDefinition_Attach attach = data.Attach;
-            Transform colliderTransform = collider.transform;
-            Vector3 direction = attach.AlignmentAngleTolerance > 0f
-                ? colliderTransform.rotation * attach.AlignmentDirection
-                : colliderTransform.forward;
+            Vector3 direction = data.Attach.AlignmentAngleTolerance > 0f
+                ? collider.transform.rotation * data.Attach.AlignmentDirection
+                : collider.transform.forward;
             float directionalSpeed = Vector3.Dot(m_character.WorldVelocity, direction);
-            float speed = attach.UseSpeedMagnitude ? m_character.WorldVelocityMagnitude : Mathf.Abs(directionalSpeed);
-            if (attach.SpeedMin > speed)
+            float speed = data.Attach.UseSpeedMagnitude ? m_character.WorldVelocityMagnitude : Mathf.Abs(directionalSpeed);
+            if (data.Attach.SpeedMin > speed)
                 return;
-            if (attach.AlignmentAngleTolerance > 0f
-                && attach.AlignmentCosAngleTolerance > Vector3.Dot(m_character.WorldVelocityNormalised, direction))
+            if (data.Attach.AlignmentAngleTolerance > 0f
+                && data.Attach.AlignmentCosAngleTolerance > Vector3.Dot(m_character.WorldVelocityNormalised, direction))
                 return;
 
             Enter();
             m_character.Storage.SetValue(ActorFSMKeys.CatchReleaseActive, true);
             m_data = data;
             m_collider = collider;
-            float directionDot = attach.OrientateFromVelocity
+            float directionDot = data.Attach.OrientateFromVelocity
                 ? directionalSpeed
                 : Vector3.Dot(direction, m_character.ForwardDirection);
             if (m_data.Attach.IsDynamic)
@@ -123,9 +121,10 @@ namespace HardlightProject
         }
 
         // 060010c0 (1.10.1 RVA 0x743E30). The attach offset is the attach position in the catch point's
-        // frame (undoing its angle offset), snapped per axis, lowered by the character height when the
-        // character hangs below the point, and for a dynamic pivot extended by the current distance.
-        // The character is parented with that offset minus the catch point's position offset.
+        // frame (undoing its angle offset), snapped per axis.
+        // The character is parented with the snapped offset (lowered by the character height when
+        // OffsetToTopOfCharacter is set) minus the catch point's position offset; only the stored attach
+        // offset, which a dynamic pivot extends by the distance, goes to the connector.
         private void SetupParentConstraints()
         {
             CatchReleaseDefinition_Catch.CatchPoint point = m_isReversed ? m_data.Catch.PointReverse : m_data.Catch.PointForward;
@@ -201,12 +200,9 @@ namespace HardlightProject
 
         // 060010c4 (1.10.1 RVA 0x744630) with closure 020002c3. Controls and the velocity are locked for the
         // release times; the exit event is raised on the next frame with the return speed relative to the
-        // attach speed (-1 when the attach has no normalised speed). The closure is created before the
-        // IsTriggered test, so both captured locals are declared first.
+        // attach speed (-1 when the attach has no normalised speed).
         public void DoTriggerExit()
         {
-            CatchReleaseDefinition_Catch.Events events;
-            float returnSpeedNormalised;
             if (!IsTriggered)
                 return;
 
@@ -219,8 +215,8 @@ namespace HardlightProject
                 AddModifierOverride((int)DirectionModifierType.Override, m_character.WorldVelocity, m_data.Release.VelocityLockTime, m_data.TimeCategory);
                 m_character.Storage.SetValue(ActorFSMKeys.AirDecelerationDisabled, false);
             }
-            events = Events;
-            returnSpeedNormalised = m_data.Attach.SpeedNormalised > 0f
+            var events = Events;
+            float returnSpeedNormalised = m_data.Attach.SpeedNormalised > 0f
                 ? -m_data.Release.ReturnSpeed / m_data.Attach.SpeedNormalised
                 : -1f;
             CoroutineUtils.OnNextFrame(() => events.OnExit(returnSpeedNormalised));
@@ -264,7 +260,8 @@ namespace HardlightProject
             return m_data != null && m_data.FormType != ActorFormType.None ? m_data.FormType : base.GetFormType();
         }
 
-        // 060010c9 (1.10.1 RVA 0x744B10). Reference null tests, as a null-coalescing expression compiles to.
+        // 060010c9 (1.10.1 RVA 0x744B10). The native body tests m_data and AnimationDefinition by reference, with no Unity Object
+        // equality, which `?.`/`??` reproduces.
         public override ActorAnimationDefinition GetAnimationDefinition()
         {
             return m_data?.AnimationDefinition ?? base.GetAnimationDefinition();

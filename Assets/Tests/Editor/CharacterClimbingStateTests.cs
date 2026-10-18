@@ -31,13 +31,6 @@ namespace ProjectLucid.Tests
         private static string Name() => "Lucid-climb-" + Guid.NewGuid().ToString("N");
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);
 
-        private sealed class Release : IDisposable
-        {
-            private readonly Action m_release;
-            public Release(Action release) { m_release = release; }
-            public void Dispose() => m_release();
-        }
-
         private sealed class ClimbScene : IDisposable
         {
             private readonly List<IDisposable> m_leases = new List<IDisposable>();
@@ -110,19 +103,8 @@ namespace ProjectLucid.Tests
             // and revoked afterwards, which leaves the row alone.
             private void Link(TrackManager manager)
             {
-                const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
                 SystemRef<TrackManager> reference = ProcessManager.GetSystemRef<TrackManager>(null, true);
-                MethodInfo replace = typeof(SystemRef<TrackManager>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", instance);
-                MethodInfo revoke = typeof(SystemRef<TrackManager>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", instance);
-                FieldInfo startupObservers = typeof(SystemRef<TrackManager>).GetField("OnSystemStartup", instance);
-                if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty TrackManager reference");
-                object priorObservers = startupObservers.GetValue(reference);
-                m_leases.Add(new Release(() =>
-                {
-                    if (reference.IsValid()) revoke.Invoke(reference, null);
-                    startupObservers.SetValue(reference, priorObservers);
-                }));
-                replace.Invoke(reference, new object[] { manager });
+                m_leases.Add(new SystemRefLease<TrackManager>(reference, manager));
                 Set(Character, "m_trackManagerRef", reference);
             }
 

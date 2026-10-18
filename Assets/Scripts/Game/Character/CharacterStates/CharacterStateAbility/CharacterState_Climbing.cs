@@ -52,12 +52,11 @@ namespace HardlightProject
         // maintain it) or the one recorded at terrain entry, as local velocity without its vertical part.
         private static void SetInitialVelocity(Character character)
         {
-            bool maintainVelocity = false;
-            if (character.Storage.TryGetValue(ActorFSMKeys.ClimbingMaintainCurrentVelocityOnEnter, out maintainVelocity))
+            if (character.Storage.TryGetValue(ActorFSMKeys.ClimbingMaintainCurrentVelocityOnEnter, out bool maintainVelocity))
                 character.Storage.RemoveValue<bool>(ActorFSMKeys.ClimbingMaintainCurrentVelocityOnEnter);
             Vector3 worldVelocity = maintainVelocity
                 ? character.WorldVelocity
-                : character.Storage.GetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, Vector3.zero, true);
+                : character.Storage.GetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, default(Vector3), true);
             Vector3 localVelocity = character.WorldToLocalRotation * worldVelocity;
             localVelocity.y = 0f;
             character.SetLocalVelocity(localVelocity);
@@ -79,7 +78,8 @@ namespace HardlightProject
             TAbility ability = GetAbility(character);
             if (ability != null)
                 ability.UpdateJumpAngleExtra(character.Storage, true);
-            storage.SetValue(ActorFSMKeys.ClimbingLastTimestamp, ProcessManager.GetSystem<TimeManager>(null, true).GetTotalTime(TimeCategory.PlayerMovement));
+            float totalTime = ProcessManager.GetSystem<TimeManager>(null, true).GetTotalTime(TimeCategory.PlayerMovement);
+            storage.SetValue(ActorFSMKeys.ClimbingLastTimestamp, totalTime);
         }
 
         // 0600154b. A passed edge first restores the last known pose. When the character cannot be
@@ -175,7 +175,8 @@ namespace HardlightProject
         }
 
         // 0600154e. Succeeds when a climbable position lies within snapDistance. Moving onto a new collider
-        // needs that collider to be climbable; the character is then placed just off the surface and turned
+        // needs that collider to be climbable; the character is then placed SnapGroundCollisionBuffer behind the hit point along the surface
+        // normal (just into the surface) and turned
         // to it unless the normal is unchanged.
         private bool SnapPositionToSurface(Character character, TAbility ability, float snapDistance, Vector3 currentNormal, out Vector3 surfaceNormal, float deltaTime = 0f, bool limitRotation = false)
         {
@@ -203,7 +204,8 @@ namespace HardlightProject
             return false;
         }
 
-        // 0600154f. Casts from the contact point (moved by the offset, which is local to the character)
+        // 0600154f. Casts from the character position lifted snapDistance along the contact normal (moved by
+        // the offset, which is local to the character) back through it over twice that distance
         // against the surface and takes the first hit that is within the climbing angles, within the
         // allowed angle change when rotation is limited, and on a climbable collider. Without such a hit
         // the output is the first raycast slot.
@@ -251,7 +253,7 @@ namespace HardlightProject
         // 06001553. A missing snapshot restores the zero position and the all-zero rotation.
         private void RestorePosition(Character character)
         {
-            character.SetWorldPosition(character.Storage.GetValue(ActorFSMKeys.ClimbingLastKnownPosition, Vector3.zero, true));
+            character.SetWorldPosition(character.Storage.GetValue(ActorFSMKeys.ClimbingLastKnownPosition, default(Vector3), true));
             character.SetWorldRotation(character.Storage.GetValue(ActorFSMKeys.ClimbingLastKnownRotation, default(Quaternion), true));
         }
 
