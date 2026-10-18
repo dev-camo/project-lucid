@@ -645,6 +645,95 @@ namespace ProjectLucid.Tests
                 "{\"Clip\":\"" + clip + "\",\"Source\":\"" + source + "\",\"OneShot\":" + (oneShot ? "true" : "false") +
                 ",\"Replay\":" + (replay ? "true" : "false") + "}");
 
+        // FSMState_Error.DoOnEnter 0x06002328, x86-64 0x5843b0: after FSMState.DoOnEnter
+        // it formats literal "{0} - Error in FSM {1} for user {2}: {3}" with String.Format
+        // (0x1bf5130) over the virtual ToString (vtable slot 3, the state's name), FSM,
+        // the user and the stored message, then routes it to HLOutput.LogError (0x1af8470).
+        // Formatting the FSMId (slot 4) or dropping a field fails here.
+        [Test]
+        public void ErrorStateLogsItsNameMachineUserAndMessageOnce()
+        {
+            using (var capture = new OwnedHLOutputErrorCapture())
+            {
+                FiniteStateMachine machine = Machine();
+                string stateName = Name();
+                IFSMState error = FSMState_Error.ConstructInstance(machine, stateName, "{\"ErrorMessage\":\"lucid failure\"}");
+                Assert.That(error, Is.TypeOf<FSMState_Error>());
+                FSMUser user = User();
+                Assert.That(capture.Errors, Is.Empty);
+                error.OnEnter(user, null);
+                Assert.That(capture.Errors.Count, Is.EqualTo(1));
+                string expected = stateName + " - Error in FSM " + machine + " for user " + user + ": lucid failure";
+                Assert.That(capture.Errors[0], Does.StartWith(expected + "|"), "the state name, then machine, user and message");
+                Assert.That(error.ToString(), Is.EqualTo(stateName));
+            }
+        }
+
+        // FSMTransitionCheckCutscenePlaying 0x0600236b..6e, x86-64 0x5874d0..0x5877f0.
+        // The CutsceneManager reference is a field initializer; ConstructInstance parses
+        // Compare case-insensitively; DoUpdate returns false while CutsceneIsLoading
+        // (0x79f640), otherwise IsCutscenePlaying (0x79f5e0), its negation, or true per
+        // Comparison. An inverted comparison or a missing loading gate fails a row.
+        [Test]
+        public void CheckCutscenePlayingFollowsLoadingThenComparisonTruthTable()
+        {
+            // The CutsceneManager constructor subscribes these actions; own them first.
+            var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Initialise, SystemAction.Shutdown);
+            CutsceneManager manager = null;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
+            {
+                using (var owned = new OwnedServices())
+                {
+                    owned.ReadOnlyRow<FullscreenShaderManager>();
+                    owned.ReadOnlyRow<VisualQualityManager_SDT>();
+                    owned.ReadOnlyRow<CinemachineCameraManager>();
+                    owned.Row<CutsceneManager>();
+                    var host = new GameObject("Lucid owned cutscene");
+                    try
+                    {
+                        host.SetActive(false);
+                        Cutscene cutscene = host.AddComponent<ComicCutscene>();
+                        manager = new CutsceneManager();
+                        FiniteStateMachine machine = Machine();
+                        IFSMTransition whenPlaying = CheckCutscene(machine, "TrueCausesTransition");
+                        IFSMTransition whenStopped = CheckCutscene(machine, "falsecausestransition");
+                        IFSMTransition either = CheckCutscene(machine, "EitherCausesTransition");
+                        FSMUser user = User();
+                        bool[] Row() => new[] { whenPlaying.Update(user, s_context), whenStopped.Update(user, s_context), either.Update(user, s_context) };
+
+                        Assert.That(Row(), Is.EqualTo(new[] { false, true, true }), "idle");
+                        SetCutscene(manager, "m_currentCutscene", cutscene);
+                        Assert.That(Row(), Is.EqualTo(new[] { true, false, true }), "playing");
+                        SetCutscene(manager, "m_cutsceneIsLoading", true);
+                        Assert.That(Row(), Is.EqualTo(new[] { true, false, true }), "loading without play-on-load is not CutsceneIsLoading");
+                        SetCutscene(manager, "m_cutscenePlayOnLoad", true);
+                        Assert.That(manager.CutsceneIsLoading, Is.True);
+                        Assert.That(Row(), Is.EqualTo(new[] { false, false, false }), "loading gates every comparison");
+                        SetCutscene(manager, "m_currentCutscene", null);
+                        Assert.That(Row(), Is.EqualTo(new[] { false, false, false }), "loading while idle");
+                    }
+                    finally
+                    {
+                        Object.DestroyImmediate(host);
+                        // The constructor registered the manager into the owned row.
+                        owned.AdoptCurrent<CutsceneManager>();
+                    }
+                }
+            },
+            () =>
+            {
+                // Safety net if row disposal throws before unsubscribing the manager.
+                if (manager != null) ProcessManager.UnsubscribeFromAllActions(manager);
+            },
+            actionRows.Dispose);
+        }
+
+        private static IFSMTransition CheckCutscene(FiniteStateMachine machine, string compare) =>
+            FSMTransitionCheckCutscenePlaying.ConstructInstance(machine, Name(), "{\"Compare\":\"" + compare + "\"}");
+
+        private static void SetCutscene(CutsceneManager manager, string field, object value) =>
+            typeof(CutsceneManager).GetField(field, Instance).SetValue(manager, value);
+
         private static void SetReady(App app, bool ready) =>
             typeof(App).GetField("<IsReady>k__BackingField", Instance).SetValue(app, ready);
 

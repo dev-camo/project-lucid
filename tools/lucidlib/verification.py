@@ -4953,3 +4953,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.RemoveStateMessageRemovesFromAppStorageAndAcceptsAnAbsentEvent",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.StateMessageTransitionFiresOncePerPublishedAppEvent",
 )
+# Issue #320: Error state message and CheckCutscenePlaying truth table.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.ErrorStateLogsItsNameMachineUserAndMessageOnce",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.CheckCutscenePlayingFollowsLoadingThenComparisonTruthTable",
+)
