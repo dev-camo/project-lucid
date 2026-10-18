@@ -95,15 +95,26 @@ namespace ProjectLucid.Tests
 
         static Metadata Row(MetadataKeyType key, string value) => new Metadata(key, value);
 
-        // Constructors share MetadataValueType's field initialisers ("Value", ""); each Reset
-        // (0x1a55040 Bool, 0x1a55330 Float, 0x1a558b0 String, 0x1a55ab0 StringList, 0x1a55760
-        // Null, 0x17ca400 TEnum) calls the base Reset then stores its own literal. TObject Reset
-        // (0x17ca7a0) stores typeof(TObject).Name through RuntimeType vtable slot 8 (get_Name).
+        // Constructors share MetadataValueType's field initialisers ("Value", ""), which the Bool
+        // constructor 0x1a552c0 inlines into m_label (+0x20) and m_helpText (+0x28). The Editor
+        // sends Reset from CreateInstance, so only the Reset-free carrier still shows them; each
+        // shipped type already carries its Reset label. Each Reset (0x1a55040 Bool, 0x1a55330
+        // Float, 0x1a558b0 String, 0x1a55ab0 StringList, 0x1a55760 Null, 0x17ca400 TEnum) calls
+        // the base Reset (ScriptableObjectWithGuid 0x06000e63, a RET) then stores its own
+        // literal. TObject Reset (0x17ca7a0) stores typeof(TObject).Name through RuntimeType
+        // vtable slot 8 (get_Name). No Reset touches the help text or the Guid.
         [Test]
         public void ConstructorsKeepTheBaseLabelAndResetStoresEachShippedLabel()
         {
             using (var owned = new Owned())
             {
+                var carrier = owned.Create<OriginalMetadataValueTypeCarrier>();
+                Assert.That(Label(carrier), Is.EqualTo("Value"), "base label initialiser");
+                Assert.That(HelpText(carrier), Is.EqualTo(""), "base help text initialiser");
+                Assert.That(carrier.GetGUID(), Is.EqualTo(""), "Guid initialiser");
+                Call(carrier, "Reset");
+                Assert.That(Label(carrier), Is.EqualTo("Value"), "the base Reset stores no label");
+
                 var expected = new (MetadataValueType type, string label)[]
                 {
                     (owned.Create<MetadataValueTypeBool>(), "Bool"),
@@ -118,12 +129,14 @@ namespace ProjectLucid.Tests
                 foreach (var row in expected)
                 {
                     string name = row.type.GetType().Name;
-                    Assert.That(Label(row.type), Is.EqualTo("Value"), name + " constructor label");
-                    Assert.That(HelpText(row.type), Is.EqualTo(""), name + " constructor help text");
+                    Assert.That(Label(row.type), Is.EqualTo(row.label), name + " label after the Editor's CreateInstance Reset");
+                    Assert.That(HelpText(row.type), Is.EqualTo(""), name + " help text initialiser");
                     Assert.That(row.type.GetGUID(), Is.EqualTo(""), name + " Guid initialiser");
+                    Set(row.type, typeof(MetadataValueType), "m_label", "Value");
+                    Set(row.type, typeof(MetadataValueType), "m_helpText", "authored help");
                     Call(row.type, "Reset");
                     Assert.That(Label(row.type), Is.EqualTo(row.label), name + " Reset label");
-                    Assert.That(HelpText(row.type), Is.EqualTo(""), name + " Reset leaves help text");
+                    Assert.That(HelpText(row.type), Is.EqualTo("authored help"), name + " Reset leaves help text");
                 }
 
                 // 0x1a55a10: m_regEx is "" and m_default stays null; 0x1a55c10 allocates m_strings.
