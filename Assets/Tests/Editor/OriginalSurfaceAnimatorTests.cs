@@ -97,9 +97,10 @@ namespace ProjectLucid.Tests
             Assert.That(Methods(typeof(SurfaceAnimator)), Is.EqualTo(new[]
             {
                 "get_IsPaused:09e6", "set_IsPaused:09e6", "Awake:0081", "OnEnable:0081", "OnDisable:0081", "OnUpdate:01e6",
-                "OnFixedUpdate:01e6", "OnLateUpdate:01e6", "DoUpdate:0081", ".ctor:1886"
+                "OnFixedUpdate:01e6", "OnLateUpdate:01e6", "DoUpdate:0081", ".ctor:1886",
+                // 06003d1e (last in metadata order): the OnEnable lambda <OnEnable>b__9_0(TimeManager).
+                "<OnEnable>b__9_0:0081"
             }));
-            // 06003d1e is the OnEnable lambda <OnEnable>b__9_0(TimeManager) on the animator itself.
             MethodInfo lambda = typeof(SurfaceAnimator).GetMethod("<OnEnable>b__9_0", BindingFlags.Instance | BindingFlags.NonPublic);
             Assert.That(lambda?.GetParameters().Single().ParameterType, Is.EqualTo(typeof(TimeManager)));
         }
