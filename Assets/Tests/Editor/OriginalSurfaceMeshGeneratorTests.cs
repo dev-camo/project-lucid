@@ -18,8 +18,67 @@ namespace ProjectLucid.Tests
     // initializer takes the typed InstancedObjectPoolManager reference, so those cases lease that
     // row, and an owned empty TimeCategoryLookup stands in the TimeScaledComponent_SDT cache read
     // by the Editor's Reset/OnValidate while the component is added.
+    // Not covered: SurfaceMeshPlaneGenerator.UpdateSamplePoints past its null-spline returns and
+    // ApplyTrackerToMesh. Both read GetWorldTransformFromDistance or Tracker2D lookups on the axis
+    // splines, which need baked knot and LUT data whose results these cases cannot derive from
+    // the native evidence alone.
     public sealed class OriginalSurfaceMeshGeneratorTests
     {
+        // Records each distance query and answers with a location on itself, so that
+        // RibbonLocation.GetLocalTransform has a ribbon to call back into.
+        private sealed class DistanceRibbon : IRibbon
+        {
+            public readonly List<(float distance, RibbonAlignment alignment)> Queries = new List<(float, RibbonAlignment)>();
+            public int LocalTransforms;
+
+            public RibbonLocation GetRibbonLocationFromDistance(float distance, RibbonAlignment alignment)
+            {
+                Queries.Add((distance, alignment));
+                return new RibbonLocation { m_ribbon = this, m_alignment = alignment };
+            }
+
+            public LightweightTransform GetLocalTransformFromLinearRatio(LinearRatio linearRatio, RibbonAlignment alignment)
+            {
+                LocalTransforms++;
+                return new LightweightTransform(Vector3.zero, Quaternion.identity);
+            }
+
+            public DateTime GetTimestamp() => throw new NotSupportedException();
+            public MetadataGroups GetSurfaceMetadata() => throw new NotSupportedException();
+            public SurfaceLocation FindNearestSurfaceLocationFromWorld(Vector3 worldPosition) => throw new NotSupportedException();
+            public SurfaceLocation FindNearestSurfaceLocationFromLocal(Vector3 localPosition) => throw new NotSupportedException();
+            public float Length => throw new NotSupportedException();
+            public float LengthInverse => throw new NotSupportedException();
+            public Bounds GetBoundingBox(bool inWorldSpace = false) => throw new NotSupportedException();
+            public Vector3 TransformPoint(Vector3 point) => throw new NotSupportedException();
+            public Vector3 InverseTransformPoint(Vector3 point) => throw new NotSupportedException();
+            public bool IsActive() => throw new NotSupportedException();
+            public int KnotCount => throw new NotSupportedException();
+            public IRibbonKnot GetKnot(int knotIndex, RibbonAlignment alignment) => throw new NotSupportedException();
+            public LightweightTransform Transform => throw new NotSupportedException();
+            public IRibbonKnot GetBackKnot(RibbonAlignment alignment) => throw new NotSupportedException();
+            public IRibbonKnot GetHeadKnot(RibbonAlignment alignment) => throw new NotSupportedException();
+            public SurfaceKnotMetadata GetKnotMetadataFromDistance(float distance) => throw new NotSupportedException();
+            public SurfaceKnotMetadata GetKnotMetadataFromKnotT(KnotT knotT) => throw new NotSupportedException();
+            public SurfaceKnotMetadata GetKnotMetadataFromLinearRatio(LinearRatio linearRatio) => throw new NotSupportedException();
+            public RibbonLocation FindNearestRibbonLocation(Vector3 worldPosition, RibbonAlignment alignment) => throw new NotSupportedException();
+            public RibbonLocation FindAdjacentRibbonLocation(Vector3 worldPosition, Vector3 forward, RibbonAlignment alignment) => throw new NotSupportedException();
+            public LinearRatio GetLinearRatioFromKnotT(KnotT knotT, RibbonAlignment alignment) => throw new NotSupportedException();
+            public KnotT GetKnotTFromLinearRatio(LinearRatio linearRatio, RibbonAlignment alignment) => throw new NotSupportedException();
+            public PositionAndTangent GetLocalPosAndTangentFromKnotT(KnotT knotT, RibbonAlignment alignment) => throw new NotSupportedException();
+            public LightweightTransform GetLocalTransformFromKnotT(KnotT knotT, RibbonAlignment alignment) => throw new NotSupportedException();
+            public Vector3 GetLocalPosFromKnotT(KnotT knotT, RibbonAlignment alignment) => throw new NotSupportedException();
+            public PositionAndTangent GetLocalPosAndTangentFromLinearRatio(LinearRatio linearRatio, RibbonAlignment alignment) => throw new NotSupportedException();
+            public Vector3 GetLocalPosFromLinearRatio(LinearRatio linearRatio, RibbonAlignment alignment) => throw new NotSupportedException();
+            public LightweightTransform GetWorldTransformFromDistance(float distance) => throw new NotSupportedException();
+            public LightweightTransform GetWorldTransformFromRibbonT(float ribbonT) => throw new NotSupportedException();
+            public void KnotsUpdated() => throw new NotSupportedException();
+            public void UpdateRibbonType(IRibbon newRibbon) => throw new NotSupportedException();
+            public bool TryGetRaycastHit(Ray ray, float distance, out RaycastHit raycastHit) => throw new NotSupportedException();
+            public event Action OnRibbonKnotsUpdated { add => throw new NotSupportedException(); remove => throw new NotSupportedException(); }
+            public event Action<IRibbon> OnRibbonTypeChanged { add => throw new NotSupportedException(); remove => throw new NotSupportedException(); }
+        }
+
         private sealed class CrossSectionProbe : SurfaceMeshCrossSectionGenerator
         {
             public readonly List<float> Distances = new List<float>();
@@ -241,6 +300,31 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // SpawnPrefabs 0x6D3F80 inside the range: the ribbon is queried at the loop distance, which
+        // starts at OffsetLocal.z ([rbp-0x2c]), with RibbonAlignment.Center (edx = 0 at 0x6D428A);
+        // RibbonLocation.GetLocalTransform follows (0x6D4302); CalculateLocationLocal (vcall at
+        // 0x6D4360) gets OffsetLocal.x (xmm0 = [rbp-0xb0] at 0x6D434E), not the distance. Spawn's
+        // inlined null InstantiatePrefab then faults, so the request flag is kept.
+        [Test]
+        public void SpawnPrefabsQueriesTheRibbonAtTheDistanceAndTheCrossSectionAtOffsetX()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-surface-spawn-ribbon"))
+            {
+                var probe = new CrossSectionProbe();
+                var ribbon = new DistanceRibbon();
+                var spawner = new SurfaceMeshPrefabSpawner();
+                Set(spawner, "m_offsetLocal", new Vector3(0.25f, 0f, 0.5f));
+                Set(probe, "m_prefabSpawnRoot", objects.Create("root").transform);
+                Set(probe, "m_prefabSpawners", new List<SurfaceMeshPrefabSpawner> { spawner });
+                Set(probe, "m_prefabSpawnGenerate", true);
+                Assert.Throws<NullReferenceException>(() => probe.SpawnPrefabs(ribbon));
+                Assert.That(ribbon.Queries, Is.EqualTo(new[] { (0.5f, RibbonAlignment.Center) }));
+                Assert.That(ribbon.LocalTransforms, Is.EqualTo(1));
+                Assert.That(probe.Distances, Is.EqualTo(new[] { 0.25f }));
+                Assert.That(Get(probe, "m_prefabSpawnGenerate"), Is.True);
+            }
+        }
+
         // SurfaceMeshPrefabSpawner..ctor 0x6D4D20 stores 1.0 in m_spacing and m_scale only.
         // InstantiatePrefab 0x6D4D10 is `xor eax, eax; ret`, and Spawn 0x6D4660 inlines it, so the
         // first name access (get_name on null at 0x6D46A2) fails before any transform is set.
@@ -374,6 +458,41 @@ namespace ProjectLucid.Tests
                     2, 3, 6, 7, 6, 3,
                     0, 2, 8, 9, 8, 2,
                     1, 3, 10, 11, 10, 3
+                }));
+            }
+        }
+
+        // A square plane cannot tell strideAxisX from strideAxisZ in those arguments. With
+        // strideAxisX = 2 and strideAxisZ = 1 (A = 3, B = 2) the native calls are Z(0, 6), Z(3, 4),
+        // X(3, 8, 0) and X(3, 10, 2) (0x6D8DB9, 0x6D8E3F/0x6D8E46, 0x6D8EA4..0x6D8EB0 with
+        // r9d = 0, 0x6D8F12); the second edge starts at A * strideAxisZ = 3, not B * strideAxisX = 4.
+        [Test]
+        public void SkirtPointsKeepTheShippedIndicesOnANonSquarePlane()
+        {
+            using (var fixture = new PlaneFixture(2f, 1f, 1f))
+            {
+                Assert.That(fixture.Generate("GenerateSkirtPoints", 2, 1), Is.True);
+                Assert.That(fixture.LastIndex, Is.EqualTo(10));
+                AreClose(new[]
+                {
+                    new Vector3(0f, 0f, 0f), new Vector3(0f, 0f, 1f), new Vector3(2f, 0f, 0f), new Vector3(2f, 0f, 1f),
+                    new Vector3(0f, 0f, 0f), new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 0f),
+                    new Vector3(0f, 0f, 1f), new Vector3(1f, 0f, 1f), new Vector3(2f, 0f, 1f)
+                }, fixture.Vertices, "vertex");
+                AreClose(new[]
+                {
+                    new Vector2(0f, 0f), new Vector2(0f, 1f), new Vector2(1f, 0f), new Vector2(1f, 1f),
+                    new Vector2(0f, 0f), new Vector2(0.5f, 0f), new Vector2(1f, 0f),
+                    new Vector2(0f, 1f), new Vector2(0.5f, 1f), new Vector2(1f, 1f)
+                }, fixture.UVs, "uv");
+                Assert.That(fixture.Triangles, Is.EqualTo(new[]
+                {
+                    0, 1, 6, 7, 6, 1,
+                    3, 4, 7, 8, 7, 4,
+                    0, 3, 10, 11, 10, 3,
+                    3, 6, 11, 12, 11, 6,
+                    2, 5, 12, 13, 12, 5,
+                    5, 8, 13, 14, 13, 8
                 }));
             }
         }

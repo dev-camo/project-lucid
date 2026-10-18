@@ -65,6 +65,7 @@ ALLOWED = {
     "Assets/Tests/Editor/OriginalPersistentLevelObjectTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalProceduralMeshPlacementTests.cs": (5, OWNED),
     "Assets/Tests/Editor/OriginalStringTimeoutFSMTests.cs": (1, OWNED),
+    "Assets/Tests/Editor/OriginalSurfaceAnimatorTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalTransformAnimatorTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalTransformFacingAndTriggerTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalUIClickableTests.cs": (1, UNLEASED),

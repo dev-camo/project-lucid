@@ -175,6 +175,27 @@ namespace ProjectLucid.Tests
             Assert.That(Knots(line), Is.Empty, "negative segments add nothing");
         }
 
+        // Two Y rotations commute, so the case above cannot order the product. The inlined product
+        // after Internal_FromEulerRad (0x6DB820..0x6DB8CC) has lane z = O.w*E.z + O.z*E.w + O.x*E.y
+        // - O.y*E.x with O the origin rotation: origin * Euler(m_orientation). From an origin turned
+        // 90 degrees about x that is (0.5, 0.5, 0.5, 0.5), whose forward is +x; the swapped product
+        // (0.5, 0.5, -0.5, 0.5) would step along -y.
+        [Test]
+        public void LineTurnsByItsOrientationInsideTheOriginRotation()
+        {
+            var line = new SurfacePathLineGenerator();
+            Set(line, "m_length", 4f);
+            Set(line, "m_curveSegments", 2);
+            Set(line, "m_orientation", new Vector3(0f, 90f, 0f));
+            List<LightweightTransform> knots = Knots(line, new LightweightTransform(Vector3.zero, Quaternion.AngleAxis(90f, Vector3.right)));
+            Assert.That(knots, Has.Count.EqualTo(3));
+            AreClose(new Vector3(2f, 0f, 0f), knots[1].Location, "middle");
+            AreClose(new Vector3(4f, 0f, 0f), knots[2].Location, "end");
+            var expected = new Quaternion(0.5f, 0.5f, 0.5f, 0.5f);
+            SameRotation(expected, knots[1].Orientation, "middle rotation");
+            SameRotation(expected, knots[2].Orientation, "end rotation");
+        }
+
         // Sine 0x6DBB50: angle and distance start at 0 and advance by (m_curveAmplitude,
         // m_curveLength) / segments (divps 0x6DBCDB); GetPosition 0x6DBF90 is
         // GetAxis(distance, sin(angle * Deg2Rad) * m_curveHeight, false). Knots keep the origin rotation.
@@ -261,6 +282,22 @@ namespace ProjectLucid.Tests
                 new LightweightTransform(new Vector3(0f, 5f, 0f), Quaternion.identity));
             Assert.That(continued, Has.Count.EqualTo(3), "the existing knot replaces the start");
             AreClose(new Vector3(-1f, 6f, 1f), continued[1].Location, "continued from the last knot");
+        }
+
+        // Spiral continued from a turned knot R = AngleAxis(90, right): the location is
+        // R * (GetPosition + axis * distance) + offset with offset = -R * (1, 0, 0), so the 90 degree
+        // knot is R * (0, 1, 1) - (1, 0, 0) = (-1, -1, 1). The turn is R * AngleAxis: the product at
+        // 0x6DC580..0x6DC622 has lane x = O.w*A.x + O.x*A.w + O.y*A.z - O.z*A.y, giving
+        // (0.5, 0.5, 0.5, 0.5); the swapped product (0.5, 0.5, -0.5, 0.5) is 120 degrees away.
+        [Test]
+        public void SpiralRotatesItsContinuedPointsAndTurnsByTheOriginRotation()
+        {
+            List<LightweightTransform> knots = Knots(Spiral(SurfacePathGenerator.AxisAlignment.XZ, false),
+                new LightweightTransform(Vector3.zero, Quaternion.AngleAxis(90f, Vector3.right)));
+            Assert.That(knots, Has.Count.EqualTo(3));
+            AreClose(new Vector3(-1f, -1f, 1f), knots[1].Location, "90 degrees, one unit along the turned up");
+            AreClose(new Vector3(-2f, 0f, 2f), knots[2].Location, "180 degrees, two units along the turned up");
+            SameRotation(new Quaternion(0.5f, 0.5f, 0.5f, 0.5f), knots[1].Orientation, "origin rotation, then the turn");
         }
 
         // SurfacePathAnimCurveGenerator.GenerateKnots 0x6DAB30 is an empty body.

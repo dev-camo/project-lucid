@@ -1,11 +1,14 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.WorldMemberAccess;
 
 namespace ProjectLucid.Tests
@@ -13,7 +16,8 @@ namespace ProjectLucid.Tests
     // HardlightProject.SurfaceAnimatedKnot (TypeDef 0x02000a9b, x86-64 0x6D23F0..0x6D2A00) and
     // SurfaceAnimator (0x02000a9d, 0x6D2A10..0x6D2EA0) on owned, inactive GameObjects with a
     // genuine InertSpline behind a Spline facade. The animator's field initializer takes the
-    // typed TimeManager reference, so those cases lease that row; nothing subscribes to it.
+    // typed TimeManager reference, so those cases lease that row; only the subscription case
+    // registers an owned TimeManager into it, and unregisters it before the lease is released.
     public sealed class OriginalSurfaceAnimatorTests
     {
         private sealed class InertFixture : IDisposable
@@ -192,6 +196,24 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The axis comes from the spline's own transform (get_right 0x6D28DB). Turned 90 degrees
+        // about y, its right is (0, 0, -1), so the offset is (0, 0, -1) * Dot((0, 0, 0) - (3, 2, 1),
+        // (0, 0, -1)) = (0, 0, -1) and the spline moves to (0, 0, 1); world right would give (3, 0, 0).
+        [Test]
+        public void AllKnotsTakeTheAxisFromTheSplineTransform()
+        {
+            using (var fixture = new InertFixture(1))
+            {
+                fixture.Facade.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+                fixture.Target.position = new Vector3(3f, 2f, 1f);
+                SurfaceAnimatedKnot knot = fixture.Knot(true, 0, 0);
+                knot.CalculateCachedValues();
+                knot.DoUpdate(0f);
+                AreClose(new Vector3(0f, 0f, 1f), fixture.Facade.transform.position, "moved along the turned right");
+                Assert.That(fixture.KnotsUpdated, Is.EqualTo(1));
+            }
+        }
+
         // The 0.0001 bound is on the squared offset: 0.009 (0.000081) stays, 0.011 (0.000121) moves.
         [TestCase(0.009f, false)]
         [TestCase(0.011f, true)]
@@ -205,6 +227,76 @@ namespace ProjectLucid.Tests
                 knot.DoUpdate(0f);
                 Assert.That(fixture.KnotsUpdated, Is.EqualTo(moves ? 1 : 0));
                 Assert.That(fixture.Facade.transform.position.x, Is.EqualTo(moves ? distance : 0f).Within(1e-6f));
+            }
+        }
+
+        // OnEnable 0x6D2B50 hands <OnEnable>b__9_0 to InvokeOnValid, which runs it at once for a
+        // registered TimeManager; the lambda tail-calls TimeExtensions.Subscribe with m_timeCategory
+        // (edx from this+0x28 at 0x6D2EC9), m_updateOn (ecx from this+0x2c at 0x6D2ECC) and "".
+        // OnDisable 0x6D2BE0 gets the live system and tail-calls TimeExtensions.Unsubscribe with
+        // the same two fields (0x6D2C42..0x6D2C5C). Both fields are set away from their defaults.
+        // The owned TimeManager stays inactive: the Editor's Reset on AddComponent faults on its
+        // null configuration (logged, as the maintained TimeManager verification expects), and
+        // Awake, which needs the shared TimeCategoryConfiguration, never runs, so its three empty
+        // phase dictionaries are added here. The TimeExtensions category lookup is leased.
+        [Test]
+        public void AnimatorSubscribesAndUnsubscribesWithItsOwnCategoryAndPhase()
+        {
+            FieldInfo lookupField = typeof(TimeExtensions).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+            object priorLookup = lookupField.GetValue(null);
+            using (var timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()))
+            using (var objects = new OwnedWorldObjects("lucid-surface-animator-time"))
+            {
+                TimeManager manager = null;
+                bool registered = false;
+                VerificationFixtureOwnership.RunThenCleanUp(() =>
+                {
+                    var environment = objects.Own(ScriptableObject.CreateInstance<TimeCategoryObject>());
+                    var playerMovement = objects.Own(ScriptableObject.CreateInstance<TimeCategoryObject>());
+                    Set(environment, "m_guid", "lucid-surface-animator-environment");
+                    Set(playerMovement, "m_guid", "lucid-surface-animator-player-movement");
+                    var lookup = objects.Own(ScriptableObject.CreateInstance<TimeCategoryLookup>());
+                    lookup.Dictionary.Add(TimeCategory.Environment, environment);
+                    lookup.Dictionary.Add(TimeCategory.PlayerMovement, playerMovement);
+                    lookupField.SetValue(null, lookup);
+
+                    GameObject timeHost = objects.Create("time");
+                    timeHost.SetActive(false);
+                    LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
+                    manager = timeHost.AddComponent<TimeManager>();
+                    var phases = (IDictionary)Get(manager, "m_updateObjects");
+                    Type phaseType = phases.GetType().GetGenericArguments()[1];
+                    foreach (UpdateOn updateOn in new[] { UpdateOn.FixedUpdate, UpdateOn.LateUpdate, UpdateOn.Update })
+                        phases.Add(updateOn, Activator.CreateInstance(phaseType));
+
+                    GameObject host = objects.Create("animator");
+                    host.SetActive(false);
+                    var animator = host.AddComponent<SurfaceAnimator>();
+                    Set(animator, "m_timeCategory", TimeCategory.PlayerMovement);
+                    Set(animator, "m_updateOn", UpdateOn.LateUpdate);
+                    ProcessManager.RegisterSystem(manager);
+                    registered = true;
+
+                    Call(animator, "OnEnable");
+                    var late = (IDictionary)phases[UpdateOn.LateUpdate];
+                    Assert.That(late.Count, Is.EqualTo(1));
+                    Assert.That(late.Contains(playerMovement), Is.True, "the animator's own category");
+                    var subscriptions = (IList)late[playerMovement];
+                    Assert.That(subscriptions.Count, Is.EqualTo(1));
+                    object subscription = subscriptions[0];
+                    Assert.That(Get(subscription, "TimeScaledObject"), Is.SameAs(animator));
+                    Assert.That(Get(subscription, "IsSubscribed"), Is.True);
+                    Assert.That(Get(subscription, "TransformPath"), Is.EqualTo(""));
+                    Assert.That(((IDictionary)phases[UpdateOn.FixedUpdate]).Count, Is.Zero, "not the field's FixedUpdate default");
+                    Assert.That(((IDictionary)phases[UpdateOn.Update]).Count, Is.Zero, "not Subscribe's Update default");
+
+                    Call(animator, "OnDisable");
+                    Assert.That(Get(subscription, "IsSubscribed"), Is.False, "unsubscribed from the same category and phase");
+                    Assert.That(subscriptions.Count, Is.EqualTo(1), "Unsubscribe only marks the entry");
+                },
+                () => { if (registered) ProcessManager.UnregisterSystem(manager); },
+                objects.Dispose,
+                () => lookupField.SetValue(null, priorLookup));
             }
         }
 

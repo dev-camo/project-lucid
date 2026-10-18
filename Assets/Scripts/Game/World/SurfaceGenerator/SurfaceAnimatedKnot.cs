@@ -82,7 +82,8 @@ namespace HardlightProject
         }
 
         // 06003d12 (0x6D28A0): the spline transform moves so that, along the chosen axis, it lines
-        // up with the target. The axis is not normalised and an unordered offset still moves it.
+        // up with the target. An undefined axis value uses Vector3.zero and never moves the
+        // spline; an unordered (NaN) offset still moves it (ucomiss/ja at 0x6D29C5).
         private bool TransformSpline()
         {
             if (!m_isValid)

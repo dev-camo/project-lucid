@@ -31,8 +31,10 @@ namespace HardlightProject
 
         // 06003d52 (0x6D75C0): each grid vertex keeps its local x and z and takes the mean height,
         // along this transform's up, of the nearest points on both splines. The x tracker rewinds
-        // once and the z tracker once per row. Skirt vertices then copy the four edge rows,
-        // lowered by the skirt height in local space.
+        // once and the z tracker once per row. Skirt vertices then copy grid vertices at the
+        // shipped indices z, (strideAxisX + 1) * strideAxisZ + z, x * (strideAxisX + 1) and
+        // strideAxisX + x * (strideAxisX + 1), lowered by the skirt height in local space; the grid
+        // is laid out x * (strideAxisZ + 1) + z, so these are its four edges only for a square grid.
         protected override void ApplyTrackerToMesh()
         {
             float lengthAxisX = m_splineAxisX.GetSpline().Length;

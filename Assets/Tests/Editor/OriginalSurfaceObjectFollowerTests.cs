@@ -293,6 +293,29 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The identity surface above cannot order the reversed product. Its inlined form at
+        // 0x6B652B..0x6B65F3 has lane x = s.w*i.x + s.x*i.w + s.y*i.z - s.z*i.y, with s the surface
+        // rotation ([rbp-0x70]/[rbp-0x60]) and i = m_inverseRotation (this+0x84): surface * inverse.
+        // A surface turned 90 degrees about x gives (0, 0.7071, 0.7071, 0); the swapped product
+        // (0, 0.7071, -0.7071, 0) is 180 degrees away. m_canInvertRotationAngle is cleared so the
+        // update does not flip.
+        [Test]
+        public void ReversedRotationAppliesTheInverseAfterTheSurfaceRotation()
+        {
+            using (var fixture = new Fixture())
+            {
+                float root2 = Mathf.Sqrt(0.5f);
+                fixture.Surface.Location = new SurfaceLocation { m_worldRotation = Quaternion.AngleAxis(90f, Vector3.right) };
+                Set(fixture.Follower, "m_currentTargetTransform", fixture.Target);
+                Set(fixture.Follower, "m_hasTarget", true);
+                Set(fixture.Follower, "m_rotationIsReversed", true);
+                Set(fixture.Follower, "m_canInvertRotationAngle", false);
+                fixture.Update();
+                Assert.That(fixture.Reversed, Is.True);
+                SameRotation(new Quaternion(0f, root2, root2, 0f), fixture.Follower.transform.rotation, "surface * inverse");
+            }
+        }
+
         // The flip compare is ordered: a NaN limit never flips, where !(angle <= limit) would.
         [TestCase(float.NaN, false)]
         [TestCase(179f, true)]
