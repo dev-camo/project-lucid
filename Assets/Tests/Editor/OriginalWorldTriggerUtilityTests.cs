@@ -98,6 +98,15 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // OnValidate 0x060038ed (0x6A6D70) reads m_unityEvent (+0x28) for GetPersistentEventCount with no
+        // null test (0x6a6dd3..0x6a6ddc), and the editor sends OnValidate on AddComponent while the
+        // field is still unassigned, so the original body faults there and Unity logs the exception.
+        private static BoolEventProxy AddProxy(Owned owned, string name)
+        {
+            LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
+            return owned.Host(name, false).AddComponent<BoolEventProxy>();
+        }
+
         // Trigger 0x060038ec (0x6A6D20): setne on m_inverseBool, then xor with value (0x6a6d50)
         // before UnityEvent<bool>.Invoke. The table separates XOR from value, !value, the
         // flag alone, OR and value && !flag.
@@ -109,7 +118,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var proxy = owned.Host("Lucid bool proxy", false).AddComponent<BoolEventProxy>();
+                var proxy = AddProxy(owned, "Lucid bool proxy");
                 var forwarded = new List<bool>();
                 var unityEvent = new UnityEvent<bool>();
                 unityEvent.AddListener(forwarded.Add);
@@ -133,8 +142,8 @@ namespace ProjectLucid.Tests
 
             Owned.Run(owned =>
             {
-                var proxy = owned.Host("Lucid validated bool proxy", false).AddComponent<BoolEventProxy>();
-                var other = owned.Host("Lucid other bool proxy", false).AddComponent<BoolEventProxy>();
+                var proxy = AddProxy(owned, "Lucid validated bool proxy");
+                var other = AddProxy(owned, "Lucid other bool proxy");
                 var unityEvent = new UnityEvent<bool>();
                 Set(proxy, "m_unityEvent", unityEvent);
                 using (var capture = new OwnedHLOutputErrorCapture())
