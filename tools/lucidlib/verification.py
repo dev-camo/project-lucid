@@ -3895,7 +3895,7 @@ EDITMODE_TESTS += (
 )
 
 # Original managed declaration contracts restored for issue #295.
-EDITMODE_TESTS += tuple("OriginalManagedDeclarationContractsTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalManagedDeclarationContractsTests." + name for name in (
     "NestedTypesKeepOriginalVisibilityAndSerializableFlags",
     "OutroSequenceDreamOrbBeginStaysPrivate",
     "SaveDataSettingsKeepsReadOnlyEditableListAndBeforeFieldInit",
