@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -18,11 +17,12 @@ namespace ProjectLucid.Tests
     // LineRendererContainer, CanvasShaderModifier, ShaderProperties,
     // PFXQualitySwitcher, BlobShadowModifier, AssignAddressableTexture and
     // InstancedObjectSpawner. Every case owns and destroys its objects; the
-    // FlashRenderers instance is raw because a real TimeScaledComponent's
-    // editor Reset/OnValidate reaches SystemConfiguration, and only its own
-    // fields are read here. AssignAddressableTexture.OnEnable needs the
-    // AddressableManager and is not exercised; LerpColour's restart on an
-    // active host is in OriginalLerpColourPlayTests.
+    // FlashRenderers instance is added with an owned empty time-category lookup
+    // in place because a real TimeScaledComponent's editor Reset/OnValidate
+    // reaches SystemConfiguration, and only its own fields are read here.
+    // AssignAddressableTexture.OnEnable needs the AddressableManager and is not
+    // exercised; LerpColour's restart on an active host is in
+    // OriginalLerpColourPlayTests.
     [TestFixture]
     public sealed class OriginalFxComponentBehaviourTests
     {
@@ -44,6 +44,26 @@ namespace ProjectLucid.Tests
             {
                 objects.Add(value);
                 return value;
+            }
+
+            // AddComponent sends the editor Reset/OnValidate, which read the TimeScaledComponent_SDT
+            // s_config lookup and would register the SystemConfiguration row; an owned empty lookup
+            // stands in while the component is added and the prior value is put back.
+            public T AddTimeScaled<T>(string name) where T : Component
+            {
+                FieldInfo config = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+                object prior = config.GetValue(null);
+                TimeCategoryLookup lookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
+                config.SetValue(null, lookup);
+                try
+                {
+                    return Inactive(name).AddComponent<T>();
+                }
+                finally
+                {
+                    config.SetValue(null, prior);
+                    Object.DestroyImmediate(lookup);
+                }
             }
 
             public void Dispose()
@@ -69,9 +89,9 @@ namespace ProjectLucid.Tests
 
         // ---- FlashRenderers ----
 
-        static FlashRenderers RawFlash(Renderer[] renderers, float initialDelay, float interval, float next)
+        static FlashRenderers NewFlash(Owned owned, Renderer[] renderers, float initialDelay, float interval, float next)
         {
-            var flash = (FlashRenderers)FormatterServices.GetUninitializedObject(typeof(FlashRenderers));
+            FlashRenderers flash = owned.AddTimeScaled<FlashRenderers>("Lucid owned flash renderers");
             Set(flash, "m_renderers", renderers);
             Set(flash, "m_initialDelay", initialDelay);
             Set(flash, "m_flashInterval", interval);
@@ -94,7 +114,7 @@ namespace ProjectLucid.Tests
                 Renderer on = owned.Inactive("Lucid owned flash a").AddComponent<MeshRenderer>();
                 Renderer off = owned.Inactive("Lucid owned flash b").AddComponent<MeshRenderer>();
                 off.enabled = false;
-                FlashRenderers flash = RawFlash(new[] { on, off }, 1f, 0.5f, 1.5f);
+                FlashRenderers flash = NewFlash(owned, new[] { on, off }, 1f, 0.5f, 1.5f);
 
                 Update(flash, 1f);
                 Assert.That((on.enabled, off.enabled), Is.EqualTo((true, false)), "1.0 < next 1.5");
@@ -109,7 +129,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get(flash, "m_nextFlashIntervalSeconds"), Is.EqualTo(2.5f));
 
                 // The initial delay is its own gate: next = 0 does not flash before it.
-                FlashRenderers delayed = RawFlash(new[] { on }, 5f, 1f, 0f);
+                FlashRenderers delayed = NewFlash(owned, new[] { on }, 5f, 1f, 0f);
                 Update(delayed, 4f);
                 Assert.That(on.enabled, Is.True);
                 Assert.That(Get(delayed, "m_nextFlashIntervalSeconds"), Is.EqualTo(0f));
@@ -127,7 +147,7 @@ namespace ProjectLucid.Tests
             using (var owned = new Owned())
             {
                 Renderer renderer = owned.Inactive("Lucid owned flash nan").AddComponent<MeshRenderer>();
-                FlashRenderers flash = RawFlash(new[] { renderer }, 1f, 0.5f, 1.5f);
+                FlashRenderers flash = NewFlash(owned, new[] { renderer }, 1f, 0.5f, 1.5f);
                 Update(flash, float.NaN);
                 Assert.That(renderer.enabled, Is.False);
                 Assert.That(Get(flash, "m_nextFlashIntervalSeconds"), Is.EqualTo(2f));
@@ -143,25 +163,28 @@ namespace ProjectLucid.Tests
                 Renderer a = owned.Inactive("Lucid owned enable a").AddComponent<MeshRenderer>();
                 Renderer b = owned.Inactive("Lucid owned enable b").AddComponent<MeshRenderer>();
                 b.enabled = false;
-                RawFlash(new[] { a, b }, 0f, 0f, 0f).Action_EnableAllRenderers();
+                NewFlash(owned, new[] { a, b }, 0f, 0f, 0f).Action_EnableAllRenderers();
                 Assert.That((a.enabled, b.enabled), Is.EqualTo((true, true)));
             }
         }
 
         // OnEnable 0x6b0a20 calls TimeScaledComponent.OnEnable first, then
-        // timer = 0 and next = m_flashInterval + m_initialDelay. A raw instance
+        // timer = 0 and next = m_flashInterval + m_initialDelay. An instance
         // with m_ignoreEnable set makes the base clear the flag and return
         // before it reaches the time manager, so the flag shows the base ran.
         [Test]
         public void FlashRenderersOnEnableRunsTheBaseAndSchedulesDelayPlusInterval()
         {
-            FlashRenderers flash = RawFlash(Array.Empty<Renderer>(), 1f, 0.5f, 99f);
-            Set(flash, "m_timerSeconds", 7f);
-            Set(flash, "m_ignoreEnable", true);
-            Call(flash, "OnEnable");
-            Assert.That(Get(flash, "m_ignoreEnable"), Is.False, "the base OnEnable ran");
-            Assert.That(Get(flash, "m_timerSeconds"), Is.EqualTo(0f));
-            Assert.That(Get(flash, "m_nextFlashIntervalSeconds"), Is.EqualTo(1.5f), "neither the delay nor the interval alone");
+            using (var owned = new Owned())
+            {
+                FlashRenderers flash = NewFlash(owned, Array.Empty<Renderer>(), 1f, 0.5f, 99f);
+                Set(flash, "m_timerSeconds", 7f);
+                Set(flash, "m_ignoreEnable", true);
+                Call(flash, "OnEnable");
+                Assert.That(Get(flash, "m_ignoreEnable"), Is.False, "the base OnEnable ran");
+                Assert.That(Get(flash, "m_timerSeconds"), Is.EqualTo(0f));
+                Assert.That(Get(flash, "m_nextFlashIntervalSeconds"), Is.EqualTo(1.5f), "neither the delay nor the interval alone");
+            }
         }
 
         // ---- MaterialPropertyBlockSetter ----
@@ -449,19 +472,24 @@ namespace ProjectLucid.Tests
         // Action_Show/HideBlobShadow (0x6a6c00/0x6a6c50) read the manager's
         // m_currentCharacter (+0x38, GetCurrentCharacterUnsafe) with no
         // validity check and call ToggleBlobShadow(true/false). The manager
-        // and character are raw: only these two fields are read.
+        // and character are real (the manager built by its constructor through
+        // OwnedCharacterManagers, the character added to an inactive host): only
+        // these two fields are read.
         [Test]
         public void BlobShadowModifierTogglesTheCurrentCharactersShadow()
         {
+            using (var characters = new OwnedCharacterManagers())
             using (var owned = new Owned())
             {
-                var manager = (CharacterManager)FormatterServices.GetUninitializedObject(typeof(CharacterManager));
-                var character = (Character)FormatterServices.GetUninitializedObject(typeof(Character));
-                GameObject shadow = owned.Inactive("Lucid owned blob shadow");
-                Set(character, "m_blobShadowObject", shadow);
+                CharacterManager manager = characters.NewManager();
+                // Character's field initialiser takes the GameplayIslandManager reference.
+                var islandRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<GameplayIslandManager>());
                 VerificationFixtureOwnership.RegistryRow row = null;
                 VerificationFixtureOwnership.RunThenCleanUp(() =>
                 {
+                    var character = owned.Inactive("Lucid owned blob character").AddComponent<Character>();
+                    GameObject shadow = owned.Inactive("Lucid owned blob shadow");
+                    Set(character, "m_blobShadowObject", shadow);
                     row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<CharacterManager>());
                     row.Register(manager);
                     var modifier = owned.Inactive("Lucid owned blob modifier").AddComponent<BlobShadowModifier>();
@@ -475,7 +503,7 @@ namespace ProjectLucid.Tests
 
                     Set(manager, "m_currentCharacter", null);
                     Assert.Throws<NullReferenceException>(modifier.Action_ShowBlobShadow, "no current-character guard");
-                }, owned.Dispose, () => row?.Dispose());
+                }, owned.Dispose, () => row?.Dispose(), islandRow.Dispose);
             }
         }
 

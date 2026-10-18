@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -14,9 +13,9 @@ namespace ProjectLucid.Tests
 {
     // Behaviour of FullscreenShaderEffectTrigger (0x060029bb..c3) and
     // FullscreenShaderUIBlur (0x060035ea..ec) against the shipped x86-64
-    // bodies. The manager is a raw FullscreenShaderManager carrying only the
-    // collections these paths read: a real one is a TimeScaledComponent whose
-    // editor Reset/OnValidate would reach SystemConfiguration. Each case owns
+    // bodies. The manager is a real FullscreenShaderManager on an inactive host, added
+    // with an owned empty time-category lookup in place because its editor
+    // Reset/OnValidate would otherwise reach SystemConfiguration. Each case owns
     // the manager's registry row and its GameObjects.
     [TestFixture]
     public sealed class OriginalFullscreenShaderComponentsTests
@@ -39,23 +38,44 @@ namespace ProjectLucid.Tests
 
         sealed class Rig
         {
-            public readonly FullscreenShaderManager Manager = (FullscreenShaderManager)FormatterServices.GetUninitializedObject(typeof(FullscreenShaderManager));
-            public readonly List<FullscreenShaderManager.ActiveParameters> Active = new List<FullscreenShaderManager.ActiveParameters>();
-            public readonly Dictionary<FullscreenShaderManager.ActiveParameters, int> Ids = new Dictionary<FullscreenShaderManager.ActiveParameters, int>();
-            public readonly StackableData Requests = new StackableData();
+            public readonly List<GameObject> Owned = new List<GameObject>();
+            public readonly FullscreenShaderManager Manager;
+            public readonly List<FullscreenShaderManager.ActiveParameters> Active;
+            public readonly Dictionary<FullscreenShaderManager.ActiveParameters, int> Ids;
+            public readonly StackableData Requests;
             public readonly ObjectPool<FullscreenShaderManager.ActiveParameters> Pool =
                 new ObjectPool<FullscreenShaderManager.ActiveParameters>(() => new FullscreenShaderManager.ActiveParameters());
-            public readonly List<GameObject> Owned = new List<GameObject>();
 
+            // A real manager on an inactive host (Awake does not run, so it registers nothing and its
+            // renderer features and pool are not built). Its own collections are read back; only the
+            // pool, which Awake would build, and the DataManager it would be handed are supplied.
             public Rig()
             {
-                Set(Manager, "m_activeParameters", Active);
-                Set(Manager, "m_activeParametersIDs", Ids);
-                Set(Manager, "m_fullscreenEffectRequests", Requests);
+                Manager = AddTimeScaled<FullscreenShaderManager>("Lucid owned fullscreen shader manager");
+                Active = (List<FullscreenShaderManager.ActiveParameters>)Get(Manager, "m_activeParameters");
+                Ids = (Dictionary<FullscreenShaderManager.ActiveParameters, int>)Get(Manager, "m_activeParametersIDs");
+                Requests = (StackableData)Get(Manager, "m_fullscreenEffectRequests");
                 Set(Manager, "m_activeParametersPool", Pool);
-                var data = (DataManager)FormatterServices.GetUninitializedObject(typeof(DataManager));
-                data.FullscreenShaderParametersDefinitions = new Dictionary<FullscreenShaderParametersType, FullscreenShaderParametersDefinition>();
-                Set(Manager, "m_dataManager", data);
+                Set(Manager, "m_dataManager", Add<DataManager>("Lucid owned data manager"));
+            }
+
+            // AddComponent sends the editor Reset/OnValidate, which read the s_config lookup and would
+            // register the SystemConfiguration row; an owned empty lookup stands in and is put back.
+            T AddTimeScaled<T>(string name) where T : Component
+            {
+                FieldInfo config = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+                object prior = config.GetValue(null);
+                var lookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
+                config.SetValue(null, lookup);
+                try
+                {
+                    return Add<T>(name);
+                }
+                finally
+                {
+                    config.SetValue(null, prior);
+                    Object.DestroyImmediate(lookup);
+                }
             }
 
             public T Add<T>(string name) where T : Component
