@@ -4246,3 +4246,28 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalLogicMathNodeTests." + name 
     "ProgressWithAStartTimeClampsOnlyAtTheEnd",
     "ProgressWithoutAStartTimeReportsOnlyFinishedOrNot",
 ))
+
+# Restored HLSplines.Runtime metadata value types, MetadataFixedGroup, MetadataTestMonoBehaviour,
+# SplineEditorDefinition, StandaloneAutoProfiler, SplineVisualisation and RibbonVisualisation.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSplineMetadataTests." + name for name in (
+    "ConstructorsKeepTheBaseLabelAndResetStoresEachShippedLabel",
+    "DefaultsAreFormattedFromEachOwnDefaultField",
+    "ConstantSelectsAUnlessTReachesOneOrIsNaN",
+    "FloatLinearIsAClampedLerpOfTheParsedValues",
+    "ObjectTypesCopyOnlyAsStringAndNullReturnsA",
+    "FixedGroupExposesItsOwnDataListToTheGroupQueries",
+    "MetadataTestBehaviourAllocatesEveryContainer",
+    "SplineDefinitionDefaultsQualityPickAndDisabledRendering",
+    "EnabledShouldRenderPicksByCameraDistanceAndRenderQuality",
+    "DefaultTakesTheFirstAssetLeftAfterRemovingTheDefaultNamedMatch",
+    "StandaloneProfilerReportsTotalsIncludingInactiveSurfaces",
+    "SplineMeshIsAFixedWidthStripWithChordLengthV",
+    "RibbonMeshHangsSideQuadsOffTheCentreLine",
+    "RibbonMeshUTakesEachSideDistanceFromItsOwnPair",
+    "VisualisationsAllocateListsAndResetToTheRequiredComponent",
+    "SplineTypeChangeMovesSubscriptionsAndStartsGeneration",
+    "RibbonTypeChangeMovesSubscriptionsAndStartsGeneration",
+    "SplineTypeChangeLeaksTheOldEditableAndStacksSubscriptions",
+    "RibbonTypeChangeLeaksTheOldEditableAndStacksSubscriptions",
+    "StoreMeshClearsAPassedScheduleOnlyWithAnEditableSurface",
+))
