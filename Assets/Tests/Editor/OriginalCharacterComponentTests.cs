@@ -40,8 +40,8 @@ namespace ProjectLucid.Tests
     // - CharacterSplineAttachTrigger.DoTriggerEnter non-legacy branch (0x5CAD58).
     public sealed class OriginalCharacterComponentTests
     {
-        // CharacterTrigger requires a Collider, so AddComponent fails (returns null) on a bare host.
-        private static GameObject NewTriggerHost(Owned owned, string name)
+        // CharacterTrigger and ColliderData require a Collider, so AddComponent fails (returns null) on a bare host.
+        private static GameObject NewColliderHost(Owned owned, string name)
         {
             GameObject host = owned.Host(name, false);
             host.AddComponent<BoxCollider>();
@@ -183,7 +183,7 @@ namespace ProjectLucid.Tests
         {
             WithCharacter((owned, character, storage) =>
             {
-                var trigger = NewTriggerHost(owned, "Lucid jump tracker").AddComponent<CharacterJumpTrackerTrigger>();
+                var trigger = NewColliderHost(owned, "Lucid jump tracker").AddComponent<CharacterJumpTrackerTrigger>();
                 Assert.That(Get<Character>(trigger, "m_character"), Is.Null);
 
                 Call(trigger, "DoTriggerEnter", character);
@@ -203,7 +203,7 @@ namespace ProjectLucid.Tests
         {
             WithCharacter((owned, character, storage) =>
             {
-                var trigger = NewTriggerHost(owned, "Lucid jump tracker guard").AddComponent<CharacterJumpTrackerTrigger>();
+                var trigger = NewColliderHost(owned, "Lucid jump tracker guard").AddComponent<CharacterJumpTrackerTrigger>();
 
                 Call(trigger, "FixedUpdate");
                 Assert.That(Get<bool>(trigger, "m_hasStartedJump"), Is.False, "no character");
@@ -300,7 +300,7 @@ namespace ProjectLucid.Tests
             {
                 Set(footsteps, "m_terrainEffectsMetadataKeyLookup",
                     owned.Track(ScriptableObject.CreateInstance<TerrainEffectsMetadataKeyLookupDefinition>()));
-                var surface = owned.Host("Lucid footsteps surface", false).AddComponent<CharacterCollisionData>();
+                var surface = NewColliderHost(owned, "Lucid footsteps surface").AddComponent<CharacterCollisionData>();
                 var tracked = Get<System.Collections.Generic.HashSet<CharacterCollisionData>>(footsteps, "m_activeSurfaces");
                 Assert.That(surface.HasEffects, Is.False);
 
@@ -328,7 +328,7 @@ namespace ProjectLucid.Tests
         // A surface whose effect metadata holds one TerrainEffectType row (or none) under the key.
         private static CharacterCollisionData NewEffectSurface(Owned owned, MetadataKeyType key, string effect)
         {
-            var surface = owned.Host("Lucid footsteps effect surface", false).AddComponent<CharacterCollisionData>();
+            var surface = NewColliderHost(owned, "Lucid footsteps effect surface").AddComponent<CharacterCollisionData>();
             var group = owned.Track(ScriptableObject.CreateInstance<MetadataFixedGroup>());
             if (effect != null)
                 Get<System.Collections.Generic.List<MetadataFixed>>(Get<object>(group, "m_data"), "m_metadata")
@@ -468,7 +468,7 @@ namespace ProjectLucid.Tests
         private static SplineFixture NewSplineTrigger(Owned owned, Vector3 position, bool withSpline)
         {
             var fixture = new SplineFixture();
-            GameObject host = NewTriggerHost(owned, "Lucid spline attach");
+            GameObject host = NewColliderHost(owned, "Lucid spline attach");
             host.transform.position = position;
             fixture.Trigger = host.AddComponent<CharacterSplineAttachTriggerProbe>();
             if (withSpline)
