@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
-using System.Runtime.Serialization;
 using Hardlight;
 using Hardlight.Utils;
 using HardlightProject;
@@ -155,8 +154,8 @@ namespace ProjectLucid.Tests
         public void Own(Object value) => m_objects.Add(value);
 
         // A TimeManager whose PlayerMovement timescale is 1, so GetDeltaTime is
-        // Time.deltaTime. It is uninitialised (no Awake or Reset, which need
-        // the shared TimeCategoryConfiguration) and never registered; the
+        // Time.deltaTime. It is a real component on an inactive host (no Awake or
+        // Reset, which need the shared TimeCategoryConfiguration) and never registered; the
         // TimeExtensions category lookup it is read through is leased.
         public TimeManager PlayerMovementTime()
         {
@@ -171,10 +170,9 @@ namespace ProjectLucid.Tests
             lookupField.SetValue(null, lookup);
             var setting = new TimeSetting();
             setting.SetCategory(category, 1f);
-            var settings = new StackableData();
+            TimeManager manager = Add<TimeManager>();
+            var settings = (StackableData)Get(manager, "m_timeSettings");
             settings.SetBaseValue((int)typeof(TimeManager).GetField("SettingId", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue(), setting);
-            var manager = (TimeManager)FormatterServices.GetUninitializedObject(typeof(TimeManager));
-            Set(manager, "m_timeSettings", settings);
             return manager;
         }
 
