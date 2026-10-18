@@ -249,6 +249,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // FilterCollision reads the cached SystemRef's system directly (0x5CED60: test rdi,rdi; je 0x5cee2d) and
+        // returns false when it is null, without resolving or reporting anything.
+        [Test]
+        public void TypeCollisionWithoutAManagerMatchesNothingAndReportsNothing()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<GameplayIslandManager>();
+                owned.LeaseRow<CharacterManager>();
+                var trigger = Add<CharacterTypeCollisionTrigger>(owned, "Lucid type collision");
+                Set(trigger, "m_anyCharacter", true);
+                Collider collider = owned.Host("Lucid other collider", false).AddComponent<BoxCollider>();
+
+                Assert.That(Call(trigger, "FilterCollision", collider), Is.False);
+                UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
+            });
+        }
+
         // DoEvaluate 0x5CD890 forwards its character, the check type (+0x24) and the conditions (+0x28) to
         // CharacterConditionalTriggerEvent.EvaluateConditions (0x5CD8B0) and nothing else. Nested conditions combine
         // by their own check types; the invert flag of TriggerCondition still applies to the whole.
@@ -404,6 +422,7 @@ namespace ProjectLucid.Tests
                 trigger.Trigger();
                 Assert.That(GetAbility(trigger), Is.Null);
                 Assert.That(chaos.Active, Is.False, "no ability");
+                Assert.That(Get<bool>(character, "m_retainImpulses"), Is.False, "the ability test comes before the retain call (0x76f337)");
 
                 SetAbility(trigger, ability);
                 SetCurrent(manager, character, false);
@@ -411,6 +430,7 @@ namespace ProjectLucid.Tests
                 Assert.That(ability.Recharges, Is.Empty, "no valid character");
                 Assert.That(chaos.Active, Is.False);
                 Assert.That(chaos.Stamina, Is.EqualTo(1f));
+                Assert.That(Get<bool>(character, "m_retainImpulses"), Is.False, "no character: nothing is retained");
             });
         }
 
@@ -427,7 +447,9 @@ namespace ProjectLucid.Tests
                 var trigger = NewChaosTrigger(owned, true);
                 SetAbility(trigger, ability);
 
+                Assert.That(Get<bool>(character, "m_retainImpulses"), Is.False);
                 trigger.Trigger();
+                Assert.That(Get<bool>(character, "m_retainImpulses"), Is.True, "RetainCurrentImpulses on the current character");
                 Assert.That(chaos.Active, Is.True);
                 Assert.That(chaos.Stamina, Is.EqualTo(0.75f), "the definition's activation cost was spent");
                 Assert.That(Get<bool>(chaos, "m_overrideImpulse"), Is.True, "the impulse is overridden");
@@ -460,6 +482,44 @@ namespace ProjectLucid.Tests
 
                 Call(trigger, "OnDestroy");
                 Assert.That(HandlerNames(Get<Delegate>(manager, "m_onCharacterChange")), Does.Not.Contain("OnCharacterChange"));
+            });
+        }
+
+        // Start 0xE69CB0 passes invokeImmediatelyIfValid = 1 (mov edx,1 at 0xe69d33): with a valid current character the
+        // handler runs inside the registration, so the trigger already holds that character's ability.
+        [Test]
+        public void StartWithAValidCharacterStoresItsAbilityAtOnce()
+        {
+            InitialiseCollectable();
+            WithStaminas((owned, manager, character, boost, chaos) =>
+            {
+                var trigger = NewChaosTrigger(owned, false);
+                trigger.gameObject.AddComponent<Collectable>();
+                ChaosAbilityDouble ability = NewChaosAbility(owned, 0.25f);
+                Get<Dictionary<ActorAbilityType, ActorAbility>>(character, "m_abilities").Add(ActorAbilityType.Boss_AttackArea, ability);
+                Assert.That(GetAbility(trigger), Is.Null);
+
+                Call(trigger, "Start");
+                Assert.That(GetAbility(trigger), Is.SameAs(ability), "the handler ran during the registration");
+
+                Call(trigger, "OnDestroy");
+            });
+        }
+
+        // OnDestroy 0xE69D50 tests the cached reference with SystemRef.IsNull (0xe69da3) and returns (0xe69dac) before
+        // reading it: with no manager registered nothing is resolved, so nothing is reported.
+        [Test]
+        public void DestroyWithoutAManagerReleasesNothingAndReportsNothing()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<GameplayIslandManager>();
+                owned.LeaseRow<CharacterManager>();
+                var trigger = Add<CharacterChaosStaminaTrigger>(owned, "Lucid chaos stamina trigger");
+                Call(trigger, "Awake");
+
+                Assert.DoesNotThrow(() => Call(trigger, "OnDestroy"));
+                UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
             });
         }
 

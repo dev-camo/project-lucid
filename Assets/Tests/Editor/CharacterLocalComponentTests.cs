@@ -334,10 +334,9 @@ namespace ProjectLucid.Tests
 
         // OnLevelManagerValid 0x6E65D0 stores the level manager (+0x30, write barrier 0x6e6637) and registers
         // OnCharacterManagerValid with the CharacterManager reference, which a registered manager answers at once;
-        // OnCharacterManagerValid 0x6E66C0 stores the manager (+0x38) and teleports only when m_triggerOnAwake
-        // (+0x28) is set.
+        // the awake gate of the teleport is covered by the next case.
         [Test]
-        public void ManagerCallbacksStoreTheManagersAndTeleportOnlyWhenAsked()
+        public void LevelManagerCallbackStoresTheManagersItIsGiven()
         {
             WithManager((owned, manager, character) =>
             {
@@ -479,6 +478,29 @@ namespace ProjectLucid.Tests
                 SetActorProperty(character, "WorldPosition", new Vector3(0f, 30f, -20f));
                 teleport.DoTeleport();
                 Assert.That(character.WorldPosition, Is.EqualTo(new Vector3(0f, 30f, -20f)), "a miss leaves the character");
+            });
+        }
+
+        // The direction is WorldRotation * m_localDirection (Quaternion.op_Multiply, 0x5cc3e9, rotation first).
+        // Turned 90 degrees about y the character at (-20,0,0) casts towards +x: the far point is (20,0,0) and the
+        // cast back meets the box's +x face at x = 5. Ignoring the rotation would cast along +z from x = -20, past
+        // the box, and leave the character where it is.
+        [Test]
+        public void DoTeleportCastsAlongTheCharactersRotatedDirection()
+        {
+            WithManager((owned, manager, character) =>
+            {
+                CharacterTriggerSurfaceTeleport teleport = NewSurfaceTeleport(owned, new Vector3(10f, 10f, 10f), out BoxCollider box);
+                Call(teleport, "Reset");
+                Set(teleport, "m_rayDistance", 40f);
+                Set(teleport, "m_colliderActive", true);
+                SetActorProperty(character, "FixedUpdateActive", true);
+                SetActorProperty(character, "WorldRotation", Quaternion.Euler(0f, 90f, 0f));
+                SetActorProperty(character, "WorldPosition", new Vector3(-20f, 0f, 0f));
+                SetCurrent(manager, character, true);
+
+                teleport.DoTeleport();
+                Assert.That(Vector3.Distance(character.WorldPosition, new Vector3(5f, 0f, 0f)), Is.LessThan(1e-3f));
             });
         }
     }

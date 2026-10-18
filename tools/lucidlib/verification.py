@@ -5266,6 +5266,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterStaminaTriggerTests." + nam
     "ChaosTriggerActivatesTheChaosStaminaWithTheBurstDefinitionAndNotifiesTheAbility",
     "StartRegistersTheCharacterChangeHandlerAndDestroyReleasesIt",
     "CharacterChangeStoresTheCharactersAbilityOfTheTriggersTypeAsT",
+    "StartWithAValidCharacterStoresItsAbilityAtOnce",
+    "DestroyWithoutAManagerReleasesNothingAndReportsNothing",
+    "TypeCollisionWithoutAManagerMatchesNothingAndReportsNothing",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterLocalComponentTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsMethodsAndAttributes",
@@ -5275,11 +5278,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterLocalComponentTests." + nam
     "TriggerCallbacksForwardToTheAbilityAndAddOrRemoveTheEnabledTargets",
     "TheUiActionsToggleTheCurrentCharactersUi",
     "TheVisualProxyActionsToggleTheCurrentCharactersRenderersAndProxy",
-    "ManagerCallbacksStoreTheManagersAndTeleportOnlyWhenAsked",
+    "LevelManagerCallbackStoresTheManagersItIsGiven",
     "TeleportStopsWithoutACurrentLevelAndAwakeTriggersIt",
     "ResetAndValidateDeriveTheColliderAndTheRayDistance",
     "ThePlayersColliderEntersAndLeavesTheTeleport",
     "DoTeleportMovesTheCharacterToTheFarSurfaceAlongItsDirection",
+    "DoTeleportCastsAlongTheCharactersRotatedDirection",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterDirectionInfluencerTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsMethodsAndAttributes",
