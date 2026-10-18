@@ -61,8 +61,9 @@ namespace HardlightProject
 		{
 			foreach (Renderer renderer in m_onAnimThresholdMet)
 			{
-				if (renderer != null)
-					renderer.enabled = thresholdMet;
+				if (renderer == null)
+					continue;
+				renderer.enabled = thresholdMet;
 			}
 			if (m_onAnimThresholdNotMet != null)
 			{

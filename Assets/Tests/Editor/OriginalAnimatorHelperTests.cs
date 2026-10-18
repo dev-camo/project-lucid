@@ -413,8 +413,10 @@ namespace ProjectLucid.Tests
                 setter.OnStateEnter(fixture.Animator, default, 0);
                 Assert.That(probe.Calls, Is.EqualTo(new[] { "SetAttackAnimStarted" }));
 
-                fixture.Abilities[fixture.Definition.AbilityType] = new OnlyTriggerable();
+                var triggerable = new OnlyTriggerable();
+                fixture.Abilities[fixture.Definition.AbilityType] = triggerable;
                 Assert.DoesNotThrow(() => setter.OnStateEnter(fixture.Animator, default, 0), "an ability that is not offensive is skipped");
+                Assert.That(triggerable.Calls, Is.Zero, "the skipped ability is not signalled through its other interface");
 
                 Set(setter, "m_setAttackOnEnter", false);
                 setter.OnStateEnter(fixture.OtherAnimator, default, 0);
@@ -480,8 +482,10 @@ namespace ProjectLucid.Tests
                 setter.OnStateExit(fixture.OtherAnimator, default, 0);
                 Assert.That(probe.Calls, Is.EqualTo(new[] { "SetAttackWindingUp", "SetAttackWoundUp" }));
 
-                fixture.Abilities[fixture.Definition.AbilityType] = new OnlyTriggerable();
+                var triggerable = new OnlyTriggerable();
+                fixture.Abilities[fixture.Definition.AbilityType] = triggerable;
                 Assert.DoesNotThrow(() => setter.OnStateExit(fixture.Animator, default, 0), "an ability that is not offensive is skipped");
+                Assert.That(triggerable.Calls, Is.Zero, "the skipped ability is not signalled through its other interface");
             });
         }
 
@@ -942,7 +946,11 @@ namespace ProjectLucid.Tests
 
                 child.SetActive(false);
                 Set(sampler, "m_sampleFrame", 0.1f);
-                Assert.DoesNotThrow(() => Call(sampler, "OnValidate"), "an inactive Animator is not sampled");
+                // Play and Update on an inactive Animator are no-ops in edit mode, so the
+                // activeInHierarchy guard has no observable effect here; this checks only that
+                // validation does not throw and leaves the earlier pose in place.
+                Assert.DoesNotThrow(() => Call(sampler, "OnValidate"), "validating with an inactive Animator does not throw");
+                Assert.That(child.transform.localPosition.x, Is.EqualTo(5f).Within(1e-4f), "the earlier pose is kept");
 
                 Set(sampler, "m_animator", null);
                 Call(sampler, "OnValidate");
@@ -1163,7 +1171,10 @@ namespace ProjectLucid.Tests
         // AnimParameterHash is 0 (0x52f4f5) or whose MaterialProperty is empty (0x52f501),
         // reads GetFloat(hash) (0x52f517) and, for m_targetMaterialIndex >= 0 (jns, 0x52f52b),
         // writes only m_materials[index]; a negative index writes every listed material
-        // (0x52f58d). An empty parameter name hashes to 0, so its pair is skipped.
+        // (0x52f58d). An empty parameter name hashes to 0, so its pair is skipped. Both
+        // skipped pairs target _Fade, which starts at a sentinel: the zero-hash pair would
+        // write GetFloat(0) = 0, and the empty-property pair is given _Fade's ID by hand so
+        // that dropping the IsNullOrEmpty test would write 0.5 there.
         [Test]
         public void MaterialPropertyDrivesTheIndexedMaterialOrEveryMaterial()
         {
@@ -1180,8 +1191,12 @@ namespace ProjectLucid.Tests
                     controller.AddParameter("Fade", AnimatorControllerParameterType.Float);
                 });
                 var data = owned.Add(ScriptableObject.CreateInstance<AnimatorToMaterialPropertyData>());
-                Set(data, "m_parametersToProperties", new[] { Pair("Glow", "_Glow"), Pair("", "_Fade"), Pair("Fade", "") });
+                AnimatorToMaterialPropertyData.ParameterToPropertyPair noProperty = Pair("Fade", "");
+                Set(data, "m_parametersToProperties", new[] { Pair("Glow", "_Glow"), Pair("", "_Fade"), noProperty });
                 data.UpdateCachedValues();
+                Set(noProperty, "m_materialPropertyHash", Shader.PropertyToID("_Fade"));
+                first.SetFloat("_Fade", 0.9f);
+                second.SetFloat("_Fade", 0.9f);
                 var driver = root.AddComponent<AnimatorToMaterialProperty>();
                 Assert.That(Get(driver, "m_targetMaterialIndex"), Is.EqualTo(-1));
                 Assert.That(((List<Material>)Get(driver, "m_materials")).Capacity, Is.EqualTo(1), "new List<Material>(1)");
@@ -1195,14 +1210,15 @@ namespace ProjectLucid.Tests
                 Call(driver, "LateUpdate");
                 Assert.That(second.GetFloat("_Glow"), Is.EqualTo(0.75f));
                 Assert.That(first.GetFloat("_Glow"), Is.EqualTo(0f), "only the indexed material is written");
-                Assert.That(second.GetFloat("_Fade"), Is.EqualTo(0f), "pairs with a zero hash or no property are skipped");
+                Assert.That(second.GetFloat("_Fade"), Is.EqualTo(0.9f), "pairs with a zero hash or no property are skipped");
 
                 animator.SetFloat("Glow", 0.25f);
                 Set(driver, "m_targetMaterialIndex", -1);
                 Call(driver, "LateUpdate");
                 Assert.That(first.GetFloat("_Glow"), Is.EqualTo(0.25f));
                 Assert.That(second.GetFloat("_Glow"), Is.EqualTo(0.25f), "a negative index writes every material");
-                Assert.That(first.GetFloat("_Fade"), Is.EqualTo(0f));
+                Assert.That(first.GetFloat("_Fade"), Is.EqualTo(0.9f));
+                Assert.That(second.GetFloat("_Fade"), Is.EqualTo(0.9f));
             }
             LogAssert.NoUnexpectedReceived();
         }
