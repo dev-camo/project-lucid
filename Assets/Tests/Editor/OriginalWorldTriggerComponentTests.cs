@@ -235,7 +235,10 @@ namespace ProjectLucid.Tests
                 var triangle = owned.Track(new Mesh { vertices = new[] { Vector3.zero, Vector3.right, Vector3.up }, triangles = new[] { 0, 1, 2 } });
                 GameObject empty = owned.Host("Lucid merge empty");
                 Call(empty.AddComponent<MergeColliders>(), "Awake");
-                Assert.That((empty.GetComponent<MeshFilter>(), empty.GetComponent<MeshCollider>()), Is.EqualTo(((MeshFilter)null, (MeshCollider)null)));
+                // Unity's overloaded == treats the editor's missing-component placeholder as null; the tuple's
+                // default equality does not (it printed "(null, null)" against a real-null "(, )").
+                Assert.That(empty.GetComponent<MeshFilter>() == null, Is.True, "no MeshFilter is added when there are no child filters");
+                Assert.That(empty.GetComponent<MeshCollider>() == null, Is.True, "no MeshCollider is added when there are no child filters");
 
                 // GetComponentsInChildren skips inactive objects, so this hierarchy is active.
                 GameObject root = owned.Host("Lucid merge root");
