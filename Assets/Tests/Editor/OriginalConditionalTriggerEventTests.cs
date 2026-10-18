@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -9,6 +10,7 @@ using ProjectLucid.Tests.WorldTriggersShared;
 using UnityEditor.Events;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.TriggerConditionTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -42,6 +44,20 @@ namespace ProjectLucid.Tests
         });
 
         private static T Add<T>(Owned owned, string name) where T : Component => owned.Host(name, false).AddComponent<T>();
+
+        // AddComponent in Edit Mode leaves the four UnityEvent fields and m_conditions null (run30: CheckIsValid
+        // 0x6AEC30 reads all four with GetPersistentEventCount and faulted). The restored bodies follow the native
+        // ones, so the cases give the events a fresh UnityEvent first. The Editor also sends OnValidate during
+        // AddComponent, and 0x6AECB0 walks the still-null m_conditions with no null test; that NullReferenceException
+        // is expected and logged once per component.
+        private static ConditionalTriggerEventPersistentObjectBooleans AddPersistentTrigger(Owned owned, string name)
+        {
+            LogAssert.Expect(LogType.Exception, new Regex("NullReferenceException"));
+            var trigger = Add<ConditionalTriggerEventPersistentObjectBooleans>(owned, name);
+            foreach (string field in new[] { "m_whileConditionsNotMet", "m_onConditionsMet", "m_whileConditionsRemainMet", "m_onConditionsNoLongerMet" })
+                if (Get<UnityEvent>(trigger, field) == null) Set(trigger, field, new UnityEvent());
+            return trigger;
+        }
 
         private static UnityEvent Logged(List<string> log, string label, Func<string> detail = null)
         {
@@ -307,7 +323,7 @@ namespace ProjectLucid.Tests
                 }
                 Set(persistent[0], "m_currentValue", true);
 
-                var trigger = Add<ConditionalTriggerEventPersistentObjectBooleans>(owned, "Lucid persistent trigger");
+                var trigger = AddPersistentTrigger(owned, "Lucid persistent trigger");
                 var log = new List<string>();
                 Set(trigger, "m_whileConditionsNotMet", Logged(log, "notMet"));
                 Set(trigger, "m_onConditionsMet", Logged(log, "met"));
@@ -351,7 +367,7 @@ namespace ProjectLucid.Tests
             var persistent = Add<PersistentLevelObjectBoolean>(owned, "Lucid persistent");
             var condition = Add<TriggerCondition_PersistentLevelObjectBoolean>(owned, "Lucid persistent condition");
             Set(condition, "m_persistentLevelObject", persistent);
-            var trigger = Add<ConditionalTriggerEventPersistentObjectBooleans>(owned, "Lucid persistent trigger");
+            var trigger = AddPersistentTrigger(owned, "Lucid persistent trigger");
             var log = new List<string>();
             Set(trigger, "m_whileConditionsNotMet", Logged(log, "notMet"));
             Set(trigger, "m_ignoreEnable", true);
@@ -385,6 +401,8 @@ namespace ProjectLucid.Tests
         {
             WithOwned(owned =>
             {
+                // PersistentLevelObject's field initialiser asks for GetSystemRef<MissionManager>(), which creates the row.
+                owned.LeaseRow<MissionManager>();
                 var (trigger, condition, log) = NewPersistentTrigger(owned);
                 Set(trigger, "m_conditions", new TriggerCondition[] { Add<TriggerConditionProbe>(owned, "Lucid other condition") });
                 Assert.Throws<InvalidCastException>(() => Call(trigger, "OnEnable"));
@@ -406,7 +424,7 @@ namespace ProjectLucid.Tests
             const string Message = "ConditionalTriggerEventPersistentObjectBooleans expects all conditions to be of the type TriggerCondition_PersistentLevelObjectBoolean";
             WithOwned(owned =>
             {
-                var trigger = Add<ConditionalTriggerEventPersistentObjectBooleans>(owned, "Lucid persistent trigger");
+                var trigger = AddPersistentTrigger(owned, "Lucid persistent trigger");
                 var persistentCondition = Add<TriggerCondition_PersistentLevelObjectBoolean>(owned, "Lucid persistent condition");
                 var other = Add<TriggerConditionProbe>(owned, "Lucid other condition");
 
