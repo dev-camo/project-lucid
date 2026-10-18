@@ -110,8 +110,9 @@ namespace HardlightProject
 			}
 			Vector3 direction = m_projectedVelocity.normalized;
 			float magnitude = m_projectedVelocity.magnitude;
+			Vector3 up = m_projectedRaycastTransform.Up;
 			float deltaTime = Time.fixedDeltaTime;
-			ColliderTrackingUtilities.ProjectToNeighbourSlope(m_projectedRaycastTransform, direction, m_projectedRaycastTransform.Up, magnitude, _ => m_projectedGravity, true, deltaTime, out float _, out Vector3 _, out Vector3 _);
+			ColliderTrackingUtilities.ProjectToNeighbourSlope(m_projectedRaycastTransform, direction, up, magnitude, _ => m_projectedGravity, true, deltaTime, out float _, out Vector3 _, out Vector3 _);
 			return true;
 		}
 

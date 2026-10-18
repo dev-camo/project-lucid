@@ -109,7 +109,12 @@ namespace ProjectLucid.Tests
                 SetInput(character, new Vector2(0.5f, 0.5f), Vector2.zero);
                 IFSMTransition transition = Build(nameof(CharacterTransition_ControllerAxisCheck),
                     AxisJson(ComparisonType.GreaterThan, 10f, false, (ComparisonType)99, 0f, false, false));
-                Assert.That(() => Update(transition, character), Throws.Exception);
+                Assert.That(() => Update(transition, character), Throws.TypeOf<ArgumentOutOfRangeException>());
+                // The x comparison is made first (0x78FE56, then y at 0x78FE6C): an unsupported x type faults even
+                // when y would have failed, where a reversed short-circuit "y && x" would return false.
+                IFSMTransition badX = Build(nameof(CharacterTransition_ControllerAxisCheck),
+                    AxisJson((ComparisonType)99, 0f, false, ComparisonType.GreaterThan, 10f, false, false));
+                Assert.That(() => Update(badX, character), Throws.TypeOf<ArgumentOutOfRangeException>());
                 IFSMTransition ok = Build(nameof(CharacterTransition_ControllerAxisCheck),
                     AxisJson(ComparisonType.GreaterThan, 10f, false, ComparisonType.GreaterThan, 0f, false, false));
                 Assert.That(Update(ok, character), Is.False);

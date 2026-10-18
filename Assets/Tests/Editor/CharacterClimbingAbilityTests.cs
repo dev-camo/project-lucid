@@ -125,6 +125,9 @@ namespace ProjectLucid.Tests
             // 116.57 degrees between normal and velocity is an angle of attack of 26.57, below the minimum of 45:
             // the forward heading decides and refuses, where a head-on approach enters.
             Assert.That(run(wall, new Vector3(1f, 0f, -0.5f), identity, false, Vector2.zero), Is.False);
+            // A NaN normal leaves the dot NaN, and 0x745208 ucomiss 0, dot / seta is false when unordered
+            // (a negated "dot >= 0" would enter).
+            Assert.That(run(new Vector3(float.NaN, 0f, 0f), new Vector3(0f, 0f, 1f), identity, false, Vector2.zero), Is.False, "NaN dot");
         }
 
         // 0x7450CE ucomiss(angle, +0xDC) / jae: the minimum is inclusive, and an unordered minimum does not
@@ -357,26 +360,39 @@ namespace ProjectLucid.Tests
                 Assert.That(character.Storage.TryGetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, out Vector3 _), Is.False);
                 Assert.That(character.Storage.TryGetValue(ActorFSMKeys.ClimbingEnterCollisionNormal, out Vector3 _), Is.False);
             });
+            // 0xE607B4 ucomiss / jb is not taken when unordered, so a NaN elapsed time (NaN stored timestamp) is
+            // not a passed cooldown: 0xE60849 clears the trigger (a negated "<" would treat it as passed).
+            WithUpdatingAirClimb(10f, 0.5f, float.NaN, new Vector3(0f, 0f, -1f), (owned, character, ability, tracker) =>
+            {
+                SetProperty(ability, "IsTriggered", true);
+                Update(ability);
+                Assert.That(Triggered(ability), Is.False);
+                Assert.That(character.Storage.TryGetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, out Vector3 _), Is.False);
+            });
         }
 
         // A surface slope outside the limits (a floor, 0 degrees), an active direction override and a refusing
-        // CanEnterClimb (heading forward with the normal facing it) each stop the climb without publishing.
+        // CanEnterClimb (heading forward with the normal facing it) each clear a trigger left by the previous update
+        // (0xE60838, 0xE60847 and the CanEnterClimb result stored at 0xE60872) without publishing.
         [Test]
         public void UpdateStopsForAnUnclimbableSurfaceADirectionOverrideOrARefusal()
         {
             WithUpdatingAirClimb(10f, 0.5f, 0f, new Vector3(0f, 1f, 0f), (owned, character, ability, tracker) =>
             {
+                SetProperty(ability, "IsTriggered", true);
                 Update(ability);
                 Assert.That(Triggered(ability), Is.False, "floor");
             });
             WithUpdatingAirClimb(10f, 0.5f, 0f, new Vector3(0f, 0f, -1f), (owned, character, ability, tracker) =>
             {
                 character.AddModifierOverride((int)DirectionModifierType.Override, new Vector3(0f, 0f, 1f));
+                SetProperty(ability, "IsTriggered", true);
                 Update(ability);
                 Assert.That(Triggered(ability), Is.False, "direction override");
             });
             WithUpdatingAirClimb(10f, 0.5f, 0f, new Vector3(0f, 0f, 1f), (owned, character, ability, tracker) =>
             {
+                SetProperty(ability, "IsTriggered", true);
                 Update(ability);
                 Assert.That(Triggered(ability), Is.False, "CanEnterClimb refuses");
                 Assert.That(character.Storage.TryGetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, out Vector3 _), Is.False);

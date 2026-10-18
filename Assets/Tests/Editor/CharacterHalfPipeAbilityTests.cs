@@ -135,12 +135,12 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x746B40: after the projection, the heading across the lip is the horizontal part of the hit point
-        // offset crossed with the up direction; the cached direction and the character's velocity are projected
-        // onto the plane that heading is normal to, the velocity is re-aimed at its own speed, and the look
-        // rotation the body builds is discarded.
+        // 0x746B40, call order only (no hit case runs, so the speed and plane values are not witnessed): after the
+        // projection, the heading across the lip is crossed with the up direction; the cached direction and the
+        // character's velocity are projected onto the plane that heading is normal to, and the look rotation the
+        // body builds is discarded.
         [Test]
-        public void ASuccessfulProjectionSteersTheCachedDirectionAndTheVelocity()
+        public void ProjectToHalfPipeCallOrderMatchesTheNative()
         {
             List<MethodBase> calls = Calls(typeof(CharacterAbility_HalfPipeTransfer), "ProjectToHalfPipe");
             int begin = IndexOf(calls, "ColliderTrackingUtilities", "DebugBeginLocationInstantiation");
@@ -225,11 +225,13 @@ namespace ProjectLucid.Tests
         }
 
         // Past the exclusion the motion comes from the speed table: the highest override whose activation speed
-        // the character has reached (0x745AC8 ja: an equal speed qualifies), the default when none.
+        // the character has reached (0x745AC8 ja: an equal speed qualifies), the default when none. A NaN speed is
+        // unordered, ja is not taken and 0x745B18 jbe keeps looping, so every override qualifies (a negated
+        // "speed >= ActivationSpeed" test would break out at the first).
         [Test]
         public void AFreshEntryPicksTheHighestOverrideTheSpeedHasReached()
         {
-            foreach ((float speed, int index) in new[] { (3f, -1), (5f, 0), (7f, 0), (10f, 1), (19.9f, 1), (20f, 2), (50f, 2) })
+            foreach ((float speed, int index) in new[] { (3f, -1), (5f, 0), (7f, 0), (10f, 1), (19.9f, 1), (20f, 2), (50f, 2), (float.NaN, 2) })
                 WithAir((owned, character, ability, definition, motions) =>
                 {
                     WithRefusedFixedUpdate(owned);
@@ -254,6 +256,7 @@ namespace ProjectLucid.Tests
                 (7, 9.75f, 0f, 2),   // index clamped to 2: 0.25 elapsed < 0.5
                 (0, 8.5f, 0f, 0),    // 1.5 elapsed < 2
                 (2, 9f, 25f, 2),     // 1 elapsed >= 0.5: speed table gives 2 again
+                (1, float.NaN, 0f, -1), // NaN elapsed: 0x745A2B ucomiss / jbe is taken, so the speed table decides (0 reaches nothing)
             })
                 WithAir((owned, character, ability, definition, motions) =>
                 {
@@ -275,6 +278,20 @@ namespace ProjectLucid.Tests
                 var entered = EnterAir(character, ability, 50f, 1, 9.75f, new Vector3(0.8660254f, 0.5f, 0f));
                 Assert.That(entered.index, Is.EqualTo(-1));
                 Assert.That(entered.motion, Is.SameAs(motions[0]));
+            });
+        }
+
+        // A NaN dot is unordered: 0x7459B6 ucomiss / cmovae and the re-test at 0x745A50 jae are not taken, so the
+        // entry is not excluded and the speed table picks the override (a negated "dot < cosine" would exclude it).
+        [Test]
+        public void AnEntryWithANaNDotIsNotExcluded()
+        {
+            WithAir((owned, character, ability, definition, motions) =>
+            {
+                WithRefusedFixedUpdate(owned);
+                var entered = EnterAir(character, ability, 50f, -1, 0f, new Vector3(float.NaN, 0f, 0f));
+                Assert.That(entered.index, Is.EqualTo(2));
+                Assert.That(entered.motion, Is.SameAs(motions[3]));
             });
         }
 
@@ -486,6 +503,35 @@ namespace ProjectLucid.Tests
             Assert.That(Count(calls, "ColliderTrackingUtilities", "ProjectColliderRaycastLocation"), Is.EqualTo(1));
         }
 
+        // 0x777D1E mulss scales the forward speed by the step before the raycast location step; 0x777E4A xor r14b,1
+        // negates the ground hit for the stored update flag; 0x778633 mov ecx,1 stores the buffer-disabled flag true.
+        // Without a started Character these are read from the compiled opcodes.
+        [Test]
+        public void StateUpdateScalesTheSpeedByTheStepAndStoresTheNativeFlagValues()
+        {
+            MethodBase update = typeof(CharacterState_HalfPipeAir).GetMethods(DeclaredMembers).Single(m => m.Name == "DoUpdate");
+            List<OriginalILCallSequence.Call> calls = OriginalILCallSequence.Calls(update);
+            List<(int Offset, System.Reflection.Emit.OpCode Code)> il = OriginalILCallSequence.Instructions(update);
+            bool Targets(OriginalILCallSequence.Call call, string type, string name) => call.Target.DeclaringType.Name == type && call.Target.Name == name;
+
+            OriginalILCallSequence.Call project = calls.Single(c => Targets(c, "ColliderTrackingUtilities", "ProjectColliderRaycastLocation"));
+            int lastReadBefore = calls.Last(c => c.Offset < project.Offset && Targets(c, "IGraphStorage", "GetValue")).Offset;
+            Assert.That(il.Count(i => i.Offset > lastReadBefore && i.Offset < project.Offset && i.Code == System.Reflection.Emit.OpCodes.Mul), Is.EqualTo(1),
+                "forward speed times the step");
+
+            List<OriginalILCallSequence.Call> hits = calls.Where(c => Targets(c, "RaycastColliderHit", "get_Hit")).ToList();
+            Assert.That(hits.Count, Is.EqualTo(2));
+            int afterElseHit = il.FindIndex(i => i.Offset == hits[1].Offset);
+            Assert.That(new[] { il[afterElseHit + 1].Code, il[afterElseHit + 2].Code },
+                Is.EqualTo(new[] { System.Reflection.Emit.OpCodes.Ldc_I4_0, System.Reflection.Emit.OpCodes.Ceq }), "the update flag is the negated hit");
+
+            List<OriginalILCallSequence.Call> stores = calls.Where(c => Targets(c, "IGraphStorage", "SetValue")).ToList();
+            Assert.That(stores.Count, Is.EqualTo(7));
+            // Stores 2 and 3 are the collider-active clear and the buffer-disabled flag of the ground-hit exit.
+            Assert.That(il[il.FindIndex(i => i.Offset == stores[2].Offset) - 1].Code, Is.EqualTo(System.Reflection.Emit.OpCodes.Ldc_I4_0));
+            Assert.That(il[il.FindIndex(i => i.Offset == stores[3].Offset) - 1].Code, Is.EqualTo(System.Reflection.Emit.OpCodes.Ldc_I4_1));
+        }
+
         // 0x7772D0: the half pipe entry, then the trajectory is processed, the speed along the collider plane and the
         // character's projection onto the collider are computed in that order, and the collider flags are stored.
         [Test]
@@ -534,6 +580,10 @@ namespace ProjectLucid.Tests
             int velocity = IndexOf(update, "Character", "SetWorldVelocity");
             Assert.That(new[] { baseUpdate, airActive, gravity, adjust, velocity }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(update, "IGraphStorage", "SetValue"), Is.EqualTo(2), "colliderActive and transferActive");
+            // The gravity direction comparison is Vector3 == (0xE734EE-0xE73529 inlines its squared-distance test), decided before the multiplier is read.
+            Assert.That(Count(update, "Vector3", "op_Equality"), Is.EqualTo(1));
+            Assert.That(Count(update, "Vector3", "Equals"), Is.EqualTo(0));
+            Assert.That(IndexOf(update, "Vector3", "op_Equality"), Is.LessThan(gravity));
 
             List<MethodBase> leave = Calls(typeof(CharacterState_HalfPipe<,>), "DoOnLeave");
             Assert.That(IndexOf(leave, "CharacterState_Ability", "DoOnLeave"), Is.LessThan(IndexOf(leave, "IGraphStorage", "RemoveValue")));

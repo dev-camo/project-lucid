@@ -240,8 +240,8 @@ namespace ProjectLucid.Tests
         }
 
         // 0x74C810: the character base entry (its gravity multiplier copy is inlined natively), then a deferred
-        // subscription on the level manager reference; the callback 0x74CC70 registers OnLevelActivated and
-        // runs it at once. 0x74CAE0: the base leave, then the level manager is asked to drop the same handler.
+        // subscription on the level manager reference; the callback 0x74CC70 registers OnLevelActivated with
+        // triggerImmediately = true (0x74CCD7), so it also runs when a level is already current. 0x74CAE0: the base leave, then the level manager is asked to drop the same handler.
         [Test]
         public void ArchetypeEntrySubscribesToLevelActivationAndLeavingWithdraws()
         {

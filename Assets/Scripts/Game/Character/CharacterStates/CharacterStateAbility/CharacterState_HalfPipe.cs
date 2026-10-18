@@ -25,8 +25,8 @@ namespace HardlightProject
 			character.Storage.SetValue(ActorFSMKeys.HalfPipeGravityOnEnter, character.GravityNormalised);
 		}
 
-		// 06001584 (1.10.1 RVA 0xE73340); while the gravity direction is unchanged and the ability is not in the air, the
-		// air-motion gravity multiplier and velocity clamp apply. Otherwise the half pipe flags are cleared.
+		// 06001584 (1.10.1 RVA 0xE73340); while AirActive is false and the normalised gravity equals the one stored on entry
+		// (Vector3 ==), the air motion's gravity multiplier and clamped velocity apply; otherwise both half pipe flags are cleared.
 		protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			base.DoUpdate(user, updateContext);

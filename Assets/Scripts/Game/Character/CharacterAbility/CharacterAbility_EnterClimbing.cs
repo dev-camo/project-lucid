@@ -59,16 +59,15 @@ namespace HardlightProject
 		{
 			base.DoOnUpdate(brain, deltaTime);
 			ClimbingCollisionTracker.Update();
-			IGraphStorage storage = m_character.Storage;
-			float lastClimbTime = storage.GetValue(ActorFSMKeys.ClimbingLastTimestamp, 0f, true);
+			float lastClimbTime = m_character.Storage.GetValue(ActorFSMKeys.ClimbingLastTimestamp, 0f, true);
 			float timeSinceClimbing = m_timeManager.GetTotalTime(TimeCategory.PlayerMovement) - lastClimbTime;
 			if (timeSinceClimbing >= Definition.ReAttachCooldownSeconds && CollidingWithClimbableSurface() && !m_character.IsDirectionOverrideActive())
 			{
 				IsTriggered = CanEnterClimb();
 				if (IsTriggered)
 				{
-					storage.SetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, ClimbingCollisionTracker.WorldVelocityAtLastTerrainEnter);
-					storage.SetValue(ActorFSMKeys.ClimbingEnterCollisionNormal, ClimbingCollisionTracker.CollisionNormal);
+					m_character.Storage.SetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, ClimbingCollisionTracker.WorldVelocityAtLastTerrainEnter);
+					m_character.Storage.SetValue(ActorFSMKeys.ClimbingEnterCollisionNormal, ClimbingCollisionTracker.CollisionNormal);
 				}
 			}
 			else
