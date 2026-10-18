@@ -30,17 +30,15 @@ namespace ProjectLucid.Tests
         private readonly Stack<Action> m_release = new Stack<Action>();
         private bool m_disposed;
 
+        // A failed build releases what it took; the build's failure stays the one reported.
         public OwnedCharacterManagers()
         {
-            try
+            bool built = false;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
                 Build();
-            }
-            catch
-            {
-                Dispose();
-                throw;
-            }
+                built = true;
+            }, () => { if (!built) Dispose(); });
         }
 
         private void Build()
@@ -63,6 +61,8 @@ namespace ProjectLucid.Tests
 
             // The constructor's deferred callback reads the open save.
             var save = new SaveManager();
+            // Its constructor subscribes now, before its row is admitted.
+            m_release.Push(() => ProcessManager.UnsubscribeFromAllActions(save));
             var game = new SaveDataGame();
             game.Initialise();
             typeof(SaveManager).GetField("m_currentSave", Instance).SetValue(save, game);
