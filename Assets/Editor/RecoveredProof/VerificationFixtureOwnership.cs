@@ -25,13 +25,22 @@ namespace ProjectLucid
                 RequireIdleReference(entry.Value, failurePrefix);
         }
 
-        private static void RequireIdleReference(object reference, string failurePrefix)
+        private static void RequireIdleReference(object reference, string failurePrefix) =>
+            RequireIdleReference(reference, null, failurePrefix);
+
+        // As above, except that the system value may also be liveSystem: a typed
+        // entry cached on a live row carries that row's system from construction.
+        private static void RequireIdleReference(object reference, ISystem liveSystem, string failurePrefix)
         {
             Type type = reference.GetType();
             while (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(SystemRef<>)) type = type.BaseType;
             foreach (string field in OwnershipFields)
-                if (type.GetField(field, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference) != null)
+            {
+                object value = type.GetField(field, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(reference);
+                bool systemField = field == "m_system" || field == "m_isystem";
+                if (value != null && !(systemField && liveSystem != null && ReferenceEquals(value, liveSystem)))
                     throw new InvalidOperationException(failurePrefix + field);
+            }
         }
 
         public static void RequireAbsent(IDictionary registry, string name, params object[] sharedState)
@@ -52,7 +61,9 @@ namespace ProjectLucid
         // and stays, losing only the cleared typed entries added while
         // borrowed. With borrowLiveSystem, a row whose system is already
         // registered is borrowed as it is, because the proof then never
-        // registers into it.
+        // registers into it. Its system and prior typed entries are never
+        // touched; typed entries added while borrowed are removed once they
+        // hold no observer or deferred work and no system but the row's.
         //
         // The proofs never hand their references to the row, so a created row
         // or typed entry is not captured as the PlayMode lease does. Each proof
@@ -108,7 +119,6 @@ namespace ProjectLucid
             {
                 if (released) return;
                 released = true;
-                if (BorrowsLiveSystem) return;
                 if (Existed)
                 {
                     ReturnBorrowedRow();
@@ -120,7 +130,9 @@ namespace ProjectLucid
             }
 
             // The borrowed row and its prior typed entries stay as admitted;
-            // typed entries added while borrowed are removed once cleared.
+            // typed entries added while borrowed are removed once cleared. A live
+            // row keeps its system, and its added entries are checked against the
+            // system it holds at release.
             private void ReturnBorrowedRow()
             {
                 if (!ReferenceEquals(registry[name], borrowedRow) ||
@@ -130,10 +142,16 @@ namespace ProjectLucid
                 foreach (KeyValuePair<object, object> entry in priorTypedEntries)
                     if (!borrowedCache.Contains(entry.Key) || !ReferenceEquals(borrowedCache[entry.Key], entry.Value))
                         throw new InvalidOperationException("Fixture borrowed typed cache changed: " + name);
-                RequireIdle(borrowedRow, name);
+                if (!BorrowsLiveSystem) RequireIdle(borrowedRow, name);
                 var added = new List<object>();
                 foreach (DictionaryEntry entry in borrowedCache)
                     if (!priorTypedEntries.ContainsKey(entry.Key)) added.Add(entry.Key);
+                if (BorrowsLiveSystem)
+                {
+                    ISystem liveSystem = Reference(borrowedRow).GetSafe();
+                    foreach (object key in added)
+                        RequireIdleReference(borrowedCache[key], liveSystem, "Fixture registry row retains unowned state: " + name + "/");
+                }
                 foreach (object key in added) borrowedCache.Remove(key);
             }
         }

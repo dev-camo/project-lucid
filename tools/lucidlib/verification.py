@@ -4054,6 +4054,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationLifecycleRowTests.ConfigurationRowIsBorrowedWhenLiveAndRefusedWhenDormantWithForeignWork",
     "ProjectLucid.Tests.VerificationLifecycleRowTests.ReleaseRemovesOnlyAnIdleCreatedRow",
     "ProjectLucid.Tests.VerificationLifecycleRowTests.BorrowedRowReleaseRemovesOnlyClearedTypedEntriesAddedWhileBorrowed",
+    "ProjectLucid.Tests.VerificationLifecycleRowTests.BorrowedLiveRowReleaseRemovesOnlyTypedEntriesAddedWhileBorrowed",
     "ProjectLucid.Tests.VerificationLifecycleRowTests.EngineProofRefusesAnObservedDormantHostRowBeforeAnyStep",
 )
 

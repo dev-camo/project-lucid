@@ -191,6 +191,80 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(0, calls);
         }
 
+        // A borrowed live row keeps its system and its prior typed entries, and
+        // loses the typed entries the proof's GetSystemRef<T> cached while it was
+        // borrowed. An added entry that holds an observer refuses release and stays.
+        // The row is a uniquely named one on the shared registry that a
+        // RegistryRow admits absent, registers into and removes on release.
+        [Test]
+        public void BorrowedLiveRowReleaseRemovesOnlyTypedEntriesAddedWhileBorrowed()
+        {
+            IDictionary registry = (IDictionary)typeof(ProcessManager).GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+            string name = "ProjectLucid.Tests.BorrowedLiveRow." + Guid.NewGuid().ToString("N");
+            var owner = new VerificationFixtureOwnership.RegistryRow(name);
+            var others = new Dictionary<object, object>();
+            foreach (DictionaryEntry entry in registry) others.Add(entry.Key, entry.Value);
+            var system = new SystemConfiguration();
+            IDictionary cache = null;
+            SystemRef<HLUnityCore> busy = null;
+            Action<HLUnityCore> observer = value => Assert.Fail("observer ran");
+            try
+            {
+                SystemRef live = owner.Register(system);
+                object row = registry[name];
+                cache = (IDictionary)row.GetType().GetField("SystemRefDictionary").GetValue(row);
+                Assert.AreEqual(0, cache.Count);
+
+                // No prior typed entry: the one the proof caches is removed.
+                var borrowed = new VerificationFixtureOwnership.LifecycleRow(registry, name, borrowLiveSystem: true);
+                Assert.IsTrue(borrowed.Existed && borrowed.BorrowsLiveSystem);
+                SystemRef<SystemConfiguration> added = ProcessManager.GetSystemRef<SystemConfiguration>(name);
+                Assert.AreSame(system, added.GetSafe());
+                Assert.AreEqual(1, cache.Count);
+                borrowed.Dispose();
+                Assert.AreEqual(0, cache.Count);
+                Assert.AreSame(row, registry[name]);
+                Assert.AreSame(live, ProcessManager.GetSystemRef(name));
+                Assert.AreSame(system, live.GetSafe());
+                Assert.AreSame(system, added.GetSafe(), "The removed entry is dropped, not revoked.");
+
+                // A prior typed entry stays as admitted; only the added one goes.
+                SystemRef<SystemConfiguration> prior = ProcessManager.GetSystemRef<SystemConfiguration>(name);
+                borrowed = new VerificationFixtureOwnership.LifecycleRow(registry, name, borrowLiveSystem: true);
+                SystemRef<HLUnityCore> mismatched = ProcessManager.GetSystemRef<HLUnityCore>(name);
+                Assert.IsNull(mismatched.GetSafe());
+                Assert.AreEqual(2, cache.Count);
+                borrowed.Dispose();
+                Assert.AreEqual(1, cache.Count);
+                Assert.AreSame(prior, cache[ProcessManager.GetDefaultName<SystemConfiguration>()]);
+                Assert.AreSame(system, prior.GetSafe());
+                Assert.AreSame(system, live.GetSafe());
+
+                // An added entry left observed refuses release and stays.
+                borrowed = new VerificationFixtureOwnership.LifecycleRow(registry, name, borrowLiveSystem: true);
+                busy = ProcessManager.GetSystemRef<HLUnityCore>(name);
+                busy.OnSystemShutdown += observer;
+                StringAssert.Contains("retains unowned state", Assert.Throws<InvalidOperationException>(borrowed.Dispose).Message);
+                Assert.AreSame(busy, cache[HostName]);
+                Assert.AreSame(prior, cache[ProcessManager.GetDefaultName<SystemConfiguration>()]);
+                Assert.AreSame(system, live.GetSafe());
+            }
+            finally
+            {
+                // Put the shared registry back: drop the refused entry before the
+                // owner unregisters (which would run its observer) and removes the row.
+                if (busy != null)
+                {
+                    busy.OnSystemShutdown -= observer;
+                    cache.Remove(HostName);
+                }
+                owner.Dispose();
+            }
+            Assert.IsFalse(registry.Contains(name));
+            Assert.AreEqual(others.Count, registry.Count);
+            foreach (KeyValuePair<object, object> entry in others) Assert.AreSame(entry.Value, registry[entry.Key]);
+        }
+
         // Wiring control: RunEngine admits the shared logging-host row before
         // any configuration or lifecycle step, so a dormant row with a foreign
         // startup observer is refused before the explicit Awake could register
