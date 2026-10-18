@@ -49,9 +49,16 @@ namespace ProjectLucid.Editor
         private static readonly Regex ScriptReference = new Regex(@"^\s*m_Script:\s*\{fileID:\s*(-?\d+),\s*guid:\s*([0-9a-fA-F]{32}),\s*type:\s*(\d+)\}\s*$", RegexOptions.Compiled);
         // Unity's YAML PPtr: {fileID: N} names a document in the same file;
         // {fileID: N, guid: G, type: T} names a loaded object of another asset.
-        // Every "{fileID:" opens a candidate, so a malformed pointer cannot pass unseen.
-        private static readonly Regex ObjectPointerCandidate = new Regex(@"\{fileID:[^{}]*\}?", RegexOptions.Compiled);
-        private static readonly Regex ObjectPointer = new Regex(@"\A\{fileID:\s*(-?\d+)(?:,\s*guid:\s*([0-9a-fA-F]{32}),\s*type:\s*(-?\d+))?\}\z", RegexOptions.Compiled);
+        // Every flow mapping with a fileID key is a candidate, whatever its key
+        // order or spacing, so a malformed pointer cannot pass unseen.
+        private static readonly Regex PointerKey = new Regex(@"(?:\A\{|,)\s*fileID\s*:", RegexOptions.Compiled);
+        private static readonly Regex PointerEntry = new Regex(@"\A\s*(fileID|guid|type)\s*:\s*([^\s:]+)\s*\z", RegexOptions.Compiled);
+        private static readonly Regex SignedInteger = new Regex(@"\A-?\d+\z", RegexOptions.Compiled);
+        private static readonly Regex HexGuid = new Regex(@"\A[0-9a-fA-F]{32}\z", RegexOptions.Compiled);
+        // Unity's emitter writes one field per line: indentation, any "- " sequence
+        // indicators, an optional "key: ", then the value. The match ends where the
+        // value starts.
+        private static readonly Regex FieldPrefix = new Regex(@"\A\s*(?:-(?:\s+|\z))*(?:[^\s'""{\[#][^:]*?:(?:\s+|\z))?", RegexOptions.Compiled);
         private static readonly Regex NullScriptReference = new Regex(@"^\s*m_Script:\s*\{fileID:\s*0\}\s*$", RegexOptions.Compiled);
         private static readonly HashSet<string> SerializedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
@@ -164,29 +171,35 @@ namespace ProjectLucid.Editor
                     string currentObject = null;
                     // Stripped documents are anchors too. A local pointer may name a
                     // later document, so local pointers are checked after the file.
-                    var anchors = new HashSet<long>();
+                    // Anchors keep their multiplicity: a repeated one names no unique document.
+                    var anchors = new Dictionary<long, int>();
                     var locals = new List<KeyValuePair<long, string>>();
+                    // Quote of a quoted scalar that continues onto the next line, or '\0'.
+                    char quote = '\0';
                     string pending = reader.ReadLine();
                     while ((line = pending) != null)
                     {
                         pending = reader.ReadLine();
+                        Match header = line.StartsWith("--- ", StringComparison.Ordinal) ? ObjectHeader.Match(line) : Match.Empty;
+                        if (header.Success)
+                        {
+                            quote = '\0';
+                            currentObject = "!u!" + header.Groups[1].Value + " &" + header.Groups[2].Value;
+                            if (long.TryParse(header.Groups[2].Value, out long anchor))
+                                anchors[anchor] = anchors.TryGetValue(anchor, out int seen) ? seen + 1 : 1;
+                            continue;
+                        }
+                        int value = FlowValueStart(line, ref quote);
                         // Unity's YAML emitter wraps a long flow mapping onto indented
                         // continuation lines when it reserializes an asset, for example
-                        // "{fileID: N, guid: G," then "  type: 3}". Join an open pointer
+                        // "{fileID: N, guid: G," then "  type: 3}". Join an open mapping
                         // with them so it is checked whole; one still open after the
                         // bound is reported as malformed.
-                        for (int joined = 0; joined < ContinuationLimit && OpensPointer(line) && pending != null &&
+                        for (int joined = 0; joined < ContinuationLimit && value >= 0 && IsOpen(line, value) && pending != null &&
                             pending.Length > 0 && (pending[0] == ' ' || pending[0] == '\t'); joined++)
                         {
                             line = line.TrimEnd() + " " + pending.TrimStart();
                             pending = reader.ReadLine();
-                        }
-                        Match header = line.StartsWith("--- ", StringComparison.Ordinal) ? ObjectHeader.Match(line) : Match.Empty;
-                        if (header.Success)
-                        {
-                            currentObject = "!u!" + header.Groups[1].Value + " &" + header.Groups[2].Value;
-                            if (long.TryParse(header.Groups[2].Value, out long anchor)) anchors.Add(anchor);
-                            continue;
                         }
                         bool scriptLine = line.TrimStart().StartsWith("m_Script:", StringComparison.Ordinal);
                         if (scriptLine)
@@ -203,21 +216,20 @@ namespace ProjectLucid.Editor
                                 badScripts.Add(relative + (NullScriptReference.IsMatch(line) && currentObject != null ? " " + currentObject : "") + ": " + error);
                         }
                         // m_Script keeps its stricter MonoScript class check above.
-                        else if (line.IndexOf("{fileID:", StringComparison.Ordinal) >= 0)
+                        else if (value >= 0 && line.IndexOf("fileID", value, StringComparison.Ordinal) >= 0)
                         {
                             string example = Example(relative, currentObject, line);
-                            foreach (Match candidate in ObjectPointerCandidate.Matches(line))
+                            foreach (string candidate in PointerCandidates(line.Substring(value)))
                             {
-                                Match pointer = ObjectPointer.Match(candidate.Value);
-                                if (!pointer.Success)
-                                    AddObject(relative + " " + candidate.Value, "Unsupported or malformed object pointer", example);
-                                else if (!long.TryParse(pointer.Groups[1].Value, out long fileID))
-                                    AddObject(relative + " " + candidate.Value, "Local identifier is not a signed 64-bit value", example);
-                                else if (!pointer.Groups[2].Success)
+                                if (!TryParsePointer(candidate, out string localID, out string guid, out string type))
+                                    AddObject(relative + " " + candidate, "Unsupported or malformed object pointer", example);
+                                else if (!long.TryParse(localID, out long fileID))
+                                    AddObject(relative + " " + candidate, "Local identifier is not a signed 64-bit value", example);
+                                else if (guid == null)
                                 {
                                     if (fileID != 0) locals.Add(new KeyValuePair<long, string>(fileID, example));
                                 }
-                                else CheckExternal(pointer.Groups[2].Value.ToLowerInvariant(), fileID, pointer.Groups[3].Value, example);
+                                else CheckExternal(guid.ToLowerInvariant(), fileID, type, example);
                             }
                         }
                         if (line.IndexOf("guid:", StringComparison.Ordinal) < 0) continue;
@@ -234,15 +246,98 @@ namespace ProjectLucid.Editor
                         }
                     }
                     foreach (var local in locals)
-                        if (!anchors.Contains(local.Key))
+                    {
+                        if (!anchors.TryGetValue(local.Key, out int count))
                             AddObject(relative + " {fileID: " + local.Key + "}", "Local identifier names no document in this file", local.Value);
+                        else if (count != 1)
+                            AddObject(relative + " {fileID: " + local.Key + "}", "Local identifier names more than one document in this file", local.Value);
+                    }
                 }
             }
 
-            private static bool OpensPointer(string line)
+            // Start of the line's value when it is a flow collection, or -1. A quoted
+            // value is string text, not a PPtr, and may continue onto later lines;
+            // quote carries that state between lines.
+            private static int FlowValueStart(string line, ref char quote)
             {
-                int open = line.LastIndexOf("{fileID:", StringComparison.Ordinal);
-                return open >= 0 && line.IndexOf('}', open) < 0;
+                int start = 0;
+                if (quote == '\0')
+                {
+                    start = FieldPrefix.Match(line).Length;
+                    if (start >= line.Length) return -1;
+                    if (line[start] == '{' || line[start] == '[') return start;
+                    if (line[start] != '\'' && line[start] != '"') return -1;
+                    quote = line[start++];
+                }
+                for (int i = start; i < line.Length; i++)
+                {
+                    // Single-quoted text escapes ' as ''; double-quoted text uses backslashes.
+                    if (quote == '"' && line[i] == '\\') { i++; continue; }
+                    if (line[i] != quote) continue;
+                    if (quote == '\'' && i + 1 < line.Length && line[i + 1] == '\'') { i++; continue; }
+                    quote = '\0';
+                    break;
+                }
+                return -1;
+            }
+
+            private static bool IsOpen(string line, int value)
+            {
+                int depth = 0;
+                for (int i = value; i < line.Length; i++)
+                {
+                    if (line[i] == '{') depth++;
+                    else if (line[i] == '}' && depth > 0) depth--;
+                }
+                return depth > 0;
+            }
+
+            // Each flow mapping in value that has its own fileID key, in text order.
+            // An unclosed one runs to the end of the value.
+            private static IEnumerable<string> PointerCandidates(string value)
+            {
+                var open = new Stack<int>();
+                var spans = new List<KeyValuePair<int, int>>();
+                for (int i = 0; i < value.Length; i++)
+                {
+                    if (value[i] == '{') open.Push(i);
+                    else if (value[i] == '}' && open.Count > 0) spans.Add(new KeyValuePair<int, int>(open.Pop(), i + 1));
+                }
+                while (open.Count > 0) spans.Add(new KeyValuePair<int, int>(open.Pop(), value.Length));
+                spans.Sort((left, right) => left.Key.CompareTo(right.Key));
+                foreach (var span in spans)
+                {
+                    // Keys of nested mappings belong to those mappings.
+                    var own = new StringBuilder();
+                    for (int i = span.Key; i < span.Value; i++)
+                    {
+                        var nested = spans.FirstOrDefault(other => other.Key == i && other.Key != span.Key);
+                        if (nested.Value > 0) { own.Append("{}"); i = nested.Value - 1; }
+                        else own.Append(value[i]);
+                    }
+                    if (PointerKey.IsMatch(own.ToString())) yield return value.Substring(span.Key, span.Value - span.Key);
+                }
+            }
+
+            // {fileID: N} or {fileID: N, guid: G, type: T}, each key once in any
+            // order; a nested, unclosed or extended mapping is not a pointer.
+            private static bool TryParsePointer(string candidate, out string fileID, out string guid, out string type)
+            {
+                fileID = guid = type = null;
+                if (candidate.Length < 2 || candidate[candidate.Length - 1] != '}' || candidate.IndexOf('{', 1) >= 0) return false;
+                foreach (string entry in candidate.Substring(1, candidate.Length - 2).Split(','))
+                {
+                    Match pair = PointerEntry.Match(entry);
+                    if (!pair.Success) return false;
+                    string text = pair.Groups[2].Value;
+                    switch (pair.Groups[1].Value)
+                    {
+                        case "fileID": if (fileID != null || !SignedInteger.IsMatch(text)) return false; fileID = text; break;
+                        case "guid": if (guid != null || !HexGuid.IsMatch(text)) return false; guid = text; break;
+                        default: if (type != null || !SignedInteger.IsMatch(text)) return false; type = text; break;
+                    }
+                }
+                return fileID != null && (guid == null) == (type == null);
             }
 
             private string Resolve(string guid)

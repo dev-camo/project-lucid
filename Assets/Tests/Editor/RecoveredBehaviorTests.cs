@@ -964,6 +964,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void RecoveredYamlLocalPointerSyntaxSkipsStringTextAndRequiresUniqueAnchors()
+        {
+            ScriptReferenceVerification.RunLocalPointerSyntax();
+        }
+
+        [Test]
         public void SuppliedLayoutComponentsRetainAuthoredScalarsAfterScriptBinding()
         {
             UguiLayoutBindingVerification.RunAuthored();

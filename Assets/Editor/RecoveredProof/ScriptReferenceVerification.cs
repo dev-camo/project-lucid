@@ -168,6 +168,23 @@ namespace ProjectLucid
                     objects.SequenceEqual(new[] { "Assets/Recovered/open.prefab {fileID: " + mainID + ", guid: " + guid + ",: Unsupported or malformed object pointer" }),
                     "a pointer left open before the next document is reported instead of joined");
 
+                // Key order and spacing do not hide a pointer: each form is checked whole.
+                string absentTarget = "{fileID: 999999999, guid: " + guid + ", type: 2}: Local identifier does not resolve at " + path;
+                Func<long, string> reordered = id => yaml("--- !u!23 &5\nMeshRenderer:\n  m_Materials:\n  - {guid: " + guid + ", type: 2, fileID: " + id + "}\n");
+                Func<long, string> spaced = id => yaml("--- !u!23 &5\nMeshRenderer:\n  m_Materials:\n  - {  fileID: " + id + " ,guid: " + guid + ",  type: 2 }\n");
+                Require(Scan(scan, directory, "reordered.prefab", reordered(mainID), out bad, out objects, out unresolved) == "complete" &&
+                    objects.Length == 0 && unresolved == 0, "reordered exact material pointer is complete");
+                Require(Scan(scan, directory, "reordered-wrong-id.prefab", reordered(absentID), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && bad.Length == 0 && objects.SequenceEqual(new[] { absentTarget }),
+                    "reordered pointer with a resolving GUID and an absent local identifier is incomplete");
+                Require(Scan(scan, directory, "spaced.prefab", spaced(mainID), out bad, out objects, out unresolved) == "complete" &&
+                    objects.Length == 0 && unresolved == 0, "spaced exact material pointer is complete");
+                Require(Scan(scan, directory, "spaced-wrong-id.prefab", spaced(absentID), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.SequenceEqual(new[] { absentTarget }), "spaced pointer with an absent local identifier is incomplete");
+                Require(Scan(scan, directory, "wrapped-reordered.prefab", yaml("--- !u!23 &5\nMeshRenderer:\n  m_Materials:\n  - {guid: " + guid + ", type: 2,\n    fileID: " +
+                    absentID + "}\n"), out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 && objects.SequenceEqual(new[] { absentTarget }),
+                    "a wrapped pointer whose fileID key comes last is joined and checked whole");
+
                 // Outside the project check: builtin resources and {fileID: 0} nulls.
                 Require(Scan(scan, directory, "builtin.prefab", renderer(10303, "0000000000000000f000000000000000"), out bad, out objects, out unresolved) == "complete" &&
                     objects.Length == 0 && unresolved == 0, "builtin resource pointer is outside the project check");
@@ -205,7 +222,49 @@ namespace ProjectLucid
                     throw new AggregateException("Owned reference audit fixture cleanup failed",
                         primary == null ? cleanup : new[] { primary }.Concat(cleanup));
             }
-            Debug.Log("[Project Lucid] Recovered YAML object pointer checks passed: 14");
+            Debug.Log("[Project Lucid] Recovered YAML object pointer checks passed: 19");
+        }
+
+        // Local PPtr syntax on owned fixture text: spacing, nesting, repeated keys
+        // and anchors, and string fields whose text looks like a pointer.
+        public static void RunLocalPointerSyntax()
+        {
+            MethodInfo scan = AuditMethod("ScanSerializedFile");
+            string directory = Path.Combine(Path.GetTempPath(), "lucid-reference-audit-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            try
+            {
+                Func<string, string> yaml = body => "%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" + body;
+                string transform = "--- !u!4 &2\nTransform:\n  m_GameObject: {fileID: 1}\n";
+                Func<string, string> gameObject = fields => yaml("--- !u!1 &1\nGameObject:\n" + fields + transform);
+
+                Require(Scan(scan, directory, "duplicate.prefab", gameObject("  m_Component:\n  - component: {fileID: 2}\n") + transform,
+                    out string[] bad, out string[] objects, out int unresolved) == "incomplete" && unresolved == 1 && bad.Length == 0 &&
+                    objects.SequenceEqual(new[] { "Assets/Recovered/duplicate.prefab {fileID: 2}: Local identifier names more than one document in this file" }),
+                    "a local pointer to a repeated document anchor is incomplete");
+                Require(Scan(scan, directory, "spaced.prefab", gameObject("  m_Component:\n  - component: { fileID: 2 }\n  - component: {fileID: 77 }\n"),
+                    out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 &&
+                    objects.SequenceEqual(new[] { "Assets/Recovered/spaced.prefab {fileID: 77}: Local identifier names no document in this file" }),
+                    "spaced local pointers are checked: the present one resolves and the absent one is reported");
+                Require(Scan(scan, directory, "nested.prefab", gameObject("  m_Pairs:\n  - {first: {fileID: 77}, second: 0}\n"), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.SequenceEqual(new[] { "Assets/Recovered/nested.prefab {fileID: 77}: Local identifier names no document in this file" }),
+                    "a pointer nested in a flow mapping is checked");
+                Require(Scan(scan, directory, "repeated-key.prefab", gameObject("  m_Component:\n  - component: {fileID: 2, fileID: 77}\n"), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.SequenceEqual(new[] { "Assets/Recovered/repeated-key.prefab {fileID: 2, fileID: 77}: Unsupported or malformed object pointer" }),
+                    "a pointer with a repeated fileID key is reported instead of passing");
+
+                // Quoted scalars are string text, including one that continues onto
+                // later lines; an apostrophe inside a plain scalar opens no quote.
+                string strings = "  m_Name: '{fileID: 123}'\n  m_Text: \"{fileID: 124}\"\n  m_Note: 'it''s {fileID: 125}'\n" +
+                    "  m_Long: 'first line\n\n    {fileID: 126} second line'\n  m_Escaped: \"a \\\" {fileID: 127}\"\n  m_Label: Sonic's\n";
+                Require(Scan(scan, directory, "strings.prefab", gameObject(strings + "  m_Self: {fileID: 1}\n"), out bad, out objects, out unresolved) == "complete" &&
+                    bad.Length == 0 && objects.Length == 0 && unresolved == 0, "string fields containing pointer text are not pointers");
+                Require(Scan(scan, directory, "strings-then-pointer.prefab", gameObject(strings + "  m_Ref: {fileID: 128}\n"), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 1 && objects.SequenceEqual(new[] { "Assets/Recovered/strings-then-pointer.prefab {fileID: 128}: Local identifier names no document in this file" }),
+                    "a pointer field after the string fields is still checked");
+            }
+            finally { Directory.Delete(directory, true); }
+            Debug.Log("[Project Lucid] Recovered YAML local pointer syntax checks passed: 6");
         }
 
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
