@@ -141,7 +141,7 @@ namespace HardlightProject
             TryTriggerStay(character.ColliderCollision);
         }
 
-        // 0600294e; leaving the scene releases the current character's subscription.
+        // 0600294e; disabling untracks the current character, when the manager reference is valid and a character is current.
         private void OnDisable()
         {
             if (m_characterManagerRef.IsValid() && m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character))

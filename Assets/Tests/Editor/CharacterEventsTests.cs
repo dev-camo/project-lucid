@@ -292,6 +292,27 @@ namespace ProjectLucid.Tests
                 Set(events, "m_onTriggerExitEvents", exited);
                 Call(events, "DoTriggerExit", character);
                 Assert.That(Get<object>(events, "m_onTriggerStayDelayCoroutine"), Is.Null);
+
+                // The guard is "delay == 0" (ucomiss, jne 0x761469, jnp 0x761467): any other value, a negative one
+                // and an unordered NaN included, goes on to schedule.
+                foreach (float delay in new[] { -0.5f, float.NaN })
+                {
+                    Set(events, "m_onTriggerStayDelayTime", delay);
+                    LogAssert.Expect(LogType.Error, new Regex("Coroutine couldn't be started"));
+                    Call(events, "DoTriggerStay", character);
+                }
+
+                // A pending coroutine (+0xe8, cmp 0x761469) stops a second request; leaving drops it (0x761594)
+                // without stopping it. Coroutine has only a non-public constructor.
+                var pending = (Coroutine)Activator.CreateInstance(typeof(Coroutine), true);
+                GC.SuppressFinalize(pending);
+                Set(events, "m_onTriggerStayDelayTime", 0.5f);
+                Set(events, "m_onTriggerStayDelayCoroutine", pending);
+                Call(events, "DoTriggerStay", character);
+                LogAssert.NoUnexpectedReceived();
+                Assert.That(Get<object>(events, "m_onTriggerStayDelayCoroutine"), Is.SameAs(pending), "already pending: nothing new is scheduled");
+                Call(events, "DoTriggerExit", character);
+                Assert.That(Get<object>(events, "m_onTriggerStayDelayCoroutine"), Is.Null, "leaving forgets the pending call");
             });
         }
 
@@ -477,6 +498,17 @@ namespace ProjectLucid.Tests
                 events.SetControlsEnabled(true);
                 Assert.That(Get<StackableDataHandle>(events, "m_controlsHandle"), Is.Null);
                 Assert.That(modifiers.HasData(ControlsEnabled), Is.False);
+
+                // Disabling is unconditional (only the enable flag is tested, 0x761b03): a second disable adds a
+                // second override and replaces the handle, so the first one is never released.
+                events.SetControlsEnabled(false);
+                StackableDataHandle first = Get<StackableDataHandle>(events, "m_controlsHandle");
+                events.SetControlsEnabled(false);
+                Assert.That(Get<StackableDataHandle>(events, "m_controlsHandle"), Is.Not.SameAs(first));
+                Assert.That(modifiers.GetStack<bool>(ControlsEnabled, new List<bool>()), Is.EqualTo(new[] { false, false }));
+                events.SetControlsEnabled(true);
+                Assert.That(Get<StackableDataHandle>(events, "m_controlsHandle"), Is.Null);
+                Assert.That(modifiers.GetStack<bool>(ControlsEnabled, new List<bool>()), Is.EqualTo(new[] { false }), "the first override leaked");
             });
         }
 
@@ -666,6 +698,33 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // SetTransformRotation 0x7627A0 without a ribbon (m_targetUseRibbonOrientation false short-circuits at 0x762848; true
+        // fails TryGetComponent at 0x762866) reaches 0x7628e0: LookRotation(targetForward, WorldUp) at 0x762bb8, written to
+        // the target transform. The world forward (0.6, 0.8, 0) would give a different forward than the flattened (1, 0, 0).
+        // The ribbon arm needs a live ribbon and is witnessed by call counts only.
+        [Test]
+        public void RotationWithoutARibbonLooksAlongTheFlattenedForwardWithTheCharacterUp()
+        {
+            WithEvents((owned, manager, character, events) =>
+            {
+                SetActorProperty(character, "ForwardDirection", new Vector3(0.6f, 0.8f, 0f));
+                Collider collider = events.GetComponent<BoxCollider>();
+                foreach (bool ribbonOrientation in new[] { false, true })
+                {
+                    Set(events, "m_targetUseRibbonOrientation", ribbonOrientation);
+                    events.transform.rotation = Quaternion.Euler(10f, 20f, 30f);
+
+                    events.SetTransformRotation(collider);
+
+                    Vector3 forward = events.transform.forward, up = events.transform.up;
+                    Assert.That(forward.x, Is.EqualTo(1f).Within(1e-5f), ribbonOrientation.ToString());
+                    Assert.That(forward.y, Is.EqualTo(0f).Within(1e-5f));
+                    Assert.That(forward.z, Is.EqualTo(0f).Within(1e-5f));
+                    Assert.That(up.y, Is.EqualTo(1f).Within(1e-5f));
+                }
+            });
+        }
+
         // OverrideEnabledAbilities 0x762D70 does nothing without a current character; with one it sets the update flag
         // (ActorAbility +0x12, 0x762eb1 and 0x762f75) of every listed ability type, then of every type in the optional
         // group, skipping types the character has no ability for.
@@ -712,7 +771,7 @@ namespace ProjectLucid.Tests
         // The remaining actions call, in order: SetWorldVelocity(zero) then ExitLevel(false, false) for LevelExit (0x761fe1,
         // 0x762024); SetTimersPaused for MissionPauseTimers (0x76209c); the animation trigger's Action_OnEnter/OnLeave with
         // the current character (0x7620f7, 0x762147); Character.EndImpulses for the found character (0x7630a5). The
-        // camera, ribbon and physics members need engine state, so the calls they make are witnessed: one raycast and two
+        // raycast and the ribbon arm need live physics or a ribbon, so the calls they make are witnessed: one raycast and two
         // closest-point queries for the position, and one ribbon lookup, one flattening and two look rotations for the rotation.
         [Test]
         public void ActionBodiesMakeTheNativeCalls()
@@ -739,6 +798,21 @@ namespace ProjectLucid.Tests
             Assert.That(position.Count(name => name == "Quaternion.AngleAxis"), Is.EqualTo(1));
             Assert.That(position.Count(name => name == "Transform.set_position"), Is.EqualTo(1));
             Assert.That(position.Count(name => name == "CharacterEvents.CalculateTarget"), Is.EqualTo(1));
+
+            // The raycast casts from WorldPosition (0x7625d5) along the swing (about the character's right axis, 0x7625fa, by
+            // the negated angle, xorps with the sign mask at 0x76260b) applied to targetForward; no transform position is read.
+            MethodInfo positionMethod = Method(typeof(CharacterEvents), "SetTransformPosition");
+            Assert.That(position.Count(name => name == "Actor.get_WorldPosition"), Is.EqualTo(3));
+            Assert.That(position.Count(name => name == "Actor.get_RightDirection"), Is.EqualTo(1));
+            Assert.That(position.Contains("Component.get_transform"), Is.False);
+            Assert.That(position.Contains("Transform.get_position"), Is.False);
+            Assert.That(Array.IndexOf(position, "Actor.get_RightDirection"), Is.LessThan(Array.IndexOf(position, "Quaternion.AngleAxis")));
+            Assert.That(Array.IndexOf(position, "Quaternion.AngleAxis"), Is.LessThan(Array.IndexOf(position, "Quaternion.op_Multiply")));
+            Assert.That(Array.IndexOf(position, "Quaternion.op_Multiply"), Is.LessThan(Array.IndexOf(position, "Ray..ctor")));
+            Assert.That(Array.IndexOf(position, "Ray..ctor"), Is.LessThan(Array.IndexOf(position, "Collider.Raycast")));
+            var positionCode = OriginalILCallSequence.Instructions(positionMethod).Select(instruction => instruction.Code).ToList();
+            Assert.That(positionCode.Count(code => code == OpCodes.Neg), Is.EqualTo(1));
+            Assert.That(positionCode[positionCode.IndexOf(OpCodes.Neg) - 1], Is.EqualTo(OpCodes.Ldfld), "the stored angle is negated");
 
             string[] rotation = CallNames(Method(typeof(CharacterEvents), "SetTransformRotation"));
             Assert.That(rotation.Count(name => name == "Component.TryGetComponent"), Is.EqualTo(1));

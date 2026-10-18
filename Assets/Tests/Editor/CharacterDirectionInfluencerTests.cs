@@ -235,6 +235,35 @@ namespace ProjectLucid.Tests
             Assert.That(names.Count(name => name == "ArgumentOutOfRangeException..ctor"), Is.EqualTo(1));
         }
 
+        // The position that reaches GetDirection (and so the surface query of the spline and ribbon types) is the
+        // character's WorldPosition, never this transform's: movsd [rbx+0x48] at 0x5ca028 and 0x5ca0f0 in DoTriggerEnter,
+        // [rsi+0x48] at 0x5ca17f in GetDirectionInfluence. The surface types are the only ones that use the argument and
+        // need a live spline or ribbon, so the order of the calls is witnessed on the compiled bodies.
+        [Test]
+        public void TheCharacterWorldPositionIsTheOnlyPositionPassedToGetDirection()
+        {
+            string[] Names(string method) => OriginalILCallSequence.Names(
+                OriginalILCallSequence.Calls(typeof(CharacterDirectionInfluencer).GetMethod(method, Declared)));
+            string[] Filter(string[] names, params string[] keep) => names.Where(keep.Contains).ToArray();
+
+            string[] influence = Names("GetDirectionInfluence");
+            Assert.That(Filter(influence, "Actor.get_WorldPosition", "CharacterDirectionInfluencer.GetDirection",
+                    "CharacterDirectionInfluencer.GetSpeed", "Vector3.SmoothDamp"),
+                Is.EqualTo(new[] { "Actor.get_WorldPosition", "CharacterDirectionInfluencer.GetDirection",
+                    "CharacterDirectionInfluencer.GetSpeed", "Vector3.SmoothDamp" }));
+            Assert.That(Array.IndexOf(influence, "CharacterDirectionInfluencer.GetDirection"),
+                Is.EqualTo(Array.IndexOf(influence, "Actor.get_WorldPosition") + 1));
+
+            string[] enter = Names("DoTriggerEnter");
+            Assert.That(Filter(enter, "Actor.get_WorldPosition", "CharacterDirectionInfluencer.GetDirection"),
+                Is.EqualTo(new[] { "Actor.get_WorldPosition", "CharacterDirectionInfluencer.GetDirection" }), "the velocity cap");
+            Assert.That(Array.IndexOf(enter, "CharacterDirectionInfluencer.GetDirection"),
+                Is.EqualTo(Array.IndexOf(enter, "Actor.get_WorldPosition") + 1));
+
+            foreach (string name in new[] { "GetDirectionInfluence", "DoTriggerEnter", "DoTriggerStay", "GetDirection", "GetForwardFromSurface" })
+                Assert.That(Names(name), Does.Not.Contain("Transform.get_position"), name);
+        }
+
         // GetSpeed 0x5CA740 evaluates the blend curve (+0x60) at the influence data's time in contact (+0x28)
         // and multiplies by the speed (+0x50, mulss 0x5ca759). Other data fields are not read.
         [Test]

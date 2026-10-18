@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 02000741. A one-way collider: it stays solid only while the
-    // character moves with the collider's up direction. The native constructor inlines the
+    // Original Game.Runtime type 02000741. A one-way collider: it turns solid when a moving
+    // character's heading points along the character's own up direction. The native constructor inlines the
     // base constructors that set up the CharacterManager reference.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

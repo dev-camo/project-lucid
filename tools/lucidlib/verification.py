@@ -5258,6 +5258,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterDirectionInfluencerTests." 
     "AnUndeclaredDirectionTypeRaisesArgumentOutOfRange",
     "SurfaceForwardIsTheNearestLocationRotationAppliedToForward",
     "SplineAndRibbonDirectionsGoThroughTheSurfaceForward",
+    "TheCharacterWorldPositionIsTheOnlyPositionPassedToGetDirection",
     "SpeedIsTheBlendCurveAtTheTimeInContactTimesTheSpeed",
     "FalloffSpeedScalesTheBaseSpeedByTheCurveAtTheSnappedDistance",
     "EnterRegistersTheCharacterAndAddsTheInfluenceAndTheVelocityCap",
@@ -5287,6 +5288,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterEventsTests." + name for na
     "ResetTransformReturnsTheTargetToItsParent",
     "TargetIsTheFlattenedForwardOfTheCameraOrTheCharacter",
     "RotationOnAPlaneLooksAlongTheFlattenedForwardWithThePlaneUp",
+    "RotationWithoutARibbonLooksAlongTheFlattenedForwardWithTheCharacterUp",
     "AbilityUpdatesAreSwitchedForTheListedTypesAndTheGroup",
     "ActionBodiesMakeTheNativeCalls",
 ))

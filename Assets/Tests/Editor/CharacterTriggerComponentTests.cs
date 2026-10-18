@@ -423,6 +423,9 @@ namespace ProjectLucid.Tests
                 Assert.That(Evaluate(5f, Vector3.forward, new Vector3(0f, 0f, 1f)), Is.False, "z components count");
                 Assert.That(Evaluate(5f, Vector3.forward, new Vector3(0f, 0f, -1f)), Is.True);
                 Assert.That(Evaluate(5f, Vector3.up, new Vector3(float.NaN, 0f, 0f)), Is.False, "an unordered dot fails");
+                // ucomiss 0x5cb84e is unordered for NaN, so ja is not taken and the dot decides.
+                Assert.That(Evaluate(float.NaN, Vector3.up, Vector3.up), Is.False, "a NaN speed falls through to the dot");
+                Assert.That(Evaluate(float.NaN, Vector3.up, Vector3.down), Is.True, "a NaN speed against up");
             });
         }
     }
