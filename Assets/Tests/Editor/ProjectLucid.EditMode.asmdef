@@ -38,7 +38,8 @@
     "HLNotifications.Runtime",
     "HLEventSystems.Runtime",
     "ProjectLucid.SharedStateIsolation",
-    "Unity.RenderPipelines.Core.Runtime"
+    "Unity.RenderPipelines.Core.Runtime",
+    "Cinemachine"
   ],
   "includePlatforms": [
     "Editor"

@@ -4477,6 +4477,38 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAnimationHelperTests." + nam
     "CompleteAbilitySetterResolvesTheBossOnEntryAndCompletesItsAbility",
 ))
 
+# Restored Game.Runtime Animator helpers (lifetime object, boss ability setters,
+# float modifiers, bindable, random trigger, sampler, events, camera and material drivers).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAnimatorHelperTests." + name for name in (
+    "LifetimeObjectInitialiseDisablesTheAnimatorAndRegistersEveryHazard",
+    "LifetimeObjectResetRebindsTheAnimatorAndClearsElapsedTime",
+    "LifetimeObjectUpdateStepsTheAnimatorAndDeactivatesOnlyASelfInitialisedExpiredObject",
+    "LifetimeObjectEnableSelfInitialisesOnceThenRunsTheBaseEnable",
+    "AttackStateSetterResolvesTheBossOnEntryAndStartsTheAttackAnimation",
+    "TriggeredSetterSignalsTheTriggerOnEntryAndExitOfTheCachedBoss",
+    "WindUpSetterWindsUpOnEntryAndWindsDownOnExit",
+    "GetBoolEventFiresEachEdgeOnceAndTestsBothEdgesInOneFrame",
+    "ModifyFloatNeedsBothNamesAndWritesTheProcessedSource",
+    "NormaliseFloatClampsTheMagnitudeAndReturnsZeroForAnEmptyRange",
+    "SmoothFloatAveragesTheRingOverTheConfiguredCount",
+    "ParameterBindableKeepsTheOriginalGenericShape",
+    "ParameterBindablePublishesTheFloatThroughTheAwakeHash",
+    "RandomTriggerEntryWritesTheEntryIndexAndSchedulesFromRealTime",
+    "RandomTriggerUpdateFiresOnlyAfterAPositiveScheduledTime",
+    "SamplerPlaysTheCurrentStateAtTheSampleFrameAndDisablesTheAnimator",
+    "SamplerValidationFindsAChildAnimatorBeforeAddingOne",
+    "SetBoolEventInvokesWithTheConfiguredStringAndBool",
+    "SetFloatCurveEvaluatesNormalisedTimeAndSnapsToTheLastKeyOnExit",
+    "SuppressWarningsResetFindsTheAnimatorAndAwakeSilencesIt",
+    "CinemachineCameraTakesTheAnimatedFocalLengthAsATwentyFourMillimetreFieldOfView",
+    "MaterialPropertyDataCachesEveryPairOnAwakeValidateAndUpdate",
+    "MaterialPropertyDrivesTheIndexedMaterialOrEveryMaterial",
+    "MaterialPropertyStartFillsAndDestroyReleasesTheMaterialList",
+    "MaterialPropertyValidationClampsOnlyAnIndexPastTheEnd",
+    "RendererEnabledStartsNotMetAndSwitchesOnlyOnAStrictCrossing",
+    "RendererEnabledDisablesItselfWithoutAParameterAndResetFindsTheAnimator",
+))
+
 # Restored Game.Runtime InputHandler, GameInputSupplier and GameInputCharacterTriggerVolume.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameInputProviderTests." + name for name in (
     "InputHandlerDeclarationsKeepOriginalFlagsAndMemberOrder",
