@@ -24,7 +24,7 @@ namespace ProjectLucid.Tests
         {
             for (Type current = type; current != null; current = current.BaseType)
             {
-                FieldInfo field = current.GetField(name, Members);
+                FieldInfo field = current.GetField(name, Declared);
                 if (field != null) return field;
             }
             throw new MissingFieldException(type.FullName, name);
