@@ -150,6 +150,14 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // OwnedWorldObjects prefixes every name; Reset looks children up by their exact names.
+        private static GameObject Named(OwnedWorldObjects objects, string name, Transform parent)
+        {
+            GameObject child = objects.Create(name, Vector3.zero, Quaternion.identity, parent);
+            child.name = name;
+            return child;
+        }
+
         // Reset 0x76E1B0 stores the first transform of that name in depth-first order for
         // Head_M, then a new two-element array with MouthMover_M and MuzzleMid_M; GetNamedChild
         // 0x76E470 returns null when nothing matches.
@@ -159,13 +167,13 @@ namespace ProjectLucid.Tests
             WithSideMuzzle((objects, component) =>
             {
                 Transform host = component.transform;
-                Transform rig = objects.Create("Rig", Vector3.zero, Quaternion.identity, host).transform;
-                Transform mouth = objects.Create("MouthMover_M", Vector3.zero, Quaternion.identity, rig).transform;
-                Transform head = objects.Create("Head_M", Vector3.zero, Quaternion.identity, host).transform;
-                Transform firstMuzzle = objects.Create("MuzzleMid_M", Vector3.zero, Quaternion.identity, host).transform;
-                Transform extra = objects.Create("Extra", Vector3.zero, Quaternion.identity, host).transform;
-                objects.Create("MuzzleMid_M", Vector3.zero, Quaternion.identity, extra);
-                objects.Create("Head_M", Vector3.zero, Quaternion.identity, extra);
+                Transform rig = Named(objects, "Rig", host).transform;
+                Transform mouth = Named(objects, "MouthMover_M", rig).transform;
+                Transform head = Named(objects, "Head_M", host).transform;
+                Transform firstMuzzle = Named(objects, "MuzzleMid_M", host).transform;
+                Transform extra = Named(objects, "Extra", host).transform;
+                Named(objects, "MuzzleMid_M", extra);
+                Named(objects, "Head_M", extra);
 
                 Set(component, "m_characterRoot", null);
                 Set(component, "m_muzzleComponents", null);
