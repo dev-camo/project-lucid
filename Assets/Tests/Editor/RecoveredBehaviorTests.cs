@@ -557,9 +557,14 @@ namespace ProjectLucid.Tests
             // registry methods, thirty-five original UI registry/comparer methods,
             // eleven original analytics helper methods, and Unity's two
             // MonoScript generator methods, plus the twenty methods of the
-            // restored ClientDataAPI.Dispatcher (47f078d).
-            // 619 emitted method rows plus 120 fixed checks in the pinned compiler fixture.
-            const int expectedChecks = 739;
+            // restored ClientDataAPI.Dispatcher (47f078d), plus the nineteen
+            // methods of the restored enum-string tables (79928904): ten in
+            // Hardlight.HardlightEnumExtensions (nine GetString and the .cctor),
+            // three in Hardlight.HardlightEnumExtentions, two each in
+            // HardlightProject.HardlightEnumExtentions and Enums.EnumExtentions
+            // (GetString and the .cctor), and Enums.EnumComparers' .ctor and .cctor.
+            // 638 emitted method rows plus 120 fixed checks in the pinned compiler fixture.
+            const int expectedChecks = 758;
             Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(expectedChecks));
             Assert.That(CodecPipelineVerification.Run(), Is.EqualTo(expectedChecks),
                 "A repeated verification in the same Editor domain must count its own checks.");
@@ -568,7 +573,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void CodecVerificationRetryAfterOutputFailureCountsOnlyItsOwnChecks()
         {
-            Assert.That(CodecPipelineVerification.RunAfterOutputFailure(), Is.EqualTo(739),
+            Assert.That(CodecPipelineVerification.RunAfterOutputFailure(), Is.EqualTo(758),
                 "A failed output write must not add its completed checks to the unchanged-input retry.");
         }
 
