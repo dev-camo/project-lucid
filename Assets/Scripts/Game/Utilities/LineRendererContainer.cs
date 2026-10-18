@@ -6,7 +6,7 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x02000a10: batches positions for a LineRenderer.
     // The buffer is allocated in the constructor, before serialization, so it
-    // always holds 32; a larger serialized maximum overruns it.
+    // always holds 32 positions; a serialized maximum above 32 indexes past its end.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Serializable]
@@ -29,8 +29,8 @@ namespace HardlightProject
             m_lineRenderer.enabled = active;
         }
 
-        // Positions past the maximum are dropped; only an exact match stops
-        // the append.
+        // Appends until the count equals the serialized maximum, then drops further
+        // positions. The test is equality, as in the original.
         public void AddPosition(Vector3 position)
         {
             if (m_positionsCount == m_positionsCountMax) return;
