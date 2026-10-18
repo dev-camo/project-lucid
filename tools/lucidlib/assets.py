@@ -735,6 +735,10 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
     return result
 
 
+IL2CPP_BACKEND_LINE = "Files use the 'IL2Cpp' scripting backend."
+UNKNOWN_BACKEND_LINE = "Switching to the 'Unknown' scripting backend."
+
+
 def finalize_asset_export(run_dir: Path, work_dir: Path) -> dict:
     """Retry indexing a completed retained export without running extraction."""
     work = validate_work_dir(work_dir.expanduser())
@@ -752,6 +756,10 @@ def finalize_asset_export(run_dir: Path, work_dir: Path) -> dict:
     log_text = log.read_text(encoding="utf-8", errors="replace")
     if "Finished post-export" not in log_text:
         raise RuntimeError(f"AssetRipper did not report a completed export; see {log}")
+    # A metadata decode failure makes AssetRipper fall back to its Unknown scripting
+    # backend and still finish, without the IL2CPP type evidence the export needs.
+    if UNKNOWN_BACKEND_LINE in log_text or IL2CPP_BACKEND_LINE not in log_text:
+        raise RuntimeError(f"AssetRipper did not export with the IL2CPP scripting backend; see {log}")
     app = _validate_export_identity(report)
     _safe_work_dir(work, app)
     catalog = app / "Contents/Resources/Data/StreamingAssets/aa/catalog.json"

@@ -63,7 +63,7 @@ class AssetPathTests(unittest.TestCase):
         assets._json_write(run / "asset-map.json", mapping)
         assets._json_write(run / "report.json", report)
         assets._json_write(self.work / "assets/latest-assets.json", report)
-        (run / "assetripper.log").write_text("Finished post-export\n")
+        (run / "assetripper.log").write_text(assets.IL2CPP_BACKEND_LINE + "\nFinished post-export\n")
         return run
 
     def assert_preserved(self, action, protected, message=None):
@@ -157,6 +157,19 @@ class AssetPathTests(unittest.TestCase):
         self.assertEqual(result["summary"]["assets"], 1)
         self.assertEqual(snapshot(self.app), before)
         self.assertEqual(json.loads((self.work / "assets/latest-assets.json").read_text()), result)
+
+    def test_finalization_rejects_an_export_without_the_il2cpp_backend(self):
+        # A metadata decode failure falls back to AssetRipper's Unknown backend and still
+        # logs "Finished post-export" (reported on Windows in #298).
+        for log in (assets.IL2CPP_BACKEND_LINE + "\n" + assets.UNKNOWN_BACKEND_LINE + "\nFinished post-export\n",
+                    "Finished post-export\n"):
+            with self.subTest(log=log):
+                run = self.make_export()
+                (run / "assetripper.log").write_text(log)
+                before = (self.work / "assets/latest-assets.json").read_text()
+                with self.assertRaisesRegex(RuntimeError, "IL2CPP scripting backend"):
+                    assets.finalize_asset_export(run, self.work)
+                self.assertEqual((self.work / "assets/latest-assets.json").read_text(), before)
 
     def test_relative_retained_run_still_finalizes_from_physical_fixture_cwd(self):
         self.make_export()
