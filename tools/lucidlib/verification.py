@@ -4394,3 +4394,25 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAudioComponentPlaybackTests.
     "FilterComponentSkipsNoneAndForwardsActivationToTheListener",
     "ConstructorsStoreTheirOriginalDefaults",
 ))
+
+# Restored Game.Runtime animation helpers: AnimLayerWeightSetter, AnimParameterSetter,
+# AnimationCustomDataCamera, AnimationCustomDataToMaterialProperty, AnimationEventListener,
+# AnimationSampler, AnimationSpeedScaler, AnimationStartDelay, AnimatorBoolSetter and
+# AnimatorCompleteAbilitySetter.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAnimationHelperTests." + name for name in (
+    "LayerWeightSetterWritesTheNamedLayerOnlyWithANameAndAnAnimator",
+    "ParameterSetterWritesThroughTheWrappedHashOnlyForANamedParameter",
+    "CameraDataOutputsAreTheMultiplierWhenOverriddenAndTheScaledValueOtherwise",
+    "CameraDataPushesRawDepthOfFieldValuesIntoEveryDepthOfFieldComponent",
+    "MaterialPropertyHashesTheEyeLiteralsAndANegativeIndexDoesNothing",
+    "MaterialPropertyDrivesTheSharedMaterialOutsidePlayMode",
+    "MaterialPropertyValidationClampsOnlyAnIndexPastTheEnd",
+    "EventListenerInvokesTheLastActionIndexedForTheEventString",
+    "SamplerPosesTheObjectAtTheFractionOfTheClipLengthAndDisablesTheAnimation",
+    "SamplerValidationAddsAnAnimationOnlyWhenNoneIsFound",
+    "SpeedScalerLerpsTheClampedSpeedAndRewindsOnlyAnEnabledAnimationAtZero",
+    "StartDelayPlaysAtOnceUnlessTheDelayIsPositive",
+    "StartDelayIteratorWaitsTheCurrentDelayThenPlays",
+    "BoolSetterHashesOnEveryEntryAndExitReusesTheCachedHash",
+    "CompleteAbilitySetterResolvesTheBossOnEntryAndCompletesItsAbility",
+))

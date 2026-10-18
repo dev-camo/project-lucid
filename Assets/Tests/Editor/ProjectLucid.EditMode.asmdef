@@ -36,7 +36,8 @@
     "HLPhysics.Runtime",
     "HLNotifications.Runtime",
     "HLEventSystems.Runtime",
-    "ProjectLucid.SharedStateIsolation"
+    "ProjectLucid.SharedStateIsolation",
+    "Unity.RenderPipelines.Core.Runtime"
   ],
   "includePlatforms": [
     "Editor"
