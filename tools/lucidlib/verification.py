@@ -4947,3 +4947,9 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalCoreFsmTransitionTests.IsTvOsFiresOnlyWhenFalseCausesTheTransition",
     "ProjectLucid.Tests.OriginalCoreFsmTransitionTests.DevelopmentAndEditorOnlyNeverFireAndIgnoreTheirJson",
 )
+# Issue #314: state-message FSM nodes use the App storage, not the user's.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.PublishStateMessageAddsToAppStorageOnceAndLeavesTheUsersList",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.RemoveStateMessageRemovesFromAppStorageAndAcceptsAnAbsentEvent",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.StateMessageTransitionFiresOncePerPublishedAppEvent",
+)

@@ -537,6 +537,109 @@ namespace ProjectLucid.Tests
                 "{\"SceneName\":\"" + scene + "\",\"UseAppStorage\":" + (useApp ? "true" : "false") +
                 ",\"IsAddressable\":" + (addressable ? "true" : "false") + "}");
 
+        // FSMState_PublishStateMessage.DoOnEnter 0x0600232c, x86-64 0x584670: after
+        // FSMState.DoOnEnter it resolves ProcessManager.GetSystem<App> (0x98ea70) and
+        // App.Storage (+0x20), never the entering user's storage, and tail-calls
+        // ListExtensions.AddUnique<object> (0x96ffa0). Publishing into the user's list, or
+        // adding without the uniqueness check, fails here.
+        [Test]
+        public void PublishStateMessageAddsToAppStorageOnceAndLeavesTheUsersList()
+        {
+            using (var owned = new OwnedServices())
+            {
+                owned.Row<App>();
+                App app = owned.RegisterApp();
+                ApplicationStateEvent stateEvent = ScriptableObject.CreateInstance<ApplicationStateEvent>();
+                try
+                {
+                    stateEvent.name = Name();
+                    var appEvents = new List<ApplicationStateEvent>();
+                    app.Storage.SetValue(AppFSMKeys.StateEvents, appEvents);
+                    FSMUser user = User();
+                    var userEvents = new List<ApplicationStateEvent>();
+                    user.Storage.SetValue(AppFSMKeys.StateEvents, userEvents);
+                    IFSMState publish = FSMState_PublishStateMessage.ConstructInstance(Machine(), Name(), StateMessageJson(stateEvent));
+                    publish.OnEnter(user, null);
+                    publish.OnEnter(user, null);
+                    Assert.That(app.Storage.GetValueOnly<List<ApplicationStateEvent>>(AppFSMKeys.StateEvents), Is.SameAs(appEvents));
+                    Assert.That(appEvents.Count, Is.EqualTo(1), "entering twice adds the event once");
+                    Assert.That(ReferenceEquals(appEvents[0], stateEvent), Is.True, "the factory resolved the named event");
+                    Assert.That(userEvents, Is.Empty, "the user's own list is not the target");
+                }
+                finally { Object.DestroyImmediate(stateEvent); }
+            }
+        }
+
+        // FSMState_RemoveStateMessage.DoOnEnter 0x06002330, x86-64 0x584920: the same
+        // App.Storage lookup, then a tail call to List<object>.Remove (0x15f2540) whose
+        // result is unused. Removing from the user's list, or faulting when the event is
+        // already absent, fails here.
+        [Test]
+        public void RemoveStateMessageRemovesFromAppStorageAndAcceptsAnAbsentEvent()
+        {
+            using (var owned = new OwnedServices())
+            {
+                owned.Row<App>();
+                App app = owned.RegisterApp();
+                ApplicationStateEvent stateEvent = ScriptableObject.CreateInstance<ApplicationStateEvent>();
+                try
+                {
+                    stateEvent.name = Name();
+                    var appEvents = new List<ApplicationStateEvent> { stateEvent };
+                    app.Storage.SetValue(AppFSMKeys.StateEvents, appEvents);
+                    FSMUser user = User();
+                    var userEvents = new List<ApplicationStateEvent> { stateEvent };
+                    user.Storage.SetValue(AppFSMKeys.StateEvents, userEvents);
+                    IFSMState remove = FSMState_RemoveStateMessage.ConstructInstance(Machine(), Name(), StateMessageJson(stateEvent));
+                    remove.OnEnter(user, null);
+                    Assert.That(appEvents, Is.Empty);
+                    Assert.That(userEvents.Count, Is.EqualTo(1), "the user's own list is not the target");
+                    Assert.DoesNotThrow(() => remove.OnEnter(user, null), "an absent event is a no-op");
+                    Assert.That(appEvents, Is.Empty);
+                }
+                finally { Object.DestroyImmediate(stateEvent); }
+            }
+        }
+
+        // FSMTransitionStateMessage.DoUpdate 0x06002372, x86-64 0x587980: the base
+        // DoUpdate result is discarded and the transition returns App.Storage's
+        // List<object>.Remove (0x15f2540) result, so it fires once per published event and
+        // consumes it. An event only in the user's list never fires it.
+        [Test]
+        public void StateMessageTransitionFiresOncePerPublishedAppEvent()
+        {
+            using (var owned = new OwnedServices())
+            {
+                owned.Row<App>();
+                App app = owned.RegisterApp();
+                ApplicationStateEvent stateEvent = ScriptableObject.CreateInstance<ApplicationStateEvent>();
+                try
+                {
+                    stateEvent.name = Name();
+                    var appEvents = new List<ApplicationStateEvent>();
+                    app.Storage.SetValue(AppFSMKeys.StateEvents, appEvents);
+                    FSMUser user = User();
+                    var userEvents = new List<ApplicationStateEvent> { stateEvent };
+                    user.Storage.SetValue(AppFSMKeys.StateEvents, userEvents);
+                    FiniteStateMachine machine = Machine();
+                    IFSMTransition consume = FSMTransitionStateMessage.ConstructInstance(machine, Name(), StateMessageJson(stateEvent));
+                    IFSMState publish = FSMState_PublishStateMessage.ConstructInstance(machine, Name(), StateMessageJson(stateEvent));
+                    Assert.That(consume.Update(user, s_context), Is.False, "the user's list alone does not fire it");
+                    publish.OnEnter(user, null);
+                    Assert.That(consume.Update(user, s_context), Is.True);
+                    Assert.That(appEvents, Is.Empty, "firing consumes the event");
+                    Assert.That(consume.Update(user, s_context), Is.False, "one publication fires once");
+                    publish.OnEnter(user, null);
+                    Assert.That(consume.Update(user, s_context), Is.True);
+                    Assert.That(userEvents.Count, Is.EqualTo(1), "the user's list is never consumed");
+                }
+                finally { Object.DestroyImmediate(stateEvent); }
+            }
+        }
+
+        private static string StateMessageJson(ApplicationStateEvent stateEvent) =>
+            "{\"EventId\":\"" + stateEvent.name + "\"}";
+
         private static IFSMState PlayAudio(FiniteStateMachine machine, string clip, string source, bool oneShot, bool replay) =>
             ApplicationStatePlayAudio.ConstructInstance(machine, Name(),
                 "{\"Clip\":\"" + clip + "\",\"Source\":\"" + source + "\",\"OneShot\":" + (oneShot ? "true" : "false") +
