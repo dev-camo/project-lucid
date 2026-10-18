@@ -2056,6 +2056,11 @@ namespace ProjectLucid.Tests
                 Assert.That(point.SetPosition(new Vector3(12.0005f, 0f, 0f), transform), Is.False, "inside the tolerance");
                 Near(new Vector3(12f, 0f, 0f), point.PositionStartWorld, "start kept");
 
+                // The start is stored only when the position moved (0x60046a jumps over the store at 0x600491).
+                Set(point, "m_positionStartWorld", Vector3.zero);
+                Assert.That(point.SetPosition(new Vector3(12.0005f, 0f, 0f), transform), Is.False);
+                Assert.That(point.PositionStartWorld, Is.EqualTo(Vector3.zero), "not stored when it did not move");
+
                 point.SetPositionEnd(new Vector3(99f, 99f, 99f), transform);
                 Near(new Vector3(12f, 0f, 0f), point.PositionEndWorld, "end world");
                 Near(new Vector3(2f, 0f, 0f), point.PositionEndLocal, "end local");
@@ -2180,6 +2185,21 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The start rotation looks along the end minus the position in the follower's space (0x5ff865..0x5ff8c7), not
+        // along the world delta.
+        [Test]
+        public void LineInitialiseLooksAlongTheLocalDeltaOfARotatedFollower()
+        {
+            using (var fixture = new Fixture(new Vector3(10f, 0f, 0f), Quaternion.Euler(0f, 90f, 0f)))
+            {
+                var line = new TransformSurfaceLineDescription();
+
+                line.Initialise(fixture.Follower, new Vector3(4f, 0f, 0f), Vector3.zero, Quaternion.identity);
+
+                RotationIs(Quaternion.Euler(0f, 90f, 0f), (Quaternion)Get(line, "m_rotationLocalStart"), "local +x, not the world delta (10,0,-4)");
+            }
+        }
+
         // CalculateDistance 0x5FFDD0 is the distance between the start and end world positions; SetPositionEnd
         // 0x5FFDA0 stores the given end, SetPosition 0x5FFD10 also the start when it moved.
         [Test]
@@ -2193,6 +2213,10 @@ namespace ProjectLucid.Tests
                 Assert.That(line.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.True);
                 Near(new Vector3(12f, 0f, 0f), line.PositionStartWorld, "start");
                 Assert.That(line.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.False);
+                // The start is stored only when the position moved (0x5ffd4a jumps over the store at 0x5ffd71).
+                Set(line, "m_positionStartWorld", Vector3.zero);
+                Assert.That(line.SetPosition(new Vector3(12.0005f, 0f, 0f), transform), Is.False);
+                Assert.That(line.PositionStartWorld, Is.EqualTo(Vector3.zero), "not stored when it did not move");
                 line.SetPositionEnd(new Vector3(15f, 4f, 0f), transform);
                 Near(new Vector3(15f, 4f, 0f), line.PositionEndWorld, "end world");
                 Near(new Vector3(5f, 4f, 0f), line.PositionEndLocal, "end local");
@@ -2248,6 +2272,23 @@ namespace ProjectLucid.Tests
             Assert.That(idle.Update(out position, ref time, ref delta, 1, false, null), Is.False, "no total time");
             Near(1f, time);
             Near(1f, delta);
+
+            // A NaN time fails the unordered compare (0x5ff9c3 jb with a transform, 0x5ffa25 jae without), so the line
+            // counts as still moving: it keeps the NaN time and zeroes the delta (0x5ffa27).
+            var timed = Timed(new TransformSurfaceLineDescription(), 0f, 4f);
+            Set(timed, "m_positionEndWorld", new Vector3(8f, 0f, 0f));
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-line-nan"))
+            {
+                Transform transform = objects.Create("transform", Vector3.zero, Quaternion.identity).transform;
+                foreach (bool usesTransform in new[] { false, true })
+                {
+                    time = float.NaN;
+                    delta = 1f;
+                    Assert.That(timed.Update(out position, ref time, ref delta, 1, usesTransform, transform), Is.True, "NaN time, transform " + usesTransform);
+                    Assert.That(float.IsNaN(time), Is.True, "time kept, transform " + usesTransform);
+                    Near(0f, delta, "delta zeroed, transform " + usesTransform);
+                }
+            }
         }
 
         // With a transform the line runs from the transform of m_position to the transform of the end in the
@@ -2280,7 +2321,7 @@ namespace ProjectLucid.Tests
         }
 
         // The progress is clamped to 0..1 for the position (Vector3.Lerp); the line's rotation is the start
-        // rotation, or with the lerp flag the start-to-end lerp by the unclamped progress. Past the total time
+        // rotation, or with the lerp flag Quaternion.Lerp (which clamps) of the start and end by the raw progress. Past the total time
         // the rotation is left alone.
         [Test]
         public void LineUpdateClampsTheProgressAndLerpsTheRotationOnRequest()
@@ -2313,6 +2354,11 @@ namespace ProjectLucid.Tests
             Near(new Vector3(4f, 0f, 0f), position, "progress 0.5");
             RotationIs(Quaternion.Lerp(start, end, 0.5f), line.GetRotationLocal(null), "halfway between the rotations");
             RotationIsNot(start, line.GetRotationLocal(null), "no longer the start rotation");
+
+            time = 2.5f;
+            delta = 0.5f;
+            Assert.That(line.Update(out position, ref time, ref delta, 1, false, null), Is.True);
+            RotationIs(end, line.GetRotationLocal(null), "progress 1.25 is clamped by Quaternion.Lerp (0x5ffac0), not extrapolated");
 
             Set(line, "m_rotationLocal", start);
             time = 3.5f;
@@ -2567,6 +2613,10 @@ namespace ProjectLucid.Tests
                 Near(new Vector3(12f, 0f, 0f), surface.PositionStartWorld, "start");
                 Near(new Vector3(2f, 0f, 0f), surface.LocalPosition, "local");
                 Assert.That(surface.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.False);
+                // The start is stored only when the position moved (the jump at 0x600bda skips the store).
+                Set(surface, "m_positionStartWorld", Vector3.zero);
+                Assert.That(surface.SetPosition(new Vector3(12.0005f, 0f, 0f), transform), Is.False);
+                Assert.That(surface.PositionStartWorld, Is.EqualTo(Vector3.zero), "not stored when it did not move");
                 surface.SetPositionEnd(new Vector3(15f, 4f, 0f), transform);
                 Near(new Vector3(15f, 4f, 0f), surface.PositionEndWorld, "end world");
                 Near(new Vector3(5f, 4f, 0f), surface.PositionEndLocal, "end local");

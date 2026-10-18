@@ -4991,6 +4991,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformSurfaceTests." + na
     "TransformRotationsComeFromTheFollowedTransform",
     "TransformSetPositionFollowsTheTransformAndAlwaysStoresTheStart",
     "LineInitialiseStoresTheLookRotationsOnlyForALineWithALength",
+    "LineInitialiseLooksAlongTheLocalDeltaOfARotatedFollower",
     "LineDistanceAndPositionsFollowTheStartAndEnd",
     "LineUpdateInterpolatesAndHoldsTheEndItRanTo",
     "LineUpdateThroughATransformUsesTheLocalPositions",
