@@ -492,7 +492,7 @@ namespace ProjectLucid.Tests
         // 0600106c (0x742770): the ground hit position is applied once (only when only the projected hit exists);
         // the slope angle is Vector3.Angle against negated gravity, the downhill is the normalised
         // plane projection of gravity, then the settings lookup and either the look rotation or the forward dot.
-        // SetWorldPosition and SetWorldVelocity are Actor virtuals (native vcalls, e.g. 0x5cbf02 slot 37), so the
+        // SetWorldPosition, SetWorldRotation and SetWorldVelocity are Actor virtuals (native vcalls, e.g. 0x5cbf02 slot 37), so the
         // IL call targets are declared by Actor even though the receivers are Characters.
         [Test]
         public void AirStompDownhillRotationCallsTheNativeMathInOrder()
@@ -505,7 +505,7 @@ namespace ProjectLucid.Tests
             int forward = IndexOf(calls, "Actor", "get_ForwardDirection");
             int settings = IndexOf(calls, "CharacterAbilityDefinition_AirStompAttack", "GetSettingsForSlope");
             int look = IndexOf(calls, "Quaternion", "LookRotation");
-            int rotate = IndexOf(calls, "Character", "SetWorldRotation");
+            int rotate = IndexOf(calls, "Actor", "SetWorldRotation");
             int dot = IndexOf(calls, "Vector3", "Dot");
             Assert.That(new[] { position, negate, angle, project, forward, settings, look, rotate, dot }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(calls, "Actor", "SetWorldPosition"), Is.EqualTo(1));
