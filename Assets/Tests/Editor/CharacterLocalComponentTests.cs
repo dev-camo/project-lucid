@@ -189,6 +189,9 @@ namespace ProjectLucid.Tests
         private static void WithHomingTargets(Action<Owned> body) => Owned.Run(owned =>
         {
             // HomingTarget caches a CharacterManager reference, and its Editor OnValidate reads the time lookup cache.
+            // Its TimeScaledComponent base type initializer (0x06000ec7) takes GetSystemRef<TimeManager>(null, true),
+            // which appends the TimeManager row on first use, so that row is owned as well.
+            owned.LeaseRow<TimeManager>();
             owned.LeaseRow<CharacterManager>();
             FieldInfo config = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
             object prior = config.GetValue(null);
@@ -341,7 +344,7 @@ namespace ProjectLucid.Tests
             WithManager((owned, manager, character) =>
             {
                 var teleport = owned.Host("Lucid teleport local", false).AddComponent<CharacterTeleportLocal>();
-                var levelManager = owned.Host("Lucid level manager", false).AddComponent<LevelManager>();
+                var levelManager = NewLevelManager(owned);
 
                 Call(teleport, "OnLevelManagerValid", levelManager);
                 Assert.That(Get<LevelManager>(teleport, "m_levelManager"), Is.SameAs(levelManager));
@@ -359,7 +362,7 @@ namespace ProjectLucid.Tests
             WithManager((owned, manager, character) =>
             {
                 var teleport = owned.Host("Lucid teleport local", false).AddComponent<CharacterTeleportLocal>();
-                var levelManager = owned.Host("Lucid level manager", false).AddComponent<LevelManager>();
+                var levelManager = NewLevelManager(owned);
                 Assert.That(levelManager.CurrentLevelValid, Is.False);
                 Set(teleport, "m_levelManager", levelManager);
 
@@ -374,6 +377,15 @@ namespace ProjectLucid.Tests
                 Assert.Throws<NullReferenceException>(() => Call(teleport, "OnCharacterManagerValid", manager),
                     "triggered on awake, the teleport reads the level manager");
             });
+        }
+
+        // An unawakened LevelManager; its field initialisers take the MissionManager, AudioManager and SaveManager
+        // references (0x0600247e). The manager fixture already holds the MissionManager row and the registered
+        // SaveManager, so only the AudioManager row is leased here.
+        private static LevelManager NewLevelManager(Owned owned)
+        {
+            owned.LeaseRow<AudioManager>();
+            return owned.Host("Lucid level manager", false).AddComponent<LevelManager>();
         }
 
         // ---- CharacterTriggerSurfaceTeleport -------------------------------------------------------
