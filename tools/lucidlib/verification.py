@@ -4008,3 +4008,17 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests.AwakeDispatchesInitialiseSplineTrackersOnceAfterTheShutdownSubscriptionAndNeverReset",
     "ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests.PipeAwakeBuildsTrackerAndProfileFromTheSuppliedSplineBeforeTheFirstDirtyUpdate",
 )
+
+# Original HLCrossPromo.Runtime value types, HashUtils, shared resource pool and CrossPromoPage.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoCoreTests." + name for name in (
+    "FileSafeSha1RemovesEverySlashAndKeepsPlusAndPadding",
+    "TextureConstructorDerivesLocalFileNameFromUrlOnly",
+    "AdIdentityIsTheOrdinalNameAlone",
+    "FirstAdIndexClampsMissesAndMissingListsToZero",
+    "ConfigCopiesAssetValuesAndBuildsTheMetadataRequest",
+    "ReferenceCountsHoldersAndKeepsReportingReleasedBelowZero",
+    "PoolReleasesOnTheLastHolderAndCallsBackBeforeRemoval",
+    "PoolWithoutCallbackStillRemovesReleasedEntries",
+    "PageForwardsSpriteAndTextToItsComponents",
+    "DeclarationsKeepOriginalFlagsFieldOrderAndDefaults",
+))

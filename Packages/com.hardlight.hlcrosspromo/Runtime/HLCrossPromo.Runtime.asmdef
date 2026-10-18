@@ -2,7 +2,8 @@
   "name": "HLCrossPromo.Runtime",
   "rootNamespace": "Hardlight",
   "references": [
-    "HLUnityCore.Runtime"
+    "HLUnityCore.Runtime",
+    "UnityEngine.UI"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],
