@@ -31,7 +31,7 @@ namespace HardlightProject
         // moves the knot origin to that far point, so the next section starts from it. A quad
         // joins this pair to the next section unless this is the last knot.
         public override void GenerateMeshCrossSection(List<Vector3> vertices, List<int> triangles, KnotStepData knotStepData,
-            int knotStepIndex, int knotStepCount, bool invertOrder, float offsetMultiplier = 0f)
+            int knotStepIndex, int knotStepCount, bool invertOrder, float offsetMultiplier)
         {
             Vector3 direction = knotStepData.m_rotation * (Quaternion.AngleAxis(m_angle, Vector3.left) * Vector3.forward);
             Vector3 origin = GetOrigin(knotStepData, offsetMultiplier);
@@ -51,7 +51,8 @@ namespace HardlightProject
             positionLocal = rotationLocal * (Vector3.right * distance);
         }
 
-        // 06003d41 (0x6D48A0): not called by any shipped method.
+        // 06003d41 (0x6D48A0): no out-of-line callers; the AngleAxis(m_angle, left) in GetOrigin,
+        // GenerateMeshCrossSection and CalculateLocationLocal may be this method inlined.
         private Quaternion CalculateRotationLocal()
         {
             return Quaternion.AngleAxis(m_angle, Vector3.left);

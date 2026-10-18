@@ -85,7 +85,7 @@ namespace ProjectLucid.Tests
             public override SurfaceCrossSectionType Type => default;
             public override Vector3 GetOrigin(KnotStepData knotStepData, float offsetMultiplier) => throw new NotSupportedException();
             public override void GenerateMeshCrossSection(List<Vector3> vertices, List<int> triangles, KnotStepData knotStepData,
-                int knotStepIndex, int knotStepCount, bool invertOrder, float offsetMultiplier = 0f) => throw new NotSupportedException();
+                int knotStepIndex, int knotStepCount, bool invertOrder, float offsetMultiplier) => throw new NotSupportedException();
 
             protected override void CalculateLocationLocal(float distance, out Vector3 positionLocal, out Quaternion rotationLocal)
             {
@@ -207,6 +207,9 @@ namespace ProjectLucid.Tests
             }));
             ParameterInfo offsetMultiplier = typeof(SurfaceMeshCrossSectionGenerator).GetMethod("GenerateMeshCrossSection").GetParameters()[6];
             Assert.That(offsetMultiplier.HasDefaultValue && (float)offsetMultiplier.DefaultValue == 0f, Is.True);
+            // The shipped override rows carry no Optional/HasDefault for offsetMultiplier (06003d2e, 06003d3f).
+            Assert.That(typeof(SurfaceMeshCrossSectionPlaneGenerator).GetMethod("GenerateMeshCrossSection").GetParameters()[6].HasDefaultValue, Is.False);
+            Assert.That(typeof(SurfaceMeshCrossSectionEllipseGenerator).GetMethod("GenerateMeshCrossSection").GetParameters()[6].HasDefaultValue, Is.False);
             ParameterInfo knotOrigin = typeof(SurfaceMeshCrossSectionGenerator).GetMethod("SpawnPrefabs").GetParameters()[1];
             Assert.That(knotOrigin.HasDefaultValue && knotOrigin.DefaultValue == null, Is.True);
 

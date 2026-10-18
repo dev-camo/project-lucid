@@ -51,7 +51,7 @@ namespace HardlightProject
         // one extra final vertex clamped to the far end of the range. Every vertex also becomes the
         // knot origin. Afterwards the knot rotation is turned by the tangent at the final angle.
         public override void GenerateMeshCrossSection(List<Vector3> vertices, List<int> triangles, KnotStepData knotStepData,
-            int knotStepIndex, int knotStepCount, bool invertOrder, float offsetMultiplier = 0f)
+            int knotStepIndex, int knotStepCount, bool invertOrder, float offsetMultiplier)
         {
             int stepCount = (int)((AngleEnd - AngleStart) / m_angleStep);
             float step = m_angleClockwise ? m_angleStep : -m_angleStep;

@@ -158,13 +158,13 @@ namespace ProjectLucid.Tests
             var triangles = new List<int>();
             var knot = Knot(new Vector3(1f, 2f, 3f), Quaternion.identity);
 
-            plane.GenerateMeshCrossSection(vertices, triangles, knot, 0, 2, false);
+            plane.GenerateMeshCrossSection(vertices, triangles, knot, 0, 2, false, 0f);
             AreCloseAll(new[] { new Vector3(1f, 2f, 3f), new Vector3(1f, 4f, 3f) }, vertices, "first section");
             AreClose(new Vector3(1f, 4f, 3f), knot.m_origin, "knot origin");
             Assert.That(triangles, Is.EqualTo(new[] { 0, 1, 2, 3, 2, 1 }));
 
             // The second knot is the last: it adds its pair, now from the moved origin, and no quad.
-            plane.GenerateMeshCrossSection(vertices, triangles, knot, 1, 2, false);
+            plane.GenerateMeshCrossSection(vertices, triangles, knot, 1, 2, false, 0f);
             Assert.That(vertices.Count, Is.EqualTo(4));
             AreClose(new Vector3(1f, 4f, 3f), vertices[2], "second origin");
             AreClose(new Vector3(1f, 6f, 3f), vertices[3], "second far point");
@@ -172,7 +172,7 @@ namespace ProjectLucid.Tests
 
             // The quad starts at the first new vertex, and invertOrder reverses the winding.
             var inverted = new List<int>();
-            plane.GenerateMeshCrossSection(vertices, inverted, Knot(Vector3.zero, Quaternion.identity), 0, 5, true);
+            plane.GenerateMeshCrossSection(vertices, inverted, Knot(Vector3.zero, Quaternion.identity), 0, 5, true, 0f);
             Assert.That(inverted, Is.EqualTo(new[] { 6, 5, 4, 5, 6, 7 }));
         }
 
@@ -236,7 +236,7 @@ namespace ProjectLucid.Tests
             var triangles = new List<int>();
             var knot = Knot(Vector3.zero, Quaternion.identity);
 
-            ellipse.GenerateMeshCrossSection(vertices, triangles, knot, 0, 2, false);
+            ellipse.GenerateMeshCrossSection(vertices, triangles, knot, 0, 2, false, 0f);
 
             AreCloseAll(new[]
             {
@@ -262,7 +262,7 @@ namespace ProjectLucid.Tests
             var triangles = new List<int>();
             var knot = Knot(new Vector3(10f, 0f, 0f), Quaternion.Euler(0f, 90f, 0f));
 
-            ellipse.GenerateMeshCrossSection(vertices, triangles, knot, 0, 2, true);
+            ellipse.GenerateMeshCrossSection(vertices, triangles, knot, 0, 2, true, 0f);
 
             AreCloseAll(new[]
             {
@@ -275,7 +275,7 @@ namespace ProjectLucid.Tests
 
             // The last knot of the chain adds its vertices but no quad.
             var lastTriangles = new List<int>();
-            ellipse.GenerateMeshCrossSection(new List<Vector3>(), lastTriangles, Knot(Vector3.zero, Quaternion.identity), 1, 2, false);
+            ellipse.GenerateMeshCrossSection(new List<Vector3>(), lastTriangles, Knot(Vector3.zero, Quaternion.identity), 1, 2, false, 0f);
             Assert.That(lastTriangles, Is.Empty);
         }
 

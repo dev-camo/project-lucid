@@ -130,7 +130,7 @@ namespace HardlightProject
             return direction > 0 ? m_positionStartWorld : m_positionEndWorld;
         }
 
-        // 06002eca (0x5FE480): a point surface; it is only ever traversed when it takes time.
+        // 06002eca (0x5FE480): places the target at the surface position; true (still on this surface) while the total time is positive.
         public virtual bool Update(out Vector3 position, ref float time, ref float deltaTime, int direction, bool usesTransform,
             Transform transform, Tracker2D tracker = null)
         {

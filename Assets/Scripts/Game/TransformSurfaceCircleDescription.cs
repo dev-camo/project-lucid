@@ -97,7 +97,8 @@ namespace HardlightProject
         // clockwise, forwards when anticlockwise).
         public override Quaternion GetRotation(Transform transform, int direction, bool orientateToDirection, Tracker2D tracker = null)
         {
-            Quaternion rotation = transform.rotation * GetRotationLocal(transform);
+            Quaternion rotationLocal = GetRotationLocal(transform);
+            Quaternion rotation = transform.rotation * rotationLocal;
             if (orientateToDirection && ((direction < 0 && m_clockwise) || (direction > 0 && !m_clockwise)))
                 rotation = rotation * m_inverseRotation;
             return rotation;
@@ -136,7 +137,8 @@ namespace HardlightProject
             Vector3 centre;
             if (usesTransform)
             {
-                Quaternion rotation = transform.rotation * Quaternion.FromToRotation(Vector3.up, m_axis);
+                Quaternion fromUp = Quaternion.FromToRotation(Vector3.up, m_axis);
+                Quaternion rotation = transform.rotation * fromUp;
                 m_forward = rotation * Vector3.forward;
                 m_right = rotation * Vector3.right;
                 m_up = rotation * Vector3.up;

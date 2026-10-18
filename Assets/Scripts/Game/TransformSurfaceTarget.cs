@@ -211,21 +211,19 @@ namespace HardlightProject
             return !isStatic;
         }
 
-        // 06002f2f (0x6029D0): steps the target along its surfaces in unscaled frame time and keeps the
-        // time at which it passed closest to the given transform (the follower's own when none is given).
+        // 06002f2f (0x6029D0): steps along the current surface in unscaled frame time until it reports it
+        // is finished, and keeps the time of closest approach to the given transform (the follower's own when none is given).
         public void SnapToNearest(TransformSurfaceFollower follower, Transform targetTransform)
         {
-            Vector3 position = default;
-            if (targetTransform == null)
-                targetTransform = follower.transform;
-            Vector3 targetPosition = targetTransform.position;
+            Transform source = targetTransform != null ? targetTransform : follower.transform;
+            Vector3 targetPosition = source.position;
             bool usesTransform = RefreshTransform(follower, out Transform transform);
             float nearestTime = m_time;
             float nearestSqrDistance = float.MaxValue;
             while (true)
             {
                 float deltaTime = Time.unscaledDeltaTime;
-                if (!m_surface.Update(out position, ref m_time, ref deltaTime, m_direction, usesTransform, transform, m_tracker))
+                if (!m_surface.Update(out Vector3 position, ref m_time, ref deltaTime, m_direction, usesTransform, transform, m_tracker))
                     break;
                 position += m_worldOffset;
                 float sqrDistance = (position - targetPosition).sqrMagnitude;
@@ -279,7 +277,7 @@ namespace HardlightProject
         // surface or turning round at the ends of the chain according to the follower's wrap mode.
         public void Update(TransformSurfaceFollower follower, float deltaTime)
         {
-            Vector3 position = default;
+            Vector3 position;
             if (m_surface == null)
                 return;
             float remainingDeltaTime = deltaTime;

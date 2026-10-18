@@ -88,13 +88,12 @@ namespace HardlightProject
         // then run the speed out of one surface into the next, continuing across the join when closed.
         private void InternalReset()
         {
-            bool closed = m_closed;
             TransformSurfaceDescription previous = m_surfaces[m_surfaces.Count - 1];
             Vector3 positionPrev = previous.LocalPosition;
             bool first = true;
             foreach (TransformSurfaceDescription surface in m_surfaces)
             {
-                TransformSurfaceDescription end = first && !closed ? previous : surface;
+                TransformSurfaceDescription end = first && !m_closed ? previous : surface;
                 first = false;
                 previous.Initialise(this, end.LocalPosition, positionPrev, end.GetRotationLocal(transform));
                 positionPrev = previous.LocalPosition;
@@ -242,8 +241,8 @@ namespace HardlightProject
         }
 
         // 06002f21 (0x603830): walks the surfaces taking off each one's length until the distance falls
-        // inside one. The direction is positive while the distance left is below the total of all
-        // surfaces, which compares the remainder in the final surface to the whole chain.
+        // inside one. The direction is positive when the distance left is less than the total distance of
+        // the chain, else negative.
         public void GetSurfaceByDistance(float distance, out int surfaceIndex, out float time, out int direction)
         {
             surfaceIndex = 0;
@@ -254,9 +253,8 @@ namespace HardlightProject
             TransformSurfaceDescription surface = m_surfaces[surfaceIndex];
             while (distance >= surface.Distance)
             {
-                int index = surfaceIndex;
                 distance -= surface.Distance;
-                if (index == m_surfaces.Count - 1)
+                if (surfaceIndex == m_surfaces.Count - 1)
                     break;
                 surfaceIndex++;
                 surface = m_surfaces[surfaceIndex];
