@@ -580,12 +580,14 @@ namespace ProjectLucid.Tests
             AssertReads("Denominator");
         }
 
-        // MathAbs 0x1A02C30 inlines Mathf.Abs(int) (0x26C0920: Math init, neg/cmovs).
-        // MathFloor 0x1A04200 inlines Mathf.FloorToInt (0x26C0F30: roundss 0x9, cvttss2si),
-        // flooring rather than truncating. MathMax maxss 0x1a04595 and MathMin minss 0x1a04d35
-        // are Mathf.Max/Min(a, b) = a > b ? a : b / a < b ? a : b, so a NaN First yields Second
-        // and a NaN Second yields NaN (System.Math would return NaN both ways). MathMaxInt
-        // calls System.Math.Max(int, int) (0x1a0497b).
+        // MathAbs 0x1A02C30 inlines Mathf.Abs(int) (init flag Mathf_Abs_..._inline at 0x319EAD6;
+        // neg/cmovs). int.MinValue is left out: IL2CPP returns it unchanged, Editor Mono throws.
+        // MathFloor 0x1A04200 inlines Mathf.FloorToInt (init flag Mathf_FloorToInt_..._inline at
+        // 0x319EA98; roundss 0x9, cvttss2si), flooring rather than truncating. MathMax maxss
+        // 0x1a04595 and MathMin minss 0x1a04d35 have Mathf.Max/Min semantics (the presumed
+        // source; no inline marker proves the call): a > b ? a : b / a < b ? a : b, so a NaN
+        // First yields Second and a NaN Second yields NaN (System.Math would return NaN both
+        // ways). MathMaxInt calls System.Math.Max(int, int) (0x1a0497b).
         [Test]
         public void AbsFloorMaxAndMinFollowTheirUnityAndSystemForms()
         {

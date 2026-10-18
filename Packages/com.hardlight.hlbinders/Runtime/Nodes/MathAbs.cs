@@ -18,6 +18,7 @@ namespace Hardlight.UI.Binding.Nodes
 		// 0600011c (1.10.1 RVA 0x1A02C30)
 		public override void Refresh()
 		{
+			// Inlined Mathf.Abs(int): neg/cmovs with no overflow throw for int.MinValue under IL2CPP.
 			Output.Value = Mathf.Abs(Input.GetValue<int>());
 		}
 

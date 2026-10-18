@@ -35,7 +35,7 @@ namespace Hardlight.UI.Binding.Nodes
 		{
 			DateTime current = CurrentTime.GetValue<DateTime>();
 			DateTime end = EndTime.GetValue<DateTime>();
-			// An unset (default) end time collapses onto the current time; the current time is clamped only at the end.
+			// An end equal to default(DateTime), including an unset one, collapses onto the current time; the current time is clamped only at the end.
 			if (end == default(DateTime))
 			{
 				end = current;
