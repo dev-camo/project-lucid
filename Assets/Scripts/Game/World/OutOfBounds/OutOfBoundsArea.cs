@@ -50,6 +50,12 @@ namespace HardlightProject
             character.TriggerOutOfBounds(m_triggerInstantDeath, m_triggerRingLoss);
         }
 
+        // Explicit so the .ctor (token 0x06003e52) sits between SetCharacterOutOfBounds and the
+        // explicit interface GetComponent in metadata order, as in the original.
+        public OutOfBoundsArea()
+        {
+        }
+
         T ITriggerCollider.GetComponent<T>() => GetComponent<T>();
     }
 }
