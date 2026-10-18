@@ -147,6 +147,27 @@ namespace ProjectLucid.Tests
                 "HardlightProject.HardlightEnumExtentions.CharacterStatsEnumToString");
         }
 
+        // The remaining owners. 0x1F is outside the Add rows of each .cctor or table
+        // builder: Analytics 0x19E7540 (0, 0xeca8303d, 0xbb963fb6, 0x3e270050),
+        // GenerateDefaultLanguagesEnumStrings 0x19E66E0, HLUnityCore EnumExtensions
+        // 0x1B1B1A0 (0x9869c05, 0x4f5a935c, 0xb6fa1284, 0x97220d01) and HLUnityUI
+        // 0x1B4FFD0, so GetString formats and caches it.
+        [Test]
+        public void CachedMissInEachRemainingEnumTableOwnerIsReported()
+        {
+            CheckCachedMiss(typeof(Hardlight.Analytics.HardlightEnumExtensions), "AnalyticsConsentStateEnumToString",
+                () => Hardlight.Analytics.HardlightEnumExtensions.GetString((Hardlight.Analytics.AnalyticsConsentState)0x1F),
+                "Hardlight.Analytics.HardlightEnumExtensions.AnalyticsConsentStateEnumToString");
+            CheckCachedMiss(typeof(Hardlight.Enums.EnumExtentions), "LanguagesEnumToString",
+                () => Hardlight.Enums.EnumExtentions.GetString((Hardlight.Enums.Languages)0x1F),
+                "Hardlight.Enums.EnumExtentions.LanguagesEnumToString");
+            CheckCachedMiss(typeof(EnumExtensions), "UpdateOnEnumToString", () => ((UpdateOn)0x1F).GetString(),
+                "Hardlight.EnumExtensions.UpdateOnEnumToString");
+            CheckCachedMiss(typeof(HardlightUIEnumComparers).Assembly.GetType("Hardlight.HardlightEnumExtensions", true),
+                "UIInputTypeEnumToString", () => ((UIInputType)0x1F).GetString(),
+                "Hardlight.HardlightEnumExtensions.UIInputTypeEnumToString");
+        }
+
         private static void CheckCachedMiss(Type owner, string field, Func<string> getString, string path)
         {
             SharedStateSnapshot before = SharedStateSnapshot.Capture();

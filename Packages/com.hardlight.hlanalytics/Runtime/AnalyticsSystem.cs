@@ -13,8 +13,10 @@ using Unity.IL2CPP.CompilerServices;
 namespace Hardlight.Analytics
 {
     // Original HLAnalytics.Runtime 0x02000005: all 48 own methods and the original
-    // callback/three iterator flows. Natural generated layout and native binding
-    // remain separately unverified; no authored replacement nested classes.
+    // callback/three iterator flows, with no authored replacement nested classes.
+    // Shipping names DisplayClass69_0, d__59, d__84 and d__87`1 count members
+    // stripped from the build, so this source emits lower ordinals; native binding
+    // remains separately unverified.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class AnalyticsSystem : IAnalytics

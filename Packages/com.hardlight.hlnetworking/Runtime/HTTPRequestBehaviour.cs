@@ -54,6 +54,8 @@ namespace Hardlight.Networking
         }
 
         // 0x06000013 and original display class 0x02000008 (0x0600001f/20).
+        // Shipping names <>c__DisplayClass25_0 and <sendRequestInternal>d__26 count
+        // members stripped from the build, so this source emits lower ordinals.
         public static bool post(Uri uri, object body, string accessToken, JSONResponseCallback callback, float timeout = 10f)
         {
             UnityWebRequest request = createPostRequest(uri, body, accessToken, timeout);

@@ -42,6 +42,7 @@ namespace Hardlight
         }
 
         // Original06000058 and natural0200001a/06000059..5e: one retained yield state, no disposal cleanup.
+        // The shipping name d__18 counts two members stripped from the build, so this source emits d__16.
         private IEnumerator ControllerConnectionPolling()
         {
             while (true)
