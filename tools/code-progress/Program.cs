@@ -68,7 +68,7 @@ internal static class Program
             throw new InvalidDataException("Reader requires a nonce-owned work run.");
         string[] scope = context.GetProperty("scope").EnumerateArray().Select(e => e.GetString()!).ToArray();
         if (scope.Length is 0 or > 256 || scope.Distinct().Count() != scope.Length || scope.Any(name => name == null ||
-            !Regex.IsMatch(name, "\\A(?:Game\\.Runtime|HL[A-Za-z0-9]+(?:\\.Runtime)?|Assembly-CSharp(?:-firstpass)?)\\z")))
+            !Regex.IsMatch(name, "\\A(?:Game\\.Runtime|Dreamteck\\.(?:Utilities|Splines)|HL[A-Za-z0-9]+(?:\\.Runtime)?|Assembly-CSharp(?:-firstpass)?)\\z")))
             throw new InvalidDataException("Invalid fixed assembly scope.");
         var filters = context.GetProperty("namespace_filters");
         if (filters.ValueKind != JsonValueKind.Object || filters.EnumerateObject().Count() != 2 ||
@@ -143,7 +143,7 @@ internal static class Program
         new Cpp2IlCorePlugin().OnLoad();
         Cpp2IlApi.InitializeLibCpp2Il(binary, metadata, UnityVersion.Parse("2022.3.54f1"), false);
         var app = Cpp2IlApi.CurrentAppContext!;
-        var expectedScope = app.Assemblies.Where(a => a.Definition != null && (a.DefaultName == "Game.Runtime" || a.DefaultName.StartsWith("HL", StringComparison.Ordinal) ||
+        var expectedScope = app.Assemblies.Where(a => a.Definition != null && (a.DefaultName is "Game.Runtime" or "Dreamteck.Utilities" or "Dreamteck.Splines" || a.DefaultName.StartsWith("HL", StringComparison.Ordinal) ||
             a.DefaultName is "Assembly-CSharp" or "Assembly-CSharp-firstpass")).Select(a => a.DefaultName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
         if (!expectedScope.SequenceEqual(scope.OrderBy(n => n, StringComparer.Ordinal))) throw new InvalidDataException("Scope omits original proprietary assemblies.");
         var assemblies = app.Assemblies.Where(a => a.Definition != null && scope.Contains(a.DefaultName, StringComparer.Ordinal)).ToArray();

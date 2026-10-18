@@ -171,6 +171,14 @@ class CodeWorkTests(unittest.TestCase):
         row = self.original_row(assembly="Assembly-CSharp", signature=self.signature(owner="AmplifyColor.Manager"))
         with self.assertRaises(ValueError): self.measure(original=[row], player=[], scope=["Assembly-CSharp"], filters={"Assembly-CSharp": ["HardlightProject."]})
 
+    def test_shipped_dreamteck_assemblies_are_in_scope_and_unshipped_ones_are_not(self):
+        for name in ("Dreamteck.Utilities", "Dreamteck.Splines"):
+            report = self.measure(original=[self.original_row(assembly=name)], player=[], scope=[name])
+            self.assertEqual(1, report["totals"]["original_native_bodies"])
+        # Negative controls: editor-only and unrelated assemblies are not original runtime scope.
+        for name in ("Dreamteck.Splines.Editor", "Dreamteck.Other", "DreamteckSplines", "Newtonsoft.Json", "UnityEngine.CoreModule"):
+            with self.assertRaises(ValueError): self.measure(original=[self.original_row(assembly=name)], player=[], scope=[name])
+
     def test_output_is_deterministic_and_public_counts_contain_no_raw_method_or_paths(self):
         measurement = self.measure()
         report = codeprogress.public_counts(measurement, source="a" * 64, input_binary=PROGRESS_BINARY, input_metadata=PROGRESS_METADATA,
@@ -290,11 +298,12 @@ class AssemblyAvailabilityTests(unittest.TestCase):
     def test_expected_linux_scope_includes_every_recovered_assembly(self):
         root = Path(__file__).resolve().parents[2]
         scope, _, _ = codeprogress._scope(root)
-        self.assertEqual(22, len(scope))
+        self.assertEqual(24, len(scope))
+        self.assertLessEqual({"Dreamteck.Utilities", "Dreamteck.Splines"}, set(scope))
         unrecovered = set()
         returned = [{"assembly_name": name} for name in scope if name not in unrecovered]
         statuses = codeprogress._assembly_availability(root, {"staged": {"modules": returned}}, scope, "linux")
-        self.assertEqual(22, sum(row["measurement_status"] == "measured" for row in statuses.values()))
+        self.assertEqual(24, sum(row["measurement_status"] == "measured" for row in statuses.values()))
         self.assertEqual(unrecovered, {name for name, row in statuses.items() if row["measurement_status"] == "no_recovered_source"})
         self.assertFalse(any(row["measurement_status"] == "unavailable" for row in statuses.values()))
         # Apple input is managed metadata on Linux; the name is not a platform exclusion.

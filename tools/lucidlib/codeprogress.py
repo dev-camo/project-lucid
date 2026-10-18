@@ -24,6 +24,8 @@ from .inspection import sha256_file
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 SCOPE_PATH = "tools/code-progress/scope.json"
+# Original assemblies measured: studio, Game.Runtime, shipped Dreamteck packages and the mixed Assembly-CSharp pair.
+SCOPE_NAME_PATTERN = r"Game\.Runtime|Dreamteck\.(?:Utilities|Splines)|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?"
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 TOKEN = re.compile(r"0x06[0-9a-f]{6}\Z")
 BODY_STATUSES = {"implementation_candidate", "no_body", "compiler_generated_unresolved",
@@ -52,7 +54,7 @@ def _scope(root):
     filters = config.get("namespace_filters")
     if (config.get("schema_version") != 2 or set(config) != {"schema_version", "assemblies", "namespace_filters"} or
             not isinstance(names, list) or not names or len(set(names)) != len(names) or
-            any(not isinstance(name, str) or re.fullmatch(r"Game\.Runtime|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?", name) is None for name in names) or
+            any(not isinstance(name, str) or re.fullmatch(SCOPE_NAME_PATTERN, name) is None for name in names) or
             filters != {"Assembly-CSharp": ["HardlightProject."], "Assembly-CSharp-firstpass": ["Hardlight."]}):
         raise ValueError("Invalid fixed proprietary assembly scope")
     return sorted(names), filters, hashlib.sha256(raw).hexdigest()
@@ -84,7 +86,7 @@ def _signature(value):
 def measure_code_work(original, maintained, scope, namespace_filters=None, assembly_availability=None):
     """Pure deterministic matching; the wrapper independently seals all inputs."""
     namespace_filters = namespace_filters or {}
-    if len(scope) != len(set(scope)) or not scope or any(not isinstance(name, str) or re.fullmatch(r"Game\.Runtime|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?", name) is None for name in scope):
+    if len(scope) != len(set(scope)) or not scope or any(not isinstance(name, str) or re.fullmatch(SCOPE_NAME_PATTERN, name) is None for name in scope):
         raise ValueError("Invalid assembly scope")
     if any(name.startswith("Assembly-CSharp") and namespace_filters.get(name) != (["Hardlight."] if name.endswith("firstpass") else ["HardlightProject."]) for name in scope):
         raise ValueError("Mixed proprietary/third-party assemblies require exact namespace filters")
@@ -326,7 +328,7 @@ def _count_groups(measurement):
     extra = {"measurement_status", "unavailable_reason"} if schema in (2, 3) else set()
     for row in groups:
         if (not isinstance(row, dict) or set(row) != COUNT_FIELDS | {"assembly"} | extra or not isinstance(row["assembly"], str) or
-                re.fullmatch(r"Game\.Runtime|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?", row["assembly"]) is None):
+                re.fullmatch(SCOPE_NAME_PATTERN, row["assembly"]) is None):
             raise ValueError("Unsupported public assembly group")
         names.append(row["assembly"])
         if schema in (2, 3):
