@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a70: an axis volume sized by a box collider.
+    // Original Game.Runtime 02000a70: an axis volume whose box collider is sized from its distance and height.
     [Il2CppSetOption(Option.NullChecks, false)]
     [RequireComponent(typeof(BoxCollider))]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a6d: an axis volume sized by a capsule collider.
+    // Original Game.Runtime 02000a6d: an axis volume whose capsule collider is sized from its distance and height.
     [Il2CppSetOption(Option.NullChecks, false)]
     [RequireComponent(typeof(CapsuleCollider))]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

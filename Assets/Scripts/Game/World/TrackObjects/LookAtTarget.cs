@@ -95,8 +95,9 @@ namespace HardlightProject
             lookAtPosition -= m_worldUp * height;
         }
 
-        // 06003e47: smooths the look direction from the current forward and keeps
-        // the target's distance. The offset is divided without a zero guard.
+        // 06003e47: SmoothDamps the unit direction from the current forward towards the
+        // target, then scales the damped vector (not renormalised) by the target's distance,
+        // so the point's distance is only approximately kept. The offset is divided without a zero guard.
         private void SmoothToTarget(ref Vector3 lookAtPosition)
         {
             if (m_smoothTime == 0f)
