@@ -4803,3 +4803,66 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSceneInformationTests." + na
     "SnapshotsAccumulateAndOutputKeepsThem",
     "ProfilingIsForcedVisibleSnapshotsIncludeHiddenGroupsAndOutputHidesThem",
 ))
+
+# Restored surface path generators, followers, animator and surface mesh generators.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSurfacePathGeneratorTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(0,1.0f,0.0f,2.0f)",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(1,1.0f,2.0f,0.0f)",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(2,2.0f,1.0f,0.0f)",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(3,0.0f,1.0f,2.0f)",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(4,2.0f,0.0f,1.0f)",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(5,0.0f,2.0f,1.0f)",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(6,1.0f,0.0f,2.0f)",
+    "GetAxisPlacesBothValuesOnTheAlignedAxes(-1,1.0f,0.0f,2.0f)",
+    "GetOriginContinuesFromTheLastKnot",
+    "LineStepsAlongItsTurnedForwardAndSkipsTheSharedStart",
+    "SineAdvancesTheAngleAndTheDistanceTogether(XY,2.0f,2.0f,0.0f)",
+    "SineAdvancesTheAngleAndTheDistanceTogether(ZY,0.0f,2.0f,2.0f)",
+    "SineAdvancesTheAngleAndTheDistanceTogether(XZ,2.0f,0.0f,2.0f)",
+    "EllipseStartsOnTheOriginAndFacesAlongItsTangent",
+    "SpiralRisesAlongTheRemainingAxisAndTurnsAboutIt",
+    "AnimationCurvePathAddsNoKnots",
+    "RibbonPathsGenerateAsTheirSurfaceBases",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSurfaceAnimatorTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "CachedValuesNeedAnInertSplineAndForOneKnotAnInertKnot",
+    "SingleKnotTakesTheTargetPoseInSplineSpaceOutsideTheTolerance",
+    "AllKnotsMoveTheSplineAlongOneOfItsAxes(0,3.0f,0.0f,0.0f)",
+    "AllKnotsMoveTheSplineAlongOneOfItsAxes(1,0.0f,2.0f,0.0f)",
+    "AllKnotsMoveTheSplineAlongOneOfItsAxes(2,0.0f,0.0f,1.0f)",
+    "AllKnotsMoveTheSplineAlongOneOfItsAxes(3,0.0f,0.0f,0.0f)",
+    "AllKnotsCompareTheSquaredOffsetWithTheTolerance(0.009f,False)",
+    "AllKnotsCompareTheSquaredOffsetWithTheTolerance(0.011f,True)",
+    "AnimatorCachesAndUpdatesEveryKnotFromEachCallback",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSurfaceObjectFollowerTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "ConstructorStoresTheNativeDefaults",
+    "SetTargetPlacesTheFollowerFromTheChosenSource",
+    "RotationFlipsOnTheFollowingUpdateOnceTheAngleExceedsTheLimit",
+    "RotationFlipNeedsAnOrderedGreaterAngle(float.NaN,False)",
+    "RotationFlipNeedsAnOrderedGreaterAngle(179.0f,True)",
+    "RotationFlipNeedsAnOrderedGreaterAngle(180.5f,False)",
+    "SurfacesComeFromTheAttachedFacadesAndGizmosRefreshThem",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSurfaceMeshGeneratorTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "SurfaceGeneratorStartsWithAnEmptyPathList",
+    "AddQuadKeepsBothNativeTriangleOrders",
+    "SpawnPrefabsClearsTheRootAndSkipsOnlyZeroSpacingOrAnEmptyRange",
+    "PrefabSpawnerInstantiatesNothingInThePlayerBody",
+    "SamplePointsCoverTheGridAndQuadsUseTheNativeIndex",
+    "SkirtAlongZUsesThePreviousStepUv(0,0.0f)",
+    "SkirtAlongZUsesThePreviousStepUv(3,1.0f)",
+    "SkirtAlongXUsesThePreviousStepUv(0,0.0f)",
+    "SkirtAlongXUsesThePreviousStepUv(2,1.0f)",
+    "SkirtPointsWalkTheFourEdgesWithTheShippedIndices",
+    "UpdateSamplePointsNeedsBothAxisSplines(True)",
+    "UpdateSamplePointsNeedsBothAxisSplines(False)",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProcMeshPlacementUpdaterTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "ConstructorFaultsWithoutATimeManagerBeforeRegisteringItsShutdown",
+))

@@ -1,0 +1,12 @@
+{
+  "name": "ProjectLucid.WorldSurface.EngineVerification",
+  "references": [
+    "Game.Runtime",
+    "HLSplines.Runtime",
+    "HLUnityCore.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}
