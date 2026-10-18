@@ -84,8 +84,8 @@ namespace ProjectLucid.Tests
             {
                 for (int index = 0; index < references.Count; index++)
                 {
-                    // Only the system this run published is revoked; the body may have filled a reference itself.
-                    if (scene.Manager != null && ReferenceEquals(references[index].GetSafe(), scene.Manager)) RevokeSystem.Invoke(references[index], null);
+                    // Only a manager this run built is revoked: the scene's, or a later one the body published.
+                    if (characters.Built(references[index].GetSafe())) RevokeSystem.Invoke(references[index], null);
                     StartupObservers.SetValue(references[index], priorObservers[index]);
                 }
             }

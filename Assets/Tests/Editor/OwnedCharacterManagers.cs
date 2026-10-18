@@ -28,6 +28,7 @@ namespace ProjectLucid.Tests
 
         // Release steps, newest first.
         private readonly Stack<Action> m_release = new Stack<Action>();
+        private readonly List<CharacterManager> m_managers = new List<CharacterManager>();
         private bool m_disposed;
 
         // A failed build releases what it took; the build's failure stays the one reported.
@@ -78,9 +79,13 @@ namespace ProjectLucid.Tests
             LogAssert.Expect(LogType.Error, RefusedCoroutine);
             LogAssert.Expect(LogType.Error, RefusedCoroutine);
             var manager = new CharacterManager(() => { });
+            m_managers.Add(manager);
             m_release.Push(() => ProcessManager.UnsubscribeFromAllActions(manager));
             return manager;
         }
+
+        // Whether NewManager built this system, so a fixture revokes only managers it owns.
+        public bool Built(ISystem system) => system != null && m_managers.Exists(manager => ReferenceEquals(manager, system));
 
         private void Own(IDisposable lease) => m_release.Push(lease.Dispose);
 
