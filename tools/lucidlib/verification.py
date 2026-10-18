@@ -4328,3 +4328,29 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalParticleEffectBinderTargetTe
     "ChannelSettersClampOneChannelAndKeepTheOthers",
     "AChannelWriteFlattensAGradientStartColour",
 ))
+
+# Restored Game.Runtime FX helpers: PrefabSpawner, PlayParticleSystemOnEnable,
+# ShaderParameterBinderTarget, ShaderProperties, SceneMaterialManipulator,
+# PrefabPoolActivation, RateOfChangeBindable and the projectile spawners.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxSpawnersAndShadersTests." + name for name in (
+    "ShaderPropertiesPublishesTheDreamNoiseScaleOffsetName",
+    "LoopOutputWrapsOutsideValuesByCeilingMultiplesOfTheRange",
+    "PrefabSpawnerAwakeFallsBackToItsOwnTransformForAMissingPoint",
+    "PrefabSpawnerParentsOrCopiesTheSpawnPointPoseForEveryPrefab",
+    "ParticlePlayerFindsItsSystemOnResetAndPlaysItOnEnable",
+    "BinderAwakeTakesTheSourceMaterialAndResolvesOnlyANamedProperty",
+    "BinderSettersWriteThroughTheCachedPropertyId",
+    "BinderResetKeepsAnAssignedMaterialAndNeedsARendererOtherwise",
+    "MaterialAnimationEndingAtTimeZeroSetsNoColour",
+    "MaterialTriggerTouchesOnlyMatchingConfigs",
+    "PoolActivationSpawnsAtEveryLiveTransformWithTheDefaults",
+    "PoolActivationResolvesOnlyAnEntityPoolAndToleratesNoLevelManager",
+    "SpawnerConstructorDefaultsToEnemyMovementTimeAndBothReferences",
+    "TriggerEntryResetsTheStayTimerThenFiresOnlyWhenConfigured",
+    "TriggerStayWithoutFireOnStayLeavesTheTimer",
+    "ResetElementReportsItsPositionAndUnityDestruction",
+    "ResetElementCoolsDownEachConfiguredType",
+    "StraightLineFireKeepsTheShippedCallOrder",
+    "StraightLineProjectileMovesInWorldSpaceAlongItsNormalizedFocus",
+    "CompilerGeneratedNamesMatchTheOriginalMemberOrdinals",
+))
