@@ -772,8 +772,8 @@ namespace ProjectLucid.Tests
                 manager.Bosses.Add(boss);
 
                 var definition = owned.Add(ScriptableObject.CreateInstance<ProbeAbilityDefinition>());
-                // ASCII "LUCD": no generated ActorAbilityType member uses it, so it cannot
-                // collide with a real ability row.
+                // Test-only fixture value, not an original constant: any value works because
+                // the fixture boss owns its ability dictionary.
                 definition.AbilityType = (ActorAbilityType)0x4C554344;
                 var probe = new CompletionProbe();
                 var abilities = (Dictionary<ActorAbilityType, ActorAbility>)Get(boss, "m_abilities");
