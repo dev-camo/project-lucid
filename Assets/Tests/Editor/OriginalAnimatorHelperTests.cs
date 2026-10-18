@@ -1076,6 +1076,10 @@ namespace ProjectLucid.Tests
                 Assert.DoesNotThrow(() => Call(sampler, "OnValidate"), "validating with an inactive Animator does not throw");
                 Assert.That(child.transform.localPosition.x, Is.EqualTo(5f).Within(1e-4f), "the earlier pose is kept");
 
+                // The Animator added here has no controller: SampleAnimatorState (called at 0x59cd50)
+                // makes the engine warn twice (run30 output order).
+                LogAssert.Expect(LogType.Warning, "Animator is not playing an AnimatorController");
+                LogAssert.Expect(LogType.Warning, "Animator does not have an AnimatorController");
                 Set(sampler, "m_animator", null);
                 Call(sampler, "OnValidate");
                 var added = root.GetComponent<Animator>();
