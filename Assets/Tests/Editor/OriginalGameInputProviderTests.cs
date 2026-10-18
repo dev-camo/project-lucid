@@ -17,9 +17,9 @@ namespace ProjectLucid.Tests
     // (020006a3) and GameInputCharacterTriggerVolume (020001d2), against their 1.10.1 x86-64
     // bodies. Components sit on inactive owned GameObjects, so Unity sends them no messages.
     // Not covered here, as each needs a live Character: SupplyInput past its CharacterManager
-    // guard (0x589080), DoTriggerStay's bounds test and m_delayComplete write (0x6F36B0), and
-    // the held-button entry, whose SubscribeToTimeManager (0x6F3A90) needs a TimeManager and
-    // TimeCategoryLookup. InitialPressInput (0x6F3590) is observed only up to its first
+    // guard (0x589080), and DoTriggerStay's bounds test and m_delayComplete write (0x6F36B0).
+    // The held-button entry is observed up to its SubscribeToTimeManager (0x6F3A90), which faults
+    // without a TimeManager. InitialPressInput (0x6F3590) is observed only up to its first
     // OnNextFrame schedule, which faults without a coroutine host, so later inputs and the
     // deferred releases' frame order are not.
     [TestFixture]
@@ -134,6 +134,15 @@ namespace ProjectLucid.Tests
                 Assert.That(Providers(mapping).Count, Is.EqualTo(1), "a registered handler is not added twice");
                 Assert.That(Wiring(handler, typeof(InputHandler), mapping).Length, Is.EqualTo(3));
 
+                // A failed TryGet jumps past both the unregistration and the flag write (je 0x58A654).
+                var inputSystem = ProcessManager.GetSystem<InputSystem>();
+                scope.Unregister(inputSystem);
+                handler.Unregister();
+                Assert.That(ModernUITestSupport.Get(handler, "m_registered"), Is.True, "no InputSystem");
+                Assert.That(Providers(mapping), Is.EqualTo(new IInputButton[] { handler }));
+                Assert.That(Wiring(handler, typeof(InputHandler), mapping), Is.EquivalentTo(MappingWiring));
+                scope.Register(inputSystem);
+
                 handler.Unregister();
                 Assert.That(ModernUITestSupport.Get(handler, "m_registered"), Is.False);
                 Assert.That(Providers(mapping), Is.Empty);
@@ -191,6 +200,29 @@ namespace ProjectLucid.Tests
                 Assert.That(Providers(mapping), Is.Empty);
                 Assert.That(Wiring(supplier, typeof(GameInputSupplier), mapping), Is.Empty);
                 Assert.That(ModernUITestSupport.Get(supplier, "m_repeatedInput"), Is.Null);
+            });
+        }
+
+        // OnDisable 0x589310 tests m_controlMapping with UnityEngine.Object.op_Equality (0x589367),
+        // so a destroyed mapping whose managed list still holds the supplier is skipped; a
+        // reference null test would unregister from it.
+        [Test]
+        public void SupplierDisableSkipsADestroyedMapping()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<CharacterManager>();
+                ControlMapping mapping = scope.RegisterInputSystem();
+                var supplier = scope.Inactive("Lucid owned game input supplier").AddComponent<GameInputSupplier>();
+                supplier.OnEnable();
+                Assert.That(Providers(mapping), Is.EqualTo(new IInputButton[] { supplier }));
+
+                UnityEngine.Object.DestroyImmediate(mapping);
+                Assert.That(mapping == null, Is.True, "Unity-null");
+                Assert.That(ModernUITestSupport.Get(supplier, "m_controlMapping") is null, Is.False, "the managed reference survives");
+                ModernUITestSupport.Call(supplier, "OnDisable");
+                Assert.That(Providers(mapping), Is.EqualTo(new IInputButton[] { supplier }));
+                Assert.That(Wiring(supplier, typeof(GameInputSupplier), mapping), Is.EquivalentTo(MappingWiring));
             });
         }
 
@@ -355,6 +387,34 @@ namespace ProjectLucid.Tests
                 Assert.Throws<NullReferenceException>(() => Invoke(onEntry, "DoTriggerEnter", (object)null));
                 Assert.That(log.Calls, Is.EqualTo(new[] { Down(InputA, 1f, DefaultController) }), "the first press precedes the schedule");
                 Assert.That(FrameCount(onEntry), Is.EqualTo(1f));
+            });
+        }
+
+        // DoTriggerEnter 0x6F3420 with HeldButton and no delay inlines InitialHoldInput: m_frameCount
+        // = 1 (0x6F3454), then per input the down event (+0x58) and then the held event (+0x50),
+        // each with joystick 0, value 1 and DefaultController (0x6F347C..0x6F34D6), and only then
+        // the SubscribeToTimeManager tail call (0x6F34DF). Its GetSystem<TimeManager>(null, true)
+        // faults on the absent system without a logging host, after every callback has run.
+        [Test]
+        public void TriggerVolumeHeldEntryPressesThenHoldsEachInputBeforeSubscribing()
+        {
+            GameInputScope.Run(scope =>
+            {
+                VerificationFixtureOwnership.LifecycleRow timeRow = scope.Row<TimeManager>();
+                Assert.That(timeRow.BorrowsLiveSystem, Is.False);
+                Assert.That(HLUnityCore.IsNull(), Is.True, "a live logging host would log instead of throwing");
+                var log = new ButtonCallbackLog();
+                GameInputCharacterTriggerVolume held = Volume(scope, 0, false, InputA, InputB);
+                log.Attach(held);
+
+                NullReferenceException error = Assert.Throws<NullReferenceException>(() => Invoke(held, "DoTriggerEnter", (object)null));
+                Assert.That(error.Message, Is.EqualTo("System '" + ProcessManager.GetDefaultName<TimeManager>() + "' is null"));
+                Assert.That(log.Calls, Is.EqualTo(new[]
+                {
+                    Down(InputA, 1f, DefaultController), Held(InputA, 1f, DefaultController),
+                    Down(InputB, 1f, DefaultController), Held(InputB, 1f, DefaultController),
+                }));
+                Assert.That(FrameCount(held), Is.EqualTo(1f));
             });
         }
 

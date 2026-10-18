@@ -97,6 +97,7 @@ namespace ProjectLucid.Tests
         private readonly List<Action> m_release = new List<Action>();
         private readonly Dictionary<string, VerificationFixtureOwnership.LifecycleRow> m_rows =
             new Dictionary<string, VerificationFixtureOwnership.LifecycleRow>();
+        private readonly HashSet<ISystem> m_registered = new HashSet<ISystem>();
 
         public static void Run(Action<GameInputScope> body)
         {
@@ -155,7 +156,17 @@ namespace ProjectLucid.Tests
             if (!ProcessManager.IsSystemNull(name))
                 throw new InvalidOperationException("Fixture row already holds a system: " + name);
             ProcessManager.RegisterSystem(system);
+            m_registered.Add(system);
             Defer(() => ProcessManager.UnregisterSystem(system));
+        }
+
+        // Unregisters a system this scope registered, ahead of its deferred release, which then
+        // finds nothing to remove; Register can put it back into the same row.
+        public void Unregister(ISystem system)
+        {
+            if (!m_registered.Contains(system))
+                throw new InvalidOperationException("Fixture unregisters only a system it registered: " + ProcessManager.GetDefaultName(system));
+            ProcessManager.UnregisterSystem(system);
         }
 
         // An InputSystem on an inactive owner (its Awake never runs) holding an owned mapping,

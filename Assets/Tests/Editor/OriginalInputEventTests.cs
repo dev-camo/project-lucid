@@ -191,6 +191,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // OnInput 0x5897D0 calls GetSystem<UIManager>(null, true) (0x5898A9) unconditionally once not
+        // suspended, before the IsNullOrEmpty tests at 0x5898BF/0x5898E1, so with both lists empty an
+        // absent UIManager still faults (no logging host) and the event is not fired.
+        [Test]
+        public void InputEventFetchesTheUIManagerBeforeReadingEitherList()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<AudioManager>();
+                VerificationFixtureOwnership.LifecycleRow uiRow = scope.Row<UIManager>();
+                Assert.That(uiRow.BorrowsLiveSystem, Is.False);
+                Assert.That(HLUnityCore.IsNull(), Is.True, "a live logging host would log instead of throwing");
+                var log = new List<string>();
+                var inputEvent = Event<InputEvent>(scope, log);
+                ModernUITestSupport.Set(inputEvent, "m_exclusiveContainers", null);
+                Assert.That((List<UIContainerIdentifier>)ModernUITestSupport.Get(inputEvent, "m_ignoreIfContainerIsOpen"), Is.Empty);
+
+                NullReferenceException error = Assert.Throws<NullReferenceException>(() => OnInput(inputEvent, 1f));
+                Assert.That(error.Message, Is.EqualTo("System '" + ProcessManager.GetDefaultName<UIManager>() + "' is null"));
+                Assert.That(log, Is.Empty);
+            });
+        }
+
         // A non-empty m_exclusiveContainers (+0x30) must pass UIManager.AreExclusivelyOpen, given
         // the list itself, before m_ignoreIfContainerIsOpen (+0x38) is read; an empty list is skipped.
         [Test]
@@ -310,8 +333,10 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Action_PublishUIMessage 0x589AC0 publishes eventId under UIModernMessage(8, OnClick) on the
-        // auto-created exchange with broadcast 3 (Both).
+        // Action_PublishUIMessage 0x589AC0 publishes eventId under UIModernMessage(8, OnClick)
+        // (0x589B29) on the auto-created exchange with broadcast 3, Both (0x589B45): unbound
+        // callbacks and the callbacks bound to eventId both run, while one bound to another event
+        // does not. Unbound (1) or Bound (2) alone would miss one of the two.
         [Test]
         public void InputEventPublishesTheUIEventUnderOnClick()
         {
@@ -328,10 +353,21 @@ namespace ProjectLucid.Tests
                     scope.Row<AudioManager>();
                     var inputEvent = Event<InputEvent>(scope, new List<string>());
                     UIModernEvent eventId = scope.Own(ScriptableObject.CreateInstance<UIModernEvent>());
+                    UIModernEvent otherId = scope.Own(ScriptableObject.CreateInstance<UIModernEvent>());
                     var received = new List<(UIModernEventType, UIModernEvent)>();
+                    var bound = new List<(UIModernEvent subscribed, UIModernEvent value)>();
                     var unsubscribe = new List<Action>();
                     try
                     {
+                        Assert.That((int)UIModernEventType.OnClick, Is.EqualTo(8));
+                        var onClick = new UIModernMessage(UIModernEventType.OnClick);
+                        foreach (UIModernEvent target in new[] { eventId, otherId })
+                        {
+                            UIModernEvent subscribed = target;
+                            MessageCallback<UIModernEvent> callback = (in UIModernEvent value) => bound.Add((subscribed, value));
+                            exchange.SubscribeToMessage(in onClick, in subscribed, callback);
+                            unsubscribe.Add(() => exchange.UnsubscribeFromMessage(in onClick, in subscribed, callback));
+                        }
                         foreach (UIModernEventType type in Enum.GetValues(typeof(UIModernEventType)))
                         {
                             UIModernEventType subscribed = type;
@@ -343,6 +379,9 @@ namespace ProjectLucid.Tests
                         inputEvent.Action_PublishUIMessage(eventId);
                         Assert.That(received.Select(r => r.Item1), Is.EqualTo(new[] { UIModernEventType.OnClick }));
                         Assert.That(received[0].Item2, Is.SameAs(eventId));
+                        Assert.That(bound.Count, Is.EqualTo(1), "only the callback bound to eventId runs");
+                        Assert.That(bound[0].subscribed, Is.SameAs(eventId));
+                        Assert.That(bound[0].value, Is.SameAs(eventId));
                     }
                     finally { foreach (Action step in unsubscribe) step(); }
                 });

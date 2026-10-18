@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -16,14 +17,21 @@ namespace ProjectLucid.Tests
 {
     // GameInputButtonClick (02000965) and GameActionButtonClick (02000962), against their 1.10.1
     // x86-64 bodies. Components sit on inactive owned GameObjects.
-    // Not covered here, as each needs an engine coroutine or a live Character: SetAction's start
-    // from a null handle (0x6892B2..0x689312) and stop of a live one (0x689319..0x689337),
-    // UpdateCoroutine's MoveNext (0x689660) and GetBrainState (0x689450).
+    // Not covered here, as each needs an engine coroutine or a current Character from a
+    // CharacterManager: SetAction's start from a null handle (0x6892B2..0x689312) and stop of a
+    // live one (0x689319..0x689337), and UpdateCoroutine's MoveNext (0x689660) past state 0.
     [TestFixture]
     public sealed class OriginalGameButtonClickTests
     {
         private static readonly GameInput Serialized = (GameInput)(int.MinValue + 0x4E21);
         private static readonly GameInput Override = (GameInput)(int.MinValue + 0x4E22);
+
+        // A brain whose movement aggregate the test feeds through the original AddMovement.
+        private sealed class MovementBrain : CharacterBrain
+        {
+            public void Move(float x, float y) => AddMovement(new Vector2(x, y), 1f);
+            public override void Close() => throw new NotSupportedException();
+        }
 
         // ---- GameInputButtonClick ----
 
@@ -286,6 +294,74 @@ namespace ProjectLucid.Tests
                 click.SetAction(GameAction.CharacterJump);
                 Assert.That(click.Action.Value, Is.EqualTo(GameAction.CharacterJump));
                 Assert.That(ModernUITestSupport.Get(click, "m_updateCoroutine"), Is.SameAs(live), "an unchanged action still only checks the handle");
+            });
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        // GetBrainState 0x689450 calls CacheBrainMovement first, then r15b = (ActionCombo == 0) and
+        // actionHeld = GetBrainRawState(Action); a set combo with the action held tail-calls
+        // GetBrainRawState(ActionCombo) (0x6894D4), otherwise it returns r15b & actionHeld
+        // (0x6894D9). GetBrainRawState 0x735150 passes the 0.5 threshold (0x3f000000 at 0x29A6C08).
+        // Each call's own CacheMovement consumes the aggregate fed just before it, so skipping it,
+        // or caching after the reads, returns the wrong row; (0,1) with a combo separates
+        // `hasCombo ? comboHeld : actionHeld` and `actionHeld || comboHeld` from the original.
+        [Test]
+        public void ActionButtonBrainStateNeedsTheActionAndAnySetCombo()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<CharacterManager>();
+                // Character's m_gameplayIslandManagerRef initializer creates this row.
+                scope.Row<GameplayIslandManager>();
+                GameObject owner = scope.Inactive("Lucid owned game action button click");
+                var click = owner.AddComponent<GameActionButtonClick>();
+                Character character = owner.AddComponent<Character>();
+                var brain = new MovementBrain();
+                ModernUITestSupport.Set(character, "m_brain", brain);
+                click.Action.Value = GameAction.CharacterMovementRight;
+
+                bool State(float x, float y)
+                {
+                    brain.Move(x, y);
+                    return (bool)ModernUITestSupport.Call(click, "GetBrainState", character);
+                }
+
+                Assert.That(State(1f, 0f), Is.True, "no combo, action held");
+                Assert.That((bool)ModernUITestSupport.Call(click, "GetBrainState", character), Is.False, "the previous call consumed the aggregate");
+                Assert.That(State(0f, 0f), Is.False, "no combo, nothing held");
+                Assert.That(State(0f, 1f), Is.False, "no combo, only up held");
+
+                click.ActionCombo.Value = GameAction.CharacterMovementUp;
+                Assert.That(State(1f, 0f), Is.False, "combo set, only the action held");
+                Assert.That(State(0f, 1f), Is.False, "combo set, only the combo held");
+                Assert.That(State(1f, 1f), Is.True, "both held; (1,1) normalises to (0.707,0.707)");
+                Assert.That(State(0f, 0f), Is.False, "combo set, nothing held");
+            });
+        }
+
+        // MoveNext 0x689660 state 0 writes state -1 (0x689867), then calls m_characterManagerRef.Get()
+        // (0x68988F) with no IsNull guard, unlike SupplyInput's at 0x5890DC. Without a system or a
+        // logging host, SystemRef.Get raises through LogOrThrowException before any yield or click.
+        [Test]
+        public void ActionButtonCoroutineFaultsWithoutACharacterManager()
+        {
+            GameInputScope.Run(scope =>
+            {
+                VerificationFixtureOwnership.LifecycleRow row = scope.Row<CharacterManager>();
+                Assert.That(row.BorrowsLiveSystem, Is.False);
+                Assert.That(HLUnityCore.IsNull(), Is.True, "a live logging host would log instead of throwing");
+                var click = scope.Inactive("Lucid owned game action button click").AddComponent<GameActionButtonClick>();
+                var button = scope.Inactive("Lucid owned button").AddComponent<Button>();
+                int clicks = 0;
+                button.onClick.AddListener(() => clicks++);
+                ModernUITestSupport.Set(click, "m_buttonToClick", button);
+
+                var iterator = (IEnumerator)ModernUITestSupport.Call(click, "UpdateCoroutine");
+                NullReferenceException error = Assert.Throws<NullReferenceException>(() => iterator.MoveNext());
+                Assert.That(error.Message, Is.EqualTo("System '" + ProcessManager.GetDefaultName<CharacterManager>() + "' is null"));
+                Assert.That(iterator.MoveNext(), Is.False, "the state was already -1");
+                Assert.That(clicks, Is.Zero);
+                Assert.That(ModernUITestSupport.Get(click, "m_updateCoroutine"), Is.Null);
             });
             LogAssert.NoUnexpectedReceived();
         }
