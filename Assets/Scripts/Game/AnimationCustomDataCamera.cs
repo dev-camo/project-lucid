@@ -91,7 +91,7 @@ namespace HardlightProject
 
 		// 06000519 (1.10.1 RVA 0x52E250): an override uses the multiplier as the
 		// value itself. Only the depth of field parameters are pushed to the
-		// shared profile; the clip outputs are read by other components.
+		// shared profile; the clip outputs are only stored.
 		private void LateUpdate()
 		{
 			FocusDistanceOutput = m_focusDistanceOverride ? m_focusDistanceMultiplier : FocusDistance * m_focusDistanceMultiplier;

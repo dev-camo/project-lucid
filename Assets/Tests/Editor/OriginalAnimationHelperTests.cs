@@ -390,9 +390,10 @@ namespace ProjectLucid.Tests
 
         // OnValidate 0x0600051f (0x52E960) reads sharedMaterials once (0x52e9ea) and, only
         // when the index is at or past its length (jge 0x52e9f5), stores length - 1
-        // (0x52e9fe) before HLOutput.LogError. No lower bound is applied and a missing
-        // renderer skips the check. The error goes to HLUnityCore when one is registered,
-        // so failing-message checks are suspended around the clamp only.
+        // (0x52e9fe) before tail-jumping to HLOutput.LogError 0x06000a77 (0x52ea2c) with
+        // the literal (0x52ea19) and this (0x52ea23). No lower bound is applied and a
+        // missing renderer skips the check. HLOutput drops the context, so the owned
+        // error capture checks the message and the IL checks that this is passed.
         [Test]
         public void MaterialPropertyValidationClampsOnlyAnIndexPastTheEnd()
         {
@@ -404,36 +405,44 @@ namespace ProjectLucid.Tests
                 renderer.sharedMaterials = new[] { material, material };
                 var driver = root.AddComponent<AnimationCustomDataToMaterialProperty>();
 
-                Set(driver, "m_renderer", null);
-                Set(driver, "m_targetMaterialIndex", 9);
-                Call(driver, "OnValidate");
-                Assert.That(Get(driver, "m_targetMaterialIndex"), Is.EqualTo(9), "no renderer, no clamp");
-
-                Set(driver, "m_renderer", renderer);
-                foreach (int kept in new[] { 1, 0, -1, -7 })
+                using (var capture = new OwnedHLOutputErrorCapture())
                 {
-                    Set(driver, "m_targetMaterialIndex", kept);
+                    Set(driver, "m_renderer", null);
+                    Set(driver, "m_targetMaterialIndex", 9);
                     Call(driver, "OnValidate");
-                    Assert.That(Get(driver, "m_targetMaterialIndex"), Is.EqualTo(kept));
-                }
+                    Assert.That(Get(driver, "m_targetMaterialIndex"), Is.EqualTo(9), "no renderer, no clamp");
 
-                bool ignoring = LogAssert.ignoreFailingMessages;
-                try
-                {
-                    LogAssert.ignoreFailingMessages = true;
+                    Set(driver, "m_renderer", renderer);
+                    foreach (int kept in new[] { 1, 0, -1, -7 })
+                    {
+                        Set(driver, "m_targetMaterialIndex", kept);
+                        Call(driver, "OnValidate");
+                        Assert.That(Get(driver, "m_targetMaterialIndex"), Is.EqualTo(kept));
+                    }
+                    Assert.That(capture.Errors, Is.Empty, "an index in range reports nothing");
+
                     foreach (int past in new[] { 2, 5 })
                     {
                         Set(driver, "m_targetMaterialIndex", past);
                         Call(driver, "OnValidate");
                         Assert.That(Get(driver, "m_targetMaterialIndex"), Is.EqualTo(1));
                     }
-                }
-                finally
-                {
-                    LogAssert.ignoreFailingMessages = ignoring;
+                    Assert.That(capture.Errors, Is.EqualTo(new[] { OutOfBoundsError + "|0", OutOfBoundsError + "|0" }));
                 }
             }
+
+            MethodInfo onValidate = typeof(AnimationCustomDataToMaterialProperty).GetMethod("OnValidate", Any | BindingFlags.DeclaredOnly);
+            OriginalILCallSequence.Call logError = OriginalILCallSequence.Calls(onValidate).Last();
+            Assert.That(logError.Target.DeclaringType, Is.EqualTo(typeof(HLOutput)));
+            Assert.That(logError.Target.Name, Is.EqualTo("LogError"));
+            Assert.That(logError.Target.GetParameters().Select(parameter => parameter.ParameterType),
+                Is.EqualTo(new[] { typeof(object), typeof(Object) }));
+            byte[] il = onValidate.GetMethodBody().GetILAsByteArray();
+            Assert.That(il[logError.Offset - 1], Is.EqualTo((byte)0x02), "ldarg.0 passes this as the context");
+            LogAssert.NoUnexpectedReceived();
         }
+
+        private const string OutOfBoundsError = "Target material index is out of bounds for the target renderer.";
 
         private static AnimationEventListener.AnimationEventAction EventAction(string eventString, UnityEvent action)
         {
@@ -488,7 +497,7 @@ namespace ProjectLucid.Tests
         // SampleAnimation 0x060024f8 (0x59C9D0) returns for a null clip, otherwise samples
         // the clip on this GameObject at clip.length * m_sampleFrame (0x59ca4e). OnEnable
         // 0x060024f7 (0x59C9A0) samples, then disables the Animation and sets cullingType
-        // 0 (AlwaysAnimate). Sampling at m_sampleFrame seconds would give x = 6.25.
+        // 0 (AlwaysAnimate). Sampling at m_sampleFrame seconds would give x = 1.25.
         [Test]
         public void SamplerPosesTheObjectAtTheFractionOfTheClipLengthAndDisablesTheAnimation()
         {
@@ -763,6 +772,8 @@ namespace ProjectLucid.Tests
                 manager.Bosses.Add(boss);
 
                 var definition = owned.Add(ScriptableObject.CreateInstance<ProbeAbilityDefinition>());
+                // ASCII "LUCD": no generated ActorAbilityType member uses it, so it cannot
+                // collide with a real ability row.
                 definition.AbilityType = (ActorAbilityType)0x4C554344;
                 var probe = new CompletionProbe();
                 var abilities = (Dictionary<ActorAbilityType, ActorAbility>)Get(boss, "m_abilities");
