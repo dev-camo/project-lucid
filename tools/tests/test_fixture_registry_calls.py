@@ -85,12 +85,101 @@ ALLOWED = {
 CALL = re.compile(r"\b(?:RegisterSystem|UnregisterSystem|AddConfig)\s*(?:<[^<>();]*>)?\s*\(|"
                   r"\bFSMManager\s*\.\s*GetManager\s*\(")
 SAFE_GET = re.compile(r"\bGetSystemSafe\s*(?:<[^<>();]*>)?\s*\(")
-TOKENS = re.compile(r'//[^\n]*|/\*.*?\*/|@"(?:[^"]|"")*"|\$?"(?:[^"\\\n]|\\.)*"|\'(?:[^\'\\\n]|\\.)+\'', re.S)
+STRING_START = re.compile(r'\$@"|@\$"|\$"|@"|"')
 
 
 def code_only(source):
-    """Blank comments and string or character literals, keeping line breaks."""
-    return TOKENS.sub(lambda match: re.sub(r"[^\n]", " ", match.group(0)), source)
+    """Blank comments and string or character literals, keeping line breaks.
+
+    The expression holes of interpolated strings ($"...", $@"..." and @$"...")
+    are code and stay; only their literal text, format specifiers and {{ }}
+    escapes are blanked.
+    """
+    out = list(source)
+    _scan_code(source, 0, out, in_hole=False)
+    return "".join(out)
+
+
+def _blank(out, start, end):
+    for index in range(start, min(end, len(out))):
+        if out[index] != "\n":
+            out[index] = " "
+
+
+def _scan_code(source, index, out, in_hole):
+    """Blank the literals in code from index. In a hole, return the index of its closing '}'."""
+    depth = 0
+    while index < len(source):
+        char = source[index]
+        if source.startswith("//", index):
+            end = source.find("\n", index)
+            end = len(source) if end < 0 else end
+        elif source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            end = len(source) if end < 0 else end + 2
+        elif char == "'":
+            end = index + 1
+            while end < len(source) and source[end] not in "'\n":
+                end += 2 if source[end] == "\\" else 1
+            end += 1
+        elif (start := STRING_START.match(source, index)) is not None:
+            index = _scan_string(source, index, start.group(0), out)
+            continue
+        else:
+            if in_hole:
+                if char in "([{":
+                    depth += 1
+                elif char in ")]}":
+                    if depth == 0 and char == "}":
+                        return index
+                    depth -= 1
+                elif char == ":" and depth == 0 and not source.startswith("::", index) and source[index - 1] != ":":
+                    # A format specifier is literal text up to the hole's closing brace.
+                    end = source.find("}", index)
+                    end = len(source) if end < 0 else end
+                    _blank(out, index, end)
+                    return end
+            index += 1
+            continue
+        _blank(out, index, end)
+        index = end
+    return len(source)
+
+
+def _scan_string(source, index, prefix, out):
+    """Blank one string literal from its prefix; return the index just after it."""
+    verbatim = "@" in prefix
+    interpolated = "$" in prefix
+    _blank(out, index, index + len(prefix))
+    index += len(prefix)
+    while index < len(source):
+        char = source[index]
+        if char == '"':
+            if verbatim and source.startswith('""', index):
+                _blank(out, index, index + 2)
+                index += 2
+                continue
+            _blank(out, index, index + 1)
+            return index + 1
+        if char == "\\" and not verbatim:
+            _blank(out, index, index + 2)
+            index += 2
+            continue
+        if char == "\n" and not verbatim:
+            return index
+        if interpolated and source.startswith(("{{", "}}"), index):
+            _blank(out, index, index + 2)
+            index += 2
+            continue
+        if interpolated and char == "{":
+            _blank(out, index, index + 1)
+            close = _scan_code(source, index + 1, out, in_hole=True)
+            _blank(out, close, close + 1)
+            index = close + 1
+            continue
+        _blank(out, index, index + 1)
+        index += 1
+    return index
 
 
 def arguments(code, start):
@@ -163,6 +252,28 @@ class FixtureRegistryCallTests(unittest.TestCase):
             'ProcessManager.UnregisterSystem<App>();\n'
         )
         self.assertEqual([6, 7, 8, 9, 10], direct_calls(source))
+
+    def test_scanner_reads_interpolation_holes_and_blanks_their_literal_text(self):
+        source = (
+            'var a = $"{ProcessManager.RegisterSystem(host)}";\n'
+            'var b = $"RegisterSystem( {name} FSMManager.GetManager()";\n'
+            'var c = $"{{ProcessManager.UnregisterSystem(name)}}";\n'
+            'var d = $@"line\n{ProcessManager.UnregisterSystem(name)} ""q""";\n'
+            'var e = @$"{new[] { 1 }.Length} {FSMManager.GetManager()}";\n'
+            'var f = $"{Get("}")} {Get(\'}\')} {$"{SystemConfiguration.AddConfig(x)}"}";\n'
+            'var g = $"{count:D2} RegisterSystem( {{ {ProcessManager.GetSystemSafe<App>()} }}";\n'
+            'var h = $"{{{{RegisterSystem(x)}}}} {{{name}}}";\n'
+            'var i = $"{global::ProcessManager.RegisterSystem(host)}";\n'
+        )
+        self.assertEqual([1, 5, 6, 7, 8, 10], direct_calls(source))
+
+    def test_interpolated_literal_text_is_blanked_exactly(self):
+        source = 'x = $"a{{RegisterSystem(}}{y:RegisterSystem(}b{z}";\n'
+        code = code_only(source)
+        self.assertEqual(len(source), len(code))
+        self.assertEqual(["x", "=", "y", "z", ";"], code.split())
+        self.assertEqual(source.index("{y") + 1, code.index("y"))
+        self.assertEqual(source.index("{z") + 1, code.index("z"))
 
     def test_new_direct_call_in_an_unlisted_file_is_reported(self):
         import tempfile
