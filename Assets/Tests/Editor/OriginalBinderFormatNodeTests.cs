@@ -366,6 +366,9 @@ namespace ProjectLucid.Tests
                 Expect(-3.2f, "- 3%", "negative");
 
                 SetSerialized(node, "withSpace", false);
+                // ucomiss (0x1a071c2) is unordered for NaN, so jae 0x1a071c5 falls through to "-".
+                Expect(float.NaN, "-NaN%", "NaN takes the negative sign");
+
                 SetSerialized(node, "multiplyBy100", true);
                 Expect(0.256f, "+26%", "multiplied");
 
@@ -477,6 +480,14 @@ namespace ProjectLucid.Tests
                 node.Refresh();
                 Assert.That(carrier.Reads, Is.EqualTo(order));
                 Assert.That(node.Output.Value, Is.EqualTo(string.Empty));
+
+                // The untyped GetValue (0x19f9370) boxes the int, so the numeric specifier applies;
+                // reading the argument as a string would print "7".
+                carrier.Int = new Bindable<int>(7);
+                node.Arg1.SetTarget(carrier, "Int");
+                carrier.Format = new Bindable<string>("{0:D3}");
+                node.Refresh();
+                Assert.That(node.Output.Value, Is.EqualTo("007"));
             });
         }
 
@@ -585,6 +596,15 @@ namespace ProjectLucid.Tests
                 node.Refresh();
                 Assert.That(carrier.Reads, Is.EqualTo(new[] { "Distance", "UnitsPerSecond" }));
                 Assert.That(node.Time.Value, Is.EqualTo(TimeSpan.FromMilliseconds(2500)));
+
+                // 7f / 80f = 0.0875f widens to 0.08749999850988388; FromSeconds goes through
+                // TimeSpan.Interval (0x1db200e), which adds 0.5 ms and truncates, giving 87 ms.
+                // A double quotient (0.0875) would round to 88 ms.
+                carrier.Float = new Bindable<float>(7f);
+                carrier.SecondFloat = new Bindable<float>(80f);
+                node.Refresh();
+                Assert.That(node.Time.Value, Is.EqualTo(TimeSpan.FromMilliseconds(87)));
+                Assert.That(node.Time.Value, Is.Not.EqualTo(TimeSpan.FromMilliseconds(88)));
 
                 carrier.SecondFloat = new Bindable<float>(0f);
                 Assert.Throws<OverflowException>(() => node.Refresh());
