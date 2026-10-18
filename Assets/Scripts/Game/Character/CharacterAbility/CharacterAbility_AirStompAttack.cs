@@ -39,8 +39,9 @@ namespace HardlightProject
 
         // 0600106c (1.10.1 RVA 0x742770). Returns true when the character is
         // oriented downhill, or is already facing it; boostSpeed then holds the
-        // slope setting's speed. Both slope maths helpers are the UnityEngine
-        // bodies the native build inlines (Vector3.Angle, ProjectOnPlane, normalized).
+        // slope setting's speed. The native body inlines Vector3.Angle,
+        // Vector3.ProjectOnPlane and Vector3.normalized, and reads ForwardDirection
+        // before GetSettingsForSlope (0x742afc).
         private bool TryRotateDownhillOfCollision(out float boostSpeed)
         {
             boostSpeed = 0f;
@@ -53,13 +54,14 @@ namespace HardlightProject
             Vector3 gravity = m_character.GravityNormalised;
             float slopeAngle = Vector3.Angle(normal, -gravity);
             Vector3 downhill = Vector3.ProjectOnPlane(gravity, normal).normalized;
+            Vector3 forward = m_character.ForwardDirection;
             m_airStompDefinition.GetSettingsForSlope(slopeAngle, out bool orientDownhill, out boostSpeed);
             if (orientDownhill)
             {
                 m_character.SetWorldRotation(Quaternion.LookRotation(downhill, normal));
                 return true;
             }
-            if (Vector3.Dot(downhill, m_character.ForwardDirection) > 0f)
+            if (Vector3.Dot(downhill, forward) > 0f)
                 return true;
             boostSpeed = 0f;
             return false;

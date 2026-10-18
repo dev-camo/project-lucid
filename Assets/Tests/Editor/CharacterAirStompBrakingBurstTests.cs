@@ -161,9 +161,10 @@ namespace ProjectLucid.Tests
             Assert.That(definition.MinimumInputMagnitudeSqr, Is.EqualTo(0f));
         }
 
-        // The four get_ScriptType bodies load the matching ability type handle.
+        // Declaration-shape self-check (not a behaviour test): the four get_ScriptType bodies load the
+        // matching ability type handle.
         [Test]
-        public void DefinitionsNameTheirOwnAbilityScript()
+        public void DeclarationShapeDefinitionsNameTheirOwnAbilityScript()
         {
             Assert.That(Own(ScriptableObject.CreateInstance<CharacterAbilityDefinition_AirStompAttack>()).ScriptType, Is.EqualTo(typeof(CharacterAbility_AirStompAttack)));
             Assert.That(Own(ScriptableObject.CreateInstance<CharacterAbilityDefinition_Braking>()).ScriptType, Is.EqualTo(typeof(CharacterAbility_Braking)));
@@ -171,11 +172,11 @@ namespace ProjectLucid.Tests
             Assert.That(Own(ScriptableObject.CreateInstance<CharacterAbilityDefinition_BurstAttackChaosGround>()).ScriptType, Is.EqualTo(typeof(CharacterAbility_BurstAttackChaosGround)));
         }
 
-        // Metadata: the Ground leaves sit directly under the shared burst definitions and the abilities
+        // Declaration-shape self-check (not a behaviour test). Metadata: the Ground leaves sit directly under the shared burst definitions and the abilities
         // under the generic burst ability bases (dump.cs base types of TypeDefs 020004c2/020004c3,
         // 020002c0/020002c1, 020002b7); the braking ability implements IAbilityTrigger (020002b8).
         [Test]
-        public void BurstGroundLeavesKeepTheirOriginalBases()
+        public void DeclarationShapeBurstGroundLeavesKeepTheirOriginalBases()
         {
             Assert.That(typeof(CharacterAbilityDefinition_BurstAttackGround).BaseType, Is.EqualTo(typeof(CharacterAbilityDefinition_BurstAttack)));
             Assert.That(typeof(CharacterAbilityDefinition_BurstAttackChaosGround).BaseType, Is.EqualTo(typeof(CharacterAbilityDefinition_BurstAttackChaos)));
@@ -307,6 +308,9 @@ namespace ProjectLucid.Tests
         }
 
         // ---- IL witnesses for bodies that need a started Character ----
+        // These witnesses pin call order and counts only. Branch polarity and NaN behaviour of the
+        // Braking EvaluateInput / DoOnUpdate predicates and AirStomp IsBrainImpulseActive have no
+        // truth-table coverage yet (needs a started Character); do not read them as behavioural proof.
 
         private static List<MethodBase> Calls(Type owner, string name)
         {
@@ -316,13 +320,17 @@ namespace ProjectLucid.Tests
 
         private static int IndexOf(List<MethodBase> calls, string typeName, string name, int from = 0)
         {
-            int index = calls.FindIndex(from, m => m.DeclaringType.Name.StartsWith(typeName, StringComparison.Ordinal) && m.Name == name);
+            int index = calls.FindIndex(from, m => DeclaredBy(m, typeName) && m.Name == name);
             Assert.That(index, Is.GreaterThanOrEqualTo(0), typeName + "." + name + " is called" + (from > 0 ? " after index " + from : string.Empty));
             return index;
         }
 
         private static int Count(List<MethodBase> calls, string typeName, string name) =>
-            calls.Count(m => m.DeclaringType.Name.StartsWith(typeName, StringComparison.Ordinal) && m.Name == name);
+            calls.Count(m => DeclaredBy(m, typeName) && m.Name == name);
+
+        // Exact declaring type; a generic type definition is named with its arity suffix (Name`N).
+        private static bool DeclaredBy(MethodBase method, string typeName) =>
+            method.DeclaringType.Name == typeName || method.DeclaringType.Name.StartsWith(typeName + "`", StringComparison.Ordinal);
 
         // 06001075 (0x742F80): the SmoothDamp of the buffered intent comes after the movement base update,
         // and the result feeds EvaluateInput (0x742D20); the elapsed time is written without any ground-base call.
@@ -407,11 +415,12 @@ namespace ProjectLucid.Tests
             int position = IndexOf(calls, "Character", "SetWorldPosition");
             int angle = IndexOf(calls, "Vector3", "Angle");
             int project = IndexOf(calls, "Vector3", "ProjectOnPlane");
+            int forward = IndexOf(calls, "Actor", "get_ForwardDirection");
             int settings = IndexOf(calls, "CharacterAbilityDefinition_AirStompAttack", "GetSettingsForSlope");
             int look = IndexOf(calls, "Quaternion", "LookRotation");
             int rotate = IndexOf(calls, "Character", "SetWorldRotation");
             int dot = IndexOf(calls, "Vector3", "Dot");
-            Assert.That(new[] { position, angle, project, settings, look, rotate, dot }, Is.Ordered.Ascending.And.Unique);
+            Assert.That(new[] { position, angle, project, forward, settings, look, rotate, dot }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(calls, "Character", "SetWorldPosition"), Is.EqualTo(1));
         }
 
@@ -700,8 +709,9 @@ namespace ProjectLucid.Tests
             Assert.That(lambdas.Count(l => Count(l, "IAbilityBurstAttackChaos", "TryStopTimeDilation") == 1), Is.EqualTo(1));
         }
 
-        // 0x52868x: disabling walks the actor's abilities; the passive ability definitions (+0x30) and any
-        // ability whose script type is in the exception list are left alone, everything else is left.
+        // 06000442 (0x5286D0): disabling walks the actor's abilities. A passive definition (+0x30, tested at
+        // 0x528767) or one matched by the exception list (List.Exists, 0x5287AA) returns early; everything
+        // else is left (ActorAbility.Leave, tail call at 0x5287C9).
         [Test]
         public void DisableAbilitiesStateLeavesEveryNonPassiveNonExceptedAbility()
         {

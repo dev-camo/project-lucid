@@ -12,9 +12,9 @@ namespace HardlightProject
         where TAbilityDef : CharacterAbilityDefinition_BurstAttackChaos
     {
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [FiniteStateMachineJsonCtorArgs]
         [Il2CppSetOption(Option.NullChecks, false)]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         protected class BurstAttackChaosJSONCtorArgs : BurstAttackJSONCtorArgs
         {
             // 06001533 (1.10.1 RVA 0xE4BF80, shared generic)
@@ -30,7 +30,6 @@ namespace HardlightProject
         // refuses to stop (TryStopTimeDilation false) and the stamina was valid.
         protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
         {
-            bool chaosActive;
             Character character = user.GetAs<Character>();
             TAbility ability = GetAbility(character);
             bool enoughChaosStamina = ability.EnoughChaosStamina();
@@ -44,7 +43,7 @@ namespace HardlightProject
                     return;
                 }
             }
-            chaosActive = false;
+            bool chaosActive = false;
             character.GetAbilitiesWithInterface<IAbilityBurstAttackChaos>(chaosAbility => chaosActive |= !chaosAbility.TryStopTimeDilation(false));
             if (!chaosActive && enoughChaosStamina)
             {

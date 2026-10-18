@@ -32,7 +32,7 @@ namespace HardlightProject
             return new CharacterState_BurstAttackChaosAir(fsm, transitionId, JsonUtility.FromJson<BurstAttackChaosAirJSONCtorArgs>(jsonCtorArgs));
         }
 
-        // 0600153a (1.10.1 RVA 0x7759F0): the air variant refuses the early exit on entry.
+        // 0600153a (1.10.1 RVA 0x7759F0): the air variant keeps an already-running time dilation: entry returns early instead of stopping and retriggering it.
         protected override bool PreventDeactivation()
         {
             return true;

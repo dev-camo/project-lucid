@@ -6,8 +6,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 020002b8; bodies translated from the 1.10.1 x86-64 binary.
-    [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterAbility_Braking : CharacterAbility_MovementGround<CharacterAbilityDefinition_Braking>, IAbilityTrigger
     {
         // 06001071 (1.10.1 RVA 0x742C80)

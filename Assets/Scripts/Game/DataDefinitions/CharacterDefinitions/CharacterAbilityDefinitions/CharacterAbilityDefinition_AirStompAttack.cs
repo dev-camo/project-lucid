@@ -7,14 +7,15 @@ using Unity.IL2CPP.CompilerServices;
 namespace HardlightProject
 {
     // Original Game.Runtime 020004ba; bodies translated from the 1.10.1 x86-64 binary.
-    [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterAbilityDefinition_AirStompAttack : CharacterAbilityDefinition_Air
     {
         [Header("Air stomp turn and boost")]
         [SerializeField]
         private List<AirStompSlopeSetting> m_airStompSlopeSettings;
 
+        // 06001adc (1.10.1 RVA 0x542290)
         public override Type ScriptType => typeof(CharacterAbility_AirStompAttack);
 
         // 06001add (1.10.1 RVA 0x5422F0). The first setting whose [min, max) range
@@ -36,11 +37,12 @@ namespace HardlightProject
             }
         }
 
+        // 06001ade (1.10.1 RVA 0x542460)
         public CharacterAbilityDefinition_AirStompAttack() { }
 
         [Serializable]
-        [Il2CppSetOption(Option.NullChecks, false)]
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         public class AirStompSlopeSetting
         {
             [Tooltip("When landing, minimum angle of slope for these settings to apply (inclusive).")]
@@ -53,7 +55,7 @@ namespace HardlightProject
             public bool OrientDownhill;
             [Tooltip("If the character is facing downhill, set their forward velocity to BoostSpeed.")]
             public bool BoostIfDownhill;
-            [ShowIf("BoostIfDownhill", (string)null)]
+            [ShowIf("BoostIfDownhill", null)]
             [Range(0f, 100f)]
             [Tooltip("Forward velocity to set on landing if BoostIfDownhill is active.")]
             public float BoostSpeed;

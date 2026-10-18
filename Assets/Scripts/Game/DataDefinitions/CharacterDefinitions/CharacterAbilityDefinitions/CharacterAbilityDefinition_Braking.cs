@@ -6,8 +6,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 020004bc; bodies translated from the 1.10.1 x86-64 binary.
     [CreateAssetMenu(fileName = "CharacterAbilityDefinition_Braking", menuName = "HardlightProject/DefinitionData/AbilityDef/Braking", order = 1)]
-    [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterAbilityDefinition_Braking : CharacterAbilityDefinition_MovementGround
     {
         [Tooltip("X axis = Time spent braking \n Y axis = Brake power")]
@@ -26,6 +26,7 @@ namespace HardlightProject
         [Tooltip("During this time window, use character forward instead of buffered intent angle for calculations.")]
         public float LandingBufferTimeSeconds = 0.5f;
 
+        // 06001ae0 (1.10.1 RVA 0x542480)
         public override Type ScriptType => typeof(CharacterAbility_Braking);
         public float MinimumInputMagnitudeSqr { get; private set; }
         public float MinimumTriggerXZSpeedSqr { get; private set; }
@@ -41,6 +42,7 @@ namespace HardlightProject
             EndAtXZSpeedSqr = EndAtXZSpeed * EndAtXZSpeed;
         }
 
+        // 06001ae8 (1.10.1 RVA 0x5426B0)
         public CharacterAbilityDefinition_Braking() { }
     }
 }
