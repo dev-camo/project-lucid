@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -15,8 +14,8 @@ namespace ProjectLucid.Tests
     // iterator <CheckCharacterPosition>d__6 (0x02000acf), OutOfBoundsBox (0x02000acb) and
     // OutOfBoundsPlane (0x02000acc), against the 1.10.1 x86-64 bodies at 0x6E8680..0x6E9000.
     // Characters come from AddComponent<Character> (EditMode runs no Awake) with a recording
-    // storage; the CharacterManager is an uninitialised instance reached through a reference made
-    // for the case, with only its validity flag and current character set. Rows that field
+    // storage; the CharacterManager is built by its constructor (OwnedCharacterManagers) and reached
+    // through a reference made for the case, with only its validity flag and current character set. Rows that field
     // initialisers create are leased and released idle.
     public sealed class OriginalOutOfBoundsTests
     {
@@ -75,6 +74,8 @@ namespace ProjectLucid.Tests
         // Character's field initialiser creates the empty GameplayIslandManager row.
         private static Scene NewScene(Owned owned)
         {
+            // First, so it is released last: the manager constructor's rows outlive the case's.
+            var characters = owned.Lease(new OwnedCharacterManagers());
             owned.LeaseRow<GameplayIslandManager>();
             var scene = new Scene();
             GameObject host = owned.Host("Lucid out-of-bounds character");
@@ -83,7 +84,7 @@ namespace ProjectLucid.Tests
             scene.Storage = new RecordingStorage();
             Set(scene.Character, "<Storage>k__BackingField", scene.Storage);
             Set(scene.Character, "m_colliderCollision", scene.CharacterCollider);
-            scene.Manager = (CharacterManager)FormatterServices.GetUninitializedObject(typeof(CharacterManager));
+            scene.Manager = characters.NewManager();
             Set(scene.Manager, "m_currentCharacter", scene.Character);
             scene.SetValid(true);
             return scene;

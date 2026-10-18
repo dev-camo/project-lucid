@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -18,12 +17,16 @@ namespace ProjectLucid.Tests
     // piece constructor instantiates is tracked and destroyed with them.
     public sealed class OriginalPlatformTests
     {
-        // PlatformPiece's only constructor copies another piece, so a hand-filled piece starts
-        // uninitialised.
+        // PlatformPiece's only constructor copies another piece, so a piece a case starts from is
+        // made the way the game gets its pieces: by the engine deserialising the serialized
+        // GameObjects field (object references are instance IDs in the Editor), which runs no
+        // constructor. The pieces the copying constructor makes from it are built by the real one.
         private static PlatformPiece Piece(Owned owned, params string[] names)
         {
-            var source = (PlatformPiece)FormatterServices.GetUninitializedObject(typeof(PlatformPiece));
-            source.GameObjects = names.Select(name => owned.Host(name)).ToArray();
+            GameObject[] hosts = names.Select(name => owned.Host(name)).ToArray();
+            string references = string.Join(",", hosts.Select(host => "{\"instanceID\":" + host.GetInstanceID() + "}"));
+            PlatformPiece source = JsonUtility.FromJson<PlatformPiece>("{\"GameObjects\":[" + references + "]}");
+            Assert.That(source.GameObjects, Is.EqualTo(hosts), "the engine resolved every serialized reference");
             return source;
         }
 

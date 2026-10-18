@@ -1,4 +1,3 @@
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -8,8 +7,8 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 namespace ProjectLucid.Tests
 {
     // HardlightProject.PrototypeTransformFollowPlayer (TypeDef 0x020007a8, x86-64 0x5DDA80..0x5DDCBA).
-    // The character comes from AddComponent<Character> and the CharacterManager is an
-    // uninitialised instance reached through a reference made for the case. Time.deltaTime is
+    // The character comes from AddComponent<Character> and the CharacterManager is built by its
+    // constructor (OwnedCharacterManagers) and reached through a reference made for the case. Time.deltaTime is
     // read as the Editor reports it; the follower starts rolled, so the rotation rebuilt from
     // LookRotation shows as a dropped roll.
     public sealed class OriginalPrototypeTransformFollowPlayerTests
@@ -42,11 +41,13 @@ namespace ProjectLucid.Tests
             Assume.That(Time.deltaTime, Is.GreaterThan(0.01f), "the turn and the move need a nonzero frame delta");
             Owned.Run(owned =>
             {
+                // First, so it is released last: the manager constructor's rows outlive the case's.
+                var characters = owned.Lease(new OwnedCharacterManagers());
                 owned.LeaseRow<GameplayIslandManager>();
                 owned.LeaseRow<CharacterManager>();
                 Character character = owned.Host("Lucid followed character").AddComponent<Character>();
                 character.transform.position = new Vector3(10f, 0f, 10f);
-                var manager = (CharacterManager)FormatterServices.GetUninitializedObject(typeof(CharacterManager));
+                CharacterManager manager = characters.NewManager();
                 Set(manager, "m_currentCharacter", character);
 
                 var follower = owned.Host("Lucid prototype follower").AddComponent<PrototypeTransformFollowPlayer>();
