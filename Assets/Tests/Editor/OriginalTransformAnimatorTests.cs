@@ -120,7 +120,9 @@ namespace ProjectLucid.Tests
                 for (int i = 0; i < 3; i++)
                 {
                     curves[i] = AnimationCurve.Linear(0f, 0f, 1f, 1f);
-                    curves[i].preWrapMode = WrapMode.Once;
+                    // The engine reads an assigned Once back as ClampForever, so each pre-wrap mode is one that
+                    // reads back as assigned and differs from that axis's post-wrap mode, making a stray write visible.
+                    curves[i].preWrapMode = modes[(i + 1) % 3];
                     curves[i].postWrapMode = WrapMode.Once;
                     SetInStruct(rotator, axes[i], "m_rotationCuve", curves[i]);
                     SetInStruct(rotator, axes[i], "m_wrapMode", modes[i]);
@@ -129,7 +131,7 @@ namespace ProjectLucid.Tests
                 for (int i = 0; i < 3; i++)
                 {
                     Assert.That(curves[i].postWrapMode, Is.EqualTo(modes[i]), axes[i]);
-                    Assert.That(curves[i].preWrapMode, Is.EqualTo(WrapMode.Once), axes[i] + " pre-wrap is untouched");
+                    Assert.That(curves[i].preWrapMode, Is.EqualTo(modes[(i + 1) % 3]), axes[i] + " pre-wrap is untouched");
                 }
                 AreClose(new Vector3(0f, 30f, 0f), (Vector3)Get(rotator, "m_initialRotation"), "local euler angles");
             }
