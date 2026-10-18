@@ -3,7 +3,7 @@ using Hardlight;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 0200041c; bodies translated from the 1.10.1 x86-64 binary.
+	// Original Game.Runtime 0200041c; recovered struct declaration from the 1.10.1 metadata (no own methods).
 	[Serializable]
 	public struct CollectableCount
 	{

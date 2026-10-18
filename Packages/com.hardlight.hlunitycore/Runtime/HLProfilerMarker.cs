@@ -2,7 +2,7 @@ using System;
 
 namespace Hardlight
 {
-	// Original HLUnityCore.Runtime 02000054; bodies translated from the 1.10.1 x86-64 binary.
+	// Original HLUnityCore.Runtime 02000054; recovered enum declaration from the 1.10.1 metadata (no own methods).
 	public enum HLProfilerMarker
 	{
 		None = 0,

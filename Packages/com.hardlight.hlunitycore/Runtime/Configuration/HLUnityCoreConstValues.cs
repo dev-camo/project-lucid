@@ -2,7 +2,7 @@ using System;
 
 namespace Hardlight
 {
-	// Original HLUnityCore.Runtime 02000274; bodies translated from the 1.10.1 x86-64 binary.
+	// Original HLUnityCore.Runtime 02000274; recovered static class declaration from the 1.10.1 metadata (constants only, no own methods).
 	public static class HLUnityCoreConstValues
 	{
 		public const string AssetMenuRoot = "Hardlight/HLUnityCore/";
