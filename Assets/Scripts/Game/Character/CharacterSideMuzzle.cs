@@ -33,8 +33,8 @@ namespace HardlightProject
         private void Awake()
         {
             m_muzzleSettings.Clear();
-            for (int i = 0; i < m_muzzleComponents.Length; i++)
-                m_muzzleSettings.Add(new CharacterMuzzle(m_muzzleComponents[i]));
+            foreach (Transform muzzleComponent in m_muzzleComponents)
+                m_muzzleSettings.Add(new CharacterMuzzle(muzzleComponent));
         }
 
         // 0600148e; each manager's startup handler also runs now when it is already up.
@@ -133,10 +133,10 @@ namespace HardlightProject
             if (m_isActive) UpdateMuzzleSide(m_switchThreshold);
         }
 
-        // 06001498; the sign of the camera offset along the character's forward picks the side.
+        // 06001498; the sign of the camera offset against the character's forward picks the side.
         private void UpdateMuzzleSide(float switchThreshold)
         {
-            float side = -Vector3.Dot(m_characterRoot.forward, m_mainCamera.position - m_characterRoot.position);
+            float side = Vector3.Dot(-m_characterRoot.forward, m_mainCamera.position - m_characterRoot.position);
             if (!(Mathf.Abs(side) > switchThreshold)) return;
             bool isRightSide = side > 0f;
             foreach (CharacterMuzzle muzzle in m_muzzleSettings)
@@ -156,7 +156,10 @@ namespace HardlightProject
         private Transform GetNamedChild(string gameObjectName)
         {
             foreach (Transform child in gameObject.GetComponentsInChildren<Transform>())
-                if (child.name == gameObjectName) return child;
+            {
+                if (child.name != gameObjectName) continue;
+                return child;
+            }
             return null;
         }
 

@@ -404,13 +404,19 @@ namespace ProjectLucid.Tests
                 Set(component, "m_isActive", true);
 
                 Call(component, "OnEnable");
-                Assert.That(HandlerNames(cameraRef, "OnSystemStartup"), Is.EqualTo(new[] { "OnCameraManagerStartup" }));
-                Assert.That(HandlerNames(cameraRef, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCameraManagerShutdown" }));
-                Assert.That(HandlerNames(cutsceneRef, "OnSystemStartup"), Is.EqualTo(new[] { "OnCutsceneManagerStartup" }));
-                Assert.That(HandlerNames(cutsceneRef, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCutsceneManagerShutdown" }));
-                Assert.That(Get(component, "m_isActive"), Is.True, "no startup handler ran");
-
-                Call(component, "OnDisable");
+                try
+                {
+                    Assert.That(HandlerNames(cameraRef, "OnSystemStartup"), Is.EqualTo(new[] { "OnCameraManagerStartup" }));
+                    Assert.That(HandlerNames(cameraRef, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCameraManagerShutdown" }));
+                    Assert.That(HandlerNames(cutsceneRef, "OnSystemStartup"), Is.EqualTo(new[] { "OnCutsceneManagerStartup" }));
+                    Assert.That(HandlerNames(cutsceneRef, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCutsceneManagerShutdown" }));
+                    Assert.That(Get(component, "m_isActive"), Is.True, "no startup handler ran");
+                }
+                finally
+                {
+                    // The rows' references are shared, so the handlers must not outlive a failed assertion.
+                    Call(component, "OnDisable");
+                }
                 Assert.That(HandlerNames(cameraRef, "OnSystemStartup"), Is.Empty);
                 Assert.That(HandlerNames(cameraRef, "OnSystemShutdown"), Is.Empty);
                 Assert.That(HandlerNames(cutsceneRef, "OnSystemStartup"), Is.Empty);

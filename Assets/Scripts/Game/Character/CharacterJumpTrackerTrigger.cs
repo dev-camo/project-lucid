@@ -5,8 +5,9 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime type 020001d1. Records where a jump starts and ends.
-    // The retail build compiles out its diagnostic output (the velocity log and the
-    // System.Math use after the end position is stored); only state changes remain.
+    // The m_hasLoggedVelocity branch matches a log call compiled out of retail. Native code also
+    // initialises System.Math after the end position is stored: that is IL whose result the
+    // native compiler discarded, leaving only the class initialisation, so nothing is restored for it.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterJumpTrackerTrigger : CharacterTrigger
@@ -26,8 +27,8 @@ namespace HardlightProject
             m_character = character;
         }
 
-        // 060009c5; the start state is sampled on the first tick, completion needs
-        // ground contact and no jumping flag.
+        // 060009c5; until IsJumping reads true, each tick re-samples the start position and
+        // velocity. Completion needs ground contact and no jumping flag.
         private void FixedUpdate()
         {
             if (m_jumpComplete || m_character == null) return;

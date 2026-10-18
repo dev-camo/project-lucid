@@ -5163,6 +5163,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCharacterComponentTests." + 
     "MagnetismEnterIgnoresAnythingButTheCurrentCharactersCollider",
     "MagnetismEnterCapturesTheTriggersUpAndRebuildsTheFrame",
     "MagnetismStayDoesNothingWhileNoAbilityOfTheGroupIsInUse",
+    "MagnetismStayMovesTheCharacterWhenNoAbilityGroupIsSet",
     "PauseGameDoesNothingWithoutAValidCurrentCharacter",
     "RemoveTimeOverrideClearsTheHandleAndReportsWhetherThereWasOne",
     "PauseOnDisableReleasesTheHandleOnlyThroughARegisteredTimeManager",

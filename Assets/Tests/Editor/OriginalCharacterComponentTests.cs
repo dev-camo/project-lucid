@@ -572,6 +572,22 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Negative control for the guard above: with no ability group the same call proceeds to move the
+        // character, which faults here for want of a body.
+        [Test]
+        public void MagnetismStayMovesTheCharacterWhenNoAbilityGroupIsSet()
+        {
+            WithManager((owned, manager, character) =>
+            {
+                var modifier = owned.Host("Lucid magnetism stay control", false).AddComponent<CharacterMagnetismModifier>();
+                Collider characterCollider = character.GetComponent<BoxCollider>();
+                Set(character, "m_colliderCollision", characterCollider);
+                SetCurrent(manager, character, true);
+
+                Assert.Catch(() => Call(modifier, "OnTriggerStay", characterCollider));
+            });
+        }
+
         // ---- CharacterPause --------------------------------------------------------------------
 
         // PauseGame 0x6E60F0 returns while the manager reference is null (IsNull) or holds no valid

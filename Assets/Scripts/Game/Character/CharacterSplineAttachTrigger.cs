@@ -34,7 +34,7 @@ namespace HardlightProject
             if (!m_useLegacyLogic)
             {
                 character.SetWorldRotation(transform.rotation);
-                character.SetWorldVelocity(transform.forward * character.WorldVelocityMagnitude);
+                character.SetWorldVelocity(character.WorldVelocityMagnitude * transform.forward);
             }
             character.Storage.SetValue<ISpline>(GetFSMKey(), m_spline.GetSpline());
         }

@@ -42,10 +42,14 @@ namespace HardlightProject
             if (m_abilityTypeGroup != null &&
                 !ActorAbilityUtilities.AnyAbilityInUse(character, m_abilityTypeGroup.Abilities)) return;
             float deltaTime = Time.fixedDeltaTime;
-            Vector3 offset = character.WorldPosition - transform.position;
-            float forwardMagnitude = m_magnetismByDistanceForward.Evaluate(Vector3.Dot(m_worldForward, offset));
-            float lateralMagnitude = -m_magnetismByDistanceLateral.Evaluate(Vector3.Dot(m_worldRight, offset));
-            float normalMagnitude = m_magnetismByDistanceOnNormal.Evaluate(Vector3.Dot(m_worldUp, offset));
+            Vector3 origin = transform.position;
+            Vector3 offset = character.WorldPosition - origin;
+            float forwardDistance = Vector3.Dot(m_worldForward, offset);
+            float lateralDistance = Vector3.Dot(m_worldRight, offset);
+            float normalDistance = Vector3.Dot(m_worldUp, offset);
+            float forwardMagnitude = m_magnetismByDistanceForward.Evaluate(forwardDistance);
+            float lateralMagnitude = -m_magnetismByDistanceLateral.Evaluate(lateralDistance);
+            float normalMagnitude = m_magnetismByDistanceOnNormal.Evaluate(normalDistance);
             Vector3 acceleration = lateralMagnitude * m_worldRight - forwardMagnitude * m_worldForward -
                 normalMagnitude * m_worldUp;
             character.SetWorldVelocity(character.WorldVelocity + acceleration * deltaTime);

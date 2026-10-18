@@ -76,7 +76,8 @@ namespace HardlightProject
         private void OnDisable()
         {
             TimeManager timeManager = ProcessManager.GetSystemSafe<TimeManager>(null, true);
-            if (timeManager != null) RemoveTimeOverride(timeManager);
+            if (timeManager == null) return;
+            RemoveTimeOverride(timeManager);
         }
 
         // 06003e14; the category list is initialised before MonoBehaviour's constructor.
