@@ -239,13 +239,16 @@ namespace ProjectLucid.Tests
                     temporary = Rows()[name];
                     temporaryReference = (SystemRef)temporary.GetType().GetField("SystemRef", Instance).GetValue(temporary);
                     temporaryReference.OnSystemStartup += system => foreignNotifications++;
+                    // LogAssert matches expectations in queue order. The proof queues its own
+                    // Reset-before-Awake exception before this site, so the cleanup warnings
+                    // are queued here, after that exception and before the cleanup runs.
+                    UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Warning, new Regex(
+                        "^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: Fixture registry row retains unowned state: " +
+                        Regex.Escape(name) + "/OnSystemStartup"));
+                    UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Warning, new Regex(
+                        "^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: Time scheduler kept the dormant configuration row aside"));
                     throw primary;
                 };
-                UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Warning, new Regex(
-                    "^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: Fixture registry row retains unowned state: " +
-                    Regex.Escape(name) + "/OnSystemStartup"));
-                UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Warning, new Regex(
-                    "^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: Time scheduler kept the dormant configuration row aside"));
                 try
                 {
                     var error = Assert.Throws<InvalidProgramException>(() => TimeSchedulerVerification.Run());
