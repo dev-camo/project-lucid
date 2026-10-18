@@ -150,7 +150,9 @@ namespace ProjectLucid.Tests
 
         // get_IsSet 0x19f99af and GetTargetType 0x19f9e5f test the target with Object.op_Inequality,
         // and Equals 0x19f9efa compares targets with Object.op_Equality, so a destroyed target reads
-        // as Unity null: the target is unset, and two destroyed targets with one member name are equal.
+        // as Unity null: the target is unset, and it equals an unset target with the same member name.
+        // Object.CompareBaseObjects 0x26D0A60 compares two non-null references by identity
+        // (cmp rbx, r14), so two distinct destroyed targets stay unequal.
         [Test]
         public void BindTargetTreatsADestroyedTargetAsUnityNull()
         {
@@ -171,7 +173,13 @@ namespace ProjectLucid.Tests
             Assert.IsFalse(a.Equals(b));
             Object.DestroyImmediate(first);
             Object.DestroyImmediate(second);
-            Assert.IsTrue(a.Equals(b), "two destroyed targets compare equal to Unity null");
+            Assert.IsFalse(a.Equals(b), "two distinct destroyed targets still compare by reference");
+            BindTarget unset = new BindTarget();
+            typeof(BindTarget).GetField("memberName", Hidden).SetValue(unset, "IntValue");
+            Assert.IsTrue(a.Equals(unset), "a destroyed target equals an unset target through Unity null");
+            Assert.IsTrue(unset.Equals(a), "the unset side compares the destroyed target as Unity null too");
+            typeof(BindTarget).GetField("memberName", Hidden).SetValue(unset, "FloatValue");
+            Assert.IsFalse(a.Equals(unset), "Unity null targets still need the same member name");
             LogAssert.NoUnexpectedReceived();
         }
 
