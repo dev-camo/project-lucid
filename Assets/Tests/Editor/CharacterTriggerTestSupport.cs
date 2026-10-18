@@ -133,19 +133,6 @@ namespace ProjectLucid.Tests
         // and puts the startup observers back, which leaves the registry row alone as an unregistered
         // system would.
         internal static void PublishTimeManager(Owned owned, SystemRef<TimeManager> reference, TimeManager manager)
-        {
-            const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
-            MethodInfo replace = typeof(SystemRef<TimeManager>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", instance);
-            MethodInfo revoke = typeof(SystemRef<TimeManager>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", instance);
-            FieldInfo startupObservers = typeof(SystemRef<TimeManager>).GetField("OnSystemStartup", instance);
-            if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty TimeManager reference");
-            object priorObservers = startupObservers.GetValue(reference);
-            owned.Lease(new ReleaseAction(() =>
-            {
-                if (reference.IsValid()) revoke.Invoke(reference, null);
-                startupObservers.SetValue(reference, priorObservers);
-            }));
-            replace.Invoke(reference, new object[] { manager });
-        }
+            => owned.Lease(new SystemRefLease<TimeManager>(reference, manager));
     }
 }

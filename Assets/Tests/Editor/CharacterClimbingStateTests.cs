@@ -450,11 +450,12 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // A snap onto a climbable wall: the normal is the hit's, the character is placed 0.0001 off the surface along
-        // it (0xE6EB05..0xE6EB28), the collider is remembered (0xE6E9F6), and an unchanged normal leaves the
+        // A snap onto a climbable wall: the normal is the hit's, the character is placed SnapGroundCollisionBuffer
+        // behind the hit point, against the normal (point - normal * 0.0001: the constant at 0x29a70e8 is -1e-4,
+        // 0xE6EB05..0xE6EB28), the collider is remembered (0xE6E9F6), and an unchanged normal leaves the
         // rotation alone (0xE6EB76). The wall faces -z at z = 0.5 from the character.
         [Test]
-        public void SnappingOntoAWallPlacesTheCharacterJustOffTheSurface()
+        public void SnappingOntoAWallPlacesTheCharacterJustIntoTheSurface()
         {
             using (var scene = new ClimbScene())
             {
@@ -463,7 +464,7 @@ namespace ProjectLucid.Tests
                 object[] arguments = { scene.Character, scene.Ability, 1f, new Vector3(0f, 0f, -1f), null, 0f, false };
                 Assert.That((bool)Invoke(scene.State, "SnapPositionToSurface", arguments), Is.True);
                 AreClose(new Vector3(0f, 0f, -1f), (Vector3)arguments[4], 1e-5f, "normal");
-                AreClose(Origin + new Vector3(0f, 0.2f, 0.5001f), scene.Character.WorldPosition, 2.5e-5f, "just off the surface");
+                AreClose(Origin + new Vector3(0f, 0.2f, 0.5001f), scene.Character.WorldPosition, 2.5e-5f, "just into the surface");
                 Assert.That(scene.Storage.GetValueOnly<Collider>(ActorFSMKeys.ClimbingLastCollider), Is.SameAs(wall));
                 Assert.That(Quaternion.Angle(scene.Character.WorldRotation, Quaternion.identity), Is.LessThan(0.001f), "same normal: no turn");
             }
@@ -645,6 +646,34 @@ namespace ProjectLucid.Tests
                 "CharacterState_Climbing`2.UpdateVelocity", "CharacterState_Climbing`2.UpdateAnimation", "CharacterState_Climbing`2.FinishClimbing",
             };
             Assert.That(updateOrder.Select(call => update.IndexOf(call)).ToArray(), Is.Ordered.Ascending.And.Unique, string.Join(", ", update));
+        }
+
+        // Which storage record each step touches, in linear IL order, read from the ldsfld operands: the key arguments
+        // that the call-order witness above does not see. DoOnLeave 0xE6CCC0 removes EdgePassed, LastKnownPosition,
+        // LastKnownRotation, LastCollider, WorldVelocityAtTerrainEnter and Invalid, then fetches the edge normals to
+        // empty them, and stores the leave time under LastTimestamp. DoUpdate 0xE6D470 reads EdgePassed, writes it
+        // false only after RestorePosition (second EdgePassed load at 0xE6D661), and on a failed snap flags
+        // ClimbingInvalid (0xE6D8A0) before the plain FinishClimbing of the other branch (tail call 0xE6D90A).
+        [Test]
+        public void ClimbingBodiesTouchTheNativeStorageRecords()
+        {
+            MethodInfo leave = typeof(CharacterState_Climbing<,>).GetMethod("DoOnLeave", Members | BindingFlags.DeclaredOnly);
+            Assert.That(OriginalILCallSequence.StaticFieldLoads(leave).Where(load => load.Field.DeclaringType == typeof(ActorFSMKeys)).Select(load => load.Field.Name),
+                Is.EqualTo(new[]
+                {
+                    "ClimbingEdgePassed", "ClimbingLastKnownPosition", "ClimbingLastKnownRotation", "ClimbingLastCollider",
+                    "ClimbingWorldVelocityAtTerrainEnter", "ClimbingInvalid", "ClimbingNonMountableEdgeNormal", "ClimbingLastTimestamp",
+                }));
+
+            MethodInfo update = typeof(CharacterState_Climbing<,>).GetMethod("DoUpdate", Members | BindingFlags.DeclaredOnly);
+            var keys = OriginalILCallSequence.StaticFieldLoads(update).Where(load => load.Field.DeclaringType == typeof(ActorFSMKeys)).ToList();
+            Assert.That(keys.Select(load => load.Field.Name), Is.EqualTo(new[] { "ClimbingEdgePassed", "ClimbingEdgePassed", "ClimbingInvalid" }));
+            var calls = OriginalILCallSequence.Calls(update);
+            int CallOffset(string name) => calls.Single(call => call.Target.Name == name).Offset;
+            Assert.That(new[]
+            {
+                keys[0].Offset, CallOffset("RestorePosition"), keys[1].Offset, CallOffset("SnapPositionToSurface"), keys[2].Offset, CallOffset("FinishClimbing"),
+            }, Is.Ordered.Ascending.And.Unique);
         }
 
         // Entry 0x7761C0 spends the boost stamina for the definition's ability type and boost definition after the

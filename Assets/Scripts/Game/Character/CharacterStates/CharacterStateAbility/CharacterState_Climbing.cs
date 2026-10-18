@@ -78,8 +78,8 @@ namespace HardlightProject
             TAbility ability = GetAbility(character);
             if (ability != null)
                 ability.UpdateJumpAngleExtra(character.Storage, true);
-            float totalTime = ProcessManager.GetSystem<TimeManager>(null, true).GetTotalTime(TimeCategory.PlayerMovement);
-            storage.SetValue(ActorFSMKeys.ClimbingLastTimestamp, totalTime);
+            TimeManager timeManager = ProcessManager.GetSystem<TimeManager>(null, true);
+            storage.SetValue(ActorFSMKeys.ClimbingLastTimestamp, timeManager.GetTotalTime(TimeCategory.PlayerMovement));
         }
 
         // 0600154b. A passed edge first restores the last known pose. When the character cannot be

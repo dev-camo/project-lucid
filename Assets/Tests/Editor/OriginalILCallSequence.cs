@@ -55,6 +55,19 @@ namespace ProjectLucid.Tests
         internal static List<(int Offset, OpCode Code)> Instructions(MethodBase method) =>
             Decode(method.GetMethodBody().GetILAsByteArray()).Select(instruction => (instruction.Start, instruction.Code)).ToList();
 
+        // The static fields loaded by ldsfld (III.4.15), in linear IL order, with their offsets.
+        internal static List<(int Offset, FieldInfo Field)> StaticFieldLoads(MethodBase method)
+        {
+            byte[] il = method.GetMethodBody().GetILAsByteArray();
+            Type[] typeArguments = method.DeclaringType.IsGenericType ? method.DeclaringType.GetGenericArguments() : null;
+            Type[] methodArguments = method.IsGenericMethod ? method.GetGenericArguments() : null;
+            return Decode(il)
+                .Where(instruction => instruction.Code == OpCodes.Ldsfld)
+                .Select(instruction => (instruction.Start,
+                    method.Module.ResolveField(BitConverter.ToInt32(il, instruction.Operand), typeArguments, methodArguments)))
+                .ToList();
+        }
+
         // The float32 operand of the ldc.r4 (III.3.40) starting at offset.
         internal static float SingleOperand(MethodBase method, int offset)
         {

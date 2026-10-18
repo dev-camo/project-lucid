@@ -349,6 +349,30 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // DoTriggerEnter rejects only when SpeedMin > speed (ucomiss + ja, 0x7438b0/0x7438c9) and only when
+        // cos > dot (0x743906..0x74390e), so a speed equal to SpeedMin and a heading exactly on the cached
+        // cosine still attach. The cosine is cached at tolerance 0 (cos 0 = 1) and the tolerance raised afterwards
+        // without a new cache, so a heading along the direction (dot 1) sits exactly on the boundary.
+        [Test]
+        public void EntryAtTheSpeedMinimumAndOnTheConeBoundaryStillAttaches()
+        {
+            using (var scene = new CatchScene())
+            {
+                scene.Data.Attach.SpeedMin = 5f;
+                Assert.That(TryEnter(scene, new Vector3(0f, 0f, 4.999f)), Is.False, "just under the minimum");
+                Assert.That(TryEnter(scene, new Vector3(0f, 0f, 5f)), Is.True, "exactly the minimum");
+
+                scene.Data.Attach.SpeedMin = 0f;
+                scene.Data.Attach.AlignmentDirection = Vector3.forward;
+                scene.Data.Attach.AlignmentAngleTolerance = 0f;
+                scene.Definition.CalculateCachedValues();
+                Assert.That(scene.Data.Attach.AlignmentCosAngleTolerance, Is.EqualTo(1f));
+                scene.Data.Attach.AlignmentAngleTolerance = 30f;
+                Assert.That(TryEnter(scene, new Vector3(0f, 0f, 8f)), Is.True, "dot equals the cached cosine");
+                Assert.That(TryEnter(scene, Quaternion.Euler(0f, 10f, 0f) * Vector3.forward * 8f), Is.False, "dot below the cached cosine");
+            }
+        }
+
         // The tolerance also chooses the direction: a trigger turned 90 degrees makes AlignmentDirection a
         // sideways axis, while without a tolerance the trigger's own forward is used (0x743835 versus 0x743851).
         [Test]
@@ -427,6 +451,24 @@ namespace ProjectLucid.Tests
                 scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
                 Assert.That(Get<bool>(scene.Ability, "m_isReversed"), Is.False, "reversal needs the flag");
                 Assert.That(forward, Is.EqualTo(new[] { 3f, -1f }), "the sign still follows the dot");
+            }
+        }
+
+        // The enter event takes the attach curve (Attach+0x38, 0x743b1b..0x743b30) and the release speed the
+        // release curve (Release+0x30), so two different curves tell a swap apart: attach speed 2 x 6 = 12 over a
+        // normalised 2 gives 6 where the release identity curve would give 3, and the release speed stays 6.
+        [Test]
+        public void TheAttachCurveFeedsTheEnterEventAndTheReleaseCurveTheReleaseSpeed()
+        {
+            using (var scene = new CatchScene())
+            {
+                List<float> forward = Record(scene.Data.Catch.PointForward.Events.m_onEnter);
+                scene.Data.Attach.SpeedCurve = AnimationCurve.Linear(0f, 0f, 10f, 20f);
+                scene.Data.Attach.SpeedNormalised = 2f;
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                Assert.That(forward, Is.EqualTo(new[] { 6f }));
+                Assert.That(Get<float>(scene.Ability, "m_releaseSpeed"), Is.EqualTo(6f).Within(1e-4f));
             }
         }
 
@@ -639,6 +681,21 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // An initialised character with a fake parent and no release points, facing +x at a known position,
+        // so that an exit runs the release transform.
+        private static TransformFakeParent PrepareRelease(CatchScene scene)
+        {
+            TransformFakeParent fake = AddFakeParent(scene);
+            Set(scene.Character, "m_colliderCollision", scene.Character.gameObject.GetComponent<CapsuleCollider>());
+            SetActorProperty(scene.Character, "m_initialised", true);
+            typeof(Character).GetMethod("InitialiseModifiers", Members).Invoke(scene.Character, null);
+            scene.Data.Release.TransformPoints = new CatchReleasePoints();
+            scene.Data.Release.VelocityPoints = new CatchReleasePoints();
+            scene.Character.SetWorldRotation(Quaternion.Euler(0f, 90f, 0f));
+            scene.Character.SetWorldPosition(Origin + new Vector3(1f, 2f, 3f));
+            return fake;
+        }
+
         // DoTriggerExit 0x744630 returns at its first test (0x7446c4) while the ability is not triggered: no
         // release, no leave, nothing scheduled, so no host is needed.
         [Test]
@@ -662,14 +719,7 @@ namespace ProjectLucid.Tests
         {
             using (var scene = new CatchScene())
             {
-                AddFakeParent(scene);
-                Set(scene.Character, "m_colliderCollision", scene.Character.gameObject.GetComponent<CapsuleCollider>());
-                SetActorProperty(scene.Character, "m_initialised", true);
-                typeof(Character).GetMethod("InitialiseModifiers", Members).Invoke(scene.Character, null);
-                scene.Data.Release.TransformPoints = new CatchReleasePoints();
-                scene.Data.Release.VelocityPoints = new CatchReleasePoints();
-                scene.Character.SetWorldRotation(Quaternion.Euler(0f, 90f, 0f));
-                scene.Character.SetWorldPosition(Origin + new Vector3(1f, 2f, 3f));
+                PrepareRelease(scene);
                 scene.Move(new Vector3(0f, 0f, 6f));
                 scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
                 Assert.That(scene.Ability.IsTriggered, Is.True);
@@ -684,6 +734,100 @@ namespace ProjectLucid.Tests
                 Assert.That(scene.Character.WorldPosition, Is.EqualTo(Origin + new Vector3(1f, 2f, 3f)));
                 Assert.That(scene.Storage.GetValueOnly<bool>(ActorFSMKeys.AirDecelerationDisabled), Is.False);
                 Assert.That(scene.Storage.GetCollection().ContainsKey(ActorFSMKeys.AirDecelerationDisabled), Is.True);
+            }
+        }
+
+        // SetCharacterReleaseTransform scales the facing direction by MultiplierCurve at the attach time
+        // (0x7444b2..0x744531), not at the release speed: Linear(0,1,10,3) at 5 is 2, at the release speed 6 it
+        // would be 2.2.
+        [Test]
+        public void ExitScalesTheReleaseVelocityByTheMultiplierAtTheAttachTime()
+        {
+            using (var scene = new CatchScene())
+            {
+                PrepareRelease(scene);
+                scene.Data.Release.MultiplierCurve = AnimationCurve.Linear(0f, 1f, 10f, 3f);
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                Set(scene.Ability, "m_attachTime", 5f);
+
+                ExpectNextFrameFault(() => scene.Ability.DoTriggerExit());
+
+                Assert.That(scene.Character.WorldVelocity.x, Is.EqualTo(12f).Within(1e-4f), "multiplier 2 times the release speed 6");
+            }
+        }
+
+        private static float ReleaseSpeedAlongTheFacing(bool useWorldSpeed)
+        {
+            using (var scene = new CatchScene())
+            {
+                PrepareRelease(scene);
+                scene.Data.Release.UseWorldSpeed = useWorldSpeed;
+                scene.Data.Release.SpeedCurve = AnimationCurve.Linear(0f, 0f, 100f, 200f);
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                scene.Move(new Vector3(0f, 0f, 10f));
+                ExpectNextFrameFault(() => scene.Ability.DoTriggerExit());
+                return scene.Character.WorldVelocity.x;
+            }
+        }
+
+        // UseWorldSpeed (0x7444de..0x744503) evaluates the release curve again at the character's speed on exit
+        // (10 gives 20); without it the speed stored on entry (6 gives 12) is kept.
+        [Test]
+        public void ExitReevaluatesTheReleaseSpeedAtTheWorldSpeedOnlyWhenAsked()
+        {
+            Assert.That(ReleaseSpeedAlongTheFacing(false), Is.EqualTo(12f).Within(1e-4f), "the entry speed");
+            Assert.That(ReleaseSpeedAlongTheFacing(true), Is.EqualTo(20f).Within(1e-4f), "the world speed at the exit");
+        }
+
+        // Release points that fix the position (here the closest of them) add the attach offset to the point's
+        // position, turned half a circle about gravity unless the catch was reversed (0x744368..0x7443dd).
+        [Test]
+        public void ExitOffsetsAFixedReleasePositionByTheAttachOffsetTurnedAgainstGravity()
+        {
+            foreach ((bool reversed, Vector3 offset) in new[] { (false, new Vector3(-1f, 0f, 0f)), (true, new Vector3(1f, 0f, 0f)) })
+            {
+                using (var scene = new CatchScene())
+                {
+                    PrepareRelease(scene);
+                    Vector3 pointPosition = Origin + new Vector3(10f, 0f, 0f);
+                    var points = new CatchReleasePoints();
+                    Set(points, "m_points", new[] { scene.Objects.Create("release point", pointPosition, Quaternion.identity).transform });
+                    Set(points, "m_releasePositionType", CatchReleasePositionType.QuantizeClosestPosition);
+                    scene.Data.Release.TransformPoints = points;
+                    scene.Move(new Vector3(0f, 0f, 6f));
+                    scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                    Set(scene.Ability, "m_attachOffset", new Vector3(1f, 0f, 0f));
+                    Set(scene.Ability, "m_isReversed", reversed);
+
+                    ExpectNextFrameFault(() => scene.Ability.DoTriggerExit());
+
+                    Vector3 released = scene.Character.WorldPosition - (pointPosition + offset);
+                    Assert.That(released.magnitude, Is.EqualTo(0f).Within(1e-4f), "reversed " + reversed);
+                }
+            }
+        }
+
+        // RemoveParentConstraints (0x7445B0, called at 0x744706) puts the character at the fake parent's
+        // evaluated position before it is released, so free points keep that pose and not the pre-exit one.
+        [Test]
+        public void ExitPlacesTheCharacterAtTheFakeParentBeforeReleasingIt()
+        {
+            using (var scene = new CatchScene())
+            {
+                TransformFakeParent fake = PrepareRelease(scene);
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                scene.Ability.OnAttach();
+                scene.Trigger.transform.position += new Vector3(0f, 1f, 0f);
+                Assert.That(fake.Evaluate(out Vector3 parented, out Quaternion _), Is.True);
+                Vector3 before = scene.Character.WorldPosition;
+                Assert.That((parented - before).magnitude, Is.GreaterThan(0.5f), "the fixture tells the two poses apart");
+
+                ExpectNextFrameFault(() => scene.Ability.DoTriggerExit());
+
+                Assert.That((scene.Character.WorldPosition - parented).magnitude, Is.EqualTo(0f).Within(1e-4f));
             }
         }
 
@@ -894,6 +1038,130 @@ namespace ProjectLucid.Tests
                 NullReferenceException fault = Assert.Throws<NullReferenceException>(() => waiting.MoveNext());
                 Assert.That(fault.StackTrace, Does.Contain("HardlightProject.Character.GetBrainAppliedState"), "the input is first read on the third step");
             }
+        }
+
+        private sealed class HeldBrain : CharacterBrain
+        {
+            public override void Close()
+            {
+            }
+        }
+
+        // A brain whose applied state for the attach action (CharacterHomingAttack by default) can be toggled.
+        private static HeldBrain GiveBrain(Character character, bool held)
+        {
+            CharacterActionFlags.Initialise();
+            var brain = new HeldBrain();
+            Set(character, "m_brain", brain);
+            Hold(brain, held);
+            return brain;
+        }
+
+        private static void Hold(CharacterBrain brain, bool held)
+        {
+            var flags = new CharacterActionFlags();
+            flags.SetValue(GameAction.CharacterHomingAttack, held);
+            brain.ApplyActions(flags, 1f);
+        }
+
+        private static IEnumerator StayOf(CatchReleaseTrigger trigger, Character character, CatchScene scene)
+        {
+            Set(trigger, "m_ability", scene.Ability);
+            var stay = (IEnumerator)Call(trigger, "ProcessStayEvents", (object)character);
+            Assert.That(stay.MoveNext(), Is.True);
+            Assert.That(stay.MoveNext(), Is.True);
+            return stay;
+        }
+
+        // MoveNext 0x6E5C87..0x6E5E1E: once the input is applied the ability is entered and the trigger's own
+        // fixed-update wait is yielded; a non-continuous input (Attach+0x11 clear) then stops without a release.
+        [Test]
+        public void StayAttachesOnTheInputAndStopsWithoutReleasingForANonContinuousInput()
+        {
+            using (var scene = new CatchScene())
+            {
+                CatchReleaseTrigger trigger = NewTrigger(scene);
+                Get<CatchReleaseDefinition>(trigger, "m_data").Attach.InputRequiredIsContinuous = false;
+                GiveBrain(scene.Character, true);
+                IEnumerator stay = StayOf(trigger, scene.Character, scene);
+                Assert.That(scene.Ability.IsTriggered, Is.False, "nothing happens in the two waiting frames");
+
+                Assert.That(stay.MoveNext(), Is.True);
+                Assert.That(stay.Current, Is.SameAs(Get<WaitForFixedUpdate>(trigger, "m_waitForFixedUpdate")));
+                Assert.That(scene.Ability.IsTriggered, Is.True);
+                Assert.That(stay.MoveNext(), Is.False);
+                Assert.That(scene.Ability.IsTriggered, Is.True, "no release for an instant input");
+            }
+        }
+
+        // A continuous input keeps waiting while it is held and releases the ability (DoTriggerExit) when it ends.
+        [Test]
+        public void StayReleasesTheAbilityWhenAContinuousHoldEnds()
+        {
+            using (var scene = new CatchScene())
+            {
+                AddFakeParent(scene);
+                CatchReleaseTrigger trigger = NewTrigger(scene);
+                HeldBrain brain = GiveBrain(scene.Character, true);
+                IEnumerator stay = StayOf(trigger, scene.Character, scene);
+                Assert.That(stay.MoveNext(), Is.True, "attached");
+                Assert.That(stay.MoveNext(), Is.True, "still held");
+                Assert.That(scene.Ability.IsTriggered, Is.True);
+
+                Hold(brain, false);
+                ExpectNextFrameFault(() => stay.MoveNext());
+
+                Assert.That(scene.Ability.IsTriggered, Is.False);
+            }
+        }
+
+        // A character that disappears during a continuous hold ends the wait and the ability is released.
+        [Test]
+        public void StayReleasesTheAbilityWhenTheCharacterVanishesDuringAContinuousHold()
+        {
+            using (var scene = new CatchScene())
+            {
+                AddFakeParent(scene);
+                CatchReleaseTrigger trigger = NewTrigger(scene);
+                var watched = scene.Objects.Create("watched character", Origin, Quaternion.identity).AddComponent<CharacterGravityVectorProbe>();
+                GiveBrain(watched, true);
+                IEnumerator stay = StayOf(trigger, watched, scene);
+                Assert.That(stay.MoveNext(), Is.True, "attached");
+                Assert.That(stay.MoveNext(), Is.True, "still held");
+                Assert.That(scene.Ability.IsTriggered, Is.True);
+
+                Object.DestroyImmediate(watched.gameObject);
+                ExpectNextFrameFault(() => stay.MoveNext());
+
+                Assert.That(scene.Ability.IsTriggered, Is.False);
+            }
+        }
+
+        // DoTriggerStay 0x6E5920..0x6E5934 does not re-enter while the input wait runs (m_stayCoroutine set).
+        [Test]
+        public void StayInTheVolumeDoesNotReenterWhileTheInputWaitIsRunning()
+        {
+            using (var scene = new CatchScene())
+            {
+                CatchReleaseTrigger trigger = NewTrigger(scene);
+                scene.AddToCharacter(ActorAbilityType.Character_CatchRelease, scene.Ability);
+                Coroutine running = trigger.StartCoroutine(PendingFrame());
+                Assert.That(running, Is.Not.Null);
+                Set(trigger, "m_stayCoroutine", running);
+
+                Call(trigger, "DoTriggerStay", (object)scene.Character);
+                Assert.That(scene.Ability.IsTriggered, Is.False);
+                Assert.That(Get<CharacterAbility_CatchRelease>(trigger, "m_ability"), Is.Null);
+
+                Set(trigger, "m_stayCoroutine", null);
+                Call(trigger, "DoTriggerStay", (object)scene.Character);
+                Assert.That(scene.Ability.IsTriggered, Is.True);
+            }
+        }
+
+        private static IEnumerator PendingFrame()
+        {
+            yield return null;
         }
 
         // ---- CharacterState_CatchRelease ---------------------------------------------------------
