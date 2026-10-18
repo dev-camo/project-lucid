@@ -262,9 +262,36 @@ namespace ProjectLucid
                 Require(Scan(scan, directory, "strings-then-pointer.prefab", gameObject(strings + "  m_Ref: {fileID: 128}\n"), out bad, out objects, out unresolved) == "incomplete" &&
                     unresolved == 1 && objects.SequenceEqual(new[] { "Assets/Recovered/strings-then-pointer.prefab {fileID: 128}: Local identifier names no document in this file" }),
                     "a pointer field after the string fields is still checked");
+
+                // A quoted scalar inside a flow mapping is string text: its brace does
+                // not end the mapping, so the mapping's own fileID key is still seen.
+                // A mapping with a key besides fileID, guid and type is no PPtr, so it
+                // is reported whole whether or not its local identifier resolves.
+                Func<string, string, string> extended = (file, label) => "Assets/Recovered/" + file + " {label: " + label + ", fileID: ";
+                foreach (var form in new[] {
+                    new System.Collections.Generic.KeyValuePair<string, string>("double", "\"}\""), new System.Collections.Generic.KeyValuePair<string, string>("escaped", "\"\\\"}\""),
+                    new System.Collections.Generic.KeyValuePair<string, string>("single", "'}'"), new System.Collections.Generic.KeyValuePair<string, string>("single-escaped", "'it''s }'") })
+                {
+                    foreach (long id in new long[] { 77, 2 })
+                    {
+                        string file = "quoted-" + form.Key + "-" + id + ".prefab";
+                        Require(Scan(scan, directory, file, gameObject("  m_Data: {label: " + form.Value + ", fileID: " + id + "}\n"), out bad, out objects, out unresolved) == "incomplete" &&
+                            unresolved == 1 && bad.Length == 0 && objects.SequenceEqual(new[] { extended(file, form.Value) + id + "}: Unsupported or malformed object pointer" }),
+                            "a " + form.Key + "-quoted brace does not end the mapping that holds fileID " + id);
+                    }
+                }
+                // Pointer text inside a quoted scalar is not a pointer; a real pointer
+                // beside it is checked: the present one is complete, the absent one reported.
+                Require(Scan(scan, directory, "quoted-beside-present.prefab", gameObject("  m_Data: {label: \"}{fileID: 77}\", ref: {fileID: 2}}\n"),
+                    out bad, out objects, out unresolved) == "complete" && bad.Length == 0 && objects.Length == 0 && unresolved == 0,
+                    "a present pointer beside quoted pointer text is complete");
+                Require(Scan(scan, directory, "quoted-beside-absent.prefab", gameObject("  m_Data: {label: '}{fileID: 2}', ref: {fileID: 77}}\n"),
+                    out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 &&
+                    objects.SequenceEqual(new[] { "Assets/Recovered/quoted-beside-absent.prefab {fileID: 77}: Local identifier names no document in this file" }),
+                    "an absent pointer beside quoted pointer text is reported");
             }
             finally { Directory.Delete(directory, true); }
-            Debug.Log("[Project Lucid] Recovered YAML local pointer syntax checks passed: 6");
+            Debug.Log("[Project Lucid] Recovered YAML local pointer syntax checks passed: 16");
         }
 
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

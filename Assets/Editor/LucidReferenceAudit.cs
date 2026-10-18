@@ -50,8 +50,8 @@ namespace ProjectLucid.Editor
         // Unity's YAML PPtr: {fileID: N} names a document in the same file;
         // {fileID: N, guid: G, type: T} names a loaded object of another asset.
         // Every flow mapping with a fileID key is a candidate, whatever its key
-        // order or spacing, so a malformed pointer cannot pass unseen.
-        private static readonly Regex PointerKey = new Regex(@"(?:\A\{|,)\s*fileID\s*:", RegexOptions.Compiled);
+        // order, spacing or key quoting, so a malformed pointer cannot pass unseen.
+        private static readonly Regex PointerKey = new Regex(@"(?:\A\{|,)\s*(?:fileID|'fileID'|""fileID"")\s*:", RegexOptions.Compiled);
         private static readonly Regex PointerEntry = new Regex(@"\A\s*(fileID|guid|type)\s*:\s*([^\s:]+)\s*\z", RegexOptions.Compiled);
         private static readonly Regex SignedInteger = new Regex(@"\A-?\d+\z", RegexOptions.Compiled);
         private static readonly Regex HexGuid = new Regex(@"\A[0-9a-fA-F]{32}\z", RegexOptions.Compiled);
@@ -283,23 +283,61 @@ namespace ProjectLucid.Editor
 
             private static bool IsOpen(string line, int value)
             {
+                bool[] quoted = QuotedText(line, value);
                 int depth = 0;
                 for (int i = value; i < line.Length; i++)
                 {
+                    if (quoted[i]) continue;
                     if (line[i] == '{') depth++;
                     else if (line[i] == '}' && depth > 0) depth--;
                 }
                 return depth > 0;
             }
 
+            // Marks the quoted scalars of a flow collection that starts at start,
+            // delimiters included, so their braces and commas are string text. A quote
+            // opens a scalar only where one may begin: after '{', '[', ',' or ':' and
+            // any spaces, so an apostrophe inside a plain scalar opens nothing.
+            // Single-quoted text escapes ' as ''; double-quoted text uses backslashes.
+            // An unclosed scalar runs to the end of the text.
+            private static bool[] QuotedText(string text, int start)
+            {
+                var quoted = new bool[text.Length];
+                char previous = '{';
+                for (int i = start; i < text.Length; i++)
+                {
+                    char c = text[i];
+                    if ((c == '\'' || c == '"') && (previous == '{' || previous == '[' || previous == ',' || previous == ':'))
+                    {
+                        int end = i + 1;
+                        for (; end < text.Length; end++)
+                        {
+                            if (c == '"' && text[end] == '\\') { end++; continue; }
+                            if (text[end] != c) continue;
+                            if (c == '\'' && end + 1 < text.Length && text[end + 1] == '\'') { end++; continue; }
+                            break;
+                        }
+                        end = Math.Min(end, text.Length - 1);
+                        for (int j = i; j <= end; j++) quoted[j] = true;
+                        i = end;
+                        previous = c;
+                        continue;
+                    }
+                    if (c != ' ' && c != '\t') previous = c;
+                }
+                return quoted;
+            }
+
             // Each flow mapping in value that has its own fileID key, in text order.
             // An unclosed one runs to the end of the value.
             private static IEnumerable<string> PointerCandidates(string value)
             {
+                bool[] quoted = QuotedText(value, 0);
                 var open = new Stack<int>();
                 var spans = new List<KeyValuePair<int, int>>();
                 for (int i = 0; i < value.Length; i++)
                 {
+                    if (quoted[i]) continue;
                     if (value[i] == '{') open.Push(i);
                     else if (value[i] == '}' && open.Count > 0) spans.Add(new KeyValuePair<int, int>(open.Pop(), i + 1));
                 }
@@ -307,7 +345,8 @@ namespace ProjectLucid.Editor
                 spans.Sort((left, right) => left.Key.CompareTo(right.Key));
                 foreach (var span in spans)
                 {
-                    // Keys of nested mappings belong to those mappings.
+                    // Keys of nested mappings belong to those mappings. Quoted text
+                    // stays in, so pointer-like text there fails closed.
                     var own = new StringBuilder();
                     for (int i = span.Key; i < span.Value; i++)
                     {
