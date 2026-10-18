@@ -4010,6 +4010,30 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalManagedDeclarationContractsT
     "ProfilerAndLocalisationMenusKeepOriginalAttributeArguments",
 ))
 
+# HLBinders format and conversion nodes restored from the 1.10.1 binary.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalBinderFormatNodeTests." + name for name in (
+    "DateOffsetAddsTheOffsetToTheInputAfterReadingTheInputFirst",
+    "DateStringFormatterConvertsEachDateToLocalTimeBeforeReadingTheFormat",
+    "EnumToIntPublishesTheEnumValueAndZeroForANullReference",
+    "EnumToStringReadsTheNameTwiceAndPublishesEmptyForANullReference",
+    "IntConversionsUseTheNativeIntToSingleAndPlainToString",
+    "IntToTimeSpanTreatsTheInputAsSeconds",
+    "MemoryFormatterZeroExtendsTheIntSize",
+    "NumberCutOffFormatterCapsOnlyAboveAPositiveCutOff",
+    "NumberDeltaFormatterFollowsTheNativeSignSpaceAndFormatTable",
+    "NumberPercentFormatterFollowsTheNativeFlagTable",
+    "SingleToIntTruncatesTowardZero",
+    "SingleToStringAppliesFloorThenCeilAndOnlyOneToFourDecimalPlaces",
+    "StringFormatterSixArgsReadsEveryArgumentBeforeTheFormat",
+    "TimeSpanToDaysAndSecondsAddAHalfAndTruncate",
+    "TimeSpanToStringReadsOnlyTheFormatForTheLargestPositiveComponent",
+    "TimeStampToDateTimeReadsUnixMilliseconds",
+    "TraversalTimeDividesDistanceBySpeedIntoSeconds",
+    "Vector2SplitterAndVectorDistanceUseTheVectorComponents",
+    "VectorBuilderReadsEveryComponentBeforePublishing",
+    "SetUpBindReferenceFieldsListsTheNativeReferenceOrder",
+))
+
 # Per-test isolation hook controls; the verdict also requires each one's own
 # clean line in the mode's isolation report (ISOLATION_HOOK_CONTROLS).
 EDITMODE_TESTS += (
