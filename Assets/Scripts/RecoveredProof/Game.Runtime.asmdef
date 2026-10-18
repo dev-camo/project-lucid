@@ -24,6 +24,9 @@
     "UnityEngine.UI",
     "Unity.TextMeshPro",
     "HLRTLTextMeshPro.Runtime",
+    "HLCrashReport.Runtime",
+    "HLCrossPromo.Runtime",
+    "Dreamteck.Splines",
     "FairPlay.Runtime"
   ],
   "includePlatforms": [],
