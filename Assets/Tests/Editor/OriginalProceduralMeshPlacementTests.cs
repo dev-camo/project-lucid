@@ -12,9 +12,9 @@ namespace ProjectLucid.Tests
     // Original HLSplines.Runtime placement types 0200002a..0200003a on owned
     // GameObjects, assets and in-memory surfaces. Edit Mode runs no automatic
     // Start/OnDestroy for the placement components, so lifecycle bodies are
-    // invoked explicitly and no ProcessManager row is created by them. Storage
-    // bodies (the splines-storage types) are never reached: every case keeps
-    // mesh type and storage lists empty or null.
+    // invoked explicitly; every ProcessManager row they reach is leased or
+    // owned by the proof. Storage bodies (the splines-storage types) are never
+    // reached: every case keeps mesh type and storage lists empty or null.
     public sealed class OriginalProceduralMeshPlacementTests
     {
         private const BindingFlags Own = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -490,30 +490,55 @@ namespace ProjectLucid.Tests
         }
 
         // HasValidSetup 0x06000090 (0x1A592A0): ValidSetup becomes whether the
-        // error list is null or empty, recomputed on every call. Fails if a
-        // failure sticks, or errors leave the setup valid.
+        // error list is null or empty, recomputed on every call, and is stored
+        // (0x1A592F8) only after OutputErrors 0x060000a0 (call 0x1A592E7).
+        // OutputErrors returns while the old ValidSetup is false (0x1A5936C), so
+        // only the first failure after a valid state is reported: one LogError
+        // (code 0, 0x1A59561) of "'" + path + "' game object has invalid
+        // procedural mesh setup:" (0x1A593F3/0x1A593FD) and "\n- " (0x1A5941B)
+        // before each message. Fails if OutputErrors is dropped, runs after the
+        // store, reports every failure, or a failure sticks.
         [Test]
         public void HasValidSetupRecomputesValidityFromTheErrorList()
         {
-            // OutputErrors logs through HLOutput, which is silent only while no
-            // HLUnityCore system is registered; the lease holds that row idle.
-            using var logRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<HLUnityCore>());
+            using var log = new OwnedCoreErrorLog();
             var host = new GameObject(HostName);
             try
             {
                 var grid = host.AddComponent<ProceduralMesh_PlacementOnSplineGrid>();
                 var splines = (List<Spline>)Get(grid, "m_splines");
                 splines.Clear();
-                splines.Add(host.AddComponent<Spline>());
                 ((IList)Get(grid, "m_meshTypes")).Clear();
+                Configure(grid, 0f);
+                Set(grid, "m_strideZ", 0f);
+                SetProperty(grid, typeof(ProceduralMesh_Placement), "ValidSetup", true);
+                Assert.That(grid.HasValidSetup(), Is.False);
+                Assert.That(log.Errors, Is.EqualTo(new[]
+                {
+                    "'/" + HostName + "' game object has invalid procedural mesh setup:" +
+                    "\n- '" + HostName + "' has no spline assigned" +
+                    "\n- '" + HostName + RatioMessage +
+                    "\n- '" + HostName + "' has invalid strideZ 0:0",
+                }));
+                log.Errors.Clear();
+                Assert.That(grid.HasValidSetup(), Is.False);
+                Assert.That(log.Errors, Is.Empty, "A setup that was already invalid reports nothing.");
+
+                splines.Add(host.AddComponent<Spline>());
                 Configure(grid, 1f);
+                Set(grid, "m_strideZ", 1f);
                 Assert.That(grid.HasValidSetup(), Is.True);
                 Assert.That(ValidSetup(grid), Is.True);
                 Set(grid, "m_strideZ", 0f);
                 Assert.That(grid.HasValidSetup(), Is.False);
                 Assert.That(ValidSetup(grid), Is.False);
+                Assert.That(log.Errors, Is.EqualTo(new[]
+                {
+                    "'/" + HostName + "' game object has invalid procedural mesh setup:\n- '" + HostName + "' has invalid strideZ 0:0",
+                }));
                 Set(grid, "m_strideZ", 1f);
                 Assert.That(grid.HasValidSetup(), Is.True, "Validity is recomputed, not latched.");
+                Assert.That(log.Errors.Count, Is.EqualTo(1), "A valid setup reports nothing.");
             }
             finally
             {
@@ -550,23 +575,32 @@ namespace ProjectLucid.Tests
         }
 
         // CheckForSpawnAndDespawn 0x060000b7/0x060000c1/0x060000e4: null
-        // storage clears ValidSetup and logs (HLOutput, silent without an
-        // HLUnityCore system, held idle by the lease); empty storage zeroes the count and keeps the
-        // setup valid. CalculateTotalWorldSpaceBounds 0x060000b8/0x060000c2/
-        // 0x060000e6 return the zeroed bounds (0x1A5CF7F) for no storage.
+        // storage clears ValidSetup and logs once with code 0; empty storage
+        // zeroes the count, keeps the setup valid and logs nothing. The texts
+        // are original, quirks included: ribbon and mesh log "'" + path +
+        // " has invalid procedural mesh setup'" (literal 0x32812a8, used at
+        // 0x1A5CBA0 and 0x1A5BB40), the spline "'" + path + "' has invalid
+        // procedural mesh setup -  " with two trailing spaces (0x3281bc8,
+        // used at 0x1A5F770). CalculateTotalWorldSpaceBounds 0x060000b8/
+        // 0x060000c2/0x060000e6 return the zeroed bounds (0x1A5CF7F) for no storage.
         [Test]
         public void MissingStorageInvalidatesSpawnChecksAndEmptyStorageHasZeroBounds()
         {
-            using var logRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<HLUnityCore>());
+            using var log = new OwnedCoreErrorLog();
             var host = new GameObject(HostName);
             try
             {
                 foreach (ProceduralMesh_Placement placement in Placements(host))
                 {
                     string name = placement.GetType().Name;
+                    string expected = placement is ProceduralMesh_PlacementOnSpline
+                        ? "'/" + HostName + "' has invalid procedural mesh setup -  :0"
+                        : "'/" + HostName + " has invalid procedural mesh setup':0";
                     SetProperty(placement, typeof(ProceduralMesh_Placement), "ValidSetup", true);
                     Invoke(placement, "CheckForSpawnAndDespawn", null, false);
                     Assert.That(ValidSetup(placement), Is.False, name);
+                    Assert.That(log.Errors, Is.EqualTo(new[] { expected }), name);
+                    log.Errors.Clear();
 
                     Set(placement, StorageField(placement), EmptyStorage(placement));
                     SetProperty(placement, typeof(ProceduralMesh_Placement), "ValidSetup", true);
@@ -574,10 +608,311 @@ namespace ProjectLucid.Tests
                     Invoke(placement, "CheckForSpawnAndDespawn", null, true);
                     Assert.That(ValidSetup(placement), Is.True, name);
                     Assert.That(Get(placement, "m_populatedCount"), Is.Zero, name);
+                    Assert.That(log.Errors, Is.Empty, name);
                     var bounds = (Bounds)Invoke(placement, "CalculateTotalWorldSpaceBounds");
                     Assert.That(bounds.center, Is.EqualTo(Vector3.zero), name);
                     Assert.That(bounds.extents, Is.EqualTo(Vector3.zero), name);
                 }
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        // DoUpdate 0x0600009c (0x1A5A340) with a valid setup and a camera:
+        // `ucomiss sqr, DespawnDistanceSquare; jbe` (0x1A5A3E2/0x1A5A3E6)
+        // despawns only for an ordered sqr > despawn, so equality and NaN both
+        // reach CheckForSpawnAndDespawn (0x1A5A454). A spline grid with null
+        // storage shows the branch: the spawn check clears ValidSetup and logs,
+        // while DespawnAllMeshes returns at once and keeps the count. Fails for
+        // `>=` (the equal case) or `!(sqr <= despawn)` (the NaN case).
+        // Not observable without storage bodies or a recording subclass: the
+        // `m_populatedCount > 0` gate (0x1A5A3EC) and canFade = FadeOut > sqr
+        // (0x1A5A3F5/0x1A5A3F8), since the override itself returns for a zero count.
+        [Test]
+        public void DoUpdateDespawnsOnlyStrictlyBeyondTheDespawnDistance()
+        {
+            FieldInfo frameField = typeof(ProceduralMesh_Placement).GetField("m_frameCount", Own);
+            FieldInfo cameraField = typeof(ProceduralMesh_Placement).GetField("m_camera", Own);
+            FieldInfo planesField = typeof(ProceduralMesh_Placement).GetField("m_cameraPlanes", Own);
+            object priorFrame = frameField.GetValue(null), priorCamera = cameraField.GetValue(null), priorPlanes = planesField.GetValue(null);
+            using var log = new OwnedCoreErrorLog();
+            var host = new GameObject(HostName);
+            var config = ScriptableObject.CreateInstance<ProceduralMesh_SystemConfig>();
+            GameObject ownedCamera = null;
+            try
+            {
+                // Borrow an existing main camera read-only; otherwise own one.
+                Camera main = Camera.main;
+                if (main == null)
+                {
+                    ownedCamera = new GameObject("Owned placement main camera");
+                    ownedCamera.tag = "MainCamera";
+                    main = ownedCamera.AddComponent<Camera>();
+                }
+                Assert.That(Camera.main, Is.SameAs(main));
+
+                var grid = host.AddComponent<ProceduralMesh_PlacementOnSplineGrid>();
+                SetProperty(grid, typeof(ProceduralMesh_Placement), "SystemConfig", config);
+                Vector3 eye = main.transform.position;
+                var total = new Bounds(eye - new Vector3(10f, 0f, 0f), Vector3.zero);
+                SetProperty(grid, typeof(ProceduralMesh_Placement), "TotalBounds", total);
+                float sqrDistance = total.SqrDistance(eye);
+                string spawnCheckError = "'/" + HostName + "' has invalid procedural mesh setup -  :0";
+
+                foreach ((float despawn, int populated, bool spawnCheck) in new[]
+                {
+                    (sqrDistance, 3, true),
+                    (sqrDistance - 1f, 3, false),
+                    (float.NaN, 3, true),
+                    (sqrDistance - 1f, 0, false),
+                })
+                {
+                    string label = "despawn " + despawn + " populated " + populated;
+                    frameField.SetValue(null, -1);
+                    SetProperty(grid, typeof(ProceduralMesh_Placement), "ValidSetup", true);
+                    SetProperty(grid, typeof(ProceduralMesh_Placement), "DespawnDistanceSquare", despawn);
+                    Set(grid, "m_populatedCount", populated);
+                    log.Errors.Clear();
+                    grid.DoUpdate();
+                    Assert.That(cameraField.GetValue(null), Is.SameAs(main), label);
+                    Assert.That(ValidSetup(grid), Is.EqualTo(!spawnCheck), label);
+                    Assert.That(log.Errors, Is.EqualTo(spawnCheck ? new[] { spawnCheckError } : new string[0]), label);
+                    Assert.That(Get(grid, "m_populatedCount"), Is.EqualTo(populated), label);
+                }
+            }
+            finally
+            {
+                frameField.SetValue(null, priorFrame);
+                cameraField.SetValue(null, priorCamera);
+                planesField.SetValue(null, priorPlanes);
+                Object.DestroyImmediate(host);
+                Object.DestroyImmediate(config);
+                if (ownedCamera != null) Object.DestroyImmediate(ownedCamera);
+            }
+        }
+
+        // InitialiseSetup 0x06000097 (0x1A596B0): stores ValidSetup true
+        // (0x1A59734), takes the configuration from SystemConfiguration
+        // (0x1A59742), resets MaxRatio (0x1A59757), adds one SetupUpdated
+        // handler to OnUpdated (0x1A5996E), then squares through Math.Pow the
+        // GetSetup distances Spawn (0x1A599F6), Spawn + Extra (0x1A59A1E),
+        // Spawn - Fade (0x1A59A46) and Spawn + Extra + Fade (0x1A59A74). The
+        // spline override 0x060000e2 (0x1A5F2D0) then allocates List(splines)
+        // (0x1A5F371) and stops at the failing HasValidSetup, whose report
+        // shows the ValidSetup store came first. Profile {10, 2, 3} gives 100,
+        // 144, 49 and 225; a swapped term such as (Spawn + Fade)^2 gives 169.
+        // SetupUpdated 0x06000098 (0x1A59E20) only removes the handler.
+        [Test]
+        public void InitialiseSetupSquaresTheProfileDistancesAndSubscribesOnce()
+        {
+            using var log = new OwnedCoreErrorLog();
+            using var systemConfig = new OwnedSystemConfig();
+            using var owned = new OwnedSetup();
+            var host = new GameObject(HostName);
+            try
+            {
+                ProceduralMesh_PlacementSetup.PerformanceSetup profile = Profile(PerformanceProfile.QualityLevel.Medium, 10f);
+                Set(profile, "m_despawnExtraDistance", 2f);
+                Set(profile, "m_fadeDistance", 3f);
+                owned.Profiles.Add(profile);
+                ProceduralMesh_PlacementOnSplineGrid grid = SetUpForInitialise(host, owned.Setup);
+
+                Invoke(grid, "InitialiseSetup");
+                AssertDistanceSquares(grid, 100f, 144f, 49f, 225f);
+                Assert.That(grid.MaxRatio, Is.Zero, "MaxRatio is reset before the empty mesh type sum.");
+                Assert.That(grid.SystemConfig, Is.SameAs(systemConfig.Config));
+                Assert.That(Get(grid, "m_splineInfo"), Is.Empty);
+                Assert.That(Get(owned.Setup, "m_selectedProfile"), Is.SameAs(profile));
+                Assert.That(UpdatedHandlers(owned.Setup), Is.EqualTo(new[] { SetupUpdatedHandler(grid) }));
+                Assert.That(ValidSetup(grid), Is.False);
+                Assert.That(log.Errors, Is.EqualTo(new[]
+                {
+                    "'/" + HostName + "' game object has invalid procedural mesh setup:" +
+                    "\n- '" + HostName + "' has no spline assigned" +
+                    "\n- '" + HostName + RatioMessage + ":0",
+                }));
+
+                Invoke(grid, "SetupUpdated", owned.Setup);
+                Assert.That(UpdatedHandlers(owned.Setup), Is.Empty);
+                AssertDistanceSquares(grid, 100f, 144f, 49f, 225f);
+                Assert.That(Get(owned.Setup, "m_selectedProfile"), Is.SameAs(profile), "SetupUpdated leaves the selection.");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        // InitialiseSetup without an assigned setup creates one
+        // (CreateInstance 0x1A598E5, after the op_Equality test 0x1A598D2),
+        // whose empty profile list yields the native default {40, 1, 5}: 1600,
+        // 1681, 1225 and 2116.
+        [Test]
+        public void InitialiseSetupCreatesADefaultSetupWhenNoneIsAssigned()
+        {
+            using var log = new OwnedCoreErrorLog();
+            using var systemConfig = new OwnedSystemConfig();
+            using var owned = new OwnedSetup(create: false);
+            var host = new GameObject(HostName);
+            try
+            {
+                ProceduralMesh_PlacementOnSplineGrid grid = SetUpForInitialise(host, null);
+                try
+                {
+                    Invoke(grid, "InitialiseSetup");
+                }
+                finally
+                {
+                    var created = (ProceduralMesh_PlacementSetup)Get(grid, "m_setup");
+                    if (created != null) owned.Adopt(created);
+                }
+                Assert.That(owned.Setup, Is.Not.Null);
+                Assert.That(owned.Profiles, Is.Empty);
+                AssertDefaultProfile(owned.Setup.GetSetup());
+                AssertDistanceSquares(grid, 1600f, 1681f, 1225f, 2116f);
+                Assert.That(UpdatedHandlers(owned.Setup), Is.EqualTo(new[] { SetupUpdatedHandler(grid) }));
+                Assert.That(log.Errors.Count, Is.EqualTo(1));
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
+        }
+
+        // GetSetup 0x06000102 with a live ScalablePerformance: from the lowest
+        // sorted profile, each profile of the sorted copy (r15, 0x1A59C46) is
+        // taken when `level > selectedLevel` (jle 0x1A59D2A) and `level <=
+        // attribute.Level` (jg 0x1A59D30), and selectedLevel follows it
+        // (0x1A59D07). The attribute is the active profile's
+        // "ProceduralMeshPlacement" (0x1A59CBA). Authored {High, VeryLow,
+        // VeryHigh, Medium}: Medium rejects `<`, High rejects the first match
+        // (Medium), VeryHigh the top; no attribute keeps VeryLow.
+        // OnScalablePerformanceStartup 0x06000107 (0x1A610C0) subscribes,
+        // clears the cache and raises OnUpdated once; OnDestroy 0x06000108
+        // (0x1A611F0) removes the subscription.
+        [Test]
+        public void GetSetupSelectsTheHighestProfileNotAboveTheLiveAttributeLevel()
+        {
+            using (var owned = new OwnedSetup())
+            using (var performance = new OwnedPerformance())
+            {
+                var high = Profile(PerformanceProfile.QualityLevel.High, 1f);
+                var veryLow = Profile(PerformanceProfile.QualityLevel.VeryLow, 2f);
+                var veryHigh = Profile(PerformanceProfile.QualityLevel.VeryHigh, 3f);
+                var medium = Profile(PerformanceProfile.QualityLevel.Medium, 4f);
+                owned.Profiles.AddRange(new[] { high, veryLow, veryHigh, medium });
+                Delegate profileHandler = Delegate.CreateDelegate(typeof(Action<PerformanceProfile>), owned.Setup,
+                    typeof(ProceduralMesh_PlacementSetup).GetMethod("OnPerformanceProfileUpdated", Own));
+
+                performance.Register();
+                Assert.That(owned.Reference.IsValid(), Is.True);
+                Assert.That(performance.ProfileHandlers(), Is.EqualTo(new[] { profileHandler }), "Registration runs the startup handler.");
+
+                foreach ((PerformanceProfile.QualityLevel level, ProceduralMesh_PlacementSetup.PerformanceSetup expected) in new[]
+                {
+                    (PerformanceProfile.QualityLevel.Medium, medium),
+                    (PerformanceProfile.QualityLevel.High, high),
+                    (PerformanceProfile.QualityLevel.VeryHigh, veryHigh),
+                    (PerformanceProfile.QualityLevel.Low, veryLow),
+                    (PerformanceProfile.QualityLevel.VeryLow, veryLow),
+                })
+                {
+                    performance.Attribute.Level = level;
+                    Set(owned.Setup, "m_selectedProfile", null);
+                    Assert.That(owned.Setup.GetSetup(), Is.SameAs(expected), "Attribute level " + level);
+                }
+                performance.Attributes.Clear();
+                Set(owned.Setup, "m_selectedProfile", null);
+                Assert.That(owned.Setup.GetSetup(), Is.SameAs(veryLow), "No attribute keeps the lowest profile.");
+
+                Invoke(owned.Setup, "OnDestroy");
+                Assert.That(performance.ProfileHandlers(), Is.Empty);
+
+                var senders = new List<ProceduralMesh_PlacementSetup>();
+                Action<ProceduralMesh_PlacementSetup> record = senders.Add;
+                owned.Setup.OnUpdated += record;
+                try
+                {
+                    Invoke(owned.Setup, "OnScalablePerformanceStartup", performance.Manager);
+                }
+                finally
+                {
+                    owned.Setup.OnUpdated -= record;
+                }
+                Assert.That(senders, Is.EqualTo(new[] { owned.Setup }));
+                Assert.That(Get(owned.Setup, "m_selectedProfile"), Is.Null);
+                Assert.That(performance.ProfileHandlers(), Is.EqualTo(new[] { profileHandler }));
+                Invoke(owned.Setup, "OnDestroy");
+                Assert.That(performance.ProfileHandlers(), Is.Empty);
+            }
+        }
+
+        // Start 0x06000096 (0x1A59590) runs InitialiseSetup (vcall 0x1A595CE)
+        // then GetSystem<ProceduralMesh_PlacementManager>().RegisterInstance.
+        // OnDestroy 0x06000099 (0x1A59FD0) removes SetupUpdated only for a
+        // live setup (op_Inequality 0x1A5A054), calls DespawnAllMeshes(true,
+        // true, false) (0x1A5A126..0x1A5A132) and unregisters through
+        // GetSystemSafe (0x1A5A161), skipping a missing manager (0x1A5A169).
+        // Fails if registration, the despawn, the handler removal or the
+        // unregister is dropped. The despawn's flag values reach only storage
+        // bodies, so they are not observable here.
+        [Test]
+        public void StartRegistersAndOnDestroyUnregistersTheDespawnedPlacement()
+        {
+            using var log = new OwnedCoreErrorLog();
+            using var systemConfig = new OwnedSystemConfig();
+            using var owned = new OwnedSetup();
+            var host = new GameObject(HostName);
+            var managerRow = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<ProceduralMesh_PlacementManager>());
+            var actionRows = new VerificationFixtureOwnership.ActionRows(SystemAction.Update);
+            ProceduralMesh_PlacementManager manager = null;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
+            {
+                manager = new ProceduralMesh_PlacementManager();
+                managerRow.Register(manager);
+                ProceduralMesh_PlacementOnSplineGrid grid = SetUpForInitialise(host, owned.Setup);
+
+                Invoke(grid, "Start");
+                Assert.That(manager.Placements, Is.EqualTo(new ProceduralMesh_Placement[] { grid }));
+                Assert.That(Get(grid, "m_splineInfo"), Is.Empty);
+                Assert.That(UpdatedHandlers(owned.Setup), Is.EqualTo(new[] { SetupUpdatedHandler(grid) }));
+
+                Set(grid, "m_populatedCount", 2);
+                Invoke(grid, "OnDestroy");
+                Assert.That(Get(grid, "m_populatedCount"), Is.Zero);
+                Assert.That(manager.Placements, Is.Empty);
+                Assert.That(UpdatedHandlers(owned.Setup), Is.Empty);
+            },
+            () => { if (manager != null) ProcessManager.UnsubscribeFromAllActions(manager); },
+            managerRow.Dispose,
+            () => Object.DestroyImmediate(host),
+            actionRows.Dispose);
+        }
+
+        // OnDestroy without a registered manager: GetSystemSafe returns null and
+        // nothing is unregistered; a null setup skips the handler removal.
+        [Test]
+        public void OnDestroyToleratesAMissingManagerAndSetup()
+        {
+            using var managerRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<ProceduralMesh_PlacementManager>());
+            using var owned = new OwnedSetup();
+            var host = new GameObject(HostName);
+            try
+            {
+                var withSetup = host.AddComponent<ProceduralMesh_PlacementOnSplineGrid>();
+                Set(withSetup, "m_setup", owned.Setup);
+                Set(withSetup, "m_splineInfo", new List<ProceduralMesh_StorageForSpline>());
+                Set(withSetup, "m_populatedCount", 2);
+                owned.Setup.OnUpdated += (Action<ProceduralMesh_PlacementSetup>)SetupUpdatedHandler(withSetup);
+                Assert.DoesNotThrow(() => Invoke(withSetup, "OnDestroy"));
+                Assert.That(UpdatedHandlers(owned.Setup), Is.Empty);
+                Assert.That(Get(withSetup, "m_populatedCount"), Is.Zero);
+
+                var withoutSetup = host.AddComponent<ProceduralMesh_PlacementOnSplineGrid>();
+                Assert.That(Get(withoutSetup, "m_setup"), Is.Null);
+                Assert.DoesNotThrow(() => Invoke(withoutSetup, "OnDestroy"));
             }
             finally
             {
@@ -747,21 +1082,28 @@ namespace ProjectLucid.Tests
             actionRows.Dispose);
         }
 
-        // An owned placement setup admitted against an unowned
-        // ScalablePerformance row; release removes this setup's handlers.
+        // An owned placement setup admitted against an absent or idle
+        // ScalablePerformance row; release removes this setup's handlers. With
+        // create false, a setup the proof creates under the lease is adopted.
         private sealed class OwnedSetup : IDisposable
         {
             private readonly VerificationFixtureOwnership.LifecycleRow m_lease;
-            public readonly ProceduralMesh_PlacementSetup Setup;
-            public readonly Delegate Startup;
-            public readonly Delegate Shutdown;
 
-            public OwnedSetup()
+            public OwnedSetup(bool create = true)
             {
                 m_lease = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<ScalablePerformance>());
-                Setup = ScriptableObject.CreateInstance<ProceduralMesh_PlacementSetup>();
-                Startup = Bound(Setup, "OnScalablePerformanceStartup");
-                Shutdown = Bound(Setup, "OnScalablePerformanceShutdown");
+                if (create) Adopt(ScriptableObject.CreateInstance<ProceduralMesh_PlacementSetup>());
+            }
+
+            public ProceduralMesh_PlacementSetup Setup { get; private set; }
+            public Delegate Startup { get; private set; }
+            public Delegate Shutdown { get; private set; }
+
+            public void Adopt(ProceduralMesh_PlacementSetup setup)
+            {
+                Setup = setup;
+                Startup = Bound(setup, "OnScalablePerformanceStartup");
+                Shutdown = Bound(setup, "OnScalablePerformanceShutdown");
             }
 
             public SystemRef<ScalablePerformance> Reference => (SystemRef<ScalablePerformance>)Get(Setup, "m_scalablePerformanceRef");
@@ -782,13 +1124,105 @@ namespace ProjectLucid.Tests
             {
                 VerificationFixtureOwnership.RunThenCleanUp(() =>
                 {
+                    if (Setup == null) return;
                     SystemRef<ScalablePerformance> reference = Reference;
                     if (reference == null) return;
                     reference.OnSystemStartup -= (Action<ScalablePerformance>)Startup;
                     reference.OnSystemShutdown -= (Action<ScalablePerformance>)Shutdown;
                 },
-                () => Object.DestroyImmediate(Setup),
+                () => { if (Setup != null) Object.DestroyImmediate(Setup); },
                 m_lease.Dispose);
+            }
+        }
+
+        // An inactive original ScalablePerformance whose active profile holds a
+        // "ProceduralMeshPlacement" attribute. Register publishes it in the
+        // ScalablePerformance row an OwnedSetup leases; release unregisters it
+        // first, which runs the setups' own shutdown handlers.
+        private sealed class OwnedPerformance : IDisposable
+        {
+            public readonly GameObject Host;
+            public readonly ScalablePerformance Manager;
+            public readonly PerformanceProfile Profile;
+            public readonly ScalableFeature Feature;
+            public readonly PerformanceAttribute Attribute;
+            public readonly List<PerformanceAttribute> Attributes;
+            private bool m_registered;
+
+            public OwnedPerformance()
+            {
+                try
+                {
+                    Host = new GameObject("Owned placement performance manager");
+                    Host.SetActive(false);
+                    Manager = Host.AddComponent<ScalablePerformance>();
+                    Profile = ScriptableObject.CreateInstance<PerformanceProfile>();
+                    Feature = ScriptableObject.CreateInstance<ScalableFeature>();
+                    Feature.ID = "ProceduralMeshPlacement";
+                    Attribute = new PerformanceAttribute { Feature = Feature, Level = PerformanceProfile.QualityLevel.Medium };
+                    Attributes = (List<PerformanceAttribute>)Get(Profile, "m_attributes");
+                    Attributes.Add(Attribute);
+                    Set(Manager, "m_activeProfile", Profile);
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+            }
+
+            public void Register()
+            {
+                m_registered = true;
+                ProcessManager.RegisterSystem(Manager);
+            }
+
+            public Delegate[] ProfileHandlers()
+            {
+                var value = (Delegate)Get(Manager, "OnProfileUpdated");
+                return value == null ? new Delegate[0] : value.GetInvocationList();
+            }
+
+            public void Dispose()
+            {
+                VerificationFixtureOwnership.RunThenCleanUp(() => { if (m_registered) ProcessManager.UnregisterSystem(Manager); },
+                    () => { if (Host != null) Object.DestroyImmediate(Host); },
+                    () => { if (Feature != null) Object.DestroyImmediate(Feature); },
+                    () => { if (Profile != null) Object.DestroyImmediate(Profile); });
+            }
+        }
+
+        // Leases the default SystemConfiguration row (absent or idle) and
+        // publishes a fresh original system whose stack holds one owned
+        // ProceduralMesh_SystemConfig; the base-typed AddConfig matches the
+        // container GetConfig reads. Release unregisters before the lease.
+        private sealed class OwnedSystemConfig : IDisposable
+        {
+            private readonly VerificationFixtureOwnership.LifecycleRow m_lease;
+            private readonly SystemConfiguration m_system = new SystemConfiguration();
+            public readonly ProceduralMesh_SystemConfig Config;
+
+            public OwnedSystemConfig()
+            {
+                m_lease = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>());
+                try
+                {
+                    ProcessManager.RegisterSystem(m_system);
+                    Config = ScriptableObject.CreateInstance<ProceduralMesh_SystemConfig>();
+                    SystemConfiguration.AddConfig<SystemConfigurationAsset>(Config);
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+            }
+
+            public void Dispose()
+            {
+                VerificationFixtureOwnership.RunThenCleanUp(() => ProcessManager.UnregisterSystem(m_system),
+                    () => { if (Config != null) Object.DestroyImmediate(Config); },
+                    m_lease.Dispose);
             }
         }
 
@@ -937,6 +1371,38 @@ namespace ProjectLucid.Tests
             public event Action<ISpline> OnSplineTypeChanged { add => throw new NotSupportedException(); remove => throw new NotSupportedException(); }
         }
 
+        // A spline grid with no splines or mesh types, so InitialiseSetup
+        // stops at its failing setup check before any storage body. MaxRatio
+        // and ValidSetup start opposite to what InitialiseSetup stores.
+        private static ProceduralMesh_PlacementOnSplineGrid SetUpForInitialise(GameObject host, ProceduralMesh_PlacementSetup setup)
+        {
+            var grid = host.AddComponent<ProceduralMesh_PlacementOnSplineGrid>();
+            ((List<Spline>)Get(grid, "m_splines")).Clear();
+            ((IList)Get(grid, "m_meshTypes")).Clear();
+            Set(grid, "m_setup", setup);
+            Configure(grid, 5f);
+            SetProperty(grid, typeof(ProceduralMesh_Placement), "ValidSetup", false);
+            return grid;
+        }
+
+        private static void AssertDistanceSquares(ProceduralMesh_Placement placement, float spawn, float despawn, float fadeIn, float fadeOut)
+        {
+            Assert.That(GetProperty(placement, "SpawnDistanceSquare"), Is.EqualTo(spawn), "SpawnDistanceSquare");
+            Assert.That(GetProperty(placement, "DespawnDistanceSquare"), Is.EqualTo(despawn), "DespawnDistanceSquare");
+            Assert.That(GetProperty(placement, "FadeInDistanceSquare"), Is.EqualTo(fadeIn), "FadeInDistanceSquare");
+            Assert.That(GetProperty(placement, "FadeOutDistanceSquare"), Is.EqualTo(fadeOut), "FadeOutDistanceSquare");
+        }
+
+        private static Delegate[] UpdatedHandlers(ProceduralMesh_PlacementSetup setup)
+        {
+            var value = (Delegate)Get(setup, "OnUpdated");
+            return value == null ? new Delegate[0] : value.GetInvocationList();
+        }
+
+        private static Delegate SetupUpdatedHandler(ProceduralMesh_Placement placement) =>
+            Delegate.CreateDelegate(typeof(Action<ProceduralMesh_PlacementSetup>), placement,
+                typeof(ProceduralMesh_Placement).GetMethod("SetupUpdated", Own));
+
         private static IEnumerable<ProceduralMesh_Placement> Placements(GameObject host)
         {
             yield return host.AddComponent<ProceduralMesh_PlacementOnSplineGrid>();
@@ -1033,6 +1499,9 @@ namespace ProjectLucid.Tests
         private static object Get(object owner, string field) => FindField(owner.GetType(), field).GetValue(owner);
 
         private static void Set(object owner, string field, object value) => FindField(owner.GetType(), field).SetValue(owner, value);
+
+        private static object GetProperty(ProceduralMesh_Placement placement, string property) =>
+            typeof(ProceduralMesh_Placement).GetProperty(property, Own).GetValue(placement);
 
         private static void SetProperty(object owner, Type declaring, string property, object value) =>
             declaring.GetProperty(property, Own).SetValue(owner, value);

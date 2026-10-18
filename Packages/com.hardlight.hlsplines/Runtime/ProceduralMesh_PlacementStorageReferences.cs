@@ -47,8 +47,7 @@ namespace Hardlight
 			throw new NotImplementedException();
 	}
 
-	// Original HLSplines.Runtime 0200004b (reference declaration). Constructor
-	// 0x1A63A20 stores seed 0 and ratio 1.
+	// Original HLSplines.Runtime 0200004b (reference declaration).
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Serializable]
@@ -58,10 +57,10 @@ namespace Hardlight
 		private PrefabPoolType m_meshPoolType;
 
 		[SerializeField]
-		private int m_seed = 0;
+		private int m_seed;
 
 		[SerializeField]
-		private float m_ratio = 1f;
+		private float m_ratio;
 
 		private SystemRef<PrefabPoolManager> m_manager;
 
@@ -76,6 +75,14 @@ namespace Hardlight
 		}
 
 		public float Ratio => m_ratio;
+
+		// 06000178 (1.10.1 RVA 0x1A63A20). Declared explicitly: seed 0 and ratio 1
+		// are stored after the base constructor call (0x1A63A30).
+		public ProceduralMesh_Type()
+		{
+			m_seed = 0;
+			m_ratio = 1f;
+		}
 
 		public virtual bool HasValidSetup() => throw new NotImplementedException();
 
@@ -112,24 +119,23 @@ namespace Hardlight
 		public override void PrimeForUse() => throw new NotImplementedException();
 	}
 
-	// Original HLSplines.Runtime 0200004e (reference declaration). Constructor
-	// 0x1A5E0E0 stores the bias defaults.
+	// Original HLSplines.Runtime 0200004e (reference declaration).
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Serializable]
 	public class ProceduralMesh_TypeRibbonRandom : ProceduralMesh_TypeRandom
 	{
 		[SerializeField]
-		private float m_biasMin = -1f;
+		private float m_biasMin;
 
 		[SerializeField]
-		private float m_biasMax = 1f;
+		private float m_biasMax;
 
 		[SerializeField]
-		private LocationGenerator.BiasType m_biasType = LocationGenerator.BiasType.WidthRatio;
+		private LocationGenerator.BiasType m_biasType;
 
 		[SerializeField]
-		private LocationGenerator.BiasDensity m_biasDensity = LocationGenerator.BiasDensity.Even;
+		private LocationGenerator.BiasDensity m_biasDensity;
 
 		[SerializeField]
 		private bool m_inverseBias;
@@ -143,6 +149,17 @@ namespace Hardlight
 		public LocationGenerator.BiasDensity BiasDensity => m_biasDensity;
 
 		public bool InverseBias => m_inverseBias;
+
+		// 06000187 (1.10.1 RVA 0x1A5E0E0). Declared explicitly: the bias defaults are
+		// stored after the inlined base constructors (0x1A5E0FE..0x1A5E10B);
+		// m_inverseBias is never written.
+		public ProceduralMesh_TypeRibbonRandom()
+		{
+			m_biasMin = -1f;
+			m_biasMax = 1f;
+			m_biasType = LocationGenerator.BiasType.WidthRatio;
+			m_biasDensity = LocationGenerator.BiasDensity.Even;
+		}
 	}
 
 	// Original HLSplines.Runtime 02000041 (reference declaration).
