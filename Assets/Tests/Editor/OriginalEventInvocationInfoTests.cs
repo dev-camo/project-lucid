@@ -83,8 +83,10 @@ namespace ProjectLucid.Tests
 
         // Invoke(bool, string) 0x505870: an enum parameter (Type slot 69, IsEnum) takes
         // ConvertToType<int> boxed as int; otherwise only a SupportedTypes member converts,
-        // string passing the text itself and failed parses their default. Every call sits in a
-        // catch-all handler (0x505c74), so faults and target exceptions are swallowed.
+        // string passing the text itself and failed parses their default. A float parameter
+        // takes ConvertToType<float> (0x505b5d): "1e2" parses as a float but not as an int, so
+        // it tells that branch apart from an int conversion widened by reflection. Every call
+        // sits in a catch-all handler (0x505c74), so faults and target exceptions are swallowed.
         [Test]
         public void TextInvocationConvertsSupportedParametersAndSwallowsEveryFault()
         {
@@ -95,14 +97,14 @@ namespace ProjectLucid.Tests
                 Info(nameof(EventInvocationTargetProbe.TakeString)).Invoke(true, text);
                 Info(nameof(EventInvocationTargetProbe.TakeInt)).Invoke(true, "42");
                 Info(nameof(EventInvocationTargetProbe.TakeInt)).Invoke(true, "not a number");
-                Info(nameof(EventInvocationTargetProbe.TakeFloat)).Invoke(true, "2");
+                Info(nameof(EventInvocationTargetProbe.TakeFloat)).Invoke(true, "1e2");
                 Info(nameof(EventInvocationTargetProbe.TakeBool)).Invoke(true, "True");
                 Info(nameof(EventInvocationTargetProbe.TakeState)).Invoke(true, "2");
                 Assert.That(probe.Calls, Is.EqualTo(new[] { "TakeString", "TakeInt", "TakeInt", "TakeFloat", "TakeBool", "TakeState" }));
                 Assert.That(probe.Arguments[0], Is.SameAs(text), "the text itself is passed");
                 Assert.That(probe.Arguments[1], Is.EqualTo(42));
                 Assert.That(probe.Arguments[2], Is.EqualTo(0), "a failed parse passes the default");
-                Assert.That(probe.Arguments[3], Is.EqualTo(2f));
+                Assert.That(probe.Arguments[3], Is.EqualTo(100f));
                 Assert.That(probe.Arguments[4], Is.EqualTo(true));
                 Assert.That(probe.Arguments[5], Is.EqualTo(EventInvocationTargetProbe.ProbeState.Two));
 

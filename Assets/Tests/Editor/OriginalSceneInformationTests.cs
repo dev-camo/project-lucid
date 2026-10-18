@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
@@ -13,7 +15,7 @@ namespace ProjectLucid.Tests
 {
     // Restored Game.Runtime SceneInformation (TypeDef 0x020001cf, x86-64 0x6F26F0..0x6F2B10) over
     // an unawakened HLProfilerDataManager registered in an owned row, so its group list is
-    // empty. The active Edit Mode scene holds unrelated objects too, so the object counter is
+    // empty unless a case adds its own hidden group. The active Edit Mode scene holds unrelated objects too, so the object counter is
     // compared before and after the case adds its own hierarchy.
     public sealed class OriginalSceneInformationTests
     {
@@ -114,6 +116,45 @@ namespace ProjectLucid.Tests
 
                 information.OutputData();
                 Assert.That(information.Snapshots, Is.EqualTo(snapshots));
+            });
+        }
+
+        // The three profiler calls pass literal flags: StartGroupProfiling(true) (esi = 1 at
+        // 0x6f2806), GetProfilerSnapshot(false) (esi = 0 at 0x6f2947) and StopGroupProfiling(true)
+        // (esi = 1 at 0x6f2a98), against the defaults false, true and false. A hidden group
+        // added through StartTrackingProfilerMarker shows each one: construction makes it
+        // visible, a snapshot lists it while hidden behind HLProfilerUtils.NotActivePrefix, and OutputData
+        // hides it again. The marker's data is shut down afterwards, disposing its recorder.
+        [Test]
+        public void ProfilingIsForcedVisibleSnapshotsIncludeHiddenGroupsAndOutputHidesThem()
+        {
+            Owned.Run(owned =>
+            {
+                HLProfilerDataManager profiler = Profiler(owned);
+                const HLProfilerCategory category = HLProfilerCategory.Memory;
+                try
+                {
+                    profiler.StartTrackingProfilerMarker(new ProfilerMarker("lucid scene information"), category, "Lucid group", "marker", 0, false);
+                    HLProfilerGroup group = profiler.GroupList.Single();
+                    Assert.That(group.IsVisible, Is.False);
+
+                    var information = new SceneInformation(SceneManager.GetActiveScene());
+                    Assert.That(group.IsVisible, Is.True, "StartGroupProfiling(true)");
+
+                    group.ToggleVisible(false);
+                    information.CaptureGameSnapshot();
+                    Assert.That(information.Snapshots.Single().ToString(), Does.Contain("(Not active) - Lucid group"),
+                        "GetProfilerSnapshot(false) keeps the hidden group");
+                    Assert.That(profiler.GetProfilerSnapshot().ToString(), Does.Not.Contain("Lucid group"), "the default skips it");
+
+                    group.ToggleVisible(true);
+                    information.OutputData();
+                    Assert.That(group.IsVisible, Is.False, "StopGroupProfiling(true)");
+                }
+                finally
+                {
+                    foreach (HLProfilerData data in Get<Dictionary<string, HLProfilerData>>(profiler, "m_customDataList").Values) data.Shutdown();
+                }
             });
         }
     }

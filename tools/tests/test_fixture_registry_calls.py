@@ -62,6 +62,7 @@ ALLOWED = {
     "Assets/Tests/Editor/OriginalLevelManagerSystemsGapTests.cs": (5, OWNED),
     "Assets/Tests/Editor/OriginalPerformanceDependencyGapTests.cs": (2, UNLEASED),
     "Assets/Tests/Editor/OriginalPerformanceDependencyPreservationTests.cs": (2, UNLEASED),
+    "Assets/Tests/Editor/OriginalPersistentLevelObjectTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalProceduralMeshPlacementTests.cs": (5, OWNED),
     "Assets/Tests/Editor/OriginalStringTimeoutFSMTests.cs": (1, OWNED),
     "Assets/Tests/Editor/OriginalUIClickableTests.cs": (1, UNLEASED),

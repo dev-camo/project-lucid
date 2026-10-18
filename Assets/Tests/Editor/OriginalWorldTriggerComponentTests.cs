@@ -220,7 +220,9 @@ namespace ProjectLucid.Tests
         // Otherwise each filter's shared mesh and localToWorldMatrix fill a CombineInstance and
         // its own Collider is destroyed; a new MeshFilter on this object takes a new mesh, the
         // combined result, then a MeshCollider is added and the filter destroyed. Edit Mode
-        // refuses each Destroy with one error and keeps the objects.
+        // refuses each Destroy with one error and keeps the objects. The child's
+        // localToWorldMatrix goes straight to set_transform (0x6b2689..0x6b26b6), so the root
+        // sits away from the origin: the vertices are in world space, not relative to the root.
         [Test]
         public void MergeCollidersCombinesChildMeshesInWorldSpace()
         {
@@ -244,6 +246,7 @@ namespace ProjectLucid.Tests
                 GameObject plain = owned.Host("Lucid merge plain child", true, root.transform);
                 plain.transform.localPosition = new Vector3(0f, 2f, 0f);
                 plain.AddComponent<MeshFilter>().sharedMesh = triangle;
+                root.transform.position = new Vector3(10f, 0f, 0f);
                 var merge = root.AddComponent<MergeColliders>();
 
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
@@ -257,8 +260,8 @@ namespace ProjectLucid.Tests
                 Assert.That(mesh, Is.Not.SameAs(triangle));
                 Assert.That(mesh.vertices, Is.EquivalentTo(new[]
                 {
-                    new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 0f), new Vector3(1f, 1f, 0f),
-                    new Vector3(0f, 2f, 0f), new Vector3(1f, 2f, 0f), new Vector3(0f, 3f, 0f)
+                    new Vector3(11f, 0f, 0f), new Vector3(12f, 0f, 0f), new Vector3(11f, 1f, 0f),
+                    new Vector3(10f, 2f, 0f), new Vector3(11f, 2f, 0f), new Vector3(10f, 3f, 0f)
                 }));
                 Assert.That(root.GetComponent<MeshCollider>(), Is.Not.Null);
                 Assert.That(withCollider.GetComponent<BoxCollider>(), Is.Not.Null, "the refused Destroy keeps the child collider");

@@ -160,6 +160,36 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // With a non-unit forward the score terms separate. GetClosestPointOnLine does not
+        // normalise forward, so for forward (0,0,2) a target at z projects to (0,0,4z) with depth
+        // 8z. Native 0x6b7ea3..0x6b7f00 scores (target - closest).sqrMagnitude plus
+        // (closest - origin).sqrMagnitude: A(0,0,1) scores 9 + 16 = 25, B(4.5,0,0.6) scores
+        // 23.49 + 5.76 = 29.25 and C(0.6,0,0.9) scores 7.65 + 12.96 = 20.61. A depth-squared score
+        // (A 73, B 46.53) would pick B over A; a plain distance from the origin (A 1, C 1.17)
+        // would pick A over C.
+        [Test]
+        public void TheScoreUsesTheProjectedPointsDistanceFromTheOrigin()
+        {
+            WithTargets(targets =>
+            {
+                HomingTarget a = targets.At(0f, 0f, 1f);
+                HomingTarget b = targets.At(4.5f, 0f, 0.6f);
+                HomingTarget c = targets.At(0.6f, 0f, 0.9f);
+                var forward = new Vector3(0f, 0f, 2f);
+                var valid = new List<HomingTarget>();
+
+                Assert.That(TargetTrackingUtilities.ProjectToTargetedObject(Cone(10f, 10f), new List<HomingTarget> { a, b }, forward,
+                    Quaternion.identity, ref valid, out HomingTarget best), Is.True);
+                Assert.That(valid, Is.EqualTo(new[] { a, b }), "depths 8 and 4.8 are inside the cone");
+                Assert.That(best, Is.SameAs(a));
+
+                Assert.That(TargetTrackingUtilities.ProjectToTargetedObject(Cone(10f, 10f), new List<HomingTarget> { a, c }, forward,
+                    Quaternion.identity, ref valid, out best), Is.True);
+                Assert.That(valid, Is.EqualTo(new[] { a, c }), "depths 8 and 7.2 are inside the cone");
+                Assert.That(best, Is.SameAs(c));
+            });
+        }
+
         // With nothing valid every step fails and 0x6b7c10 stores a null best target. A zero
         // distance never enters the loop, yet the list is still cleared.
         [Test]

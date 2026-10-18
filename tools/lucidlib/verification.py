@@ -4654,6 +4654,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPersistentLevelObjectTests."
     "ACurrentLevelIsHandledBeforeSubscribingAndChecksTheChallengeFirst",
     "SetPersistentStateStoresTheValueBeforeTheChallengeTest",
     "BooleanOverridesUseTheLevelSaveRecord",
+    "OutsideAChallengeTheRecordIsWrittenBeforeTheStateChangeAndTheSaveIsRequestedLast",
+    "AChallengeUsesItsOwnStateAndNeverReadsOrWritesTheSave",
+    "ANonChallengeContextReadsTheSave",
+    "TheSaveReadCreatesTheRecordWithTheDefaultValue",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalWorldTriggerComponentTests." + name for name in (
     "VisibilityPublishesTheFlagBeforeItsEvent",
@@ -4679,6 +4683,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTargetTrackingUtilitiesTests
     "TheConeGrowsByStepUntilATargetIsFound",
     "TheClosestValidTargetWinsAndALaterTieReplacesIt",
     "NoValidTargetClearsTheListAndReturnsNull",
+    "TheScoreUsesTheProjectedPointsDistanceFromTheOrigin",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSceneInformationTests." + name for name in (
     "DeclarationsKeepTheReadonlyPropertiesAndDefaultCount",
@@ -4686,4 +4691,5 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSceneInformationTests." + na
     "ConstructionNamesTheSceneAndCountsEveryObject",
     "ConstructionRequiresTheProfilerDataManager",
     "SnapshotsAccumulateAndOutputKeepsThem",
+    "ProfilingIsForcedVisibleSnapshotsIncludeHiddenGroupsAndOutputHidesThem",
 ))

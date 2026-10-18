@@ -3,11 +3,15 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
+using System.Text.RegularExpressions;
 using Hardlight;
+using Hardlight.Utils;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -15,8 +19,9 @@ namespace ProjectLucid.Tests
     // Restored Game.Runtime PersistentLevelObjectType`1 (0x02000a18, read from the <bool>
     // instantiation 0x18CAAE0..0x18CB110) and PersistentLevelObjectBoolean (0x02000a17,
     // 0x6B3080..0x6B3160). Each component's constructor caches the MissionManager reference, so
-    // that row is leased first; Awake and the level callbacks are called directly. The
-    // challenge test needs a registered MissionManager, which these cases never provide.
+    // that row is leased first; Awake and the level callbacks are called directly. The first
+    // cases leave the MissionManager row empty; WithMissions registers a real one, with a
+    // SaveManager holding an open save and a refusing coroutine host.
     public sealed class OriginalPersistentLevelObjectTests
     {
         private const PersistentObjectIdentifierType Identifier = PersistentObjectIdentifierType.FTUE_GateKey_1;
@@ -24,10 +29,11 @@ namespace ProjectLucid.Tests
         private static IDictionary Registry => (IDictionary)typeof(ProcessManager)
             .GetField("s_systemDictionary", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
 
-        private static PersistentLevelObjectBoolean Persistent(Owned owned, List<string> log)
+        // The base event logs "event", or "event:" plus what state() reads at that moment.
+        private static PersistentLevelObjectBoolean Persistent(Owned owned, List<string> log, Func<string> state = null)
         {
             var persistent = owned.Host("Lucid persistent object", false).AddComponent<PersistentLevelObjectBoolean>();
-            persistent.OnStateChangedEvent += () => log.Add("event");
+            persistent.OnStateChangedEvent += () => log.Add(state == null ? "event" : "event:" + state());
             var onTrue = new UnityEvent();
             onTrue.AddListener(() => log.Add("true"));
             var onFalse = new UnityEvent();
@@ -238,6 +244,190 @@ namespace ProjectLucid.Tests
                 Assert.That(Call(persistent, "GetDefaultDuringChallenge"), Is.EqualTo(true));
                 Set(persistent, "m_stateWhenChallenge", false);
                 Assert.That(Call(persistent, "GetDefaultDuringChallenge"), Is.EqualTo(false));
+            });
+        }
+
+        private const string LevelGuid = "lucid-persistent-level";
+        private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
+
+        private sealed class Missions
+        {
+            public MissionManager Manager;
+            public SaveManager Save;
+            public LevelManager Level;
+            public LevelManagerLevel CurrentLevel;
+            public Dictionary<string, SaveDataLevel> SavedLevels;
+            public List<string> Log;
+        }
+
+        // A real MissionManager, SaveManager and LevelManager in the shared rows. SaveManager is
+        // registered before the LevelManager caches its reference; the MissionManager constructor
+        // looks the LevelManager up, so it comes last, in the row the LevelManager's reference
+        // created. That row is admitted absent or idle by LeaseRow and the manager is registered
+        // into it directly, then unregistered by identity, because RegistryRow needs an absent row.
+        // The open save holds only the level dictionary GetOrCreateLevelData reads. RequestSave's
+        // RunCoroutine reaches an inactive CoroutineUtils host, which refuses it with an error
+        // that is appended to the case log in order.
+        private static void WithMissions(bool currentLevelValid, Action<Owned, Missions> body) => Owned.Run(owned =>
+        {
+            owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
+            owned.LeaseRow<MissionManager>();
+            owned.LeaseRow<AudioManager>();
+            var missions = new Missions { Log = new List<string>(), SavedLevels = new Dictionary<string, SaveDataLevel>() };
+            missions.Save = owned.Register(new SaveManager());
+            var game = new SaveDataGame();
+            Set(game, "m_levelsByGuid", missions.SavedLevels);
+            Set(missions.Save, "m_currentSave", game);
+            missions.Level = owned.Register(owned.Host("Lucid level manager", false).AddComponent<LevelManager>());
+            var definition = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+            Set(definition, "m_guid", LevelGuid);
+            missions.CurrentLevel = new LevelManagerLevel(definition, definition);
+            Set(missions.Level, "m_currentLevel", missions.CurrentLevel);
+            typeof(LevelManager).GetProperty("CurrentLevelValid").SetValue(missions.Level, currentLevelValid);
+            owned.LeaseRow<GameplayIslandManager>();
+            owned.LeaseRow<CharacterManager>();
+
+            FieldInfo coroutineHost = typeof(CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
+            object priorHost = coroutineHost.GetValue(null);
+            Application.LogCallback capture = (condition, stackTrace, type) =>
+            {
+                if (RefusedCoroutine.IsMatch(condition)) missions.Log.Add("save requested");
+            };
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
+                {
+                    coroutineHost.SetValue(null, owned.Host("Lucid refusing coroutine host", false).AddComponent<CoroutineUtils>());
+                    Application.logMessageReceived += capture;
+                    missions.Manager = new MissionManager();
+                    ProcessManager.RegisterSystem(missions.Manager);
+                    body(owned, missions);
+                },
+                () =>
+                {
+                    if (missions.Manager == null) return;
+                    ProcessManager.UnregisterSystem(missions.Manager);
+                    ProcessManager.UnsubscribeFromAllActions(missions.Manager);
+                },
+                () => Application.logMessageReceived -= capture,
+                () => coroutineHost.SetValue(null, priorHost));
+        });
+
+        // ChallengeModeActive tests only the context's runtime type (isinst at 0x18cb0d2..0x18cb103),
+        // so a context built without its constructor is enough.
+        private static void SetContext(Missions missions, Type contextType) =>
+            missions.Manager.SetActiveMissionContext((IMissionContext)FormatterServices.GetUninitializedObject(contextType));
+
+        // Outside a challenge Action_SetPersistentState 0x18CAF10 writes the record (SetSavedValue,
+        // slot 7 at 0x18cafde), announces the state (slot 4 at 0x18caff4) and then tail-calls
+        // GetSystem<SaveManager>().RequestSave (0x18cb031). The event already sees the written
+        // record, and the save request is the last step.
+        [Test]
+        public void OutsideAChallengeTheRecordIsWrittenBeforeTheStateChangeAndTheSaveIsRequestedLast()
+        {
+            WithMissions(false, (owned, missions) =>
+            {
+                SaveDataLevelPersistentObject record = new SaveDataLevel("lucid-record-level").GetOrCreatePersistentObjectData(Identifier, false);
+                PersistentLevelObjectBoolean persistent = Persistent(owned, missions.Log, () => record.GetBooleanValue().ToString());
+                Set(persistent, "m_id", Identifier);
+                Set(persistent, "m_saveData", record);
+                Assert.That(missions.Manager.ActiveMissionContext, Is.Null);
+
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                persistent.Action_SetPersistentState(true);
+                LogAssert.NoUnexpectedReceived();
+                Assert.That(missions.Log, Is.EqualTo(new[] { "event:True", "true", "save requested" }));
+                Assert.That(record.GetBooleanValue(), Is.True);
+                Assert.That(Current(persistent), Is.True);
+            });
+        }
+
+        // In a challenge OnLevelActivated 0x18CAE40 takes GetDefaultDuringChallenge (slot 9 at
+        // 0x18caefd) without reading the save, and OnLevelManagerValid subscribes with
+        // triggerImmediately = true (edx = 1 at 0x18cad4d), so a current level is announced
+        // twice. Action_SetPersistentState then only announces the state (0x18cb03b): the record
+        // keeps its value and no save is requested.
+        [Test]
+        public void AChallengeUsesItsOwnStateAndNeverReadsOrWritesTheSave()
+        {
+            WithMissions(true, (owned, missions) =>
+            {
+                SetContext(missions, typeof(MissionContextChallenge));
+                PersistentLevelObjectBoolean persistent = Persistent(owned, missions.Log);
+                Set(persistent, "m_id", Identifier);
+                Set(persistent, "m_defaultValue", true);
+                Set(persistent, "m_stateWhenChallenge", false);
+
+                Call(persistent, "Awake");
+                Assert.That(missions.Log, Is.EqualTo(new[] { "event", "false", "event", "false" }));
+                Assert.That(Current(persistent), Is.False);
+                Assert.That(Get<object>(persistent, "m_saveData"), Is.Null);
+                Assert.That(missions.SavedLevels, Is.Empty, "no level save data is created");
+                Assert.That(LevelActivated(missions.Level).Select(action => (action.Target, action.Method.Name)),
+                    Is.EqualTo(new[] { ((object)persistent, "OnLevelActivated") }));
+
+                missions.Log.Clear();
+                SaveDataLevelPersistentObject record = new SaveDataLevel("lucid-record-level").GetOrCreatePersistentObjectData(Identifier, false);
+                Set(persistent, "m_saveData", record);
+                persistent.Action_SetPersistentState(true);
+                LogAssert.NoUnexpectedReceived();
+                Assert.That(missions.Log, Is.EqualTo(new[] { "event", "true" }));
+                Assert.That(record.GetBooleanValue(), Is.False, "the record is not written");
+                Assert.That(Current(persistent), Is.True);
+                Call(persistent, "OnDestroy");
+            });
+        }
+
+        // Any other active context is not a challenge (the isinst test, not a null test), so the
+        // same Awake reads the level's save record twice and takes its value.
+        [Test]
+        public void ANonChallengeContextReadsTheSave()
+        {
+            WithMissions(true, (owned, missions) =>
+            {
+                SetContext(missions, typeof(MissionContextRegular));
+                Assert.That(missions.Manager.ActiveMissionContext, Is.Not.Null);
+                PersistentLevelObjectBoolean persistent = Persistent(owned, missions.Log);
+                Set(persistent, "m_id", Identifier);
+                Set(persistent, "m_defaultValue", true);
+                Set(persistent, "m_stateWhenChallenge", false);
+
+                Call(persistent, "Awake");
+                Assert.That(missions.Log, Is.EqualTo(new[] { "event", "true", "event", "true" }));
+                Assert.That(missions.SavedLevels.Keys, Is.EqualTo(new[] { LevelGuid }));
+                var record = Get<SaveDataLevelPersistentObject>(persistent, "m_saveData");
+                Assert.That(record.ID, Is.EqualTo(Identifier));
+                Assert.That(record.GetBooleanValue(), Is.True);
+                Call(persistent, "OnDestroy");
+            });
+        }
+
+        // UpdateCurrentValueFromSave 0x18CAD70 asks the current save for the level's data by the
+        // level definition's GUID, then for the record with m_id (+0x20) and m_defaultValue
+        // (+0x24, 0x18cadec), and takes the record's value. A new record holds the default even
+        // when the current value differs; an existing record keeps its own value.
+        [Test]
+        public void TheSaveReadCreatesTheRecordWithTheDefaultValue()
+        {
+            WithMissions(false, (owned, missions) =>
+            {
+                PersistentLevelObjectBoolean persistent = Persistent(owned, missions.Log);
+                Set(persistent, "m_id", Identifier);
+                Set(persistent, "m_defaultValue", true);
+                Set(persistent, "m_currentValue", false);
+
+                Call(persistent, "OnLevelActivated", missions.CurrentLevel);
+                Assert.That(missions.Log, Is.EqualTo(new[] { "event", "true" }));
+                Assert.That(missions.SavedLevels.Keys, Is.EqualTo(new[] { LevelGuid }));
+                var record = Get<SaveDataLevelPersistentObject>(persistent, "m_saveData");
+                Assert.That(record.ID, Is.EqualTo(Identifier));
+                Assert.That(record.GetBooleanValue(), Is.True, "a created record takes m_defaultValue");
+                Assert.That(Current(persistent), Is.True);
+
+                record.Set(false);
+                missions.Log.Clear();
+                Call(persistent, "OnLevelActivated", missions.CurrentLevel);
+                Assert.That(Get<SaveDataLevelPersistentObject>(persistent, "m_saveData"), Is.SameAs(record));
+                Assert.That(Current(persistent), Is.False, "an existing record keeps its value");
+                Assert.That(missions.Log, Is.EqualTo(new[] { "event", "false" }));
             });
         }
     }
