@@ -909,6 +909,10 @@ namespace ProjectLucid
             // observers, so the row object is set aside untouched while the proof registers into
             // a row it creates and removes, as FSMManagerVerification does for its default
             // manager row. The set-aside row and the layout are put back last.
+            // Awake's RegisterSystem(this) creates a missing TimeManager row, and
+            // UnregisterSystem keeps it. Own it when absent and remove it once idle
+            // again; an existing TimeManager row must be idle.
+            var timeManagerRow=new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>());
             string configurationName=ProcessManager.GetDefaultName<SystemConfiguration>();
             IDictionary rows=(IDictionary)typeof(ProcessManager).GetField("s_systemDictionary",BindingFlags.NonPublic|BindingFlags.Static).GetValue(null);
             var originalRows=new List<DictionaryEntry>();foreach(DictionaryEntry row in rows)originalRows.Add(row);
@@ -918,18 +922,12 @@ namespace ProjectLucid
             {setAside=rows[configurationName];rows.Remove(configurationName);}
             VerificationFixtureOwnership.LifecycleRow configurationRow;
             try{configurationRow=new VerificationFixtureOwnership.LifecycleRow(configurationName,borrowLiveSystem:true);}
-            catch{PutBackConfigurationRow(rows,configurationName,setAside,originalRows,layout);throw;}
+            catch{PutBackConfigurationRow(rows,configurationName,setAside,originalRows,layout);timeManagerRow.Dispose();throw;}
             bool hadSystem=configurationRow.BorrowsLiveSystem,completed=false,restored=false;
             TimeCategoryObject a=null,b=null,g=null,spare=null,equalA=null;
             TimeCategoryConfiguration config=null;TimeCategoryLookup lookup=null;GameObject host=null;TimeManager manager=null;
             SystemConfiguration system=null;StackableDataHandle configHandle=null,lookupHandle=null;
             var applied=new List<StackableDataHandle>();bool initialised=false,destroyed=false;
-            // RegisterSystem(new SystemConfiguration()) and Awake's RegisterSystem(this)
-            // create a missing row, and UnregisterSystem keeps it. Own each row found
-            // absent and remove it once idle again; a live SystemConfiguration is
-            // borrowed as before, and an existing TimeManager row must be idle.
-            var configurationRow=new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>(),borrowLiveSystem:true);
-            var timeManagerRow=new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>());
             VerificationFixtureOwnership.RunThenCleanUp(()=>{
             try
             {
@@ -1083,7 +1081,7 @@ namespace ProjectLucid
                     finally{PutBackConfigurationRow(rows,configurationName,setAside,originalRows,layout);}
                 }
             }
-            },timeManagerRow.Dispose,configurationRow.Dispose);
+            },timeManagerRow.Dispose);
             return checks-start;
         }
         // Once the registry again holds exactly its original rows, its layout is restored too.
