@@ -4389,4 +4389,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAudioComponentPlaybackTests.
     "SystemLookupsFaultOnTheirEmptyRows",
     "AmbientCooldownIsOrderedAndRepicksOnlyWithAChoice",
     "ShuffledLoopCooldownIsOrderedAndReshufflesAtLength",
+    "ShuffledLoopPlaysOnlyWhileTheCharacterIsWithinTheOrderedRange",
+    "AmbientDrawsThePanBeforeTheVolumeAndCentresItWhenOff",
+    "FilterComponentSkipsNoneAndForwardsActivationToTheListener",
+    "ConstructorsStoreTheirOriginalDefaults",
 ))

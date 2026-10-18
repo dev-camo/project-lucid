@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
@@ -279,21 +281,27 @@ namespace ProjectLucid.Tests
         // HLAudio3DComponent: Start 0x6688B0 stores GetSystemRef<AudioManager>. PlayOneShotAtSource
         // 0x668930 gets the manager, moves the source through the inlined MoveAudioSource
         // (HLAudioSourceHandler.MoveTo 0x668990) to transform.position, then requests the one-shot
-        // (0x6689B3) with pan 0 and volume 1. A zero clip still moves the source first; a declared
-        // source is marked loading for a clip the handler cannot supply.
+        // (0x6689B3) with pan 0 and volume 1. Before the Sfx source exists, MoveTo's missing-source
+        // error precedes the request's zero-clip error, which fixes the order. A zero clip still
+        // moves the source first; a declared source is marked loading for a clip the handler
+        // cannot supply.
         [Test]
         public void SpatialComponentMovesTheSourceBeforeRequestingTheOneShot()
         {
             using (var owned = new OwnedAudioServices())
             {
                 owned.RegisterAudioManager();
-                AudioSource source = owned.AddSource(HLAudioSourceIdentifier.Sfx);
                 HLAudio3DComponent spatial = owned.Add<HLAudio3DComponent>();
                 Set(spatial, "m_audioSourceIdentifier", HLAudioSourceIdentifier.Sfx);
                 Assert.That(Get(spatial, "m_audioManagerRef"), Is.Null, "acquired in Start");
                 Call(typeof(HLAudio3DComponent), spatial, "Start");
                 Assert.That(Get(spatial, "m_audioManagerRef"), Is.SameAs(owned.TypedReferences<AudioManager>()[typeof(AudioManager).ToString()]));
 
+                spatial.PlayOneShotAtSource();
+                Assert.That(owned.Log.Errors, Is.EqualTo(new[] { "Cannot move audio source, the source Sfx does not exist.:0", NoClipAtSfx }));
+
+                owned.Log.Errors.Clear();
+                AudioSource source = owned.AddSource(HLAudioSourceIdentifier.Sfx);
                 spatial.transform.position = new Vector3(3f, 4f, 5f);
                 spatial.PlayOneShotAtSource();
                 Assert.That(source.transform.position, Is.EqualTo(new Vector3(3f, 4f, 5f)));
@@ -818,6 +826,13 @@ namespace ProjectLucid.Tests
                 Set(free, "m_disableDuringIntroSequence", false);
                 Assert.DoesNotThrow(() => Call(typeof(HLAudioOneShotShuffledLoop), free, "Awake"), "no LevelManager is needed");
 
+                // The row holds no LevelManager yet, so IsValid (0x6ECAF5, je 0x6ECBE6) skips the
+                // removal a bare Get would fault on.
+                HLAudioOneShotShuffledLoop early = owned.Add<HLAudioOneShotShuffledLoop>();
+                Assert.That(Get(early, "m_disableDuringIntroSequence"), Is.True);
+                Assert.DoesNotThrow(() => Call(typeof(HLAudioOneShotShuffledLoop), early, "OnDestroy"), "invalid reference");
+                Assert.That(owned.Log.Errors, Is.Empty);
+
                 LevelManager level = owned.Add<LevelManager>();
                 owned.Register(level);
                 HLAudioOneShotShuffledLoop loop = owned.Add<HLAudioOneShotShuffledLoop>();
@@ -1003,9 +1018,8 @@ namespace ProjectLucid.Tests
         // m_lastPlayedIndex (+0x68) equals Length (cmp/jne 0x6ECE79, Shuffle 0x6ECE8F), zeroes the
         // timer, draws the cooldown (0x6ECEA7), requests m_oneShotIds[m_lastPlayedIndex] with
         // OnGetClip (GetClip 0x6ECF08) and increments the index (0x6ECF0D). The identifiers are
-        // undeclared, so each request plays a null clip and is counted by its warning.
-        // CharacterInRange (setae over ucomiss rangeSq, distanceSq at 0x6ECDB9) is not run here:
-        // it needs a current Character.
+        // undeclared, so each request plays a null clip and is counted by its warning. The range
+        // gate in front of it is ShuffledLoopPlaysOnlyWhileTheCharacterIsWithinTheOrderedRange.
         [Test]
         public void ShuffledLoopCooldownIsOrderedAndReshufflesAtLength() => KeepingRandomState(() =>
         {
@@ -1061,5 +1075,206 @@ namespace ProjectLucid.Tests
                 }
             }
         });
+
+        // HLAudioOneShotShuffledLoop.CharacterInRange 0x6ECD00 is false when TryGetCurrentCharacter
+        // (0x6ECD51) is (je 0x6ECD58), and otherwise ucomiss rangeSq (+0x6C), distanceSq with setae
+        // (0x6ECDB9/0x6ECDBC): in range iff rangeSq >= distanceSq, ordered, so NaN on either side
+        // is out of range. Update 0x6ECC20 inlines the same test (je 0x6ECC83, then ucomiss and jb
+        // past the play at 0x6ECCE4/0x6ECCE7). The character position is Actor
+        // <WorldPosition>k__BackingField (+0x48, read at 0x6ECC89). A distance of exactly 3 against
+        // rangeSq 9 plays (a strict < would not), 0.01 further does not, and NaN does not (a
+        // !(distanceSq > rangeSq) form would play). The CharacterManager is uninitialised (its
+        // constructor needs App and preloads FSMs) and reached through a reference made for the
+        // case; only its validity flag and current character are set. A play is seen as the
+        // index advancing and the undeclared clip's null-clip warning.
+        [Test]
+        public void ShuffledLoopPlaysOnlyWhileTheCharacterIsWithinTheOrderedRange()
+        {
+            using (var owned = new OwnedAudioServices())
+            using (var log = new UnityLogCounter())
+            {
+                owned.ReadRow<TimeManager>();
+                owned.ReadRow<CharacterManager>();
+                owned.ReadRow<LevelManager>();
+                owned.ReadRow<GameplayIslandManager>();
+                owned.RegisterAudioManager();
+                var characters = (CharacterManager)FormatterServices.GetUninitializedObject(typeof(CharacterManager));
+                Character character = owned.Add<Character>();
+                Set(characters, "m_currentCharacter", character);
+                HLAudioOneShotShuffledLoop loop = owned.Add<HLAudioOneShotShuffledLoop>();
+                Set(loop, "m_characterManagerRef", new SystemRef<CharacterManager>(ProcessManager.GetDefaultName<CharacterManager>(), characters));
+                Set(loop, "m_timeManagerRef", new SystemRef<TimeManager>(ProcessManager.GetDefaultName<TimeManager>(), owned.PlayerMovementTime()));
+                Set(loop, "m_audioSource", owned.Add<AudioSource>(loop.gameObject));
+                Set(loop, "m_oneShotIds", new[] { ClipA });
+                Set(loop, "m_disableDuringIntroSequence", false);
+                Assert.That(loop.transform.position, Is.EqualTo(Vector3.zero));
+
+                var rows = new (bool valid, Vector3 position, float rangeSq, bool inRange)[]
+                {
+                    (true, new Vector3(3f, 0f, 0f), 9f, true),
+                    (true, new Vector3(3f, 0f, 0.01f), 9f, false),
+                    (true, new Vector3(3f, 0f, 0f), float.NaN, false),
+                    (true, new Vector3(float.NaN, 0f, 0f), 9f, false),
+                    (false, new Vector3(3f, 0f, 0f), 9f, false),
+                };
+                foreach (var row in rows)
+                {
+                    string label = row.valid + " " + row.position.ToString("R") + " against " + row.rangeSq;
+                    Set(characters, "<CharacterValid>k__BackingField", row.valid);
+                    Set(character, "<WorldPosition>k__BackingField", row.position);
+                    Set(loop, "m_scriptActivationRangeSq", row.rangeSq);
+                    Assert.That(Call(typeof(HLAudioOneShotShuffledLoop), loop, "CharacterInRange"), Is.EqualTo(row.inRange), label);
+
+                    log.Lines.Clear();
+                    Set(loop, "m_timeSinceLastPlay", 0f);
+                    Set(loop, "m_randomCooldown", float.NegativeInfinity);
+                    Set(loop, "m_lastPlayedIndex", 0);
+                    Assert.DoesNotThrow(loop.Update, label);
+                    Assert.That(Get(loop, "m_lastPlayedIndex"), Is.EqualTo(row.inRange ? 1 : 0), label);
+                    Assert.That(log.Count(LogType.Warning, UnityLogCounter.NullOneShot), Is.EqualTo(row.inRange ? 1 : 0), label);
+                }
+            }
+        }
+
+        // HLAudioOneShotAmbient.TryPlayOneShot 0x6EBF60 draws, after the cooldown (0x6EBFB1), the pan
+        // Random.Range(-1f, 1f) (constants 0x29A6DF0 = -1.0 and 0x29A6BE0 = 1.0, call 0x6EBFD3) and
+        // then the volume Random.Range(m_minVolume, m_maxVolume) (0x6EBFEF); with m_randomPan clear
+        // the pan is 0 (xorps 0x6EBFF6). HLAudioSourceHandler.PlayOneShot hands the pan to the
+        // source's panStereo (SetPan) before playing. A float Range takes one generator step
+        // whatever its bounds, so Random.state cannot see the bounds or the order, but the pan can.
+        // The played clip's completion Delay is refused by the leased inactive coroutine host.
+        [Test]
+        public void AmbientDrawsThePanBeforeTheVolumeAndCentresItWhenOff() => KeepingRandomState(() =>
+        {
+            const int seed = 0xA4C;
+            using (var owned = new OwnedAudioServices())
+            {
+                Random.InitState(seed);
+                Random.Range(2f, 2f);
+                float pan = Random.Range(-1f, 1f);
+                Random.InitState(seed);
+                Random.Range(2f, 2f);
+                Random.Range(0.1f, 1f);
+                float volumeFirst = Random.Range(-1f, 1f);
+                Random.InitState(seed);
+                Random.Range(2f, 2f);
+                float unitPan = Random.Range(0f, 1f);
+                Assert.That(pan, Is.Not.EqualTo(volumeFirst).And.Not.EqualTo(unitPan).And.Not.EqualTo(0f), "the seed separates the orders and bounds");
+
+                AudioManager audio = owned.RegisterAudioManager();
+                owned.RefusingCoroutineHost();
+                owned.Clip(ClipA, "lucid-ambient-pan");
+                AudioSource first = owned.AddSource(HLAudioSourceIdentifier.BackgroundOneShot1);
+                AudioSource second = owned.AddSource(HLAudioSourceIdentifier.BackgroundOneShot2);
+                HLAudioOneShotAmbient ambient = owned.Add<HLAudioOneShotAmbient>();
+                Set(ambient, "m_audioManager", audio);
+                Set(ambient, "m_timeManager", owned.PlayerMovementTime());
+                Set(ambient, "m_oneShotIds", new[] { ClipA });
+                Set(ambient, "m_minWaitNewSound", 2f);
+                Set(ambient, "m_maxWaitNewSound", 2f);
+                Set(ambient, "m_minVolume", 0.1f);
+                Set(ambient, "m_maxVolume", 1f);
+                Set(ambient, "m_randomPan", true);
+                Set(ambient, "m_randomVolume", true);
+
+                Set(ambient, "m_randomCooldown", float.NegativeInfinity);
+                Set(ambient, "m_audioSourceIdentifiers", new[] { HLAudioSourceIdentifier.BackgroundOneShot1 });
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                Random.InitState(seed);
+                Call(typeof(HLAudioOneShotAmbient), ambient, "TryPlayOneShot");
+                Assert.That(first.panStereo, Is.EqualTo(pan), "pan drawn second, over [-1, 1]");
+
+                second.panStereo = 0.5f;
+                Set(ambient, "m_randomPan", false);
+                Set(ambient, "m_randomCooldown", float.NegativeInfinity);
+                Set(ambient, "m_audioSourceIdentifiers", new[] { HLAudioSourceIdentifier.BackgroundOneShot2 });
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                Call(typeof(HLAudioOneShotAmbient), ambient, "TryPlayOneShot");
+                Assert.That(second.panStereo, Is.EqualTo(0f), "no random pan centres the source");
+                Assert.That(owned.Log.Errors, Is.Empty);
+            }
+        });
+
+        // HLAudioFilterComponent.ActivateFilter 0x6EBC20 returns for m_filter (+0x20) == -1 (None,
+        // cmp/je 0x6EBC58) before reading the static reference, then calls ActivateLowPass
+        // (0x6EBCAA) when activate is set (test 0x6EBC6E) and RemoveLowPassFilter (0x6EBCF1)
+        // otherwise. The constructor 0x6EBD04 stores -1. The type initializer 0x6EBD20 caches
+        // GetSystemRef<AudioManager> on first touch, which the lease's first read runs here into
+        // the owned AudioManager row; the case then swaps in a reference to the owned manager and
+        // puts back what the field held. The listener rows mirror
+        // LowPassActivatorForwardsItsFilterToTheListener: ActivateLowPass faults without a
+        // listener and looks up an inactive type, RemoveLowPassFilter looks up only an active one.
+        [Test]
+        public void FilterComponentSkipsNoneAndForwardsActivationToTheListener()
+        {
+            const InGameAudioListener.LowFilterType filter = InGameAudioListener.LowFilterType.Transporter;
+            using (var owned = new OwnedAudioServices())
+            {
+                AudioManager audio = owned.RegisterAudioManager();
+                owned.LeaseStatic(typeof(HLAudioFilterComponent).GetField("m_audioManagerRef", BindingFlags.Static | BindingFlags.NonPublic),
+                    new SystemRef<AudioManager>(ProcessManager.GetDefaultName<AudioManager>(), audio));
+                HLAudioFilterComponent component = owned.Add<HLAudioFilterComponent>();
+                Assert.That(Get(component, "m_filter"), Is.EqualTo((InGameAudioListener.LowFilterType)(-1)));
+                Assert.DoesNotThrow(() => component.ActivateFilter(true), "None returns before ActivateLowPass");
+                Assert.DoesNotThrow(() => component.ActivateFilter(false), "None returns before RemoveLowPassFilter");
+
+                Set(component, "m_filter", filter);
+                Assert.Throws<NullReferenceException>(() => component.ActivateFilter(true), "no listener");
+                Assert.DoesNotThrow(() => component.ActivateFilter(false), "removal is guarded");
+
+                InGameAudioListener listener = owned.Add<InGameAudioListener>();
+                audio.RegisterAudioListener(listener);
+                var active = (IList)Get(listener, "m_listOfSettings");
+                Type settingsType = typeof(InGameAudioListener).GetNestedType("LowPassFilterSettings", Instance);
+                object settings = Activator.CreateInstance(settingsType, true);
+                settingsType.GetField("Type").SetValue(settings, filter);
+                active.Add(settings);
+                Assert.DoesNotThrow(() => component.ActivateFilter(true), "the filter is already active");
+                Assert.Throws<KeyNotFoundException>(() => component.ActivateFilter(false), "an active filter is looked up");
+
+                // PauseMenu is 0; only -1 is skipped, so it reaches the lookup.
+                Set(component, "m_filter", InGameAudioListener.LowFilterType.PauseMenu);
+                Assert.Throws<KeyNotFoundException>(() => component.ActivateFilter(true), "an inactive PauseMenu is looked up");
+                Assert.That(owned.Log.Errors, Is.Empty);
+            }
+        }
+
+        // Constructor defaults. HLAudioOneShotAmbient 0x6EC070: InitializeArray of
+        // <PrivateImplementationDetails>.4E2E0F78... (metadata 0x6BC140, five Int32 in this order)
+        // into m_audioSourceIdentifiers, `mov word [+0x30], 0x101` for m_randomPan and
+        // m_randomVolume, and the four floats at 0x29A7CC0 (1, 5, 0.1, 1) into +0x34..+0x40.
+        // HLAudioOneShotShuffledLoop 0x6ED0A5..0x6ED0B9: the waits at 0x29A7860 (1, 5), range
+        // 0x42480000 (50) and m_disableDuringIntroSequence 1. AudioSourceMixerAssigner 0x668894:
+        // m_mixerIdentifier 0x7642DF2F. HLAudioFilterComponent's -1 is in its own case, which owns
+        // the type initializer the static reference needs.
+        [Test]
+        public void ConstructorsStoreTheirOriginalDefaults()
+        {
+            using (var owned = new OwnedAudioServices())
+            {
+                owned.ReadRow<TimeManager>();
+                owned.ReadRow<CharacterManager>();
+                owned.ReadRow<LevelManager>();
+
+                HLAudioOneShotAmbient ambient = owned.Add<HLAudioOneShotAmbient>();
+                int[] sources = { -2053821571, 480017095, 1805339217, -167780366, -2097615004 };
+                Assert.That(Get(ambient, "m_audioSourceIdentifiers"), Is.EqualTo(Array.ConvertAll(sources, value => (HLAudioSourceIdentifier)value)));
+                Assert.That(Get(ambient, "m_randomPan"), Is.True);
+                Assert.That(Get(ambient, "m_randomVolume"), Is.True);
+                Assert.That(Get(ambient, "m_minWaitNewSound"), Is.EqualTo(1f));
+                Assert.That(Get(ambient, "m_maxWaitNewSound"), Is.EqualTo(5f));
+                Assert.That(Get(ambient, "m_minVolume"), Is.EqualTo(BitConverter.Int32BitsToSingle(0x3DCCCCCD)));
+                Assert.That(Get(ambient, "m_maxVolume"), Is.EqualTo(1f));
+
+                HLAudioOneShotShuffledLoop loop = owned.Add<HLAudioOneShotShuffledLoop>();
+                Assert.That(Get(loop, "m_minWaitNewSound"), Is.EqualTo(1f));
+                Assert.That(Get(loop, "m_maxWaitNewSound"), Is.EqualTo(5f));
+                Assert.That(Get(loop, "m_scriptActivationRangeMeters"), Is.EqualTo(BitConverter.Int32BitsToSingle(0x42480000)));
+                Assert.That(Get(loop, "m_disableDuringIntroSequence"), Is.True);
+
+                AudioSourceMixerAssigner assigner = owned.Add<AudioSourceMixerAssigner>();
+                Assert.That(Get(assigner, "m_mixerIdentifier"), Is.EqualTo((HLAudioMixerIdentifier)0x7642DF2F));
+            }
+        }
     }
 }

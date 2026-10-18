@@ -189,6 +189,14 @@ namespace ProjectLucid.Tests
             instance.SetValue(null, Add<CoroutineUtils>());
         }
 
+        // Sets a static field for the case and puts back what it held. Reading
+        // it first runs the declaring type's initializer, if it has not run.
+        public void LeaseStatic(FieldInfo field, object value)
+        {
+            m_releases.Add(new StaticFieldLease(field));
+            field.SetValue(null, value);
+        }
+
         private sealed class StaticFieldLease : IDisposable
         {
             private readonly FieldInfo m_field;
