@@ -367,7 +367,8 @@ namespace ProjectLucid.Tests
             {
                 LevelManager levelManager = NewLevelManager(owned);
                 typeof(LevelManager).GetProperty("CurrentLevelValid").SetValue(levelManager, true);
-                Set(levelManager, "m_currentLevel", (LevelManagerLevel)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(LevelManagerLevel)));
+                var definition = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+                Set(levelManager, "m_currentLevel", new LevelManagerLevel(definition, definition));
                 var (trigger, condition, log) = NewPersistentTrigger(owned);
                 Set(trigger, "m_conditions", new TriggerCondition[] { condition });
                 Call(trigger, "OnEnable");

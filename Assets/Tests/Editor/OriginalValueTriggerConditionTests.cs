@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -295,7 +294,7 @@ namespace ProjectLucid.Tests
         // MoveNext 0x5CE130 tests the TimeManager reference (IsNull, 0x5CE1BA), adds
         // GetFixedDeltaTime(timeCategory) through IncrementValue and only then yields the condition's own
         // m_waitForFixedUpdate (0x5CE21F). The static reference is filled through its own
-        // InternalReplaceSystem with a raw TimeManager that only holds its time settings, then revoked,
+        // InternalReplaceSystem with an unawakened TimeManager that only holds its time settings, then revoked,
         // which leaves the registry row alone as an unregistered system would.
         [Test]
         public void TimeValueAddsTheFixedDeltaTimeOfItsCategoryBeforeEachWait()
@@ -328,10 +327,10 @@ namespace ProjectLucid.Tests
                     var setting = new TimeSetting();
                     setting.SetCategory(physics, 0.5f);
                     setting.SetCategory(environment, 3f);
-                    var settings = new StackableData();
-                    settings.SetBaseValue((int)typeof(TimeManager).GetField("SettingId", statics).GetRawConstantValue(), setting);
-                    var manager = (TimeManager)FormatterServices.GetUninitializedObject(typeof(TimeManager));
-                    Set(manager, "m_timeSettings", settings);
+                    // A real component on an inactive host: Awake never runs, so it registers nothing.
+                    var manager = owned.Host("Lucid value time manager", false).AddComponent<TimeManager>();
+                    Get<StackableData>(manager, "m_timeSettings")
+                        .SetBaseValue((int)typeof(TimeManager).GetField("SettingId", statics).GetRawConstantValue(), setting);
                     replace.Invoke(reference, new object[] { manager });
 
                     var condition = Add<TriggerCondition_ValueTime>(owned);

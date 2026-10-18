@@ -16,7 +16,7 @@ namespace ProjectLucid.Tests
     // AbilityInUse (0x02000747), ActionState (0x02000748), CharacterArchetype (0x0200074e),
     // CharacterControlsEnabled (0x0200074f), CharacterId (0x02000754), ScriptableObject (0x02000757)
     // and VelocityMagnitude (0x0200075e). Characters come from AddComponent<Character> (Edit Mode
-    // runs no Awake) with a real FSMStorage; the CharacterManager is a raw instance behind a
+    // runs no Awake) with a real FSMStorage; the CharacterManager is built by its constructor behind a
     // reference installed over the conditions' static one for the case (TriggerConditionTestSupport).
     public sealed class OriginalTriggerConditionTests
     {

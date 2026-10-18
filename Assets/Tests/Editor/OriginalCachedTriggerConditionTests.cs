@@ -152,7 +152,7 @@ namespace ProjectLucid.Tests
                 Assert.That(ResetsOnPreFsm(asset, scene.Character), Is.False);
 
                 Character later = NewCharacter(owned, new FSMStorage(0));
-                var second = (CharacterManager)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(CharacterManager));
+                CharacterManager second = scene.Characters.NewManager();
                 Set(second, "m_currentCharacter", later);
                 Set(second, "<CharacterValid>k__BackingField", true);
                 Scene.ReplaceWith(scene.CachedReference, second);

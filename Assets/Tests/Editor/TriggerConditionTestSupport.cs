@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using UnityEngine;
@@ -16,7 +15,8 @@ namespace ProjectLucid.Tests
     // TriggerCondition_CachedBase cache their CharacterManager reference in a static field when
     // the type is first used, and the second one is readonly, so a case never replaces either
     // field. It reads the cached SystemRef and fills it through its own InternalReplaceSystem
-    // with a raw CharacterManager, then revokes the system and puts the startup observers back.
+    // with a CharacterManager built by its real constructor (OwnedCharacterManagers), then revokes the
+    // system and puts the startup observers back.
     internal static class TriggerConditionTestSupport
     {
         private const BindingFlags Statics = BindingFlags.Static | BindingFlags.NonPublic;
@@ -28,9 +28,11 @@ namespace ProjectLucid.Tests
         private static readonly MethodInfo RevokeSystem = typeof(SystemRef<CharacterManager>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
         private static readonly FieldInfo StartupObservers = typeof(SystemRef<CharacterManager>).GetField("OnSystemStartup", Instance);
 
-        // A character with a real FSM storage, current in a raw CharacterManager.
+        // A character with a real FSM storage, current in a genuine CharacterManager.
         internal sealed class Scene
         {
+            // Builds further managers, such as a later one a startup event passes.
+            internal OwnedCharacterManagers Characters;
             internal Character Character;
             internal FSMStorage Storage;
             internal CharacterManager Manager;
@@ -53,10 +55,13 @@ namespace ProjectLucid.Tests
         // which creates that row.
         internal static void Run(Action<Owned, Scene> body) => Owned.Run(owned =>
         {
+            // Taken first, so it is released last: the manager constructor's rows outlive the case's.
+            var characters = owned.Lease(new OwnedCharacterManagers());
             owned.LeaseRow<CharacterManager>();
             owned.LeaseRow<GameplayIslandManager>();
             var scene = new Scene
             {
+                Characters = characters,
                 ConditionReference = (SystemRef<CharacterManager>)ConditionManagerRef.GetValue(null),
                 CachedReference = (SystemRef<CharacterManager>)CachedManagerRef.GetValue(null),
             };
@@ -68,7 +73,7 @@ namespace ProjectLucid.Tests
             object[] priorObservers = references.Select(reference => StartupObservers.GetValue(reference)).ToArray();
             try
             {
-                scene.Manager = (CharacterManager)FormatterServices.GetUninitializedObject(typeof(CharacterManager));
+                scene.Manager = characters.NewManager();
                 scene.Storage = new FSMStorage(0);
                 scene.Character = NewCharacter(owned, scene.Storage);
                 scene.SetCurrent(scene.Character, true);
