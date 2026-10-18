@@ -59,7 +59,9 @@ namespace ProjectLucid.Tests
             Dictionary<UIWidgetEventType, string> map = Map();
             Assert.That(HardlightUIModernEnumComparers.UIWidgetEventTypeComparer, Is.Not.Null);
             Assert.That(map.Comparer, Is.SameAs(HardlightUIModernEnumComparers.UIWidgetEventTypeComparer));
-            Assert.That(map.First(), Is.EqualTo(new KeyValuePair<UIWidgetEventType, string>((UIWidgetEventType)0x2d98edc7, "Selection")));
+            Assert.That((int)UIWidgetEventType.Selection, Is.EqualTo(0x2d98edc7));
+            Assert.That(map.Count, Is.EqualTo(1), "only the .cctor entry at a clean state");
+            Assert.That(map[UIWidgetEventType.Selection], Is.EqualTo("Selection"));
             Assert.That(UIWidgetEventType.Selection.GetString(), Is.EqualTo("Selection"));
         }
 

@@ -288,8 +288,9 @@ namespace ProjectLucid.Tests
         // ---- UIWidgetCheckbox and UIWidgetButtonLocalised ----
 
         // Setup 0x1A49610 stores Callback (+0x10) only for a UIWidgetCheckboxParameters;
-        // anything else, null included, takes the HLOutput.LogError branch and keeps the old
-        // callback. Action_Toggle 0x1A496D0 stores the value before invoking the callback.
+        // anything else, null included, calls HLOutput.LogError with "Could not set up
+        // UIWidgetCheckbox with given data." and keeps the old callback. Action_Toggle
+        // 0x1A496D0 stores the value before invoking the callback.
         [Test]
         public void CheckboxSetupAcceptsOnlyCheckboxParameters()
         {
@@ -303,40 +304,60 @@ namespace ProjectLucid.Tests
                 checkbox.Action_Toggle(false);
                 Assert.That(seen, Is.EqualTo(new[] { (true, (object)true), (false, (object)false) }));
 
-                bool ignoring = LogAssert.ignoreFailingMessages;
-                LogAssert.ignoreFailingMessages = true;
-                try
+                using (var capture = new OwnedHLOutputErrorCapture())
                 {
                     checkbox.Setup(null);
+                    Assert.That(capture.Errors, Is.EqualTo(new[] { "Could not set up UIWidgetCheckbox with given data.|0" }), "null parameters");
                     checkbox.Setup(new UIWidgetToggleParameters("Lucid label", _ => { }));
+                    Assert.That(capture.Errors, Is.EqualTo(new[]
+                    {
+                        "Could not set up UIWidgetCheckbox with given data.|0",
+                        "Could not set up UIWidgetCheckbox with given data.|0",
+                    }), "wrong parameter type");
                 }
-                finally { LogAssert.ignoreFailingMessages = ignoring; }
                 checkbox.Action_Toggle(true);
                 Assert.That(seen.Count, Is.EqualTo(3), "the accepted callback is kept");
                 Assert.That(ModernUITestSupport.Get(checkbox, "m_isOn"), Is.True);
             }
         }
 
-        // SetLabel 0x1A49590 writes StringTable.GetString(identifier) (0x1A355E0) through the
-        // virtual Label setter; NONE returns string.Empty without consulting a table.
+        private const Strings OwnedOpenString = Strings.MISSION_TIMER_FORMAT_DESCRIPTION;
+        private const Strings OwnedCloseString = Strings.NUMBER_SEPARATOR;
+
+        private static readonly Dictionary<Strings, string> OwnedStrings = new Dictionary<Strings, string>
+        {
+            { OwnedOpenString, "Lucid owned open" },
+            { OwnedCloseString, "Lucid owned close" },
+        };
+
+        // SetLabel 0x1A49590 passes its identifier (esi) to StringTable.GetString (0x1A355E0)
+        // and writes the result through the virtual Label setter; NONE returns string.Empty
+        // even though the owned table is installed.
         [Test]
         public void LocalisedButtonSetsItsLabelFromTheStringTable()
         {
             using (var owned = new OwnedObjects())
             {
                 var button = owned.Inactive("Lucid owned localised button").AddComponent<UIWidgetButtonLocalised>();
-                button.Label.Value = "stale";
-                button.SetLabel(Strings.NONE);
-                Assert.That(button.Label.Value, Is.SameAs(string.Empty));
+                OwnedStringTable.Run(OwnedStrings, () =>
+                {
+                    button.Label.Value = "stale";
+                    button.SetLabel(OwnedOpenString);
+                    Assert.That(button.Label.Value, Is.EqualTo("Lucid owned open"));
+                    button.SetLabel(OwnedCloseString);
+                    Assert.That(button.Label.Value, Is.EqualTo("Lucid owned close"));
+                    button.SetLabel(Strings.NONE);
+                    Assert.That(button.Label.Value, Is.SameAs(string.Empty));
+                });
             }
         }
 
         // ---- UIWidgetCollapsable ----
 
-        // Start 0x1A49740 stores sizeDelta.y; Action_OnClick 0x1A49770 flips m_isOpen, labels the
-        // button with the close string when now open (+0x34) and the open string otherwise
-        // (+0x30), then keeps sizeDelta.x and sets y to the stored height when open, else 0.
-        // Both strings are NONE here, so only the label write itself is observed.
+        // Start 0x1A49740 stores sizeDelta.y; Action_OnClick 0x1A49770 flips m_isOpen and labels
+        // the button with the string at 0x30 + 4 * the pre-toggle m_isOpen, so m_openString
+        // (+0x30) once now open and m_closeString (+0x34) once now closed; it then keeps
+        // sizeDelta.x and sets y to the stored height when open, else 0.
         [Test]
         public void CollapsableTogglesTheContentHeight()
         {
@@ -349,22 +370,26 @@ namespace ProjectLucid.Tests
                 var button = owned.Inactive("Lucid owned collapsable button").AddComponent<UIWidgetButtonLocalised>();
                 ModernUITestSupport.Set(collapsable, "m_collapsableContent", content);
                 ModernUITestSupport.Set(collapsable, "m_collapsableButton", button);
-                ModernUITestSupport.Set(collapsable, "m_openString", Strings.NONE);
-                ModernUITestSupport.Set(collapsable, "m_closeString", Strings.NONE);
+                ModernUITestSupport.Set(collapsable, "m_openString", OwnedOpenString);
+                ModernUITestSupport.Set(collapsable, "m_closeString", OwnedCloseString);
 
                 ModernUITestSupport.Call(collapsable, "Start");
                 Assert.That(ModernUITestSupport.Get(collapsable, "m_originalHeight"), Is.EqualTo(120f));
                 content.sizeDelta = new Vector2(55f, 9f);
                 button.Label.Value = "stale";
 
-                collapsable.Action_OnClick();
-                Assert.That(ModernUITestSupport.Get(collapsable, "m_isOpen"), Is.True);
-                Assert.That(content.sizeDelta, Is.EqualTo(new Vector2(55f, 120f)), "opening restores the stored height");
-                Assert.That(button.Label.Value, Is.SameAs(string.Empty));
+                OwnedStringTable.Run(OwnedStrings, () =>
+                {
+                    collapsable.Action_OnClick();
+                    Assert.That(ModernUITestSupport.Get(collapsable, "m_isOpen"), Is.True);
+                    Assert.That(content.sizeDelta, Is.EqualTo(new Vector2(55f, 120f)), "opening restores the stored height");
+                    Assert.That(button.Label.Value, Is.EqualTo("Lucid owned open"), "now open shows m_openString");
 
-                collapsable.Action_OnClick();
-                Assert.That(ModernUITestSupport.Get(collapsable, "m_isOpen"), Is.False);
-                Assert.That(content.sizeDelta, Is.EqualTo(new Vector2(55f, 0f)), "closing collapses to zero");
+                    collapsable.Action_OnClick();
+                    Assert.That(ModernUITestSupport.Get(collapsable, "m_isOpen"), Is.False);
+                    Assert.That(content.sizeDelta, Is.EqualTo(new Vector2(55f, 0f)), "closing collapses to zero");
+                    Assert.That(button.Label.Value, Is.EqualTo("Lucid owned close"), "now closed shows m_closeString");
+                });
             }
         }
 
@@ -452,7 +477,7 @@ namespace ProjectLucid.Tests
         {
             WithHotButton((owned, hotButton) =>
             {
-                using (new OwnedControlInputs(OwnedInput))
+                OwnedControlInputs.Run(() =>
                 {
                     ModernUITestSupport.Set(hotButton, "m_input", OwnedInput);
                     ModernUITestSupport.Set(hotButton, "m_exclusive", false);
@@ -460,7 +485,7 @@ namespace ProjectLucid.Tests
                     ModernUITestSupport.Call(hotButton, "OnDisable");
                     Assert.That(OwnedControlInputs.Exclusive().Contains(OwnedInput), Is.False);
                     Assert.That(OwnedControlInputs.Listeners("s_onButtonsDown", OwnedInput), Is.Empty);
-                }
+                }, OwnedInput);
             });
         }
 

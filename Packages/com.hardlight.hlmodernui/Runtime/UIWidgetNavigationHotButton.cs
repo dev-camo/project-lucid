@@ -64,7 +64,8 @@ namespace Hardlight
 				m_button.OnButtonPress(true);
 		}
 
-		// 06000077 (1.10.1 RVA 0x1A3D680)
+		// 06000077 (1.10.1 RVA 0x1A3D680): the retail body is empty; any editor-only content was
+		// stripped from the player build and cannot be recovered.
 		private void OnValidate()
 		{
 		}

@@ -31,12 +31,12 @@ namespace Hardlight
 			m_originalHeight = m_collapsableContent.sizeDelta.y;
 		}
 
-		// 060001c2 (1.10.1 RVA 0x1A49770): the button offers the opposite action, so an open
-		// widget shows the close string.
+		// 060001c2 (1.10.1 RVA 0x1A49770): the label is read at 0x30 + 4 * the pre-toggle
+		// m_isOpen, so a widget that is now open shows m_openString.
 		public void Action_OnClick()
 		{
 			m_isOpen = !m_isOpen;
-			m_collapsableButton.SetLabel(m_isOpen ? m_closeString : m_openString);
+			m_collapsableButton.SetLabel(m_isOpen ? m_openString : m_closeString);
 			m_collapsableContent.sizeDelta = new Vector2(m_collapsableContent.sizeDelta.x, m_isOpen ? m_originalHeight : 0f);
 		}
 
