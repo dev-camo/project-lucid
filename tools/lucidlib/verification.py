@@ -1843,6 +1843,35 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.Editor.OriginalCrossPromoNetworkTest
     "CacheOnly_DefaultCompletionHandlerAcceptsAnUnsubscribedNotification",
 ))
 
+# Restored CrossPromo and CrossPromoDataParser over recording collaborators and in-memory JSON.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoTests." + name for name in (
+    "ConstructorSubscribesBeforeRequestingMetadataAndStartsTheSync",
+    "EmptyMetadataEndsTheSyncWithoutInitialised",
+    "JsonNullEndsTheSyncWithoutInitialised",
+    "RejectedMetadataEndsTheSyncWithoutInitialised",
+    "DisabledMetadataEndsTheSyncWithoutVerifyingAds",
+    "EnabledMetadataVerifiesAdsAndFinishesWhenNoDownloadIsPending",
+    "EnabledMetadataWithNothingPendingRaisesInitialisedAtOnce",
+    "InitialisedAddCallsBackOnceReadyInsteadOfSubscribing",
+    "TextureCallsForwardAndRaisersReachOnlyTheirOwnEvent",
+    "CrossPromoDeclarationsKeepOriginalFlagsAndOrder",
+    "PlatformSuffixedKeyWinsOverTheBareKey",
+    "BlankPlatformReadsOnlyTheBareKey",
+    "VersionRouterTakesTheExactAppVersion",
+    "VersionRouterTakesTheHighestVersionBelowTheApp",
+    "VersionRouterWithOnlyHigherVersionsFails",
+    "MetadataFailuresStopAtTheFirstMissingStep",
+    "SystemFlagOneAndLanguageTextAreRead",
+    "EmptyLanguageTextFallsBackToDefault",
+    "MissingLanguageTextFallsBackToDefault",
+    "NullLanguageReadsDefault",
+    "MissingPressToPlayTableGivesNull",
+    "AdsKeepListOrderAndDropMissingDisabledOrIncompleteEntries",
+    "MainImageOfExactlyTheScreenSizeWins",
+    "MainImagePrefersTheClosestRatioThenTheClosestHeight",
+    "ParserDeclarationsKeepOriginalFlagsOrderAndDefaults",
+))
+
 # Original procedural-mesh placement bodies on owned objects and in-memory surfaces.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProceduralMeshPlacementTests." + name for name in (
     "PerformanceSetupConstructorAndResetStoreTheNativeDefaults",
