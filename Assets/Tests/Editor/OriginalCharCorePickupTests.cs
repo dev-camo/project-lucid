@@ -773,7 +773,7 @@ namespace ProjectLucid.Tests
                 Set(scene.Pickup, "m_enterCooldownAnimationTimeRemainingSeconds", 6f);
                 scene.Idling.gameObject.SetActive(false);
                 Call(scene.Pickup, "EnterIdleState", false);
-                Assert.That((Get(scene.Pickup, "m_enterIdleTimeRemainingSeconds"), Get(scene.Pickup, "m_enterCooldownAnimationTimeRemainingSeconds")),
+                Assert.That(((float)Get(scene.Pickup, "m_enterIdleTimeRemainingSeconds"), (float)Get(scene.Pickup, "m_enterCooldownAnimationTimeRemainingSeconds")),
                     Is.EqualTo((0f, 0f)));
                 Assert.That(scene.Animation.clip, Is.SameAs(scene.Idle));
                 Assert.That(scene.Animation.wrapMode, Is.EqualTo(WrapMode.Loop));
@@ -816,7 +816,7 @@ namespace ProjectLucid.Tests
                 Call(scene.Pickup, "InternalUpdate", 0.75f);
                 Assert.That(scene.Log, Is.EqualTo(new[] { "recharged effect" }));
                 Assert.That(scene.Animation.clip, Is.SameAs(scene.Idle));
-                Assert.That((Get(scene.Pickup, "m_enterIdleTimeRemainingSeconds"), Get(scene.Pickup, "m_enterCooldownAnimationTimeRemainingSeconds")),
+                Assert.That(((float)Get(scene.Pickup, "m_enterIdleTimeRemainingSeconds"), (float)Get(scene.Pickup, "m_enterCooldownAnimationTimeRemainingSeconds")),
                     Is.EqualTo((0f, 0f)));
                 scene.Log.Clear();
                 Call(scene.Pickup, "InternalUpdate", 1f);
