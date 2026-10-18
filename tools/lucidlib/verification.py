@@ -4894,6 +4894,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTriggerConditionTests." + na
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCachedTriggerConditionTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
     "EnablingSubscribesToTheCurrentCharactersPreFsmUpdate",
+    "SubscribingAddsToThePreFsmListInsteadOfReplacingIt",
     "ALaterCharacterManagerStartupRegistersWithItsOwnCharacter",
     "AssetEvaluationNeedsAValidCurrentCharacterAndXorsTheInversion",
     "CachedAbilityInUseAnswersOnceUntilTheCacheIsReset",
@@ -4910,6 +4911,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalValueTriggerConditionTests."
     "FloatValueStartsFromItsStartValueAndAccumulates",
     "BooleanValueIsReplacedByIncrementValue",
     "TimeValueKeepsItsCategoryAndStopsWithoutATimeManager",
+    "TimeValueAddsTheFixedDeltaTimeOfItsCategoryBeforeEachWait",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalConditionalTriggerEventTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
@@ -4919,17 +4921,24 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalConditionalTriggerEventTests
     "DestroyRaisesTheNoLongerMetEventOnlyWhenRequestedAndMet",
     "OnlyAPersistentListenerMakesTheTriggerValid",
     "EnablingFollowsThePersistentObjectsAndLevelActivationUntilDisabled",
+    "ALevelThatIsAlreadyActiveEvaluatesAgainWhenFollowed",
+    "EnablingFaultsOnAConditionThatIsNotAPersistentBoolean",
     "ValidationReportsEveryConditionThatIsNotAPersistentBoolean",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTriggerEventComponentTests." + name for name in (
     "UnityEventTriggerDeclarationsKeepTheOriginalFlagsFieldsAndMethods",
     "EachLifecycleHookRaisesItsOwnEventAtOnce",
     "DelayedEventsAreDroppedWithoutTheCoroutineSystem",
+    "ADelayedEventIsStartedOnTheStaticCoroutineHost",
     "TheDelayCoroutineWaitsForTheDelayBeforeRaisingTheEvent",
     "VisibilityEventGroupDeclarationsKeepTheOriginalFlagsFieldsAndMethods",
     "TheGroupRaisesWhenTheFirstBecomesVisibleAndWhenNoneIsLeft",
+    "TheGroupSetsItsFlagBeforeRaisingAndClearsItAfterRaising",
     "TheRenderersAreCollectedFromTheActiveChildren",
     "TriggerCascadeDeclarationsAndTheMissingPoolFault",
+    "TriggerSpawnsTheAmountAtTheOriginWithTheRotatedLaunchAndUnrotatedStartingVelocity",
     "TriggerUITransitionDeclarationsAndTheMissingAppFault",
+    "TriggerUITransitionFaultsOnAMissingManagerBeforeTouchingTheAppStorage",
+    "TriggerUITransitionKeepsOneMidpointHandlePerEnableInTheAppStorage",
     "TransitionAbilityKeepsTheAbilityTypeOfItsJsonArguments",
 ))

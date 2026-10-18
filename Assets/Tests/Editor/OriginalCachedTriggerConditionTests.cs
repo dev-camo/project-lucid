@@ -121,6 +121,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // OnCharacterChange 0x5CD0A0 combines its handler (Delegate.Combine, call 0x5CD11C) into Character
+        // +0x3D0: every earlier subscriber, the field initializer's included, stays in the list.
+        [Test]
+        public void SubscribingAddsToThePreFsmListInsteadOfReplacingIt()
+        {
+            Run((owned, scene) =>
+            {
+                Delegate[] before = scene.Character.OnFixedUpdatePreFSM.GetInvocationList();
+                var first = Create<TriggerConditionCachedProbe>(owned);
+                var second = Create<TriggerConditionCachedProbe>(owned);
+                Delegate[] after = scene.Character.OnFixedUpdatePreFSM.GetInvocationList();
+                Assert.That(after.Length, Is.EqualTo(before.Length + 2));
+                Assert.That(after.Take(before.Length), Is.EqualTo(before), "earlier subscribers are kept in order");
+                Assert.That(ResetsOnPreFsm(first, scene.Character), Is.True);
+                Assert.That(ResetsOnPreFsm(second, scene.Character), Is.True);
+            });
+        }
+
         // OnCharacterManagerStartup 0x5CD020 registers OnCharacterChange with the manager the startup
         // event passes, which follows that manager's current character. An asset enabled while the
         // current manager has no valid character follows nobody until then.

@@ -209,7 +209,7 @@ namespace ProjectLucid.Tests
 
         // OnDestroy 0x6AEBE0 runs the inherited shutdown, then, only with
         // m_triggerConditionsNoLongerMetOnDestroy (+0x70) set and the conditions met (+0x80), clears
-        // the flag and raises m_onConditionsNoLongerMet.
+        // the flag (0x6AEBFF) and then raises m_onConditionsNoLongerMet (0x6AEC17), which sees it clear.
         [Test]
         public void DestroyRaisesTheNoLongerMetEventOnlyWhenRequestedAndMet()
         {
@@ -217,19 +217,19 @@ namespace ProjectLucid.Tests
             {
                 foreach (var row in new[]
                 {
-                    (onDestroy: true, met: true, raised: 1, flagAfter: false),
-                    (onDestroy: true, met: false, raised: 0, flagAfter: false),
-                    (onDestroy: false, met: true, raised: 0, flagAfter: true),
-                    (onDestroy: false, met: false, raised: 0, flagAfter: false),
+                    (onDestroy: true, met: true, raised: new[] { "noLonger(False)" }, flagAfter: false),
+                    (onDestroy: true, met: false, raised: new string[0], flagAfter: false),
+                    (onDestroy: false, met: true, raised: new string[0], flagAfter: true),
+                    (onDestroy: false, met: false, raised: new string[0], flagAfter: false),
                 })
                 {
                     var trigger = Add<ConditionalTriggerEvent>(owned, "Lucid conditional trigger");
                     var log = new List<string>();
-                    Set(trigger, "m_onConditionsNoLongerMet", Logged(log, "noLonger"));
+                    Set(trigger, "m_onConditionsNoLongerMet", Logged(log, "noLonger", () => Get<bool>(trigger, "m_conditionsMet").ToString()));
                     Set(trigger, "m_triggerConditionsNoLongerMetOnDestroy", row.onDestroy);
                     Set(trigger, "m_conditionsMet", row.met);
                     trigger.OnDestroy();
-                    Assert.That(log.Count, Is.EqualTo(row.raised), row.ToString());
+                    Assert.That(log, Is.EqualTo(row.raised), row.ToString());
                     Assert.That(Get<bool>(trigger, "m_conditionsMet"), Is.EqualTo(row.flagAfter), row.ToString());
                 }
             });
@@ -343,6 +343,57 @@ namespace ProjectLucid.Tests
                 log.Clear();
                 Call(persistent[1], "OnStateChanged", false);
                 Assert.That(log, Is.Empty, "the objects no longer reach the trigger");
+            });
+        }
+
+        private static (ConditionalTriggerEventPersistentObjectBooleans trigger, TriggerCondition_PersistentLevelObjectBoolean condition, List<string> log) NewPersistentTrigger(Owned owned)
+        {
+            var persistent = Add<PersistentLevelObjectBoolean>(owned, "Lucid persistent");
+            var condition = Add<TriggerCondition_PersistentLevelObjectBoolean>(owned, "Lucid persistent condition");
+            Set(condition, "m_persistentLevelObject", persistent);
+            var trigger = Add<ConditionalTriggerEventPersistentObjectBooleans>(owned, "Lucid persistent trigger");
+            var log = new List<string>();
+            Set(trigger, "m_whileConditionsNotMet", Logged(log, "notMet"));
+            Set(trigger, "m_ignoreEnable", true);
+            return (trigger, condition, log);
+        }
+
+        // LevelManagerValid 0x6AF050 passes triggerImmediately = true (edx = 1 at 0x6AF0D4), so a manager
+        // whose current level is valid evaluates the conditions a second time at once.
+        [Test]
+        public void ALevelThatIsAlreadyActiveEvaluatesAgainWhenFollowed()
+        {
+            WithOwned(owned =>
+            {
+                LevelManager levelManager = NewLevelManager(owned);
+                typeof(LevelManager).GetProperty("CurrentLevelValid").SetValue(levelManager, true);
+                Set(levelManager, "m_currentLevel", (LevelManagerLevel)System.Runtime.Serialization.FormatterServices.GetUninitializedObject(typeof(LevelManagerLevel)));
+                var (trigger, condition, log) = NewPersistentTrigger(owned);
+                Set(trigger, "m_conditions", new TriggerCondition[] { condition });
+                Call(trigger, "OnEnable");
+                Assert.That(log, Is.EqualTo(new[] { "notMet", "notMet" }), "the direct evaluation, then the immediate level-activated one");
+            });
+        }
+
+        // The loop casts each condition to TriggerCondition_PersistentLevelObjectBoolean (0x6AEEEF and
+        // 0x6AEF01 jump to RaiseInvalidCastException 0x6AF042) and reads its object (+0x28, 0x6AEF07)
+        // without a type test, so a foreign condition faults before anything is subscribed and a
+        // null entry faults after the entries before it.
+        [Test]
+        public void EnablingFaultsOnAConditionThatIsNotAPersistentBoolean()
+        {
+            WithOwned(owned =>
+            {
+                var (trigger, condition, log) = NewPersistentTrigger(owned);
+                Set(trigger, "m_conditions", new TriggerCondition[] { Add<TriggerConditionProbe>(owned, "Lucid other condition") });
+                Assert.Throws<InvalidCastException>(() => Call(trigger, "OnEnable"));
+                Assert.That(Get<List<TriggerCondition_PersistentLevelObjectBoolean>>(trigger, "m_persistentConditions"), Is.Empty);
+                Assert.That(log, Is.Empty);
+
+                Set(trigger, "m_conditions", new TriggerCondition[] { condition, null });
+                Assert.Throws<NullReferenceException>(() => Call(trigger, "OnEnable"));
+                Assert.That(Get<List<TriggerCondition_PersistentLevelObjectBoolean>>(trigger, "m_persistentConditions"), Is.EqualTo(new[] { condition }));
+                Assert.That(log, Is.Empty);
             });
         }
 

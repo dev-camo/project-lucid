@@ -17,7 +17,8 @@ namespace HardlightProject
 		[SerializeField]
 		private Vector3 m_initialVelocity;
 
-		// 06003a77 (1.10.1 RVA 0x6B82E0): the origin's rotation orients both the object and the velocity.
+		// 06003a77 (1.10.1 RVA 0x6B82E0): the origin's rotation is passed as both the launch rotation and the object rotation;
+		// m_initialVelocity is passed unrotated.
 		public void Trigger()
 		{
 			CascadeObjectPool pool = CascadeObjectPool.GetCascadeObjectPoolByType(m_cascadeObjectType);

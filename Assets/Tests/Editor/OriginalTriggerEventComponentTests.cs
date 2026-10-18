@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.Serialization;
 using Hardlight;
 using Hardlight.Utils;
 using HardlightProject;
@@ -10,6 +11,7 @@ using NUnit.Framework;
 using ProjectLucid.Tests.WorldTriggersShared;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -110,6 +112,34 @@ namespace ProjectLucid.Tests
                     Set(trigger, "m_onEnabled", Parameters(Logged(log, "raised"), row.delay));
                     Assert.DoesNotThrow(() => Call(trigger, "OnEnable"), row.ToString());
                     Assert.That(log.Count, Is.EqualTo(row.raised ? 1 : 0), row.ToString());
+                }
+            });
+        }
+
+        // With the CoroutineUtils system registered a delayed event is handed to the static
+        // CoroutineUtils.RunCoroutine (tail call 0x6B956C), which starts it on s_instance. The
+        // instance reference is empty here, so the start faults and nothing is raised; a body that
+        // drops the event or routes it through the SystemRef instead would not fault.
+        [Test]
+        public void ADelayedEventIsStartedOnTheStaticCoroutineHost()
+        {
+            Owned.Run(owned =>
+            {
+                owned.Register(owned.Host("Lucid coroutine system", false).AddComponent<CoroutineUtils>());
+                var trigger = owned.Host("Lucid unity event trigger", false).AddComponent<UnityEventTrigger>();
+                var log = new List<string>();
+                Set(trigger, "m_onEnabled", Parameters(Logged(log, "raised"), 0.5f));
+                FieldInfo instance = typeof(CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
+                object prior = instance.GetValue(null);
+                try
+                {
+                    instance.SetValue(null, null);
+                    Assert.Throws<NullReferenceException>(() => Call(trigger, "OnEnable"));
+                    Assert.That(log, Is.Empty);
+                }
+                finally
+                {
+                    instance.SetValue(null, prior);
                 }
             });
         }
@@ -217,6 +247,41 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // OnVisible 0x6B9BD0 sets m_anyWasVisible (0x6B9BDC) before it raises the event (0x6B9BE7), so a
+        // listener that re-enters sees the flag and the event runs once. OnHide 0x6B9BF0 raises
+        // m_onAllInvisibleEvent (0x6B9CA2) before it clears the flag (0x6B9CA7), so a listener still sees it set.
+        [Test]
+        public void TheGroupSetsItsFlagBeforeRaisingAndClearsItAfterRaising()
+        {
+            Owned.Run(owned =>
+            {
+                var group = owned.Host("Lucid visibility group", false).AddComponent<VisibilityEventGroup>();
+                var log = new List<string>();
+                bool reentered = false;
+                var anyVisible = new UnityEvent();
+                anyVisible.AddListener(() =>
+                {
+                    log.Add("any");
+                    if (reentered) return;
+                    reentered = true;
+                    Call(group, "OnVisible");
+                });
+                Set(group, "m_onAnyVisibleEvent", anyVisible);
+                Call(group, "OnVisible");
+                Assert.That(log, Is.EqualTo(new[] { "any" }), "the re-entering call finds the flag already set");
+
+                var flagSeen = new List<bool>();
+                var allInvisible = new UnityEvent();
+                allInvisible.AddListener(() => flagSeen.Add(Get<bool>(group, "m_anyWasVisible")));
+                Set(group, "m_onAllInvisibleEvent", allInvisible);
+                Set(group, "m_visibleEvents", new EventOnVisibility[0]);
+                Set(group, "m_anyWasVisible", true);
+                Call(group, "OnHide");
+                Assert.That(flagSeen, Is.EqualTo(new[] { true }), "the event runs before the flag is cleared");
+                Assert.That(Get<bool>(group, "m_anyWasVisible"), Is.False);
+            });
+        }
+
         // GetRenderersInChildren 0x6B9CC0 replaces the list with GetComponentsInChildren<EventOnVisibility>()
         // (no inactive objects): the object's own component, a child and a grandchild, not an inactive child.
         [Test]
@@ -255,6 +320,75 @@ namespace ProjectLucid.Tests
             });
         }
 
+        private static readonly FieldInfo TimeConfig = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+
+        // Trigger 0x6B82E0 passes m_cascadeObjectType, m_amount, the origin's position, its rotation
+        // as both the launch rotation and the object rotation (xmm2/xmm3 copied to xmm6/xmm7),
+        // m_initialVelocity as the unrotated starting velocity and no gravity sources (r8 = 0). The
+        // real pool shows the mapping: it spawns `amount` objects at the position with the object
+        // rotation, and each gets rotation * Scale(launch, direction) + startingVelocity. The
+        // definition makes the launch velocity (0, 0, 1) in every draw, so the rotated part is (1, 0, 0)
+        // for a 90 degree turn about Y and the unrotated start (0, 0, 5) adds to it.
+        [Test]
+        public void TriggerSpawnsTheAmountAtTheOriginWithTheRotatedLaunchAndUnrotatedStartingVelocity()
+        {
+            Owned.Run(owned =>
+            {
+                object priorConfig = TimeConfig.GetValue(null);
+                try
+                {
+                    TimeConfig.SetValue(null, owned.Track(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
+                    owned.Register(owned.Host("Lucid pool manager", false).AddComponent<PrefabPoolManager>());
+                    DataManager data = owned.Register(owned.Host("Lucid data manager", false).AddComponent<DataManager>());
+                    var poolType = owned.Track(ScriptableObject.CreateInstance<PrefabPoolType>());
+                    var definition = owned.Track(ScriptableObject.CreateInstance<CascadeObjectDefinition>());
+                    definition.PrefabPoolType = poolType;
+                    definition.MinLaunchVelocity = definition.MaxLaunchVelocity = Vector3.forward;
+                    definition.MinRandomDirection = definition.MaxRandomDirection = Vector3.forward;
+                    definition.LifetimeSeconds = 5f;
+                    definition.MaximumSpawnedObjects = 8;
+                    data.CascadeObjectDefinitions[CascadeObjectType.Ring] = definition;
+
+                    // OnSpawned resets the launched transform's local position, so it is a child of the object.
+                    GameObject prefab = owned.Host("Lucid cascade prefab", false);
+                    GameObject launched = owned.Host("Lucid cascade launched", false, prefab.transform);
+                    var cascadeObject = prefab.AddComponent<PooledCascadeObject>();
+                    Set(cascadeObject, "m_simplifiedBody", prefab.AddComponent<SimplifiedBody>());
+                    Set(cascadeObject, "m_launchedTransform", launched.transform);
+
+                    var pool = owned.Host("Lucid cascade pool", false).AddComponent<CascadeObjectPool>();
+                    Set(pool, "m_objectPoolType", poolType);
+                    Set(pool, "m_prefab", cascadeObject);
+                    Set(pool, "m_initialObjectCount", 4);
+                    Call(pool, "Awake");
+
+                    GameObject host = owned.Host("Lucid trigger cascade", false);
+                    var cascade = host.AddComponent<TriggerCascade>();
+                    Quaternion turn = Quaternion.Euler(0f, 90f, 0f);
+                    host.transform.SetPositionAndRotation(new Vector3(1f, 2f, 3f), turn);
+                    Set(cascade, "m_cascadeObjectType", CascadeObjectType.Ring);
+                    Set(cascade, "m_amount", 4);
+                    Set(cascade, "m_origin", host.transform);
+                    Set(cascade, "m_initialVelocity", new Vector3(0f, 0f, 5f));
+                    cascade.Trigger();
+
+                    List<PooledCascadeObject> spawned = Get<List<PooledCascadeObject>>(pool, "m_objects");
+                    Assert.That(pool.UsedObjects, Is.EqualTo(4));
+                    foreach (PooledCascadeObject spawnedObject in spawned)
+                    {
+                        Assert.That(Vector3.Distance(spawnedObject.transform.position, new Vector3(1f, 2f, 3f)), Is.LessThan(1e-4f));
+                        Assert.That(Quaternion.Angle(spawnedObject.transform.rotation, turn), Is.LessThan(0.01f), "the object rotation is the origin's");
+                        Vector3 velocity = Get<SimplifiedBody>(spawnedObject, "m_simplifiedBody").WorldVelocity;
+                        Assert.That(Vector3.Distance(velocity, new Vector3(1f, 0f, 5f)), Is.LessThan(1e-3f), velocity.ToString("F4"));
+                    }
+                }
+                finally
+                {
+                    TimeConfig.SetValue(null, priorConfig);
+                }
+            });
+        }
+
         // TriggerUITransition metadata. OnEnable 0x7A65D0 fetches the App before the
         // UIScreenTransitionManager (0x7A668A, then 0x7A66A3), so a missing App is the fault reported.
         // The App storage and the queued transition need the application and are not set up here.
@@ -272,6 +406,61 @@ namespace ProjectLucid.Tests
                 var transition = owned.Host("Lucid trigger UI transition", false).AddComponent<TriggerUITransition>();
                 var missing = Assert.Throws<NullReferenceException>(() => Call(transition, "OnEnable"));
                 Assert.That(missing.Message, Is.EqualTo("System '" + ProcessManager.GetDefaultName<App>() + "' is null"));
+            });
+        }
+
+        private static App NewApp(Owned owned)
+        {
+            var app = (App)FormatterServices.GetUninitializedObject(typeof(App));
+            Set(app, "<Storage>k__BackingField", new FSMStorage(0));
+            return owned.Register(app);
+        }
+
+        private static List<StackableDataHandle> Handles(App app) =>
+            app.Storage.GetValue<List<StackableDataHandle>>(AppFSMKeys.TransitionMidpointWaitHandles, null, false);
+
+        // OnEnable 0x7A65D0 fetches the App (0x7A668A) and the UIScreenTransitionManager (0x7A66A3)
+        // before it reads the App storage (0x7A676B), so a missing manager faults with nothing stored.
+        [Test]
+        public void TriggerUITransitionFaultsOnAMissingManagerBeforeTouchingTheAppStorage()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<UIScreenTransitionManager>();
+                App app = NewApp(owned);
+                var transition = owned.Host("Lucid trigger UI transition", false).AddComponent<TriggerUITransition>();
+                var missing = Assert.Throws<NullReferenceException>(() => Call(transition, "OnEnable"));
+                Assert.That(missing.Message, Is.EqualTo("System '" + ProcessManager.GetDefaultName<UIScreenTransitionManager>() + "' is null"));
+                Assert.That(Handles(app), Is.Null);
+            });
+        }
+
+        // With both systems present OnEnable creates the handle list (capacity 1) when the storage has
+        // none, adds the manager's AddWaitForMidpointOverride handle to it and queues the container.
+        // A second enable finds the same list and adds another handle.
+        [Test]
+        public void TriggerUITransitionKeepsOneMidpointHandlePerEnableInTheAppStorage()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<UIManager>();
+                App app = NewApp(owned);
+                // The queued transition's coroutine is refused on the inactive host, once per enable.
+                owned.Register(owned.Host("Lucid transition manager", false).AddComponent<UIScreenTransitionManager>());
+                var transition = owned.Host("Lucid trigger UI transition", false).AddComponent<TriggerUITransition>();
+                Assert.That(Handles(app), Is.Null);
+
+                LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("Coroutine couldn't be started"));
+                Call(transition, "OnEnable");
+                List<StackableDataHandle> handles = Handles(app);
+                Assert.That(handles, Has.Count.EqualTo(1));
+                Assert.That(handles[0], Is.Not.Null);
+
+                LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("Coroutine couldn't be started"));
+                Call(transition, "OnEnable");
+                Assert.That(Handles(app), Is.SameAs(handles));
+                Assert.That(handles, Has.Count.EqualTo(2));
+                Assert.That(handles[1], Is.Not.SameAs(handles[0]));
             });
         }
 

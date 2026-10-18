@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -268,8 +270,8 @@ namespace ProjectLucid.Tests
 
         // TriggerCondition_ValueTime: the constructor 0x5CE000 stores the PlayerPhysics category
         // (0x67B16BA4) and a new WaitForFixedUpdate; the iterator 0x5CE130 ends once the TimeManager
-        // reference is null (IsNull, 0x5CE1BA) before it adds any time. A present TimeManager would
-        // need the TimeCategoryLookup configuration and is not set up here.
+        // reference is null (IsNull, 0x5CE1BA) before it adds any time. The live loop is
+        // TimeValueAddsTheFixedDeltaTimeOfItsCategoryBeforeEachWait.
         [Test]
         public void TimeValueKeepsItsCategoryAndStopsWithoutATimeManager()
         {
@@ -287,6 +289,78 @@ namespace ProjectLucid.Tests
                 Assert.That(update.MoveNext(), Is.False);
                 Assert.That(Get<float>(first, "m_value"), Is.EqualTo(1f), "no time is added");
                 Assert.That(update.MoveNext(), Is.False, "a finished iterator stays finished");
+            });
+        }
+
+        // MoveNext 0x5CE130 tests the TimeManager reference (IsNull, 0x5CE1BA), adds
+        // GetFixedDeltaTime(timeCategory) through IncrementValue and only then yields the condition's own
+        // m_waitForFixedUpdate (0x5CE21F). The static reference is filled through its own
+        // InternalReplaceSystem with a raw TimeManager that only holds its time settings, then revoked,
+        // which leaves the registry row alone as an unregistered system would.
+        [Test]
+        public void TimeValueAddsTheFixedDeltaTimeOfItsCategoryBeforeEachWait()
+        {
+            const BindingFlags statics = BindingFlags.Static | BindingFlags.NonPublic;
+            const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
+            FieldInfo lookupField = typeof(TimeExtensions).GetField("s_config_Internal", statics);
+            FieldInfo managerField = typeof(TriggerCondition_ValueTime).GetField("s_timeManagerRef", statics);
+            MethodInfo replace = typeof(SystemRef<TimeManager>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", instance);
+            MethodInfo revoke = typeof(SystemRef<TimeManager>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", instance);
+            FieldInfo startupObservers = typeof(SystemRef<TimeManager>).GetField("OnSystemStartup", instance);
+            Owned.Run(owned =>
+            {
+                // Reading the static reference may run the type initialiser, which creates the TimeManager row.
+                owned.LeaseRow<TimeManager>();
+                var reference = (SystemRef<TimeManager>)managerField.GetValue(null);
+                Assert.That(reference.IsValid(), Is.False, "the fixture needs an empty TimeManager reference");
+                object priorObservers = startupObservers.GetValue(reference);
+                object priorLookup = lookupField.GetValue(null);
+                try
+                {
+                    var physics = owned.Track(ScriptableObject.CreateInstance<TimeCategoryObject>());
+                    var environment = owned.Track(ScriptableObject.CreateInstance<TimeCategoryObject>());
+                    Set(physics, "m_guid", "lucid-value-time-physics");
+                    Set(environment, "m_guid", "lucid-value-time-environment");
+                    var lookup = owned.Track(ScriptableObject.CreateInstance<TimeCategoryLookup>());
+                    lookup.Dictionary.Add(TimeCategory.PlayerPhysics, physics);
+                    lookup.Dictionary.Add(TimeCategory.Environment, environment);
+                    lookupField.SetValue(null, lookup);
+                    var setting = new TimeSetting();
+                    setting.SetCategory(physics, 0.5f);
+                    setting.SetCategory(environment, 3f);
+                    var settings = new StackableData();
+                    settings.SetBaseValue((int)typeof(TimeManager).GetField("SettingId", statics).GetRawConstantValue(), setting);
+                    var manager = (TimeManager)FormatterServices.GetUninitializedObject(typeof(TimeManager));
+                    Set(manager, "m_timeSettings", settings);
+                    replace.Invoke(reference, new object[] { manager });
+
+                    var condition = Add<TriggerCondition_ValueTime>(owned);
+                    Set(condition, "m_value", 1f);
+                    var update = (IEnumerator)Call(condition, "UpdateCoroutine");
+                    Assert.That(Get<float>(condition, "m_value"), Is.EqualTo(1f), "creating the iterator runs nothing");
+
+                    Assert.That(update.MoveNext(), Is.True);
+                    Assert.That(Get<float>(condition, "m_value"), Is.EqualTo(1f + Time.fixedDeltaTime * 0.5f).Within(1e-6f), "added before the wait");
+                    Assert.That(update.Current, Is.SameAs(Get<WaitForFixedUpdate>(condition, "m_waitForFixedUpdate")));
+                    Assert.That(update.MoveNext(), Is.True);
+                    Assert.That(Get<float>(condition, "m_value"), Is.EqualTo(1f + Time.fixedDeltaTime).Within(1e-6f), "the physics scale again");
+
+                    Set(condition, "timeCategory", TimeCategory.Environment);
+                    Assert.That(update.MoveNext(), Is.True);
+                    Assert.That(Get<float>(condition, "m_value"), Is.EqualTo(1f + Time.fixedDeltaTime + Time.fixedDeltaTime * 3f).Within(1e-6f),
+                        "the category is read at every step");
+
+                    float before = Get<float>(condition, "m_value");
+                    revoke.Invoke(reference, null);
+                    Assert.That(update.MoveNext(), Is.False, "the loop ends once the system is unregistered");
+                    Assert.That(Get<float>(condition, "m_value"), Is.EqualTo(before));
+                }
+                finally
+                {
+                    if (reference.IsValid()) revoke.Invoke(reference, null);
+                    startupObservers.SetValue(reference, priorObservers);
+                    lookupField.SetValue(null, priorLookup);
+                }
             });
         }
     }

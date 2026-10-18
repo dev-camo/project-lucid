@@ -6,8 +6,9 @@ using UnityEngine;
 namespace HardlightProject
 {
 	// Original Game.Runtime 0x0200075c; bodies translated from the 1.10.1 x86-64 binary.
-	// Accumulates the fixed delta time of timeCategory into the float value from OnEnable until the
-	// TimeManager row is gone; OnDisable does not stop the running loop.
+	// Accumulates the fixed delta time of timeCategory from OnEnable until the TimeManager system is
+	// unregistered (or Unity stops the GameObject's coroutines); OnDisable does not stop it, so each
+	// re-enable adds another loop.
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	public class TriggerCondition_ValueTime : TriggerCondition_ValueFloat
@@ -33,7 +34,7 @@ namespace HardlightProject
 		}
 
 		// 06002939 (1.10.1 RVA 0x5CDF00) with the iterator 0600293c..41: the loop ends once
-		// the TimeManager row is gone.
+		// the TimeManager system is unregistered.
 		private IEnumerator UpdateCoroutine()
 		{
 			while (!s_timeManagerRef.IsNull())
