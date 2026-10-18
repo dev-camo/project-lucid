@@ -252,14 +252,21 @@ namespace ProjectLucid.Tests
                 root.transform.position = new Vector3(10f, 0f, 0f);
                 var merge = root.AddComponent<MergeColliders>();
 
+                // In order: the child collider's refused Destroy; then get_mesh (0x6b276e) after set_mesh, which
+                // the engine answers in Edit Mode by instantiating the mesh with an error; then the filter's Destroy.
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
+                LogAssert.Expect(LogType.Error, "Instantiating mesh due to calling MeshFilter.mesh during edit mode. This will leak meshes. Please use MeshFilter.sharedMesh instead.");
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
+                var priorMeshes = new HashSet<Mesh>(Resources.FindObjectsOfTypeAll<Mesh>());
                 Call(merge, "Awake");
                 LogAssert.NoUnexpectedReceived();
+                // The new Mesh and its edit-mode instance are both created here; the case owns them.
+                foreach (Mesh created in Resources.FindObjectsOfTypeAll<Mesh>())
+                    if (!priorMeshes.Contains(created)) owned.Track(created);
 
                 MeshFilter combined = root.GetComponent<MeshFilter>();
                 Assert.That(combined, Is.Not.Null);
-                Mesh mesh = owned.Track(combined.sharedMesh);
+                Mesh mesh = combined.sharedMesh;
                 Assert.That(mesh, Is.Not.SameAs(triangle));
                 Assert.That(mesh.vertices, Is.EquivalentTo(new[]
                 {
