@@ -825,7 +825,9 @@ def _relocate_tree(source: Path, target: Path) -> bool:
     Renames when both paths share a filesystem. The work cache may sit on
     another volume from Assets; then the tree is copied in full first, a
     partial copy is removed, and True is returned so the caller records the
-    complete copy before deleting the source itself."""
+    complete copy before deleting the source itself. A partial copy that
+    cannot be fully removed is renamed aside to a ".failed-partial-" sibling,
+    so the target path never holds a partial tree."""
     try:
         os.rename(source, target)
         return False
@@ -836,8 +838,38 @@ def _relocate_tree(source: Path, target: Path) -> bool:
         shutil.copytree(source, target, symlinks=True)
     except BaseException:
         shutil.rmtree(target, ignore_errors=True)
+        if os.path.lexists(target):
+            os.rename(target, target.with_name("." + target.name + ".failed-partial-" + uuid.uuid4().hex))
         raise
     return True
+
+
+def _relocate_recorded(source: Path, target: Path, locations: dict[Path, Path], key: Path) -> bool:
+    """_relocate_tree that keeps locations[key] on the tree's real location.
+
+    An interrupt can land after the rename but before _relocate_tree returns,
+    so after any exception the record follows whichever path actually holds
+    the tree."""
+    try:
+        return _relocate_tree(source, target)
+    except BaseException:
+        if not os.path.lexists(source) and os.path.lexists(target):
+            locations[key] = target
+        raise
+
+
+def _restore_file(path: Path, prior: bytes | None) -> None:
+    """Put back a receipt's prior bytes, or its absence, atomically."""
+    if prior is None:
+        path.unlink(missing_ok=True)
+        return
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    try:
+        with temporary.open("xb") as stream:
+            stream.write(prior)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def _restore_swapped_directories(swapped: list[tuple[Path, Path | None]], locations: dict[Path, Path],
@@ -857,7 +889,7 @@ def _restore_swapped_directories(swapped: list[tuple[Path, Path | None]], locati
                 os.rename(destination, aside)
             if backup is not None:
                 source = locations[destination]
-                copied = _relocate_tree(source, destination)
+                copied = _relocate_recorded(source, destination, locations, destination)
                 del locations[destination]
                 if copied:
                     # The prior tree is active again; a leftover source copy is surplus.
@@ -868,12 +900,19 @@ def _restore_swapped_directories(swapped: list[tuple[Path, Path | None]], locati
             if aside is not None:
                 shutil.rmtree(aside)
         except BaseException as exc:
-            if aside is not None and aside.exists() and not destination.exists():
+            if locations.get(destination) == destination:
+                # Interrupted after the prior tree was renamed back: it is active again.
+                del locations[destination]
+            if aside is not None and aside.exists() and not os.path.lexists(destination):
                 os.rename(aside, destination)
             current = destination if aside is None or not aside.exists() else aside
-            retained = ", ".join(str(path) for path in locations.values()) or "none"
+            # Name only copies that really exist, plus any partial copy set aside.
+            retained = ", ".join(str(path) for path in locations.values() if os.path.lexists(path)) or "none"
+            partial = sorted(destination.parent.glob("." + destination.name + ".failed-partial-*"))
             message = (f"Could not restore prior prepared assets at {destination}; newly prepared tree: {current}; "
                        f"retained prior copies: {retained}")
+            if partial:
+                message += "; partial restore copies set aside: " + ", ".join(str(path) for path in partial)
             if not isinstance(exc, Exception):
                 # Let interrupts and exits propagate as themselves once recovery is reported.
                 print(message, file=sys.stderr)
@@ -961,6 +1000,9 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                 bundle_report = _normalize_streaming_bundles(stage, destination)
             _json_write(stage / MARKER, {"owner": OWNER, "run_id": report["run_id"]})
             replacements.append((destination, stage))
+        # Keep the prior receipt's bytes, or its absence, for rollback.
+        receipt = _cache_path(work, prepared)
+        prior_receipt = receipt.read_bytes() if receipt.exists() else None
         swapped = _replace_owned_directories(replacements)
         # Retention and the receipt commit with the swap: on any failure the prior
         # trees go back in place, so they still match the prior receipt.
@@ -974,7 +1016,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                     if backup is None:
                         continue
                     retained_path = _cache_path(work, backup_dir / backup.name)
-                    copied_across_volumes = _relocate_tree(backup, retained_path)
+                    copied_across_volumes = _relocate_recorded(backup, retained_path, locations, destination)
                     # Record the complete retained copy before deleting a cross-volume source.
                     locations[destination] = retained_path
                     if copied_across_volumes:
@@ -991,9 +1033,12 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                       "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",
                                    "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",
                                    "Preparation preserves asset GUIDs and restores only approved, layout-verified script pointers; gameplay remains unresolved."]}
-            _json_write(_cache_path(work, prepared), result)
+            _json_write(receipt, result)
         except BaseException:
             _restore_swapped_directories(swapped, locations, backup_dir)
+            # The receipt may already be published when a failure follows its
+            # rename; with the prior trees back, put back their prior receipt.
+            _restore_file(receipt, prior_receipt)
             raise
         return result
     finally:

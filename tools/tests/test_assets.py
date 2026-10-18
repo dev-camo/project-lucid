@@ -579,6 +579,154 @@ class AssetTests(unittest.TestCase):
         self.assertIn("retained prior copies", stderr.getvalue())
         self.assert_failed_restore_kept_new_trees_and_backups(stderr.getvalue())
 
+    def test_interrupt_after_the_receipt_rename_restores_the_prior_receipt_or_its_absence(self):
+        # #297: os.replace has published the new receipt when the interrupt lands.
+        project = self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        receipt = self.work / "assets/latest-prepare.json"
+        original_replace = assets.os.replace
+
+        def interrupted_publication():
+            fired = []
+
+            def replace(source, target):
+                result = original_replace(source, target)
+                if not fired and Path(target).name == "latest-prepare.json":
+                    fired.append(target)
+                    raise KeyboardInterrupt()
+                return result
+            return mock.patch.object(assets.os, "replace", replace)
+
+        for prior_absent in (False, True):
+            with self.subTest(prior_absent=prior_absent):
+                if prior_absent:
+                    receipt.unlink()
+                prior_tree = self.assets_snapshot()
+                prior_receipt = None if prior_absent else receipt.read_bytes()
+                self.change_export_scene(project)
+                with interrupted_publication(), self.assertRaises(KeyboardInterrupt):
+                    assets.prepare_assets(self.repo, self.work)
+                self.assertEqual(prior_tree, self.assets_snapshot())
+                self.assertEqual(prior_receipt, receipt.read_bytes() if receipt.exists() else None)
+                self.assertEqual([], [path.name for path in receipt.parent.iterdir() if path.name.endswith(".tmp")])
+
+    def test_unremovable_partial_cross_volume_restore_is_set_aside_and_the_new_tree_stays_live(self):
+        # #297: copying a prior tree back from a separate volume fails and its
+        # partial target survives the best-effort removal.
+        project = self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        self.change_export_scene(project)
+        active = self.repo / "Assets"
+        original_write, original_copytree, original_rmtree = assets._json_write, assets.shutil.copytree, assets.shutil.rmtree
+
+        def failing_receipt_write(path, value):
+            if Path(path).name == "latest-prepare.json":
+                raise OSError("injected receipt write failure")
+            return original_write(path, value)
+
+        def copytree(source, target, *args, **options):
+            if Path(target).parent == active:
+                Path(target).mkdir()
+                (Path(target) / "partial").write_text("partial")
+                raise OSError("injected restore copy failure")
+            return original_copytree(source, target, *args, **options)
+
+        def rmtree(path, ignore_errors=False, **options):
+            if Path(path).parent == active and (Path(path) / "partial").exists() and ignore_errors:
+                return None  # the best-effort removal leaves the partial tree
+            return original_rmtree(path, ignore_errors=ignore_errors, **options)
+
+        with self.cross_volume_work_cache(), \
+                mock.patch.object(assets, "_json_write", failing_receipt_write), \
+                mock.patch.object(assets.shutil, "copytree", copytree), \
+                mock.patch.object(assets.shutil, "rmtree", rmtree), \
+                self.assertRaisesRegex(RuntimeError, "Could not restore") as caught:
+            assets.prepare_assets(self.repo, self.work)
+        message = str(caught.exception)
+        # Restore runs in reverse, so StreamingAssets fails first: its live path
+        # holds the complete new tree again, never the partial prior copy.
+        streaming = active / "StreamingAssets"
+        self.assertFalse((streaming / "partial").exists())
+        self.assertTrue((streaming / assets.MARKER).is_file())
+        self.assertEqual('{"FSMs": []}', (streaming / "FSM.json").read_text())
+        self.assertIn(f"newly prepared tree: {streaming};", message)
+        partial = list(active.glob(".StreamingAssets.failed-partial-*"))
+        self.assertEqual(1, len(partial))
+        self.assertEqual("partial", (partial[0] / "partial").read_text())
+        self.assertIn(str(partial[0]), message)
+        retained = [path for directory in (self.work / "assets/backups").iterdir() for path in directory.iterdir()]
+        self.assertEqual(2, len(retained))
+        self.assertTrue(all(str(path) in message for path in retained))
+
+    def test_interrupt_after_a_retention_rename_restores_from_the_retained_copy(self):
+        # #297: the prior tree has moved into the backups directory when the
+        # interrupt lands, so the rollback must follow it there.
+        project = self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        receipt = self.work / "assets/latest-prepare.json"
+        backups_root = self.work / "assets/backups"
+        prior_tree, prior_receipt = self.assets_snapshot(), receipt.read_bytes()
+        self.change_export_scene(project)
+        original_relocate = assets._relocate_tree
+        moved = []
+
+        def relocate(source, target):
+            result = original_relocate(source, target)
+            if not moved and Path(target).parent.parent == backups_root:
+                moved.append(target)
+                raise KeyboardInterrupt()
+            return result
+
+        with mock.patch.object(assets, "_relocate_tree", relocate), self.assertRaises(KeyboardInterrupt):
+            assets.prepare_assets(self.repo, self.work)
+        self.assertEqual(1, len(moved))
+        self.assertEqual(prior_tree, self.assets_snapshot())
+        self.assertEqual(prior_receipt, receipt.read_bytes())
+        self.assertEqual([], list(backups_root.iterdir()))
+
+    def test_interrupt_after_a_restore_rename_reports_only_existing_retained_copies(self):
+        # #297: the prior tree is back in Assets when the interrupt lands, so the
+        # report must not name its consumed retained path.
+        project = self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        prior_tree = self.assets_snapshot()
+        self.change_export_scene(project)
+        active = self.repo / "Assets"
+        original_relocate, original_write = assets._relocate_tree, assets._json_write
+        moved = []
+
+        def failing_receipt_write(path, value):
+            if Path(path).name == "latest-prepare.json":
+                raise OSError("injected receipt write failure")
+            return original_write(path, value)
+
+        def relocate(source, target):
+            result = original_relocate(source, target)
+            if not moved and Path(target).parent == active:
+                moved.append(source)
+                raise KeyboardInterrupt()
+            return result
+
+        stderr = io.StringIO()
+        with mock.patch.object(assets, "_json_write", failing_receipt_write), \
+                mock.patch.object(assets, "_relocate_tree", relocate), \
+                mock.patch.object(assets.sys, "stderr", stderr), self.assertRaises(KeyboardInterrupt):
+            assets.prepare_assets(self.repo, self.work)
+        message = stderr.getvalue()
+        self.assertEqual(1, len(moved))
+        self.assertFalse(moved[0].exists())
+        self.assertNotIn(str(moved[0]), message)
+        # StreamingAssets is restored first and is its prior tree again; the new
+        # tree is set aside and named. Recovered is never reached.
+        streaming = {key: value for key, value in prior_tree.items() if key.startswith("StreamingAssets")}
+        self.assertEqual(streaming, {key: value for key, value in self.assets_snapshot().items() if key.startswith("StreamingAssets")})
+        aside = list(active.glob(".StreamingAssets.failed-*"))
+        self.assertEqual(1, len(aside))
+        self.assertIn(f"newly prepared tree: {aside[0]};", message)
+        retained = [path for directory in (self.work / "assets/backups").iterdir() for path in directory.iterdir()]
+        self.assertEqual(1, len(retained))
+        self.assertIn(f"retained prior copies: {retained[0]}", message)
+
     def test_work_directory_cannot_overlap_input(self):
         app = self.root / "Game.app"
         app.mkdir()
