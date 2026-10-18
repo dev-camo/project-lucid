@@ -854,9 +854,20 @@ def _relocate_recorded(source: Path, target: Path, locations: dict[Path, Path], 
     the tree."""
     try:
         return _relocate_tree(source, target)
-    except BaseException:
+    except BaseException as error:
         if not os.path.lexists(source) and os.path.lexists(target):
             locations[key] = target
+        elif os.path.lexists(source) and os.path.lexists(target):
+            # A cross-volume copy keeps the source until the copy is adopted, so the
+            # source stays authoritative and the unadopted copy is removed.
+            try:
+                shutil.rmtree(target)
+            except OSError as cleanup:
+                note = f"An unadopted copy remains at {target}: {cleanup}"
+                if hasattr(error, "add_note"):
+                    error.add_note(note)
+                else:
+                    print(note, file=sys.stderr)
         raise
 
 

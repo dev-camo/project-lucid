@@ -6,6 +6,7 @@ import contextlib
 import errno
 import io
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -775,3 +776,26 @@ class AssetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RelocationRecordTests(unittest.TestCase):
+    def test_an_interrupt_after_a_cross_volume_copy_removes_the_unadopted_copy(self):
+        # Both trees exist when an interrupt lands after the copy but before the source
+        # is deleted: the source stays authoritative and the copy must not be stranded.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, target = root / "source", root / "backups" / "target"
+            (source / "a").mkdir(parents=True)
+            (source / "a" / "file.bin").write_bytes(b"x" * 64)
+
+            def copy_then_interrupt(src, dst):
+                shutil.copytree(src, dst)
+                raise KeyboardInterrupt
+
+            locations = {source: source}
+            with mock.patch.object(assets, "_relocate_tree", side_effect=copy_then_interrupt):
+                with self.assertRaises(KeyboardInterrupt):
+                    assets._relocate_recorded(source, target, locations, source)
+            self.assertEqual(locations[source], source)
+            self.assertTrue((source / "a" / "file.bin").is_file())
+            self.assertFalse(target.exists())
