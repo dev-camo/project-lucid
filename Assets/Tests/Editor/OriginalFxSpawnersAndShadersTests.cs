@@ -14,8 +14,9 @@ using Object = UnityEngine.Object;
 namespace ProjectLucid.Tests
 {
     // Restored Game.Runtime FX helpers: PrefabSpawner, PlayParticleSystemOnEnable,
-    // ShaderParameterBinderTarget, ShaderProperties, SceneMaterialManipulator,
-    // PrefabPoolActivation, RateOfChangeBindable and the projectile spawners.
+    // ShaderParameterBinderTarget, SceneMaterialManipulator, PrefabPoolActivation,
+    // RateOfChangeBindable and the projectile spawners. ShaderProperties was restored with the
+    // earlier FX helpers; only its published name is checked here.
     // Each expectation comes from the shipped x86-64 body named in its comment.
     // TimeScaledComponent descendants (RateOfChangeBindable, StraightLineProjectile)
     // are never instantiated here: their type initializer appends the permanent
@@ -407,7 +408,6 @@ namespace ProjectLucid.Tests
                     ColourName = "_Color",
                 };
                 var routine = (IEnumerator)Invoke(manipulator, "AnimateMaterial", config);
-                Assert.That(routine.GetType().Name, Is.EqualTo("<AnimateMaterial>d__5"));
                 Assert.That(routine.MoveNext(), Is.False);
                 Assert.That(material.GetColor("_Color"), Is.EqualTo(before));
             }

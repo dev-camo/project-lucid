@@ -4332,8 +4332,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalParticleEffectBinderTargetTe
 ))
 
 # Restored Game.Runtime FX helpers: PrefabSpawner, PlayParticleSystemOnEnable,
-# ShaderParameterBinderTarget, ShaderProperties, SceneMaterialManipulator,
-# PrefabPoolActivation, RateOfChangeBindable and the projectile spawners.
+# ShaderParameterBinderTarget, SceneMaterialManipulator, PrefabPoolActivation,
+# RateOfChangeBindable and the projectile spawners. ShaderProperties was restored with the
+# earlier FX helpers; only its published name is checked here.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxSpawnersAndShadersTests." + name for name in (
     "ShaderPropertiesPublishesTheDreamNoiseScaleOffsetName",
     "LoopOutputWrapsOutsideValuesByCeilingMultiplesOfTheRange",
