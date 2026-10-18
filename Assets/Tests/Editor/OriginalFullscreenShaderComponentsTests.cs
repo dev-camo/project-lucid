@@ -7,6 +7,7 @@ using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Pool;
+using UnityEngine.Rendering.Universal;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
@@ -175,6 +176,57 @@ namespace ProjectLucid.Tests
                 // <StartEffect>b__10_0 0x5d3070, the onFinished callback, clears m_playing.
                 Call(trigger, "<StartEffect>b__10_0");
                 Assert.That(Get(trigger, "m_playing"), Is.False);
+            });
+        }
+
+        // StartEffect 0x5d2f8c/0x5d2f91 passes +0x2c (m_applyCurveOverDuration)
+        // as applyCurveOverDuration and +0x24 (m_untilStopTriggered) as
+        // untilStopped, and stores m_playing = 1 at 0x5d2fe7 only after
+        // StartEffectOverride returns. With a definition and m_duration 0 the
+        // override's InternalUpdate(0) finishes it at once (0x688034: not
+        // untilStopped and elapsed >= duration), so <StartEffect>b__10_0 clears
+        // m_playing inside the call and StartEffect then sets it again.
+        // Swapped flags keep the override tracked; setting m_playing before
+        // the call leaves it false.
+        [Test]
+        public void StartEffectSetsPlayingAfterAnOverrideThatFinishesSynchronously()
+        {
+            WithRegisteredManager(rig =>
+            {
+                var feature = ScriptableObject.CreateInstance<FullScreenPassRendererFeature>();
+                var material = new Material(Shader.Find("UI/Default"));
+                var definition = ScriptableObject.CreateInstance<FullscreenShaderParametersDefinition>();
+                try
+                {
+                    Set(rig.Manager, "m_dreamVignetteFeature", feature);
+                    Set(rig.Manager, "m_fullscreenShaderMaterial", material);
+                    var pool = new ObjectPool<FullscreenShaderManager.ActiveParameters>(() =>
+                    {
+                        var parameters = new FullscreenShaderManager.ActiveParameters();
+                        rig.Ids[parameters] = 0;
+                        return parameters;
+                    });
+                    Set(rig.Manager, "m_activeParametersPool", pool);
+                    var data = (DataManager)Get(rig.Manager, "m_dataManager");
+                    data.FullscreenShaderParametersDefinitions[SomeType] = definition;
+
+                    FullscreenShaderEffectTrigger trigger = AwakeTrigger(rig);
+                    trigger.SetFullscreenShaderParametersType(SomeType);
+                    Set(trigger, "m_duration", 0f);
+                    Set(trigger, "m_applyCurveOverDuration", true);
+                    Set(trigger, "m_untilStopTriggered", false);
+
+                    trigger.StartEffect();
+                    Assert.That(rig.Active, Is.Empty, "the override finished inside InternalUpdate(0)");
+                    Assert.That(pool.CountInactive, Is.EqualTo(1));
+                    Assert.That(Get(trigger, "m_playing"), Is.True, "m_playing is stored after the finishing callback");
+                }
+                finally
+                {
+                    Object.DestroyImmediate(definition);
+                    Object.DestroyImmediate(material);
+                    Object.DestroyImmediate(feature);
+                }
             });
         }
 

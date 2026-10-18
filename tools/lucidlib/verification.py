@@ -4310,11 +4310,13 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxComponentBehaviourTests." 
 ))
 PLAYMODE_TESTS += (
     "ProjectLucid.Tests.OriginalLerpColourPlayTests.SetTargetColourStopsTheStoredRoutineAndLerpsFromTheCurrentValue",
+    "ProjectLucid.Tests.OriginalLerpColourPlayTests.TheFirstStepAdvancesByScaledDeltaTimeTimesTheMultiplier",
 )
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFullscreenShaderComponentsTests." + name for name in (
     "AwakeTakesTheRegisteredManagerAndTheDurationDefaultsToOne",
     "SetDurationTreatsOnlyAnExactZeroAsUntilStopped",
     "StartEffectCountsAsPlayingEvenWhenTheOverrideFails",
+    "StartEffectSetsPlayingAfterAnOverrideThatFinishesSynchronously",
     "StopEffectStopsTheTrackedOverrideOnlyWhilePlaying",
     "OnDestroyStopsAPlayingEffectUnlessItPersists",
     "UIBlurHoldsOneBlurRequestWhileEnabled",

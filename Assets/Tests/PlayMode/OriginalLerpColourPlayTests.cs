@@ -60,6 +60,49 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // <LerpStartColour>d__6.MoveNext 0x6b2268..0x6b2284: lerpValue +=
+        // Time.deltaTime * m_lerpSpeedMultiplier (+0x20), then the colour is
+        // Color.Lerp(start, target, lerpValue). The first step runs inside
+        // StartCoroutine, so it uses this frame's deltaTime. A half time scale
+        // for one frame separates scaled from unscaled time; a multiplier-only
+        // step or an extra factor also gives a different value. The time scale
+        // is restored in the finally.
+        [UnityTest]
+        public IEnumerator TheFirstStepAdvancesByScaledDeltaTimeTimesTheMultiplier()
+        {
+            var host = new GameObject("Lucid owned lerp colour step host");
+            float timeScale = Time.timeScale;
+            try
+            {
+                Time.timeScale = 0.5f;
+                yield return null;
+                var lerp = host.AddComponent<LerpColour>();
+                Field("m_lerpSpeedMultiplier").SetValue(lerp, 0.5f);
+                var start = new Color(0f, 0f, 0f, 0f);
+                var target = new Color(1f, 1f, 1f, 1f);
+                lerp.Colour.Value = start;
+
+                float dt = Time.deltaTime;
+                float expected = 0f + dt * 0.5f;
+                Assume.That(dt, Is.GreaterThan(0f));
+                Assume.That(expected, Is.LessThan(1f));
+                Assume.That(Time.unscaledDeltaTime, Is.Not.EqualTo(dt));
+
+                lerp.SetTargetColour(target);
+                Assert.That(lerp.Colour.Value, Is.EqualTo(Color.Lerp(start, target, expected)));
+
+                var routine = (IEnumerator)typeof(LerpColour).GetMethod("LerpStartColour", Instance)
+                    .Invoke(lerp, new object[] { start, target });
+                Assert.That(routine.MoveNext(), Is.True);
+                Assert.That(routine.GetType().GetField("<lerpValue>5__2", Instance).GetValue(routine), Is.EqualTo(expected));
+            }
+            finally
+            {
+                Time.timeScale = timeScale;
+                Object.DestroyImmediate(host);
+            }
+        }
+
         static IEnumerator Pending(Action step)
         {
             while (true)

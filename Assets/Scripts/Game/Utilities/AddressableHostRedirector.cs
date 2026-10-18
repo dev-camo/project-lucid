@@ -4,8 +4,10 @@ using UnityEngine.ResourceManagement.ResourceLocations;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x02000088. Rewrites the scheme://host:port prefix
-    // of every Addressables internal id to the configured host while alive.
+    // Original Game.Runtime 0x02000088. Until finalized, replaces every
+    // MatchHostRegEx match anywhere in an Addressables internal id (by default
+    // http(s)://host:port with a letter, digit or hyphen host and a 2-5 digit
+    // port) with the configured host; a blank host leaves ids unchanged.
     public class AddressableHostRedirector
     {
         private string m_targetHost = string.Empty;
@@ -40,7 +42,6 @@ namespace HardlightProject
             return MatchHostRegEx.Replace(resourceLocation.InternalId, ReplaceHost);
         }
 
-        // A blank target host keeps the matched host unchanged.
         private string ReplaceHost(Match matchedHost)
         {
             return string.IsNullOrWhiteSpace(m_targetHost) ? matchedHost.ToString() : m_targetHost;

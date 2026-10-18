@@ -391,13 +391,13 @@ namespace ProjectLucid.Tests
 
         // Awake 0x6b31b0 and OnDisable 0x6b3210 deactivate m_default then
         // m_veryLow; OnEnable 0x6b31e0 activates the field at +0x20 + 8 *
-        // (GetQualityLevel() == 0), m_veryLow only at level 0. Both levels run,
-        // so an always-default or inverted test fails; the editor's level is
-        // restored afterwards.
+        // (GetQualityLevel() == 0), m_veryLow only at level 0. Levels 0, 1 and
+        // the highest run, so an always-default, inverted or "== 1" test fails;
+        // the editor's level is restored afterwards.
         [Test]
         public void PFXQualitySwitcherShowsTheVeryLowVariantOnlyAtLevelZero()
         {
-            Assume.That(QualitySettings.names.Length, Is.GreaterThanOrEqualTo(2));
+            Assume.That(QualitySettings.names.Length, Is.GreaterThanOrEqualTo(3));
             int originalLevel = QualitySettings.GetQualityLevel();
             try
             {
@@ -424,6 +424,15 @@ namespace ProjectLucid.Tests
                     QualitySettings.SetQualityLevel(1, false);
                     Call(switcher, "OnEnable");
                     Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((true, false)), "level 1");
+                    Call(switcher, "OnDisable");
+                    Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
+
+                    // The highest level (Ultra, 5, in ProjectSettings/QualitySettings.asset)
+                    // also shows m_default, which a "== 1 selects m_default" reading fails.
+                    int highest = QualitySettings.names.Length - 1;
+                    QualitySettings.SetQualityLevel(highest, false);
+                    Call(switcher, "OnEnable");
+                    Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((true, false)), "level " + highest);
                     Call(switcher, "OnDisable");
                     Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
                 }
