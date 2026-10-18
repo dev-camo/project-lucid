@@ -224,29 +224,36 @@ namespace ProjectLucid.Tests
                 Set(trigger, "m_conditions", new TriggerCondition[] { probe });
                 Collider own = character.ColliderCollision;
                 Collider other = owned.Host("Lucid other collider", false).AddComponent<BoxCollider>();
+                // The Character constructor stores its own no-op <.ctor>b__394_1 in OnFixedUpdatePostFSM (0x737828);
+                // the trigger's handler is combined after it and removed from behind it.
+                Delegate[] constructed = character.OnFixedUpdatePostFSM.GetInvocationList();
+                Assert.That(constructed.Length, Is.EqualTo(1));
+                string[] untracked = HandlerNames(character.OnFixedUpdatePostFSM);
+                string[] tracked = untracked.Concat(new[] { "OnCharacterFixedUpdate" }).ToArray();
 
                 Call(trigger, "OnTriggerEnter", other);
                 Assert.That(log, Is.Empty, "another collider fails the filter");
                 Assert.That(Get<bool>(trigger, "m_isTriggered"), Is.False);
-                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.Empty);
+                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(untracked));
 
                 Call(trigger, "OnTriggerEnter", own);
                 Assert.That(log, Is.Empty, "failing conditions raise no event");
                 Assert.That(Get<bool>(trigger, "m_isTriggered"), Is.True, "but the character is still tracked");
-                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(new[] { "OnCharacterFixedUpdate" }));
-                Assert.That(character.OnFixedUpdatePostFSM.GetInvocationList().Select(handler => handler.Target), Is.EqualTo(new object[] { trigger }));
+                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(tracked));
+                Assert.That(character.OnFixedUpdatePostFSM.GetInvocationList().Select(handler => handler.Target),
+                    Is.EqualTo(constructed.Select(handler => handler.Target).Concat(new object[] { trigger })));
 
                 probe.CharacterResult = true;
                 Call(trigger, "OnTriggerEnter", own);
                 Assert.That(log, Is.EqualTo(new[] { "enter" }));
-                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM).Length, Is.EqualTo(1), "tracked once");
+                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(tracked), "tracked once");
 
                 Call(trigger, "OnTriggerExit", other);
                 Assert.That(Get<bool>(trigger, "m_isTriggered"), Is.True, "another collider leaving changes nothing");
                 Call(trigger, "OnTriggerExit", own);
                 Assert.That(log, Is.EqualTo(new[] { "enter", "exit" }));
                 Assert.That(Get<bool>(trigger, "m_isTriggered"), Is.False);
-                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.Empty);
+                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(untracked));
             });
         }
 
@@ -302,18 +309,21 @@ namespace ProjectLucid.Tests
             {
                 RecordEvents(trigger, new List<string>());
                 Set(trigger, "m_conditions", new TriggerCondition[] { Probe(owned, true) });
+                // The constructor's own no-op handler (0x737828) stays ahead of the trigger's.
+                string[] untracked = HandlerNames(character.OnFixedUpdatePostFSM);
+                Assert.That(untracked.Length, Is.EqualTo(1));
                 Call(trigger, "OnTriggerEnter", character.ColliderCollision);
                 Assert.That(Get<bool>(trigger, "m_isTriggered"), Is.True);
 
                 SetCurrent(manager, character, false);
                 Call(trigger, "OnDisable");
                 Assert.That(Get<bool>(trigger, "m_isTriggered"), Is.True, "no current character: nothing to untrack");
-                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(new[] { "OnCharacterFixedUpdate" }));
+                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(untracked.Concat(new[] { "OnCharacterFixedUpdate" })));
 
                 SetCurrent(manager, character, true);
                 Call(trigger, "OnDisable");
                 Assert.That(Get<bool>(trigger, "m_isTriggered"), Is.False);
-                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.Empty);
+                Assert.That(HandlerNames(character.OnFixedUpdatePostFSM), Is.EqualTo(untracked));
             });
         }
 
