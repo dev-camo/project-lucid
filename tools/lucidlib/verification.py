@@ -2667,6 +2667,111 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterAirStompBrakingBurstTests."
     "DisableAbilitiesStateLeavesEveryNonPassiveNonExceptedAbility",
 ))
 
+# Original climbing, detector and half pipe ability definitions (gr2-char-moves-03).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterClimbDetectorHalfPipeDefinitionTests." + name for name in (
+    "EnterClimbingConstructorsStoreTheNativeDefaults",
+    "ClimbingLeavesStoreTheirOwnThresholds",
+    "SurfaceAngleIsValidInsideTheLimitsWidenedByTheNativeTolerance",
+    "SurfaceAngleFollowsTheAuthoredLimits",
+    "DetectorRefreshesEverySecondByDefault",
+    "DetectorCachedValuesSquareTheProximityDistance",
+    "DetectorProximitySquareHasAPrivateSetter",
+    "HalfPipeLeavesStoreTheTrackerOffset",
+    "HalfPipeAirCachesTheCosineOfTheExclusionAngle",
+    "HalfPipeAirCachedValuesFaultWithoutAnExclusionObject",
+    "DeclarationShapeConcreteDefinitionsNameTheirOwnAbilityScript",
+    "DeclarationShapeDefinitionsKeepTheirOriginalBases",
+    "DeclarationShapeFieldsKeepTheirOriginalOrder",
+    "DeclarationShapeConcreteDefinitionsAreCreatableFromTheAssetMenu",
+))
+
+# Original climbing entry abilities (gr2-char-moves-03).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterClimbingAbilityTests." + name for name in (
+    "GroundClimbEntersOnlyWhileTheSquaredSpeedIsBelowTheSquaredThreshold",
+    "GroundClimbMeasuresTheSlopeWithTheMovementUtilities",
+    "AirClimbEntersWithoutInputWhenTheAngleOfAttackIsAtLeastTheMinimum",
+    "AirClimbFallsBackToTheInputHeadingDotTheNormal",
+    "AirClimbMinimumAngleOfAttackIsInclusiveAndNaNDoesNotEnter",
+    "DirectionOverrideClimbConsumesTheRequestOnlyAfterAnOverrideWasActive",
+    "DirectionOverrideClimbRemembersTheOverrideAfterTheBaseUpdate",
+    "DirectionOverrideClimbReportsTheOverrideInTheDebugText",
+    "SlopeAngleIsOneEightyMinusTheAngleBetweenGravityAndTheNormal",
+    "ClimbableSurfaceNeedsACollisionAndASlopeInsideTheSurfaceLimits",
+    "EnteringStartsTheTrackerAndLeavingClearsTheTriggerAndStopsIt",
+    "DebugTextReportsWhetherClimbingCanStart",
+    "UpdateTriggersAndPublishesTheEntryWhenEveryConditionHolds",
+    "UpdateWaitsForTheReAttachCooldown",
+    "UpdateStopsForAnUnclimbableSurfaceADirectionOverrideOrARefusal",
+    "InitialiseBuildsTheTrackerAfterTheBaseAndLooksUpTheTimeManagerLast",
+    "UpdateReadsTheTimestampAndTimeBeforeTheDirectionOverrideAndCanEnter",
+    "AirClimbMeasuresOneAngleAndNormalisesTheInputHeading",
+    "DeclarationShapeEnterClimbingKeepsItsConstraintInterfaceAndLeaves",
+))
+
+# Original detector abilities (gr2-char-moves-03).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterDetectorAbilityTests." + name for name in (
+    "DetectsEveryIntervalAndRestartsTheTimer",
+    "AZeroIntervalNeverDetectsAndNeverMovesTheTimer",
+    "ANegativeOrNaNIntervalDetectsOnEveryUpdate",
+    "DetectorUpdateRunsTheCharacterBaseFirst",
+    "LevelActivationRecordsWhetherTheCharacterIsTheDetectedArchetype",
+    "PublishingWithoutAMessageManagerStillRecordsTheMessage",
+    "ArchetypeMessagesAreSentUnderTheApp",
+    "ArchetypeDetectionIsAnEmptyBody",
+    "ArchetypeEntrySubscribesToLevelActivationAndLeavingWithdraws",
+    "LightspeedMessageStartsAsALightspeedDashWithNoSurface",
+    "TheNearerEndOfTheSplineWithinProximityIsKept",
+    "LightspeedMessageTakesTheCachedLocationEvenWithoutAManager",
+    "LightspeedMessagesAreSentUnderTheCharacter",
+    "DetectionQueriesTheTrackThenTestsTheViewRayThenPublishes",
+    "DeclarationShapeDetectorsKeepTheirBasesFieldsAndLambdaNames",
+))
+
+# Original half pipe air and transfer abilities and the half pipe air state (gr2-char-moves-03).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterHalfPipeAbilityTests." + name for name in (
+    "CachingStoresTheLipAndDividesTheGravityByTheCurrentMotionMultiplier",
+    "GravityIsTheCachedGravityScaledByTheMotionMultiplierOfTheVelocity",
+    "LeavingClearsTheSpeedAndTheHitTimeOnly",
+    "ProjectingWithNothingToHitFailsAndReleasesTheTracingState",
+    "GizmoDrawingFollowsTheBaseResult",
+    "ASuccessfulProjectionSteersTheCachedDirectionAndTheVelocity",
+    "AirTimeGrowsAfterTheBaseUpdate",
+    "AnEntryFacingTheDefaultNormalKeepsTheDefaultMotion",
+    "AFreshEntryPicksTheHighestOverrideTheSpeedHasReached",
+    "AChainedEntryReusesTheNextOverrideWithinItsActivationTime",
+    "AnEntryOnTheExclusionAngleEndsTheChain",
+    "EntryResetsTheAirTimeAndTheLeaveTime",
+    "LeavingRecordsTheLeaveTimeAdvancesTheIndexAndStoresTheNormal",
+    "LeavingWithoutOverridesLeavesTheIndex",
+    "TheFixedUpdateSnapshotCapturesTheLipTheCharacterIsOn",
+    "TheGizmoDrawsOnlyWhileThereIsAProjectedVelocity",
+    "TextsReportTheAirTimeAndTheLeaveTime",
+    "StatesReadTheirAbilityTypesFromTheirJson",
+    "TheTransferAbilityTakesTheLipOfTheCharacter",
+    "ATransferAbilityMissingFromTheCharacterGivesFalse",
+    "StateUpdateFollowsTheNativeOrder",
+    "StateEntryProcessesTheTrajectoryBeforeProjectingTheCharacter",
+    "StateLeaveRemovesTheColliderKeysThenRecordsTheLanding",
+    "GenericHalfPipeStateStoresAndClearsItsGravityDirection",
+    "DeclarationShapeHalfPipeTypesKeepTheirBasesAttributesAndMembers",
+))
+
+# Original controller axis, controller magnitude, burst exit and form transitions (gr2-char-moves-03).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterControllerFormTransitionTests." + name for name in (
+    "BothAxesMustSatisfyTheirComparisons",
+    "TheAbsoluteFlagsApplyToTheirOwnAxis",
+    "TheRawFlagSelectsTheRawControllerMovement",
+    "TheYComparisonIsEvaluatedEvenAfterTheXComparisonFails",
+    "ANaNInputFailsAnOrderedComparison",
+    "MagnitudeIsComparedWithTheSelectedMagnitude",
+    "ANaNMagnitudeFailsOrderedComparisons",
+    "ExitFiresWhenTheBurstTimerHasReachedTheDuration",
+    "TheFormMatchesOrDiffersAccordingToTheInverseFlag",
+    "NodesCarryTheirOriginalGraphAuthoringAttributes",
+    "ClassFactoryRegistersTheNodesWithTheirArgumentTypes",
+    "DeclarationShapeTransitionsKeepTheirFieldsAndArgumentClasses",
+))
+
 # Original deceleration-curve acceleration branch minss operand order.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationKeepsAnUnorderedSum",
