@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
@@ -640,7 +641,8 @@ namespace ProjectLucid.Tests
                 foreach (AnimationCurve curve in curves)
                     foreach (float distance in new[] { -3f, 0f, 0.5f, 1f, 9f })
                         Assert.That(curve.Evaluate(distance), Is.EqualTo(1f), "distance " + distance);
-                Assert.That(curves.Distinct().Count(), Is.EqualTo(3));
+                // AnimationCurve.Equals compares contents, so identity is what makes the curves separate.
+                Assert.That(curves.Select(RuntimeHelpers.GetHashCode).Distinct().Count(), Is.EqualTo(3));
                 Assert.That(Get<CharacterAbilityTypeGroup>(modifier, "m_abilityTypeGroup"), Is.Null);
             });
         }
@@ -746,8 +748,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Negative control for the guard above: with no ability group the same call proceeds to move the
-        // character (0x5cbd5b), which faults in the absent body.
+        // Negative control for the guard above: with no ability group the same call proceeds to the
+        // velocity update, whose first body access is the virtual WorldVelocity getter (vcall slot 14 at
+        // 0x5cbeab, before the SetWorldVelocity vcall at 0x5cbf02); the absent body faults there.
         [Test]
         public void MagnetismStayMovesTheCharacterWhenNoAbilityGroupIsSet()
         {
@@ -758,11 +761,12 @@ namespace ProjectLucid.Tests
                 Set(character, "m_colliderCollision", characterCollider);
                 SetCurrent(manager, character, true);
 
-                // The fault must come from moving the character (Character.SetWorldVelocity writes the
-                // absent body), not from dereferencing the absent ability group in OnTriggerStay.
+                // The fault must come from reading the character's velocity (the getter reaches the absent
+                // body through GetTimeScaledBodyVelocity), not from the absent ability group in OnTriggerStay.
                 Exception fault = Assert.Catch(() => Call(modifier, "OnTriggerStay", characterCollider));
                 Assert.That(fault, Is.InstanceOf<NullReferenceException>());
-                Assert.That(fault.StackTrace, Does.Contain("HardlightProject.Character.SetTimeScaledBodyVelocity"));
+                Assert.That(fault.StackTrace, Does.Contain("HardlightProject.Character.GetTimeScaledBodyVelocity"));
+                Assert.That(fault.StackTrace, Does.Contain("HardlightProject.Character.get_WorldVelocity"));
             });
         }
 
