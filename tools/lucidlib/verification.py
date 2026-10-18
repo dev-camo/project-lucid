@@ -4387,4 +4387,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAudioComponentPlaybackTests.
     "ShuffledLoopFollowsTheIntroSequenceOnlyWhenAskedTo",
     "ShuffledLoopUpdateIsGatedByTheIntroSequence",
     "SystemLookupsFaultOnTheirEmptyRows",
+    "AmbientCooldownIsOrderedAndRepicksOnlyWithAChoice",
+    "ShuffledLoopCooldownIsOrderedAndReshufflesAtLength",
 ))

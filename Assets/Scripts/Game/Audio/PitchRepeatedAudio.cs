@@ -5,7 +5,8 @@ using Unity.IL2CPP.CompilerServices;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x02000839. Each Play steps through the semitone
-    // offsets (two octaves of a major scale by default), wrapping around.
+    // offsets in m_intervals (by default major-scale steps from 0 up to 19),
+    // wrapping around.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class PitchRepeatedAudio : MonoBehaviour

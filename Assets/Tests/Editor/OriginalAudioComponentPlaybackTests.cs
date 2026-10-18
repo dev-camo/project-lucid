@@ -51,6 +51,25 @@ namespace ProjectLucid.Tests
             return Random.state;
         }
 
+        // Runs a case that seeds UnityEngine.Random and checks the generator is
+        // left as the case found it. OwnedAudioServices restores the state it
+        // saw when constructed, so every seed (oracle draws included) is taken
+        // inside its using block.
+        private static void KeepingRandomState(Action body)
+        {
+            Random.State before = Random.state;
+            try
+            {
+                body();
+            }
+            finally
+            {
+                Random.State after = Random.state;
+                Random.state = before;
+                Assert.That(after, Is.EqualTo(before), "UnityEngine.Random.state is put back");
+            }
+        }
+
         // HLAudioSfxBase.PlayOneShotAtSource 0x6ED2E0. With m_useCooldown (+0x24) set,
         // elapsed = unscaledTime - m_lastTriggeredTimeSeconds (+0x2C, subss 0x6ED316) is compared
         // with ucomiss m_cooldownSeconds, elapsed and jae to the return (0x6ED323): the request is
@@ -215,14 +234,14 @@ namespace ProjectLucid.Tests
         // m_randomAudioClipIdentifiers[Random.Range(0, Length)] (0x6ED986). The randomised toggle
         // 0x6EDB60 returns at once for false (test/je 0x6EDB62) and otherwise inlines that pick.
         [Test]
-        public void RandomisedComponentsPickOneIdentifierPerRequest()
+        public void RandomisedComponentsPickOneIdentifierPerRequest() => KeepingRandomState(() =>
         {
             const int seed = 0x5EED;
             string[] names = { "lucid-random-a", "lucid-random-b", "lucid-random-c" };
-            int index = Draw(seed, 3);
-            Random.State afterDraw = AfterIntDraw(seed, 3);
             using (var owned = new OwnedAudioServices())
             {
+                int index = Draw(seed, 3);
+                Random.State afterDraw = AfterIntDraw(seed, 3);
                 owned.RegisterAudioManager();
                 owned.Clip(ClipA, names[0]);
                 owned.Clip(ClipB, names[1]);
@@ -255,7 +274,7 @@ namespace ProjectLucid.Tests
                 toggle.OnValueChanged.Invoke(true);
                 Assert.That(owned.Log.Errors, Is.Empty, "OnDisable removed the listener");
             }
-        }
+        });
 
         // HLAudio3DComponent: Start 0x6688B0 stores GetSystemRef<AudioManager>. PlayOneShotAtSource
         // 0x668930 gets the manager, moves the source through the inlined MoveAudioSource
@@ -412,9 +431,12 @@ namespace ProjectLucid.Tests
         // OnAudioManagerValid 0x6EA890). Action_PlayClip 0x6EA8B0 and PlayClip 0x6EA960 both call
         // PlayClipAtSource(m_clipID, m_sourceID, false, transition) with a Nullable built from
         // m_audioSourceTransition (+0x2C) only when m_useCustomTransition (+0x28) is set and null
-        // otherwise (xor r8d 0x6EA942). The handler fades on (transition ?? source) == Fade, so an
-        // explicit None over a fading source and an ignored Fade over a plain source both swap at
-        // once; startAtRandomTime false leaves Random alone.
+        // otherwise (xor r8d 0x6EA942). The handler fades on (transition ?? source) == Fade, so the
+        // four rows separate a null from an explicit None (flag clear over a fading source still
+        // fades) and from an always-passed field (flag clear over a plain source swaps at once).
+        // A fade starts through CoroutineUtils.RunCoroutine, which the leased inactive host
+        // refuses, so a fading row leaves the clip unassigned; startAtRandomTime false leaves
+        // Random alone.
         [Test]
         public void ChangeMusicUsesItsTransitionOnlyWhenTheCustomFlagIsSet()
         {
@@ -426,6 +448,7 @@ namespace ProjectLucid.Tests
                 AudioClip clip = owned.Clip(ClipA, "lucid-music");
                 AudioManager audio = owned.RegisterAudioManager();
                 Assert.That(Get(music, "m_audioManager"), Is.SameAs(audio));
+                owned.RefusingCoroutineHost();
 
                 AudioSource plain = owned.AddSource(HLAudioSourceIdentifier.Background, HLAudioSourceTransition.None);
                 AudioSource fading = owned.AddSource(HLAudioSourceIdentifier.Jukebox, HLAudioSourceTransition.Fade);
@@ -433,18 +456,33 @@ namespace ProjectLucid.Tests
                 Random.InitState(3);
                 Random.State seeded = Random.state;
 
-                Set(music, "m_sourceID", HLAudioSourceIdentifier.Background);
-                Set(music, "m_useCustomTransition", false);
-                Set(music, "m_audioSourceTransition", HLAudioSourceTransition.Fade);
-                music.Action_PlayClip();
-                Assert.That(plain.clip, Is.SameAs(clip), "the unused Fade is ignored");
+                var rows = new (HLAudioSourceIdentifier source, bool custom, HLAudioSourceTransition transition, bool fades)[]
+                {
+                    (HLAudioSourceIdentifier.Background, false, HLAudioSourceTransition.Fade, false),
+                    (HLAudioSourceIdentifier.Jukebox, false, HLAudioSourceTransition.None, true),
+                    (HLAudioSourceIdentifier.Jukebox, true, HLAudioSourceTransition.None, false),
+                    (HLAudioSourceIdentifier.Background, true, HLAudioSourceTransition.Fade, true),
+                };
+                var plays = new (string name, Action play)[]
+                {
+                    ("Action_PlayClip", music.Action_PlayClip),
+                    ("PlayClip", () => Call(typeof(HLAudioChangeMusic), music, "PlayClip")),
+                };
+                foreach (var play in plays)
+                foreach (var row in rows)
+                {
+                    string label = play.name + " " + row.source + " custom=" + row.custom + " " + row.transition;
+                    AudioSource target = row.source == HLAudioSourceIdentifier.Background ? plain : fading;
+                    plain.clip = null;
+                    fading.clip = null;
+                    Set(music, "m_sourceID", row.source);
+                    Set(music, "m_useCustomTransition", row.custom);
+                    Set(music, "m_audioSourceTransition", row.transition);
+                    if (row.fades) LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                    play.play();
+                    Assert.That(target.clip, row.fades ? Is.Null : Is.SameAs(clip), label);
+                }
                 Assert.That(owned.Source(HLAudioSourceIdentifier.Background).CurrentAudio, Is.EqualTo(ClipA));
-
-                Set(music, "m_sourceID", HLAudioSourceIdentifier.Jukebox);
-                Set(music, "m_useCustomTransition", true);
-                Set(music, "m_audioSourceTransition", HLAudioSourceTransition.None);
-                Call(typeof(HLAudioChangeMusic), music, "PlayClip");
-                Assert.That(fading.clip, Is.SameAs(clip), "the explicit None replaces the source Fade");
                 Assert.That(owned.Source(HLAudioSourceIdentifier.Jukebox).CurrentAudio, Is.EqualTo(ClipA));
                 Assert.That(Random.state, Is.EqualTo(seeded));
                 Assert.That(owned.Log.Errors, Is.Empty);
@@ -520,13 +558,13 @@ namespace ProjectLucid.Tests
         // ArgumentOutOfRangeException (0x6EC434). The loaded clips here are null, so each
         // AudioSource.PlayOneShot is counted by its null-clip warning.
         [Test]
-        public void OneShotOnSourcePlaysEveryOrOneLoadedClip()
+        public void OneShotOnSourcePlaysEveryOrOneLoadedClip() => KeepingRandomState(() =>
         {
             const int seed = 0x0A0;
-            Random.State afterDraw = AfterIntDraw(seed, 3);
             using (var owned = new OwnedAudioServices())
             using (var log = new UnityLogCounter())
             {
+                Random.State afterDraw = AfterIntDraw(seed, 3);
                 owned.RegisterAudioManager();
                 HLAudioOneShotOnSource oneShot = owned.Add<HLAudioOneShotOnSource>();
                 Set(oneShot, "m_audioSource", oneShot.gameObject.AddComponent<AudioSource>());
@@ -553,7 +591,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get(oneShot, "m_waitForLoadRoutine"), Is.Null);
                 Assert.That(owned.Log.Errors, Is.Empty);
             }
-        }
+        });
 
         // With clips still missing, PlayOneShots loads (only when m_preloadAudio is clear,
         // 0x6EC24D) and then starts <WaitForClipsToLoadThenPlay>d__12 (StartCoroutine 0x6EC2B7),
@@ -599,13 +637,13 @@ namespace ProjectLucid.Tests
         // identifier (Random.Range 0x6ED224) before Get (0x6ED23E) and loads it with
         // <OnEnable>b__3_0 0x6ED2A0, which sets loop, then clip, then plays.
         [Test]
-        public void RandomLoopPicksBeforeGettingTheManagerAndLoopsTheClip()
+        public void RandomLoopPicksBeforeGettingTheManagerAndLoopsTheClip() => KeepingRandomState(() =>
         {
             const int seed = 0x1007;
-            int index = Draw(seed, 3);
-            Random.State afterDraw = AfterIntDraw(seed, 3);
             using (var owned = new OwnedAudioServices())
             {
+                int index = Draw(seed, 3);
+                Random.State afterDraw = AfterIntDraw(seed, 3);
                 HLAudioRandomLoop early = owned.Add<HLAudioRandomLoop>();
                 Set(early, "m_randomAudioClipIdentifiers", new[] { ClipA, ClipB, ClipC });
                 Random.InitState(seed);
@@ -625,16 +663,22 @@ namespace ProjectLucid.Tests
                 Assert.That(source.clip, Is.SameAs(clips[index]));
                 Assert.That(Get(loop, "m_audioManagerRef"), Is.SameAs(owned.TypedReferences<AudioManager>()[typeof(AudioManager).ToString()]));
             }
-        }
+        });
 
         // PitchRepeatedAudio.Play 0x608720: pitch = exp2f(m_intervals[m_counter % Count] / 12.0)
         // (idiv 0x60875A, divss by 12.0 at 0x29A7AA4, exp2f 0x60877D), then PlayOneShot(clip, 1.0)
         // (0x60879E) and m_counter++ (0x6087A3); ResetCounter 0x6087B0 zeroes the counter. The
-        // offsets are the twelve the constructor 0x6087C0 adds.
+        // offsets are the twelve float bit patterns the constructor 0x6087C0 stores into its list
+        // (0x608857, 0x6088AF, 0x60890B, ... 0x608C3D).
         [Test]
         public void PitchStepsThroughTheOffsetsAndWraps()
         {
-            float[] offsets = { 0f, 2f, 4f, 5f, 7f, 9f, 11f, 12f, 14f, 16f, 17f, 19f };
+            int[] storedBits =
+            {
+                0x00000000, 0x40000000, 0x40800000, 0x40A00000, 0x40E00000, 0x41100000,
+                0x41300000, 0x41400000, 0x41600000, 0x41800000, 0x41880000, 0x41980000,
+            };
+            float[] offsets = Array.ConvertAll(storedBits, BitConverter.Int32BitsToSingle);
             using (var owned = new OwnedAudioServices())
             using (var log = new UnityLogCounter())
             {
@@ -753,16 +797,16 @@ namespace ProjectLucid.Tests
         // clear and set m_levelIntroSequenceHasPlayed; OnDestroy 0x6ECA80 removes them only while
         // the reference is valid; OnValidate 0x6ECA60 recaches the range.
         [Test]
-        public void ShuffledLoopFollowsTheIntroSequenceOnlyWhenAskedTo()
+        public void ShuffledLoopFollowsTheIntroSequenceOnlyWhenAskedTo() => KeepingRandomState(() =>
         {
             const int seed = 0x5AF;
             HLAudioClipIdentifier[] ids = { ClipA, ClipB, ClipC, Unknown };
-            var shuffled = new List<HLAudioClipIdentifier>(ids);
-            Random.InitState(seed);
-            shuffled.Shuffle();
-            Random.State afterShuffle = Random.state;
             using (var owned = new OwnedAudioServices())
             {
+                var shuffled = new List<HLAudioClipIdentifier>(ids);
+                Random.InitState(seed);
+                shuffled.Shuffle();
+                Random.State afterShuffle = Random.state;
                 owned.ReadRow<TimeManager>();
                 owned.ReadRow<CharacterManager>();
                 owned.ReadRow<MissionManager>();
@@ -803,7 +847,7 @@ namespace ProjectLucid.Tests
                 Assert.That(level.OnIntroSequenceComplete, Is.Null);
                 Assert.DoesNotThrow(() => Call(typeof(HLAudioOneShotShuffledLoop), free, "OnDestroy"));
             }
-        }
+        });
 
         // Update 0x6ECC20 returns while m_disableDuringIntroSequence (+0x3C) is set and the intro
         // has not played (+0x70, je 0x6ECC36); every other row reaches the inlined
@@ -864,5 +908,158 @@ namespace ProjectLucid.Tests
                 Assert.That(character.Message, Is.EqualTo("System 'HardlightProject.CharacterManager' is null"));
             }
         }
+
+        // Cooldown rows shared by both TryPlayOneShot bodies. Each adds the PlayerMovement delta
+        // (finite and non-negative) to the timer and returns only when cooldown > timer, ordered
+        // (ucomiss cooldown, timer, then jbe to the play at 0x6EBF92 and ja to the return at
+        // 0x6ECE6C). Infinite and NaN operands make the timer exact whatever the delta is:
+        // +inf against +inf plays (a <= return would not), a NaN timer or cooldown plays (a
+        // !(timer >= cooldown) return would not).
+        private static readonly (float timer, float cooldown, bool plays)[] CooldownRows =
+        {
+            (0f, float.PositiveInfinity, false),
+            (float.PositiveInfinity, float.PositiveInfinity, true),
+            (float.NaN, 0f, true),
+            (0f, float.NaN, true),
+            (0f, float.NegativeInfinity, true),
+        };
+
+        // HLAudioOneShotAmbient.TryPlayOneShot 0x6EBF60 over a PlayerMovement TimeManager. A play
+        // zeroes the timer (0x6EBF9E) and draws the cooldown Random.Range(min, max) (0x6EBFB1);
+        // with pan and volume off no other float is drawn. The pick loop 0x6EC020..0x6EC039 draws
+        // Random.Range(0, Length) and draws again only while the pick equals m_lastPlayed (+0x60)
+        // and Length > 1, then stores it. With no source identifiers the request plays nowhere.
+        [Test]
+        public void AmbientCooldownIsOrderedAndRepicksOnlyWithAChoice() => KeepingRandomState(() =>
+        {
+            const int seed = 0xA3B;
+            using (var owned = new OwnedAudioServices())
+            {
+                AudioManager audio = owned.RegisterAudioManager();
+                HLAudioOneShotAmbient ambient = owned.Add<HLAudioOneShotAmbient>();
+                Set(ambient, "m_audioManager", audio);
+                Set(ambient, "m_timeManager", owned.PlayerMovementTime());
+                Set(ambient, "m_audioSourceIdentifiers", new HLAudioSourceIdentifier[0]);
+                Set(ambient, "m_randomPan", false);
+                Set(ambient, "m_randomVolume", false);
+                Set(ambient, "m_minWaitNewSound", 2f);
+                Set(ambient, "m_maxWaitNewSound", 2f);
+                Set(ambient, "m_oneShotIds", new[] { ClipA });
+
+                Random.InitState(seed);
+                Random.Range(2f, 2f);
+                Random.Range(0, 1);
+                Random.State afterSinglePick = Random.state;
+                foreach (var row in CooldownRows)
+                {
+                    string label = row.timer + " against " + row.cooldown;
+                    Set(ambient, "m_timeSinceLastPlay", row.timer);
+                    Set(ambient, "m_randomCooldown", row.cooldown);
+                    Set(ambient, "m_lastPlayed", 0);
+                    Random.InitState(seed);
+                    Random.State seeded = Random.state;
+                    Call(typeof(HLAudioOneShotAmbient), ambient, "TryPlayOneShot");
+                    if (!row.plays)
+                    {
+                        Assert.That(Get(ambient, "m_randomCooldown"), Is.EqualTo(float.PositiveInfinity), label);
+                        Assert.That(Random.state, Is.EqualTo(seeded), label + " draws nothing");
+                        continue;
+                    }
+                    Assert.That(Get(ambient, "m_timeSinceLastPlay"), Is.EqualTo(0f), label);
+                    Assert.That(Get(ambient, "m_randomCooldown"), Is.EqualTo(2f), label);
+                    // One clip: the pick equals m_lastPlayed, but Length 1 ends the loop.
+                    Assert.That(Random.state, Is.EqualTo(afterSinglePick), label + " picks once");
+                    Assert.That(Get(ambient, "m_lastPlayed"), Is.EqualTo(0), label);
+                }
+
+                Set(ambient, "m_oneShotIds", new[] { ClipA, ClipB, ClipC });
+                Random.InitState(seed);
+                Random.Range(2f, 2f);
+                var picks = new List<int>();
+                for (int i = 0; i < 32; i++) picks.Add(Random.Range(0, 3));
+                int repeated = picks[0];
+                int differing = picks.FindIndex(pick => pick != repeated);
+                Assert.That(differing, Is.GreaterThan(0), "the seed yields a differing pick");
+                foreach (var start in new[] { (last: repeated, draws: differing + 1, picked: picks[differing]), (last: (repeated + 1) % 3, draws: 1, picked: repeated) })
+                {
+                    Random.InitState(seed);
+                    Random.Range(2f, 2f);
+                    for (int i = 0; i < start.draws; i++) Random.Range(0, 3);
+                    Random.State expected = Random.state;
+                    Set(ambient, "m_timeSinceLastPlay", 0f);
+                    Set(ambient, "m_randomCooldown", float.NegativeInfinity);
+                    Set(ambient, "m_lastPlayed", start.last);
+                    Random.InitState(seed);
+                    Call(typeof(HLAudioOneShotAmbient), ambient, "TryPlayOneShot");
+                    Assert.That(Get(ambient, "m_lastPlayed"), Is.EqualTo(start.picked), "last " + start.last);
+                    Assert.That(Random.state, Is.EqualTo(expected), start.draws + " picks after last " + start.last);
+                }
+                Assert.That(owned.Log.Errors, Is.Empty);
+            }
+        });
+
+        // HLAudioOneShotShuffledLoop.TryPlayOneShot 0x6ECDD0 over a PlayerMovement TimeManager.
+        // After the cooldown gate it reshuffles in place and restarts at 0 only when
+        // m_lastPlayedIndex (+0x68) equals Length (cmp/jne 0x6ECE79, Shuffle 0x6ECE8F), zeroes the
+        // timer, draws the cooldown (0x6ECEA7), requests m_oneShotIds[m_lastPlayedIndex] with
+        // OnGetClip (GetClip 0x6ECF08) and increments the index (0x6ECF0D). The identifiers are
+        // undeclared, so each request plays a null clip and is counted by its warning.
+        // CharacterInRange (setae over ucomiss rangeSq, distanceSq at 0x6ECDB9) is not run here:
+        // it needs a current Character.
+        [Test]
+        public void ShuffledLoopCooldownIsOrderedAndReshufflesAtLength() => KeepingRandomState(() =>
+        {
+            const int seed = 0x5B1;
+            using (var owned = new OwnedAudioServices())
+            using (var log = new UnityLogCounter())
+            {
+                owned.ReadRow<TimeManager>();
+                owned.ReadRow<CharacterManager>();
+                owned.ReadRow<LevelManager>();
+                owned.RegisterAudioManager();
+                HLAudioOneShotShuffledLoop loop = owned.Add<HLAudioOneShotShuffledLoop>();
+                Set(loop, "m_timeManagerRef", new SystemRef<TimeManager>(ProcessManager.GetDefaultName<TimeManager>(), owned.PlayerMovementTime()));
+                Set(loop, "m_audioSource", owned.Add<AudioSource>(loop.gameObject));
+                Set(loop, "m_minWaitNewSound", 2f);
+                Set(loop, "m_maxWaitNewSound", 2f);
+                HLAudioClipIdentifier[] order = { ClipA, ClipB, ClipC };
+                Set(loop, "m_oneShotIds", order);
+
+                foreach (var row in CooldownRows)
+                {
+                    string label = row.timer + " against " + row.cooldown;
+                    log.Lines.Clear();
+                    Set(loop, "m_timeSinceLastPlay", row.timer);
+                    Set(loop, "m_randomCooldown", row.cooldown);
+                    Set(loop, "m_lastPlayedIndex", 0);
+                    Call(typeof(HLAudioOneShotShuffledLoop), loop, "TryPlayOneShot");
+                    Assert.That(Get(loop, "m_lastPlayedIndex"), Is.EqualTo(row.plays ? 1 : 0), label);
+                    Assert.That(log.Count(LogType.Warning, UnityLogCounter.NullOneShot), Is.EqualTo(row.plays ? 1 : 0), label);
+                    Assert.That(Get(loop, "m_randomCooldown"), Is.EqualTo(row.plays ? 2f : float.PositiveInfinity), label);
+                    if (row.plays) Assert.That(Get(loop, "m_timeSinceLastPlay"), Is.EqualTo(0f), label);
+                }
+
+                foreach (int index in new[] { order.Length - 1, order.Length })
+                {
+                    bool reshuffles = index == order.Length;
+                    var expectedOrder = new List<HLAudioClipIdentifier>(order);
+                    Random.InitState(seed);
+                    if (reshuffles) expectedOrder.Shuffle();
+                    Random.Range(2f, 2f);
+                    Random.State expected = Random.state;
+                    log.Lines.Clear();
+                    Set(loop, "m_timeSinceLastPlay", 0f);
+                    Set(loop, "m_randomCooldown", float.NegativeInfinity);
+                    Set(loop, "m_lastPlayedIndex", index);
+                    Random.InitState(seed);
+                    Call(typeof(HLAudioOneShotShuffledLoop), loop, "TryPlayOneShot");
+                    Assert.That(Get(loop, "m_oneShotIds"), Is.SameAs(order), "index " + index);
+                    Assert.That(order, Is.EqualTo(expectedOrder.ToArray()), "index " + index);
+                    Assert.That(Random.state, Is.EqualTo(expected), "index " + index);
+                    Assert.That(Get(loop, "m_lastPlayedIndex"), Is.EqualTo(reshuffles ? 1 : index + 1), "index " + index);
+                    Assert.That(log.Count(LogType.Warning, UnityLogCounter.NullOneShot), Is.EqualTo(1), "index " + index);
+                }
+            }
+        });
     }
 }

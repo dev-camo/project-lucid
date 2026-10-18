@@ -45,9 +45,10 @@ namespace HardlightProject
             TryPlayOneShot();
         }
 
-        // Each call advances the timer by the PlayerMovement delta; once the
-        // cooldown has elapsed a clip other than the last one (when there is a
-        // choice) goes to the first free background one-shot source.
+        // Each call advances the timer by the PlayerMovement delta. Unless the
+        // timer is below the cooldown (an ordered compare, so NaN plays), a clip
+        // other than the last one (when there is a choice) is requested at the
+        // first of m_audioSourceIdentifiers not playing a one-shot.
         private void TryPlayOneShot()
         {
             m_timeSinceLastPlay += m_timeManager.GetDeltaTime(TimeCategory.PlayerMovement);

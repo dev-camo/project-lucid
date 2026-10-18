@@ -3,7 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using System.Runtime.Serialization;
 using Hardlight;
+using Hardlight.Utils;
 using HardlightProject;
 using UnityEngine;
 using UnityEngine.ResourceManagement;
@@ -18,12 +20,19 @@ namespace ProjectLucid.Tests
     // exists: AudioManager (and any row a case registers into) is acquired
     // absent and removed, rows only read are borrowed idle or owned through
     // LifecycleRow. The AudioManager is the real class, inactive so Awake never
-    // runs, with a real HLAudioSourceHandler and HLAudioClipHandler. Clips the
-    // case declares are completed handles from an owned ResourceManager, so
-    // GetClip answers synchronously; any other identifier misses an empty
-    // DataManager table and answers with a null clip. HLOutput errors are read
-    // through OwnedCoreErrorLog, the audio enum-string tables are leased, and
-    // UnityEngine.Random.state is put back.
+    // runs; its two handler fields are written by reflection and it is
+    // registered directly. That skips what DataManagerValid does in the
+    // original: no AudioManager_ManagedObjects parent, no HLAudioMixerHandler
+    // (m_audioMixerHandler stays null, so GetMixer and ApplyAudioSettings would
+    // fault on fixture state), no LoadAudioSource of the UI, UI background and
+    // jukebox sources, and no Shutdown subscription. The components under test
+    // reach none of those. Clips the case declares are completed handles from
+    // an owned ResourceManager, so GetClip answers synchronously; any other
+    // identifier misses an empty DataManager table and answers with a null
+    // clip. HLOutput errors are read through OwnedCoreErrorLog, the audio
+    // enum-string tables are leased, and UnityEngine.Random.state is put back
+    // to what it was when the services were constructed, so a case seeds the
+    // generator only after constructing them.
     internal sealed class OwnedAudioServices : IDisposable
     {
         internal const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -144,6 +153,55 @@ namespace ProjectLucid.Tests
         }
 
         public void Own(Object value) => m_objects.Add(value);
+
+        // A TimeManager whose PlayerMovement timescale is 1, so GetDeltaTime is
+        // Time.deltaTime. It is uninitialised (no Awake or Reset, which need
+        // the shared TimeCategoryConfiguration) and never registered; the
+        // TimeExtensions category lookup it is read through is leased.
+        public TimeManager PlayerMovementTime()
+        {
+            FieldInfo lookupField = typeof(TimeExtensions).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+            m_releases.Add(new StaticFieldLease(lookupField));
+            var category = ScriptableObject.CreateInstance<TimeCategoryObject>();
+            Own(category);
+            Set(category, "m_guid", "lucid-audio-player-movement");
+            var lookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
+            Own(lookup);
+            lookup.Dictionary.Add(TimeCategory.PlayerMovement, category);
+            lookupField.SetValue(null, lookup);
+            var setting = new TimeSetting();
+            setting.SetCategory(category, 1f);
+            var settings = new StackableData();
+            settings.SetBaseValue((int)typeof(TimeManager).GetField("SettingId", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue(), setting);
+            var manager = (TimeManager)FormatterServices.GetUninitializedObject(typeof(TimeManager));
+            Set(manager, "m_timeSettings", settings);
+            return manager;
+        }
+
+        // Leases CoroutineUtils.s_instance to an inactive host, so a
+        // RunCoroutine is refused with "Coroutine couldn't be started" instead
+        // of running. The host never wakes, so it neither registers nor
+        // unregisters a CoroutineUtils row.
+        public void RefusingCoroutineHost()
+        {
+            FieldInfo instance = typeof(CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
+            m_releases.Add(new StaticFieldLease(instance));
+            instance.SetValue(null, Add<CoroutineUtils>());
+        }
+
+        private sealed class StaticFieldLease : IDisposable
+        {
+            private readonly FieldInfo m_field;
+            private readonly object m_value;
+
+            public StaticFieldLease(FieldInfo field)
+            {
+                m_field = field;
+                m_value = field.GetValue(null);
+            }
+
+            public void Dispose() => m_field.SetValue(null, m_value);
+        }
 
         public void Dispose()
         {

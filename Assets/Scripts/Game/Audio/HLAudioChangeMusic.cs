@@ -5,8 +5,8 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x020001a8. Action_PlayClip and PlayClip have
-    // identical bodies in the original.
+    // Original Game.Runtime 0x020001a8. Action_PlayClip and PlayClip compile
+    // to the same body.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class HLAudioChangeMusic : MonoBehaviour
@@ -36,8 +36,7 @@ namespace HardlightProject
 
         public void Action_PlayClip()
         {
-            m_audioManager.PlayClipAtSource(m_clipID, m_sourceID, false,
-                m_useCustomTransition ? m_audioSourceTransition : (HLAudioSourceTransition?)null);
+            PlayClip();
         }
 
         protected void PlayClip()
