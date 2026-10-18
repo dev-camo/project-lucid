@@ -17,8 +17,11 @@ namespace ProjectLucid.Tests
     // InputEvent (020006a5), InputEventSelectedOnly (020006a6), RawInput (020006b3) and
     // GameInputDisabledListener (020006a1), against their 1.10.1 x86-64 bodies. Components sit
     // on inactive owned GameObjects; registered systems are owned and released by the scope.
-    // Not covered here: InputEventSelectedOnly's selection comparison (0x589D02..0x589D7F, needs a
-    // UINavigationManager) and RawInput.Update (0x58C380 reads the engine's Input.anyKeyDown).
+    // Not covered here: InputEventSelectedOnly past a live navigation reference, that is the
+    // GetCurrentlySelected null and gameObject comparisons and the forward to InputEvent.OnInput
+    // (0x589D02..0x589D95); a UINavigationManager is built only by its constructor, which needs
+    // SystemConfiguration, UIRuntimeConfiguration and InputBridge state. RawInput.Update
+    // (0x58C380) reads the engine's Input.anyKeyDown.
     [TestFixture]
     public sealed class OriginalInputEventTests
     {
@@ -257,9 +260,9 @@ namespace ProjectLucid.Tests
         [Test]
         public void InputEventDefersToTheNextFrameWhenNotImmediate()
         {
-            GameInputScope.RequireNoCoroutineHost();
             GameInputScope.Run(scope =>
             {
+                scope.WithoutCoroutineHost();
                 scope.Row<AudioManager>();
                 RegisterUIManager(scope);
                 var log = new List<string>();
@@ -361,11 +364,11 @@ namespace ProjectLucid.Tests
             Methods(type, ("OnInput", 0xc4), (".ctor", 0x1886));
         }
 
-        // OnInput 0x589C60 returns for a non-null m_interactable (+0x58) whose virtual Interactable
-        // is false, and while the UINavigationManager reference IsNull, before InputEvent.OnInput;
-        // the plain InputEvent on the same setup fires as the control.
+        // OnInput 0x589C60 returns while the UINavigationManager reference IsNull (0x589CF9), before
+        // InputEvent.OnInput, whatever m_interactable holds; the plain InputEvent on the same setup
+        // fires as the control.
         [Test]
-        public void SelectedOnlyRefusesWhenNotInteractableOrWithoutNavigation()
+        public void SelectedOnlyRefusesWithoutNavigation()
         {
             GameInputScope.Run(scope =>
             {
@@ -385,14 +388,50 @@ namespace ProjectLucid.Tests
 
                 var toggle = scope.Inactive("Lucid owned interactable", typeof(RectTransform)).AddComponent<UIToggle>();
                 ModernUITestSupport.Set(selectedOnly, "m_interactable", toggle);
-                ModernUITestSupport.Set(toggle, "m_interactable", false);
-                OnInput(selectedOnly, 1f);
                 ModernUITestSupport.Set(toggle, "m_interactable", true);
                 OnInput(selectedOnly, 1f);
                 ModernUITestSupport.Set(selectedOnly, "m_interactable", null);
                 OnInput(selectedOnly, 1f);
                 Assert.That(log, Is.EqualTo(new[] { "event" }));
                 Assert.That(manager.Calls, Is.Empty);
+            });
+        }
+
+        // 0x589CC6 op_Inequality(m_interactable (+0x58), null) and, when it holds, the virtual
+        // Interactable (0x589CDD; je 0x589D81 returns on false) run before the navigation reference
+        // (+0x60) is read at 0x589CEB. With that reference cleared, reaching it faults, so the
+        // fault marks the cases that pass the interactable guard: a non-interactable component stops
+        // first; an interactable one, none, or a destroyed one (Unity null) goes on.
+        [Test]
+        public void SelectedOnlyChecksTheInteractableBeforeNavigation()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<AudioManager>();
+                scope.Row<UINavigationManager>();
+                var log = new List<string>();
+                var selectedOnly = Event<InputEventSelectedOnly>(scope, log);
+                ModernUITestSupport.Set(selectedOnly, "m_navigationManagerRef", null);
+                var toggle = scope.Inactive("Lucid owned interactable", typeof(RectTransform)).AddComponent<UIToggle>();
+                ModernUITestSupport.Set(selectedOnly, "m_interactable", toggle);
+
+                ModernUITestSupport.Set(toggle, "m_interactable", false);
+                Assert.That(toggle.Interactable, Is.False);
+                Assert.DoesNotThrow(() => OnInput(selectedOnly, 1f), "not interactable");
+
+                ModernUITestSupport.Set(toggle, "m_interactable", true);
+                Assert.That(toggle.Interactable, Is.True);
+                Assert.Throws<NullReferenceException>(() => OnInput(selectedOnly, 1f), "interactable");
+
+                ModernUITestSupport.Set(selectedOnly, "m_interactable", null);
+                Assert.Throws<NullReferenceException>(() => OnInput(selectedOnly, 1f), "no interactable");
+
+                var destroyed = scope.Inactive("Lucid owned destroyed interactable", typeof(RectTransform)).AddComponent<UIToggle>();
+                ModernUITestSupport.Set(destroyed, "m_interactable", false);
+                ModernUITestSupport.Set(selectedOnly, "m_interactable", destroyed);
+                UnityEngine.Object.DestroyImmediate(destroyed);
+                Assert.Throws<NullReferenceException>(() => OnInput(selectedOnly, 1f), "a destroyed interactable is Unity null");
+                Assert.That(log, Is.Empty);
             });
         }
 

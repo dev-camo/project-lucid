@@ -4450,7 +4450,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalInputEventTests." + name for
     "InvokeEventPlaysOnlyWithAClipASourceAndAManager",
     "InputEventPublishesTheUIEventUnderOnClick",
     "SelectedOnlyDeclarationsKeepOriginalFlagsAndAttributeRows",
-    "SelectedOnlyRefusesWhenNotInteractableOrWithoutNavigation",
+    "SelectedOnlyRefusesWithoutNavigation",
+    "SelectedOnlyChecksTheInteractableBeforeNavigation",
     "RawInputDeclarationsKeepOriginalFlags",
     "RawInputFiresOnceForNonZeroInputButFireAlwaysInvokes",
     "RawInputListensForSkipTheSplashPresses",
@@ -4471,4 +4472,5 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameButtonClickTests." + nam
     "ActionButtonConstructorSeedsTheLockTimeAndThreeBindables",
     "ActionButtonEnableCopiesTheSerializedValuesUnlessOverridden",
     "ActionButtonSettersStoreValuesAndNoneRestoresTheSerializedCombo",
+    "ActionButtonSetActionKeepsALiveCoroutine",
 ))

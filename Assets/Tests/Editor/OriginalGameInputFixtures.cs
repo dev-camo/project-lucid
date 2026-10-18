@@ -95,6 +95,8 @@ namespace ProjectLucid.Tests
             typeof(Hardlight.Utils.CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
 
         private readonly List<Action> m_release = new List<Action>();
+        private readonly Dictionary<string, VerificationFixtureOwnership.LifecycleRow> m_rows =
+            new Dictionary<string, VerificationFixtureOwnership.LifecycleRow>();
 
         public static void Run(Action<GameInputScope> body)
         {
@@ -116,10 +118,14 @@ namespace ProjectLucid.Tests
 
         public void Defer(Action release) => m_release.Add(release);
 
-        // An absent or idle registry row for T; rows the proof creates are removed once idle.
+        // An absent or idle registry row for T, admitted once per scope; rows the proof
+        // creates are removed once idle.
         public VerificationFixtureOwnership.LifecycleRow Row<T>() where T : class, ISystem
         {
-            var row = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<T>());
+            string name = ProcessManager.GetDefaultName<T>();
+            if (m_rows.TryGetValue(name, out VerificationFixtureOwnership.LifecycleRow admitted)) return admitted;
+            var row = new VerificationFixtureOwnership.LifecycleRow(name);
+            m_rows.Add(name, row);
             Defer(row.Dispose);
             return row;
         }
@@ -139,17 +145,24 @@ namespace ProjectLucid.Tests
             return value;
         }
 
+        // Registers an owned system under its default name, only into a row this scope admitted
+        // that still holds no system; it is unregistered before the row is released.
         public void Register(ISystem system)
         {
+            string name = ProcessManager.GetDefaultName(system);
+            if (!m_rows.ContainsKey(name))
+                throw new InvalidOperationException("Fixture registers only into a row it admitted: " + name);
+            if (!ProcessManager.IsSystemNull(name))
+                throw new InvalidOperationException("Fixture row already holds a system: " + name);
             ProcessManager.RegisterSystem(system);
             Defer(() => ProcessManager.UnregisterSystem(system));
         }
 
         // An InputSystem on an inactive owner (its Awake never runs) holding an owned mapping,
-        // registered in its admitted row (or one the scope already admitted).
-        public ControlMapping RegisterInputSystem(bool admitRow = true)
+        // registered in the scope's InputSystem row.
+        public ControlMapping RegisterInputSystem()
         {
-            if (admitRow) Row<InputSystem>();
+            Row<InputSystem>();
             InputSystem system = Inactive("Lucid owned input system").AddComponent<InputSystem>();
             ControlMapping mapping = Own(ScriptableObject.CreateInstance<ControlMapping>());
             ModernUITestSupport.Set(system, "m_controlMapping", mapping);
@@ -158,9 +171,19 @@ namespace ProjectLucid.Tests
         }
 
         // CoroutineUtils.OnNextFrame (0x06001175) dereferences the static host without a guard.
-        public static void RequireNoCoroutineHost()
+        // The host is leased as absent for the rest of the scope: CoroutineUtils.Awake publishes
+        // s_instance and nothing clears it, so an earlier host would otherwise decide the result.
+        // Release restores the prior value, and reports a host published while the scope ran.
+        public void WithoutCoroutineHost()
         {
-            if (CoroutineHost.GetValue(null) != null) throw new InvalidOperationException("Fixture requires no live CoroutineUtils host");
+            object prior = CoroutineHost.GetValue(null);
+            CoroutineHost.SetValue(null, null);
+            Defer(() =>
+            {
+                object current = CoroutineHost.GetValue(null);
+                CoroutineHost.SetValue(null, prior);
+                if (current != null) throw new InvalidOperationException("A CoroutineUtils host was published during the fixture");
+            });
         }
     }
 
@@ -169,11 +192,6 @@ namespace ProjectLucid.Tests
     // removes every key added for them and checks the other keys are untouched.
     internal sealed class ControlTableLease
     {
-        private static readonly string[] Maps =
-        {
-            "s_onButtonsHeld", "s_onButtonsDown", "s_onButtonsUp", "s_onAxis", "s_onAxisStart", "s_onAxisEnd", "s_onSwipe", "s_onScrollWheel",
-        };
-
         private readonly GameInput[] m_owned;
         private readonly int[] m_counts;
 
@@ -186,26 +204,24 @@ namespace ProjectLucid.Tests
         private ControlTableLease(GameInput[] owned)
         {
             m_owned = owned;
-            m_counts = new int[Maps.Length];
-            for (int i = 0; i < Maps.Length; ++i)
+            m_counts = new int[ControlTables.All.Length];
+            for (int i = 0; i < ControlTables.All.Length; ++i)
             {
-                IDictionary map = OwnedControlInputs.Map(Maps[i]);
-                if (map.Keys.Cast<object>().Any(key => m_owned.Contains(KeyInput(key))))
-                    throw new InvalidOperationException("Fixture input already has a shared key: " + Maps[i]);
+                IDictionary map = OwnedControlInputs.Map(ControlTables.All[i]);
+                if (map.Keys.Cast<object>().Any(key => m_owned.Contains(ControlTables.KeyInput(key))))
+                    throw new InvalidOperationException("Fixture input already has a shared key: " + ControlTables.All[i]);
                 m_counts[i] = map.Count;
             }
         }
 
-        private static GameInput KeyInput(object key) => (GameInput)key.GetType().GetField("GameInput").GetValue(key);
-
         private void Release()
         {
             var changed = new List<string>();
-            for (int i = 0; i < Maps.Length; ++i)
+            for (int i = 0; i < ControlTables.All.Length; ++i)
             {
-                IDictionary map = OwnedControlInputs.Map(Maps[i]);
-                foreach (object key in map.Keys.Cast<object>().Where(key => m_owned.Contains(KeyInput(key))).ToArray()) map.Remove(key);
-                if (map.Count != m_counts[i]) changed.Add(Maps[i]);
+                IDictionary map = OwnedControlInputs.Map(ControlTables.All[i]);
+                foreach (object key in map.Keys.Cast<object>().Where(key => m_owned.Contains(ControlTables.KeyInput(key))).ToArray()) map.Remove(key);
+                if (map.Count != m_counts[i]) changed.Add(ControlTables.All[i]);
             }
             if (changed.Count != 0) throw new InvalidOperationException("Shared ControlMapping state changed: " + string.Join(", ", changed));
         }
@@ -219,6 +235,9 @@ namespace ProjectLucid.Tests
             "s_onButtonsHeld", "s_onButtonsDown", "s_onButtonsUp", "s_onAxis", "s_onAxisStart", "s_onAxisEnd", "s_onSwipe", "s_onScrollWheel",
         };
 
+        // The input a table key is for.
+        internal static GameInput KeyInput(object key) => (GameInput)key.GetType().GetField("GameInput").GetValue(key);
+
         internal static Dictionary<string, string[]> Subscriptions(GameInput input, object target)
         {
             var result = new Dictionary<string, string[]>();
@@ -227,7 +246,7 @@ namespace ProjectLucid.Tests
                 var listeners = new List<string>();
                 foreach (DictionaryEntry row in OwnedControlInputs.Map(map))
                 {
-                    if ((GameInput)row.Key.GetType().GetField("GameInput").GetValue(row.Key) != input) continue;
+                    if (KeyInput(row.Key) != input) continue;
                     int joystick = (int)row.Key.GetType().GetField("JoystickIndex").GetValue(row.Key);
                     foreach (Action<float> listener in ((FastAction<float>)row.Value).GetInvocationList())
                         if (ReferenceEquals(listener.Target, target))

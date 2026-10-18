@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.UI.Binding;
@@ -15,8 +16,9 @@ namespace ProjectLucid.Tests
 {
     // GameInputButtonClick (02000965) and GameActionButtonClick (02000962), against their 1.10.1
     // x86-64 bodies. Components sit on inactive owned GameObjects.
-    // Not covered here: GameActionButtonClick with a non-None action, which starts
-    // UpdateCoroutine (MoveNext 0x689660 and GetBrainState 0x689450 need a live Character).
+    // Not covered here, as each needs an engine coroutine or a live Character: SetAction's start
+    // from a null handle (0x6892B2..0x689312) and stop of a live one (0x689319..0x689337),
+    // UpdateCoroutine's MoveNext (0x689660) and GetBrainState (0x689450).
     [TestFixture]
     public sealed class OriginalGameButtonClickTests
     {
@@ -254,6 +256,36 @@ namespace ProjectLucid.Tests
                 Assert.That(click.MinimumTime.Value, Is.EqualTo(-1.5f));
                 click.SetMinimumTime(float.NaN);
                 Assert.That(click.MinimumTime.Value, Is.NaN);
+            });
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        // SetAction 0x689240 with a non-None action marks the override (al = 1 at 0x689266) and
+        // stores it; the inlined StartUpdateCoroutine then returns at 0x6892AC while m_updateCoroutine
+        // (+0x58) is set, so no second coroutine starts and the live handle is kept. A StartCoroutine
+        // on the inactive owner would log an error and replace the handle with null.
+        [Test]
+        public void ActionButtonSetActionKeepsALiveCoroutine()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<CharacterManager>();
+                var click = scope.Inactive("Lucid owned game action button click").AddComponent<GameActionButtonClick>();
+                ModernUITestSupport.Set(click, "m_actionToListenFor", GameAction.CharacterRoll);
+                var live = (Coroutine)FormatterServices.GetUninitializedObject(typeof(Coroutine));
+                // The handle has no engine coroutine behind it; its engine finalizer must not run.
+                GC.SuppressFinalize(live);
+                ModernUITestSupport.Set(click, "m_updateCoroutine", live);
+                scope.Defer(() => ModernUITestSupport.Set(click, "m_updateCoroutine", null));
+
+                click.SetAction(GameAction.CharacterJump);
+                Assert.That(ModernUITestSupport.Get(click, "m_actionOverridden"), Is.True);
+                Assert.That(click.Action.Value, Is.EqualTo(GameAction.CharacterJump), "the given action, not the serialized one");
+                Assert.That(ModernUITestSupport.Get(click, "m_updateCoroutine"), Is.SameAs(live));
+
+                click.SetAction(GameAction.CharacterJump);
+                Assert.That(click.Action.Value, Is.EqualTo(GameAction.CharacterJump));
+                Assert.That(ModernUITestSupport.Get(click, "m_updateCoroutine"), Is.SameAs(live), "an unchanged action still only checks the handle");
             });
             LogAssert.NoUnexpectedReceived();
         }

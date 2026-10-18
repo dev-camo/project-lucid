@@ -17,8 +17,11 @@ namespace ProjectLucid.Tests
     // (020006a3) and GameInputCharacterTriggerVolume (020001d2), against their 1.10.1 x86-64
     // bodies. Components sit on inactive owned GameObjects, so Unity sends them no messages.
     // Not covered here, as each needs a live Character: SupplyInput past its CharacterManager
-    // guard (0x589080), DoTriggerStay's bounds test (0x6F36B0), and the held-button entry,
-    // whose SubscribeToTimeManager (0x6F3A90) needs a TimeManager and TimeCategoryLookup.
+    // guard (0x589080), DoTriggerStay's bounds test and m_delayComplete write (0x6F36B0), and
+    // the held-button entry, whose SubscribeToTimeManager (0x6F3A90) needs a TimeManager and
+    // TimeCategoryLookup. InitialPressInput (0x6F3590) is observed only up to its first
+    // OnNextFrame schedule, which faults without a coroutine host, so later inputs and the
+    // deferred releases' frame order are not.
     [TestFixture]
     public sealed class OriginalGameInputProviderTests
     {
@@ -118,7 +121,7 @@ namespace ProjectLucid.Tests
                 handler.Register();
                 Assert.That(ModernUITestSupport.Get(handler, "m_registered"), Is.False, "no InputSystem");
 
-                ControlMapping mapping = scope.RegisterInputSystem(admitRow: false);
+                ControlMapping mapping = scope.RegisterInputSystem();
                 handler.Unregister();
                 Assert.That(Providers(mapping), Is.Empty, "Unregister does nothing before Register");
 
@@ -332,9 +335,9 @@ namespace ProjectLucid.Tests
         [Test]
         public void TriggerVolumeEnterPressesOnlyForItsSimulation()
         {
-            GameInputScope.RequireNoCoroutineHost();
             GameInputScope.Run(scope =>
             {
+                scope.WithoutCoroutineHost();
                 var log = new ButtonCallbackLog();
                 GameInputCharacterTriggerVolume onExit = Volume(scope, 2, false, InputA, InputB);
                 GameInputCharacterTriggerVolume delayed = Volume(scope, 0, true, InputA, InputB);
@@ -436,9 +439,9 @@ namespace ProjectLucid.Tests
         [Test]
         public void TriggerVolumeExitPressesForTheExitSimulation()
         {
-            GameInputScope.RequireNoCoroutineHost();
             GameInputScope.Run(scope =>
             {
+                scope.WithoutCoroutineHost();
                 var log = new ButtonCallbackLog();
                 GameInputCharacterTriggerVolume onExit = Volume(scope, 2, false, InputC);
                 log.Attach(onExit);
