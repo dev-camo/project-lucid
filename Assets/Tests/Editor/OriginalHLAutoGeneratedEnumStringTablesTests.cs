@@ -49,8 +49,10 @@ namespace ProjectLucid.Tests
             (StatsExtentions, new[] { "CharacterStatsEnumToString" }, new[] { typeof(CharacterStats) }),
         };
 
-        // TypeDef 0x02000018 attribute rows, in metadata order (ExtensionAttribute omitted):
-        // the merged generated partial declarations repeat the two options.
+        // TypeDef 0x02000018 Il2CppSetOption rows in metadata order. The metadata lists
+        // ExtensionAttribute as row 9; the compiler emits it, so source cannot place it.
+        // Provisional: this assumes Roslyn emission and Mono GetCustomAttributesData both
+        // keep source order, which no native EditMode run has confirmed yet.
         static readonly Option[] CoreOptions =
         {
             Option.ArrayBoundsChecks, Option.NullChecks, Option.ArrayBoundsChecks, Option.NullChecks,
@@ -119,11 +121,13 @@ namespace ProjectLucid.Tests
             Assert.That(comparer.FieldType, Is.EqualTo(typeof(global::Enums.ErrorTypesEqualityComparer)));
             Assert.That(comparer.GetValue(null), Is.TypeOf<global::Enums.ErrorTypesEqualityComparer>());
 
-            ConstructorInfo constructor = registry.GetConstructor(Type.EmptyTypes);
-            Assert.That(constructor != null && constructor.IsPublic, Is.True);
-            object stored = comparer.GetValue(null);
-            Assert.That(new global::Enums.EnumComparers(), Is.Not.Null);
-            Assert.That(comparer.GetValue(null), Is.SameAs(stored), "the instance constructor writes no static state");
+            // Metadata methods: .ctor 0x06000097 (Public|HideBySig) and .cctor 0x06000098 only.
+            const BindingFlags Instances = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            ConstructorInfo[] constructors = registry.GetConstructors(Instances);
+            Assert.That(constructors, Has.Length.EqualTo(1));
+            Assert.That(constructors[0].IsPublic && constructors[0].GetParameters().Length == 0, Is.True);
+            Assert.That(registry.GetMembers(Instances).Where(m => m.MemberType != MemberTypes.Constructor), Is.Empty);
+            Assert.That(registry.GetMethods(Statics), Is.Empty);
         }
 
         // Each .cctor loads the comparer named here from its registry, passes it to the

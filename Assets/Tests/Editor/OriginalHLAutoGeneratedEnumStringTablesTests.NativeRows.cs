@@ -31,7 +31,7 @@ namespace ProjectLucid.Tests
             (0x5268dc4d, "USING_HLINPUT"),
         };
 
-        // Hardlight.HardlightEnumExtensions .cctor 0x19E4410: 1 Add calls for DialogPageIdentifier.
+        // Hardlight.HardlightEnumExtensions .cctor 0x19E4410: 1 Add call for DialogPageIdentifier.
         static readonly (int, string)[] NativeDialogPageIdentifier = {
             (0x0, "None"),
         };
@@ -149,7 +149,7 @@ namespace ProjectLucid.Tests
             (0x3025d58f, "GameActionCancel"),
         };
 
-        // Hardlight.HardlightEnumExtensions .cctor 0x19E4410: 1 Add calls for MenuPageIdentifier.
+        // Hardlight.HardlightEnumExtensions .cctor 0x19E4410: 1 Add call for MenuPageIdentifier.
         static readonly (int, string)[] NativeMenuPageIdentifier = {
             (0x0, "None"),
         };
@@ -161,7 +161,7 @@ namespace ProjectLucid.Tests
             (0x7752c5b6, "general_text_entry"),
         };
 
-        // Hardlight.HardlightEnumExtensions .cctor 0x19E4410: 1 Add calls for SubPageIdentifier.
+        // Hardlight.HardlightEnumExtensions .cctor 0x19E4410: 1 Add call for SubPageIdentifier.
         static readonly (int, string)[] NativeSubPageIdentifier = {
             (0x0, "None"),
         };
@@ -196,12 +196,12 @@ namespace ProjectLucid.Tests
             (0x2d98edc7, "Selection"),
         };
 
-        // Hardlight.HardlightEnumExtentions .cctor 0x19E6200: 1 Add calls for DynamicPageEntry.
+        // Hardlight.HardlightEnumExtentions .cctor 0x19E6200: 1 Add call for DynamicPageEntry.
         static readonly (int, string)[] NativeDynamicPageEntry = {
             (unchecked((int)0xb6fa1284), "None"),
         };
 
-        // Hardlight.HardlightEnumExtentions .cctor 0x19E6200: 1 Add calls for HLAudioTypes.
+        // Hardlight.HardlightEnumExtentions .cctor 0x19E6200: 1 Add call for HLAudioTypes.
         static readonly (int, string)[] NativeHLAudioTypes = {
             (unchecked((int)0xb6fa1284), "None"),
         };
