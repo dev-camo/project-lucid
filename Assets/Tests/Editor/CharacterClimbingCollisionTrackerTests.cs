@@ -177,6 +177,8 @@ namespace ProjectLucid.Tests
             {
                 GameObject host = owned.Host("Lucid climbable terrain", false);
                 host.layer = 9;
+                // ColliderData requires a Collider, and the abstract Collider cannot be added for it.
+                host.AddComponent<BoxCollider>();
                 var data = host.AddComponent<CharacterCollisionData>();
                 LayerMask included = 1 << 9, excluded = 1 << 10, both = (1 << 9) | (1 << 10);
                 (LayerMask mask, bool climbable, bool expected, string label)[] table =
