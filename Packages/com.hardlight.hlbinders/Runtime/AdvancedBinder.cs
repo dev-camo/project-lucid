@@ -36,6 +36,7 @@ namespace Hardlight.UI.Binding
         {
             if (Application.isPlaying)
             {
+                // Assumes OnEnable has cached the nodes: a null cachedNodes throws here (0x19F348B has no null guard).
                 for (int i = 0; i < cachedNodes.Length; i++)
                 {
                     if (cachedNodes[i].ShowInNodeEditor) cachedNodes[i].enabled = false;

@@ -1393,6 +1393,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalBindersCoreTests." + name fo
     "LogicalToggle3RaisesOnlyTheFirstEqualInput",
     "TmpGradientNodesSelectAndPublishTheGradientObject",
     "RestoredOwnersKeepTheirOriginalMenuAttributes",
+    "RestoredOwnersKeepTheirOriginalSerializedFieldsAndLifecycleFlags",
 ))
 
 # Low-priority coverage-gap cases: diagnostics routed to a registered core.

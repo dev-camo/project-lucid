@@ -67,19 +67,21 @@ namespace ProjectLucid.Editor
             }
         }
 
-        // The 38 restored HLBinders.Runtime owners below (tokens 0200000c, 0200001e-0200002b,
-        // 0200002d-02000039, 0200003c-0200003d, 02000040, 02000055-02000059, 0200006d-0200006e) pass
-        // ctor 0xc753 a string argument that the IL2CPP metadata blob encodes as 0e 00 (zero length;
-        // a null string would be 0e 01, a compressed -1). The
-        // original's TMP_Gradient owners (0200002c, 0200003a) and ConstantValue (0200003b) between them
-        // are covered by OriginalBindersCoreTests. BinderInput's raw blob is
-        // 0253c70000645c01000100000e000200000e0a496e7075740800. Catches [AddComponentMenu(null)].
+        // The 45 restored HLBinders.Runtime owners below (tokens 0200000c, 0200000e, 0200001e-0200003d,
+        // 02000040, 02000055-0200005c, 0200006d-0200006e) pass AddComponentMenu a zero-length string.
+        // For the first 38 the IL2CPP metadata blob of ctor 0xc753 encodes it as 0e 00 (a null string
+        // would be 0e 01, a compressed -1); BinderInput's raw blob is
+        // 0253c70000645c01000100000e000200000e0a496e7075740800. BinderOutput (0200000e), the TMP_Gradient
+        // owners (0200002c, 0200003a, 0200005a), ConstantValue (0200003b) and LogicalToggle/LogicalToggle3
+        // (0200005b, 0200005c) carry the DummyDll blob 0100000000 (a null string would be 0100ff0000).
+        // Catches [AddComponentMenu(null)].
         [Test]
         public void BinderOwnersHideFromTheComponentMenuWithAnEmptyString()
         {
             Type[] owners =
             {
                 typeof(Hardlight.UI.Binding.BinderInput),
+                typeof(Hardlight.UI.Binding.BinderOutput),
                 typeof(BindingNodes.Conditional<>),
                 typeof(BindingNodes.ConditionalAnimation),
                 typeof(BindingNodes.ConditionalAudio),
@@ -93,6 +95,7 @@ namespace ProjectLucid.Editor
                 typeof(BindingNodes.ConditionalMaterial),
                 typeof(BindingNodes.ConditionalSprite),
                 typeof(BindingNodes.ConditionalString),
+                typeof(BindingNodes.ConditionalTMPGradient),
                 typeof(BindingNodes.ConditionalTimeSpan),
                 typeof(BindingNodes.ConditionalVector2),
                 typeof(BindingNodes.ConditionalVector3),
@@ -107,6 +110,8 @@ namespace ProjectLucid.Editor
                 typeof(BindingNodes.ConstantNull),
                 typeof(BindingNodes.ConstantSprite),
                 typeof(BindingNodes.ConstantString),
+                typeof(BindingNodes.ConstantTMPGradient),
+                typeof(BindingNodes.ConstantValue),
                 typeof(BindingNodes.ConstantVector2),
                 typeof(BindingNodes.ConstantVector3),
                 typeof(BindingNodes.DebugLogNode),
@@ -115,6 +120,9 @@ namespace ProjectLucid.Editor
                 typeof(BindingNodes.LogicalSwitchInt),
                 typeof(BindingNodes.LogicalSwitchMaterial),
                 typeof(BindingNodes.LogicalSwitchSprite),
+                typeof(BindingNodes.LogicalSwitchTMPGradient),
+                typeof(BindingNodes.LogicalToggle),
+                typeof(BindingNodes.LogicalToggle3),
                 typeof(BindingNodes.NumberConditional<>),
                 typeof(BindingNodes.NumberConditionalColour),
             };

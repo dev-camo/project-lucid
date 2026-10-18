@@ -2,8 +2,9 @@
 // Source reconstructed from both shipping CPU bodies; local spelling and optimizer/fault parity remain unqualified.
 // Shared generic registrations and generated lambda declarations are distinguished from open definition pointers.
 // Preserve cache publication, optional-parameter order, exception handling, and the recursive SetMemberValue path.
-// Four members precede the methods: <>c and DisplayClass ordinals 12/13 place the invoke-array fields after
-// GettableBindableMembers; their exact positions there are not recoverable and keep the metadata field order.
+// DictionaryInfo and the three cache fields (four lexical members) precede the methods, so SettableMembers and
+// GettableBindableMembers get the <>c/DisplayClass ordinals 12/13. The invoke-array fields sit later, in their
+// metadata relative order; their exact positions there are not recoverable.
 // 0x06000038 Hardlight.UI.Binding.BindingUtils.UnderlyingGetType: arm64 0x19f9024 / x86_64 0x19f4f60.
 // 0x06000039 Hardlight.UI.Binding.BindingUtils.UnderlyingPropertyGetType: arm64 0x19f92ec / x86_64 0x19f51c0.
 // 0x0600003a Hardlight.UI.Binding.BindingUtils.UnderlyingMethodGetType: arm64 0x19f9344 / x86_64 0x19f5210.
@@ -214,9 +215,12 @@ namespace Hardlight.UI.Binding
 
         public static bool SetFieldValue(FieldInfo field, object target, object value)
         {
-            if (field == null || field.IsInitOnly) return false;
-            field.SetValue(target, value);
-            return true;
+            if (field != null && !field.IsInitOnly)
+            {
+                field.SetValue(target, value);
+                return true;
+            }
+            return false;
         }
 
         public static bool SetPropertyValue(PropertyInfo property, object target, object value)

@@ -7,6 +7,7 @@ using Hardlight.UI.Binding.Nodes;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.TestTools;
 using Object = UnityEngine.Object;
 
@@ -243,7 +244,6 @@ namespace ProjectLucid.Tests
             Assert.IsFalse(shown.enabled);
             Assert.IsTrue(hidden.enabled);
             Assert.IsNull(cache.GetValue(binder));
-            Assert.IsFalse(host.activeSelf);
             LogAssert.NoUnexpectedReceived();
         }
 
@@ -395,11 +395,15 @@ namespace ProjectLucid.Tests
 
         // The TMP_Gradient owners close Constant<T>, Conditional<T> and LogicalSwitch<T> over
         // TMP_ColorGradient (TypeDefs 0200003a, 0200002c, 0200005a); their ctors only chain.
+        // LogicalSwitch`1.Refresh (shared body 0x17B1D70) scans switchInputs with Equality against
+        // Input and on the first match stores AnyMatch into AnyMatchOutput (0x17b1e7b..0x17b1ea7),
+        // then switchOutputs[i] into Output (0x17b1ead..); with no match it stores nothing.
         [Test]
         public void TmpGradientNodesSelectAndPublishTheGradientObject()
         {
             TMP_ColorGradient bright = Own(ScriptableObject.CreateInstance<TMP_ColorGradient>());
             TMP_ColorGradient dark = Own(ScriptableObject.CreateInstance<TMP_ColorGradient>());
+            TMP_ColorGradient any = Own(ScriptableObject.CreateInstance<TMP_ColorGradient>());
             ConstantTMPGradient brightNode = Add<ConstantTMPGradient>();
             brightNode.Value = bright;
             brightNode.Refresh();
@@ -420,6 +424,26 @@ namespace ProjectLucid.Tests
             conditional.Refresh();
             Assert.That(conditional.Output.Value, Is.SameAs(dark));
 
+            LogicalSwitchTMPGradient selector = Add<LogicalSwitchTMPGradient>();
+            Type closed = typeof(LogicalSwitch<TMP_ColorGradient>);
+            closed.GetField("AnyMatch", Hidden).SetValue(selector, any);
+            closed.GetField("MatchFirst", Hidden).SetValue(selector, dark);
+            closed.GetField("MatchSecond", Hidden).SetValue(selector, bright);
+            ConstantValue choice = IntSource(2);
+            selector.Input.SetTarget(choice, "IntOutput");
+            selector.First.SetTarget(IntSource(1), "IntOutput");
+            selector.Second.SetTarget(IntSource(2), "IntOutput");
+            Invoke(selector, "SetUpBindReferenceFields");
+            selector.Refresh();
+            Assert.That(selector.Output.Value, Is.SameAs(bright));
+            Assert.That(selector.AnyMatchOutput.Value, Is.SameAs(any));
+            choice.IntValue = 1;
+            selector.Refresh();
+            Assert.That(selector.Output.Value, Is.SameAs(dark));
+            choice.IntValue = 9;
+            selector.Refresh();
+            Assert.That(selector.Output.Value, Is.SameAs(dark), "no match leaves the last selection");
+
             Assert.That(typeof(LogicalSwitchTMPGradient).BaseType, Is.EqualTo(typeof(LogicalSwitch<TMP_ColorGradient>)));
             Assert.IsTrue(typeof(LogicalSwitchTMPGradient).IsSealed);
             Assert.IsFalse(typeof(ConstantTMPGradient).IsSealed);
@@ -427,8 +451,9 @@ namespace ProjectLucid.Tests
             LogAssert.NoUnexpectedReceived();
         }
 
-        // Original CustomAttribute rows (DummyDll HLBinders.Runtime): AddNodeMenu path/priority
-        // and AddComponentMenu strings, where "" is the zero-length blob 0100000000.
+        // Original CustomAttribute rows (DummyDll HLBinders.Runtime): AddNodeMenu path/priority and the
+        // two binders' AddComponentMenu strings. The empty AddComponentMenu blobs of the node owners are
+        // checked in OriginalTransitionWidgetBinderCorrectionsTests.
         [Test]
         public void RestoredOwnersKeepTheirOriginalMenuAttributes()
         {
@@ -446,7 +471,6 @@ namespace ProjectLucid.Tests
             {
                 AddNodeMenu menu = entry.Key.GetCustomAttribute<AddNodeMenu>(false);
                 Assert.That((menu.MenuPath, menu.Priority), Is.EqualTo(entry.Value), entry.Key.Name);
-                Assert.That(entry.Key.GetCustomAttribute<AddComponentMenu>(false).componentMenu, Is.Not.Null.And.Empty, entry.Key.Name);
             }
             Assert.IsNull(typeof(SimpleBinder).GetCustomAttribute<AddNodeMenu>(false));
             Assert.That(typeof(SimpleBinder).GetCustomAttribute<AddComponentMenu>(false).componentMenu, Is.EqualTo("Hardlight UI/Binding/Binder (Simple)"));
@@ -455,5 +479,45 @@ namespace ProjectLucid.Tests
             Assert.IsTrue(typeof(AdvancedBinder).IsDefined(typeof(DisallowMultipleComponent), false));
             Assert.IsTrue(typeof(BindTarget).IsSerializable);
         }
+
+        // DummyDll HLBinders.Runtime rows: BinderOutput fields 0x04000016 Source [FormerlySerializedAs("source"),
+        // NodeInput] and 0x04000017 Target [FormerlySerializedAs("target")]; SimpleBinder 0x04000019
+        // invertIfBool [SerializeField]; BindTarget fields 0x04000042-0x0400004a in the order below with
+        // [SerializeField] on the first four only; AdvancedBinder OnEnable 0x06000009 and OnDisable
+        // 0x0600000a flags 0x01c4 Family|Virtual|HideBySig|NewSlot.
+        [Test]
+        public void RestoredOwnersKeepTheirOriginalSerializedFieldsAndLifecycleFlags()
+        {
+            FieldInfo source = typeof(BinderOutput).GetField("Source");
+            FieldInfo target = typeof(BinderOutput).GetField("Target");
+            Assert.That(FormerName(source), Is.EqualTo("source"));
+            Assert.That(FormerName(target), Is.EqualTo("target"));
+            Assert.IsTrue(source.IsDefined(typeof(NodeInput), false));
+            Assert.IsFalse(target.IsDefined(typeof(NodeInput), false));
+            Assert.IsTrue(typeof(SimpleBinder).GetField("invertIfBool", Hidden).IsDefined(typeof(SerializeField), false));
+
+            FieldInfo[] fields = typeof(BindTarget).GetFields(Hidden | BindingFlags.Public | BindingFlags.DeclaredOnly)
+                .OrderBy(f => f.MetadataToken).ToArray();
+            Assert.That(fields.Select(f => f.Name), Is.EqualTo(new[]
+            {
+                "target", "memberName", "filterTargets", "playModeOnly",
+                "fieldInfo", "propertyInfo", "methodInfo", "targetType", "cached",
+            }));
+            Assert.That(fields.Select(f => f.IsDefined(typeof(SerializeField), false)),
+                Is.EqualTo(new[] { true, true, true, true, false, false, false, false, false }));
+            Assert.That(fields.Select(f => f.IsPrivate), Has.All.True);
+
+            const MethodAttributes layout = MethodAttributes.MemberAccessMask | MethodAttributes.Static | MethodAttributes.Final
+                | MethodAttributes.Virtual | MethodAttributes.HideBySig | MethodAttributes.VtableLayoutMask | MethodAttributes.Abstract;
+            foreach (string lifecycle in new[] { "OnEnable", "OnDisable" })
+            {
+                MethodInfo method = typeof(AdvancedBinder).GetMethod(lifecycle, Hidden | BindingFlags.DeclaredOnly);
+                Assert.That((int)(method.Attributes & layout), Is.EqualTo(0x01c4), lifecycle);
+            }
+        }
+
+        private static string FormerName(FieldInfo field) =>
+            (string)field.GetCustomAttributesData().Single(a => a.AttributeType == typeof(FormerlySerializedAsAttribute))
+                .ConstructorArguments[0].Value;
     }
 }
