@@ -3,6 +3,7 @@
     "com.unity.burst": "1.8.18",
     "com.unity.addressables": "1.22.3",
     "com.unity.cinemachine": "2.10.3",
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
     "com.unity.render-pipelines.core": "14.0.11",
     "com.unity.render-pipelines.universal": "14.0.11",
     "com.unity.shadergraph": "14.0.11",
