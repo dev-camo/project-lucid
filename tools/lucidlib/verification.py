@@ -2051,6 +2051,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPrototypeTransformFollowPlay
 
 # Original transform rotators, movers, scalers, facing components and their triggers on owned objects.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformRotatorTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsMembersAndAttributes",
+    "ConstructorsStoreTheNativeDefaults",
     "AwakeTakesTheTargetsWorldRotationAndOptionallyRandomSpeeds",
     "InternalUpdateRotatesLocallyBySpeedTimesMultiplierTimesDelta",
     "OnSynchroniseRestartsFromTheStartRotationAndAppliesTheWholeTime",
@@ -2082,6 +2084,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformRotatorTests." + na
     "SnappedRotationWaitsThenTurnsTheLocalRotationEachInterval",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformAnimatorTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsMembersAndAttributes",
+    "ConstructorsStoreTheNativeDefaults",
     "MultiAxisStartSetsEachPostWrapModeAndTheInitialAngles",
     "MultiAxisAdvancesEveryAxisAndSamplesOnlyTheEnabledOnes",
     "OscillatorUiCallbackCachesThePositionAndStartsAnimating",
@@ -2094,6 +2098,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformAnimatorTests." + n
     "StartAndRevertScaleFromEachEndAndDisableRestoresTheOriginal",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformFacingAndTriggerTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsMembersAndAttributes",
     "SnapTakesTheTargetOnExactlyTheEnabledAxes",
     "RotationGravityCachesTheWorldRotatedGlobalGravityOnEnable",
     "FaceCameraWaitsForTheMainCameraAndUnsubscribesOnceSet",
