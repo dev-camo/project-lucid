@@ -4410,6 +4410,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAnimationHelperTests." + nam
     "EventListenerInvokesTheLastActionIndexedForTheEventString",
     "SamplerPosesTheObjectAtTheFractionOfTheClipLengthAndDisablesTheAnimation",
     "SamplerValidationAddsAnAnimationOnlyWhenNoneIsFound",
+    "SamplerValidationSamplesWithoutDisablingTheAnimation",
     "SpeedScalerLerpsTheClampedSpeedAndRewindsOnlyAnEnabledAnimationAtZero",
     "StartDelayPlaysAtOnceUnlessTheDelayIsPositive",
     "StartDelayIteratorWaitsTheCurrentDelayThenPlays",

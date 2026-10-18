@@ -552,6 +552,37 @@ namespace ProjectLucid.Tests
 
                 Call(sampler, "OnValidate");
                 Assert.That(root.GetComponents<Animation>().Length, Is.EqualTo(1));
+
+                // An assigned Animation elsewhere is kept: the lookup runs only for null
+                // (op_Equality 0x59caf1, je 0x59cb4c). It has no clip, so sampling returns.
+                var other = owned.Inactive("AnimationSampler other Animation").AddComponent<Animation>();
+                Set(sampler, "m_animation", other);
+                Call(sampler, "OnValidate");
+                Assert.That(Get(sampler, "m_animation"), Is.SameAs(other));
+                Assert.That(root.GetComponents<Animation>().Length, Is.EqualTo(1));
+            }
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        // OnValidate 0x060024f9 (0x59CA90) ends by tail-calling SampleAnimation (0x59cb53),
+        // so it poses at clip.length * m_sampleFrame (0x59ca4e): 2 * 0.5 = 1 s, x = 5. It
+        // does not disable the Animation, unlike OnEnable (set_enabled, 0x59c9b6).
+        [Test]
+        public void SamplerValidationSamplesWithoutDisablingTheAnimation()
+        {
+            using (var owned = new Owned())
+            {
+                GameObject root = owned.Active("AnimationSampler validation sampling fixture");
+                var animation = root.AddComponent<Animation>();
+                animation.clip = owned.LegacyClip("LucidSamplerValidateClip", 2f, 10f);
+                var sampler = root.AddComponent<AnimationSampler>();
+                Set(sampler, "m_animation", animation);
+                Set(sampler, "m_sampleFrame", 0.5f);
+
+                root.transform.localPosition = new Vector3(7f, 0f, 0f);
+                Call(sampler, "OnValidate");
+                Assert.That(root.transform.localPosition.x, Is.EqualTo(5f).Within(1e-4f));
+                Assert.That(animation.enabled, Is.True);
             }
             LogAssert.NoUnexpectedReceived();
         }
@@ -561,7 +592,8 @@ namespace ProjectLucid.Tests
         // samples and disables only an enabled Animation; anything else, NaN included,
         // enables a disabled Animation and sets the default clip state's normalizedSpeed to
         // min + (max - min) * speed (0x52ef8c..0x52ef99). Reset 0x0600052a takes
-        // GetComponent<Animation>; SetAnimationEnabled 0x0600052b writes enabled.
+        // GetComponent<Animation>; SetAnimationEnabled 0x0600052b writes enabled. The clip
+        // is 2 s long so normalizedSpeed (set_normalizedSpeed, 0x52efaa) and speed differ.
         [Test]
         public void SpeedScalerLerpsTheClampedSpeedAndRewindsOnlyAnEnabledAnimationAtZero()
         {
@@ -569,7 +601,7 @@ namespace ProjectLucid.Tests
             {
                 GameObject root = owned.Active("AnimationSpeedScaler fixture");
                 var animation = root.AddComponent<Animation>();
-                AnimationClip clip = owned.LegacyClip("LucidSpeedClip", 1f, 10f);
+                AnimationClip clip = owned.LegacyClip("LucidSpeedClip", 2f, 10f);
                 animation.AddClip(clip, clip.name);
                 animation.clip = clip;
                 var scaler = root.AddComponent<AnimationSpeedScaler>();
@@ -584,6 +616,7 @@ namespace ProjectLucid.Tests
                 scaler.SetAnimationSpeed(0.5f);
                 Assert.That(animation.enabled, Is.True);
                 Assert.That(state.normalizedSpeed, Is.EqualTo(2f));
+                Assert.That(state.speed, Is.Not.EqualTo(2f), "normalizedSpeed is written, not speed");
                 scaler.SetAnimationSpeed(4f);
                 Assert.That(state.normalizedSpeed, Is.EqualTo(3f));
 
@@ -608,8 +641,10 @@ namespace ProjectLucid.Tests
             LogAssert.NoUnexpectedReceived();
         }
 
-        // OnEnable 0x060038d5 (0x6A6780) stores GetComponent<Animation> and plays at once
-        // unless m_delay > 0 (ucomiss/jbe 0x6a67d6, so NaN plays at once too).
+        // OnEnable 0x060038d5 (0x6A6780) stores GetComponent<Animation> (0x6a67bc) and plays
+        // at once unless m_delay > 0 (ucomiss/jbe 0x6a67d6, so NaN plays at once too). A
+        // positive delay only starts <StartDelay>d__4 (StartCoroutine, 0x6a6834); the
+        // coroutine stops at its WaitForSeconds, which never resumes in EditMode.
         [Test]
         public void StartDelayPlaysAtOnceUnlessTheDelayIsPositive()
         {
@@ -631,6 +666,14 @@ namespace ProjectLucid.Tests
                     Assert.That(Get(delay, "m_animation"), Is.SameAs(animation), immediate.ToString());
                     Assert.That(animation.IsPlaying(clip.name), Is.True, immediate.ToString());
                 }
+
+                animation.Stop();
+                Set(delay, "m_animation", null);
+                Set(delay, "m_delay", 0.5f);
+                Call(delay, "OnEnable");
+                Assert.That(Get(delay, "m_animation"), Is.SameAs(animation));
+                Assert.That(animation.isPlaying, Is.False, "a positive delay does not play at once");
+                delay.StopAllCoroutines();
                 animation.Stop();
             }
             LogAssert.NoUnexpectedReceived();
