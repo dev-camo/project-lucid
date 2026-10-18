@@ -1493,5 +1493,312 @@ namespace ProjectLucid.Tests
                 Near(Vector3.forward, transform.rotation * Vector3.forward, "rotation untouched");
             }
         }
+
+        // ---- axis, product order and boundary cases ----
+
+        // CalculatePosition 0x5FE4D0 multiplies the transform's rotation by FromToRotation(up, axis) in that order
+        // (the lanes at 0x5FE526..0x5FE61D). The follower is turned 90 degrees about up and the axis is right, so the
+        // basis only comes out as forward +x, right -y, up -z when the two rotations do not commute.
+        [Test]
+        public void CircleBasisTurnsFromUpToTheAxisInTheFollowersSpace()
+        {
+            using (var fixture = new Fixture(new Vector3(10f, 0f, 0f), Quaternion.Euler(0f, 90f, 0f)))
+            {
+                TransformSurfaceCircleDescription circle = Circle(0f, 90f, 2f);
+                Set(circle, "m_axis", Vector3.right);
+                circle.Initialise(fixture.Follower, Vector3.zero, Vector3.zero, Quaternion.identity);
+                Near(Vector3.right, circle.Forward, "forward");
+                Near(Vector3.down, circle.Right, "right");
+                Near(Vector3.back, circle.Up, "up");
+                Near(new Vector3(12f, 0f, 0f), circle.PositionStartWorld, "start at 0 degrees");
+                Near(new Vector3(10f, -2f, 0f), circle.PositionEndWorld, "end at 90 degrees");
+            }
+        }
+
+        // GetRotationLocal 0x5FEBF0 turns about the axis field (read at 0x5FEC0C); GetRotation 0x5FE9B0 is
+        // transform.rotation * local, then * the inverse rotation. With the transform turned about up and the axis
+        // right, swapping either product changes the result.
+        [Test]
+        public void CircleRotationTurnsAboutTheAxisAndMultipliesInOrder()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-axis"))
+            {
+                Transform transform = objects.Create("transform", Vector3.zero, Quaternion.Euler(0f, 90f, 0f)).transform;
+                var circle = new TransformSurfaceCircleDescription();
+                Set(circle, "m_axis", Vector3.right);
+                Set(circle, "m_angle", 45f);
+                float root = 0.70710678f;
+
+                Near(new Vector3(0f, -root, root), circle.GetRotationLocal(transform) * Vector3.forward, "local about right");
+                Near(new Vector3(root, -root, 0f), circle.GetRotation(transform, 1, false) * Vector3.forward, "transform times local");
+                Near(new Vector3(-root, root, 0f), circle.GetRotation(transform, -1, true) * Vector3.forward, "then times the inverse rotation");
+            }
+        }
+
+        // SetTransform 0x6040B0 multiplies the surface rotation by the offset rotation, in that order (the lhs is the
+        // GetRotation result, 0x6042E0..0x60437A). A quarter turn about right is the offset, so the order shows.
+        [Test]
+        public void TargetOffsetRotationFollowsTheSurfaceRotation()
+        {
+            using (var fixture = new Fixture())
+            {
+                fixture.AddQuarterArcs();
+                TransformSurfaceTarget target = fixture.AddTarget();
+                Set(target, "m_orientate", true);
+                Set(target, "m_orientateToDirection", false);
+                Set(target, "m_rotationLocalForward", new Vector3(90f, 0f, 0f));
+                target.OnAwake(fixture.Follower);
+                fixture.Reset();
+                Transform transform = (Transform)Get(target, "m_transform");
+
+                target.Update(fixture.Follower, 0.5f);
+                float root = 0.70710678f;
+                Near(Vector3.down, transform.rotation * Vector3.forward, "forward");
+                Near(new Vector3(root, 0f, root), transform.rotation * Vector3.up, "up");
+            }
+        }
+
+        // Update 0x6024F7..0x602518 leaves the loop after a surface change when the follower is disabled (or the stop
+        // was reached) and runtime; the 0.5 s overshoot is dropped.
+        [Test]
+        public void TargetUpdateStopsAtTheJoinWhenTheFollowerIsDisabled()
+        {
+            using (var fixture = new Fixture())
+            {
+                fixture.AddQuarterArcs();
+                TransformSurfaceTarget target = fixture.AddTarget();
+                fixture.Reset();
+                fixture.Follower.SetEnabled(false);
+                Transform transform = (Transform)Get(target, "m_transform");
+
+                target.Update(fixture.Follower, 1.5f);
+                Assert.That(Get(target, "m_surfaceIndex"), Is.EqualTo(1));
+                Assert.That(Get(target, "m_time"), Is.EqualTo(0f));
+                Near(new Vector3(2f, 0f, 0f), transform.position, "the start of the second arc");
+            }
+        }
+
+        // The stop's Update reports true for the surface-relative modes (here EaseToNext, InQuad, ease time 0.1, 0.2 s of
+        // surface left at time 0.9): remaining 0.5, step max(0.5 * 0.25, 0.001), ratio 2, delta max(0.25, 0.5 * min(1, 1))
+        // = 0.5, which crosses the end. The stop then breaks the loop (0x6024F7..0x602518) and FireEndEvents
+        // (0x604468..0x6044AB) raises the stop event and, as m_fireEndEvents is true, the surface end.
+        [Test]
+        public void TargetUpdateEndsAnEasedStopAtTheSurfaceEnd()
+        {
+            using (var fixture = new Fixture())
+            {
+                fixture.AddQuarterArcs();
+                TransformSurfaceTarget target = fixture.AddTarget();
+                fixture.Reset();
+                TransformSurfaceTargetStop stop = StopOf(target);
+                Set(stop, "m_stopModeType", TransformSurfaceTargetStop.StopModeType.EaseToNext);
+                Set(stop, "m_stopEaseType", EaseUtilities.EaseType.InQuad);
+                Set(stop, "m_stopEaseTime", 0.1f);
+                Set(stop, "m_stopTime", 0f);
+                Set(stop, "m_stopSurfaceTime", 0.2f);
+                Set(stop, "m_stopActive", true);
+                Set(target, "m_time", 0.9f);
+                Set(target, "m_direction", 1);
+                int stopEvents = 0;
+                ((UnityEvent)Get(stop, "m_onStopReached")).AddListener(() => stopEvents++);
+                var first = Count(fixture.Surfaces[0]);
+                Transform transform = (Transform)Get(target, "m_transform");
+
+                target.Update(fixture.Follower, 0.5f);
+                Assert.That(Get(target, "m_surfaceIndex"), Is.EqualTo(1));
+                Assert.That(Get(target, "m_time"), Is.EqualTo(0f));
+                Near(new Vector3(2f, 0f, 0f), transform.position, "the start of the second arc");
+                Assert.That(stopEvents, Is.EqualTo(1));
+                Assert.That(first[1], Is.EqualTo(1), "the first arc ended");
+                Assert.That(Get(stop, "m_stopActive"), Is.False);
+            }
+        }
+
+        // FireEndEvents 0x604450 reads m_fireEndEvents before OnStopReached (0x604468..0x6044AB); the surface's end
+        // follows only when it is true.
+        [Test]
+        public void TargetFireEndEventsRaisesTheSurfaceEndOnlyWhenTheStopAllowsIt()
+        {
+            foreach (bool fireEndEvents in new[] { false, true })
+            {
+                using (var fixture = new Fixture())
+                {
+                    fixture.AddQuarterArcs();
+                    TransformSurfaceTarget target = fixture.AddTarget();
+                    fixture.Reset();
+                    TransformSurfaceTargetStop stop = StopOf(target);
+                    Set(stop, "m_fireEndEvents", fireEndEvents);
+                    Set(stop, "m_stopActive", true);
+                    int stopEvents = 0;
+                    ((UnityEvent)Get(stop, "m_onStopReached")).AddListener(() => stopEvents++);
+                    var first = Count(fixture.Surfaces[0]);
+
+                    Call(target, "FireEndEvents", true);
+                    Assert.That(stopEvents, Is.EqualTo(1), "fire end events " + fireEndEvents);
+                    Assert.That(first[1], Is.EqualTo(fireEndEvents ? 1 : 0), "fire end events " + fireEndEvents);
+                }
+            }
+        }
+
+        // FireEndEvents 0x604450 returns while m_ignoreEndEvents is set (0x604457), which SetDirection sets when it
+        // turns the target round. Update clears it afterwards.
+        [Test]
+        public void TargetUpdateSuppressesTheSurfaceEndAfterTurningRound()
+        {
+            using (var fixture = new Fixture())
+            {
+                fixture.AddQuarterArcs();
+                TransformSurfaceTarget target = fixture.AddTarget();
+                fixture.Reset();
+                var first = Count(fixture.Surfaces[0]);
+                var own = Count(target);
+                Transform transform = (Transform)Get(target, "m_transform");
+
+                target.SetDirection(-1);
+                Assert.That(Get(target, "m_ignoreEndEvents"), Is.True);
+                Near(1f, (float)Get(target, "m_time"));
+                target.Update(fixture.Follower, 0.5f);
+
+                Assert.That(first, Is.EqualTo(new[] { 1, 0 }), "begun again, not ended");
+                Assert.That(own, Is.EqualTo(new[] { 1, 0 }), "the chain's beginning");
+                Near(0.5f, (float)Get(target, "m_time"));
+                Assert.That(Get(target, "m_direction"), Is.EqualTo(1));
+                Assert.That(Get(target, "m_ignoreEndEvents"), Is.False);
+                Near(new Vector3(1.4142135f, 0f, 1.4142135f), transform.position, "45 degrees");
+            }
+        }
+
+        // GetProgressByTime 0x5FE7F0 clamps the interpolant of TimeSmoothed's SmoothStep (0x5FE8A6..0x5FE8B2) and of
+        // SpeedLerp's Lerp (0x5FE90B..0x5FE927). A time of 6 of 4 would give 0 from the unclamped polynomial, and a
+        // time of -1 would give 0.21875.
+        [Test]
+        public void ProgressByTimeClampsItsInterpolants()
+        {
+            DescriptionProbe smooth = Probe(TransformSurfaceDescription.FollowModeType.TimeSmoothed, 8f, time: 4f);
+            Near(1f, smooth.Progress(6f, 1), "past the end");
+            Near(0f, smooth.Progress(5f, -1), "before the start");
+
+            DescriptionProbe lerp = Probe(TransformSurfaceDescription.FollowModeType.SpeedLerp, 8f);
+            lerp.SetSpeedLimits(2f, 6f);
+            Near(3.75f, lerp.Progress(5f, 1), "5 * Lerp(2, 6, 1.25 clamped to 1) / 8");
+        }
+
+        // CalculateSpeedLimits 0x5FF210 only divides by the first key's time when it is positive (ucomiss/jbe at
+        // 0x5FF2AB..0x5FF2AE); a first key at 0 gives a start speed of 0.
+        [Test]
+        public void ProgressAnimatedStartSpeedNeedsAPositiveFirstKeyTime()
+        {
+            DescriptionProbe progress = Probe(TransformSurfaceDescription.FollowModeType.ProgressAnimated, 10f, curve: Curve(0f, 0f, 5f, 1f));
+            Near(0f, progress.SpeedStart, "start");
+            Near(2f, progress.SpeedEnd, "end");
+            Near(5f, progress.TimeTotal, "time");
+        }
+
+        // InternalReset 0x6015E0 with one surface passes speedEndPrev as the next speed as well (cmp count, 1 at
+        // 0x60194D, [rbp-0x40] = speedEndPrev at 0x601958). Closed, that is the surface's own end speed: limits (5, 7)
+        // become (7, 7) and take 16 / 14 s; the first surface's start speed or 0 as the next speed would give 16 / 12
+        // or 16 / 7. Open, both are 0 and the crossing never ends.
+        [Test]
+        public void FollowerResetGivesASingleSurfaceItsOwnEndSpeedAsTheNextSpeed()
+        {
+            foreach (bool closed in new[] { false, true })
+            {
+                using (var fixture = new Fixture())
+                {
+                    DescriptionProbe lerp = Probe(TransformSurfaceDescription.FollowModeType.SpeedLerp, 8f);
+                    lerp.SetSpeedLimits(5f, 7f);
+                    fixture.Add(lerp);
+                    Set(fixture.Follower, "m_closed", closed);
+                    fixture.Reset();
+
+                    string label = closed ? "closed" : "open";
+                    Near(closed ? 7f : 0f, lerp.SpeedStart, label + " start");
+                    Near(closed ? 7f : 0f, lerp.SpeedEnd, label + " end");
+                    if (closed) Near(8f / 7f, lerp.TimeTotal, label + " time");
+                    else Assert.That(float.IsPositiveInfinity(lerp.TimeTotal), Is.True, label + " time");
+                }
+            }
+        }
+
+        // Reset 0x602780 clears both stop flags (one 16-bit store), resolves the start surface, places the transform at
+        // the surface's start with a delta of 0 (so the collision data are told a zero movement) and raises the
+        // surface's begin event.
+        [Test]
+        public void TargetResetRestartsFromTheStartSurface()
+        {
+            using (var fixture = new Fixture())
+            {
+                fixture.AddQuarterArcs();
+                TransformSurfaceTarget target = fixture.AddTarget();
+                Set(target, "m_startModeType", TransformSurfaceTarget.StartModeType.Index);
+                Set(target, "m_startIndex", 1);
+                var transform = (Transform)Get(target, "m_transform");
+                GameObject child = fixture.Objects.Create("collision data", Vector3.zero, Quaternion.identity, transform);
+                child.SetActive(false);
+                child.AddComponent<BoxCollider>();
+                var data = child.AddComponent<CharacterCollisionData>();
+                target.OnAwake(fixture.Follower);
+                fixture.Reset();
+                TransformSurfaceTargetStop stop = StopOf(target);
+                Set(stop, "m_stopRequested", true);
+                Set(stop, "m_stopActive", true);
+                data.SetMovement(false, new Vector3(9f, 9f, 9f));
+                transform.position = new Vector3(5f, 5f, 5f);
+                var second = Count(fixture.Surfaces[1]);
+
+                target.Reset(fixture.Follower);
+
+                Assert.That(Get(stop, "m_stopRequested"), Is.False);
+                Assert.That(Get(stop, "m_stopActive"), Is.False);
+                Near(new Vector3(2f, 0f, 0f), transform.position, "90 degrees");
+                Assert.That(second, Is.EqualTo(new[] { 1, 0 }), "the second arc began");
+                Assert.That(data.HasMovement, Is.True);
+                Assert.That(data.MovementVelocity, Is.EqualTo(Vector3.zero));
+            }
+        }
+
+        // ResetTargets 0x602630 ends with the virtual InternalUpdate(0) after resetting the follower and each target.
+        // Update clears m_ignoreEndEvents at its end, which Reset leaves alone, so the flag shows the final update.
+        [Test]
+        public void FollowerResetTargetsEndsWithAnUpdateOfZero()
+        {
+            using (var fixture = new Fixture())
+            {
+                fixture.AddQuarterArcs();
+                TransformSurfaceTarget target = fixture.AddTarget();
+                fixture.Reset();
+                Call(fixture.Follower, "set_TimeMultiplier", 3f);
+                Set(StopOf(target), "m_stopActive", true);
+                Set(target, "m_ignoreEndEvents", true);
+                Set(target, "m_time", 0.5f);
+
+                fixture.Follower.ResetTargets();
+
+                Near(1f, fixture.Follower.TimeMultiplier);
+                Assert.That(Get(StopOf(target), "m_stopActive"), Is.False);
+                Assert.That(Get(target, "m_ignoreEndEvents"), Is.False);
+                Assert.That(Get(target, "m_time"), Is.EqualTo(0f));
+                Near(new Vector3(0f, 0f, 2f), ((Transform)Get(target, "m_transform")).position, "0 degrees");
+            }
+        }
+
+        // InternalUpdate 0x6020D0 hands every target TimeMultiplier * deltaTime (mulss at 0x602188): 0.25 s at a
+        // multiplier of 2 is 45 degrees of the one-second quarter arc, where 0.25 s alone would be 22.5.
+        [Test]
+        public void FollowerInternalUpdateScalesTheDeltaTimeByTheMultiplier()
+        {
+            using (var fixture = new Fixture())
+            {
+                fixture.AddQuarterArcs();
+                TransformSurfaceTarget target = fixture.AddTarget();
+                fixture.Reset();
+                Call(fixture.Follower, "set_TimeMultiplier", 2f);
+
+                Call(fixture.Follower, "InternalUpdate", 0.25f);
+
+                Near(0.5f, (float)Get(target, "m_time"));
+                Near(new Vector3(1.4142135f, 0f, 1.4142135f), ((Transform)Get(target, "m_transform")).position, "45 degrees");
+            }
+        }
     }
 }

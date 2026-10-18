@@ -4883,6 +4883,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSurfaceMeshCrossSectionTests
     "EllipseSectionClockwiseSweepsToTheEndAngleAndTurnsTheKnot",
     "EllipseSectionAnticlockwiseSweepsBackwardsFromTheEndAngle",
     "EllipseLocationIsProportionalToTheArcLengthWithoutAStartOffset",
+    "EllipseSectionTruncatesTheStepCountAndEndsAtTheRangeEnd",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformSurfaceTests." + name for name in (
     "DeclarationsOfTheStopAndTheTarget",
@@ -4925,6 +4926,19 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformSurfaceTests." + na
     "TargetUpdateCarriesTheOvershootAcrossSurfacesAndPingPongs",
     "TargetUpdateLoopsOrFinishesAtTheEndOfTheChain",
     "TargetOrientatesWithTheOffsetRotationForTheDirection",
+    "CircleBasisTurnsFromUpToTheAxisInTheFollowersSpace",
+    "CircleRotationTurnsAboutTheAxisAndMultipliesInOrder",
+    "TargetOffsetRotationFollowsTheSurfaceRotation",
+    "TargetUpdateStopsAtTheJoinWhenTheFollowerIsDisabled",
+    "TargetUpdateEndsAnEasedStopAtTheSurfaceEnd",
+    "TargetFireEndEventsRaisesTheSurfaceEndOnlyWhenTheStopAllowsIt",
+    "TargetUpdateSuppressesTheSurfaceEndAfterTurningRound",
+    "ProgressByTimeClampsItsInterpolants",
+    "ProgressAnimatedStartSpeedNeedsAPositiveFirstKeyTime",
+    "FollowerResetGivesASingleSurfaceItsOwnEndSpeedAsTheNextSpeed",
+    "TargetResetRestartsFromTheStartSurface",
+    "FollowerResetTargetsEndsWithAnUpdateOfZero",
+    "FollowerInternalUpdateScalesTheDeltaTimeByTheMultiplier",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProcMeshPlacementUpdaterTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",

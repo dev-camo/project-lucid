@@ -300,6 +300,25 @@ namespace ProjectLucid.Tests
             WorldMemberAccess.AreClose(Vector3.zero, (Vector3)arguments[1], "distance 0 is angle 0", 1e-3f);
         }
 
+        // The ellipse step count is truncated ((int) of 80 / 45 = 1, cvttss2si at 0x6D346D) and the extra final vertex
+        // is clamped to the end angle (0x6D351C..0x6D352B), so the sweep over 0..80 has three vertices and a quad stride
+        // of three. Rounding or ceiling the count would add a vertex and widen the stride.
+        [Test]
+        public void EllipseSectionTruncatesTheStepCountAndEndsAtTheRangeEnd()
+        {
+            SurfaceMeshCrossSectionEllipseGenerator ellipse = NewEllipse(2f, 3f, 45f, new Vector2(0f, 80f), true, Vector3.zero);
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+
+            ellipse.GenerateMeshCrossSection(vertices, triangles, Knot(Vector3.zero, Quaternion.identity), 0, 2, false, 0f);
+
+            AreCloseAll(new[]
+            {
+                new Vector3(0f, 0f, 0f), new Vector3(0f, 2.1213203f, 0.5857864f), new Vector3(0f, 2.9544233f, 1.6527036f)
+            }, vertices, "clockwise vertices");
+            Assert.That(triangles, Is.EqualTo(new[] { 0, 1, 3, 4, 3, 1, 1, 2, 4, 5, 4, 2 }));
+        }
+
         private static void AreCloseAll(Vector3[] expected, List<Vector3> actual, string label)
         {
             Assert.That(actual.Count, Is.EqualTo(expected.Length), label + " count");
