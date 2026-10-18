@@ -331,8 +331,9 @@ namespace ProjectLucid.Tests
             WithBoostStamina((owned, character, stamina) =>
             {
                 var trigger = Add<CharacterBoostTrigger>(owned, "Lucid boost trigger");
-                stamina.AddStamina(-0.75f);
+                // Reset 0x76FB00 writes the full stamina, so the set-up drains it after the immediate reset.
                 stamina.Reset(true);
+                stamina.AddStamina(-0.75f);
                 stamina.ActivateCooldown(3f);
                 Assert.That(stamina.Stamina, Is.EqualTo(0.25f));
                 Assert.That(stamina.ImmediateResetApplied, Is.True);
