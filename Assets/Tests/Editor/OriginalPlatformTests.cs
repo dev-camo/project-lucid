@@ -290,8 +290,8 @@ namespace ProjectLucid.Tests
                 Assert.That(instances[1].GameObjects[0].transform.localPosition, Is.EqualTo(new Vector3(3f, 9f, 4f)));
                 Assert.That(second.activeSelf, Is.False, "the dropped instance is left as it was");
 
-                // The stacking counter runs from 2 while it is <= height (cmp/jg at 0x5D552E behind
-                // the height >= 2 guard at 0x5D53CA), so no height - 2 is formed: int.MinValue and
+                // The stacking counter runs from 2 while it is <= height (cmp/jg at 0x5D552E; heights
+                // below 2 skip the loop, 0x5D53CA), so no height - 2 is formed: int.MinValue and
                 // int.MinValue + 1 stack nothing. The hiding walk compares with the wrapped
                 // height - 1 (0x5D53E3), which is int.MaxValue for int.MinValue (nothing hidden)
                 // and int.MinValue for int.MinValue + 1 (everything hidden).

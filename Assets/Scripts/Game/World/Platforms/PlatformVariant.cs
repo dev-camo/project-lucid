@@ -19,8 +19,9 @@ namespace HardlightProject
         public GameObject VariantInstance => gameObject;
 
         // 060029f8: mid instance i sits i + 2 piece sizes above the base. Instances from
-        // index height - 1 upwards are hidden, not removed. The stacking counter starts at
-        // 2 and is compared with height itself, so no height - 2 can wrap.
+        // index height - 1 upwards are hidden, not removed; that bound wraps for
+        // int.MinValue, which hides nothing. The stacking counter starts at 2 and is
+        // compared with height itself, so no height - 2 is formed.
         public void SetHeight(int height, float basePieceHeight, float pieceSize)
         {
             m_topPiece.SetHeight(basePieceHeight + pieceSize * 0.5f + height * pieceSize);
