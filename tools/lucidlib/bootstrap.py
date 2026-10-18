@@ -381,25 +381,62 @@ def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
         raise
 
 
-def stop_process_group(pgid: int, grace_deadline: float) -> None:
-    """SIGKILL a reaped leader's group once its members stop or the SIGTERM grace ends."""
-    # The group id stays reserved while members remain, so this reaches descendants
-    # that outlived the leader (#235). Members still handling SIGTERM keep the rest
-    # of the shared grace window. An empty group ends the wait without a signal, so
-    # a recycled id is never targeted. Darwin reports EPERM for a group holding only
-    # unreaped zombies; a member we may not signal cannot be stopped either way.
-    while True:
-        try:
-            os.killpg(pgid, 0)
-        except (ProcessLookupError, PermissionError):
-            return
-        if time.monotonic() >= grace_deadline:
-            break
-        time.sleep(0.05)
+TERM_GRACE_SECONDS = 5
+KILL_WAIT_SECONDS = 5
+
+
+def group_has_live_members(pgid: int) -> bool:
+    """Report whether any process in the group is still running; zombies count as stopped."""
     try:
-        os.killpg(pgid, signal.SIGKILL)
+        os.killpg(pgid, 0)
     except (ProcessLookupError, PermissionError):
+        # Darwin reports EPERM for a group holding only unreaped zombies; a member we
+        # may not signal cannot be stopped either way.
+        return False
+    proc = Path("/proc")
+    if not (proc / "self" / "stat").exists():
+        return True
+    # Linux signals zombies without error, so the unreaped leader alone would keep the
+    # probe succeeding. Count only members that are not zombies.
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            fields = (entry / "stat").read_text().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            continue
+        if len(fields) > 2 and fields[2] == str(pgid) and fields[0] not in {"Z", "X"}:
+            return True
+    return False
+
+
+def stop_process_group(process: subprocess.Popen) -> None:
+    """SIGTERM a session leader's group, SIGKILL what outlives the grace, then reap the leader."""
+    # The leader stays unreaped until the group has stopped, so its PID, and with it the
+    # group id, cannot be reused by an unrelated group while it is being signalled (#235).
+    # The leader is a member of its own group, so the group probe also reports its exit.
+    pgid = process.pid
+    try:
+        os.killpg(pgid, signal.SIGTERM)
+    except ProcessLookupError:
         pass
+    grace_deadline = time.monotonic() + TERM_GRACE_SECONDS
+    while group_has_live_members(pgid) and time.monotonic() < grace_deadline:
+        time.sleep(0.05)
+    if group_has_live_members(pgid):
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        # Callers remove the group's working trees next, so return only once it has stopped.
+        kill_deadline = time.monotonic() + KILL_WAIT_SECONDS
+        while group_has_live_members(pgid):
+            if time.monotonic() >= kill_deadline:
+                process.poll()
+                raise ToolError(f"Process group {pgid} was still running {KILL_WAIT_SECONDS} "
+                                "seconds after SIGKILL")
+            time.sleep(0.05)
+    process.wait()
 
 
 def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: int = 900,
@@ -421,27 +458,15 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
         except subprocess.TimeoutExpired:
             timed_out = True
             if os.name == "posix":
-                try:
-                    os.killpg(process.pid, signal.SIGTERM)
-                except ProcessLookupError:
-                    pass
+                stop_process_group(process)
             else:
                 # Known gap (#235): Windows stops only the immediate process, not its tree.
                 process.terminate()
-            grace_deadline = time.monotonic() + 5
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                if os.name == "posix":
-                    try:
-                        os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
-                else:
+                try:
+                    process.wait(timeout=TERM_GRACE_SECONDS)
+                except subprocess.TimeoutExpired:
                     process.kill()
-                process.wait()
-            if os.name == "posix":
-                stop_process_group(process.pid, grace_deadline)
+                    process.wait()
             returncode = process.returncode
             stream.write(f"\nRecovery wrapper stopped the process after {timeout} seconds.\n")
     return {"command": command, "log": str(log), "returncode": returncode,

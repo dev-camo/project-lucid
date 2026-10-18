@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import threading
 import time
 import unittest
 from unittest import mock
@@ -135,21 +136,26 @@ class RecoverySafetyTests(unittest.TestCase):
                "time.sleep(60)")
 
     @staticmethod
-    def _process_stopped(pid):
-        # os.kill(pid, 0) also succeeds on a zombie awaiting a lazy reaper; a zombie
-        # has stopped running.
+    def _process_state(pid):
+        # The process-table state letter, or "" once the PID has been reaped.
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
-            return True
+            return ""
         if sys.platform.startswith("linux"):
             try:
                 stat_line = Path(f"/proc/{pid}/stat").read_text()
             except OSError:
-                return True
-            return stat_line.rsplit(")", 1)[1].split()[0] == "Z"
-        state = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True,
-                               text=True).stdout.strip()
+                return ""
+            return stat_line.rsplit(")", 1)[1].split()[0]
+        return subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True,
+                              text=True).stdout.strip()
+
+    @classmethod
+    def _process_stopped(cls, pid):
+        # os.kill(pid, 0) also succeeds on a zombie awaiting a lazy reaper; a zombie
+        # has stopped running.
+        state = cls._process_state(pid)
         return not state or state.startswith("Z")
 
     def _run_leader_with_worker(self, worker, log_name):
@@ -209,6 +215,80 @@ class RecoverySafetyTests(unittest.TestCase):
                     os.kill(worker_pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_timeout_keeps_the_leader_unreaped_while_the_group_is_killed(self):
+        # The leader exits on SIGTERM and the worker ignores it, so the group needs
+        # SIGKILL. Until then the leader must stay an unreaped zombie: its PID keeps
+        # the group id from being reused by an unrelated group.
+        worker = self._worker("signal.signal(signal.SIGTERM, signal.SIG_IGN)\n")
+        real_killpg = os.killpg
+        leader_states = []
+
+        def observe(pgid, sig):
+            if sig == signal.SIGKILL:
+                leader_states.append(self._process_state(pgid))
+            real_killpg(pgid, sig)
+
+        worker_pid = None
+        try:
+            with mock.patch.object(os, "killpg", side_effect=observe):
+                result, worker_pid = self._run_leader_with_worker(worker, "leader-unreaped.log")
+            self.assertTrue(result["timed_out"])
+            self.assertNotEqual(result["returncode"], 0)
+            self.assertEqual(len(leader_states), 1, "the group was not sent SIGKILL once")
+            self.assertTrue(leader_states[0].startswith("Z"),
+                            f"leader was reaped before the group SIGKILL ({leader_states[0]!r})")
+        finally:
+            if worker_pid is not None:
+                try:
+                    os.kill(worker_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_timeout_returns_only_after_the_killed_group_has_stopped(self):
+        # The worker survives SIGTERM until SIGKILL. The SIGKILL takes effect half a
+        # second after it is sent, standing in for a member that is slow to die, so the
+        # wrapper must wait for the group instead of returning once the signal is sent.
+        worker = self._worker("signal.signal(signal.SIGTERM, signal.SIG_IGN)\n")
+        real_killpg = os.killpg
+        timers = []
+
+        def delay_kill(pgid, sig):
+            if sig != signal.SIGKILL:
+                return real_killpg(pgid, sig)
+            timer = threading.Timer(0.5, real_killpg, (pgid, sig))
+            timers.append(timer)
+            timer.start()
+
+        worker_pid = None
+        try:
+            with mock.patch.object(os, "killpg", side_effect=delay_kill):
+                result, worker_pid = self._run_leader_with_worker(worker, "group-stopped.log")
+            stopped = self._process_stopped(worker_pid)
+            self.assertTrue(result["timed_out"])
+            self.assertTrue(timers, "the group was not sent SIGKILL")
+            self.assertTrue(stopped, "run_logged returned while a killed descendant still ran")
+        finally:
+            for timer in timers:
+                timer.join()
+            if worker_pid is not None:
+                try:
+                    os.kill(worker_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_timeout_raises_when_the_group_outlives_the_sigkill_bound(self):
+        # A group that still reports live members after SIGKILL must not let callers
+        # go on to remove its working trees.
+        with mock.patch("tools.lucidlib.bootstrap.group_has_live_members", return_value=True), \
+                mock.patch("tools.lucidlib.bootstrap.TERM_GRACE_SECONDS", 0.2), \
+                mock.patch("tools.lucidlib.bootstrap.KILL_WAIT_SECONDS", 0.2):
+            with self.assertRaisesRegex(ToolError, "still running 0.2 seconds after SIGKILL"):
+                run_logged([sys.executable, "-c", "import time; time.sleep(60)"], self.work,
+                           "kill-bound.log", timeout=1)
 
     def test_schema_fallback_cannot_satisfy_body_request(self):
         app = self.work.parent / "source-recovery-fixture.app"
