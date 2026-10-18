@@ -4,8 +4,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x02000a03. The dump has only Int32Enum and fully shared (RVA -1)
-    // instantiations; the parameter names and the struct, IConvertible constraint come from the metadata.
+    // Original Game.Runtime 0x02000a03. The definition is shared (RVA -1); dump.cs lists only the
+    // Int32Enum (0x1183990..) and fully shared (0x11839C0..) instantiations; the parameter names
+    // and the struct, IConvertible constraint come from the metadata.
     [Serializable]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]

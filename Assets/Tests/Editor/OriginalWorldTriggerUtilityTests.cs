@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using Hardlight;
 using Hardlight.AutoPlay;
@@ -368,6 +369,26 @@ namespace ProjectLucid.Tests
                 destroyer.Destroy();
                 Assert.That(Get<Coroutine>(destroyer, "m_delayedDestroyRoutine"), Is.Null, "the refused start returned null");
                 Assert.That(host != null, Is.True);
+            });
+        }
+
+        // Destroy 0x6B05D0 starts the routine only while the field is null (cmp [rbx+0x30], 0;
+        // je at 0x6b060b): with a routine stored, a positive delay still reaches Object.Destroy
+        // and the field keeps the stored routine. The placeholder is never started.
+        [Test]
+        public void DestroyObjectDestroysAtOnceWhileARoutineIsStored()
+        {
+            Owned.Run(owned =>
+            {
+                var destroyer = owned.Host("Lucid destroy object", false).AddComponent<DestroyObject>();
+                var stored = (Coroutine)FormatterServices.GetUninitializedObject(typeof(Coroutine));
+                GC.SuppressFinalize(stored);
+                Set(destroyer, "m_delayedDestroyRoutine", stored);
+                Set(destroyer, "m_delaySeconds", 0.75f);
+                LogAssert.Expect(LogType.Error, RefusedDestroy);
+                destroyer.Destroy();
+                LogAssert.NoUnexpectedReceived();
+                Assert.That(Get<Coroutine>(destroyer, "m_delayedDestroyRoutine"), Is.SameAs(stored));
             });
         }
 

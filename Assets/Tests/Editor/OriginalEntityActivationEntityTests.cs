@@ -160,6 +160,30 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Initialise 0x6C4170 never reads its argument: the manager comes from
+        // m_entityActivationManagerRef.Get() (call 0x6c41d2), so a null argument still registers.
+        [Test]
+        public void EntityActivatorInitialiseRegistersThroughItsReferenceNotTheArgument()
+        {
+            Owned.Run(owned =>
+            {
+                EntityActivationManager manager = Manager(owned);
+                var activator = owned.Host("Lucid activator").AddComponent<EntityActivator>();
+                Set(activator, "m_definition", Definition(owned, true, true, out _));
+                var log = new List<string>();
+                Counted(activator, "m_onActivation", log, "activation");
+                Counted(activator, "m_onDeactivation", log, "deactivation");
+                Call(activator, "Start");
+                Call(activator, "OnDestroy");
+                Assert.That(Entities(manager, "m_active"), Is.Empty);
+                log.Clear();
+
+                Call(activator, "Initialise", (EntityActivationManager)null);
+                Assert.That(Entities(manager, "m_active"), Is.EqualTo(new[] { activator }), "registered through the cached reference");
+                Assert.That(log, Is.EqualTo(new[] { "activation" }));
+            });
+        }
+
         // TypeDef 0x02000a54 metadata order, and the constructor 0x6C0D90 storing
         // GetSystemRef<LevelManager>(null, true) then GetSystemRef<EntityActivationManager>,
         // the rows' cached typed references. SetDefinition 0x06003b67 stores the field the
@@ -282,6 +306,35 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // OnEntityManagerValid 0x6C0A80 compares m_enabledOnAwake with activeInHierarchy (call
+        // 0x6c0af9, cmp r15b, al at 0x6c0afe) and calls SetActive only when they differ. An
+        // active child of an inactive parent already matches a false awake state, so it keeps
+        // its own active flag; the inlined Register then files it as inactive. The
+        // activate-only definition leaves no deactivate callback to hide the child.
+        [Test]
+        public void EntityManagerValidLeavesAChildWhoseHierarchyStateMatchesTheAwakeState()
+        {
+            Owned.Run(owned =>
+            {
+                EntityActivationManager manager = Manager(owned);
+                owned.LeaseRow<LevelManager>();
+                GameObject parent = owned.Host("Lucid hidden parent", false);
+                GameObject child = owned.Host("Lucid visibility", true, parent.transform);
+                var entity = child.AddComponent<EntityActivationLevelVisibilityEntity>();
+                entity.SetDefinition(Definition(owned, true, false, out _));
+                var log = new List<string>();
+                Counted(entity, "m_onEnabled", log, "enabled");
+                Counted(entity, "m_onDisabled", log, "disabled");
+                Set(entity, "m_enabledOnAwake", false);
+
+                Call(entity, "OnEntityManagerValid", manager);
+                Assert.That(child.activeSelf, Is.True, "activeInHierarchy already equals the awake state");
+                Assert.That(Entities(manager, "m_inactive"), Is.EqualTo(new[] { entity }));
+                Assert.That(Entities(manager, "m_active"), Is.Empty);
+                Assert.That(log, Is.Empty);
+            });
+        }
+
         // OnEntityEnable/OnEntityDisable 0x06003b65/0x06003b66: Unity-null tests of this and the
         // game object return early; otherwise SetActive, then the event through ?.Invoke.
         [Test]
@@ -344,6 +397,34 @@ namespace ProjectLucid.Tests
                 Call(entity, "OnDisable");
                 Assert.That(Entities(manager, "m_inactive"), Is.EqualTo(new[] { entity }));
                 Assert.That(log, Is.EqualTo(new[] { "disabled" }));
+            });
+        }
+
+        // OnDisable 0x6C0720 reads activeSelf (call 0x6c075a; jne 0x6c0761 returns while it is
+        // true), so a registered child disabled only through its parent is not deactivated.
+        [Test]
+        public void OnDisableIgnoresAChildHiddenOnlyByItsParent()
+        {
+            Owned.Run(owned =>
+            {
+                EntityActivationManager manager = Manager(owned);
+                owned.LeaseRow<LevelManager>();
+                GameObject parent = owned.Host("Lucid visibility parent");
+                GameObject child = owned.Host("Lucid visibility", true, parent.transform);
+                var entity = child.AddComponent<EntityActivationLevelVisibilityEntity>();
+                entity.SetDefinition(Definition(owned, true, true, out _));
+                var log = new List<string>();
+                Counted(entity, "m_onDisabled", log, "disabled");
+                Set(entity, "m_enabledOnAwake", true);
+                Call(entity, "OnEntityManagerValid", manager);
+                Assert.That(Get<bool>(entity, "m_hasRegistered"), Is.True);
+                Assert.That(Get<bool>(entity, "m_deactivationInProgress"), Is.False);
+
+                parent.SetActive(false);
+                Call(entity, "OnDisable");
+                Assert.That(child.activeSelf, Is.True);
+                Assert.That(Entities(manager, "m_active"), Is.EqualTo(new[] { entity }), "activeSelf is still true");
+                Assert.That(log, Is.Empty);
             });
         }
 
@@ -457,6 +538,32 @@ namespace ProjectLucid.Tests
                 Object.DestroyImmediate(entity);
                 Assert.DoesNotThrow(() => entity.OnLevelActivated());
                 Assert.That(Entities(manager, "m_inactive"), Is.EqualTo(new[] { entity }));
+            });
+        }
+
+        // OnLevelActivated 0x6C3E10 compares m_entityActiveOnAwake with activeSelf (call
+        // 0x6c3e7e), not the hierarchy: an active child of an inactive parent already matches
+        // a true awake state and stays registered as inactive.
+        [Test]
+        public void MissionVisibilityLevelActivationComparesTheObjectsOwnState()
+        {
+            Owned.Run(owned =>
+            {
+                EntityActivationManager manager = Manager(owned);
+                owned.LeaseRow<LevelManager>();
+                GameObject parent = owned.Host("Lucid hidden parent", false);
+                GameObject child = owned.Host("Lucid mission visibility", true, parent.transform);
+                var entity = child.AddComponent<EntityActivationMissionVisibilityEntity>();
+                entity.SetDefinition(Definition(owned, true, false, out _));
+                Set(entity, "m_enabledOnAwake", false);
+                Set(entity, "m_entityActiveOnAwake", true);
+                Call(entity, "OnEntityManagerValid", manager);
+                Assert.That(Entities(manager, "m_inactive"), Is.EqualTo(new[] { entity }));
+                Assert.That(child.activeSelf, Is.True);
+
+                entity.OnLevelActivated();
+                Assert.That(Entities(manager, "m_inactive"), Is.EqualTo(new[] { entity }), "activeSelf matches the awake state");
+                Assert.That(Entities(manager, "m_active"), Is.Empty);
             });
         }
     }

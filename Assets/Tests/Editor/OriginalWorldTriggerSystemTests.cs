@@ -158,6 +158,65 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The set changes before the event runs: TryTrigger Add 0x5cf525 then Invoke 0x5cf544;
+        // TryTriggerStay Add 0x5ceaa7 before the enter and stay Invokes (0x5ceaca, 0x5ceb3e),
+        // and Remove 0x5ceb0a before the exit Invoke. Each listener records membership.
+        [Test]
+        public void TriggersUpdateTheActiveSetBeforeRaisingTheirEvent()
+        {
+            Owned.Run(owned =>
+            {
+                var log = new List<string>();
+                FilteredEventCollisionTriggerProbe trigger = Probe(owned, log);
+                foreach ((string field, string label) in new[] { ("m_onEnter", "enter"), ("m_onStay", "stay"), ("m_onExit", "exit") })
+                {
+                    var unityEvent = new UnityEvent<Collider>();
+                    unityEvent.AddListener(collider => log.Add(label + ":" + Active(trigger).Contains(collider)));
+                    Set(trigger, field, unityEvent);
+                }
+                Collider other = NewCollider(owned, "other");
+                Set(trigger, "m_enableMultipleCollisionTrigger", true);
+                bool passes = true;
+                trigger.Filter = collider => passes;
+
+                Call(trigger, "OnTriggerEnter", other);
+                Call(trigger, "OnTriggerStay", other);
+                Call(trigger, "OnTriggerExit", other);
+                Assert.That(log, Is.EqualTo(new[] { "enter:True", "stay:True", "exit:True" }));
+
+                log.Clear();
+                Active(trigger).Remove(other);
+                Call(trigger, "OnTriggerStay", other);
+                Assert.That(log, Is.EqualTo(new[] { "enter:True", "stay:True" }), "a stay that enters");
+
+                log.Clear();
+                passes = false;
+                Call(trigger, "OnTriggerStay", other);
+                Assert.That(log, Is.EqualTo(new[] { "exit:False" }), "a stay that exits");
+            });
+        }
+
+        // TryTriggerStay reads Contains (call 0x5cea49) before the FilterCollision vcall at
+        // 0x5cea61, so a filter that marks the collider itself still sees the enter raised.
+        [Test]
+        public void StayReadsTheActiveSetBeforeTheFilterRuns()
+        {
+            Owned.Run(owned =>
+            {
+                var log = new List<string>();
+                FilteredEventCollisionTriggerProbe trigger = Probe(owned, log);
+                Collider other = NewCollider(owned, "other");
+                Set(trigger, "m_enableMultipleCollisionTrigger", true);
+                trigger.Filter = collider =>
+                {
+                    Active(trigger).Add(collider);
+                    return true;
+                };
+                Call(trigger, "OnTriggerStay", other);
+                Assert.That(string.Join(",", log), Is.EqualTo("enter:other,stay:other"));
+            });
+        }
+
         // OnEnable 0x06002955 clears the set; OnDisable 0x06002958 raises exit for every live
         // active collider (op_Equality null skip at 0x5cf3dd), then clears.
         [Test]
@@ -222,6 +281,43 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<List<IResetCapableGameplayElement>>(islands, "m_pendingResetCapableGameplayElements"), Is.EqualTo(new[] { trigger }));
                 Assert.That(Get<object>(ProcessManager.GetSystemRef<LevelManager>(), "m_actionOnSystemValid"), Is.Null);
                 Assert.That(Get<object>(ProcessManager.GetSystemRef<CharacterManager>(), "m_actionOnSystemValid"), Is.Null);
+            });
+        }
+
+        // With a persistent m_onReset listener (GetPersistentEventCount 0x5cf029 > 0), Awake
+        // passes <Awake>b__8_1 to GetSystemRef<LevelManager>().InvokeOnValid (0x5cf0a0) and
+        // <Awake>b__8_2 to GetSystemRef<CharacterManager>().InvokeOnValid (0x5cf101). Both rows
+        // are absent, so each reference defers exactly that callback; the fixture clears the
+        // deferred work it caused before the rows are released. m_onEnter has no persistent
+        // listener, so only the m_onReset count can open the branch.
+        [Test]
+        public void AwakeDefersTheLevelAndRespawnWiringWhenResetHasPersistentListeners()
+        {
+            Owned.Run(owned =>
+            {
+                GameplayIslandManager islands = Islands(owned);
+                var trigger = owned.Host("Lucid event collision trigger", false).AddComponent<EventCollisionTrigger>();
+                var reset = new UnityEvent();
+                var target = owned.Host("Lucid reset target", false).AddComponent<CycleGameObjectList>();
+                UnityEventTools.AddPersistentListener(reset, target.Action_Next);
+                Set(trigger, "m_onReset", reset);
+                Set(trigger, "m_onEnter", new UnityEvent<Collider>());
+                SystemRef<LevelManager> levelRef = ProcessManager.GetSystemRef<LevelManager>();
+                SystemRef<CharacterManager> characterRef = ProcessManager.GetSystemRef<CharacterManager>();
+                try
+                {
+                    Call(trigger, "Awake");
+                    Assert.That(Get<List<IResetCapableGameplayElement>>(islands, "m_pendingResetCapableGameplayElements"), Is.EqualTo(new[] { trigger }));
+                    List<Action<LevelManager>> level = Get<FastAction<LevelManager>>(levelRef, "m_actionOnSystemValid").GetInvocationList();
+                    Assert.That(level.Select(action => (action.Target, action.Method.Name)), Is.EqualTo(new[] { ((object)trigger, "<Awake>b__8_1") }));
+                    List<Action<CharacterManager>> character = Get<FastAction<CharacterManager>>(characterRef, "m_actionOnSystemValid").GetInvocationList();
+                    Assert.That(character.Select(action => (action.Target, action.Method.Name)), Is.EqualTo(new[] { ((object)trigger, "<Awake>b__8_2") }));
+                }
+                finally
+                {
+                    Set(levelRef, "m_actionOnSystemValid", null);
+                    Set(characterRef, "m_actionOnSystemValid", null);
+                }
             });
         }
 
