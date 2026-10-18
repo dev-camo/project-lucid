@@ -200,11 +200,11 @@ namespace ProjectLucid.Tests
 
     // ControlMapping's scalar callback tables for inputs that may be defined, such as
     // SkipTheSplash: admission requires that no table holds a key for them, and release
-    // removes every key added for them and checks the other keys are untouched.
+    // removes every key added for them and checks every other key still maps to the same value.
     internal sealed class ControlTableLease
     {
         private readonly GameInput[] m_owned;
-        private readonly int[] m_counts;
+        private readonly DictionaryEntry[][] m_before;
 
         public static void Run(Action body, params GameInput[] owned)
         {
@@ -215,13 +215,13 @@ namespace ProjectLucid.Tests
         private ControlTableLease(GameInput[] owned)
         {
             m_owned = owned;
-            m_counts = new int[ControlTables.All.Length];
+            m_before = new DictionaryEntry[ControlTables.All.Length][];
             for (int i = 0; i < ControlTables.All.Length; ++i)
             {
                 IDictionary map = OwnedControlInputs.Map(ControlTables.All[i]);
                 if (map.Keys.Cast<object>().Any(key => m_owned.Contains(ControlTables.KeyInput(key))))
                     throw new InvalidOperationException("Fixture input already has a shared key: " + ControlTables.All[i]);
-                m_counts[i] = map.Count;
+                m_before[i] = map.Cast<DictionaryEntry>().ToArray();
             }
         }
 
@@ -232,7 +232,8 @@ namespace ProjectLucid.Tests
             {
                 IDictionary map = OwnedControlInputs.Map(ControlTables.All[i]);
                 foreach (object key in map.Keys.Cast<object>().Where(key => m_owned.Contains(ControlTables.KeyInput(key))).ToArray()) map.Remove(key);
-                if (map.Count != m_counts[i]) changed.Add(ControlTables.All[i]);
+                if (map.Count != m_before[i].Length || m_before[i].Any(row => !map.Contains(row.Key) || !ReferenceEquals(map[row.Key], row.Value)))
+                    changed.Add(ControlTables.All[i]);
             }
             if (changed.Count != 0) throw new InvalidOperationException("Shared ControlMapping state changed: " + string.Join(", ", changed));
         }

@@ -2,10 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.Serialization;
 using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.UI.Binding;
+using Hardlight.Utils;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -64,6 +64,11 @@ namespace ProjectLucid.Tests
                 Assert.That((int)click.Input.Value, Is.Zero);
                 Assert.That(ModernUITestSupport.Get(click, "m_inputOverridden"), Is.False);
             });
+        }
+
+        private static IEnumerator Forever()
+        {
+            while (true) yield return null;
         }
 
         private static GameInputButtonClick InputButton(GameInputScope scope, InputTrigger trigger)
@@ -280,9 +285,11 @@ namespace ProjectLucid.Tests
                 scope.Row<CharacterManager>();
                 var click = scope.Inactive("Lucid owned game action button click").AddComponent<GameActionButtonClick>();
                 ModernUITestSupport.Set(click, "m_actionToListenFor", GameAction.CharacterRoll);
-                var live = (Coroutine)FormatterServices.GetUninitializedObject(typeof(Coroutine));
-                // The handle has no engine coroutine behind it; its engine finalizer must not run.
-                GC.SuppressFinalize(live);
+                // A genuine engine handle: a coroutine that never finishes, started on an active owned
+                // host (Awake does not run in Edit Mode, so the host registers nothing).
+                var runner = scope.Own(new GameObject("Lucid owned coroutine runner")).AddComponent<CoroutineUtils>();
+                Coroutine live = runner.StartCoroutine(Forever());
+                Assert.That(live, Is.Not.Null);
                 ModernUITestSupport.Set(click, "m_updateCoroutine", live);
                 scope.Defer(() => ModernUITestSupport.Set(click, "m_updateCoroutine", null));
 
