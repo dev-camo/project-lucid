@@ -33,12 +33,15 @@ namespace ProjectLucid.Tests
         // Update 0x5DDA80 needs SystemRef.TryGet and TryGetCurrentCharacter. It then sets
         // rotation = LookRotation(RotateTowards(forward, characterPosition - position,
         // m_rotateSpeed * deltaTime, 0)) and afterwards position += forward * m_speed * deltaTime,
-        // reading the forward again after the rotation (0x5DDBDD). With dt > 0.01 the turn is at
-        // least 0.2 rad, so moving along the old forward would land at least 0.05 away.
+        // reading the forward again after the rotation (0x5DDBDD). Time.deltaTime cannot be set in a batch
+        // Edit Mode run (it read 0.003..0.005), so the speeds are scaled by the observed delta: the turn is
+        // 0.5 rad and the move 5 units whatever the delta, and moving along the old forward lands about 2.5 away.
         [Test]
         public void UpdateTurnsTowardsTheCharacterAndMovesAlongTheNewForward()
         {
-            Assume.That(Time.deltaTime, Is.GreaterThan(0.01f), "the turn and the move need a nonzero frame delta");
+            float deltaTime = Time.deltaTime;
+            Assume.That(deltaTime, Is.GreaterThan(0f), "the turn and the move need a nonzero frame delta");
+            float rotateSpeed = 0.5f / deltaTime, speed = 5f / deltaTime;
             Owned.Run(owned =>
             {
                 // First, so it is released last: the manager constructor's rows outlive the case's.
@@ -51,8 +54,8 @@ namespace ProjectLucid.Tests
                 Set(manager, "m_currentCharacter", character);
 
                 var follower = owned.Host("Lucid prototype follower").AddComponent<PrototypeTransformFollowPlayer>();
-                Set(follower, "m_speed", 30f);
-                Set(follower, "m_rotateSpeed", 20f);
+                Set(follower, "m_speed", speed);
+                Set(follower, "m_rotateSpeed", rotateSpeed);
                 Transform transform = follower.transform;
                 var startPosition = new Vector3(1f, 2f, 3f);
                 Quaternion startRotation = Quaternion.Euler(0f, 0f, 40f);
@@ -67,16 +70,15 @@ namespace ProjectLucid.Tests
                 Assert.That((transform.position, transform.rotation), Is.EqualTo(before), "no valid current character");
 
                 Set(manager, "<CharacterValid>k__BackingField", true);
-                float deltaTime = Time.deltaTime;
                 Vector3 forward = startRotation * Vector3.forward;
-                Quaternion rotation = Quaternion.LookRotation(Vector3.RotateTowards(forward, character.transform.position - startPosition, 20f * deltaTime, 0f));
-                Vector3 position = startPosition + rotation * Vector3.forward * 30f * deltaTime;
-                Vector3 alongOldForward = startPosition + forward * 30f * deltaTime;
+                Quaternion rotation = Quaternion.LookRotation(Vector3.RotateTowards(forward, character.transform.position - startPosition, rotateSpeed * deltaTime, 0f));
+                Vector3 position = startPosition + rotation * Vector3.forward * speed * deltaTime;
+                Vector3 alongOldForward = startPosition + forward * speed * deltaTime;
                 Call(follower, "Update");
                 Assert.That(Quaternion.Angle(rotation, transform.rotation), Is.LessThan(1e-3f), "rotation");
                 Assert.That(Quaternion.Angle(startRotation, transform.rotation), Is.GreaterThan(1f), "the roll is dropped");
                 WorldMemberAccess.AreClose(position, transform.position, "position");
-                Assert.That(Vector3.Distance(alongOldForward, transform.position), Is.GreaterThan(1e-3f), "not along the old forward");
+                Assert.That(Vector3.Distance(alongOldForward, transform.position), Is.GreaterThan(1f), "not along the old forward");
             });
         }
     }
