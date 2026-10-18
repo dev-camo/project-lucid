@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
@@ -1083,13 +1082,15 @@ namespace ProjectLucid.Tests
         // past the play at 0x6ECCE4/0x6ECCE7). The character position is Actor
         // <WorldPosition>k__BackingField (+0x48, read at 0x6ECC89). A distance of exactly 3 against
         // rangeSq 9 plays (a strict < would not), 0.01 further does not, and NaN does not (a
-        // !(distanceSq > rangeSq) form would play). The CharacterManager is uninitialised (its
-        // constructor needs App and preloads FSMs) and reached through a reference made for the
-        // case; only its validity flag and current character are set. A play is seen as the
-        // index advancing and the undeclared clip's null-clip warning.
+        // !(distanceSq > rangeSq) form would play). The CharacterManager is built by its real
+        // constructor (OwnedCharacterManagers owns the App, DataManager, SaveManager and refused
+        // coroutines it needs) and reached through a reference made for the case; only its validity
+        // flag and current character are set. A play is seen as the index advancing and the
+        // undeclared clip's null-clip warning.
         [Test]
         public void ShuffledLoopPlaysOnlyWhileTheCharacterIsWithinTheOrderedRange()
         {
+            using (var manager = new OwnedCharacterManagers())
             using (var owned = new OwnedAudioServices())
             using (var log = new UnityLogCounter())
             {
@@ -1098,7 +1099,7 @@ namespace ProjectLucid.Tests
                 owned.ReadRow<LevelManager>();
                 owned.ReadRow<GameplayIslandManager>();
                 owned.RegisterAudioManager();
-                var characters = (CharacterManager)FormatterServices.GetUninitializedObject(typeof(CharacterManager));
+                CharacterManager characters = manager.NewManager();
                 Character character = owned.Add<Character>();
                 Set(characters, "m_currentCharacter", character);
                 HLAudioOneShotShuffledLoop loop = owned.Add<HLAudioOneShotShuffledLoop>();
