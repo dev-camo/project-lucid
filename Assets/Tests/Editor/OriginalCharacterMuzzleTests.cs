@@ -14,7 +14,12 @@ namespace ProjectLucid.Tests
     // its constructor around a transform, and the side muzzle is a component on an owned host
     // whose rows (CinemachineCameraManager, CutsceneManager) are leased for the case. The Editor
     // sends Reset on AddComponent but no Awake or OnEnable, so each message a case needs is
-    // invoked directly.
+    // invoked directly. Only the paths without a valid manager are run: OnCutsceneFinishing (0x76DAE0)
+    // with a ready camera manager stores MainCamera.transform in m_mainCamera and returns at once
+    // (0x76db58) without UpdateMuzzleSide, m_isActive or StopAllCoroutines; OnCameraManagerShutdown
+    // (0x76D970) during a cutscene forwards to OnCutsceneStarted (0x76d9e2); OnCameraManagerStartup
+    // (0x76D690) subscribes AssignCamera to OnMainCameraReady and calls it at once only when the main
+    // camera is ready. These need a CinemachineCameraManager and CutsceneManager that cannot be built here.
     public sealed class OriginalCharacterMuzzleTests
     {
         private static void WithSideMuzzle(Action<OwnedWorldObjects, CharacterSideMuzzle> body)
@@ -234,7 +239,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // UpdateMuzzleSide 0x76DF20: side = -Dot(root.forward, camera - root); it switches only when
+        // UpdateMuzzleSide 0x76DF20: side = Dot(-root.forward, camera - root); it switches only when
         // |side| > threshold (an equal value stays), to the right pose when side > 0.
         [Test]
         public void TheMuzzleSwitchesOnlyWhenTheCameraOffsetAlongForwardExceedsTheThreshold()

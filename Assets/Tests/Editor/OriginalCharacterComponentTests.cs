@@ -21,6 +21,22 @@ namespace ProjectLucid.Tests
     // Editor sends Reset but no Awake); a CharacterManager is built by its real constructor
     // (OwnedCharacterManagers) and registered into its absent row. A Character has no Rigidbody here,
     // so only the branches that do not move it are run; the rest need a live Character body.
+    //
+    // Not run in EditMode, with the native oracle for a later PlayMode case:
+    // - CharacterPause.Start (0x6E5ED0) needs TimeSetting.GetDefault, which reads the runtime
+    //   TimeCategoryConfiguration. A non-empty list takes GetDefault(1) (constant 1.0 at 0x6e5f68) and
+    //   sets each listed category to 0 (0x6e5fd6); an empty or null list takes GetDefault(0) (0x6e5fe5)
+    //   and sets System (0xc64a29f2) and UnityGlobal (0xa1cd01c4) to 1 (0x6e6008, 0x6e6018).
+    //   PauseGame/ResumeGame past their guards need a live Character body.
+    // - CharacterJumpTrackerTrigger.FixedUpdate (0x6F2D00): until a jump has started it re-samples the
+    //   start position and velocity every tick (0x6f2f21-0x6f2f50); it completes only when IsOnGround
+    //   (CharacterTracking slot 5) and not IsJumping (xor al,1 at 0x6f2f93), and only completion stores
+    //   m_endPosition.
+    // - CharacterMagnetismModifier.OnTriggerStay (0x5CBC90) with forward (0,0,1), right (1,0,0), up
+    //   (0,1,0), the character at the trigger + (2,3,5) and constant-1 curves: acceleration (-1,-1,-1),
+    //   velocity += acceleration * fixedDeltaTime. The lateral term is negated at 0x5cbe33; forward and
+    //   normal are subtracted at 0x5cbed7 and 0x5cbee3 (a positive lateral term would give (1,-1,-1)).
+    // - CharacterSplineAttachTrigger.DoTriggerEnter non-legacy branch (0x5CAD58).
     public sealed class OriginalCharacterComponentTests
     {
         // A character with a real FSM storage and the GameplayIslandManager row its constructor needs.
@@ -295,6 +311,94 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Private setters of auto-properties are called as the owning class's own code does; the lookup
+        // goes through the declaring type because a derived PropertyInfo hides an inherited private setter.
+        private static void SetPrivate(object target, string property, object value) =>
+            target.GetType().GetProperty(property).DeclaringType.GetProperty(property).GetSetMethod(true).Invoke(target, new[] { value });
+
+        // A surface whose effect metadata holds one TerrainEffectType row (or none) under the key.
+        private static CharacterCollisionData NewEffectSurface(Owned owned, MetadataKeyType key, string effect)
+        {
+            var surface = owned.Host("Lucid footsteps effect surface", false).AddComponent<CharacterCollisionData>();
+            var group = owned.Track(ScriptableObject.CreateInstance<MetadataFixedGroup>());
+            if (effect != null)
+                Get<System.Collections.Generic.List<MetadataFixed>>(Get<object>(group, "m_data"), "m_metadata")
+                    .Add(new MetadataFixed(key, effect));
+            SetPrivate(surface, "EffectMetadata", group);
+            SetPrivate(surface, "HasEffects", true);
+            return surface;
+        }
+
+        // OnCharacterCollisionDataEnter 0x763DD0 tracks a HasEffects surface only when its metadata has
+        // the TerrainEffectType key (TryGetValue at 0x763e34) and then recalculates.
+        // RecalculateFootstepAudio 0x763E70 stores the looked-up audio to both the ground (+0x54) and
+        // climbing (+0x5c) fields (0x763ffc-0x764006), stores the looked-up particle table
+        // unconditionally once its TryGetValue succeeds (0x76403e-0x76404a, null for Dirt), and ends
+        // the loop after the first surface with a terrain type (both outcomes jump to 0x764052).
+        [Test]
+        public void FootstepsTheFirstTrackedTerrainEffectOverridesTheDefaults()
+        {
+            WithFootsteps((owned, footsteps, character) =>
+            {
+                var key = owned.Track(ScriptableObject.CreateInstance<MetadataKeyType>());
+                var definition = owned.Track(ScriptableObject.CreateInstance<TerrainEffectsMetadataKeyLookupDefinition>());
+                definition.TerrainEffectTypeMetadataKey = key;
+                Set(footsteps, "m_terrainEffectsMetadataKeyLookup", definition);
+                var defaultLookup = new System.Collections.Generic.Dictionary<string, ActorParticleTriggerType>();
+                var climbingLookup = typeof(ActorFootsteps).GetField("s_particleLookup", BindingFlags.Static | BindingFlags.NonPublic)
+                    .GetValue(null);
+                Set(footsteps, "m_footstepParticleLookupDefault", defaultLookup);
+                var tracked = Get<System.Collections.Generic.HashSet<CharacterCollisionData>>(footsteps, "m_activeSurfaces");
+
+                void Defaults(ActorAudioTypes audio, ActorAudioTypes climbing)
+                {
+                    Set(footsteps, "m_footstepAudioTypeDefault", audio);
+                    Set(footsteps, "m_footstepAudioTypeClimbingDefault", climbing);
+                }
+
+                // ClimbingWall: both audio fields and the shared particle table.
+                Defaults(ActorAudioTypes.Footsteps_Dirt, ActorAudioTypes.Footsteps_Dirt);
+                CharacterCollisionData wall = NewEffectSurface(owned, key, "ClimbingWall");
+                Call(footsteps, "OnCharacterCollisionDataEnter", wall, null);
+                Assert.That(tracked, Is.EquivalentTo(new[] { wall }));
+                Assert.That(Get<ActorAudioTypes>(footsteps, "m_footstepAudioType"), Is.EqualTo(ActorAudioTypes.Footsteps_ClimbingWall));
+                Assert.That(Get<ActorAudioTypes>(footsteps, "m_footstepAudioTypeClimbing"), Is.EqualTo(ActorAudioTypes.Footsteps_ClimbingWall));
+                Assert.That(Get<object>(footsteps, "m_footstepParticleLookup"), Is.SameAs(climbingLookup));
+                Call(footsteps, "OnCharacterCollisionDataExit", wall, null);
+                Assert.That(Get<object>(footsteps, "m_footstepParticleLookup"), Is.SameAs(defaultLookup));
+
+                // Dirt: both audio fields, and its null particle table replaces the default.
+                Defaults(ActorAudioTypes.Footsteps_ClimbingWall, ActorAudioTypes.Footsteps_ClimbingWall);
+                CharacterCollisionData dirt = NewEffectSurface(owned, key, "Dirt");
+                Call(footsteps, "OnCharacterCollisionDataEnter", dirt, null);
+                Assert.That(Get<ActorAudioTypes>(footsteps, "m_footstepAudioType"), Is.EqualTo(ActorAudioTypes.Footsteps_Dirt));
+                Assert.That(Get<ActorAudioTypes>(footsteps, "m_footstepAudioTypeClimbing"), Is.EqualTo(ActorAudioTypes.Footsteps_Dirt));
+                Assert.That(Get<object>(footsteps, "m_footstepParticleLookup"), Is.Null, "Dirt maps to a null particle table");
+
+                // The first tracked surface decides: a later ClimbingWall does not override Dirt.
+                Call(footsteps, "OnCharacterCollisionDataEnter", wall, null);
+                Assert.That(tracked.Count, Is.EqualTo(2));
+                Assert.That(Get<ActorAudioTypes>(footsteps, "m_footstepAudioType"), Is.EqualTo(ActorAudioTypes.Footsteps_Dirt));
+                Assert.That(Get<object>(footsteps, "m_footstepParticleLookup"), Is.Null);
+                Call(footsteps, "OnCharacterCollisionDataExit", dirt, null);
+                Call(footsteps, "OnCharacterCollisionDataExit", wall, null);
+
+                // Metal has an audio entry but no particle entry, which keeps the default table.
+                Defaults(ActorAudioTypes.Footsteps_ClimbingWall, ActorAudioTypes.Footsteps_ClimbingWall);
+                CharacterCollisionData metal = NewEffectSurface(owned, key, "Metal");
+                Call(footsteps, "OnCharacterCollisionDataEnter", metal, null);
+                Assert.That(Get<ActorAudioTypes>(footsteps, "m_footstepAudioType"), Is.EqualTo(ActorAudioTypes.Footsteps_Dirt));
+                Assert.That(Get<ActorAudioTypes>(footsteps, "m_footstepAudioTypeClimbing"), Is.EqualTo(ActorAudioTypes.Footsteps_Dirt));
+                Assert.That(Get<object>(footsteps, "m_footstepParticleLookup"), Is.SameAs(defaultLookup));
+                Call(footsteps, "OnCharacterCollisionDataExit", metal, null);
+
+                // A HasEffects surface whose metadata lacks the key is not tracked.
+                CharacterCollisionData keyless = NewEffectSurface(owned, key, null);
+                Call(footsteps, "OnCharacterCollisionDataEnter", keyless, null);
+                Assert.That(tracked, Is.Empty);
+            });
+        }
+
         // ---- CharacterProxyAssignTrigger -------------------------------------------------------
 
         // get_SetNullOnExit 0x76A890 is a constant true that ignores the serialised flag.
@@ -453,6 +557,53 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Records the generic argument of each storage call, which FSMStorage ignores.
+        private sealed class RecordingStorage : IGraphStorage
+        {
+            private readonly FSMStorage m_inner = new FSMStorage(0);
+            public readonly System.Collections.Generic.List<(string call, Type type)> Calls =
+                new System.Collections.Generic.List<(string, Type)>();
+
+            public void Initialise() => m_inner.Initialise();
+            public void Clear() => m_inner.Clear();
+            public System.Collections.Generic.IReadOnlyDictionary<GraphStorageKey, object> GetCollection() => m_inner.GetCollection();
+
+            public void SetValue<T>(GraphStorageKey storageKey, T value)
+            {
+                Calls.Add(("SetValue", typeof(T)));
+                m_inner.SetValue(storageKey, value);
+            }
+
+            public T GetValue<T>(GraphStorageKey storageKey, T defaultValue = default, bool storeDefault = true) =>
+                m_inner.GetValue(storageKey, defaultValue, storeDefault);
+
+            public void RemoveValue<T>(GraphStorageKey storageKey)
+            {
+                Calls.Add(("RemoveValue", typeof(T)));
+                m_inner.RemoveValue<T>(storageKey);
+            }
+        }
+
+        // Enter stores the value as ISpline  and exit removes it as ISurface
+        // (IGraphStorage.RemoveValue<ISurface> at 0x5cafa8); FSMStorage ignores the type argument, so
+        // only a recording storage tells the two apart.
+        [Test]
+        public void SplineAttachStoresAsISplineAndRemovesAsISurface()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<GameplayIslandManager>();
+                var storage = new RecordingStorage();
+                Character character = NewCharacter(owned, storage);
+                SplineFixture fixture = NewSplineTrigger(owned, Vector3.zero, true);
+
+                Call(fixture.Trigger, "DoTriggerEnter", character);
+                Call(fixture.Trigger, "DoTriggerExit", character);
+
+                Assert.That(storage.Calls, Is.EqualTo(new[] { ("SetValue", typeof(ISpline)), ("RemoveValue", typeof(ISurface)) }));
+            });
+        }
+
         // ActivateSpline 0x5CB040 does nothing without a spline and otherwise sets the active state
         // of the spline's GameObject.
         [Test]
@@ -551,6 +702,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Enter projects the character's normalised velocity onto the trigger plane (0x5cbb55),
+        // normalises it (0x5cbb18) and takes right = Cross(up, forward) (0x5cbc2b-0x5cbc7c). A velocity of
+        // (0.6, 0.8, 0) against up (0, 1, 0) gives forward (1, 0, 0) and right (0, 0, -1); an unprojected
+        // forward would keep its 0.8 y part and a reversed cross product would give (0, 0, 1).
+        [Test]
+        public void MagnetismEnterProjectsTheTravelDirectionOntoTheTriggerPlane()
+        {
+            WithManager((owned, manager, character) =>
+            {
+                var modifier = owned.Host("Lucid magnetism projection", false).AddComponent<CharacterMagnetismModifier>();
+                Collider characterCollider = character.GetComponent<BoxCollider>();
+                Set(character, "m_colliderCollision", characterCollider);
+                SetCurrent(manager, character, true);
+                SetPrivate(character, "WorldVelocityNormalised", new Vector3(0.6f, 0.8f, 0f));
+
+                Call(modifier, "OnTriggerEnter", characterCollider);
+
+                WorldMemberAccess.AreClose(new Vector3(0f, 1f, 0f), Get<Vector3>(modifier, "m_worldUp"), "up");
+                WorldMemberAccess.AreClose(new Vector3(1f, 0f, 0f), Get<Vector3>(modifier, "m_worldForward"), "forward");
+                WorldMemberAccess.AreClose(new Vector3(0f, 0f, -1f), Get<Vector3>(modifier, "m_worldRight"), "right");
+            });
+        }
+
         // Stay stops before moving the character when an ability group is set and none of its abilities
         // is in use (AnyAbilityInUse at 0x5cbd72); moving it would fault here, for want of a body.
         [Test]
@@ -573,7 +747,7 @@ namespace ProjectLucid.Tests
         }
 
         // Negative control for the guard above: with no ability group the same call proceeds to move the
-        // character, which faults here for want of a body.
+        // character (0x5cbd5b), which faults in the absent body.
         [Test]
         public void MagnetismStayMovesTheCharacterWhenNoAbilityGroupIsSet()
         {
@@ -584,7 +758,11 @@ namespace ProjectLucid.Tests
                 Set(character, "m_colliderCollision", characterCollider);
                 SetCurrent(manager, character, true);
 
-                Assert.Catch(() => Call(modifier, "OnTriggerStay", characterCollider));
+                // The fault must come from moving the character (Character.SetWorldVelocity writes the
+                // absent body), not from dereferencing the absent ability group in OnTriggerStay.
+                Exception fault = Assert.Catch(() => Call(modifier, "OnTriggerStay", characterCollider));
+                Assert.That(fault, Is.InstanceOf<NullReferenceException>());
+                Assert.That(fault.StackTrace, Does.Contain("HardlightProject.Character.SetTimeScaledBodyVelocity"));
             });
         }
 
