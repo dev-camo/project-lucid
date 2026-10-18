@@ -53,6 +53,8 @@ namespace ProjectLucid.Tests
         {
             float screenAspect = (float)Screen.height / Screen.width;
             Assume.That(float.IsFinite(screenAspect), Is.True, "the equality row needs a finite Editor screen aspect");
+            // A zero or NaN dpi makes both branches give the same proportion and size.
+            Assume.That(float.IsFinite(Screen.dpi) && Screen.dpi > 0f, Is.True, "the branch rows need a positive finite Editor dpi");
             Owned.Run(owned =>
             {
                 var scale = owned.Host("Lucid real world scale").AddComponent<RealWorldScale>();

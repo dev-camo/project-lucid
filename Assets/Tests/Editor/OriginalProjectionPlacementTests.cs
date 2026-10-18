@@ -137,11 +137,15 @@ namespace ProjectLucid.Tests
             Assert.That(shortLine.Update(start, new Vector3(1.5f, 0f, 0f), 1f, gravity, Nothing, 0.5f), Is.False, "1.5 is not beyond the 1.53 travelled");
         }
 
-        // CheckForRaycastHit 0x5CFCF0 (inlined in Update) raycasts from the previous Position along
-        // the step for m_raycastInterval with QueryTriggerInteraction.Ignore (esi 1). A hit sets
-        // RaycastHit and the timer to m_raycastSnapTime; while RaycastHit is set the timer only
-        // falls by the time step, clamped at 0 (maxss), and Update returns timer > 0 instead of the
-        // distance test.
+        // CheckForRaycastHit 0x5CFCF0 (inlined in Update) raycasts from the previous Position
+        // (+0x4C/+0x54 read at 0x5CFBF8) along the step (new offset - m_positionOffset) for
+        // m_raycastInterval with QueryTriggerInteraction.Ignore (esi 1). A hit sets RaycastHit and
+        // the timer to m_raycastSnapTime; while RaycastHit is set the timer only falls by the time
+        // step, clamped at 0 (maxss), and Update returns timer > 0 instead of the distance test.
+        // The origin row starts the ray at a stored (0, 5, 0): along (1.5, -0.3125) it passes about
+        // y = 3.96 at the box, while a ray from the new Position or the start would hit it. The
+        // direction row's second step (0.5, -0.9375) from (1.5, -0.3125) reaches the box centred
+        // at (2.5, -2.1875); a ray along the whole offset (2, -1.25) passes y = -0.9375 there.
         [Test]
         public void ARaycastHitSnapsThePointUntilTheTimerRunsOut()
         {
@@ -160,6 +164,13 @@ namespace ProjectLucid.Tests
 
                 box.isTrigger = false;
                 placement.Reset();
+                Set(placement, "<Position>k__BackingField", new Vector3(0f, 5f, 0f));
+                Assert.That(placement.Update(start, end, 1f, gravity, Probe, 0.5f), Is.True);
+                Assert.That(placement.RaycastHit, Is.False, "the ray starts at the stored Position");
+                Assert.That(Get<float>(placement, "m_raycastHitTimer"), Is.EqualTo(0f));
+                Assert.That(placement.Position, Is.EqualTo(new Vector3(1.5f, -0.3125f, 0f)));
+
+                placement.Reset();
                 Set(placement, "<Position>k__BackingField", Vector3.zero);
                 Assert.That(placement.Update(start, end, 1f, gravity, Probe, 0.5f), Is.True);
                 Assert.That(placement.RaycastHit, Is.True);
@@ -176,6 +187,15 @@ namespace ProjectLucid.Tests
                 Set(placement, "m_raycastHitTimer", float.NaN);
                 Assert.That(placement.Update(start, end, 1f, gravity, Probe, 0.5f), Is.False);
                 Assert.That(Get<float>(placement, "m_raycastHitTimer"), Is.EqualTo(0f), "Mathf.Max(timer - step, 0), not Max(0, ...)");
+
+                ProjectionPlacement stepped = Placement(true, 1);
+                stepped.Initialise(2f, 99f, 2f, 99f);
+                Assert.That(stepped.Update(start, end, 1f, gravity, Nothing, 0.5f), Is.True);
+                Assert.That(stepped.Position, Is.EqualTo(new Vector3(1.5f, -0.3125f, 0f)));
+                Box(owned, new Vector3(2.5f, -2.1875f, 0f), Vector3.one);
+                Assert.That(stepped.Update(start, end, 1f, gravity, Probe, 0.5f), Is.True);
+                Assert.That(stepped.RaycastHit, Is.True, "the ray runs along the step, not the whole offset");
+                Assert.That(Get<float>(stepped, "m_raycastHitTimer"), Is.EqualTo(1f));
             });
         }
 
@@ -200,17 +220,34 @@ namespace ProjectLucid.Tests
         // point (position - stepDirection * stepLength) while distance < |end - start|. A last
         // raycast from the end along the summed steps then adds the hit point, or the final position.
         // Speed 10 over a unit line gives one unit step: points (1,0,0) then (2,0,0), distance 1.
+        // The loop is guarded by the caller's distance against |end - start| (ucomiss/jbe at
+        // 0x5CFF6B, again at 0x5D0075); m_distanceOffset is read only on the zero-gravity path
+        // (0x5CFEEC). A passed distance of 5 skips the loop: the final raycast has a zero length,
+        // so only the end is added and distance stays 5. An offset of 1 changes nothing here.
         [Test]
         public void ProjectionTracesFromTheEndAndAddsTheFinalPositionWithoutAHit()
         {
-            ProjectionPlacement placement = Placement(false);
-            placement.Initialise(99f, 10f, 99f, 1f);
-            var renderer = new LineRendererContainer();
-            RaycastHit hit = default;
-            float distance = 0f;
-            Assert.That(placement.ProjectForRaycastHit(Vector3.zero, Vector3.right, Vector3.zero, Nothing, renderer, ref hit, ref distance), Is.False);
-            Assert.That(Positions(renderer), Is.EqualTo(new[] { new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 0f) }));
-            Assert.That(distance, Is.EqualTo(1f));
+            foreach (int distanceOffset in new[] { 0, 1 })
+            {
+                ProjectionPlacement placement = Placement(false, distanceOffset);
+                placement.Initialise(99f, 10f, 99f, 1f);
+                var renderer = new LineRendererContainer();
+                RaycastHit hit = default;
+                float distance = 0f;
+                string label = "offset " + distanceOffset;
+                Assert.That(placement.ProjectForRaycastHit(Vector3.zero, Vector3.right, Vector3.zero, Nothing, renderer, ref hit, ref distance), Is.False, label);
+                Assert.That(Positions(renderer), Is.EqualTo(new[] { new Vector3(1f, 0f, 0f), new Vector3(2f, 0f, 0f) }), label);
+                Assert.That(distance, Is.EqualTo(1f), label);
+            }
+
+            ProjectionPlacement travelled = Placement(false, 1);
+            travelled.Initialise(99f, 10f, 99f, 1f);
+            var travelledRenderer = new LineRendererContainer();
+            RaycastHit travelledHit = default;
+            float travelledDistance = 5f;
+            Assert.That(travelled.ProjectForRaycastHit(Vector3.zero, Vector3.right, Vector3.zero, Nothing, travelledRenderer, ref travelledHit, ref travelledDistance), Is.False);
+            Assert.That(Positions(travelledRenderer), Is.EqualTo(new[] { new Vector3(1f, 0f, 0f) }), "the loop never runs");
+            Assert.That(travelledDistance, Is.EqualTo(5f));
         }
 
         // From (-1,0,0) to the origin at speed 10 under gravity -10y: one step of (1, -0.1, 0), length

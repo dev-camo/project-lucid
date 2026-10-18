@@ -18,8 +18,6 @@ namespace ProjectLucid.Tests
     // storage; the CharacterManager is an uninitialised instance reached through a reference made
     // for the case, with only its validity flag and current character set. Rows that field
     // initialisers create are leased and released idle.
-    // Not covered: which flag reaches which TriggerOutOfBounds parameter. Past its dying-state
-    // gate the character needs live input, ability and brain state.
     public sealed class OriginalOutOfBoundsTests
     {
         private const string NoEnemyScript = "Game object is in the enemy layer but contains no enemy script.";
@@ -241,6 +239,40 @@ namespace ProjectLucid.Tests
                 scene.Storage.Calls.Clear();
                 Call(area, "SetCharacterOutOfBounds", scene.Character);
                 Assert.That(scene.Storage.Calls, Is.EqualTo(reached), "SetCharacterOutOfBounds 0x6E8770 tail-calls TriggerOutOfBounds");
+            });
+        }
+
+        // OnTriggerEnter (0x6E8754/0x6E8758) and SetCharacterOutOfBounds (0x6E8777/0x6E877B) pass
+        // m_triggerInstantDeath (+0x20) as instantDeath and m_triggerRingLoss (+0x21) as
+        // triggerRingLoss. Past its two gates TriggerOutOfBounds 0x734BD0 tests triggerRingLoss
+        // first (0x734DA9), then instantDeath (0x734E6C), whose TriggerHardFailure 0x7346C0 first
+        // stores TriggerDyingState true and then fails in EnableGameInput on the empty InputSystem
+        // row. Swapped arguments would take the ring-loss branch and never record that store.
+        [Test]
+        public void InstantDeathFlagReachesTheHardFailureBeforeTheRingLossFlag()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<InputSystem>();
+                Scene scene = NewScene(owned);
+                OutOfBoundsArea area = NewArea(owned);
+                Set(area, "m_characterManagerRef", scene.Reference());
+                Set(area, "m_triggerInstantDeath", true);
+                Set(area, "m_triggerRingLoss", false);
+                var hardFailure = new[]
+                {
+                    "get IsOutOfBounds default=False store=True",
+                    "get TriggerDyingState default=False store=True",
+                    "set TriggerDyingState=True",
+                };
+
+                Assert.Catch(() => Call(area, "SetCharacterOutOfBounds", scene.Character), "EnableGameInput needs an InputSystem");
+                Assert.That(scene.Storage.Calls, Is.EqualTo(hardFailure), "SetCharacterOutOfBounds");
+
+                scene.Storage.Seed(ActorFSMKeys.TriggerDyingState, false);
+                scene.Storage.Calls.Clear();
+                Assert.Catch(() => Call(area, "OnTriggerEnter", scene.CharacterCollider), "EnableGameInput needs an InputSystem");
+                Assert.That(scene.Storage.Calls, Is.EqualTo(hardFailure), "OnTriggerEnter");
             });
         }
 

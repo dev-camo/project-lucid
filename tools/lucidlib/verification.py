@@ -2010,6 +2010,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOutOfBoundsTests." + name fo
     "PlaneTruthTableUsesTheChosenAxisInclusivelyAndRejectsNaN",
     "BoxAcceptsOnlyPositionsTheBoundsContain",
     "TriggerEnterReachesTheCharacterOnlyThroughItsCollisionCollider",
+    "InstantDeathFlagReachesTheHardFailureBeforeTheRingLossFlag",
     "ManualEnterHitsOnlyEnemiesOnTheEnemyLayer",
     "TriggerColliderGetComponentForwardsToTheGameObject",
     "PositionCheckMarksTheCharacterOutOfBoundsUnlessARespawnIsUnderWay",
