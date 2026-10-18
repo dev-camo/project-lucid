@@ -188,7 +188,10 @@ namespace ProjectLucid.Tests
         }
 
         // Sets a static field for the case and puts back what it held. Reading
-        // it first runs the declaring type's initializer, if it has not run.
+        // it first runs the declaring type's initializer, if it has not run. A static
+        // SystemRef built by that initializer belongs to a row this fixture owns, so the
+        // value put back is a revoked reference to a row released with the fixture; the
+        // type initializer cannot be run again to build another.
         public void LeaseStatic(FieldInfo field, object value)
         {
             m_releases.Add(new StaticFieldLease(field));
