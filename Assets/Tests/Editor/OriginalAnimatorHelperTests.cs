@@ -1257,6 +1257,15 @@ namespace ProjectLucid.Tests
             return pair;
         }
 
+        // Awake 0x06000540 (0x52F850) loads m_parametersToProperties (+0x18) and its length (0x52f85e)
+        // with no null test, and CreateInstance sends Awake before the array is assigned, so the
+        // original body faults there and Unity logs the exception.
+        private static AnimatorToMaterialPropertyData CreateMaterialPropertyData()
+        {
+            LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
+            return ScriptableObject.CreateInstance<AnimatorToMaterialPropertyData>();
+        }
+
         // ParameterToPropertyPair.UpdateCachedValues 0x06000547 (0x52F8B0) stores
         // Animator.StringToHash(m_animParameter) (+0x20) and Shader.PropertyToID(
         // m_materialProperty) (+0x24); both hash fields are NonSerialized (flags 0x0081).
@@ -1271,7 +1280,7 @@ namespace ProjectLucid.Tests
                 Assert.That((int)Field(pairType, "m_animParameterHash").Attributes, Is.EqualTo(0x0081));
                 Assert.That((int)Field(pairType, "m_materialPropertyHash").Attributes, Is.EqualTo(0x0081));
 
-                var data = owned.Add(ScriptableObject.CreateInstance<AnimatorToMaterialPropertyData>());
+                var data = owned.Add(CreateMaterialPropertyData());
                 AnimatorToMaterialPropertyData.ParameterToPropertyPair first = Pair("Glow", "_Glow");
                 AnimatorToMaterialPropertyData.ParameterToPropertyPair second = Pair("Fade", "_Fade");
                 var pairs = new[] { first, second };
@@ -1318,7 +1327,7 @@ namespace ProjectLucid.Tests
                     controller.AddParameter("Glow", AnimatorControllerParameterType.Float);
                     controller.AddParameter("Fade", AnimatorControllerParameterType.Float);
                 });
-                var data = owned.Add(ScriptableObject.CreateInstance<AnimatorToMaterialPropertyData>());
+                var data = owned.Add(CreateMaterialPropertyData());
                 AnimatorToMaterialPropertyData.ParameterToPropertyPair noProperty = Pair("Fade", "");
                 Set(data, "m_parametersToProperties", new[] { Pair("Glow", "_Glow"), Pair("", "_Fade"), noProperty });
                 data.UpdateCachedValues();
