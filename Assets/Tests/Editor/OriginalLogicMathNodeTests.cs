@@ -513,13 +513,16 @@ namespace ProjectLucid.Tests
             carrier.Int2 = carrier.Recording("Second", 1);
             add.Refresh();
             Assert.AreEqual(int.MinValue, add.Output.Value);
+            AssertReads("First", "Second");
             carrier.Int1 = carrier.Recording("First", int.MinValue);
             subtract.Refresh();
             Assert.AreEqual(int.MaxValue, subtract.Output.Value);
+            AssertReads("First", "Second");
             carrier.Int1 = carrier.Recording("First", 65536);
             carrier.Int2 = carrier.Recording("Second", 65536);
             multiply.Refresh();
             Assert.AreEqual(0, multiply.Output.Value);
+            AssertReads("First", "Second");
 
             MathAddLong addLong = Node<MathAddLong>();
             MathSubtractLong subtractLong = Node<MathSubtractLong>();
@@ -539,6 +542,7 @@ namespace ProjectLucid.Tests
             carrier.Long2 = carrier.Recording("Second", 1L);
             addLong.Refresh();
             Assert.AreEqual(long.MinValue, addLong.Output.Value);
+            AssertReads("First", "Second");
         }
 
         // Single-precision First op Second: MathAddFloat addss 0x1a03365, MathSubtractFloat
@@ -586,9 +590,11 @@ namespace ProjectLucid.Tests
             carrier.Int2 = carrier.Recording("Denominator", 0);
             divide.Refresh();
             Assert.IsTrue(float.IsPositiveInfinity(divide.Output.Value));
+            AssertReads("Numerator", "Denominator");
             carrier.Int1 = carrier.Recording("Numerator", 0);
             divide.Refresh();
             Assert.IsTrue(float.IsNaN(divide.Output.Value));
+            AssertReads("Numerator", "Denominator");
 
             MathDivideLong divideLong = Node<MathDivideLong>();
             Bind(divideLong.Numerator, "Long1");
@@ -602,7 +608,7 @@ namespace ProjectLucid.Tests
             carrier.Long2 = carrier.Recording("Denominator", 4L);
             divideLong.Refresh();
             Assert.AreEqual(0.25f, divideLong.Output.Value);
-            carrier.Reads.Clear();
+            AssertReads("Denominator", "Numerator");
             carrier.Long2 = carrier.Recording("Denominator", 0L);
             divideLong.Refresh();
             Assert.AreEqual(0f, divideLong.Output.Value);
