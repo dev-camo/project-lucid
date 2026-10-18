@@ -1,0 +1,12 @@
+{
+  "name": "ProjectLucid.CrossPromoUI.EngineVerification",
+  "references": [
+    "HLUnityCore.Runtime",
+    "HLCrossPromo.Runtime",
+    "UnityEngine.UI"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

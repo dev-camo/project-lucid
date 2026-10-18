@@ -1274,6 +1274,46 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalControllerSubscriptionGapTes
     "InputDisabledSubscriptionFollowsTheStaticOnesOnlyForARegisteredSystem",
 ))
 
+# HLCrossPromo full screen view, placement and launch button.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoFullScreenViewTests." + name for name in (
+    "DeclarationsKeepOriginalConstantsFieldsAndIterator",
+    "PreviousAndNextAdWrapAroundTheAdList",
+    "EasingIsCubicInOutOverTheDoubledProgress",
+    "ButtonTextFallsBackToPlayForFreeOnEveryPage",
+    "ScrollingUiNeedsAtLeastTwoAds",
+    "ShowWithAPromoNotReadyBuildsPipsAndRefreshesTheRequestedAd",
+    "ShowSkipsTheDirectRefreshWhenReadyAndDisableReleasesEveryPage",
+    "ShowWithAReadyCrossPromoRefreshesThroughTheImmediateInitialisedCallback",
+    "ShowWhileSyncingPassesANegativeIndexStraightToTheRefresh",
+    "DisableBeforeShowClearsPagesWithoutAPromo",
+    "DockedPageNumberSnapsOnlyWithinAccuracy",
+    "DragOnADockedPageOnlyRecordsThePage",
+    "ReleaseOffAPageChoosesItsTargetFromTheDragDirection",
+    "PageMovesTargetHalfStepsAndSkipTheCurrentPage",
+    "ScrollAnimationDrawsItsFirstFrameAtTheStart",
+    "ScrollAnimationContinuesWhileProgressEqualsTheDuration",
+    "ScrollAnimationDocksAndRefreshesOnTheOuterPages",
+))
+
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoFullScreenPlacementTests." + name for name in (
+    "DeclarationsKeepOriginalFields",
+    "AwakeWaitsForTheSystemThenSubscribesShowUntilDestroyed",
+    "AwakeWithARegisteredSystemInitialisesImmediately",
+    "DestroyBeforeInitialisationOnlyLeavesTheStartupObserver",
+    "EnableHidesTheViewAndCloseAlsoRaisesClosed",
+))
+
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoLaunchButtonTests." + name for name in (
+    "DeclarationsDefaultsAndTheBaseGate",
+    "InitialisedResetsImpressionsAndKeepsTheAdOnlyForTheSameList",
+    "InitialisedShowsTheFirstAdWithAFreshImpressionCount",
+    "ShowingAnAdSwapsTheIconAndCountsImpressionsOnlyWhenOneIsReturned",
+    "LaunchRequestsTheCurrentAdThenRotates",
+    "UpdateHidesOnAClosedGateAndRetriesHiddenContent",
+    "EnableWaitsForTheSystemAndDisableLeavesInitialised",
+    "EnableWithARegisteredSystemInitialisesAndDisableWithoutOneLeavesStartup",
+))
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CameraInputDisablerTests.CurrentDeclarationsAndBodiesMatchSnapshot",
     "ProjectLucid.Tests.CameraInputDisablerTests.OriginalAxesThresholdsAndSnapArguments",
@@ -1952,6 +1992,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CoroutineScrollAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.UnityUIRuntimeAssemblyDeclaresAndResolvesPinnedUI",
     "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.EventSystemsRuntimeAssemblyDeclaresAndResolvesPinnedUI",
+    "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CrossPromoRuntimeAssemblyDeclaresAndResolvesPinnedUI",
+    "ProjectLucid.Tests.Editor.VerificationAssemblyReferencesTests.CrossPromoUIAssemblyDeclaresAndResolvesPinnedUI",
 )
 
 # Compiled declaration flags only; gameplay and native layout stay separate.
