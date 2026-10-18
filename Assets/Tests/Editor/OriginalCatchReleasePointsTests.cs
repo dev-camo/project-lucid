@@ -70,6 +70,16 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The character tracks through a probe that supplies the steering input, with the camera heading +z.
+        private static SteeringTrackingProbe Steered(Scene scene)
+        {
+            var tracking = new SteeringTrackingProbe(scene.Character);
+            ((System.Collections.IDictionary)Get(scene.Character, "m_trackingTypes")).Add(tracking.Type, tracking);
+            scene.Character.SetTrackingType(tracking.Type);
+            Set(scene.Character, "m_cameraForwardOnCharacterPlane", Vector3.forward);
+            return tracking;
+        }
+
         private static void AreSameRotation(Quaternion expected, Quaternion actual, string label)
         {
             Assert.That(Quaternion.Angle(expected, actual), Is.LessThan(0.01f), label + ": expected " + expected.eulerAngles + " but was " + actual.eulerAngles);
@@ -174,6 +184,14 @@ namespace ProjectLucid.Tests
                 scene.Points[1].gameObject.SetActive(false);
                 AreClose(new Vector3(20f, 0f, 0f), scene.Definition.EvaluatePosition(scene.Character, false), "the inactive point 10 is skipped");
             }
+            using (var scene = new Scene())
+            {
+                // Both outer points are exactly 5 away (squared distance 25): the first of equals wins
+                // (the strict comparison, ucomiss/jbe at 0x6E3F6F).
+                scene.Types(CatchReleasePositionType.QuantizeClosestPosition, CatchReleaseRotationType.Free);
+                scene.Place(5f);
+                AreClose(new Vector3(0f, 0f, 0f), scene.Definition.EvaluatePosition(scene.Character, false), "equidistant points: the first");
+            }
             using (var scene = new Scene(withPoints: false))
             {
                 scene.Types(CatchReleasePositionType.QuantizeClosestPosition, CatchReleaseRotationType.Free);
@@ -183,9 +201,11 @@ namespace ProjectLucid.Tests
         }
 
         // Last and Next both start from the closest point and compare the character with it along
-        // its forward (0x6E40F0): behind (or level with, for Next) the closest point the closest point
-        // stays; past it the choice steps one point back (Last) or on (Next), and a reversed catch steps
-        // the other way. The index is clamped to the ends and an inactive target keeps the closest point.
+        // its forward (0x6E40F0). Next keeps the closest point only while the character is behind it
+        // (dot < 0, the test at 0x6E3E37) and otherwise steps on; Last keeps it only while the character
+        // is past it (dot > 0, 0x6E3D48) and otherwise steps back; level (dot == 0) steps for both, and a
+        // reversed catch steps the other way. The index is clamped to the ends and an inactive target
+        // keeps the closest point.
         [Test]
         public void LastAndNextStepAlongThePointsFromTheClosestOne()
         {
@@ -208,6 +228,14 @@ namespace ProjectLucid.Tests
                 scene.Types(CatchReleasePositionType.Last, CatchReleaseRotationType.Free);
                 AreClose(new Vector3(0f, 0f, 0f), scene.Definition.EvaluatePosition(scene.Character, false), "Last before 10 is 0");
                 AreClose(new Vector3(20f, 0f, 0f), scene.Definition.EvaluatePosition(scene.Character, true), "Last before 10, reversed");
+
+                // Exactly on the closest point (dot 0) both choices step away from it: Next onwards,
+                // Last back. A comparison that kept the closest point on a tie would return 10 for both.
+                scene.Place(10f);
+                scene.Types(CatchReleasePositionType.Next, CatchReleaseRotationType.Free);
+                AreClose(new Vector3(20f, 0f, 0f), scene.Definition.EvaluatePosition(scene.Character, false), "Next level with 10");
+                scene.Types(CatchReleasePositionType.Last, CatchReleaseRotationType.Free);
+                AreClose(new Vector3(0f, 0f, 0f), scene.Definition.EvaluatePosition(scene.Character, false), "Last level with 10");
 
                 // The ends clamp the index.
                 scene.Place(22f);
@@ -296,6 +324,21 @@ namespace ProjectLucid.Tests
                 scene.Types(CatchReleasePositionType.Free, CatchReleaseRotationType.QuantizeClosestAngle);
                 AreSameRotation(yaw90, scene.Definition.EvaluateRotation(scene.Character, false, Vector3.forward, null), "best aligned point");
             }
+            // FreeLookup steers before the HasPoints exit (the compare with the type at 0x6E42C7
+            // precedes the length test at 0x6E4310), so a point-less definition still steers.
+            using (var scene = new Scene(withPoints: false))
+            {
+                SteeringTrackingProbe tracking = Steered(scene);
+                scene.Types(CatchReleasePositionType.Free, CatchReleaseRotationType.FreeLookup);
+                scene.Place(0f, Quaternion.identity);
+                tracking.InputForward = Vector3.forward;
+                tracking.InputTurn = 90f;
+                AreSameRotation(Quaternion.Euler(0f, 90f, 0f), scene.Definition.EvaluateRotation(scene.Character, false, Vector3.forward, null),
+                    "no points, steering input");
+                tracking.InputForward = Vector3.zero;
+                AreSameRotation(Quaternion.identity, scene.Definition.EvaluateRotation(scene.Character, false, Vector3.forward, null),
+                    "no points, no input: the character rotation");
+            }
             using (var scene = new Scene(withPoints: false))
             {
                 Quaternion characterRotation = Quaternion.Euler(0f, 30f, 0f);
@@ -359,10 +402,7 @@ namespace ProjectLucid.Tests
         {
             using (var scene = new Scene())
             {
-                var tracking = new SteeringTrackingProbe(scene.Character);
-                ((System.Collections.IDictionary)Get(scene.Character, "m_trackingTypes")).Add(tracking.Type, tracking);
-                scene.Character.SetTrackingType(tracking.Type);
-                Set(scene.Character, "m_cameraForwardOnCharacterPlane", Vector3.forward);
+                SteeringTrackingProbe tracking = Steered(scene);
                 scene.Types(CatchReleasePositionType.Free, CatchReleaseRotationType.FreeLookup);
 
                 // No input: nothing is written and, with the points present, the closest point decides.
@@ -389,6 +429,13 @@ namespace ProjectLucid.Tests
                 scene.Place(10f, Quaternion.Euler(0f, 45f, 0f));
                 AreSameRotation(Quaternion.Euler(0f, 90f, 0f), scene.Definition.EvaluateRotation(scene.Character, false, Vector3.forward, null),
                     "world rotation 45 plus delta 45");
+
+                // The character's own rotation is the leftmost factor: yaw 45 * yaw 45 * (pitch the
+                // forward up) sends forward to up and up to -x, whereas steering * tilt * rotation
+                // would send forward to (0.5, 0.71, -0.5).
+                Quaternion composed = scene.Definition.EvaluateRotation(scene.Character, false, Vector3.up, null);
+                AreClose(Vector3.up, composed * Vector3.forward, "rotation * steering * tilt: forward");
+                AreClose(Vector3.left, composed * Vector3.up, "rotation * steering * tilt: up");
             }
         }
 
@@ -401,10 +448,7 @@ namespace ProjectLucid.Tests
         {
             using (var scene = new Scene())
             {
-                var tracking = new SteeringTrackingProbe(scene.Character);
-                ((System.Collections.IDictionary)Get(scene.Character, "m_trackingTypes")).Add(tracking.Type, tracking);
-                scene.Character.SetTrackingType(tracking.Type);
-                Set(scene.Character, "m_cameraForwardOnCharacterPlane", Vector3.forward);
+                SteeringTrackingProbe tracking = Steered(scene);
                 scene.Place(10f, Quaternion.identity);
                 Transform attach = scene.Objects.Create("attach").transform;
 
@@ -416,6 +460,14 @@ namespace ProjectLucid.Tests
                 AreClose(Vector3.right, (Vector3)Call(scene.Definition, "CalculateTransformSteeringDirection", scene.Character, attach), "turn 90 about up");
                 tracking.InputTurn = 270f;
                 AreClose(Vector3.left, (Vector3)Call(scene.Definition, "CalculateTransformSteeringDirection", scene.Character, attach), "turn 270");
+
+                // An attach transform turned so that its up is +x: the heading LookRotation(+z, +x) sends
+                // its local x to -y, so the steered forward (+x after the 90 degree turn) lands on -y. The
+                // reversed product order, or the world up in place of the attach up, would give +x.
+                Transform sideways = scene.Objects.Create("sideways attach", Vector3.zero, Quaternion.Euler(0f, 0f, -90f)).transform;
+                tracking.InputTurn = 90f;
+                AreClose(Vector3.down, (Vector3)Call(scene.Definition, "CalculateTransformSteeringDirection", scene.Character, sideways),
+                    "heading * steering * forward in the attach up frame");
 
                 scene.Types(CatchReleasePositionType.Free, CatchReleaseRotationType.ClosestRotationLookup);
                 tracking.InputTurn = 90f;

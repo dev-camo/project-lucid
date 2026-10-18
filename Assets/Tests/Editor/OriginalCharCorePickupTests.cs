@@ -7,6 +7,7 @@ using Hardlight.UI.Binding;
 using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.CharCoreShared;
+using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.Events;
 using Object = UnityEngine.Object;
@@ -325,6 +326,190 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Characters that have finished Actor.Initialise (m_initialised, the last step), so that
+        // TriggerAnimationEnter and TriggerAnimationLeave run instead of returning at once. Each has a real
+        // Animator driven by an AnimatorController with one bool parameter, a real ActorAudio and a real
+        // ActorPFXController whose ParticleEffectManager has actor PFX off, so the animation definition's
+        // BoolEnter and BoolExit entries are the only observable effect of the calls.
+        private sealed class ObservedTriggerScene : IDisposable
+        {
+            private const string Parameter = "Playing";
+            private readonly List<IDisposable> m_leases = new List<IDisposable>();
+            public readonly OwnedTimeScaledObjects Time;
+            public readonly ActorAnimationDefinition Definition;
+            public readonly ActorAnimationTriggerProbe Trigger;
+            public readonly Character First, Second;
+            private readonly Dictionary<Character, Animator> m_animators = new Dictionary<Character, Animator>();
+
+            public ObservedTriggerScene()
+            {
+                try
+                {
+                    Row<GameplayIslandManager>();
+                    Row<LevelManager>();
+                    Row<CharacterManager>();
+                    Row<TimeManager>();
+                    Time = new OwnedTimeScaledObjects("lucid-observed-animation-trigger");
+                    m_leases.Add(Time);
+
+                    Definition = Time.Objects.Own(ScriptableObject.CreateInstance<ActorAnimationDefinition>());
+                    Set(Definition, "m_parameters", new[]
+                    {
+                        Entry(ActorAnimationType.BoolEnter), Entry(ActorAnimationType.BoolExit)
+                    });
+                    Call(Definition, "RebuildAnimationParameters");
+
+                    Trigger = Time.Add<ActorAnimationTriggerProbe>("trigger");
+                    Set(Trigger, "m_animation", Definition);
+                    First = NewCharacter("first");
+                    Second = NewCharacter("second");
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+            }
+
+            public IList Pending => (IList)Get(Trigger, "m_actorsPendingAnimationLeave");
+            public IDictionary Effects => (IDictionary)Get(Trigger, "m_actorEffectDictionary");
+            public bool Playing(Character character) => m_animators[character].GetBool(Parameter);
+            public void SetPlaying(Character character, bool value) => m_animators[character].SetBool(Parameter, value);
+
+            // A handle with no definition: Actor.ClearFullscreenEffects skips it (continue) but still
+            // empties the whole list, which shows that the list reached the actor.
+            public static FullscreenShaderManager.ParametersHandle IdleHandle() =>
+                new FullscreenShaderManager.ParametersHandle(new FullscreenShaderManager.ActiveParameters(), 1);
+
+            private void Row<T>() where T : class, ISystem =>
+                m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<T>()));
+
+            private static ActorAnimationDefinition.AnimationParameter Entry(ActorAnimationType type)
+            {
+                var wrapper = new AnimationParameterWrapper();
+                Set(wrapper, "m_parameterName", Parameter);
+                return new ActorAnimationDefinition.AnimationParameter { AnimationType = type, ParameterName = wrapper };
+            }
+
+            private Character NewCharacter(string name)
+            {
+                var character = Time.Add<Character>(name);
+                var animator = Time.Add<Animator>(name + " animator");
+                var controller = Time.Objects.Own(new AnimatorController());
+                controller.AddLayer("Base");
+                controller.AddParameter(Parameter, AnimatorControllerParameterType.Bool);
+                animator.runtimeAnimatorController = controller;
+                animator.Rebind();
+                animator.Update(0f);
+                m_animators.Add(character, animator);
+
+                var pfx = Time.Add<ActorPFXController>(name + " pfx");
+                Set(pfx, "m_particleEffectManager", Time.Add<ParticleEffectManager>(name + " pfx manager"));
+                SetActorProperty(character, "Animator", new ActorAnimator(animator));
+                SetActorProperty(character, "Audio", Time.Add<ActorAudio>(name + " audio"));
+                SetActorProperty(character, "m_pfxController", pfx);
+                SetActorProperty(character, "m_initialised", true);
+                return character;
+            }
+
+            private static void SetActorProperty(Actor actor, string name, object value) =>
+                typeof(Actor).GetProperty(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+                    .GetSetMethod(true).Invoke(actor, new[] { value });
+
+            public void Dispose()
+            {
+                for (int i = m_leases.Count - 1; i >= 0; i--)
+                    m_leases[i].Dispose();
+                m_leases.Clear();
+            }
+        }
+
+        // TryPlayAnimation 0xF1A380 calls actor.TriggerAnimationEnter(animation, handles) (0xF1A3E5) with the
+        // dictionary's own list (TryGetOrNew); Action_OnLeave 0xF1A1C0 calls TriggerAnimationLeave with the
+        // list TryGetValue found (0xF1A220, 0xF1A232). The actor's BoolEnter parameter turns on, its
+        // BoolExit parameter off, and the leave empties the handle list it was given.
+        [Test]
+        public void EnteringAndLeavingPlayTheAnimationOnTheActor()
+        {
+            using (var scene = new ObservedTriggerScene())
+            {
+                scene.Trigger.OnEnable();
+                Assert.That(scene.Playing(scene.First), Is.False);
+
+                scene.Trigger.Action_OnEnter(scene.First);
+                Assert.That(scene.Playing(scene.First), Is.True, "TriggerAnimationEnter ran");
+                Assert.That(scene.Playing(scene.Second), Is.False, "only the entering actor");
+                scene.Trigger.Action_OnEnter(scene.Second);
+                var handles = (List<FullscreenShaderManager.ParametersHandle>)scene.Effects[scene.First];
+                handles.Add(ObservedTriggerScene.IdleHandle());
+
+                scene.Trigger.Action_OnLeave(scene.First);
+                Assert.That(scene.Playing(scene.First), Is.False, "TriggerAnimationLeave ran");
+                Assert.That(scene.Playing(scene.Second), Is.True);
+                Assert.That(handles, Is.Empty, "the dictionary's list was passed to the actor");
+                Assert.That(scene.Effects[scene.First], Is.SameAs(handles));
+
+                // An actor that is not pending, or any actor while only enters are tracked, is not left.
+                scene.SetPlaying(scene.First, true);
+                scene.Trigger.Action_OnLeave(scene.First);
+                Assert.That(scene.Playing(scene.First), Is.True, "not pending");
+                Set(scene.Trigger, "m_onEnterOnly", true);
+                scene.Trigger.Action_OnLeave(scene.Second);
+                Assert.That(scene.Playing(scene.Second), Is.True, "only enters tracked");
+            }
+        }
+
+        // Without the manager that Actor.Initialise reads, the first effect of an animation faults in
+        // TriggerAnimationEnter, but only when the effect-handle list is not null (the early return
+        // after the PFX call). The fault therefore shows that TryPlayAnimation passed the dictionary's
+        // list; it happens before the actor is queued.
+        [Test]
+        public void EnteringPassesTheEffectHandleListToTheActor()
+        {
+            using (var scene = new ObservedTriggerScene())
+            {
+                Set(scene.Definition, "m_fullscreenEffectParameters", new[] { new ActorAnimationDefinition.FullscreenEffectParameter() });
+                scene.Trigger.OnEnable();
+
+                Assert.Throws<NullReferenceException>(() => scene.Trigger.Action_OnEnter(scene.First));
+                Assert.That(scene.Playing(scene.First), Is.True, "the animator step precedes the effects");
+                Assert.That(scene.Effects.Contains(scene.First), Is.True);
+                Assert.That(scene.Pending, Is.Empty, "the actor is queued only after the call returns");
+            }
+        }
+
+        // OnDisable 0xF19EC0 leaves every pending actor (the loop at 0xF19F40..0xF19F92, passing the
+        // TryGetValue handle list) unless m_onEnterOnly is set (the jne at 0xF19EF3), then empties the
+        // dictionary and the list.
+        [Test]
+        public void DisablingLeavesThePendingActorsUnlessOnlyEntersAreTracked()
+        {
+            using (var scene = new ObservedTriggerScene())
+            {
+                scene.Trigger.OnEnable();
+                scene.Trigger.Action_OnEnter(scene.First);
+                scene.Trigger.Action_OnEnter(scene.Second);
+                var handles = (List<FullscreenShaderManager.ParametersHandle>)scene.Effects[scene.First];
+                handles.Add(ObservedTriggerScene.IdleHandle());
+
+                scene.Trigger.OnDisable();
+                Assert.That(scene.Playing(scene.First), Is.False);
+                Assert.That(scene.Playing(scene.Second), Is.False);
+                Assert.That(handles, Is.Empty, "each actor received its own list");
+                Assert.That(scene.Pending, Is.Empty);
+                Assert.That(scene.Effects, Is.Empty);
+            }
+            using (var scene = new ObservedTriggerScene())
+            {
+                scene.Trigger.OnEnable();
+                scene.Trigger.Action_OnEnter(scene.First);
+                Set(scene.Trigger, "m_onEnterOnly", true);
+                scene.Trigger.OnDisable();
+                Assert.That(scene.Playing(scene.First), Is.True, "only enters tracked: no leave");
+                Assert.That(scene.Pending, Is.Empty, "the list is still cleared");
+            }
+        }
+
         // The ActorComponentLookup overloads (0xF1A0C0, 0xF1A250) take the lookup's actor (+0x50), cast it
         // to T (IsInst, 0xF1A108) and do nothing for a missing actor or while disabled (m_enabled test at
         // 0xF1A0CE, before the actor is read).
@@ -368,13 +553,18 @@ namespace ProjectLucid.Tests
             public OwnedCharacterManagers Characters;
             public CharacterManager Manager;
             public Character Character;
+            public MessageManager Messages;
 
             // Rows the pickup's field initialisers read, then the pickup itself. With characters, a
-            // real CharacterManager holding a real Character is registered under its row first.
-            public PickupScene(bool withCharacter, float collectLength = 2f)
+            // real CharacterManager holding a real Character is registered under its row first. With
+            // messages (which needs characters, for the Shutdown action rows), a real MessageManager is
+            // registered as well.
+            public PickupScene(bool withCharacter, float collectLength = 2f, bool withMessages = false)
             {
                 try
                 {
+                    if (withMessages && !withCharacter)
+                        throw new ArgumentException("messages need the character fixture's action rows");
                     if (withCharacter)
                     {
                         Characters = new OwnedCharacterManagers();
@@ -395,7 +585,10 @@ namespace ProjectLucid.Tests
                     if (!withCharacter)
                         Row<App>();
                     Row<CinemachineCameraManager>();
-                    Row<MessageManager>();
+                    if (withMessages)
+                        RegisterMessageManager();
+                    else
+                        Row<MessageManager>();
                     Row<ParticleEffectManager>();
                     Row<TimeManager>();
                     Time = new OwnedTimeScaledObjects("lucid-air-recharge");
@@ -429,6 +622,34 @@ namespace ProjectLucid.Tests
 
             private void Row<T>() where T : class, ISystem =>
                 m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<T>()));
+
+            // The manager subscribes itself and its exchanges to Shutdown; they are shut down and
+            // unsubscribed before the row is released.
+            private void RegisterMessageManager()
+            {
+                var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<MessageManager>());
+                m_leases.Add(row);
+                Messages = new MessageManager();
+                MessageManager manager = Messages;
+                m_leases.Add(new Release(() =>
+                {
+                    manager.ProcessSystemAction(SystemAction.Shutdown);
+                    ProcessManager.UnsubscribeFromAllActions(manager);
+                    ProcessManager.UnsubscribeFromAllActions(manager.ComponentMessagesWithCompletion);
+                    ProcessManager.UnsubscribeFromAllActions(manager.StringMessagesWithCompletion);
+                    ProcessManager.UnsubscribeFromAllActions(manager.ComponentMessagesWithoutCompletion);
+                    ProcessManager.UnsubscribeFromAllActions(manager.StringMessagesWithoutCompletion);
+                    ProcessManager.UnsubscribeFromAllActions(manager.ScriptableObjectMessagesWithoutCompletion);
+                }));
+                row.Register(manager);
+            }
+
+            private sealed class Release : IDisposable
+            {
+                private readonly Action m_release;
+                public Release(Action release) { m_release = release; }
+                public void Dispose() => m_release();
+            }
 
             private AnimationClip NewClip(string name, float length)
             {
@@ -659,6 +880,92 @@ namespace ProjectLucid.Tests
                 Assert.That((float)Get(scene.Pickup, "m_enterIdleTimeRemainingSeconds"), Is.Zero, "the exit countdown never started");
                 Assert.Throws<NullReferenceException>(() => scene.Pickup.Action_CharacterEnter(null));
                 Assert.That(scene.Log, Is.Empty, "collecting never started");
+            }
+        }
+
+        // The detector message for the pickup's archetype, published on the exchange under the App that
+        // OnEnable 0x6E1100 subscribed with (m_appRef.Get()).
+        private static void PublishDetectorMessage(PickupScene scene, bool isValid)
+        {
+            Component app = ProcessManager.GetSystem<App>();
+            var message = new DetectorArchetypeUpdateMessage { Archetype = CharacterArchetype.Flying, IsValid = isValid };
+            scene.Messages.ComponentMessagesWithCompletion.PublishMessage(in app, in message, () => { }, -1);
+        }
+
+        // OnEnable 0x6E1100: the base enable (a TimeManager subscription, skipped here through
+        // m_ignoreEnable as the other TimeScaledComponent probes do), EnterIdleState(false) (0x6E118C),
+        // the camera manager subscription only with custom render bounds (the test at 0x6E1191),
+        // IsValid.Value = true (vcall slot 9, 0x6E1207) and the OnDetectorActive subscription for the
+        // App on the manager's ComponentMessagesWithCompletion exchange.
+        [Test]
+        public void EnablingIdlesTheAnimationMarksTheBindingValidAndSubscribesToDetectorMessages()
+        {
+            using (var scene = new PickupScene(true, withMessages: true))
+            {
+                Set(scene.Pickup, "m_ignoreEnable", true);
+                scene.Idling.gameObject.SetActive(false);
+                Assert.That(scene.Pickup.IsValid.Value, Is.False);
+
+                Call(scene.Pickup, "OnEnable");
+
+                Assert.That(scene.Pickup.IsValid.Value, Is.True);
+                Assert.That(scene.Animation.clip, Is.SameAs(scene.Idle));
+                Assert.That(scene.Animation.wrapMode, Is.EqualTo(WrapMode.Loop));
+                Assert.That(scene.Idling.gameObject.activeSelf, Is.True, "EnterIdleState ran");
+                Assert.That(scene.Log, Is.Empty, "no recharged effect on enabling");
+                Assert.That(Get(ProcessManager.GetSystemRef<CinemachineCameraManager>(), "m_actionOnSystemValid"), Is.Null,
+                    "no camera subscription without custom render bounds");
+
+                Assert.That(Handlers(scene.Manager), Is.Empty);
+                PublishDetectorMessage(scene, true);
+                Delegate[] handlers = Handlers(scene.Manager);
+                Assert.That(handlers.Length, Is.EqualTo(1), "the pickup answers a detector message for the App");
+                Assert.That(handlers[0].Target, Is.SameAs(scene.Pickup));
+                ((Action<Character>)handlers[0])(scene.Character);
+                Assert.That(Handlers(scene.Manager), Is.Empty);
+            }
+        }
+
+        // OnDisable 0x6E1340 withdraws the message subscription (guarded by the message manager and
+        // App SystemRef.IsValid tests, 0x6E142D and 0x6E1516), the camera subscription behind its own
+        // guard (0x6E153D) and releases the culling group: its handler is removed, it is disposed
+        // and the field set to null (0x6E1664, 0x6E1669).
+        [Test]
+        public void DisablingWithdrawsTheSubscriptionAndReleasesTheCullingGroup()
+        {
+            using (var scene = new PickupScene(true, withMessages: true))
+            {
+                Set(scene.Pickup, "m_ignoreEnable", true);
+                Set(scene.Pickup, "m_particleRenderers", new Renderer[0]);
+                Call(scene.Pickup, "OnEnable");
+                Camera camera = scene.Time.Add<Camera>("camera");
+                Call(scene.Pickup, "SetupCustomCulling", camera);
+                var group = (CullingGroup)Get(scene.Pickup, "m_cullingGroup");
+                Assert.That(group.onStateChanged, Is.Not.Null);
+
+                Assert.DoesNotThrow(() => Call(scene.Pickup, "OnDisable"), "an unregistered camera manager is skipped");
+                Assert.That(Get(scene.Pickup, "m_cullingGroup"), Is.Null);
+                Assert.That(group.onStateChanged, Is.Null, "the state handler was removed");
+                PublishDetectorMessage(scene, true);
+                Assert.That(Handlers(scene.Manager), Is.Empty, "the message subscription was withdrawn");
+            }
+        }
+
+        // Without a registered message manager or App the guards skip the unsubscription, and the
+        // culling group is still released.
+        [Test]
+        public void DisablingWithoutManagersStillReleasesTheCullingGroup()
+        {
+            using (var scene = new PickupScene(false))
+            {
+                Set(scene.Pickup, "m_particleRenderers", new Renderer[0]);
+                Camera camera = scene.Time.Add<Camera>("camera");
+                Call(scene.Pickup, "SetupCustomCulling", camera);
+                Assert.That(Get(scene.Pickup, "m_cullingGroup"), Is.Not.Null);
+
+                Assert.DoesNotThrow(() => Call(scene.Pickup, "OnDisable"));
+                Assert.That(Get(scene.Pickup, "m_cullingGroup"), Is.Null);
+                Assert.DoesNotThrow(() => Call(scene.Pickup, "OnDisable"), "no culling group is fine");
             }
         }
 

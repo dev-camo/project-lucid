@@ -232,6 +232,28 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Without a catch transform OnLateUpdate uses the connector's own transform as the catch point
+        // (the op_Inequality at 0x6E33A7, then the connector transform in r15). The connector stands at
+        // (0,4,0) and the anchor at the origin, so the distance is 4 and the connector stays put; falling
+        // back to the anchor would give distance 0, and returning early would leave the scale alone.
+        [Test]
+        public void LateUpdateFallsBackToTheConnectorsOwnTransformWithoutACatchTransform()
+        {
+            using (var scene = new Scene())
+            {
+                Transform connector = scene.Connector.transform;
+                scene.Connector.gameObject.SetActive(false);
+                connector.position = new Vector3(0f, 4f, 0f);
+                scene.Connector.SetPivots(null, scene.Anchor, Vector3.zero);
+                Assert.That(Get(scene.Connector, "m_alwaysActive"), Is.False);
+                Assert.That(Get(scene.Connector, "m_catchTransform") as Transform, Is.Null);
+
+                scene.Connector.OnLateUpdate(0.1f);
+                AreClose(new Vector3(0f, 4f, 0f), connector.position, "the connector is its own catch point");
+                Assert.That(connector.localScale.y, Is.EqualTo(4f).Within(1e-4f), "distance from the connector to the anchor");
+            }
+        }
+
         // The catch offset is rotated by the anchor before it is added, and the start rotation is the
         // right-hand factor: with the catch at (3,3,0) the look rotation sends the connector's right to
         // +z, so a start of yaw 90 faces +z, while the opposite order would face (0,-0.71,0.71). An

@@ -740,5 +740,57 @@ namespace ProjectLucid.Tests
                 Assert.That(third.collider == null, Is.True);
             }
         }
+
+        // The raycast distance is the camera's distance to the position argument (0x607604..0x607682),
+        // while the ray still passes through the target's own world position. With the blocker at z = 5
+        // and an argument at z = 4 the ray stops short of it; measuring to the stored target (z = 10)
+        // would hit it.
+        [Test]
+        public void CheckIfVisibleLimitsTheRayToTheDistanceOfTheSuppliedPosition()
+        {
+            using (var rig = new Rig("lucid-indicator-raycast-distance"))
+            {
+                rig.AddCamera();
+                var indicator = new Indicator(rig);
+                Set(indicator.Component, "m_cameraManagerRef",
+                    new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), rig.Manager));
+                Set(indicator.Component, "m_framesBetweenRaycast", 2);
+                Set(indicator.Component, "m_raycastLayerMask", (LayerMask)(-1));
+                indicator.Component.SetTargetPosition(new Vector3(0f, 0f, 10f));
+                rig.Objects.Create("blocker", new Vector3(0f, 0f, 5f), Quaternion.identity).AddComponent<BoxCollider>();
+                Physics.SyncTransforms();
+
+                var shortOfTheBlocker = new Vector3(0f, 0f, 4f);
+                indicator.Component.CheckIfVisible(out _, shortOfTheBlocker);
+                Assert.That(indicator.Component.CheckIfVisible(out RaycastHit hit, shortOfTheBlocker), Is.False);
+                Assert.That(hit.collider == null, Is.True);
+            }
+        }
+
+        // The gate is an inequality (the cmp/jne at 0x60756C): once the count is past
+        // m_framesBetweenRaycast it never equals it again, so the ray is not cast and the empty hit is
+        // returned as visible even with a blocker in the way.
+        [Test]
+        public void CheckIfVisibleNeverRaycastsOnceTheCountIsPastTheThreshold()
+        {
+            using (var rig = new Rig("lucid-indicator-raycast-past"))
+            {
+                rig.AddCamera();
+                var indicator = new Indicator(rig);
+                Set(indicator.Component, "m_cameraManagerRef",
+                    new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), rig.Manager));
+                Set(indicator.Component, "m_framesBetweenRaycast", 2);
+                Set(indicator.Component, "m_raycastLayerMask", (LayerMask)(-1));
+                var target = new Vector3(0f, 0f, 10f);
+                indicator.Component.SetTargetPosition(target);
+                rig.Objects.Create("blocker", new Vector3(0f, 0f, 5f), Quaternion.identity).AddComponent<BoxCollider>();
+                Physics.SyncTransforms();
+
+                Set(indicator.Component, "m_raycastFrameCount", 5);
+                Assert.That(indicator.Component.CheckIfVisible(out RaycastHit hit, target), Is.True);
+                Assert.That(hit.collider == null, Is.True);
+                Assert.That(Get(indicator.Component, "m_raycastFrameCount"), Is.EqualTo(6));
+            }
+        }
     }
 }
