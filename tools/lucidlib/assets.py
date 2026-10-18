@@ -715,9 +715,9 @@ def extract_assets(input_path: Path, work_dir: Path) -> dict:
         if project.exists():
             raise RuntimeError("Fresh export destination unexpectedly exists; refusing destructive export")
         _request(base, "/Export/UnityProject", {"Path": str(project), "CreateSubfolder": "false"})
-        # The pinned closure itself must still match before the export is published.
-        verified_tool_path(work, "assetripper")
-        result = finalize_asset_export(run, work)
+        # The pinned closure must still match at the publication boundary itself, after
+        # indexing, so a change during a long index is caught before anything is written.
+        result = finalize_asset_export(run, work, before_publish=lambda: verified_tool_path(work, "assetripper"))
     except BaseException as exc:
         failure = exc
         report.update(status="failed", error=str(exc))
@@ -739,8 +739,8 @@ IL2CPP_BACKEND_LINE = "Files use the 'IL2Cpp' scripting backend."
 UNKNOWN_BACKEND_LINE = "Switching to the 'Unknown' scripting backend."
 
 
-def finalize_asset_export(run_dir: Path, work_dir: Path) -> dict:
-    """Retry indexing a completed retained export without running extraction."""
+def finalize_asset_export(run_dir: Path, work_dir: Path, before_publish=None) -> dict:
+    """Index a completed export and publish it; before_publish runs just before the writes."""
     work = validate_work_dir(work_dir.expanduser())
     run = _cache_path(work, run_dir)
     if managed_path(work, "assets", "runs") not in run.parents:
@@ -766,6 +766,8 @@ def finalize_asset_export(run_dir: Path, work_dir: Path) -> dict:
     mapping = build_asset_map(project, catalog)
     if not mapping["assets"]:
         raise RuntimeError("AssetRipper reported completion but produced no indexed assets")
+    if before_publish is not None:
+        before_publish()
     _json_write(_cache_path(work, map_path), mapping)
     report.pop("error", None)
     report.update(status="exported", project_path=mapping["project_path"],

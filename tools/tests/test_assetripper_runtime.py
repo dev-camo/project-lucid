@@ -106,7 +106,11 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
         return mock.Mock(), "http://127.0.0.1:1", mock.Mock()
 
     def extract(self, request, finalize=None):
-        finalize = finalize or (lambda run, work: {"status": "exported"})
+        def default_finalize(run, work, before_publish=None):
+            if before_publish is not None:
+                before_publish()
+            return {"status": "exported"}
+        finalize = finalize or default_finalize
         with mock.patch.object(assets, "_start_ripper", side_effect=self.launch), \
              mock.patch.object(assets, "_request", side_effect=request), \
              mock.patch.object(assets, "finalize_asset_export", side_effect=finalize):
@@ -279,7 +283,7 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
             return b""
         try:
             with self.assertRaisesRegex(bootstrap.ToolError, "closure changed"):
-                self.extract(change_install, finalize=lambda run, work: finalized.append(run))
+                self.extract(change_install, finalize=lambda run, work, before_publish=None: (before_publish and before_publish(), finalized.append(run)))
             self.assertEqual([], finalized)
             [report] = self.reports()
             self.assertEqual("failed", report["status"])

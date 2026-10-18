@@ -158,6 +158,20 @@ class AssetPathTests(unittest.TestCase):
         self.assertEqual(snapshot(self.app), before)
         self.assertEqual(json.loads((self.work / "assets/latest-assets.json").read_text()), result)
 
+    def test_a_failing_publication_check_runs_after_indexing_and_publishes_nothing(self):
+        run = self.make_export()
+        (run / "asset-map.json").unlink()
+        before = (self.work / "assets/latest-assets.json").read_text()
+        calls = []
+        def refuse():
+            calls.append("check")
+            raise RuntimeError("install changed")
+        with self.assertRaisesRegex(RuntimeError, "install changed"):
+            assets.finalize_asset_export(run, self.work, before_publish=refuse)
+        self.assertEqual(calls, ["check"])
+        self.assertFalse((run / "asset-map.json").exists())
+        self.assertEqual((self.work / "assets/latest-assets.json").read_text(), before)
+
     def test_finalization_rejects_an_export_without_the_il2cpp_backend(self):
         # A metadata decode failure falls back to AssetRipper's Unknown backend and still
         # logs "Finished post-export" (reported on Windows in #298).
