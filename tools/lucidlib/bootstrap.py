@@ -576,22 +576,39 @@ def try_lock(stream) -> bool:
         raise
 
 
-def _open_lease(path: Path, *, create: bool):
-    """Open a lease file without following links or blocking on special files."""
+def _open_lease(path: Path, *, create: bool, exclusive: bool = True, label: str = "Build lease"):
+    """Open a lease file without following links or blocking on special files.
+
+    create makes a missing file; exclusive (with create) also refuses an existing one.
+    """
     if _is_link(path):
-        raise ToolError(f"Build lease must not be a link: {path}")
+        raise ToolError(f"{label} must not be a link: {path}")
     flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     if create:
-        flags |= os.O_CREAT | os.O_EXCL
+        flags |= os.O_CREAT | (os.O_EXCL if exclusive else 0)
     descriptor = os.open(path, flags, 0o600)
     try:
         info = os.fstat(descriptor)
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-            raise ToolError(f"Build lease must be a regular file: {path}")
+            raise ToolError(f"{label} must be a regular file: {path}")
         return os.fdopen(descriptor, "r+b")
     except BaseException:
         os.close(descriptor)
         raise
+
+
+def open_coordinator_lock(path: Path, label: str):
+    """Open (creating if missing) a shared coordinator lock file with the lease safeguards.
+
+    A link, special file or multiply linked file fails here at once with ToolError,
+    before any lock wait, instead of blocking the caller on a FIFO or device.
+    """
+    try:
+        return _open_lease(path, create=True, exclusive=False, label=label)
+    except ToolError:
+        raise
+    except OSError as exc:
+        raise ToolError(f"Could not open {label.lower()} {path}: {exc}") from exc
 
 
 def _release_lease(stream) -> None:

@@ -7,8 +7,10 @@ import json
 import os
 from pathlib import Path
 import shutil
+import stat
 import tarfile
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -441,6 +443,57 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.assertEqual([], list(self.inspector_builds_dir().iterdir()))
         self.assertEqual(1, runner.call_count)
         self.spawn.assert_not_called()
+
+    def assert_coordinator_lock_refused(self, message, error=bootstrap.ToolError):
+        """The inspector coordinator lock is refused promptly, before any build or lock wait."""
+        runner = self.inspector_fixture()
+        outcome = {}
+
+        def inspect():
+            try:
+                recovery._inspect_managed_output(self.work, self.work, "fixture")
+            except BaseException as exc:  # recorded for the main thread
+                outcome["error"] = exc
+        worker = threading.Thread(target=inspect, daemon=True)
+        worker.start()
+        worker.join(10)
+        self.assertFalse(worker.is_alive(), "opening the inspector coordinator lock blocked")
+        self.assertIs(error, type(outcome.get("error")))
+        self.assertRegex(str(outcome["error"]), message)
+        runner.assert_not_called()
+        self.assertFalse(self.inspector_builds_dir().exists())
+        self.spawn.assert_not_called()
+
+    @unittest.skipUnless(hasattr(os, "mkfifo") and os.name != "nt", "FIFOs are Unix-only")
+    def test_fifo_inspector_coordinator_lock_fails_without_blocking(self):
+        lock = self.work / "tools/.il-inspector.lock"
+        lock.parent.mkdir(parents=True)
+        os.mkfifo(lock)
+        self.assert_coordinator_lock_refused("Inspector coordinator lock must be a regular file")
+        self.assertTrue(stat.S_ISFIFO(os.lstat(lock).st_mode))
+
+    @unittest.skipIf(os.name == "nt", "symlink creation needs privileges on Windows")
+    def test_symlinked_inspector_coordinator_lock_is_refused_without_following(self):
+        lock = self.work / "tools/.il-inspector.lock"
+        lock.parent.mkdir(parents=True)
+        outside = self.directory / "outside-target"
+        lock.symlink_to(outside)
+        # managed_path already refuses the link before it is opened.
+        self.assert_coordinator_lock_refused("Generated path cannot contain a symbolic link", ValueError)
+        # The opener refuses it too, so a link swapped in after path validation still fails.
+        with self.assertRaisesRegex(bootstrap.ToolError, "Inspector coordinator lock must not be a link"):
+            bootstrap.open_coordinator_lock(lock, "Inspector coordinator lock")
+        self.assertFalse(outside.exists())
+        self.assertTrue(lock.is_symlink())
+
+    def test_multiply_linked_inspector_coordinator_lock_is_refused(self):
+        lock = self.work / "tools/.il-inspector.lock"
+        lock.parent.mkdir(parents=True)
+        outside = self.directory / "outside-target"
+        outside.write_bytes(b"")
+        os.link(outside, lock)
+        self.assert_coordinator_lock_refused("Inspector coordinator lock must be a regular file")
+        self.assertEqual(b"", outside.read_bytes())
 
     def test_modified_inspector_or_dependency_closure_is_never_executed(self):
         reader = "bin/Release/net10.0/RecoveryInspector.dll"

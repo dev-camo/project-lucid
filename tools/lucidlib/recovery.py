@@ -11,8 +11,8 @@ import re
 import uuid
 
 from .bootstrap import (ToolError, bootstrap, dotnet_environment, exclusive_lock, executable, leased_build,
-                        managed_path, run_logged, validate_work_dir, write_json, tool_work_dir,
-                        verified_tool_path)
+                        managed_path, open_coordinator_lock, run_logged, validate_work_dir, write_json,
+                        tool_work_dir, verified_tool_path)
 from .inspection import sha256_file
 from .macho import inspect_macho
 from .metadata import parse_metadata
@@ -183,7 +183,8 @@ def _managed_inspector(work_dir: Path, dotnet: Path, env: dict) -> tuple[Path, l
         return built
 
     managed_path(host_work, "tools").mkdir(parents=True, exist_ok=True)
-    with managed_path(host_work, "tools", ".il-inspector.lock").open("a") as stream, exclusive_lock(stream):
+    lock = managed_path(host_work, "tools", ".il-inspector.lock")
+    with open_coordinator_lock(lock, "Inspector coordinator lock") as stream, exclusive_lock(stream):
         directory, _, warnings = leased_build(host_work, "il-inspector", "managed-output inspector", identity, build)
     return directory / _INSPECTOR_ASSEMBLY, warnings
 
