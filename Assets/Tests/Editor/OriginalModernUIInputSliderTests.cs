@@ -62,7 +62,8 @@ namespace ProjectLucid.Tests
         // cmpltss min select), negated unless 0 <= v (cmpnless), added to the slider's
         // virtual value (slots 46/47). OnPositiveInput 0x1A481F0 inlines it for |v| (negated
         // only for NaN); OnNegativeInput 0x1A48330 inlines it for -|v|, negated when v != 0,
-        // so a zero negative input moves the slider up by the minimum. min 0.25, max 0.75.
+        // so a zero negative input moves the slider up by the minimum. min 0.25, max 0.75,
+        // then inverted.
         // Mutations caught: an unclamped or unsigned delta, Mathf.Sign(0) == 0, a negative
         // input that negates zero, or a positive input that keeps the sign.
         [Test]
@@ -89,6 +90,18 @@ namespace ProjectLucid.Tests
                     slider.value = 1f;
                     ModernUITestSupport.Call(typeof(InputControlledSlider), component, method, input);
                     Assert.That(slider.value, Is.EqualTo(1f + delta), method + "(" + input.ToString("R") + ")");
+                }
+
+                // Inverted bounds (min 0.75, max 0.25) separate the clamp orders. The body is
+                // |v| < min ? min : minss(max, |v|): 0.5 takes min (Min(Max()) gives 0.25) and
+                // 2 takes max (Max(Min()) gives 0.75).
+                ModernUITestSupport.Set(component, "m_minInputValue", 0.75f);
+                ModernUITestSupport.Set(component, "m_maxInputValue", 0.25f);
+                foreach (var (input, expected) in new[] { (0.5f, 1.75f), (2f, 1.25f), (-2f, 0.75f) })
+                {
+                    slider.value = 1f;
+                    ModernUITestSupport.Call(typeof(InputControlledSlider), component, "TriggerInputEvent", input);
+                    Assert.That(slider.value, Is.EqualTo(expected), "inverted bounds, TriggerInputEvent(" + input.ToString("R") + ")");
                 }
 
                 // Every entry point returns before reading the slider while unselected.

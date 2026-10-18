@@ -18,8 +18,8 @@ namespace ProjectLucid.Tests
     // (02000045), UIWidgetButtonLocalised (02000042), UIWidgetNavigationHotButton
     // (0200001b), ConditionalUIEventBroadcaster (0200000e) and UIAnimatedScreenTransition
     // (0200000b), from the 1.10.1 x86-64 bodies cited per test. Components live on
-    // inactive owned GameObjects; coroutine starts and the navigation-manager
-    // lifecycle are not exercised here.
+    // owned GameObjects that are inactive unless a test says otherwise; the
+    // navigation-manager lifecycle is not exercised here.
     [TestFixture]
     public sealed class OriginalModernUIWidgetTests
     {
@@ -140,6 +140,44 @@ namespace ProjectLucid.Tests
                 ModernUITestSupport.Call(debounce, "OnDisable");
                 ModernUITestSupport.Call(debounce, "ClearActiveDebounce");
                 Assert.That(button.interactable, Is.True, "no handle, so the cached state is not applied");
+            }
+        }
+
+        // ClearActiveDebounce 0x1A493C0 stops a live handle and restores m_cachedButtonState
+        // (+0x2c) without storing to m_debounceRoutine (+0x30), so the stopped handle keeps
+        // OnPointerClick 0x1A49260 from starting another debounce. The debounce owner is
+        // active only around each click (as OriginalInOutTestSupport.StartedCoroutine does)
+        // and the Button sits on its own inactive owner, so Selectable.OnEnable never runs.
+        [Test]
+        public void DebounceDisableRestoresTheButtonAndKeepsTheStoppedHandle()
+        {
+            using (var owned = new OwnedObjects())
+            {
+                GameObject owner = owned.Inactive("Lucid owned debounce disable");
+                var debounce = owner.AddComponent<UIWidgetButtonDebounce>();
+                var button = owned.Inactive("Lucid owned debounce button").AddComponent<Button>();
+                ModernUITestSupport.Set(debounce, "m_uiButton", button);
+                ModernUITestSupport.Call(debounce, "OnEnable");
+                Action click = () =>
+                {
+                    owner.SetActive(true);
+                    try { debounce.OnPointerClick(null); }
+                    finally { owner.SetActive(false); }
+                };
+
+                click();
+                object handle = ModernUITestSupport.Get(debounce, "m_debounceRoutine");
+                Assert.That(handle, Is.Not.Null, "the click started a debounce");
+                Assert.That(button.interactable, Is.False, "disabled by the routine's first step");
+                Assert.That(ModernUITestSupport.Get(debounce, "m_cachedButtonState"), Is.True);
+
+                ModernUITestSupport.Call(debounce, "OnDisable");
+                Assert.That(button.interactable, Is.True, "restored to the cached state");
+                Assert.That(ModernUITestSupport.Get(debounce, "m_debounceRoutine"), Is.SameAs(handle), "the stopped handle is kept");
+
+                click();
+                Assert.That(ModernUITestSupport.Get(debounce, "m_debounceRoutine"), Is.SameAs(handle), "a later click starts nothing");
+                Assert.That(button.interactable, Is.True);
             }
         }
 
@@ -469,9 +507,48 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // OnDisable 0x1A3D390 unsubscribes TriggerButton with joystick -1, calls
-        // RemoveExclusiveInput whatever m_exclusive holds, and touches the manager only when
-        // its reference is valid (the leased row is idle, so it is not).
+        // OnEnable 0x1A3D080 subscribes TriggerButton with trigger Down (edx 1) and joystick -1,
+        // calls AddExclusiveInput only when m_exclusive (+0x38) is set, and finally passes
+        // OnNavigationManagerValid to m_navigationManagerRef.InvokeOnValid (+0x40). The
+        // fixture swaps in its own empty reference, so that deferred call lands there and the
+        // shared manager row never holds it. Mutations caught: the Held trigger, an
+        // unconditional AddExclusiveInput, or a skipped InvokeOnValid.
+        [Test]
+        public void HotButtonEnableSubscribesDownAndAddsTheExclusiveInputOnlyWhenExclusive()
+        {
+            WithHotButton((owned, hotButton) =>
+            {
+                OwnedControlInputs.Run(() =>
+                {
+                    ModernUITestSupport.Set(hotButton, "m_input", OwnedInput);
+                    foreach (bool exclusive in new[] { false, true })
+                    {
+                        var reference = new SystemRef<UINavigationManager>("Lucid owned navigation manager", null);
+                        ModernUITestSupport.Set(hotButton, "m_navigationManagerRef", reference);
+                        ModernUITestSupport.Set(hotButton, "m_exclusive", exclusive);
+                        ModernUITestSupport.Call(hotButton, "OnEnable");
+                        string label = "exclusive " + exclusive;
+                        Assert.That(OwnedControlInputs.Listeners("s_onButtonsDown", OwnedInput), Is.EqualTo(new[] { "TriggerButton@-1" }), label);
+                        Assert.That(OwnedControlInputs.Listeners("s_onButtonsHeld", OwnedInput), Is.Empty, label);
+                        Assert.That(OwnedControlInputs.Exclusive().Contains(OwnedInput), Is.EqualTo(exclusive), label);
+                        var deferred = (FastAction<UINavigationManager>)ModernUITestSupport.Get(reference, "m_actionOnSystemValid");
+                        Assert.That(deferred.GetInvocationList().Select(d => d.Method.Name + "@" + ReferenceEquals(d.Target, hotButton)),
+                            Is.EqualTo(new[] { "OnNavigationManagerValid@True" }), label);
+
+                        ControlMapping.Unsubscribe(OwnedInput, TriggerButton(hotButton));
+                        ControlMapping.RemoveExclusiveInput(OwnedInput);
+                    }
+                }, OwnedInput);
+            });
+        }
+
+        private static Action<float> TriggerButton(UIWidgetNavigationHotButton hotButton) =>
+            (Action<float>)typeof(UIWidgetNavigationHotButton).GetMethod("TriggerButton", ModernUITestSupport.Instance)
+                .CreateDelegate(typeof(Action<float>), hotButton);
+
+        // OnDisable 0x1A3D390 unsubscribes TriggerButton with joystick -1 (0x1A3D453, edx -1),
+        // calls RemoveExclusiveInput whatever m_exclusive holds, and touches the manager only
+        // when its reference is valid (the leased row is idle, so it is not).
         [Test]
         public void HotButtonDisableAlwaysRemovesTheExclusiveInput()
         {
@@ -481,7 +558,9 @@ namespace ProjectLucid.Tests
                 {
                     ModernUITestSupport.Set(hotButton, "m_input", OwnedInput);
                     ModernUITestSupport.Set(hotButton, "m_exclusive", false);
+                    ControlMapping.Subscribe(OwnedInput, TriggerButton(hotButton), InputTrigger.Down);
                     ControlMapping.AddExclusiveInput(OwnedInput);
+                    Assert.That(OwnedControlInputs.Listeners("s_onButtonsDown", OwnedInput), Is.EqualTo(new[] { "TriggerButton@-1" }), "precondition");
                     ModernUITestSupport.Call(hotButton, "OnDisable");
                     Assert.That(OwnedControlInputs.Exclusive().Contains(OwnedInput), Is.False);
                     Assert.That(OwnedControlInputs.Listeners("s_onButtonsDown", OwnedInput), Is.Empty);
@@ -571,6 +650,52 @@ namespace ProjectLucid.Tests
                 Assert.That(ModernUITestSupport.Get(transition, "m_midpointCallback"), Is.Null);
                 Assert.That(ModernUITestSupport.Get(transition, "m_completionCallback"), Is.Null);
                 Assert.That(started, Is.Zero);
+            }
+        }
+
+        // StartTransition 0x1A3A900 sets the in clip (+0x28) and its state's speed from +0x30,
+        // plays, stores both callbacks and only then raises m_onStartEvent (+0x48). The
+        // ContinueTransition lambda <ContinueTransition>b__13_0 0x1A3ABD0 does the same with the
+        // out clip (+0x38) and speed (+0x40). The owner is active so the legacy Animation builds
+        // its states as it does in a scene; Unity sends no messages to it in EditMode.
+        [Test]
+        public void TransitionPlaysTheInClipThenTheLambdaPlaysTheOutClip()
+        {
+            using (var owned = new OwnedObjects())
+            {
+                GameObject owner = owned.Inactive("Lucid owned transition clips");
+                var animation = owner.AddComponent<Animation>();
+                var transition = owner.AddComponent<UIAnimatedScreenTransition>();
+                AnimationClip inClip = owned.Own(new AnimationClip { name = "Lucid in", legacy = true });
+                AnimationClip outClip = owned.Own(new AnimationClip { name = "Lucid out", legacy = true });
+                owner.SetActive(true);
+                animation.AddClip(inClip, inClip.name);
+                animation.AddClip(outClip, outClip.name);
+                ModernUITestSupport.Set(transition, "m_animation", animation);
+                ModernUITestSupport.Set(transition, "m_transitionInClip", inClip);
+                ModernUITestSupport.Set(transition, "m_transitionInSpeed", 2f);
+                ModernUITestSupport.Set(transition, "m_transitionOutClip", outClip);
+                ModernUITestSupport.Set(transition, "m_transitionOutSpeed", 3f);
+                var started = new List<bool>();
+                var onStart = new UnityEvent();
+                onStart.AddListener(() => started.Add(ModernUITestSupport.Get(transition, "m_completionCallback") != null));
+                ModernUITestSupport.Set(transition, "m_onStartEvent", onStart);
+
+                Action midpoint = () => { };
+                Action completion = () => { };
+                transition.StartTransition(midpoint, completion);
+                Assert.That(animation.clip, Is.SameAs(inClip));
+                Assert.That(animation["Lucid in"].speed, Is.EqualTo(2f));
+                Assert.That(animation["Lucid out"].speed, Is.EqualTo(1f), "the out state is untouched");
+                Assert.That(ModernUITestSupport.Get(transition, "m_midpointCallback"), Is.SameAs(midpoint));
+                Assert.That(ModernUITestSupport.Get(transition, "m_completionCallback"), Is.SameAs(completion));
+                Assert.That(started, Is.EqualTo(new[] { true }), "raised once, after both callbacks are stored");
+
+                ModernUITestSupport.Call(transition, "<ContinueTransition>b__13_0");
+                Assert.That(animation.clip, Is.SameAs(outClip));
+                Assert.That(animation["Lucid out"].speed, Is.EqualTo(3f));
+                Assert.That(animation["Lucid in"].speed, Is.EqualTo(2f), "the in state is untouched");
+                Assert.That(started.Count, Is.EqualTo(1), "the lambda raises nothing");
             }
         }
 
