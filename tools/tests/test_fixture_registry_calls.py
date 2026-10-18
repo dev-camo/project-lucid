@@ -268,6 +268,12 @@ class FixtureRegistryCallTests(unittest.TestCase):
         )
         self.assertEqual([1, 5, 6, 7, 8, 10], direct_calls(source))
 
+    def test_a_parenthesized_conditional_in_a_hole_is_scanned_as_code(self):
+        # C# rejects an unparenthesized conditional in a hole (CS8361), so the ':' of a
+        # real ternary always sits inside parentheses; its arms must still be scanned.
+        source = 'var a = $"{(flag ? value : ProcessManager.RegisterSystem(host))}";\n'
+        self.assertEqual([1], direct_calls(source))
+
     def test_interpolated_literal_text_is_blanked_exactly(self):
         source = 'x = $"a{{RegisterSystem(}}{y:RegisterSystem(}b{z}";\n'
         code = code_only(source)
