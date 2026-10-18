@@ -113,6 +113,7 @@ namespace ProjectLucid.Tests
             GameObject host = owned.Host("Lucid detector character", false);
             host.AddComponent<BoxCollider>();
             var character = host.AddComponent<CharacterGravityVectorProbe>();
+            character.GravityVector = new Vector3(0f, -20f, 0f);
             var characterDefinition = owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
             Set(characterDefinition, "m_archetype", characterIs);
             SetProperty(character, "Definition", characterDefinition);
@@ -205,6 +206,7 @@ namespace ProjectLucid.Tests
                 GameObject host = owned.Host("Lucid detector character", false);
                 host.AddComponent<BoxCollider>();
                 var character = host.AddComponent<CharacterGravityVectorProbe>();
+                character.GravityVector = new Vector3(0f, -20f, 0f);
                 var characterDefinition = owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
                 Set(characterDefinition, "m_archetype", CharacterArchetype.Dashing);
                 SetProperty(character, "Definition", characterDefinition);
@@ -294,6 +296,7 @@ namespace ProjectLucid.Tests
                 GameObject host = owned.Host("Lucid lightspeed detector character", false);
                 host.AddComponent<BoxCollider>();
                 var character = host.AddComponent<CharacterGravityVectorProbe>();
+                character.GravityVector = new Vector3(0f, -20f, 0f);
                 var definition = owned.Track(ScriptableObject.CreateInstance<CharacterAbilityDefinition_DetectorLightspeedDash>());
                 var ability = new CharacterAbility_DetectorLightspeedDash();
                 Set(ability, "m_character", character);
@@ -396,6 +399,7 @@ namespace ProjectLucid.Tests
                 GameObject host = owned.Host("Lucid lightspeed detector character", false);
                 host.AddComponent<BoxCollider>();
                 var character = host.AddComponent<CharacterGravityVectorProbe>();
+                character.GravityVector = new Vector3(0f, -20f, 0f);
                 var definition = owned.Track(ScriptableObject.CreateInstance<CharacterAbilityDefinition_DetectorLightspeedDash>());
                 var ability = new CharacterAbility_DetectorLightspeedDash();
                 Set(ability, "m_character", character);

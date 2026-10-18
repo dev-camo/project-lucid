@@ -45,6 +45,7 @@ namespace ProjectLucid.Tests
             GameObject host = owned.Host("Lucid ability character", false);
             host.AddComponent<BoxCollider>();
             var character = host.AddComponent<CharacterGravityVectorProbe>();
+            character.GravityVector = new Vector3(0f, -20f, 0f);
             SetActorProperty(character, "Storage", new FSMStorage(0));
             typeof(Character).GetMethod("InitialiseModifiers", Instance).Invoke(character, null);
             SetProperty(character, "Settings", new CharacterSettings { Collider = new CharacterSettings.ColliderSettings() });
