@@ -3128,6 +3128,44 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLUnityUIEnumExtensionsTests
     "GetStringReturnsTheCurrentMapEntry",
     "UnmappedValuesFormatAsPaddedHexAndAreCached",
 ))
+# HLModernUI.Runtime widgets, input sliders and the ModernUI enum tables
+# (02000037..39, 02000040..45, 0200004a, 0200001b, 0200000e, 0200000b, 0200004f..50).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalModernUIInputSliderTests." + name for name in (
+    "ConstructorsSeedTheMaximumAndTheDownTrigger",
+    "InputEventsMoveTheSliderByTheSignedClampedMagnitude",
+    "DeselectAndClearSelectedDropTheSelection",
+    "DelaySelectedSelectsOnlyAfterTheEndOfFrame",
+    "EnableSubscribesBothInputsWithTheSerializedTriggerAndDisableRemovesThem",
+    "SeekerSubscribesDownAndUpAfterTheBaseAndKeepsThemOnDisable",
+    "SeekerHandlersRaiseTheirEventsOnlyWhileSelected",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalModernUIWidgetTests." + name for name in (
+    "DebounceDelayIsRebuiltFromTheTimeoutOnEachEnable",
+    "DebounceRoutineDisablesTheButtonUntilTheDelayThenRestoresIt",
+    "DebounceIgnoresClicksOnAnInactiveOwnerAndDisableWithoutAHandle",
+    "ToggleSetupStoresTheLabelAndCallback",
+    "SetSelectedBlocksOnlySelectingANonInteractableToggle",
+    "ToggleForwardsTheRemainingCallsToTheUIToggle",
+    "ToggleGroupNavigationAndResetUseTheirOwnFields",
+    "TogglePublishesTheEventUnderOnClick",
+    "CheckboxSetupAcceptsOnlyCheckboxParameters",
+    "LocalisedButtonSetsItsLabelFromTheStringTable",
+    "CollapsableTogglesTheContentHeight",
+    "HotButtonConstructorDefaultsToNoInputAndTheSharedManagerReference",
+    "HotButtonPressesOnlyAnInteractableButton",
+    "HotButtonShowsTheGlyphWhileNavigationIsActive",
+    "HotButtonDisableAlwaysRemovesTheExclusiveInput",
+    "BroadcasterPublishesTheEventMatchingTheToggleState",
+    "BroadcasterWithoutAnEventNeverCreatesTheExchange",
+    "TransitionPlaysBeforeStoringItsCallbacks",
+    "TransitionReportsTheMidpointAndCompletionInOrder",
+    "TransitionResetKeepsAnAssignedAnimation",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalModernUIEnumExtensionsTests." + name for name in (
+    "DeclarationsKeepTheOriginalShapes",
+    "StaticMapUsesTheModernUIComparerAndTheSelectionEntry",
+    "UnmappedValuesFormatAsPaddedHexAndAreCached",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLOrientationSpecificCanvasScalerSettingsTests." + name for name in (
     "DeclarationKeepsTheOriginalFieldsAndNestedSettingsClass",
     "SettingsConstructorDefaultsToExpandWithAFullMatch",
