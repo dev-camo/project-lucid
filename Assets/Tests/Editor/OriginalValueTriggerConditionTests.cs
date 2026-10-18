@@ -328,6 +328,9 @@ namespace ProjectLucid.Tests
                     setting.SetCategory(physics, 0.5f);
                     setting.SetCategory(environment, 3f);
                     // A real component on an inactive host: Awake never runs, so it registers nothing.
+                    // TimeManager.Reset (0x1B168D0) has no null test on the unassigned
+                    // m_timeCategoryConfiguration (+0xA8), and AddComponent sends Reset in the editor.
+                    UnityEngine.TestTools.LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
                     var manager = owned.Host("Lucid value time manager", false).AddComponent<TimeManager>();
                     Get<StackableData>(manager, "m_timeSettings")
                         .SetBaseValue((int)typeof(TimeManager).GetField("SettingId", statics).GetRawConstantValue(), setting);
