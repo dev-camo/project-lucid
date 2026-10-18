@@ -4362,3 +4362,29 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxSpawnersAndShadersTests." 
     "RateOfChangeBindableEmitsTheInferredOutputCalls",
     "CompilerGeneratedNamesMatchTheOriginalMemberOrdinals",
 ))
+
+# Restored Game.Runtime HLAudio components and audio helpers over an owned AudioManager.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAudioComponentPlaybackTests." + name for name in (
+    "SfxCooldownDropsUpToTheWindowAndLetsNaNThrough",
+    "SfxStopAndIsPlayingReadTheSourceThroughTheManager",
+    "SfxComponentRequestsItsClipAndSetClipReplacesIt",
+    "ButtonClicksRequestTheClipOnlyWhileEnabled",
+    "ToggleOnRequestsTheClipAndOffOnlyASetOffClip",
+    "RandomisedComponentsPickOneIdentifierPerRequest",
+    "SpatialComponentMovesTheSourceBeforeRequestingTheOneShot",
+    "AmbientLoadsItsClipAndPlaysItOnAwakeOnly",
+    "AmbientSeekDrawsOnceAndADestroyedSourceIsSkipped",
+    "AssignClipWaitsForTheManagerAndAssignsEvenANullClip",
+    "ChangeMusicUsesItsTransitionOnlyWhenTheCustomFlagIsSet",
+    "CharacterTriggerSubscribesBeforeWaitingAndPlaysOnEntry",
+    "OneShotOnSourcePreloadsEveryIdentifierOnce",
+    "OneShotOnSourcePlaysEveryOrOneLoadedClip",
+    "OneShotOnSourceWaitsForMissingClipsBeforePlaying",
+    "RandomLoopPicksBeforeGettingTheManagerAndLoopsTheClip",
+    "PitchStepsThroughTheOffsetsAndWraps",
+    "MixerAssignerSetsTheGroupOnlyWhenMixerAndGroupAreFound",
+    "LowPassActivatorForwardsItsFilterToTheListener",
+    "ShuffledLoopFollowsTheIntroSequenceOnlyWhenAskedTo",
+    "ShuffledLoopUpdateIsGatedByTheIntroSequence",
+    "SystemLookupsFaultOnTheirEmptyRows",
+))
