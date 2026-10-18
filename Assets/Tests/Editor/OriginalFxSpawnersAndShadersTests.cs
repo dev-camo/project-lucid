@@ -539,6 +539,10 @@ namespace ProjectLucid.Tests
                 poolManagerRow.Register(manager);
                 entityKey = ScriptableObject.CreateInstance<PrefabPoolType>();
                 plainKey = ScriptableObject.CreateInstance<PrefabPoolType>();
+                // The manager's dictionary keys hash and compare m_guid (HLUnityCore 0x06000e5f/e60); bare
+                // CreateInstance keys share the empty guid, so the plain pool would replace the entity pool.
+                Set(entityKey, "m_guid", "lucid-pool-activation-entity");
+                Set(plainKey, "m_guid", "lucid-pool-activation-plain");
                 var entityPool = new RecordingEntityPool { ObjectPoolType = entityKey };
                 manager.RegisterPool(entityPool);
                 manager.RegisterPool(new PlainPool { ObjectPoolType = plainKey });
