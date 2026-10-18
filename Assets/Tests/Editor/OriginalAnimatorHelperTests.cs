@@ -35,6 +35,7 @@ namespace ProjectLucid.Tests
     {
         private const BindingFlags Any = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Regex RefusedDestroy = new Regex("^Destroy may not be called from edit mode");
+        private static readonly Regex EditModeMaterialInstance = new Regex("^Instantiating material due to calling renderer\\.material during edit mode");
 
         private static FieldInfo Field(Type type, string name)
         {
@@ -650,7 +651,9 @@ namespace ProjectLucid.Tests
         // null (0x727606), then Array.Fill(m_defaultValue) (0x727643) and m_index = 0.
         // ProcessFloat 0x06000e8f (0x727660) stores at m_index, advances it with a cmovl wrap
         // at m_sampleCount (0x72767c), sums the whole buffer and divides by m_sampleCount
-        // (cvtsi2ss 0x72771d), not by the buffer length.
+        // (cvtsi2ss 0x72771d), not by the buffer length. A count below the kept buffer's
+        // length separates that wrap from one at the length: 2 < 2 fails, so the third
+        // sample goes back to slot 0 and slot 2 keeps the default.
         [Test]
         public void SmoothFloatAveragesTheRingOverTheConfiguredCount()
         {
@@ -668,7 +671,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Process(smooth, 4f), Is.EqualTo(2f));
                 Assert.That(Process(smooth, 7f), Is.EqualTo(4f));
                 Assert.That(Process(smooth, 1f), Is.EqualTo(4f));
-                Assert.That(Get(smooth, "m_index"), Is.EqualTo(0), "the index wraps at the count");
+                Assert.That(Get(smooth, "m_index"), Is.EqualTo(0), "the index wraps at a count equal to the length");
                 Assert.That(Process(smooth, 10f), Is.EqualTo(6f), "the oldest sample is replaced");
                 Assert.That(samples, Is.EqualTo(new[] { 10f, 7f, 1f }));
 
@@ -679,6 +682,17 @@ namespace ProjectLucid.Tests
                 Assert.That(samples, Is.EqualTo(new[] { 2f, 2f, 2f }));
                 Assert.That(Get(smooth, "m_index"), Is.EqualTo(0));
                 Assert.That(Process(smooth, 8f), Is.EqualTo(2f), "(8 + 2 + 2) / 6, not / 3");
+
+                Set(smooth, "m_sampleCount", 2);
+                Set(smooth, "m_defaultValue", 1f);
+                Call(smooth, "DoOnEnter");
+                Assert.That(samples, Is.EqualTo(new[] { 1f, 1f, 1f }));
+                Assert.That(Process(smooth, 4f), Is.EqualTo(3f), "(4 + 1 + 1) / 2");
+                Assert.That(Get(smooth, "m_index"), Is.EqualTo(1));
+                Assert.That(Process(smooth, 6f), Is.EqualTo(5.5f), "(4 + 6 + 1) / 2");
+                Assert.That(Get(smooth, "m_index"), Is.EqualTo(0), "the index wraps at the count, not the buffer length");
+                Assert.That(Process(smooth, 8f), Is.EqualTo(7.5f), "(8 + 6 + 1) / 2");
+                Assert.That(samples, Is.EqualTo(new[] { 8f, 6f, 1f }), "the slot past the count keeps its default");
             }
             LogAssert.NoUnexpectedReceived();
         }
@@ -712,7 +726,8 @@ namespace ProjectLucid.Tests
         // (0x10577E0) hashes m_propertyName into m_propertyHash (+0x38) only for a nonempty
         // name and a non-null Animator. Update 0x060038e1 (0x1057860) passes m_animator and
         // the hash to GetAnimatorValue (slot 4, +0x178; Float's 0x060038e4 is GetFloat) and
-        // writes Bindable.Value (Bindable<T> slot 9, set_Value, +0x1c8).
+        // writes Bindable.Value (Bindable<T> slot 9, set_Value, +0x1c8). Update reads the
+        // cached hash (+0x38, 0x1057870) and never m_propertyName.
         [Test]
         public void ParameterBindablePublishesTheFloatThroughTheAwakeHash()
         {
@@ -751,6 +766,11 @@ namespace ProjectLucid.Tests
                 Assert.That(changes, Is.EqualTo(1));
                 Call(bindable, "Update");
                 Assert.That(changes, Is.EqualTo(1), "an unchanged value is not republished");
+
+                Set(bindable, "m_propertyName", "Missing");
+                animator.SetFloat("Blend", 0.4f);
+                Call(bindable, "Update");
+                Assert.That(bindable.Bindable.Value, Is.EqualTo(0.4f), "a renamed parameter is not rehashed until Awake");
             }
             LogAssert.NoUnexpectedReceived();
         }
@@ -758,8 +778,9 @@ namespace ProjectLucid.Tests
         // ---- AnimatorRandomTrigger ----
 
         // The constructor's GetSystemRef<TimeManager>(null, true) touches the default
-        // TimeManager row; EditMode has no TimeManager, so GetTotalTime 0x06000e83
+        // TimeManager row; these cases register no TimeManager, so GetTotalTime 0x06000e83
         // (0x726E50) takes its IsNull branch (0x726e8f) and reads Time.realtimeSinceStartup.
+        // RandomTriggerReadsTheRegisteredTimeManagerForItsCategory covers the resolved branch.
         private static void WithRandomTrigger(Action<Owned, AnimatorRandomTrigger, Animator> body)
         {
             using (var timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()))
@@ -876,6 +897,109 @@ namespace ProjectLucid.Tests
                 Assert.That(animator.GetBool("Fidget"), Is.False);
                 Assert.That((float)Get(trigger, "m_nextTriggerTime"), Is.GreaterThan(1f), "still rescheduled");
             });
+        }
+
+        // With a registered TimeManager both messages take the resolved branch: SystemRef.Get()
+        // and TimeExtensions.GetTotalTime(manager, m_timeCategory), with the category read
+        // from the field (+0x38; OnStateEnter 0x726e0e-0x726e22, OnStateUpdate 0x726f4c-
+        // 0x726f54), so a changed m_timeCategory selects the other total. OnStateUpdate fires at time >= the
+        // scheduled time (ucomiss xmm0, xmm2; jb 0x726f69), so equality fires, and it
+        // reschedules from the time it read (0x726fcc). The manager is never awakened: the
+        // Editor's Reset on AddComponent faults on its null configuration, as in the real
+        // TimeManager verification, and its PlayerAnimation and PlayerMovement totals are
+        // written directly. Both totals are far above Time.realtimeSinceStartup, so the
+        // real-time branch, the other category or a strict > could not fire where it fires.
+        [Test]
+        public void RandomTriggerReadsTheRegisteredTimeManagerForItsCategory()
+        {
+            const float animationTime = 1048576f;
+            const float movementTime = 4194304f;
+            FieldInfo lookupField = typeof(TimeExtensions).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+            object priorLookup = lookupField.GetValue(null);
+            var owned = new Owned();
+            VerificationFixtureOwnership.LifecycleRow timeRow = null;
+            TimeManager manager = null;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
+            {
+                // TimeScaledComponent's static reference can leave this row behind, so it is
+                // borrowed while idle rather than required absent.
+                timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>());
+                var animation = owned.Add(ScriptableObject.CreateInstance<TimeCategoryObject>());
+                var movement = owned.Add(ScriptableObject.CreateInstance<TimeCategoryObject>());
+                // TimeCategoryObject equality is by GUID, so the two keys need distinct ones.
+                Set(animation, "m_guid", "lucid-animator-random-trigger-animation");
+                Set(movement, "m_guid", "lucid-animator-random-trigger-movement");
+                var lookup = owned.Add(ScriptableObject.CreateInstance<TimeCategoryLookup>());
+                lookup.Dictionary.Add(TimeCategory.PlayerAnimation, animation);
+                lookup.Dictionary.Add(TimeCategory.PlayerMovement, movement);
+                lookupField.SetValue(null, lookup);
+
+                LogAssert.Expect(LogType.Exception, new Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
+                manager = owned.Inactive("TimeManager fixture").AddComponent<TimeManager>();
+                ProcessManager.RegisterSystem(manager);
+                var totals = (Dictionary<TimeCategoryObject, float>)Get(manager, "m_totalTimeLookup");
+                totals[animation] = animationTime;
+                totals[movement] = movementTime;
+                Assert.That(Time.realtimeSinceStartup, Is.LessThan(animationTime), "the fixture times are not reachable in real time");
+
+                GameObject root = owned.Active("AnimatorRandomTrigger time fixture");
+                Animator animator = owned.BoundAnimator(root, controller =>
+                {
+                    controller.AddParameter("Idle_Index[Int]", AnimatorControllerParameterType.Int);
+                    controller.AddParameter("Fidget", AnimatorControllerParameterType.Trigger);
+                });
+                var trigger = owned.Add(ScriptableObject.CreateInstance<AnimatorRandomTrigger>());
+                Assert.That(((SystemRef<TimeManager>)Get(trigger, "m_timeManagerRef")).GetSafe(), Is.SameAs(manager));
+                Set(trigger, "m_triggerName", "Fidget");
+                Set(trigger, "m_numberOfStates", 3);
+
+                WithSeed(0x4C57, () =>
+                {
+                    float delay = Random.Range(1f, 5f);
+                    Random.InitState(0x4C57);
+                    trigger.OnStateEnter(animator, default, 0);
+                    Assert.That(Get(trigger, "m_nextTriggerTime"), Is.EqualTo(animationTime + delay), "entry schedules from the category's total time");
+                });
+
+                Set(trigger, "m_nextTriggerTime", 2097152f);
+                animator.SetInteger("Idle_Index[Int]", -5);
+                animator.ResetTrigger("Fidget");
+                trigger.OnStateUpdate(animator, default, 0);
+                Assert.That(animator.GetBool("Fidget"), Is.False, "PlayerMovement's later total is not read");
+                Assert.That(animator.GetInteger("Idle_Index[Int]"), Is.EqualTo(-5));
+                Assert.That(Get(trigger, "m_nextTriggerTime"), Is.EqualTo(2097152f));
+
+                WithSeed(0x4C58, () =>
+                {
+                    int index = Random.Range(1, 4);
+                    float delay = Random.Range(1f, 5f);
+                    Random.InitState(0x4C58);
+                    Set(trigger, "m_nextTriggerTime", animationTime);
+                    trigger.OnStateUpdate(animator, default, 0);
+                    Assert.That(animator.GetBool("Fidget"), Is.True, "a scheduled time equal to the total fires");
+                    Assert.That(animator.GetInteger("Idle_Index[Int]"), Is.EqualTo(index));
+                    Assert.That(Get(trigger, "m_nextTriggerTime"), Is.EqualTo(animationTime + delay));
+                });
+
+                Set(trigger, "m_timeCategory", TimeCategory.PlayerMovement);
+                animator.ResetTrigger("Fidget");
+                WithSeed(0x4C59, () =>
+                {
+                    int index = Random.Range(1, 4);
+                    float delay = Random.Range(1f, 5f);
+                    Random.InitState(0x4C59);
+                    Set(trigger, "m_nextTriggerTime", 2097152f);
+                    trigger.OnStateUpdate(animator, default, 0);
+                    Assert.That(animator.GetBool("Fidget"), Is.True, "the configured category's total is read");
+                    Assert.That(animator.GetInteger("Idle_Index[Int]"), Is.EqualTo(index));
+                    Assert.That(Get(trigger, "m_nextTriggerTime"), Is.EqualTo(movementTime + delay));
+                });
+            },
+            () => { if (manager != null) ProcessManager.UnregisterSystem(manager); },
+            () => timeRow?.Dispose(),
+            owned.Dispose,
+            () => lookupField.SetValue(null, priorLookup));
+            LogAssert.NoUnexpectedReceived();
         }
 
         // ---- AnimatorSampler ----
@@ -1219,14 +1343,22 @@ namespace ProjectLucid.Tests
                 Assert.That(second.GetFloat("_Glow"), Is.EqualTo(0.25f), "a negative index writes every material");
                 Assert.That(first.GetFloat("_Fade"), Is.EqualTo(0.9f));
                 Assert.That(second.GetFloat("_Fade"), Is.EqualTo(0.9f));
+
+                animator.SetFloat("Glow", 0.6f);
+                Set(driver, "m_targetMaterialIndex", 0);
+                Call(driver, "LateUpdate");
+                Assert.That(first.GetFloat("_Glow"), Is.EqualTo(0.6f));
+                Assert.That(second.GetFloat("_Glow"), Is.EqualTo(0.25f), "index 0 takes the indexed path (jns), not every material");
             }
             LogAssert.NoUnexpectedReceived();
         }
 
-        // Start 0x06000539 (0x52F290) passes m_materials to Renderer.GetMaterials, which
-        // replaces the list's contents. OnDestroy 0x0600053a (0x52F2B0) calls Object.Destroy
-        // on every listed material (0x52f365) and then nulls the list (0x52f3a5). Edit mode
-        // refuses Destroy with an error per material and keeps them.
+        // Start 0x06000539 (0x52F290) tail-calls Renderer.GetMaterials (0x52f2a2, 0x060005f7)
+        // with m_materials, which replaces the list's contents with per-renderer instances,
+        // not the shared materials; the Editor reports that instantiation outside play mode.
+        // OnDestroy 0x0600053a (0x52F2B0) calls Object.Destroy on every listed material
+        // (0x52f365) and then nulls the list (0x52f3a5). Edit mode refuses Destroy with an
+        // error per material and keeps them.
         [Test]
         public void MaterialPropertyStartFillsAndDestroyReleasesTheMaterialList()
         {
@@ -1234,25 +1366,31 @@ namespace ProjectLucid.Tests
             {
                 var stale = owned.Add(new Material(Shader.Find("Hidden/InternalErrorShader")) { hideFlags = HideFlags.HideAndDontSave });
                 var kept = owned.Add(new Material(Shader.Find("Hidden/InternalErrorShader")) { hideFlags = HideFlags.HideAndDontSave });
+                var shared = owned.Add(new Material(Shader.Find("Hidden/InternalErrorShader")) { hideFlags = HideFlags.HideAndDontSave });
                 GameObject root = owned.Inactive("AnimatorToMaterialProperty lifetime fixture");
                 var renderer = root.AddComponent<MeshRenderer>();
-                renderer.sharedMaterials = new Material[0];
+                renderer.sharedMaterials = new[] { shared };
                 var driver = root.AddComponent<AnimatorToMaterialProperty>();
                 Set(driver, "m_renderer", renderer);
                 var list = (List<Material>)Get(driver, "m_materials");
                 list.Add(stale);
 
+                LogAssert.Expect(LogType.Error, EditModeMaterialInstance);
                 Call(driver, "Start");
                 Assert.That(Get(driver, "m_materials"), Is.SameAs(list));
-                Assert.That(list, Is.Empty, "the renderer's materials replace the list contents");
+                Assert.That(list.Count, Is.EqualTo(1), "the renderer's materials replace the list contents");
+                Material instance = owned.Add(list[0]);
+                Assert.That(instance, Is.Not.SameAs(shared), "GetMaterials, not GetSharedMaterials");
+                Assert.That(instance.shader, Is.SameAs(shared.shader));
 
                 list.Add(stale);
                 list.Add(kept);
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
+                LogAssert.Expect(LogType.Error, RefusedDestroy);
                 Call(driver, "OnDestroy");
                 Assert.That(Get(driver, "m_materials"), Is.Null);
-                Assert.That(stale != null && kept != null, Is.True, "edit mode refuses the destroys");
+                Assert.That(instance != null && stale != null && kept != null, Is.True, "edit mode refuses the destroys");
             }
             LogAssert.NoUnexpectedReceived();
         }

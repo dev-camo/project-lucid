@@ -4495,6 +4495,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAnimatorHelperTests." + name
     "ParameterBindablePublishesTheFloatThroughTheAwakeHash",
     "RandomTriggerEntryWritesTheEntryIndexAndSchedulesFromRealTime",
     "RandomTriggerUpdateFiresOnlyAfterAPositiveScheduledTime",
+    "RandomTriggerReadsTheRegisteredTimeManagerForItsCategory",
     "SamplerPlaysTheCurrentStateAtTheSampleFrameAndDisablesTheAnimator",
     "SamplerValidationFindsAChildAnimatorBeforeAddingOne",
     "SetBoolEventInvokesWithTheConfiguredStringAndBool",
