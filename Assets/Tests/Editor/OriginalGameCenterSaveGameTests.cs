@@ -206,6 +206,21 @@ namespace ProjectLucid.Tests
                 UnsupportedServiceBody(log);
         }
 
+        // Control: the same case with a dormant default HLUnityCore row already
+        // present, as ProcessManager.UnregisterSystem (0x06000e36) leaves one. The
+        // log borrows that idle row instead of requiring it absent, and returns it
+        // with its row, untyped and typed references unchanged and empty.
+        [Test]
+        public void UnsupportedServiceReportsThroughABorrowedDormantCoreRow()
+        {
+            using (var dormant = new DormantCoreRowControl())
+            {
+                using (var log = new OwnedCoreErrorLog())
+                    UnsupportedServiceBody(log);
+                dormant.AssertUntouched();
+            }
+        }
+
         private void UnsupportedServiceBody(OwnedCoreErrorLog log)
         {
             var saveGame = new GameCenterSaveGame();

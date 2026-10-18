@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Hardlight;
 using NUnit.Framework;
@@ -194,6 +195,105 @@ namespace ProjectLucid.Tests
                     Assert.That(after[i].Key, Is.SameAs(typedEntries[i].Key), "typed entry key " + i);
                     Assert.That(after[i].Value, Is.SameAs(typedEntries[i].Value), "typed entry reference " + i);
                 }
+            });
+        }
+
+        // Runs body with the named row absent, then removes whatever body left under
+        // that name and puts the prior row and the layout back.
+        private static void WithoutRow(string name, Action body)
+        {
+            IDictionary rows = Rows();
+            object[] layout = FSMManagerVerification.CaptureLayout(rows);
+            bool had = rows.Contains(name);
+            object retained = had ? rows[name] : null;
+            try
+            {
+                rows.Remove(name);
+                body();
+            }
+            finally
+            {
+                rows.Remove(name);
+                if (had) rows[name] = retained;
+                FSMManagerVerification.RestoreLayout(rows, layout);
+            }
+        }
+
+        // Fault injection: an observer the proof does not own is added to its temporary
+        // configuration row, so that row's release is refused. The set-aside dormant row
+        // must stay aside rather than overwrite the unreleased row (which would orphan the
+        // observer), and each refusal is reported after the injected first failure.
+        [Test]
+        public void TimeSchedulerKeepsTheDormantRowAsideWhenItsTemporaryRowIsNotReleased()
+        {
+            WithDormantConfigurationRow(false, (row, reference, notifications) =>
+            {
+                string name = ProcessManager.GetDefaultName<SystemConfiguration>();
+                var primary = new InvalidProgramException("injected after the engine checks");
+                object temporary = null;
+                SystemRef temporaryReference = null;
+                int foreignNotifications = 0;
+                VerificationFixtureOwnership.FaultInjection = reached =>
+                {
+                    if (reached != TimeSchedulerVerification.EngineChecksDoneSite) return;
+                    temporary = Rows()[name];
+                    temporaryReference = (SystemRef)temporary.GetType().GetField("SystemRef", Instance).GetValue(temporary);
+                    temporaryReference.OnSystemStartup += system => foreignNotifications++;
+                    throw primary;
+                };
+                UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Warning, new Regex(
+                    "^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: Fixture registry row retains unowned state: " +
+                    Regex.Escape(name) + "/OnSystemStartup"));
+                UnityEngine.TestTools.LogAssert.Expect(UnityEngine.LogType.Warning, new Regex(
+                    "^Fixture cleanup failed after an earlier failure: System.InvalidOperationException: Time scheduler kept the dormant configuration row aside"));
+                try
+                {
+                    var error = Assert.Throws<InvalidProgramException>(() => TimeSchedulerVerification.Run());
+                    Assert.That(error, Is.SameAs(primary), "the injected failure stays the result");
+                }
+                finally
+                {
+                    VerificationFixtureOwnership.FaultInjection = null;
+                }
+                Assert.That(temporary, Is.Not.Null.And.Not.SameAs(row), "the proof registered into a row of its own");
+                Assert.That(Rows()[name], Is.SameAs(temporary), "the unreleased temporary row is not overwritten");
+                Assert.That(temporaryReference.IsNull(), Is.True, "the proof still unregistered its own configuration");
+                Assert.That(foreignNotifications, Is.Zero);
+                Assert.That(row.GetType().GetField("SystemRef", Instance).GetValue(row), Is.SameAs(reference));
+                Assert.That(reference.IsNull(), Is.True, "the set-aside row never received a system");
+            });
+        }
+
+        // Awake creates the TimeManager row when it is absent, and only its release removes
+        // it again. The set-aside row and the captured layout are put back after both owned
+        // rows are released, so the registry ends with its original rows, slots, free list
+        // and version, with or without a dormant configuration row set aside.
+        [TestCase(true)]
+        [TestCase(false)]
+        public void TimeSchedulerRestoresTheRegistryLayoutAfterCreatingTheTimeManagerRow(bool dormantConfiguration)
+        {
+            string timeManager = ProcessManager.GetDefaultName<TimeManager>();
+            WithoutRow(timeManager, () =>
+            {
+                Action run = () =>
+                {
+                    IDictionary rows = Rows();
+                    List<DictionaryEntry> entries = Entries(rows);
+                    object[] layout = FSMManagerVerification.CaptureLayout(rows);
+                    bool created = false;
+                    VerificationFixtureOwnership.FaultInjection = reached =>
+                    {
+                        if (reached == TimeSchedulerVerification.EngineChecksDoneSite) created = rows.Contains(timeManager);
+                    };
+                    try { Assert.That(TimeSchedulerVerification.Run(), Is.EqualTo(532)); }
+                    finally { VerificationFixtureOwnership.FaultInjection = null; }
+                    Assert.That(created, Is.True, "Awake created the absent TimeManager row");
+                    Assert.That(rows.Contains(timeManager), Is.False, "the created TimeManager row is released");
+                    Assert.That(Entries(rows), Is.EqualTo(entries), "the original rows in their original order");
+                    Assert.That(FSMManagerVerification.CaptureLayout(rows), Is.EqualTo(layout), "slots, free list and version are restored");
+                };
+                if (dormantConfiguration) WithDormantConfigurationRow(false, (row, reference, notifications) => run());
+                else run();
             });
         }
 

@@ -908,7 +908,8 @@ namespace ProjectLucid
             // into an existing row replaces those references (0x06000e34) and fires its
             // observers, so the row object is set aside untouched while the proof registers into
             // a row it creates and removes, as FSMManagerVerification does for its default
-            // manager row. The set-aside row and the layout are put back last.
+            // manager row. Both owned rows are released first; only then is the set-aside
+            // row put back (and only once its temporary row is gone) and the layout restored.
             // Awake's RegisterSystem(this) creates a missing TimeManager row, and
             // UnregisterSystem keeps it. Own it when absent and remove it once idle
             // again; an existing TimeManager row must be idle.
@@ -920,15 +921,15 @@ namespace ProjectLucid
             object setAside=null;
             if(rows.Contains(configurationName) && rows[configurationName]!=null && ProcessManager.IsSystemNull(configurationName))
             {setAside=rows[configurationName];rows.Remove(configurationName);}
-            VerificationFixtureOwnership.LifecycleRow configurationRow;
-            try{configurationRow=new VerificationFixtureOwnership.LifecycleRow(configurationName,borrowLiveSystem:true);}
-            catch{PutBackConfigurationRow(rows,configurationName,setAside,originalRows,layout);timeManagerRow.Dispose();throw;}
-            bool hadSystem=configurationRow.BorrowsLiveSystem,completed=false,restored=false;
+            VerificationFixtureOwnership.LifecycleRow configurationRow=null;
+            bool hadSystem=false,configurationReleased=false;
             TimeCategoryObject a=null,b=null,g=null,spare=null,equalA=null;
             TimeCategoryConfiguration config=null;TimeCategoryLookup lookup=null;GameObject host=null;TimeManager manager=null;
             SystemConfiguration system=null;StackableDataHandle configHandle=null,lookupHandle=null;
             var applied=new List<StackableDataHandle>();bool initialised=false,destroyed=false;
             VerificationFixtureOwnership.RunThenCleanUp(()=>{
+            configurationRow=new VerificationFixtureOwnership.LifecycleRow(configurationName,borrowLiveSystem:true);
+            hadSystem=configurationRow.BorrowsLiveSystem;
             try
             {
                 a=ScriptableObject.CreateInstance<TimeCategoryObject>();b=ScriptableObject.CreateInstance<TimeCategoryObject>();g=ScriptableObject.CreateInstance<TimeCategoryObject>();spare=ScriptableObject.CreateInstance<TimeCategoryObject>();equalA=ScriptableObject.CreateInstance<TimeCategoryObject>();
@@ -1049,46 +1050,41 @@ namespace ProjectLucid
                 enumTick.ThrowAt=null;Pending(manager).Clear();
                 Call(manager,"OnDestroy");destroyed=true;
                 Check(Time.timeScale==1f && !config.PrioritisedCategories.Contains(g) && ProcessManager.IsSystemNull<TimeManager>(),"original destruction resets global scale, removes one category and unregisters");
-                completed=true;
+                VerificationFixtureOwnership.FaultPoint(EngineChecksDoneSite);
             }
             finally
             {
-                try
+                if(manager!=null && initialised && !destroyed)Call(manager,"OnDestroy");
+                if(host!=null)UnityEngine.Object.DestroyImmediate(host);
+                if(system!=null)
                 {
-                    if(manager!=null && initialised && !destroyed)Call(manager,"OnDestroy");
-                    if(host!=null)UnityEngine.Object.DestroyImmediate(host);
-                    if(system!=null)
-                    {
-                        if(configHandle!=null)system.StackableData.RemoveOverrides(configHandle);
-                        if(lookupHandle!=null)system.StackableData.RemoveOverrides(lookupHandle);
-                    }
-                    if(!hadSystem && system!=null)ProcessManager.UnregisterSystem(system);
-                    foreach(UnityEngine.Object item in new UnityEngine.Object[]{config,lookup,a,b,g,spare,equalA})if(item!=null)UnityEngine.Object.DestroyImmediate(item);
-                    cache.SetValue(null,priorCache);enumConfig.SetValue(null,priorEnum);
-                    if(hadMultiply)multiplies[typeof(TimeSetting)]=priorMultiply;else multiplies.Remove(typeof(TimeSetting));
-                    Time.timeScale=priorScale;Time.fixedDeltaTime=priorFixed;
-                    restored=true;
+                    if(configHandle!=null)system.StackableData.RemoveOverrides(configHandle);
+                    if(lookupHandle!=null)system.StackableData.RemoveOverrides(lookupHandle);
                 }
-                finally
-                {
-                    // The row is released even when an earlier restore threw; a release report
-                    // never replaces the proof's or a restore's own first failure.
-                    try
-                    {
-                        if(completed && restored)configurationRow.Dispose();
-                        else try{configurationRow.Dispose();}catch(Exception failure){Debug.LogWarning("Time scheduler configuration row release also failed: "+failure);}
-                    }
-                    finally{PutBackConfigurationRow(rows,configurationName,setAside,originalRows,layout);}
-                }
+                if(!hadSystem && system!=null)ProcessManager.UnregisterSystem(system);
+                foreach(UnityEngine.Object item in new UnityEngine.Object[]{config,lookup,a,b,g,spare,equalA})if(item!=null)UnityEngine.Object.DestroyImmediate(item);
+                cache.SetValue(null,priorCache);enumConfig.SetValue(null,priorEnum);
+                if(hadMultiply)multiplies[typeof(TimeSetting)]=priorMultiply;else multiplies.Remove(typeof(TimeSetting));
+                Time.timeScale=priorScale;Time.fixedDeltaTime=priorFixed;
             }
-            },timeManagerRow.Dispose);
+            },
+            // A refused release leaves the temporary row in place, so the set-aside row stays aside.
+            ()=>{if(configurationRow!=null)configurationRow.Dispose();configurationReleased=true;},
+            timeManagerRow.Dispose,
+            ()=>PutBackConfigurationRow(rows,configurationName,setAside,configurationReleased,originalRows,layout));
             return checks-start;
         }
-        // Once the registry again holds exactly its original rows, its layout is restored too.
-        private static void PutBackConfigurationRow(IDictionary rows,string name,object setAside,List<DictionaryEntry> originalRows,object[] layout)
+        // Fault site for the EditMode cleanup controls, after every engine check ran with both rows held.
+        internal const string EngineChecksDoneSite="TimeSchedulerVerification.EngineChecksDone";
+        // Runs after both owned rows are released. The set-aside row returns only in place of a
+        // released temporary row; once the registry again holds exactly its original rows, its
+        // layout is restored too. A set-aside row kept aside is reported, never overwritten into.
+        private static void PutBackConfigurationRow(IDictionary rows,string name,object setAside,bool temporaryReleased,List<DictionaryEntry> originalRows,object[] layout)
         {
-            if(setAside!=null)rows[name]=setAside;
+            if(setAside!=null && temporaryReleased)rows[name]=setAside;
             if(FSMManagerVerification.HoldsExactly(rows,originalRows))FSMManagerVerification.RestoreLayout(rows,layout);
+            if(setAside!=null && !temporaryReleased)
+                throw new InvalidOperationException("Time scheduler kept the dormant configuration row aside: its temporary row was not released: "+name);
         }
         public static int Run() { int managed=RunManaged();return managed+EngineChecks(); }
     }

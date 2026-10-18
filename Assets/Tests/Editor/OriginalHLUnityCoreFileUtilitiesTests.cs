@@ -81,28 +81,44 @@ namespace ProjectLucid.Tests
 
         // WriteAllLinesWithoutFinalNewLine 0x0600120c (0x1b34520): a null or empty
         // path and then a null list each log through HLOutput.LogError and return
-        // before File.Create. The errors go to an owned HLUnityCore whose row is
-        // acquired absent, so a live host never receives them; the texts are the
+        // before File.Create. The errors go to an OwnedCoreErrorLog core (owned
+        // in an absent or idle row, or a borrowed live one); the texts are the
         // 0x1b34520 literals "No path to write all lines to.", "No lines to write at
         // path '" and "'." from global-metadata.
         [Test]
         public void WriteAllLinesWithoutFinalNewLineReturnsBeforeCreatingOnMissingInput()
         {
             using (var log = new OwnedCoreErrorLog())
-            {
-                Assert.DoesNotThrow(() => FileUtilities.WriteAllLinesWithoutFinalNewLine(null, new List<string> { "x" }));
-                Assert.DoesNotThrow(() => FileUtilities.WriteAllLinesWithoutFinalNewLine(string.Empty, new List<string> { "x" }));
+                MissingInputBody(log);
+        }
 
-                string path = Path.Combine(m_root, "unwritten.txt");
-                Assert.DoesNotThrow(() => FileUtilities.WriteAllLinesWithoutFinalNewLine(path, null));
-                Assert.That(File.Exists(path), Is.False);
-                Assert.That(log.Errors, Is.EqualTo(new[]
-                {
-                    "No path to write all lines to.:0",
-                    "No path to write all lines to.:0",
-                    "No lines to write at path '" + path + "'.:0",
-                }));
+        // Control: the same case with a dormant default HLUnityCore row already
+        // present; the log borrows that idle row and returns it unchanged and empty.
+        [Test]
+        public void WriteAllLinesWithoutFinalNewLineReportsThroughABorrowedDormantCoreRow()
+        {
+            using (var dormant = new DormantCoreRowControl())
+            {
+                using (var log = new OwnedCoreErrorLog())
+                    MissingInputBody(log);
+                dormant.AssertUntouched();
             }
+        }
+
+        private void MissingInputBody(OwnedCoreErrorLog log)
+        {
+            Assert.DoesNotThrow(() => FileUtilities.WriteAllLinesWithoutFinalNewLine(null, new List<string> { "x" }));
+            Assert.DoesNotThrow(() => FileUtilities.WriteAllLinesWithoutFinalNewLine(string.Empty, new List<string> { "x" }));
+
+            string path = Path.Combine(m_root, "unwritten.txt");
+            Assert.DoesNotThrow(() => FileUtilities.WriteAllLinesWithoutFinalNewLine(path, null));
+            Assert.That(File.Exists(path), Is.False);
+            Assert.That(log.Errors, Is.EqualTo(new[]
+            {
+                "No path to write all lines to.:0",
+                "No path to write all lines to.:0",
+                "No lines to write at path '" + path + "'.:0",
+            }));
         }
 
         // ReadWriteLines 0x0600120f, 0x06001210 and 0x06001211: each path's lines go
