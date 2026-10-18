@@ -21,7 +21,6 @@ import stat
 import subprocess
 import sys
 import struct
-import sys
 import time
 from urllib import error, parse, request
 import uuid
