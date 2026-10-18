@@ -4158,6 +4158,40 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalBinderFormatNodeTests." + na
     "SetUpBindReferenceFieldsListsTheNativeReferenceOrder",
 ))
 
+# HLSplines.Runtime LocationGenerator, ProceduralMesh_Type* and ProceduralMesh_StorageFor* restoration.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProceduralMeshStorageTests." + name for name in (
+    "ConvertBiasToRatioClampsPerHalfAndKeepsTheNativeNaNOperandOrder",
+    "ConvertBiasToRatioWorldUnitScalesTheRatioByTheChosenHalfWidth",
+    "ZoneTablesMatchTheOriginalFieldRvaBlobs",
+    "GetTBiasPicksAWeightedZoneThenSpreadsInsideIt",
+    "TriangleSizesAreHalfTheCrossMagnitude",
+    "SplineRandomPositionsSpreadSamplesOverKnotsAndTakeTFromTheRandom",
+    "SplineGridCarriesTheOvershootAndSkipsLeadingKnotsWithCeil",
+    "RibbonGridEmitsCentreThenRightThenLeftColumns",
+    "RibbonRandomWidthRatioLerpsTowardsTheSignedSide",
+    "RibbonRandomWorldUnitSkipsRowsWhenBothScaledLimitsExceedTheRequestedOnes",
+    "RibbonRandomWorldUnitInverseBiasShiftsByTheConvertedRatios",
+    "MeshRandomPositionsAreAreaWeightedAndFoldIntoTheTriangle",
+    "MeshTypesStartWithTheOriginalSerializedDefaults",
+    "MissingPoolTypeFailsBeforeAnyManagerLookup",
+    "NewStorageIsUnpopulatedAndNewLocationsStartActive",
+    "UpdateRotationPostMultipliesTheRandomEulerDeviation",
+    "UpdatePositionAddsTheRotatedRandomDeviation",
+    "DespawnMeshesDropsLocationsOnlyWhenResetIsRequested",
+    "FadesFinishAtOnceWithoutMeshTypesAndFadeOutKeepsLocations",
+    "RandomLocationsDrawAScaleOnlyOffAUnitParentScaleOrWithARange",
+    "GridLocationsDrawAScaleOnlyOffAUnitParentScaleOrWithARange",
+    "RandomLocationCountsFollowTheRangeKindAndRoundHalfToEven",
+    "GridLocationsShuffleTrimAndShareTheListAcrossTypes",
+    "SpawnFromLocationsStopsAtAnExhaustedPoolAndSkipsInactiveOnlyWithTheCallback",
+    "FadeScalesTowardsTheTargetAndSnapsOnceTheFadeTimeHasPassed",
+    "CreateMeshStorageSplitsPerSubSurfaceOrSpansTheClampedRange",
+    "DespawnSurfaceMeshesCountsOnlyPopulatedStorage",
+    "IsTooFarAwayMeasuresInSurfaceSpaceAndFadesInsideFadeOutRange",
+    "CheckForSpawnAndDespawnLoadBalancesAndFadesOnlyInsideFadeOutRange",
+    "MeshStorageWrapsTheColliderInOneTwoPointStorage",
+))
+
 # Per-test isolation hook controls; the verdict also requires each one's own
 # clean line in the mode's isolation report (ISOLATION_HOOK_CONTROLS).
 EDITMODE_TESTS += (
