@@ -1822,6 +1822,32 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalProceduralAndCrossPromoConfigurationTests.CompleteDeclaredContractAndOrderedAttributesRemainOriginal',
 )
 
+# Original procedural-mesh placement bodies on owned objects and in-memory surfaces.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProceduralMeshPlacementTests." + name for name in (
+    "PerformanceSetupConstructorAndResetStoreTheNativeDefaults",
+    "PerformanceSetupComparesQualityLevelsOnly",
+    "AwakeObservesTheScalablePerformanceReferenceOnce",
+    "GetSetupCachesTheDefaultOrTheLowestProfileOfASortedCopy",
+    "ProfileUpdatesDropTheSelectionAndRaiseOnUpdatedOnce",
+    "AddErrorMessageAllocatesOnlyForANullList",
+    "GetPathJoinsEveryAncestorFromTheRoot",
+    "TransformBoundsSumsTheAbsoluteTransformedExtentAxes",
+    "FrustumTestHonoursTheConfigFlagAndUsesTransformedBounds",
+    "ConstructorsStoreTheNativeFieldDefaults",
+    "ResetAddsPresentSurfacesAndOneDefaultMeshType",
+    "SplineGridErrorsFollowTheNativeOrderAndPredicates",
+    "RibbonRandomErrorsRejectOnlyNegativeMeshCounts",
+    "MeshRandomErrorsReportOnlyMissingMeshesAndRatios",
+    "HasValidSetupRecomputesValidityFromTheErrorList",
+    "InvalidDoUpdateDespawnsOnlyWhenStorageExists",
+    "MissingStorageInvalidatesSpawnChecksAndEmptyStorageHasZeroBounds",
+    "RibbonBoundsEncapsulateTheStartCentreAndEveryEdgeKnot",
+    "SplineBoundsEncapsulateEveryKnotOfTheRange",
+    "SplineAreaSumsKnotLengthsWithAnExclusiveEnd",
+    "RibbonAreaIsTheTrapezoidSumOfEdgeWidthsTimesSpanLengths",
+    "ManagerSubscribesToUpdateAndDispatchesDoUpdateInOrder",
+))
+
 # Read-only supplied menu imports; initialization and provider payloads remain separate.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalMenuPreparedAssetImportTests.ActualSuppliedMenuAssetsRetainOriginalScriptsFieldsGraphAndRuntimeOrder',
