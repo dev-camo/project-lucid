@@ -441,6 +441,10 @@ namespace ProjectLucid.Tests
                 var uiManager = owned.Register(owned.Host("Lucid UI manager", false).AddComponent<UIManager>());
                 var listed = owned.Track(ScriptableObject.CreateInstance<UIContainerIdentifier>());
                 var unlisted = owned.Track(ScriptableObject.CreateInstance<UIContainerIdentifier>());
+                // List.Contains uses ScriptableObjectWithGuid.Equals (HLUnityCore 0x06000e5f), which compares m_guid;
+                // two bare CreateInstance identifiers share the empty guid and would both count as listed.
+                Set(listed, "m_guid", "lucid-container-watcher-listed");
+                Set(unlisted, "m_guid", "lucid-container-watcher-unlisted");
                 UIContainer Container(UIContainerIdentifier identifier)
                 {
                     var container = owned.Host("Lucid container", false).AddComponent<UIContainerSimple>();
