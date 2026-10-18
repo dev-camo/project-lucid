@@ -72,7 +72,7 @@ namespace ProjectLucid.Editor
         // ctor 0xc753 a string argument that the IL2CPP metadata blob encodes as 0e 00 (zero length;
         // a null string would be 0e 01, a compressed -1). The
         // original's TMP_Gradient owners (0200002c, 0200003a) and ConstantValue (0200003b) between them
-        // are not restored yet. BinderInput's raw blob is
+        // are covered by OriginalBindersCoreTests. BinderInput's raw blob is
         // 0253c70000645c01000100000e000200000e0a496e7075740800. Catches [AddComponentMenu(null)].
         [Test]
         public void BinderOwnersHideFromTheComponentMenuWithAnEmptyString()

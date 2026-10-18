@@ -2,7 +2,8 @@
   "name": "HLBinders.Runtime",
   "rootNamespace": "Hardlight.UI.Binding",
   "references": [
-    "HLUnityCore.Runtime"
+    "HLUnityCore.Runtime",
+    "Unity.TextMeshPro"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

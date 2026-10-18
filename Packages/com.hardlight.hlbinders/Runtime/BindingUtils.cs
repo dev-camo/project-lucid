@@ -2,6 +2,8 @@
 // Source reconstructed from both shipping CPU bodies; local spelling and optimizer/fault parity remain unqualified.
 // Shared generic registrations and generated lambda declarations are distinguished from open definition pointers.
 // Preserve cache publication, optional-parameter order, exception handling, and the recursive SetMemberValue path.
+// Four members precede the methods: <>c and DisplayClass ordinals 12/13 place the invoke-array fields after
+// GettableBindableMembers; their exact positions there are not recoverable and keep the metadata field order.
 // 0x06000038 Hardlight.UI.Binding.BindingUtils.UnderlyingGetType: arm64 0x19f9024 / x86_64 0x19f4f60.
 // 0x06000039 Hardlight.UI.Binding.BindingUtils.UnderlyingPropertyGetType: arm64 0x19f92ec / x86_64 0x19f51c0.
 // 0x0600003a Hardlight.UI.Binding.BindingUtils.UnderlyingMethodGetType: arm64 0x19f9344 / x86_64 0x19f5210.
@@ -63,9 +65,6 @@ namespace Hardlight.UI.Binding
         private static DictionaryWithNew<Type, Dictionary<string, MemberInfo>> cachedMembers = new DictionaryWithNew<Type, Dictionary<string, MemberInfo>>();
         private static Dictionary<Type, MethodInfo[]> cachedMethods = new Dictionary<Type, MethodInfo[]>();
         private static Dictionary<Type, DictionaryInfo> cachedDictionaryInfo = new Dictionary<Type, DictionaryInfo>();
-        private static object[] s_methodInvokeArray = new object[1];
-        private static List<object> s_methodInvokeList = new List<object>();
-        private static object[] emptyMethodInvokeArray = new object[0];
 
         public static Type UnderlyingGetType(MemberInfo member)
         {
@@ -251,6 +250,9 @@ namespace Hardlight.UI.Binding
             return parameters.Length > 0 && (parameters.Length < 2 || parameters[1].IsOptional);
         }
 
+        private static object[] s_methodInvokeArray = new object[1];
+        private static List<object> s_methodInvokeList = new List<object>();
+
         private static void InvokeMethodHandlingOptionalParameters(MethodInfo method, object target, object parameter)
         {
             try
@@ -289,6 +291,8 @@ namespace Hardlight.UI.Binding
         {
             return property.CanRead ? property.GetValue(target, null) : null;
         }
+
+        private static object[] emptyMethodInvokeArray = new object[0];
 
         public static object GetMethodValue(MethodInfo method, object target)
         {

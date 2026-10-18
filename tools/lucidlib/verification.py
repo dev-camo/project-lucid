@@ -1380,6 +1380,21 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalBinderGapTests.ArgumentsAreReadInOrderBeforeTheFormatAndOnlyANullFormatBecomesEmpty",
 )
 
+# Restored HLBinders.Runtime binder owners: targets, outputs, binders, toggles and TMP_Gradient nodes.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalBindersCoreTests." + name for name in (
+    "BindTargetTypesItsMemberConvertsStringsAndKeepsTheLastTypeForAMissingMember",
+    "BindTargetEqualityComparesOnlyTargetAndMemberName",
+    "BinderOutputForwardsOnlyWhenSourceIsSetTargetExistsAndEnabled",
+    "SimpleBinderInvertsOnlyBoolSourcesAndHidesFromTheNodeEditor",
+    "AdvancedBinderTogglesOnlyNodeEditorNodesAndNeverCachesInTheEditor",
+    "SetListValuePublishesACopyOnlyWhenTheElementsDiffer",
+    "ConstantValueSettersRefreshEveryOutputInDeclarationOrder",
+    "LogicalToggleRaisesOnlyTheFirstEqualInput",
+    "LogicalToggle3RaisesOnlyTheFirstEqualInput",
+    "TmpGradientNodesSelectAndPublishTheGradientObject",
+    "RestoredOwnersKeepTheirOriginalMenuAttributes",
+))
+
 # Low-priority coverage-gap cases: diagnostics routed to a registered core.
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLOutputDiagnosticGapTests.NullRangeReportsTheOriginalDiagnosticAndLeavesTheTarget",
