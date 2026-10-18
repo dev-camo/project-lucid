@@ -416,6 +416,9 @@ namespace ProjectLucid.Tests
                 // A real component on an inactive host: Awake never runs, so it registers nothing.
                 GameObject host = objects.Create("system time manager");
                 host.SetActive(false);
+                // TimeManager.Reset is also Unity's editor Reset message, which AddComponent invokes with
+                // m_timeCategoryConfiguration still unassigned.
+                UnityEngine.TestTools.LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("NullReferenceException"));
                 Manager = host.AddComponent<TimeManager>();
                 ((StackableData)Get(Manager, "m_timeSettings"))
                     .SetBaseValue((int)typeof(TimeManager).GetField("SettingId", All).GetRawConstantValue(), setting);
