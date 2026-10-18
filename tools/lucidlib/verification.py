@@ -5311,5 +5311,5 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterClimbingCollisionTrackerTes
     "UpdatePublishesTheAveragedNormalOfTheContactsAndResetsTheAccrual",
     "TerrainIsClimbableOnlyOnAMaskedLayerAndWhenMarkedClimbable",
     "ContactCallbacksAccrueTheNegatedNormalsAndEnterRecordsTheVelocity",
-    "GroundCheckAndUpdateUseTheNativeCallsAndConstant",
+    "GroundCheckAndUpdateUseTheNativeCalls",
 ))

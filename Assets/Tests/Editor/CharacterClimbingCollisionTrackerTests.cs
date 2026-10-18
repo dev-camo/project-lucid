@@ -221,26 +221,22 @@ namespace ProjectLucid.Tests
         }
 
         // PerformClimbableGroundCheck 0x7957E0 casts a ray from the character's bounds centre along its negated up direction
-        // (flattened to a unit vector or zero, 0x7958bd), as far as the half height plus the minimum ground check distance of
+        // (the Ray constructor makes it a unit vector, the single inlined normalisation at 0x7958b0..0x7958d5), as far as the half height plus the minimum ground check distance of
         // its collider settings (0x795923, 0x795937), against the tracker's layer mask (LayerMask.op_Implicit, 0x795946); a hit
         // collider with climbable terrain data (TrackManager.TryGetCharacterCollisionData, 0x7959e9) adds its normal and one
-        // contact. Update tests the squared length against the single-precision constant 1e-5 (0x29a6df4).
+        // contact. Update normalises the accrued sum (length against 1e-5, sqrtss 0x7956d0, ucomiss 0x7956d4).
         [Test]
-        public void GroundCheckAndUpdateUseTheNativeCallsAndConstant()
+        public void GroundCheckAndUpdateUseTheNativeCalls()
         {
             Assert.That(CallNames(Method("PerformClimbableGroundCheck")), Is.EqualTo(new[]
             {
-                "Character.get_Bounds", "Bounds.get_center", "Actor.get_UpDirection", "Vector3.op_UnaryNegation", "Vector3.get_normalized",
+                "Character.get_Bounds", "Bounds.get_center", "Actor.get_UpDirection", "Vector3.op_UnaryNegation",
                 "Ray..ctor", "Character.get_HalfHeight", "Character.get_Settings", "LayerMask.op_Implicit", "Physics.Raycast",
                 "Character.get_TrackManager", "RaycastHit.get_collider", "TrackManager.TryGetCharacterCollisionData",
                 "CharacterClimbingCollisionTracker.TerrainClimbable", "RaycastHit.get_normal", "Vector3.op_Addition",
             }));
             MethodInfo update = Method("Update");
-            var instructions = OriginalILCallSequence.Instructions(update);
-            float[] constants = instructions.Where(instruction => instruction.Code == OpCodes.Ldc_R4)
-                .Select(instruction => OriginalILCallSequence.SingleOperand(update, instruction.Offset)).ToArray();
-            Assert.That(constants, Is.EqualTo(new[] { BitConverter.Int32BitsToSingle(0x3727c5ac) }));
-            Assert.That(constants[0], Is.EqualTo(1e-5f));
+            Assert.That(CallNames(update), Does.Contain("Vector3.get_normalized"));
         }
     }
 }

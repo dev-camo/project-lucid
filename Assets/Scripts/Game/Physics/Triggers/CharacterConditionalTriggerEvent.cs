@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Hardlight;
 using Unity.IL2CPP.CompilerServices;
@@ -46,9 +47,11 @@ namespace HardlightProject
         // 06002946; only the current character's own collision collider can pass.
         protected override bool FilterCollision(Collider other)
         {
-            return m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character)
-                && other == character.ColliderCollision
-                && EvaluateConditions(character, m_conditions, m_checkType);
+            if (!m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character))
+                return false;
+            if (other != character.ColliderCollision)
+                return false;
+            return EvaluateConditions(character, m_conditions, m_checkType);
         }
 
         // 06002947; a condition counts as met when its answer differs from its invert flag. Any
@@ -104,9 +107,11 @@ namespace HardlightProject
         // 0600294b
         private void EvaluateCharacterTrigger(Collider other, bool addAction)
         {
-            if (m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character)
-                && other == character.ColliderCollision)
-                AddCharacterTrigger(character, addAction);
+            if (!m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character))
+                return;
+            if (other != character.ColliderCollision)
+                return;
+            AddCharacterTrigger(character, addAction);
         }
 
         // 0600294c; subscribes to (or leaves) the character's post-FSM fixed update and, when a
@@ -122,7 +127,7 @@ namespace HardlightProject
                 character.OnFixedUpdatePostFSM -= OnCharacterFixedUpdate;
             if (m_collisionCollider != null)
             {
-                Dictionary<int, System.Func<bool>> canModify = character.TrackManager.ColliderCollisionCanModify;
+                Dictionary<int, Func<bool>> canModify = character.TrackManager.ColliderCollisionCanModify;
                 if (addAction)
                     canModify.Add(m_collisionCollider.GetInstanceID(), () => EvaluateConditions(character, m_conditions, m_checkType));
                 else

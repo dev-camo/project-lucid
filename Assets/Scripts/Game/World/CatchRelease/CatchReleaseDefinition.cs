@@ -5,8 +5,8 @@ using Unity.IL2CPP.CompilerServices;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x020004a6; CalculateCachedValues 0x540270, constructor 0x5402F0. Groups the
-    // attach, catch and release settings of a catch-release toy. Native code inlines the three part
-    // constructors into this one, and of the three CalculateCachedValues calls only the attach one has
+    // attach, catch and release settings of a catch-release toy. Native code inlines the attach and release
+    // constructors into this one and calls the catch constructor, and of the three CalculateCachedValues calls only the attach one has
     // a body (the cached cosine of its alignment tolerance).
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]

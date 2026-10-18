@@ -50,18 +50,14 @@ namespace HardlightProject
 
         // 060017c0; contacts counted since the last update decide whether the tracker is colliding,
         // else a short raycast against the ground below the character is tried. The accrued normals
-        // are consumed every update; a near-zero sum leaves no normal.
+        // are consumed every update.
         public void Update()
         {
             IsColliding = m_collisionCount > 0;
             if (!IsColliding)
                 IsColliding = PerformClimbableGroundCheck();
 
-            float magnitude = m_accruedCollisionNormals.magnitude;
-            if (IsColliding && magnitude > 1E-05f)
-                CollisionNormal = m_accruedCollisionNormals / magnitude;
-            else
-                CollisionNormal = Vector3.zero;
+            CollisionNormal = IsColliding ? m_accruedCollisionNormals.normalized : Vector3.zero;
             m_collisionCount = 0;
             m_accruedCollisionNormals = Vector3.zero;
         }
@@ -104,7 +100,7 @@ namespace HardlightProject
         // ground check distance. A hit on climbable terrain adds that surface's normal.
         private bool PerformClimbableGroundCheck()
         {
-            var ray = new Ray(m_character.Bounds.center, (-m_character.UpDirection).normalized);
+            var ray = new Ray(m_character.Bounds.center, -m_character.UpDirection);
             float distance = m_character.HalfHeight + m_character.Settings.Collider.GroundCheckMinDistance;
             if (!Physics.Raycast(ray, out RaycastHit hit, distance, LayerMask))
                 return false;
@@ -112,7 +108,7 @@ namespace HardlightProject
                 return false;
             if (!TerrainClimbable(LayerMask, collisionData))
                 return false;
-            m_accruedCollisionNormals = hit.normal + m_accruedCollisionNormals;
+            m_accruedCollisionNormals += hit.normal;
             m_collisionCount++;
             return true;
         }

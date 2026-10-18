@@ -56,7 +56,7 @@ namespace ProjectLucid.Tests
         private static string[] CallNames(MethodInfo method) => OriginalILCallSequence.Names(OriginalILCallSequence.Calls(method));
 
         // The declarations come from the original DummyDll metadata, nested types included: the closure's name follows
-        // from the five serialized fields, the enum and the seven methods declared before AddCharacterTrigger.
+        // from the five fields, the enum and the seven methods declared before AddCharacterTrigger.
         [Test]
         public void DeclarationsKeepTheOriginalFlagsFieldsMethodsAndClosure()
         {

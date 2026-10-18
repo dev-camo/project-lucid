@@ -9,7 +9,7 @@ namespace HardlightProject
 {
     // Original Game.Runtime type 02000329. Scene-authored events for the current character entering,
     // staying in and leaving the volume, plus the actions those events call back on the character.
-    // The compiler-generated names follow from the 23 serialized fields declared before the first method.
+    // The compiler-generated names follow from the 23 fields (19 serialized, 4 runtime) declared before the first method.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterEvents : CharacterTrigger
@@ -238,21 +238,18 @@ namespace HardlightProject
         // 060013c3; the same shape for the TargetingAvailable override, but a repeated call changes nothing.
         public void SetTargetingEnabled(bool enable)
         {
-            StackableDataHandle handle = m_targetingHandle;
             if (enable)
             {
-                if (handle == null)
-                    return;
-                Character.RemoveModifierOverrides(m_targetingHandle);
-                handle = null;
+                if (m_targetingHandle != null)
+                {
+                    Character.RemoveModifierOverrides(m_targetingHandle);
+                    m_targetingHandle = null;
+                }
             }
-            else
+            else if (m_targetingHandle == null)
             {
-                if (handle != null)
-                    return;
-                handle = Character.AddModifierOverride((int)GameplayModifierType.TargetingAvailable, false);
+                m_targetingHandle = Character.AddModifierOverride((int)GameplayModifierType.TargetingAvailable, false);
             }
-            m_targetingHandle = handle;
         }
 
         // 060013c4
@@ -337,8 +334,7 @@ namespace HardlightProject
             else
             {
                 Quaternion swing = Quaternion.AngleAxis(-m_targetRaycastAngle, character.RightDirection);
-                Vector3 direction = (swing * targetForward).normalized;
-                var ray = new Ray(character.WorldPosition, direction);
+                var ray = new Ray(character.WorldPosition, swing * targetForward);
                 position = otherCollider.Raycast(ray, out RaycastHit hit, m_targetRaycastDistance)
                     ? hit.point
                     : otherCollider.ClosestPoint(character.WorldPosition);
