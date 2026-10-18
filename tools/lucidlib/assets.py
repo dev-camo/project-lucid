@@ -877,10 +877,10 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                     if backup is None:
                         continue
                     retained_path = _cache_path(work, backup_dir / backup.name)
-                    copied = _relocate_tree(backup, retained_path)
+                    copied_across_volumes = _relocate_tree(backup, retained_path)
                     # Record the complete retained copy before deleting a cross-volume source.
                     locations[destination] = retained_path
-                    if copied:
+                    if copied_across_volumes:
                         shutil.rmtree(backup)
                     backups.append(retained_path)
             result = {"schema_version": SCHEMA_VERSION, "status": "prepared", "run_id": report["run_id"],

@@ -322,6 +322,18 @@ class AssetTests(unittest.TestCase):
         self.assertTrue(any((path / "old.txt").is_file() for path in retained))
         self.assertTrue(all(self.work.resolve() in path.parents for path in retained))
 
+    def test_prepare_rerun_with_backups_records_the_copied_file_count(self):
+        # The scene, its meta and FSM.json are copied; the code pair is skipped.
+        self.make_export()
+        first = assets.prepare_assets(self.repo, self.work)
+        self.assertEqual(first["backup_paths"], [])
+        result = assets.prepare_assets(self.repo, self.work)
+        self.assertEqual(len(result["backup_paths"]), 2)
+        receipt = json.loads((self.work / "assets/latest-prepare.json").read_text())
+        for recorded in (first, result, receipt):
+            self.assertIs(type(recorded["copied_files"]), int)
+            self.assertEqual(recorded["copied_files"], 3)
+
     def test_verified_script_binding_preserves_asset_identity_and_input_bytes(self):
         project = self.make_export()
         text = ("%YAML 1.1\n--- !u!114 &11400000\nMonoBehaviour:\n"
