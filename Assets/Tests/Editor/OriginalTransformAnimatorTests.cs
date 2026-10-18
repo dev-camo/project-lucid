@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -388,8 +387,8 @@ namespace ProjectLucid.Tests
         }
 
         // A TimeManager whose System timescale is fixed, registered under its default name for
-        // one case. It is uninitialised (no Awake or Reset, which need the shared
-        // TimeCategoryConfiguration); the TimeExtensions category lookup it is read through is
+        // one case. It is a real component on an inactive host (no Awake or Reset, which need the
+        // shared TimeCategoryConfiguration); the TimeExtensions category lookup it is read through is
         // leased. The row is admitted absent or idle and released after unregistering.
         private sealed class OwnedSystemTime : IDisposable
         {
@@ -409,10 +408,12 @@ namespace ProjectLucid.Tests
                 LookupField.SetValue(null, lookup);
                 var setting = new TimeSetting();
                 setting.SetCategory(category, timescale);
-                var settings = new StackableData();
-                settings.SetBaseValue((int)typeof(TimeManager).GetField("SettingId", All).GetRawConstantValue(), setting);
-                Manager = (TimeManager)FormatterServices.GetUninitializedObject(typeof(TimeManager));
-                Set(Manager, "m_timeSettings", settings);
+                // A real component on an inactive host: Awake never runs, so it registers nothing.
+                GameObject host = objects.Create("system time manager");
+                host.SetActive(false);
+                Manager = host.AddComponent<TimeManager>();
+                ((StackableData)Get(Manager, "m_timeSettings"))
+                    .SetBaseValue((int)typeof(TimeManager).GetField("SettingId", All).GetRawConstantValue(), setting);
                 try { m_row = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()); }
                 catch
                 {

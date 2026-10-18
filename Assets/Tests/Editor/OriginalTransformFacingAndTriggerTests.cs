@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -17,14 +16,51 @@ namespace ProjectLucid.Tests
     // HardlightProject.TransformFaceCamera and TransformFacePlayer (TypeDefs 0x0200080e/f,
     // x86-64 0x5FD780..0x5FDF47), TransformAssignEventTrigger (0x02000772, 0x5D45B0..0x5D4AA2),
     // RotationGravity (0x02000a7d, 0x6C9990..0x6C9A6C), SnapToAxis (0x02000a2c, 0x6B5F20) and
-    // VanishingPlatformEffects (0x02000ad4, 0x6E9C50..0x6E9CAC). Managers are uninitialised
-    // objects; a registry row a body reads is owned for the case (absent or idle, released
-    // after). Messages are invoked directly because EditMode sends none.
+    // VanishingPlatformEffects (0x02000ad4, 0x6E9C50..0x6E9CAC). Managers are real: components on
+    // inactive hosts or built by their constructors (OwnedCharacterManagers); a registry row a body
+    // or constructor reads is owned for the case (absent or idle, released after). Messages are
+    // invoked directly because EditMode sends none.
     public sealed class OriginalTransformFacingAndTriggerTests
     {
         private const BindingFlags All = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
-        private static T Raw<T>() => (T)FormatterServices.GetUninitializedObject(typeof(T));
+        // A real CinemachineCameraManager on an inactive host: Awake never runs, so it registers nothing and
+        // starts no coroutine. Its field initialisers take the SaveManager and CameraStackManager references,
+        // so those rows are owned for the case, and it is a TimeScaledComponent_SDT, so the owned empty
+        // time-category lookup stays installed while it is added.
+        private sealed class CameraFixture : IDisposable
+        {
+            private readonly VerificationFixtureOwnership.LifecycleRow m_saveRow =
+                new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SaveManager>());
+            private VerificationFixtureOwnership.LifecycleRow m_stackRow;
+            private OwnedTimeScaledObjects m_time;
+
+            public OwnedWorldObjects Objects => m_time.Objects;
+
+            public CameraFixture(string prefix)
+            {
+                try
+                {
+                    m_stackRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<CameraStackManager>());
+                    m_time = new OwnedTimeScaledObjects(prefix);
+                }
+                catch
+                {
+                    Dispose();
+                    throw;
+                }
+            }
+
+            public CinemachineCameraManager NewManager()
+            {
+                GameObject host = Objects.Create("camera manager");
+                host.SetActive(false);
+                return host.AddComponent<CinemachineCameraManager>();
+            }
+
+            public void Dispose() => VerificationFixtureOwnership.RunThenCleanUp(() => { },
+                () => m_time?.Dispose(), () => m_stackRow?.Dispose(), () => m_saveRow.Dispose());
+        }
 
         private static Delegate[] Handlers(object target, string field) =>
             ((Delegate)Get(target, field))?.GetInvocationList() ?? Array.Empty<Delegate>();
@@ -137,10 +173,11 @@ namespace ProjectLucid.Tests
         [Test]
         public void FaceCameraWaitsForTheMainCameraAndUnsubscribesOnceSet()
         {
-            using (var objects = new OwnedWorldObjects("lucid-face-camera"))
+            using (var fixture = new CameraFixture("lucid-face-camera"))
             {
+                OwnedWorldObjects objects = fixture.Objects;
                 var face = objects.Create("face").AddComponent<TransformFaceCamera>();
-                var manager = Raw<CinemachineCameraManager>();
+                CinemachineCameraManager manager = fixture.NewManager();
                 Action<Camera> prior = _ => { };
                 manager.OnMainCameraReady = prior;
                 Call(face, "OnCameraInitialised", manager);
@@ -159,13 +196,14 @@ namespace ProjectLucid.Tests
                 Call(face, "LateUpdate");
                 AreClose(Vector3.right, face.transform.forward, "looks at the camera");
 
-                var ready = Raw<CinemachineCameraManager>();
+                CinemachineCameraManager ready = fixture.NewManager();
+                object initialReadyHandler = Get(ready, "OnMainCameraReady");
                 Set(ready, "<MainCameraIsReady>k__BackingField", true);
                 var second = objects.Create("second").AddComponent<TransformFaceCamera>();
                 Assert.Throws<NullReferenceException>(() => Call(second, "OnCameraInitialised", ready),
                     "a ready manager's MainCamera is read through its unset brain");
                 Assert.That(HandlerNames(ready, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCameraManagerShutdown" }), "subscribed first");
-                Assert.That(Get(ready, "OnMainCameraReady"), Is.Null, "a ready camera is not waited for");
+                Assert.That(Get(ready, "OnMainCameraReady"), Is.SameAs(initialReadyHandler), "a ready camera is not waited for");
             }
         }
 
@@ -176,10 +214,11 @@ namespace ProjectLucid.Tests
         [Test]
         public void FaceCameraShutdownDisablesAndRemovesItsHandler()
         {
-            using (var objects = new OwnedWorldObjects("lucid-face-camera-shutdown"))
+            using (var fixture = new CameraFixture("lucid-face-camera-shutdown"))
             {
+                OwnedWorldObjects objects = fixture.Objects;
                 var face = objects.Create("face").AddComponent<TransformFaceCamera>();
-                var manager = Raw<CinemachineCameraManager>();
+                CinemachineCameraManager manager = fixture.NewManager();
                 Set(face, "m_cameraManagerRef", new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), manager));
                 Call(face, "OnCameraInitialised", manager);
                 Call(face, "OnCameraManagerShutdown");
@@ -201,11 +240,12 @@ namespace ProjectLucid.Tests
         [Test]
         public void FaceCameraEnableSubscribesToARegisteredManager()
         {
+            var fixture = new CameraFixture("lucid-face-camera-enable");
             var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<CinemachineCameraManager>());
-            var objects = new OwnedWorldObjects("lucid-face-camera-enable");
+            OwnedWorldObjects objects = fixture.Objects;
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                var manager = Raw<CinemachineCameraManager>();
+                CinemachineCameraManager manager = fixture.NewManager();
                 row.Register(manager);
                 var face = objects.Create("face").AddComponent<TransformFaceCamera>();
                 Call(face, "OnEnable");
@@ -214,7 +254,7 @@ namespace ProjectLucid.Tests
                 Assert.That(HandlerNames(manager, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCameraManagerShutdown" }));
                 Call(face, "OnDisable");
                 Assert.That(Get(manager, "OnSystemShutdown"), Is.Null);
-            }, objects.Dispose, row.Dispose);
+            }, row.Dispose, fixture.Dispose);
         }
 
         // With no manager registered the reference stays null after InvokeOnValid, so OnEnable
@@ -225,8 +265,9 @@ namespace ProjectLucid.Tests
         public void FaceCameraEnableDisablesUntilAManagerIsRegistered()
         {
             string name = ProcessManager.GetDefaultName<CinemachineCameraManager>();
+            var fixture = new CameraFixture("lucid-face-camera-enable-missing");
             var row = new VerificationFixtureOwnership.LifecycleRow(name);
-            var objects = new OwnedWorldObjects("lucid-face-camera-enable-missing");
+            OwnedWorldObjects objects = fixture.Objects;
             bool registered = false;
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
@@ -237,18 +278,19 @@ namespace ProjectLucid.Tests
                 Assert.That(reference, Is.SameAs(ProcessManager.GetSystemRef<CinemachineCameraManager>()));
                 Assert.That(reference.IsNull(), Is.True);
 
-                var manager = Raw<CinemachineCameraManager>();
+                CinemachineCameraManager manager = fixture.NewManager();
+                string[] initialReady = HandlerNames(manager, "OnMainCameraReady");
                 // Set first: a throwing deferred callback still leaves the system registered.
                 registered = true;
                 ProcessManager.RegisterSystem(manager, name);
                 Assert.That(HandlerNames(manager, "OnSystemShutdown"), Is.EqualTo(new[] { "OnCameraManagerShutdown" }), "the deferred subscription ran");
-                Assert.That(HandlerNames(manager, "OnMainCameraReady"), Is.EqualTo(new[] { "SetMainCamera" }), "the camera is not ready");
+                Assert.That(HandlerNames(manager, "OnMainCameraReady"), Is.EqualTo(initialReady.Concat(new[] { "SetMainCamera" })), "the camera is not ready");
                 Assert.That(face.enabled, Is.False, "re-enabled only by SetMainCamera");
                 Call(face, "OnDisable");
                 Assert.That(Get(manager, "OnSystemShutdown"), Is.Null);
             },
             () => { if (registered) ProcessManager.UnregisterSystem(name); },
-            objects.Dispose, row.Dispose);
+            row.Dispose, fixture.Dispose);
         }
 
         // FacePlayer.RegisterCharacterManager 0x5FDDB0 stores the manager and calls
@@ -258,6 +300,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void FacePlayerTargetsTheCurrentCharacterAndReleasesOnDisable()
         {
+            var characters = new OwnedCharacterManagers();
             var islandRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<GameplayIslandManager>());
             var objects = new OwnedWorldObjects("lucid-face-player");
             VerificationFixtureOwnership.RunThenCleanUp(() =>
@@ -265,7 +308,7 @@ namespace ProjectLucid.Tests
                 var face = objects.Create("face").AddComponent<TransformFacePlayer>();
                 Assert.DoesNotThrow(() => Call(face, "OnDisable"), "no manager yet");
 
-                var waiting = Raw<CharacterManager>();
+                CharacterManager waiting = characters.NewManager();
                 Call(face, "RegisterCharacterManager", waiting);
                 Assert.That(Get(face, "m_characterManager"), Is.SameAs(waiting));
                 Assert.That(HandlerNames(waiting, "m_onCharacterChange"), Is.EqualTo(new[] { "SetTarget" }));
@@ -277,7 +320,7 @@ namespace ProjectLucid.Tests
                 GameObject host = objects.Create("character", new Vector3(0f, 0f, -10f), Quaternion.identity);
                 host.SetActive(false);
                 Character character = host.AddComponent<Character>();
-                var valid = Raw<CharacterManager>();
+                CharacterManager valid = characters.NewManager();
                 Set(valid, "<CharacterValid>k__BackingField", true);
                 Set(valid, "m_currentCharacter", character);
                 Call(face, "RegisterCharacterManager", valid);
@@ -286,7 +329,7 @@ namespace ProjectLucid.Tests
 
                 Call(face, "LateUpdate");
                 AreClose(Vector3.back, face.transform.forward, "looks at the character");
-            }, objects.Dispose, islandRow.Dispose);
+            }, objects.Dispose, islandRow.Dispose, characters.Dispose);
         }
 
         // FacePlayer.OnEnable 0x5FDCC0 stores GetSystemRef<CharacterManager>(null, true) and
@@ -294,11 +337,12 @@ namespace ProjectLucid.Tests
         [Test]
         public void FacePlayerEnableRegistersWithARegisteredManager()
         {
+            var characters = new OwnedCharacterManagers();
             var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<CharacterManager>());
             var objects = new OwnedWorldObjects("lucid-face-player-enable");
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                var manager = Raw<CharacterManager>();
+                CharacterManager manager = characters.NewManager();
                 row.Register(manager);
                 var face = objects.Create("face").AddComponent<TransformFacePlayer>();
                 Call(face, "OnEnable");
@@ -307,7 +351,7 @@ namespace ProjectLucid.Tests
                 Assert.That(HandlerNames(manager, "m_onCharacterChange"), Is.EqualTo(new[] { "SetTarget" }));
                 Call(face, "OnDisable");
                 Assert.That(Get(manager, "m_onCharacterChange"), Is.Null);
-            }, objects.Dispose, row.Dispose);
+            }, objects.Dispose, row.Dispose, characters.Dispose);
         }
 
         private sealed class TriggerFixture : IDisposable
@@ -430,13 +474,20 @@ namespace ProjectLucid.Tests
         [Test]
         public void LevelActivationSendsANullExitWhileTriggered()
         {
+            // LevelManager's field initialisers take the MissionManager, AudioManager and SaveManager references.
+            var missionRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<MissionManager>());
+            var audioRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<AudioManager>());
+            var saveRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SaveManager>());
             var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<LevelManager>());
             var fixture = new TriggerFixture();
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
-                var manager = Raw<LevelManager>();
+                GameObject host = fixture.Objects.Create("level manager");
+                host.SetActive(false);
+                var manager = host.AddComponent<LevelManager>();
+                var definition = fixture.Objects.Own(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
                 Set(manager, "<CurrentLevelValid>k__BackingField", true);
-                Set(manager, "m_currentLevel", Raw<LevelManagerLevel>());
+                Set(manager, "m_currentLevel", new LevelManagerLevel(definition, definition));
                 row.Register(manager);
                 TransformAssignEventTrigger trigger = fixture.Create();
                 Set(trigger, "m_hasTriggered", true);
@@ -450,7 +501,7 @@ namespace ProjectLucid.Tests
 
                 Call(trigger, "OnDestroy");
                 Assert.That(Get(manager, "m_actionOnLevelActivated"), Is.Null);
-            }, fixture.Dispose, row.Dispose);
+            }, fixture.Dispose, row.Dispose, saveRow.Dispose, audioRow.Dispose, missionRow.Dispose);
         }
 
         // Action_PlayPlatformAudio 0x6E9C50 plays the start one-shots, then the looping
