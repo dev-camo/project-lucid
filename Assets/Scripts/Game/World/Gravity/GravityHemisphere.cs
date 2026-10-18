@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a72: the sphere's gravity above the transform's
-    // horizontal plane only.
+    // Original Game.Runtime 02000a72: the sphere's gravity on or above the plane
+    // through the transform perpendicular to its up axis.
     [Il2CppSetOption(Option.NullChecks, false)]
     [RequireComponent(typeof(SphereCollider))]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

@@ -142,12 +142,84 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // Update 0x6E7F5D..0x6E7F81: the continuation is m_velocity.sqrMagnitude ucomiss 1e-4
+        // (0x29a6dfc) then seta. With m_smoothTime 0 SmoothToTarget returns before writing the
+        // velocity, so a set velocity survives: above 1e-4 keeps the default for the next update,
+        // and an unordered NaN square clears it because seta is 0 when unordered.
+        [Test]
+        public void TheDefaultIsKeptOnlyWhileTheVelocityIsAboveTheThreshold()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-look-default-velocity"))
+            {
+                LookAtTarget looker = objects.Create("looker").AddComponent<LookAtTarget>();
+                Set(looker, "m_defaultTarget", objects.Create("default", new Vector3(10f, 0f, 0f), Quaternion.identity).transform);
+                Call(looker, "Awake");
+                looker.EndLookAt();
+
+                Set(looker, "m_velocity", new Vector3(0.02f, 0f, 0f));
+                Call(looker, "Update");
+                AreClose(Vector3.right, looker.transform.forward, "turned to the default");
+                Assert.That(Get(looker, "m_lookAtDefault"), Is.True, "a square of 4e-4 keeps the default");
+                looker.transform.rotation = Quaternion.identity;
+                Call(looker, "Update");
+                AreClose(Vector3.right, looker.transform.forward, "turned again");
+
+                Set(looker, "m_velocity", new Vector3(float.NaN, 0f, 0f));
+                Call(looker, "Update");
+                Assert.That(Get(looker, "m_lookAtDefault"), Is.False, "an unordered square clears the default");
+            }
+        }
+
+        // Update 0x6E7F43..0x6E7F52 passes the Awake-time m_worldUp (+0x50), not Vector3.up or
+        // the current transform.up, as LookAt's up argument.
+        [Test]
+        public void UpdatePassesTheAwakeUpAxisToLookAt()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-look-world-up"))
+            {
+                LookAtTarget looker = objects.Create("looker", Vector3.zero, Quaternion.Euler(0f, 0f, 90f)).AddComponent<LookAtTarget>();
+                Call(looker, "Awake");
+                looker.transform.rotation = Quaternion.identity;
+                looker.SetLookAt(objects.Create("target", new Vector3(0f, 0f, 10f), Quaternion.identity).transform);
+                Call(looker, "Update");
+                AreClose(Vector3.forward, looker.transform.forward, "forward");
+                AreClose(new Vector3(-1f, 0f, 0f), looker.transform.up, "the Awake up axis");
+            }
+        }
+
+        // SmoothToTarget 0x6E817B..0x6E8191: cmpltss(0, m_maxSpeed) selects m_maxSpeed, otherwise
+        // +inf (0x29a7198), so zero and negative max speeds leave SmoothDamp unclamped. The raw
+        // value would clamp the change and hold the direction at forward, giving (0, 0, 10).
+        [Test]
+        public void SmoothingTreatsANonPositiveMaxSpeedAsUnclamped()
+        {
+            Assume.That(Time.deltaTime, Is.GreaterThan(0.01f), "the rows need a frame delta that moves the direction");
+            using (var objects = new OwnedWorldObjects("lucid-look-smooth-unclamped"))
+            {
+                LookAtTarget looker = Looker(objects);
+                Set(looker, "m_smoothTime", 1f);
+                foreach (float maxSpeed in new[] { 0f, -1f })
+                {
+                    Set(looker, "m_maxSpeed", maxSpeed);
+                    Set(looker, "m_velocity", Vector3.zero);
+                    object[] args = { new Vector3(10f, 0f, 0f) };
+                    Call(looker, "SmoothToTarget", args);
+                    Vector3 velocity = Vector3.zero;
+                    Vector3 unclamped = Vector3.SmoothDamp(Vector3.forward, Vector3.right, ref velocity, 1f,
+                        float.PositiveInfinity, Time.deltaTime) * 10f;
+                    Assert.That(((Vector3)args[0]).x, Is.GreaterThan(1e-3f), "max speed " + maxSpeed + " moves off forward");
+                    AreClose(unclamped, (Vector3)args[0], "max speed " + maxSpeed + " is passed as +inf", 1e-5f);
+                }
+            }
+        }
+
         // SmoothToTarget 0x6E8060: an exact zero smooth time returns. Otherwise the new position
         // is transform + SmoothDamp(forward, direction, ..., maxSpeed > 0 ? maxSpeed : inf) *
         // distance, so a tiny positive max speed holds the direction at the current forward.
         [Test]
         public void SmoothingKeepsTheDistanceAndHonoursAPositiveMaxSpeed()
         {
+            Assume.That(Time.deltaTime, Is.GreaterThan(0.01f), "the tiny max speed only holds the direction with a nonzero delta");
             using (var objects = new OwnedWorldObjects("lucid-look-smooth"))
             {
                 LookAtTarget looker = Looker(objects);

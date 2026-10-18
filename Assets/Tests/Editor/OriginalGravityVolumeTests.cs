@@ -194,6 +194,18 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0x6C70DE `ucomiss 0, dot; jbe`: an unordered height takes the sphere branch, so a NaN
+        // position gives the sphere's NaN gravity. `!(dot >= 0)` would return zero instead.
+        [Test]
+        public void HemisphereKeepsTheSphereGravityForAnUnorderedHeight()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-gravity-hemisphere-nan"))
+            {
+                GravityHemisphere upright = Calculated<GravityHemisphere>(objects, typeof(SphereCollider), Vector3.zero, Quaternion.identity);
+                IsNaN(upright.GetGravity(new Vector3(float.NaN, float.NaN, float.NaN)), "unordered height");
+            }
+        }
+
         // GravityAxis.GetGravity 0x1391250: the offset from GetClosestPointOnLine(position, forward)
         // divided by its own length, unguarded on the axis.
         [Test]
@@ -269,6 +281,21 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0x6C69EE `ucomiss start, angle; ja` and 0x6C69F7 `ucomiss angle, end; jbe`: unordered
+        // limits reject nothing. NaN limits are used because a NaN position normalises to zero
+        // and yields angle 0. `!(angle >= start && angle <= end)` would return zero here.
+        [Test]
+        public void CapsuleArcDoesNotRejectAgainstUnorderedLimits()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-gravity-arc-nan"))
+            {
+                GravityCapsuleArc arc = Calculated<GravityCapsuleArc>(objects, typeof(CapsuleCollider), Vector3.zero, Quaternion.identity);
+                Set(arc, "m_arcAngleStart", float.NaN);
+                Set(arc, "m_arcAngleEnd", float.NaN);
+                AreClose(new Vector3(2f, 0f, 0f), arc.GetGravity(new Vector3(-3f, 0f, 0f)), "NaN limits");
+            }
+        }
+
         // GetCapPosition 0x6C6A70: AngleAxis(90, up) * rotation * (0, cos r, sin r) * distance for
         // r = -angle in radians; no position is added.
         [Test]
@@ -322,6 +349,36 @@ namespace ProjectLucid.Tests
                 Set(box, "m_applyAtEnds", true);
                 AreClose(new Vector3(0f, 0f, 2f), box.GetGravity(new Vector3(0f, 7.5f, 1.5f)), "-forward end at 0.5");
                 Assert.That(RecordedDistance(box), Is.EqualTo(0.5f).Within(1e-5f));
+            }
+        }
+
+        // 0x6C5CEE `ucomiss d, best; ja skip` with `minss best, d`: an unordered distance replaces
+        // the best face, so with a NaN position every face replaces and the last, -right, wins.
+        // CalculateGravity(NaN) passes the outer limits (0x6C6197, 0x6C61A9 ja) and both
+        // falloff tests (jbe), returning the gravity -2. `distance <= best` would keep (0, 0, 0).
+        [Test]
+        public void BoxGravityLetsAnUnorderedDistanceReplaceTheBestFace()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-gravity-box-nan"))
+            {
+                GravityBox box = Calculated<GravityBox>(objects, typeof(BoxCollider), Vector3.zero, Quaternion.identity);
+                AreClose(new Vector3(2f, 0f, 0f), box.GetGravity(new Vector3(float.NaN, float.NaN, float.NaN)), "the last face");
+                Assert.That(float.IsNaN(RecordedDistance(box)), Is.True);
+            }
+        }
+
+        // CalculateDistance 0x6C5B27..0x6C5B37 reads m_collider.center and TransformPoint on
+        // every face, so a moved centre moves the faces: centre (0, 10, 0) puts the floor at 2.5.
+        // Measuring from transform.position + up * MaxDistance / 2 would record 4.5.
+        [Test]
+        public void BoxFacesFollowTheCurrentColliderCentre()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-gravity-box-centre"))
+            {
+                GravityBox box = Calculated<GravityBox>(objects, typeof(BoxCollider), Vector3.zero, Quaternion.identity);
+                box.GetComponent<BoxCollider>().center = new Vector3(0f, 10f, 0f);
+                AreClose(new Vector3(0f, -2f, 0f), box.GetGravity(new Vector3(0f, 4.5f, 0f)), "floor at 2.5");
+                Assert.That(RecordedDistance(box), Is.EqualTo(2f).Within(1e-5f));
             }
         }
 
@@ -403,6 +460,23 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // GravityTorus.GetGravity 0x6C90AF TransformPoint maps the local closest point (5, 0, 0)
+        // to world (10, 0, 0) under scale 2, so the world distance is 2; 0x6C90D5
+        // TransformDirection keeps the normal unit length. TransformVector would give (-4, 0, 0)
+        // and a local-space distance would record 1.
+        [Test]
+        public void TorusGravityMeasuresInWorldSpaceWithADirectionOnlyNormal()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-gravity-torus-scaled"))
+            {
+                GravityTorus torus = Calculated<GravityTorus>(objects, typeof(BoxCollider), Vector3.zero, Quaternion.identity);
+                Set(torus, "m_size", new Vector3(10f, 2f, 10f));
+                torus.transform.localScale = new Vector3(2f, 2f, 2f);
+                AreClose(new Vector3(-2f, 0f, 0f), torus.GetGravity(new Vector3(12f, 0f, 0f)), "scaled ring");
+                Assert.That(RecordedDistance(torus), Is.EqualTo(2f).Within(1e-4f));
+            }
+        }
+
         // GravityTorus 0x6C94D0: size = m_size + one * MaxDistance, tube = m_tubeRadius +
         // MaxDistance / 2; the collider spans twice the (90, 0) X and (0, 0) Z ring radii.
         [Test]
@@ -472,6 +546,24 @@ namespace ProjectLucid.Tests
                 Assert.That(Validate(4f, new PositionBoundsInfo(-1f, 1f, false, Vector3.zero, Vector3.zero)), Is.False, "left bound below -0.25");
                 Assert.That(Validate(4f, new PositionBoundsInfo(1f, -1f, false, Vector3.zero, Vector3.zero)), Is.False, "right bound below -0.25");
                 Assert.That(Validate(4f, new PositionBoundsInfo(-0.25f, -0.25f, false, Vector3.zero, Vector3.zero)), Is.True, "bounds at -0.25");
+            }
+        }
+
+        // 0x6C8D79..0x6C8D7D reads Description (+0x38) and its MaxDistance (+0x20) with no null
+        // check, unlike the guarded GravitySource.MaxDistance property, which returns 0 for null.
+        // The lower limit returns first, so only heights that pass it dereference.
+        [Test]
+        public void SurfacePlaneValidationReadsTheDescriptionUnguarded()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-gravity-surface-unguarded"))
+            {
+                var open = new PositionBoundsInfo(1f, 1f, false, Vector3.zero, Vector3.zero);
+                GravitySurfacePlane plane = SurfacePlane(objects, Vector3.zero, Quaternion.identity, open);
+                Set(plane, "Description", null);
+                Set(plane, "m_distanceAlongNormal", 4f);
+                Assert.Throws<NullReferenceException>(() => Call(plane, "ValidateTrackerLocation"), "height 4 reaches the upper limit");
+                Set(plane, "m_distanceAlongNormal", -0.3f);
+                Assert.That(Call(plane, "ValidateTrackerLocation"), Is.False, "below the tolerance returns before the read");
             }
         }
 

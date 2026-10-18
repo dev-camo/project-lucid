@@ -142,6 +142,34 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // HasObjectLeft 0x6B2C65 `ucomiss sqr, thrSqr; setae` and InternalUpdate 0x6B2B05
+        // `ucomiss timer, min; jb`: an unordered compare reports not left and never fires, so the
+        // timer keeps accumulating. Transform positions cannot be NaN, so the cached threshold
+        // and the minimum time carry the NaN. `!(sqr < thrSqr)` or `!(timer < min)` would fire.
+        [Test]
+        public void UnorderedThresholdsNeitherLeaveNorFire()
+        {
+            using (var fixture = new Fixture())
+            {
+                Call(fixture.Checker, "Start");
+                fixture.Checker.Activate(fixture.Tracked);
+                fixture.Tracked.position = new Vector3(1f, 0f, 0f);
+                Set(fixture.Checker, "m_leaveDistanceThresholdSqr", float.NaN);
+                Assert.That(fixture.HasObjectLeft(), Is.False, "NaN squared threshold");
+
+                Call(fixture.Checker, "Start");
+                int calls = 0;
+                fixture.Checker.Activate(fixture.Tracked, () => ++calls);
+                fixture.Tracked.position = new Vector3(10f, 0f, 0f);
+                Set(fixture.Checker, "m_minimumTime", float.NaN);
+                fixture.Update(0.25f);
+                fixture.Update(0.25f);
+                Assert.That(calls, Is.EqualTo(0), "NaN minimum time");
+                Assert.That(fixture.Checker.WaitingForObjectToLeave, Is.True);
+                Assert.That(fixture.Timer, Is.EqualTo(0.5f));
+            }
+        }
+
         // With a bounds collider HasObjectLeft copies only bounds.center into the cache before
         // Bounds.SqrDistance, so the extents cached by Start stay in use.
         [Test]

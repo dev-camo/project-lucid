@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a73: gravity along the transform's up axis,
-    // scaled by the height above the transform.
+    // Original Game.Runtime 02000a73: gravity along the transform's up axis, scaled
+    // by the signed description value at the height above the transform.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [RequireComponent(typeof(BoxCollider))]
