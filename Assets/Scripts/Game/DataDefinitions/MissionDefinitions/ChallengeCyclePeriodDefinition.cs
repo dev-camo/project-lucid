@@ -6,8 +6,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     [UnityEngine.CreateAssetMenuAttribute(fileName = "ChallengeCyclePeriodDefinition", menuName = "HardlightProject/DefinitionData/Definitions/ChallengeCyclePeriodDefinition")]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
     // Original Game.Runtime 0x0200056f; complete owned fields and methods.
     public sealed class ChallengeCyclePeriodDefinition : ScriptableObject
     {

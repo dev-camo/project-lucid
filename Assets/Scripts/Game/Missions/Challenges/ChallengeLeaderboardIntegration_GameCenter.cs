@@ -4,8 +4,8 @@ using UnityEngine.SocialPlatforms;
 
 namespace HardlightProject
 {
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
     // Original Game.Runtime020006ea: whole original Game Center implementation15.
     // Platform/service calls are preserved; no offline route is substituted here.
     public sealed class ChallengeLeaderboardIntegration_GameCenter : ChallengeLeaderboardIntegration

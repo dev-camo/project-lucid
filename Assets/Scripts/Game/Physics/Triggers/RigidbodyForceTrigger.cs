@@ -11,8 +11,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x0200076d; complete16 owner + LockRoutineInfo1 + iterator6.
     // The generic native captures identify Boolean instantiations; generic source binding remains unverified.
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
     public class RigidbodyForceTrigger : MonoBehaviour
     {
         // Original 0x04001b8e.

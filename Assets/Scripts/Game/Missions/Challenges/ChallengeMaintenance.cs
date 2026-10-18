@@ -6,9 +6,9 @@ using Version = Hardlight.Utils.Version;
 
 namespace HardlightProject
 {
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
     [UnityEngine.CreateAssetMenuAttribute(menuName = "HardlightProject/Config/ChallengeMaintenance")]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
     // Original Game.Runtime 020006eb: complete owned type, fields and seven methods.
     public sealed class ChallengeMaintenance : SingleScriptableObject
     {

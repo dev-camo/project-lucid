@@ -7,8 +7,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x02000598; method IDs below refer to the supplied release.
     // Source inferred from complete ARM64 and x86_64 bodies and readable metadata.
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
     [UnityEngine.CreateAssetMenuAttribute(fileName = "PromptDefinition", menuName = "HardlightProject/DefinitionData/Definitions/PromptDefinition")]
     public class PromptDefinition : ScriptableObjectWithGuid
     {
@@ -158,8 +158,8 @@ namespace HardlightProject
 
         // Original 0x0200059a; whole nested serialized owner.
         [System.Serializable]
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         public class PromptDefinitionChoice
         {
             [Hardlight.Utils.HashEnumAttribute(typeof(Hardlight.Enums.Strings))]
@@ -210,8 +210,8 @@ namespace HardlightProject
 
         // Original 0x0200059b; whole nested serialized owner.
         [System.Serializable]
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
         public class PromptDefinitionDisplayInput
         {
             [UnityEngine.SerializeField]

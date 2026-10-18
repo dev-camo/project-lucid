@@ -4,8 +4,8 @@ using Hardlight.Analytics;
 
 namespace HardlightProject
 {
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
     // Original Game.Runtime020006fc,complete33 methods/nineteen fields. Genuine
     // IMissionContext default methods are inherited; no copied or invented facade.
     public class MissionContextChallenge : IMissionContext

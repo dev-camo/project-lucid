@@ -2,8 +2,8 @@ using System;
 
 namespace HardlightProject
 {
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
-    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
+    [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
     // Original Game.Runtime 020006e7,18 own methods including10 real abstract contracts;
     // natural 020006e8/0600255b..0600255c is retained through the original callback flow.
     public abstract class ChallengeLeaderboardIntegration
