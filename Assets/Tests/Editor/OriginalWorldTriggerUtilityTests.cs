@@ -2,10 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using Hardlight;
 using Hardlight.AutoPlay;
+using Hardlight.Utils;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEditor.Events;
@@ -23,6 +23,11 @@ namespace ProjectLucid.Tests
     // the waits they yield are read without being started.
     public sealed class OriginalWorldTriggerUtilityTests
     {
+        private static IEnumerator Forever()
+        {
+            while (true) yield return null;
+        }
+
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
         private static readonly Regex RefusedDestroy = new Regex("^Destroy may not be called from edit mode");
         private const string SelfTargetError = "Cannot target self with BoolEventProxy, otherwise will cause infinite callback.";
@@ -374,15 +379,16 @@ namespace ProjectLucid.Tests
 
         // Destroy 0x6B05D0 starts the routine only while the field is null (cmp [rbx+0x30], 0;
         // je at 0x6b060b): with a routine stored, a positive delay still reaches Object.Destroy
-        // and the field keeps the stored routine. The placeholder is never started.
+        // and the field keeps the stored routine.
         [Test]
         public void DestroyObjectDestroysAtOnceWhileARoutineIsStored()
         {
             Owned.Run(owned =>
             {
                 var destroyer = owned.Host("Lucid destroy object", false).AddComponent<DestroyObject>();
-                var stored = (Coroutine)FormatterServices.GetUninitializedObject(typeof(Coroutine));
-                GC.SuppressFinalize(stored);
+                // A genuine engine handle for a coroutine that never finishes, started on an active
+                // owned host (Awake does not run in Edit Mode, so the host registers nothing).
+                Coroutine stored = owned.Host("Lucid coroutine runner").AddComponent<CoroutineUtils>().StartCoroutine(Forever());
                 Set(destroyer, "m_delayedDestroyRoutine", stored);
                 Set(destroyer, "m_delaySeconds", 0.75f);
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
