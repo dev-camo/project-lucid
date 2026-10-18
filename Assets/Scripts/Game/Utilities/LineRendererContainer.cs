@@ -5,8 +5,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x02000a10: batches positions for a LineRenderer.
-    // The buffer is sized when the container is constructed, from the
-    // m_positionsCountMax initializer of 32.
+    // The buffer is allocated in the constructor, before serialization, so it
+    // always holds 32; a larger serialized maximum overruns it.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Serializable]

@@ -44,6 +44,7 @@ namespace HardlightProject
                     {
                         Material material = materials[materialIndex];
                         GameObject instance = Instantiate(m_prefab, transform);
+                        // The original reads GameObject.gameObject here.
                         instance.gameObject.name = material.name;
                         instance.transform.localPosition = new Vector3(row, column, layer);
                         instance.GetComponent<Renderer>().sharedMaterial = material;

@@ -73,8 +73,7 @@ namespace HardlightProject
             m_type = type;
         }
 
-        // Retail keeps only the CanValidate call; whatever it guarded is not
-        // in the player build.
+        // Retail keeps only the CanValidate call, and its result is unused.
         private void OnValidate()
         {
             gameObject.CanValidate();

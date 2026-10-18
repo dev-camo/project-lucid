@@ -7,6 +7,7 @@ using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.Rendering.Universal;
 using Object = UnityEngine.Object;
 
@@ -19,9 +20,9 @@ namespace ProjectLucid.Tests
     // InstancedObjectSpawner. Every case owns and destroys its objects; the
     // FlashRenderers instance is raw because a real TimeScaledComponent's
     // editor Reset/OnValidate reaches SystemConfiguration, and only its own
-    // fields are read here. Paths that need the time manager, Addressables or
-    // a running coroutine (FlashRenderers.OnEnable, AssignAddressableTexture
-    // .OnEnable, LerpColour's restart branch) are not exercised.
+    // fields are read here. AssignAddressableTexture.OnEnable needs the
+    // AddressableManager and is not exercised; LerpColour's restart on an
+    // active host is in OriginalLerpColourPlayTests.
     [TestFixture]
     public sealed class OriginalFxComponentBehaviourTests
     {
@@ -147,6 +148,22 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // OnEnable 0x6b0a20 calls TimeScaledComponent.OnEnable first, then
+        // timer = 0 and next = m_flashInterval + m_initialDelay. A raw instance
+        // with m_ignoreEnable set makes the base clear the flag and return
+        // before it reaches the time manager, so the flag shows the base ran.
+        [Test]
+        public void FlashRenderersOnEnableRunsTheBaseAndSchedulesDelayPlusInterval()
+        {
+            FlashRenderers flash = RawFlash(Array.Empty<Renderer>(), 1f, 0.5f, 99f);
+            Set(flash, "m_timerSeconds", 7f);
+            Set(flash, "m_ignoreEnable", true);
+            Call(flash, "OnEnable");
+            Assert.That(Get(flash, "m_ignoreEnable"), Is.False, "the base OnEnable ran");
+            Assert.That(Get(flash, "m_timerSeconds"), Is.EqualTo(0f));
+            Assert.That(Get(flash, "m_nextFlashIntervalSeconds"), Is.EqualTo(1.5f), "neither the delay nor the interval alone");
+        }
+
         // ---- MaterialPropertyBlockSetter ----
 
         // .ctor 0x6b2500: "_Color" and the 16-byte constant (1,1,1,1) at
@@ -204,6 +221,36 @@ namespace ProjectLucid.Tests
                 Assert.That(Get(lerp, "m_valueAssigned"), Is.True, "1.21e-10 is outside it");
                 Assert.That(lerp.Colour.Value, Is.EqualTo(target));
                 Assert.That(Get(lerp, "m_lerpRoutine"), Is.Null, "no coroutine for the first value");
+            }
+        }
+
+        // SetTargetColour 0x6b1fbf..0x6b2084: without m_setFirstValue, or once
+        // a value is assigned, it takes the lerp branch (SafeStopCoroutine,
+        // StartCoroutine, store the handle, then m_valueAssigned = true). On an
+        // inactive host StartCoroutine logs and returns null, so the colour is
+        // left alone and only the flag and the null handle are observable; a
+        // direct-set reading would write the target instead.
+        [Test]
+        public void LerpColourTakesTheLerpBranchUnlessTheFirstValueIsPending()
+        {
+            using (var owned = new Owned())
+            {
+                var lerp = owned.Inactive("Lucid owned lerp branch").AddComponent<LerpColour>();
+                var inactive = new System.Text.RegularExpressions.Regex("Coroutine couldn't be started");
+                var first = new Color(1f, 0f, 0f, 1f);
+
+                LogAssert.Expect(LogType.Error, inactive);
+                lerp.SetTargetColour(first);
+                Assert.That(lerp.Colour.Value, Is.EqualTo(new Color(0f, 0f, 0f, 0f)), "not set directly");
+                Assert.That(Get(lerp, "m_valueAssigned"), Is.True);
+                Assert.That(Get(lerp, "m_lerpRoutine"), Is.Null);
+
+                // m_setFirstValue with a value already assigned also lerps.
+                Set(lerp, "m_setFirstValue", true);
+                LogAssert.Expect(LogType.Error, inactive);
+                lerp.SetTargetColour(new Color(0f, 1f, 0f, 1f));
+                Assert.That(lerp.Colour.Value, Is.EqualTo(new Color(0f, 0f, 0f, 0f)));
+                Assert.That(Get(lerp, "m_valueAssigned"), Is.True);
             }
         }
 
@@ -344,29 +391,46 @@ namespace ProjectLucid.Tests
 
         // Awake 0x6b31b0 and OnDisable 0x6b3210 deactivate m_default then
         // m_veryLow; OnEnable 0x6b31e0 activates the field at +0x20 + 8 *
-        // (GetQualityLevel() == 0), m_veryLow only at level 0.
+        // (GetQualityLevel() == 0), m_veryLow only at level 0. Both levels run,
+        // so an always-default or inverted test fails; the editor's level is
+        // restored afterwards.
         [Test]
-        public void PFXQualitySwitcherShowsTheVariantForTheCurrentLevel()
+        public void PFXQualitySwitcherShowsTheVeryLowVariantOnlyAtLevelZero()
         {
-            using (var owned = new Owned())
+            Assume.That(QualitySettings.names.Length, Is.GreaterThanOrEqualTo(2));
+            int originalLevel = QualitySettings.GetQualityLevel();
+            try
             {
-                var switcher = owned.Inactive("Lucid owned pfx switcher").AddComponent<PFXQualitySwitcher>();
-                GameObject standard = owned.Inactive("Lucid owned pfx default");
-                GameObject veryLow = owned.Inactive("Lucid owned pfx very low");
-                standard.SetActive(true);
-                veryLow.SetActive(true);
-                Set(switcher, "m_default", standard);
-                Set(switcher, "m_veryLow", veryLow);
+                using (var owned = new Owned())
+                {
+                    var switcher = owned.Inactive("Lucid owned pfx switcher").AddComponent<PFXQualitySwitcher>();
+                    GameObject standard = owned.Inactive("Lucid owned pfx default");
+                    GameObject veryLow = owned.Inactive("Lucid owned pfx very low");
+                    standard.SetActive(true);
+                    veryLow.SetActive(true);
+                    Set(switcher, "m_default", standard);
+                    Set(switcher, "m_veryLow", veryLow);
 
-                Call(switcher, "Awake");
-                Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
+                    Call(switcher, "Awake");
+                    Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
 
-                Call(switcher, "OnEnable");
-                bool lowest = QualitySettings.GetQualityLevel() == 0;
-                Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((!lowest, lowest)));
+                    QualitySettings.SetQualityLevel(0, false);
+                    Call(switcher, "OnEnable");
+                    Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, true)), "level 0");
 
-                Call(switcher, "OnDisable");
-                Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
+                    Call(switcher, "OnDisable");
+                    Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
+
+                    QualitySettings.SetQualityLevel(1, false);
+                    Call(switcher, "OnEnable");
+                    Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((true, false)), "level 1");
+                    Call(switcher, "OnDisable");
+                    Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
+                }
+            }
+            finally
+            {
+                QualitySettings.SetQualityLevel(originalLevel, false);
             }
         }
 

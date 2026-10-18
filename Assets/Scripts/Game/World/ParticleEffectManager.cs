@@ -18,11 +18,11 @@ namespace HardlightProject
     {
         // Declared first: as a member it fixes the original closure and
         // iterator ordinals (<>c__DisplayClass20_0, <AfterLevelExit>d__18).
-        private struct PoolInterest //0x02000a8f, true value type, no substitute class.
+        private struct PoolInterest //0x02000a8f
         {
             public readonly ObjectPool<ParticleEffectWrapper> Pool;
             public readonly List<UnityEngine.Object> Interested;
-            public PoolInterest(ObjectPool<ParticleEffectWrapper> pool) //0x06003cdb: Pool first, list second.
+            public PoolInterest(ObjectPool<ParticleEffectWrapper> pool) //0x06003cdb
             {
                 Pool = pool;
                 Interested = new List<UnityEngine.Object>();

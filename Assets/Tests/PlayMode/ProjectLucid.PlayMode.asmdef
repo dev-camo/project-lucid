@@ -3,6 +3,7 @@
   "references": [
     "HLUnityCore.Runtime",
     "HLSplines.Runtime",
+    "HLBinders.Runtime",
     "Game.Runtime",
     "HLModernUI.Runtime",
     "HLLocalisation.Runtime",

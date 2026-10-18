@@ -22,7 +22,7 @@ namespace HardlightProject
         {
             base.OnEnable();
             m_timerSeconds = 0f;
-            m_nextFlashIntervalSeconds = m_initialDelay + m_flashInterval;
+            m_nextFlashIntervalSeconds = m_flashInterval + m_initialDelay;
         }
 
         // Only "still waiting" comparisons return early, so a NaN timer flashes.

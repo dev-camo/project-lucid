@@ -4295,17 +4295,22 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxComponentBehaviourTests." 
     "FlashRenderersInvertEveryRendererOncePerInterval",
     "FlashRenderersFlashOnANaNTimer",
     "FlashRenderersEnableAllRenderersEnablesEach",
+    "FlashRenderersOnEnableRunsTheBaseAndSchedulesDelayPlusInterval",
     "MaterialPropertyBlockSetterReplacesTheRendererBlock",
     "LerpColourIgnoresNearTargetsAndSetsTheFirstValueDirectly",
+    "LerpColourTakesTheLerpBranchUnlessTheFirstValueIsPending",
     "LerpColourIteratorClampsAndEndsOnTheTarget",
     "LineRendererContainerAppendsUntilExactlyFullAndFlushes",
     "CanvasShaderModifierSetsTheOffsetUntilARendererHasNoMaterial",
-    "PFXQualitySwitcherShowsTheVariantForTheCurrentLevel",
+    "PFXQualitySwitcherShowsTheVeryLowVariantOnlyAtLevelZero",
     "BlobShadowModifierTogglesTheCurrentCharactersShadow",
     "AssignAddressableTextureCallbackTargetsTheCamera",
     "InstancedObjectSpawnerTogglesAllButTheLastEntry",
     "InstancedObjectSpawnerThrowsOnTheEmptyMaterialListAndCleansUpChildren",
 ))
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalLerpColourPlayTests.SetTargetColourStopsTheStoredRoutineAndLerpsFromTheCurrentValue",
+)
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFullscreenShaderComponentsTests." + name for name in (
     "AwakeTakesTheRegisteredManagerAndTheDurationDefaultsToOne",
     "SetDurationTreatsOnlyAnExactZeroAsUntilStopped",

@@ -19,23 +19,23 @@ namespace HardlightProject
         // original lambda ordinals (<Awake>b__51_0..2).
         private struct CollectedFullscreenShaderParameters
         {
-            public UnityEngine.Color FadeColour;
-            public System.Single FadeAmount;
-            public UnityEngine.Texture VignetteTexture;
-            public System.Single VignetteUVScale;
-            public System.Single VignetteAmount;
-            public System.Single VignetteOpacity;
-            public UnityEngine.Color VignetteTint;
-            public System.Single VignetteColourBoost;
-            public System.Single FlowMapStrength;
-            public System.Single FlowMapSpeed;
-            public System.Single EdgeDistortionAmount;
-            public UnityEngine.Texture SpeedLinesTexture;
-            public System.Single SpeedLinesOpacity;
-            public System.Single SpeedLinesAmount;
-            public System.Single SpeedLinesScale;
-            public System.Single SpeedLinesSpeed;
-            public UnityEngine.Color SpeedLinesColourTint;
+            public Color FadeColour;
+            public float FadeAmount;
+            public Texture VignetteTexture;
+            public float VignetteUVScale;
+            public float VignetteAmount;
+            public float VignetteOpacity;
+            public Color VignetteTint;
+            public float VignetteColourBoost;
+            public float FlowMapStrength;
+            public float FlowMapSpeed;
+            public float EdgeDistortionAmount;
+            public Texture SpeedLinesTexture;
+            public float SpeedLinesOpacity;
+            public float SpeedLinesAmount;
+            public float SpeedLinesScale;
+            public float SpeedLinesSpeed;
+            public Color SpeedLinesColourTint;
         }
 
         [Il2CppSetOption(Option.NullChecks, false)]
