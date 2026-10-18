@@ -22,7 +22,7 @@ namespace HardlightProject
             Vector3 toCharacter = character.transform.position - transform.position;
             float maxRadiansDelta = m_rotateSpeed * Time.deltaTime;
             transform.rotation = Quaternion.LookRotation(Vector3.RotateTowards(transform.forward, toCharacter, maxRadiansDelta, 0f));
-            transform.position = transform.position + transform.forward * m_speed * Time.deltaTime;
+            transform.position += transform.forward * m_speed * Time.deltaTime;
         }
     }
 }

@@ -20,8 +20,9 @@ namespace HardlightProject
         public readonly Bindable<bool> IsTvOS = new Bindable<bool>();
         public readonly Bindable<bool> IsMacOS = new Bindable<bool>();
 
-        // 06002fb5: the macOS player body sets only IsMacOS and never reads the debug
-        // overrides; the other platforms' builds are not reconstructed here.
+        // 06002fb5: this is the macOS player's body. It sets only IsMacOS and never reads
+        // the debug overrides. Only the macOS binary is available, so Windows and Linux
+        // players built from this source also report IsMacOS until their bodies are known.
         private void Awake()
         {
             IsMacOS.Value = true;

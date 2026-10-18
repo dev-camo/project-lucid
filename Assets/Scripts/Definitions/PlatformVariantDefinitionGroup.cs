@@ -9,7 +9,6 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class PlatformVariantDefinitionGroup : DefinitionDataType<PlatformAssetTypes, PlatformVariantDefinition>
     {
-        // Game.Runtime 0x06001e9d..0x06001e9f: direct key, original maintained comparer, base-only constructor.
         protected override PlatformAssetTypes GetElementKey(PlatformVariantDefinition data) => data.AssetType;
         protected override IEqualityComparer<PlatformAssetTypes> GetKeyComparer() => HardlightEnumComparers.PlatformAssetTypesComparer;
         public PlatformVariantDefinitionGroup() { }

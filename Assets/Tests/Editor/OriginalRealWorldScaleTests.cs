@@ -42,13 +42,17 @@ namespace ProjectLucid.Tests
 
         // ScaleToRealWorldInches 0x6B3850: the factor is 1 / m_canvasScaler.localScale.x, or 1 without
         // a scaler (op_Inequality). It stores Screen.width, then Screen.height, then Screen.dpi, and
-        // keeps the dimensions when m_widescreenAspectRatio > height / width (ucomiss/ja at
-        // 0x6B3910); otherwise, unordered ratios included, they are multiplied component-wise by
-        // m_multiplyOnLowerAspects. The active proportion is dimensions / (pixels / dpi) and the
+        // keeps the dimensions only when m_widescreenAspectRatio > height / width (ucomiss/ja at
+        // 0x6B3910); otherwise they are multiplied component-wise by m_multiplyOnLowerAspects.
+        // The rows fix the branch as literals: +inf keeps, -inf multiplies, a ratio equal to the
+        // aspect multiplies (separating ratio >= aspect) and a NaN ratio multiplies (separating
+        // !(aspect >= ratio)). The active proportion is dimensions / (pixels / dpi) and the
         // sizeDelta is (factor * dpi) * dimensions. Awake 0x6B3840 tail-calls it.
         [Test]
         public void ScalesTheTransformToTheDimensionsAtTheScreenDpi()
         {
+            float screenAspect = (float)Screen.height / Screen.width;
+            Assume.That(float.IsFinite(screenAspect), Is.True, "the equality row needs a finite Editor screen aspect");
             Owned.Run(owned =>
             {
                 var scale = owned.Host("Lucid real world scale").AddComponent<RealWorldScale>();
@@ -62,15 +66,21 @@ namespace ProjectLucid.Tests
                 var pixels = new Vector2(Screen.width, Screen.height);
                 float dpi = Screen.dpi;
                 float aspect = pixels.y / pixels.x;
-                foreach (var (useScaler, widescreen, method) in new[] { (false, float.PositiveInfinity, "Awake"), (true, float.NegativeInfinity, "ScaleToRealWorldInches") })
+                var rows = new[]
+                {
+                    (false, float.PositiveInfinity, "Awake", true),
+                    (true, float.NegativeInfinity, "ScaleToRealWorldInches", false),
+                    (false, aspect, "ScaleToRealWorldInches", false),
+                    (true, float.NaN, "Awake", false),
+                };
+                foreach (var (useScaler, widescreen, method, keep) in rows)
                 {
                     Set(scale, "m_canvasScaler", useScaler ? scaler : null);
                     Set(scale, "m_widescreenAspectRatio", widescreen);
                     Call(scale, method);
                     float factor = useScaler ? 1f / 4f : 1f;
-                    bool keep = widescreen > aspect;
                     Vector2 dimensions = keep ? new Vector2(2f, 3f) : new Vector2(20f, 300f);
-                    string label = method + (keep ? " keeps" : " multiplies");
+                    string label = method + " at ratio " + widescreen + (keep ? " keeps" : " multiplies");
                     Assert.That(scale.TotalScreenPixels, Is.EqualTo(pixels), label);
                     AssertSame(dpi, Get<float>(scale, "m_screenDPI"), label + " dpi");
                     AssertSame(dimensions.x / (pixels.x / dpi), scale.ActiveProportionOfScreen.x, label + " proportion x");

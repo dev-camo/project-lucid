@@ -239,8 +239,8 @@ namespace ProjectLucid.Tests
         // SetHeight 0x5D5280 with basePieceHeight b and pieceSize s: the top piece's local y is
         // (b + 0.5f * s) + height * s (constant 0.5 at 0x29a6c08); the mid piece is active iff
         // height > 0 (setg at 0x5D539D); an empty mid piece returns (0x5D53C4). For i in
-        // 0..height - 2 a missing list slot is appended as null, a null entry becomes
-        // new PlatformPiece(m_midPiece), and the entry is activated, raised to (b + 2s) + i * s and
+        // 2..height (index i - 2) a missing list slot is appended as null, a null entry becomes
+        // new PlatformPiece(m_midPiece), and the entry is activated, raised to (b + 2s) + index * s and
         // stored back. Then every entry from Count - 1 down to max(height - 1, 0) is hidden.
         [Test]
         public void VariantStacksMidInstancesAndHidesThoseAboveTheHeight()
@@ -289,6 +289,23 @@ namespace ProjectLucid.Tests
                 Assert.That(instances[1].GameObjects[0], Is.Not.SameAs(second));
                 Assert.That(instances[1].GameObjects[0].transform.localPosition, Is.EqualTo(new Vector3(3f, 9f, 4f)));
                 Assert.That(second.activeSelf, Is.False, "the dropped instance is left as it was");
+
+                // The stacking counter runs from 2 while it is <= height (cmp/jg at 0x5D552E behind
+                // the height >= 2 guard at 0x5D53CA), so no height - 2 is formed: int.MinValue and
+                // int.MinValue + 1 stack nothing. The hiding walk compares with the wrapped
+                // height - 1 (0x5D53E3), which is int.MaxValue for int.MinValue (nothing hidden)
+                // and int.MinValue for int.MinValue + 1 (everything hidden).
+                PlatformPiece[] stacked = instances.ToArray();
+                variant.SetHeight(int.MinValue, b, s);
+                Assert.That(instances, Is.EqualTo(stacked), "int.MinValue appends nothing");
+                Assert.That((mid.GameObjects[0].activeSelf, stacked[0].GameObjects[0].activeSelf, stacked[1].GameObjects[0].activeSelf),
+                    Is.EqualTo((false, true, true)), "int.MinValue hides nothing");
+                variant.SetHeight(int.MinValue + 1, b, s);
+                Assert.That(instances, Is.EqualTo(stacked), "int.MinValue + 1 appends nothing");
+                Assert.That((stacked[0].GameObjects[0].activeSelf, stacked[1].GameObjects[0].activeSelf),
+                    Is.EqualTo((false, false)), "int.MinValue + 1 hides every instance");
+                variant.SetHeight(3, b, s);
+                Assert.That(instances, Is.EqualTo(stacked));
 
                 // With no mid objects, SetHeight returns before stacking or hiding anything.
                 mid.GameObjects = new GameObject[0];

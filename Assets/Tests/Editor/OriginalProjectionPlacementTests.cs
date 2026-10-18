@@ -218,7 +218,12 @@ namespace ProjectLucid.Tests
         // previous point (the origin) and the last raycast from the origin hits the box face at
         // x = 0.5: distance becomes sqrt(1.01) + (hit.distance - sqrt(1.01)). With
         // m_velocityToForward at 0.001 the in-loop raycast (0x5D025E) hits instead and returns at
-        // once, so only the hit point is added.
+        // once, so only the hit point is added. From (-3,0,0) with the limit at 0.007 the first
+        // step's turn (about 0.00496) stays below it and the second, (1, -0.2, 0), takes the sum to
+        // about 0.0097: the in-loop ray from the origin along (2, -0.3, 0) hits the face at
+        // (0.5, -0.075, 0). The in-loop hit subtracts the last step's length (0x5D0510), so distance
+        // is sqrt(1.01) + hit.distance; subtracting the summed ray length instead would give about
+        // hit.distance + 0.0024.
         [Test]
         public void ProjectionRaycastsTheSummedStepsWhenTheTurnExceedsTheLimitOrAtTheEnd()
         {
@@ -245,6 +250,21 @@ namespace ProjectLucid.Tests
                     WorldMemberAccess.AreClose(expectedPoint, hit.point, label + " hitInfo");
                     Assert.That(distance, Is.EqualTo(hitDistance).Within(1e-4f), label);
                 }
+
+                ProjectionPlacement twoStep = Placement(false);
+                twoStep.Initialise(99f, 10f, 99f, 1f);
+                Set(twoStep, "m_velocityToForward", 0.007f);
+                var twoStepRenderer = new LineRendererContainer();
+                RaycastHit twoStepHit = default;
+                float twoStepDistance = 0f;
+                var twoStepPoint = new Vector3(0.5f, -0.075f, 0f);
+                Assert.That(twoStep.ProjectForRaycastHit(new Vector3(-3f, 0f, 0f), Vector3.zero, new Vector3(0f, -10f, 0f), Probe, twoStepRenderer, ref twoStepHit, ref twoStepDistance), Is.True, "two-step in-loop raycast");
+                Vector3[] twoStepPositions = Positions(twoStepRenderer);
+                Assert.That(twoStepPositions, Has.Length.EqualTo(2), "two-step in-loop raycast");
+                WorldMemberAccess.AreClose(Vector3.zero, twoStepPositions[0], "two-step previous point");
+                WorldMemberAccess.AreClose(twoStepPoint, twoStepPositions[1], "two-step hit point");
+                WorldMemberAccess.AreClose(twoStepPoint, twoStepHit.point, "two-step hitInfo");
+                Assert.That(twoStepDistance, Is.EqualTo(Mathf.Sqrt(1.01f) + twoStepPoint.magnitude).Within(1e-4f), "two-step distance");
             });
         }
     }

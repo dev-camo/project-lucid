@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000765: moves a point along a ballistic arc from one end
-    // of a line, snapping it to the first surface a raycast finds, and can trace the
-    // whole arc into a line renderer.
+    // Original Game.Runtime 02000765: advances a point along a ballistic arc from one end
+    // of a line. A raycast along each step latches RaycastHit, which then keeps the point
+    // visible for m_raycastSnapTime; the whole arc can also be traced into a line renderer.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Serializable]
@@ -95,7 +95,6 @@ namespace HardlightProject
         // 06002973: traces the arc from endPosition in fixed time steps, adding each
         // previous point to the renderer. Once the summed turn (1 - cos) since the last
         // raycast exceeds m_velocityToForward, the chord since that raycast is tested.
-        // distance is accumulated by the caller's reference.
         public bool ProjectForRaycastHit(Vector3 startPosition, Vector3 endPosition, Vector3 gravity, LayerMask collisionMask, LineRendererContainer locationRenderer, ref RaycastHit hitInfo, ref float distance)
         {
             Vector3 line = endPosition - startPosition;
@@ -106,8 +105,7 @@ namespace HardlightProject
                 distance += lineLength - m_distanceOffset;
                 return false;
             }
-            float stepTime = m_raycastStepTime;
-            Vector3 gravityStep = gravity * (m_gravityMultiplier * stepTime);
+            Vector3 gravityStep = gravity * (m_gravityMultiplier * m_raycastStepTime);
             Vector3 position = endPosition;
             Vector3 rayStart = endPosition;
             Vector3 rayDirection = Vector3.zero;
@@ -117,7 +115,7 @@ namespace HardlightProject
             while (distance < lineLength)
             {
                 velocity += gravityStep;
-                Vector3 step = velocity * stepTime;
+                Vector3 step = velocity * m_raycastStepTime;
                 rayDirection += step;
                 position += step;
                 float stepLength = step.magnitude;
