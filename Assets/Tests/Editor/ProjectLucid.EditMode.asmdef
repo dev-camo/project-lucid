@@ -12,6 +12,7 @@
     "ProjectLucid.CrossPromoUI.EngineVerification",
     "ProjectLucid.WorldTriggers.EngineVerification",
     "ProjectLucid.WorldSurface.EngineVerification",
+    "ProjectLucid.CharCore.EngineVerification",
     "Game.Runtime",
     "HLCrashReport.Runtime",
     "HLUnityCore.Runtime",
