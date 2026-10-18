@@ -40,6 +40,14 @@ namespace ProjectLucid.Tests
     // - CharacterSplineAttachTrigger.DoTriggerEnter non-legacy branch (0x5CAD58).
     public sealed class OriginalCharacterComponentTests
     {
+        // CharacterTrigger requires a Collider, so AddComponent fails (returns null) on a bare host.
+        private static GameObject NewTriggerHost(Owned owned, string name)
+        {
+            GameObject host = owned.Host(name, false);
+            host.AddComponent<BoxCollider>();
+            return host;
+        }
+
         // A character with a real FSM storage and the GameplayIslandManager row its constructor needs.
         private static void WithCharacter(Action<Owned, Character, FSMStorage> body) => Owned.Run(owned =>
         {
@@ -175,7 +183,7 @@ namespace ProjectLucid.Tests
         {
             WithCharacter((owned, character, storage) =>
             {
-                var trigger = owned.Host("Lucid jump tracker", false).AddComponent<CharacterJumpTrackerTrigger>();
+                var trigger = NewTriggerHost(owned, "Lucid jump tracker").AddComponent<CharacterJumpTrackerTrigger>();
                 Assert.That(Get<Character>(trigger, "m_character"), Is.Null);
 
                 Call(trigger, "DoTriggerEnter", character);
@@ -195,7 +203,7 @@ namespace ProjectLucid.Tests
         {
             WithCharacter((owned, character, storage) =>
             {
-                var trigger = owned.Host("Lucid jump tracker guard", false).AddComponent<CharacterJumpTrackerTrigger>();
+                var trigger = NewTriggerHost(owned, "Lucid jump tracker guard").AddComponent<CharacterJumpTrackerTrigger>();
 
                 Call(trigger, "FixedUpdate");
                 Assert.That(Get<bool>(trigger, "m_hasStartedJump"), Is.False, "no character");
@@ -460,7 +468,7 @@ namespace ProjectLucid.Tests
         private static SplineFixture NewSplineTrigger(Owned owned, Vector3 position, bool withSpline)
         {
             var fixture = new SplineFixture();
-            GameObject host = owned.Host("Lucid spline attach", false);
+            GameObject host = NewTriggerHost(owned, "Lucid spline attach");
             host.transform.position = position;
             fixture.Trigger = host.AddComponent<CharacterSplineAttachTriggerProbe>();
             if (withSpline)
