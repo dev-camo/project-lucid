@@ -301,10 +301,12 @@ namespace ProjectLucid.Tests
         public void FacePlayerTargetsTheCurrentCharacterAndReleasesOnDisable()
         {
             var characters = new OwnedCharacterManagers();
-            var islandRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<GameplayIslandManager>());
+            VerificationFixtureOwnership.LifecycleRow islandRow = null;
             var objects = new OwnedWorldObjects("lucid-face-player");
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
+                // Admitted in the body, so a refused row still releases the manager fixture.
+                islandRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<GameplayIslandManager>());
                 var face = objects.Create("face").AddComponent<TransformFacePlayer>();
                 Assert.DoesNotThrow(() => Call(face, "OnDisable"), "no manager yet");
 
@@ -329,7 +331,7 @@ namespace ProjectLucid.Tests
 
                 Call(face, "LateUpdate");
                 AreClose(Vector3.back, face.transform.forward, "looks at the character");
-            }, objects.Dispose, islandRow.Dispose, characters.Dispose);
+            }, objects.Dispose, () => islandRow?.Dispose(), characters.Dispose);
         }
 
         // FacePlayer.OnEnable 0x5FDCC0 stores GetSystemRef<CharacterManager>(null, true) and
@@ -338,10 +340,12 @@ namespace ProjectLucid.Tests
         public void FacePlayerEnableRegistersWithARegisteredManager()
         {
             var characters = new OwnedCharacterManagers();
-            var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<CharacterManager>());
+            VerificationFixtureOwnership.RegistryRow row = null;
             var objects = new OwnedWorldObjects("lucid-face-player-enable");
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
+                // Admitted in the body, so a refused row still releases the manager fixture.
+                row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<CharacterManager>());
                 CharacterManager manager = characters.NewManager();
                 row.Register(manager);
                 var face = objects.Create("face").AddComponent<TransformFacePlayer>();
@@ -351,7 +355,7 @@ namespace ProjectLucid.Tests
                 Assert.That(HandlerNames(manager, "m_onCharacterChange"), Is.EqualTo(new[] { "SetTarget" }));
                 Call(face, "OnDisable");
                 Assert.That(Get(manager, "m_onCharacterChange"), Is.Null);
-            }, objects.Dispose, row.Dispose, characters.Dispose);
+            }, objects.Dispose, () => row?.Dispose(), characters.Dispose);
         }
 
         private sealed class TriggerFixture : IDisposable
