@@ -34,7 +34,7 @@ namespace HardlightProject
 			TAbilityType ability = GetAbility(character);
 			bool airActive = ability.AirActive;
 			Vector3 gravityNormalised = character.GravityNormalised;
-			Vector3 gravityOnEnter = character.Storage.GetValue(ActorFSMKeys.HalfPipeGravityOnEnter, Vector3.zero, true);
+			Vector3 gravityOnEnter = character.Storage.GetValue(ActorFSMKeys.HalfPipeGravityOnEnter, default(Vector3), true);
 			if (!airActive && gravityNormalised == gravityOnEnter)
 			{
 				float gravityMultiplier = ability.GetGravityMultiplier(character.WorldVelocity, out Vector3 clampedVelocity);

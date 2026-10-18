@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HardlightProject;
@@ -15,14 +16,14 @@ namespace ProjectLucid.Tests
     {
         private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
+        private readonly List<Object> m_owned = new List<Object>();
+
         private T Create<T>() where T : ScriptableObject
         {
             var definition = ScriptableObject.CreateInstance<T>();
             m_owned.Add(definition);
             return definition;
         }
-
-        private readonly System.Collections.Generic.List<Object> m_owned = new System.Collections.Generic.List<Object>();
 
         [TearDown]
         public void DestroyOwnedObjects()

@@ -21,12 +21,11 @@ namespace HardlightProject
 		// 060010d9 (1.10.1 RVA 0x745320); the stored request is consumed only when an override was active at the previous update.
 		protected override bool CanEnterClimb()
 		{
-			bool enterWhenOverrideEnds = false;
 			if (!m_directionOverrideActivePrevious)
 			{
 				return false;
 			}
-			if (m_character.Storage.TryGetValue(ActorFSMKeys.ClimbingEnterWhenDirectionOverrideEnds, out enterWhenOverrideEnds))
+			if (m_character.Storage.TryGetValue(ActorFSMKeys.ClimbingEnterWhenDirectionOverrideEnds, out bool enterWhenOverrideEnds))
 			{
 				m_character.Storage.RemoveValue<bool>(ActorFSMKeys.ClimbingEnterWhenDirectionOverrideEnds);
 			}

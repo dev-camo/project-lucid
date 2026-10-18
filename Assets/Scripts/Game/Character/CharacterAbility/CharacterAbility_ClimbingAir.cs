@@ -9,7 +9,7 @@ namespace HardlightProject
 	public class CharacterAbility_ClimbingAir : CharacterAbility_EnterClimbing<CharacterAbilityDefinition_ClimbingAir>
 	{
 		// 060010d6 (1.10.1 RVA 0x744F10); enters at once when the angle of attack reaches the minimum, otherwise when the
-		// input heading (forward without controller movement) points against the collision normal.
+		// input heading (the controller direction, or forward when there is no controller movement) points against the collision normal.
 		protected override bool CanEnterClimb()
 		{
 			Vector3 collisionNormal = ClimbingCollisionTracker.CollisionNormal;

@@ -19,8 +19,6 @@ namespace ProjectLucid.Tests
     // checked as call sequences read from the compiled IL.
     public sealed class CharacterDetectorAbilityTests
     {
-        private const BindingFlags Declared = DeclaredMembers;
-
         // The generic base is abstract; a concrete leaf that only counts detections observes its timer.
         private sealed class CountingDetector : CharacterAbility_Detector<CharacterAbilityDefinition_DetectorArchetype>
         {
@@ -29,13 +27,6 @@ namespace ProjectLucid.Tests
             protected override void DoOnDetect() => Detections++;
 
             public void Tick(float deltaTime) => DoOnUpdate(null, deltaTime);
-        }
-
-        private sealed class Release : IDisposable
-        {
-            private readonly Action m_release;
-            public Release(Action release) { m_release = release; }
-            public void Dispose() => m_release();
         }
 
         // ---- CharacterAbility_Detector (020002f2) ----
@@ -178,7 +169,7 @@ namespace ProjectLucid.Tests
             var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<MessageManager>());
             owned.Lease(row);
             var manager = new MessageManager();
-            owned.Lease(new Release(() =>
+            owned.Lease(new ReleaseAction(() =>
             {
                 manager.ProcessSystemAction(SystemAction.Shutdown);
                 ProcessManager.UnsubscribeFromAllActions(manager);
@@ -257,7 +248,7 @@ namespace ProjectLucid.Tests
             List<MethodBase> enter = Calls(typeof(CharacterAbility_DetectorArchetype), "DoOnEnter");
             Assert.That(IndexOf(enter, "CharacterAbility", "DoOnEnter"), Is.LessThan(IndexOf(enter, "SystemRef", "InvokeOnValid")));
 
-            MethodBase lambda = typeof(CharacterAbility_DetectorArchetype).GetMethods(Declared).Single(m => m.Name == "<DoOnEnter>b__3_0");
+            MethodBase lambda = typeof(CharacterAbility_DetectorArchetype).GetMethods(DeclaredMembers).Single(m => m.Name == "<DoOnEnter>b__3_0");
             List<MethodBase> body = OriginalILCallSequence.Calls(lambda).Select(call => call.Target).ToList();
             Assert.That(body.Where(m => m.Name == "InvokeOnLevelActivated").Select(m => m.DeclaringType.Name), Is.EqualTo(new[] { "LevelManager" }));
             Assert.That(OriginalILCallSequence.Instructions(lambda).Any(i => i.Code == System.Reflection.Emit.OpCodes.Ldc_I4_1), Is.True, "the second argument is true");
@@ -451,16 +442,16 @@ namespace ProjectLucid.Tests
             Assert.That(typeof(CharacterAbility_DetectorLightspeedDash).BaseType, Is.EqualTo(typeof(CharacterAbility_Detector<CharacterAbilityDefinition_DetectorLightspeedDash>)));
             Assert.That(typeof(CharacterAbility_Detector<>).IsAbstract, Is.True);
             Assert.That(typeof(CharacterAbility_Detector<>).GetGenericArguments()[0].GetGenericParameterConstraints(), Is.EqualTo(new[] { typeof(CharacterAbilityDefinition_Detector) }));
-            Assert.That(typeof(CharacterAbility_Detector<>).GetFields(Declared).Select(f => f.Name), Is.EqualTo(new[] { "m_refreshTimer" }));
-            Assert.That(typeof(CharacterAbility_DetectorArchetype).GetFields(Declared).OrderBy(f => f.MetadataToken).Select(f => f.Name),
+            Assert.That(typeof(CharacterAbility_Detector<>).GetFields(DeclaredMembers).Select(f => f.Name), Is.EqualTo(new[] { "m_refreshTimer" }));
+            Assert.That(typeof(CharacterAbility_DetectorArchetype).GetFields(DeclaredMembers).OrderBy(f => f.MetadataToken).Select(f => f.Name),
                 Is.EqualTo(new[] { "m_archetypeUpdateMessage", "m_messageManagerRef", "m_levelManagerRef" }));
-            Assert.That(typeof(CharacterAbility_DetectorLightspeedDash).GetFields(Declared).OrderBy(f => f.MetadataToken).Select(f => f.Name),
+            Assert.That(typeof(CharacterAbility_DetectorLightspeedDash).GetFields(DeclaredMembers).OrderBy(f => f.MetadataToken).Select(f => f.Name),
                 Is.EqualTo(new[] { "m_surfaceLocation", "m_updateMessage", "m_messageManagerRef" }));
-            Assert.That(typeof(CharacterAbility_DetectorArchetype).GetMethods(Declared).Select(m => m.Name), Does.Contain("<DoOnEnter>b__3_0"));
+            Assert.That(typeof(CharacterAbility_DetectorArchetype).GetMethods(DeclaredMembers).Select(m => m.Name), Does.Contain("<DoOnEnter>b__3_0"));
             Type cached = typeof(CharacterAbility_DetectorArchetype).GetNestedTypes(BindingFlags.NonPublic).Single();
-            Assert.That(cached.GetMethods(Declared).Select(m => m.Name), Does.Contain("<PublishDetectorMessage>b__6_0"));
+            Assert.That(cached.GetMethods(DeclaredMembers).Select(m => m.Name), Does.Contain("<PublishDetectorMessage>b__6_0"));
             Type dashCached = typeof(CharacterAbility_DetectorLightspeedDash).GetNestedTypes(BindingFlags.NonPublic).Single();
-            Assert.That(dashCached.GetMethods(Declared).Select(m => m.Name), Does.Contain("<PublishDetectorMessage>b__5_0"));
+            Assert.That(dashCached.GetMethods(DeclaredMembers).Select(m => m.Name), Does.Contain("<PublishDetectorMessage>b__5_0"));
         }
     }
 }

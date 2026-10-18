@@ -85,13 +85,11 @@ namespace HardlightProject
 		// 06001105 (1.10.1 RVA 0x7470E0)
 		public override bool OnDrawGizmosSelected()
 		{
-			float hitTime = 0f;
-			Vector3 hitPosition = Vector3.zero;
-			Vector3 hitNormal = Vector3.zero;
 			bool selected = base.OnDrawGizmosSelected();
 			if (selected)
 			{
-				ColliderTrackingUtilities.ProjectToNeighbourSlope(m_raycastTransform, m_direction, Vector3.up, m_speed, GetGravity, true, Time.fixedDeltaTime, out hitTime, out hitPosition, out hitNormal);
+				float deltaTime = Time.fixedDeltaTime;
+				ColliderTrackingUtilities.ProjectToNeighbourSlope(m_raycastTransform, m_direction, Vector3.up, m_speed, GetGravity, true, deltaTime, out float _, out Vector3 _, out Vector3 _);
 			}
 			return selected;
 		}

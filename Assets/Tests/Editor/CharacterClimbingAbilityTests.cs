@@ -307,7 +307,7 @@ namespace ProjectLucid.Tests
                 SetTotalTime(manager, total);
                 Set(ability, "m_timeManager", manager);
                 definition.ReAttachCooldownSeconds = cooldown;
-                // Heading forward (0, 0, 1) against a minimum angle of attack no zero velocity reaches.
+                // A minimum of 90 is reached only by an exactly head-on approach, so the input heading (forward, 0, 0, 1) decides.
                 definition.MinAngleOfAttack = 90f;
                 character.Storage.SetValue(ActorFSMKeys.ClimbingLastTimestamp, lastClimb);
                 CharacterClimbingCollisionTracker tracker = InstallTracker(ability, character, false, Vector3.zero, new Vector3(1f, 2f, 3f));
@@ -400,7 +400,8 @@ namespace ProjectLucid.Tests
         }
 
         // 0xE60600: the base update, the tracker update, the stored timestamp read, the PlayerMovement total
-        // time, the climbable surface test (inlined natively, a call here), the direction override, then CanEnterClimb.
+        // time, the direction override, then CanEnterClimb. The climbable surface test is inlined natively, so
+        // its position is not asserted.
         [Test]
         public void UpdateReadsTheTimestampAndTimeBeforeTheDirectionOverrideAndCanEnter()
         {
@@ -409,13 +410,12 @@ namespace ProjectLucid.Tests
             int tracker = IndexOf(calls, "CharacterClimbingCollisionTracker", "Update");
             int timestamp = IndexOf(calls, "IGraphStorage", "GetValue");
             int total = IndexOf(calls, "TimeExtensions", "GetTotalTime");
-            int surface = IndexOf(calls, "CharacterAbility_EnterClimbing", "CollidingWithClimbableSurface");
             int overridden = IndexOf(calls, "Character", "IsDirectionOverrideActive");
             int canEnter = IndexOf(calls, "CharacterAbility_EnterClimbing", "CanEnterClimb");
-            Assert.That(new[] { baseUpdate, tracker, timestamp, total, surface, overridden, canEnter }, Is.Ordered.Ascending.And.Unique);
+            Assert.That(new[] { baseUpdate, tracker, timestamp, total, overridden, canEnter }, Is.Ordered.Ascending.And.Unique);
         }
 
-        // 0x544F10 reads the tracker's two vectors, measures one angle, and builds the input heading through
+        // 0x744F10 reads the tracker's two vectors, measures one angle, and builds the input heading through
         // the character rotation and a normalise; ground climbing never normalises.
         [Test]
         public void AirClimbMeasuresOneAngleAndNormalisesTheInputHeading()

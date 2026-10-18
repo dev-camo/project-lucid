@@ -47,7 +47,7 @@ namespace HardlightProject
 			base.DoOnEnter(user, action);
 			Character character = user.GetAs<Character>();
 			CharacterAbilityDefinition_HalfPipeAir definition = GetAbility(character).Definition;
-			Vector3 colliderNormal = character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderNormal, Vector3.zero, true);
+			Vector3 colliderNormal = character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderNormal, default(Vector3), true);
 			ColliderTrackingUtilities.ProcessHalfPipeTrajectory(character, definition.Trajectory);
 			ColliderTrackingUtilities.CalculateCharacterSpeedAlongPlane(character, colliderNormal, out Vector3 colliderForward, out float colliderSpeedForward);
 			ColliderTrackingUtilities.ProjectCharacterToCollider(character, colliderForward, out Vector3 colliderPosition);
@@ -67,8 +67,8 @@ namespace HardlightProject
 				return;
 			}
 			CharacterAbility_HalfPipeAir ability = GetAbility(character);
-			Vector3 colliderPosition = character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderPosition, Vector3.zero, true);
-			Vector3 colliderNormal = character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderNormal, Vector3.zero, true);
+			Vector3 colliderPosition = character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderPosition, default(Vector3), true);
+			Vector3 colliderNormal = character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderNormal, default(Vector3), true);
 			float colliderSpeedForward = character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderSpeedForward, 0f, true);
 			if (character.Storage.GetValue(ActorFSMKeys.HalfPipeColliderUpdate, false, true))
 			{
@@ -119,8 +119,7 @@ namespace HardlightProject
 		// 0600158b (1.10.1 RVA 0x778650); colliderPosition is not read by the native body.
 		private bool ActivateAbilityTransfer(Character character, CharacterAbility_HalfPipeAir ability, Vector3 colliderPosition, Vector3 colliderNormal, float deltaTime)
 		{
-			CharacterAbility_HalfPipeTransfer transfer = null;
-			if (character.TryGetAbility(m_halfPipeTransferAbilityType, out transfer))
+			if (character.TryGetAbility(m_halfPipeTransferAbilityType, out CharacterAbility_HalfPipeTransfer transfer))
 			{
 				ColliderTrackingUtilities.RaycastTransform raycastTransform = new ColliderTrackingUtilities.RaycastTransform
 				{
@@ -131,7 +130,8 @@ namespace HardlightProject
 				};
 				float speed = character.WorldVelocityMagnitude;
 				Vector3 direction = character.WorldVelocity / speed;
-				transfer.CacheTransform(ability.AirMotion, raycastTransform, direction, speed, character.Gravity);
+				Vector3 gravity = character.Gravity;
+				transfer.CacheTransform(ability.AirMotion, raycastTransform, direction, speed, gravity);
 				return transfer.ProjectToHalfPipe(deltaTime);
 			}
 			return false;

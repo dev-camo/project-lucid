@@ -96,7 +96,7 @@ namespace ProjectLucid.Tests
         // The modifier stack a Character holds for its overrides.
         internal static StackableData Modifiers(Character character) => Get<StackableData>(character, "m_modifiers");
 
-        private sealed class ReleaseAction : IDisposable
+        internal sealed class ReleaseAction : IDisposable
         {
             private readonly Action m_release;
             internal ReleaseAction(Action release) => m_release = release;

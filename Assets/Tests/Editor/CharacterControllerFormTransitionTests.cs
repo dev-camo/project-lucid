@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Hardlight;
@@ -38,9 +39,9 @@ namespace ProjectLucid.Tests
         // ---- CharacterTransition_ControllerAxisCheck (020003d0) ----
 
         private static string AxisJson(ComparisonType x, float xValue, bool absX, ComparisonType y, float yValue, bool absY, bool raw) =>
-            "{\"XAxisValue\":" + xValue.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ",\"XAxisComparisonType\":" + Comparison(x)
+            "{\"XAxisValue\":" + xValue.ToString("R", CultureInfo.InvariantCulture) + ",\"XAxisComparisonType\":" + Comparison(x)
             + ",\"AbsoluteXValue\":" + (absX ? "true" : "false")
-            + ",\"YAxisValue\":" + yValue.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ",\"YAxisComparisonType\":" + Comparison(y)
+            + ",\"YAxisValue\":" + yValue.ToString("R", CultureInfo.InvariantCulture) + ",\"YAxisComparisonType\":" + Comparison(y)
             + ",\"AbsoluteYValue\":" + (absY ? "true" : "false") + ",\"UseRawInput\":" + (raw ? "true" : "false") + "}";
 
         private static void SetInput(Character character, Vector2 applied, Vector2 raw)
@@ -129,7 +130,7 @@ namespace ProjectLucid.Tests
         // ---- CharacterTransition_ControllerMovementMagnitude (020003d2) ----
 
         private static string MagnitudeJson(ComparisonType type, float threshold, bool raw) =>
-            "{\"MagnitudeThreshold\":" + threshold.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ",\"ComparisonType\":" + Comparison(type)
+            "{\"MagnitudeThreshold\":" + threshold.ToString("R", CultureInfo.InvariantCulture) + ",\"ComparisonType\":" + Comparison(type)
             + ",\"UseRawInput\":" + (raw ? "true" : "false") + "}";
 
         // 0x78FF80: the raw magnitude (+0x298) when the flag is set, the applied one (+0x2B0) otherwise, then

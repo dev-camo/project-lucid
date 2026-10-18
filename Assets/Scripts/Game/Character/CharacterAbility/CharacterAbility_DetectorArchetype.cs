@@ -22,7 +22,7 @@ namespace HardlightProject
 			m_levelManagerRef.InvokeOnValid(levelManager => levelManager.InvokeOnLevelActivated(OnLevelActivated, true));
 		}
 
-		// 060011fc (1.10.1 RVA 0x74C8D0); the archetype is published when the level activates instead.
+		// 060011fc (1.10.1 RVA 0x74C8D0); empty in the shipped binary.
 		protected override void DoOnDetect()
 		{
 		}

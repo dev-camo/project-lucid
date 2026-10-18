@@ -67,8 +67,8 @@ namespace HardlightProject
 				IsTriggered = CanEnterClimb();
 				if (IsTriggered)
 				{
-					m_character.Storage.SetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, ClimbingCollisionTracker.WorldVelocityAtLastTerrainEnter);
-					m_character.Storage.SetValue(ActorFSMKeys.ClimbingEnterCollisionNormal, ClimbingCollisionTracker.CollisionNormal);
+					storage.SetValue(ActorFSMKeys.ClimbingWorldVelocityAtTerrainEnter, ClimbingCollisionTracker.WorldVelocityAtLastTerrainEnter);
+					storage.SetValue(ActorFSMKeys.ClimbingEnterCollisionNormal, ClimbingCollisionTracker.CollisionNormal);
 				}
 			}
 			else

@@ -38,8 +38,6 @@ namespace ProjectLucid.Tests
                 GravityOverrides = new CharacterAbilityDefinition_HalfPipe.HalfPipeGravityOverride[0],
             };
 
-        private static void SetField(object target, string name, object value) => Set(target, name, value);
-
         // ---- CharacterAbility_HalfPipeTransfer (020002cd) ----
 
         private static ColliderTrackingUtilities.RaycastTransform Lip(int layers, Vector3 position, Vector3 direction, Vector3 up) =>
@@ -194,15 +192,8 @@ namespace ProjectLucid.Tests
         {
             FieldInfo instance = typeof(CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
             object prior = instance.GetValue(null);
-            owned.Lease(new Restore(() => instance.SetValue(null, prior)));
+            owned.Lease(new ReleaseAction(() => instance.SetValue(null, prior)));
             instance.SetValue(null, owned.Host("Lucid refusing coroutine host", false).AddComponent<CoroutineUtils>());
-        }
-
-        private sealed class Restore : IDisposable
-        {
-            private readonly Action m_restore;
-            public Restore(Action restore) { m_restore = restore; }
-            public void Dispose() => m_restore();
         }
 
         private static (int index, Motion motion) EnterAir(CharacterGravityVectorProbe character, CharacterAbility_HalfPipeAir ability,
@@ -361,7 +352,8 @@ namespace ProjectLucid.Tests
 
         // The snapshot callback of the gizmo returns the cached gravity whatever velocity it is asked about, and the
         // gizmo draws while the projected velocity is not (nearly) zero: squared 1e-4 or more (0x7461E2 ucomiss / ja
-        // returns the failed comparison), whatever the base result.
+        // skips when 1e-4 is greater than the square, an ordered comparison, so a NaN velocity still projects and
+        // returns true at 0x74641D setbe), whatever the base result.
         [Test]
         public void TheGizmoDrawsOnlyWhileThereIsAProjectedVelocity()
         {
@@ -370,7 +362,7 @@ namespace ProjectLucid.Tests
                 Set(ability, "m_projectedGravity", new Vector3(0f, -9f, 0f));
                 Assert.That(Call(ability, "<OnDrawGizmosSelected>b__7_0", Vector3.one), Is.EqualTo(new Vector3(0f, -9f, 0f)));
                 Set(ability, "m_projectedRaycastTransform", Lip(0, Vector3.zero, new Vector3(0f, 0f, -1f), Vector3.up));
-                foreach ((Vector3 velocity, bool drawn) in new[] { (Vector3.zero, false), (new Vector3(0f, 0f, 0.5f), true), (new Vector3(0.001f, 0f, 0f), false), (new Vector3(0f, 0f, 30f), true) })
+                foreach ((Vector3 velocity, bool drawn) in new[] { (Vector3.zero, false), (new Vector3(0f, 0f, 0.5f), true), (new Vector3(0.001f, 0f, 0f), false), (new Vector3(0f, 0f, 30f), true), (new Vector3(float.NaN, 0f, 0f), true) })
                 {
                     Set(ability, "m_projectedVelocity", velocity);
                     Assert.That(ability.OnDrawGizmosSelected(), Is.EqualTo(drawn), "velocity " + velocity);

@@ -49,14 +49,15 @@ namespace HardlightProject
 				if (motionIndex == -1)
 				{
 					float speed = m_character.WorldVelocityMagnitude;
-					CharacterAbilityDefinition_HalfPipeAir.HalfPipeMotionOverride[] motionOverrides = Definition.AirMotionOverrides;
-					for (int i = 0; i < motionOverrides.Length; i++)
+					int count = Definition.AirMotionOverrides.Length;
+					for (int i = 0; i < count; i++)
 					{
-						if (motionOverrides[i].ActivationSpeed > speed)
+						CharacterAbilityDefinition_HalfPipeAir.HalfPipeMotionOverride motionOverride = Definition.AirMotionOverrides[i];
+						if (motionOverride.ActivationSpeed > speed)
 						{
 							break;
 						}
-						AirMotion = motionOverrides[i];
+						AirMotion = motionOverride;
 						motionIndex = i;
 					}
 				}
@@ -101,26 +102,29 @@ namespace HardlightProject
 		// 060010fa (1.10.1 RVA 0x746140); the base result is discarded, the projection is drawn while there is a projected velocity.
 		public override bool OnDrawGizmosSelected()
 		{
-			float hitTime = 0f;
-			Vector3 hitPosition = Vector3.zero;
-			Vector3 hitNormal = Vector3.zero;
 			base.OnDrawGizmosSelected();
-			if (m_projectedVelocity.sqrMagnitude >= 0.0001f)
+			// Written as a negated "<" so that a NaN velocity still projects and reports true (0x7461E2, 0x74641D).
+			if (m_projectedVelocity.sqrMagnitude < 0.0001f)
 			{
-				ColliderTrackingUtilities.ProjectToNeighbourSlope(m_projectedRaycastTransform, m_projectedVelocity.normalized, m_projectedRaycastTransform.Up, m_projectedVelocity.magnitude, _ => m_projectedGravity, true, Time.fixedDeltaTime, out hitTime, out hitPosition, out hitNormal);
+				return false;
 			}
-			return m_projectedVelocity.sqrMagnitude >= 0.0001f;
+			Vector3 direction = m_projectedVelocity.normalized;
+			float magnitude = m_projectedVelocity.magnitude;
+			float deltaTime = Time.fixedDeltaTime;
+			ColliderTrackingUtilities.ProjectToNeighbourSlope(m_projectedRaycastTransform, direction, m_projectedRaycastTransform.Up, magnitude, _ => m_projectedGravity, true, deltaTime, out float _, out Vector3 _, out Vector3 _);
+			return true;
 		}
 
 		// 060010fb (1.10.1 RVA 0x746490)
 		public override bool GetUIText(StringBuilder stringInfoBuilder)
 		{
 			base.GetUIText(stringInfoBuilder);
-			if (m_airTime != 0f)
+			float airTime = m_airTime;
+			if (airTime != 0f)
 			{
-				stringInfoBuilder.AppendLine(string.Format("Air Time = {0:F2}", m_airTime));
+				stringInfoBuilder.AppendLine(string.Format("Air Time = {0:F2}", airTime));
 			}
-			return m_airTime != 0f;
+			return airTime != 0f;
 		}
 
 		// 060010fc (1.10.1 RVA 0x746550)
