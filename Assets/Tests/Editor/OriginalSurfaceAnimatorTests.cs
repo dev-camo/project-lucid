@@ -211,7 +211,8 @@ namespace ProjectLucid.Tests
         // SurfaceAnimator..ctor 0x6D2DC0: a new list, the 64-bit store of Environment (0x34dab335)
         // and FixedUpdate (0x09869c05) at 0x6D2E48, then GetSystemRef<TimeManager>(null, true).
         // Awake 0x6D2A30 caches every knot; OnUpdate/OnFixedUpdate/OnLateUpdate all jump to DoUpdate
-        // 0x6D2C80. OnDisable 0x6D2BE0 returns while the reference is null.
+        // 0x6D2C80. OnDisable 0x6D2BE0 returns while the reference's system IsNull() and, through
+        // the separate reference test (test rdi / je at 0x6D2C15), while the reference itself is null.
         [Test]
         public void AnimatorCachesAndUpdatesEveryKnotFromEachCallback()
         {
@@ -248,6 +249,8 @@ namespace ProjectLucid.Tests
 
                 Assert.That(timeManagerRef.IsNull(), Is.True);
                 Assert.DoesNotThrow(() => Call(animator, "OnDisable"));
+                Set(animator, "m_timeManagerRef", null);
+                Assert.DoesNotThrow(() => Call(animator, "OnDisable"), "a null reference is not dereferenced");
                 animator.IsPaused = true;
                 Assert.That(animator.IsPaused, Is.True);
             }

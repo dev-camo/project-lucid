@@ -50,7 +50,9 @@ namespace HardlightProject
             instance.transform.localScale = Vector3.one * m_scale;
         }
 
-        // 06003d47 (0x6D4D10): the player body returns null.
+        // 06003d47 (0x6D4D10): only the shipped player body (`xor eax, eax; ret`) is recoverable.
+        // Any editor-only instantiation branch was compiled out of retail and is not restored, so
+        // Spawn also faults in the Editor here, where the original editor build may have spawned.
         public static GameObject InstantiatePrefab(GameObject prefab, Transform parent)
         {
             return null;

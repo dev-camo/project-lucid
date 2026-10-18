@@ -1,3 +1,4 @@
+using System;
 using Hardlight;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
@@ -105,7 +106,7 @@ namespace HardlightProject
                     transform.position = surfaceLocation.m_worldPosition;
                     break;
                 default:
-                    throw new System.ArgumentOutOfRangeException();
+                    throw new ArgumentOutOfRangeException();
             }
             if (m_rotationIsReversed)
                 rotation *= m_inverseRotation;

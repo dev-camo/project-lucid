@@ -4840,6 +4840,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSurfaceAnimatorTests." + nam
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSurfaceObjectFollowerTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
     "ConstructorStoresTheNativeDefaults",
+    "AwakeAddsResetTargetToTheLevelRestartAndOnDestroyRemovesIt",
+    "OnDestroyWithoutALevelManagerLeavesNothingToRemove",
     "SetTargetPlacesTheFollowerFromTheChosenSource",
     "RotationFlipsOnTheFollowingUpdateOnceTheAngleExceedsTheLimit",
     "RotationFlipNeedsAnOrderedGreaterAngle(float.NaN,False)",

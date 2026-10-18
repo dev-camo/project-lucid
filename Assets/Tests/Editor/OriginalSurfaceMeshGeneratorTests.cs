@@ -244,6 +244,8 @@ namespace ProjectLucid.Tests
         // SurfaceMeshPrefabSpawner..ctor 0x6D4D20 stores 1.0 in m_spacing and m_scale only.
         // InstantiatePrefab 0x6D4D10 is `xor eax, eax; ret`, and Spawn 0x6D4660 inlines it, so the
         // first name access (get_name on null at 0x6D46A2) fails before any transform is set.
+        // This pins the shipped player body only; it does not claim the original editor build
+        // behaved this way, since an editor-only branch would not survive in the player binary.
         [Test]
         public void PrefabSpawnerInstantiatesNothingInThePlayerBody()
         {

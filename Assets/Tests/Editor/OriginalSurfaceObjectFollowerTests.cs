@@ -12,8 +12,9 @@ namespace ProjectLucid.Tests
     // HardlightProject.SurfaceObjectFollower (TypeDef 0x02000a2e, x86-64 0x6B39F0..0x6B6970) with
     // SplineObjectFollower (0x02000a2d) and RibbonObjectFollower (0x02000a1f) on owned objects.
     // UpdateTransform runs against a scripted surface that records each query. The constructor
-    // takes the typed LevelManager reference, so every case leases that row; Awake and the level
-    // callbacks are not run because InvokeOnValid would queue work on it. As in the leave-checker
+    // takes the typed LevelManager reference, so the shared fixture leases that row and never runs
+    // Awake, whose InvokeOnValid would queue work on it; the level callback case owns the row and
+    // registers a real, inactive LevelManager instead. As in the leave-checker
     // tests, an owned empty TimeCategoryLookup stands in the TimeScaledComponent_SDT cache that
     // the Editor's Reset/OnValidate read while the component is added.
     public sealed class OriginalSurfaceObjectFollowerTests
@@ -142,6 +143,87 @@ namespace ProjectLucid.Tests
                 Assert.That(((SystemRef<LevelManager>)Get(fixture.Follower, "m_levelManagerRef")).SystemName(),
                     Is.EqualTo(ProcessManager.GetDefaultName<LevelManager>()));
                 Assert.That((int)Get(fixture.Follower, "m_positionTarget"), Is.Zero);
+            }
+        }
+
+        // Awake 0x6B5FD0: TimeScaledComponent_SDT.Awake (0x6B6022), m_surface = GetSurface() (vcall
+        // 0x6B6034), m_hasTarget = m_targetTransform != null (op_Inequality 0x6B606D), the current
+        // target, then InvokeOnValid(OnLevelManagerValid), which runs at once for a registered
+        // LevelManager and adds ResetTarget to OnLevelRestart (Delegate.Combine 0x6B625C).
+        // OnDestroy 0x6B60E0 runs TimeScaledComponent.OnDestroy (0x6B6132) and removes ResetTarget
+        // only when TryGet finds the manager (0x6B614C, je 0x6B61CE; Delegate.Remove 0x6B6199).
+        // This case owns the LevelManager row (acquired empty before the follower's constructor
+        // takes its typed reference) and leases the rows the LevelManager initializers and the
+        // shared TimeScaledComponent reference read.
+        [Test]
+        public void AwakeAddsResetTargetToTheLevelRestartAndOnDestroyRemovesIt()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-surface-follower-level"))
+            using (var timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()))
+            using (var missionRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<MissionManager>()))
+            using (var audioRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<AudioManager>()))
+            using (var saveRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SaveManager>()))
+            {
+                var levelRow = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<LevelManager>());
+                object priorConfig = GetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal");
+                VerificationFixtureOwnership.RunThenCleanUp(() =>
+                {
+                    levelRow.Register(null);
+                    SetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal", objects.Own(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
+                    GameObject levelHost = objects.Create("level");
+                    levelHost.SetActive(false);
+                    LevelManager level = levelHost.AddComponent<LevelManager>();
+                    levelRow.Register(level);
+                    Assert.That(level.OnLevelRestart.GetInvocationList(), Has.Length.EqualTo(1));
+
+                    GameObject host = objects.Create("follower");
+                    host.SetActive(false);
+                    var facade = host.AddComponent<Spline>();
+                    Set(facade, "m_editableSpline", null);
+                    var follower = host.AddComponent<SplineObjectFollower>();
+                    Set(follower, "m_attachedSpline", facade);
+                    Transform target = objects.Create("target").transform;
+                    target.position = new Vector3(1f, 2f, 3f);
+                    Set(follower, "m_targetTransform", target);
+
+                    Call(follower, "Awake");
+                    Assert.That(Get(follower, "m_surface"), Is.Null, "the unassigned editable variant");
+                    Assert.That(Get(follower, "m_hasTarget"), Is.True);
+                    Assert.That(Get(follower, "m_currentTargetTransform"), Is.SameAs(target));
+                    Delegate[] restart = level.OnLevelRestart.GetInvocationList();
+                    Assert.That(restart, Has.Length.EqualTo(2));
+                    Assert.That(restart[1].Target, Is.SameAs(follower));
+                    Assert.That(restart[1].Method.Name, Is.EqualTo("ResetTarget"));
+
+                    // The restart restores the authored target and places the follower on it.
+                    var surface = new ScriptedSurface { Location = new SurfaceLocation { m_worldRotation = Quaternion.identity } };
+                    Set(follower, "m_surface", surface);
+                    Set(follower, "m_currentTargetTransform", null);
+                    Set(follower, "m_hasTarget", false);
+                    level.OnLevelRestart();
+                    Assert.That(Get(follower, "m_currentTargetTransform"), Is.SameAs(target));
+                    Assert.That(surface.Queries, Is.EqualTo(new[] { new Vector3(1f, 2f, 3f) }));
+                    AreClose(new Vector3(1f, 2f, 3f), follower.transform.position, "restart position");
+
+                    Call(follower, "OnDestroy");
+                    Assert.That(level.OnLevelRestart.GetInvocationList(), Has.Length.EqualTo(1), "ResetTarget is removed");
+                    Assert.That(level.OnLevelRestart.GetInvocationList()[0].Target, Is.Not.SameAs(follower));
+                },
+                levelRow.Dispose,
+                () => SetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal", priorConfig));
+            }
+        }
+
+        // OnDestroy without a registered LevelManager: TryGet fails (je 0x6B61CE) and nothing is
+        // removed, so a follower destroyed before the manager exists does not fault.
+        [Test]
+        public void OnDestroyWithoutALevelManagerLeavesNothingToRemove()
+        {
+            using (var timeRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<TimeManager>()))
+            using (var fixture = new Fixture())
+            {
+                Assert.DoesNotThrow(() => Call(fixture.Follower, "OnDestroy"));
+                Assert.That(fixture.Surface.Queries, Is.Empty);
             }
         }
 

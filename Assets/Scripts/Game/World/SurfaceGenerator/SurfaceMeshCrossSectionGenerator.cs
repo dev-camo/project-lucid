@@ -77,7 +77,8 @@ namespace HardlightProject
 
         // 06003d3a (0x6D3F80): a pending request clears the spawn root and respawns every
         // spawner from OffsetLocal.z to Distance + OffsetLocal.z; zero spacing is skipped.
-        // The request flag is cleared only after every spawner has run.
+        // The request flag is cleared only after every spawner has run. Despite the spawner's
+        // tooltip, a Distance of 0 is not the whole ribbon length: it visits the single distance OffsetLocal.z.
         public void SpawnPrefabs(IRibbon ribbon, KnotStepData knotOrigin = null)
         {
             if (!m_prefabSpawnGenerate || m_prefabSpawnRoot == null)
