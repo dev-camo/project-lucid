@@ -64,6 +64,15 @@ namespace ProjectLucid.Tests
                 TakesFlag(true);
             }
 
+            public static void TakesSingle(float value) { }
+
+            // Each float literal is an ldc.r4 with its four-byte operand.
+            public static void PassesSingles()
+            {
+                TakesSingle(2.5f);
+                TakesSingle(-100f);
+            }
+
             // constrained. (FE 16, type token) prefixes the callvirt.
             public static void ConstrainedCall<T>(T value) where T : IDisposable
             {
@@ -210,6 +219,24 @@ namespace ProjectLucid.Tests
             Assert.That(instructions[first - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_0));
             Assert.That(instructions[second - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_1));
             Assert.That(instructions.Select(instruction => instruction.Offset), Is.Ordered.Ascending);
+        }
+
+        // SingleOperand reads the literal of the ldc.r4 before each call, in
+        // order, and refuses an instruction that is not ldc.r4.
+        [Test]
+        public void SingleOperandReadsTheFloatLiteralBeforeEachCall()
+        {
+            MethodInfo body = Method(typeof(Fixture), nameof(Fixture.PassesSingles));
+            List<(int Offset, OpCode Code)> instructions = OriginalILCallSequence.Instructions(body);
+            List<OriginalILCallSequence.Call> calls = OriginalILCallSequence.Calls(body);
+            Assert.That(OriginalILCallSequence.Names(calls), Is.EqualTo(new[] { "Fixture.TakesSingle", "Fixture.TakesSingle" }));
+            (int Offset, OpCode Code) first = instructions[instructions.FindIndex(instruction => instruction.Offset == calls[0].Offset) - 1];
+            (int Offset, OpCode Code) second = instructions[instructions.FindIndex(instruction => instruction.Offset == calls[1].Offset) - 1];
+            Assert.That(first.Code, Is.EqualTo(OpCodes.Ldc_R4));
+            Assert.That(second.Code, Is.EqualTo(OpCodes.Ldc_R4));
+            Assert.That(OriginalILCallSequence.SingleOperand(body, first.Offset), Is.EqualTo(2.5f));
+            Assert.That(OriginalILCallSequence.SingleOperand(body, second.Offset), Is.EqualTo(-100f));
+            Assert.Throws<InvalidOperationException>(() => OriginalILCallSequence.SingleOperand(body, calls[0].Offset));
         }
     }
 }

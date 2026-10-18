@@ -55,6 +55,16 @@ namespace ProjectLucid.Tests
         internal static List<(int Offset, OpCode Code)> Instructions(MethodBase method) =>
             Decode(method.GetMethodBody().GetILAsByteArray()).Select(instruction => (instruction.Start, instruction.Code)).ToList();
 
+        // The float32 operand of the ldc.r4 (III.3.40) starting at offset.
+        internal static float SingleOperand(MethodBase method, int offset)
+        {
+            byte[] il = method.GetMethodBody().GetILAsByteArray();
+            var (_, code, operand) = Decode(il).Single(instruction => instruction.Start == offset);
+            if (code != OpCodes.Ldc_R4)
+                throw new InvalidOperationException($"{code} at IL_{offset:x4} is not ldc.r4.");
+            return BitConverter.ToSingle(il, operand);
+        }
+
         private static IEnumerable<(int Start, OpCode Code, int Operand)> Decode(byte[] il)
         {
             int position = 0;

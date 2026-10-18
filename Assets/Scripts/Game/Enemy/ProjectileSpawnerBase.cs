@@ -59,7 +59,8 @@ namespace HardlightProject
 
         // 060022f2: the early return is taken only for an ordered
         // m_fireOnStayTimer >= m_stayTimer (ucomiss/jae at 0x5810f6), so a NaN
-        // interval or timer fires on every stay.
+        // interval or delta fires on every stay; a NaN accumulated timer fires
+        // once and is then zeroed (0x58110e).
         protected override void DoTriggerStay(Character character)
         {
             base.DoTriggerStay(character);

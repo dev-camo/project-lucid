@@ -23,10 +23,10 @@ namespace ProjectLucid.Tests
     // Tests named "...Emits..." are emission-only checks of the restored IL, not
     // behaviour oracles; their comments mark which callees are inlined natively.
     // Open, without a behaviour test (both need a resolved TimeManager or
-    // SystemConfiguration fixture): the DoTriggerStay fire predicate (NaN fires,
-    // equal does not, Fire then zeroes the timer; ucomiss/jae 0x5810f6) and the
-    // RateOfChangeBindable.OnValidate bound correction (NaN bounds stay,
-    // ucomiss/jb 0x6b35b4, constant -1.0f at 0x29a6df0); also
+    // SystemConfiguration fixture): the DoTriggerStay fire predicate (a NaN
+    // interval fires, equal does not, Fire then zeroes the timer; ucomiss/jae
+    // 0x5810f6) and the RateOfChangeBindable.OnValidate bound correction (NaN
+    // bounds stay, ucomiss/jb 0x6b35b4, constant -1.0f at 0x29a6df0); also
     // RateOfChangeBindable Awake/InternalUpdate/SetOutput/SetRateOfChange values,
     // StraightLineProjectileSpawner.Awake and the AnimateMaterial loop past time 0.
     public sealed class OriginalFxSpawnersAndShadersTests
@@ -97,6 +97,9 @@ namespace ProjectLucid.Tests
         // A wrap by floor, Mathf.Repeat, or clamping each fails a row below: a
         // value on either bound stays, an exact multiple lands on the upper
         // bound, and a zero range turns an outside value into 0 * inf = NaN.
+        // Both compares are unordered-skipping (jbe 0x6b363e, 0x6b365b), so a
+        // NaN bound leaves an inside value alone; the negated forms
+        // !(output >= lower) and !(output <= upper) would wrap it into NaN.
         [Test]
         public void LoopOutputWrapsOutsideValuesByCeilingMultiplesOfTheRange()
         {
@@ -114,6 +117,8 @@ namespace ProjectLucid.Tests
             Assert.That(float.IsNaN(Loop(float.NaN, 2f, 5f)), Is.True, "NaN passes through both unordered compares");
             Assert.That(float.IsNaN(Loop(2f, 1f, 1f)), Is.True, "a zero range divides by zero and multiplies infinity by zero");
             Assert.That(Loop(1f, 1f, 1f), Is.EqualTo(1f), "a zero range keeps its own bound");
+            Assert.That(Loop(3f, float.NaN, 5f), Is.EqualTo(3f), "a NaN lower bound is unordered and skips the low wrap (jbe 0x6b363e)");
+            Assert.That(Loop(3f, 2f, float.NaN), Is.EqualTo(3f), "a NaN upper bound is unordered and skips the high wrap (jbe 0x6b365b)");
         }
 
         // PrefabSpawner.Awake 0x060039e6 (x86-64 0x6b32c0) replaces the spawn
@@ -782,6 +787,26 @@ namespace ProjectLucid.Tests
                 "String.Format",
                 "HLOutput.LogError",
             }));
+        }
+
+        // Emission and metadata check. StraightLineProjectileSpawner.Fire scales
+        // forward by 100 (mulss 100.0f at 0x29a70cc, mulps (100,100,0,0) at
+        // 0x29a79a0; 0x5832c7, 0x5832cf). Metadata 0x04001753 Target_Distance is
+        // Private|Static|Literal|HasDefault = 100.0f, so C# folds it into an
+        // ldc.r4 pushed directly before the one Vector3 multiply.
+        [Test]
+        public void StraightLineFireEmitsTheHundredUnitAimDistance()
+        {
+            FieldInfo distance = typeof(StraightLineProjectileSpawner).GetField("Target_Distance", Static | BindingFlags.DeclaredOnly);
+            Assert.That(distance.IsLiteral && distance.IsPrivate, Is.True);
+            Assert.That(distance.GetRawConstantValue(), Is.EqualTo(100f));
+
+            MethodInfo fire = typeof(StraightLineProjectileSpawner).GetMethod("Fire", Instance | BindingFlags.DeclaredOnly);
+            int multiply = OriginalILCallSequence.Calls(fire).Single(call => call.Target.Name == "op_Multiply").Offset;
+            List<(int Offset, OpCode Code)> instructions = OriginalILCallSequence.Instructions(fire);
+            (int Offset, OpCode Code) scale = instructions[instructions.FindIndex(instruction => instruction.Offset == multiply) - 1];
+            Assert.That(scale.Code, Is.EqualTo(OpCodes.Ldc_R4));
+            Assert.That(OriginalILCallSequence.SingleOperand(fire, scale.Offset), Is.EqualTo(100f));
         }
 
         // Emission check. StraightLineProjectile.DoMovement 0x0600230a (x86-64

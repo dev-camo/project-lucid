@@ -2668,6 +2668,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalILCallSequenceTests.DelegateThenRealCallRecordsOnlyTheCallInstruction",
     "ProjectLucid.Tests.OriginalILCallSequenceTests.ConstrainedCallvirtIsRecordedAfterItsPrefix",
     "ProjectLucid.Tests.OriginalILCallSequenceTests.InstructionsExposeTheArgumentPushedBeforeEachCall",
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.SingleOperandReadsTheFloatLiteralBeforeEachCall",
 )
 
 # Low-priority gap cases that need real Awake/OnDestroy messages or an active scene object.
@@ -4355,6 +4356,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxSpawnersAndShadersTests." 
     "ResetElementEmitsACoolDownWithoutExceptions",
     "SpawnerAwakeEmitsTheTimeRequestBeforeTheManagerFetch",
     "StraightLineFireEmitsTheInferredCallOrder",
+    "StraightLineFireEmitsTheHundredUnitAimDistance",
     "StraightLineProjectileEmitsWorldMovementAndASingleTransformFocus",
     "RateOfChangeBindableEmitsTheInferredOutputCalls",
     "CompilerGeneratedNamesMatchTheOriginalMemberOrdinals",
