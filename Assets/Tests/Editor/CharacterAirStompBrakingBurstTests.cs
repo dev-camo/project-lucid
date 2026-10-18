@@ -492,11 +492,13 @@ namespace ProjectLucid.Tests
         // 0600106c (0x742770): the ground hit position is applied once (only when only the projected hit exists);
         // the slope angle is Vector3.Angle against negated gravity, the downhill is the normalised
         // plane projection of gravity, then the settings lookup and either the look rotation or the forward dot.
+        // SetWorldPosition and SetWorldVelocity are Actor virtuals (native vcalls, e.g. 0x5cbf02 slot 37), so the
+        // IL call targets are declared by Actor even though the receivers are Characters.
         [Test]
         public void AirStompDownhillRotationCallsTheNativeMathInOrder()
         {
             List<MethodBase> calls = Calls(typeof(CharacterAbility_AirStompAttack), "TryRotateDownhillOfCollision");
-            int position = IndexOf(calls, "Character", "SetWorldPosition");
+            int position = IndexOf(calls, "Actor", "SetWorldPosition");
             int negate = IndexOf(calls, "Vector3", "op_UnaryNegation");
             int angle = IndexOf(calls, "Vector3", "Angle");
             int project = IndexOf(calls, "Vector3", "ProjectOnPlane");
@@ -506,7 +508,7 @@ namespace ProjectLucid.Tests
             int rotate = IndexOf(calls, "Character", "SetWorldRotation");
             int dot = IndexOf(calls, "Vector3", "Dot");
             Assert.That(new[] { position, negate, angle, project, forward, settings, look, rotate, dot }, Is.Ordered.Ascending.And.Unique);
-            Assert.That(Count(calls, "Character", "SetWorldPosition"), Is.EqualTo(1));
+            Assert.That(Count(calls, "Actor", "SetWorldPosition"), Is.EqualTo(1));
         }
 
         // ---- The 11 FSM nodes ----
@@ -866,7 +868,7 @@ namespace ProjectLucid.Tests
             int timer = IndexOf(calls, "IGraphStorageExtensions", "AdjustValue");
             int grounded = IndexOf(calls, "CharacterTracking", "IsOnGround");
             int normal = IndexOf(calls, "CharacterTracking", "GetContactNormal");
-            int velocity = IndexOf(calls, "Character", "SetWorldVelocity");
+            int velocity = IndexOf(calls, "Actor", "SetWorldVelocity");
             int orientate = IndexOf(calls, "Character", "OrientateToPlane");
             Assert.That(new[] { baseUpdate, target, sphere, component, hit, timer, grounded, normal, velocity, orientate }, Is.Ordered.Ascending.And.Unique);
         }
