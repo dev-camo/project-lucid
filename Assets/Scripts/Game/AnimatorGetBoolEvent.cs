@@ -33,9 +33,9 @@ namespace HardlightProject
 			m_boolHash = Animator.StringToHash(m_boolName);
 		}
 
-		// 0600052f (1.10.1 RVA 0x52EFF0): the two edges are separate tests, so a
-		// true event that clears m_boolValue is followed by the false event in the
-		// same frame.
+		// 0600052f (1.10.1 RVA 0x52EFF0): the two edges are separate tests that both
+		// read the m_boolValue field, so a listener of the true event that clears it
+		// gets the false event in the same frame.
 		private void Update()
 		{
 			m_boolValue = m_animator.GetBool(m_boolHash);
