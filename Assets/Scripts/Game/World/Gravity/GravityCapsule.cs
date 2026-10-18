@@ -27,7 +27,8 @@ namespace HardlightProject
             m_collider.radius = MaxDistance;
         }
 
-        // 06003bec: the retail body is empty.
+        // 06003bec: the retail body is empty; any editor-only
+        // drawing is absent from the player and is not reconstructed.
         protected override void DrawGizmo(float distance) { }
     }
 }

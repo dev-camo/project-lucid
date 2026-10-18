@@ -483,6 +483,8 @@ namespace ProjectLucid.Tests
             using (var objects = new OwnedWorldObjects("lucid-gravity-render"))
             {
                 GravityRender render = objects.Create("render").AddComponent<GravityRender>();
+                // A real null rather than any editor placeholder, so the call is an unguarded callvirt on null.
+                Set(render, "m_gravitySource", null);
                 Assert.Throws<NullReferenceException>(() => Call(render, "OnDrawGizmos"));
                 Set(render, "m_gravitySource", Volume<GravitySphere>(objects, typeof(SphereCollider), Vector3.zero, Quaternion.identity));
                 Assert.DoesNotThrow(() => Call(render, "OnDrawGizmos"));

@@ -32,7 +32,9 @@ namespace HardlightProject
             return base.GetGravity(position);
         }
 
-        // 06003bef: the retail body is empty; GetCapPosition has no retail caller.
+        // 06003bef: the retail body is empty. GizmoDivisions and GetCapPosition have no
+        // retail use, which suggests editor-only drawing was stripped from the
+        // player; it is not reconstructed.
         protected override void DrawGizmo(float distance) { }
 
         // 06003bf0: the angle is negated and no transform position is added.

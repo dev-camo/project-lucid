@@ -4,7 +4,8 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a6b: gravity towards the transform's forward axis.
+    // Original Game.Runtime 02000a6b: gravity along the offset from the transform's
+    // forward axis, scaled by the signed description value (inward when negative).
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class GravityAxis<T> : GravityTrigger<T> where T : Collider

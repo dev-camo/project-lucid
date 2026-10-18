@@ -18,7 +18,8 @@ namespace HardlightProject
             return base.GetGravity(position);
         }
 
-        // 06003c02: the retail body is empty.
+        // 06003c02: the retail body is empty; any editor-only
+        // drawing is absent from the player and is not reconstructed.
         protected override void DrawGizmo(float distance) { }
     }
 }

@@ -18,7 +18,8 @@ namespace HardlightProject
             m_collider.size = new Vector3(diameter, diameter, m_height);
         }
 
-        // 06003bf3: the retail body is empty.
+        // 06003bf3: the retail body is empty; any editor-only
+        // drawing is absent from the player and is not reconstructed.
         protected override void DrawGizmo(float distance) { }
     }
 }

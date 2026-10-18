@@ -69,6 +69,7 @@ namespace HardlightProject
             if (m_usingColliderBoundsCheck)
             {
                 m_colliderBoundsCache.center = m_boundsCollider.bounds.center;
+                // The native body reads the tracked position again here (0x6B2C08).
                 sqrDistance = m_colliderBoundsCache.SqrDistance(m_objectToTrack.position);
             }
             else

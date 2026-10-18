@@ -3,7 +3,8 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a77: gravity towards the transform's position.
+    // Original Game.Runtime 02000a77: gravity along the offset from the transform's
+    // position, scaled by the signed description value (inward when negative).
     [RequireComponent(typeof(SphereCollider))]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]

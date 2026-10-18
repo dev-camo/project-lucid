@@ -3,8 +3,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a6c: gravity towards the nearest face of a box
-    // that rises MaxDistance above the transform.
+    // Original Game.Runtime 02000a6c: gravity along the normal of the nearest face of
+    // a box that rises MaxDistance above the transform, scaled by the signed
+    // description value.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [RequireComponent(typeof(BoxCollider))]
     [Il2CppSetOption(Option.NullChecks, false)]

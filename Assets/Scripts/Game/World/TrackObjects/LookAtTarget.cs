@@ -67,7 +67,8 @@ namespace HardlightProject
         }
 
         // 06003e45: the return to the default ends once the smoothing velocity has
-        // settled, which is immediately when no smoothing is configured.
+        // settled. Without smoothing the velocity is never updated, so the outcome
+        // depends on its last value (zero unless smoothing ran before).
         private void Update()
         {
             Vector3 lookAtPosition;

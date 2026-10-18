@@ -4,8 +4,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000a7a: gravity towards an elliptical torus tube in
-    // the local XZ plane, described by the box size and tube radius.
+    // Original Game.Runtime 02000a7a: gravity along the normal of an elliptical torus
+    // tube in the local XZ plane, described by the box size and tube radius and
+    // scaled by the signed description value (inward when negative).
     [Il2CppSetOption(Option.NullChecks, false)]
     [RequireComponent(typeof(BoxCollider))]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
@@ -64,7 +65,8 @@ namespace HardlightProject
             return closestPoint;
         }
 
-        // 06003c42: the retail body is empty.
+        // 06003c42: the retail body is empty; any editor-only
+        // drawing is absent from the player and is not reconstructed.
         protected override void DrawGizmo(float distance) { }
     }
 }

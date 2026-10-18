@@ -24,9 +24,18 @@ namespace ProjectLucid.Tests
             public Fixture()
             {
                 m_priorConfig = GetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal");
-                SetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal", Objects.Own(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
-                Checker = Objects.Create("checker").AddComponent<ObjectLeaveChecker>();
-                Tracked = Objects.Create("tracked").transform;
+                try
+                {
+                    SetStatic(typeof(TimeScaledComponent_SDT), "s_config_Internal", Objects.Own(ScriptableObject.CreateInstance<TimeCategoryLookup>()));
+                    Checker = Objects.Create("checker").AddComponent<ObjectLeaveChecker>();
+                    Tracked = Objects.Create("tracked").transform;
+                }
+                catch
+                {
+                    // The using statement never receives a fixture whose constructor throws.
+                    Dispose();
+                    throw;
+                }
             }
 
             public bool HasObjectLeft() => (bool)Call(Checker, "HasObjectLeft");
