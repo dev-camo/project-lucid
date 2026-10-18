@@ -2049,6 +2049,54 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPrototypeTransformFollowPlay
     "UpdateTurnsTowardsTheCharacterAndMovesAlongTheNewForward",
 ))
 
+# Original transform rotators, movers, scalers, facing components and their triggers on owned objects.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformRotatorTests." + name for name in (
+    "AwakeTakesTheTargetsWorldRotationAndOptionallyRandomSpeeds",
+    "InternalUpdateRotatesLocallyBySpeedTimesMultiplierTimesDelta",
+    "OnSynchroniseRestartsFromTheStartRotationAndAppliesTheWholeTime",
+    "ClampToLimitWithAZeroLimitOnlyAccumulates",
+    "ClampToLimitBelowTheLimitOnlyAccumulates",
+    "ClampToLimitExactlyAtTheLimitIsReached",
+    "ClampToLimitTakesBackAPositiveOvershoot",
+    "ClampToLimitTakesBackANegativeOvershoot",
+    "ClampToLimitCrossingZeroHoldsTheNegativeLimit",
+    "ClampToLimitWithANegativeLimitIsAlwaysReached",
+    "ClampToLimitWithANaNLimitIsReached",
+    "ClampToLimitWithANaNAccumulationIsReached",
+    "LimitsClampTheFirstReachedAxisAndRaiseTheEventEachStep",
+    "RandomRotatorSnapsWithAZeroSmoothTime",
+    "RandomRotatorSnapsWithANegativeSmoothTime",
+    "RandomRotatorSnapsWithANaNSmoothTime",
+    "RandomRotatorSmoothsFromTheCurrentRotationAfterDrawing",
+    "RandomRotatorSynchronisesTheLocalStartAsAWorldRotation",
+    "SingleCurveSetsTheLocalYawAndCompletesStrictlyPastTheCurve",
+    "SingleCurveCompletesWithoutAListener",
+    "SnappedRotationWaitsThenTurnsTheLocalRotationEachInterval",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformAnimatorTests." + name for name in (
+    "MultiAxisStartSetsEachPostWrapModeAndTheInitialAngles",
+    "MultiAxisAdvancesEveryAxisAndSamplesOnlyTheEnabledOnes",
+    "OscillatorUiCallbackCachesThePositionAndStartsAnimating",
+    "OscillatorOffsetsTheCachedPositionByASineWave",
+    "OscillatorWrapsTheTimerOnThePhaseButSamplesTheUnwrappedPhase",
+    "PannerWrapsEachAxisAtTheSignedAmountAndZeroesZ",
+    "PannerNeverWrapsAnAmountWithinEpsilonAndNegatesForANonPositiveSpeed",
+    "ScalerBlendsTheScaleOnACosineWave",
+    "ScaleTransformLerpsOnTheCurveOverItsLastKeyTime",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTransformFacingAndTriggerTests." + name for name in (
+    "SnapTakesTheTargetOnExactlyTheEnabledAxes",
+    "RotationGravityCachesTheWorldRotatedGlobalGravityOnEnable",
+    "FaceCameraWaitsForTheMainCameraAndUnsubscribesOnceSet",
+    "FaceCameraShutdownDisablesAndRemovesItsHandler",
+    "FaceCameraEnableSubscribesToARegisteredManager",
+    "FacePlayerTargetsTheCurrentCharacterAndReleasesOnDisable",
+    "FacePlayerEnableRegistersWithARegisteredManager",
+    "TriggerPassesTheMatchingCollidersTransformToEnterAndExit",
+    "LevelActivationSendsANullExitWhileTriggered",
+    "PlatformEffectsPlayTheStartThenTheLoopAndTheWarningAlone",
+))
+
 # Read-only supplied menu imports; initialization and provider payloads remain separate.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalMenuPreparedAssetImportTests.ActualSuppliedMenuAssetsRetainOriginalScriptsFieldsGraphAndRuntimeOrder',
