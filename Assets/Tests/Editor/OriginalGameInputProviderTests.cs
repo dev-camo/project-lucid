@@ -316,7 +316,7 @@ namespace ProjectLucid.Tests
 
             Assert.That((int)simulation.Attributes, Is.EqualTo(0x103));
             Assert.That(Enum.GetNames(simulation), Is.EqualTo(new[] { "HeldButton", "SingleFrameButtonOnEntry", "SingleFrameButtonOnExit" }));
-            Assert.That(Enum.GetValues(simulation).Cast<int>(), Is.EqualTo(new[] { 0, 1, 2 }));
+            Assert.That(Enum.GetValues(simulation).Cast<object>().Select(value => Convert.ToInt32(value)).ToArray(), Is.EqualTo(new[] { 0, 1, 2 }));
 
             Type closure = Nested(type, "<>c__DisplayClass22_0");
             Assert.That((int)closure.Attributes, Is.EqualTo(0x00100103));
