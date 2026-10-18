@@ -89,6 +89,10 @@ namespace ProjectLucid.Tests
             target.SetValue(null);
             Assert.That(node.StringValue, Is.Not.Null.And.EqualTo(string.Empty));
 
+            // Cache 0x19f9d7e: PropertyInfo vslot 19 (CanWrite) false jumps to 0x19f9de2 and stores null.
+            target.SetTarget(node, "ShowInNodeEditor");
+            Assert.IsNull(target.GetTargetType(), "a get-only property has no settable type");
+
             target.SetTarget(node, "IntValue");
             Assert.That(target.GetTargetType(), Is.EqualTo(typeof(int)));
             target.SetValue(7);
@@ -141,6 +145,33 @@ namespace ProjectLucid.Tests
             Assert.IsFalse(a.Equals(b));
             b.SetTarget(second, "IntValue");
             Assert.IsFalse(a.Equals(b));
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        // get_IsSet 0x19f99af and GetTargetType 0x19f9e5f test the target with Object.op_Inequality,
+        // and Equals 0x19f9efa compares targets with Object.op_Equality, so a destroyed target reads
+        // as Unity null: the target is unset, and two destroyed targets with one member name are equal.
+        [Test]
+        public void BindTargetTreatsADestroyedTargetAsUnityNull()
+        {
+            ConstantValue node = Add<ConstantValue>();
+            BindTarget target = new BindTarget();
+            target.SetTarget(node, "IntValue");
+            Assert.That(target.GetTargetType(), Is.EqualTo(typeof(int)));
+            Object.DestroyImmediate(node);
+            Assert.IsFalse(target.IsSet);
+            Assert.IsNull(target.GetTargetType());
+
+            ConstantValue first = Add<ConstantValue>();
+            ConstantValue second = Add<ConstantValue>();
+            BindTarget a = new BindTarget();
+            BindTarget b = new BindTarget();
+            a.SetTarget(first, "IntValue");
+            b.SetTarget(second, "IntValue");
+            Assert.IsFalse(a.Equals(b));
+            Object.DestroyImmediate(first);
+            Object.DestroyImmediate(second);
+            Assert.IsTrue(a.Equals(b), "two destroyed targets compare equal to Unity null");
             LogAssert.NoUnexpectedReceived();
         }
 
@@ -218,6 +249,15 @@ namespace ProjectLucid.Tests
             binder.enabled = false;
             binder.Refresh();
             Assert.IsTrue(destination.BoolValue, "a disabled binder forwards nothing");
+
+            // The decision reads Source.ValueType (0x19f4e23..0x19f4e74), not the runtime value: a
+            // Bindable<object> holding a boxed true has ValueType object and is forwarded uninverted.
+            binder.enabled = true;
+            destination.BoolValue = false;
+            source.nullOutput.Value = true;
+            binder.Source.SetTarget(source, "nullOutput");
+            binder.Refresh();
+            Assert.IsTrue(destination.BoolValue, "an object-typed source holding a bool is not inverted");
             LogAssert.NoUnexpectedReceived();
         }
 
@@ -273,16 +313,20 @@ namespace ProjectLucid.Tests
 
             bindable.SetListValue(new List<string> { "a", "x" });
             Assert.That(changes, Is.EqualTo(2));
+            // The element loop starts at index 0 (xor ebx,ebx at 0x8e395f).
+            bindable.SetListValue(new List<string> { "z", "x" });
+            Assert.That(changes, Is.EqualTo(3), "a difference at index 0 publishes");
+            Assert.That(bindable.Value, Is.EqualTo(new[] { "z", "x" }));
             bindable.SetListValue(new List<string> { "a", "x", "y" });
-            Assert.That(changes, Is.EqualTo(3));
+            Assert.That(changes, Is.EqualTo(4));
 
             bindable.SetListValue(null);
             List<string> empty = bindable.Value;
-            Assert.That(changes, Is.EqualTo(4));
+            Assert.That(changes, Is.EqualTo(5));
             Assert.That(empty, Is.Not.Null.And.Empty);
             bindable.SetListValue(null);
             bindable.SetListValue(new List<string>());
-            Assert.That(changes, Is.EqualTo(4), "an empty current list equals a null or empty value");
+            Assert.That(changes, Is.EqualTo(5), "an empty current list equals a null or empty value");
             Assert.That(bindable.Value, Is.SameAs(empty));
 
             Bindable<List<string>> unset = new Bindable<List<string>>();
@@ -319,6 +363,19 @@ namespace ProjectLucid.Tests
             Assert.That(node.StringValue, Is.EqualTo("text"));
             Assert.That(node.StringOutput.Value, Is.EqualTo("text"));
             Assert.IsNull(node.nullOutput.Value);
+
+            // set_FloatValue 0x19FB0B0, set_BoolValue 0x19FB0E0 and set_StringValue 0x19FB110 each
+            // tail-call Refresh (vtable +0x1a8, slot 7), so every setter republishes the int field too.
+            FieldInfo intField = typeof(ConstantValue).GetField("intValue", Hidden);
+            intField.SetValue(node, 8);
+            node.FloatValue = 2.5f;
+            Assert.That(node.IntOutput.Value, Is.EqualTo(8), "FloatValue refreshes IntOutput");
+            intField.SetValue(node, 9);
+            node.BoolValue = false;
+            Assert.That(node.IntOutput.Value, Is.EqualTo(9), "BoolValue refreshes IntOutput");
+            intField.SetValue(node, 10);
+            node.StringValue = "other";
+            Assert.That(node.IntOutput.Value, Is.EqualTo(10), "StringValue refreshes IntOutput");
 
             Invoke(node, "SetUpBindReferenceFields");
             Assert.IsNull(BindReferences(node));
@@ -514,6 +571,37 @@ namespace ProjectLucid.Tests
                 MethodInfo method = typeof(AdvancedBinder).GetMethod(lifecycle, Hidden | BindingFlags.DeclaredOnly);
                 Assert.That((int)(method.Attributes & layout), Is.EqualTo(0x01c4), lifecycle);
             }
+        }
+
+        // DummyDll HLBinders.Runtime: BindingUtils nests DictionaryInfo 0x02000014, <>c 0x02000015
+        // (<>9, <>9__12_0, <>9__13_0; <SettableMembers>b__12_0 0x0600005c, <GettableBindableMembers>b__13_0
+        // 0x0600005d), <>c__DisplayClass12_0 0x02000016 (setterName; <SettableMembers>b__1 0x0600005f) and
+        // <>c__DisplayClass13_0 0x02000017 (getterName; <GettableBindableMembers>b__1 0x06000061); native
+        // SettableMembers loads these at 0x19f5db4/0x19f5dc0. The ordinals 12/13 follow the member order,
+        // so moving the invoke-array fields before the methods shows up here as 15/16.
+        [Test]
+        public void BindingUtilsLambdasKeepTheShippingGeneratedNames()
+        {
+            const BindingFlags declared = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                | BindingFlags.Static | BindingFlags.DeclaredOnly;
+            Type[] nested = typeof(BindingUtils).GetNestedTypes(BindingFlags.NonPublic);
+            Assert.That(nested.Select(t => t.Name), Is.EquivalentTo(new[]
+            {
+                "DictionaryInfo", "<>c", "<>c__DisplayClass12_0", "<>c__DisplayClass13_0",
+            }));
+
+            Type cache = nested.Single(t => t.Name == "<>c");
+            Assert.That(cache.GetFields(declared).Select(f => f.Name), Is.EquivalentTo(new[] { "<>9", "<>9__12_0", "<>9__13_0" }));
+            Assert.That(cache.GetMethods(declared).Select(m => m.Name),
+                Is.EquivalentTo(new[] { "<SettableMembers>b__12_0", "<GettableBindableMembers>b__13_0" }));
+
+            Type settable = nested.Single(t => t.Name == "<>c__DisplayClass12_0");
+            Assert.That(settable.GetFields(declared).Select(f => f.Name), Is.EqualTo(new[] { "setterName" }));
+            Assert.That(settable.GetMethods(declared).Select(m => m.Name), Is.EqualTo(new[] { "<SettableMembers>b__1" }));
+
+            Type gettable = nested.Single(t => t.Name == "<>c__DisplayClass13_0");
+            Assert.That(gettable.GetFields(declared).Select(f => f.Name), Is.EqualTo(new[] { "getterName" }));
+            Assert.That(gettable.GetMethods(declared).Select(m => m.Name), Is.EqualTo(new[] { "<GettableBindableMembers>b__1" }));
         }
 
         private static string FormerName(FieldInfo field) =>

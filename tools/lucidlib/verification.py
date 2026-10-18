@@ -1384,6 +1384,7 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalBindersCoreTests." + name for name in (
     "BindTargetTypesItsMemberConvertsStringsAndKeepsTheLastTypeForAMissingMember",
     "BindTargetEqualityComparesOnlyTargetAndMemberName",
+    "BindTargetTreatsADestroyedTargetAsUnityNull",
     "BinderOutputForwardsOnlyWhenSourceIsSetTargetExistsAndEnabled",
     "SimpleBinderInvertsOnlyBoolSourcesAndHidesFromTheNodeEditor",
     "AdvancedBinderTogglesOnlyNodeEditorNodesAndNeverCachesInTheEditor",
@@ -1394,6 +1395,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalBindersCoreTests." + name fo
     "TmpGradientNodesSelectAndPublishTheGradientObject",
     "RestoredOwnersKeepTheirOriginalMenuAttributes",
     "RestoredOwnersKeepTheirOriginalSerializedFieldsAndLifecycleFlags",
+    "BindingUtilsLambdasKeepTheShippingGeneratedNames",
 ))
 
 # Low-priority coverage-gap cases: diagnostics routed to a registered core.
