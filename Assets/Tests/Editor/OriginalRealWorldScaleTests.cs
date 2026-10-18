@@ -85,10 +85,13 @@ namespace ProjectLucid.Tests
                     string label = method + " at ratio " + widescreen + (keep ? " keeps" : " multiplies");
                     Assert.That(scale.TotalScreenPixels, Is.EqualTo(pixels), label);
                     AssertSame(dpi, Get<float>(scale, "m_screenDPI"), label + " dpi");
-                    AssertSame(dimensions.x / (pixels.x / dpi), scale.ActiveProportionOfScreen.x, label + " proportion x");
-                    AssertSame(dimensions.y / (pixels.y / dpi), scale.ActiveProportionOfScreen.y, label + " proportion y");
-                    AssertSame(factor * dpi * dimensions.x, target.sizeDelta.x, label + " width");
-                    AssertSame(factor * dpi * dimensions.y, target.sizeDelta.y, label + " height");
+                    // The (float) casts emit conv.r4: Unity's Mono may keep float intermediates in double,
+                    // while the native body (divps/mulps on Vector2 fields) rounds each step to single.
+                    AssertSame((float)(dimensions.x / (float)(pixels.x / dpi)), scale.ActiveProportionOfScreen.x, label + " proportion x");
+                    AssertSame((float)(dimensions.y / (float)(pixels.y / dpi)), scale.ActiveProportionOfScreen.y, label + " proportion y");
+                    float scaled = (float)(factor * dpi);
+                    AssertSame((float)(scaled * dimensions.x), target.sizeDelta.x, label + " width");
+                    AssertSame((float)(scaled * dimensions.y), target.sizeDelta.y, label + " height");
                 }
             });
         }
