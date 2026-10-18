@@ -4479,3 +4479,56 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameButtonClickTests." + nam
     "ActionButtonBrainStateNeedsTheActionAndAnySetCombo",
     "ActionButtonCoroutineFaultsWithoutACharacterManager",
 ))
+
+# Restored world-trigger components: AutoPlayTrigger(Conditional), EventCollisionTrigger,
+# AutoRegisterHashedComponentGroup, DeactivateWhileContainersAreOpen and the small utilities.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalWorldTriggerSystemTests." + name for name in (
+    "EventCollisionTriggerKeepsItsDeclarationsAndCachesTheIslandReference",
+    "EnterAndExitInvokeOnlyForAPassingColliderAndMarkItActive",
+    'StayRaisesEnterOrExitOnlyForAChangeWithMultipleTriggering(True,False,True,"enter:other,stay:other",True)',
+    'StayRaisesEnterOrExitOnlyForAChangeWithMultipleTriggering(True,True,True,"stay:other",True)',
+    'StayRaisesEnterOrExitOnlyForAChangeWithMultipleTriggering(False,False,True,"stay:other",True)',
+    'StayRaisesEnterOrExitOnlyForAChangeWithMultipleTriggering(True,True,False,"exit:other",False)',
+    'StayRaisesEnterOrExitOnlyForAChangeWithMultipleTriggering(True,False,False,"",False)',
+    'StayRaisesEnterOrExitOnlyForAChangeWithMultipleTriggering(False,True,False,"",False)',
+    "DisableExitsEachLiveActiveColliderAndEnableForgetsThem",
+    "ResetHooksInvokeTheResetEventAndReportTheTriggerState",
+    "AwakeRegistersAsResetCapableAndWiresNothingWithoutResetListeners",
+    "LevelSubscriptionWaitsForTheNextActivationAndOnDestroyRemovesItWithResetListeners",
+    "AutoRegisterGroupCachesTheIslandReferenceAndToleratesNoSections",
+    "AutoRegisterGroupJoinsEverySectionContainingItAndLeavesThemOnDisable",
+    "ContainerWatcherHidesItsObjectsOnlyForAListedContainer",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalWorldTriggerUtilityTests." + name for name in (
+    "AutoPlayTriggersKeepTheirDeclarationsAndDefaultToThePlayerTag",
+    "AutoPlayTriggerAcceptsItsTagOrAnyColliderWhenTheTagIsEmpty",
+    "BoolEventProxyForwardsTheValueXorTheInverseFlag(False,False,False)",
+    "BoolEventProxyForwardsTheValueXorTheInverseFlag(False,True,True)",
+    "BoolEventProxyForwardsTheValueXorTheInverseFlag(True,False,True)",
+    "BoolEventProxyForwardsTheValueXorTheInverseFlag(True,True,False)",
+    "BoolEventProxyValidationReportsEachPersistentListenerTargetingItself",
+    "CycleGameObjectListShowsOnlyTheWrappedIndex",
+    "DelayedActivatorDefaultsAndStartsItsRoutineOnEnable",
+    "DelayedActivatorDeactivatesAllThenActivatesPairsWithTheConfiguredWaits",
+    "DelayedActivatorWaitsOnlyForAPositiveStartAndANonZeroGap(-1.0f,float.NaN,4)",
+    "DelayedActivatorWaitsOnlyForAPositiveStartAndANonZeroGap(float.NaN,0.0f,2)",
+    "DelayedActivatorWaitsOnlyForAPositiveStartAndANonZeroGap(0.0f,0.0f,2)",
+    "DeleteChildrenRemovesClonesOrEveryChildWhenForced",
+    "DestroyObjectDestroysAtOnceUnlessAPositiveDelayStartsTheRoutine",
+    "DestroyObjectRoutineWaitsThenDestroysTheGameObject",
+    "EnumValuePairReturnsItsOwnKeyAndValue",
+))
+
+# Restored EntityActivationEvent, EntityActivator and the level and mission visibility entities.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalEntityActivationEntityTests." + name for name in (
+    "EntityActivationEventOverridesInvokeOnlyTheirOwnEvent",
+    "EntityActivatorRegistersWithItsHierarchyStateAndForwardsEvents",
+    "LevelVisibilityEntityCachesBothRowReferences",
+    "AwakeSubscribesToLevelActivationWhichRegistersTheEntity",
+    "EntityManagerValidReregistersAtTheAwakeStateWithOnlyTheDefinedCallbacks",
+    "EntityEnableAndDisableSkipADestroyedEntityAndANullEvent",
+    "OnDisableForwardsOnlyAnExternalDeactivationOfARegisteredEntity",
+    "OnDestroyAndADestroyedLevelActivationUnsubscribe",
+    "MissionVisibilityEntityKeepsDistinctMissionListsAndItsOwnAwakeState",
+    "MissionVisibilityLevelActivationRestoresOnlyAChangedVisibility",
+))

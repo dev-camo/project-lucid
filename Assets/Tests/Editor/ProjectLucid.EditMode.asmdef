@@ -10,6 +10,7 @@
     "ProjectLucid.UISelection.EngineVerification",
     "ProjectLucid.UnityCore.EngineVerification",
     "ProjectLucid.CrossPromoUI.EngineVerification",
+    "ProjectLucid.WorldTriggers.EngineVerification",
     "Game.Runtime",
     "HLCrashReport.Runtime",
     "HLUnityCore.Runtime",

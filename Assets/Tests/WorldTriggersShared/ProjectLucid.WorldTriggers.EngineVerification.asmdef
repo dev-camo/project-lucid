@@ -1,0 +1,10 @@
+{
+  "name": "ProjectLucid.WorldTriggers.EngineVerification",
+  "references": [
+    "Game.Runtime"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}
