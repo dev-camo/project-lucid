@@ -4875,3 +4875,59 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProcMeshPlacementUpdaterTest
     "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
     "ConstructorFaultsWithoutATimeManagerBeforeRegisteringItsShutdown",
 ))
+
+# Restored trigger conditions, conditional trigger events and the small trigger components.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTriggerConditionTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "ParameterlessEvaluateNeedsAValidCurrentCharacterAndXorsTheInversion",
+    "CharacterEvaluateXorsTheInversionForTheGivenCharacterOnly",
+    "PersistentBooleanConditionInvertsOnlyOnTheParameterlessPath",
+    "CharacterIdMatchesAnyListedId",
+    "CharacterArchetypeMatchesAnyListedArchetype",
+    "ControlsEnabledFollowsTheCharactersControlsModifier",
+    "ActionStateReportsTheConfiguredActionsAppliedState",
+    "VelocityMagnitudeComparesTheMagnitudeWithTheThresholdInOrder",
+    "AbilityInUseAsksAboutTheSingleAbilityOrAnyOfTheGroup",
+    "ScriptableObjectConditionAppliesTheAssetsInversionBeforeItsOwn",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCachedTriggerConditionTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "EnablingSubscribesToTheCurrentCharactersPreFsmUpdate",
+    "ALaterCharacterManagerStartupRegistersWithItsOwnCharacter",
+    "AssetEvaluationNeedsAValidCurrentCharacterAndXorsTheInversion",
+    "CachedAbilityInUseAnswersOnceUntilTheCacheIsReset",
+    "CachedAbilityGroupRecomputesFromScratchAfterAReset",
+    "CachedFsmBoolCachesTheStoredValueButNotTheComparison",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalValueTriggerConditionTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "CharacterFsmIntComparesTheStoredValueOrMinusOneWithTheThreshold",
+    "CharacterFsmFloatComparesTheStoredValueOrZeroWithTheThreshold",
+    "CharacterFsmBoolComparesTheStoredBooleanOrFalseAsZeroAndOne",
+    "IntegerValueStartsFromItsStartValueAndAccumulates",
+    "FloatValueStartsFromItsStartValueAndAccumulates",
+    "BooleanValueIsReplacedByIncrementValue",
+    "TimeValueKeepsItsCategoryAndStopsWithoutATimeManager",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalConditionalTriggerEventTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "ConditionsAreMetByAllByAnyAndByAnUnknownCheckType",
+    "CountsReportTheLengthAndEveryPassingCondition",
+    "EvaluateRaisesTheEventsOfTheMetStateInTheOriginalOrder",
+    "DestroyRaisesTheNoLongerMetEventOnlyWhenRequestedAndMet",
+    "OnlyAPersistentListenerMakesTheTriggerValid",
+    "EnablingFollowsThePersistentObjectsAndLevelActivationUntilDisabled",
+    "ValidationReportsEveryConditionThatIsNotAPersistentBoolean",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTriggerEventComponentTests." + name for name in (
+    "UnityEventTriggerDeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "EachLifecycleHookRaisesItsOwnEventAtOnce",
+    "DelayedEventsAreDroppedWithoutTheCoroutineSystem",
+    "TheDelayCoroutineWaitsForTheDelayBeforeRaisingTheEvent",
+    "VisibilityEventGroupDeclarationsKeepTheOriginalFlagsFieldsAndMethods",
+    "TheGroupRaisesWhenTheFirstBecomesVisibleAndWhenNoneIsLeft",
+    "TheRenderersAreCollectedFromTheActiveChildren",
+    "TriggerCascadeDeclarationsAndTheMissingPoolFault",
+    "TriggerUITransitionDeclarationsAndTheMissingAppFault",
+    "TransitionAbilityKeepsTheAbilityTypeOfItsJsonArguments",
+))
