@@ -170,6 +170,9 @@ namespace ProjectLucid.Tests
             lookupField.SetValue(null, lookup);
             var setting = new TimeSetting();
             setting.SetCategory(category, 1f);
+            // TimeManager.Reset (1.10.1 0x1B168D0) reads m_timeCategoryConfiguration (+0xA8) without a
+            // null test, and the editor sends Reset on AddComponent while it is unassigned.
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Exception, new System.Text.RegularExpressions.Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
             TimeManager manager = Add<TimeManager>();
             var settings = (StackableData)Get(manager, "m_timeSettings");
             settings.SetBaseValue((int)typeof(TimeManager).GetField("SettingId", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue(), setting);
