@@ -24,7 +24,7 @@ namespace HardlightProject
         // 060014eb
         private void Start() => m_characterManagerRef.Get().RegisterOnCharacterChange(OnCharacterChange, true);
 
-        // 060014ec; the manager may already be gone when the scene is torn down.
+        // 060014ec; releases the handler only while the manager reference resolves (IsNull guard).
         private void OnDestroy()
         {
             if (m_characterManagerRef.IsNull())
@@ -33,7 +33,7 @@ namespace HardlightProject
         }
 
         // 060014ed; the native body asks the stamina about this object's Collectable type and
-        // discards the answer, so a missing Collectable component faults here.
+        // discards the answer.
         private void OnCharacterChange(Character character)
         {
             Collectable collectable = GetComponent<Collectable>();

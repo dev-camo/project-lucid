@@ -39,7 +39,8 @@ namespace HardlightProject
         }
 
         // 060028eb; casts out along the character's rotated direction, then back from the far
-        // point against the collider so the hit is the near surface.
+        // point against the collider, so the hit is the collider face on the far side from the
+        // character (the first face the reverse ray meets).
         public void DoTeleport()
         {
             if (!m_colliderActive || !TryGetCharacter(out Character character))

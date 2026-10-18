@@ -9,8 +9,8 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class CharacterRailAttachTrigger : CharacterSplineAttachTrigger
     {
-        // 060028bd; the active flag is read with the same remove-on-read argument the rail
-        // movement uses.
+        // 060028bd; reads RailActive with a false default and storeDefault set, so an absent flag
+        // is stored as false.
         protected override void DoTriggerEnter(Character character)
         {
             if (character.Storage.GetValue(ActorFSMKeys.RailActive, false, true))

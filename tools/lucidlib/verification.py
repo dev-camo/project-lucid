@@ -5279,7 +5279,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterLocalComponentTests." + nam
     "TeleportStopsWithoutACurrentLevelAndAwakeTriggersIt",
     "ResetAndValidateDeriveTheColliderAndTheRayDistance",
     "ThePlayersColliderEntersAndLeavesTheTeleport",
-    "DoTeleportMovesTheCharacterToTheNearSurfaceAlongItsDirection",
+    "DoTeleportMovesTheCharacterToTheFarSurfaceAlongItsDirection",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterDirectionInfluencerTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsMethodsAndAttributes",

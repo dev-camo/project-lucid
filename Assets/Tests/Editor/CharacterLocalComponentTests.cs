@@ -447,9 +447,9 @@ namespace ProjectLucid.Tests
         // DoTeleport 0x5CC310 does nothing unless the active flag is set and a character is current. It casts a ray
         // from the character along its rotated local direction for the ray distance, then casts back from that far
         // point against the collider (Collider.Raycast, maximum distance float.MaxValue, 0x5cc5e2) and moves the
-        // character (virtual SetWorldPosition, slot 35) to the hit, which is the near surface.
+        // character (virtual SetWorldPosition, slot 35) to the hit, the collider face on the far side from the character.
         [Test]
-        public void DoTeleportMovesTheCharacterToTheNearSurfaceAlongItsDirection()
+        public void DoTeleportMovesTheCharacterToTheFarSurfaceAlongItsDirection()
         {
             WithManager((owned, manager, character) =>
             {
