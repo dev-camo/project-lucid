@@ -5251,6 +5251,36 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterTriggerComponentTests." + n
     "AnUndeclaredTriggerTypeRaisesArgumentOutOfRange",
     "SingleSidedPassesAStationaryCharacterOrOneNotMovingAlongUp",
 ))
+# Original stamina triggers, spline attach triggers, nested conditions, type collision trigger and the local
+# character modifiers, homing attack, damageable object and surface teleport (gr2-char-core-04).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterStaminaTriggerTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsMethodsAndAttributes",
+    "ConstructorsKeepTheNativeDefaults",
+    "SplineAttachKeysAreTheRailAndTransporterAutoAttachKeys",
+    "RailAttachIsSkippedWhileARailIsActiveAndOtherwiseAttaches",
+    "TransporterAttachIsBlockedOnlyByTheTransporterAbilityWithoutGrace",
+    "TypeCollisionAcceptsOnlyTheCurrentCharactersColliderOfAWantedType",
+    "NestedConditionsCombineByTheirOwnCheckType",
+    "ChaosTriggerStaminaIsTheCurrentCharactersChaosStamina",
+    "ChaosTriggerDoesNothingWithoutACharacterOrAnAbility",
+    "ChaosTriggerActivatesTheChaosStaminaWithTheBurstDefinitionAndNotifiesTheAbility",
+    "StartRegistersTheCharacterChangeHandlerAndDestroyReleasesIt",
+    "CharacterChangeStoresTheCharactersAbilityOfTheTriggersTypeAsT",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterLocalComponentTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsFieldsMethodsAndAttributes",
+    "ADamageableObjectRaisesItsHitEventOnlyWhenHit",
+    "InitialiseSizesTheBoxFromTheAbilityAndCentresItHalfADepthAhead",
+    "SetColliderDimensionsCentresTheBoxHalfItsDepthAheadOfTheOffset",
+    "TriggerCallbacksForwardToTheAbilityAndAddOrRemoveTheEnabledTargets",
+    "TheUiActionsToggleTheCurrentCharactersUi",
+    "TheVisualProxyActionsToggleTheCurrentCharactersRenderersAndProxy",
+    "ManagerCallbacksStoreTheManagersAndTeleportOnlyWhenAsked",
+    "TeleportStopsWithoutACurrentLevelAndAwakeTriggersIt",
+    "ResetAndValidateDeriveTheColliderAndTheRayDistance",
+    "ThePlayersColliderEntersAndLeavesTheTeleport",
+    "DoTeleportMovesTheCharacterToTheNearSurfaceAlongItsDirection",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterDirectionInfluencerTests." + name for name in (
     "DeclarationsKeepTheOriginalFlagsFieldsMethodsAndAttributes",
     "ConstructorsWriteTheNativeDefaults",
