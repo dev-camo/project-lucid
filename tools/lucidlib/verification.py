@@ -4044,3 +4044,23 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoCoreTests." + name
     "DeclarationsKeepOriginalFlagsFieldOrderAndDefaults",
     "MethodsAndInterfacesKeepOriginalFlagsOrderAndAttributes",
 ))
+
+# HLBinders.Runtime logic, math, list and time nodes against the x86-64 retail bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalLogicMathNodeTests." + name for name in (
+    "EachNodeListsItsOriginalInputsAndConstructsDistinctReferences",
+    "EqualityUsesTheFirstValuesEqualsAndANullFirstMatchesOnlyNull",
+    "EnumIntEqualityComparesTheEnumAsItsIntegerValue",
+    "IsNullAndIsStringNullOrEmptyTestTheValueRead",
+    "AndOrAndNotFollowTheirTruthTablesAndShortCircuitOnFirst",
+    "AllOfSkipsUnsetInputsAndStopsReadingOnceFalse",
+    "AnyOfReadsOnlyTheFirstSixInputsAndStopsAtTheFirstTrue",
+    "ComparisonsNeedAComparableFirstValueAndTestTheCompareToSign",
+    "InSetMatchesTheItemThroughEqualsAndStopsAtTheFirstMatch",
+    "IntegerAndLongArithmeticWrapsAndKeepsOperandOrder",
+    "FloatArithmeticKeepsOperandOrder",
+    "DivideUsesFloatDivisionAndOnlyTheLongFormGuardsZero",
+    "AbsFloorMaxAndMinFollowTheirUnityAndSystemForms",
+    "ListLengthCountsTheListAndKeepsThePreviousLengthWithoutOne",
+    "ProgressWithAStartTimeClampsOnlyAtTheEnd",
+    "ProgressWithoutAStartTimeReportsOnlyFinishedOrNot",
+))
