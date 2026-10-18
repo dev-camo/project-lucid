@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using Hardlight;
 using Hardlight.Utils;
 using HardlightProject;
@@ -409,11 +408,13 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // A genuine App built by its own initialisers on an inactive host (its Storage is the real
+        // FSMStorage and Awake does not run). The field initialisers take the SaveManager and
+        // UIScreenTransitionManager references, so those rows must already be owned by the caller.
         private static App NewApp(Owned owned)
         {
-            var app = (App)FormatterServices.GetUninitializedObject(typeof(App));
-            Set(app, "<Storage>k__BackingField", new FSMStorage(0));
-            return owned.Register(app);
+            owned.LeaseRow<SaveManager>();
+            return owned.Register(owned.Host("Lucid app", false).AddComponent<App>());
         }
 
         private static List<StackableDataHandle> Handles(App app) =>
@@ -444,9 +445,9 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 owned.LeaseRow<UIManager>();
-                App app = NewApp(owned);
                 // The queued transition's coroutine is refused on the inactive host, once per enable.
                 owned.Register(owned.Host("Lucid transition manager", false).AddComponent<UIScreenTransitionManager>());
+                App app = NewApp(owned);
                 var transition = owned.Host("Lucid trigger UI transition", false).AddComponent<TriggerUITransition>();
                 Assert.That(Handles(app), Is.Null);
 
