@@ -47,9 +47,8 @@ namespace Hardlight
 			throw new NotImplementedException();
 	}
 
-	// Original HLSplines.Runtime 0200004b (reference declaration). The seed and
-	// ratio initializers are the stores of the constructor inlined into the
-	// placement Reset bodies (x86-64 0x1A5D9D6).
+	// Original HLSplines.Runtime 0200004b (reference declaration). Constructor
+	// 0x1A63A20 stores seed 0 and ratio 1.
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Serializable]
@@ -59,7 +58,7 @@ namespace Hardlight
 		private PrefabPoolType m_meshPoolType;
 
 		[SerializeField]
-		private int m_seed = -1;
+		private int m_seed = 0;
 
 		[SerializeField]
 		private float m_ratio = 1f;
@@ -113,9 +112,8 @@ namespace Hardlight
 		public override void PrimeForUse() => throw new NotImplementedException();
 	}
 
-	// Original HLSplines.Runtime 0200004e (reference declaration). The bias
-	// initializers are the stores of the constructor inlined into
-	// ProceduralMesh_PlacementOnRibbonRandom.Reset (x86-64 0x1A5E056).
+	// Original HLSplines.Runtime 0200004e (reference declaration). Constructor
+	// 0x1A5E0E0 stores the bias defaults.
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Serializable]
@@ -152,7 +150,7 @@ namespace Hardlight
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public class ProceduralMesh_StorageForSubSurface
 	{
-		public delegate List<LightweightTransform> GetRandomLocations<TMeshType>(Random random, int numMeshesToCreate, int startSubSurface, int endSubSurface, TMeshType meshType);
+		public delegate List<LightweightTransform> GetRandomLocations<in TMeshType>(Random random, int numMeshesToCreate, int startSubSurface, int endSubSurface, TMeshType meshType);
 
 		public delegate List<LightweightTransform> GetGridLocations(int startSubSurface, int endSubSurface);
 
@@ -230,7 +228,7 @@ namespace Hardlight
 		private readonly MeshSurface m_meshSurface;
 
 		public ProceduralMesh_StorageForMesh(MeshCollider meshCollider, float numMeshesMultiplier, bool useRuntimeCallback)
-			: base(0, 0, false, numMeshesMultiplier, useRuntimeCallback) =>
+			: base(0, ProceduralMesh_Constants.WholeSurface, false, numMeshesMultiplier, useRuntimeCallback) =>
 			throw new NotImplementedException();
 
 		public void GenerateLocations(ProceduralMesh_Placement owner) => throw new NotImplementedException();

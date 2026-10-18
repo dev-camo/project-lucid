@@ -46,11 +46,12 @@ namespace Hardlight
 			return errors;
 		}
 
-		// 060000ee (1.10.1 RVA 0x1A60330)
+		// 060000ee (1.10.1 RVA 0x1A60330). The added type's seed of -1 is set here (0x1A60386);
+		// its constructor leaves it at 0.
 		protected override void Reset()
 		{
 			base.Reset();
-			m_meshTypes.Add(new ProceduralMesh_TypeGrid());
+			m_meshTypes.Add(new ProceduralMesh_TypeGrid { Seed = -1 });
 		}
 
 		// 060000ef (1.10.1 RVA 0x1A60400). Unless the stride scales with the spline,

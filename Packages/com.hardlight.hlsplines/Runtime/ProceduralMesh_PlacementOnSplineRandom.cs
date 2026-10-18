@@ -48,11 +48,12 @@ namespace Hardlight
 			return errors;
 		}
 
-		// 060000f9 (1.10.1 RVA 0x1A60840)
+		// 060000f9 (1.10.1 RVA 0x1A60840). The added type's seed of -1 is set here (0x1A60896);
+		// its constructor leaves it at 0.
 		protected override void Reset()
 		{
 			base.Reset();
-			m_meshTypes.Add(new ProceduralMesh_TypeRandom());
+			m_meshTypes.Add(new ProceduralMesh_TypeRandom { Seed = -1 });
 		}
 
 		// 060000fa (1.10.1 RVA 0x1A60940). A spline has no width, so its "area" is

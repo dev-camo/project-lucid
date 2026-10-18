@@ -16,25 +16,25 @@ namespace Hardlight
 		public class PerformanceSetup : IComparable
 		{
 			[SerializeField]
-			private PerformanceProfile.QualityLevel m_qualityLevel = PerformanceProfile.QualityLevel.Medium;
+			private PerformanceProfile.QualityLevel m_qualityLevel;
 
 			[SerializeField]
-			private float m_spawnDistance = 40f;
+			private float m_spawnDistance;
 
 			[SerializeField]
-			private float m_despawnExtraDistance = 1f;
+			private float m_despawnExtraDistance;
 
 			[SerializeField]
-			private float m_fadeDistance = 5f;
+			private float m_fadeDistance;
 
 			[SerializeField]
-			private bool m_populatePerKnot = true;
+			private bool m_populatePerKnot;
 
 			[SerializeField]
-			private float m_numMeshesMultiplier = 1f;
+			private float m_numMeshesMultiplier;
 
 			[SerializeField]
-			private bool m_useRuntimeCallback = false;
+			private bool m_useRuntimeCallback;
 
 			// 0600010a..06000110 (1.10.1 RVA 0x1A61340..0x1A613A0)
 			public PerformanceProfile.QualityLevel QualityLevel => m_qualityLevel;
@@ -50,6 +50,19 @@ namespace Hardlight
 			public bool PopulatePerKnot => m_populatePerKnot;
 
 			public bool UseRuntimeCallback => m_useRuntimeCallback;
+
+			// 06000111 (1.10.1 RVA 0x1A60E70). Declared explicitly: the defaults are
+			// stored after the base constructor call, in this order.
+			public PerformanceSetup()
+			{
+				m_qualityLevel = PerformanceProfile.QualityLevel.Medium;
+				m_spawnDistance = 40f;
+				m_despawnExtraDistance = 1f;
+				m_fadeDistance = 5f;
+				m_numMeshesMultiplier = 1f;
+				m_populatePerKnot = true;
+				m_useRuntimeCallback = false;
+			}
 
 			// 06000112 (1.10.1 RVA 0x1A613B0). Orders by quality level alone.
 			public int CompareTo(object compare)

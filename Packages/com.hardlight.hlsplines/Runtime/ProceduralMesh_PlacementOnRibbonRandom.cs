@@ -48,11 +48,12 @@ namespace Hardlight
 			return errors;
 		}
 
-		// 060000da (1.10.1 RVA 0x1A5E000)
+		// 060000da (1.10.1 RVA 0x1A5E000). The added type's seed of -1 is set here (0x1A5E06B);
+		// its constructor leaves it at 0.
 		protected override void Reset()
 		{
 			base.Reset();
-			m_meshTypes.Add(new ProceduralMesh_TypeRibbonRandom());
+			m_meshTypes.Add(new ProceduralMesh_TypeRibbonRandom { Seed = -1 });
 		}
 
 		// 060000db (1.10.1 RVA 0x1A5E120). Trapezoid rule over each sub-surface knot

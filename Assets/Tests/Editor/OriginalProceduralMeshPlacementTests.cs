@@ -292,10 +292,14 @@ namespace ProjectLucid.Tests
 
         // Reset bodies: the surface base adds a same-object Spline (0x1A5EE40)
         // or MeshCollider (0x1A5ADD0) only when present; each leaf then appends
-        // one new mesh type whose inlined constructor stores seed -1 and ratio
-        // 1 (0x1A5D9D6, 0x1A60386, 0x1A60896) and, for ribbon-random types, bias
-        // {-1, 1} with WidthRatio/Even (0x1A5E056). Fails if a missing component
-        // is added, a component is skipped, or a type or default differs.
+        // one new mesh type and sets its seed to -1: the Reset sites store
+        // 0x3f800000ffffffff over seed and ratio (0x1A5D9D6, 0x1A60386,
+        // 0x1A60896, 0x1A5E06B), where the constructors alone store
+        // 0x3f80000000000000, seed 0 (TypeGrid 0x1A5DA50, TypeRandom 0x1A60910,
+        // TypeRibbonRandom 0x1A5E0E0). Ribbon-random types keep their
+        // constructor bias {-1, 1} with WidthRatio/Even (0x1A5E106). Fails if a
+        // missing component is added, a component is skipped, the seed is left
+        // at the constructor's value, or a type or default differs.
         [Test]
         public void ResetAddsPresentSurfacesAndOneDefaultMeshType()
         {
@@ -491,6 +495,9 @@ namespace ProjectLucid.Tests
         [Test]
         public void HasValidSetupRecomputesValidityFromTheErrorList()
         {
+            // OutputErrors logs through HLOutput, which is silent only while no
+            // HLUnityCore system is registered; the lease holds that row idle.
+            using var logRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<HLUnityCore>());
             var host = new GameObject(HostName);
             try
             {
@@ -544,12 +551,13 @@ namespace ProjectLucid.Tests
 
         // CheckForSpawnAndDespawn 0x060000b7/0x060000c1/0x060000e4: null
         // storage clears ValidSetup and logs (HLOutput, silent without an
-        // HLUnityCore system); empty storage zeroes the count and keeps the
+        // HLUnityCore system, held idle by the lease); empty storage zeroes the count and keeps the
         // setup valid. CalculateTotalWorldSpaceBounds 0x060000b8/0x060000c2/
         // 0x060000e6 return the zeroed bounds (0x1A5CF7F) for no storage.
         [Test]
         public void MissingStorageInvalidatesSpawnChecksAndEmptyStorageHasZeroBounds()
         {
+            using var logRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<HLUnityCore>());
             var host = new GameObject(HostName);
             try
             {
@@ -972,8 +980,10 @@ namespace ProjectLucid.Tests
         private static void AssertDefaultMeshType(ProceduralMesh_Type meshType, Type exactType)
         {
             Assert.That(meshType.GetType(), Is.EqualTo(exactType));
-            Assert.That(meshType.Seed, Is.EqualTo(-1));
+            Assert.That(meshType.Seed, Is.EqualTo(-1), "Reset sets the seed.");
             Assert.That(meshType.Ratio, Is.EqualTo(1f));
+            var constructed = (ProceduralMesh_Type)Activator.CreateInstance(exactType);
+            Assert.That(constructed.Seed, Is.Zero, "The constructor alone leaves seed 0.");
         }
 
         private static void AssertCapacityOne(object owner, params string[] fields)

@@ -66,11 +66,12 @@ namespace Hardlight
 			return errors;
 		}
 
-		// 060000cf (1.10.1 RVA 0x1A5D980)
+		// 060000cf (1.10.1 RVA 0x1A5D980). The added type's seed of -1 is set here (0x1A5D9D6);
+		// its constructor leaves it at 0.
 		protected override void Reset()
 		{
 			base.Reset();
-			m_meshTypes.Add(new ProceduralMesh_TypeGrid());
+			m_meshTypes.Add(new ProceduralMesh_TypeGrid { Seed = -1 });
 		}
 
 		// 060000d0 (1.10.1 RVA 0x1A5DA80). Unless strides scale with the ribbon, the
