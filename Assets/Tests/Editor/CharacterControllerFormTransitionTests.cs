@@ -106,6 +106,10 @@ namespace ProjectLucid.Tests
         {
             WithCharacter((owned, character) =>
             {
+                // The fault message names the type through GetString, which caches the unnamed value 99 in the
+                // shared ComparisonType string table; the case owns the entries it adds.
+                owned.Lease(new VerificationFixtureOwnership.StaticDictionaryLease(typeof(HardlightProject.HardlightEnumExtensions),
+                    "ComparisonTypeEnumToString"));
                 SetInput(character, new Vector2(0.5f, 0.5f), Vector2.zero);
                 IFSMTransition transition = Build(nameof(CharacterTransition_ControllerAxisCheck),
                     AxisJson(ComparisonType.GreaterThan, 10f, false, (ComparisonType)99, 0f, false, false));
