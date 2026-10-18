@@ -147,9 +147,9 @@ namespace HardlightProject
             AbsoluteWorldSerialised = 8, IncomingBodyForward = 9, AwayFromCentre = 10
         }
         // Original02000770/060029d4: three fields, ordinary Object constructor then assignment.
-        // Its own options follow metadata order 2 then 1, unlike the outer owner's 1 then 2.
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)2, false)]
-        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute((Unity.IL2CPP.CompilerServices.Option)1, false)]
+        // Its own options follow metadata order ArrayBoundsChecks then NullChecks, the reverse of the outer owner.
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.ArrayBoundsChecks, false)]
+        [Unity.IL2CPP.CompilerServices.Il2CppSetOptionAttribute(Unity.IL2CPP.CompilerServices.Option.NullChecks, false)]
         private class LockRoutineInfo
         {
             public readonly IGameplayModifiable Modifiable;
