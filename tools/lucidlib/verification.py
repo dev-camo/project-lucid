@@ -2003,6 +2003,51 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHoverFanTests." + name for n
     "ASecondEntryReplacesTheHandleWithoutRemovingTheFirst",
 ))
 
+# Original out-of-bounds, platform, projection, platform-binding, follower and real-world-scale bodies.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalOutOfBoundsTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsMembersAndAttributes",
+    "ConstructorsAndStartStoreTheNativeDefaults",
+    "PlaneTruthTableUsesTheChosenAxisInclusivelyAndRejectsNaN",
+    "BoxAcceptsOnlyPositionsTheBoundsContain",
+    "TriggerEnterReachesTheCharacterOnlyThroughItsCollisionCollider",
+    "ManualEnterHitsOnlyEnemiesOnTheEnemyLayer",
+    "TriggerColliderGetComponentForwardsToTheGameObject",
+    "PositionCheckMarksTheCharacterOutOfBoundsUnlessARespawnIsUnderWay",
+    "EnableDefersInitUntilTheCharacterManagerIsValid",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPlatformTests." + name for name in (
+    "DeclarationsKeepTheOriginalFlagsMembersAndAttributes",
+    "ConstructorsStoreTheNativeDefaults",
+    "ComponentAccessorsStoreTheirOwnFields",
+    "CopyConstructorInstantiatesEachObjectUnderTheSameParent",
+    "PieceSettersSkipDestroyedObjectsAndSetHeightKeepsXAndZ",
+    "VariantStacksMidInstancesAndHidesThoseAboveTheHeight",
+    "RemoveUnusedMidPieceInstancesDropsTheEntriesFromHeightMinusOne",
+    "VariantInstanceStoresItsArgumentsAndIsNamedAfterItsAssetType",
+    "DefinitionReturnsTheFirstMatchingPrefabAndTheGroupKeysByAssetType",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalProjectionPlacementTests." + name for name in (
+    "DeclarationsKeepTheOriginalFieldsMethodsAndAttributes",
+    "ConstructorInitialiseAndResetFollowTheNativeStores",
+    "UpdateFollowsTheBallisticOffsetFromTheChosenEnd",
+    "ARaycastHitSnapsThePointUntilTheTimerRunsOut",
+    "ProjectionWithoutGravityAddsOnlyTheStart",
+    "ProjectionTracesFromTheEndAndAddsTheFinalPositionWithoutAHit",
+    "ProjectionRaycastsTheSummedStepsWhenTheTurnExceedsTheLimitOrAtTheEnd",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPlatformBindingsTests." + name for name in (
+    "DeclarationsKeepTheOriginalFieldsAndAttributes",
+    "AwakeSetsOnlyTheMacOSFlag",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalRealWorldScaleTests." + name for name in (
+    "DeclarationsAndConstructorDefaults",
+    "ScalesTheTransformToTheDimensionsAtTheScreenDpi",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalPrototypeTransformFollowPlayerTests." + name for name in (
+    "DeclarationsAndConstructorDefaults",
+    "UpdateTurnsTowardsTheCharacterAndMovesAlongTheNewForward",
+))
+
 # Read-only supplied menu imports; initialization and provider payloads remain separate.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalMenuPreparedAssetImportTests.ActualSuppliedMenuAssetsRetainOriginalScriptsFieldsGraphAndRuntimeOrder',
