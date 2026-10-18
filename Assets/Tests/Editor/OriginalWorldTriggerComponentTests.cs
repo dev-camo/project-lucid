@@ -193,6 +193,7 @@ namespace ProjectLucid.Tests
 
             Owned.Run(owned =>
             {
+                // Synthetic distinct keys: the generated enum has only Boss4PunchFloor.
                 var a = (MaterialManipulationTriggerType)1;
                 var b = (MaterialManipulationTriggerType)2;
                 var manipulator = owned.Host("Lucid material manipulator", false).AddComponent<SceneMaterialManipulator>();

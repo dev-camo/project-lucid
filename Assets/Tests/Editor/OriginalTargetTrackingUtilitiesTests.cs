@@ -120,8 +120,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The best target has the smallest squared offset from the line plus squared depth
-        // (0x6b7ea3..0x6b7f00); a later equal score replaces it (ja skips only a larger one,
+        // The best target has the smallest squared offset from the line plus the squared
+        // distance from the cone origin to the projected point (alongForward.sqrMagnitude,
+        // 0x6b7ea3..0x6b7f00); a later equal score replaces it (ja skips only a larger one,
         // 0x6b7f08). A delegate returning false skips the target before AddUnique (0x6b7e9e),
         // null entries are skipped (op_Equality 0x6b7d9f) and repeats are listed once.
         [Test]

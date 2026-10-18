@@ -11,11 +11,10 @@ namespace HardlightProject
 		[SerializeField]
 		private MeshRenderer[] m_meshRenderers;
 
-		// 06003c6b (1.10.1 RVA 0x6CB620)
+		// 06003c6b (1.10.1 RVA 0x6CB620): HideObjects inlined.
 		private void Awake()
 		{
-			foreach (MeshRenderer meshRenderer in m_meshRenderers)
-				meshRenderer.gameObject.SetActive(false);
+			HideObjects();
 		}
 
 		// 06003c6c (1.10.1 RVA 0x6CB670): the renderers' whole objects are deactivated.

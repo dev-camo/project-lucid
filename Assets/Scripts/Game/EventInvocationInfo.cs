@@ -12,7 +12,7 @@ public class EventInvocationInfo
 	public static Type[] SupportedTypes = { typeof(string), typeof(float), typeof(int), typeof(bool) };
 	public string Key;
 
-	// 06000001 (1.10.1 RVA 0x505580): stores run Key, MethodInfo, TargetBehaviour.
+	// 06000001 (1.10.1 RVA 0x505580): the stores run Key, MethodInfo, then TargetBehaviour.
 	public EventInvocationInfo(string key, Behaviour targetBehaviour, MethodInfo methodInfo)
 	{
 		Key = key;

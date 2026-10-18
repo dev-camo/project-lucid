@@ -26,10 +26,12 @@ namespace HardlightProject
 			GameObjectCounter = GetGameObjectCount(scene);
 		}
 
-		// 060009bd (1.10.1 RVA 0x6F2900): the snapshot covers inactive data too.
+		// 060009bd (1.10.1 RVA 0x6F2900): the snapshot covers inactive data too. Snapshots is
+		// read only after the snapshot is taken (0x6f2950).
 		public void CaptureGameSnapshot()
 		{
-			Snapshots.Add(m_profilerManager.Get().GetProfilerSnapshot(false));
+			StringBuilder snapshot = m_profilerManager.Get().GetProfilerSnapshot(false);
+			Snapshots.Add(snapshot);
 		}
 
 		// 060009be (1.10.1 RVA 0x6F29C0): the retail loop body is empty, so no snapshot is

@@ -35,8 +35,9 @@ namespace HardlightProject
 		// 06003a6d (1.10.1 RVA 0x6B7C40): a target is projected onto the forward line through
 		// the cone origin. Its depth along forward must lie in [0, Distance], and the cone
 		// test is centred on the projected point with that depth as its length. The best
-		// target has the smallest squared offset from the line plus squared depth; a tie
-		// goes to the later target.
+		// target has the smallest squared offset from the line plus the squared distance from
+		// the cone origin to the projected point (alongForward.sqrMagnitude, which equals the
+		// squared depth only for a unit forward); a tie goes to the later target.
 		private static bool ProjectStepToTargetedObject(ConeVolume.ConeDescription cone, List<HomingTarget> targets, Vector3 forward, Quaternion worldToLocal, ref List<HomingTarget> validTargets, out HomingTarget bestTarget, TargetValidDelegate targetValidDelegate = null)
 		{
 			bestTarget = null;

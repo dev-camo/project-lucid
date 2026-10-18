@@ -28,9 +28,9 @@ namespace HardlightProject
 				MeshFilter meshFilter = meshFilters[i];
 				combine[i].mesh = meshFilter.sharedMesh;
 				combine[i].transform = meshFilter.transform.localToWorldMatrix;
-				Collider meshCollider = meshFilter.GetComponent<Collider>();
-				if (meshCollider != null)
-					Destroy(meshCollider);
+				Collider childCollider = meshFilter.GetComponent<Collider>();
+				if (childCollider != null)
+					Destroy(childCollider);
 			}
 
 			MeshFilter combinedFilter = gameObject.AddComponent<MeshFilter>();

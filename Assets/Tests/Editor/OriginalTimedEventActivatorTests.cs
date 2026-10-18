@@ -145,7 +145,8 @@ namespace ProjectLucid.Tests
         // InternalUpdate 0x5F73B0 returns while m_canUpdate is false or the advanced clock is
         // below zero. It then fires every elapsed event in turn; past the last one it wraps to
         // index 0 when looping and otherwise disables the component, leaving the index past the
-        // end and m_canUpdate set.
+        // end and m_canUpdate set (Edit Mode sends no OnDisable; at runtime set_enabled(false)
+        // runs OnDisable 0x5F7380, which clears m_canUpdate).
         [Test]
         public void UpdateFiresElapsedEventsAndWrapsOrDisablesAtTheEnd()
         {
