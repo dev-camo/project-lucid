@@ -536,6 +536,9 @@ namespace ProjectLucid.Tests
             using (var owned = new Owned())
             {
                 GameObject root = owned.Inactive("AnimationSampler validation fixture");
+                // AddComponent sends OnValidate, whose AddComponent<Animation> runs inside the engine's
+                // OnValidate and so draws its SendMessage warning (OnDidAddComponent).
+                LogAssert.Expect(LogType.Warning, new System.Text.RegularExpressions.Regex("^SendMessage cannot be called during Awake, CheckConsistency, or OnValidate \\(AnimationSampler validation fixture: OnDidAddComponent\\)$"));
                 var sampler = root.AddComponent<AnimationSampler>();
                 foreach (Animation existing in root.GetComponents<Animation>()) Object.DestroyImmediate(existing);
                 Set(sampler, "m_animation", null);
