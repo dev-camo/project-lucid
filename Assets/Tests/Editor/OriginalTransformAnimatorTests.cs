@@ -282,6 +282,9 @@ namespace ProjectLucid.Tests
 
                 Set(panner, "m_amountToPan", new Vector2(5f, 2.5f));
                 Set(panner, "m_speedToPan", new Vector2(float.NaN, 1f));
+                // The NaN speed makes m_trackedX NaN, and the native body still assigns localPosition (set_localPosition
+                // 0x60508c, no finite check), so the engine rejects it with this error.
+                UnityEngine.TestTools.LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("transform\\.localPosition assign attempt for 'lucid-animator-panner-epsilon-panner' is not valid"));
                 Call(panner, "InternalUpdate", 1f);
                 Assert.That(Get(panner, "m_desiredX"), Is.EqualTo(-5f), "NaN speed takes the negated amount");
                 Assert.That(float.IsNaN((float)Get(panner, "m_trackedX")), Is.True);
