@@ -22,7 +22,8 @@ namespace Hardlight.UI.Binding.Nodes
         // (mov edi, eax at 0x1a06361), so negative sizes format as large ones.
         public override void Refresh()
         {
-            Output.Value = HLDebug.FormatMemorySize((uint)Input.GetValue<int>());
+            uint size = (uint)Input.GetValue<int>();
+            Output.Value = HLDebug.FormatMemorySize(size);
         }
 
         protected override void SetUpBindReferenceFields()

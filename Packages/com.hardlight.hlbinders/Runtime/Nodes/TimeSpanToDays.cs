@@ -19,7 +19,7 @@ namespace Hardlight.UI.Binding.Nodes
         [NodeOutput]
         public readonly Bindable<int> Output = new Bindable<int>();
 
-        // Adds 0.5 and truncates toward zero, so negative spans round toward zero.
+        // Adds 0.5 then truncates (cvttsd2si), so negative values move up: -1 becomes 0.
         public override void Refresh()
         {
             Output.Value = (int)(Input.GetValue<TimeSpan>().TotalDays + 0.5);

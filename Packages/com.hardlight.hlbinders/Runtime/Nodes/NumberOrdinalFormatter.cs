@@ -21,7 +21,8 @@ namespace Hardlight.UI.Binding.Nodes
         // The retail body appends no ordinal suffix: it publishes Int32.ToString only.
         public override void Refresh()
         {
-            Output.Value = Number.GetValue<int>().ToString();
+            string text = Number.GetValue<int>().ToString();
+            Output.Value = text;
         }
 
         protected override void SetUpBindReferenceFields()

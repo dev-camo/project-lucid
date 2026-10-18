@@ -39,7 +39,6 @@ namespace Hardlight.UI.Binding.Nodes
         [NodeOutput]
         public readonly Bindable<Vector4> Vector4Output = new Bindable<Vector4>();
 
-        // All four inputs are read before any output is published.
         public override void Refresh()
         {
             float x = X.GetValue<float>();

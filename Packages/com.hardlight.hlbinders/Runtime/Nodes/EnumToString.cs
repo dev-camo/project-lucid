@@ -21,7 +21,7 @@ namespace Hardlight.UI.Binding.Nodes
         // read once for the empty check and again for the output.
         public override void Refresh()
         {
-            if (string.IsNullOrEmpty(First?.GetValue<string>()))
+            if (First == null || string.IsNullOrEmpty(First.GetValue<string>()))
                 Output.Value = string.Empty;
             else
                 Output.Value = First.GetValue<string>();

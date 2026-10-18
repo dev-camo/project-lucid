@@ -26,7 +26,8 @@ namespace Hardlight.UI.Binding.Nodes
         // The quotient is taken in single precision before widening to seconds.
         public override void Refresh()
         {
-            Time.Value = TimeSpan.FromSeconds(Distance.GetValue<float>() / UnitsPerSecond.GetValue<float>());
+            float seconds = Distance.GetValue<float>() / UnitsPerSecond.GetValue<float>();
+            Time.Value = TimeSpan.FromSeconds(seconds);
         }
 
         protected override void SetUpBindReferenceFields()

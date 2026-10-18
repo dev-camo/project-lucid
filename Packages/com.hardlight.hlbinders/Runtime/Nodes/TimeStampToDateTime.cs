@@ -21,7 +21,8 @@ namespace Hardlight.UI.Binding.Nodes
         // The time stamp is Unix milliseconds (TimeUtils.FromUnixTime(ulong)).
         public override void Refresh()
         {
-            Output.Value = TimeUtils.FromUnixTime(Ulong.GetValue<ulong>());
+            DateTime dateTime = TimeUtils.FromUnixTime(Ulong.GetValue<ulong>());
+            Output.Value = dateTime;
         }
 
         protected override void SetUpBindReferenceFields()

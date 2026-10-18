@@ -212,12 +212,13 @@ namespace ProjectLucid.Tests
             Run<NumberOrdinalFormatter>((node, carrier) =>
             {
                 node.Number.SetTarget(carrier, "Int");
-                int[] numbers = { 1, 2, 3, 11, 22 };
-                foreach (int number in numbers)
+                int[] numbers = { 1, 2, 3, 11, 22, -1 };
+                string[] expected = { "1", "2", "3", "11", "22", "-1" };
+                for (int i = 0; i < numbers.Length; i++)
                 {
-                    carrier.Int = new Bindable<int>(number);
+                    carrier.Int = new Bindable<int>(numbers[i]);
                     node.Refresh();
-                    Assert.That(node.Output.Value, Is.EqualTo(number.ToString(CultureInfo.InvariantCulture)), "no ordinal suffix for " + number);
+                    Assert.That(node.Output.Value, Is.EqualTo(expected[i]), "no ordinal suffix for " + numbers[i]);
                 }
             });
         }
@@ -481,7 +482,7 @@ namespace ProjectLucid.Tests
 
         // TimeSpanToDays 0x1a09640 / TimeSpanToSeconds 0x1a09940: TotalDays / TotalSeconds plus
         // 0.5 (addsd, constant 0x29a6e58 = 0.5) truncated by cvttsd2si, so midpoints round up
-        // and negative values round toward zero.
+        // and negative values move up: -1 becomes 0 and -2 becomes -1.
         [Test]
         public void TimeSpanToDaysAndSecondsAddAHalfAndTruncate()
         {
@@ -650,7 +651,8 @@ namespace ProjectLucid.Tests
 
         // Each SetUpBindReferenceFields override builds its list in the order the native
         // body adds the fields (for example DateStringFormatter 0x19fbbb0: String, then
-        // dateTime1..3, unlike the Refresh read order).
+        // dateTime1..3, unlike the Refresh read order). Every single-reference override
+        // (0xe0-byte bodies, for example Vector2Splitter 0x1a0abc0) adds its one field.
         [Test]
         public void SetUpBindReferenceFieldsListsTheNativeReferenceOrder()
         {
@@ -670,6 +672,36 @@ namespace ProjectLucid.Tests
                 AssertSameReferences(SetUpBindReferences(node), new[] { node.First, node.Second }));
             Run<NumberPercentFormatter>((node, carrier) =>
                 AssertSameReferences(SetUpBindReferences(node), new[] { node.Number }));
+            Run<NumberDeltaFormatter>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Number }));
+            Run<NumberOrdinalFormatter>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Number }));
+            Run<EnumToString>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.First }));
+            Run<Vector2Splitter>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.First }));
+            Run<TimeStampToDateTime>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Ulong }));
+            Run<EnumToInt>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<IntToSingle>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<IntToString>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<IntToTimeSpan>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<MemoryFormatter>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<NumberCutOffFormatter>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<SingleToInt>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<SingleToString>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<TimeSpanToDays>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
+            Run<TimeSpanToSeconds>((node, carrier) =>
+                AssertSameReferences(SetUpBindReferences(node), new[] { node.Input }));
         }
     }
 }

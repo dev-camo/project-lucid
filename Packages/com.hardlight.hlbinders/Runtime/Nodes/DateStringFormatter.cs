@@ -36,7 +36,10 @@ namespace Hardlight.UI.Binding.Nodes
             arguments.Add(dateTime2.GetValue<DateTime>().ToLocalTime());
             arguments.Add(dateTime3.GetValue<DateTime>().ToLocalTime());
             string format = String.GetValue<string>();
-            Output.Value = string.IsNullOrEmpty(format) ? string.Empty : string.Format(format, arguments.ToArray());
+            if (string.IsNullOrEmpty(format))
+                Output.Value = "";
+            else
+                Output.Value = string.Format(format, arguments.ToArray());
         }
 
         protected override void SetUpBindReferenceFields()

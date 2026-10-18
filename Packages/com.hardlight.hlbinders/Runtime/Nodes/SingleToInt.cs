@@ -18,7 +18,6 @@ namespace Hardlight.UI.Binding.Nodes
         [NodeOutput]
         public readonly Bindable<int> Output = new Bindable<int>();
 
-        // Truncates toward zero (cvttss2si at 0x1a07d66).
         public override void Refresh()
         {
             Output.Value = (int)Input.GetValue<float>();
