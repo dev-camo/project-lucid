@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using System.Text.RegularExpressions;
 using Hardlight;
 using Hardlight.Utils;
@@ -311,10 +310,36 @@ namespace ProjectLucid.Tests
                 () => coroutineHost.SetValue(null, priorHost));
         });
 
+        private const string MissionGuid = "lucid-persistent-mission";
+
         // ChallengeModeActive tests only the context's runtime type (isinst at 0x18cb0d2..0x18cb103),
-        // so a context built without its constructor is enough.
-        private static void SetContext(Missions missions, Type contextType) =>
-            missions.Manager.SetActiveMissionContext((IMissionContext)FormatterServices.GetUninitializedObject(contextType));
+        // but the context is a shipped one, built by its constructor and published through
+        // MissionManager.SetActiveMissionContext, which loads its mission: the level's save record
+        // and the mission state are the real ones. A regular context reads the open save for its best
+        // time; a challenge context formats its description through an owned string table.
+        private static void SetContext(Owned owned, Missions missions, bool challenge)
+        {
+            owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
+            owned.LeaseRow<UIManager>(); // MissionState's field initialiser
+            var mission = owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
+            Set(mission, "m_guid", MissionGuid);
+            Set(mission, "m_subMissions", new List<MissionDefinition>());
+            GameplayLevelDefinition level = missions.CurrentLevel.LevelDefinition;
+            if (!challenge)
+            {
+                owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser
+                missions.Manager.SetActiveMissionContext(new MissionContextRegular(mission, level, false));
+                return;
+            }
+            var definition = owned.Track(ScriptableObject.CreateInstance<ChallengeDefinition>());
+            Set(definition, "m_mission", mission);
+            Set(definition, "m_level", level);
+            Set(definition, "m_characterSelection", new CharacterId[0]);
+            Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]);
+            var state = new ChallengeState(0, definition, 0, null, 0);
+            OwnedStringTable.Run(new Dictionary<Hardlight.Enums.Strings, string> { { (Hardlight.Enums.Strings)0, "Lucid challenge" } },
+                () => missions.Manager.SetActiveMissionContext(new MissionContextChallenge(state, false)));
+        }
 
         // Outside a challenge Action_SetPersistentState 0x18CAF10 writes the record (SetSavedValue,
         // slot 7 at 0x18cafde), announces the state (slot 4 at 0x18caff4) and then tail-calls
@@ -350,7 +375,9 @@ namespace ProjectLucid.Tests
         {
             WithMissions(true, (owned, missions) =>
             {
-                SetContext(missions, typeof(MissionContextChallenge));
+                SetContext(owned, missions, true);
+                Assert.That(missions.Log, Is.Empty, "publishing the context requests no save");
+                string[] loadedLevels = missions.SavedLevels.Keys.ToArray();
                 PersistentLevelObjectBoolean persistent = Persistent(owned, missions.Log);
                 Set(persistent, "m_id", Identifier);
                 Set(persistent, "m_defaultValue", true);
@@ -360,7 +387,7 @@ namespace ProjectLucid.Tests
                 Assert.That(missions.Log, Is.EqualTo(new[] { "event", "false", "event", "false" }));
                 Assert.That(Current(persistent), Is.False);
                 Assert.That(Get<object>(persistent, "m_saveData"), Is.Null);
-                Assert.That(missions.SavedLevels, Is.Empty, "no level save data is created");
+                Assert.That(missions.SavedLevels.Keys, Is.EqualTo(loadedLevels), "Awake creates no level save data");
                 Assert.That(LevelActivated(missions.Level).Select(action => (action.Target, action.Method.Name)),
                     Is.EqualTo(new[] { ((object)persistent, "OnLevelActivated") }));
 
@@ -383,7 +410,8 @@ namespace ProjectLucid.Tests
         {
             WithMissions(true, (owned, missions) =>
             {
-                SetContext(missions, typeof(MissionContextRegular));
+                SetContext(owned, missions, false);
+                Assert.That(missions.Log, Is.Empty, "publishing the context requests no save");
                 Assert.That(missions.Manager.ActiveMissionContext, Is.Not.Null);
                 PersistentLevelObjectBoolean persistent = Persistent(owned, missions.Log);
                 Set(persistent, "m_id", Identifier);
