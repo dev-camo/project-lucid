@@ -4959,3 +4959,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.CheckCutscenePlayingFollowsLoadingThenComparisonTruthTable",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.CheckCutscenePlayingRejectsAnUnknownComparisonName",
 )
+# Issue #324: StopFullscreenShader stops overrides before dropping the handle.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.StopFullscreenShaderStopsOverridesBeforeDroppingTheUsersHandle",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.StopFullscreenShaderRunsOnItsTriggerEventAndClearsPendingStops",
+)

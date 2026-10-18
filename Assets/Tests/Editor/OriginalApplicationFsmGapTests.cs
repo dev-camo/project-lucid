@@ -747,6 +747,58 @@ namespace ProjectLucid.Tests
         private static void SetCutscene(CutsceneManager manager, string field, object value) =>
             typeof(CutsceneManager).GetField(field, Instance).SetValue(manager, value);
 
+        // FSMState_StopFullscreenShader.InvokeTriggerStart 0x06002334, x86-64 0x584b90:
+        // ProcessManager.GetSystem<FullscreenShaderManager> (0x98ea70) then
+        // StopAllEffectOverrides (0x6878c0) run before the user's IGraphStorage
+        // RemoveValue<ParametersHandle>(FSMStorageKeys.ShaderOverride) tail call. With no
+        // material, StopAllEffectOverrides faults in ApplyParameters, so a handle that
+        // survives the fault shows the removal comes second.
+        [Test]
+        public void StopFullscreenShaderStopsOverridesBeforeDroppingTheUsersHandle()
+        {
+            using (var owned = new OwnedServices())
+            {
+                owned.Row<FullscreenShaderManager>();
+                owned.RegisterFullscreenShaderManager(null);
+                FSMUser user = User();
+                user.Storage.SetValue(FSMStorageKeys.ShaderOverride, default(FullscreenShaderManager.ParametersHandle));
+                IFSMState stop = FSMState_StopFullscreenShader.ConstructInstance(Machine(), Name(), "{\"ActiveEventType\":0}");
+                Assert.Throws<NullReferenceException>(() => stop.OnEnter(user, null));
+                Assert.That(user.Storage.HasValue<FullscreenShaderManager.ParametersHandle>(FSMStorageKeys.ShaderOverride), Is.True,
+                    "the handle is removed only after every override has stopped");
+            }
+        }
+
+        // FSMState_Trigger dispatch (0x06002336/37) with the restored InvokeTriggerStart:
+        // EnterStart stops on entry, LeaveStart only on leave. Stopping clears the pending
+        // delayed stops and removes the user's ShaderOverride handle.
+        [Test]
+        public void StopFullscreenShaderRunsOnItsTriggerEventAndClearsPendingStops()
+        {
+            using (var owned = new OwnedServices())
+            {
+                owned.Row<FullscreenShaderManager>();
+                FullscreenShaderManager manager = owned.RegisterFullscreenShaderManager(owned.OwnedMaterial());
+                var delayed = (List<FullscreenShaderManager.ParametersHandle>)typeof(FullscreenShaderManager)
+                    .GetField("m_delayedStops", Instance).GetValue(manager);
+                FiniteStateMachine machine = Machine();
+                foreach (int eventType in new[] { 0, 1 })
+                {
+                    FSMUser user = User();
+                    user.Storage.SetValue(FSMStorageKeys.ShaderOverride, default(FullscreenShaderManager.ParametersHandle));
+                    delayed.Add(default(FullscreenShaderManager.ParametersHandle));
+                    IFSMState stop = FSMState_StopFullscreenShader.ConstructInstance(machine, Name(), "{\"ActiveEventType\":" + eventType + "}");
+                    stop.OnEnter(user, null);
+                    bool stoppedOnEnter = eventType == 0;
+                    Assert.That(delayed.Count, Is.EqualTo(stoppedOnEnter ? 0 : 1), "event type " + eventType + " on enter");
+                    Assert.That(user.Storage.HasValue<FullscreenShaderManager.ParametersHandle>(FSMStorageKeys.ShaderOverride), Is.Not.EqualTo(stoppedOnEnter));
+                    stop.OnLeave(user, null);
+                    Assert.That(delayed, Is.Empty, "event type " + eventType + " after leave");
+                    Assert.That(user.Storage.HasValue<FullscreenShaderManager.ParametersHandle>(FSMStorageKeys.ShaderOverride), Is.False);
+                }
+            }
+        }
+
         private static void SetReady(App app, bool ready) =>
             typeof(App).GetField("<IsReady>k__BackingField", Instance).SetValue(app, ready);
 
@@ -758,6 +810,7 @@ namespace ProjectLucid.Tests
                 new Dictionary<string, VerificationFixtureOwnership.RegistryRow>();
             private readonly List<IDisposable> m_order = new List<IDisposable>();
             private readonly List<GameObject> m_objects = new List<GameObject>();
+            private readonly List<Object> m_assets = new List<Object>();
             private readonly List<AsyncOperationHandle> m_handles = new List<AsyncOperationHandle>();
             private ResourceManager m_resources;
 
@@ -807,6 +860,23 @@ namespace ProjectLucid.Tests
                 return app;
             }
 
+            // An inactive manager whose Awake never runs, so its material is only the one
+            // supplied here (null leaves the original fault in ApplyParameters reachable).
+            public FullscreenShaderManager RegisterFullscreenShaderManager(Material material)
+            {
+                FullscreenShaderManager manager = Component<FullscreenShaderManager>();
+                typeof(FullscreenShaderManager).GetField("m_fullscreenShaderMaterial", Instance).SetValue(manager, material);
+                m_rows[ProcessManager.GetDefaultName<FullscreenShaderManager>()].Register(manager);
+                return manager;
+            }
+
+            public Material OwnedMaterial()
+            {
+                var material = new Material(Shader.Find("Hidden/InternalErrorShader"));
+                m_assets.Add(material);
+                return material;
+            }
+
             public void RegisterUiConfiguration() =>
                 m_rows[ProcessManager.GetDefaultName<UIRuntimeConfiguration>()].Register(Component<UIRuntimeConfiguration>());
 
@@ -853,6 +923,8 @@ namespace ProjectLucid.Tests
                 }
                 foreach (GameObject host in m_objects)
                     if (host != null) Object.DestroyImmediate(host);
+                foreach (Object asset in m_assets)
+                    if (asset != null) Object.DestroyImmediate(asset);
                 foreach (AsyncOperationHandle handle in m_handles)
                     if (handle.IsValid()) m_resources.Release(handle);
                 m_resources?.Dispose();
