@@ -29,8 +29,7 @@ namespace HardlightProject
 
         // 060039ea: the shipping body reads gameObject (0x6b35a5) and discards
         // it. An ordered lower bound at or above the upper bound is moved one
-        // below it; NaN bounds are left alone (ucomiss/jb, read from the
-        // disassembly and untested: the base OnValidate reads SystemConfiguration).
+        // below it; NaN bounds are left alone (ucomiss/jb at 0x6b35b4).
         protected override void OnValidate()
         {
             base.OnValidate();

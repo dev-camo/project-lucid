@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -19,6 +20,15 @@ namespace ProjectLucid.Tests
     // TimeScaledComponent descendants (RateOfChangeBindable, StraightLineProjectile)
     // are never instantiated here: their type initializer appends the permanent
     // 'Hardlight.TimeManager' row, so only their static and compiled forms are read.
+    // Tests named "...Emits..." are emission-only checks of the restored IL, not
+    // behaviour oracles; their comments mark which callees are inlined natively.
+    // Open, without a behaviour test (both need a resolved TimeManager or
+    // SystemConfiguration fixture): the DoTriggerStay fire predicate (NaN fires,
+    // equal does not, Fire then zeroes the timer; ucomiss/jae 0x5810f6) and the
+    // RateOfChangeBindable.OnValidate bound correction (NaN bounds stay,
+    // ucomiss/jb 0x6b35b4, constant -1.0f at 0x29a6df0); also
+    // RateOfChangeBindable Awake/InternalUpdate/SetOutput/SetRateOfChange values,
+    // StraightLineProjectileSpawner.Awake and the AnimateMaterial loop past time 0.
     public sealed class OriginalFxSpawnersAndShadersTests
     {
         private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -58,6 +68,15 @@ namespace ProjectLucid.Tests
 
         private static string[] CallNames(Type type, string method) =>
             OriginalILCallSequence.Names(OriginalILCallSequence.Calls(type.GetMethod(method, Instance | BindingFlags.DeclaredOnly)));
+
+        // The opcode pushed directly before the only call to callee in the method.
+        private static OpCode ArgumentBefore(Type type, string method, string callee)
+        {
+            MethodInfo body = type.GetMethod(method, Instance | BindingFlags.DeclaredOnly);
+            int callOffset = OriginalILCallSequence.Calls(body).Single(call => call.Target.Name == callee).Offset;
+            List<(int Offset, OpCode Code)> instructions = OriginalILCallSequence.Instructions(body);
+            return instructions[instructions.FindIndex(instruction => instruction.Offset == callOffset) - 1].Code;
+        }
 
         // ShaderProperties..cctor 0x060024e9 (x86-64 0x59bab0) stores the
         // literal "_Dream_Noise_ST" (0x59badc) into the static readonly field;
@@ -396,9 +415,7 @@ namespace ProjectLucid.Tests
 
         // SceneMaterialManipulator.Trigger 0x060024de (x86-64 0x59a320) skips
         // every config whose Trigger differs (cmp/jne 0x59a3cc) before touching
-        // its routine, curve or material; the matching path stops the old
-        // routine (SafeStopCoroutine 0x59a3e0), builds the iterator and starts
-        // it (StartCoroutine 0x59a39c), in that IL order.
+        // its routine, curve or material.
         [Test]
         public void MaterialTriggerTouchesOnlyMatchingConfigs()
         {
@@ -412,19 +429,27 @@ namespace ProjectLucid.Tests
                 Set(manipulator, "m_materialColourConfigs", new[] { config });
                 manipulator.Trigger(other);
                 Assert.That(config.ManipulatingRoutine, Is.Null, "a non-matching config with no curve or material is never started");
-
-                Assert.That(CallNames(typeof(SceneMaterialManipulator), "Trigger"), Is.EqualTo(new[]
-                {
-                    "MonoBehaviourExtensions.SafeStopCoroutine",
-                    "SceneMaterialManipulator.AnimateMaterial",
-                    "MonoBehaviour.StartCoroutine",
-                }));
             }
             finally
             {
                 Object.DestroyImmediate(host);
             }
             LogAssert.NoUnexpectedReceived();
+        }
+
+        // Emission check. The matching path of Trigger 0x060024de stops the old
+        // routine (SafeStopCoroutine 0x59a3e0), then jumps back to build the
+        // iterator and start it (StartCoroutine 0x59a39c). AnimateMaterial is
+        // inferred: natively it is inlined as the iterator allocation (0x59a35a).
+        [Test]
+        public void MaterialTriggerEmitsTheInferredCallOrder()
+        {
+            Assert.That(CallNames(typeof(SceneMaterialManipulator), "Trigger"), Is.EqualTo(new[]
+            {
+                "MonoBehaviourExtensions.SafeStopCoroutine",
+                "SceneMaterialManipulator.AnimateMaterial",
+                "MonoBehaviour.StartCoroutine",
+            }));
         }
 
         private sealed class RecordingEntityPool : IEntityPrefabPool
@@ -534,6 +559,32 @@ namespace ProjectLucid.Tests
             () => { if (entityKey != null) Object.DestroyImmediate(entityKey); },
             () => { if (plainKey != null) Object.DestroyImmediate(plainKey); },
             poolManagerRow.Dispose);
+        }
+
+        // PrefabPoolActivation.Awake 0x06003d06 (x86-64 0x6d1fd0) calls
+        // SystemRef<LevelManager>.Get (0x6d201f) and only then builds the
+        // OnLevelActivated delegate (0x6d204b), so with no level manager the Get
+        // fault comes first and nothing is queued on the reference, as
+        // InvokeOnValid would have done.
+        [Test]
+        public void PoolActivationAwakeFailsWithoutALevelManagerAndQueuesNothing()
+        {
+            using var levelRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<LevelManager>());
+            using var poolManagerRow = new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<PrefabPoolManager>());
+            var host = new GameObject(HostName);
+            try
+            {
+                var activation = host.AddComponent<PrefabPoolActivation>();
+                var levelRef = (SystemRef<LevelManager>)Get(activation, "m_levelManagerRef");
+                Assert.That(levelRef.IsNull(), Is.True);
+                var missing = Assert.Throws<NullReferenceException>(() => Invoke(activation, "Awake"));
+                Assert.That(missing.Message, Is.EqualTo("System '" + ProcessManager.GetDefaultName<LevelManager>() + "' is null"));
+                Assert.That(Get(levelRef, "m_actionOnSystemValid"), Is.Null, "no deferred level callback");
+            }
+            finally
+            {
+                Object.DestroyImmediate(host);
+            }
         }
 
         private static StraightLineProjectileSpawner NewSpawner(GameObject host)
@@ -667,28 +718,52 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // ResetGameplayElement 0x060022f3 (x86-64 0x581120) inlines
-        // ProjectileManager.ForceCoolDownOfType: m_activeProjectiles (+0x38) in
-        // reverse, ProjectileType compare, virtual ForceEnterCoolDown(false)
-        // (slot 39, esi 0). Kill is non-virtual, so KillAllOfType would differ.
-        // Active projectiles are TimeScaledComponents, so the call is read from IL.
+        // Emission check. ResetGameplayElement 0x060022f3 (x86-64 0x581120)
+        // inlines ProjectileManager.ForceCoolDownOfType, so the callee is
+        // inferred: m_activeProjectiles (+0x38) in reverse, ProjectileType
+        // compare, virtual ForceEnterCoolDown (slot 39) with esi 0 (0x5811fc).
+        // Kill is non-virtual, so KillAllOfType would differ. The argument
+        // pushed before the call must be false (ldc.i4.0), not true.
         [Test]
-        public void ResetElementCoolsDownEachConfiguredType()
+        public void ResetElementEmitsACoolDownWithoutExceptions()
         {
             Assert.That(CallNames(typeof(ProjectileSpawnerBase), "ResetGameplayElement"),
                 Is.EqualTo(new[] { "ProjectileManager.ForceCoolDownOfType" }));
+            Assert.That(ArgumentBefore(typeof(ProjectileSpawnerBase), "ResetGameplayElement", "ForceCoolDownOfType"),
+                Is.EqualTo(OpCodes.Ldc_I4_0));
         }
 
-        // StraightLineProjectileSpawner.Fire 0x0600230f (x86-64 0x5830d0):
-        // the projectile's transform (0x583282) takes m_transform.position
-        // (0x583293, set 0x58329d); the focus is a fresh position (0x5832ab)
-        // plus forward (0x5832c2) times 100; Setup is inlined (0x58336b on)
-        // and the virtual Fire follows (slot 33, 0x5833f3). The other branch
-        // formats the projectile and GetString of its type (0x58323d, 0x583254)
-        // for HLOutput.LogError with a null context (0x583187). The pool and
-        // projectile are TimeScaledComponents, so the order is read from IL.
+        // Emission check. ProjectileSpawnerBase.Awake 0x060022ef (x86-64
+        // 0x580f00) calls CharacterTrigger.Awake (0x580f82), builds the time
+        // manager delegate and calls InvokeOnValid (0x580fc4), then
+        // GetSystem<ProjectileManager> (0x580ff2), then the island delegate and
+        // the tail InvokeOnValid (0x581051). Every entry is a native call.
         [Test]
-        public void StraightLineFireKeepsTheShippedCallOrder()
+        public void SpawnerAwakeEmitsTheTimeRequestBeforeTheManagerFetch()
+        {
+            Assert.That(CallNames(typeof(ProjectileSpawnerBase), "Awake"), Is.EqualTo(new[]
+            {
+                "CharacterTrigger.Awake",
+                "Action`1..ctor",
+                "SystemRef`1.InvokeOnValid",
+                "ProcessManager.GetSystem",
+                "Action`1..ctor",
+                "SystemRef`1.InvokeOnValid",
+            }));
+        }
+
+        // Emission check. StraightLineProjectileSpawner.Fire 0x0600230f (x86-64
+        // 0x5830d0): the projectile's transform (0x583282) takes
+        // m_transform.position (0x583293, set 0x58329d); the focus is a fresh
+        // position (0x5832ab) plus forward (0x5832c2) times 100; the virtual
+        // Fire follows (slot 33, 0x5833f3). The other branch formats the
+        // projectile and GetString of its type (0x58323d, 0x583254) for
+        // HLOutput.LogError with a null context (0x583187). Inferred, because
+        // natively inlined: AcquireProjectile (dictionary get_Item 0x5831ce and
+        // ObjectPool.Get 0x5831e0), the Vector3 operators (scalar SSE), Setup
+        // (0x58336b..0x5833e0) and the ProjectileType getter (a field read).
+        [Test]
+        public void StraightLineFireEmitsTheInferredCallOrder()
         {
             Assert.That(CallNames(typeof(StraightLineProjectileSpawner), "Fire"), Is.EqualTo(new[]
             {
@@ -709,30 +784,57 @@ namespace ProjectLucid.Tests
             }));
         }
 
-        // StraightLineProjectile.DoMovement 0x0600230a (x86-64 0x582fb0) calls
-        // Transform.Translate(Vector3, Space) with esi 0 (Space.World,
-        // 0x582fe9); UpdateFocus 0x06002309 (0x582e70) reads transform once
-        // (0x582e89) for get_position and set_rotation, normalizes inline and
-        // passes the direction to the one-argument LookRotation (0x582f99).
+        // Emission check. StraightLineProjectile.DoMovement 0x0600230a (x86-64
+        // 0x582fb0) calls Transform.Translate(Vector3, Space) with esi 0
+        // (Space.World, 0x582fe9); UpdateFocus 0x06002309 (0x582e70) reads
+        // transform once (0x582e89) for get_position (0x582e96) and the tail
+        // set_rotation, and passes the direction to the one-argument
+        // LookRotation (0x582f99). The vector arithmetic, the normalization
+        // (sqrt, 1e-5 compare and Vector3.zero fallback, 0x582f09..0x582f6d) and
+        // the definition's Velocity are inlined, so their source form is
+        // unknown and they are left out of the compared lists.
         [Test]
-        public void StraightLineProjectileMovesInWorldSpaceAlongItsNormalizedFocus()
+        public void StraightLineProjectileEmitsWorldMovementAndASingleTransformFocus()
         {
-            Assert.That(CallNames(typeof(StraightLineProjectile), "DoMovement"),
-                Is.EqualTo(new[] { "Vector3.op_Multiply", "Component.get_transform", "Transform.Translate" }));
+            string[] NativeCalls(string method) => CallNames(typeof(StraightLineProjectile), method)
+                .Where(name => !name.StartsWith("Vector3.", StringComparison.Ordinal)
+                    && !name.StartsWith("Mathf.", StringComparison.Ordinal)
+                    && !name.StartsWith("ProjectileDefinition.", StringComparison.Ordinal))
+                .ToArray();
+
+            Assert.That(NativeCalls("DoMovement"), Is.EqualTo(new[] { "Component.get_transform", "Transform.Translate" }));
             MethodBase translate = OriginalILCallSequence.Calls(typeof(StraightLineProjectile).GetMethod("DoMovement", Instance | BindingFlags.DeclaredOnly))
                 .Single(call => call.Target.Name == "Translate").Target;
             Assert.That(translate.GetParameters().Select(parameter => parameter.ParameterType), Is.EqualTo(new[] { typeof(Vector3), typeof(Space) }));
-            Assert.That(CallNames(typeof(StraightLineProjectile), "UpdateFocus"), Is.EqualTo(new[]
+            Assert.That(ArgumentBefore(typeof(StraightLineProjectile), "DoMovement", "Translate"), Is.EqualTo(OpCodes.Ldc_I4_0), "Space.World");
+            Assert.That(NativeCalls("UpdateFocus"), Is.EqualTo(new[]
             {
                 "Component.get_transform",
                 "Transform.get_position",
-                "Vector3.op_Subtraction",
-                "Vector3.get_normalized",
-                "ProjectileDefinition.get_Velocity",
-                "Vector3.op_Multiply",
                 "Quaternion.LookRotation",
                 "Transform.set_rotation",
             }));
+            MethodBase lookRotation = OriginalILCallSequence.Calls(typeof(StraightLineProjectile).GetMethod("UpdateFocus", Instance | BindingFlags.DeclaredOnly))
+                .Single(call => call.Target.Name == "LookRotation").Target;
+            Assert.That(lookRotation.GetParameters().Length, Is.EqualTo(1));
+        }
+
+        // Emission check. RateOfChangeBindable.Awake 0x060039e9 (x86-64
+        // 0x6b3490) calls the TimeScaledComponent_SDT Awake (0x6b349b) and then
+        // writes the wrapped start value through the virtual Value setter (tail
+        // jump 0x6b3516); InternalUpdate 0x060039eb (0x6b3680) reads the virtual
+        // Value getter (slot 8, 0x6b369c) before the same setter (0x6b371a).
+        // SetOutputWithConstraint and LoopOutputWithinBounds are inlined in
+        // both, so those callees are inferred.
+        [Test]
+        public void RateOfChangeBindableEmitsTheInferredOutputCalls()
+        {
+            Assert.That(CallNames(typeof(RateOfChangeBindable), "Awake"),
+                Is.EqualTo(new[] { "TimeScaledComponent_SDT.Awake", "RateOfChangeBindable.SetOutputWithConstraint" }));
+            Assert.That(CallNames(typeof(RateOfChangeBindable), "InternalUpdate"),
+                Is.EqualTo(new[] { "Bindable`1.get_Value", "RateOfChangeBindable.SetOutputWithConstraint" }));
+            Assert.That(CallNames(typeof(RateOfChangeBindable), "SetOutputWithConstraint"),
+                Is.EqualTo(new[] { "RateOfChangeBindable.LoopOutputWithinBounds", "Bindable`1.set_Value" }));
         }
 
         // Emission check against the original metadata names: ProjectileSpawnerBase

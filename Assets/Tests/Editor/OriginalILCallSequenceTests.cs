@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using NUnit.Framework;
 
 namespace ProjectLucid.Tests
@@ -51,6 +52,16 @@ namespace ProjectLucid.Tests
                 fixture.InstanceTarget();
                 Sink = new Action(StaticTarget);
                 StaticTarget();
+            }
+
+            public static void TakesFlag(bool flag) { }
+
+            // Each literal bool is a single-byte ldc.i4.0 or ldc.i4.1 pushed
+            // directly before its call, in Debug and Release compilation alike.
+            public static void PassesFlags()
+            {
+                TakesFlag(false);
+                TakesFlag(true);
             }
 
             // constrained. (FE 16, type token) prefixes the callvirt.
@@ -180,6 +191,25 @@ namespace ProjectLucid.Tests
             Assert.That(calls.Select(call => call.Target).ToArray(), Is.EqualTo(new MethodBase[] { typeof(IDisposable).GetMethod(nameof(IDisposable.Dispose)) }));
             Assert.That(il[calls[0].Offset], Is.EqualTo(0x6F));
             Assert.That(new[] { il[calls[0].Offset - 6], il[calls[0].Offset - 5] }, Is.EqualTo(new byte[] { 0xFE, 0x16 }));
+        }
+
+        // Instructions shares the call decoder's walk: each recorded call sits
+        // at an instruction start, and the instruction before it is the
+        // literal argument, so a test can tell false from true at a call site.
+        [Test]
+        public void InstructionsExposeTheArgumentPushedBeforeEachCall()
+        {
+            MethodInfo body = Method(typeof(Fixture), nameof(Fixture.PassesFlags));
+            List<(int Offset, OpCode Code)> instructions = OriginalILCallSequence.Instructions(body);
+            List<OriginalILCallSequence.Call> calls = OriginalILCallSequence.Calls(body);
+            Assert.That(OriginalILCallSequence.Names(calls), Is.EqualTo(new[] { "Fixture.TakesFlag", "Fixture.TakesFlag" }));
+            int first = instructions.FindIndex(instruction => instruction.Offset == calls[0].Offset);
+            int second = instructions.FindIndex(instruction => instruction.Offset == calls[1].Offset);
+            Assert.That(first, Is.GreaterThan(0));
+            Assert.That(second, Is.GreaterThan(first));
+            Assert.That(instructions[first - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_0));
+            Assert.That(instructions[second - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_1));
+            Assert.That(instructions.Select(instruction => instruction.Offset), Is.Ordered.Ascending);
         }
     }
 }

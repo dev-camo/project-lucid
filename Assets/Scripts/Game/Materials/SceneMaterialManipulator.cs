@@ -51,15 +51,17 @@ namespace HardlightProject
             }
         }
 
-        // 060024df (MoveNext 060024e5): the last key time is reread on every step; the colour is set
-        // before the timer advances, so the final key's value is never applied.
+        // 060024df (MoveNext 060024e5): the last key time is reread on every
+        // step and the colour is set before the timer advances, so the curve is
+        // never evaluated at or past the last key's time. The multiplier is
+        // evaluated (0x59b998) before the material is read (0x59b99d).
         private IEnumerator AnimateMaterial(MaterialColourConfig materialConfig)
         {
             float timer = 0f;
             while (timer < materialConfig.Multiplier[materialConfig.Multiplier.length - 1].time)
             {
-                materialConfig.Material.SetColor(materialConfig.ColourName,
-                    materialConfig.ColourToSet * materialConfig.Multiplier.Evaluate(timer));
+                float multiplier = materialConfig.Multiplier.Evaluate(timer);
+                materialConfig.Material.SetColor(materialConfig.ColourName, materialConfig.ColourToSet * multiplier);
                 timer += m_timeManager.GetDeltaTime(materialConfig.TimeCategory);
                 yield return null;
             }

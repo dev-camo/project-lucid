@@ -36,6 +36,27 @@ namespace ProjectLucid.Tests
             Type[] typeArguments = method.DeclaringType.IsGenericType ? method.DeclaringType.GetGenericArguments() : null;
             Type[] methodArguments = method.IsGenericMethod ? method.GetGenericArguments() : null;
             var calls = new List<Call>();
+            foreach ((int start, OpCode code, int operand) in Decode(il))
+            {
+                if (code.OperandType == OperandType.InlineMethod && IsInvocation(code))
+                {
+                    calls.Add(new Call
+                    {
+                        Offset = start,
+                        Target = method.Module.ResolveMethod(BitConverter.ToInt32(il, operand), typeArguments, methodArguments),
+                    });
+                }
+            }
+            return calls;
+        }
+
+        // Every instruction's offset and opcode in linear IL order, prefixes
+        // (such as constrained.) included as their own entries.
+        internal static List<(int Offset, OpCode Code)> Instructions(MethodBase method) =>
+            Decode(method.GetMethodBody().GetILAsByteArray()).Select(instruction => (instruction.Start, instruction.Code)).ToList();
+
+        private static IEnumerable<(int Start, OpCode Code, int Operand)> Decode(byte[] il)
+        {
             int position = 0;
             while (position < il.Length)
             {
@@ -43,6 +64,7 @@ namespace ProjectLucid.Tests
                 short value = il[position] == 0xFE ? unchecked((short)(0xFE00 | il[position + 1])) : il[position];
                 position += il[position] == 0xFE ? 2 : 1;
                 OpCode code = Codes[value];
+                int operand = position;
                 switch (code.OperandType)
                 {
                     case OperandType.InlineNone:
@@ -62,23 +84,12 @@ namespace ProjectLucid.Tests
                     case OperandType.InlineSwitch:
                         position += 4 + 4 * BitConverter.ToInt32(il, position);
                         break;
-                    case OperandType.InlineMethod:
-                        if (IsInvocation(code))
-                        {
-                            calls.Add(new Call
-                            {
-                                Offset = start,
-                                Target = method.Module.ResolveMethod(BitConverter.ToInt32(il, position), typeArguments, methodArguments),
-                            });
-                        }
-                        position += 4;
-                        break;
                     default:
                         position += 4;
                         break;
                 }
+                yield return (start, code, operand);
             }
-            return calls;
         }
 
         // "Type.Name" for each target, in IL order.

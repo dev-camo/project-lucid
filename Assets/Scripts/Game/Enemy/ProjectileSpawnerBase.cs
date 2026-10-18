@@ -59,8 +59,7 @@ namespace HardlightProject
 
         // 060022f2: the early return is taken only for an ordered
         // m_fireOnStayTimer >= m_stayTimer (ucomiss/jae at 0x5810f6), so a NaN
-        // interval or timer fires on every stay. Read from the disassembly; no
-        // test covers this branch yet (it needs a TimeManager fixture).
+        // interval or timer fires on every stay.
         protected override void DoTriggerStay(Character character)
         {
             base.DoTriggerStay(character);
@@ -73,12 +72,12 @@ namespace HardlightProject
             m_stayTimer = 0f;
         }
 
-        // 060022f3: cools down every active projectile of each configured type,
-        // without exceptions, through the projectile manager.
+        // 060022f3: ForceCoolDownOfType is inlined natively, with
+        // allowExceptions false (esi 0 at 0x5811fc).
         public void ResetGameplayElement()
         {
             foreach (ProjectilesAndCount projectileConfig in m_projectileConfigs)
-                m_projectileManager.ForceCoolDownOfType(projectileConfig.ProjectileType, false);
+                m_projectileManager.ForceCoolDownOfType(projectileConfig.ProjectileType, allowExceptions: false);
         }
 
         public Vector3 GetPosition() => transform.position;

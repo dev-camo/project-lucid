@@ -2667,6 +2667,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalILCallSequenceTests.RealFindByNameCallsSatisfyTheLookupOrderFilterInIlOrder",
     "ProjectLucid.Tests.OriginalILCallSequenceTests.DelegateThenRealCallRecordsOnlyTheCallInstruction",
     "ProjectLucid.Tests.OriginalILCallSequenceTests.ConstrainedCallvirtIsRecordedAfterItsPrefix",
+    "ProjectLucid.Tests.OriginalILCallSequenceTests.InstructionsExposeTheArgumentPushedBeforeEachCall",
 )
 
 # Low-priority gap cases that need real Awake/OnDestroy messages or an active scene object.
@@ -4343,14 +4344,18 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFxSpawnersAndShadersTests." 
     "BinderResetKeepsAnAssignedMaterialAndNeedsARendererOtherwise",
     "MaterialAnimationEndingAtTimeZeroSetsNoColour",
     "MaterialTriggerTouchesOnlyMatchingConfigs",
+    "MaterialTriggerEmitsTheInferredCallOrder",
     "PoolActivationSpawnsAtEveryLiveTransformWithTheDefaults",
     "PoolActivationResolvesOnlyAnEntityPoolAndToleratesNoLevelManager",
+    "PoolActivationAwakeFailsWithoutALevelManagerAndQueuesNothing",
     "SpawnerConstructorDefaultsToEnemyMovementTimeAndBothReferences",
     "TriggerEntryResetsTheStayTimerThenFiresOnlyWhenConfigured",
     "TriggerStayWithoutFireOnStayLeavesTheTimer",
     "ResetElementReportsItsPositionAndUnityDestruction",
-    "ResetElementCoolsDownEachConfiguredType",
-    "StraightLineFireKeepsTheShippedCallOrder",
-    "StraightLineProjectileMovesInWorldSpaceAlongItsNormalizedFocus",
+    "ResetElementEmitsACoolDownWithoutExceptions",
+    "SpawnerAwakeEmitsTheTimeRequestBeforeTheManagerFetch",
+    "StraightLineFireEmitsTheInferredCallOrder",
+    "StraightLineProjectileEmitsWorldMovementAndASingleTransformFocus",
+    "RateOfChangeBindableEmitsTheInferredOutputCalls",
     "CompilerGeneratedNamesMatchTheOriginalMemberOrdinals",
 ))
