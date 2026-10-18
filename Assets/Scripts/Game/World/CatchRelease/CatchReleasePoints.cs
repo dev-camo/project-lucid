@@ -5,8 +5,8 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0x02000abf; 0x6E38C0..0x6E53B0. The search helpers are
-    // inlined into the Evaluate methods in the native code and are shared here.
+    // Original Game.Runtime 0x02000abf; 0x6E38C0..0x6E53B0. The private search helpers
+    // are original methods; the native Evaluate bodies inline copies of them.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Serializable]

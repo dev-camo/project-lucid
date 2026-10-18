@@ -351,7 +351,7 @@ namespace ProjectLucid.Tests
         // CalculateCharacterSteeringRotation 0x6E4BF0 (reached by FreeLookup): with no steering input
         // (approximately zero squared magnitude) it returns false and leaves the rotation; otherwise
         // rotation = character.WorldRotation * AngleAxis(DeltaAngle(SignedAngle(cameraForward,
-        // forward projected on the up plane, up), lookupFromInput(turn)), up) *
+        // forward projected on the up plane, up), lookupFromInput(turn)), Vector3.up (world)) *
         // AngleAxis(lookupFromAttach(Angle(attachDirection, cameraForward)), -right), the product order
         // taken from the SSE bodies at 0x6E4F93..0x6E50CC. Both curves are the identity lookup.
         [Test]
@@ -394,7 +394,7 @@ namespace ProjectLucid.Tests
 
         // CalculateTransformSteeringDirection 0x6E5100 (reached by ClosestRotationLookup): without
         // input it returns the character up; otherwise LookRotation(cameraForward, attachTransform.up) *
-        // AngleAxis(lookupFromInput(turn), up) * forward (product order from 0x6E5288..0x6E5341). The
+        // AngleAxis(lookupFromInput(turn), Vector3.up (world)) * forward (product order from 0x6E5288..0x6E5341). The
         // point whose forward best matches that direction then supplies the rotation.
         [Test]
         public void ClosestRotationLookupPicksThePointFacingTheSteeredDirection()

@@ -49,15 +49,12 @@ namespace HardlightProject
                 TryPlayAnimation(actor);
         }
 
-        // Lookups whose actor is not a T are ignored.
+        // Lookups whose actor is not a T are ignored. The test is a plain reference test, so an actor
+        // that Unity reports as destroyed still reaches the T overload.
         public void Action_OnEnter(ActorComponentLookup actorComponentLookup)
         {
-            if (m_enabled)
-            {
-                T actor = actorComponentLookup.Actor as T;
-                if (actor != null)
-                    Action_OnEnter(actor);
-            }
+            if (m_enabled && actorComponentLookup.Actor is T actor)
+                Action_OnEnter(actor);
         }
 
         protected abstract bool FilterActor(T actor);
@@ -74,12 +71,8 @@ namespace HardlightProject
 
         public void Action_OnLeave(ActorComponentLookup actorComponentLookup)
         {
-            if (m_enabled)
-            {
-                T actor = actorComponentLookup.Actor as T;
-                if (actor != null)
-                    Action_OnLeave(actor);
-            }
+            if (m_enabled && actorComponentLookup.Actor is T actor)
+                Action_OnLeave(actor);
         }
 
         // An actor already playing is not started twice unless only entries are tracked.

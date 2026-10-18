@@ -32,8 +32,8 @@ namespace HardlightProject
         private float m_time;
         private readonly SystemRef<TimeManager> m_timeManagerRef = ProcessManager.GetSystemRef<TimeManager>(null, true);
 
-        // A connector authored active stays active; SetPivots/ClearPivots only toggle one
-        // that started disabled.
+        // SetPivots activates a connector that is inactive at that moment and marks it as not always
+        // active, so ClearPivots later deactivates only those connectors.
         private void Awake()
         {
             m_alwaysActive = true;

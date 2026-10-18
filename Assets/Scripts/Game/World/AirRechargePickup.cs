@@ -31,12 +31,12 @@ namespace HardlightProject
         private float m_rechargeTimeSeconds;
         [SerializeField]
         private bool m_useCustomRenderBounds;
-        [ShowIf("m_useCustomRenderBounds", (string)null)]
+        [ShowIf("m_useCustomRenderBounds")]
         [SerializeField]
         private float m_cullingBoundsSize = 2f;
         [Tooltip("Auto-populated when subsystem list regenerated, if using custom render bounds.")]
         [SerializeField]
-        [ShowIf("m_useCustomRenderBounds", (string)null)]
+        [ShowIf("m_useCustomRenderBounds")]
         private Renderer[] m_particleRenderers;
         public readonly Bindable<bool> IsValid = new Bindable<bool>();
         private readonly SystemRef<App> m_appRef = ProcessManager.GetSystemRef<App>(null, true);
@@ -59,7 +59,8 @@ namespace HardlightProject
                 .SubscribeToMessage(m_appRef.Get(), new MessageCallbackWithCompletion<DetectorArchetypeUpdateMessage>(OnDetectorActive));
         }
 
-        // Every release is guarded by the system still being valid at shutdown.
+        // The camera-manager and message unsubscriptions are guarded by SystemRef.IsValid; the culling
+        // group is released behind a plain null test.
         protected override void OnDisable()
         {
             base.OnDisable();
@@ -141,7 +142,7 @@ namespace HardlightProject
             m_enterCooldownAnimationTimeRemainingSeconds = 0f;
             SetAnimation(m_animationIdle, true);
             m_pfxIdle.gameObject.SetActive(true);
-            m_pfxIdle.Play();
+            m_pfxIdle.Play(true);
             if (playRechargedPfx)
                 m_pfxSpawnerRecharged.Spawn();
         }
@@ -185,7 +186,7 @@ namespace HardlightProject
             if (m_cullingGroup == null)
             {
                 m_cullingGroup = new CullingGroup();
-                m_cullingGroup.SetBoundingSpheres(new BoundingSphere[1] { new BoundingSphere(transform.position, m_cullingBoundsSize) });
+                m_cullingGroup.SetBoundingSpheres(new[] { new BoundingSphere(transform.position, m_cullingBoundsSize) });
                 m_cullingGroup.SetBoundingSphereCount(1);
                 m_cullingGroup.onStateChanged += OnStateChanged;
                 Cull(m_cullingGroup.IsVisible(0));
@@ -205,12 +206,12 @@ namespace HardlightProject
                 return;
             if (visible)
             {
-                m_pfxIdle.Play();
+                m_pfxIdle.Play(true);
                 SetRenderers(true);
             }
             else
             {
-                m_pfxIdle.Pause();
+                m_pfxIdle.Pause(true);
                 SetRenderers(false);
             }
         }

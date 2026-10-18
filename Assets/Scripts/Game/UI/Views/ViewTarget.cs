@@ -39,7 +39,7 @@ namespace HardlightProject
         private Vector3 m_scale = Vector3.one;
 
         public virtual bool IsActive => gameObject.activeSelf;
-        public Vector3 TargetWorldPosition => m_targetWorldPosition.GetValueOrDefault();
+        public Vector3 TargetWorldPosition => m_targetWorldPosition ?? Vector3.zero;
         private Collider m_targetCollider { get; set; }
         private Transform m_targetTransform { get; set; }
         protected abstract Vector3 TargetPosition { get; set; }
@@ -54,7 +54,7 @@ namespace HardlightProject
             ShowTarget(false);
         }
 
-        // 0x607070: the parameters are cast without a type guard for null, and the
+        // 0x607070: the parameters are cast directly (no as/is guard), so a wrong type throws, and the
         // current local scale becomes the base scale of the world-space resize.
         protected override void OnSetup(ViewParameters viewParams)
         {
