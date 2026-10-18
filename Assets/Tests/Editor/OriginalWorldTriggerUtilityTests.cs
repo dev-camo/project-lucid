@@ -150,8 +150,8 @@ namespace ProjectLucid.Tests
 
         // UpdateIndexActive 0x0600394e (0x6AF8E0): (index + length) idiv length, one
         // SetActive(i == index) per element. Action_Next/Previous (0x6AF940/0x6AF9A0) add or
-        // subtract one first. A single wrap leaves -4 of 3 at -1 with every object inactive;
-        // a double modulo would pick the last object. idiv by a zero length faults.
+        // subtract one first. A reflection-set -4 of 3 (unreachable through the API) separates a
+        // single wrap (-1, every object inactive) from a double modulo (the last object). idiv by a zero length faults.
         [Test]
         public void CycleGameObjectListShowsOnlyTheWrappedIndex()
         {

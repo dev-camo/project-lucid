@@ -28,12 +28,10 @@ namespace HardlightProject
         public void OnLevelActivated()
         {
             if (this == null || m_entityActiveOnAwake == gameObject.activeSelf) return;
-            bool activate = m_entityActiveOnAwake;
-            EntityActivationManager entityActivationManager = m_entityActivationManagerRef.Get();
-            if (activate)
-                entityActivationManager.Activate(this);
+            if (m_entityActiveOnAwake)
+                m_entityActivationManagerRef.Get().Activate(this);
             else
-                entityActivationManager.Deactivate(this);
+                m_entityActivationManagerRef.Get().Deactivate(this);
         }
 
         // 0x06003bc1

@@ -16,7 +16,7 @@ namespace HardlightProject
         // 0x060038ec (0x6A6D20): the forwarded value is value XOR m_inverseBool.
         public void Trigger(bool value)
         {
-            m_unityEvent.Invoke(m_inverseBool ? !value : value);
+            m_unityEvent.Invoke(value ^ m_inverseBool);
         }
 
         // 0x060038ed: one error per persistent listener that targets this component.

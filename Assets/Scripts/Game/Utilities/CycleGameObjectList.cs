@@ -31,8 +31,7 @@ namespace HardlightProject
             UpdateIndexActive();
         }
 
-        // 0x0600394e (0x6AF8E0): the length is read once. A single wrap by it leaves an
-        // index below -length negative, so every object is then deactivated.
+        // 0x0600394e (0x6AF8E0): one modulo by the length, read once; an empty list faults on the idiv.
         private void UpdateIndexActive()
         {
             int count = m_objects.Length;
