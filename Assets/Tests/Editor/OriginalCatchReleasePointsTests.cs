@@ -110,7 +110,7 @@ namespace ProjectLucid.Tests
                 "TooltipAttribute(Determines the release logic for position.) SerializeField()"));
             string attachRow = AttributeRow(typeof(CatchReleasePoints).GetField("m_lookupFromAttachAngle", field));
             Assert.That(attachRow, Does.StartWith("SerializeField() ShowIfAttribute(m_releaseRotationType,"));
-            Assert.That(attachRow, Does.EndWith("TooltipAttribute(Release angle from plane determined by the attach angle to plane.))"));
+            Assert.That(attachRow, Does.EndWith("TooltipAttribute(Release angle from plane determined by the attach angle to plane.)"));
             Assert.That(typeof(CatchReleasePoints).GetMethod("FindClosestPoint", field).GetParameters()[1].IsOut, Is.True);
             Assert.That(typeof(CatchReleasePoints).GetMethod("CalculateCharacterSteeringRotation", field).GetParameters()[2].ParameterType.IsByRef, Is.True);
         }
