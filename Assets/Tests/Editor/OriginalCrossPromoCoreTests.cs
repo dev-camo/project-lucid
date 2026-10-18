@@ -89,6 +89,27 @@ namespace ProjectLucid.Tests
             Assert.That(Meta(ads, null).GetFirstAdIndex(), Is.EqualTo(1));
         }
 
+        // 0x1A15C7B, 0x1A15C52 and 0x1A15DAF all pass StringComparison 4 (Ordinal). The pair is
+        // checked first to be equal under the invariant and current cultures, so a culture-sensitive
+        // body would report a hit where the ordinal one misses.
+        [Test]
+        public void AdNamesCompareOrdinallyNotByCulture()
+        {
+            string[][] candidates = { new[] { "\u00e9", "e\u0301" }, new[] { "three", "thr\u00adee" } };
+            string[] pair = candidates.FirstOrDefault(c =>
+                string.Compare(c[0], c[1], StringComparison.InvariantCulture) == 0 &&
+                string.Compare(c[0], c[1], StringComparison.CurrentCulture) == 0 &&
+                string.CompareOrdinal(c[0], c[1]) != 0);
+            Assert.That(pair, Is.Not.Null, "no candidate pair is culture-equal but ordinal-different on this runtime");
+            string name = pair[0], variant = pair[1];
+
+            Assert.That(Ad(name).Equals(Ad(variant)), Is.False);
+            Assert.That(Ad(name).Equals((object)Ad(variant)), Is.False);
+            Assert.That(Ad(name).Equals(Ad(new string(name.ToCharArray()))), Is.True);
+            Assert.That(Meta(new[] { Ad("x"), Ad(variant) }, name).GetFirstAdIndex(), Is.Zero);
+            Assert.That(Meta(new[] { Ad("x"), Ad(name) }, name).GetFirstAdIndex(), Is.EqualTo(1));
+        }
+
         // 0x1A10130 reads the asset (null faults first), selects the Dev URL only for m_server == 0
         // and combines persistentDataPath with each folder (Path.Combine 0x06002785/0x0600279a);
         // 0x1A10300 builds "server?title=…&version=…&country=…" from a 7-element string array, parses
@@ -185,6 +206,43 @@ namespace ProjectLucid.Tests
             Assert.That(released, Is.EqualTo(new[] { "abc" }));
             pool.ReleaseResource("second");
             Assert.That(released, Is.EqualTo(new[] { "abc", "second" }));
+        }
+
+        // 0xBE41A0 loads m_resource and tail-calls its own vtable slot 0 (Object.Equals(object)) with no
+        // null check: not EqualityComparer<T>.Default, not static object.Equals, not other.Equals(m_resource).
+        [Test]
+        public void ReferenceEqualityCallsTheResourcesOwnEqualsWithoutANullGuard()
+        {
+            Assert.That(new SharedResourceReference<EqualsProbe>(new EqualsProbe()).Equals(new EqualsProbe()), Is.True,
+                "IEquatable<T>.Equals answers false; only the Object.Equals override answers true");
+            Assert.That(new SharedResourceReference<object>(new EqualsProbe()).Equals(new object()), Is.True,
+                "the reversed call would use Object's reference equality");
+            Assert.Throws<NullReferenceException>(() => new SharedResourceReference<object>(null).Equals(new object()));
+
+            // 0xBE358B: TryFindKey uses the same virtual call on each pooled resource.
+            var released = new List<EqualsProbe>();
+            var pool = new SharedResourcePool<string, EqualsProbe>(0, released.Add);
+            pool.Add("k", new EqualsProbe());
+            var other = new EqualsProbe();
+            pool.ReleaseResource(other);
+            Assert.That(released.Count, Is.EqualTo(1));
+            Assert.That(released[0], Is.SameAs(other));
+            Assert.That(pool.TryGet("k", out _), Is.False);
+        }
+
+        // 0xBE3480 stops at the first enumerated match (0xBE3595 stores the key and leaves the loop), and
+        // 0xBE33D0 releases only that key. Without removals the dictionary enumerates in insertion order.
+        [Test]
+        public void PoolReleasesOnlyTheFirstKeyHoldingAnEqualResource()
+        {
+            var released = new List<string>();
+            var pool = new SharedResourcePool<string, string>(0, released.Add);
+            pool.Add("a", "x");
+            pool.Add("b", new string('x', 1));
+            pool.ReleaseResource("x");
+            Assert.That(released, Is.EqualTo(new[] { "x" }));
+            Assert.That(pool.TryGet("a", out _), Is.False);
+            Assert.That(pool.TryGet("b", out _), Is.True);
         }
 
         // The original metadata gives the callback a null default (IL2CPP stores no constant), and the
@@ -369,6 +427,16 @@ namespace ProjectLucid.Tests
 
         private static string[] Fields(Type type) =>
             type.GetFields(Declared).OrderBy(f => f.MetadataToken).Select(f => f.Name).ToArray();
+
+        // IEquatable<EqualsProbe>.Equals always answers false and the Object.Equals override always true.
+        private sealed class EqualsProbe : IEquatable<EqualsProbe>
+        {
+            public bool Equals(EqualsProbe other) => false;
+
+            public override bool Equals(object obj) => true;
+
+            public override int GetHashCode() => 0;
+        }
 
         private static CrossPromoAd Ad(string name) => new CrossPromoAd { Name = name };
 
