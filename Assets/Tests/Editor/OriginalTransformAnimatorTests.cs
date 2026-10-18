@@ -400,12 +400,10 @@ namespace ProjectLucid.Tests
 
             public void Dispose()
             {
-                try
-                {
-                    if (m_registered) ProcessManager.UnregisterSystem(ProcessManager.GetDefaultName<TimeManager>());
-                    m_row.Dispose();
-                }
-                finally { LookupField.SetValue(null, m_priorLookup); }
+                VerificationFixtureOwnership.RunThenCleanUp(
+                    () => { if (m_registered) ProcessManager.UnregisterSystem(ProcessManager.GetDefaultName<TimeManager>()); },
+                    () => m_row.Dispose(),
+                    () => LookupField.SetValue(null, m_priorLookup));
             }
         }
     }

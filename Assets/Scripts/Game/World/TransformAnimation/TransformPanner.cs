@@ -34,6 +34,7 @@ namespace HardlightProject
             m_trackedY += m_speedToPan.y * deltaTime;
             if (Math.Abs(m_desiredY) > float.Epsilon)
                 m_trackedY %= m_desiredY;
+            // Built before reading transform, matching the native order.
             Vector3 position = new Vector3(m_trackedX, m_trackedY, 0f);
             transform.localPosition = position;
         }

@@ -48,6 +48,7 @@ namespace HardlightProject
             if (phase.z > Mathf.PI * 2f)
                 m_timerSeconds.z -= Mathf.PI * 2f;
             Vector3 blend = (Vector3.one + new Vector3(Mathf.Cos(phase.x), Mathf.Cos(phase.y), Mathf.Cos(phase.z))) * 0.5f;
+            // Built before reading transform, matching the native order.
             Vector3 scale = new Vector3(Mathf.Lerp(m_minScale.x, m_maxScale.x, blend.x),
                 Mathf.Lerp(m_minScale.y, m_maxScale.y, blend.y), Mathf.Lerp(m_minScale.z, m_maxScale.z, blend.z));
             transform.localScale = scale;

@@ -4,8 +4,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 0200080e: looks at the main camera every LateUpdate,
-    // and stays disabled while there is no camera manager or main camera.
+    // Original Game.Runtime 0200080e: looks at the main camera every LateUpdate.
+    // It disables itself when no camera manager is registered and re-enables once
+    // the main camera is set; a manager whose camera is not ready leaves it enabled.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class TransformFaceCamera : MonoBehaviour

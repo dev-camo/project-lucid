@@ -28,11 +28,20 @@ namespace HardlightProject
         private void OnEnable()
         {
             if (m_rotationPerInterval.x != 0f)
-                StartCoroutine(ProcessRotation(m_timePerIntervalInSeconds.x, Quaternion.AngleAxis(m_rotationPerInterval.x, Vector3.right)));
+            {
+                Quaternion rotation = Quaternion.AngleAxis(m_rotationPerInterval.x, Vector3.right);
+                StartCoroutine(ProcessRotation(m_timePerIntervalInSeconds.x, rotation));
+            }
             if (m_rotationPerInterval.y != 0f)
-                StartCoroutine(ProcessRotation(m_timePerIntervalInSeconds.y, Quaternion.AngleAxis(m_rotationPerInterval.y, Vector3.up)));
+            {
+                Quaternion rotation = Quaternion.AngleAxis(m_rotationPerInterval.y, Vector3.up);
+                StartCoroutine(ProcessRotation(m_timePerIntervalInSeconds.y, rotation));
+            }
             if (m_rotationPerInterval.z != 0f)
-                StartCoroutine(ProcessRotation(m_timePerIntervalInSeconds.z, Quaternion.AngleAxis(m_rotationPerInterval.z, Vector3.forward)));
+            {
+                Quaternion rotation = Quaternion.AngleAxis(m_rotationPerInterval.z, Vector3.forward);
+                StartCoroutine(ProcessRotation(m_timePerIntervalInSeconds.z, rotation));
+            }
         }
 
         private IEnumerator ProcessRotation(float timeSeconds, Quaternion rotation)

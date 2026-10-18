@@ -48,8 +48,9 @@ namespace HardlightProject
         // update advances the random sequence. A NaN smooth time snaps.
         protected override void InternalUpdate(float deltaTime)
         {
-            Quaternion targetRotation = m_startRotation * Quaternion.Euler(Random.Range(m_anglesMin.x, m_anglesMax.x),
+            Quaternion randomRotation = Quaternion.Euler(Random.Range(m_anglesMin.x, m_anglesMax.x),
                 Random.Range(m_anglesMin.y, m_anglesMax.y), Random.Range(m_anglesMin.z, m_anglesMax.z));
+            Quaternion targetRotation = m_startRotation * randomRotation;
             if (m_smoothTime > 0f)
             {
                 float maxSpeed = m_maxSpeed > 0f ? m_maxSpeed : Mathf.Infinity;

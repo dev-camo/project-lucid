@@ -14,8 +14,12 @@ namespace HardlightProject
 
         public Vector3 Snap(Vector3 current, Vector3 target)
         {
-            return new Vector3(SnapToX ? target.x : current.x, SnapToY ? target.y : current.y,
-                SnapToZ ? target.z : current.z);
+            // The native body initialises Vector3's statics, so it starts from Vector3.zero.
+            Vector3 snapped = Vector3.zero;
+            snapped.x = SnapToX ? target.x : current.x;
+            snapped.y = SnapToY ? target.y : current.y;
+            snapped.z = SnapToZ ? target.z : current.z;
+            return snapped;
         }
     }
 }
