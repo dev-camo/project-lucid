@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -288,6 +289,26 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x743202 passes m_brakeElapsedTime (+0xEC) as the curve progress and 0x743211 passes deltaTime in the
+        // next argument. A linear brake power curve (power = time) at elapsed 2 gives 2 x deceleration 5 x dt 0.5
+        // = 5 off 10; a progress of dt would give 8.75 and a progress of 0 would give 10.
+        [Test]
+        public void BrakingDecelerationReadsTheBrakeCurveAtTheElapsedBrakeTime()
+        {
+            WithOwnedAppRow(ability =>
+            {
+                CharacterAbilityDefinition_Braking definition = BrakingDefinition();
+                definition.BrakePowerCurve = AnimationCurve.Linear(0f, 0f, 10f, 10f);
+                ability.Initialise(null, definition);
+                typeof(CharacterAbility_Braking).GetField("m_brakeElapsedTime", Declared).SetValue(ability, 2f);
+                SetBraking(ability, true);
+                var direction = Vector3.forward;
+                float speed = 10f;
+                ability.UpdateForwardSpeed(ref speed, ref direction, 0.5f);
+                Assert.That(speed, Is.EqualTo(5f).Within(1e-5f));
+            });
+        }
+
         // Metadata optional-parameter defaults of the override (1, 1, null, true) and its base slot.
         [Test]
         public void BrakingForwardSpeedOverrideKeepsTheOriginalOptionalDefaults()
@@ -308,9 +329,10 @@ namespace ProjectLucid.Tests
         }
 
         // ---- IL witnesses for bodies that need a started Character ----
-        // These witnesses pin call order and counts only. Branch polarity and NaN behaviour of the
-        // Braking EvaluateInput / DoOnUpdate predicates and AirStomp IsBrainImpulseActive have no
-        // truth-table coverage yet (needs a started Character); do not read them as behavioural proof.
+        // These witnesses pin call order and counts only. Branch polarity and NaN behaviour of the Braking
+        // DoOnUpdate predicates, AirStomp IsBrainImpulseActive and TryRotateDownhillOfCollision, the burst
+        // ActivateStamina skip and the air transition branches have no truth-table coverage yet (they need
+        // a started Character with its save, stamina and brain graph); do not read these as behavioural proof.
 
         private static List<MethodBase> Calls(Type owner, string name)
         {
@@ -355,6 +377,68 @@ namespace ProjectLucid.Tests
             Assert.That(Count(calls, "CharacterMovementUtilities", "GetIntendedToCurrentForwardAngle"), Is.EqualTo(2));
             Assert.That(Count(calls, "Vector2", "Angle"), Is.EqualTo(1));
             Assert.That(Count(calls, "Vector3Extensions", "xz"), Is.EqualTo(1));
+        }
+
+        // Character's field initialiser creates the empty GameplayIslandManager row and CharacterAbility's the
+        // empty App row. Both are admitted absent and released while still empty.
+        private static void WithBrakingOnCharacter(Action<CharacterAbility_Braking, Character> body)
+        {
+            IDictionary registry = Registry;
+            string[] rows = { ProcessManager.GetDefaultName<GameplayIslandManager>(), ProcessManager.GetDefaultName<App>() };
+            foreach (string name in rows) VerificationFixtureOwnership.RequireAbsent(registry, name);
+            var host = new GameObject("Lucid-braking-character");
+            host.SetActive(false);
+            VerificationFixtureOwnership.RunThenCleanUp(
+                () => body(new CharacterAbility_Braking(), host.AddComponent<Character>()),
+                () => Object.DestroyImmediate(host),
+                () =>
+                {
+                    foreach (string name in rows)
+                        if (registry.Contains(name)) VerificationFixtureOwnership.ReleaseEmptyRow(registry, name, registry[name]);
+                });
+        }
+
+        // Private setters are taken from the declaring type.
+        private static void SetProperty(object target, string property, object value)
+        {
+            const BindingFlags instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+            Type owner = target.GetType().GetProperty(property, instance).DeclaringType;
+            owner.GetProperty(property, instance | BindingFlags.DeclaredOnly).GetSetMethod(true).Invoke(target, new[] { value });
+        }
+
+        private static bool EvaluateInput(CharacterAbility_Braking ability, bool evaluateForwardToIntent) =>
+            (bool)typeof(CharacterAbility_Braking).GetMethod("EvaluateInput", Declared).Invoke(ability, new object[] { evaluateForwardToIntent });
+
+        // 06001079 (0x742D20) with IsBraking clear and the forward-to-intent flag clear. Gate 1 is 0x742D85
+        // ucomiss/jae: sqr(ControllerMovement) >= MinimumInputMagnitudeSqr (+0x144), so equality passes and NaN
+        // does not. Gate 2 compares the XZ speed squared with +0x148 (MinimumTriggerXZSpeedSqr) while not braking
+        // (0x742DD1 picks +0x14C only when braking), at 0x742DDD ucomiss/jb, again equality passing. The result
+        // is 0x742F63 setae: Vector2.Angle(buffered, raw) >= MinimumIntendedTriggerAngle (+0x12C).
+        // Defaults give 0.25, 225, 1 and 160 degrees.
+        [Test]
+        public void BrakingEvaluateInputGatesOnInputSpeedAndAngleWithNativePolarity()
+        {
+            WithBrakingOnCharacter((ability, character) =>
+            {
+                ability.Initialise(null, BrakingDefinition());
+                typeof(CharacterAbility).GetField("m_character", Members).SetValue(ability, character);
+                typeof(CharacterAbility_Braking).GetField("m_bufferedControllerMovement", Declared).SetValue(ability, new Vector2(0f, 1f));
+                SetProperty(character, "RawControllerMovement", new Vector2(0f, -1f));
+                SetProperty(character, "ControllerMovement", new Vector2(0.5f, 0f));
+                SetProperty(character, "LocalVelocity", new Vector3(0f, 0f, 15f));
+                Assert.That(EvaluateInput(ability, false), Is.True, "input 0.25 and speed 225 sit exactly on both thresholds and the angle is 180");
+
+                SetProperty(character, "LocalVelocity", new Vector3(0f, 0f, 10f));
+                Assert.That(EvaluateInput(ability, false), Is.False, "speed 100 is below the trigger threshold 225, not the end threshold 1");
+
+                SetProperty(character, "LocalVelocity", new Vector3(0f, 0f, 15f));
+                SetProperty(character, "ControllerMovement", new Vector2(float.NaN, 0f));
+                Assert.That(EvaluateInput(ability, false), Is.False, "a NaN input magnitude fails the gate");
+
+                SetProperty(character, "ControllerMovement", new Vector2(0.5f, 0f));
+                SetProperty(character, "RawControllerMovement", new Vector2(0f, 1f));
+                Assert.That(EvaluateInput(ability, false), Is.False, "an angle of 0 is below 160");
+            });
         }
 
         // 06001077 (0x743180) ends in a tail call to ProcessDecelerationCurve; it never reaches the movement
@@ -413,6 +497,7 @@ namespace ProjectLucid.Tests
         {
             List<MethodBase> calls = Calls(typeof(CharacterAbility_AirStompAttack), "TryRotateDownhillOfCollision");
             int position = IndexOf(calls, "Character", "SetWorldPosition");
+            int negate = IndexOf(calls, "Vector3", "op_UnaryNegation");
             int angle = IndexOf(calls, "Vector3", "Angle");
             int project = IndexOf(calls, "Vector3", "ProjectOnPlane");
             int forward = IndexOf(calls, "Actor", "get_ForwardDirection");
@@ -420,7 +505,7 @@ namespace ProjectLucid.Tests
             int look = IndexOf(calls, "Quaternion", "LookRotation");
             int rotate = IndexOf(calls, "Character", "SetWorldRotation");
             int dot = IndexOf(calls, "Vector3", "Dot");
-            Assert.That(new[] { position, angle, project, forward, settings, look, rotate, dot }, Is.Ordered.Ascending.And.Unique);
+            Assert.That(new[] { position, negate, angle, project, forward, settings, look, rotate, dot }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(calls, "Character", "SetWorldPosition"), Is.EqualTo(1));
         }
 
@@ -589,8 +674,11 @@ namespace ProjectLucid.Tests
         public void TriggerAbilityArgumentsDefaultToEnabled()
         {
             Type args = typeof(ActorState_TriggerAbility).GetNestedType("JSONCtorArgs", BindingFlags.NonPublic);
+            FieldInfo triggerEvent = args.GetField("ActiveEventType");
+            Assert.That(Convert.ToInt32(triggerEvent.GetValue(Activator.CreateInstance(args))), Is.EqualTo(0));
             Assert.That(args.GetField("Enable").GetValue(Activator.CreateInstance(args)), Is.EqualTo(true));
             object parsed = JsonUtility.FromJson("{}", args);
+            Assert.That(Convert.ToInt32(triggerEvent.GetValue(parsed)), Is.EqualTo(0));
             Assert.That(args.GetField("Enable").GetValue(parsed), Is.EqualTo(true), "the constructor default survives JSON that omits the field");
             parsed = JsonUtility.FromJson("{\"Enable\":false,\"AbilityDefinitionName\":\"x\"}", args);
             Assert.That(args.GetField("Enable").GetValue(parsed), Is.EqualTo(false));
@@ -599,6 +687,116 @@ namespace ProjectLucid.Tests
 
             Type disable = typeof(ActorState_TriggerDisableAbilities).GetNestedType("JSONCtorArgs", BindingFlags.NonPublic);
             Assert.That(disable.GetField("ExceptionList").GetCustomAttribute<GraphUnityObjectAttribute>().UnityObjectType, Is.EqualTo(typeof(AbilityDefinition)));
+        }
+
+        private sealed class ProbeActor : Actor
+        {
+            public override float BrainMovementMagnitude => 0f;
+            protected override void DoOnUpdate(float deltaTime) { }
+            public override TimeCategory GetTimeCategory() => default;
+            protected override void UpdateBodyPosition(float deltaTime, out Vector3 position, out Quaternion rotation, out Vector3 velocity)
+            {
+                position = default;
+                rotation = default;
+                velocity = default;
+            }
+            public override void MovementStop(bool detectCollisions = false) { }
+            public override void MovementResume(Vector3 position, Vector3 velocity) { }
+            protected override void DoClose(bool isBeingDestroyed) { }
+            public void AddAbility(ActorAbilityType type, ActorAbility ability) => m_abilities.Add(type, ability);
+        }
+
+        private sealed class ProbeAbility : ActorAbility
+        {
+            public readonly List<string> Log = new List<string>();
+            public override AbilityDefinition DefinitionBase => null;
+            protected override void DoOnEnter() => Log.Add("Enter");
+            protected override void DoOnLeave() => Log.Add("Leave");
+            public void Finish(bool value) => AbilityFinished = value;
+        }
+
+        private sealed class ProbeAbilityDefinition : AbilityDefinition
+        {
+            public override Type ScriptType => typeof(ProbeAbility);
+        }
+
+        private sealed class ProbeTriggerState : ActorState_TriggerAbility
+        {
+            private readonly Actor m_target;
+
+            private ProbeTriggerState(FiniteStateMachine fsm, FSMIdentifier stateId, JSONCtorArgs ctorArgs, Actor target) : base(fsm, stateId, ctorArgs)
+            {
+                m_target = target;
+            }
+
+            public static ProbeTriggerState Create(FiniteStateMachine fsm, FSMIdentifier stateId, string json, Actor target) =>
+                new ProbeTriggerState(fsm, stateId, JsonUtility.FromJson<JSONCtorArgs>(json), target);
+
+            protected override Actor GetActor(IGraphUser user) => m_target;
+            public void Start() => InvokeTriggerStart(null, null);
+            public void End() => InvokeTriggerEnd(null, null);
+        }
+
+        private ProbeActor NewProbeActor()
+        {
+            var host = Own(new GameObject("Lucid-trigger-actor"));
+            host.SetActive(false);
+            return host.AddComponent<ProbeActor>();
+        }
+
+        // 0600043a (0x528100) applies m_enable, 0600043b (0x5281D0) the opposite: 0x52821F enters or leaves by
+        // the flag left in the argument register. Enter always runs its hook; Leave only acts on an enabled ability.
+        [Test]
+        public void TriggerAbilityStateAppliesTheConfiguredChangeOnStartAndTheOppositeOnEnd()
+        {
+            using (var characters = new OwnedCharacterManagers())
+            {
+                var definition = Own(ScriptableObject.CreateInstance<ProbeAbilityDefinition>());
+                definition.AbilityType = ActorAbilityType.Character_AirStompAttack;
+                string key = "Lucid-ability-" + Guid.NewGuid().ToString("N");
+                Dictionary<string, AbilityDefinition> definitions = ProcessManager.GetSystemRef<App>().Get().DataManager.AbilityDefinitions;
+                definitions.Add(key, definition);
+                try
+                {
+                    foreach (bool enable in new[] { false, true })
+                    {
+                        ProbeActor actor = NewProbeActor();
+                        var ability = new ProbeAbility();
+                        ability.Enter();
+                        actor.AddAbility(definition.AbilityType, ability);
+                        ProbeTriggerState state = ProbeTriggerState.Create(Machine(), new FSMIdentifier(Name()),
+                            "{\"AbilityDefinitionName\":\"" + key + "\",\"Enable\":" + (enable ? "true" : "false") + "}", actor);
+                        ability.Log.Clear();
+                        state.Start();
+                        string[] started = ability.Log.ToArray();
+                        state.End();
+                        Assert.That(started, Is.EqualTo(new[] { enable ? "Enter" : "Leave" }), "start, enable " + enable);
+                        Assert.That(ability.Log.Skip(started.Length), Is.EqualTo(new[] { enable ? "Leave" : "Enter" }), "end, enable " + enable);
+                    }
+                }
+                finally
+                {
+                    definitions.Remove(key);
+                }
+            }
+        }
+
+        // 06000458 (0x5296B0): no ability of the type gives false (0x52972E xor eax,eax); otherwise the flag is returned.
+        [Test]
+        public void AbilityFinishedTransitionIsFalseForAMissingAbilityAndFollowsTheFinishedFlag()
+        {
+            IFSMTransition transition = FSMClassFactory.ConstructTransition(Machine(), nameof(ActorTransition_AbilityFinished), new FSMIdentifier(Name()),
+                "{\"AbilityType\":" + (int)ActorAbilityType.Character_AirStompAttack + "}");
+            MethodInfo doUpdate = typeof(ActorTransition_AbilityFinished).GetMethod("DoUpdate", Declared);
+            ProbeActor actor = NewProbeActor();
+            bool Run() => (bool)doUpdate.Invoke(transition, new object[] { actor, new FSMUpdateContext(0.02f, FSMUpdateType.FixedUpdate) });
+
+            Assert.That(Run(), Is.False, "no ability of the type");
+            var ability = new ProbeAbility();
+            actor.AddAbility(ActorAbilityType.Character_AirStompAttack, ability);
+            Assert.That(Run(), Is.False, "ability not finished");
+            ability.Finish(true);
+            Assert.That(Run(), Is.True, "ability finished");
         }
 
         // 06000458 (0x5296B0): the transition fires on ActorAbility.AbilityFinished (+0x11) alone. It neither
@@ -625,6 +823,16 @@ namespace ProjectLucid.Tests
             int reset = IndexOf(calls, "CharacterAbility_Air", "Reset");
             int active = IndexOf(calls, "CharacterAbility_Air", "get_AirActive");
             Assert.That(new[] { baseUpdate, lookup, secondary, reset, active }, Is.Ordered.Ascending.And.Unique);
+
+            // 0x78EC36 (xor r15d,r15d) returns false straight after the reset, whose two arguments are false.
+            MethodInfo method = typeof(CharacterTransition_AirAbility).GetMethods(Declared).Single(m => m.Name == "DoUpdate");
+            var instructions = OriginalILCallSequence.Instructions(method);
+            int resetCall = instructions.FindIndex(i => i.Offset == OriginalILCallSequence.Calls(method).Single(c => c.Target.Name == "Reset").Offset);
+            Assert.That(instructions[resetCall - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_0), "resetActiveCount");
+            Assert.That(instructions[resetCall - 2].Code, Is.EqualTo(OpCodes.Ldc_I4_0), "interrupted");
+            int next = resetCall + 1;
+            while (instructions[next].Code == OpCodes.Nop) next++;
+            Assert.That(instructions[next].Code, Is.EqualTo(OpCodes.Ldc_I4_0), "the losing secondary reports false instead of reading AirActive");
         }
 
         // 06001524 (0x7752A0): the air base update, then the buffered air control (only while the timer is
