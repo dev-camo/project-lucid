@@ -1,0 +1,261 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using Hardlight;
+using Hardlight.UI.Binding;
+using HardlightProject;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
+using UnityEngine.UI;
+using static ProjectLucid.Tests.GameInputDeclarations;
+
+namespace ProjectLucid.Tests
+{
+    // GameInputButtonClick (02000965) and GameActionButtonClick (02000962), against their 1.10.1
+    // x86-64 bodies. Components sit on inactive owned GameObjects.
+    // Not covered here: GameActionButtonClick with a non-None action, which starts
+    // UpdateCoroutine (MoveNext 0x689660 and GetBrainState 0x689450 need a live Character).
+    [TestFixture]
+    public sealed class OriginalGameButtonClickTests
+    {
+        private static readonly GameInput Serialized = (GameInput)(int.MinValue + 0x4E21);
+        private static readonly GameInput Override = (GameInput)(int.MinValue + 0x4E22);
+
+        // ---- GameInputButtonClick ----
+
+        [Test]
+        public void InputButtonDeclarationsKeepOriginalFlagsAndFieldOrder()
+        {
+            Type type = typeof(GameInputButtonClick);
+            Assert.That((int)type.Attributes, Is.EqualTo(0x00100001));
+            Assert.That(type.BaseType, Is.EqualTo(typeof(MonoBehaviour)));
+            SetOptions(type, 2, 1);
+            Fields(type, ("m_buttonToClick", typeof(Button), 1), ("m_inputToListenFor", typeof(GameInput), 1),
+                ("m_inputTrigger", typeof(InputTrigger), 1), ("Input", typeof(Bindable<GameInput>), 0x26), ("m_inputOverridden", typeof(bool), 1));
+            AttributeRows(type, "m_buttonToClick", typeof(SerializeField));
+            AttributeRows(type, "m_inputToListenFor", typeof(SerializeField));
+            AttributeRows(type, "m_inputTrigger", typeof(SerializeField));
+            AttributeRows(type, "Input");
+            Methods(type, ("OnEnable", 0x81), ("OnDisable", 0x81), ("OnInput", 0x81), ("SetInput", 0x86), (".ctor", 0x1886));
+        }
+
+        // .ctor 0x689EE0 writes m_inputTrigger = 1 (Down) and allocates Input with Bindable's
+        // parameterless constructor.
+        [Test]
+        public void InputButtonConstructorSeedsDownAndAnEmptyBindable()
+        {
+            GameInputScope.Run(scope =>
+            {
+                var click = scope.Inactive("Lucid owned game input button click").AddComponent<GameInputButtonClick>();
+                Assert.That(ModernUITestSupport.Get(click, "m_inputTrigger"), Is.EqualTo(InputTrigger.Down));
+                Assert.That(click.Input, Is.Not.Null);
+                Assert.That((int)click.Input.Value, Is.Zero);
+                Assert.That(ModernUITestSupport.Get(click, "m_inputOverridden"), Is.False);
+            });
+        }
+
+        private static GameInputButtonClick InputButton(GameInputScope scope, InputTrigger trigger)
+        {
+            var click = scope.Inactive("Lucid owned game input button click").AddComponent<GameInputButtonClick>();
+            ModernUITestSupport.Set(click, "m_inputToListenFor", Serialized);
+            ModernUITestSupport.Set(click, "m_inputTrigger", trigger);
+            return click;
+        }
+
+        // OnEnable 0x689BC0 copies m_inputToListenFor into Input only without an override (+0x38)
+        // and subscribes OnInput for Input.Value with m_inputTrigger; OnDisable 0x689CA0 removes it.
+        [Test]
+        public void InputButtonEnableSubscribesTheSerializedInputWithItsTrigger()
+        {
+            GameInputScope.Run(scope =>
+            {
+                GameInputButtonClick held = InputButton(scope, InputTrigger.Held);
+                GameInputButtonClick up = InputButton(scope, InputTrigger.Up);
+                OwnedControlInputs.Run(() =>
+                {
+                    ModernUITestSupport.Call(held, "OnEnable");
+                    Assert.That(held.Input.Value, Is.EqualTo(Serialized));
+                    Assert.That(ControlTables.Subscriptions(Serialized, held), Is.EqualTo(ControlTables.Expected(InputTrigger.Held, "GameInputButtonClick.OnInput")));
+                    ModernUITestSupport.Call(up, "OnEnable");
+                    Assert.That(ControlTables.Subscriptions(Serialized, up), Is.EqualTo(ControlTables.Expected(InputTrigger.Up, "GameInputButtonClick.OnInput")));
+
+                    ModernUITestSupport.Call(held, "OnDisable");
+                    ModernUITestSupport.Call(up, "OnDisable");
+                    Assert.That(ControlTables.Subscriptions(Serialized, held), Is.Empty);
+                    Assert.That(ControlTables.Subscriptions(Serialized, up), Is.Empty);
+                }, Serialized);
+            });
+        }
+
+        // SetInput 0x689D80 returns for the current value; otherwise it sets the override flag to
+        // input != 0, substitutes m_inputToListenFor for 0, and moves the subscription (unsubscribe
+        // the old Input.Value, store, subscribe the new one) whether or not the component is enabled.
+        [Test]
+        public void InputButtonSetInputMovesTheSubscriptionAndZeroRestoresTheSerializedInput()
+        {
+            GameInputScope.Run(scope =>
+            {
+                GameInputButtonClick click = InputButton(scope, InputTrigger.Down);
+                string listener = "GameInputButtonClick.OnInput";
+                OwnedControlInputs.Run(() =>
+                {
+                    click.SetInput(Override);
+                    Assert.That(click.Input.Value, Is.EqualTo(Override));
+                    Assert.That(ModernUITestSupport.Get(click, "m_inputOverridden"), Is.True);
+                    Assert.That(ControlTables.Subscriptions(Override, click), Is.EqualTo(ControlTables.Expected(InputTrigger.Down, listener)), "subscribed while disabled");
+
+                    ModernUITestSupport.Call(click, "OnEnable");
+                    Assert.That(click.Input.Value, Is.EqualTo(Override), "the override survives enabling");
+                    Assert.That(ControlTables.Subscriptions(Override, click), Is.EqualTo(ControlTables.Expected(InputTrigger.Down, listener)), "AddUnique keeps one entry");
+                    Assert.That(ControlTables.Subscriptions(Serialized, click), Is.Empty);
+
+                    ModernUITestSupport.Set(click, "m_inputTrigger", InputTrigger.Up);
+                    click.SetInput(Override);
+                    Assert.That(ControlTables.Subscriptions(Override, click), Is.EqualTo(ControlTables.Expected(InputTrigger.Down, listener)), "the same input changes nothing");
+
+                    click.SetInput((GameInput)0);
+                    Assert.That(click.Input.Value, Is.EqualTo(Serialized));
+                    Assert.That(ModernUITestSupport.Get(click, "m_inputOverridden"), Is.False);
+                    Assert.That(ControlTables.Subscriptions(Override, click), Is.Empty);
+                    Assert.That(ControlTables.Subscriptions(Serialized, click), Is.EqualTo(ControlTables.Expected(InputTrigger.Up, listener)));
+
+                    ModernUITestSupport.Call(click, "OnDisable");
+                    Assert.That(ControlTables.Subscriptions(Serialized, click), Is.Empty);
+                }, Serialized, Override);
+            });
+        }
+
+        // OnInput 0x689D60 invokes m_buttonToClick.onClick (+0x100) whatever the value.
+        [Test]
+        public void InputButtonOnInputClicksTheButton()
+        {
+            GameInputScope.Run(scope =>
+            {
+                GameInputButtonClick click = InputButton(scope, InputTrigger.Down);
+                var button = scope.Inactive("Lucid owned button").AddComponent<Button>();
+                int clicks = 0;
+                button.onClick.AddListener(() => clicks++);
+                ModernUITestSupport.Set(click, "m_buttonToClick", button);
+                ModernUITestSupport.Call(click, "OnInput", 0f);
+                ModernUITestSupport.Call(click, "OnInput", 1f);
+                Assert.That(clicks, Is.EqualTo(2));
+            });
+        }
+
+        // ---- GameActionButtonClick ----
+
+        [Test]
+        public void ActionButtonDeclarationsKeepOriginalFlagsAndIteratorNames()
+        {
+            Type type = typeof(GameActionButtonClick);
+            Assert.That((int)type.Attributes, Is.EqualTo(0x00100001));
+            Assert.That(type.BaseType, Is.EqualTo(typeof(MonoBehaviour)));
+            SetOptions(type, 2, 1);
+            Fields(type, ("m_buttonToClick", typeof(Button), 1), ("m_actionToListenFor", typeof(GameAction), 1),
+                ("m_actionComboToListenFor", typeof(GameAction), 1), ("m_minimumTime", typeof(float), 1), ("m_inputLockTime", typeof(float), 1),
+                ("Action", typeof(Bindable<GameAction>), 0x26), ("ActionCombo", typeof(Bindable<GameAction>), 0x26),
+                ("MinimumTime", typeof(Bindable<float>), 0x26), ("m_actionOverridden", typeof(bool), 1), ("m_updateCoroutine", typeof(Coroutine), 1),
+                ("m_characterManagerRef", typeof(SystemRef<CharacterManager>), 0x21));
+            AttributeRows(type, "m_minimumTime", typeof(SerializeField));
+            AttributeRows(type, "m_inputLockTime", typeof(TooltipAttribute), typeof(SerializeField));
+            AttributeRows(type, "Action");
+            Assert.That(Tooltip(type, "m_inputLockTime"), Is.EqualTo(
+                "When game action is triggered, inputs are locked for this period of time to ensure game logic also receives them."));
+            Methods(type, ("OnEnable", 0x81), ("OnDisable", 0x81), ("SetAction", 0x86), ("SetActionCombo", 0x86), ("SetMinimumTime", 0x86),
+                ("StartUpdateCoroutine", 0x81), ("UpdateCoroutine", 0x81), ("GetBrainState", 0x81), ("StopUpdateCoroutine", 0x81), (".ctor", 0x1886));
+
+            Type iterator = Nested(type, "<UpdateCoroutine>d__17");
+            Assert.That(type.GetMethod("UpdateCoroutine", Declared).GetCustomAttribute<IteratorStateMachineAttribute>().StateMachineType, Is.EqualTo(iterator));
+            Assert.That((int)iterator.Attributes, Is.EqualTo(0x00100103));
+            Fields(iterator, ("<>1__state", typeof(int), 1), ("<>2__current", typeof(object), 1),
+                ("<>4__this", type, 6), ("<character>5__2", typeof(Character), 1));
+        }
+
+        // .ctor 0x6894F0 writes m_inputLockTime = 0x3dcccccd (0.1f), builds Action and ActionCombo
+        // with Bindable(T) given 0 (None) and MinimumTime with Bindable(), then caches the
+        // CharacterManager reference.
+        [Test]
+        public void ActionButtonConstructorSeedsTheLockTimeAndThreeBindables()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<CharacterManager>();
+                var click = scope.Inactive("Lucid owned game action button click").AddComponent<GameActionButtonClick>();
+                Assert.That(BitConverter.SingleToInt32Bits((float)ModernUITestSupport.Get(click, "m_inputLockTime")), Is.EqualTo(0x3dcccccd));
+                Assert.That(click.Action.Value, Is.EqualTo(GameAction.None));
+                Assert.That(click.ActionCombo.Value, Is.EqualTo(GameAction.None));
+                Assert.That(click.MinimumTime.Value, Is.Zero);
+                Assert.That(click.Action, Is.Not.SameAs(click.ActionCombo));
+                Assert.That(ModernUITestSupport.Get(click, "m_characterManagerRef"), Is.SameAs(ProcessManager.GetSystemRef<CharacterManager>()));
+            });
+        }
+
+        // OnEnable 0x689020 copies all three serialized values into the bindables unless the
+        // action was overridden (+0x50), and starts the coroutine only for a non-None action.
+        [Test]
+        public void ActionButtonEnableCopiesTheSerializedValuesUnlessOverridden()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<CharacterManager>();
+                var click = scope.Inactive("Lucid owned game action button click").AddComponent<GameActionButtonClick>();
+                ModernUITestSupport.Set(click, "m_actionComboToListenFor", GameAction.CharacterAirActivate);
+                ModernUITestSupport.Set(click, "m_minimumTime", 0.75f);
+                ModernUITestSupport.Call(click, "OnEnable");
+                Assert.That(click.Action.Value, Is.EqualTo(GameAction.None));
+                Assert.That(click.ActionCombo.Value, Is.EqualTo(GameAction.CharacterAirActivate));
+                Assert.That(click.MinimumTime.Value, Is.EqualTo(0.75f));
+                Assert.That(ModernUITestSupport.Get(click, "m_updateCoroutine"), Is.Null, "no coroutine for None");
+
+                click.ActionCombo.Value = GameAction.None;
+                click.MinimumTime.Value = 2f;
+                ModernUITestSupport.Set(click, "m_actionOverridden", true);
+                ModernUITestSupport.Call(click, "OnEnable");
+                Assert.That(click.ActionCombo.Value, Is.EqualTo(GameAction.None), "an override keeps every bindable");
+                Assert.That(click.MinimumTime.Value, Is.EqualTo(2f));
+                Assert.DoesNotThrow(() => ModernUITestSupport.Call(click, "OnDisable"), "no coroutine to stop");
+            });
+        }
+
+        // SetAction 0x689240 with None: the override flag is cleared and the serialized action
+        // (None here) stored; a None result stops the (absent) coroutine. SetActionCombo 0x689350
+        // returns for the current value, substitutes the serialized combo for None and never
+        // touches the override flag. SetMinimumTime 0x6893A0 stores its value as given.
+        [Test]
+        public void ActionButtonSettersStoreValuesAndNoneRestoresTheSerializedCombo()
+        {
+            GameInputScope.Run(scope =>
+            {
+                scope.Row<CharacterManager>();
+                var click = scope.Inactive("Lucid owned game action button click").AddComponent<GameActionButtonClick>();
+                ModernUITestSupport.Set(click, "m_actionComboToListenFor", GameAction.CharacterAirActivate);
+                ModernUITestSupport.Set(click, "m_actionOverridden", true);
+
+                click.SetAction(GameAction.None);
+                Assert.That(ModernUITestSupport.Get(click, "m_actionOverridden"), Is.True, "an unchanged action leaves the flag");
+                click.Action.Value = GameAction.CharacterAirStompAttack;
+                click.SetAction(GameAction.None);
+                Assert.That(ModernUITestSupport.Get(click, "m_actionOverridden"), Is.False);
+                Assert.That(click.Action.Value, Is.EqualTo(GameAction.None));
+                Assert.That(ModernUITestSupport.Get(click, "m_updateCoroutine"), Is.Null);
+
+                click.SetActionCombo(GameAction.CharacterJump);
+                Assert.That(click.ActionCombo.Value, Is.EqualTo(GameAction.CharacterJump));
+                click.SetActionCombo(GameAction.None);
+                Assert.That(click.ActionCombo.Value, Is.EqualTo(GameAction.CharacterAirActivate));
+                ModernUITestSupport.Set(click, "m_actionComboToListenFor", GameAction.CharacterRoll);
+                click.SetActionCombo(GameAction.None);
+                Assert.That(click.ActionCombo.Value, Is.EqualTo(GameAction.CharacterRoll), "the serialized combo is read at the call");
+                Assert.That(ModernUITestSupport.Get(click, "m_actionOverridden"), Is.False);
+
+                click.SetMinimumTime(-1.5f);
+                Assert.That(click.MinimumTime.Value, Is.EqualTo(-1.5f));
+                click.SetMinimumTime(float.NaN);
+                Assert.That(click.MinimumTime.Value, Is.NaN);
+            });
+            LogAssert.NoUnexpectedReceived();
+        }
+    }
+}

@@ -4417,3 +4417,58 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAnimationHelperTests." + nam
     "BoolSetterHashesOnEveryEntryAndExitReusesTheCachedHash",
     "CompleteAbilitySetterResolvesTheBossOnEntryAndCompletesItsAbility",
 ))
+
+# Restored Game.Runtime InputHandler, GameInputSupplier and GameInputCharacterTriggerVolume.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameInputProviderTests." + name for name in (
+    "InputHandlerDeclarationsKeepOriginalFlagsAndMemberOrder",
+    "InputHandlerForwardsOnlyWhileRegisteredWithJoystickZero",
+    "InputHandlerRegisterNeedsAnInputSystemAndRunsOnce",
+    "SupplierDeclarationsKeepOriginalFlagsAndIteratorName",
+    "SupplierEnableRegistersWithTheSystemMappingAndDisableUnregisters",
+    "SupplyInputWithoutACharacterManagerSuppliesNothing",
+    "SupplyHeldInputHoldsWhileTimeRemainsThenReleasesWithZero",
+    "TriggerVolumeDeclarationsKeepOriginalFlagsNestedTypesAndClosureName",
+    "TriggerVolumeAwakeRegistersWithTheSystemMapping",
+    "TriggerVolumeEnterPressesOnlyForItsSimulation",
+    "TriggerVolumeDeferredReleaseReadsItsInputWhenItRuns",
+    "TriggerVolumeUpdateHoldsEveryInputAndIgnoresDeltaTime",
+    "TriggerVolumeHeldExitReleasesWithValueOneWithoutATimeManager",
+    "TriggerVolumeExitPressesForTheExitSimulation",
+    "TriggerVolumeStayReadsBoundsOnlyForAnUnfinishedDelay",
+    "TriggerVolumeIsPausedStoresItsValue",
+))
+
+# Restored Game.Runtime InputEvent, InputEventSelectedOnly, RawInput and GameInputDisabledListener.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalInputEventTests." + name for name in (
+    "InputEventDeclarationsKeepOriginalFlagsAndAttributeRows",
+    "InputEventConstructorSeedsNoneImmediateAndTheAudioManagerReference",
+    "InputEventEnableSubscribesItsVirtualOnInputOnButtonDown",
+    "SuspendedInputEventDoesNothingUntilUnsuspended",
+    "InputEventExclusiveContainersMustBeExclusivelyOpen",
+    "InputEventStopsAtTheFirstOpenIgnoredContainer",
+    "InputEventDefersToTheNextFrameWhenNotImmediate",
+    "InvokeEventPlaysOnlyWithAClipASourceAndAManager",
+    "InputEventPublishesTheUIEventUnderOnClick",
+    "SelectedOnlyDeclarationsKeepOriginalFlagsAndAttributeRows",
+    "SelectedOnlyRefusesWhenNotInteractableOrWithoutNavigation",
+    "RawInputDeclarationsKeepOriginalFlags",
+    "RawInputFiresOnceForNonZeroInputButFireAlwaysInvokes",
+    "RawInputListensForSkipTheSplashPresses",
+    "DisabledListenerDeclarationsKeepOriginalFlagsAndAttributeRows",
+    "DisabledListenerAwakeTakesTheSystemMapping",
+    "DisabledListenerEnableReportsTheCurrentStateAndDisableRestoresEnabled",
+    "DisabledListenerFiresOnlyWhenTheWholeListChanges",
+))
+
+# Restored Game.Runtime GameInputButtonClick and GameActionButtonClick.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGameButtonClickTests." + name for name in (
+    "InputButtonDeclarationsKeepOriginalFlagsAndFieldOrder",
+    "InputButtonConstructorSeedsDownAndAnEmptyBindable",
+    "InputButtonEnableSubscribesTheSerializedInputWithItsTrigger",
+    "InputButtonSetInputMovesTheSubscriptionAndZeroRestoresTheSerializedInput",
+    "InputButtonOnInputClicksTheButton",
+    "ActionButtonDeclarationsKeepOriginalFlagsAndIteratorNames",
+    "ActionButtonConstructorSeedsTheLockTimeAndThreeBindables",
+    "ActionButtonEnableCopiesTheSerializedValuesUnlessOverridden",
+    "ActionButtonSettersStoreValuesAndNoneRestoresTheSerializedCombo",
+))

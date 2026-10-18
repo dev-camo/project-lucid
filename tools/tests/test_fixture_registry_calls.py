@@ -55,6 +55,7 @@ ALLOWED = {
     "Assets/Tests/Editor/FSMManagerVerificationOwnershipTests.cs": (52, OWNED),
     "Assets/Tests/Editor/OfflineAchievementLifecycleTests.cs": (10, OWNED),
     "Assets/Tests/Editor/OriginalDispatchUtilitiesTests.cs": (2, UNLEASED),
+    "Assets/Tests/Editor/OriginalGameInputFixtures.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalHLOutputDiagnosticGapTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalLegalModuleTests.cs": (1, OWNED),
     "Assets/Tests/Editor/OriginalLevelManagerSystemsGapTests.cs": (5, OWNED),
