@@ -42,7 +42,7 @@ namespace HardlightProject
         // this step; the position is then the tracker's. Once the time passes the end of the surface, the
         // overshoot is handed back through deltaTime.
         public override bool Update(out Vector3 position, ref float time, ref float deltaTime, int direction, bool usesTransform,
-            Transform transform, Tracker2D tracker = null)
+            Transform transform, Tracker2D tracker)
         {
             position = usesTransform ? transform.TransformPoint(LocalPosition) : PositionWorld;
             if (m_timeTotal > 0f)
@@ -54,13 +54,15 @@ namespace HardlightProject
                     tracker.MoveLocal(Vector3.forward * step);
                     position = tracker.Location.m_worldPosition;
                 }
-                if (time < m_timeTotal)
+                // An unordered compare (NaN) waits, as the retail jae does.
+                if (time >= m_timeTotal)
                 {
-                    deltaTime = 0f;
-                    return true;
+                    deltaTime = time - m_timeTotal;
+                    time = m_timeTotal;
+                    return false;
                 }
-                deltaTime = time - m_timeTotal;
-                time = m_timeTotal;
+                deltaTime = 0f;
+                return true;
             }
             return false;
         }
@@ -102,12 +104,11 @@ namespace HardlightProject
         // 06002efc (0x600C60): the spline's length, kept as it was without a spline.
         protected override void CalculateDistance()
         {
-            if (m_spline != null)
-            {
-                ISpline spline = m_spline.GetSpline();
-                if (spline != null)
-                    m_distance = spline.Length;
-            }
+            if (m_spline == null)
+                return;
+            ISpline spline = m_spline.GetSpline();
+            if (spline != null)
+                m_distance = spline.Length;
         }
 
         // 06002efd (0x600D60): measures the end of the spline on the tracker: from the start, a whole length

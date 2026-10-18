@@ -16,8 +16,7 @@ namespace ProjectLucid.Tests
     // TransformSurfaceTarget (0x0200081c, 0x601BE0..0x6048A9) and TransformSurfaceTargetStop
     // (0x0200081e, 0x603FA0..0x604930), and the line (0x02000815, 0x5FF7B0..0x5FFF20), point (0x02000816,
     // 0x5FFF20..0x600560), spline (0x02000817, 0x600560..0x600E80) and transform (0x02000818,
-    // 0x600E80..0x6013D0) descriptions. The spline description is tested through a real Tracker2D over a
-    // recording collision resolver, and a Spline facade over an InertSpline. The surfaces, targets and stops are plain serializable
+    // 0x600E80..0x6013D0) descriptions. The surfaces, targets and stops are plain serializable
     // classes built with their own constructors. A follower is a TimeScaledComponent_SDT, so it is added
     // to an inactive owned object with an owned, empty TimeCategoryLookup standing in the cache the
     // Editor's Reset reads, and the TimeManager row the TimeScaledComponent static reference may create
@@ -1919,7 +1918,11 @@ namespace ProjectLucid.Tests
                 {
                     ParameterInfo[] parameters = type.GetMethod(name).GetParameters();
                     ParameterInfo tracker = parameters[parameters.Length - 1];
-                    Assert.That(tracker.IsOptional && tracker.HasDefaultValue && tracker.DefaultValue == null, Is.True, type.Name + "." + name);
+                    // The DummyDll row for TransformSurfaceSplineDescription.Update (0x06002ef7) has no default on tracker.
+                    if (type == typeof(TransformSurfaceSplineDescription) && name == "Update")
+                        Assert.That(tracker.IsOptional || tracker.HasDefaultValue, Is.False, type.Name + "." + name);
+                    else
+                        Assert.That(tracker.IsOptional && tracker.HasDefaultValue && tracker.DefaultValue == null, Is.True, type.Name + "." + name);
                 }
             }
         }
@@ -1991,6 +1994,13 @@ namespace ProjectLucid.Tests
 
                     Assert.That(surface.Update(out position, ref time, ref delta, -1, true, transform), Is.True, name);
                     Near(new Vector3(11f, 0f, 0f), position, name + " local position through the transform");
+
+                    // 0x6001cf ucomiss/jae: an unordered compare waits instead of overshooting.
+                    time = 0f;
+                    delta = float.NaN;
+                    Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null), Is.True, name + " NaN delta");
+                    Assert.That(time, Is.NaN, name);
+                    Assert.That(delta, Is.EqualTo(0f), name);
 
                     time = 1.9f;
                     delta = 0.3f;
@@ -2496,10 +2506,22 @@ namespace ProjectLucid.Tests
             Near(4f, time, "pinned");
             Near(0.5f, delta, "overshoot");
 
+            // 0x600850 ucomiss/jae: an unordered compare waits instead of overshooting.
+            resolver.Calls.Clear();
+            time = 0f;
+            delta = float.NaN;
+            Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null, tracker), Is.True, "NaN delta with a tracker");
+            Assert.That(time, Is.NaN);
+            Assert.That(delta, Is.EqualTo(0f));
+            time = 0f;
+            delta = float.NaN;
+            Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null, null), Is.True, "NaN delta without a tracker");
+            Assert.That(delta, Is.EqualTo(0f));
+
             resolver.Calls.Clear();
             time = 0f;
             delta = 1f;
-            Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null), Is.True, "without a tracker");
+            Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null, null), Is.True, "without a tracker");
             Near(new Vector3(4f, 5f, 6f), position, "the surface's position");
             Assert.That(resolver.Calls, Is.Empty);
 

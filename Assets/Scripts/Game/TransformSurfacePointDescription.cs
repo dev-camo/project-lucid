@@ -40,13 +40,15 @@ namespace HardlightProject
             if (m_timeTotal > 0f)
             {
                 time += deltaTime;
-                if (time < m_timeTotal)
+                // An unordered compare (NaN) waits, as the retail jae does.
+                if (time >= m_timeTotal)
                 {
-                    deltaTime = 0f;
-                    return true;
+                    deltaTime = time - m_timeTotal;
+                    time = m_timeTotal;
+                    return false;
                 }
-                deltaTime = time - m_timeTotal;
-                time = m_timeTotal;
+                deltaTime = 0f;
+                return true;
             }
             return false;
         }
