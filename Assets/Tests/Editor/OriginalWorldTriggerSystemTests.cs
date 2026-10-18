@@ -390,7 +390,10 @@ namespace ProjectLucid.Tests
                 GameplaySection Section(string name, Vector3 centre)
                 {
                     GameObject volumeHost = owned.Host(name + " volume", false);
-                    volumeHost.AddComponent<BoxCollider>();
+                    // AddComponent sends CharacterTrigger.Reset, which stores this collider; GetBounds returns
+                    // an enabled collider's bounds (empty at the origin on an inactive host) and the m_bounds
+                    // snapshot otherwise, so the collider is disabled for the snapshot to place the section.
+                    volumeHost.AddComponent<BoxCollider>().enabled = false;
                     var volume = volumeHost.AddComponent<CharacterEventTrigger>();
                     Set(volume, "m_bounds", new Bounds(centre, Vector3.one * 2f));
                     var section = owned.Host(name, false).AddComponent<GameplaySection>();
