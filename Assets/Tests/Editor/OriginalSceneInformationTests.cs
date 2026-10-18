@@ -15,8 +15,8 @@ namespace ProjectLucid.Tests
 {
     // Restored Game.Runtime SceneInformation (TypeDef 0x020001cf, x86-64 0x6F26F0..0x6F2B10) over
     // an unawakened HLProfilerDataManager registered in an owned row, so its group list is
-    // empty unless a case adds its own hidden group. The active Edit Mode scene holds unrelated objects too, so the object counter is
-    // compared before and after the case adds its own hierarchy.
+    // empty unless a case adds its own hidden group. The active Edit Mode scene holds unrelated
+    // objects too, so the object counter is compared before and after the case adds its own hierarchy.
     public sealed class OriginalSceneInformationTests
     {
         private static readonly MethodInfo TotalChildCount =
