@@ -18,7 +18,7 @@ namespace HardlightProject
 
 		private readonly SystemRef<MessageManager> m_messageManagerRef = ProcessManager.GetSystemRef<MessageManager>();
 
-		// 06001205 (1.10.1 RVA 0x74CD80); a dash spline hidden from the camera by collision is dropped.
+		// 06001205 (1.10.1 RVA 0x74CD80); a ray from the camera to the found location that hits collision clears the surface.
 		protected override void DoOnDetect()
 		{
 			TrackManager trackManager = m_character.TrackManager;
@@ -40,7 +40,7 @@ namespace HardlightProject
 			PublishDetectorMessage();
 		}
 
-		// 06001206 (1.10.1 RVA 0x74CF70); keeps whichever end of the spline is within range, the nearer one winning.
+		// 06001206 (1.10.1 RVA 0x74CF70); keeps the start or end location of the surface when within the proximity, the nearer end winning.
 		private void SetSurfaceLocation()
 		{
 			SurfaceLocation start = m_surfaceLocation.m_surface.StartLocation();

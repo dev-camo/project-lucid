@@ -309,7 +309,6 @@ namespace ProjectLucid.Tests
                 definition.ReAttachCooldownSeconds = cooldown;
                 // Heading forward (0, 0, 1) against a minimum angle of attack no zero velocity reaches.
                 definition.MinAngleOfAttack = 90f;
-                SetActorProperty(character, "WorldRotation", Quaternion.identity);
                 character.Storage.SetValue(ActorFSMKeys.ClimbingLastTimestamp, lastClimb);
                 CharacterClimbingCollisionTracker tracker = InstallTracker(ability, character, false, Vector3.zero, new Vector3(1f, 2f, 3f));
                 // One counted contact, so the tracker update never reaches its ground raycast.

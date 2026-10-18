@@ -41,7 +41,7 @@ namespace HardlightProject
 			return new CharacterState_HalfPipeAir(fsm, transitionId, JsonUtility.FromJson<HalfPipeAirJSONCtorArgs>(jsonCtorArgs));
 		}
 
-		// 06001588 (1.10.1 RVA 0x7772D0); latches onto the half pipe the character entered from.
+		// 06001588 (1.10.1 RVA 0x7772D0)
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
 			base.DoOnEnter(user, action);
@@ -57,8 +57,7 @@ namespace HardlightProject
 			character.Storage.SetValue(ActorFSMKeys.HalfPipeColliderSpeedForward, colliderSpeedForward);
 		}
 
-		// 06001589 (1.10.1 RVA 0x777810); follows the half pipe lip, hands over to the transfer ability when the
-		// lip ends, and drops off when the ground is touched.
+		// 06001589 (1.10.1 RVA 0x777810); a failed raycast projection tries the transfer ability, a ground hit clears the collider flag.
 		protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			base.DoUpdate(user, updateContext);
@@ -104,7 +103,7 @@ namespace HardlightProject
 			character.Storage.SetValue(ActorFSMKeys.HalfPipeColliderNormal, colliderNormal);
 		}
 
-		// 0600158a (1.10.1 RVA 0x778850); records the landing for the ground states and the boost restore delay.
+		// 0600158a (1.10.1 RVA 0x778850)
 		protected override void DoOnLeave(IGraphUser user, FSMStateChangeAction action)
 		{
 			base.DoOnLeave(user, action);

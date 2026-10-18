@@ -60,7 +60,7 @@ namespace HardlightProject
 			m_gravity = gravity / gravityMultiplier;
 		}
 
-		// 06001104 (1.10.1 RVA 0x746B40); steers the character along the lip it will land on.
+		// 06001104 (1.10.1 RVA 0x746B40)
 		public bool ProjectToHalfPipe(float deltaTime)
 		{
 			Vector3 worldUp = m_character.WorldUp;

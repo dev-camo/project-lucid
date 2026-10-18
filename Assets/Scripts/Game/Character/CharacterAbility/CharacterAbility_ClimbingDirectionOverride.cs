@@ -18,7 +18,7 @@ namespace HardlightProject
 			m_directionOverrideActivePrevious = m_character.IsDirectionOverrideActive();
 		}
 
-		// 060010d9 (1.10.1 RVA 0x745320); the request flag is consumed the first update after the override ends.
+		// 060010d9 (1.10.1 RVA 0x745320); the stored request is consumed only when an override was active at the previous update.
 		protected override bool CanEnterClimb()
 		{
 			bool enterWhenOverrideEnds = false;

@@ -19,7 +19,7 @@ namespace HardlightProject
 
 		private ColliderTrackingUtilities.RaycastTransform m_projectedRaycastTransform;
 
-		// 060010f7 (1.10.1 RVA 0x745630); picks the air motion from the consecutive half pipe index, falling back to the speed thresholds.
+		// 060010f7 (1.10.1 RVA 0x745630); the stored motion index selects an override while its activation time lasts, otherwise the activation speeds do.
 		protected override void DoOnEnter()
 		{
 			base.DoOnEnter();
@@ -84,7 +84,7 @@ namespace HardlightProject
 			m_airTime += deltaTime;
 		}
 
-		// 060010f9 (1.10.1 RVA 0x745D50); the next half pipe in a chain uses the next motion override.
+		// 060010f9 (1.10.1 RVA 0x745D50); advances the stored motion index while overrides remain after it.
 		protected override void DoOnLeave()
 		{
 			base.DoOnLeave();

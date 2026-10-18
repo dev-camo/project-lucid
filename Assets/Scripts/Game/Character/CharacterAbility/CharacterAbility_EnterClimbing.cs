@@ -30,7 +30,7 @@ namespace HardlightProject
 			return ClimbingCollisionTracker.IsColliding && Definition.SurfaceAngleValid(GetSlopeAngle());
 		}
 
-		// 060010e5 (1.10.1 RVA 0xE60410); the angle between the surface normal and gravity, measured from the wall.
+		// 060010e5 (1.10.1 RVA 0xE60410); 180 minus the angle between gravity and the collision normal.
 		protected virtual float GetSlopeAngle()
 		{
 			return 180f - Vector3.Angle(m_character.Gravity, ClimbingCollisionTracker.CollisionNormal);

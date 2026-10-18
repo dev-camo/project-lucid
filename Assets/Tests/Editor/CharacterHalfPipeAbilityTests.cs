@@ -385,7 +385,6 @@ namespace ProjectLucid.Tests
         {
             WithAir((owned, character, ability, definition, motions) =>
             {
-                SetProperty(character, "SpinDashRoll", new CharacterSpinDashRoll(character));
                 var text = new System.Text.StringBuilder();
                 Assert.That(ability.GetUIText(text), Is.False);
                 Assert.That(text.ToString(), Is.Empty);

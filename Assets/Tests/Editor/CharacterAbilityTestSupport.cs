@@ -50,6 +50,8 @@ namespace ProjectLucid.Tests
             SetProperty(character, "Settings", new CharacterSettings { Collider = new CharacterSettings.ColliderSettings() });
             SetProperty(character, "Collider", new CharacterCollider(character, null, null));
             SetActorProperty(character, "FixedUpdateActive", true);
+            SetActorProperty(character, "WorldRotation", Quaternion.identity);
+            SetProperty(character, "SpinDashRoll", new CharacterSpinDashRoll(character));
             return character;
         }
 
