@@ -109,6 +109,13 @@ namespace ProjectLucid.Tests
                 return host;
             }
 
+            // A lease the case takes itself, released with the others, newest first.
+            internal T Lease<T>(T lease) where T : IDisposable
+            {
+                m_leases.Add(lease);
+                return lease;
+            }
+
             // Taken before any constructor that subscribes to these actions.
             internal void LeaseActions(params SystemAction[] actions) => m_leases.Add(new VerificationFixtureOwnership.ActionRows(actions));
 
