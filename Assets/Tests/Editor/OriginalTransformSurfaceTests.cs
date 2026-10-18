@@ -14,7 +14,10 @@ namespace ProjectLucid.Tests
     // its nested FollowModeType and SurfaceEvents, TransformSurfaceCircleDescription (0x02000811,
     // 0x5FE280..0x5FEFD0), TransformSurfaceFollower (0x02000819, 0x6013D0..0x603CC0),
     // TransformSurfaceTarget (0x0200081c, 0x601BE0..0x6048A9) and TransformSurfaceTargetStop
-    // (0x0200081e, 0x603FA0..0x604930). The surfaces, targets and stops are plain serializable
+    // (0x0200081e, 0x603FA0..0x604930), and the line (0x02000815, 0x5FF7B0..0x5FFF20), point (0x02000816,
+    // 0x5FFF20..0x600560), spline (0x02000817, 0x600560..0x600E80) and transform (0x02000818,
+    // 0x600E80..0x6013D0) descriptions. The spline description is tested through a real Tracker2D over a
+    // recording collision resolver, and a Spline facade over an InertSpline. The surfaces, targets and stops are plain serializable
     // classes built with their own constructors. A follower is a TimeScaledComponent_SDT, so it is added
     // to an inactive owned object with an owned, empty TimeCategoryLookup standing in the cache the
     // Editor's Reset reads, and the TimeManager row the TimeScaledComponent static reference may create
@@ -1798,6 +1801,753 @@ namespace ProjectLucid.Tests
 
                 Near(0.5f, (float)Get(target, "m_time"));
                 Near(new Vector3(1.4142135f, 0f, 1.4142135f), ((Transform)Get(target, "m_transform")).position, "45 degrees");
+            }
+        }
+
+        // ---- the line, point, spline and transform descriptions ----
+
+        // Stands in for the collision resolver a Tracker2D is built on: a teleport answers the requested world
+        // position with the configured rotation, a local move adds the offset to the current world position,
+        // and every call is recorded. Tracker2D itself is the real class.
+        private sealed class RecordingResolver : ICollisionResolver2D
+        {
+            public readonly List<string> Calls = new List<string>();
+            public Quaternion Rotation = Quaternion.identity;
+
+            // "kind (x, y, z)" with negative zero printed as zero.
+            public static string Row(string kind, Vector3 v) =>
+                kind + " (" + Z(v.x) + ", " + Z(v.y) + ", " + Z(v.z) + ")";
+
+            public static string Row(string kind, float x, float y, float z) => Row(kind, new Vector3(x, y, z));
+
+            private static string Z(float value) => (value + 0f).ToString("F1", System.Globalization.CultureInfo.InvariantCulture);
+
+            public Collision2DOutput GetNearestLocationFromWorld(Collision2DInput input, Vector3 worldPosition)
+            {
+                Calls.Add(Row("teleport", worldPosition));
+                SurfaceLocation location = input.m_currentLocation;
+                location.m_worldPosition = worldPosition;
+                location.m_worldRotation = Rotation;
+                return new Collision2DOutput { m_newLocation = location };
+            }
+
+            public Collision2DOutput MoveTowardsLocalLocation(Collision2DInput input, Vector3 localOffset)
+            {
+                Calls.Add(Row("move", localOffset));
+                SurfaceLocation location = input.m_currentLocation;
+                location.m_worldPosition += localOffset;
+                return new Collision2DOutput { m_newLocation = location };
+            }
+
+            public RayHit2DOutput GetNearestLocationHitFromWorld(RayHit2DInput input) => throw new NotSupportedException();
+
+            public Collision2DOutput MoveTowardsWorldLocation(Collision2DInput input, Vector3 worldOffset) => throw new NotSupportedException();
+        }
+
+        private static void RotationIs(Quaternion expected, Quaternion actual, string label) =>
+            Assert.That(Quaternion.Angle(expected, actual), Is.LessThan(0.01f), label + ": expected " + expected + " but was " + actual);
+
+        private static void RotationIsNot(Quaternion unexpected, Quaternion actual, string label) =>
+            Assert.That(Quaternion.Angle(unexpected, actual), Is.GreaterThan(1f), label);
+
+        // A surface whose total time is the given one and whose length is the given one, measured the way the
+        // follower does (SetExtentsMultiplier measures the surface, then the time).
+        private static T Timed<T>(T surface, float distance, float timeTotal) where T : TransformSurfaceDescription
+        {
+            Set(surface, "m_distance", distance);
+            surface.SetFollowMode(TransformSurfaceDescription.FollowModeType.Time, 0f, timeTotal);
+            surface.SetExtentsMultiplier(1f);
+            return surface;
+        }
+
+        [Test]
+        public void DeclarationsOfTheLinePointSplineAndTransformDescriptions()
+        {
+            Assert.That((int)typeof(TransformSurfaceLineDescription).Attributes, Is.EqualTo(0x00102001));
+            Assert.That(typeof(TransformSurfaceLineDescription).BaseType, Is.EqualTo(typeof(TransformSurfaceDescription)));
+            Assert.That(Fields(typeof(TransformSurfaceLineDescription)), Is.EqualTo(new[]
+            {
+                "m_lerpOrientationToTarget:Boolean:0001", "m_rotationLocal:Quaternion:0001", "m_rotationLocalStart:Quaternion:0001",
+                "m_rotationLocalEnd:Quaternion:0001"
+            }));
+            Assert.That(Methods(typeof(TransformSurfaceLineDescription)), Is.EqualTo(new[]
+            {
+                "Initialise:00c6", "Update:00c6", "GetRotation:00c6", "GetRotationLocal:00c6", "SetPosition:00c6", "SetPositionEnd:00c6",
+                "CalculateDistance:00c4", ".ctor:1886"
+            }));
+            Assert.That(AttributeRow(typeof(TransformSurfaceLineDescription).GetField("m_lerpOrientationToTarget", BindingFlags.Instance | BindingFlags.NonPublic)),
+                Is.EqualTo("TooltipAttribute(Lerps the transform orientation linearly to the target over its length.) SerializeField()"));
+
+            Assert.That((int)typeof(TransformSurfacePointDescription).Attributes, Is.EqualTo(0x00102001));
+            Assert.That(typeof(TransformSurfacePointDescription).BaseType, Is.EqualTo(typeof(TransformSurfaceDescription)));
+            Assert.That(Fields(typeof(TransformSurfacePointDescription)), Is.EqualTo(new[] { "m_rotationLocal:Quaternion:0001" }));
+            Assert.That(Methods(typeof(TransformSurfacePointDescription)), Is.EqualTo(new[]
+            {
+                "get_Orientate:08c6", "Initialise:00c6", "OnValidate:00c6", "Update:00c6", "GetRotation:00c6", "GetRotationLocal:00c6",
+                "SetPosition:00c6", "SetPositionEnd:00c6", "CalculateDistance:00c4", ".ctor:1886"
+            }));
+
+            Assert.That((int)typeof(TransformSurfaceSplineDescription).Attributes, Is.EqualTo(0x00102001));
+            Assert.That(typeof(TransformSurfaceSplineDescription).BaseType, Is.EqualTo(typeof(TransformSurfaceDescription)));
+            Assert.That(Fields(typeof(TransformSurfaceSplineDescription)), Is.EqualTo(new[] { "m_spline:Spline:0001" }));
+            Assert.That(Methods(typeof(TransformSurfaceSplineDescription)), Is.EqualTo(new[]
+            {
+                ".ctor:1886", "Teleport:00c6", "Update:00c6", "GetRotation:00c6", "GetRotationLocal:00c6", "SetPosition:00c6",
+                "SetPositionEnd:00c6", "CalculateDistance:00c4", "OnValidateTracker:00c6", "GetSpline:00c6"
+            }));
+            Assert.That(AttributeRow(typeof(TransformSurfaceSplineDescription).GetField("m_spline", BindingFlags.Instance | BindingFlags.NonPublic)),
+                Is.EqualTo("SerializeField()"));
+            ParameterInfo splineParameter = typeof(TransformSurfaceSplineDescription).GetConstructors()[0].GetParameters()[0];
+            Assert.That(splineParameter.IsOptional && splineParameter.HasDefaultValue && splineParameter.DefaultValue == null, Is.True);
+
+            Assert.That((int)typeof(TransformSurfaceTransformDescription).Attributes, Is.EqualTo(0x00102001));
+            Assert.That(typeof(TransformSurfaceTransformDescription).BaseType, Is.EqualTo(typeof(TransformSurfaceDescription)));
+            Assert.That(Fields(typeof(TransformSurfaceTransformDescription)), Is.EqualTo(new[] { "m_transform:Transform:0001" }));
+            Assert.That(Methods(typeof(TransformSurfaceTransformDescription)), Is.EqualTo(new[]
+            {
+                "OnValidate:00c6", "Update:00c6", "GetRotation:00c6", "GetRotationLocal:00c6", "SetPosition:00c6", "SetPositionEnd:00c6",
+                "CalculateDistance:00c4", ".ctor:1886"
+            }));
+            Assert.That(AttributeRow(typeof(TransformSurfaceTransformDescription).GetField("m_transform", BindingFlags.Instance | BindingFlags.NonPublic)),
+                Is.EqualTo("TooltipAttribute(Transform to follow.) SerializeField()"));
+
+            foreach (Type type in new[]
+                { typeof(TransformSurfaceLineDescription), typeof(TransformSurfacePointDescription), typeof(TransformSurfaceSplineDescription),
+                  typeof(TransformSurfaceTransformDescription) })
+            {
+                foreach (string name in new[] { "Update", "GetRotation" })
+                {
+                    ParameterInfo[] parameters = type.GetMethod(name).GetParameters();
+                    ParameterInfo tracker = parameters[parameters.Length - 1];
+                    Assert.That(tracker.IsOptional && tracker.HasDefaultValue && tracker.DefaultValue == null, Is.True, type.Name + "." + name);
+                }
+            }
+        }
+
+        // ---- the point ----
+
+        // get_Orientate 0x5FFF20 is xor eax, eax: the point never orientates (the base answers true).
+        [Test]
+        public void PointNeverOrientatesAndHasNoLength()
+        {
+            var point = new TransformSurfacePointDescription();
+            Assert.That(point.Orientate, Is.False);
+            Assert.That(new DescriptionProbe().Orientate, Is.True);
+            Set(point, "m_distance", 5f);
+            Call(point, "CalculateDistance");
+            Assert.That(point.Distance, Is.EqualTo(0f));
+        }
+
+        // Initialise 0x5FFF30 places the point and measures it like the base, then stores LookRotation(m_position -
+        // localPositionPrev, up) at +0x80: the given end is not used (SetPositionEnd 0x6004C0 copies the start).
+        [Test]
+        public void PointInitialiseLooksFromThePreviousPointAndEndsWhereItStarts()
+        {
+            using (var fixture = new Fixture(new Vector3(10f, 0f, 0f), Quaternion.identity))
+            {
+                var point = new TransformSurfacePointDescription();
+                Set(point, "m_position", new Vector3(1f, 2f, 3f));
+
+                point.Initialise(fixture.Follower, new Vector3(50f, 60f, 70f), new Vector3(0f, 2f, 3f), Quaternion.identity);
+
+                Near(new Vector3(11f, 2f, 3f), point.PositionStartWorld, "start");
+                Near(new Vector3(11f, 2f, 3f), point.PositionEndWorld, "the end is the start");
+                Near(new Vector3(1f, 2f, 3f), point.PositionEndLocal, "end in the follower's space");
+                Near(0f, point.Distance);
+                RotationIs(Quaternion.Euler(0f, 90f, 0f), point.GetRotationLocal(null), "looking along +x");
+
+                point.Initialise(fixture.Follower, Vector3.zero, new Vector3(1f, 2f, 4f), Quaternion.identity);
+                RotationIs(Quaternion.Euler(0f, 180f, 0f), point.GetRotationLocal(null), "looking along -z");
+            }
+        }
+
+        // Update 0x600160 and 0x600F90: the position is the local position through the transform or the stored
+        // world position; with a positive total time the delta is added, and past the total time the overshoot
+        // is handed back and the time pinned. Without a total time nothing is touched.
+        [Test]
+        public void PointAndTransformUpdateWaitForTheTotalTime()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-wait"))
+            {
+                Transform transform = objects.Create("transform", new Vector3(10f, 0f, 0f), Quaternion.identity).transform;
+                foreach (TransformSurfaceDescription surface in new TransformSurfaceDescription[]
+                    { new TransformSurfacePointDescription(), new TransformSurfaceTransformDescription() })
+                {
+                    string name = surface.GetType().Name;
+                    Set(surface, "m_position", new Vector3(1f, 0f, 0f));
+                    Set(surface, "m_positionWorld", new Vector3(4f, 5f, 6f));
+
+                    float time = 0.5f, delta = 0.25f;
+                    Assert.That(surface.Update(out Vector3 position, ref time, ref delta, 1, false, null), Is.False, name + " without a total time");
+                    Near(new Vector3(4f, 5f, 6f), position, name + " position");
+                    Assert.That(time, Is.EqualTo(0.5f), name);
+                    Assert.That(delta, Is.EqualTo(0.25f), name);
+
+                    Timed(surface, 0f, 2f);
+                    Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null), Is.True, name);
+                    Near(0.75f, time, name + " time");
+                    Assert.That(delta, Is.EqualTo(0f), name);
+                    Near(new Vector3(4f, 5f, 6f), position, name + " world position");
+
+                    Assert.That(surface.Update(out position, ref time, ref delta, -1, true, transform), Is.True, name);
+                    Near(new Vector3(11f, 0f, 0f), position, name + " local position through the transform");
+
+                    time = 1.9f;
+                    delta = 0.3f;
+                    Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null), Is.False, name + " past the total time");
+                    Near(2f, time, name + " pinned time");
+                    Near(0.2f, delta, name + " overshoot");
+
+                    time = 2f;
+                    delta = 0f;
+                    Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null), Is.False, name + " exactly at the total time");
+                    Near(0f, delta, name + " no overshoot");
+                }
+            }
+        }
+
+        // GetRotation 0x600200: transform.rotation * m_rotationLocal (+0x80), then * the inverse rotation (180
+        // degrees about up) only for a negative direction while orientating to the direction.
+        [Test]
+        public void PointRotationMultipliesInOrderAndTurnsRoundOnlyBackwards()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-point-rotation"))
+            {
+                Quaternion transformRotation = Quaternion.Euler(0f, 0f, 90f);
+                Quaternion local = Quaternion.Euler(90f, 0f, 0f);
+                Transform transform = objects.Create("transform", Vector3.zero, transformRotation).transform;
+                var point = new TransformSurfacePointDescription();
+                Set(point, "m_rotationLocal", local);
+                Quaternion inverse = Quaternion.AngleAxis(180f, Vector3.up);
+
+                RotationIs(local, point.GetRotationLocal(transform), "local rotation");
+                RotationIs(transformRotation * local, point.GetRotation(transform, 1, true), "forwards");
+                RotationIsNot(local * transformRotation, point.GetRotation(transform, 1, true), "the product is not reversed");
+                RotationIs(transformRotation * local, point.GetRotation(transform, 0, true), "standing still");
+                RotationIs(transformRotation * local, point.GetRotation(transform, -1, false), "backwards without orientating");
+                RotationIs(transformRotation * local * inverse, point.GetRotation(transform, -1, true), "backwards orientating");
+                RotationIsNot(inverse * transformRotation * local, point.GetRotation(transform, -1, true), "the turn is applied last");
+            }
+        }
+
+        // SetPosition 0x600430 stores the world and local positions like the base and, only when it moved, the
+        // start world position; SetPositionEnd 0x6004C0 ignores its position and ends where the start is.
+        [Test]
+        public void PointSetPositionStoresTheStartAndTheEndFollowsIt()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-point-position"))
+            {
+                Transform transform = objects.Create("transform", new Vector3(10f, 0f, 0f), Quaternion.identity).transform;
+                var point = new TransformSurfacePointDescription();
+
+                Assert.That(point.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.True);
+                Near(new Vector3(12f, 0f, 0f), point.PositionStartWorld, "start");
+                Near(new Vector3(2f, 0f, 0f), point.LocalPosition, "local");
+                Assert.That(point.SetPosition(new Vector3(12.0005f, 0f, 0f), transform), Is.False, "inside the tolerance");
+                Near(new Vector3(12f, 0f, 0f), point.PositionStartWorld, "start kept");
+
+                point.SetPositionEnd(new Vector3(99f, 99f, 99f), transform);
+                Near(new Vector3(12f, 0f, 0f), point.PositionEndWorld, "end world");
+                Near(new Vector3(2f, 0f, 0f), point.PositionEndLocal, "end local");
+            }
+        }
+
+        // OnValidate 0x600050 and 0x600E80: the base validation (the time is measured from the follow mode as it
+        // was), then the follow mode becomes Time with a follow speed of zero; the follow time is untouched.
+        [Test]
+        public void PointAndTransformOnValidateSwitchToTheTimeFollowMode()
+        {
+            foreach (TransformSurfaceDescription surface in new TransformSurfaceDescription[]
+                { new TransformSurfacePointDescription(), new TransformSurfaceTransformDescription() })
+            {
+                string name = surface.GetType().Name;
+                surface.SetFollowMode(TransformSurfaceDescription.FollowModeType.Speed, 3f, 4f);
+                Set(surface, "m_distance", 9f);
+                Set(surface, "m_position", new Vector3(0.004f, 1.996f, 3.2f));
+                Set(surface, "m_speedStart", 1.003f);
+
+                surface.OnValidate();
+
+                Assert.That(surface.FollowMode, Is.EqualTo(TransformSurfaceDescription.FollowModeType.Time), name);
+                Assert.That(surface.FollowSpeed, Is.EqualTo(0f), name);
+                Assert.That(surface.FollowTime, Is.EqualTo(4f), name);
+                Assert.That(surface.Distance, Is.EqualTo(0f), name + " measured again");
+                Near(0f, surface.TimeTotal, name + " time measured before the mode changed (0 / 3)");
+                Near(new Vector3(0f, 2f, 3.2f), surface.LocalPosition, name + " snapped position", 1e-5f);
+                Near(1f, surface.SpeedStart, name + " snapped speed", 1e-5f);
+            }
+        }
+
+        // ---- the transform ----
+
+        // GetRotation 0x601030: the followed transform's rotation, else the given transform's; GetRotationLocal
+        // 0x6010B0: Inverse(transform.rotation) * followed.rotation, else identity.
+        [Test]
+        public void TransformRotationsComeFromTheFollowedTransform()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-transform-rotation"))
+            {
+                Quaternion given = Quaternion.Euler(0f, 0f, 90f);
+                Quaternion followed = Quaternion.Euler(90f, 0f, 0f);
+                Transform transform = objects.Create("transform", Vector3.zero, given).transform;
+                Transform target = objects.Create("target", Vector3.zero, followed).transform;
+                var surface = new TransformSurfaceTransformDescription();
+
+                RotationIs(given, surface.GetRotation(transform, -1, true), "without a followed transform");
+                RotationIs(Quaternion.identity, surface.GetRotationLocal(transform), "identity without one");
+
+                Set(surface, "m_transform", target);
+                RotationIs(followed, surface.GetRotation(transform, -1, true), "the followed transform's, whatever the direction");
+                RotationIs(Quaternion.Inverse(given) * followed, surface.GetRotationLocal(transform), "relative to the given transform");
+                RotationIsNot(followed * Quaternion.Inverse(given), surface.GetRotationLocal(transform), "the product is not reversed");
+            }
+        }
+
+        // SetPosition 0x601240 takes the followed transform's position over the given one and stores it as the
+        // start before the tolerance check, so even a position that did not move updates the start.
+        [Test]
+        public void TransformSetPositionFollowsTheTransformAndAlwaysStoresTheStart()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-transform-position"))
+            {
+                Transform transform = objects.Create("transform", new Vector3(10f, 0f, 0f), Quaternion.identity).transform;
+                Transform target = objects.Create("target", new Vector3(3f, 4f, 5f), Quaternion.identity).transform;
+                var surface = new TransformSurfaceTransformDescription();
+
+                Assert.That(surface.SetPosition(new Vector3(1f, 1f, 1f), transform), Is.True, "without a followed transform");
+                Near(new Vector3(1f, 1f, 1f), surface.PositionStartWorld, "given position");
+                Near(new Vector3(-9f, 1f, 1f), surface.LocalPosition, "given local position");
+
+                Set(surface, "m_transform", target);
+                Assert.That(surface.SetPosition(new Vector3(1f, 1f, 1f), transform), Is.True);
+                Near(new Vector3(3f, 4f, 5f), surface.PositionStartWorld, "followed start");
+                Near(new Vector3(3f, 4f, 5f), surface.PositionWorld, "followed world position");
+                Near(new Vector3(-7f, 4f, 5f), surface.LocalPosition, "followed local position");
+
+                Set(surface, "m_positionStartWorld", Vector3.zero);
+                Assert.That(surface.SetPosition(new Vector3(8f, 8f, 8f), transform), Is.False, "it did not move");
+                Near(new Vector3(3f, 4f, 5f), surface.PositionStartWorld, "the start is stored anyway");
+
+                surface.SetPositionEnd(new Vector3(99f, 99f, 99f), transform);
+                Near(new Vector3(3f, 4f, 5f), surface.PositionEndWorld, "end world");
+                Near(new Vector3(-7f, 4f, 5f), surface.PositionEndLocal, "end local");
+                Set(surface, "m_distance", 3f);
+                Call(surface, "CalculateDistance");
+                Assert.That(surface.Distance, Is.EqualTo(0f));
+            }
+        }
+
+        // ---- the line ----
+
+        // Initialise 0x5FF7B0 places and measures the line like the base; when the length is not zero the start
+        // rotation is LookRotation(endLocal - position, up) and the end rotation is the one given.
+        [Test]
+        public void LineInitialiseStoresTheLookRotationsOnlyForALineWithALength()
+        {
+            using (var fixture = new Fixture(new Vector3(10f, 0f, 0f), Quaternion.identity))
+            {
+                var line = new TransformSurfaceLineDescription();
+                Quaternion end = Quaternion.Euler(0f, 0f, 45f);
+
+                line.Initialise(fixture.Follower, new Vector3(4f, 0f, 0f), Vector3.zero, end);
+
+                Near(new Vector3(10f, 0f, 0f), line.PositionStartWorld, "start");
+                Near(new Vector3(14f, 0f, 0f), line.PositionEndWorld, "end");
+                Near(new Vector3(4f, 0f, 0f), line.PositionEndLocal, "end local");
+                Near(4f, line.Distance);
+                Near(4f, line.TimeTotal, "follow speed 1");
+                RotationIs(Quaternion.Euler(0f, 90f, 0f), (Quaternion)Get(line, "m_rotationLocalStart"), "looking along the line");
+                RotationIs(end, (Quaternion)Get(line, "m_rotationLocalEnd"), "end rotation");
+
+                var point = new TransformSurfaceLineDescription();
+                point.Initialise(fixture.Follower, Vector3.zero, Vector3.zero, end);
+                Near(0f, point.Distance);
+                foreach (string name in new[] { "m_rotationLocalStart", "m_rotationLocalEnd" })
+                {
+                    var stored = (Quaternion)Get(point, name);
+                    Assert.That(stored.x == 0f && stored.y == 0f && stored.z == 0f && stored.w == 0f, Is.True, name + " left alone without a length");
+                }
+            }
+        }
+
+        // CalculateDistance 0x5FFDD0 is the distance between the start and end world positions; SetPositionEnd
+        // 0x5FFDA0 stores the given end, SetPosition 0x5FFD10 also the start when it moved.
+        [Test]
+        public void LineDistanceAndPositionsFollowTheStartAndEnd()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-line-position"))
+            {
+                Transform transform = objects.Create("transform", new Vector3(10f, 0f, 0f), Quaternion.identity).transform;
+                var line = new TransformSurfaceLineDescription();
+
+                Assert.That(line.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.True);
+                Near(new Vector3(12f, 0f, 0f), line.PositionStartWorld, "start");
+                Assert.That(line.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.False);
+                line.SetPositionEnd(new Vector3(15f, 4f, 0f), transform);
+                Near(new Vector3(15f, 4f, 0f), line.PositionEndWorld, "end world");
+                Near(new Vector3(5f, 4f, 0f), line.PositionEndLocal, "end local");
+                Call(line, "CalculateDistance");
+                Near(5f, line.Distance, "3-4-5");
+            }
+        }
+
+        // Update 0x5FF8F0: the position is a clamped lerp from the start to the end by the progress (the end
+        // for a negative direction counts the time back from the far end); past the total time the position is
+        // the start for a negative direction and the end otherwise, with the overshoot handed back.
+        [Test]
+        public void LineUpdateInterpolatesAndHoldsTheEndItRanTo()
+        {
+            var line = Timed(new TransformSurfaceLineDescription(), 0f, 4f);
+            Set(line, "m_positionStartWorld", Vector3.zero);
+            Set(line, "m_positionEndWorld", new Vector3(8f, 0f, 0f));
+            Set(line, "m_positionWorld", new Vector3(1f, 2f, 3f));
+            line.SetExtentsMultiplier(1f);
+            Near(8f, line.Distance, "measured from the start and end");
+
+            float time = 0f, delta = 1f;
+            Assert.That(line.Update(out Vector3 position, ref time, ref delta, 1, false, null), Is.True);
+            Near(new Vector3(2f, 0f, 0f), position, "a quarter of the way");
+            Near(1f, time);
+            Near(0f, delta);
+
+            time = 0f;
+            delta = 1f;
+            Assert.That(line.Update(out position, ref time, ref delta, -1, false, null), Is.True);
+            Near(new Vector3(6f, 0f, 0f), position, "backwards counts from the far end");
+
+            time = 3.5f;
+            delta = 1f;
+            Assert.That(line.Update(out position, ref time, ref delta, 1, false, null), Is.False);
+            Near(new Vector3(8f, 0f, 0f), position, "the end");
+            Near(4f, time, "pinned");
+            Near(0.5f, delta, "overshoot");
+
+            time = 3.5f;
+            delta = 1f;
+            Assert.That(line.Update(out position, ref time, ref delta, -1, false, null), Is.False);
+            Near(Vector3.zero, position, "the start going backwards");
+
+            time = 3.5f;
+            delta = 1f;
+            Assert.That(line.Update(out position, ref time, ref delta, 0, false, null), Is.False);
+            Near(new Vector3(8f, 0f, 0f), position, "the end when standing still");
+
+            var idle = new TransformSurfaceLineDescription();
+            time = 1f;
+            delta = 1f;
+            Assert.That(idle.Update(out position, ref time, ref delta, 1, false, null), Is.False, "no total time");
+            Near(1f, time);
+            Near(1f, delta);
+        }
+
+        // With a transform the line runs from the transform of m_position to the transform of the end in the
+        // follower's space, not from the stored world positions.
+        [Test]
+        public void LineUpdateThroughATransformUsesTheLocalPositions()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-line-transform"))
+            {
+                Transform transform = objects.Create("transform", new Vector3(10f, 0f, 0f), Quaternion.identity).transform;
+                var line = Timed(new TransformSurfaceLineDescription(), 0f, 4f);
+                Set(line, "m_position", Vector3.zero);
+                Set(line, "m_positionEndLocal", new Vector3(8f, 0f, 0f));
+                Set(line, "m_positionStartWorld", new Vector3(100f, 0f, 0f));
+                Set(line, "m_positionEndWorld", new Vector3(200f, 0f, 0f));
+
+                float time = 0f, delta = 1f;
+                Assert.That(line.Update(out Vector3 position, ref time, ref delta, 1, true, transform), Is.True);
+                Near(new Vector3(12f, 0f, 0f), position);
+
+                time = 3.5f;
+                delta = 1f;
+                Assert.That(line.Update(out position, ref time, ref delta, 1, true, transform), Is.False);
+                Near(new Vector3(18f, 0f, 0f), position, "end through the transform");
+                time = 3.5f;
+                delta = 1f;
+                Assert.That(line.Update(out position, ref time, ref delta, -1, true, transform), Is.False);
+                Near(new Vector3(10f, 0f, 0f), position, "start through the transform");
+            }
+        }
+
+        // The progress is clamped to 0..1 for the position (Vector3.Lerp); the line's rotation is the start
+        // rotation, or with the lerp flag the start-to-end lerp by the unclamped progress. Past the total time
+        // the rotation is left alone.
+        [Test]
+        public void LineUpdateClampsTheProgressAndLerpsTheRotationOnRequest()
+        {
+            Quaternion start = Quaternion.Euler(0f, 90f, 0f);
+            Quaternion end = Quaternion.Euler(0f, 0f, 90f);
+            var line = new TransformSurfaceLineDescription();
+            line.SetFollowMode(TransformSurfaceDescription.FollowModeType.ProgressAnimated);
+            Set(line, "m_followAnim", AnimationCurve.Linear(0f, -1f, 4f, 2f));
+            Set(line, "m_positionEndWorld", new Vector3(8f, 0f, 0f));
+            Set(line, "m_rotationLocalStart", start);
+            Set(line, "m_rotationLocalEnd", end);
+            line.SetExtentsMultiplier(1f);
+            Near(4f, line.TimeTotal, "last key time");
+
+            float time = 0f, delta = 0.5f;
+            Assert.That(line.Update(out Vector3 position, ref time, ref delta, 1, false, null), Is.True);
+            Near(Vector3.zero, position, "progress -0.625 is clamped to the start");
+            RotationIs(start, line.GetRotationLocal(null), "start rotation without the lerp flag");
+
+            time = 2.5f;
+            delta = 0.5f;
+            Assert.That(line.Update(out position, ref time, ref delta, 1, false, null), Is.True);
+            Near(new Vector3(8f, 0f, 0f), position, "progress 1.25 is clamped to the end");
+
+            Set(line, "m_lerpOrientationToTarget", true);
+            time = 2f;
+            delta = 0f;
+            Assert.That(line.Update(out position, ref time, ref delta, 1, false, null), Is.True);
+            Near(new Vector3(4f, 0f, 0f), position, "progress 0.5");
+            RotationIs(Quaternion.Lerp(start, end, 0.5f), line.GetRotationLocal(null), "halfway between the rotations");
+            RotationIsNot(start, line.GetRotationLocal(null), "no longer the start rotation");
+
+            Set(line, "m_rotationLocal", start);
+            time = 3.5f;
+            delta = 1f;
+            Assert.That(line.Update(out position, ref time, ref delta, 1, false, null), Is.False);
+            RotationIs(start, line.GetRotationLocal(null), "left alone past the total time");
+        }
+
+        // GetRotation 0x5FFAE0 multiplies the transform's rotation by m_rotationLocal (+0x84) and turns round
+        // only for a negative direction while orientating to the direction.
+        [Test]
+        public void LineRotationMultipliesInOrderAndTurnsRoundOnlyBackwards()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-line-rotation"))
+            {
+                Quaternion transformRotation = Quaternion.Euler(0f, 0f, 90f);
+                Quaternion local = Quaternion.Euler(90f, 0f, 0f);
+                Transform transform = objects.Create("transform", Vector3.zero, transformRotation).transform;
+                var line = new TransformSurfaceLineDescription();
+                Set(line, "m_rotationLocal", local);
+                Quaternion inverse = Quaternion.AngleAxis(180f, Vector3.up);
+
+                RotationIs(transformRotation * local, line.GetRotation(transform, 1, true), "forwards");
+                RotationIsNot(local * transformRotation, line.GetRotation(transform, 1, true), "the product is not reversed");
+                RotationIs(transformRotation * local, line.GetRotation(transform, -1, false), "backwards without orientating");
+                RotationIs(transformRotation * local * inverse, line.GetRotation(transform, -1, true), "backwards orientating");
+                RotationIs(local, line.GetRotationLocal(transform), "local rotation");
+            }
+        }
+
+        // ---- the spline ----
+
+        // A Spline facade over an InertSpline of the given length, under an inactive owner so nothing wakes.
+        private static Spline NewSpline(OwnedWorldObjects objects, float length, Quaternion rotation)
+        {
+            GameObject host = objects.Create("spline", Vector3.zero, rotation);
+            host.SetActive(false);
+            var inert = host.AddComponent<InertSpline>();
+            Set(inert, "m_length", length);
+            var facade = host.AddComponent<Spline>();
+            Set(facade, "m_inertSpline", inert);
+            Set(facade, "m_activeSplineType", SplineVariantType.Inert);
+            return facade;
+        }
+
+        // .ctor 0x600560 stores the spline; GetSpline 0x600E70 returns it.
+        [Test]
+        public void SplineConstructorStoresTheSplineAndGetSplineReturnsIt()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-spline-ctor"))
+            {
+                Spline spline = NewSpline(objects, 5f, Quaternion.identity);
+                Assert.That(new TransformSurfaceSplineDescription(spline).GetSpline(), Is.SameAs(spline));
+                Assert.That(new TransformSurfaceSplineDescription().GetSpline(), Is.Null);
+                Assert.That(new DescriptionProbe().GetSpline(), Is.Null, "the base answers null");
+            }
+        }
+
+        // CalculateDistance 0x600C60 takes the length of the spline's surface; without a spline, or without an
+        // active spline behind the facade, the distance is left as it was.
+        [Test]
+        public void SplineDistanceIsTheLengthOfTheSplineOrKeepsItsValue()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-spline-distance"))
+            {
+                var surface = new TransformSurfaceSplineDescription(NewSpline(objects, 12.5f, Quaternion.identity));
+                Set(surface, "m_distance", 7f);
+                Call(surface, "CalculateDistance");
+                Near(12.5f, surface.Distance, "the spline's length");
+
+                var without = new TransformSurfaceSplineDescription();
+                Set(without, "m_distance", 7f);
+                Call(without, "CalculateDistance");
+                Near(7f, without.Distance, "no spline");
+
+                Spline empty = NewSpline(objects, 3f, Quaternion.identity);
+                Set(empty, "m_inertSpline", null);
+                var hollow = new TransformSurfaceSplineDescription(empty);
+                Set(hollow, "m_distance", 7f);
+                Call(hollow, "CalculateDistance");
+                Near(7f, hollow.Distance, "the facade has no spline");
+            }
+        }
+
+        // GetRotationLocal 0x600A00: Inverse(transform.rotation) * spline.transform.rotation, else identity.
+        [Test]
+        public void SplineRotationLocalIsRelativeToTheGivenTransform()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-spline-rotation"))
+            {
+                Quaternion given = Quaternion.Euler(0f, 0f, 90f);
+                Quaternion splineRotation = Quaternion.Euler(90f, 0f, 0f);
+                Transform transform = objects.Create("transform", Vector3.zero, given).transform;
+                var surface = new TransformSurfaceSplineDescription(NewSpline(objects, 1f, splineRotation));
+
+                RotationIs(Quaternion.Inverse(given) * splineRotation, surface.GetRotationLocal(transform), "relative");
+                RotationIsNot(splineRotation * Quaternion.Inverse(given), surface.GetRotationLocal(transform), "the product is not reversed");
+                RotationIs(Quaternion.identity, new TransformSurfaceSplineDescription().GetRotationLocal(transform), "identity without a spline");
+            }
+        }
+
+        // GetRotation 0x600890: the tracker's world rotation (the transform is not touched) or the transform's,
+        // then turned round for a negative direction while orientating.
+        [Test]
+        public void SplineRotationComesFromTheTrackerOrTheTransform()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-spline-tracker-rotation"))
+            {
+                Quaternion trackerRotation = Quaternion.Euler(90f, 0f, 0f);
+                Quaternion transformRotation = Quaternion.Euler(0f, 0f, 90f);
+                Quaternion inverse = Quaternion.AngleAxis(180f, Vector3.up);
+                Transform transform = objects.Create("transform", Vector3.zero, transformRotation).transform;
+                var resolver = new RecordingResolver { Rotation = trackerRotation };
+                var tracker = new Tracker2D(resolver);
+                tracker.Teleport(Vector3.zero);
+                var surface = new TransformSurfaceSplineDescription();
+
+                RotationIs(trackerRotation, surface.GetRotation(null, 1, true, tracker), "tracker forwards");
+                RotationIs(trackerRotation * inverse, surface.GetRotation(null, -1, true, tracker), "tracker backwards orientating");
+                RotationIsNot(inverse * trackerRotation, surface.GetRotation(null, -1, true, tracker), "the turn is applied last");
+                RotationIs(trackerRotation, surface.GetRotation(null, -1, false, tracker), "tracker backwards without orientating");
+                RotationIs(transformRotation, surface.GetRotation(transform, 0, true), "transform");
+                RotationIs(transformRotation * inverse, surface.GetRotation(transform, -1, true), "transform backwards orientating");
+            }
+        }
+
+        // Teleport 0x6005D0 without a tracker is the base answer; with one, the tracker is teleported there and
+        // moved forward by distance * -direction, and its world position is the answer.
+        [Test]
+        public void SplineTeleportPlacesTheTrackerAndMovesItAgainstTheDirection()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-spline-teleport"))
+            {
+                Transform transform = objects.Create("transform", new Vector3(10f, 0f, 0f), Quaternion.identity).transform;
+                var surface = new TransformSurfaceSplineDescription();
+                Set(surface, "m_position", new Vector3(1f, 0f, 0f));
+                Set(surface, "m_positionEndLocal", new Vector3(0f, 2f, 0f));
+                Set(surface, "m_positionStartWorld", new Vector3(1f, 2f, 3f));
+                Set(surface, "m_positionEndWorld", new Vector3(5f, 5f, 5f));
+                Set(surface, "m_distance", 6f);
+
+                Near(new Vector3(1f, 2f, 3f), surface.Teleport(1, false, null), "start");
+                Near(new Vector3(5f, 5f, 5f), surface.Teleport(-1, false, null), "end");
+                Near(new Vector3(11f, 0f, 0f), surface.Teleport(1, true, transform), "start through the transform");
+                Near(new Vector3(10f, 2f, 0f), surface.Teleport(0, true, transform), "end through the transform");
+
+                var resolver = new RecordingResolver();
+                var tracker = new Tracker2D(resolver);
+                Near(new Vector3(1f, 2f, -3f), surface.Teleport(1, false, null, tracker), "forwards");
+                Assert.That(resolver.Calls, Is.EqualTo(new[] { RecordingResolver.Row("teleport", 1.0f, 2.0f, 3.0f), RecordingResolver.Row("move", 0.0f, 0.0f, -6.0f) }));
+
+                resolver.Calls.Clear();
+                Near(new Vector3(5f, 5f, 11f), surface.Teleport(-1, false, null, tracker), "backwards");
+                Assert.That(resolver.Calls, Is.EqualTo(new[] { RecordingResolver.Row("teleport", 5.0f, 5.0f, 5.0f), RecordingResolver.Row("move", 0.0f, 0.0f, 6.0f) }));
+
+                resolver.Calls.Clear();
+                Near(new Vector3(10f, 2f, 0f), surface.Teleport(0, true, transform, tracker), "standing still through the transform");
+                Assert.That(resolver.Calls, Is.EqualTo(new[] { RecordingResolver.Row("teleport", 10.0f, 2.0f, 0.0f), RecordingResolver.Row("move", 0.0f, 0.0f, 0.0f) }));
+            }
+        }
+
+        // Update 0x6006E0 moves the tracker forward by direction * distance * deltaTime / totalTime (the whole
+        // delta, even when it runs past the end) and reports its world position; without a tracker the position
+        // is the surface's. The time handling is the point's.
+        [Test]
+        public void SplineUpdateMovesTheTrackerByTheShareOfTheLengthCovered()
+        {
+            var surface = Timed(new TransformSurfaceSplineDescription(), 8f, 4f);
+            Set(surface, "m_positionWorld", new Vector3(4f, 5f, 6f));
+            var resolver = new RecordingResolver();
+            var tracker = new Tracker2D(resolver);
+
+            float time = 0f, delta = 0.5f;
+            Assert.That(surface.Update(out Vector3 position, ref time, ref delta, 1, false, null, tracker), Is.True);
+            Assert.That(resolver.Calls, Is.EqualTo(new[] { RecordingResolver.Row("move", 0.0f, 0.0f, 1.0f) }));
+            Near(new Vector3(0f, 0f, 1f), position, "the tracker's position");
+            Near(0.5f, time);
+            Near(0f, delta);
+
+            resolver.Calls.Clear();
+            delta = 1f;
+            Assert.That(surface.Update(out position, ref time, ref delta, -1, false, null, tracker), Is.True);
+            Assert.That(resolver.Calls, Is.EqualTo(new[] { RecordingResolver.Row("move", 0.0f, 0.0f, -2.0f) }));
+            Near(new Vector3(0f, 0f, -1f), position);
+
+            resolver.Calls.Clear();
+            time = 3.5f;
+            delta = 1f;
+            Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null, tracker), Is.False);
+            Assert.That(resolver.Calls, Is.EqualTo(new[] { RecordingResolver.Row("move", 0.0f, 0.0f, 2.0f) }), "the whole delta is used");
+            Near(4f, time, "pinned");
+            Near(0.5f, delta, "overshoot");
+
+            resolver.Calls.Clear();
+            time = 0f;
+            delta = 1f;
+            Assert.That(surface.Update(out position, ref time, ref delta, 1, false, null), Is.True, "without a tracker");
+            Near(new Vector3(4f, 5f, 6f), position, "the surface's position");
+            Assert.That(resolver.Calls, Is.Empty);
+
+            var idle = new TransformSurfaceSplineDescription();
+            time = 1f;
+            delta = 1f;
+            Assert.That(idle.Update(out position, ref time, ref delta, 1, false, null, tracker), Is.False, "no total time");
+            Assert.That(resolver.Calls, Is.Empty, "the tracker is not moved");
+            Near(1f, time);
+            Near(1f, delta);
+        }
+
+        // OnValidateTracker 0x600D60: the tracker is teleported to the start, moved a whole length forward, the
+        // location reached becomes the end world position, and the tracker goes back to the start.
+        [Test]
+        public void SplineOnValidateTrackerMeasuresTheEndAndRewinds()
+        {
+            var surface = new TransformSurfaceSplineDescription();
+            Set(surface, "m_positionStartWorld", new Vector3(1f, 2f, 3f));
+            Set(surface, "m_distance", 6f);
+            surface.OnValidateTracker(null);
+            Near(Vector3.zero, surface.PositionEndWorld, "nothing happens without a tracker");
+
+            var resolver = new RecordingResolver();
+            var tracker = new Tracker2D(resolver);
+            surface.OnValidateTracker(tracker);
+
+            Assert.That(resolver.Calls, Is.EqualTo(new[] { RecordingResolver.Row("teleport", 1.0f, 2.0f, 3.0f), RecordingResolver.Row("move", 0.0f, 0.0f, 6.0f), RecordingResolver.Row("teleport", 1.0f, 2.0f, 3.0f) }));
+            Near(new Vector3(1f, 2f, 9f), surface.PositionEndWorld, "end");
+            Near(new Vector3(1f, 2f, 3f), tracker.Location.m_worldPosition, "the tracker is back at the start");
+        }
+
+        // SetPosition 0x600BA0 and SetPositionEnd 0x600C30 are the line's.
+        [Test]
+        public void SplineSetPositionAndSetPositionEndStoreTheGivenPositions()
+        {
+            using (var objects = new OwnedWorldObjects("lucid-transform-surface-spline-position"))
+            {
+                Transform transform = objects.Create("transform", new Vector3(10f, 0f, 0f), Quaternion.identity).transform;
+                var surface = new TransformSurfaceSplineDescription();
+
+                Assert.That(surface.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.True);
+                Near(new Vector3(12f, 0f, 0f), surface.PositionStartWorld, "start");
+                Near(new Vector3(2f, 0f, 0f), surface.LocalPosition, "local");
+                Assert.That(surface.SetPosition(new Vector3(12f, 0f, 0f), transform), Is.False);
+                surface.SetPositionEnd(new Vector3(15f, 4f, 0f), transform);
+                Near(new Vector3(15f, 4f, 0f), surface.PositionEndWorld, "end world");
+                Near(new Vector3(5f, 4f, 0f), surface.PositionEndLocal, "end local");
             }
         }
     }
