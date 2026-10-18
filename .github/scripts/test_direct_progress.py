@@ -345,9 +345,14 @@ class DirectProgressTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             control, source, remote = root / "control", root / "source", root / "fork.git"
-            execute(["git", "clone", "-q", "--shared", str(ROOT), str(control)], check=True)
-            execute(["git", "clone", "-q", "--shared", str(control), str(source)], check=True)
-            execute(["git", "clone", "-q", "--bare", str(control), str(remote)], check=True)
+            # Fetch, commit and receive-pack otherwise start a detached
+            # `git maintenance run --auto` that can still write into .git
+            # while the temporary directory is being removed.
+            quiet = ["--config", "maintenance.auto=false", "--config", "gc.auto=0",
+                     "--config", "gc.autoDetach=false"]
+            execute(["git", "clone", "-q", *quiet, "--shared", str(ROOT), str(control)], check=True)
+            execute(["git", "clone", "-q", *quiet, "--shared", str(control), str(source)], check=True)
+            execute(["git", "clone", "-q", *quiet, "--bare", str(control), str(remote)], check=True)
             ref = "refs/heads/owner-progress"
             execute(["git", "update-ref", ref, self.http.head], cwd=remote, check=True)
             (control / "README.md").write_text("Generated-only fixture\n")
