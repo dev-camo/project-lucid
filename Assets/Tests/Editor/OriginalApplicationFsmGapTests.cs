@@ -698,19 +698,22 @@ namespace ProjectLucid.Tests
                         IFSMTransition whenPlaying = CheckCutscene(machine, "TrueCausesTransition");
                         IFSMTransition whenStopped = CheckCutscene(machine, "falsecausestransition");
                         IFSMTransition either = CheckCutscene(machine, "EitherCausesTransition");
+                        // Enum.Parse accepts the numeric string "3"; no Comparison case matches it
+                        // (DoUpdate 0x587840..0x58787d falls through to false).
+                        IFSMTransition outOfRange = CheckCutscene(machine, "3");
                         FSMUser user = User();
-                        bool[] Row() => new[] { whenPlaying.Update(user, s_context), whenStopped.Update(user, s_context), either.Update(user, s_context) };
+                        bool[] Row() => new[] { whenPlaying.Update(user, s_context), whenStopped.Update(user, s_context), either.Update(user, s_context), outOfRange.Update(user, s_context) };
 
-                        Assert.That(Row(), Is.EqualTo(new[] { false, true, true }), "idle");
+                        Assert.That(Row(), Is.EqualTo(new[] { false, true, true, false }), "idle");
                         SetCutscene(manager, "m_currentCutscene", cutscene);
-                        Assert.That(Row(), Is.EqualTo(new[] { true, false, true }), "playing");
+                        Assert.That(Row(), Is.EqualTo(new[] { true, false, true, false }), "playing");
                         SetCutscene(manager, "m_cutsceneIsLoading", true);
-                        Assert.That(Row(), Is.EqualTo(new[] { true, false, true }), "loading without play-on-load is not CutsceneIsLoading");
+                        Assert.That(Row(), Is.EqualTo(new[] { true, false, true, false }), "loading without play-on-load is not CutsceneIsLoading");
                         SetCutscene(manager, "m_cutscenePlayOnLoad", true);
                         Assert.That(manager.CutsceneIsLoading, Is.True);
-                        Assert.That(Row(), Is.EqualTo(new[] { false, false, false }), "loading gates every comparison");
+                        Assert.That(Row(), Is.EqualTo(new[] { false, false, false, false }), "loading gates every comparison");
                         SetCutscene(manager, "m_currentCutscene", null);
-                        Assert.That(Row(), Is.EqualTo(new[] { false, false, false }), "loading while idle");
+                        Assert.That(Row(), Is.EqualTo(new[] { false, false, false, false }), "loading while idle");
                     }
                     finally
                     {
@@ -726,6 +729,16 @@ namespace ProjectLucid.Tests
                 if (manager != null) ProcessManager.UnsubscribeFromAllActions(manager);
             },
             actionRows.Dispose);
+        }
+
+        // ConstructInstance calls Enum.Parse(typeof(Comparison), Compare, true) with no
+        // handler and no default (0x5876cd..0x58772b), so an unknown name throws before
+        // anything is allocated or registered.
+        [Test]
+        public void CheckCutscenePlayingRejectsAnUnknownComparisonName()
+        {
+            FiniteStateMachine machine = Machine();
+            Assert.Throws<ArgumentException>(() => CheckCutscene(machine, "NeitherCausesTransition"));
         }
 
         private static IFSMTransition CheckCutscene(FiniteStateMachine machine, string compare) =>

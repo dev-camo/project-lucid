@@ -4957,4 +4957,5 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.ErrorStateLogsItsNameMachineUserAndMessageOnce",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.CheckCutscenePlayingFollowsLoadingThenComparisonTruthTable",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.CheckCutscenePlayingRejectsAnUnknownComparisonName",
 )
