@@ -77,10 +77,13 @@ namespace ProjectLucid.Tests
             return Generators.NewComputer(start, end);
         }
 
-        // A generator that follows the computer and has built once, without the default channel the engine's Reset adds.
+        // A generator that follows the computer and has built once, without the default channel the engine's Reset adds. It caches
+        // the play-mode state (DreamteckPlayState): the editor compile of SplineUser.Rebuild otherwise builds at once, which would
+        // run a build from every channel setter and break the queued-build counts of the shipped Rebuild path.
         public SplineMesh NewSplineMesh(SplineComputer computer)
         {
             SplineMesh generator = Generators.NewGenerator<SplineMesh>(computer);
+            DreamteckPlayState.Cache(generator);
             while (generator.GetChannelCount() > 0)
             {
                 generator.RemoveChannel(0);
