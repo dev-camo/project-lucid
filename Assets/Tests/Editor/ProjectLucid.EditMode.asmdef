@@ -34,6 +34,7 @@
     "HLBinders.Runtime",
     "FairPlay.Runtime",
     "HLSplines.Runtime",
+    "Dreamteck.Utilities",
     "HLCrossPromo.Runtime",
     "HLAutoPlay.Runtime",
     "HLPhysics.Runtime",
