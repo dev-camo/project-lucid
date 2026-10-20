@@ -668,6 +668,9 @@ namespace ProjectLucid.Tests
             WithLedgeScene((owned, scene) =>
             {
                 owned.LeaseRow<SaveManager>();
+                // CharacterStamina's constructor subscribes through m_collectableManagerRef.Get(), which faults on an
+                // empty row, so a real manager is registered first.
+                owned.Register(new CollectableManager());
                 var stamina = new CharacterBoostStamina(scene.Character);
                 try
                 {
