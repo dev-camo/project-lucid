@@ -404,6 +404,38 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // 0xE632E9..0xE63404: the dot product is raised to the minimum first (maxss, which returns its second operand when
+        // unordered) and then capped at the maximum (minss), so a crossed pair ends on the maximum and an unordered dot
+        // ends on the minimum; the dot, not the z component or the length of the velocity, is what is measured.
+        [Test]
+        public void TheLockSpeedMeasuresTheDotAndAppliesTheMinimumBeforeTheMaximum()
+        {
+            WithLock((owned, character, ability, definition, target) =>
+            {
+                target.transform.position = new Vector3(20f, 0f, 0f);
+                character.SetWorldVelocity(new Vector3(8f, 0f, 6f));
+                SetPending(character.HomingPool, ability, target, new PlainMetaData());
+                Assert.That(HandleAttack(ability), Is.True);
+                Assert.That(character.HomingPool.ActiveTarget.Speed, Is.EqualTo(8f).Within(1e-4f), "along +x only; z gives 6 and the length 10");
+            });
+            WithLock((owned, character, ability, definition, target) =>
+            {
+                definition.HomingVelocityMax = 3f;
+                character.SetWorldVelocity(new Vector3(0f, 0f, 10f));
+                SetPending(character.HomingPool, ability, target, new PlainMetaData());
+                Assert.That(HandleAttack(ability), Is.True);
+                Assert.That(character.HomingPool.ActiveTarget.Speed, Is.EqualTo(3f).Within(1e-4f), "max(10, 5) = 10, then min(10, 3) = 3");
+            });
+            WithLock((owned, character, ability, definition, target) =>
+            {
+                target.transform.position = Vector3.zero;
+                character.SetWorldVelocity(new Vector3(0f, 0f, 10f));
+                SetPending(character.HomingPool, ability, target, new PlainMetaData());
+                Assert.That(HandleAttack(ability), Is.True);
+                Assert.That(character.HomingPool.ActiveTarget.Speed, Is.EqualTo(5f).Within(1e-4f), "no distance: the direction and the dot are NaN, maxss returns the minimum");
+            });
+        }
+
         // 0xE631D8..0xE63296: velocity from time divides the distance by the time, without the clamp; a zero time (ja at
         // 0xE63239 fails) falls back to the velocity path.
         [Test]
@@ -491,6 +523,52 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(ability, "m_comboTimer"), Is.EqualTo(0.3f));
             });
         }
+
+        // 0xE63517..0xE63655 and 0xE63712..0xE6375E: a hit below the number of configured levels applies that level's
+        // setting on the first hit and updates the held handle on later ones; past the last level the handle keeps the
+        // last applied setting; clearing removes the handle from the manager.
+        [Test]
+        public void ComboHitsApplyThenUpdateTheTimeSettingAndClearingRemovesIt()
+        {
+            WithLock((owned, character, ability, definition, target) =>
+            {
+                TimeManager manager = RegisteredTimeManager(owned);
+                int settingId = (int)typeof(TimeManager).GetField("SettingId", BindingFlags.Static | BindingFlags.NonPublic).GetRawConstantValue();
+                StackableData stack = Get<StackableData>(manager, "m_timeSettings");
+                var first = new TimeSettings_SDT();
+                var second = new TimeSettings_SDT();
+                definition.ComboTimeSettings = new[] { first, second };
+                definition.ComboBufferTime = 0.3f;
+                Assert.That(Get<StackableDataHandle>(ability, "m_comboTimeOverride"), Is.Null);
+
+                Call(ability, "AddComboHit");
+                var handle = Get<StackableDataHandle>(ability, "m_comboTimeOverride");
+                Assert.That(handle, Is.Not.Null);
+                Assert.That(stack.GetOverride<TimeSetting>(handle, settingId), Is.SameAs(first), "the first level");
+
+                Call(ability, "AddComboHit");
+                Assert.That(Get<StackableDataHandle>(ability, "m_comboTimeOverride"), Is.SameAs(handle), "updated, not stacked");
+                Assert.That(stack.GetOverride<TimeSetting>(handle, settingId), Is.SameAs(second), "the second level");
+
+                Call(ability, "AddComboHit");
+                Assert.That(Get<StackableDataHandle>(ability, "m_comboTimeOverride"), Is.SameAs(handle));
+                Assert.That(stack.GetOverride<TimeSetting>(handle, settingId), Is.SameAs(second), "past the last level nothing changes");
+                Assert.That(Get<int>(ability, "m_comboCount"), Is.EqualTo(3));
+                Assert.That(Get<float>(ability, "m_comboTimer"), Is.EqualTo(0.3f));
+
+                var overrides = Get<System.Collections.Specialized.OrderedDictionary>(stack, "m_dataDictionary");
+                Assert.That(overrides.Contains(handle), Is.True);
+                Call(ability, "ClearComboHits");
+                Assert.That(overrides.Contains(handle), Is.False, "removed from the manager");
+                Assert.That(Get<StackableDataHandle>(ability, "m_comboTimeOverride"), Is.Null);
+                Assert.That(Get<int>(ability, "m_comboCount"), Is.EqualTo(0));
+            });
+        }
+
+        // A real TimeManager registered in its (absent) row for the case; AddComponent sends the Editor Reset message,
+        // which reads the unassigned category configuration (1.10.1 0x1B168D0).
+        private static TimeManager RegisteredTimeManager(Owned owned) =>
+            owned.Register(NewTimeManager(owned, TimeCategory.PlayerMovement, 1f));
 
         // 0xE636A0: a running buffer counts down and clamps at zero; once it is no longer positive the combo is cleared.
         [Test]
@@ -622,6 +700,9 @@ namespace ProjectLucid.Tests
             {
                 GameObject host = owned.Host("Lucid character bounds");
                 Set(character, "m_capsuleColliderCollision", host.AddComponent<CapsuleCollider>());
+                // A default ColliderSettings mask includes every layer, which would let the target's own collider block
+                // the cast; the obstruction cases opt in to a layer instead.
+                character.Settings.Collider.CollisionMask = 0;
                 HomingTarget target = NewTarget(owned, "Lucid tracked", new Vector3(0f, 0f, 10f));
                 Activate(character.HomingPool, ability, target.gameObject, MetaOf(target));
                 character.Storage.SetValue(ActorFSMKeys.HomingTargetTime, 0f);
@@ -720,6 +801,58 @@ namespace ProjectLucid.Tests
                     Assert.That(character.HomingPool.ActiveTarget == null, Is.EqualTo(!expected), "step " + delta);
                 });
             }
+        }
+
+        private static void AddWall(Owned owned, CharacterGravityVectorProbe character, bool trigger)
+        {
+            const int layer = 8;
+            character.Settings.Collider.CollisionMask = 1 << layer;
+            GameObject wall = owned.Host("Lucid wall");
+            wall.layer = layer;
+            wall.transform.position = new Vector3(0f, 0f, 5f);
+            var collider = wall.AddComponent<BoxCollider>();
+            collider.size = new Vector3(4f, 4f, 0.5f);
+            collider.isTrigger = trigger;
+            Physics.SyncTransforms();
+        }
+
+        // 0xE62CC7..0xE62DBD: a cast against the character's collision mask that ignores triggers; a hit counts as a
+        // cancellation (jne 0xE62DBD reaches DoOnCancelled), a trigger volume does not block.
+        [Test]
+        public void ASolidObstructionCancelsTheTargetButATriggerVolumeDoesNot()
+        {
+            WithTracking((owned, character, ability, definition, target) =>
+            {
+                int[] cancelled = CountEvent(target, "m_onCancelled");
+                AddWall(owned, character, trigger: false);
+                Assert.That(UpdateTarget(ability, 0.1f, out ActiveHomingTarget active, out float time, out Vector3 toTarget, out float distanceSqr), Is.False);
+                Assert.That(cancelled[0], Is.EqualTo(1));
+                Assert.That(character.HomingPool.ActiveTarget, Is.Null);
+            });
+            WithTracking((owned, character, ability, definition, target) =>
+            {
+                int[] cancelled = CountEvent(target, "m_onCancelled");
+                AddWall(owned, character, trigger: true);
+                Assert.That(UpdateTarget(ability, 0.1f, out ActiveHomingTarget active, out float time, out Vector3 toTarget, out float distanceSqr), Is.True);
+                Assert.That(cancelled[0], Is.EqualTo(0));
+                Assert.That(character.HomingPool.ActiveTarget, Is.SameAs(active));
+            });
+        }
+
+        // 0xE62B88..0xE62BD7: a stored lightspeed dash target releases the target like a short distance does, without
+        // cancelling it because the target itself is still valid.
+        [Test]
+        public void AStoredLightspeedDashTargetReleasesTheTargetWithoutCancelling()
+        {
+            WithTracking((owned, character, ability, definition, target) =>
+            {
+                int[] cancelled = CountEvent(target, "m_onCancelled");
+                InertSpline spline = owned.Host("Lucid dash spline", false).AddComponent<InertSpline>();
+                character.Storage.SetValue<ISpline>(ActorFSMKeys.LightspeedDashTarget, spline);
+                Assert.That(UpdateTarget(ability, 0.1f, out ActiveHomingTarget active, out float time, out Vector3 toTarget, out float distanceSqr), Is.False);
+                Assert.That(character.HomingPool.ActiveTarget, Is.Null);
+                Assert.That(cancelled[0], Is.EqualTo(0));
+            });
         }
 
         [Test]
@@ -904,16 +1037,16 @@ namespace ProjectLucid.Tests
                 AppliedBrain queued = Brain(character, 9f, GameAction.CharacterHomingAttackOneShot);
                 Assert.That((bool)Call(ability, "HomingAttackActivated", queued), Is.False, "no pending target");
                 SetPending(character.HomingPool, ability, target);
+                ability.IsTriggered = true;
                 Assert.That((bool)Call(ability, "HomingAttackActivated", queued), Is.False, "no stored timestamp");
-                Assert.That(ability.IsTriggered, Is.False);
+                Assert.That(ability.IsTriggered, Is.True, "an early return leaves the trigger as it was");
                 character.Storage.SetValue(ActorFSMKeys.HomingAttackActionTimestamp, 1f);
                 Assert.That((bool)Call(ability, "HomingAttackActivated", queued), Is.True);
                 Assert.That(ability.IsTriggered, Is.True);
 
-                ability.IsTriggered = false;
                 Activate(character.HomingPool, ability, target, new PlainMetaData());
                 Assert.That((bool)Call(ability, "HomingAttackActivated", queued), Is.False, "a target is already active");
-                Assert.That(ability.IsTriggered, Is.False);
+                Assert.That(ability.IsTriggered, Is.True, "an early return leaves the trigger as it was");
             });
         }
 
@@ -945,8 +1078,25 @@ namespace ProjectLucid.Tests
                 definition.TriggerTimeBefore = 5f;
                 definition.TriggerTimeAfter = 5f;
                 ReadyForOneShot(owned, character, ability, target, 10f);
+                ability.IsTriggered = true;
                 AppliedBrain released = Released(character, 10.00005f, GameAction.CharacterHomingAttackOneShot);
                 Assert.That((bool)Call(ability, "HomingAttackActivated", released), Is.False, "within 0.0001 of the stored timestamp");
+                Assert.That(ability.IsTriggered, Is.True, "the early return leaves the trigger as it was");
+            });
+        }
+
+        // 0x74EF38: ucomiss 0, offset; jbe, so a press exactly on the clock takes the after window, whose elapsed time 0 is
+        // not below a zero allowance, while the before window would accept it.
+        [Test]
+        public void APressExactlyOnTheClockUsesTheAfterWindow()
+        {
+            WithOneShot((owned, character, ability, definition, target) =>
+            {
+                definition.TriggerTimeBefore = 1f;
+                definition.TriggerTimeAfter = 0f;
+                ReadyForOneShot(owned, character, ability, target, 1f);
+                AppliedBrain released = Released(character, 10f, GameAction.CharacterHomingAttackOneShot);
+                Assert.That((bool)Call(ability, "HomingAttackActivated", released), Is.False);
                 Assert.That(ability.IsTriggered, Is.False);
             });
         }
@@ -1029,8 +1179,9 @@ namespace ProjectLucid.Tests
                 AppliedBrain charging = Brain(character, 1f, GameAction.CharacterSpinDashCharge);
                 Assert.That((bool)Call(ability, "HomingAttackActivated", charging), Is.False);
                 SetPending(character.HomingPool, ability, target, new PlainMetaData());
+                ability.IsTriggered = true;
                 Assert.That((bool)Call(ability, "HandleAttack", charging, 0.02f), Is.False);
-                Assert.That(ability.IsTriggered, Is.False);
+                Assert.That(ability.IsTriggered, Is.False, "stored on the failing path too (0x7501B7)");
 
                 AppliedBrain free = Brain(character, 2f);
                 Assert.That((bool)Call(ability, "HomingAttackActivated", free), Is.True);
@@ -1048,6 +1199,36 @@ namespace ProjectLucid.Tests
                 Assert.That((bool)Call(ability, "HomingAttackActivated", Brain(character, 1f)), Is.False);
                 Assert.That((bool)Call(ability, "HomingAttackActivated", Brain(character, 2f, GameAction.CharacterHomingAttack)), Is.True);
             });
+        }
+
+        // 0x75033E..0x750391: a queued press is consumed whether or not anything locked, and the trigger is left alone
+        // when nothing did.
+        [Test]
+        public void TheRunningAttackConsumesAQueuedPressEvenWithoutALock()
+        {
+            WithAttack<CharacterAbility_HomingAttackGroundRunning, CharacterAbilityDefinition_HomingAttackGroundRunning>((owned, character, ability, definition) =>
+            {
+                definition.ComboTimeSettings = new TimeSettings_SDT[0];
+                ability.IsTriggered = true;
+                AppliedBrain brain = Brain(character, 1f, GameAction.CharacterHomingAttack);
+                Assert.That((bool)Call(ability, "HandleAttack", brain, 0.02f), Is.False, "no pending target");
+                Assert.That(brain.ActionStateQueued.GetValue(GameAction.CharacterHomingAttack), Is.False, "consumed");
+                Assert.That(ability.IsTriggered, Is.True, "untouched without a lock");
+            });
+        }
+
+        // 0x74FC02: the ground attack only accepts a target that can be homed on from the ground; the test precedes the
+        // collider query, which this character has no collider for.
+        [Test]
+        public void TheGroundAttackRejectsATargetNotTargetableFromTheGround()
+        {
+            WithAttack<CharacterAbility_HomingAttackGroundRolling, CharacterAbilityDefinition_HomingAttackGroundRolling>((owned, character, ability, definition) =>
+            {
+                definition.TargetTypes = new[] { HomingTargetType.Enemy };
+                HomingTarget enemy = NewTarget(owned, "Lucid ground enemy", Vector3.zero);
+                Set(enemy, "m_targetableFromGround", false);
+                Assert.That((bool)Call(ability, "ValidateTargetType", enemy), Is.False);
+            }, targets: true);
         }
 
         // 0x74FF30 hands the definition's forward motion (+0x170) to the ability base with the step, so a standing character

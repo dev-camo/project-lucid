@@ -126,7 +126,8 @@ namespace HardlightProject
 		// 060012b0 (1.10.1 RVA 0xE69050); a curve needs two keys to contribute.
 		public virtual float GetAdditionalSpeed(float time)
 		{
-			if (AdditionalSpeedCurve == null || AdditionalSpeedCurve.length < 2)
+			AnimationCurve curve = AdditionalSpeedCurve;
+			if (curve == null || curve.length < 2)
 			{
 				return 0f;
 			}
