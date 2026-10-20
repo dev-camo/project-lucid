@@ -528,7 +528,6 @@ namespace Dreamteck.Splines
                 if (sampleMode == SplineComputer.SampleMode.Uniform) result.percent = DMath.Lerp(GetSamplePercent(frontIndex), GetSamplePercent(index), frontProjectDist / frontLength);
             }
 
-            //0x4D1190 tests samples.Length >= 2 before the looped-spline check
             if (samples.Length >= 2 && from == 0.0 && to == 1.0 && result.percent < samples[1].percent) //Handle looped splines
             {
                 Vector3 pos1 = samples[samples.Length - 1].position;

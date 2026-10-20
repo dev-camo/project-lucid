@@ -618,7 +618,6 @@ namespace Dreamteck.Splines
             if (spline == null) yield break;
             if (objects.Length == 0) yield break;
 
-            //0x4AA6C0 runs the loop up to and including the spawn count
             for (int i = spawned.Length; i <= _spawnCount; i++)
             {
                 InstantiateSingle();

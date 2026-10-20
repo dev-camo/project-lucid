@@ -201,7 +201,6 @@ namespace Dreamteck.Splines
         protected void ApplyMotion()
         {
             if (sampleCount == 0) return;
-            //0x4CA5F0 applies the user's modifiers to a copy of the result
             _finalResult = _result;
             ModifySample(ref _finalResult);
             if (_dontLerpDirection)

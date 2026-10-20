@@ -1108,7 +1108,6 @@ namespace Dreamteck.Splines
                         vertexGroups = new List<VertexGroup>();
                         return true;
                     }
-                    //0x4C3750 gives up on a mesh that is not readable
                     if (!_mesh.isReadable) return false;
                     if (vertices.Length != _mesh.vertexCount) vertices = new Vector3[_mesh.vertexCount];
                     if (normals.Length != _mesh.normals.Length) normals = new Vector3[_mesh.normals.Length];

@@ -844,7 +844,6 @@ namespace Dreamteck.Splines {
 
             double result = _sampleCollection.Travel(UnclipPercent(start), distance, direction, out moved, clipFrom, clipTo);
             double clippedResult = ClipPercent(result);
-            //0x4C9970 reduces moved by the clipped percent difference itself, converted to float
             moved -= (float)(result - clippedResult);
             return clippedResult;
         }
