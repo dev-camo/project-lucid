@@ -5,9 +5,9 @@ using UnityEngine;
 namespace HardlightProject
 {
 	// Original Game.Runtime 020004f1; bodies translated from the 1.10.1 x86-64 binary.
-	[CreateAssetMenu(fileName = "CharacterAbilityDefinition_MovementRailBoost", menuName = "HardlightProject/DefinitionData/AbilityDef/MovementRailBoost", order = 1)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+	[CreateAssetMenu(fileName = "CharacterAbilityDefinition_MovementRailBoost", menuName = "HardlightProject/DefinitionData/AbilityDef/MovementRailBoost", order = 1)]
 	public class CharacterAbilityDefinition_MovementRailBoost : CharacterAbilityDefinition_MovementRailBoostBase
 	{
 		public override Type ScriptType

@@ -17,7 +17,10 @@ namespace ProjectLucid.Tests
     // values come from the 1.10.1 x86-64 bodies and constructors cited per test: the packed field defaults are the
     // constants of the binary's data section (VA 0x29a7770, 0x29a7780, 0x29a7790, 0x29a77d0, 0x29a7720), never read
     // back from the implementation. Abilities are built by their real constructors and given the character and the
-    // definition the way ActorAbility.Initialise would, on a real Character on an owned inactive host.
+    // definition the way ActorAbility.Initialise would, on a real Character on an owned inactive host. Initialise,
+    // DoOnEnter, DoOnUpdate, ProjectToTargetedObject, GetProjectedRailTarget, GetTargetSectionLocation and
+    // UpdateJumpRequirement are not covered by any test: they read the tracker, track manager and constants of a
+    // started Character, which an Edit Mode host cannot provide.
     public sealed class CharMoves06RailAbilityTests
     {
         private const float Tolerance = 1e-5f;
@@ -222,7 +225,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x753D60: the character's forward turned about the world up by the projection angle: positive for input at or
+        // 0x753D60: the character's forward turned about its own up axis by the projection angle: positive for input at or
         // above zero, negative below it. The select compares 0 <= input (cmpnless 0, input at 0x753DFD), so an unordered
         // input takes the negative angle and negative zero the positive one.
         [Test]

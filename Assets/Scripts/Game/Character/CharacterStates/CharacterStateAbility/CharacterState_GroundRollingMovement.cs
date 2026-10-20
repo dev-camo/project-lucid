@@ -5,10 +5,10 @@ using UnityEngine;
 namespace HardlightProject
 {
 	// Original Game.Runtime 0200036c; bodies translated from the 1.10.1 x86-64 binary.
-	[GraphNodeMenuFormat("Character/{0}")]
-	[GraphNodeDefaultName("GroundRollingMovement")]
-	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+	[GraphNodeMenuFormat("Character/{0}")]
+	[Il2CppSetOption(Option.NullChecks, false)]
+	[GraphNodeDefaultName("GroundRollingMovement")]
 	public class CharacterState_GroundRollingMovement : CharacterState_Ground<CharacterAbilityDefinition_Rolling, CharacterAbility_Rolling>
 	{
 		// 06001576 (1.10.1 RVA 0x776790)

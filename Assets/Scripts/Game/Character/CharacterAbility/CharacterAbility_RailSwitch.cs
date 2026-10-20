@@ -62,7 +62,7 @@ namespace HardlightProject
 			}
 			bool onRail = m_character.Storage.GetValue(ActorFSMKeys.RailActive, false, true);
 			bool jumpingFromRail = m_character.Storage.GetValue(ActorFSMKeys.JumpOnRailTracker, false, true);
-			if (!(onRail | jumpingFromRail))
+			if (!onRail && !jumpingFromRail)
 			{
 				return;
 			}
@@ -169,9 +169,10 @@ namespace HardlightProject
 		}
 
 		// 0600128c (1.10.1 RVA 0x753500). A ray leaves the tracker along the projected direction and meets the plane
-		// through the nearest point of the target spline, whose normal is the character's right axis. The section is
-		// accepted when the ray lands within the snap tolerance of the line to the point it hits, or otherwise when the
-		// target lies on the side of the character the input points to.
+		// through the nearest point of the target spline, whose normal is the character's right axis (negated while the
+		// surface is reversed). A section needs a hit ahead of the tracker. It is then accepted when the squared sine of the
+		// angle between the ray and the direction to the nearest point found at the hit is below the snap tolerance, or
+		// otherwise when that point lies on the side of the character the input points to.
 		private bool GetTargetSectionLocation(SurfaceSplineSection targetSection, ref SurfaceLocation targetLocation)
 		{
 			if (!(targetSection.TargetSpline.Value is Component targetComponent) || targetComponent == null)
@@ -197,10 +198,10 @@ namespace HardlightProject
 			{
 				return true;
 			}
-			return Math.Sign(m_inputMovement) == (int)Vector3Extensions.SignOfAngle(directionToTarget, m_character.ForwardDirection, m_character.UpDirection);
+			return (int)Vector3Extensions.SignOfAngle(directionToTarget, m_character.ForwardDirection, m_character.UpDirection) == Math.Sign(m_inputMovement);
 		}
 
-		// 0600128d (1.10.1 RVA 0x753D60). The character's forward turned about the world up by the projection angle,
+		// 0600128d (1.10.1 RVA 0x753D60). The character's forward turned about its own up axis by the projection angle,
 		// to the right for input at or above zero (and for NaN input to the left).
 		private Vector3 GetProjectedDirection()
 		{

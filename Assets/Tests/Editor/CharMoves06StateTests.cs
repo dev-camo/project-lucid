@@ -19,7 +19,11 @@ namespace ProjectLucid.Tests
     // bodies at 0xE6F680..0xE6FA00 and 0xE76220..0xE78910). The enter, update and leave bodies reach the camera, form,
     // stamina, tracker and animation graphs of a started Character, so they are checked as call sequences read from the
     // compiled IL; the helpers that can run on their own (the queued action hand over, the remain timer, the animation
-    // choice) run against a real Character on an owned inactive host.
+    // choice) run against a real Character on an owned inactive host. The *InTheNativeOrder-style witnesses are
+    // emission-only call-sequence checks of the reconstruction's own IL (policy: separate from behaviour oracles).
+    // Not covered by any test, because they need a started Character (tracker, camera, form, stamina graphs): the
+    // RailSwitch state enter and update, the SpinDashCharge update, the GroundBraking enter, and the comparison
+    // predicates inside them (rolling auto-exit and ledge braking thresholds, the rail orientation 0.0001 limit).
     public sealed class CharMoves06StateTests
     {
         private static readonly Type StandingType = typeof(CharacterState_RailMovement<CharacterAbility_MovementRailStanding, CharacterAbilityDefinition_MovementRailStanding>);
@@ -53,6 +57,8 @@ namespace ProjectLucid.Tests
         [Test]
         public void LeafStatesReadTheirAbilityTypeFromJson()
         {
+            // The ability types are deliberately unrelated to the states, to show the value comes from the JSON and is
+            // not fixed by the state (m_abilityType is a property of ActorState_Ability despite its field-style name).
             foreach ((Type type, ActorAbilityType ability) in new[]
             {
                 (typeof(CharacterState_GroundBoost), ActorAbilityType.Character_Jump),

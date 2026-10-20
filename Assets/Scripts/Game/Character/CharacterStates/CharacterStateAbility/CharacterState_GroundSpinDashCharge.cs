@@ -5,10 +5,10 @@ using UnityEngine;
 namespace HardlightProject
 {
 	// Original Game.Runtime 0200036e; bodies translated from the 1.10.1 x86-64 binary.
-	[GraphNodeDefaultName("GroundSpinDashCharge")]
-	[GraphNodeMenuFormat("Character/{0}")]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+	[GraphNodeDefaultName("GroundSpinDashCharge")]
+	[GraphNodeMenuFormat("Character/{0}")]
 	public class CharacterState_GroundSpinDashCharge : CharacterState_Ground<CharacterAbilityDefinition_MovementGroundSpinDashCharge, CharacterAbility_MovementGroundSpinDashCharge>
 	{
 		// 0600157c (1.10.1 RVA 0x776C70)
@@ -36,20 +36,19 @@ namespace HardlightProject
 		// forward direction orients the character on the plane of the collision contact normal.
 		protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
-			float intendedTurnAngle = 0f;
-			Quaternion intendedTurnRotation = default(Quaternion);
 			Character character = user.GetAs<Character>();
 			CharacterAbility_MovementGroundSpinDashCharge ability = GetAbility(character);
 			CharacterAbilityDefinition_MovementGroundSpinDashCharge definition = ability.Definition;
 			Quaternion rotation = character.WorldRotation;
 			OrientateToGround(character);
 			base.DoUpdate(user, updateContext);
-			if (character.TryGetIntendedTurnRotation(out intendedTurnAngle, out intendedTurnRotation, false))
+			if (character.TryGetIntendedTurnRotation(out float intendedTurnAngle, out Quaternion intendedTurnRotation, false))
 			{
 				float turnRate = definition.RotationLerpByAngleMultiplier.Evaluate(Mathf.Abs(intendedTurnAngle)) * definition.RotationLerpByVelocityMultiplier.Evaluate(character.WorldVelocityMagnitude) * updateContext.DeltaTime;
 				rotation = Quaternion.Slerp(rotation, intendedTurnRotation, turnRate);
 			}
-			character.OrientateToPlaneWithLookDirection(character.Collider.GetCollisionContactNormal(), rotation * Vector3.forward);
+			Vector3 lookDirection = rotation * Vector3.forward;
+			character.OrientateToPlaneWithLookDirection(character.Collider.GetCollisionContactNormal(), lookDirection);
 			SetLaunchAnimation(character.Animator, ability.GetLaunchSpeed(character.SpinDashRoll.ChargeTime));
 		}
 

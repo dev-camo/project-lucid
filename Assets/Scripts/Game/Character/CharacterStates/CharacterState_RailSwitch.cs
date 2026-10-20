@@ -63,16 +63,15 @@ namespace HardlightProject
 			float duration = jumpCurve[jumpCurve.length - 1].time;
 			float deltaTime = updateContext.DeltaTime;
 			float elapsed = character.Storage.AdjustValue(ActorFSMKeys.RailSwitchTimeElapsed, deltaTime, 0f);
-			Vector3 startPosition = character.Storage.GetValue(ActorFSMKeys.RailSwitchStartPosition, Vector3.zero, true);
+			Vector3 startPosition = character.Storage.GetValue(ActorFSMKeys.RailSwitchStartPosition, default(Vector3), true);
 			if (duration > elapsed)
 			{
 				Vector3 trackerPosition = character.Tracker.TrackerPosition;
 				float height = definition.JumpCurve.Evaluate(elapsed);
 				Vector3 targetPosition = Vector3.LerpUnclamped(startPosition, trackerPosition, elapsed / duration) + character.UpDirection * height;
-				Vector3 startVelocity = character.Storage.GetValue(ActorFSMKeys.RailSwitchStartVelocity, Vector3.zero, true);
-				Vector3 startDirection = startVelocity.normalized;
+				Vector3 startVelocity = character.Storage.GetValue(ActorFSMKeys.RailSwitchStartVelocity, default(Vector3), true);
 				Vector3 velocity = (targetPosition - character.WorldPosition) / deltaTime;
-				character.SetWorldVelocity(velocity + (startVelocity - startDirection * Vector3.Dot(startDirection, velocity)));
+				character.SetWorldVelocity(velocity + (startVelocity - startVelocity.normalized * Vector3.Dot(startVelocity.normalized, velocity)));
 				character.Tracker.MoveTrackerByDistance((startVelocity * deltaTime).magnitude);
 			}
 			else
