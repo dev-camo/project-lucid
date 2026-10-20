@@ -626,8 +626,10 @@ namespace ProjectLucid.Tests
             Assert.That(typeof(CharacterState_KnockbackRecovery).BaseType, Is.EqualTo(typeof(CharacterState_Ability<CharacterAbility_Knockback>)));
             Assert.That(typeof(CharacterState_LedgeMount).BaseType, Is.EqualTo(typeof(CharacterState_Ability<CharacterAbility_LedgeMount>)));
             Assert.That(typeof(CharacterState_LightspeedDash).BaseType, Is.EqualTo(typeof(CharacterState_Ability<CharacterAbility_LightspeedDash>)));
+            // Reflection returns a nested type of a generic class as its open definition, so the closed base is built
+            // from it with the jump's own arguments (DummyDll: JumpBaseJSONCtorArgs<CharacterAbility_MovementJump, CharacterAbilityDefinition_Jump>).
             Assert.That(typeof(CharacterState_Jump).GetNestedType("JumpJSONCtorArgs", BindingFlags.NonPublic).BaseType,
-                Is.EqualTo(typeof(CharacterState_JumpBase<CharacterAbility_MovementJump, CharacterAbilityDefinition_Jump>).GetNestedType("JumpBaseJSONCtorArgs", BindingFlags.NonPublic)));
+                Is.EqualTo(args.MakeGenericType(typeof(CharacterAbility_MovementJump), typeof(CharacterAbilityDefinition_Jump))));
         }
     }
 }
