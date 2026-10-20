@@ -187,9 +187,13 @@ namespace ProjectLucid.Tests
 
         // A character at the origin looking along +Z with up along +Y, two raycast steps (the back ray and the down ray) and
         // a fresh definition otherwise: origin offset (0, 0.25, 0.25) puts the rays at (0, 0.25, 0.25), distance 0.5.
+        // 0x747DC0 reads Character.TrackManager (0x748005) before the first ray, and 0x7291A0 dereferences the
+        // track manager reference with no null test, so the character holds a reference with no track manager, as
+        // Character.Initialise's GetSystemRef<TrackManager>(null, true) gives when none is registered.
         private static void WithLedge(Action<Owned, CharacterGravityVectorProbe, CharacterAbility_LedgeMount, CharacterAbilityDefinition_LedgeMount> body) =>
             WithAbility<CharacterAbility_LedgeMount, CharacterAbilityDefinition_LedgeMount>((owned, character, ability, definition) =>
             {
+                Set(character, "m_trackManagerRef", new SystemRef<TrackManager>("TrackManager", null));
                 SetActorProperty(character, "WorldPosition", Vector3.zero);
                 SetActorProperty(character, "UpDirection", Vector3.up);
                 SetActorProperty(character, "ForwardDirection", Vector3.forward);
