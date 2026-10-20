@@ -626,7 +626,8 @@ namespace ProjectLucid.Tests
         }
 
         // The rotation is the sample rotation times Euler(Lerp per axis) with the draws x, y, z in turn from System.Random(seed + 2),
-        // and applyRotation off leaves the copy turned the way the last build left it (as spawned if it was never built).
+        // and applyRotation off leaves the copy turned the way the last build left it (as spawned if it was never built). The
+        // fresh controller caches the play state, so its setters queue instead of building at once with applyRotation still on.
         [Test]
         public void RotationAppliesTheSampleRotationAndTheRandomEuler()
         {
@@ -657,6 +658,7 @@ namespace ProjectLucid.Tests
             NearRotation(Copy(controller, 0).rotation, line.Evaluate(0.0).rotation * lastEuler, "applyRotation off keeps the last built rotation");
 
             ObjectController fresh = NewBareController(NewLine());
+            DreamteckPlayState.Cache(fresh);
             fresh.objects = new[] { NewSource("A") };
             fresh.spawnCount = 2;
             fresh.applyRotation = false;
@@ -756,7 +758,8 @@ namespace ProjectLucid.Tests
         }
 
         // Build 0x4a8e80 sets the context on the scale rule but reads GetScale from the offset rule; with no offset rule the
-        // build faults (RebuildImmediate logs the message).
+        // build faults (RebuildImmediate logs the message). The play state is cached so that the setters queue: the editor
+        // compile would build at once from the customOffsetRule setter and log the fault a second time.
         [Test]
         public void CustomScaleReadsTheOffsetRuleAsShipped()
         {
@@ -768,7 +771,7 @@ namespace ProjectLucid.Tests
             scaleRule.maxScale = 5f;
             offsetRule.minScale = 3f;
             offsetRule.maxScale = 3f;
-            ObjectController controller = NewBareController(NewLine());
+            ObjectController controller = DreamteckPlayState.Cache(NewBareController(NewLine()));
             controller.objects = new[] { NewSource("A") };
             controller.spawnCount = 2;
             controller.applyScale = true;
@@ -829,7 +832,8 @@ namespace ProjectLucid.Tests
 
         // The rule's own context is set after the scale was read (0x4a98f3 against 0x4a93be), so the scale comes from the
         // offset rule's context of the previous copy, or of the previous build for the first one, and is stored as is: no base
-        // scale, no sample size.
+        // scale, no sample size. The play state is cached so that the setters queue: immediate editor builds from the setters
+        // would leave a different stale context before the first RebuildImmediate.
         [Test]
         public void CustomScaleUsesTheStaleContextOfTheOffsetRule()
         {
@@ -840,7 +844,7 @@ namespace ProjectLucid.Tests
             offsetRule.minScale = 1f;
             offsetRule.maxScale = 3f;
             offsetRule.offset = 0.5f;
-            ObjectController controller = NewBareController(NewLine());
+            ObjectController controller = DreamteckPlayState.Cache(NewBareController(NewLine()));
             controller.objects = new[] { NewSource("A", new Vector3(2f, 2f, 2f)) };
             controller.spawnCount = 2;
             controller.applyScale = true;
