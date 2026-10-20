@@ -44,7 +44,9 @@ namespace ProjectLucid.Tests
 
         private WaveformGenerator NewWaveform(float height = 2f)
         {
-            WaveformGenerator waveform = _fixture.NewGenerator<WaveformGenerator>(NewRaisedLine(height));
+            // The cached play state makes a setter queue the rebuild for the next Update, as in the shipped build; the editor
+            // compile of SplineUser would rebuild at once while Application.isPlaying is false.
+            WaveformGenerator waveform = DreamteckPlayState.Cache(_fixture.NewGenerator<WaveformGenerator>(NewRaisedLine(height)));
             SplineSample first = new SplineSample();
             waveform.GetSample(0, ref first);
             Near(first.forward, Vector3.right, "line forward");
@@ -251,7 +253,10 @@ namespace ProjectLucid.Tests
         }
 
         // An axis outside the enum keeps the TransformDirection(right) default (0x4d97b0 jne 0x4d9858 skips the Y/Z overrides),
-        // drops no coordinate and adds nothing to the value sum (0x4d9be1), and the V height stays 1.0 (0x4d9ad7 jne 0x4d9b30).
+        // drops no coordinate and adds nothing to the value sum (0x4d9be1), and the V height stays 1.0 (0x4d9ad7 jne 0x4d9b30,
+        // the constant at 0x29a6be0 is the Lerp clamp maximum 1.0). The UniformY V is height * slice * uvScale.y (0x4d9feb / 0x4da029 mulss by
+        // the height, then mulps by uvScale), so with the height 1 it is 1 * 1 * 3 = 3; the height of a real axis already carries
+        // one uvScale.y factor (0x4d9bf1), which is where the other tests get their second factor.
         [Test]
         public void AnAxisOutsideTheEnumDropsNothing()
         {
@@ -264,7 +269,7 @@ namespace ProjectLucid.Tests
             Near(ts.vertices[0], new Vector3(0f, 2f, 0f), "the baseline is the sample");
             Near(ts.vertices[1], new Vector3(0f, 2f, 0f), "sample");
             Near(ts.normals[0], Vector3.zero, "Cross(right, forward) is zero");
-            Near(ts.uv[3], new Vector2(2f, 9f), "percent 1 * 2, slice 1 * height 1 * 3 * 3");
+            Near(ts.uv[3], new Vector2(2f, 3f), "percent 1 * 2, slice 1 * height 1 * 3");
             Assert.That(ts.triangles, Is.EqualTo(MeshUtility.GeneratePlaneTriangles(1, 2, false)), "the value sum stays 0");
         }
 

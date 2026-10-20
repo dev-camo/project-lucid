@@ -57,6 +57,10 @@ namespace ProjectLucid.Tests
             new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(1f, 0f), new Vector2(0f, 0f)
         };
 
+        // The default linearAverageDirection (CalculateLinearTangent 0x4e0540) blends the two edges that meet at a Linear corner, so
+        // on the closed seam the first sample would run along (1,-1,0) / sqrt 2 instead of the first edge. These tests hand-compute
+        // the geometry from edge directions, so both squares switch the averaging off with the shipped public option; the averaged
+        // seam tangent itself is pinned in the Spline tests.
         private SplineComputer NewSquare()
         {
             SplinePoint[] points = new SplinePoint[4];
@@ -66,6 +70,7 @@ namespace ProjectLucid.Tests
             }
 
             SplineComputer square = _fixture.NewComputer(points);
+            square.linearAverageDirection = false;
             square.Close();
             square.RebuildImmediate();
             return square;
@@ -82,6 +87,7 @@ namespace ProjectLucid.Tests
             }
 
             SplineComputer square = _fixture.NewComputer(points);
+            square.linearAverageDirection = false;
             square.Close();
             square.RebuildImmediate();
             return square;
@@ -96,7 +102,9 @@ namespace ProjectLucid.Tests
         // A surface built once with the final settings, so that no earlier build leaves old values in the arrays.
         private SurfaceGenerator NewSurface(SplineComputer computer, Action<SurfaceGenerator> configure = null, Vector3? firstForward = null)
         {
-            SurfaceGenerator surface = _fixture.NewBare<SurfaceGenerator>();
+            // The cached play state makes a setter queue the rebuild for the next Update, as in the shipped build; the editor
+            // compile of SplineUser would rebuild at once while Application.isPlaying is false.
+            SurfaceGenerator surface = DreamteckPlayState.Cache(_fixture.NewBare<SurfaceGenerator>());
             surface.calculateTangents = false;
             if (configure != null)
             {

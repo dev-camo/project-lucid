@@ -37,10 +37,12 @@ namespace ProjectLucid.Tests
             return DreamteckGeneratorFixture.TsMeshOf(generator);
         }
 
-        // A tube on the computer with the given number of sides, built once.
+        // A tube on the computer with the given number of sides, built once. The editor compile of SplineUser rebuilds at once
+        // while Application.isPlaying is false; the cached play state makes a setter queue the rebuild for the next Update, as in
+        // the shipped build, which compiles none of that branch.
         private TubeGenerator NewTube(int sides = 4, SplineComputer computer = null)
         {
-            TubeGenerator tube = _fixture.NewGenerator<TubeGenerator>(computer ?? _fixture.NewLine());
+            TubeGenerator tube = DreamteckPlayState.Cache(_fixture.NewGenerator<TubeGenerator>(computer ?? _fixture.NewLine()));
             tube.sides = sides;
             tube.RebuildImmediate();
             return tube;
