@@ -323,6 +323,9 @@ namespace ProjectLucid.Tests
             MeshFilter filter;
             Mesh source;
             ObjectBender bender = NewBender(out filter, out source);
+            // The setters queue through SplineUser.Rebuild; the editor compile builds at once while the play state is not cached
+            // (DreamteckPlayState), so the queued flag the shipped Rebuild sets is only observable with the cache set.
+            DreamteckPlayState.Cache(bender);
             bender.RebuildImmediate();
             Assert.That(Read<bool>(bender, "rebuild"), Is.False);
             bender.axis = ObjectBender.Axis.Z;
@@ -814,6 +817,9 @@ namespace ProjectLucid.Tests
             colliderSource.name = "colliderSource";
             colliderSource.vertices = colliderVertices;
             colliderSource.normals = new[] { Vector3.forward, Vector3.forward, Vector3.forward, Vector3.forward };
+            // MeshUtility.CalculateTangents (0x4fa4e0) indexes the uv array per triangle corner with bounds checks, so a collider mesh
+            // without uvs throws IndexOutOfRangeException in the shipped build as well; the mesh carries uvs.
+            colliderSource.uv = new[] { new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 1f), new Vector2(0.5f, 0.5f) };
             colliderSource.triangles = new[] { 0, 1, 2, 0, 2, 3 };
             _ownedAssets.Add(colliderSource);
             MeshCollider collider = root.AddComponent<MeshCollider>();
