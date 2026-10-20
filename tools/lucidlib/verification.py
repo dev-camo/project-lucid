@@ -2863,6 +2863,52 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves05GroundStateTests." + name
     "DeclarationShapeGroundStateKeepsItsBaseAndConstraints",
 ))
 
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves06RailAbilityTests." + name for name in (
+    "RailSwitchDefinitionStoresTheNativeDefaults",
+    "RailSwitchDefinitionCachesTheSquareOfTheProjectDistance",
+    "RailBoostAndStandingDefinitionsStoreTheNativeRailDefaults",
+    "DefinitionsNameTheirAbilityTypes",
+    "RailBoostCanTriggerUnlessTheOneShotFlagIsSet",
+    "RailStandingSetActiveStoresTheTriggeredFlag",
+    "RailSwitchKeepsTheNativeSnapTolerance",
+    "RailSwitchTargetingSettingsComeFromTheDefinition",
+    "ResetClearsTheInputTheTargetAndTheTargetedLocation",
+    "ResetWritesTheTurnAroundCooldownOnlyWhenAskedAndPositive",
+    "ProjectedDirectionTurnsTheForwardToTheSideOfTheInput",
+    "ProjectedDirectionIsRotatedByTheCharacter",
+    "SwitchInProgressNeedsANeighbourAndARailTarget",
+    "TheFsmTargetRoundTripsThroughTheStorage",
+    "DebugInfoNamesTheMovementAndTheTargetedSurface",
+    "TransitionFiresOnlyWhileTheAbilityHasASwitchInProgress",
+    "TransitionKeepsItsGraphNodeAttributes",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves06StateTests." + name for name in (
+    "LeafStatesReadTheirAbilityTypeFromJson",
+    "OrbCollectWithoutAGhostedAnimationNameLeavesItUnset",
+    "StatesKeepTheirGraphNodeNames",
+    "GenericStatesKeepTheirParametersAndConstraints",
+    "BoostStatesDoNotQueueActionsAndTheOthersDo",
+    "QueuedJumpGoesToTheOneShotInsideItsWindowAndToThePlainAbilityAfterwards",
+    "QueuedBoostGoesToTheOneShotInsideItsWindowAndToThePlainAbilityAfterwards",
+    "RemainTimerWithNothingStoredIsSkippedWhenChecked",
+    "RemainTimerWithoutAnyJumpOrBoostAbilityDoesNothing",
+    "RemainTimerStillRunningCountsDownAndHandsOverOnlyForQueueingStates",
+    "ExpiredRemainTimerHandsOverAndResetsTheQueueOnlyWithAnAirAbility",
+    "OrbCollectPicksTheGhostedAnimationForTheReplayOutros",
+    "OrbCollectDoesNotCallItsBaseAndHasAnEmptyUpdate",
+    "SpinDashChargeLeavesInTheNativeOrder",
+    "SpinDashChargeEntersByAnnouncingTheCharge",
+    "RailSwitchLeavesByResettingTheAbilityAndRemovingItsValues",
+    "GroundBoostEntersByActivatingTheStaminaThenTurningToTheInput",
+    "BoostStatesSuspendTheStaminaOnLeaving",
+    "RailBoostEntersByActivatingTheStaminaAndTheAbility",
+    "RailMovementEntersInTheNativeOrder",
+    "RailMovementUpdatesInTheNativeOrder",
+    "RollingMovementEndsTheRollAndDefersLedgeBraking",
+    "RailMovementSurfaceChangeInformsTheAbilityBeforeStoringTheRailValidity",
+    "RailMovementLeaveEndsByDetachingTheAbility",
+))
+
 # Original deceleration-curve acceleration branch minss operand order.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationKeepsAnUnorderedSum",

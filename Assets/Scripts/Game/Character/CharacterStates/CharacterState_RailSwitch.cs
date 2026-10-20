@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 02000392; bodies translated from the 1.10.1 x86-64 binary. The character leaves its rail
-	// along the start direction and is carried over to the target rail on the jump curve. Reaching the end of the
-	// curve hands the character to the target rail, which resumes at the speed it had on entering.
+	// Original Game.Runtime 02000392; bodies translated from the 1.10.1 x86-64 binary. For the duration of the ability's
+	// jump curve the character moves toward the tracker position while keeping its start velocity; afterwards the stored
+	// neighbour is cleared and the character resumes at the stored speed.
 	[GraphNodeDefaultName("RailSwitch")]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[GraphNodeMenuFormat("Character/{0}")]
@@ -25,8 +25,8 @@ namespace HardlightProject
 		}
 
 		// 060015fc (1.10.1 RVA 0x77E4A0). Without a published target nothing happens. Otherwise the elapsed time, the
-		// start position, the velocity component along the target direction (as the start velocity) and the speed to
-		// resume with are stored, and the tracker is moved sideways onto the target rail's metadata.
+		// start position, the velocity component along the target's forward direction (as the start velocity) and the
+		// speed to resume with are stored, and the tracker is teleported by the lateral distance to the target.
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
 			base.DoOnEnter(user, action);
@@ -49,10 +49,11 @@ namespace HardlightProject
 			character.Tracker.OnTeleport(character.WorldPosition + character.RightDirection * lateralDistance, lateralDistance, ability.RailDefinition.MetadataGroupKey);
 		}
 
-		// 060015fd (1.10.1 RVA 0x77ED50). While the jump curve runs the character is steered toward the point on the line
-		// between the start position and the tracker, lifted by the curve along its up direction, whereas the start
-		// velocity is kept and the tracker follows it. Once the curve has run out the target rail is released and the
-		// character, when its tracker is back on a surface, continues forward at the resume speed.
+		// 060015fd (1.10.1 RVA 0x77ED50). While the jump curve runs, the velocity is the one that reaches the point between
+		// the start position and the tracker (lifted along the up direction by the curve) in this step, with its
+		// component along the start velocity replaced by the start velocity itself; the tracker then advances by the
+		// start velocity's step. Once the curve has run out the neighbour is cleared and, when the tracker looks ahead
+		// onto a surface, the character continues forward at the resume speed.
 		protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			base.DoUpdate(user, updateContext);

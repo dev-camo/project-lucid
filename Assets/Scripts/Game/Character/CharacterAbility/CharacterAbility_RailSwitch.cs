@@ -7,9 +7,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 0200030a; bodies translated from the 1.10.1 x86-64 binary. Sideways input, held long enough,
-	// projects a ray off the rail the character is tracking; the nearest neighbouring rail it reaches becomes the switch
-	// target (RailSwitchNeighbour) and is published for the homing states through the storage target keys.
+	// Original Game.Runtime 0200030a; bodies translated from the 1.10.1 x86-64 binary. While the debounced sideways input
+	// holds, a ray is projected from the tracker onto the neighbouring rails of the tracked spline; the nearest hit is stored
+	// as RailSwitchNeighbour, and the targeted object with the character's speed under the HomingRailSwitch keys.
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	public class CharacterAbility_RailSwitch : CharacterAbility_Targeting<CharacterAbilityDefinition_RailSwitch>
@@ -190,7 +190,7 @@ namespace HardlightProject
 			Vector3 point = ray.GetPoint(enter);
 			targetLocation = ((ISurface)targetSection.TargetSpline.Value).FindNearestSurfaceLocationFromWorld(point);
 			Vector3 toTarget = targetLocation.m_worldPosition - ray.origin;
-			// The original divides by the magnitude directly, with no normalization epsilon (0x753C78).
+			// The original divides by the magnitude directly, with no normalization epsilon (0x753C74..0x753C83).
 			Vector3 directionToTarget = toTarget / toTarget.magnitude;
 			// The native code takes the absolute value of the squared length of the cross product.
 			if (Mathf.Abs(Vector3.Cross(ray.direction, directionToTarget).sqrMagnitude) < SnapToRailTolerance)
