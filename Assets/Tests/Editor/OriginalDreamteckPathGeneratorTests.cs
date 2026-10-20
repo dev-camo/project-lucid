@@ -73,6 +73,7 @@ namespace ProjectLucid.Tests
         public void SlicesClampAtOneAndRebuildOnAnyDifferentValue()
         {
             PathGenerator path = NewPath();
+            DreamteckPlayState.Cache(path); // the setter queues (play mode) instead of the editor's immediate rebuild
             int builds = 0;
             path.onPostBuild += delegate { builds++; };
             DreamteckGeneratorFixture.Update(path);
@@ -101,6 +102,7 @@ namespace ProjectLucid.Tests
         public void CompensateCornersRebuildsOnChange()
         {
             PathGenerator path = NewPath();
+            DreamteckPlayState.Cache(path); // the setter queues (play mode) instead of the editor's immediate rebuild
             int builds = 0;
             path.onPostBuild += delegate { builds++; };
             DreamteckGeneratorFixture.Update(path);
@@ -118,6 +120,7 @@ namespace ProjectLucid.Tests
         public void ShapeCurveToggleCreatesAFlatCurveOrDropsIt()
         {
             PathGenerator path = NewPath();
+            DreamteckPlayState.Cache(path); // the setter queues (play mode) instead of the editor's immediate rebuild
             int builds = 0;
             path.onPostBuild += delegate { builds++; };
             DreamteckGeneratorFixture.Update(path);
@@ -157,6 +160,7 @@ namespace ProjectLucid.Tests
             Assert.That(loose.shapeExposure, Is.EqualTo(1f), "without a spline the value is dropped");
 
             PathGenerator path = NewPath();
+            DreamteckPlayState.Cache(path); // the setter queues (play mode) instead of the editor's immediate rebuild
             int builds = 0;
             path.onPostBuild += delegate { builds++; };
             DreamteckGeneratorFixture.Update(path);
@@ -181,6 +185,7 @@ namespace ProjectLucid.Tests
         public void ShapeSetterComparesKeysWithTheBlankCopy()
         {
             PathGenerator path = NewPath();
+            DreamteckPlayState.Cache(path); // the setter queues (play mode) instead of the editor's immediate rebuild
             int builds = 0;
             path.onPostBuild += delegate { builds++; };
             DreamteckGeneratorFixture.Update(path);

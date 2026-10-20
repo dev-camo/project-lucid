@@ -65,6 +65,7 @@ namespace ProjectLucid.Tests
         public void SlicesClampAtOneAndRebuildOnAnyDifferentValue()
         {
             SplineRenderer renderer = NewRenderer();
+            DreamteckPlayState.Cache(renderer); // the setter queues (play mode) instead of the editor's immediate rebuild
             int builds = 0;
             renderer.onPostBuild += delegate { builds++; };
             DreamteckGeneratorFixture.Update(renderer);

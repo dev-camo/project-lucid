@@ -23,7 +23,11 @@ namespace ProjectLucid.Tests
             _fixture.Dispose();
         }
 
-        // The ctor 0x49e3b0 field initialisers and the cctor 0x49e4c0 (__uvs starts at zero).
+        // The ctor 0x49e3b0 field initialisers and the cctor 0x49e4c0 (__uvs starts at zero). The editor compile of the original
+        // text runs Reset (which calls Awake) when the component is added, and SplineUser.Awake ends with RebuildImmediate while
+        // not playing, so the first build has already happened here: the meshes exist and WriteMesh armed _updateCollider. The
+        // player build (no UNITY_EDITOR code) builds in Awake only when playing, so the pre-build values of those three
+        // (null, null, false) cannot be observed in EditMode; _lastUpdateTime is only written by LateRun and stays 0.
         [Test]
         public void FreshGeneratorKeepsTheShippedDefaults()
         {
@@ -46,10 +50,10 @@ namespace ProjectLucid.Tests
             Assert.That(generator.meshIndexFormat, Is.EqualTo(IndexFormat.UInt16));
             Assert.That(generator.colliderUpdateRate, Is.EqualTo(0.2f));
             Assert.That(generator.baked, Is.False);
-            Assert.That(DreamteckGeneratorFixture.Field<bool>(generator, "_updateCollider"), Is.False);
+            Assert.That(DreamteckGeneratorFixture.Field<bool>(generator, "_updateCollider"), Is.True, "armed by the editor Awake build");
             Assert.That(DreamteckGeneratorFixture.Field<float>(generator, "_lastUpdateTime"), Is.EqualTo(0f));
-            Assert.That(DreamteckGeneratorFixture.TsMeshOf(generator), Is.Null, "no mesh before the first build");
-            Assert.That(DreamteckGeneratorFixture.MeshOf(generator) == null, Is.True);
+            Assert.That(DreamteckGeneratorFixture.TsMeshOf(generator), Is.Not.Null, "created by the editor Awake build");
+            Assert.That(DreamteckGeneratorFixture.MeshOf(generator) == null, Is.False);
             Assert.That(typeof(MeshGenerator).GetField("__uvs", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null), Is.EqualTo(Vector2.zero));
             Assert.That(Invoke(generator, "get_meshName"), Is.EqualTo("Mesh"));
         }
@@ -86,6 +90,7 @@ namespace ProjectLucid.Tests
         public void ConfigurationSettersSkipEqualValuesAndRebuildOtherwise()
         {
             MeshGenerator generator = _fixture.NewGenerator<MeshGenerator>(_fixture.NewLine());
+            DreamteckPlayState.Cache(generator); // the setters queue (play mode) instead of the editor's immediate rebuild
             int builds = 0;
             generator.onPostBuild += delegate { builds++; };
             DreamteckGeneratorFixture.Update(generator);
@@ -132,6 +137,7 @@ namespace ProjectLucid.Tests
         public void SizeStoresAnEqualValueWithoutRebuilding()
         {
             MeshGenerator generator = _fixture.NewGenerator<MeshGenerator>(_fixture.NewLine());
+            DreamteckPlayState.Cache(generator); // queue the rebuild the way play mode does
             int builds = 0;
             generator.onPostBuild += delegate { builds++; };
             generator.size = 0f;
@@ -177,21 +183,25 @@ namespace ProjectLucid.Tests
         }
 
         // Rebuild 0x49d4c0 and RebuildImmediate 0x49d4e0 return at once for a baked generator. The baked flag has no setter; the
-        // serialized field is filled the way a saved scene would.
+        // serialized field is filled the way a saved scene would. The editor Awake build (see the defaults test) has already
+        // created the meshes before the flag is set, so the test checks that nothing is built or sampled afterwards.
         [Test]
         public void BakedGeneratorNeverRebuilds()
         {
             MeshGenerator generator = _fixture.NewBare<MeshGenerator>();
             JsonUtility.FromJsonOverwrite("{\"_baked\":true}", generator);
             Assert.That(generator.baked, Is.True);
+            TS_Mesh before = DreamteckGeneratorFixture.TsMeshOf(generator);
+            Assert.That(before, Is.Not.Null, "built by the editor Awake before the flag was set");
             generator.spline = _fixture.NewLine();
+            DreamteckPlayState.Cache(generator);
             int builds = 0;
             generator.onPostBuild += delegate { builds++; };
             generator.Rebuild();
             DreamteckGeneratorFixture.Update(generator);
             generator.RebuildImmediate();
             Assert.That(builds, Is.EqualTo(0), "no queued build");
-            Assert.That(DreamteckGeneratorFixture.TsMeshOf(generator), Is.Null, "no immediate build");
+            Assert.That(DreamteckGeneratorFixture.TsMeshOf(generator), Is.SameAs(before), "no immediate build");
             Assert.That(generator.sampleCount, Is.EqualTo(0));
 
             JsonUtility.FromJsonOverwrite("{\"_baked\":false}", generator);
@@ -252,6 +262,10 @@ namespace ProjectLucid.Tests
         public void WriteMeshMovesTheMeshIntoLocalSpaceAndAppliesTheFaceOptions()
         {
             MeshGenerator generator = _fixture.NewGenerator<MeshGenerator>(_fixture.NewLine());
+            // Play mode queues the rebuild a setter asks for. The editor compile rebuilds at once instead, and that immediate
+            // build runs WriteMesh on the hand-filled mesh (flipFaces would flip twice; the three-vertex mesh makes the
+            // doubleSided mirror index past the array), so the test caches the play state and calls WriteMesh itself.
+            DreamteckPlayState.Cache(generator);
             generator.transform.position = new Vector3(5f, 0f, 0f);
             TS_Mesh ts = DreamteckGeneratorFixture.TsMeshOf(generator);
             Fill(ts, new[] { new Vector3(5f, 0f, 0f), new Vector3(6f, 0f, 0f), new Vector3(5f, 1f, 0f) }, new[] { 0, 1, 2 });
