@@ -130,7 +130,10 @@ namespace ProjectLucid.Tests
             WithGroundTracking(CharacterTrackingType.SurfaceTracker, true, (owned, character, tracking, collider) =>
             {
                 IFSMTransition transition = BuildTransition(nameof(CharacterTransition_Ground), GroundJson(CharacterTrackingType.Active));
-                var data = owned.Host("Lucid collision data", false).AddComponent<CharacterCollisionData>();
+                // ColliderData requires a Collider (RequireComponent), which Unity cannot add for the abstract type.
+                GameObject dataHost = owned.Host("Lucid collision data", false);
+                dataHost.AddComponent<BoxCollider>();
+                var data = dataHost.AddComponent<CharacterCollisionData>();
                 SetProperty(collider, "LinkedCollisionData", data);
 
                 foreach ((bool linked, bool climbable, bool expected) in new[]
