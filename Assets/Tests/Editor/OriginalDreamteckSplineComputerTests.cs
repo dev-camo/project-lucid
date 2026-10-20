@@ -242,7 +242,8 @@ namespace ProjectLucid.Tests
             {
                 for (int mode = 0; mode < modes.Length; mode++)
                 {
-                    SplineComputer computer = NewComputer("mode" + callback + mode, Vector3.zero);
+                    // Play mode caches Application.isPlaying in Awake; the editor-only _editorIsPlaying=false would resample at once.
+                    SplineComputer computer = DreamteckPlayState.Cache(NewComputer("mode" + callback + mode, Vector3.zero));
                     computer.updateMode = modes[mode];
                     computer.type = Spline.Type.Linear;
                     computer.SetPoints(Corner());
@@ -257,12 +258,14 @@ namespace ProjectLucid.Tests
         [Test]
         public void ResampleRebuildsUsersAndRaisesOnRebuild()
         {
-            SplineComputer computer = NewComputer("users", Vector3.zero);
+            // The shipped queue path: the editor-only play-state caches are set to what play mode caches (the computer so that
+            // SetPoints queues the resample, the users so that Rebuild queues and OnDestroy does not unsubscribe a destroyed one).
+            SplineComputer computer = DreamteckPlayState.Cache(NewComputer("users", Vector3.zero));
             computer.type = Spline.Type.Linear;
-            SplineUser alive = computer.gameObject.AddComponent<SplineUser>();
+            SplineUser alive = DreamteckPlayState.Cache(computer.gameObject.AddComponent<SplineUser>());
             GameObject doomedOwner = new GameObject("doomed");
             _owned.Add(doomedOwner);
-            SplineUser doomed = doomedOwner.AddComponent<SplineUser>();
+            SplineUser doomed = DreamteckPlayState.Cache(doomedOwner.AddComponent<SplineUser>());
             alive.spline = computer;
             doomed.spline = computer;
             Assert.That(computer.subscriberCount, Is.EqualTo(2));
@@ -286,7 +289,11 @@ namespace ProjectLucid.Tests
         public void SubscriptionsIgnoreDuplicatesAndReturnACopy()
         {
             SplineComputer computer = NewComputer("subs", Vector3.zero);
-            SplineUser user = computer.gameObject.AddComponent<SplineUser>();
+            // On the computer's own object the editor-only SplineUser.Reset (run by AddComponent in the editor, never in a
+            // player) would find it and subscribe, so the user lives on a separate object.
+            GameObject userOwner = new GameObject("subs user");
+            _owned.Add(userOwner);
+            SplineUser user = userOwner.AddComponent<SplineUser>();
             Assert.That(computer.IsSubscribed(user), Is.False);
             computer.Subscribe(user);
             computer.Subscribe(user);
@@ -382,17 +389,21 @@ namespace ProjectLucid.Tests
 
             SplineUser user = computer.gameObject.AddComponent<SplineUser>();
             int calls = 0;
-            SplineUser received = user;
-            trigger.AddListener(delegate (SplineUser sender)
-            {
-                calls++;
-                received = sender;
-            });
+            trigger.AddListener(delegate (SplineUser sender) { calls++; });
+            // SplineTrigger.Invoke reads Application.isPlaying directly and returns while not playing; the player branch is the
+            // text after the #if UNITY_EDITOR block and cannot run in EditMode. Check marks the crossed trigger as worked before
+            // Invoke, so the group routing is observed through that flag and the listener stays silent.
+            Assert.That(Worked(trigger), Is.False);
             computer.CheckTriggers(0.4, 0.6, user);
-            Assert.That(calls, Is.EqualTo(1));
-            Assert.That(received == null, Is.True, "the user is not forwarded");
+            Assert.That(Worked(trigger), Is.True, "CheckTriggers(start, end, user) checks every group");
+            Assert.That(calls, Is.EqualTo(0), "Invoke does not call the listener while not playing");
+            trigger.Reset();
             computer.CheckTriggers(2, 0.4, 0.6);
-            Assert.That(calls, Is.EqualTo(2));
+            Assert.That(Worked(trigger), Is.True, "CheckTriggers(group, start, end) checks that group");
+            Assert.That(calls, Is.EqualTo(0));
+            trigger.Reset();
+            computer.CheckTriggers(1, 0.4, 0.6);
+            Assert.That(Worked(trigger), Is.False, "another group does not reach the trigger");
 
             trigger.workOnce = true;
             computer.ResetTriggers(2);
@@ -413,6 +424,11 @@ namespace ProjectLucid.Tests
             computer.RemoveTrigger(-1, 5);
             computer.RemoveTrigger(2, 0);
             Assert.That(computer.triggerGroups[2].triggers, Is.Empty);
+        }
+
+        private static bool Worked(SplineTrigger trigger)
+        {
+            return (bool)typeof(SplineTrigger).GetField("worked", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(trigger);
         }
 
         // GetSamples 0x4b4510 shares the world samples and the sample mode with the collection.
@@ -443,16 +459,20 @@ namespace ProjectLucid.Tests
             Near(computer.position, new Vector3(5f, 0f, 0f), "position");
         }
 
-        // The Roslyn names in the shipped assembly place the RunUpdate local functions at ordinal 88 and the enums first.
+        // The Roslyn names in the shipped assembly (DummyDll) place the RunUpdate local functions at ordinal 88
+        // (<RunUpdate>g__CalculateWithTransform|88_0 and ...WithoutTransform|88_1; the player-define compile of the source
+        // reproduces them). The editor compile this test runs declares the UNITY_EDITOR members ahead of RunUpdate (the editor
+        // fields, the EditorUpdateMode enum, EditorAwake, EditorUpdateConnectedNodes, Reset), so its ordinal is 99, and it adds
+        // the public nested enum EditorUpdateMode (editor-vs-ship declaration diff).
         [Test]
         public void CompilerGeneratedNamesAndNestedTypesMatchTheShippedAssembly()
         {
             Assert.That(typeof(SplineComputer).GetMethods(Anything).Select(m => m.Name).ToArray(),
-                Does.Contain("<RunUpdate>g__CalculateWithTransform|88_0"));
+                Does.Contain("<RunUpdate>g__CalculateWithTransform|99_0"));
             Assert.That(typeof(SplineComputer).GetMethods(Anything).Select(m => m.Name).ToArray(),
-                Does.Contain("<RunUpdate>g__CalculateWithoutTransform|88_1"));
+                Does.Contain("<RunUpdate>g__CalculateWithoutTransform|99_1"));
             Assert.That(typeof(SplineComputer).GetNestedTypes(Anything).Select(t => t.Name).ToArray(),
-                Is.EquivalentTo(new[] { "Space", "EvaluateMode", "SampleMode", "UpdateMode", "NodeLink" }));
+                Is.EquivalentTo(new[] { "EditorUpdateMode", "Space", "EvaluateMode", "SampleMode", "UpdateMode", "NodeLink" }));
             Type link = typeof(SplineComputer).GetNestedType("NodeLink", BindingFlags.NonPublic);
             Assert.That(link.GetFields(Anything).Select(f => f.Name).ToArray(), Is.EqualTo(new[] { "node", "pointIndex" }));
             Assert.That(link.GetMethods(Anything).Select(m => m.Name).ToArray(), Does.Contain("GetConnections"));
@@ -462,12 +482,16 @@ namespace ProjectLucid.Tests
             Assert.That((int)SplineComputer.EvaluateMode.Calculate, Is.EqualTo(1));
         }
 
+        // The editor compile declares eight editor-only fields (editorDrawPivot ... editorUpdateMode, incl. the private
+        // _editorIsPlaying) ahead of the shipped list, as the original text does; the shipped build has none of them.
         [Test]
         public void SerializedLayoutKeepsTheFieldOrderAndAttributes()
         {
             string[] names = typeof(SplineComputer).GetFields(Anything).Select(f => f.Name).Where(n => n != "onRebuild").ToArray();
             Assert.That(names, Is.EqualTo(new[]
             {
+                "editorDrawPivot", "editorPathColor", "editorAlwaysDraw", "editorDrawThickness", "editorBillboardThickness",
+                "_editorIsPlaying", "isNewlyCreated", "editorUpdateMode",
                 "multithreaded", "updateMode", "triggerGroups", "_spline", "_sampleCollection", "_originalSamplePercents", "_is2D",
                 "hasSamples", "_optimizeAngleThreshold", "_space", "_sampleMode", "_subscribers", "_rawSamples", "_localToWorldMatrix",
                 "_worldToLocalMatrix", "_nodes", "_rebuildPending", "_trsCached", "_trs", "_queueResample", "_queueRebuild"

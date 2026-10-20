@@ -62,7 +62,9 @@ namespace ProjectLucid.Tests
         {
             GameObject owner = new GameObject("user");
             _owned.Add(owner);
-            SplineUser user = owner.AddComponent<SplineUser>();
+            // Play mode caches Application.isPlaying in Awake; the editor-only _isPlaying=false would rebuild at once instead of
+            // queueing, so the cache is set before the spline (and its Rebuild) is assigned.
+            SplineUser user = DreamteckPlayState.Cache(owner.AddComponent<SplineUser>());
             if (computer != null)
             {
                 user.spline = computer;
@@ -343,6 +345,8 @@ namespace ProjectLucid.Tests
             Assert.That(user.clipTo, Is.EqualTo(1.0));
         }
 
+        // The editor compile declares the private _isPlaying cache between _workSample and _sampleCount (editor-vs-ship
+        // declaration diff); the shipped build has no such field.
         [Test]
         public void SerializedLayoutKeepsTheFieldOrderAndAttributes()
         {
@@ -351,7 +355,7 @@ namespace ProjectLucid.Tests
             {
                 "updateMethod", "_spline", "_autoUpdate", "_rotationModifier", "_offsetModifier", "_colorModifier", "_sizeModifier",
                 "_clipFromSample", "_clipToSample", "_loopSamples", "_clipFrom", "_clipTo", "animClipFrom", "animClipTo",
-                "_sampleCollection", "rebuild", "getSamples", "postBuild", "_trs", "_hasTransform", "_workSample", "_sampleCount",
+                "_sampleCollection", "rebuild", "getSamples", "postBuild", "_trs", "_hasTransform", "_workSample", "_isPlaying", "_sampleCount",
                 "_startSampleIndex", "evalResult", "multithreaded", "buildOnAwake", "buildOnEnable"
             }));
             Assert.That(typeof(SplineUser).GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic).Select(t => t.Name).ToArray(),

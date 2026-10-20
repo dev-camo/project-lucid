@@ -78,7 +78,10 @@ namespace ProjectLucid.Tests
         }
 
         // Invoke 0x4e4330, AddListener 0x4e4910 / 0x4e4960 (closure ignores the user), RemoveListener 0x4e4a50,
-        // RemoveAllListeners 0x4e4aa0.
+        // RemoveAllListeners 0x4e4aa0. Invoke reads Application.isPlaying directly and returns while not playing (the editor
+        // compile of the source); the player branch is the text after the #if UNITY_EDITOR block and cannot run in EditMode.
+        // The listener side is therefore driven through the public onCross event that Invoke forwards to, and Invoke itself is
+        // asserted to stay silent.
         [Test]
         public void ListenersReceiveInvokeAndRemovalWorks()
         {
@@ -93,20 +96,26 @@ namespace ProjectLucid.Tests
             trigger.AddListener(userListener);
             trigger.AddListener((UnityAction)delegate { withoutUser++; });
             trigger.Invoke();
+            trigger.Invoke(null);
+            Assert.That(withUser, Is.EqualTo(0), "Invoke does not call the listeners while not playing");
+            Assert.That(withoutUser, Is.EqualTo(0));
+            trigger.onCross.Invoke(null);
             Assert.That(withUser, Is.EqualTo(1));
             Assert.That(withoutUser, Is.EqualTo(1));
 
             trigger.RemoveListener(userListener);
-            trigger.Invoke(null);
+            trigger.onCross.Invoke(null);
             Assert.That(withUser, Is.EqualTo(1), "removed listener stays quiet");
             Assert.That(withoutUser, Is.EqualTo(2));
 
             trigger.RemoveAllListeners();
-            trigger.Invoke();
+            trigger.onCross.Invoke(null);
             Assert.That(withoutUser, Is.EqualTo(2));
         }
 
-        // Group Check 0x4e41a0: null triggers are skipped and the group's own enabled flag is not consulted.
+        // Group Check 0x4e41a0: null triggers are skipped and the group's own enabled flag is not consulted. Each checked trigger
+        // that crosses sets its private worked flag before Invoke; Invoke returns while not playing (player branch not reachable
+        // in EditMode), so the crossing is observed through that flag and the listeners stay silent.
         [Test]
         public void GroupChecksFireCrossedTriggersSkipNullsAndIgnoreTheGroupFlag()
         {
@@ -120,8 +129,15 @@ namespace ProjectLucid.Tests
             crossed.AddListener((UnityAction)delegate { crossedCount++; });
             missed.AddListener((UnityAction)delegate { missedCount++; });
             group.Check(0.4, 0.6);
-            Assert.That(crossedCount, Is.EqualTo(1));
+            Assert.That(Worked(crossed), Is.True, "the crossed trigger was checked although the group is disabled");
+            Assert.That(Worked(missed), Is.False);
+            Assert.That(crossedCount, Is.EqualTo(0), "Invoke does not call the listener while not playing");
             Assert.That(missedCount, Is.EqualTo(0));
+        }
+
+        private static bool Worked(SplineTrigger trigger)
+        {
+            return (bool)typeof(SplineTrigger).GetField("worked", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(trigger);
         }
 
         // Group Reset 0x4e4380 resets every trigger.
@@ -191,13 +207,15 @@ namespace ProjectLucid.Tests
             Assert.That(group.triggers, Is.EqualTo(new[] { first, third }));
         }
 
+        // The editor compile declares the public editor-only TriggerGroup.open ahead of enabled (editor-vs-ship declaration diff);
+        // the shipped build has no such field.
         [Test]
         public void SerializedLayoutKeepsTheFieldOrderAndAttributes()
         {
             Assert.That(typeof(SplineTrigger).GetFields(DeclaredMembers).Select(f => f.Name).ToArray(),
                 Is.EqualTo(new[] { "name", "type", "workOnce", "worked", "position", "enabled", "color", "onCross" }));
             Assert.That(typeof(TriggerGroup).GetFields(DeclaredMembers).Select(f => f.Name).ToArray(),
-                Is.EqualTo(new[] { "enabled", "name", "color", "triggers" }));
+                Is.EqualTo(new[] { "open", "enabled", "name", "color", "triggers" }));
             Assert.That(Attribute.IsDefined(typeof(SplineTrigger), typeof(SerializableAttribute)), Is.True);
             Assert.That(Attribute.IsDefined(typeof(TriggerGroup), typeof(SerializableAttribute)), Is.True);
             Assert.That(Attribute.IsDefined(typeof(SplineTrigger.TriggerEvent), typeof(SerializableAttribute)), Is.True);
