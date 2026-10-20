@@ -45,8 +45,9 @@ namespace HardlightProject
 			}
 		}
 
-		// 06001220 (1.10.1 RVA 0xE629B0); keeps the active target while it stays valid and unobstructed. A target
-		// inside the deactivation distance (or with a lightspeed dash target stored) is released without being cancelled.
+		// 06001220 (1.10.1 RVA 0xE629B0); keeps the active target while it stays valid and unobstructed. A deactivated
+		// target (squared distance under DeactivationDistance, or a lightspeed dash target stored) is released, and is
+		// cancelled only if it has also timed out or left the hierarchy.
 		public virtual bool UpdateTarget(float deltaTime, out ActiveHomingTarget activeTarget, out float time, out Vector3 characterToTarget, out float characterToTargetDistanceSqr)
 		{
 			time = 0f;
@@ -157,7 +158,7 @@ namespace HardlightProject
 			return locked;
 		}
 
-		// 06001227 (1.10.1 RVA 0xE63480); each hit applies the next combo time setting, the last one repeating.
+		// 06001227 (1.10.1 RVA 0xE63480); each hit within the configured levels applies or updates that level's time setting; past the last level the current setting is left in place.
 		private void AddComboHit()
 		{
 			if (m_comboCount < Definition.ComboTimeSettings.Length)

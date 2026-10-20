@@ -92,7 +92,7 @@ namespace ProjectLucid.Tests
         // setting and only then the abstract flag and the controller movement. The heading override branch needs a live
         // camera manager, so the order is read from the compiled IL.
         [Test]
-        public void TheCameraProjectionTestsTheHeadingOverrideBeforeTheInput()
+        public void CallOrderTheCameraProjectionTestsTheHeadingOverrideBeforeTheInput()
         {
             List<MethodBase> calls = Calls(typeof(CharacterAbility_TargetingHoming<>), nameof(CharacterAbility_TargetingHoming<CharMoves07RailsHomingDefinitionProbe>.ShouldProjectFromCamera));
             int valid = IndexOf(calls, "SystemRef", "IsValid");
@@ -271,7 +271,7 @@ namespace ProjectLucid.Tests
         // 0xE68E80: Character.IsActive first (it needs a live body), then no active target already
         // (CharacterHomingPool.IsTargetActive) and finally SetTargetImmediately with the ability itself.
         [Test]
-        public void TheImmediateTargetNeedsAnActiveCharacterAndNoActiveTarget()
+        public void CallOrderTheImmediateTargetNeedsAnActiveCharacterAndNoActiveTarget()
         {
             List<MethodBase> calls = Calls(typeof(CharacterAbility_TargetingHoming<>), "TrySetTargetImmediately");
             int active = IndexOf(calls, "Character", "IsActive");

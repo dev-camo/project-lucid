@@ -19,7 +19,8 @@ namespace HardlightProject
 			bool locked = base.HandleAttack(brain, deltaTime);
 			if (locked)
 			{
-				m_character.Storage.SetValue(ActorFSMKeys.HomingAttackActionTimestamp, m_character.GetBrainActionTimestamp(GameAction.CharacterHomingAttack));
+				float actionTimestamp = m_character.GetBrainActionTimestamp(GameAction.CharacterHomingAttack);
+				m_character.Storage.SetValue(ActorFSMKeys.HomingAttackActionTimestamp, actionTimestamp);
 				brain.SetState(GameAction.CharacterHomingAttack, false);
 			}
 			return locked;

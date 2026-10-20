@@ -2917,11 +2917,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DeclarationTests." + name
     "DefinitionsKeepTheOriginalShape",
     "AbilitiesKeepTheOriginalShape",
     "NodesKeepTheOriginalShape",
-
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DefinitionTests." + name for name in (
     "ConcreteHomingDefinitionsStartWithTheNativeInitialisers",
-    "ConcreteHomingDefinitionsLeaveEveryOtherValueFieldAtZero",
+    "ConcreteHomingDefinitionsLeaveTheFlagsTimesAndZoneBoxesAtZero",
     "TargetDistanceIsTheDepthOfTheDetectionBox",
     "HasTargetTypeSearchesTheAuthoredList",
     "HasTargetTypeFaultsOnAnUnassignedList",
@@ -2931,7 +2930,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DefinitionTests." + name 
     "RailsHomingDefinitionStartsAtOneEightyDegreesAndOneUnit",
     "RailsHomingCalculateCachedValuesSquaresTheDistanceAndRefreshesTheTargetingCache",
     "FieldsKeepTheirAuthoringAttributesInOrder",
-
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07HomingAttackTests." + name for name in (
     "TargetZoneSizeAddsTheAdjustmentToTheBoxOfTheCurrentProjection",
@@ -2976,21 +2974,20 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07HomingAttackTests." + nam
     "TheRollingAttackIsBlockedByASpinDashChargeAndTriggersOnALock",
     "TheRunningAttackNeedsAQueuedHomingAttackPress",
     "TheGroundAttackAcceleratesWithItsForwardMotion",
-    "InitialiseSpawnsTheBoxThenHooksItsCallbacksAndDisablesIt",
-    "CloseDestroysTheBoxAfterTheBase",
-    "EnteringAndLeavingToggleTheBoxAfterTheBase",
-    "EnablingTheBoxSwitchesCollisionsBeforeSchedulingTheCallback",
-    "UpdatingRunsTheBaseThenPlacesTheBoxThenHandlesTheAttack",
-    "LeavingClearsTheComboLowersTheTriggerAndDropsAnOwnedTarget",
-    "TheLightspeedDashAttackEndsTheDashImpulseOnEntry",
-    "TheGroundAttackUpdateFeedsTheBoostStaminaLast",
-    "TheRunningAttackReadsTheBoostStaminaAfterTheBase",
-
+    "CallOrderInitialiseSpawnsTheBoxThenHooksItsCallbacksAndDisablesIt",
+    "CallOrderCloseDestroysTheBoxAfterTheBase",
+    "CallOrderEnteringAndLeavingToggleTheBoxAfterTheBase",
+    "CallOrderEnablingTheBoxSwitchesCollisionsBeforeSchedulingTheCallback",
+    "CallOrderUpdatingRunsTheBaseThenPlacesTheBoxThenHandlesTheAttack",
+    "CallOrderLeavingClearsTheComboLowersTheTriggerAndDropsAnOwnedTarget",
+    "CallOrderTheLightspeedDashAttackEndsTheDashImpulseOnEntry",
+    "CallOrderTheGroundAttackUpdateFeedsTheBoostStaminaLast",
+    "CallOrderTheRunningAttackReadsTheBoostStaminaAfterTheBase",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TargetingHomingTests." + name for name in (
     "AFreshAbilityIsNotTriggeredAndNeverOverridesOrProjectsFromTheCamera",
     "WithoutACameraManagerTheCameraProjectionNeedsTheFlagAndNoControllerMovement",
-    "TheCameraProjectionTestsTheHeadingOverrideBeforeTheInput",
+    "CallOrderTheCameraProjectionTestsTheHeadingOverrideBeforeTheInput",
     "TargetingValuesComeFromTheDefinitionOrItsOverride",
     "ActivationFollowsTheCharactersTargetingAvailability",
     "AdditionalSpeedNeedsACurveOfAtLeastTwoKeys",
@@ -2999,8 +2996,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TargetingHomingTests." + 
     "LeavingStartsTheCooldownAndRemovesTheAbilityFromThePool",
     "ResetClearsOnlyAPendingTargetThatIsValidForTheAbility",
     "ResetClearsThePendingTargetOfAnAbilityThatCanActivate",
-    "TheImmediateTargetNeedsAnActiveCharacterAndNoActiveTarget",
-
+    "CallOrderTheImmediateTargetNeedsAnActiveCharacterAndNoActiveTarget",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TransitionTests." + name for name in (
     "RollingFiresWhileTheRollingTriggerDiffersFromTheInverseFlag",
@@ -3012,11 +3008,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TransitionTests." + name 
     "RollingToRunningKeepsTheFlagOfItsJson",
     "SettingHomingAttackReadsTheSavedHomingAttackMapping",
     "SettingTransitionsKeepAnOmittedMappingAtNone",
-    "SettingUpdateComparesTheMappingOfTheCharactersSavedSettings",
+    "CallOrderSettingUpdateComparesTheMappingOfTheCharactersSavedSettings",
     "GroundRunningStateReadsItsAbilityTypeFromItsJson",
     "DeclarationShapeNodesCarryTheirOriginalGraphAuthoringAttributes",
     "DeclarationShapeClassFactoryRegistersTheNodesWithTheirArgumentTypes",
-
 ))
 
 # Original deceleration-curve acceleration branch minss operand order.

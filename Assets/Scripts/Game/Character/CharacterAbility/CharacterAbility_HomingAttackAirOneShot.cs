@@ -35,8 +35,8 @@ namespace HardlightProject
 			SetHomingTargetTransform(m_character.WorldPosition, m_character.WorldRotation, TargetZoneSize, TargetZoneOffset, 0f);
 		}
 
-		// 06001236 (1.10.1 RVA 0x74ED50); a queued activation counts inside the trigger window around the action time
-		// recorded by the previous one-shot attack.
+		// 06001236 (1.10.1 RVA 0x74ED50); a queued press triggers at once; otherwise the last press triggers if it falls
+		// within TriggerTimeBefore/After of the current fixed time and is not the press the previous one-shot recorded.
 		protected override bool HomingAttackActivated(CharacterBrain brain)
 		{
 			if (!base.HomingAttackActivated(brain) || m_character.HomingPool.ActiveTarget != null || !m_character.HomingPool.PendingTargetIsValidForAbility(this))
@@ -57,8 +57,8 @@ namespace HardlightProject
 			{
 				return false;
 			}
-			float elapsed = actionTimestamp - m_character.GetTotalFixedTime();
-			IsTriggered = 0f > elapsed ? CanTriggerBefore(-elapsed) : CanTriggerAfter(elapsed);
+			float pressOffset = actionTimestamp - m_character.GetTotalFixedTime();
+			IsTriggered = pressOffset < 0f ? CanTriggerBefore(-pressOffset) : CanTriggerAfter(pressOffset);
 			return IsTriggered;
 		}
 
@@ -77,7 +77,8 @@ namespace HardlightProject
 			bool locked = base.HandleAttack(brain, deltaTime);
 			if (locked)
 			{
-				m_character.Storage.SetValue(ActorFSMKeys.HomingAttackActionTimestamp, m_character.GetBrainActionTimestamp(GameAction.CharacterHomingAttackOneShot));
+				float actionTimestamp = m_character.GetBrainActionTimestamp(GameAction.CharacterHomingAttackOneShot);
+				m_character.Storage.SetValue(ActorFSMKeys.HomingAttackActionTimestamp, actionTimestamp);
 			}
 			return locked;
 		}
@@ -85,13 +86,13 @@ namespace HardlightProject
 		// 06001239 (1.10.1 RVA 0x74F190)
 		public bool CanTriggerBefore(float timeElapsed)
 		{
-			return Definition.TriggerTimeBefore > timeElapsed;
+			return timeElapsed < Definition.TriggerTimeBefore;
 		}
 
 		// 0600123a (1.10.1 RVA 0x74F130)
 		public bool CanTriggerAfter(float timeElapsed)
 		{
-			return Definition.TriggerTimeAfter > timeElapsed;
+			return timeElapsed < Definition.TriggerTimeAfter;
 		}
 
 		// 0600123b (1.10.1 RVA 0x74F350)

@@ -75,9 +75,9 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // The constructors write nothing else: the remaining value fields keep the zero of a fresh object.
+        // The constructors do not write these flags, times and zone boxes: they keep the zero of a fresh object.
         [Test]
-        public void ConcreteHomingDefinitionsLeaveEveryOtherValueFieldAtZero()
+        public void ConcreteHomingDefinitionsLeaveTheFlagsTimesAndZoneBoxesAtZero()
         {
             foreach ((Type type, Type _, string _) in ConcreteHomingDefinitions)
             {

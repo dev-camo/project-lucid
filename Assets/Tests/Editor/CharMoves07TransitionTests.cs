@@ -210,7 +210,7 @@ namespace ProjectLucid.Tests
         // getter (vcall slot 18) compared with the stored mapping. Reading the settings needs a started character's
         // save manager, so the order is read from the compiled IL.
         [Test]
-        public void SettingUpdateComparesTheMappingOfTheCharactersSavedSettings()
+        public void CallOrderSettingUpdateComparesTheMappingOfTheCharactersSavedSettings()
         {
             List<MethodBase> calls = Calls(typeof(CharacterTransition_Setting), "DoUpdate");
             int baseUpdate = IndexOf(calls, "FSMTransition", "DoUpdate");

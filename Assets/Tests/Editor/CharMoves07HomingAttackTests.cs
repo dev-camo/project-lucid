@@ -1070,6 +1070,8 @@ namespace ProjectLucid.Tests
 
         // ---- Call order of the members that need a started character ----
 
+        // The CallOrder tests are emission checks of the compiled call sequence: they see no branch polarity, so the
+        // conditions around these calls still lack native behaviour coverage.
         private static void AssertOrder(List<MethodBase> calls, params (string Type, string Name)[] expected)
         {
             int at = -1;
@@ -1079,7 +1081,7 @@ namespace ProjectLucid.Tests
         // 0xE61660: the ability base initialises first, then the box prefab is spawned beside the character, initialised
         // with this ability, its rigid body fetched and the two callbacks allocated before the box is disabled.
         [Test]
-        public void InitialiseSpawnsTheBoxThenHooksItsCallbacksAndDisablesIt()
+        public void CallOrderInitialiseSpawnsTheBoxThenHooksItsCallbacksAndDisablesIt()
         {
             List<MethodBase> calls = Calls(typeof(CharacterAbility_HomingAttackBase<>), "Initialise");
             AssertOrder(calls, ("CharacterAbility", "Initialise"), ("ObjectUtils", "SpawnPrefab"), ("HomingAttack", "Initialise"),
@@ -1089,14 +1091,14 @@ namespace ProjectLucid.Tests
 
         // 0xE61850: the base closes first, then the box object is destroyed.
         [Test]
-        public void CloseDestroysTheBoxAfterTheBase()
+        public void CallOrderCloseDestroysTheBoxAfterTheBase()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackBase<>), "Close"), ("CharacterAbility", "Close"), ("Component", "get_gameObject"), ("Object", "Destroy"));
         }
 
         // 0xE618D0 and 0xE61970: the targeting entry or exit first, then the box is enabled or disabled.
         [Test]
-        public void EnteringAndLeavingToggleTheBoxAfterTheBase()
+        public void CallOrderEnteringAndLeavingToggleTheBoxAfterTheBase()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackBase<>), "DoOnEnter"), ("CharacterAbility_TargetingHoming", "DoOnEnter"), ("CharacterAbility_HomingAttackBase", "EnableHomingTarget"));
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackBase<>), "DoOnLeave"), ("CharacterAbility_TargetingHoming", "DoOnLeave"), ("CharacterAbility_HomingAttackBase", "EnableHomingTarget"));
@@ -1104,14 +1106,14 @@ namespace ProjectLucid.Tests
 
         // 0xE61D10: collisions are switched first, then the matching callback is scheduled for the next frame.
         [Test]
-        public void EnablingTheBoxSwitchesCollisionsBeforeSchedulingTheCallback()
+        public void CallOrderEnablingTheBoxSwitchesCollisionsBeforeSchedulingTheCallback()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackBase<>), "EnableHomingTarget"), ("Rigidbody", "set_detectCollisions"), ("CoroutineUtils", "OnNextFrame"));
         }
 
         // 0xE61C30.
         [Test]
-        public void UpdatingRunsTheBaseThenPlacesTheBoxThenHandlesTheAttack()
+        public void CallOrderUpdatingRunsTheBaseThenPlacesTheBoxThenHandlesTheAttack()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackBase<>), "DoOnUpdate"), ("CharacterAbility_Targeting", "DoOnUpdate"),
                 ("CharacterAbility_HomingAttackBase", "UpdateHomingTargetLocation"), ("CharacterAbility_HomingAttackBase", "HandleAttack"));
@@ -1119,7 +1121,7 @@ namespace ProjectLucid.Tests
 
         // 0xE62F40: the base leave, the combo cleared, the trigger lowered, then an owned active target dropped.
         [Test]
-        public void LeavingClearsTheComboLowersTheTriggerAndDropsAnOwnedTarget()
+        public void CallOrderLeavingClearsTheComboLowersTheTriggerAndDropsAnOwnedTarget()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttack<>), "DoOnLeave"), ("CharacterAbility_HomingAttackBase", "DoOnLeave"), ("CharacterAbility_HomingAttack", "ClearComboHits"),
                 ("CharacterAbility_TargetingHoming", "set_IsTriggered"), ("CharacterHomingPool", "IsTargetActive"), ("CharacterHomingPool", "ClearTarget"));
@@ -1127,7 +1129,7 @@ namespace ProjectLucid.Tests
 
         // 0x74E8D0: the box is enabled by the base, then the dash impulse of the character ends.
         [Test]
-        public void TheLightspeedDashAttackEndsTheDashImpulseOnEntry()
+        public void CallOrderTheLightspeedDashAttackEndsTheDashImpulseOnEntry()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackAirLightspeedDash), "DoOnEnter"), ("CharacterAbility_HomingAttackBase", "DoOnEnter"), ("Character", "EndLightspeedDashImpulse"));
         }
@@ -1135,7 +1137,7 @@ namespace ProjectLucid.Tests
         // 0x74F8A0: the box update, the controller test, the box enabled for it, an unmoved character taken off the
         // pool, and a triggered attack feeding the boost stamina.
         [Test]
-        public void TheGroundAttackUpdateFeedsTheBoostStaminaLast()
+        public void CallOrderTheGroundAttackUpdateFeedsTheBoostStaminaLast()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackGround), "DoOnUpdate"), ("CharacterAbility_HomingAttackBase", "DoOnUpdate"), ("Character", "get_HasControllerMovement"),
                 ("CharacterAbility_HomingAttackBase", "EnableHomingTarget"), ("CharacterHomingPool", "RemoveTarget"), ("Character", "get_BoostStamina"), ("CharacterStamina", "UpdateFromAbility"));
@@ -1144,7 +1146,7 @@ namespace ProjectLucid.Tests
         // 0x7502B0 and 0x7503B0: the running attack's trigger follows the boost stamina; its target test also needs the
         // stamina free and able to trigger.
         [Test]
-        public void TheRunningAttackReadsTheBoostStaminaAfterTheBase()
+        public void CallOrderTheRunningAttackReadsTheBoostStaminaAfterTheBase()
         {
             AssertOrder(Calls(typeof(CharacterAbility_HomingAttackGroundRunning), "HandleAttack"), ("CharacterAbility_HomingAttack", "HandleAttack"), ("Character", "get_BoostStamina"),
                 ("CharacterStamina", "get_IsTriggered"), ("CharacterBrain", "get_ActionStateQueued"), ("CharacterBrain", "SetState"));
