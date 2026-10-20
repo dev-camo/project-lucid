@@ -33,7 +33,8 @@ namespace HardlightProject
 			character.DetectTurnAroundFromVelocity();
 			float speed = character.WorldVelocityMagnitude;
 			character.SetWorldVelocity(character.Tracker.TrackerRotation * (Vector3.forward * speed));
-			GetAbility(character).OnSurfaceChanged(character.Tracker.TrackerLocation.m_surface);
+			ISurface surface = character.Tracker.TrackerLocation.m_surface;
+			GetAbility(character).OnSurfaceChanged(surface);
 			character.Storage.SetValue(ActorFSMKeys.LightspeedDashInvulnerable, character.IsInvulnerable());
 		}
 

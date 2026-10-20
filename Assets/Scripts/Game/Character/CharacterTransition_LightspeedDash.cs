@@ -31,7 +31,7 @@ namespace HardlightProject
 			}
 			Character character = user.GetAs<Character>();
 			bool hasAbility = character.TryGetAbility(m_abilityType, out CharacterAbility_LightspeedDash _);
-			bool hasTrackManager = character.TrackManager != null;
+			bool hasTrackManager = !(character.TrackManager == null);
 			if (!(hasAbility & hasTrackManager))
 			{
 				return false;

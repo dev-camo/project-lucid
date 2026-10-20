@@ -47,8 +47,8 @@ namespace HardlightProject
 		}
 
 		// 06001120 (1.10.1 RVA 0x747DC0); raycasts from the character's down (or back) direction round to its back (or down)
-		// direction. A hit whose surface is not climbable ends the search as the mountable ledge, a climbable one
-		// is only remembered (the first) as the non mountable ledge. Comparisons keep the native NaN behaviour.
+		// direction. A hit whose surface is not climbable ends the search as the mountable ledge, a hit facing away from the
+		// character, or a climbable one, is remembered (the first) as the non mountable ledge. Comparisons keep the native NaN behaviour.
 		private void FindLedges(out bool mountableLedgeHit, out RaycastHit mountableLedge, out bool nonMountableLedgeHit, out RaycastHit nonMountableLedge)
 		{
 			mountableLedgeHit = false;
@@ -64,7 +64,7 @@ namespace HardlightProject
 			Vector3 back = -forward;
 			Vector3 searchFrom = definition.ReverseSearchOrder ? down : back;
 			Vector3 searchTo = definition.ReverseSearchOrder ? back : down;
-			LayerMask trackMask = definition.TrackMask;
+			LayerMask trackMask = Definition.TrackMask;
 			int steps = definition.RaycastSteps;
 			float raycastDistance = definition.RaycastDistance;
 			Vector3 gravityNormalised = m_character.GravityNormalised;
@@ -75,13 +75,13 @@ namespace HardlightProject
 			origin += originOffset;
 			for (int step = 0; step < steps; step++)
 			{
-				Vector3 direction = Vector3.Slerp(searchFrom, searchTo, (float)step / (float)(steps - 1));
+				Vector3 direction = Vector3.Slerp(searchFrom, searchTo, step / (float)(steps - 1));
 				if (!Physics.Raycast(origin, direction, out RaycastHit hit, raycastDistance, trackMask, QueryTriggerInteraction.Ignore))
 				{
 					continue;
 				}
 				// Hits that are not strictly in front of the character are skipped (also when the distance is NaN).
-				if (definition.IgnoreHitsBehind && !(Vector3.Dot(hit.point, forwardNormalised) - forwardPlane > 0f))
+				if (Definition.IgnoreHitsBehind && !(Vector3.Dot(hit.point, forwardNormalised) - forwardPlane > 0f))
 				{
 					continue;
 				}
@@ -89,7 +89,7 @@ namespace HardlightProject
 				{
 					continue;
 				}
-				if ((hit.normal - previousNormal).sqrMagnitude < 1E-10f)
+				if (hit.normal == previousNormal)
 				{
 					continue;
 				}

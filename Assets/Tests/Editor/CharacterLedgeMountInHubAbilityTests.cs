@@ -65,7 +65,7 @@ namespace ProjectLucid.Tests
         // ---- CharacterAbilityDefinition_InHub (020004de) ----
 
         // The constructor 0x543980 stores the ground landing time 0.2 (0x3e4ccccd), the spline turn flag true and the ability
-        // base gravity multiplier 1 (0x3f800000) through its inlined base constructors, and nothing over its own fields.
+        // base gravity multiplier 1 (0x3f800000) through its inlined base constructors, and nothing over its own fields (the serialized class and curve fields are left out because the Editor serializer may fill them).
         [Test]
         public void InHubDefinitionStoresTheNativeDefaults()
         {
@@ -75,9 +75,6 @@ namespace ProjectLucid.Tests
             Assert.That(definition.GravityMultiplier, Is.EqualTo(1f));
             Assert.That(definition.HubLevelDefinition == null, Is.True);
             Assert.That(definition.CameraType, Is.EqualTo(default(CameraType)));
-            Assert.That(definition.VelocityStorageParameters, Is.Null);
-            Assert.That(definition.ControlDeadzoneForExitSpeed, Is.Null);
-            Assert.That(definition.ControlRestoration, Is.Null);
         }
 
         // 0x543920 and 0x543CD0 return the type of the ability each definition configures.
@@ -351,7 +348,7 @@ namespace ProjectLucid.Tests
         }
 
         // 0x747DC0: the search reads the rays' bounds from the definition, spreads them with Vector3.Slerp, casts with
-        // Physics.Raycast, and for a candidate hit checks (in this order) the forward plane, the flat ground, the previous normal,
+        // Physics.Raycast, and for a candidate hit checks (in this order) the forward plane, the flat ground, the previous normal (Vector3 equality, 0x7482F6),
         // the facing direction, the surface angle, the climbable collision data and the climbable terrain.
         [Test]
         public void LedgeSearchChecksEachHitInTheNativeOrder()
@@ -361,7 +358,7 @@ namespace ProjectLucid.Tests
             int slerp = IndexOf(calls, "Vector3", "Slerp");
             int raycast = IndexOf(calls, "Physics", "Raycast");
             int flat = IndexOf(calls, "MathUtilities", "WithinTolerance");
-            int previous = IndexOf(calls, "Vector3", "get_sqrMagnitude");
+            int previous = IndexOf(calls, "Vector3", "op_Equality");
             int angle = IndexOf(calls, "Vector3", "Angle");
             int surface = IndexOf(calls, "CharacterAbilityDefinition_EnterClimbing", "SurfaceAngleValid");
             int data = IndexOf(calls, "TrackManager", "TryGetCharacterCollisionData");

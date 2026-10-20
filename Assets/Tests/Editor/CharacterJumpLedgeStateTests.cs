@@ -36,7 +36,7 @@ namespace ProjectLucid.Tests
 
         // ---- Construction from JSON ----
 
-        // 0x77AD0 and 0x77AE60 build the state from its JSON; the shared jump base (0xE74010) keeps the air movement ability
+        // 0x77ACF0 and 0x77AE60 build the state from its JSON; the shared jump base (0xE74010) keeps the air movement ability
         // type (+0x3C) and hashes the optional animation bool name (+0x40) only when it is not null or white space.
         [Test]
         public void JumpStatesReadTheirArgumentsFromJson()

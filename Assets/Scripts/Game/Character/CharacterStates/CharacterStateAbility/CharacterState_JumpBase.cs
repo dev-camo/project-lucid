@@ -59,7 +59,7 @@ namespace HardlightProject
 			}
 			character.OnMoveAwayFromGround();
 			character.Storage.SetValue(ActorFSMKeys.IsJumping, true);
-			Vector3 jumpDirection = character.Storage.GetValue(ActorFSMKeys.JumpDirection, Vector3.zero, true);
+			Vector3 jumpDirection = character.Storage.GetValue(ActorFSMKeys.JumpDirection, default(Vector3), true);
 			TAbility ability = GetAbility(character);
 			Vector3 velocity = character.WorldVelocity;
 			velocity += jumpDirection * ability.Definition.JumpInitialVelocity;
@@ -70,9 +70,10 @@ namespace HardlightProject
 			}
 			Vector3 worldUp = character.WorldUp;
 			float upwardSpeed = Vector3.Dot(velocity, worldUp);
-			if (ability.Definition.JumpInitialVelocityUpMin > upwardSpeed)
+			float upMin = ability.Definition.JumpInitialVelocityUpMin;
+			if (upMin > upwardSpeed)
 			{
-				velocity += worldUp * (ability.Definition.JumpInitialVelocityUpMin - upwardSpeed);
+				velocity += worldUp * (upMin - upwardSpeed);
 			}
 			character.SetWorldVelocity(velocity);
 			if (character.Storage.GetValue(ActorFSMKeys.JumpFaceVelocityDirection, false, false))
@@ -154,7 +155,7 @@ namespace HardlightProject
 			{
 				return;
 			}
-			Vector3 jumpDirection = character.Storage.GetValue(ActorFSMKeys.JumpDirection, Vector3.zero, true);
+			Vector3 jumpDirection = character.Storage.GetValue(ActorFSMKeys.JumpDirection, default(Vector3), true);
 			float jumpPower = abilityDef.JumpPowerCurve.Evaluate(jumpTimer / maxJumpTime) * abilityDef.JumpPower;
 			character.SetWorldVelocity(character.WorldVelocity + jumpDirection * (jumpPower * deltaTime));
 		}

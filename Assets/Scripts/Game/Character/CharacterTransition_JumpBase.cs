@@ -59,8 +59,9 @@ namespace HardlightProject
 			return character.TryGetAbility(m_abilityType, out TAbility ability) && ability != null && ability.Jump;
 		}
 
-		// 0600175a (1.10.1 RVA 0xE79050, shared generic). A jump never triggers while a state timer runs; once triggered the
-		// jump direction is the contact normal (or world up on rails, catch release and ledge buffers), rotated by JumpAngleExtra towards gravity.
+		// 0600175a (1.10.1 RVA 0xE79050, shared generic). A jump never triggers while a state timer runs, and one already in
+		// progress (JumpElapsedTime > 0) returns true without recomputing the direction. Only a fresh trigger stores the jump
+		// direction: the contact normal (or world up on rails, catch release and ledge buffers), rotated by JumpAngleExtra towards gravity.
 		private bool InternalDoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			if (base.DoUpdate(user, updateContext))

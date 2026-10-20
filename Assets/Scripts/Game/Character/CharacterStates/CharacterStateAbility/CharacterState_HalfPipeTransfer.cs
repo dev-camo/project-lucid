@@ -49,7 +49,7 @@ namespace HardlightProject
 			}
 			rotationTime = Mathf.Min(rotationTime + updateContext.DeltaTime, ability.HitTime);
 			character.Storage.SetValue(ActorFSMKeys.HalfPipeTransferRotationTime, rotationTime);
-			Vector3 normalStart = character.Storage.GetValue(ActorFSMKeys.HalfPipeTransferNormalStart, Vector3.zero, true);
+			Vector3 normalStart = character.Storage.GetValue(ActorFSMKeys.HalfPipeTransferNormalStart, default(Vector3), true);
 			Vector3 hitNormal = ability.HitNormal;
 			Vector3 velocity = character.WorldVelocity;
 			Quaternion from = Quaternion.LookRotation(velocity, normalStart);
