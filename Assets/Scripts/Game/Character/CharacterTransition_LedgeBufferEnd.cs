@@ -41,7 +41,7 @@ namespace HardlightProject
 			return new CharacterTransition_LedgeBufferEnd(fsm, transitionId, JsonUtility.FromJson<JSONCtorArgs>(jsonCtorArgs));
 		}
 
-		// 0600176b (1.10.1 RVA 0x792990); ends once the air ledge buffer timer reaches the duration (an unordered NaN does not).
+		// 0600176b (1.10.1 RVA 0x792990); ends at once when the air movement ability is not updating, otherwise once the air ledge buffer timer reaches the duration (an unordered NaN does not).
 		protected override bool DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			if (base.DoUpdate(user, updateContext))
@@ -51,7 +51,7 @@ namespace HardlightProject
 			Character character = user.GetAs<Character>();
 			if (!character.GetAbility<CharacterAbility_MovementAir>(ActorAbilityType.Character_MovementAir).UpdateEnabled)
 			{
-				return false;
+				return true;
 			}
 			return character.Storage.GetValue(ActorFSMKeys.AirLedgeBufferTimer, 0f, true) >= m_durationSeconds;
 		}

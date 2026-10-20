@@ -46,8 +46,9 @@ namespace HardlightProject
 			}
 		}
 
-		// 06001120 (1.10.1 RVA 0x747DC0); raycasts from the character's down (or back) direction round to its back (or down)
-		// direction. A hit whose surface is not climbable ends the search as the mountable ledge, a hit facing away from the
+		// 06001120 (1.10.1 RVA 0x747DC0); raycasts from the character's back direction round to its down direction
+		// (down to back when ReverseSearchOrder is set).
+		// A hit whose surface is not climbable ends the search as the mountable ledge, a hit facing away from the
 		// character, or a climbable one, is remembered (the first) as the non mountable ledge. Comparisons keep the native NaN behaviour.
 		private void FindLedges(out bool mountableLedgeHit, out RaycastHit mountableLedge, out bool nonMountableLedgeHit, out RaycastHit nonMountableLedge)
 		{

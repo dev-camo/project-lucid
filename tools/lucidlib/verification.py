@@ -5542,6 +5542,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterJumpLedgeStateTests." + nam
     "LedgeMountStateFollowsTheNativeOrder",
     "LightspeedDashEntryFollowsTheNativeOrder",
     "LightspeedDashUpdateFollowsTheNativeOrder",
+    "KnockbackRecoveryClampsTheBackwardSpeedWithTheNativeOperandOrder",
+    "JumpKeepsJumpingByTheNativeKeysAndComparisons",
+    "JumpEntryRemovesOnlyAnApproachingConnectionAndRaisesOnlyBelowTheUpwardFloor",
+    "LedgeMountUsesTheNativeKeysVelocityComponentsAndPauseComparison",
+    "LightspeedDashClearsTheTargetOnlyWhenTheLookAheadLeavesOrInvulnerabilityBegins",
     "LightspeedDashLeaveFollowsTheNativeOrder",
     "TheProxyOverrideMultipliesTheCharacterRotationByTheQuarterTurn",
     "NodesCarryTheirOriginalGraphAuthoringAttributes",
@@ -5550,7 +5555,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterJumpLedgeStateTests." + nam
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterJumpLedgeTransitionTests." + name for name in (
     "HasAbilityTypeIsTrueWhenThePresenceDiffersFromTheInverseFlag",
-    "LedgeBufferEndNeedsAnUpdatingAirAbilityAndATimerThatReachedTheDuration",
+    "LedgeBufferEndEndsWhenTheAirAbilityIsIdleOrTheTimerReachedTheDuration",
     "JumpFiresOnlyWhileTheAbilityJumpsAndNoStateTimerRuns",
     "TheJumpDirectionIsWorldUpOnRailsAndCatchReleaseAndTheContactNormalOtherwise",
     "ANonZeroExtraAngleRotatesTheDirectionAwayFromGravity",
@@ -5579,6 +5584,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterLedgeMountInHubAbilityTests
     "IgnoreHitsBehindDropsHitsAtOrBehindTheCharacter",
     "ReverseSearchOrderDecidesWhichRayIsTriedFirst",
     "ANonMountableLedgeIsAppendedToTheStoredEdgeNormals",
+    "TheCollisionDataAndTheClimbableFlagDecideBetweenMountableAndNonMountable",
     "LedgeMountUpdateFollowsTheNativeOrder",
     "LedgeSearchChecksEachHitInTheNativeOrder",
     "DeclarationShapeAbilitiesKeepTheirFieldsAndAccessors",

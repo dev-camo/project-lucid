@@ -109,11 +109,12 @@ namespace ProjectLucid.Tests
         private static string LedgeBufferJson(float seconds) =>
             "{\"DurationSeconds\":" + seconds.ToString("R", CultureInfo.InvariantCulture) + "}";
 
-        // 0x792990: false without an update-enabled air movement ability (byte +0x12 of the ability at 0xB79C3514);
+        // 0x792990: r15b is set to 1 at 0x7929F7 and both the base-true exit and the update-disabled exit (0x792A32 je
+        // 0x792AF9, byte +0x12 of the ability at 0xB79C3514) return it, so a non-updating air ability ends the buffer;
         // otherwise the stored air ledge buffer timer against the configured duration with ucomiss / setae, so an
         // equal timer ends the buffer and an unordered NaN does not.
         [Test]
-        public void LedgeBufferEndNeedsAnUpdatingAirAbilityAndATimerThatReachedTheDuration()
+        public void LedgeBufferEndEndsWhenTheAirAbilityIsIdleOrTheTimerReachedTheDuration()
         {
             WithAbility<CharacterAbility_MovementAir, CharacterAbilityDefinition_MovementAir>((owned, character, ability, definition) =>
             {
@@ -122,7 +123,9 @@ namespace ProjectLucid.Tests
 
                 ability.UpdateEnabled = false;
                 character.Storage.SetValue(ActorFSMKeys.AirLedgeBufferTimer, 9f);
-                Assert.That(Update(transition, character), Is.False, "the air ability is not updating");
+                Assert.That(Update(transition, character), Is.True, "the air ability is not updating");
+                character.Storage.SetValue(ActorFSMKeys.AirLedgeBufferTimer, 0f);
+                Assert.That(Update(transition, character), Is.True, "the air ability is not updating, timer below the duration");
 
                 ability.UpdateEnabled = true;
                 foreach ((float timer, bool expected) in new[] { (0f, false), (0.25f, false), (0.5f, true), (0.75f, true), (float.NaN, false) })

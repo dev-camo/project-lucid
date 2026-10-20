@@ -44,9 +44,10 @@ namespace HardlightProject
 			}
 		}
 
-		// 060015b1 (1.10.1 RVA 0xE74070, shared generic). The ball to ball animation bool is only set when the character
-		// was a ball before and after the base entry. The jump adds the initial velocity along the jump direction (plus the
-		// part of the connected collider velocity that opposes it) and lifts the upward speed to at least the configured minimum.
+		// 060015b1 (1.10.1 RVA 0xE74070, shared generic). When its id is non-zero the ball to ball animation bool is
+		// written on every entry: true only when the form was Ball both before and after the base entry, false otherwise.
+		// The jump adds the initial velocity along the jump direction (plus the part of the connected collider velocity that
+		// opposes it) and lifts the upward speed to at least the configured minimum.
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
 			Character character = user.GetAs<Character>();

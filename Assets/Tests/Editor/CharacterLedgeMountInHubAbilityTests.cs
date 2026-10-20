@@ -194,12 +194,14 @@ namespace ProjectLucid.Tests
 
         // A box collider on an active owned host, tilted about X so that its local +Z face points (0, +r, +r) for a tilt of -45
         // degrees and its local +Y face points (0, +r, -r).
-        private static void Slab(Owned owned, Vector3 center, Vector3 size, float tilt)
+        private static BoxCollider Slab(Owned owned, Vector3 center, Vector3 size, float tilt)
         {
             GameObject host = owned.Host("Lucid ledge slab");
             host.transform.SetPositionAndRotation(center, Quaternion.Euler(tilt, 0f, 0f));
-            host.AddComponent<BoxCollider>().size = size;
+            BoxCollider box = host.AddComponent<BoxCollider>();
+            box.size = size;
             Physics.SyncTransforms();
+            return box;
         }
 
         private static void MountableSlab(Owned owned, float centerZ, float centerY = 0.25f) =>
@@ -325,6 +327,43 @@ namespace ProjectLucid.Tests
                 Assert.That(edges.Count, Is.EqualTo(2));
                 Assert.That(ability.LedgeSurfaceNormal, Is.EqualTo(Vector3.zero), "only a mountable ledge stores its surface");
             });
+        }
+
+        // 0x74847E-0x7484C1, after the surface angle check: a vertical slab met by the back ray has the normal (0, 0, 1), a surface
+        // angle of 180 - 90 = 90 inside 60..120, so the search reaches the collision data. No collision data for the collider
+        // (0x7484A2) makes the hit the mountable ledge; so does data that is not climbable, or climbable data whose object is on a
+        // layer outside the TrackMask (TerrainClimbable false, taken as mountable at 0x7484BB); climbable data inside the mask records
+        // the hit as the non mountable ledge and the search goes on.
+        [Test]
+        public void TheCollisionDataAndTheClimbableFlagDecideBetweenMountableAndNonMountable()
+        {
+            const int OtherLayer = 5;
+            foreach ((bool hasData, bool climbable, int dataLayer, bool expectMountable) in new[]
+            {
+                (false, false, 0, true), (true, false, 0, true), (true, true, OtherLayer, true), (true, true, 0, false),
+            })
+                WithLedge((owned, character, ability, definition) =>
+                {
+                    definition.TrackMask = ~(1 << OtherLayer);
+                    BoxCollider slab = Slab(owned, new Vector3(0f, 0.25f, -0.2f), new Vector3(2f, 2f, 0.2f), 0f);
+                    TrackManager tracks = owned.Host("Lucid ledge tracks", false).AddComponent<TrackManager>();
+                    HashedTrackGroup group = owned.Host("Lucid ledge group", false).AddComponent<HashedTrackGroup>();
+                    tracks.Register(group);
+                    Set(character, "m_trackManagerRef", new SystemRef<TrackManager>("TrackManager", tracks));
+                    if (hasData)
+                    {
+                        GameObject dataHost = owned.Host("Lucid ledge data", false);
+                        dataHost.AddComponent<BoxCollider>();
+                        dataHost.layer = dataLayer;
+                        var data = dataHost.AddComponent<CharacterCollisionData>();
+                        typeof(CharacterCollisionData).GetProperty("IsClimbable").GetSetMethod(true).Invoke(data, new object[] { climbable });
+                        Get<System.Collections.IDictionary>(group, "m_colliderToCharacterCollisionData").Add(slab, data);
+                    }
+                    string label = "data " + hasData + ", climbable " + climbable + ", data layer " + dataLayer;
+                    var result = FindLedges(ability);
+                    Assert.That((result.mountable, result.nonMountable), Is.EqualTo((expectMountable, !expectMountable)), label);
+                    AssertNear((expectMountable ? result.mountableLedge : result.nonMountableLedge).normal, new Vector3(0f, 0f, 1f), "normal, " + label);
+                });
         }
 
         // ---- IL witnesses ----

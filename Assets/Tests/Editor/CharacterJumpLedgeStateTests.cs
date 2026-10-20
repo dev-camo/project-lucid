@@ -7,6 +7,7 @@ using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.CharCoreShared;
 using UnityEngine;
+using Emit = System.Reflection.Emit;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
@@ -359,6 +360,158 @@ namespace ProjectLucid.Tests
             Assert.That(new[] { baseUpdate, ability, spline, rotation, modifier, speed, velocity, proxy, dash, invulnerable, record, lookAhead, clear },
                 Is.Ordered.Ascending.And.Unique);
             Assert.That(GenericArguments(calls, "GetModifierValue"), Is.EqualTo(new[] { typeof(bool) }));
+        }
+
+        // ---- Operand and branch witnesses ----
+        // These bodies need a started Character through their ability base, so the operand order, the storage keys and the
+        // comparison polarity are read from the compiled opcodes (Release IL as Unity compiles the project). Each branch
+        // opcode below separates the plausible versions through the NaN rule of ucomiss: a "blt.un" skips when the
+        // operands are unordered, a plain "bge" does not.
+
+        private static MethodBase Body(Type owner, string name) => owner.GetMethods(DeclaredMembers).Single(m => m.Name == name);
+
+        private static string[] KeyNames(MethodBase method) =>
+            OriginalILCallSequence.StaticFieldLoads(method).Where(load => load.Field.DeclaringType == typeof(ActorFSMKeys)).Select(load => load.Field.Name).ToArray();
+
+        private static List<(int Offset, FieldInfo Field)> InstanceFieldLoads(MethodBase method)
+        {
+            byte[] il = method.GetMethodBody().GetILAsByteArray();
+            Type[] typeArguments = method.DeclaringType.IsGenericType ? method.DeclaringType.GetGenericArguments() : null;
+            return OriginalILCallSequence.Instructions(method)
+                .Where(instruction => instruction.Code == Emit.OpCodes.Ldfld)
+                .Select(instruction => (instruction.Offset, method.Module.ResolveField(BitConverter.ToInt32(il, instruction.Offset + 1), typeArguments, null)))
+                .ToList();
+        }
+
+        // The opcodes that follow the instruction at the offset.
+        private static Emit.OpCode[] Following(MethodBase method, int offset, int count)
+        {
+            List<(int Offset, Emit.OpCode Code)> il = OriginalILCallSequence.Instructions(method);
+            int index = il.FindIndex(instruction => instruction.Offset == offset);
+            return il.Skip(index + 1).Take(count).Select(instruction => instruction.Code).ToArray();
+        }
+
+        private static int FieldOffset(MethodBase method, string name, int occurrence = 0) =>
+            InstanceFieldLoads(method).Where(load => load.Field.Name == name).ElementAt(occurrence).Offset;
+
+        // 0x77B3C0: z >= 0 returns (ucomiss z, 0 / jae 0x77B464, so NaN goes on); the clamp is minss with the zero first
+        // (0x77B4A3) over z + deltaTime * RecoveryDeceleration. For z = -5, deceleration 100 and a step of 0.02 that is -3; z = 0
+        // writes nothing; z = -1 clamps to 0. A "z > 0" guard, Mathf.Min(sum, 0) or Mathf.Max differ on those.
+        [Test]
+        public void KnockbackRecoveryClampsTheBackwardSpeedWithTheNativeOperandOrder()
+        {
+            MethodBase update = Body(typeof(CharacterState_KnockbackRecovery), "DoUpdate");
+            int z = FieldOffset(update, "z");
+            Assert.That(Following(update, z, 2), Is.EqualTo(new[] { Emit.OpCodes.Ldc_R4, Emit.OpCodes.Blt_Un_S }), "z against zero, going on when z < 0 or unordered");
+            Assert.That(OriginalILCallSequence.SingleOperand(update, OriginalILCallSequence.Instructions(update).First(i => i.Code == Emit.OpCodes.Ldc_R4).Offset), Is.EqualTo(0f));
+
+            List<(int Offset, Emit.OpCode Code)> il = OriginalILCallSequence.Instructions(update);
+            List<(int Offset, Emit.OpCode Code)> zeros = il.Where(i => i.Code == Emit.OpCodes.Ldc_R4).ToList();
+            Assert.That(zeros.Count, Is.EqualTo(2), "the guard and the first operand of the minimum");
+            Assert.That(zeros.Select(i => OriginalILCallSequence.SingleOperand(update, i.Offset)), Is.EqualTo(new[] { 0f, 0f }));
+            OriginalILCallSequence.Call min = OriginalILCallSequence.Calls(update).Single(c => c.Target.DeclaringType == typeof(Mathf) && c.Target.Name == "Min");
+            int minIndex = il.FindIndex(i => i.Offset == min.Offset);
+            Assert.That(il[minIndex - 1].Code, Is.EqualTo(Emit.OpCodes.Add), "the sum is the second operand");
+            Assert.That(il[il.FindIndex(i => i.Offset == zeros[1].Offset) + 1].Code, Is.EqualTo(Emit.OpCodes.Ldloc_2), "the zero is the first operand");
+        }
+
+        // 0xE74720: the keys in the native order (0x390, 0x2F0, 0x300, 0x320 then for enter 0x300, 0x310, 0x3C0 and for leave
+        // 0x2F0, 0x300, 0x310, 0x320, 0x390, 0x3C0). The jump continues while the timer (elapsed minus the delay) is below the
+        // minimum, or unordered (0xE74A12 ucomiss / jae: plain bge), or when the ability jumps and the timer has not reached the
+        // maximum (0xE74A25, 0xE74A37: Jump is tested first and false stops; clt.un keeps jumping on NaN). So a timer equal to
+        // the minimum with Jump false stops, a NaN timer keeps jumping, and a timer equal to the maximum with Jump true stops.
+        [Test]
+        public void JumpKeepsJumpingByTheNativeKeysAndComparisons()
+        {
+            Type jumpBase = typeof(CharacterState_JumpBase<,>);
+            Assert.That(KeyNames(Body(jumpBase, "DoOnEnter")), Is.EqualTo(new[] { "IsJumping", "JumpDirection", "JumpFaceVelocityDirection" }));
+            Assert.That(KeyNames(Body(jumpBase, "DoUpdate")), Is.EqualTo(new[] { "JumpDecelerationDisabled", "JumpElapsedTime", "IsJumping", "JumpingExitedGround" }));
+            Assert.That(KeyNames(Body(jumpBase, "DoOnLeave")), Is.EqualTo(new[]
+            {
+                "JumpElapsedTime", "IsJumping", "JumpDirection", "JumpingExitedGround", "JumpDecelerationDisabled", "JumpFaceVelocityDirection",
+            }));
+
+            MethodBase update = Body(jumpBase, "DoUpdate");
+            Assert.That(Following(update, FieldOffset(update, "JumpDelaySeconds"), 1), Is.EqualTo(new[] { Emit.OpCodes.Sub }), "elapsed minus the delay");
+            int minimum = FieldOffset(update, "MinimumJumpTimeSeconds");
+            Assert.That(Following(update, minimum, 1), Is.EqualTo(new[] { Emit.OpCodes.Bge_S }), "below the minimum or unordered keeps jumping");
+            OriginalILCallSequence.Call jump = OriginalILCallSequence.Calls(update).Single(c => c.Target.Name == "get_Jump");
+            Assert.That(Following(update, jump.Offset, 1), Is.EqualTo(new[] { Emit.OpCodes.Brfalse_S }), "no jump stops it");
+            int maximum = FieldOffset(update, "MaximumJumpTimeSeconds");
+            Assert.That(new[] { minimum, jump.Offset, maximum }, Is.Ordered.Ascending.And.Unique);
+            Assert.That(Following(update, maximum, 1), Is.EqualTo(new[] { Emit.OpCodes.Clt_Un }), "the maximum stops it unless unordered");
+        }
+
+        // 0xE743CB and 0xE74499: only a connection velocity dot below zero (ucomiss 0, dot / jbe: bge.un skips) subtracts
+        // direction * dot, and the upward floor adds up * (UpMin - upward) only when UpMin exceeds the upward speed (jbe: ble.un
+        // skips). For velocity 0, direction up, initial velocity 5 and a connection of (0, -2, 0) the dot is -2 and the velocity
+        // (0, 7, 0); an UpMin of 10 then lifts it to (0, 10, 0); a connection of (0, +2, 0) leaves (0, 5, 0).
+        [Test]
+        public void JumpEntryRemovesOnlyAnApproachingConnectionAndRaisesOnlyBelowTheUpwardFloor()
+        {
+            MethodBase enter = Body(typeof(CharacterState_JumpBase<,>), "DoOnEnter");
+            List<(int Offset, Emit.OpCode Code)> il = OriginalILCallSequence.Instructions(enter);
+            List<(int Offset, Emit.OpCode Code)> zeros = il.Where(i => i.Code == Emit.OpCodes.Ldc_R4).ToList();
+            Assert.That(zeros.Count, Is.EqualTo(1));
+            Assert.That(OriginalILCallSequence.SingleOperand(enter, zeros[0].Offset), Is.EqualTo(0f));
+            Assert.That(Following(enter, zeros[0].Offset, 1), Is.EqualTo(new[] { Emit.OpCodes.Bge_Un_S }));
+
+            List<MethodBase> calls = OriginalILCallSequence.Calls(enter).Select(c => c.Target).ToList();
+            Assert.That(Count(calls, "Vector3", "op_Subtraction"), Is.EqualTo(1), "the connection is removed, never added");
+            Assert.That(Count(calls, "Vector3", "op_Addition"), Is.EqualTo(2), "the initial velocity and the upward floor");
+            Assert.That(InstanceFieldLoads(enter).Select(l => l.Field.Name).Where(n => n.StartsWith("JumpInitialVelocity")),
+                Is.EqualTo(new[] { "JumpInitialVelocity", "JumpInitialVelocityUpMin" }));
+            Assert.That(Following(enter, FieldOffset(enter, "JumpInitialVelocityUpMin"), 4),
+                Is.EqualTo(new[] { Emit.OpCodes.Stloc_S, Emit.OpCodes.Ldloc_S, Emit.OpCodes.Ldloc_S, Emit.OpCodes.Ble_Un_S }), "the floor must exceed the upward speed");
+            Assert.That(il.Count(i => i.Code == Emit.OpCodes.Sub), Is.EqualTo(1), "floor minus upward speed");
+        }
+
+        // 0x77B890 and 0x77BC20: the keys are LedgeMountTimeElapsed (0x700) and LedgeMountFinished (0x710). The leave velocity is
+        // (0, MountVelocityUpward (+0xE0), MountVelocityForward (+0xDC)) from insertps / movss at 0x77BCFB..0x77BD03, so for
+        // forward 20 and upward 10 it is (0, 10, 20). The update finishes when elapsed >= PauseSeconds (0x77BB36 ucomiss / jae:
+        // blt.un skips the store), so 0 + 0.5 against a pause of 0.5 finishes.
+        [Test]
+        public void LedgeMountUsesTheNativeKeysVelocityComponentsAndPauseComparison()
+        {
+            Type mount = typeof(CharacterState_LedgeMount);
+            Assert.That(KeyNames(Body(mount, "DoOnEnter")), Is.EqualTo(new[] { "LedgeMountTimeElapsed", "LedgeMountFinished" }));
+            Assert.That(KeyNames(Body(mount, "DoUpdate")), Is.EqualTo(new[] { "LedgeMountTimeElapsed", "LedgeMountTimeElapsed", "LedgeMountFinished" }));
+            MethodBase leave = Body(mount, "DoOnLeave");
+            Assert.That(KeyNames(leave), Is.EqualTo(new[] { "LedgeMountTimeElapsed", "LedgeMountFinished" }));
+
+            List<(int Offset, Emit.OpCode Code)> il = OriginalILCallSequence.Instructions(leave);
+            int zero = il.First(i => i.Code == Emit.OpCodes.Ldc_R4).Offset;
+            Assert.That(OriginalILCallSequence.SingleOperand(leave, zero), Is.EqualTo(0f));
+            int upward = FieldOffset(leave, "MountVelocityUpward");
+            int forward = FieldOffset(leave, "MountVelocityForward");
+            int construct = OriginalILCallSequence.Calls(leave).Single(c => c.Target.DeclaringType == typeof(Vector3) && c.Target.IsConstructor).Offset;
+            Assert.That(new[] { zero, upward, forward, construct }, Is.Ordered.Ascending.And.Unique, "x, y, z in that order");
+
+            MethodBase update = Body(mount, "DoUpdate");
+            Assert.That(Following(update, FieldOffset(update, "PauseSeconds"), 1), Is.EqualTo(new[] { Emit.OpCodes.Blt_Un_S }), "finished once the elapsed time reaches the pause");
+        }
+
+        // 0x77CE94 and 0x77CF66..0x77CF6C: the invulnerability record is written only when the dash was invulnerable (the stored
+        // value is read first, the live one second), and the target is cleared when the look ahead has left the tracker or when
+        // the dash was not invulnerable and the character now is (not r14b / and r14b, r15b). With the look ahead on:
+        // (dash, now) = (false, false) keeps the target; (false, true) clears it; (true, false) keeps it and writes false;
+        // (true, true) keeps it and writes true. Without the look ahead the target is always cleared.
+        [Test]
+        public void LightspeedDashClearsTheTargetOnlyWhenTheLookAheadLeavesOrInvulnerabilityBegins()
+        {
+            MethodBase update = Body(typeof(CharacterState_LightspeedDash), "DoUpdate");
+            List<OriginalILCallSequence.Call> calls = OriginalILCallSequence.Calls(update);
+            OriginalILCallSequence.Call stored = calls.Last(c => c.Target.Name == "GetValue");
+            Assert.That(Following(update, stored.Offset, 1), Is.EqualTo(new[] { Emit.OpCodes.Stloc_3 }), "the stored flag is local 3");
+            OriginalILCallSequence.Call live = calls.Single(c => c.Target.Name == "IsInvulnerable");
+            Assert.That(Following(update, live.Offset, 3), Is.EqualTo(new[] { Emit.OpCodes.Stloc_S, Emit.OpCodes.Ldloc_3, Emit.OpCodes.Brfalse_S }),
+                "the live flag is stored, then the record is written only when the stored flag was set");
+            OriginalILCallSequence.Call lookAhead = calls.Single(c => c.Target.Name == "LookAheadIsOnTracker");
+            Assert.That(Following(update, lookAhead.Offset, 8), Is.EqualTo(new[]
+            {
+                Emit.OpCodes.Brfalse_S, Emit.OpCodes.Ldloc_3, Emit.OpCodes.Ldc_I4_0, Emit.OpCodes.Ceq, Emit.OpCodes.Ldloc_S, Emit.OpCodes.And,
+                Emit.OpCodes.Brfalse_S, Emit.OpCodes.Ldarg_0,
+            }), "clear when the look ahead is off, or when the stored flag is false and the live flag true");
         }
 
         // 0x77D780: the ability is told there is no surface, the subscription is withdrawn, tracking is detected again, the
