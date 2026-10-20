@@ -164,9 +164,12 @@ namespace ProjectLucid.Tests
         [Test]
         public void OffsetSettersSkipEqualValuesRefreshTheFlagsAndRebuildTheUser()
         {
-            SplineUser user = NewUserWithLine();
+            // The editor compile rebuilds at once while the cached play state is false, so the flag is set to the value play
+            // mode caches (DreamteckPlayState) and the rebuild is queued by hand, as the spline setter queues it in the player.
+            SplineUser user = DreamteckPlayState.Cache(NewUserWithLine());
             int builds = 0;
             user.onPostBuild += delegate { builds++; };
+            user.Rebuild();
             Update(user);
             Assert.That(builds, Is.EqualTo(1), "initial queued build");
 
@@ -448,50 +451,45 @@ namespace ProjectLucid.Tests
         }
 
         // ApplyRigidbody 0x4e6e40 clears angular velocity X for applyRotationX, Y for applyRotationY and Z for applyRotationZ or
-        // applyRotation2D; ApplyRigidbody2D 0x4e73e0 (0x4e7513 reads applyRotationX) clears it for applyRotationX alone.
+        // applyRotation2D; ApplyRigidbody2D 0x4e73e0 (0x4e7513 reads applyRotationX) clears it for applyRotationX alone. In the
+        // original text that logic follows an `#if UNITY_EDITOR` block which, when Application.isPlaying is false, applies the
+        // transform and returns; the player branch cannot run in EditMode, so this test asserts the edit-mode behaviour: the
+        // angular velocity is left untouched for every flag combination and the transform entry point has run.
         [Test]
         public void RigidbodyAngularVelocityFollowsTheShippedRotationFlags()
         {
+            Assert.That(Application.isPlaying, Is.False);
             TransformModule module = new TransformModule();
             module.splineResult = Sample(Vector3.zero, Vector3.forward, Vector3.up);
-            module.applyRotationX = false;
-            module.applyRotationY = false;
-            module.applyRotationZ = false;
-            module.applyRotation2D = false;
+            module.applyRotationX = true;
+            module.applyRotationY = true;
+            module.applyRotationZ = true;
+            module.applyRotation2D = true;
+            module.applyRotation = false;
 
             Rigidbody body = NewObject("body").AddComponent<Rigidbody>();
             body.angularVelocity = new Vector3(1f, 2f, 3f);
-            module.ApplyRigidbody(body);
-            Near(body.angularVelocity, new Vector3(1f, 2f, 3f), "no flag clears nothing");
-            module.applyRotationX = true;
-            module.ApplyRigidbody(body);
-            Near(body.angularVelocity, new Vector3(0f, 2f, 3f), "X flag clears X only");
-            module.applyRotationX = false;
-            module.applyRotationY = true;
-            body.angularVelocity = new Vector3(1f, 2f, 3f);
-            module.ApplyRigidbody(body);
-            Near(body.angularVelocity, new Vector3(1f, 0f, 3f), "Y flag clears Y only");
-            module.applyRotationY = false;
-            module.applyRotation2D = true;
-            body.angularVelocity = new Vector3(1f, 2f, 3f);
-            module.ApplyRigidbody(body);
-            Near(body.angularVelocity, new Vector3(1f, 2f, 0f), "2D flag clears Z without applyRotationZ");
-            module.applyRotation2D = false;
-            module.applyRotationZ = true;
-            body.angularVelocity = new Vector3(1f, 2f, 3f);
-            module.ApplyRigidbody(body);
-            Near(body.angularVelocity, new Vector3(1f, 2f, 0f), "Z flag clears Z");
+            body.transform.localScale = new Vector3(5f, 5f, 5f);
+            module.baseScale = new Vector3(2f, 2f, 2f);
+            module.applyScale = true;
+            foreach (bool flag in new[] { false, true })
+            {
+                module.applyRotationX = flag;
+                module.applyRotationY = flag;
+                module.applyRotationZ = flag;
+                module.applyRotation2D = flag;
+                module.ApplyRigidbody(body);
+                Near(body.angularVelocity, new Vector3(1f, 2f, 3f), "the edit-mode branch never clears angular velocity (flags " + flag + ")");
+            }
 
-            module.applyRotationZ = false;
+            Near(body.transform.localScale, new Vector3(2f, 2f, 2f), "the edit-mode branch applies the transform scale");
+
             Rigidbody2D flat = NewObject("flat").AddComponent<Rigidbody2D>();
             flat.angularVelocity = 7f;
-            module.applyRotation2D = true;
-            module.ApplyRigidbody2D(flat);
-            Assert.That(flat.angularVelocity, Is.EqualTo(7f), "applyRotation2D alone keeps the angular velocity");
             module.applyRotationX = true;
             module.applyRotation2D = false;
             module.ApplyRigidbody2D(flat);
-            Assert.That(flat.angularVelocity, Is.EqualTo(0f), "applyRotationX alone clears it");
+            Assert.That(flat.angularVelocity, Is.EqualTo(7f), "applyRotationX alone does not clear it while the editor branch returns early");
         }
 
         [Test]

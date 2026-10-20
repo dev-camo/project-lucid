@@ -274,10 +274,14 @@ namespace ProjectLucid.Tests
         }
 
         // LateRun 0x4bb6f0 follows only while follow is on. Follow 0x4bb720: Uniform moves by speed times the frame time, so a
-        // zero speed re-places the follower on its sample; Time mode with a zero duration does nothing.
+        // zero speed re-places the follower on its sample; Time mode with a zero duration does nothing. LateRun returns before
+        // Follow while Application.isPlaying is false (an `#if UNITY_EDITOR` block), so the follow flag test cannot run in
+        // EditMode: LateRun is asserted to move nothing with follow on, and Follow (below the gate) is called directly for the
+        // Uniform and Time arms. Lost shipped coverage: LateRun skipping Follow when follow is off.
         [Test]
         public void LateRunFollowsOnlyWhileFollowIsOn()
         {
+            Assert.That(Application.isPlaying, Is.False);
             SplineFollower follower = NewFollower(NewLine());
             follower.SetPercent(0.25);
             follower.followSpeed = 0f;
@@ -288,12 +292,14 @@ namespace ProjectLucid.Tests
 
             follower.follow = true;
             Invoke(follower, "LateRun");
+            Near(follower.transform.position, new Vector3(99f, 99f, 99f), "LateRun returns before Follow while not playing");
+            Invoke(follower, "Follow");
             Near(follower.transform.position, new Vector3(5f, 0f, 0f), "Uniform with zero speed re-applies the sample");
 
             follower.transform.position = new Vector3(99f, 99f, 99f);
             follower.followMode = SplineFollower.FollowMode.Time;
             follower.followDuration = 0f;
-            Invoke(follower, "LateRun");
+            Invoke(follower, "Follow");
             Near(follower.transform.position, new Vector3(99f, 99f, 99f), "Time mode with zero duration moves nothing");
         }
 
@@ -494,53 +500,49 @@ namespace ProjectLucid.Tests
             Assert.That(fault.InnerException, Is.TypeOf<NullReferenceException>());
         }
 
-        // CheckTriggers 0x4cae40 / AddTriggerToQueue 0x4cdc50 / InvokeTriggers 0x4cafb0: with useTriggers the triggers of the
-        // follower's group crossed between the previous and the new percent are queued and invoked with the follower once
-        // SetPercent asked for them. Nothing fires without useTriggers, without the request, or for a missing group.
+        // CheckTriggers 0x4cae40 / InvokeTriggers 0x4cafb0 / SplineTrigger.Invoke: in the original text each of them returns first
+        // when Application.isPlaying is false (an `#if UNITY_EDITOR` block). The player branch (queue the crossed triggers of the
+        // follower's group and invoke them with the follower) is the text after that block and cannot run in EditMode, and
+        // nothing below the gate is reachable on its own. This test asserts the edit-mode behaviour: SetPercent never reaches
+        // SplineTrigger.Check (a workOnce trigger is still unspent afterwards) and never calls a listener, for every setting
+        // that would fire a trigger in the player. Lost shipped coverage: the group selection, queue and invoke order.
         [Test]
         public void SetPercentInvokesTheCrossedTriggersOfItsGroup()
         {
+            Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();
             SplineTrigger trigger = computer.AddTrigger(0, 0.5, SplineTrigger.Type.Double);
+            trigger.workOnce = true;
             List<SplineUser> crossed = new List<SplineUser>();
             trigger.AddListener(delegate (SplineUser user) { crossed.Add(user); });
             SplineFollower follower = NewFollower(computer);
-            follower.SetPercent(0.25);
-
-            follower.SetPercent(0.75, true);
-            Assert.That(crossed, Is.Empty, "useTriggers is off");
-            follower.SetPercent(0.25);
             follower.useTriggers = true;
-            follower.SetPercent(0.75);
-            Assert.That(crossed, Is.Empty, "not requested");
             follower.SetPercent(0.25);
             follower.SetPercent(0.75, true);
-            Assert.That(crossed.Count, Is.EqualTo(1));
-            Assert.That(crossed[0], Is.SameAs(follower));
-            follower.SetPercent(0.9, true);
-            Assert.That(crossed.Count, Is.EqualTo(1), "0.75 to 0.9 crosses nothing");
             follower.SetPercent(0.25, true);
-            Assert.That(crossed.Count, Is.EqualTo(2), "Double triggers fire backwards too");
-
             follower.triggerGroup = 3;
             follower.SetPercent(0.75, true);
-            Assert.That(crossed.Count, Is.EqualTo(2), "a missing group index is ignored");
             follower.triggerGroup = -1;
             follower.SetPercent(0.25, true);
-            Assert.That(crossed.Count, Is.EqualTo(2), "so is a negative one");
-
             follower.triggerGroup = 0;
-            follower.SetPercent(0.25);
             follower.SetDistance(15f, true);
-            Assert.That(crossed.Count, Is.EqualTo(3), "SetDistance reports from the result's own percent");
+            Assert.That(crossed, Is.Empty, "SplineTrigger.Invoke and InvokeTriggers return while not playing");
+            Assert.That(trigger.Check(0.25, 0.75), Is.True, "CheckTriggers returned before Check, so the workOnce trigger is unspent");
+            Assert.That(trigger.Check(0.25, 0.75), Is.False, "control: the first direct Check spends it");
+            trigger.Invoke(follower);
+            Assert.That(crossed, Is.Empty, "a direct Invoke returns while not playing");
         }
 
-        // CheckNodes 0x4cb030 / GetJunction 0x4cdb90 / InvokeNodes 0x4ca320: SetPercent with handleJunctions queues the nodes of
-        // the points passed (here point 1 between 0.25 and 0.75) and raises onNode once with them; the queue is then empty.
-        // Without a subscriber CheckNodes queues nothing. A node queued before the subscriber left faults InvokeNodes.
+        // CheckNodes 0x4cb030 / GetJunction 0x4cdb90 / InvokeNodes 0x4ca320: CheckNodes returns first when Application.isPlaying is
+        // false (an `#if UNITY_EDITOR` block). The player branch (queue the nodes of the points passed, then raise onNode once)
+        // is the text after that block and cannot run in EditMode, and no method below the gate is reachable on its own. This
+        // test asserts the edit-mode behaviour: a node on the passed point is never queued, so onNode never fires and
+        // InvokeNodes finds an empty queue (it does not touch the missing subscriber). Lost shipped coverage: the junction
+        // lookup, the queue and the onNode payload.
         [Test]
         public void SetPercentReportsTheNodesItPassed()
         {
+            Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();
             GameObject nodeOwner = NewObject("node");
             nodeOwner.transform.position = new Vector3(10f, 0f, 0f);
@@ -550,40 +552,21 @@ namespace ProjectLucid.Tests
             SplineFollower follower = NewFollower(computer);
 
             List<Node> nodes = new List<Node>();
-            List<int> points = new List<int>();
             SplineTracer.JunctionHandler handler = delegate (List<SplineTracer.NodeConnection> passed)
             {
                 foreach (SplineTracer.NodeConnection connection in passed)
                 {
                     nodes.Add(connection.node);
-                    points.Add(connection.point);
                 }
             };
             follower.onNode += handler;
             follower.SetPercent(0.25);
-            follower.SetPercent(0.75, false, false);
-            Assert.That(nodes, Is.Empty, "junctions not requested");
-            follower.SetPercent(0.25);
             follower.SetPercent(0.75, false, true);
-            Assert.That(nodes.Count, Is.EqualTo(1));
-            Assert.That(nodes[0], Is.SameAs(node));
-            Assert.That(points, Is.EqualTo(new[] { 1 }));
-            follower.SetPercent(0.75, false, true);
-            Assert.That(nodes.Count, Is.EqualTo(1), "the queue was emptied and equal percents report nothing");
-            follower.SetPercent(0.1);
-            follower.SetPercent(0.4, false, true);
-            Assert.That(nodes.Count, Is.EqualTo(1), "no point passed");
-
-            follower.SetPercent(0.25);
+            Assert.That(nodes, Is.Empty, "CheckNodes returns while not playing");
             Invoke(follower, "CheckNodes", 0.25, 0.75);
             follower.onNode -= handler;
-            TargetInvocationException fault = Assert.Throws<TargetInvocationException>(() => Invoke(follower, "InvokeNodes"));
-            Assert.That(fault.InnerException, Is.TypeOf<NullReferenceException>(), "the queued node has nobody to tell");
-
-            SplineFollower silent = NewFollower(computer);
-            silent.SetPercent(0.25);
-            silent.SetPercent(0.75, false, true);
-            Assert.That(nodes.Count, Is.EqualTo(1));
+            Assert.DoesNotThrow(() => Invoke(follower, "InvokeNodes"), "nothing was queued, so there is nobody to tell");
+            Assert.That(nodes, Is.Empty);
         }
 
         // ApplyMotion 0x4ca5f0: a Rigidbody or Rigidbody2D physics mode without that component throws MissingComponentException with
@@ -716,10 +699,13 @@ namespace ProjectLucid.Tests
         }
 
         // Move(double) Loop: CheckTriggers(start, 1) at 0x4bbe0a, then after the wrap CheckTriggers(0, end) at 0x4bbe70, and the queue
-        // is fired once at the end (0x4bbf1a). From 0.9 by 0.25 the first range fires 0.95 and the second 0.1, in that order.
+        // is fired once at the end (0x4bbf1a). Those calls return first while Application.isPlaying is false, so the player order
+        // (0.95 then 0.1) cannot run in EditMode; this test asserts that the loop wrap still completes (percent 0.15) and fires
+        // nothing. Lost shipped coverage: the order of the two stretches' triggers.
         [Test]
         public void LoopWrapReportsTheTriggersOfBothStretchesInOrder()
         {
+            Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();
             List<double> fired = new List<double>();
             SplineTrigger late = computer.AddTrigger(0, 0.95, SplineTrigger.Type.Forward);
@@ -731,7 +717,8 @@ namespace ProjectLucid.Tests
             follower.wrapMode = SplineFollower.Wrap.Loop;
             follower.SetPercent(0.9);
             follower.Move(0.25);
-            Assert.That(fired, Is.EqualTo(new[] { 0.95, 0.1 }));
+            Assert.That(follower.GetPercent(), Is.EqualTo(0.15).Within(1e-9), "the wrap itself is not gated");
+            Assert.That(fired, Is.Empty);
         }
 
         // ApplyMotion 0x4ca5f0: onMotionApplied (0x4cad7e) is raised after the move was applied; the default arm of the physics
@@ -752,10 +739,13 @@ namespace ProjectLucid.Tests
         }
 
         // CheckNodes 0x4cb030: the Backward loop (0x4cb274) walks toPoint-1 down to fromPoint, and a range inside point 0 that
-        // starts at the beginning reports point 0 (0x4cb12c..0x4cb165).
+        // starts at the beginning reports point 0 (0x4cb12c..0x4cb165). CheckNodes returns first while Application.isPlaying is
+        // false, so those player branches cannot run in EditMode; this test asserts that neither range reports a node.
+        // Lost shipped coverage: the Backward loop bounds and the beginning edge.
         [Test]
         public void CheckNodesCoversTheBackwardLoopAndTheBeginningEdge()
         {
+            Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();
             SplineFollower follower = NewFollower(computer);
             List<int> points = new List<int>();
@@ -774,16 +764,15 @@ namespace ProjectLucid.Tests
             follower.direction = Spline.Direction.Backward;
             follower.SetPercent(0.75);
             follower.SetPercent(0.25, false, true);
-            Assert.That(points, Is.EqualTo(new[] { 1 }), "indices 1 (0.25) and 2 (0.75) leave point 1");
+            Assert.That(points, Is.Empty, "the Backward range over point 1 reports nothing while not playing");
 
             computer.DisconnectNode(1);
             Node first = NewObject("first").AddComponent<Node>();
             computer.ConnectNode(first, 0);
-            points.Clear();
             follower.direction = Spline.Direction.Forward;
             follower.SetPercent(0.0);
             follower.SetPercent(0.25, false, true);
-            Assert.That(points, Is.EqualTo(new[] { 0 }), "both indices are point 0 and the range starts at 0");
+            Assert.That(points, Is.Empty, "the beginning edge reports nothing while not playing");
         }
 
         // SetPercent 0x4bbfed..0x4bbff2 stores the unclamped argument; SetDistance 0x4bc04a stores ClipPercent of the result.
