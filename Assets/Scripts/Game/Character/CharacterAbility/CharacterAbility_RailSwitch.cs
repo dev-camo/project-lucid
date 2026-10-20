@@ -271,7 +271,7 @@ namespace HardlightProject
 			return targetObject.HasValue;
 		}
 
-		// 06001295 (1.10.1 RVA 0x752C70); empty in the retail binary and not called from anywhere.
+		// 06001295 (1.10.1 RVA 0x752C70); empty in the retail binary.
 		private void UpdateDebug()
 		{
 		}

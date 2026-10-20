@@ -18,9 +18,10 @@ namespace ProjectLucid.Tests
     // constants of the binary's data section (VA 0x29a7770, 0x29a7780, 0x29a7790, 0x29a77d0, 0x29a7720), never read
     // back from the implementation. Abilities are built by their real constructors and given the character and the
     // definition the way ActorAbility.Initialise would, on a real Character on an owned inactive host. Initialise,
-    // DoOnEnter, DoOnUpdate, ProjectToTargetedObject, GetProjectedRailTarget, GetTargetSectionLocation and
-    // UpdateJumpRequirement are not covered by any test: they read the tracker, track manager and constants of a
-    // started Character, which an Edit Mode host cannot provide.
+    // DoOnEnter, ProjectToTargetedObject, GetProjectedRailTarget, GetTargetSectionLocation and UpdateJumpRequirement
+    // are not covered by any test: they read the tracker and track manager of the character, and no tracker setup
+    // for this ability has been verified here (UpdateJumpRequirement: ucomiss 0.1 > sqr, jbe, at 0x7523ED). Of
+    // DoOnUpdate only the trigger ability gate (0x7527C5..0x7527CC) is covered.
     public sealed class CharMoves06RailAbilityTests
     {
         private const float Tolerance = 1e-5f;
@@ -284,6 +285,24 @@ namespace ProjectLucid.Tests
                         else Call(ability, "SetFSMTarget", null, 0f);
                         Assert.That(ability.SwitchInProgress(), Is.EqualTo(neighbour && type == HomingTargetType.Rail), "neighbour " + neighbour + ", target " + type);
                     }
+            });
+        }
+
+        // 0x7527C5..0x7527CC: with no trigger ability in use (an empty list here) the update returns before the base
+        // update, the input read or the reset, so the input and the published target stay as they were.
+        [Test]
+        public void UpdateWithoutAnActiveTriggerAbilityChangesNothing()
+        {
+            WithRailSwitch((owned, character, ability, definition) =>
+            {
+                Call(ability, "SetFSMTarget", Target(HomingTargetType.Rail), 9f);
+                Set(ability, "m_inputMovement", 0.75f);
+
+                Call(ability, "DoOnUpdate", null, 0.1f);
+
+                Assert.That(Get<float>(ability, "m_inputMovement"), Is.EqualTo(0.75f));
+                Assert.That(ability.GetFSMTarget(out CharacterTargetObjectData? target, out float speed), Is.True);
+                Assert.That((target.Value.Type, speed), Is.EqualTo((HomingTargetType.Rail, 9f)));
             });
         }
 

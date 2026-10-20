@@ -24,6 +24,12 @@ namespace ProjectLucid.Tests
     // Not covered by any test, because they need a started Character (tracker, camera, form, stamina graphs): the
     // RailSwitch state enter and update, the SpinDashCharge update, the GroundBraking enter, and the comparison
     // predicates inside them (rolling auto-exit and ledge braking thresholds, the rail orientation 0.0001 limit).
+    // The enter, update and leave witnesses below check only which calls are made and in which order, not the branch
+    // polarity of these predicates: the GroundBoostBase enter speed gate (0xE6F898, ucomiss/jbe, so NaN turns), the
+    // boost leave gate IsTriggered && SuspendTime > 0 (0xE6F9A9..0xE6F9D0, 0xE76350), the RailMovement enter lock time
+    // (0xE767F6, jbe) and attach speed floor (0xE76972, maxss), the RailMovement update on-rail conjunction
+    // (0xE76FE4..0xE77344), the RailMovement leave snap (0xE778B6, snap == distanceFromEnd means no snap) and the
+    // RailSwitch state update (0x77EFC3, elapsed == duration resumes).
     public sealed class CharMoves06StateTests
     {
         private static readonly Type StandingType = typeof(CharacterState_RailMovement<CharacterAbility_MovementRailStanding, CharacterAbilityDefinition_MovementRailStanding>);
@@ -380,6 +386,58 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0xE78282, 0xE7843A and 0xE784B9..0xE784CA: an expired timer with an air ability hands the queued jump over
+        // (to the plain ability, which leaves the rail through the rail ability's QueueJump at 0xE785D0) and then
+        // resets the queue because the jump is queued, the jump flag (+0x18) being tested before the boost flag
+        // (+0x20); without the air ability nothing is handed over and nothing is reset.
+        [Test]
+        public void ExpiredRemainTimerHandsTheQueuedJumpOverAndResetsTheQueueOnlyWithAnAirAbility()
+        {
+            WithRail((owned, rail) =>
+            {
+                var plain = NewRailAbility<CharacterAbility_MovementJump, CharacterAbilityDefinition_Jump>(owned, rail.Character);
+                Abilities(rail.Character)[ActorAbilityType.Character_Jump] = plain;
+                QueueJumpOnCharacter(rail.Character, 10.8f);
+
+                rail.Character.Storage.SetValue(ActorFSMKeys.StateRemainTimer, 0.1f);
+                Call(rail.BoostState, "UpdateRemainTimer", rail.Character, rail.Boost, true, 0.25f);
+                Assert.That((QueuedJump(plain), QueuedJump(rail.Boost)), Is.EqualTo((false, false)), "no air ability: nothing is handed over");
+                Assert.That(rail.Character.QueuedActions.Jump, Is.True, "no air ability: nothing is reset");
+                Assert.That(IsStored(rail.Character, ActorFSMKeys.RailActive), Is.False);
+
+                Abilities(rail.Character)[ActorAbilityType.Character_MovementAir] = new CharacterAbility_MovementAir();
+                rail.Character.Storage.SetValue(ActorFSMKeys.StateRemainTimer, 0.1f);
+                Call(rail.BoostState, "UpdateRemainTimer", rail.Character, rail.Boost, true, 0.25f);
+                Assert.That(QueuedJump(plain), Is.True, "handed over to the plain jump ability");
+                Assert.That(QueuedJump(rail.Boost), Is.True, "and the rail ability is told to leave the rail");
+                Assert.That((IsStored(rail.Character, ActorFSMKeys.RailActive), Stored(rail.Character, ActorFSMKeys.RailActive), Stored(rail.Character, ActorFSMKeys.JumpOnRailTracker)),
+                    Is.EqualTo((true, false, true)));
+                Assert.That(rail.Character.QueuedActions.Jump, Is.False, "the queued jump alone resets the queue");
+                Assert.That(rail.Character.Storage.GetValue(ActorFSMKeys.StateRemainTimer, -1f, false), Is.EqualTo(0f));
+            });
+        }
+
+        // 0xE78191..0xE781A3, 0xE78338..0xE7833B and 0xE783E1..0xE783E9: an unordered timer is not skipped by the
+        // checked zero test (ucomiss then jne/jnp), is stored as zero (maxss returns its second operand for NaN) and
+        // counts as run out (ja is false), so the air path hands the boost over and resets the queue.
+        [Test]
+        public void UnorderedRemainTimerIsStoredAsZeroAndCountsAsRunOut()
+        {
+            WithRail((owned, rail) =>
+            {
+                Abilities(rail.Character)[ActorAbilityType.Character_MovementRailBoost] = rail.Boost;
+                Abilities(rail.Character)[ActorAbilityType.Character_MovementAir] = new CharacterAbility_MovementAir();
+                QueueBoostOnCharacter(rail.Character, 9.8f);
+                rail.Character.Storage.SetValue(ActorFSMKeys.StateRemainTimer, float.NaN);
+
+                Call(rail.BoostState, "UpdateRemainTimer", rail.Character, rail.Boost, true, 0.25f);
+
+                Assert.That(rail.Character.Storage.GetValue(ActorFSMKeys.StateRemainTimer, -1f, false), Is.EqualTo(0f));
+                Assert.That(QueuedBoost(rail.Boost), Is.True);
+                Assert.That(rail.Character.QueuedActions.Boost, Is.False);
+            });
+        }
+
         // ---- OrbCollect.GetAnimationDefinition (0x7864A0) ----
 
         // The outro sequence stored under OutroSequenceType picks the animation: the two replay sequences (0xd630cc8b,
@@ -468,8 +526,9 @@ namespace ProjectLucid.Tests
         }
 
         // 0xE6F6C0: after the base enter the rolling flag is removed (as a bool) and the boost stamina is activated; a
-        // character not faster than the minimum input speed (0xE6F898 ucomiss, jbe) then turns to the intended rotation
-        // (0xE6F8B2) through the virtual SetWorldRotation (the tail jump at 0xE6F8D9).
+        // turn to the intended rotation (0xE6F8B2) through the virtual SetWorldRotation (the tail jump at 0xE6F8D9)
+        // follows. Only the presence and order of these calls is checked; the speed gate before the turn (0xE6F898)
+        // is not covered.
         [Test]
         public void GroundBoostEntersByActivatingTheStaminaThenTurningToTheInput()
         {

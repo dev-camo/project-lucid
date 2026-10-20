@@ -53,7 +53,7 @@ namespace HardlightProject
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
 			Character character = user.GetAs<Character>();
-			ActorAnimationDefinition animationDefinition = GetAnimationDefinition(user);
+			ActorAnimationDefinition animationDefinition = GetAnimationDefinition(character);
 			ActivateStateEffect(character, animationDefinition);
 			if (!character.IsOnGround(CharacterTrackingType.Active))
 			{
@@ -86,7 +86,7 @@ namespace HardlightProject
 		protected override void DoOnLeave(IGraphUser user, FSMStateChangeAction action)
 		{
 			Character character = user.GetAs<Character>();
-			ActorAnimationDefinition animationDefinition = GetAnimationDefinition(user);
+			ActorAnimationDefinition animationDefinition = GetAnimationDefinition(character);
 			DeactivateStateEffect(character, animationDefinition);
 			character.Animator.TrySetFromAnimationType(animationDefinition, ActorAnimationType.BoolSet, false);
 			character.Storage.RemoveValue<OutroSequenceIdentifier>(ActorFSMKeys.OutroSequenceType);
