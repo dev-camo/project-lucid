@@ -2774,6 +2774,64 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterControllerFormTransitionTes
     "DeclarationShapeTransitionsKeepTheirFieldsAndArgumentClasses",
 ))
 
+# Original modifier, ground boost, ground state and ground and minimum jump time transitions (gr2-char-moves-05).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterModifierDefinitionTests." + name for name in (
+    "EveryModifierStartsWithAnEmptyModifyAbilitiesList",
+    "CollectableModifiersStoreTheNativePackedDefaults",
+    "AttractStoresNoDefaultsOfItsOwn",
+    "RingSpeedCurvesRunFlatAtOneAndAreDistinct",
+    "RingSpeedTierRingCountMinIsTheFirstTier",
+    "TierDefinitionReadsItsSerializedFields",
+    "DeclarationShapeDefinitionsNameTheirOwnAbilityScript",
+    "DeclarationShapeDefinitionsKeepTheirOriginalBases",
+    "DeclarationShapeIl2CppOptionsKeepTheirMetadataOrder",
+    "DeclarationShapeDefinitionsAreCreatableFromTheAssetMenu",
+    "DeclarationShapeFieldsKeepTheirOriginalOrderAndAuthoring",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterModifierAbilityTests." + name for name in (
+    "InitialiseTakesTheCharacterAndTheMatchingDefinition",
+    "ModifiesAbilitiesIsTrueOnlyForANonEmptyList",
+    "WithoutListedAbilitiesEnterAndLeaveModifyOnceWithNoTarget",
+    "RemovingVisitsEachPresentCharacterAbilityInListOrder",
+    "AddingListedAbilitiesWaitsForTheFixedUpdateWhereRemovingDoesNot",
+    "TheDeferredAddVisitsTheListedAbilitiesWithTheAdd",
+    "AddingTakesTheCharactersHandleListForTheAbilityId",
+    "EnteringAnAnimationReplacesTheOneRunningAndLeavingClearsIt",
+    "RemovingLeavesTheAnimationAndDropsTheHandleList",
+    "EnteringLeavesBeforeItEntersTheCharacterAnimation",
+    "DamageSetsTheMaximumDamageOfTheDefinitionsType",
+    "ReviveSetsTheReviveMultiplierOfTheDefinitionsType",
+    "StartSetsTheStartingCountOfTheDefinitionsType",
+    "AttractSetsTheTierIndexOnTheListedTypes",
+    "AttractWithNoListedTypesAppliesToEveryTypeExceptNone",
+    "AttractListensToCollectionsOnlyWhileItHasAnAnimationAndAPositiveTier",
+    "AttractPlaysItsAnimationForTheListedTypes",
+    "BoostOverridesTheBoostStaminaForItsCollectableType",
+    "BoostWithoutAnAnimationStillAnswersTheMultiplier",
+    "RingSpeedHooksTheModifiedAbilitysSpeedFunctionAndRecordsTheRingCount",
+    "RingSpeedScalesEachSpeedByItsOwnCurveAtTheRingCount",
+    "RingSpeedSamplesTheCurvesAtTheCurrentRingCount",
+    "RingSpeedPlaysTheFirstNewlyReachedTierAndLeavesBelowTheLowestTier",
+    "RingSpeedTierBoundariesAreInclusiveOnTheNewCountAndExclusiveOnTheOld",
+    "SwitchAvailableSetsAndClearsTheTargetsSwitchOverride",
+    "DeclarationShapeModifierTypesKeepTheirBasesAndMembers",
+    "DeclarationShapeLeafAbilitiesKeepTheirBasesFieldsAndOptions",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterGroundBoostTransitionTests." + name for name in (
+    "GroundBoostCanTriggerUnlessTheOneShotFlagHolds",
+    "GroundBoostInitialiseUpdatesTheBoostStaminaAfterTheBase",
+    "GroundTransitionNeedsGroundTrackingAndNoClimbableContact",
+    "GroundTransitionRefusesOnlyAClimbableLinkedContact",
+    "GroundTransitionKeepsTheTrackingTypeOfItsJson",
+    "MinimumJumpTimeFiresOnceTheJumpHasLastedItsMinimum",
+    "MinimumJumpTimeReadsAMissingElapsedTimeAsZeroAndStoresIt",
+    "MinimumJumpTimeLooksTheJumpUpByItsConfiguredType",
+    "MovementClimbingStateReadsItsAbilityTypeFromItsJson",
+    "DeclarationShapeNodesCarryTheirOriginalGraphAuthoringAttributesInOrder",
+    "DeclarationShapeClassFactoryRegistersTheNodesWithTheirArgumentTypes",
+    "DeclarationShapeTransitionsAndAbilityKeepTheirMembers",
+))
+
 # Original deceleration-curve acceleration branch minss operand order.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationKeepsAnUnorderedSum",
