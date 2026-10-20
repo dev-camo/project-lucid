@@ -159,6 +159,10 @@ namespace ProjectLucid.Tests
 
         // ---- IL witnesses ----
 
+        // The native bodies dispatch SetWorldPosition, SetWorldRotation and SetWorldVelocity through Actor vtable slots
+        // 35, 36 and 37 (+0x368, +0x378, +0x388), which Character overrides; the compiled IL names the overridden Actor
+        // declaration, so the witnesses look those calls up on Actor.
+
         // 0xE74070: the form is read before the base entry and again after it, and the ball to ball bool uses both reads; the
         // character leaves the ground, jumping is flagged, the direction is read, and only then is the velocity written; a face
         // direction request projects the velocity onto the up plane and turns the character.
@@ -173,7 +177,7 @@ namespace ProjectLucid.Tests
             int away = IndexOf(calls, "Character", "OnMoveAwayFromGround");
             int jumping = IndexOf(calls, "IGraphStorage", "SetValue");
             int ability = IndexOf(calls, "ActorState_Ability", "GetAbility");
-            int velocity = IndexOf(calls, "Character", "SetWorldVelocity");
+            int velocity = IndexOf(calls, "Actor", "SetWorldVelocity");
             int project = IndexOf(calls, "Vector3", "ProjectOnPlane");
             int orientate = IndexOf(calls, "Actor", "OrientateToPlaneWithLookDirection");
             Assert.That(new[] { firstForm, baseEnter, secondForm, animation, away, jumping, ability, velocity, project, orientate }, Is.Ordered.Ascending.And.Unique);
@@ -246,7 +250,7 @@ namespace ProjectLucid.Tests
             int store = IndexOf(update, "IGraphStorage", "SetValue");
             int look = IndexOf(update, "Quaternion", "LookRotation");
             int slerp = IndexOf(update, "Quaternion", "Slerp");
-            int rotation = IndexOf(update, "Character", "SetWorldRotation");
+            int rotation = IndexOf(update, "Actor", "SetWorldRotation");
             Assert.That(new[] { baseUpdate, active, ability, min, store, look, slerp, rotation }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(update, "Quaternion", "LookRotation"), Is.EqualTo(2));
             Assert.That(Count(update, "Character", "get_WorldVelocity"), Is.EqualTo(1), "read once for both look rotations");
@@ -290,14 +294,14 @@ namespace ProjectLucid.Tests
             int baseEnter = IndexOf(enter, "CharacterState_Ability", "DoOnEnter");
             int ability = IndexOf(enter, "ActorState_Ability", "GetAbility");
             int orientate = IndexOf(enter, "Actor", "OrientateToPlaneWithLookDirection");
-            int position = IndexOf(enter, "Character", "SetWorldPosition");
+            int position = IndexOf(enter, "Actor", "SetWorldPosition");
             int store = IndexOf(enter, "IGraphStorage", "SetValue");
             Assert.That(new[] { baseEnter, ability, orientate, position, store }, Is.Ordered.Ascending.And.Unique);
             Assert.That(GenericArguments(enter, "SetValue"), Is.EqualTo(new[] { typeof(float), typeof(bool) }));
 
             List<MethodBase> update = Calls(typeof(CharacterState_LedgeMount), "DoUpdate");
             int baseUpdate = IndexOf(update, "CharacterState_Ability", "DoUpdate");
-            int still = IndexOf(update, "Character", "SetWorldVelocity");
+            int still = IndexOf(update, "Actor", "SetWorldVelocity");
             int read = IndexOf(update, "IGraphStorage", "GetValue");
             int advance = IndexOf(update, "IGraphStorage", "SetValue");
             int pause = IndexOf(update, "CharacterAbility", "get_Definition");
@@ -328,7 +332,7 @@ namespace ProjectLucid.Tests
             int subscribe = IndexOf(calls, "Delegate", "Combine");
             int turn = IndexOf(calls, "Character", "DetectTurnAroundFromVelocity");
             int rotation = IndexOf(calls, "CharacterTracker", "get_TrackerRotation");
-            int velocity = IndexOf(calls, "Character", "SetWorldVelocity");
+            int velocity = IndexOf(calls, "Actor", "SetWorldVelocity");
             int ability = IndexOf(calls, "ActorState_Ability", "GetAbility");
             int surface = IndexOf(calls, "CharacterAbility_MovementTracker", "OnSurfaceChanged");
             int invulnerable = IndexOf(calls, "Character", "IsInvulnerable");
@@ -350,7 +354,7 @@ namespace ProjectLucid.Tests
             int rotation = IndexOf(calls, "CharacterTracker", "get_TrackerRotation");
             int modifier = IndexOf(calls, "Character", "GetModifierValue");
             int speed = IndexOf(calls, "CharacterAbility_Movement", "UpdateForwardSpeed");
-            int velocity = IndexOf(calls, "Character", "SetWorldVelocity");
+            int velocity = IndexOf(calls, "Actor", "SetWorldVelocity");
             int proxy = IndexOf(calls, "CharacterState_LightspeedDash", "OverrideProxy");
             int dash = IndexOf(calls, "IGraphStorage", "GetValue");
             int invulnerable = IndexOf(calls, "Character", "IsInvulnerable");
