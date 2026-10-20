@@ -153,15 +153,20 @@ namespace ProjectLucid.Tests
 
         // ---- CharacterAbility_LedgeMount (020002d1) ----
 
-        // 0x7485E0 stores the zero vector in both normal and point; the ability starts untriggered.
+        // 0x7485E0 stores the zero vector in both normal and point; the ability starts untriggered. CharacterAbility's
+        // field initialiser creates the App reference row, which is leased absent and released idle.
         [Test]
         public void ALedgeMountStartsUntriggeredWithZeroVectors()
         {
-            var ability = new CharacterAbility_LedgeMount();
-            Assert.That(ability.IsTriggered, Is.False);
-            Assert.That(ability.LedgeSurfaceNormal, Is.EqualTo(Vector3.zero));
-            Assert.That(ability.LedgeMountPoint, Is.EqualTo(Vector3.zero));
-            Assert.That(ability, Is.InstanceOf<IAbilityTrigger>());
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<App>();
+                var ability = new CharacterAbility_LedgeMount();
+                Assert.That(ability.IsTriggered, Is.False);
+                Assert.That(ability.LedgeSurfaceNormal, Is.EqualTo(Vector3.zero));
+                Assert.That(ability.LedgeMountPoint, Is.EqualTo(Vector3.zero));
+                Assert.That(ability, Is.InstanceOf<IAbilityTrigger>());
+            });
         }
 
         // 0x747B50: leaving runs the ability base and clears only the trigger; the stored ledge is kept.
