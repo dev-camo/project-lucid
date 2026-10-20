@@ -563,7 +563,7 @@ namespace ProjectLucid.Tests
                     publish.OnEnter(user, null);
                     Assert.That(app.Storage.GetValueOnly<List<ApplicationStateEvent>>(AppFSMKeys.StateEvents), Is.SameAs(appEvents));
                     Assert.That(appEvents.Count, Is.EqualTo(1), "entering twice adds the event once");
-                    Assert.That(ReferenceEquals(appEvents[0], stateEvent), Is.True, "the factory resolved the named event");
+                    Assert.That(appEvents[0], Is.SameAs(stateEvent), "the factory resolved the named event");
                     Assert.That(userEvents, Is.Empty, "the user's own list is not the target");
                 }
                 finally { Object.DestroyImmediate(stateEvent); }
