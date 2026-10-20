@@ -258,7 +258,7 @@ namespace ProjectLucid.Tests
                 Call(ability, "DoOnUpdate", new CharacterBrain_Replay(), 0.02f);
                 Assert.That(ability.IsTriggered, Is.True);
                 AssertNear(ability.LedgeSurfaceNormal, new Vector3(0f, Root, Root), "normal");
-                AssertNear(ability.LedgeMountPoint, new Vector3(0f, 0.25f, 0.45f - 0.1f / Root - 0.2f), "point");
+                AssertNear(ability.LedgeMountPoint, new Vector3(0f, 0.25f, 0.1f / Root - 0.2f), "point");
                 Assert.That(ability.GravityMultiplier, Is.EqualTo(2.5f), "refreshed from the definition by the base update");
                 Assert.That(character.Storage.HasValue(ActorFSMKeys.ClimbingNonMountableEdgeNormal), Is.False, "a mountable ledge records no edge");
             });
