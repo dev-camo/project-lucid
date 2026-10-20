@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 02000504; bodies translated from the 1.10.1 x86-64 binary.
+	// Original Game.Runtime 02000504.
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[CreateAssetMenu(fileName = "CharacterAbilityDefinition_ModifierCollectableDamage", menuName = "HardlightProject/DefinitionData/AbilityDef/ModifierCollectableDamage", order = 1)]

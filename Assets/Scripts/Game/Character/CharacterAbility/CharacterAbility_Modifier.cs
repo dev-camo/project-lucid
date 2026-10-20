@@ -35,8 +35,9 @@ namespace HardlightProject
 			}
 		}
 
-		// 060011cc (1.10.1 RVA 0xE63E00); native code tests Definition against null through
-		// UnityEngine.Object.op_Inequality and discards the result.
+		// 060011cc (1.10.1 RVA 0xE63E00); native code compares Definition with null through
+		// UnityEngine.Object.op_Inequality and discards the result, the residue of a call compiled out of
+		// retail; the removed call is not restored.
 		public override void Initialise(Actor actor, AbilityDefinition definition)
 		{
 			base.Initialise(actor, definition);

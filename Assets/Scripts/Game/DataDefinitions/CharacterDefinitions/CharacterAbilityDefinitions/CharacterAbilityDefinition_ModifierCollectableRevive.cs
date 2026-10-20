@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 02000505; bodies translated from the 1.10.1 x86-64 binary.
+	// Original Game.Runtime 02000505.
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[CreateAssetMenu(fileName = "CharacterAbilityDefinition_ModifierCollectableRevive", menuName = "HardlightProject/DefinitionData/AbilityDef/ModifierCollectableRevive", order = 1)]

@@ -68,8 +68,8 @@ namespace ProjectLucid.Tests
         }
 
         // 0x749050: the ability base initialises first, then the boost stamina is updated from the ability's type and
-        // boost definition, passing false for the impulse override (0x7490E1 xor r8d, r8d is the method info; 0x7490D9 mov
-        // esi... the fourth argument register ecx is cleared at 0x7490DE). Initialise needs a started Character, so the
+        // boost definition, passing false for the impulse override (the fourth argument register ecx is
+        // zeroed at 0x7490DE). Initialise needs a started Character, so the
         // order is read from the compiled IL.
         [Test]
         public void GroundBoostInitialiseUpdatesTheBoostStaminaAfterTheBase()

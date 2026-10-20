@@ -2831,6 +2831,31 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterGroundBoostTransitionTests.
     "DeclarationShapeClassFactoryRegistersTheNodesWithTheirArgumentTypes",
     "DeclarationShapeTransitionsAndAbilityKeepTheirMembers",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves05GroundStateTests." + name for name in (
+    "LandingHoldRaisesASlowerVelocityToTheRecordedSpeedAlongItsDirection",
+    "LandingHoldLeavesAFasterVelocityAlone",
+    "LandingHoldEndsOnceTheElapsedTimeExceedsTheWindowButNotAtItsEdge",
+    "LandingHoldIgnoresAZeroRecordedSpeed",
+    "SlopeSettlingAppliesOnlyInsideTheAngleRangeUnderTheMinimumSpeed",
+    "SlopeSettlingUsesTheDefinitionsLimitsWhenItOverridesTheConstants",
+    "RemainTimerIsNotCountedWithoutAnyJumpOrBoostAbility",
+    "RemainTimerCountsDownAndStopsAtZero",
+    "RemainTimerOfZeroLeavesTheQueuedActionsAlone",
+    "ExpiredRemainTimerHandsOverTheQueuedBoostAndResetsTheQueue",
+    "RemainTimerStillRunningDoesNotHandOverTheQueue",
+    "ExpiredRemainTimerKeepsTheQueueWhenNoAbilityTakesIt",
+    "TurnGripCountsDownTheBoostRestoreTimer",
+    "TurnGripIsZeroWhileTheGripRestoreTimerRuns",
+    "TurnGripIsFullWithoutAUsableAgainstGravityCurve",
+    "LedgeDetectionRejectsAnUpDirectionOutsideThePlaneLimitBeforeCasting",
+    "LedgeDetectionRecordsAWalkableHitAheadAndIsNotALedge",
+    "LedgeDetectionTreatsASteepHitAheadAsALedgeWithoutRecording",
+    "LedgeDetectionComparesTheStopRayHeightWithTheLedgeLimit",
+    "LedgeDetectionRecordsTheCharacterPositionWhenBothRaysMiss",
+    "LedgeBrakingDoesNothingForAStationaryCharacter",
+    "LedgeBrakingLeavesAMovingCharacterAloneOutsideThePlaneLimit",
+    "DeclarationShapeGroundStateKeepsItsBaseAndConstraints",
+))
 
 # Original deceleration-curve acceleration branch minss operand order.
 EDITMODE_TESTS += (

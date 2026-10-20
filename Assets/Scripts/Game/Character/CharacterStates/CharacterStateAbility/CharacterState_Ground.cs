@@ -125,7 +125,7 @@ namespace HardlightProject
 			Vector3 lookDirection = (up - character.GravityNormalised * gravityDot).normalized;
 			character.OrientateToPlaneWithLookDirection(character.UpDirection, lookDirection);
 			character.SetWorldVelocity(character.WorldRotation * (Vector3.forward * movementInputSpeedMin));
-			character.Storage.SetValue(ActorFSMKeys.GroundGripRestoreTimer, constants.GripRestoreTime);
+			character.Storage.SetValue(ActorFSMKeys.GroundGripRestoreTimer, character.Constants.GripRestoreTime);
 		}
 
 		// 0600155f (1.10.1 RVA 0xE70670)
@@ -134,10 +134,11 @@ namespace HardlightProject
 			return true;
 		}
 
-		// 06001560 (1.10.1 RVA 0xE70680); while the state has a remaining time and any jump or boost
-		// ability exists, queued jumps and boosts are routed to those abilities. Native code skips the
-		// countdown when none of the four abilities exists. Once the time has run out the character's
-		// queued jump, then queued boost, is handed over and the queue and air buffers are reset.
+		// 06001560 (1.10.1 RVA 0xE70680); native code skips everything when none of the four abilities
+		// exists. While time remains and CanQueueActions(), each ability's current jump/boost request is
+		// rerouted between the plain and one-shot abilities. Once the time runs out, the character's
+		// queued jump is handed over, or failing that its queued boost, and on success the queue and
+		// air buffers are reset.
 		protected override void UpdateRemainTimer(Character character, float deltaTime)
 		{
 			float remain = character.Storage.GetValue(ActorFSMKeys.StateRemainTimer, 0f, true);
@@ -252,7 +253,7 @@ namespace HardlightProject
 			Vector3 heading = MaintainHeading(ability) ? CachedHeading(character) : character.LocalVelocity;
 			float verticalVelocity = heading.y;
 			Vector3 planeVelocity = new Vector3(heading.x, 0f, heading.z);
-			float forwardSpeed = Mathf.Sqrt((float)(heading.x * heading.x) + (float)(heading.z * heading.z));
+			float forwardSpeed = Mathf.Sqrt(heading.x * heading.x + heading.z * heading.z);
 			CharacterTraits.TurnTraits turnTraits = character.Collider.HasLinkedCollisionData && character.Collider.LinkedCollisionData.HasMovementOverride
 				? character.Collider.LinkedCollisionData.MovementOverride.TurnTraits
 				: definition.Turn;
@@ -275,6 +276,7 @@ namespace HardlightProject
 			{
 				character.Storage.SetValue(ActorFSMKeys.GroundBoostRestoreTimer, Mathf.Max(boostRestoreTimer - deltaTime, 0f));
 			}
+			// Native code reads and discards the grip value here, which stores the default on first read.
 			character.Storage.GetValue(ActorFSMKeys.GroundGripValue, 0f, true);
 			float gripRestoreTimer = character.Storage.GetValue(ActorFSMKeys.GroundGripRestoreTimer, 0f, true);
 			float gripValue;
@@ -362,7 +364,8 @@ namespace HardlightProject
 
 		// 06001569 (1.10.1 RVA 0xE725E0); a moving character within reach of a detected ledge stops
 		// when it is on the ledge, and otherwise loses the velocity along the ledge direction in
-		// proportion to its closeness, unless the input steers away from the ledge.
+		// proportion to its closeness, unless the input deliberately points toward the ledge (intent
+		// cosine above the speed-dependent limit).
 		protected virtual void UpdateLedgeBraking(Character character, LedgeBrakeParameters ledgeBrakeParameters)
 		{
 			if (0.0001f >= character.WorldVelocityMagnitude)
@@ -373,7 +376,7 @@ namespace HardlightProject
 			{
 				return;
 			}
-			Vector3 ledgePosition = character.Storage.GetValue(ActorFSMKeys.GroundLedgePosition, Vector3.zero, true);
+			Vector3 ledgePosition = character.Storage.GetValue(ActorFSMKeys.GroundLedgePosition, default(Vector3), true);
 			Vector3 toLedge = ledgePosition - character.WorldPosition;
 			float distance = toLedge.magnitude;
 			Vector3 ledgeDirection = distance < 0.0001f ? character.ForwardDirection : Vector3.ProjectOnPlane(toLedge, character.UpDirection).normalized;
@@ -395,17 +398,20 @@ namespace HardlightProject
 				character.SetWorldVelocity(Vector3.zero);
 				return;
 			}
-			float closeness = 1f - (float)(distance / ledgeBrakeParameters.RaycastDetectDistance);
+			float closeness = 1f - distance / ledgeBrakeParameters.RaycastDetectDistance;
 			float brake = Vector3.Dot(character.WorldVelocity, ledgeDirection) * closeness;
 			character.SetWorldVelocity(character.WorldVelocity - ledgeDirection * brake);
 		}
 
 		// 0600156a (1.10.1 RVA 0xE72AE0); casts down from ahead of the character, and then down and
-		// forward from the character, to find a ledge, recording the ledge position when one is found.
+		// forward from the character, to find a ledge. A steep hit ahead is a ledge and records nothing; a
+		// walkable hit ahead records its point and is not a ledge; otherwise the down-forward ray decides
+		// by a height compared against LedgeCosAngleLimit (as in the original, 0xE7305E), and a miss
+		// records the character position as the ledge.
 		private bool DetectLedgeAhead(Character character, LedgeBrakeParameters ledgeBrakeParameters)
 		{
 			Vector3 gravityNormalised = character.GravityNormalised;
-			if (ledgeBrakeParameters.MaximumCosAngleToPlane > Vector3.Dot(character.WorldUp, character.UpDirection))
+			if (ledgeBrakeParameters.MaximumCosAngleToPlane > Vector3.Dot(-gravityNormalised, character.UpDirection))
 			{
 				return false;
 			}
@@ -420,8 +426,8 @@ namespace HardlightProject
 				character.Storage.SetValue(ActorFSMKeys.GroundLedgePosition, aheadHit.point);
 				return false;
 			}
-			Vector3 downForward = (gravityNormalised + character.ForwardDirection * ledgeBrakeParameters.RaycastStopDistance).normalized;
 			Vector3 stopOrigin = character.Bounds.center + character.UpDirection * character.Bounds.extents.y;
+			Vector3 downForward = (gravityNormalised + character.ForwardDirection * ledgeBrakeParameters.RaycastStopDistance).normalized;
 			if (Physics.Raycast(stopOrigin, downForward, out RaycastHit stopHit, raycastDownDistance, character.TrackMask))
 			{
 				return Vector3.Dot(character.WorldPosition - stopHit.point, character.UpDirection) > ledgeBrakeParameters.LedgeCosAngleLimit;

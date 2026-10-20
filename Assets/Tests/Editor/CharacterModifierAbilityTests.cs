@@ -46,10 +46,10 @@ namespace ProjectLucid.Tests
         // The animation-playing base has no abstract member left, so a leaf only needs to expose its protected members.
         private sealed class EffectProbe : CharacterAbility_ModifierEffect<CharacterAbilityDefinition_ModifierSwitchAvailable>
         {
-            public void Add() => AddModifier(null);
-            public void Remove() => RemoveModifier(null);
-            public void Enter(ActorAnimationDefinition animation) => TriggerAnimationEnter(animation);
-            public void Leave() => TriggerAnimationLeave();
+            public void AddModifierNoTarget() => AddModifier(null);
+            public void RemoveModifierNoTarget() => RemoveModifier(null);
+            public void EnterAnimation(ActorAnimationDefinition animation) => TriggerAnimationEnter(animation);
+            public void LeaveAnimation() => TriggerAnimationLeave();
         }
 
         // Rows that constructors create: the island manager for the Character, the app for every CharacterAbility,
@@ -89,9 +89,9 @@ namespace ProjectLucid.Tests
             return state;
         }
 
-        private static void InvokeAdd(object ability) => Call(ability, "AddModifier", (object)null);
+        private static void InvokeAdd(object ability, CharacterAbility target = null) => Call(ability, "AddModifier", target);
 
-        private static void InvokeRemove(object ability) => Call(ability, "RemoveModifier", (object)null);
+        private static void InvokeRemove(object ability, CharacterAbility target = null) => Call(ability, "RemoveModifier", target);
 
         private static bool ModifiesAbilities(object ability)
         {
@@ -234,11 +234,11 @@ namespace ProjectLucid.Tests
             WithModifierWorld((owned, character, manager) =>
             {
                 EffectProbe ability = BindEffect(owned, character, ActorAbilityType.Character_Jump);
-                ability.Add();
+                ability.AddModifierNoTarget();
                 var handles = Get<List<FullscreenShaderManager.ParametersHandle>>(ability, "m_effectHandleInstance");
                 var dictionary = character.Storage.GetValue<Dictionary<int, List<FullscreenShaderManager.ParametersHandle>>>(ActorFSMKeys.FullscreenEffectDictionary);
                 Assert.That(handles, Is.Not.Null.And.SameAs(dictionary[(int)ActorAbilityType.Character_Jump]));
-                ability.Add();
+                ability.AddModifierNoTarget();
                 Assert.That(Get<List<FullscreenShaderManager.ParametersHandle>>(ability, "m_effectHandleInstance"), Is.SameAs(handles));
             });
         }
@@ -253,13 +253,13 @@ namespace ProjectLucid.Tests
                 EffectProbe ability = BindEffect(owned, character, ActorAbilityType.Character_Jump);
                 ActorAnimationDefinition first = owned.Track(ScriptableObject.CreateInstance<ActorAnimationDefinition>());
                 ActorAnimationDefinition second = owned.Track(ScriptableObject.CreateInstance<ActorAnimationDefinition>());
-                ability.Leave();
+                ability.LeaveAnimation();
                 Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition") == null, Is.True);
-                ability.Enter(first);
+                ability.EnterAnimation(first);
                 Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition"), Is.SameAs(first));
-                ability.Enter(second);
+                ability.EnterAnimation(second);
                 Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition"), Is.SameAs(second));
-                ability.Leave();
+                ability.LeaveAnimation();
                 Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition") == null, Is.True);
             });
         }
@@ -272,15 +272,15 @@ namespace ProjectLucid.Tests
             {
                 EffectProbe ability = BindEffect(owned, character, ActorAbilityType.Character_Jump);
                 ActorAnimationDefinition animation = owned.Track(ScriptableObject.CreateInstance<ActorAnimationDefinition>());
-                ability.Add();
-                ability.Enter(animation);
-                ability.Remove();
+                ability.AddModifierNoTarget();
+                ability.EnterAnimation(animation);
+                ability.RemoveModifierNoTarget();
                 Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition") == null, Is.True);
                 Assert.That(Get<List<FullscreenShaderManager.ParametersHandle>>(ability, "m_effectHandleInstance"), Is.Null);
             });
         }
 
-        // 0xE63C30 leaves the running animation (0xE5181E0 Actor.TriggerAnimationLeave) before it enters the new one
+        // 0xE63C30 leaves the running animation (0x5181E0 Actor.TriggerAnimationLeave) before it enters the new one
         // (0x517870 Actor.TriggerAnimationEnter); 0xE63B90 only leaves.
         [Test]
         public void EnteringLeavesBeforeItEntersTheCharacterAnimation()
@@ -534,22 +534,19 @@ namespace ProjectLucid.Tests
             WithRingSpeed((owned, manager, target, ability, definition) =>
             {
                 Assert.That(target.m_modifierSpeed, Is.Null);
-                InvokeAdd2(ability, target);
+                InvokeAdd(ability, target);
                 Assert.That(target.m_modifierSpeed.Target, Is.SameAs(ability));
                 Assert.That(Get<int>(ability, "m_ringCount"), Is.EqualTo(0), "no ring state");
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
                 Assert.That(target.m_modifierSpeed, Is.Null);
 
                 StateOf(manager, CollectableType.Ring, 7);
-                InvokeAdd2(ability, target);
+                InvokeAdd(ability, target);
                 Assert.That(Get<int>(ability, "m_ringCount"), Is.EqualTo(7), "the collected count, not the total");
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
             });
         }
 
-        private static void InvokeAdd2(object ability, CharacterAbility target) => Call(ability, "AddModifier", target);
-
-        private static void InvokeRemove2(object ability, CharacterAbility target) => Call(ability, "RemoveModifier", target);
 
         // 0x74C300: acceleration, minimum speed, maximum speed and deceleration are multiplied by their own curve sampled
         // at the held ring count.
@@ -563,11 +560,11 @@ namespace ProjectLucid.Tests
                 definition.SpeedMaxMultiplier = AnimationCurve.Constant(0f, 10f, 5f);
                 definition.DecelerationMultiplier = AnimationCurve.Constant(0f, 10f, 7f);
                 StateOf(manager, CollectableType.Ring, 4);
-                InvokeAdd2(ability, target);
+                InvokeAdd(ability, target);
                 float acceleration = 1f, speedMin = 10f, speedMax = 100f, deceleration = 1000f;
                 Apply(target, ref acceleration, ref speedMin, ref speedMax, ref deceleration);
                 Assert.That((acceleration, speedMin, speedMax, deceleration), Is.EqualTo((2f, 30f, 500f, 7000f)));
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
             });
         }
 
@@ -579,12 +576,12 @@ namespace ProjectLucid.Tests
             {
                 definition.AccelerationMultiplier = AnimationCurve.Linear(0f, 0f, 10f, 5f);
                 CollectableState state = StateOf(manager, CollectableType.Ring, 0);
-                InvokeAdd2(ability, target);
+                InvokeAdd(ability, target);
                 state.AdjustCollected(6, false);
                 float acceleration = 2f, speedMin = 1f, speedMax = 1f, deceleration = 1f;
                 Apply(target, ref acceleration, ref speedMin, ref speedMax, ref deceleration);
                 Assert.That(acceleration, Is.EqualTo(2f * 3f).Within(1e-5f), "0.5 per ring times six rings");
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
             });
         }
 
@@ -601,7 +598,7 @@ namespace ProjectLucid.Tests
                 definition.TierDefinitions.Add(CharacterModifierDefinitionTests.Tier(5, low));
                 definition.TierDefinitions.Add(CharacterModifierDefinitionTests.Tier(10, high));
                 CollectableState state = StateOf(manager, CollectableType.Ring, 0);
-                InvokeAdd2(ability, target);
+                InvokeAdd(ability, target);
                 ActorAnimationDefinition Playing() => Get<ActorAnimationDefinition>(ability, "m_animationDefinition");
                 float a = 1f, b = 1f, c = 1f, d = 1f;
 
@@ -625,7 +622,7 @@ namespace ProjectLucid.Tests
                 state.AdjustCollected(4 - state.Collected, false);
                 Apply(target, ref a, ref b, ref c, ref d);
                 Assert.That(Playing() == null, Is.True, "below the lowest tier leaves the animation");
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
             });
         }
 
@@ -639,7 +636,7 @@ namespace ProjectLucid.Tests
                 ActorAnimationDefinition tier = owned.Track(ScriptableObject.CreateInstance<ActorAnimationDefinition>());
                 definition.TierDefinitions.Add(CharacterModifierDefinitionTests.Tier(5, tier));
                 CollectableState state = StateOf(manager, CollectableType.Ring, 5);
-                InvokeAdd2(ability, target);
+                InvokeAdd(ability, target);
                 float a = 1f, b = 1f, c = 1f, d = 1f;
                 Apply(target, ref a, ref b, ref c, ref d);
                 Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition") == null, Is.True, "already at 5 when added");
@@ -648,7 +645,7 @@ namespace ProjectLucid.Tests
                 state.AdjustCollected(1, false);
                 Apply(target, ref a, ref b, ref c, ref d);
                 Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition"), Is.SameAs(tier), "back up to exactly 5");
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
             });
         }
 
@@ -663,12 +660,12 @@ namespace ProjectLucid.Tests
                 var ability = new CharacterAbility_ModifierSwitchAvailable();
                 targetDefinition.SwitchAvailable = false;
                 Assert.That(target.SwitchAvailable, Is.False);
-                InvokeAdd2(ability, target);
+                InvokeAdd(ability, target);
                 Assert.That(target.SwitchAvailable, Is.True);
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
                 Assert.That(target.SwitchAvailable, Is.False);
                 targetDefinition.SwitchAvailable = true;
-                InvokeRemove2(ability, target);
+                InvokeRemove(ability, target);
                 Assert.That(target.SwitchAvailable, Is.True, "the target definition's own flag still holds");
             });
         }

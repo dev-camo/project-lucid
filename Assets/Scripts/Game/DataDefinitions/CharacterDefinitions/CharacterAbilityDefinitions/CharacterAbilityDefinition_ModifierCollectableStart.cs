@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 02000506; bodies translated from the 1.10.1 x86-64 binary.
+	// Original Game.Runtime 02000506.
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[CreateAssetMenu(fileName = "CharacterAbilityDefinition_ModifierCollectableStart", menuName = "HardlightProject/DefinitionData/AbilityDef/ModifierCollectableStart", order = 1)]

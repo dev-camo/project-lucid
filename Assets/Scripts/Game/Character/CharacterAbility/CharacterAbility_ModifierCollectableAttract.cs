@@ -17,8 +17,8 @@ namespace HardlightProject
 			SetAttractTiers(Definition.TierIndex);
 		}
 
-		// 060011d7 (1.10.1 RVA 0x74B470); a positive tier index also listens for collections so the
-		// definition's animation plays, and a zero one stops listening. An empty type list means every type.
+		// 060011d7 (1.10.1 RVA 0x74B470); with a collect animation, a positive tier index
+		// subscribes to collection updates so the animation plays and any other index unsubscribes. An empty type list means every type.
 		private void SetAttractTiers(int tierIndex)
 		{
 			CollectableManager collectableManager = m_collectableManagerRef.Get();

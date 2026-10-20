@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 02000503; bodies translated from the 1.10.1 x86-64 binary.
+	// Original Game.Runtime 02000503.
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[CreateAssetMenu(fileName = "CharacterAbilityDefinition_ModifierCollectableBoost", menuName = "HardlightProject/DefinitionData/AbilityDef/ModifierCollectableBoost", order = 1)]
