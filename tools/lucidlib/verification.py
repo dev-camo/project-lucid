@@ -714,7 +714,8 @@ ISOLATION_SIDE_EFFECTS = {
     # Play Mode. In Edit Mode the OriginalApplicationFsmGapTests StopFullscreenShader
     # cases build a FullscreenShaderManager (a TimeScaledComponent descendant); the
     # isolation report for that class shows this permanent row as the effect of the
-    # type initializer, without the SystemConfiguration row the fixture now releases.
+    # type initializer. The fixture adds the component with an owned TimeCategoryLookup
+    # cached, so the editor Reset/OnValidate never register a SystemConfiguration row.
     "TimeScaledComponent..cctor": {
         "reason": "TimeScaledComponent's type initializer 0x06000ec7 appends the permanent 'Hardlight.TimeManager' "
                   "row that holds its readonly m_timeManagerRef; removing it would detach that reference",

@@ -860,14 +860,28 @@ namespace ProjectLucid.Tests
                 return app;
             }
 
+            // AddComponent sends the editor Reset and OnValidate, which read the TimeScaledComponent_SDT
+            // s_config lookup; with no cached lookup that registers a SystemConfiguration row (GetConfig).
+            // An owned empty lookup stands in while the component is added, and the prior cache is put back.
+            private T AddTimeScaled<T>() where T : Component
+            {
+                FieldInfo config = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+                object prior = config.GetValue(null);
+                var lookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
+                config.SetValue(null, lookup);
+                try { return Component<T>(); }
+                finally
+                {
+                    config.SetValue(null, prior);
+                    Object.DestroyImmediate(lookup);
+                }
+            }
+
             // An inactive manager whose Awake never runs, so its material is only the one
             // supplied here (null leaves the original fault in ApplyParameters reachable).
             public FullscreenShaderManager RegisterFullscreenShaderManager(Material material)
             {
-                // The isolation report showed building the component leaves a default SystemConfiguration
-                // row behind. That row is not permanent, so lease it first and release removes it.
-                m_order.Add(new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>()));
-                FullscreenShaderManager manager = Component<FullscreenShaderManager>();
+                FullscreenShaderManager manager = AddTimeScaled<FullscreenShaderManager>();
                 typeof(FullscreenShaderManager).GetField("m_fullscreenShaderMaterial", Instance).SetValue(manager, material);
                 m_rows[ProcessManager.GetDefaultName<FullscreenShaderManager>()].Register(manager);
                 return manager;
