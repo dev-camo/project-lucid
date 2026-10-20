@@ -83,6 +83,21 @@ namespace ProjectLucid.Tests
             return default(T);
         }
 
+        private static void Write(object target, string name, object value)
+        {
+            for (Type type = target.GetType(); type != null; type = type.BaseType)
+            {
+                FieldInfo field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+                if (field != null)
+                {
+                    field.SetValue(target, value);
+                    return;
+                }
+            }
+
+            Assert.Fail("no field " + name);
+        }
+
         private static object Invoke(object target, string name, params object[] arguments)
         {
             for (Type type = target.GetType(); type != null; type = type.BaseType)
@@ -207,6 +222,11 @@ namespace ProjectLucid.Tests
         // Awake 0x49c870: measures the whole clipped spline, remembers it, and fires every event whose target length is exactly
         // that length, enabled or not (it never calls Check). The target comes from the measured value so the comparison is
         // exact. The component has no ExecuteInEditMode, so the edit mode does not wake it and the test calls Awake itself.
+        // The editor compile differs from the player in two ways, both handled here: the spline setter rebuilds at once unless the
+        // cached play state is set (DreamteckPlayState), and SplineUser.Awake ends with a RebuildImmediate while not playing
+        // (it reads Application.isPlaying directly), whose Build would Check the events from the old length. lastLength is set to
+        // the measured value so that Build has no change to report and only Awake's own exact-length firing is observed (so
+        // Awake's own lastLength write cannot be told apart here).
         [Test]
         public void AwakeMeasuresAndFiresTheEventsWithTheExactLength()
         {
@@ -215,7 +235,7 @@ namespace ProjectLucid.Tests
             float measured = probe.length;
             Assert.That(measured, Is.EqualTo(20f).Within(1e-3f));
 
-            LengthCalculator calculator = NewCalculator();
+            LengthCalculator calculator = DreamteckPlayState.Cache(NewCalculator());
             int[] counter = new int[4];
             calculator.AddEvent(NewEvent(LengthCalculator.LengthEvent.Type.Both, measured, counter, 0));
             calculator.AddEvent(NewEvent(LengthCalculator.LengthEvent.Type.Growing, measured, counter, 1, false));
@@ -223,10 +243,10 @@ namespace ProjectLucid.Tests
             calculator.AddEvent(NewEvent(LengthCalculator.LengthEvent.Type.Both, measured - 1f, counter, 3));
             calculator.spline = computer;
             Assert.That(calculator.length, Is.EqualTo(0f), "nothing measured yet");
+            Write(calculator, "lastLength", measured);
             Invoke(calculator, "Awake");
             Assert.That(calculator.length, Is.EqualTo(measured));
             Assert.That(counter, Is.EqualTo(new[] { 1, 1, 0, 0 }), "the matching targets fire, enabled or not");
-            Assert.That(Read<float>(calculator, "lastLength"), Is.EqualTo(measured));
         }
 
         // Awake 0x49c896 measures from 0.0 to 1.0 through UnclipPercent (CalculateLength 0x4d1eb0), so only the clip range counts:

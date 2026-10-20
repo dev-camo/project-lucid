@@ -243,11 +243,13 @@ namespace ProjectLucid.Tests
 
         // get_targetObject 0x4c8f80 and set_targetObject 0x4c8ff0: the owner is the default target; a new target gets the
         // Transform (or Rigidbody / Rigidbody2D, by the physics mode) of the target object. GetTransform / GetRigidbody /
-        // GetRigidbody2D 0x4c9f50/0x4c9fd0/0x4ca080 read the target object too.
+        // GetRigidbody2D 0x4c9f50/0x4c9fd0/0x4ca080 read the target object too. The setters queue their rebuild in the player build;
+        // the editor compile rebuilds at once (and would apply the Rigidbody motion to the Rigidbody-less owner), so the cached play
+        // state is set (DreamteckPlayState).
         [Test]
         public void TargetObjectReplacesTheOwnerAsTheMovedObject()
         {
-            SplinePositioner positioner = NewPositioner(NewLine());
+            SplinePositioner positioner = DreamteckPlayState.Cache(NewPositioner(NewLine()));
             positioner.transform.position = new Vector3(7f, 7f, 7f);
             GameObject other = NewObject("other");
             other.transform.position = new Vector3(9f, 9f, 9f);
@@ -412,11 +414,12 @@ namespace ProjectLucid.Tests
 
         // OnDidApplyAnimationProperties 0x4c9d90: a position that differs from the last applied one moves the target (SetPercent
         // with the float widened, or SetDistance in the distance mode) with triggers but without junctions; the base then takes
-        // over the clip mirrors.
+        // over the clip mirrors. The base's Rebuild queues in the player build; the editor compile would rebuild at once and apply the
+        // position again, so the cached play state is set (DreamteckPlayState).
         [Test]
         public void AnimatedPositionMovesTheTargetOnce()
         {
-            SplinePositioner positioner = NewPositioner(NewLine());
+            SplinePositioner positioner = DreamteckPlayState.Cache(NewPositioner(NewLine()));
             Write(positioner, "_position", 0.5f);
             Invoke(positioner, "OnDidApplyAnimationProperties");
             Near(positioner.transform.position, new Vector3(10f, 0f, 0f), "percent 0.5");
@@ -434,7 +437,10 @@ namespace ProjectLucid.Tests
 
         // SetPercent 0x4ca1a0 and SetDistance 0x4ca3c0 report the crossed triggers when asked (SetDistance from the result's own
         // percent, with its own copy of the queue loop) and the passed nodes when junctions are asked (SetDistance reports them
-        // after storing the position, but still once).
+        // after storing the position, but still once). CheckTriggers, InvokeTriggers and CheckNodes (SplineTracer) return while
+        // Application.isPlaying is false under UNITY_EDITOR, read directly; the player text after that block cannot run in EditMode
+        // and its queues are private, so the test asserts the edit-mode result: the motion and the stored position happen, and
+        // neither the trigger listeners nor onNode are called, with or without the request.
         [Test]
         public void SetPercentAndSetDistanceReportTriggersAndNodes()
         {
@@ -465,18 +471,20 @@ namespace ProjectLucid.Tests
             Assert.That(points, Is.Empty, "junctions not requested");
             positioner.SetPercent(0.25);
             positioner.SetPercent(0.75, true, true);
-            Assert.That(crossed.Count, Is.EqualTo(1));
-            Assert.That(crossed[0], Is.SameAs(positioner));
-            Assert.That(points, Is.EqualTo(new[] { 1 }));
+            Near(positioner.transform.position, new Vector3(10f, 0f, 5f), "SetPercent moved the target");
+            Assert.That(Read<float>(positioner, "_position"), Is.EqualTo(0.75f));
+            Assert.That(crossed, Is.Empty, "the trigger is not reported while not playing");
+            Assert.That(points, Is.Empty, "the node is not reported while not playing");
 
             positioner.SetPercent(0.1);
             positioner.SetDistance(15f);
-            Assert.That(crossed.Count, Is.EqualTo(1), "SetDistance without a request reports nothing");
-            Assert.That(points.Count, Is.EqualTo(1));
+            Assert.That(crossed, Is.Empty);
+            Assert.That(points, Is.Empty);
             positioner.SetPercent(0.1);
             positioner.SetDistance(15f, true, true);
-            Assert.That(crossed.Count, Is.EqualTo(2), "SetDistance reports the trigger");
-            Assert.That(points, Is.EqualTo(new[] { 1, 1 }), "and the node");
+            Near(positioner.transform.position, new Vector3(10f, 0f, 5f), "SetDistance moved the target");
+            Assert.That(crossed, Is.Empty, "SetDistance reports no trigger while not playing");
+            Assert.That(points, Is.Empty, "and no node");
             Assert.That(Read<float>(positioner, "_position"), Is.EqualTo(0.75f).Within(1e-4f));
         }
 

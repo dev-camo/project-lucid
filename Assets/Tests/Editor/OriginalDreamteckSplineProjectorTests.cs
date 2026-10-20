@@ -168,12 +168,14 @@ namespace ProjectLucid.Tests
 
         // The setters 0x4cb440 (mode), 0x4cb480 (autoProject: only switching on), 0x4cb4c0 (subdivide: only in the Accurate mode),
         // 0x4cb570 (projectTarget) and 0x4cb6e0 (targetObject) queue a rebuild for a changed value; an equal value does nothing.
+        // The queue is the player text of Rebuild; the editor compile rebuilds at once while the cached play state is false, so the
+        // flag is set to what play mode caches (DreamteckPlayState).
         [Test]
         public void SettersQueueARebuildOnlyWhereTheShippedOnesDo()
         {
             SplineComputer computer = NewLine();
             Transform target = NewTarget(new Vector3(4f, 0f, 2f));
-            SplineProjector projector = NewProjector(computer, target);
+            SplineProjector projector = DreamteckPlayState.Cache(NewProjector(computer, target));
             Assert.That(RebuildQueued(projector), Is.False, "RebuildImmediate settled the queue");
 
             projector.autoProject = true;
@@ -249,12 +251,13 @@ namespace ProjectLucid.Tests
         }
 
         // OnSplineChanged 0x4cc2a0: a new computer is projected onto at once from the raw project target field (a projector
-        // without one faults); nothing happens for a cleared computer.
+        // without one faults); nothing happens for a cleared computer. Set_spline only queues the rebuild in the player build (the
+        // editor compile rebuilds at once), so the projectors have the cached play state set (DreamteckPlayState).
         [Test]
         public void ANewComputerIsProjectedOntoAtOnce()
         {
             SplineComputer computer = NewLine();
-            SplineProjector projector = NewObject("projector").AddComponent<SplineProjector>();
+            SplineProjector projector = DreamteckPlayState.Cache(NewObject("projector").AddComponent<SplineProjector>());
             projector.projectTarget = NewTarget(new Vector3(4f, 0f, 2f));
             projector.spline = computer;
             Near(projector.result.position, new Vector3(4f, 0f, 0f), "projected position");
@@ -267,7 +270,7 @@ namespace ProjectLucid.Tests
             Assert.That(projector.result.percent, Is.EqualTo(0.2).Within(1e-4), "Cached mode");
             Near(projector.result.position, new Vector3(4f, 0f, 0f), "projected position");
 
-            SplineProjector accurate = NewObject("accurate").AddComponent<SplineProjector>();
+            SplineProjector accurate = DreamteckPlayState.Cache(NewObject("accurate").AddComponent<SplineProjector>());
             accurate.mode = SplineProjector.Mode.Accurate;
             accurate.subdivide = 5;
             accurate.projectTarget = NewTarget(new Vector3(12f, 0f, 5f));
@@ -281,7 +284,7 @@ namespace ProjectLucid.Tests
             Assert.That(accurate.result.percent, Is.EqualTo(0.75).Within(2e-3), "a cleared computer leaves the result");
 
             // Reset filled the field, so the read of a project target field that is empty needs it cleared.
-            SplineProjector headless = NewObject("headless").AddComponent<SplineProjector>();
+            SplineProjector headless = DreamteckPlayState.Cache(NewObject("headless").AddComponent<SplineProjector>());
             Write(headless, "_projectTarget", null);
             Assert.Throws<NullReferenceException>(() => headless.spline = computer, "no project target field to read");
         }
@@ -401,7 +404,10 @@ namespace ProjectLucid.Tests
         // CalculateProjection 0x4cbeb0 on a looping range (loopSamples, clipFrom >= clipTo; native 0x4cc00d..0x4cc041): reaching the
         // end reports the triggers up to the end (unclipped 1.0) and then continues from the start, so a trigger fires when it lies
         // in [last, end] or in [start, new] - not when it only lies between the two clipped percents. Expected firings are
-        // evaluated from the Forward rule (position >= from and to >= position) over the unclipped ends.
+        // evaluated from the Forward rule (position >= from and to >= position) over the unclipped ends. CheckTriggers and
+        // SplineTrigger.Invoke return while Application.isPlaying is false under UNITY_EDITOR (read directly), and the player text
+        // after that block cannot run in EditMode; the test keeps the end event and the scenario check and asserts that no trigger
+        // is reported in edit mode.
         [Test]
         public void ReachingTheEndOfALoopingRangeContinuesFromTheStart()
         {
@@ -467,11 +473,13 @@ namespace ProjectLucid.Tests
 
             bool[] single = forward(projector.UnclipPercent(last), projector.UnclipPercent(current));
             Assert.That(wrapped, Is.Not.EqualTo(single), "the scenario separates the wrap from a single check");
-            Assert.That(fired, Is.EqualTo(wrapped));
+            Assert.That(fired, Is.EqualTo(new bool[positions.Length]), "no trigger is reported while not playing");
         }
 
         // CalculateProjection 0x4cbeb0 reports the triggers and nodes between the previous and the new percent (the tracer's own
-        // CheckTriggers / CheckNodes), invokes the queued triggers (with the projector) and then the nodes.
+        // CheckTriggers / CheckNodes), invokes the queued triggers (with the projector) and then the nodes. Those tracer methods return
+        // while Application.isPlaying is false under UNITY_EDITOR (read directly), so in EditMode the projection is computed and
+        // neither the trigger listener nor onNode is called (the player text after the #if block cannot run in EditMode).
         [Test]
         public void CalculateProjectionReportsTheTriggersAndNodesItPassed()
         {
@@ -500,17 +508,18 @@ namespace ProjectLucid.Tests
             target.position = new Vector3(10f, 0f, 4f);
             projector.CalculateProjection();
             Assert.That(projector.result.percent, Is.EqualTo(0.7).Within(1e-4));
-            Assert.That(crossed.Count, Is.EqualTo(1));
-            Assert.That(crossed[0], Is.SameAs(projector));
-            Assert.That(points, Is.EqualTo(new[] { 1 }));
+            Assert.That(crossed, Is.Empty, "the trigger is not reported while not playing");
+            Assert.That(points, Is.Empty, "the node is not reported while not playing");
 
             target.position = new Vector3(10f, 0f, 6f);
             projector.CalculateProjection();
-            Assert.That(crossed.Count, Is.EqualTo(1), "0.7 to 0.8 crosses nothing");
-            Assert.That(points.Count, Is.EqualTo(1));
+            Assert.That(projector.result.percent, Is.EqualTo(0.8).Within(1e-4));
+            Assert.That(crossed, Is.Empty);
             target.position = new Vector3(4f, 0f, 2f);
             projector.CalculateProjection();
-            Assert.That(crossed.Count, Is.EqualTo(2), "Double triggers fire backwards too");
+            Assert.That(projector.result.percent, Is.EqualTo(0.2).Within(1e-4));
+            Assert.That(crossed, Is.Empty, "nor backwards");
+            Assert.That(points, Is.Empty);
         }
 
         // LateRun 0x4cbc80: with autoProject the projection is redone only once the project target has moved (the compare is
