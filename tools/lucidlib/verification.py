@@ -6078,6 +6078,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineUserTests." +
     "AnimationPropertiesReplaceTheClipRangeWithTheMirrors",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
     "SetClipRangeAsksTheComputerBeforeComparingTheEnds",
+    "EvaluateReturnsTheUnmodifiedSampleWhileGetSampleReturnsTheModifiedOne",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineUtilityTests." + name for name in (
     "MergeSideValues",
@@ -6115,6 +6116,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineFollowerTests
     "CheckNodesCoversTheBackwardLoopAndTheBeginningEdge",
     "FollowerOverridesRememberTheLastClippedPercent",
     "SerializedLayoutKeepsTheFieldOrderAttributesAndNestedTypes",
+    "ModifiedResultCarriesTheModifiersWhileResultStaysUnmodified",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformModuleTests." + name for name in (
     "FreshModuleKeepsTheShippedDefaults",
@@ -6492,6 +6494,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshTests." +
     "MaterialIdWritesTheTrianglesIntoThatSubmesh",
     "SerializedLayoutKeepsTheFieldOrderAttributesAndNestedTypes",
     "ChannelNestedTypesKeepTheShippedValues",
+    "PlaceBuildsFromTheModifiedSample",
+    "ExtrudeBuildsFromTheModifiedSample",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshChannelTests." + name for name in (
     "FreshChannelKeepsTheShippedDefaults",
@@ -6531,6 +6535,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshDefinitio
     "CopyKeepsTheArraysAndSomeSettings",
     "SubmeshAndVertexGroupKeepTheirData",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
+    "RefreshReturnsFalseForAMeshThatIsNotReadable",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectBenderTests." + name for name in (
     "EnumsKeepTheShippedValues",

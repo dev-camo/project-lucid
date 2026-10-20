@@ -814,5 +814,24 @@ namespace ProjectLucid.Tests
             unityEvent.AddListener(delegate (float percent) { received.Add(percent); });
             typeof(SplineFollower).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(follower, unityEvent);
         }
+
+        // ApplyMotion 0x4ca5f0 copies the result (offset 0x1e8) into the final result (0x228) and runs ModifySample 0x4cf340 on the
+        // copy; modifiedResult (get_modifiedResult 0x4cd5b0) reads the final result and result the unmodified one. A size key over the
+        // whole spline with size 2 covers percent 0.4 with weight 1 (centre range 0.25..0.75), so the sizes are 1 and 1 + 2 = 3.
+        [Test]
+        public void ModifiedResultCarriesTheModifiersWhileResultStaysUnmodified()
+        {
+            SplineFollower follower = NewFollower(NewLine());
+            follower.SetPercent(0.4);
+            Assert.That(follower.modifiedResult.size, Is.EqualTo(1f).Within(1e-5f), "without keys the copy equals the result");
+
+            follower.sizeModifier.AddKey(0.0, 1.0);
+            follower.sizeModifier.keys[0].size = 2f;
+            follower.SetPercent(0.4);
+            Assert.That(follower.result.size, Is.EqualTo(1f).Within(1e-5f), "result is the evaluated sample");
+            Assert.That(follower.modifiedResult.size, Is.EqualTo(3f).Within(1e-5f), "modifiedResult is the modified copy");
+            Near(follower.modifiedResult.position, follower.result.position, "the size key leaves the position alone");
+            Assert.That(follower.modifiedResult.percent, Is.EqualTo(follower.result.percent).Within(1e-9));
+        }
     }
 }

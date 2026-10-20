@@ -890,5 +890,47 @@ namespace ProjectLucid.Tests
             Assert.That(invoke.ReturnType, Is.EqualTo(returnType));
             Assert.That(invoke.GetParameters().Select(p => p.ParameterType.Name + " " + p.Name).ToArray(), Is.EqualTo(new[] { "Double percent" }));
         }
+
+        // Place 0x4beb70 evaluates (0x4bee1b, Evaluate 0x4ca590 does not modify) and then modifies the sample in place (0x4bee28, the
+        // one-argument ModifySample 0x4cf340). An offset key with offset (2, 3) over the whole spline, whose centre range is widened to
+        // 0..1 so that it weighs 1 at percent 0, moves the sample by right * 2 + up * 3 = (0, 0, -2) + (0, 3, 0). The sample frame stays
+        // that of SampleX/Y/Z, so every vertex of the single copy moves by (0, 3, -2).
+        [Test]
+        public void PlaceBuildsFromTheModifiedSample()
+        {
+            SplineMesh generator = _fixture.NewSplineMesh();
+            _fixture.AddTetra(generator, SplineMesh.Channel.Type.Place, 1);
+            generator.RebuildImmediate();
+            NearCopy(Vertices(generator), 0, Vector3.zero, SampleX, SampleY, SampleZ, "without keys");
+
+            generator.offsetModifier.AddKey(new Vector2(2f, 3f), 0.0, 1.0);
+            generator.offsetModifier.keys[0].centerStart = 0.0;
+            generator.offsetModifier.keys[0].centerEnd = 1.0;
+            generator.RebuildImmediate();
+            NearCopy(Vertices(generator), 0, new Vector3(0f, 3f, -2f), SampleX, SampleY, SampleZ, "with the offset key");
+        }
+
+        // Extrude 0x4bde20 evaluates each vertex group (0x4be1e1) and copies the sample into the modified result with the two-argument
+        // ModifySample 0x4cda40 (0x4be1f5), which jumps to 0x4cf340; the matrix is built from the modified copy. The same offset key
+        // (centre range 0..1) weighs 1 at both ends, so the vertices of the single slice of ExtrudeBendsTheVertexGroupsOntoTheSpline
+        // move by (0, 3, -2).
+        [Test]
+        public void ExtrudeBuildsFromTheModifiedSample()
+        {
+            SplineMesh generator = _fixture.NewSplineMesh();
+            _fixture.AddTetra(generator, SplineMesh.Channel.Type.Extrude, 1);
+            generator.offsetModifier.AddKey(new Vector2(2f, 3f), 0.0, 1.0);
+            generator.offsetModifier.keys[0].centerStart = 0.0;
+            generator.offsetModifier.keys[0].centerEnd = 1.0;
+            generator.RebuildImmediate();
+
+            Vector3 shift = new Vector3(0f, 3f, -2f);
+            Vector3[] vertices = Vertices(generator);
+            Assert.That(vertices.Length, Is.EqualTo(4));
+            Near(vertices[0], new Vector3(0f, 0f, 0f) + shift, "group z 0, origin");
+            Near(vertices[1], new Vector3(0f, 0f, -1f) + shift, "group z 0, x axis");
+            Near(vertices[2], new Vector3(0f, 1f, 0f) + shift, "group z 0, y axis");
+            Near(vertices[3], new Vector3(10f, 0f, 0f) + shift, "group z 1 at the end of the span");
+        }
     }
 }

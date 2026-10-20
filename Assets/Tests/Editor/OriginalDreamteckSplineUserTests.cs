@@ -358,5 +358,43 @@ namespace ProjectLucid.Tests
                 Is.EqualTo(new[] { "UpdateMethod" }));
             Assert.That((int)SplineUser.UpdateMethod.LateUpdate, Is.EqualTo(2));
         }
+
+        // Evaluate 0x4ca590 / 0x4cfa80 / 0x4cfb30 only unclip the percent, ask the SampleCollection (0x4cf690, 0x4cfbf0) and clamp the
+        // percent: none of them calls ModifySample (0x4cf340 / 0x4cda40). GetSample 0x4cd330 ends in a jump to ModifySample 0x4cf340.
+        // A size key over the whole spline with size 2 covers percent 0.4 (the centre range 0.25..0.75 of the key's local percent)
+        // with weight 1, so a modified sample is the raw size 1 plus 2 = 3, and the Evaluate results keep the raw size 1.
+        [Test]
+        public void EvaluateReturnsTheUnmodifiedSampleWhileGetSampleReturnsTheModifiedOne()
+        {
+            SplineUser user = NewUser(NewLine());
+            user.sizeModifier.AddKey(0.0, 1.0);
+            user.sizeModifier.keys[0].size = 2f;
+            user.RebuildImmediate();
+
+            SplineSample evaluated = user.Evaluate(0.4);
+            Assert.That(evaluated.size, Is.EqualTo(1f).Within(1e-5f), "Evaluate(percent) does not apply the modifiers");
+            SplineSample byRef = new SplineSample();
+            user.Evaluate(0.4, ref byRef);
+            Assert.That(byRef.size, Is.EqualTo(1f).Within(1e-5f), "Evaluate(percent, ref) does not apply the modifiers");
+            SplineSample[] many = null;
+            user.Evaluate(ref many);
+            Assert.That(many.Length, Is.GreaterThan(0));
+            foreach (SplineSample entry in many)
+            {
+                Assert.That(entry.size, Is.EqualTo(1f).Within(1e-5f), "Evaluate(ref results) does not apply the modifiers");
+            }
+
+            SplineSample modified = evaluated;
+            user.ModifySample(ref modified);
+            Assert.That(modified.size, Is.EqualTo(3f).Within(1e-5f), "ModifySample applies the key to the evaluated sample");
+            Assert.That(evaluated.size, Is.EqualTo(1f).Within(1e-5f), "the evaluated copy is untouched");
+
+            SplineSample raw = new SplineSample();
+            user.GetSampleRaw(1, ref raw);
+            Assert.That(raw.size, Is.EqualTo(1f).Within(1e-5f), "GetSampleRaw is unmodified");
+            SplineSample sample = new SplineSample();
+            user.GetSample(1, ref sample);
+            Assert.That(sample.size, Is.EqualTo(3f).Within(1e-5f), "GetSample is modified (percent 0.5 is inside the centre range)");
+        }
     }
 }

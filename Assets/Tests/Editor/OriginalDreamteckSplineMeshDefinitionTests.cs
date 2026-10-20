@@ -623,5 +623,24 @@ namespace ProjectLucid.Tests
             ParameterInfo write = definition.GetMethod("Write").GetParameters()[1];
             Assert.That(write.HasDefaultValue && (int)write.DefaultValue == -1, Is.True, "forceMaterialId defaults to -1");
         }
+
+        // Refresh 0x4c3750 gives up with false on a mesh that is not readable, before it touches any array (the readable branch is
+        // RefreshReadsTheMeshAndGroupsTheVertices). UploadMeshData(true) drops the CPU copy of the mesh and clears isReadable.
+        [Test]
+        public void RefreshReturnsFalseForAMeshThatIsNotReadable()
+        {
+            Mesh tetra = _fixture.Tetra();
+            SplineMesh.Channel.MeshDefinition definition = new SplineMesh.Channel.MeshDefinition(tetra);
+            Assert.That(definition.vertices.Length, Is.EqualTo(4));
+            tetra.UploadMeshData(true);
+            Assert.That(tetra.isReadable, Is.False, "precondition: the mesh is no longer readable");
+
+            Assert.That(definition.Refresh(), Is.False);
+            Assert.That(definition.vertices.Length, Is.EqualTo(4), "a refused refresh leaves the arrays as they were");
+
+            SplineMesh.Channel.MeshDefinition fresh = new SplineMesh.Channel.MeshDefinition(tetra);
+            Assert.That(fresh.vertices, Is.Empty, "the constructor read nothing");
+            Assert.That(fresh.Refresh(), Is.False);
+        }
     }
 }
