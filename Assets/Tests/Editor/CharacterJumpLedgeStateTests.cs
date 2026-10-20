@@ -160,8 +160,8 @@ namespace ProjectLucid.Tests
         // ---- IL witnesses ----
 
         // The native bodies dispatch SetWorldPosition, SetWorldRotation and SetWorldVelocity through Actor vtable slots
-        // 35, 36 and 37 (+0x368, +0x378, +0x388), which Character overrides; the compiled IL names the overridden Actor
-        // declaration, so the witnesses look those calls up on Actor.
+        // 35, 36 and 37 (+0x368, +0x378, +0x388), and read WorldVelocity through slot 14 (+0x218), all of which Character
+        // overrides; the compiled IL names the overridden Actor declaration, so the witnesses look those calls up on Actor.
 
         // 0xE74070: the form is read before the base entry and again after it, and the ball to ball bool uses both reads; the
         // character leaves the ground, jumping is flagged, the direction is read, and only then is the velocity written; a face
@@ -253,7 +253,7 @@ namespace ProjectLucid.Tests
             int rotation = IndexOf(update, "Actor", "SetWorldRotation");
             Assert.That(new[] { baseUpdate, active, ability, min, store, look, slerp, rotation }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(update, "Quaternion", "LookRotation"), Is.EqualTo(2));
-            Assert.That(Count(update, "Character", "get_WorldVelocity"), Is.EqualTo(1), "read once for both look rotations");
+            Assert.That(Count(update, "Actor", "get_WorldVelocity"), Is.EqualTo(1), "read once for both look rotations");
             Assert.That(GenericArguments(update, "GetValue"), Is.EqualTo(new[] { typeof(bool), typeof(float), typeof(Vector3) }));
 
             List<MethodBase> leave = Calls(typeof(CharacterState_HalfPipeTransfer), "DoOnLeave");
