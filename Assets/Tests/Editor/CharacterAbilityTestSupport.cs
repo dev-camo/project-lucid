@@ -27,10 +27,17 @@ namespace ProjectLucid.Tests
         // App reference row, so both are admitted absent and released while still idle.
         internal static void WithAbility<TAbility, TDefinition>(Action<Owned, CharacterGravityVectorProbe, TAbility, TDefinition> body)
             where TAbility : CharacterAbility, new()
+            where TDefinition : CharacterAbilityDefinition => WithAbility(_ => { }, body);
+
+        // leaseAbilityRows leases the further rows the ability class's own field initialisers create; it runs
+        // inside the cleanup scope before the ability is constructed.
+        internal static void WithAbility<TAbility, TDefinition>(Action<Owned> leaseAbilityRows, Action<Owned, CharacterGravityVectorProbe, TAbility, TDefinition> body)
+            where TAbility : CharacterAbility, new()
             where TDefinition : CharacterAbilityDefinition => Owned.Run(owned =>
         {
             owned.LeaseRow<GameplayIslandManager>();
             owned.LeaseRow<App>();
+            leaseAbilityRows(owned);
             CharacterGravityVectorProbe character = NewCharacter(owned);
             var definition = owned.Track(ScriptableObject.CreateInstance<TDefinition>());
             var ability = new TAbility();

@@ -302,8 +302,13 @@ namespace ProjectLucid.Tests
 
         // ---- CharacterTransition_LightspeedDash and LightspeedDashExit (020003f6, 020003f7) ----
 
+        // CharacterAbility_MovementTracker's field initialisers create the DataManager and CinemachineCameraManager rows.
         private static void WithDash(Action<Owned, CharacterGravityVectorProbe, CharacterAbility_LightspeedDash, TrackManager, InertSpline> body) =>
-            WithAbility<CharacterAbility_LightspeedDash, CharacterAbilityDefinition_LightspeedDash>((owned, character, ability, definition) =>
+            WithAbility<CharacterAbility_LightspeedDash, CharacterAbilityDefinition_LightspeedDash>(owned =>
+            {
+                owned.LeaseRow<DataManager>();
+                owned.LeaseRow<CinemachineCameraManager>();
+            }, (owned, character, ability, definition) =>
             {
                 TrackManager trackManager = owned.Host("Lucid track manager", false).AddComponent<TrackManager>();
                 InertSpline spline = owned.Host("Lucid dash spline", false).AddComponent<InertSpline>();
