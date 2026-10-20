@@ -2912,6 +2912,113 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves06StateTests." + name for n
     "RailMovementLeaveEndsByDetachingTheAbility",
 ))
 
+# Original homing attack abilities, running ability and state, and the rolling and setting transitions with their definitions (gr2-char-moves-07).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DeclarationTests." + name for name in (
+    "DefinitionsKeepTheOriginalShape",
+    "AbilitiesKeepTheOriginalShape",
+    "NodesKeepTheOriginalShape",
+
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DefinitionTests." + name for name in (
+    "ConcreteHomingDefinitionsStartWithTheNativeInitialisers",
+    "ConcreteHomingDefinitionsLeaveEveryOtherValueFieldAtZero",
+    "TargetDistanceIsTheDepthOfTheDetectionBox",
+    "HasTargetTypeSearchesTheAuthoredList",
+    "HasTargetTypeFaultsOnAnUnassignedList",
+    "DefinitionsNameTheirOwnAbilityScript",
+    "DefinitionsAreCreatableFromTheAssetMenu",
+    "GroundHomingDefinitionsAlwaysReportTheirBoostDefinition",
+    "RailsHomingDefinitionStartsAtOneEightyDegreesAndOneUnit",
+    "RailsHomingCalculateCachedValuesSquaresTheDistanceAndRefreshesTheTargetingCache",
+    "FieldsKeepTheirAuthoringAttributesInOrder",
+
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07HomingAttackTests." + name for name in (
+    "TargetZoneSizeAddsTheAdjustmentToTheBoxOfTheCurrentProjection",
+    "TargetZoneOffsetFollowsTheCurrentProjection",
+    "CameraProjectionFlagIsTheAuthoredOne",
+    "SettingTheBoxTransformReplacesOnlyTheDepthAdjustment",
+    "ProjectingFromTheCameraPlacesTheBoxAtTheCameraAndStoresTheDepthToTheCharacter",
+    "ProjectingFromTheCharactersForwardClearsTheAdjustmentAndUsesItsPose",
+    "ProjectingAlongTheInputLooksAtTheIntendedForward",
+    "TheOneShotAttackAlwaysPlacesItsBoxAtTheCharacter",
+    "ActivatingTheBoxObjectTogglesItsActiveState",
+    "TheLockSpeedIsTheVelocityAlongTheTargetClampedBetweenTheMinimumAndMaximum",
+    "TheLockSpeedCanComeFromTheTimeToTheTarget",
+    "NothingLocksWithoutAValidActivatedTargetableTarget",
+    "ADirectionOverrideNeedsAnOverridingActiveTarget",
+    "AComboHitCountsAndRestartsTheBufferTimer",
+    "TheComboBufferCountsDownAndClearsTheComboWhenItRunsOut",
+    "ClearingTheComboResetsTheCount",
+    "AddingAValidTargetPoolsItWithItsMetaDataAndRemovingTakesItBack",
+    "TheHomingMaskKeepsOutTargetsOnOtherLayers",
+    "ATargetIsValidOnlyWhileTheAbilityIsEnabled",
+    "AHitCountsTheComboClearsTheActiveTargetAndDisablesTheTarget",
+    "WithoutAnActiveTargetNothingIsUpdated",
+    "AnActiveTargetWithoutHomingMetaDataIsLeftAlone",
+    "AValidTargetInReachStaysActiveAndAdvancesTheClock",
+    "ATargetInsideTheDeactivationDistanceIsReleasedWithoutCancelling",
+    "TheTimeoutIsExclusiveAndAnUnorderedTimeCountsAsInside",
+    "ATargetThatLeftTheHierarchyIsCancelled",
+    "ActivatingNotifiesTheTargetAndRecordsItsTypeAndAResetClock",
+    "ActivatingWithoutATargetOnlyResetsTheClock",
+    "DeactivatingDropsTheActiveTargetUnlessAOneShotIsActive",
+    "TheDebugTextAddsTheBoxDepthAndTheTargetingAngles",
+    "TheLightspeedDashAttackNeedsAndConsumesTheDashAction",
+    "TheAirTargetAttackNeedsAndConsumesTheHomingAttackPress",
+    "TheOneShotWindowsAreExclusive",
+    "TheOneShotNeedsAPendingTargetNoActiveTargetAndAStoredTimestamp",
+    "ACompletedOneShotPressFiresInsideTheWindowAroundTheClock",
+    "AOneShotPressAtTheStoredTimestampIsIgnored",
+    "ALockRecordsWhenTheOneShotWasPressed",
+    "TheOneShotFlagTracksActivationAndIsRemovedBeforeTheBaseDeactivates",
+    "TheOneShotHooksTheHitCallbackOntoEveryTargetItIsGiven",
+    "TheRollingAttackIsBlockedByASpinDashChargeAndTriggersOnALock",
+    "TheRunningAttackNeedsAQueuedHomingAttackPress",
+    "TheGroundAttackAcceleratesWithItsForwardMotion",
+    "InitialiseSpawnsTheBoxThenHooksItsCallbacksAndDisablesIt",
+    "CloseDestroysTheBoxAfterTheBase",
+    "EnteringAndLeavingToggleTheBoxAfterTheBase",
+    "EnablingTheBoxSwitchesCollisionsBeforeSchedulingTheCallback",
+    "UpdatingRunsTheBaseThenPlacesTheBoxThenHandlesTheAttack",
+    "LeavingClearsTheComboLowersTheTriggerAndDropsAnOwnedTarget",
+    "TheLightspeedDashAttackEndsTheDashImpulseOnEntry",
+    "TheGroundAttackUpdateFeedsTheBoostStaminaLast",
+    "TheRunningAttackReadsTheBoostStaminaAfterTheBase",
+
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TargetingHomingTests." + name for name in (
+    "AFreshAbilityIsNotTriggeredAndNeverOverridesOrProjectsFromTheCamera",
+    "WithoutACameraManagerTheCameraProjectionNeedsTheFlagAndNoControllerMovement",
+    "TheCameraProjectionTestsTheHeadingOverrideBeforeTheInput",
+    "TargetingValuesComeFromTheDefinitionOrItsOverride",
+    "ActivationFollowsTheCharactersTargetingAvailability",
+    "AdditionalSpeedNeedsACurveOfAtLeastTwoKeys",
+    "EnteringKeepsTheTriggerOnlyWhileTheAbilityOwnsTheActiveTarget",
+    "EnteringAnotherAbilitysActiveTargetDropsTheTrigger",
+    "LeavingStartsTheCooldownAndRemovesTheAbilityFromThePool",
+    "ResetClearsOnlyAPendingTargetThatIsValidForTheAbility",
+    "ResetClearsThePendingTargetOfAnAbilityThatCanActivate",
+    "TheImmediateTargetNeedsAnActiveCharacterAndNoActiveTarget",
+
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TransitionTests." + name for name in (
+    "RollingFiresWhileTheRollingTriggerDiffersFromTheInverseFlag",
+    "RollingIsFalseWithoutTheRollingAbilityEvenWhenInverted",
+    "RollingKeepsTheFlagsOfItsJson",
+    "RollingClearsTheVelocityOnlyWhenItFiredAndIsAskedTo",
+    "RollingToRunningFiresWhileTheRollingExitDiffersFromTheInverseFlag",
+    "RollingToRunningReadsAMissingAbilityWithoutATest",
+    "RollingToRunningKeepsTheFlagOfItsJson",
+    "SettingHomingAttackReadsTheSavedHomingAttackMapping",
+    "SettingTransitionsKeepAnOmittedMappingAtNone",
+    "SettingUpdateComparesTheMappingOfTheCharactersSavedSettings",
+    "GroundRunningStateReadsItsAbilityTypeFromItsJson",
+    "DeclarationShapeNodesCarryTheirOriginalGraphAuthoringAttributes",
+    "DeclarationShapeClassFactoryRegistersTheNodesWithTheirArgumentTypes",
+
+))
+
 # Original deceleration-curve acceleration branch minss operand order.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.CharacterMovementDecelerationCurveTests.AccelerationKeepsAnUnorderedSum",

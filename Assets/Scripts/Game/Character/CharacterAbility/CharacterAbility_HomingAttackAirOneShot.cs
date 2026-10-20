@@ -23,7 +23,7 @@ namespace HardlightProject
 			target.ActionOnCharacterHit -= ActionOnCharacterHit;
 		}
 
-		// 06001234 (1.10.1 RVA 0x74EC50); a hit target is simply dropped, there is no combo.
+		// 06001234 (1.10.1 RVA 0x74EC50); a hit removes the target from the pool.
 		private void ActionOnCharacterHit(HomingTarget target)
 		{
 			RemoveTarget(target);

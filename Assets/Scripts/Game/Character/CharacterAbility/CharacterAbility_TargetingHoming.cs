@@ -86,7 +86,7 @@ namespace HardlightProject
 		// 060012ab (1.10.1 RVA 0xE68E70); never assigned here, the homing attack supplies the authored curve.
 		protected virtual AnimationCurve AdditionalSpeedCurve { get; }
 
-		// 060012ac (1.10.1 RVA 0xE68E80); only an idle, active character takes the target.
+		// 060012ac (1.10.1 RVA 0xE68E80); only an active character without an active target takes it.
 		protected bool TrySetTargetImmediately(CharacterTargetObjectData targetObject, Vector3 restoreVelocity, float targetSpeed, float rotationalSpeed = 0f)
 		{
 			if (m_character.IsActive() && !m_character.HomingPool.IsTargetActive())
