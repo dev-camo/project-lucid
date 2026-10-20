@@ -7,6 +7,7 @@ using Dreamteck;
 using Dreamteck.Splines;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace ProjectLucid.Tests
 {
@@ -789,7 +790,8 @@ namespace ProjectLucid.Tests
         // Generate 0x4bcee0 moves the combine index only inside the Extrude and Place loops (0x4bd587 reached from the loop exits
         // 0x4bd749 and 0x4bdb60); the default path 0x4bd580 reloads the old index. A channel with an unknown serialized type
         // therefore leaves its slots unwritten and the next channel takes the slot right after the previous copy. The unwritten
-        // slots stay null, which the final Combine then trips over.
+        // slots stay null, which the final Combine then trips over; RebuildImmediate (0x4cef50) catches that exception and logs
+        // its message instead of throwing.
         [Test]
         public void UnknownChannelTypeDoesNotAdvanceTheCombineIndex()
         {
@@ -800,7 +802,8 @@ namespace ProjectLucid.Tests
             typeof(SplineMesh.Channel).GetField("_type", BindingFlags.Instance | BindingFlags.NonPublic)
                 .SetValue(unknown, (SplineMesh.Channel.Type)7);
 
-            Assert.Throws<NullReferenceException>(() => generator.RebuildImmediate());
+            LogAssert.Expect(LogType.Error, "Object reference not set to an instance of an object");
+            generator.RebuildImmediate();
 
             List<TS_Mesh> combine = DreamteckGeneratorFixture.Field<List<TS_Mesh>>(generator, "_combineMeshes");
             Assert.That(combine.Count, Is.EqualTo(4));
