@@ -4,9 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 0200036e; bodies translated from the 1.10.1 x86-64 binary. While the spin dash charges the
-	// visual proxy rotation is driven from here: the character turns toward the input at a rate given by the angle and
-	// the speed, and the launch animation follows the charge.
+	// Original Game.Runtime 0200036e; bodies translated from the 1.10.1 x86-64 binary.
 	[GraphNodeDefaultName("GroundSpinDashCharge")]
 	[GraphNodeMenuFormat("Character/{0}")]
 	[Il2CppSetOption(Option.NullChecks, false)]
@@ -35,7 +33,7 @@ namespace HardlightProject
 
 		// 0600157f (1.10.1 RVA 0x776E50). The rotation at the start of the update is slerped toward the intended turn
 		// rotation by the angle and speed curves scaled by the delta time (without input it is unchanged), and its
-		// forward direction orients the character on the plane of the collision contact.
+		// forward direction orients the character on the plane of the collision contact normal.
 		protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			float intendedTurnAngle = 0f;
