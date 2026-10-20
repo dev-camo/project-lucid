@@ -17,8 +17,8 @@ namespace ProjectLucid.Tests
     // Restored Game.Runtime CharacterState_Ground<TAbilityDef, TAbility> (TypeDef 0x02000367, shared x86-64 bodies
     // 0xE6FA00..0xE73190), exercised through a concrete leaf closed over the ground boost ability. The character is a
     // real component on an owned inactive host; the ability and the state are built by their real constructors. Each
-    // case cites the native comparison it pins and carries a negative control that flips the predicate. Methods that
-    // need a started Character (camera proxy, boost stamina) are out of reach in Edit Mode and are not covered here.
+    // case cites the native comparison it pins and carries a negative control that flips the predicate. Only the camera
+    // proxy settings need a started Character and are not covered here.
     public sealed class CharMoves05GroundStateTests
     {
         private static readonly Type GroundType = typeof(CharacterState_Ground<CharacterAbilityDefinition_MovementGroundBoost, CharacterAbility_MovementGroundBoost>);
@@ -77,8 +77,6 @@ namespace ProjectLucid.Tests
         }
 
         private static float Stored(Character character, GraphStorageKey key) => character.Storage.TryGetValue(key, out float value) ? value : float.NaN;
-
-        private static bool IsStored(Character character, GraphStorageKey key) => character.Storage.TryGetValue(key, out float _);
 
         // ---- UpdateForLanding (0600155d @0xE6FF90) ----
 
@@ -234,7 +232,7 @@ namespace ProjectLucid.Tests
 
         private static void QueueJump(Character character) => Set(Queue(character), "m_jump", true);
 
-        // 0xE70b9f..0xE70bec: with none of the four jump and boost abilities the countdown is not run at all.
+        // 0xE708A4..0xE708BE: with none of the four jump and boost abilities the countdown is not run at all.
         [Test]
         public void RemainTimerIsNotCountedWithoutAnyJumpOrBoostAbility()
         {
@@ -261,7 +259,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0xE70670: a stored zero is the same as no timer, so nothing is handed over and the queue is kept.
+        // 0xE70826..0xE7082F (ucomiss, jne, jnp): a stored zero is the same as no timer, so nothing is handed over and the queue is kept.
         [Test]
         public void RemainTimerOfZeroLeavesTheQueuedActionsAlone()
         {
@@ -315,6 +313,108 @@ namespace ProjectLucid.Tests
                 Invoke(scene.State, "UpdateRemainTimer", scene.Character, 0.25f);
                 Assert.That(Queue(scene.Character).Jump, Is.True);
                 Assert.That(Get<bool>(scene.Ability, "m_queuedBoost"), Is.False);
+            });
+        }
+
+        // ---- ProcessQueuedBoost (06001562 @0xE70D70) and ProcessQueuedJump (06001561 @0xE70CD0) ----
+
+        private static CharacterAbility_MovementGroundBoostOneShot BoostOneShot(Owned owned, Scene scene, float triggerTimeBefore)
+        {
+            var definition = owned.Track(ScriptableObject.CreateInstance<CharacterAbilityDefinition_MovementGroundBoostOneShot>());
+            definition.TriggerTimeBefore = triggerTimeBefore;
+            var ability = new CharacterAbility_MovementGroundBoostOneShot();
+            Set(ability, "m_character", scene.Character);
+            Set(ability, "m_definition", definition);
+            return ability;
+        }
+
+        private static CharacterAbility_MovementJumpOneShot JumpOneShot(Owned owned, Scene scene, float triggerTimeBefore)
+        {
+            var definition = owned.Track(ScriptableObject.CreateInstance<CharacterAbilityDefinition_JumpOneShot>());
+            definition.TriggerTimeBefore = triggerTimeBefore;
+            var ability = new CharacterAbility_MovementJumpOneShot();
+            Set(ability, "m_character", scene.Character);
+            Set(ability, "m_definition", definition);
+            return ability;
+        }
+
+        private static bool QueuedBoost(object ability) => Get<bool>(ability, "m_queuedBoost");
+
+        private static bool QueuedJump(object ability) => Get<bool>(ability, "m_queuedJump");
+
+        // 0xE70D47..0xE70DEE: the one-shot takes the request while the elapsed time is under its window (jl on
+        // TriggerTimeBefore) and the plain ability is told to drop it; past the window the plain ability takes it and the
+        // one-shot is cleared, but only when a plain ability exists (the clear is skipped by test/je on null at 0xE70DEE).
+        [Test]
+        public void QueuedBoostGoesToTheOneShotInsideItsWindowAndToThePlainAbilityAfterwards()
+        {
+            WithGround((owned, scene) =>
+            {
+                CharacterAbility_MovementGroundBoostOneShot oneShot = BoostOneShot(owned, scene, 0.5f);
+
+                Set(scene.Ability, "m_queuedBoost", true);
+                Assert.That((bool)Invoke(null, "ProcessQueuedBoost", true, 0.2f, scene.Ability, oneShot), Is.True, "inside the window");
+                Assert.That(QueuedBoost(oneShot), Is.True, "the one-shot is queued");
+                Assert.That(QueuedBoost(scene.Ability), Is.False, "the plain ability is cleared");
+
+                Set(oneShot, "m_queuedBoost", true);
+                Assert.That((bool)Invoke(null, "ProcessQueuedBoost", true, 0.8f, scene.Ability, oneShot), Is.True, "past the window");
+                Assert.That(QueuedBoost(oneShot), Is.False, "the one-shot is cleared");
+                Assert.That(QueuedBoost(scene.Ability), Is.True, "the plain ability is queued");
+
+                Set(oneShot, "m_queuedBoost", true);
+                Assert.That((bool)Invoke(null, "ProcessQueuedBoost", true, 0.8f, null, oneShot), Is.False, "past the window with no plain ability");
+                Assert.That(QueuedBoost(oneShot), Is.True, "the one-shot is left as it was");
+
+                Assert.That((bool)Invoke(null, "ProcessQueuedBoost", false, 0.2f, scene.Ability, oneShot), Is.False, "nothing queued");
+            });
+        }
+
+        [Test]
+        public void QueuedJumpGoesToTheOneShotInsideItsWindowAndToThePlainAbilityAfterwards()
+        {
+            WithGround((owned, scene) =>
+            {
+                CharacterAbility_MovementJumpOneShot oneShot = JumpOneShot(owned, scene, 0.5f);
+                var plain = new CharacterAbility_MovementJump();
+                Set(plain, "m_character", scene.Character);
+
+                Set(plain, "m_queuedJump", true);
+                Assert.That((bool)Invoke(null, "ProcessQueuedJump", true, 0.2f, plain, oneShot), Is.True, "inside the window");
+                Assert.That(QueuedJump(oneShot), Is.True, "the one-shot is queued");
+                Assert.That(QueuedJump(plain), Is.False, "the plain ability is cleared");
+
+                Set(oneShot, "m_queuedJump", true);
+                Assert.That((bool)Invoke(null, "ProcessQueuedJump", true, 0.8f, plain, oneShot), Is.True, "past the window");
+                Assert.That(QueuedJump(oneShot), Is.False, "the one-shot is cleared");
+                Assert.That(QueuedJump(plain), Is.True, "the plain ability is queued");
+
+                Set(oneShot, "m_queuedJump", true);
+                Assert.That((bool)Invoke(null, "ProcessQueuedJump", true, 0.8f, null, oneShot), Is.False, "past the window with no plain ability");
+                Assert.That(QueuedJump(oneShot), Is.True, "the one-shot is left as it was");
+
+                Assert.That((bool)Invoke(null, "ProcessQueuedJump", false, 0.2f, plain, oneShot), Is.False, "nothing queued");
+            });
+        }
+
+        // 0xE708C4..0xE70A6A: while time remains and CanQueueActions holds, the plain boost's own trigger is rerouted every
+        // update; here it was triggered 0.2s ago, inside the one-shot's window, and the character's queue is not touched.
+        [Test]
+        public void RemainTimerStillRunningReroutesAnActiveBoostToTheOneShot()
+        {
+            WithGround((owned, scene) =>
+            {
+                CharacterAbility_MovementGroundBoostOneShot oneShot = BoostOneShot(owned, scene, 0.5f);
+                Get<Dictionary<ActorAbilityType, ActorAbility>>(scene.Character, "m_abilities")[ActorAbilityType.Character_MovementGroundBoostOneShot] = oneShot;
+                SetProperty(scene.Ability, "IsTriggered", true);
+                Set(scene.Ability, "m_timeActivated", 9.8f);
+                Set(scene.Ability, "m_queuedBoost", true);
+                scene.Character.Storage.SetValue(ActorFSMKeys.StateRemainTimer, 1f);
+                Invoke(scene.State, "UpdateRemainTimer", scene.Character, 0.25f);
+                Assert.That(QueuedBoost(oneShot), Is.True);
+                Assert.That(QueuedBoost(scene.Ability), Is.False);
+                Assert.That(Stored(scene.Character, ActorFSMKeys.StateRemainTimer), Is.EqualTo(0.75f).Within(Tolerance));
+                Assert.That(Queue(scene.Character).Boost, Is.False);
             });
         }
 
@@ -375,6 +475,60 @@ namespace ProjectLucid.Tests
                 SetProperty(scene.Ability, "GripAgainstGravityMultiplierCurve", new AnimationCurve(new Keyframe(0f, 1f)));
                 Assert.That(TurnGrip(scene, 0.02f), Is.True, "a one-key curve");
                 Assert.That(Stored(scene.Character, ActorFSMKeys.GroundGripTime), Is.EqualTo(0f));
+            });
+        }
+
+        private static bool TurnGripCurves(Scene scene, float deltaTime, out float inputTurn)
+        {
+            object[] arguments = { scene.Character, scene.Ability, deltaTime, Vector3.forward, 0f };
+            bool gripped = (bool)Invoke(scene.State, "UpdateTurnGrip", arguments);
+            inputTurn = (float)arguments[4];
+            return gripped;
+        }
+
+        // 0xE71BBB..0xE71E4E with an upright character (up and world up both +y) facing a camera forward of +z. The grip
+        // time is advanced by AdjustValue; the with-gravity curve is chosen only when world up dotted with the intended
+        // direction is below zero (0xE71C90 ucomiss/seta), so a flat intent (dot exactly zero) uses the against-gravity
+        // curve; the speed curve multiplies when it has any key (0xE71CC2, length above zero); a positive grip steers the turn
+        // input through SignedAngle(camera forward, intended - up * 2 * (1 - grip)) (0xE71D28..0xE71D80); a grip of zero or
+        // less starts the grip restore timer (0xE71D8B) and leaves the turn input alone.
+        [Test]
+        public void TurnGripFollowsTheSlopeCurvesAndSteersTheTurnInput()
+        {
+            WithGround((owned, scene) =>
+            {
+                SlopeConstants(owned, scene);
+                Set(scene.Character, "m_cameraForwardOnCharacterPlane", Vector3.forward);
+                SetProperty(scene.Ability, "GripAgainstGravityMultiplierCurve", AnimationCurve.Linear(0f, 1f, 1f, 0f));
+                SetProperty(scene.Ability, "GripWithGravityMultiplierCurve", AnimationCurve.Constant(0f, 1f, 0.2f));
+
+                scene.Character.Storage.SetValue(ActorFSMKeys.GroundGripTime, 0.4f);
+                Assert.That(TurnGripCurves(scene, 0.1f, out float turn), Is.True);
+                Assert.That(Stored(scene.Character, ActorFSMKeys.GroundGripTime), Is.EqualTo(0.5f).Within(Tolerance));
+                Assert.That(Stored(scene.Character, ActorFSMKeys.GroundGripValue), Is.EqualTo(0.5f).Within(Tolerance), "against gravity at a flat intent");
+                Assert.That(turn, Is.EqualTo(45f).Within(0.01f), "steered toward 2 * (1 - 0.5) below the camera forward");
+
+                SetProperty(scene.Ability, "GripSpeedMultiplierCurve", new AnimationCurve(new Keyframe(0f, 0.5f)));
+                scene.Character.Storage.SetValue(ActorFSMKeys.GroundGripTime, 0.4f);
+                Assert.That(TurnGripCurves(scene, 0.1f, out turn), Is.True);
+                Assert.That(Stored(scene.Character, ActorFSMKeys.GroundGripValue), Is.EqualTo(0.25f).Within(Tolerance), "a one-key speed curve multiplies");
+                SetProperty(scene.Ability, "GripSpeedMultiplierCurve", null);
+
+                // Camera forward tilted below the horizon: world up dotted with the intent is -0.6, so the with-gravity curve applies.
+                Set(scene.Character, "m_cameraForwardOnCharacterPlane", new Vector3(0f, -0.6f, 0.8f));
+                scene.Character.Storage.SetValue(ActorFSMKeys.GroundGripTime, 0.4f);
+                Assert.That(TurnGripCurves(scene, 0.1f, out turn), Is.True);
+                Assert.That(Stored(scene.Character, ActorFSMKeys.GroundGripValue), Is.EqualTo(0.2f).Within(Tolerance), "with gravity");
+                Assert.That(turn, Is.EqualTo(33.147f).Within(0.01f));
+
+                // A curve that gives zero grip starts the restore timer and leaves the turn input unchanged.
+                Set(scene.Character, "m_cameraForwardOnCharacterPlane", Vector3.forward);
+                SetProperty(scene.Ability, "GripAgainstGravityMultiplierCurve", AnimationCurve.Constant(0f, 1f, 0f));
+                scene.Character.Storage.SetValue(ActorFSMKeys.GroundGripTime, 0.4f);
+                Assert.That(TurnGripCurves(scene, 0.1f, out turn), Is.False);
+                Assert.That(Stored(scene.Character, ActorFSMKeys.GroundGripValue), Is.EqualTo(0f));
+                Assert.That(Stored(scene.Character, ActorFSMKeys.GroundGripRestoreTimer), Is.EqualTo(0.75f).Within(Tolerance));
+                Assert.That(turn, Is.EqualTo(0f));
             });
         }
 
@@ -501,6 +655,38 @@ namespace ProjectLucid.Tests
                 scene.Character.SetWorldVelocity(new Vector3(3f, 0f, 0f));
                 Invoke(scene.State, "UpdateLedgeBraking", scene.Character, Ledge(1.5f, 0.7f));
                 Assert.That(scene.Character.WorldVelocity, Is.EqualTo(new Vector3(3f, 0f, 0f)).Using(Vec));
+            });
+        }
+
+        // 0xE72A35..0xE72AD3 with a steep block ahead (a ledge that records nothing) and a ledge position stored 0.5 ahead:
+        // closeness is 1 - 0.5 / 2 = 0.75, so 2.25 of the 3 forward speed is removed along the ledge direction. Dropping the
+        // closeness factor stops the character (0 forward) and using the plain ratio gives 2.25. A ledge at the character's
+        // own position (under 0.0001 away) stops it outright (0xE729D9).
+        [Test]
+        public void LedgeBrakingRemovesVelocityAlongTheLedgeInProportionToItsCloseness()
+        {
+            WithLedgeScene((owned, scene) =>
+            {
+                owned.LeaseRow<SaveManager>();
+                var stamina = new CharacterBoostStamina(scene.Character);
+                try
+                {
+                    SetProperty(scene.Character, "BoostStamina", stamina);
+                    Block(owned, Origin + new Vector3(2f, 0f, 0f), new Vector3(6f, 0.2f, 6f), Quaternion.Euler(0f, 0f, 60f));
+                    scene.Character.Storage.SetValue(ActorFSMKeys.GroundLedgePosition, Origin + new Vector3(0.5f, 0f, 0f));
+                    scene.Character.SetWorldVelocity(new Vector3(3f, 0f, 1f));
+                    Invoke(scene.State, "UpdateLedgeBraking", scene.Character, Ledge(0.5f, 0.7f));
+                    Assert.That(scene.Character.WorldVelocity, Is.EqualTo(new Vector3(0.75f, 0f, 1f)).Using(Vec));
+
+                    scene.Character.Storage.SetValue(ActorFSMKeys.GroundLedgePosition, Origin);
+                    scene.Character.SetWorldVelocity(new Vector3(3f, 0f, 1f));
+                    Invoke(scene.State, "UpdateLedgeBraking", scene.Character, Ledge(0.5f, 0.7f));
+                    Assert.That(scene.Character.WorldVelocity, Is.EqualTo(Vector3.zero).Using(Vec));
+                }
+                finally
+                {
+                    stamina.Close();
+                }
             });
         }
 

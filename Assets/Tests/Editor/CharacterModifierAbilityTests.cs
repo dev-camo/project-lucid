@@ -626,6 +626,28 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x74C4E2 calls TriggerAnimationEnter and falls through to the exit, so one update that crosses two tiers plays
+        // only the first; a walk without the break would end on the last tier.
+        [Test]
+        public void RingSpeedStopsAtTheFirstNewlyReachedTierWhenAnUpdateCrossesTwo()
+        {
+            WithRingSpeed((owned, manager, target, ability, definition) =>
+            {
+                ActorAnimationDefinition low = owned.Track(ScriptableObject.CreateInstance<ActorAnimationDefinition>());
+                ActorAnimationDefinition high = owned.Track(ScriptableObject.CreateInstance<ActorAnimationDefinition>());
+                definition.TierDefinitions.Add(CharacterModifierDefinitionTests.Tier(5, low));
+                definition.TierDefinitions.Add(CharacterModifierDefinitionTests.Tier(10, high));
+                CollectableState state = StateOf(manager, CollectableType.Ring, 0);
+                InvokeAdd(ability, target);
+                state.AdjustCollected(12, false);
+                float a = 1f, b = 1f, c = 1f, d = 1f;
+                Apply(target, ref a, ref b, ref c, ref d);
+                Assert.That(Get<ActorAnimationDefinition>(ability, "m_animationDefinition"), Is.SameAs(low));
+                Assert.That(Get<int>(ability, "m_ringCount"), Is.EqualTo(12));
+                InvokeRemove(ability, target);
+            });
+        }
+
         // 0x74C4CC: a tier whose ring count the previous count already reached is not entered again; both comparisons are
         // inclusive on the new count (0x74C4C7 jl) and exclusive on the old (0x74C4CF jge).
         [Test]
