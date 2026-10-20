@@ -864,6 +864,9 @@ namespace ProjectLucid.Tests
             // supplied here (null leaves the original fault in ApplyParameters reachable).
             public FullscreenShaderManager RegisterFullscreenShaderManager(Material material)
             {
+                // The isolation report showed building the component leaves a default SystemConfiguration
+                // row behind. That row is not permanent, so lease it first and release removes it.
+                m_order.Add(new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<SystemConfiguration>()));
                 FullscreenShaderManager manager = Component<FullscreenShaderManager>();
                 typeof(FullscreenShaderManager).GetField("m_fullscreenShaderMaterial", Instance).SetValue(manager, material);
                 m_rows[ProcessManager.GetDefaultName<FullscreenShaderManager>()].Register(manager);

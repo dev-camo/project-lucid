@@ -470,6 +470,7 @@ class IsolationVerdictTests(unittest.TestCase):
     TIMING = "ProjectLucid.Tests.OriginalGameTimeScaledUtilitiesPreservationTests"
     TIMING_PRESERVATION = "ProjectLucid.Tests.OriginalTimeScaledUtilitiesPreservationTests"
     GAP = "ProjectLucid.Tests.OriginalPerformanceDependencyGapTests"
+    FSM_GAP = "ProjectLucid.Tests.OriginalApplicationFsmGapTests"
     PRESERVATION = "ProjectLucid.Tests.OriginalPerformanceDependencyPreservationTests"
     DESTROY_PLAY = "ProjectLucid.Tests.OriginalPerformanceDependencyDestroyPlayTests"
     CONTROLLER = "ProjectLucid.Tests.ControllerActionTests"
@@ -488,7 +489,8 @@ class IsolationVerdictTests(unittest.TestCase):
         self.assertEqual(tuple(self.native_row_changes("Hardlight.ScalablePerformance")),
                          effects["PerformanceDependency..cctor"]["changes"])
         self.assertEqual({"editmode": (self.TIMING, self.TIMING_PRESERVATION)}, effects["TimeScaledUtilities..cctor"]["fixtures"])
-        self.assertEqual({"playmode": (self.SURFACE_MESH_PLAY,)}, effects["TimeScaledComponent..cctor"]["fixtures"])
+        self.assertEqual({"editmode": (self.FSM_GAP,), "playmode": (self.SURFACE_MESH_PLAY,)},
+                         effects["TimeScaledComponent..cctor"]["fixtures"])
         self.assertEqual({"editmode": (self.GAP, self.PRESERVATION), "playmode": (self.DESTROY_PLAY,)},
                          effects["PerformanceDependency..cctor"]["fixtures"])
         self.assertEqual(tuple(self.native_row_changes("HardlightProject.InputSystem")),

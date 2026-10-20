@@ -710,12 +710,17 @@ ISOLATION_SIDE_EFFECTS = {
     # TimeScaledUtilities above. No other Play Mode fixture runs a
     # TimeScaledComponent descendant; the SurfaceMeshSplineGenerator Awake
     # fixture does (its OnDisable reads the reference), so its first case in
-    # Play Mode order causes these changes once. Not yet recorded natively.
+    # Play Mode order causes these changes once. Not yet recorded natively in
+    # Play Mode. In Edit Mode the OriginalApplicationFsmGapTests StopFullscreenShader
+    # cases build a FullscreenShaderManager (a TimeScaledComponent descendant); the
+    # isolation report for that class shows this permanent row as the effect of the
+    # type initializer, without the SystemConfiguration row the fixture now releases.
     "TimeScaledComponent..cctor": {
         "reason": "TimeScaledComponent's type initializer 0x06000ec7 appends the permanent 'Hardlight.TimeManager' "
                   "row that holds its readonly m_timeManagerRef; removing it would detach that reference",
         "changes": _first_use_row_changes("Hardlight.TimeManager"),
-        "fixtures": {"playmode": ("ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests",)},
+        "fixtures": {"editmode": ("ProjectLucid.Tests.OriginalApplicationFsmGapTests",),
+                     "playmode": ("ProjectLucid.Tests.SurfaceMeshSplineGeneratorAwakeTests",)},
     },
     # PerformanceDependency's static initializer 06000d75 (x86-64 0x1b10280)
     # stores GetSystemRef<ScalablePerformance>(null, true) (0x1b102e1) in its
