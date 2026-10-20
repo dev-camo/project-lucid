@@ -1228,10 +1228,13 @@ namespace ProjectLucid.Tests
         // lossy scale; InverseTransformDirection 0x5051b0 = inverse(rotation) * direction divided likewise.
         // A quarter turn about Y maps (x, y, z) to (z, y, -x), so scaling (1, 1, 1) by (2, 3, 4) first gives
         // (4, 3, -2); rotating first and scaling second would give (2, 3, -4).
+        // The editor compile (EditMode) starts each of the four methods with `if (!isPlaying) return transform.X(...)`, where
+        // isPlaying is the editor-only flag Update caches from Application.isPlaying; the shipped build compiles no such line.
+        // DreamteckPlayState sets that cache to the value play mode gives it, so the shipped arithmetic above is what runs.
         [Test]
         public void PointAndDirectionTransformsScaleThenRotateThenTranslate()
         {
-            TS_Transform snapshot = new TS_Transform(null);
+            TS_Transform snapshot = DreamteckPlayState.Cache(new TS_Transform(null));
             snapshot.position = new Vector3(1f, 0f, 0f);
             snapshot.rotation = Quaternion.Euler(0f, 90f, 0f);
             snapshot.lossyScale = new Vector3(2f, 3f, 4f);
@@ -1274,7 +1277,10 @@ namespace ProjectLucid.Tests
         }
 
         // Original TS_Transform metadata: [Serializable]; five plain bool flags, then _transform and 20 float
-        // fields in this order, each non-bool field with [SerializeField] and [HideInInspector].
+        // fields in this order, each non-bool field with [SerializeField] and [HideInInspector]. The editor compile
+        // (EditMode) declares one more field after lrotW, `private volatile bool isPlaying` under UNITY_EDITOR (the
+        // editor-vs-DummyDll declaration diff lists exactly this addition for TS_Transform); the shipped type has none, and
+        // the player-define compile reproduces the shipped list.
         [Test]
         public void TransformSnapshotKeepsItsSerializedFieldLayout()
         {
@@ -1285,6 +1291,7 @@ namespace ProjectLucid.Tests
                 "setPosition", "setRotation", "setScale", "setLocalPosition", "setLocalRotation", "_transform",
                 "posX", "posY", "posZ", "scaleX", "scaleY", "scaleZ", "lossyScaleX", "lossyScaleY", "lossyScaleZ",
                 "rotX", "rotY", "rotZ", "rotW", "lposX", "lposY", "lposZ", "lrotX", "lrotY", "lrotZ", "lrotW",
+                "isPlaying", // editor-only, declared last in the original text
             };
             Assert.That(Array.ConvertAll(fields, field => field.Name), Is.EqualTo(expected));
             foreach (FieldInfo field in fields)
@@ -1296,14 +1303,17 @@ namespace ProjectLucid.Tests
 
         // Declaration-emission check, inferred from barrier evidence (for example 0x504225 in get_position): every
         // float access is bracketed by memory barriers, the bools and the transform are not. DummyDll carries no
-        // volatile modreq, so this pins the inference only.
+        // volatile modreq, so this pins the inference only. The one bool that is volatile is the editor-only isPlaying cache,
+        // which the original text declares `private volatile bool isPlaying` under UNITY_EDITOR; the shipped type has no such
+        // field, so every shipped bool (and the transform) stays non-volatile.
         [Test]
         public void TransformSnapshotFloatsAreEmittedVolatileFromBarrierEvidence()
         {
             foreach (FieldInfo field in typeof(TS_Transform).GetFields(Own))
             {
                 bool volatileField = Array.IndexOf(field.GetRequiredCustomModifiers(), typeof(IsVolatile)) >= 0;
-                Assert.That(volatileField, Is.EqualTo(field.FieldType == typeof(float)), field.Name + " volatility");
+                bool expectedVolatile = field.FieldType == typeof(float) || field.Name == "isPlaying";
+                Assert.That(volatileField, Is.EqualTo(expectedVolatile), field.Name + " volatility");
             }
         }
     }
