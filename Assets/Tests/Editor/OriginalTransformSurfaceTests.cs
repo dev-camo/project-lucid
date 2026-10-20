@@ -2060,6 +2060,8 @@ namespace ProjectLucid.Tests
                 Set(point, "m_positionStartWorld", Vector3.zero);
                 Assert.That(point.SetPosition(new Vector3(12.0005f, 0f, 0f), transform), Is.False);
                 Assert.That(point.PositionStartWorld, Is.EqualTo(Vector3.zero), "not stored when it did not move");
+                // SetPositionEnd copies the stored start (+0x48 to +0x54, 0x6004c9), so the start is put back first.
+                Set(point, "m_positionStartWorld", new Vector3(12f, 0f, 0f));
 
                 point.SetPositionEnd(new Vector3(99f, 99f, 99f), transform);
                 Near(new Vector3(12f, 0f, 0f), point.PositionEndWorld, "end world");
@@ -2217,6 +2219,8 @@ namespace ProjectLucid.Tests
                 Set(line, "m_positionStartWorld", Vector3.zero);
                 Assert.That(line.SetPosition(new Vector3(12.0005f, 0f, 0f), transform), Is.False);
                 Assert.That(line.PositionStartWorld, Is.EqualTo(Vector3.zero), "not stored when it did not move");
+                // CalculateDistance measures from the stored start (+0x48, 0x5ffde6), so the start is put back first.
+                Set(line, "m_positionStartWorld", new Vector3(12f, 0f, 0f));
                 line.SetPositionEnd(new Vector3(15f, 4f, 0f), transform);
                 Near(new Vector3(15f, 4f, 0f), line.PositionEndWorld, "end world");
                 Near(new Vector3(5f, 4f, 0f), line.PositionEndLocal, "end local");
