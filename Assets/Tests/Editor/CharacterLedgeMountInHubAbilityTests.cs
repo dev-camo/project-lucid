@@ -279,7 +279,9 @@ namespace ProjectLucid.Tests
 
         // 0x7480E9 and 0x748241: with the flag set a hit counts only when it is strictly in front of the plane through the
         // character normal to its forward direction (dot with the unit forward minus the character's, 0x748265 jbe skips
-        // zero and below). The first slab is met at z = -0.0586 and is skipped, the second at z = 0.1 and is kept.
+        // zero and below). The first slab is met at z = -0.0586 and is skipped, the second at z = 0.1 and is kept. Each slab
+        // is 0.5 tall along its tilted face, so only the back ray meets it: the down ray, tried after a skipped hit
+        // (0x74826C jbe to the loop step at 0x748180), would meet the 2 tall slab's face in front of the character at z = 0.25.
         [Test]
         public void IgnoreHitsBehindDropsHitsAtOrBehindTheCharacter()
         {
@@ -290,7 +292,7 @@ namespace ProjectLucid.Tests
                 WithLedge((owned, character, ability, definition) =>
                 {
                     definition.IgnoreHitsBehind = ignore;
-                    MountableSlab(owned, centerZ);
+                    Slab(owned, new Vector3(0f, 0.25f, centerZ), new Vector3(2f, 0.5f, 0.2f), -45f);
                     Assert.That(FindLedges(ability).mountable, Is.EqualTo(expected), "slab at " + centerZ + ", ignoring hits behind " + ignore);
                 });
         }
