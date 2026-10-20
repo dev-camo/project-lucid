@@ -155,7 +155,11 @@ namespace Dreamteck.Splines
                     GetSample(i, ref evalResult);
                 }
 
-                Vector3 center = evalResult.position;
+                Vector3 center = Vector3.zero;
+                try
+                {
+                   center = evalResult.position;
+                } catch (System.Exception ex) { Debug.Log(ex.Message + " for i = " + i); return; }
                 Vector3 right = evalResult.right;
                 float resultSize = GetBaseSize(evalResult);
                 if (hasOffset)

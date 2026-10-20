@@ -561,12 +561,20 @@ namespace Dreamteck.Splines {
 
         void BuildThreaded()
         {
+            while (postBuild)
+            {
+                //Wait if the main thread is still running post build operations
+            }
             Build();
             postBuild = true;
         }
 
         private void ResampleAndBuildThreaded()
         {
+            while (postBuild)
+            {
+                //Wait if the main thread is still running post build operations
+            }
             GetSamples();
             Build();
             postBuild = true;

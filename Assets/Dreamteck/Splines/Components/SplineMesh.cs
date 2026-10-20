@@ -252,8 +252,14 @@ namespace Dreamteck.Splines
 
             for (int i = 0; i < definition.vertexGroups.Count; i++)
             {
-                //0x4BDE20 builds the vertices from the modified copy of the evaluated sample
-                Evaluate(DMath.Lerp(from, to, definition.vertexGroups[i].percent), ref evalResult);
+                if (_useLastResult && i == definition.vertexGroups.Count)
+                {
+                    evalResult = _lastResult;
+                }
+                else
+                {
+                    Evaluate(DMath.Lerp(from, to, definition.vertexGroups[i].percent), ref evalResult);
+                }
                 ModifySample(ref evalResult, ref _modifiedResult);
 
                 Vector3 originalNormal = _modifiedResult.up;
