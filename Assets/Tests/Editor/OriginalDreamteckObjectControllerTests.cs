@@ -17,6 +17,10 @@ namespace ProjectLucid.Tests
     // or the System.Random sequences of the seeds the native Build uses, from the native bodies cited per test. The controllers
     // are plain components on owned game objects; edit mode refuses Destroy, so the copies are removed with DestroyImmediate
     // exactly where the native Remove does so. TearDown destroys everything the test made.
+    // EditMode runs the editor compile of the original text, which adds editor-only code to the shipped methods. The copies
+    // are instantiated through the player path (the editor branch uses PrefabUtility.InstantiatePrefab, which returns null for
+    // a scene object, so retainPrefabInstancesInEditor is switched off), Clear destroys the copies at once while not playing,
+    // and the tests of the queued rebuild cache the play state the way play mode does (DreamteckPlayState).
     public sealed class OriginalDreamteckObjectControllerTests
     {
         private const float Tolerance = 1e-3f;
@@ -89,6 +93,9 @@ namespace ProjectLucid.Tests
         private ObjectController NewBareController(SplineComputer line = null)
         {
             ObjectController controller = NewObject("controller").AddComponent<ObjectController>();
+            // Editor-only option: the sources are scene objects, so the editor text must take the Instantiate branch that is the
+            // whole body of the shipped InstantiateSingle. Nothing is spawned yet, so the setter's Clear/Spawn/Rebuild are no-ops.
+            controller.retainPrefabInstancesInEditor = false;
             if (line != null)
             {
                 controller.spline = line;
@@ -166,6 +173,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void FreshControllerKeepsTheShippedDefaults()
         {
+            Assert.That(NewObject("fresh").AddComponent<ObjectController>().retainPrefabInstancesInEditor, Is.True, "editor-only field initialiser (absent from the shipped layout)");
             ObjectController controller = NewBareController();
             Assert.That(controller.objects, Is.Not.Null);
             Assert.That(controller.objects.Length, Is.EqualTo(0));
@@ -200,12 +208,13 @@ namespace ProjectLucid.Tests
         }
 
         // Every setter 0x4a72c0..0x4a7c10 returns without a rebuild for an equal value and queues exactly one for a new one; the
-        // vector setters compare with Vector3 equality, the rotationOffset setter with both limits.
+        // vector setters compare with Vector3 equality, the rotationOffset setter with both limits. The play state is cached as
+        // play mode does: with it unset the editor text rebuilds at once and the queued build never runs from Update.
         [Test]
         public void SettersQueueARebuildOnlyForChanges()
         {
             SplineComputer line = NewLine();
-            ObjectController controller = NewBareController(line);
+            ObjectController controller = DreamteckPlayState.Cache(NewBareController(line));
             controller.RebuildImmediate();
             int builds = 0;
             controller.onPostBuild += delegate { builds++; };
@@ -943,11 +952,12 @@ namespace ProjectLucid.Tests
         }
 
         // The vector setters compare with Vector3 inequality (squared distance against 1e-10, 0x4a73d2..0x4a73dd) and the
-        // rotationOffset setter does so against both limits (0x4a76b5/0x4a76f6): a difference of 1e-6 queues no rebuild.
+        // rotationOffset setter does so against both limits (0x4a76b5/0x4a76f6): a difference of 1e-6 queues no rebuild (play
+        // state cached, see SettersQueueARebuildOnlyForChanges).
         [Test]
         public void NearlyEqualVectorsQueueNoRebuild()
         {
-            ObjectController controller = NewBareController(NewLine());
+            ObjectController controller = DreamteckPlayState.Cache(NewBareController(NewLine()));
             controller.RebuildImmediate();
             int builds = 0;
             controller.onPostBuild += delegate { builds++; };
@@ -1032,7 +1042,9 @@ namespace ProjectLucid.Tests
         }
 
         // Clear 0x4a7cb0 restores the base scale of every controlled object, deactivates taken over children, and for copies
-        // calls Destroy, which edit mode refuses with an error and leaves the copy standing.
+        // destroys the copies. The editor text does that with DestroyImmediate while not playing; the player text after the
+        // #if UNITY_EDITOR block calls Destroy, which edit mode refuses, so that branch cannot run in EditMode (shipped
+        // coverage of the deferred Destroy is not reachable here).
         [Test]
         public void ClearGivesTheBaseScaleBackAndHidesOrDestroys()
         {
@@ -1057,12 +1069,11 @@ namespace ProjectLucid.Tests
             copies.maxScaleMultiplier = new Vector3(3f, 3f, 3f);
             copies.RebuildImmediate();
             Near(Copy(copies, 0).localScale, new Vector3(6f, 6f, 6f), "scaled copy");
-            LogAssert.Expect(LogType.Error, new Regex("Destroy may not be called from edit mode"));
-            LogAssert.Expect(LogType.Error, new Regex("Destroy may not be called from edit mode"));
+            Transform firstCopy = Copy(copies, 0);
             copies.Clear();
             Assert.That(Spawned(copies).Length, Is.EqualTo(0));
-            Assert.That(copies.transform.childCount, Is.EqualTo(2), "edit mode keeps the copies");
-            Near(Copy(copies, 0).localScale, new Vector3(2f, 2f, 2f), "base scale back");
+            Assert.That(copies.transform.childCount, Is.EqualTo(0), "the editor text destroys the copies at once while not playing");
+            Assert.That(firstCopy == null, Is.True);
         }
 
         // LateRun 0x4a8a20 takes the children over again whenever their number differs from the last count, and only for the
@@ -1203,9 +1214,11 @@ namespace ProjectLucid.Tests
         public void SerializedLayoutKeepsTheFieldOrderAttributesAndNestedTypes()
         {
             BindingFlags flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            // The editor compile adds _retainPrefabInstancesInEditor after _spawnCount (#if UNITY_EDITOR in the text; absent from
+            // the shipped layout and the player-define compile) and shifts the iterator ordinal d__116 of the DummyDll to d__120.
             Assert.That(typeof(ObjectController).GetFields(flags).Select(f => f.Name).ToArray(), Is.EqualTo(new[]
             {
-                "objects", "_evaluateOffset", "_spawnCount", "_objectPositioning", "_iteration", "_randomSeed", "_minOffset",
+                "objects", "_evaluateOffset", "_spawnCount", "_retainPrefabInstancesInEditor", "_objectPositioning", "_iteration", "_randomSeed", "_minOffset",
                 "_maxOffset", "_offsetUseWorldCoords", "_minRotation", "_maxRotation", "_uniformScaleLerp", "_minScaleMultiplier",
                 "_maxScaleMultiplier", "_shellOffset", "_applyRotation", "_rotateByOffset", "_applyScale", "_objectMethod",
                 "delayedSpawn", "spawnDelay", "lastChildCount", "spawned", "_useCustomObjectDistance", "_minObjectDistance",
@@ -1213,7 +1226,7 @@ namespace ProjectLucid.Tests
                 "shellRandomizer", "rotationRandomizer", "scaleRandomizer", "distanceRandomizer"
             }));
             Assert.That(typeof(ObjectController).GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic).Select(t => t.Name).ToArray(),
-                Is.EqualTo(new[] { "ObjectControl", "ObjectMethod", "Positioning", "Iteration", "<InstantiateAllWithDelay>d__116" }));
+                Is.EqualTo(new[] { "ObjectControl", "ObjectMethod", "Positioning", "Iteration", "<InstantiateAllWithDelay>d__120" }));
             Assert.That(typeof(ObjectController).BaseType, Is.EqualTo(typeof(SplineUser)));
             Assert.That(ControlType().IsNestedAssembly, Is.True);
             Assert.That(ControlType().IsSerializable, Is.True);
