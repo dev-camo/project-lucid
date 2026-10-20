@@ -209,9 +209,10 @@ namespace ProjectLucid.Tests
         }
 
         // 0xE79050 0xE79611-0xE79664: a non zero extra angle (anything but exactly zero, so NaN too) rotates the direction
-        // towards the character's gravity by minus the angle in radians (0x29A73AC is -pi/180), that is away from gravity
-        // and never past the direction opposite to it. With gravity along (1, -1, 0) and a direction of up that opposite
-        // direction is (-1, 1, 0) / sqrt 2, reached after 45 degrees.
+        // towards the character's gravity by minus the angle in radians (0x29A73AC is -pi/180), that is away from gravity.
+        // With gravity along (1, -1, 0) and a direction of up the direction opposite gravity, (-1, 1, 0) / sqrt 2, is
+        // reached after 45 degrees; the engine's RotateTowards (0xE7965F, magnitude delta 0) does not stop there for a
+        // negative delta, so 90 degrees turns on to (-1, 0, 0).
         [Test]
         public void ANonZeroExtraAngleRotatesTheDirectionAwayFromGravity()
         {
@@ -227,7 +228,7 @@ namespace ProjectLucid.Tests
                     (0f, Vector3.up),
                     (30f, new Vector3(-0.5f, Mathf.Sqrt(3f) / 2f, 0f)),
                     (45f, new Vector3(-root, root, 0f)),
-                    (90f, new Vector3(-root, root, 0f)),
+                    (90f, new Vector3(-1f, 0f, 0f)),
                 })
                 {
                     character.Storage.SetValue(ActorFSMKeys.JumpAngleExtra, angle);
