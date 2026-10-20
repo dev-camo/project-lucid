@@ -139,6 +139,8 @@ namespace ProjectLucid.Tests
         // projection, the heading across the lip is crossed with the up direction; the cached direction and the
         // character's velocity are projected onto the plane that heading is normal to, and the look rotation the
         // body builds is discarded.
+        // SetWorldVelocity and SetWorldRotation are Actor virtuals, so the IL call targets are declared by Actor even though
+        // the receiver is a Character.
         [Test]
         public void ProjectToHalfPipeCallOrderMatchesTheNative()
         {
@@ -149,12 +151,12 @@ namespace ProjectLucid.Tests
             int cross = IndexOf(calls, "Vector3", "Cross");
             int firstProject = IndexOf(calls, "Vector3", "ProjectOnPlane");
             int secondProject = IndexOf(calls, "Vector3", "ProjectOnPlane", firstProject + 1);
-            int velocity = IndexOf(calls, "Character", "SetWorldVelocity");
+            int velocity = IndexOf(calls, "Actor", "SetWorldVelocity");
             int look = IndexOf(calls, "Quaternion", "LookRotation");
             Assert.That(new[] { begin, project, end, cross, firstProject, secondProject, velocity, look }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(calls, "Vector3", "get_normalized"), Is.EqualTo(2));
             Assert.That(Count(calls, "Vector3", "Dot"), Is.EqualTo(1));
-            Assert.That(Count(calls, "Character", "SetWorldRotation"), Is.EqualTo(0), "the look rotation is not applied");
+            Assert.That(Count(calls, "Actor", "SetWorldRotation"), Is.EqualTo(0), "the look rotation is not applied");
         }
 
         // ---- CharacterAbility_HalfPipeAir (020002cc) ----
@@ -485,6 +487,7 @@ namespace ProjectLucid.Tests
         // 0x777810: the half pipe update first, then (only while the collider is active) the raycast location step and its
         // result flag, the transfer hand-over on a miss, the ground check, and finally the plane projection of the position
         // and velocity before the rotation, in the native order.
+        // SetWorldPosition, SetWorldVelocity and SetWorldRotation are Actor virtuals, so their IL call targets are Actor's.
         [Test]
         public void StateUpdateFollowsTheNativeOrder()
         {
@@ -494,10 +497,10 @@ namespace ProjectLucid.Tests
             int transfer = IndexOf(calls, "CharacterState_HalfPipeAir", "ActivateAbilityTransfer");
             int normalised = IndexOf(calls, "Vector3", "get_normalized");
             int project = IndexOf(calls, "Vector3", "ProjectOnPlane");
-            int position = IndexOf(calls, "Character", "SetWorldPosition");
-            int velocity = IndexOf(calls, "Character", "SetWorldVelocity");
+            int position = IndexOf(calls, "Actor", "SetWorldPosition");
+            int velocity = IndexOf(calls, "Actor", "SetWorldVelocity");
             int look = IndexOf(calls, "Quaternion", "LookRotation");
-            int rotation = IndexOf(calls, "Character", "SetWorldRotation");
+            int rotation = IndexOf(calls, "Actor", "SetWorldRotation");
             Assert.That(new[] { baseUpdate, projectRaycast, transfer, normalised, project, position, velocity, look, rotation }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(calls, "Vector3", "Dot"), Is.EqualTo(2), "one dot per plane distance");
             Assert.That(Count(calls, "ColliderTrackingUtilities", "ProjectColliderRaycastLocation"), Is.EqualTo(1));
@@ -548,16 +551,18 @@ namespace ProjectLucid.Tests
         }
 
         // 0x778850: the half pipe leave first, then the three collider keys are removed and the landing speed, landing
-        // time and boost restore timer stored.
+        // time and boost restore timer stored; the landing speed is stored (0x778b8b) before the time is read
+        // (GetTotalFixedTime, 0x778bb6) for the second store.
         [Test]
         public void StateLeaveRemovesTheColliderKeysThenRecordsTheLanding()
         {
             List<MethodBase> calls = Calls(typeof(CharacterState_HalfPipeAir), "DoOnLeave");
             int baseLeave = IndexOf(calls, "CharacterState_HalfPipe", "DoOnLeave");
             int remove = IndexOf(calls, "IGraphStorage", "RemoveValue");
+            int speedStore = IndexOf(calls, "IGraphStorage", "SetValue");
             int time = IndexOf(calls, "Actor", "GetTotalFixedTime");
-            int store = IndexOf(calls, "IGraphStorage", "SetValue");
-            Assert.That(new[] { baseLeave, remove, time, store }, Is.Ordered.Ascending.And.Unique);
+            int timeStore = IndexOf(calls, "IGraphStorage", "SetValue", speedStore + 1);
+            Assert.That(new[] { baseLeave, remove, speedStore, time, timeStore }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(calls, "IGraphStorage", "RemoveValue"), Is.EqualTo(3));
             Assert.That(Count(calls, "IGraphStorage", "SetValue"), Is.EqualTo(3));
         }
@@ -565,19 +570,21 @@ namespace ProjectLucid.Tests
         // 0xE731C0, 0xE73340 and 0xE73700 on the generic half pipe state: the entry stores the gravity direction, the update either
         // applies the air motion's gravity multiplier and velocity clamp (adjust, then set) or clears both half pipe flags,
         // and the leave removes the stored gravity direction after the ability base.
+        // GravityNormalised and SetWorldVelocity are Actor virtuals (Character overrides the getter), so their IL call
+        // targets are Actor's.
         [Test]
         public void GenericHalfPipeStateStoresAndClearsItsGravityDirection()
         {
             List<MethodBase> enter = Calls(typeof(CharacterState_HalfPipe<,>), "DoOnEnter");
             Assert.That(IndexOf(enter, "CharacterState_Ability", "DoOnEnter"), Is.LessThan(IndexOf(enter, "IGraphStorage", "SetValue")));
-            Assert.That(IndexOf(enter, "Character", "get_GravityNormalised"), Is.LessThan(IndexOf(enter, "IGraphStorage", "SetValue")));
+            Assert.That(IndexOf(enter, "Actor", "get_GravityNormalised"), Is.LessThan(IndexOf(enter, "IGraphStorage", "SetValue")));
 
             List<MethodBase> update = Calls(typeof(CharacterState_HalfPipe<,>), "DoUpdate");
             int baseUpdate = IndexOf(update, "CharacterState_Ability", "DoUpdate");
             int airActive = IndexOf(update, "CharacterAbility_HalfPipe", "get_AirActive");
             int gravity = IndexOf(update, "CharacterAbility_HalfPipe", "GetGravityMultiplier");
             int adjust = IndexOf(update, "ActorState_Ability", "AdjustGravityMultiplier");
-            int velocity = IndexOf(update, "Character", "SetWorldVelocity");
+            int velocity = IndexOf(update, "Actor", "SetWorldVelocity");
             Assert.That(new[] { baseUpdate, airActive, gravity, adjust, velocity }, Is.Ordered.Ascending.And.Unique);
             Assert.That(Count(update, "IGraphStorage", "SetValue"), Is.EqualTo(2), "colliderActive and transferActive");
             // The gravity direction comparison is Vector3 == (0xE734EE-0xE73529 inlines its squared-distance test), decided before the multiplier is read.
