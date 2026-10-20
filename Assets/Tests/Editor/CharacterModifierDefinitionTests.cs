@@ -94,7 +94,8 @@ namespace ProjectLucid.Tests
                 Assert.That((curve[0].time, curve[0].value), Is.EqualTo((0f, 1f)));
                 Assert.That((curve[1].time, curve[1].value), Is.EqualTo((1f, 1f)));
             }
-            Assert.That(curves.Distinct().Count(), Is.EqualTo(4), "one curve per field");
+            // AnimationCurve.Equals compares keys, so distinct instances are counted by reference.
+            Assert.That(curves.Where((curve, index) => curves.Take(index).Any(earlier => ReferenceEquals(earlier, curve))), Is.Empty, "one curve per field");
             Assert.That(definition.TierDefinitions, Is.Not.Null.And.Empty);
 
             Assert.That(Get<Keyframe>(definition, "DefaultKeyframeStart"), Is.EqualTo(new Keyframe(0f, 1f)));
