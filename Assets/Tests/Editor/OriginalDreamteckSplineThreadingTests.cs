@@ -51,6 +51,12 @@ namespace ProjectLucid.Tests
             return (bool)ThreadDefType.GetProperty("computing", AllMembers).GetValue(def, null);
         }
 
+        private static int QueuedCount(object def)
+        {
+            object worker = WorkerOf(def);
+            return ((ICollection)worker.GetType().GetField("instructions", AllMembers).GetValue(worker)).Count;
+        }
+
         private static object WorkerOf(object def)
         {
             return ThreadDefType.GetField("worker", AllMembers).GetValue(def);
@@ -350,24 +356,33 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // Original Run 0x4e38c0: restarts dead threads, queues the handler on the first thread that is not computing (or on the last
-        // one), and interrupts it unless it is already computing.
+        // Original Run 0x4e38c0 restarts dead threads, queues the handler on the first thread that is not computing (or on the last
+        // one) and interrupts it. That loop is the text after the `#if UNITY_EDITOR` block in Run; the editor compile (EditMode,
+        // Application.isPlaying false, read directly) returns after calling the handler synchronously, so the player branch cannot
+        // run here and its selection is not covered (Queue, Interrupt and the worker drain are covered through ThreadDef above).
+        // This test asserts the edit-mode behaviour: the handler runs at once on the calling thread and no pool thread is started.
         [Test]
         public void RunQueuesOnTheFirstIdleThreadAndWakesIt()
         {
             using (PoolScope scope = new PoolScope(2))
             {
-                ManualResetEventSlim ran = new ManualResetEventSlim(false);
                 int ranOn = -1;
-                SplineThreading.Run(() => { ranOn = Thread.CurrentThread.ManagedThreadId; ran.Set(); });
-                Assert.That(ran.Wait(WaitMilliseconds), Is.True);
-                Assert.That(ranOn, Is.EqualTo(ThreadOf(scope.Def(0)).ManagedThreadId), "the first def's thread ran it");
-                Assert.That(ThreadOf(scope.Def(1)), Is.Null, "the second def was never needed, so it was never started");
+                int calls = 0;
+                SplineThreading.Run(() => { ranOn = Thread.CurrentThread.ManagedThreadId; calls++; });
+                Assert.That(calls, Is.EqualTo(1), "the handler ran before Run returned");
+                Assert.That(ranOn, Is.EqualTo(Thread.CurrentThread.ManagedThreadId), "on the calling thread, not a pool thread");
+                Assert.That(ThreadOf(scope.Def(0)), Is.Null, "no pool thread was restarted");
+                Assert.That(ThreadOf(scope.Def(1)), Is.Null);
+                Assert.That(QueuedCount(scope.Def(0)), Is.EqualTo(0));
+                Assert.That(QueuedCount(scope.Def(1)), Is.EqualTo(0));
             }
         }
 
         // Original Run 0x4e38c0 and RunThread 0x4e34a0: a busy first thread sends the next handler to the next def, but every
-        // handler runs under SplineThreading.locker, so the second handler only starts once the first one has returned.
+        // handler runs under SplineThreading.locker, so the second handler only starts once the first one has returned. Run's
+        // player branch cannot run in EditMode (see RunQueuesOnTheFirstIdleThreadAndWakesIt), so the second def is fed through
+        // Queue and Interrupt, the two calls Run makes; the shared lock is RunThread's. Run itself, called while the first thread
+        // computes under the lock, still calls its handler synchronously and neither waits for the lock nor touches the pool.
         [Test]
         public void RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock()
         {
@@ -379,12 +394,20 @@ namespace ProjectLucid.Tests
                 int secondOn = -1;
                 try
                 {
-                    SplineThreading.Run(() => { firstStarted.Set(); releaseFirst.Wait(WaitMilliseconds); });
+                    Invoke(scope.Def(0), "Restart");
+                    Invoke(scope.Def(0), "Queue", (SplineThreading.EmptyHandler)(() => { firstStarted.Set(); releaseFirst.Wait(WaitMilliseconds); }));
+                    Invoke(scope.Def(0), "Interrupt");
                     Assert.That(firstStarted.Wait(WaitMilliseconds), Is.True);
                     Assert.That(Computing(scope.Def(0)), Is.True);
 
-                    SplineThreading.Run(() => { secondOn = Thread.CurrentThread.ManagedThreadId; secondRan.Set(); });
-                    Assert.That(ThreadOf(scope.Def(1)), Is.Not.Null, "the second def was started for it");
+                    int editModeRanOn = -1;
+                    SplineThreading.Run(() => { editModeRanOn = Thread.CurrentThread.ManagedThreadId; });
+                    Assert.That(editModeRanOn, Is.EqualTo(Thread.CurrentThread.ManagedThreadId), "edit-mode Run does not wait for the lock or move on");
+                    Assert.That(ThreadOf(scope.Def(1)), Is.Null);
+
+                    Invoke(scope.Def(1), "Restart");
+                    Invoke(scope.Def(1), "Queue", (SplineThreading.EmptyHandler)(() => { secondOn = Thread.CurrentThread.ManagedThreadId; secondRan.Set(); }));
+                    Invoke(scope.Def(1), "Interrupt");
                     Assert.That(secondRan.Wait(200), Is.False, "the shared lock holds the second handler back");
 
                     releaseFirst.Set();
@@ -401,6 +424,9 @@ namespace ProjectLucid.Tests
 
         // Original Run 0x4e38c0 falls back to the LAST thread when every thread is computing, queues the handler there and does not
         // interrupt it again (it is already running or waiting for the lock); the thread drains the new handler in the same pass.
+        // Run's player branch cannot run in EditMode, where it calls the handler synchronously and queues nothing; the fallback is
+        // exercised on the ThreadDef calls Run makes (Queue without Interrupt on an already computing def), and RunThread's drain
+        // loop is the text under test.
         [Test]
         public void RunQueuesOnTheLastThreadWhenEveryThreadIsBusy()
         {
@@ -412,15 +438,26 @@ namespace ProjectLucid.Tests
                 List<string> order = new List<string>();
                 try
                 {
-                    SplineThreading.Run(() => { firstStarted.Set(); releaseFirst.Wait(WaitMilliseconds); });
+                    Invoke(scope.Def(0), "Restart");
+                    Invoke(scope.Def(0), "Queue", (SplineThreading.EmptyHandler)(() => { firstStarted.Set(); releaseFirst.Wait(WaitMilliseconds); }));
+                    Invoke(scope.Def(0), "Interrupt");
                     Assert.That(firstStarted.Wait(WaitMilliseconds), Is.True);
-                    SplineThreading.Run(() => { lock (order) { order.Add("second:" + Thread.CurrentThread.ManagedThreadId); } });
+
+                    Invoke(scope.Def(1), "Restart");
+                    Invoke(scope.Def(1), "Queue", (SplineThreading.EmptyHandler)(() => { lock (order) { order.Add("second:" + Thread.CurrentThread.ManagedThreadId); } }));
+                    Invoke(scope.Def(1), "Interrupt");
                     Assert.That(WaitUntil(() => Computing(scope.Def(1))), Is.True, "the second thread is awake, waiting for the lock");
 
-                    SplineThreading.Run(() => { lock (order) { order.Add("third:" + Thread.CurrentThread.ManagedThreadId); } thirdRan.Set(); });
-                    object worker = WorkerOf(scope.Def(1));
-                    int queued = ((ICollection)worker.GetType().GetField("instructions", AllMembers).GetValue(worker)).Count;
-                    Assert.That(queued, Is.GreaterThanOrEqualTo(1), "the third handler joined the last thread's queue");
+                    // Every thread is busy now: the handler goes to the last def's queue without another interrupt.
+                    Invoke(scope.Def(1), "Queue", (SplineThreading.EmptyHandler)(() => { lock (order) { order.Add("third:" + Thread.CurrentThread.ManagedThreadId); } thirdRan.Set(); }));
+                    Assert.That(QueuedCount(scope.Def(1)), Is.GreaterThanOrEqualTo(1), "the third handler joined the last thread's queue");
+
+                    // Run called in this state still runs its handler synchronously and leaves the queues alone.
+                    int queuedBefore = QueuedCount(scope.Def(1));
+                    int syncCalls = 0;
+                    SplineThreading.Run(() => syncCalls++);
+                    Assert.That(syncCalls, Is.EqualTo(1));
+                    Assert.That(QueuedCount(scope.Def(1)), Is.EqualTo(queuedBefore));
 
                     releaseFirst.Set();
                     Assert.That(thirdRan.Wait(WaitMilliseconds), Is.True);
@@ -434,8 +471,11 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // Original threadCount 0x4e2db0 / 0x4e2e30: the getter is the pool length; the setter only ever grows the pool, starting each
-        // added thread, and a smaller value changes nothing.
+        // Original threadCount 0x4e2db0 / 0x4e2e30: the getter is the pool length; the setter only ever grows the pool and a smaller
+        // value changes nothing. The shipped setter calls Restart on each added def; the original text guards that call with
+        // `#if UNITY_EDITOR if (Application.isPlaying)` (read directly), so in EditMode the added defs are not started and the
+        // player branch (an unconditional Restart) cannot run here. That start is therefore not covered; the edit-mode result
+        // (added defs exist, hold no thread) is asserted.
         [Test]
         public void ThreadCountOnlyGrowsAndStartsTheNewThreads()
         {
@@ -450,8 +490,11 @@ namespace ProjectLucid.Tests
                 Assert.That(SplineThreading.threadCount, Is.EqualTo(4));
                 Assert.That(ThreadOf(scope.Def(0)), Is.Null, "existing defs are not started by the setter");
                 Assert.That(ThreadOf(scope.Def(1)), Is.Null);
-                Assert.That(IsAlive(scope.Def(2)), Is.True, "added defs are started immediately");
-                Assert.That(IsAlive(scope.Def(3)), Is.True);
+                Assert.That(scope.Def(2), Is.Not.Null, "added defs are fresh ThreadDefs");
+                Assert.That(scope.Def(3), Is.Not.Null);
+                Assert.That(ThreadOf(scope.Def(2)), Is.Null, "edit mode: the editor-only isPlaying guard skips the Restart");
+                Assert.That(IsAlive(scope.Def(2)), Is.False);
+                Assert.That(IsAlive(scope.Def(3)), Is.False);
 
                 SplineThreading.threadCount = 3;
                 Assert.That(SplineThreading.threadCount, Is.EqualTo(4));

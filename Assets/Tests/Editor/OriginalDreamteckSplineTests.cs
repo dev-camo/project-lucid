@@ -99,7 +99,9 @@ namespace ProjectLucid.Tests
 
         // Original moveStep 0x4da4a0 and iterations 0x4da500. Linear: iterations = points (+1 closed), moveStep = 1f / (points - 1)
         // for open and closed alike. Other types: (sampleRate - 1) * (points, or points - 1 open) segments, iterations = that + 1 and
-        // moveStep = 1f / segments; the reciprocal is a float divided before widening to double.
+        // moveStep = 1f / segments. The text has no cast, and the compiled editor IL has no conv.r4 after the div (only conv.r8), so
+        // the editor's Mono keeps the quotient at double precision (1.0 / n) while the shipped build divides in float (divss, then
+        // cvtss2sd). Both are asserted: the editor value exactly, and that it narrows to the float the shipped build returns.
         [Test]
         public void MoveStepAndIterationsFollowTheSplineTypeAndClosure()
         {
@@ -107,22 +109,30 @@ namespace ProjectLucid.Tests
 
             Spline linear = Build(Spline.Type.Linear, square);
             Assert.That(linear.iterations, Is.EqualTo(4));
-            Assert.That(linear.moveStep, Is.EqualTo((double)(1f / 3f)));
+            AssertMoveStep(linear.moveStep, 3);
             linear.Close();
             Assert.That(linear.iterations, Is.EqualTo(5));
-            Assert.That(linear.moveStep, Is.EqualTo((double)(1f / 3f)), "Linear moveStep ignores closure");
+            AssertMoveStep(linear.moveStep, 3, "Linear moveStep ignores closure");
 
             Spline bezier = Build(Spline.Type.Bezier, square);
             Assert.That(bezier.iterations, Is.EqualTo(9 * 3 + 1));
-            Assert.That(bezier.moveStep, Is.EqualTo((double)(1f / 27f)));
+            AssertMoveStep(bezier.moveStep, 27);
             bezier.Close();
             Assert.That(bezier.iterations, Is.EqualTo(9 * 4 + 1));
-            Assert.That(bezier.moveStep, Is.EqualTo((double)(1f / 36f)));
+            AssertMoveStep(bezier.moveStep, 36);
 
             Spline coarse = new Spline(Spline.Type.CatmullRom, 4);
             coarse.points = new[] { new SplinePoint(Vector3.zero), new SplinePoint(Vector3.right), new SplinePoint(Vector3.up) };
             Assert.That(coarse.iterations, Is.EqualTo(3 * 2 + 1));
-            Assert.That(coarse.moveStep, Is.EqualTo((double)(1f / 6f)));
+            AssertMoveStep(coarse.moveStep, 6);
+        }
+
+        // moveStep is `1f / n` returned as double without a cast: the editor Mono result is 1.0 / n, the shipped (float) result is
+        // 1f / n widened. The float narrowing of the editor value is that shipped float.
+        private static void AssertMoveStep(double actual, int n, string message = null)
+        {
+            Assert.That(actual, Is.EqualTo(1.0 / n), message);
+            Assert.That((float)actual, Is.EqualTo(1f / n), message);
         }
 
         // Original knotParametrization setter 0x4da580 clamps to [0, 1] (Mathf.Clamp01); the moveStep setter 0x4da560 is empty.
@@ -495,7 +505,9 @@ namespace ProjectLucid.Tests
         public void EvaluateIntoAnArrayWalksFromFloorToCeilAndRepeatsTheEndPercent()
         {
             Spline spline = Build(Spline.Type.Linear, Vector3.zero, new Vector3(3f, 0f, 0f), new Vector3(6f, 0f, 0f), new Vector3(9f, 0f, 0f));
-            double step = (double)(1f / 3f);
+            // The editor's moveStep is 1.0 / 3 (double precision, see MoveStepAndIterationsFollowTheSplineTypeAndClosure); the
+            // shipped float step 1f / 3 differs from it by about 1e-8.
+            double step = 1.0 / 3.0;
 
             SplineSample[] samples = null;
             spline.Evaluate(ref samples);
@@ -543,7 +555,8 @@ namespace ProjectLucid.Tests
             SplineSample[] samples = null;
             spline.Evaluate(ref samples);
             Assert.That(samples.Length, Is.EqualTo(19));
-            Assert.That(samples[1].percent, Is.EqualTo((double)(1f / 18f)).Within(1e-12), "a step read after the reopen would be 1 / 9");
+            Assert.That(samples[1].percent, Is.EqualTo(1.0 / 18.0).Within(1e-12), "a step read after the reopen would be 1 / 9");
+            Assert.That((float)samples[1].percent, Is.EqualTo(1f / 18f), "the float step the shipped build walks with");
             Assert.That(ReadClosed(spline), Is.False);
         }
 
