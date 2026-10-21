@@ -57,6 +57,19 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x5C0C19..0x5C0C28: the search stops at the first band whose distance is not exceeded, so a later band
+        // with a smaller distance is never reached.
+        [Test]
+        public void TheSearchStopsAtTheFirstBandThatIsNotExceededEvenWhenALaterBandIsSmaller()
+        {
+            Owned.Run(owned =>
+            {
+                MissionScorerProximityEvaluator evaluator = NewEvaluator<MissionScorerProximityEvaluator>(owned,
+                    Band(0f, 10f), Band(5f, 20f), Band(2f, 30f));
+                Assert.That(evaluator.Evaluate(null, NewOther(owned, new Vector3(0f, 0f, 3f)), out _), Is.EqualTo(10f));
+            });
+        }
+
         [Test]
         public void TheSelectedBandSuppliesTheAnimationAlongWithTheScore()
         {

@@ -8177,6 +8177,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.GenericTriggerStateTests." + name fo
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerEvaluatorTests." + name for name in (
     "TheLastBandWhoseDistanceIsStrictlyExceededScores",
+    "TheSearchStopsAtTheFirstBandThatIsNotExceededEvenWhenALaterBandIsSmaller",
     "TheSelectedBandSuppliesTheAnimationAlongWithTheScore",
     "OnlyTheEnabledLocalAxesContributeToTheDistance",
     "AllThreeAxesAreEnabledByDefault",
@@ -8199,7 +8200,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionInstancedTrackerTests." + nam
     "ResettingACompletedObjectiveWithdrawsItFromTheCount",
     "TheIconIsTheFirstIncompleteObjectivesOrTheFirstObjectivesOnceAllAreComplete",
     "PersistedObjectiveCompletionIsRecordedInTheSaveAndNeedsNoStartedMission",
-    "SavedObjectiveCompletionIsRestoredOnlyForAPersistentDefinition",
+    "SavedObjectiveCompletionIsRestoredOnlyForAPersistentDefinitionThatIsNotATimeTrial",
+    "ATrackerThatDoesNotPersistRestoresSavedObjectivesOnlyWhileTheSavedProgressIsZero",
+    "AContextListingTheActiveObjectivesCountsThemAndRemovesTheOthers",
+    "AStreakCompletedByTheObjectiveAddsItsScoreAsASecondBatch",
     "AReplayContextIgnoresSavedProgressAndSuppliesTheTarget",
     "ResettingTheMissionResetsItsObjectivesAndRequiresARestart",
     "ResettingACompleteMissionLeavesItsObjectivesComplete",
@@ -8243,6 +8247,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionCollectableRewardTrackerTests
     "EnteringATriggerTwiceTracksItOnceAndLeavingItResetsTheMeasurements",
     "CompletingTheMissionStopsTrackingByEmptyingTheActiveTriggers",
     "TheMeasurementsFollowTheDistanceToTheFirstRewardAndTheCameraFacing",
+    "CollectionInProgressFollowsTheFirstRewardsTriggeredFlagEachTick",
     "WithoutACurrentCharacterTheMeasurementsAreLeftAlone",
     "DeclarationKeepsTheAuthoredDefaults",
 ))
@@ -8257,6 +8262,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionInstancedProgressUiTests." + 
     "ACountAlreadyAtItsTargetDoesNotTick",
     "ANewlyCompletedIndexBeyondTheSlotsIsSkipped",
     "DisablingWithoutADefinitionDoesNothing",
+    "SetupCountsUpOnlyForAnAnimatedIncreaseThatDidNotStartAtTheTarget",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerPrefabPoolTests." + name for name in (
     "TheLastQualityEntryOfTheActiveLevelSuppliesTheDistanceAndRefreshRate",
@@ -8265,4 +8271,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerPrefabPoolTests." + nam
     "StartPoolsOnlyTheObjectivesOfTheConfiguredTypeAndRequestsTheRefresh",
     "TheRefreshWaitsTheConfiguredIntervalWhenThereIsNoCurrentCharacter",
     "ARefreshDespawnsIncompleteObjectivesOutOfRangeAndSkipsCompletedOnes",
+    "ARefreshSpawnsAnInstanceForAnInRangeObjectiveAndBindsItsEvaluator",
+    "ARefreshLeavesTheObjectiveInactiveWhenThePoolHasNoFreeInstance",
 ))

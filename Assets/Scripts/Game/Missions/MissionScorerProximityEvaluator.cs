@@ -50,9 +50,9 @@ namespace HardlightProject
         [SerializeField]
         private List<TargetDistanceDefinition> m_targetDistanceDefinitions;
 
-        // 06002798 (0x5C0A70): list[0] is read before the count is tested, so an empty list throws at the indexer (the
-        // native count <= 0 fallback that writes null/0 is unreachable); it is the fallback definition. Later definitions replace it while the distance is strictly greater than theirs; a null entry
-        // or the first definition that is not exceeded ends the search.
+        // 06002798 (0x5C0A70): list[0] is read before the count is tested, so an empty list throws there and the native
+        // count <= 0 path that writes null/0 is unreachable. list[0] is the fallback; later definitions replace it while
+        // the distance is strictly greater than theirs, and a null entry or the first one not exceeded ends the search.
         public override float Evaluate(MissionObjective missionObjective, Transform otherTransform,
             out ActorAnimationDefinition animationDefinition)
         {

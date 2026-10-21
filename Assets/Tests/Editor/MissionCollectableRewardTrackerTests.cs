@@ -228,6 +228,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x5ABEA3..0x5ABEAA: each tick copies the first reward's triggered flag (reward+0xC8) into CollectionInProgress.
+        [Test]
+        public void CollectionInProgressFollowsTheFirstRewardsTriggeredFlagEachTick()
+        {
+            InitialiseCollectable();
+            WithCharacterWorld((world, manager, character) =>
+            {
+                Rig rig = Build(world, new[] { new Vector3(0f, 0f, 10f), Vector3.zero }, new Bounds(Vector3.zero, new Vector3(60f, 80f, 0f)));
+                Call(rig.Tracker, "Start");
+                CharacterTriggerTestSupport.SetCurrent(manager, character, true);
+                Set(character, "m_cameraForward", Vector3.forward); // Reflection: set by Character.Update from the camera
+                var tracking = (IEnumerator)Call(rig.Tracker, "TrackCharacterProximity");
+
+                // Reflection: the flag is set by the collectable's trigger entry, which needs a started collider and character.
+                Set(rig.Rewards[0], "m_hasBeenTriggered", true);
+                tracking.MoveNext();
+                Assert.That(rig.Tracker.CollectionInProgress, Is.True);
+                Set(rig.Rewards[0], "m_hasBeenTriggered", false);
+                tracking.MoveNext();
+                Assert.That(rig.Tracker.CollectionInProgress, Is.False);
+            });
+        }
+
         // 0x5ABDB8: with no valid current character the tick yields without touching the measurements.
         [Test]
         public void WithoutACurrentCharacterTheMeasurementsAreLeftAlone()

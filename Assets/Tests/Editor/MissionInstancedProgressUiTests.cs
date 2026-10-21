@@ -3,17 +3,20 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
+using static ProjectLucid.Tests.MissionTrackerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
     // The instanced-mission progress view: UIContainerInstancedMissionProgressParameters (ctor 0x63D620),
     // UIWidgetSDTSlot (0x6A2460..0x6A24B0) and UIContainerMissionInstancedProgress (SetupOrderedObjectives 0x63C740,
-    // the AnimateProgressDelta state machine 0x63D160, OnDisable 0x63CEB0). Setup itself loads an icon through
-    // Addressables and is not exercised here.
+    // the AnimateProgressDelta state machine 0x63D160, OnDisable 0x63CEB0). Setup's reward icon is a definition that
+    // already holds its loaded sprite, so no Addressables load is made.
     public sealed class MissionInstancedProgressUiTests
     {
         private static UIContainerMissionInstancedProgress NewContainer(Owned owned, int slotCount, bool ordered = true)
@@ -231,6 +234,51 @@ namespace ProjectLucid.Tests
                 UIContainerMissionInstancedProgress container = NewContainer(owned, 0, ordered: false);
                 Assert.DoesNotThrow(() => Call(container, "OnDisable"));
             });
+        }
+
+        // Setup 0x63C4EA..0x63C69D: the display counts up only for an animated increase (previous < progress) that did not
+        // start at the target; a count-up shows the previous progress and defers completion, otherwise the progress is
+        // shown and completion is progress == target.
+        [Test]
+        public void SetupCountsUpOnlyForAnAnimatedIncreaseThatDidNotStartAtTheTarget()
+        {
+            // (animate, previous, progress, target) -> (counting up, shown progress, complete)
+            var rows = new (bool animate, int previous, int progress, int target, bool countingUp, int shown, bool complete)[]
+            {
+                (true, 2, 3, 2, false, 3, false), // started at the target
+                (true, 1, 3, 3, true, 1, false),  // reaching the target is still a count-up
+                (false, 1, 3, 3, false, 3, true), // not animated
+                (true, 3, 3, 3, false, 3, true),  // no increase
+            };
+            foreach ((bool animate, int previous, int progress, int target, bool countingUp, int shown, bool complete) in rows)
+            {
+                string row = $"animate {animate}, previous {previous}, progress {progress}, target {target}";
+                WithWorld(world =>
+                {
+                    Owned owned = world.Owned;
+                    var data = owned.Register(owned.Host("Lucid data manager", false).AddComponent<DataManager>());
+                    MissionDefinition mission = world.NewMission(target, target).Definition;
+                    var definition = owned.Track(ScriptableObject.CreateInstance<CollectableDefinition>());
+                    var icon = owned.Track(Sprite.Create(owned.Track(new Texture2D(1, 1)), new Rect(0f, 0f, 1f, 1f), Vector2.zero));
+                    Set(definition, "m_loadedSprite", icon); // Reflection: the sprite an earlier Addressables load would hold
+                    data.CollectableDefinitions[mission.RewardType] = definition;
+
+                    UIContainerMissionInstancedProgress container = NewContainer(owned, 0, ordered: false);
+                    GameObject countingUpObject = owned.Host("Lucid counting-up object", !countingUp);
+                    Set(container, "m_activateIfCountingUp", new[] { countingUpObject }); // Reflection: authored serialized objects
+
+                    if (countingUp) LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("Coroutine couldn't be started"));
+                    container.Setup(new UIContainerInstancedMissionProgressParameters(mission, progress, previous, animate,
+                        new List<int>(), new List<int>()));
+
+                    Assert.That(container.Target.Value, Is.EqualTo(target), row);
+                    Assert.That(container.IsAnimatingProgressDelta.Value, Is.EqualTo(countingUp), row);
+                    Assert.That(countingUpObject.activeSelf, Is.EqualTo(countingUp), row);
+                    Assert.That(container.Progress.Value, Is.EqualTo(shown), row);
+                    Assert.That(container.IsComplete.Value, Is.EqualTo(complete), row);
+                    Assert.That(container.RewardIcon.Value, Is.SameAs(icon), row);
+                });
+            }
         }
     }
 }

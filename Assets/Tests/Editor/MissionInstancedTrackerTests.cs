@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Hardlight.Analytics;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.MissionTrackerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -193,16 +195,22 @@ namespace ProjectLucid.Tests
         }
 
         // 0x5B0370..0x5B06BF with the 0x5B0271 predicate: saved indices are restored when saved progress is allowed
-        // (a persistent definition without a context); an index beyond the list is skipped.
+        // (a persistent definition without a context) and the mission is not a time trial (0x5B02C9, 0x5B02E6); an index
+        // beyond the list is skipped.
         [Test]
-        public void SavedObjectiveCompletionIsRestoredOnlyForAPersistentDefinition()
+        public void SavedObjectiveCompletionIsRestoredOnlyForAPersistentDefinitionThatIsNotATimeTrial()
         {
-            foreach ((bool persistentDefinition, int completed) in new[] { (true, 1), (false, 0) })
+            foreach ((bool persistentDefinition, bool timeTrial, int completed) in new[] { (true, false, 1), (false, false, 0), (true, true, 0) })
             {
                 WithWorld(world =>
                 {
                     Mission mission = world.NewMission(3, 3);
                     Set(mission.Definition, "m_isPersistentTracker", persistentDefinition); // Reflection: authored definition flag
+                    if (timeTrial)
+                    {
+                        Set(mission.Definition, "m_isBeingOverridden", true); // Reflection: set by a completed mission's overrides
+                        Set(mission.Definition, "m_timeLimitSeconds", 60f); // Reflection: authored time limit
+                    }
                     mission.Save.MarkObjectiveComplete(2);
                     mission.Save.MarkObjectiveComplete(9);
                     CountingEvent previouslyCompleted = null;
@@ -211,11 +219,82 @@ namespace ProjectLucid.Tests
                         Set(r.Tracker, "m_persistObjectiveCompletion", true); // Reflection: authored toggle
                         previouslyCompleted = Author(r.Objectives[2], "m_onPreviouslyCompleted");
                     }, mission: mission);
-                    Assert.That(rig.Tracker.ObjectivesComplete, Is.EqualTo(completed), "persistent definition " + persistentDefinition);
-                    Assert.That(rig.Objectives[2].IsComplete, Is.EqualTo(persistentDefinition));
-                    Assert.That(previouslyCompleted.Count, Is.EqualTo(persistentDefinition ? 1 : 0));
+                    string row = $"persistent definition {persistentDefinition}, time trial {timeTrial}";
+                    Assert.That(rig.Tracker.ObjectivesComplete, Is.EqualTo(completed), row);
+                    Assert.That(rig.Objectives[2].IsComplete, Is.EqualTo(completed == 1), row);
+                    Assert.That(previouslyCompleted.Count, Is.EqualTo(completed), row);
                 });
             }
+        }
+
+        // 0x5B02CE..0x5B02E4: saved objectives are also restored by a tracker that does not persist them, when the saved
+        // progress equals the target field's value before it is set up (0 on a fresh tracker); any other saved progress skips it.
+        [Test]
+        public void ATrackerThatDoesNotPersistRestoresSavedObjectivesOnlyWhileTheSavedProgressIsZero()
+        {
+            foreach ((int savedProgress, int completed) in new[] { (0, 1), (1, 0) })
+            {
+                WithWorld(world =>
+                {
+                    Mission mission = world.NewMission(3, 3);
+                    Set(mission.Definition, "m_isPersistentTracker", true); // Reflection: authored definition flag
+                    mission.Save.MarkObjectiveComplete(2);
+                    if (savedProgress > 0) mission.State.UpdateMissionProgress(savedProgress, 3, false);
+                    Rig rig = Build(world, 3, 3, mission: mission);
+                    Assert.That(rig.Tracker.PersistObjectiveCompletion, Is.False);
+                    Assert.That(rig.Tracker.ObjectivesComplete, Is.EqualTo(completed), "saved progress " + savedProgress);
+                    Assert.That(rig.Objectives[2].IsComplete, Is.EqualTo(completed == 1), "saved progress " + savedProgress);
+                });
+            }
+        }
+
+        // The members InitialiseObjectivesToComplete reads; nothing else of the context is reached by Initialise.
+        private sealed class ActiveObjectivesContext : IMissionContext
+        {
+            public IReadOnlyList<int> OverrideActiveObjectives { get; set; }
+            public int ObjectiveTarget { get; set; }
+            public bool IgnoreSavedProgress => true;
+            public float OverrideTimeLimitSeconds => 0f;
+
+            public MissionDefinition MissionDefinition => throw new NotSupportedException();
+            public GameplayLevelDefinition LevelDefinition => throw new NotSupportedException();
+            public IReadOnlyList<CharacterId> OverrideAllowedCharacters => throw new NotSupportedException();
+            public float BestTimeSeconds => throw new NotSupportedException();
+            public LevelStartPositionDefinition OverrideStartPosition => throw new NotSupportedException();
+            public int RingXPEarned => throw new NotSupportedException();
+            public bool IsReplay => throw new NotSupportedException();
+            public float RealTimeTaken { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+            public bool SaveLastLevelVisited => throw new NotSupportedException();
+            public string Description => throw new NotSupportedException();
+            public float NewTime => throw new NotSupportedException();
+            public void OnActiveMissionComplete(MissionManager missionManager, float timeElapsedSeconds, int score) => throw new NotSupportedException();
+            public void MarkNewAttempt(MissionState state) => throw new NotSupportedException();
+            public void SendMissionStartAnalytics(MissionState missionState) => throw new NotSupportedException();
+            public void SendMissionQuitAnalytics(MissionState missionState) => throw new NotSupportedException();
+            public void SendMissionFailedAnalytics(MissionState missionState) => throw new NotSupportedException();
+            public void SendMissionCompleteAnalytics(MissionState missionState) => throw new NotSupportedException();
+            public string CalculateMissionIndex(MissionDefinition missionDefinition, GameplayLevelDefinition levelDefinition) => throw new NotSupportedException();
+            public AnalyticsMissionType CalculateAnalyticsMissionType(MissionDefinition missionDefinition, GameplayLevelDefinition levelDefinition) => throw new NotSupportedException();
+        }
+
+        // 0x5B085E..0x5B0925: a context listing the active objectives zeroes the target, walks the objectives back to
+        // front, counts each listed index (an index beyond the list counts nothing) and destroys and removes the others.
+        [Test]
+        public void AContextListingTheActiveObjectivesCountsThemAndRemovesTheOthers()
+        {
+            WithWorld(world =>
+            {
+                var context = new ActiveObjectivesContext { OverrideActiveObjectives = new[] { 0, 2, 7 }, ObjectiveTarget = 9 };
+                // The native Destroy call is not DestroyImmediate, which Edit Mode refuses once per removed objective.
+                LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("Destroy may not be called from edit mode"));
+                LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("Destroy may not be called from edit mode"));
+                Rig rig = Build(world, 4, 4, context: context);
+
+                Assert.That(rig.Tracker.ObjectivesTarget, Is.EqualTo(2), "two listed indices exist; neither the list size nor the context target");
+                Assert.That(rig.Tracker.ObjectiveCount, Is.EqualTo(2));
+                Assert.That(rig.Tracker.MissionObjectives.ToArray(), Is.EqualTo(new[] { rig.Objectives[0], rig.Objectives[2] }));
+                Assert.That(rig.Mission.State.Target, Is.EqualTo(2));
+            });
         }
 
         // 0x5B0259..0x5B02B3: a context asks for its saved progress to be ignored; it also supplies the objective target.
@@ -355,6 +434,60 @@ namespace ProjectLucid.Tests
                     Assert.That(scorer.PointsAddedFromCombo, Is.EqualTo(usesCombo));
                     Assert.That(combo.Count, Is.EqualTo(usesCombo ? 1 : 0));
                     Assert.That(flat.Count, Is.EqualTo(usesCombo ? 0 : 1));
+                });
+            }
+        }
+
+        // StatusChanged 0x5B1190..0x5B1255: after the objective's own points, a streak completed by this objective adds
+        // its score as a second batch, flagged as a streak; with no matching streak only the objective's points count.
+        [Test]
+        public void AStreakCompletedByTheObjectiveAddsItsScoreAsASecondBatch()
+        {
+            foreach ((bool streakContainsObjective, int total, int batches) in new[] { (true, 70, 2), (false, 30, 1) })
+            {
+                WithWorld(world =>
+                {
+                    MissionScorer scorer = EnemyAbilityTestSupport.AddTimeScaled<MissionScorer>(world.Owned.Host("Lucid mission scorer", false));
+                    CountingEvent flat = Author(scorer, "m_onAddPointsFlat"); // Reflection: authored events and stages
+                    Author(scorer, "m_onAddPoints");
+                    Author(scorer, "m_onLosePoints");
+                    Set(scorer, "m_comboStages", new List<MissionScorerComboStage> { new MissionScorerComboStage() });
+                    scorer.ResetComboStage();
+                    var manual = new List<MissionScorerStreak>();
+                    Set(scorer, "m_streaksManual", manual); // Reflection: authored streak lists
+                    Set(scorer, "m_streaksAuto", new List<MissionScorerStreak>());
+                    Rig rig = Build(world, 1, 1, r =>
+                    {
+                        Set(r.Tracker, "m_optionalMissionScorer", scorer); // Reflection: authored scorer reference
+                        var definition = world.Owned.Track(ScriptableObject.CreateInstance<MissionScorerStreakDefinition>());
+                        Set(definition, "m_usesComboMultiplier", false); // Reflection: authored streak definition
+                        Set(definition, "m_timeout", 5f);
+                        Type thresholdType = typeof(MissionScorerStreakDefinition).GetNestedType("ScoreThreshold", System.Reflection.BindingFlags.NonPublic);
+                        object threshold = Activator.CreateInstance(thresholdType);
+                        Set(threshold, "m_count", 1f);
+                        Set(threshold, "m_score", 40f);
+                        var thresholds = (System.Collections.IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(thresholdType));
+                        thresholds.Add(threshold);
+                        Set(definition, "m_scoreThresholds", thresholds);
+                        var streak = new MissionScorerStreak();
+                        Set(streak, "m_definition", definition);
+                        var members = new List<MissionScorerStreakObjective>();
+                        if (streakContainsObjective) members.Add((MissionScorerStreakObjective)r.Objectives[0]);
+                        Set(streak, "m_objectives", members);
+                        manual.Add(streak);
+                    }, newObjective: parent =>
+                    {
+                        MissionScorerStreakObjective objective = world.NewObjective<MissionScorerStreakObjective>(parent);
+                        Set(objective, "m_usesComboMultiplier", false); // Reflection: authored toggle
+                        objective.SetScoreToAdd(30f);
+                        return objective;
+                    });
+                    rig.Tracker.StartMission(false);
+
+                    rig.Objectives[0].Action_ObjectiveComplete();
+
+                    Assert.That(scorer.PointsTotal, Is.EqualTo(total), "streak contains the objective: " + streakContainsObjective);
+                    Assert.That(flat.Count, Is.EqualTo(batches));
                 });
             }
         }

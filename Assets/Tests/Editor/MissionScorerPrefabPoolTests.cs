@@ -206,5 +206,81 @@ namespace ProjectLucid.Tests
                 Assert.That(active, Is.EquivalentTo(new[] { inRange, completed }));
             }, PerformanceProfile.QualityLevel.Low, (PerformanceProfile.QualityLevel.Low, 5f, 0.5f));
         }
+
+        // A pool with a prefab of one scorer instance and its own evaluator, built by the pool's own Awake. The pool
+        // manager row is real, so the base pool registers itself as it does at startup.
+        private static void BuildInstances(Rig rig, int initialObjectCount)
+        {
+            Owned owned = rig.World.Owned;
+            owned.Register(owned.Host("Lucid prefab pool manager", false).AddComponent<PrefabPoolManager>());
+            GameObject prefabHost = owned.Host("Lucid scorer prefab", false);
+            var prefab = prefabHost.AddComponent<MissionScorerInstance>();
+            Set(prefab, "m_evaluator", prefabHost.AddComponent<MissionScorerProximityEvaluator>()); // Reflection: serialized prefab reference
+            Set(rig.Pool, "m_prefab", prefab); // Reflection: authored serialized pool settings
+            Set(rig.Pool, "m_initialObjectCount", initialObjectCount);
+            Call(rig.Pool, "Awake");
+        }
+
+        // 0x5D77FB..0x5D7985: an in-range incomplete objective gets a pooled instance placed at its transform with the
+        // objective's local scale (not the lossy one), bound to the objective and its own evaluator, switched on and
+        // recorded as active. A pool with no free instance leaves the objective untouched.
+        [Test]
+        public void ARefreshSpawnsAnInstanceForAnInRangeObjectiveAndBindsItsEvaluator()
+        {
+            Run(rig =>
+            {
+                BuildInstances(rig, 2);
+                Transform parent = rig.World.Owned.Host("Lucid scaled parent", false).transform;
+                parent.localScale = new Vector3(2f, 2f, 2f);
+                MissionScorerObjective objective = rig.World.NewObjective<MissionScorerObjective>(parent);
+                objective.transform.localPosition = new Vector3(0f, 0f, 0.5f); // world z 1, inside the 5 m range
+                objective.transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
+                objective.transform.localScale = new Vector3(1f, 2f, 3f);
+                var entries = Get<Dictionary<MissionScorerObjective, PooledPrefab<MissionScorerInstance>>>(rig.Pool, "m_instancesByObjective");
+                var active = Get<HashSet<MissionScorerObjective>>(rig.Pool, "m_activeObjectives");
+                // Reflection: Start fills these, and it needs the tracker's objectives and a character manager callback.
+                entries.Add(objective, new PooledPrefab<MissionScorerInstance>(null, -1));
+                Get<HashSet<MissionScorerObjective>>(rig.Pool, "m_objectiveKeys").Add(objective);
+                Set(rig.Pool, "m_characterManager", rig.Manager);
+                CharacterTriggerTestSupport.SetCurrent(rig.Manager, rig.Character, true);
+
+                var refresh = (IEnumerator)Call(rig.Pool, "RefreshPooledPrefabs");
+                Assert.That(refresh.MoveNext(), Is.True);
+
+                Assert.That(active, Is.EquivalentTo(new[] { objective }));
+                MissionScorerInstance instance = entries[objective].Instance;
+                Assert.That(instance, Is.Not.Null);
+                Assert.That(instance.Objective, Is.SameAs(objective));
+                Assert.That(objective.ScorerEvaluator, Is.SameAs(instance.Evaluator));
+                Assert.That(instance.Evaluator.gameObject, Is.SameAs(instance.gameObject), "the clone's own evaluator, not the prefab's");
+                Assert.That(instance.gameObject.activeSelf, Is.True);
+                Assert.That(instance.transform.position, Is.EqualTo(new Vector3(0f, 0f, 1f)));
+                Assert.That(Quaternion.Angle(instance.transform.rotation, Quaternion.Euler(0f, 90f, 0f)), Is.LessThan(1e-3f));
+                Assert.That(instance.transform.localScale, Is.EqualTo(new Vector3(1f, 2f, 3f)));
+            }, PerformanceProfile.QualityLevel.Low, (PerformanceProfile.QualityLevel.Low, 5f, 0.5f));
+        }
+
+        [Test]
+        public void ARefreshLeavesTheObjectiveInactiveWhenThePoolHasNoFreeInstance()
+        {
+            Run(rig =>
+            {
+                BuildInstances(rig, 0);
+                MissionScorerObjective objective = rig.World.NewObjective<MissionScorerObjective>();
+                objective.transform.position = new Vector3(0f, 0f, 1f);
+                var entries = Get<Dictionary<MissionScorerObjective, PooledPrefab<MissionScorerInstance>>>(rig.Pool, "m_instancesByObjective");
+                entries.Add(objective, new PooledPrefab<MissionScorerInstance>(null, -1)); // Reflection: Start fills these
+                Get<HashSet<MissionScorerObjective>>(rig.Pool, "m_objectiveKeys").Add(objective);
+                Set(rig.Pool, "m_characterManager", rig.Manager);
+                CharacterTriggerTestSupport.SetCurrent(rig.Manager, rig.Character, true);
+
+                var refresh = (IEnumerator)Call(rig.Pool, "RefreshPooledPrefabs");
+                Assert.That(refresh.MoveNext(), Is.True);
+
+                Assert.That(Get<HashSet<MissionScorerObjective>>(rig.Pool, "m_activeObjectives"), Is.Empty);
+                Assert.That(entries[objective].Instance == null, Is.True);
+                Assert.That(objective.ScorerEvaluator, Is.Null);
+            }, PerformanceProfile.QualityLevel.Low, (PerformanceProfile.QualityLevel.Low, 5f, 0.5f));
+        }
     }
 }
