@@ -37,6 +37,7 @@ namespace ProjectLucid.Tests
         {
             Owned owned = scene.Owned;
             owned.LeaseRow<ChallengeManager>(); // The store's and the mission context's field initialisers cache this row
+            var rig = new Rig();
             rig.Store = owned.Register(owned.Host("Lucid equip store", false).AddComponent<DreamPowerStoreManager>());
             Set(rig.Store, "m_saveManager", scene.Save); // Reflection: the reference the store's start-up chain takes from the SaveManager row
             Set(rig.Store, "m_unlockRequirements", new RequirementGameplayLevelBase[0]); // Reflection: authored serialized field
