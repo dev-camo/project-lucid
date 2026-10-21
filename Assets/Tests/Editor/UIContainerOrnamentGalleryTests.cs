@@ -576,8 +576,9 @@ namespace ProjectLucid.Tests
         }
 
         // InstantiateOrnament 0x66F7F0 with no ornament yet: the prefab is cloned, placed at the x offset, turned by the prefab's y
-        // offset (unless it ping-pongs), hidden at zero scale, given the idle spin and deactivated; the scale-up is requested. Cameras
-        // are looked up on the now inactive clone, so the clone's camera stays enabled.
+        // offset (unless it ping-pongs), hidden at zero scale, given the idle spin and deactivated; the scale-up is requested. The
+        // clone's cameras are then switched off: GetComponentsInChildren<Camera>() still returns the camera of the deactivated clone
+        // (checked in a bare Unity 2022.3.54f1 Edit Mode project), and the prefab's own camera is left alone.
         [TestCase(false, TestName = "AnOrnamentIsPlacedTurnedByItsYOffsetAndHiddenAtZeroScale")]
         [TestCase(true, TestName = "APingPongingOrnamentIsNotTurnedByItsYOffset")]
         public void TheOrnamentIsPlacedTurnedAndHiddenBeforeItScalesUp(bool pingPong)
@@ -598,7 +599,8 @@ namespace ProjectLucid.Tests
                 Assert.That(ornament.TransformRotator.enabled, Is.True, "the prefab's rotator was off");
                 Assert.That(Get<Vector3>(ornament.TransformRotator, "m_idleRotationSpeed"), Is.EqualTo(new Vector3(0f, 30f, 0f)));
                 Assert.That(ornament.gameObject.activeSelf, Is.False);
-                Assert.That(ornament.GetComponentInChildren<Camera>(true).enabled, Is.True, "the inactive clone has no cameras to switch off");
+                Assert.That(ornament.GetComponentInChildren<Camera>(true).enabled, Is.False, "the clone's camera is switched off");
+                Assert.That(prefab.GetComponentInChildren<Camera>(true).enabled, Is.True, "the prefab's camera is not");
                 Assert.That(Get<Coroutine>(rig.Gallery, "m_ornamentLoadingCoroutine"), Is.Null);
             });
         }
