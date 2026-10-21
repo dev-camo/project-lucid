@@ -49,7 +49,9 @@ namespace ProjectLucid.Tests
                 {
                     Row(ProcessManager.GetDefaultName<GameplayIslandManager>());
                     Row(ProcessManager.GetDefaultName<App>());
-                    Row(ProcessManager.GetDefaultName<TrackManager>());
+                    // Taken absent; the real track manager below is registered into it.
+                    var trackRow = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<TrackManager>());
+                    m_leases.Add(trackRow);
                     GameObject host = Objects.Create("character", Origin, Quaternion.identity);
                     Character = host.AddComponent<CharacterGravityVectorProbe>();
                     Character.GravityVector = new Vector3(0f, 0f, -9.81f);
@@ -81,7 +83,9 @@ namespace ProjectLucid.Tests
                     Tracks = Objects.Create("tracks").AddComponent<TrackManager>();
                     Group = Objects.Create("group").AddComponent<HashedTrackGroup>();
                     Tracks.Register(Group);
-                    Link(Tracks);
+                    trackRow.Register(Tracks);
+                    // Character.Initialise's own lookup, GetSystemRef<TrackManager>(null, true), now finds it.
+                    Set(Character, "m_trackManagerRef", ProcessManager.GetSystemRef<TrackManager>(null, true));
                 }
                 catch
                 {
@@ -98,15 +102,6 @@ namespace ProjectLucid.Tests
 
             private void SetCharacter(string property, object value) =>
                 typeof(Character).GetProperty(property, Members).GetSetMethod(true).Invoke(Character, new[] { value });
-
-            // The character reads its track manager through its own reference, filled the way the registry would
-            // and revoked afterwards, which leaves the row alone.
-            private void Link(TrackManager manager)
-            {
-                SystemRef<TrackManager> reference = ProcessManager.GetSystemRef<TrackManager>(null, true);
-                m_leases.Add(new SystemRefLease<TrackManager>(reference, manager));
-                Set(Character, "m_trackManagerRef", reference);
-            }
 
             // A solid box the character can climb (or not), registered with the track manager.
             public BoxCollider Surface(string name, Vector3 centre, Vector3 size, bool climbable = true)
