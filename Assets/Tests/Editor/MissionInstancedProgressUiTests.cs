@@ -43,6 +43,8 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
+                owned.LeaseRow<SaveManager>(); // MissionDefinition's field initialisers
+                owned.LeaseRow<TimeTrialLeaderboardManager>();
                 var mission = owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
                 var previous = new List<int> { 1 };
                 var completed = new List<int> { 1, 2 };

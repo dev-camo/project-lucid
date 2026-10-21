@@ -218,6 +218,10 @@ namespace ProjectLucid.Tests
             Set(prefab, "m_evaluator", prefabHost.AddComponent<MissionScorerProximityEvaluator>()); // Reflection: serialized prefab reference
             Set(rig.Pool, "m_prefab", prefab); // Reflection: authored serialized pool settings
             Set(rig.Pool, "m_initialObjectCount", initialObjectCount);
+            // The pool registers under its type, an authored asset that is a key by its GUID (ScriptableObjectWithGuid equality).
+            var poolType = owned.Track(ScriptableObject.CreateInstance<PrefabPoolType>());
+            Set(poolType, "m_guid", "lucid-scorer-pool-type");
+            Set(rig.Pool, "m_objectPoolType", poolType);
             Call(rig.Pool, "Awake");
         }
 

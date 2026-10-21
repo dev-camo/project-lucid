@@ -345,8 +345,10 @@ namespace ProjectLucid.Tests
             Run(2, 2, rig =>
             {
                 rig.Tracker.StartMission(false);
-                rig.Mission.State.UpdateMissionProgress(2, 2, false);
                 rig.Objectives[0].Action_ObjectiveComplete();
+                // The objective's completion rewrote the progress to the one completed objective; the saved progress is
+                // then set to the target, the state ResetMission (0x5B1A40) compares with it.
+                rig.Mission.State.UpdateMissionProgress(2, 2, false);
                 rig.Tracker.ResetMission();
                 Assert.That(rig.Objectives[0].IsComplete, Is.True);
             });
