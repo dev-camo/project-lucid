@@ -14,9 +14,9 @@ namespace ProjectLucid.Tests
 {
     // Restored Game.Runtime TimeScaledSplineFollower (TypeDef 0x02000801, x86-64 0x5FB790..0x5FBBD0). Components are
     // real, on owned inactive hosts that never wake. The TimeManager is a real component holding the Environment
-    // category at scale 2, registered into its row; the follower is added with an owned empty category lookup
-    // in place (its editor Reset/OnValidate read the TimeScaledComponent_SDT lookup), then given the manager's
-    // category object. Followers and managers are never updated by the engine.
+    // category at scale 2, never registered and reached through the leased static reference. The follower is added
+    // with an owned empty category lookup in place (its editor Reset/OnValidate read the TimeScaledComponent_SDT
+    // lookup), then given the manager's category object. Followers and managers are never updated by the engine.
     public sealed class OriginalTimeScaledSplineFollowerTests
     {
         private const float Scale = 2f;
@@ -34,18 +34,20 @@ namespace ProjectLucid.Tests
         // The follower component is added after the spline follower, so its editor OnValidate finds it.
         private static void WithFollower(Action<Scene> body, bool withSplineFollower = true) => Owned.Run(owned =>
         {
-            // The row may already exist, idle, from an earlier case's TimeScaledComponent type initializer, so it is
-            // leased rather than required absent; the manager is registered into it and unregistered before release.
-            string row = ProcessManager.GetDefaultName<TimeManager>();
+            // Reading TimeScaledComponent's static manager reference runs its type initializer, which creates an
+            // idle TimeManager row on first use, so the row is leased. The static is pointed at the case's manager
+            // and put back afterwards (a reference that initializer built may belong to a row already released).
             owned.LeaseRow<TimeManager>();
             TimeManager manager = NewTimeManager(owned, TimeCategory.Environment, Scale);
-            ProcessManager.RegisterSystem(manager, row);
+            FieldInfo managerRef = typeof(TimeScaledComponent).GetField("m_timeManagerRef", Statics);
+            object priorRef = managerRef.GetValue(null);
+            managerRef.SetValue(null, new SystemRef<TimeManager>(ProcessManager.GetDefaultName<TimeManager>(), manager));
+            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => managerRef.SetValue(null, priorRef)));
             // Awake (0x1B1AE58) never runs on the inactive host; Subscribe needs the three per-phase dictionaries it adds.
             var phases = (IDictionary)Get<object>(manager, "m_updateObjects");
             var categoryLists = phases.GetType().GetGenericArguments()[1];
             foreach (UpdateOn phase in new[] { UpdateOn.FixedUpdate, UpdateOn.LateUpdate, UpdateOn.Update })
                 phases.Add(phase, Activator.CreateInstance(categoryLists));
-            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnregisterSystem(row)));
             var lookup = (TimeCategoryLookup)typeof(TimeExtensions).GetField("s_config_Internal", Statics).GetValue(null);
             GameObject host = owned.Host("Lucid owned time scaled spline follower", false);
             SplineFollower spline = withSplineFollower ? host.AddComponent<SplineFollower>() : null;
