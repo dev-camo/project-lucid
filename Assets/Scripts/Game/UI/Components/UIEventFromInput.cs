@@ -60,7 +60,7 @@ namespace HardlightProject
             m_audioManagerRef.Get().PlayOneShotAtSource(m_audioClipIdentifier, m_audioSourceIdentifier, 0f, 1f);
         }
 
-        // 0x06002ff2: the field initialisers precede the MonoBehaviour constructor.
+        // 0x06002ff2
         public UIEventFromInput() { }
     }
 }

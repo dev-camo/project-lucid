@@ -37,7 +37,7 @@ namespace HardlightProject
         }
 
         // 0x06003a8d: formats the string looked up by Initialise (a null argument array throws).
-        public void Apply(object[] args)
+        public void Apply(params object[] args)
         {
             m_textMeshPro.text = string.Format(m_string, args);
         }

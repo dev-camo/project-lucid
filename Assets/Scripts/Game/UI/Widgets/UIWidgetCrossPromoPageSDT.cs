@@ -45,7 +45,7 @@ namespace HardlightProject
             return IsReady.Value;
         }
 
-        // 0x060037f5: the field initialisers precede the CrossPromoPageBase constructor.
+        // 0x060037f5
         public UIWidgetCrossPromoPageSDT() { }
     }
 }

@@ -88,7 +88,7 @@ namespace HardlightProject
                 character, new MessageCallbackWithCompletion<BurstAttackUpdateMessage>(OnBurstAttackActive));
         }
 
-        // 0x0600359b: the field initialisers precede the MonoBehaviour constructor.
+        // 0x0600359b
         public UITargetingListener() { }
     }
 }

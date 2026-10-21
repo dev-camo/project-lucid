@@ -50,7 +50,7 @@ namespace HardlightProject
                 addressableManager.ReleaseHandle(m_spriteHandle);
         }
 
-        // 0x06003799: the field initialisers precede the UIWidget constructor.
+        // 0x06003799
         public UIWidgetAddressableSprite() { }
     }
 }

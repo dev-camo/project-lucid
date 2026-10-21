@@ -30,7 +30,7 @@ namespace HardlightProject
 
         // 0x060037ec: nothing changes while the spawned heads already match. Otherwise the heads
         // are rebuilt, in the data manager's character order, unless there is nothing to show
-        // (no ids, or - with m_showNoneIfAll - every existing character requested).
+        // (no ids, or - with m_showNoneIfAll - at least as many ids as there are characters).
         public void UpdateCharacterHeads(IReadOnlyList<CharacterId> characterIds)
         {
             if (CheckCharacterIdsMatch(characterIds))

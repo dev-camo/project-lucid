@@ -27,10 +27,9 @@ namespace HardlightProject
                 Lock();
                 return;
             }
-            AssetReferenceT<Texture> imageAssetReference = data.ImageAssetReference;
             IsNew.Value = data.IsNew;
             SetInteractable(true);
-            LoadAddressableImage(imageAssetReference);
+            LoadAddressableImage(data.ImageAssetReference);
         }
 
         // 0x060037f8: the texture reference is loaded as a sprite through the addressables manager.

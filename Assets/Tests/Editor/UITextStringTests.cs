@@ -21,11 +21,13 @@ namespace ProjectLucid.Tests
 
         // SetText reads the default style sheet from TMP_Settings.instance (TMP_Text.GetStyle). The Resources "TMP Settings" asset of
         // the recovered project is not bound to this TextMesh Pro package's settings script, so no instance loads; an owned empty
-        // settings object stands in for the case and the loaded one (none) is put back.
+        // settings object stands in (a process-wide singleton swap that the lease reverses); a loaded instance is never replaced.
         private static void LeaseTextSettings(Owned owned)
         {
             FieldInfo instance = typeof(TMP_Settings).GetField("s_Instance", BindingFlags.Static | BindingFlags.NonPublic);
             object prior = instance.GetValue(null);
+            if (prior != null)
+                return;
             owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => instance.SetValue(null, prior)));
             instance.SetValue(null, owned.Track(ScriptableObject.CreateInstance<TMP_Settings>()));
         }
@@ -45,6 +47,8 @@ namespace ProjectLucid.Tests
             AssertMembers(typeof(UITextString), 0x00102001,
                 new (string, int)[] { ("m_stringID", 0x0001), ("m_textMeshPro", 0x0001), ("m_string", 0x0001) },
                 new (string, int)[] { (".ctor", 0x1886), ("Initialise", 0x0086), ("Apply", 0x0086) });
+            Assert.That(typeof(UITextString).GetMethod("Apply").GetParameters()[0].IsDefined(typeof(ParamArrayAttribute), false), Is.True,
+                "Apply takes params object[] args (DummyDll ParamArrayAttribute)");
             AssertIl2CppOptions(typeof(UITextString), 1, 2);
             Assert.That(typeof(UITextString).BaseType, Is.EqualTo(typeof(object)));
             Assert.That(AttributeTypes(typeof(UITextString).GetField("m_stringID", Declared)),

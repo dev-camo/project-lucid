@@ -67,7 +67,7 @@ namespace HardlightProject
             HasNewUnlock.Value = m_hasAnyNew;
         }
 
-        // 0x060037d2: the field initialisers precede the UIWidgetToggle constructor.
+        // 0x060037d2
         public UIWidgetCategoryToggle() { }
     }
 }

@@ -36,7 +36,7 @@ namespace HardlightProject
         }
 
         // 0x0600386f: the settings for the container type are looked up in the definition (a
-        // missing entry leaves them unset).
+        // missing entry sets m_settings to null and the Icon read below throws; the original has no guard).
         public override void Setup(IUIWidgetParameters parameters)
         {
             base.Setup(parameters);
@@ -93,9 +93,9 @@ namespace HardlightProject
             rectTransform.position = targetPosition;
             if (!IsBehindCamera.Value)
             {
-                Vector3 anchoredPosition = RectTransform.anchoredPosition3D;
+                Vector3 anchoredPosition = rectTransform.anchoredPosition3D;
                 anchoredPosition.z = 0f;
-                RectTransform.anchoredPosition3D = anchoredPosition;
+                rectTransform.anchoredPosition3D = anchoredPosition;
             }
             Vector3 offset = character.WorldPosition - m_target.position;
             DistanceToTarget.Value = offset.magnitude;
@@ -115,7 +115,7 @@ namespace HardlightProject
             return !m_settings.ShowDistanceIndicator;
         }
 
-        // 0x06003874: the field initialisers precede the UIWidget constructor.
+        // 0x06003874
         public UIWidgetSDTWaypointMarker() { }
     }
 }

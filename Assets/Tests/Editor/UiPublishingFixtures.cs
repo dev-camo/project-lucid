@@ -57,9 +57,9 @@ namespace ProjectLucid.Tests
         public override void CloseAllExcept(IReadOnlyList<UIContainerIdentifier> exceptFor) { }
     }
 
-    // Real App and UIManager rows for the components that publish UI events or open and close containers. Nothing here
-    // is faked: the App is the genuine class built by its own initialisers on an inactive host (Awake does not run) and the
-    // UIManager is the genuine class whose only container manager is the scripted one.
+    // Real App and UIManager rows for the components that publish UI events or open and close containers. The App and
+    // the UIManager are the genuine classes (the App built by its own initialisers on an inactive host, so Awake does not run);
+    // the UIManager's only container manager is a scripted subclass that controls the open set and the exclusivity answer.
     internal static class UiPublishingFixtures
     {
         // The App keeps its published UI events in its storage; the Awake that would create the list does not run.

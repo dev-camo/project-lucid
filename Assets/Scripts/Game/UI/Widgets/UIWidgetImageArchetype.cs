@@ -69,7 +69,7 @@ namespace HardlightProject
             }
         }
 
-        // 0x06003809: the field initialisers precede the UIWidget constructor.
+        // 0x06003809
         public UIWidgetImageArchetype() { }
 
         private enum ImageType

@@ -17,8 +17,8 @@ namespace HardlightProject
             m_closeEvent = closeEvent;
         }
 
-        // 0x06003592: nothing is published while no event is set (the Unity null test, so a
-        // destroyed event also counts as unset).
+        // 0x06003592: nothing is published while no event is set (ScriptableObjectWithGuid's ==, which includes
+        // the Unity null check, so a destroyed event also counts as unset).
         public virtual void Action_Close()
         {
             if (m_closeEvent == null)
