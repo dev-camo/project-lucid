@@ -59,6 +59,7 @@ namespace ProjectLucid.Tests
             rig.Data = owned.Host("Lucid challenge data manager", false).AddComponent<DataManager>();
             owned.Register(rig.Data);
             owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
+            owned.LeaseRow<SaveManager>(); // MissionDefinition's field initialiser
             rig.Container = owned.Host("Lucid challenge container", false).AddComponent<UIContainerChallenge>();
             Set(rig.Container, "m_bestTimeLabel", TimeLabel); // Reflection: serialized labels
             Set(rig.Container, "m_bestScoreLabel", ScoreLabel);
@@ -321,7 +322,9 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.HighScore.Value, Is.EqualTo(80));
                 Assert.That(rig.Container.BestTimeString.Value, Is.EqualTo("T1-23-25"));
                 Assert.That(rig.Container.MissionIcon.Value, Is.SameAs(icon));
-                Assert.That(rig.Container.Description.Value, Is.EqualTo("Run: T1-30-00/"));
+                // The 90 s limit as a timer and the mission's default total of one objective (m_totalObjectivesCount = 1, an
+                // unrandomised ObjectiveCount) fill the two arguments of GetMissionDescription (0x59B110).
+                Assert.That(rig.Container.Description.Value, Is.EqualTo("Run: T1-30-00/1"));
                 Assert.That(rig.Container.FormattedXP.Value, Is.EqualTo("120"), "the postfix is off by default");
                 Assert.That(rig.Container.ShowRank.Value, Is.False, "no rank definition is authored");
 

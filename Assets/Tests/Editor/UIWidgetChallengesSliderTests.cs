@@ -42,7 +42,10 @@ namespace ProjectLucid.Tests
             var rig = new Rig();
             rig.Slider = owned.Host("Lucid challenges slider", false).AddComponent<Slider>();
             rig.SliderRect = (RectTransform)rig.Slider.transform;
-            rig.Widget = owned.Host("Lucid challenges slider widget", false).AddComponent<UIWidgetChallengesSlider>();
+            // GetAnchoredPosition casts the widget's transform to a RectTransform, as a widget under a canvas has.
+            GameObject widgetHost = owned.Track(new GameObject("Lucid challenges slider widget", typeof(RectTransform)));
+            widgetHost.SetActive(false);
+            rig.Widget = widgetHost.AddComponent<UIWidgetChallengesSlider>();
             rig.Mini = owned.Host("Lucid challenges mini slider widget", false).AddComponent<UIWidgetChallengesSliderMini>();
             Set(rig.Widget, "m_slider", rig.Slider); // Reflection: serialized references
             Set(rig.Mini, "m_slider", rig.Slider);
