@@ -64,8 +64,10 @@ namespace ProjectLucid.Tests
             {
                 var container = owned.Host("Lucid blue coin cost", false).AddComponent<UIContainerDreamPowerStoreBlueCoinCost>();
 
+                // The definition is authored through JSON, which the tilde culture would refuse for the negative cost, so it is built first.
+                DreamPowerDefinition power = Power(owned, -5);
                 TildeNegativeSignCulture.Run(() =>
-                    container.Setup(new UIContainerDreamPowerStoreBlueCoinCostParameters(Power(owned, -5), UIDreamPowerStoreItemState.Purchasable)));
+                    container.Setup(new UIContainerDreamPowerStoreBlueCoinCostParameters(power, UIDreamPowerStoreItemState.Purchasable)));
 
                 Assert.That(container.Cost.Value, Is.EqualTo("-5"));
             });

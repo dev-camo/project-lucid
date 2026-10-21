@@ -29,7 +29,7 @@ namespace ProjectLucid.Tests
         internal static void Run(Action<World> body) => CharacterSelectScene.Run(scene =>
         {
             Owned owned = scene.Owned;
-            owned.LeaseRow<ChallengeManager>(); // The store's field initialiser caches this row
+            OwnedChallengeServices.RegisterChallengeManager(owned); // The store's field initialiser caches this row, and the cached progress takes the manager
             var world = new World { Scene = scene };
             world.Store = owned.Register(owned.Host("Lucid dream power store manager", false).AddComponent<DreamPowerStoreManager>());
             Set(world.Store, "m_saveManager", scene.Save); // Reflection: the reference the store's start-up chain takes from the SaveManager

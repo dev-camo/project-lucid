@@ -19,12 +19,18 @@ namespace ProjectLucid.Tests
             typeof(MissionManager), typeof(SaveManager), typeof(OrnamentManager),
         };
 
-        internal static void Register(Owned owned)
+        // Only the challenge manager, for a case that registers its own dream power store manager.
+        internal static void RegisterChallengeManager(Owned owned)
         {
             foreach (Type row in ChallengeManagerRows)
                 owned.Lease(new VerificationFixtureOwnership.LifecycleRow(row.ToString(), true)); // the default row name is Type.ToString()
             // Added while an empty category lookup is cached for the editor's Reset and OnValidate.
             owned.Register(owned.Lease(new OwnedTimeScaledObjects("lucid-progression-challenges")).Add<ChallengeManager>("manager"));
+        }
+
+        internal static void Register(Owned owned)
+        {
+            RegisterChallengeManager(owned);
             owned.Register(owned.Host("Lucid dream power store", false).AddComponent<DreamPowerStoreManager>());
         }
     }

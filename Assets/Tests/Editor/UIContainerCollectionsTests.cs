@@ -194,7 +194,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Scene.App.Storage.SetValue(AppFSMKeys.LoadedLevels, new Dictionary<string, AsyncOperationHandle>()); // as the App sets it on Awake
                 rig.Scene.App.Storage.SetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Music);
-                var level = rig.Scene.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+                var level = rig.Scene.Owned.Track(ScriptableObject.CreateInstance<LevelDefinition>());
                 Set(level, "m_guid", "lucid-ornament-viewer"); // Reflection: authored GUID of a serialized definition
                 Set(rig.Collections, "m_ornamentViewerLevelDefinition", level); // Reflection: serialized reference the editor assigns
                 rig.Store.Purchasable.Value = true;
