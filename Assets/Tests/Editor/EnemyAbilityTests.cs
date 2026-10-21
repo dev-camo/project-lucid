@@ -278,6 +278,32 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x117F78B..0x117F84E: the AngleAxis result is the left operand of the inlined quaternion product, so the turn is
+        // applied in world space. Only a pitched enemy (up +z) tells that order from the reverse one, which would give
+        // (0.690346, -0.153046, 0.153046, 0.690346) and a forward of (0, -1, 0).
+        [Test]
+        public void MovementAppliesTheTurnInWorldSpaceForAPitchedEnemy()
+        {
+            WithScene(scene =>
+            {
+                var ability = scene.Ability<EnemyAbility_GroundMovement, EnemyAbilityDefinition_GroundMovement>(definition =>
+                {
+                    definition.TurnSpeed = 100f;
+                    TimeCurves(definition);
+                });
+                scene.Enemy.SetWorldRotation(Quaternion.Euler(90f, 0f, 0f));
+                AssertNear(scene.Enemy.UpDirection, Vector3.forward, "pitched up direction");
+                scene.Impulse(1f, 0f);
+
+                ability.UpdateMovement(0.5f);
+                ability.UpdateMovement(0.5f);
+                Quaternion actual = scene.Enemy.WorldRotation;
+                Assert.That(new[] { actual.x, actual.y, actual.z, actual.w },
+                    Is.EqualTo(new[] { 0.690346f, 0.153046f, 0.153046f, 0.690346f }).Within(1e-5f), "AngleAxis(25, +z) * Euler(90, 0, 0)");
+                AssertNear(scene.Enemy.ForwardDirection, new Vector3(0.422618f, -0.906308f, 0f), "forward after the world-space turn");
+            });
+        }
+
         // 0x117F7A2 onward: while the alert animation plays, the turn still applies but the local velocity is zero.
         [Test]
         public void MovementStopsForwardMotionWhileTheAlertAnimationPlays()
@@ -356,6 +382,7 @@ namespace ProjectLucid.Tests
                 foreach ((Vector3 local, bool moving) in new[]
                 {
                     (Vector3.zero, false), (new Vector3(0.5f, 0f, 0f), true), (new Vector3(0f, 7f, 0.5f), true),
+                    (new Vector3(0f, 7f, 0f), false),
                     (new Vector3(5e-5f, 0f, 5e-5f), false), (new Vector3(2e-4f, 0f, 0f), true),
                 })
                 {
@@ -481,6 +508,58 @@ namespace ProjectLucid.Tests
                     scene.Enemy.SetWorldPosition(heightAt(height));
                     ability.UpdateMovement(0.02f);
                     AssertNear(scene.Enemy.WorldPosition, heightAt(expected), why);
+                }
+            });
+        }
+
+        // 0x56E8C8 passes QueryTriggerInteraction.Ignore and 0x56E884 the authored mask: a trigger collider above the
+        // floor is not hit even while the physics settings let rays hit triggers, and a floor on a layer outside the mask
+        // is not hit either (no move at all).
+        [Test]
+        public void AirMovementRaycastIgnoresTriggersAndHonoursTheAuthoredMask()
+        {
+            WithScene(scene =>
+            {
+                const int floorLayer = 9;
+                var floor = scene.Owned.Host("Lucid enemy floor", true);
+                floor.transform.position = new Vector3(0f, -0.5f, 0f);
+                floor.AddComponent<BoxCollider>().size = new Vector3(20f, 1f, 20f);
+                var trigger = scene.Owned.Host("Lucid enemy trigger", true);
+                trigger.transform.position = new Vector3(0f, 1.5f, 0f);
+                var triggerBox = trigger.AddComponent<BoxCollider>();
+                triggerBox.size = new Vector3(20f, 1f, 20f);
+                triggerBox.isTrigger = true;
+                Physics.SyncTransforms();
+                var ability = scene.Ability<EnemyAbility_AirMovement, EnemyAbilityDefinition_AirMovement>(definition =>
+                {
+                    definition.ForwardSpeed = 0f;
+                    Curves(definition);
+                    definition.RaycastLength = 10f;
+                    definition.RaycastTarget = ~0;
+                    definition.MinHeight = 2f;
+                    definition.MaxHeight = 3f;
+                    definition.RestrictHeight = true;
+                });
+
+                bool queriesHitTriggers = Physics.queriesHitTriggers;
+                try
+                {
+                    Physics.queriesHitTriggers = true;
+                    scene.Enemy.SetWorldPosition(new Vector3(0f, 5f, 0f));
+                    ability.UpdateMovement(0.02f);
+                    AssertNear(scene.Enemy.WorldPosition, new Vector3(0f, 3f, 0f), "the floor 5 below is hit, not the trigger 3 below");
+
+                    int floorOriginalLayer = floor.layer;
+                    floor.layer = floorLayer;
+                    ability.Definition.RaycastTarget = ~(1 << floorLayer);
+                    scene.Enemy.SetWorldPosition(new Vector3(0f, 5f, 0f));
+                    ability.UpdateMovement(0.02f);
+                    AssertNear(scene.Enemy.WorldPosition, new Vector3(0f, 5f, 0f), "the floor layer is outside the mask");
+                    floor.layer = floorOriginalLayer;
+                }
+                finally
+                {
+                    Physics.queriesHitTriggers = queriesHitTriggers;
                 }
             });
         }

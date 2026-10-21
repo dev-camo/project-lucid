@@ -6,6 +6,7 @@ using NUnit.Framework;
 using ProjectLucid.Tests.WorldSurfaceShared;
 using UnityEditor;
 using UnityEngine;
+using Random = UnityEngine.Random;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
 using static ProjectLucid.Tests.EnemyAbilityTestSupport;
 using static ProjectLucid.Tests.EnemyTestSupport;
@@ -228,6 +229,30 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x56FC83 (inlined again at 0x56F6AC): the offset is Random.insideUnitSphere scaled by the accuracy, so with a
+        // seeded generator it is exactly the next sample times two; a point on the sphere surface would not be.
+        [Test]
+        public void AnAccuracyOffsetIsTheSeededInsideUnitSphereSampleTimesTheAccuracy()
+        {
+            WithScene(scene =>
+            {
+                var ability = Fire(scene, "{\"m_accuracyMetres\":2}");
+                Vector3 aim = new Vector3(1f, 2f, 3f);
+                var previousState = Random.state;
+                try
+                {
+                    Random.InitState(1234);
+                    Vector3 sample = Random.insideUnitSphere;
+                    Random.InitState(1234);
+                    AssertNear((Vector3)Call(ability, "ApplyAccuracy", aim), aim + sample * 2f, "aim plus the sample scaled by the accuracy");
+                }
+                finally
+                {
+                    Random.state = previousState;
+                }
+            });
+        }
+
         // 0x56FAA0: the distance squared is always reported; the target is valid when it is within the range (equal
         // included) and the sine of its elevation above the enemy's up direction is within the band (both ends
         // included). The band here is 0 degrees (sine 0) to -30 degrees; the enemy stands at x = 10.
@@ -263,6 +288,27 @@ namespace ProjectLucid.Tests
                 Assert.That((bool)Call(ability, "TargetValid", ahead), Is.False, "straight along the up direction");
                 object[] beside = { new Vector3(5f, 0f, 0f), -1f };
                 Assert.That((bool)Call(ability, "TargetValid", beside), Is.True, "level with the up direction");
+            });
+        }
+
+        // 0x56F5B5 / 0x56FC3A: the lower end of the band is inclusive too (dot >= min). Both ends at sine 0 leave only
+        // a target exactly level with the enemy valid.
+        [Test]
+        public void TargetValidIncludesTheLowerEndOfTheElevationBand()
+        {
+            WithScene(scene =>
+            {
+                var ability = Fire(scene, "{\"m_verticalAngleMaxDegrees\":0,\"m_verticalAngleMinDegrees\":0}");
+                scene.Enemy.SetWorldPosition(Vector3.zero);
+                object[] arguments = { new Vector3(0f, 0f, 5f), -1f };
+                Assert.That((bool)Call(ability, "TargetValid", arguments), Is.True, "level target on the lower end");
+                Assert.That((float)arguments[1], Is.EqualTo(25f).Within(1e-3f));
+
+                scene.Sense(scene.Target(new Vector3(0f, 0f, 5f)));
+                ability.Enter();
+                ability.Update(0.02f);
+                Assert.That(ability.IsTriggered, Is.True);
+                AssertNear(ability.TargetPosition, new Vector3(0f, 0f, 5f), "published through the update");
             });
         }
 
@@ -310,6 +356,32 @@ namespace ProjectLucid.Tests
 
                 ability.Enter();
                 Assert.That(ability.AbilityFinished, Is.False, "entering again restarts the ability");
+            });
+        }
+
+        // 0x56FA53..0x56FA73: after firing, the update falls through to the finishing check, so a single update that
+        // crosses both the wind-up time and the wind-up plus wind-down time fires and finishes together. The
+        // wind-up-complete flag written by the fire is removed again by the clearing state change.
+        [Test]
+        public void FiringAndFinishingCanHappenInTheSameUpdate()
+        {
+            WithScene(scene =>
+            {
+                scene.AttachPoints(scene.Enemy, null, Vector3.zero);
+                var ability = Fire(scene, "{\"m_windUpTime\":1,\"m_windDownTime\":0.5}");
+                var projectile = NewProjectile(scene);
+                ability.Enter();
+                Call(ability, "SetTriggered", true);
+                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
+                Set(ability, "m_projectileInWarmup", projectile);
+                Set(ability, "m_windUpElapsedTime", 0.5f);
+                ability.Update(1.0f);
+                Assert.That(projectile.Fires, Is.EqualTo(1));
+                Assert.That(projectile.Focuses, Is.EqualTo(new[] { ability.TargetPosition }));
+                Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(1.5f));
+                Assert.That(ability.AbilityFinished, Is.True);
+                Assert.That(ability.IsTriggered, Is.False);
+                Assert.That(scene.Enemy.Storage.HasValue(ActorFSMKeys.EnemyFireProjectileWindUpComplete), Is.False);
             });
         }
 
