@@ -122,7 +122,7 @@ namespace HardlightProject
         }
 
         // 0x060032dd (0x63A920): selecting a zone toggles its pagination toggle on, makes only its page navigable and tells the
-        // owner. Every toggle of the zone is processed; there is no early exit.
+        // owner and the collectable counter. Every toggle of the zone is processed; there is no early exit.
         private void SelectZone(bool value, GameplayLevelCategory selected)
         {
             if (!value)
@@ -140,6 +140,7 @@ namespace HardlightProject
                 }
                 toggleForZone.Toggle.SetSelected(true);
                 m_parameters.OnZoneSelected?.Invoke(zone);
+                m_collectableCounter.UpdateValues(zone);
             }
         }
 

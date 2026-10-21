@@ -10078,6 +10078,89 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UISettingsBackgroundImageTests." + n
     "AwakeLeavesTheBackgroundAloneDuringGameplay",
     "AwakeWithoutAnImageDoesNothing",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerChallengeResultsTests." + name for name in (
+    "DeclarationKeepsTheAuthoredDefaults",
+    "AFirstCompletionIsARecordThatAwardsXpAndRepeatsTheNewValuesAsThePreviousBest",
+    "AFirstCompletionKeepsZeroAsThePreviousBestWhenTheBestIsNotShown",
+    "ASlowerRunIsNoRecordAndTheOldScoreCarriesNoBonus",
+    "ATimeRecordWithoutAScoreRecordIsStillANewRecord",
+    "RepeatingThePreviousTimeAndScoreIsNoRecord",
+    "TheRankForTheNewScoreLoadsItsIconsWhichTheContainerReleasesWhenDisabled",
+    "AScoreWithoutARankHidesTheRanks",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerGameHUDMissionProgressTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "EachCompletableTrackerGetsAContainerFromItsDefaultPrefabUnderItsParent",
+    "AnOverrideIdentifierReplacesTheDefaultPrefabAndAForeignContainerGivesNone",
+    "AnIslandBoundContainerIsShownOnlyForTheActiveIslandMission",
+    "TheIslandEventIsHookedOnceWhateverTheNumberOfIslandBoundContainers",
+    "WithoutIslandBoundContainersTheIslandEventIsNotHooked",
+    "AGroupedTrackerRefreshesEveryContainerOfItsMissionType",
+    "ClosingTheUiUnhooksTheTrackersAndForgetsTheContainers",
+    "StartFollowsTheResetsAndAReloadRebuildsTheContainers",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerLevelResultsTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "TheTrackersResultsOverrideReplacesTheDefaultActiveMissionIdentifier",
+    "AMissionCanBeReplayedWhenItIsAChallengeIncompleteOrACompleteTimeTrial",
+    "AnActiveMissionContainerIsCopiedUnderTheRootWithItsRankAudioOn",
+    "AMissionWithoutALeaderboardHidesTheLeaderboards",
+    "OutsideAChallengeTheChallengeFlagsAreCleared",
+    "WithoutARegularContextNoTimeTrialIsAnnounced",
+    "ATimeTrialIsAnnouncedOnlyOnceItsUnlockIsRecordedAsSeen",
+    "OnlyATimedReachGoalMissionAnnouncesATimeTrial",
+    "ExitPublishesTheExitEventOnlyOnce",
+    "ExitStopsTheCurrentCharacterCollectingOrbs",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerLevelSelectTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "ASelectedZoneFillsItsTitleSubtitleIconAndColours",
+    "OnlyUnlockedUnseenCollectedOrnamentsAreCountedAcrossAllCollections",
+    "WithNothingNewTheBadgeIsHidden",
+    "WithoutABadgeTheNewOrnamentsAreStillBound",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerLevelSelectZoneTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "ConstructionKeepsTheAuthoredDefaults",
+    "EachWidgetReportsItsToggleWithItsOwnLevel",
+    "EveryWidgetButTheSelectedOneIsDeselectedQuietly",
+    "ThePreselectedUnlockedLevelWinsOtherwiseTheLastUnlockedLevel",
+    "TurningThePageOnEnablesTheNavigationOfUnlockedLevelsAndSelectsOne",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerLevelSelectZonesTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "LockedZonesAreListedAsLockedAndTheirPagesHidden",
+    "UpdatingTheZoneTurnsOnlyThatPageOn",
+    "ASelectedLevelIsAnnouncedAndEveryOtherLevelDeselected",
+    "SelectingAZoneSelectsItsToggleTurnsItsPageOnAndAnnouncesIt",
+    "TheNeighbourFlagsFollowTheActiveToggleAndTheToggleCount",
+    "TheBindingsStartFalse",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionTimerTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "EnablingResetsTheBonusTextAndHidesTheTimer",
+    "ARootIsSwitchedToTheRequestedState",
+    "ClearingValuesHidesTheTimerUnlessItIsVisible",
+    "InitialisingHooksTheTimerAndCachesTheMissionSettings",
+    "ATrackerWithoutATimerInitialisesWithoutHookingOne",
+    "WithoutAnActiveMissionNothingIsInitialised",
+    "ACountdownShowsTheTimeRemainingAndTurnsAlternateWhenLow",
+    "WithoutAFailStateTheElapsedTimeIsShownAndOnlyATimeTrialGoesLow",
+    "ANegativeTimeRemainingIsAlwaysAlternate",
+    "AStoppedTimerHidesTheObjectAndAHiddenTimerKeepsItOff",
+    "WithoutATimerTheObjectIsHidden",
+    "ThePauseObjectsFollowTheTimersEnabledAndRunningState",
+    "TheBonusTextShowsTheCurveStartWhileCountingDownAndSwitchesOffWhenOver",
+    "DestroyingUnhooksTheTimer",
+    "ReinitialisingKeepsASingleHook",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionXpRewardsTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "AwakeShowsTheRingXpAndTheRunningTotal",
+    "NoRingXpClearsTheRingFlag",
+    "WithoutRingCollectableStateNothingIsTouched",
+    "ARegularContextWithoutMissionXpShowsNoMissionXp",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSDTCheckboxTests." + name for name in (
     "TogglingAppendsTheMatchingEventsToThePendingList",
     "TogglingOffAddsOnlyTheCloseEvents",
