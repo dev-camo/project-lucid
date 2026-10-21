@@ -18,7 +18,7 @@ namespace HardlightProject
             new Dictionary<LeaderboardIdentifier, string>();
         private readonly SystemRef<DebugMenu> m_debugMenuRef = ProcessManager.GetSystemRef<DebugMenu>(null, true);
 
-        // 0x0600282b: the three field initializers run before System.Object.
+        // 0x0600282b.
         public TimeTrialLeaderboardDev() { }
 
         // 0x0600282c: always ready.
@@ -49,7 +49,7 @@ namespace HardlightProject
             m_leaderboardsByLabel.Clear();
         }
 
-        // 0x06002831: used only by the [Conditional] debug label callback.
+        // 0x06002831: returns the literal; no retail body references it.
         private static string GetDefaultMessage()
         {
             return "No leaderboard best times have been submitted yet.";

@@ -54,7 +54,7 @@ namespace HardlightProject
             return true;
         }
 
-        // 0x06001f1a: the three field initializers run before the ScriptableObject base.
+        // 0x06001f1a.
         public RequirementLockCategoryByBoss() { }
     }
 }

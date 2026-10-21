@@ -30,7 +30,7 @@ namespace HardlightProject
             return m_valueToMatch.Equals(value);
         }
 
-        // 0x06001f09; the field initializer runs before the ScriptableObject base.
+        // 0x06001f09.
         protected RequirementAppFSMValue() { }
     }
 }

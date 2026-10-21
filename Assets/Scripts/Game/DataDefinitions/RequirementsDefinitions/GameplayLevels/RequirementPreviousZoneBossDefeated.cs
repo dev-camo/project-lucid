@@ -15,7 +15,7 @@ namespace HardlightProject
         private readonly SystemRef<MissionManager> m_missionManagerRef = ProcessManager.GetSystemRef<MissionManager>(null, true);
 
         // 0x06001f02 (x86-64 0x556ed0): after the DebugUnlockLevels class
-        // initialisation (its inlined always-false query) the boss level of the
+        // initialisation (its inlined always-false query; the dead branch's return value is inferred from the sibling requirements) the boss level of the
         // zone before this level's zone must have its first mission complete.
         // The scan keeps the last zone it passed; for the first zone nothing
         // precedes it, so the zone itself is used.
@@ -28,6 +28,7 @@ namespace HardlightProject
             GameplayLevelCategory previousZone = null;
             foreach (GameplayLevelCategory candidate in gameLevels.GetZones())
             {
+                // The null test runs before the zone comparison (0x557165, then 0x557175).
                 bool hadNoPreviousZone = previousZone == null;
                 if (candidate == zone)
                 {
@@ -46,7 +47,7 @@ namespace HardlightProject
             return m_missionManagerRef.Get().GetSaveDataForMission(firstMission.GetGUID(), bossLevel.GetGUID()).Complete;
         }
 
-        // 0x06001f03: both field initializers run before the ScriptableObject base.
+        // 0x06001f03.
         public RequirementPreviousZoneBossDefeated() { }
     }
 }

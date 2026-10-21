@@ -15,7 +15,7 @@ namespace HardlightProject
         private readonly SystemRef<MissionManager> m_missionManagerRef = ProcessManager.GetSystemRef<MissionManager>(null, true);
 
         // 0x06001f00 (x86-64 0x556b90): after the DebugUnlockLevels class
-        // initialisation (its inlined always-false query) the level before this
+        // initialisation (its inlined always-false query; the dead branch's return value is inferred from the sibling requirements) the level before this
         // one must exist, have mission groups, and have its first mission
         // recorded as complete.
         public override bool RequirementsMet(GameplayLevelDefinition levelDefinition)
@@ -31,7 +31,7 @@ namespace HardlightProject
             return m_missionManagerRef.Get().GetSaveDataForMission(firstMission.GetGUID(), previousLevel.GetGUID()).Complete;
         }
 
-        // 0x06001f01: both field initializers run before the ScriptableObject base.
+        // 0x06001f01.
         public RequirementPreviousActFirstMissionCompleted() { }
     }
 }

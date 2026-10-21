@@ -27,7 +27,7 @@ namespace HardlightProject
             return !missionData.Complete;
         }
 
-        // 0x06001f16: both field initializers run before the ScriptableObject base.
+        // 0x06001f16.
         public RequirementHasNotCompletedMission() { }
     }
 }

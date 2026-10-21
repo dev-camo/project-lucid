@@ -71,6 +71,7 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Original-derived declaration oracle: blob 4636993D... at metadata 0x696D40 holds 1, 2, 3 in that order.
         [Test]
         public void TheUnlockedStatesAreTheThreeStatesPastLockedInOrder()
         {

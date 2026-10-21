@@ -27,7 +27,7 @@ namespace HardlightProject
                 .GetOrCreateMissionData(m_missionDefinition.GetGUID()).Complete;
         }
 
-        // 0x06001f07: both field initializers run before the ScriptableObject base.
+        // 0x06001f07.
         public RequirementSpecificMissionComplete() { }
     }
 }

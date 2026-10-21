@@ -16,7 +16,7 @@ namespace HardlightProject
         private readonly SystemRef<MissionManager> m_missionManagerRef = ProcessManager.GetSystemRef<MissionManager>(null, true);
 
         // 0x06001f2a (x86-64 0x559150): the retail body begins with the class
-        // initialisation of DebugUnlockLevels (its inlined always-false query).
+        // initialisation of DebugUnlockLevels (its inlined always-false query; the dead branch's return value is inferred from the sibling requirements).
         // Each listed mission is looked up in the save data of the first level
         // that hosts it; a mission with no save entry does not fail the
         // requirement. Neither argument is read.
@@ -36,7 +36,7 @@ namespace HardlightProject
             return true;
         }
 
-        // 0x06001f2b: both field initializers run before the ScriptableObject base.
+        // 0x06001f2b.
         public RequirementMissionsCompleted() { }
     }
 }

@@ -15,7 +15,8 @@ namespace HardlightProject
 
         // 0x06001efe (x86-64 0x556970): a level outside the game's level list is
         // never met. After the DebugUnlockLevels class initialisation (its inlined
-        // always-false query) every reward requirement is compared with the
+        // always-false query; the dead branch's return value is inferred from the
+        // sibling requirements) every reward requirement is compared with the
         // collected total of its type; all of them are always evaluated.
         public override bool RequirementsMet(GameplayLevelDefinition levelDefinition)
         {

@@ -11,8 +11,9 @@ namespace HardlightProject
     public class SaveGameUIActions : MonoBehaviour
     {
         // 0x06002d0a (x86-64 0x5ece80): the open save is closed, every slot is
-        // replaced (SaveManager.DeleteAllSaves, inlined) and the same save slot
-        // 0 is reopened on this component. The reopen is started whether or not
+        // replaced (SaveManager.DeleteAllSaves, inlined) and save slot 0 is then
+        // reopened on this component (constant argument 0 in the iterator at
+        // +0x28), whichever slot was open before. The reopen is started whether or not
         // the delete guard held.
         public void Action_DeleteAllSaves()
         {

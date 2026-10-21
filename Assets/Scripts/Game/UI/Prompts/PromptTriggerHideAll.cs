@@ -20,7 +20,7 @@ namespace HardlightProject
                 m_promptManagerRef.Get().HideAllActivePrompts();
         }
 
-        // 0x06003742; the field initializer runs before the MonoBehaviour base.
+        // 0x06003742.
         public PromptTriggerHideAll() { }
     }
 }

@@ -28,7 +28,7 @@ namespace HardlightProject
                 m_unlockedStates.Contains(challengeManager.FeatureState);
         }
 
-        // 0x06001f10: both field initializers run before the ScriptableObject base.
+        // 0x06001f10.
         public RequirementChallengesFeatureUnlocked() { }
     }
 }
