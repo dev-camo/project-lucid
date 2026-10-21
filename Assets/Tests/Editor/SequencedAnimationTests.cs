@@ -44,8 +44,9 @@ namespace ProjectLucid.Tests
             owned.Host("Lucid animated child", true, animationHost.transform);
             scene.Animation = animationHost.AddComponent<Animation>();
             scene.Clip = owned.Track(new AnimationClip { legacy = true, name = "LucidSequencedClip" });
-            if (clipLength > 0f)
-                scene.Clip.SetCurve("Lucid animated child", typeof(Transform), "localPosition.x", AnimationCurve.Linear(0f, 0f, clipLength, 1f));
+            // A clip without any curve has the engine's default length of 1, so the zero-length clip is a single key at time 0.
+            scene.Clip.SetCurve("Lucid animated child", typeof(Transform), "localPosition.x",
+                clipLength > 0f ? AnimationCurve.Linear(0f, 0f, clipLength, 1f) : new AnimationCurve(new Keyframe(0f, 1f)));
             scene.Animation.AddClip(scene.Clip, scene.Clip.name);
             scene.Animation.clip = scene.Clip;
             scene.Animation.playAutomatically = false;
