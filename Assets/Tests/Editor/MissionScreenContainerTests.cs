@@ -223,6 +223,8 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
+                owned.LeaseRow<SaveManager>(); // MissionDefinition's field initialisers
+                owned.LeaseRow<TimeTrialLeaderboardManager>();
                 string json = "{\"m_failOnTimeLimitReached\":" + (failOnLimit ? "true" : "false") + ",\"m_timeLimitSeconds\":" +
                               limit.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + ",\"m_objectivesAdditionalTotalTimeSeconds\":" +
                               extra.ToString("R", System.Globalization.CultureInfo.InvariantCulture) + "}";
