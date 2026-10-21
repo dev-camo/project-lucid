@@ -171,7 +171,7 @@ namespace ProjectLucid.Tests
         internal static void BindStaticReference<T>(Owned owned, Type owner, string field, T system) where T : class, ISystem
         {
             RuntimeHelpers.RunClassConstructor(owner.TypeHandle);
-            Action restore = ChallengeRewardTestSupport.BindEmptyStaticReference(owner, field, system);
+            Action restore = StaticSystemReference.Bind(owner, field, system);
             if (restore != null)
                 owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(restore));
         }
