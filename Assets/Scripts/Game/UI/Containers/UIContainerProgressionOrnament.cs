@@ -80,39 +80,22 @@ namespace HardlightProject
 		// 06003450 (1.10.1 RVA 0x674400): an unknown category keeps the current category text and shows no icon.
 		private void SetBindableFields()
 		{
-			OrnamentDefinition ornamentDefinition = m_unlock.OrnamentDefinition;
-			Name.Value = ornamentDefinition.LocalisedName;
-			Description.Value = ornamentDefinition.LocalisedUnlockedLore;
-			switch (ornamentDefinition.OrnamentCategory)
+			Name.Value = m_unlock.OrnamentDefinition.LocalisedName;
+			Description.Value = m_unlock.OrnamentDefinition.LocalisedUnlockedLore;
+			Category.Value = m_unlock.OrnamentDefinition.OrnamentCategory switch
 			{
-				case OrnamentCategory.Story:
-					Category.Value = Strings.ORNAMENT_CAT_STORY;
-					break;
-				case OrnamentCategory.Achievement:
-					Category.Value = Strings.ORNAMENT_CAT_ACHIEVER;
-					break;
-				case OrnamentCategory.Challenge:
-					Category.Value = Strings.ORNAMENT_CAT_CHALLENGES;
-					break;
-				default:
-					Category.Value = Category.Value;
-					break;
-			}
-			switch (m_unlock.OrnamentDefinition.OrnamentCategory)
+				OrnamentCategory.Story => Strings.ORNAMENT_CAT_STORY,
+				OrnamentCategory.Achievement => Strings.ORNAMENT_CAT_ACHIEVER,
+				OrnamentCategory.Challenge => Strings.ORNAMENT_CAT_CHALLENGES,
+				_ => Category.Value,
+			};
+			CategoryImage.Value = m_unlock.OrnamentDefinition.OrnamentCategory switch
 			{
-				case OrnamentCategory.Story:
-					CategoryImage.Value = m_missionSprite;
-					break;
-				case OrnamentCategory.Challenge:
-					CategoryImage.Value = m_challengeSprite;
-					break;
-				case OrnamentCategory.Achievement:
-					CategoryImage.Value = m_achievementSprite;
-					break;
-				default:
-					CategoryImage.Value = null;
-					break;
-			}
+				OrnamentCategory.Story => m_missionSprite,
+				OrnamentCategory.Challenge => m_challengeSprite,
+				OrnamentCategory.Achievement => m_achievementSprite,
+				_ => null,
+			};
 		}
 
 		// 06003451 (1.10.1 RVA 0x674610)

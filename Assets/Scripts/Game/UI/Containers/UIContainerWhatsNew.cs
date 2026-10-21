@@ -35,7 +35,7 @@ namespace HardlightProject
 		{
 			if (m_animation == null || m_openClip == null)
 			{
-				m_app.AddUniqueUIModernEvent(m_closeEvent);
+				Close();
 				return;
 			}
 			m_animation.Play(m_closeClip.name);
@@ -44,7 +44,7 @@ namespace HardlightProject
 		// 0600358d (1.10.1 RVA 0x683D00)
 		public void Action_AnimationCloseFinish()
 		{
-			m_app.AddUniqueUIModernEvent(m_closeEvent);
+			Close();
 		}
 
 		// 0600358e (1.10.1 RVA 0x683B70)
@@ -57,7 +57,7 @@ namespace HardlightProject
 			m_animation.Play(m_openClip.name);
 		}
 
-		// 0600358f (1.10.1 RVA 0x683CE0)
+		// 0600358f (1.10.1 RVA 0x683CE0): the retail binary inlines it at every call site.
 		private void Close()
 		{
 			m_app.AddUniqueUIModernEvent(m_closeEvent);

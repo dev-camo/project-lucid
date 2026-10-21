@@ -366,7 +366,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x674E50, last branch (0x6750B4..0x675193): an ornament with neither mission nor achievement shows the challenge
+        // 0x674E50, last branch (0x675160..0x675193, reached when the achievement test at 0x6750B4 falls through): an ornament with neither mission nor achievement shows the challenge
         // details when its XP (+0x2c) is above zero (jle 0x675167) and nothing otherwise.
         [Test]
         public void AnOrnamentWithOnlyChallengeExperienceShowsTheChallengeDetails()

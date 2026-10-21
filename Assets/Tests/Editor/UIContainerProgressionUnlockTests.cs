@@ -33,7 +33,7 @@ namespace ProjectLucid.Tests
             return sprite;
         }
 
-        // dump.cs TypeDefIndex 2310..2314 and the DummyDll rows (fields 0x040024f9..0x04002502, methods 0x06003437..0x0600344b).
+        // dump.cs TypeDefIndex 2310..2314 and the DummyDll rows (fields 0x040024f9..0x0400250d, methods 0x06003437..0x0600344b).
         [Test]
         public void TheSimpleContainersMatchTheOriginalMetadata()
         {
@@ -82,7 +82,7 @@ namespace ProjectLucid.Tests
                 Assert.That(type.BaseType, Is.EqualTo(typeof(UIContainer)), type.Name);
         }
 
-        // dump.cs TypeDefIndex 2315/2316 and the DummyDll rows (fields 0x04002503.., methods 0x0600344c..0x06003455).
+        // dump.cs TypeDefIndex 2315/2316 and the DummyDll rows (fields 0x0400250e..0x04002523, methods 0x0600344c..0x06003455).
         [Test]
         public void TheOrnamentAndRewardTrackContainersMatchTheOriginalMetadata()
         {

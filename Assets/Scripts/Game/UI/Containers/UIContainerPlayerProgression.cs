@@ -88,7 +88,7 @@ namespace HardlightProject
 		{
 			if (m_progressionsQueue.Count <= 0)
 			{
-				m_app.AddUniqueUIModernEvent(m_exitEvent);
+				Exit(m_exitEvent);
 				return;
 			}
 			if (m_currentWidget != null)
@@ -173,7 +173,7 @@ namespace HardlightProject
 		{
 			if (m_currentWidget == null)
 			{
-				m_app.AddUniqueUIModernEvent(m_exitEvent);
+				Exit(m_exitEvent);
 				return;
 			}
 			m_currentWidget.AnimateOutComplete += Continue;
@@ -211,6 +211,7 @@ namespace HardlightProject
 		}
 
 		// 0600342f (1.10.1 RVA 0x672B40)
+		// The retail binary inlines this helper at every call site.
 		private void Exit(UIModernEvent uiModernEvent)
 		{
 			m_app.AddUniqueUIModernEvent(uiModernEvent);
