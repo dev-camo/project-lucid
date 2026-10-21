@@ -6949,6 +6949,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyBrainTransitionTests." + name f
     "NodesCarryTheirOriginalGraphAuthoringAttributes",
     "ClassFactoryRegistersTheNodesWithTheirArgumentTypes",
     "DeclarationShapeTransitionsKeepTheirFlagsBasesAndArgumentClass",
+    "FireProjectileTriggeredIsFalseWithoutTheAbilityAndFollowsItsTriggeredFlag",
+    "FireProjectileTriggeredLooksUpTheAbilityTypeItWasConfiguredWith",
+    "FireProjectileTriggeredIgnoresATriggeredAbilityOfAnotherClass",
+    "FireProjectileTriggeredLeavesThePublishedTargetPositionOnTheBrain",
+    "FireProjectileTriggeredReadsItsJsonBeforeBuildingAndRegistersTheTransition",
+    "DeclarationShapeFireProjectileTriggeredKeepsItsBaseMenuAndMembers",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyStateTriggerGravityForceTests." + name for name in (
     "TriggerStartForwardsTheConfiguredFlagToTheEnemyBody",

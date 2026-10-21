@@ -8,13 +8,14 @@ using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using ProjectLucid.Tests.WorldSurfaceShared;
+using static ProjectLucid.Tests.CharacterAbilityTestSupport;
 using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
-    // The enemy brain transitions: the shared base and the nine transitions that do not need the ability of another
-    // cluster (EnemyBrainTransition_FireProjectileTriggered waits for EnemyAbility_FireProjectile and is not restored).
+    // The enemy brain transitions: the shared base, the nine transitions of the brain's own state and the one that
+    // reads the fire-projectile ability of the brain's enemy (EnemyBrainTransition_FireProjectileTriggered).
     // Expected values come from the 1.10.1 x86-64 bodies cited per test. Each transition is built through its own
     // ConstructInstance and updated against a real EnemyBrain with its own storage. An Enemy that has not started
     // holds no definition (Start reads it from the DataManager), so the traits-reading bodies run against a real
@@ -485,6 +486,134 @@ namespace ProjectLucid.Tests
                 scene.Brain.Storage.SetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, scene.Target(new Vector3(5f, 0f, 0f)));
                 Assert.That(transition.Update(scene.Brain, Context()), Is.False, "five away");
             }, traits => traits.SightDistance = 10f);
+        }
+
+        // ---- the fire projectile transition ----
+
+        private static IFSMTransition BuildFireProjectileTriggered(ActorAbilityType type) =>
+            Build(EnemyBrainTransition_FireProjectileTriggered.ConstructInstance, "{\"AbilityType\":" + (int)type + "}");
+
+        private static T TriggeredAbility<T>() where T : EnemyAbility, new()
+        {
+            var ability = new T();
+            SetProperty(ability, "IsTriggered", true);
+            return ability;
+        }
+
+        private static Dictionary<ActorAbilityType, ActorAbility> AbilitiesOf(Enemy enemy) =>
+            Get<Dictionary<ActorAbilityType, ActorAbility>>(enemy, "m_abilities");
+
+        // 0x574971..0x574998 take the brain's Enemy (+0x18) and call Actor.TryGetAbility<EnemyAbility_FireProjectile>
+        // (0x7C7460) with the type the constructor stored at +0x1C; 0x57499D..0x5749AC return false when it finds none
+        // (xor eax, eax at 0x5749AE) and otherwise the byte at +0x20 of the ability, its IsTriggered flag. So the
+        // transition is false without an ability of the configured type and follows IsTriggered once there is one.
+        [Test]
+        public void FireProjectileTriggeredIsFalseWithoutTheAbilityAndFollowsItsTriggeredFlag()
+        {
+            WithBrain((owned, brain, enemy) =>
+            {
+                IFSMTransition transition = BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile);
+                Assert.That(transition.Update(brain, Context()), Is.False, "no ability");
+                var ability = new EnemyAbility_FireProjectile();
+                AbilitiesOf(enemy)[ActorAbilityType.Enemy_FireProjectile] = ability;
+                Assert.That(transition.Update(brain, Context()), Is.False, "ability not triggered");
+                SetProperty(ability, "IsTriggered", true);
+                Assert.That(transition.Update(brain, Context()), Is.True, "ability triggered");
+                SetProperty(ability, "IsTriggered", false);
+                Assert.That(transition.Update(brain, Context()), Is.False, "ability cleared again");
+            });
+        }
+
+        // The type read at 0x574987 is the one the constructor kept from the JSON (0x5748E1..0x574919), so a triggered
+        // ability stored under another type does not count and each node looks up its own configured type.
+        [Test]
+        public void FireProjectileTriggeredLooksUpTheAbilityTypeItWasConfiguredWith()
+        {
+            WithBrain((owned, brain, enemy) =>
+            {
+                var triggered = TriggeredAbility<EnemyAbility_FireProjectile>();
+                AbilitiesOf(enemy)[ActorAbilityType.Enemy_FireProjectile] = triggered;
+                AbilitiesOf(enemy)[ActorAbilityType.Enemy_Dead] = new EnemyAbility_FireProjectile();
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile).Update(brain, Context()), Is.True);
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_Dead).Update(brain, Context()), Is.False,
+                    "the ability under the other type is not triggered");
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_GroundAttack).Update(brain, Context()), Is.False,
+                    "nothing is registered under that type");
+            });
+        }
+
+        // TryGetAbility<EnemyAbility_FireProjectile> (0x7C7460) is generic over the ability class, so a triggered
+        // ability of another class under the configured type is not found and the transition is false.
+        [Test]
+        public void FireProjectileTriggeredIgnoresATriggeredAbilityOfAnotherClass()
+        {
+            WithBrain((owned, brain, enemy) =>
+            {
+                AbilitiesOf(enemy)[ActorAbilityType.Enemy_FireProjectile] = TriggeredAbility<EnemyAbility_Dead>();
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile).Update(brain, Context()), Is.False);
+            });
+        }
+
+        // DoUpdate (0x574930..0x5749B8) only reads: it makes no storage call, so the target position that
+        // EnemyAbility_FireProjectile.SetTriggered publishes on the brain (and that the ability's UpdateWhileTriggered
+        // waits on, jne to ret at 0x56F834) stays until some other node removes it. With a really triggered ability the
+        // transition is true on every update and the brain still holds the position, which this transition does not consume.
+        [Test]
+        public void FireProjectileTriggeredLeavesThePublishedTargetPositionOnTheBrain()
+        {
+            EnemyAbilityTestSupport.WithScene(scene =>
+            {
+                var ability = scene.Ability<EnemyAbility_FireProjectile, EnemyAbilityDefinition_FireProjectile>();
+                AbilitiesOf(scene.Enemy)[ActorAbilityType.Enemy_FireProjectile] = ability;
+                IFSMTransition transition = BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile);
+                Assert.That(transition.Update(scene.Brain, Context()), Is.False, "before the trigger");
+
+                Call(ability, "SetTriggered", true);
+                Assert.That(scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition), Is.True);
+                Assert.That(transition.Update(scene.Brain, Context()), Is.True);
+                Assert.That(transition.Update(scene.Brain, Context()), Is.True, "still true on the next update");
+                Assert.That(scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition), Is.True,
+                    "the transition does not consume the published position");
+
+                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
+                Assert.That(transition.Update(scene.Brain, Context()), Is.True, "the flag, not the stored position, decides");
+            });
+        }
+
+        // 0x5748E1..0x5748EE reads the JSON into AbilityJSONCtorArgs (JsonUtility.FromJson<>) before 0x574900 allocates the
+        // node, as in the siblings, and 0x574919 runs the Transition_Ability constructor, which registers the node.
+        [Test]
+        public void FireProjectileTriggeredReadsItsJsonBeforeBuildingAndRegistersTheTransition()
+        {
+            FiniteStateMachine fsm = NewFsm();
+            FSMIdentifier id = Id();
+            IFSMTransition transition = EnemyBrainTransition_FireProjectileTriggered.ConstructInstance(fsm, id, "{}");
+            Assert.That(transition.TransitionId, Is.EqualTo(id.Id));
+            Assert.That(fsm.TransitionExists(id, out IFSMTransition registered), Is.True);
+            Assert.That(registered, Is.SameAs(transition));
+
+            FiniteStateMachine rejected = NewFsm();
+            FSMIdentifier rejectedId = Id();
+            Assert.That(() => EnemyBrainTransition_FireProjectileTriggered.ConstructInstance(rejected, rejectedId, "not json"),
+                Throws.InstanceOf<ArgumentException>());
+            Assert.That(rejected.TransitionExists(rejectedId, out _), Is.False);
+        }
+
+        // DummyDll: public, derived from Transition_Ability (not EnemyBrainTransition), the Enemy/Brain menu without a
+        // default name, the IL2CPP options in the order ArrayBoundsChecks, NullChecks, no fields, and the protected
+        // constructor, public static factory and protected virtual hook. It registers with the abstract base's argument class.
+        [Test]
+        public void DeclarationShapeFireProjectileTriggeredKeepsItsBaseMenuAndMembers()
+        {
+            Type type = typeof(EnemyBrainTransition_FireProjectileTriggered);
+            AssertNode(type, 2, 1);
+            AssertMembers(type, 0x00100001, new (string, int)[0], new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4) });
+            Assert.That(type.BaseType, Is.EqualTo(typeof(Transition_Ability)));
+            Assert.That(FSMClassFactory.Transitions.TryGetValue(type.Name, out JSONFactoryClass registered), Is.True);
+            Assert.That(registered.ClassType, Is.EqualTo(type));
+            Assert.That(registered.ConstructInstanceMethod.DeclaringType, Is.EqualTo(type));
+            Assert.That(registered.JSONCtorArgsType.Name, Is.EqualTo("AbilityJSONCtorArgs"));
+            Assert.That(registered.JSONCtorArgsType.DeclaringType, Is.EqualTo(typeof(Transition_Ability)));
         }
 
         // ---- construction ----
