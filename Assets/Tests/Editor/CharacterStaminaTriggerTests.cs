@@ -501,7 +501,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void StartWithAValidCharacterStoresItsAbilityAtOnce()
         {
-            InitialiseCollectable();
+            MissionTrackerTestSupport.InitialiseCollectable();
             WithStaminas((owned, manager, character, boost, chaos) =>
             {
                 var trigger = NewChaosTrigger(owned, false);
@@ -534,22 +534,13 @@ namespace ProjectLucid.Tests
             });
         }
 
-        private static void InitialiseCollectable() => Owned.Run(owned =>
-        {
-            // Collectable caches typed references to these rows in static fields when it is first used.
-            owned.LeaseRow<CollectableManager>();
-            owned.LeaseRow<LevelManager>();
-            owned.LeaseRow<CharacterManager>();
-            RuntimeHelpers.RunClassConstructor(typeof(Collectable).TypeHandle);
-        });
-
         // OnCharacterChange 0xE69E10 reads the Collectable on its own object (GetComponent, 0xE69E59), asks the stamina
         // about that collectable's type (vtable slot 4, IsCollectableType, answer unused), then stores the character's
         // ability of the trigger's type cast to T, null when it has none or it is not a T (IsInst, 0xE69EC7).
         [Test]
         public void CharacterChangeStoresTheCharactersAbilityOfTheTriggersTypeAsT()
         {
-            InitialiseCollectable();
+            MissionTrackerTestSupport.InitialiseCollectable();
             WithStaminas((owned, manager, character, boost, chaos) =>
             {
                 var trigger = NewChaosTrigger(owned, false);

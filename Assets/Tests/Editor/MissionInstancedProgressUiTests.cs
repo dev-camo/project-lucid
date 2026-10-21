@@ -34,7 +34,6 @@ namespace ProjectLucid.Tests
         private static UIContainerInstancedMissionProgressParameters Parameters(IReadOnlyList<int> previous, IReadOnlyList<int> completed) =>
             new UIContainerInstancedMissionProgressParameters(null, 0, 0, false, previous, completed);
 
-        private static float Seconds(object wait) => (float)typeof(WaitForSeconds).GetField("m_Seconds", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public).GetValue(wait);
 
         [Test]
         public void TheParametersKeepEachArgumentInItsOwnProperty()
@@ -124,8 +123,8 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x63D1C7..0x63D54: wait, tick once per interval (the first tick without any prior check against the target),
-        // light the next newly completed slot with each tick, then flag the count-up and the completion after a delay.
+        // 0x63D1C7..0x63D53E (MoveNext 0x63D160): initial delay, then while below the target (check at 0x63D48C) wait one
+        // interval and tick, lighting the next newly completed slot; then flag the count-up and, after a delay, completion.
         [Test]
         public void TheProgressTicksUpOneStepPerIntervalLightingTheNewlyCompletedSlots()
         {
@@ -141,23 +140,28 @@ namespace ProjectLucid.Tests
                 var animation = (IEnumerator)Call(container, "AnimateProgressDelta", 3);
 
                 Assert.That(animation.MoveNext(), Is.True);
-                Assert.That(Seconds(animation.Current), Is.EqualTo(1.5f), "the initial delay");
+                Assert.That(OriginalInOutTestSupport.Seconds((WaitForSeconds)animation.Current), Is.EqualTo(1.5f), "the initial delay");
                 Assert.That(container.Progress.Value, Is.EqualTo(0));
 
                 Assert.That(animation.MoveNext(), Is.True);
-                Assert.That(Seconds(animation.Current), Is.EqualTo(0.25f), "the tick interval");
+                Assert.That(OriginalInOutTestSupport.Seconds((WaitForSeconds)animation.Current), Is.EqualTo(0.25f), "the tick interval is waited before the first tick");
                 object interval = animation.Current;
+                Assert.That(container.Progress.Value, Is.EqualTo(0));
+                Assert.That(Lit(container), Is.EqualTo(new[] { false, false, false }));
+
+                Assert.That(animation.MoveNext(), Is.True);
+                Assert.That(animation.Current, Is.SameAs(interval), "one interval object is reused");
                 Assert.That(container.Progress.Value, Is.EqualTo(1));
                 Assert.That(Lit(container), Is.EqualTo(new[] { false, true, false }));
 
                 Assert.That(animation.MoveNext(), Is.True);
-                Assert.That(animation.Current, Is.SameAs(interval), "one interval object is reused");
+                Assert.That(animation.Current, Is.SameAs(interval));
                 Assert.That(container.Progress.Value, Is.EqualTo(2));
                 Assert.That(Lit(container), Is.EqualTo(new[] { false, true, true }));
                 Assert.That(container.CountUpComplete.Value, Is.False);
 
                 Assert.That(animation.MoveNext(), Is.True);
-                Assert.That(Seconds(animation.Current), Is.EqualTo(2.5f), "the delay before completion");
+                Assert.That(OriginalInOutTestSupport.Seconds((WaitForSeconds)animation.Current), Is.EqualTo(2.5f), "the delay before completion");
                 Assert.That(container.Progress.Value, Is.EqualTo(3));
                 Assert.That(container.CountUpComplete.Value, Is.True);
                 Assert.That(container.IsComplete.Value, Is.False);
@@ -182,17 +186,20 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The first tick is unconditional: a count already at its target still ticks once.
+        // The target is checked before every tick (0x63D48C): a count already at its target does not tick.
         [Test]
-        public void ACountAlreadyAtItsTargetStillTicksOnce()
+        public void ACountAlreadyAtItsTargetDoesNotTick()
         {
             Owned.Run(owned =>
             {
                 UIContainerMissionInstancedProgress container = NewContainer(owned, 0, ordered: false);
                 container.Progress.Value = 3;
                 var animation = (IEnumerator)Call(container, "AnimateProgressDelta", 3);
-                while (animation.MoveNext()) { }
-                Assert.That(container.Progress.Value, Is.EqualTo(4));
+                Assert.That(animation.MoveNext(), Is.True, "the initial delay");
+                Assert.That(animation.MoveNext(), Is.True, "straight to the delay before completion");
+                Assert.That(container.CountUpComplete.Value, Is.True);
+                Assert.That(animation.MoveNext(), Is.False);
+                Assert.That(container.Progress.Value, Is.EqualTo(3));
             });
         }
 
@@ -205,10 +212,13 @@ namespace ProjectLucid.Tests
                 UIContainerMissionInstancedProgress container = NewContainer(owned, 2);
                 Call(container, "SetupOrderedObjectives", Parameters(new List<int>(), new List<int> { 5, 1 }), true);
                 var animation = (IEnumerator)Call(container, "AnimateProgressDelta", 2);
-                animation.MoveNext();
-                animation.MoveNext();
+                animation.MoveNext(); // initial delay
+                animation.MoveNext(); // first interval
+                animation.MoveNext(); // tick 1
+                Assert.That(container.Progress.Value, Is.EqualTo(1));
                 Assert.That(Lit(container), Is.EqualTo(new[] { false, true }), "index 1 lit by the first tick");
-                animation.MoveNext();
+                animation.MoveNext(); // tick 2
+                Assert.That(container.Progress.Value, Is.EqualTo(2));
                 Assert.That(Lit(container), Is.EqualTo(new[] { false, true }), "index 5 has no slot");
             });
         }

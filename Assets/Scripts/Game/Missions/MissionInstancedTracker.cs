@@ -9,7 +9,7 @@ using UnityEngine.Events;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x02000700: a mission made of several MissionObjective children that completes when enough
-    // of them have been completed. The compiler-generated names (Icon backing field, delegate caches) follow member order.
+    // of them have been completed. The compiler-generated names (the Icon backing field) follow member order.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class MissionInstancedTracker : MissionTracker
@@ -241,8 +241,8 @@ namespace HardlightProject
         {
             int index = m_missionObjectives.IndexOf(missionObjective);
             if (index < 0) return;
-            _ = GetObjectivesDebugPath();
-            _ = string.Concat("Complete #", (index + 1).ToString(), " (", missionObjective.name, ")");
+            string path = GetObjectivesDebugPath();
+            string label = "Complete #" + (index + 1) + " (" + missionObjective.name + ")";
         }
 
         // 060026ae (0x5B1E90)

@@ -11,8 +11,9 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 namespace ProjectLucid.Tests
 {
     // MissionInstancedOrbSpawningTracker.StatusChanged (0x5AF6E0) replaces the base handling and spawns the completion
-    // orb (SpawnOrb 0x5AFD00) once every objective is complete. The orb prefab is a Collectable the Edit Mode
-    // fixtures cannot instantiate, so the cases stop at the point where Object.Instantiate is handed no prefab.
+    // orb (SpawnOrb 0x5AFD00) once every objective is complete. The cases author no orb prefab, so they stop at the
+    // point where Object.Instantiate is handed none. The successful spawn, the OnCollected subscription and OrbCollected
+    // are not covered: instantiating a Collectable has not been verified in Edit Mode.
     public sealed class MissionInstancedOrbSpawningTrackerTests
     {
         private sealed class Rig

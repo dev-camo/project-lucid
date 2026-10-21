@@ -228,18 +228,28 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x5ABDB8: with no valid current character the tick yields without touching the measurements.
         [Test]
         public void WithoutACurrentCharacterTheMeasurementsAreLeftAlone()
         {
             InitialiseCollectable();
             WithCharacterWorld((world, manager, character) =>
             {
-                Rig rig = Build(world, TwoRewards, new Bounds(Vector3.zero, new Vector3(60f, 80f, 0f)));
+                Rig rig = Build(world, new[] { new Vector3(0f, 0f, 10f), Vector3.zero }, new Bounds(Vector3.zero, new Vector3(60f, 80f, 0f)));
                 Call(rig.Tracker, "Start");
+                Set(character, "m_cameraForward", new Vector3(0f, 0f, 1f)); // Reflection: set by Character.Update from the camera
+                CharacterTriggerTestSupport.SetCurrent(manager, character, true);
                 var tracking = (IEnumerator)Call(rig.Tracker, "TrackCharacterProximity");
                 Assert.That(tracking.MoveNext(), Is.True);
-                Assert.That(rig.Tracker.NormalisedDistanceProximity, Is.Zero);
-                Assert.That(rig.Tracker.NormalisedWeightedProximity, Is.Zero);
+                Assert.That(rig.Tracker.NormalisedDistanceProximity, Is.EqualTo(0.8f).Within(1e-5f), "seeded by a real tick");
+                Assert.That(rig.Tracker.NormalisedWeightedProximity, Is.EqualTo(0.93333334f).Within(1e-5f));
+
+                CharacterTriggerTestSupport.SetCurrent(manager, character, false);
+                rig.Rewards[0].transform.position = new Vector3(0f, 0f, 100f);
+                Assert.That(tracking.MoveNext(), Is.True);
+                Assert.That(tracking.Current, Is.Null);
+                Assert.That(rig.Tracker.NormalisedDistanceProximity, Is.EqualTo(0.8f).Within(1e-5f));
+                Assert.That(rig.Tracker.NormalisedWeightedProximity, Is.EqualTo(0.93333334f).Within(1e-5f));
             });
         }
 

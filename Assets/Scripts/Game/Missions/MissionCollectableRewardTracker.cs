@@ -186,16 +186,10 @@ namespace HardlightProject
                 Vector3 toReward = reward.transform.position - character.WorldPosition;
                 float distance = toReward.magnitude;
                 Vector3 direction = toReward / distance;
-                // Single-precision locals keep each intermediate rounded to float as the native code does.
                 float facing = Mathf.Clamp01(Vector3.Dot(direction, character.CameraForward));
-                float orientation = facing * m_proximityOrientationWeighting;
-                float distanceRatio = distance / m_proximityStartDistance;
-                float distanceProximity = 1f - distanceRatio;
-                NormalisedDistanceProximity = distanceProximity;
-                float weightedDistance = distanceProximity * m_proximityDistanceWeighting;
-                float weightedSum = weightedDistance + orientation;
-                float totalWeight = m_proximityOrientationWeighting + m_proximityDistanceWeighting;
-                NormalisedWeightedProximity = weightedSum / totalWeight;
+                NormalisedDistanceProximity = 1f - distance / m_proximityStartDistance;
+                NormalisedWeightedProximity = (NormalisedDistanceProximity * m_proximityDistanceWeighting + facing * m_proximityOrientationWeighting)
+                    / (m_proximityOrientationWeighting + m_proximityDistanceWeighting);
                 yield return null;
             }
         }

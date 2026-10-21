@@ -8254,7 +8254,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionInstancedProgressUiTests." + 
     "MissingIndexListsAreTreatedAsEmpty",
     "TheProgressTicksUpOneStepPerIntervalLightingTheNewlyCompletedSlots",
     "TheCompletionFlagComparesTheProgressWithTheTargetWhenTheCountEnds",
-    "ACountAlreadyAtItsTargetStillTicksOnce",
+    "ACountAlreadyAtItsTargetDoesNotTick",
     "ANewlyCompletedIndexBeyondTheSlotsIsSkipped",
     "DisablingWithoutADefinitionDoesNothing",
 ))

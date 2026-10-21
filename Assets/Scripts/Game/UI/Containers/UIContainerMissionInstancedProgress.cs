@@ -56,9 +56,11 @@ namespace HardlightProject
                 ? missionManager.ActiveMissionContext.Description
                 : mission.GetFormattedMissionName();
 
+            // The target is read unconditionally before the comparisons (0x63C4EA); its getter caches lazily.
+            bool startedAtTarget = progressParameters.PreviousProgress == mission.TargetObjectivesToComplete;
             bool isCountingUp = progressParameters.AnimateProgressDelta
                 && progressParameters.PreviousProgress < progressParameters.Progress
-                && progressParameters.PreviousProgress != mission.TargetObjectivesToComplete;
+                && !startedAtTarget;
             foreach (GameObject countingUpObject in m_activateIfCountingUp)
                 countingUpObject.SetActive(isCountingUp);
             IsAnimatingProgressDelta.Value = isCountingUp;
@@ -120,15 +122,16 @@ namespace HardlightProject
         }
 
         // 06003312 (0x63CE30) and its state machine (0x63D160): after an initial delay the progress ticks up one step per
-        // interval, lighting the next newly completed slot with each step. The first step happens without a prior check
-        // against the target.
+        // interval while it is below the target, lighting the next newly completed slot with each step. The target is
+        // checked before every tick (0x63D48C), so a count that already starts at the target does not tick.
         private IEnumerator AnimateProgressDelta(int targetCount)
         {
             yield return new WaitForSeconds(m_initialTickDelaySeconds);
             WaitForSeconds animateTickInterval = new WaitForSeconds(m_animateTickIntervalSeconds);
             int newlyCompletedListIndex = 0;
-            while (true)
+            while (Progress.Value < targetCount)
             {
+                yield return animateTickInterval;
                 Progress.Value++;
                 if (m_useOrderedObjectives && newlyCompletedListIndex < m_newlyCompletedObjectives.Count)
                 {
@@ -137,8 +140,6 @@ namespace HardlightProject
                     if (slotIndex < m_orderedObjectiveSlots.Length)
                         m_orderedObjectiveSlots[slotIndex].Activate();
                 }
-                if (Progress.Value >= targetCount) break;
-                yield return animateTickInterval;
             }
             CountUpComplete.Value = true;
             yield return new WaitForSeconds(m_delayBeforeSetCompleteSeconds);
