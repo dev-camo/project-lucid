@@ -7,7 +7,7 @@ namespace ProjectLucid.Tests.WorldSurfaceShared
     // Test-only Actor that stands in as an enemy's sensed or focus target at a chosen position. It supplies only the
     // abstract members Actor leaves open; SetWorldPosition is the shipped Actor body, which an unstarted Enemy or
     // Character cannot run because their overrides need a transform or a physics body.
-    public sealed class Enemies03TargetProbe : Actor
+    public sealed class EnemyTargetActorProbe : Actor
     {
         public override float BrainMovementMagnitude => 0f;
 

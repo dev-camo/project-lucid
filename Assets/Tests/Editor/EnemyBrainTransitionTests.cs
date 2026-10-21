@@ -228,9 +228,9 @@ namespace ProjectLucid.Tests
             public EnemyManager Manager;
             public EnemyTraits Traits;
 
-            public Enemies03TargetProbe Target(Vector3 position)
+            public EnemyTargetActorProbe Target(Vector3 position)
             {
-                var probe = Owned.Host(Name(), false).AddComponent<Enemies03TargetProbe>();
+                var probe = Owned.Host(Name(), false).AddComponent<EnemyTargetActorProbe>();
                 probe.SetWorldPosition(position);
                 return probe;
             }
@@ -255,7 +255,7 @@ namespace ProjectLucid.Tests
             }
 
             // The brain senses the closest reachable of the manager's targets, as it does on each fixed update.
-            public void Sense(params Enemies03TargetProbe[] targets)
+            public void Sense(params EnemyTargetActorProbe[] targets)
             {
                 ((List<Actor>)Manager.GetTargetsForEnemies()).AddRange(targets);
                 Brain.OnFixedUpdate(0.02f);
@@ -410,10 +410,10 @@ namespace ProjectLucid.Tests
             }, traits => { traits.CacheTargetLocationOnSight = true; traits.TimeoutForReachingCachedLocation = 1f; });
         }
 
-        private static void WithSpottedTarget(Action<Scene, Enemies03TargetProbe> body, Action<EnemyTraits> configure) =>
+        private static void WithSpottedTarget(Action<Scene, EnemyTargetActorProbe> body, Action<EnemyTraits> configure) =>
             WithScene(scene =>
             {
-                Enemies03TargetProbe target = scene.Target(new Vector3(3f, 0f, 4f));
+                EnemyTargetActorProbe target = scene.Target(new Vector3(3f, 0f, 4f));
                 body(scene, target);
             }, configure);
 
