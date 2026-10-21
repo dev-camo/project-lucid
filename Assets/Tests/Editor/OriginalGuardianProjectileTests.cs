@@ -29,6 +29,9 @@ namespace ProjectLucid.Tests
     // case, so only the unsubscription from the guardian's final-hit event is observed.
     public sealed class OriginalGuardianProjectileTests
     {
+        private static readonly Regex ActorDefinitionSettingsFault =
+            new Regex("^NullReferenceException: Object reference not set to an instance of an object$");
+
         private const string BoundsAndNull = "Il2CppSetOptionAttribute(2,False) Il2CppSetOptionAttribute(1,False)";
         private const BindingFlags Declared = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
@@ -108,7 +111,7 @@ namespace ProjectLucid.Tests
                     rig.PlayerCollider = character.GetComponent<BoxCollider>();
                     Set(character, "m_colliderCollision", rig.PlayerCollider);
                     CharacterTriggerTestSupport.SetCurrent(manager, character, true);
-                    Set(rig.Rig.Projectile, "m_characterManager", manager);
+                    Set(rig.Rig.Projectile, "m_characterManager", manager); // Reflection: assigned by Awake, which these cases do not run
                     body(owned, rig);
                 }
             });
@@ -124,15 +127,24 @@ namespace ProjectLucid.Tests
                 rig.Manager = owned.Host("Lucid guardian boss manager", false).AddComponent<BossManager>();
                 rig.Boss = owned.Host("Lucid guardian boss", false).AddComponent<Boss>();
                 CharacterTriggerTestSupport.SetActorProperty(rig.Boss, "Storage", new FSMStorage(0));
-                Set(rig.Boss, "m_bossManager", rig.Manager);
+                // Registered with the manager as Boss.Awake's callback does (RegisterBoss, 060009ec). The first listed boss
+                // would switch HUD focus through the App, which is absent, so a second boss is listed meanwhile.
+                for (int i = 0; i < 2; i++) LogAssert.Expect(LogType.Exception, ActorDefinitionSettingsFault);
+                var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+                definition.Traits = new BossTraits();
+                Set(rig.Boss, "m_definition", definition); // Reflection: serialized field without a setter
+                Boss placeholder = owned.Host("Lucid guardian boss placeholder", false).AddComponent<Boss>();
+                rig.Manager.Bosses.Add(placeholder);
+                Call(rig.Boss, "RegisterBoss", rig.Manager);
+                rig.Manager.Bosses.Remove(placeholder);
                 Set(rig.Boss, "m_bossInteractionComponents", Array.CreateInstance(typeof(Boss).GetNestedType("BossBodyComponents", BindingFlags.NonPublic), 0));
                 rig.BossCollider = rig.Boss.gameObject.AddComponent<BoxCollider>();
                 Set(rig.Boss, "m_colliderCollision", rig.BossCollider);
-                rig.Manager.Bosses.Add(rig.Boss);
                 rig.Guardian = owned.Host("Lucid guardian manager", false).AddComponent<GuardianManager>();
                 rig.RestPoints = new[] { owned.Host("Lucid rest point 0", false).transform, owned.Host("Lucid rest point 1", false).transform };
                 Set(rig.Guardian, "m_eggpawnRestPoints", rig.RestPoints.Select(point => new GuardianManager.EggpawnRestPoints { Location = point }).ToArray());
-                Set(rig.Rig.Projectile, "m_boss", rig.Boss);
+                rig.Rig.Projectile.SetBoss(rig.Boss);
+                // Reflection: the projectile's Awake looks both managers up in the registry; these cases do not run it
                 Set(rig.Rig.Projectile, "m_bossManager", rig.Manager);
                 Set(rig.Rig.Projectile, "m_guardianManager", rig.Guardian);
                 body(owned, rig);
@@ -319,7 +331,7 @@ namespace ProjectLucid.Tests
             {
                 GuardianProjectile projectile = rig.Rig.Projectile;
                 projectile.transform.position = new Vector3(1f, 2f, 3f);
-                Set(projectile, "m_straightVelocity", new Vector3(0f, 0f, 10f));
+                projectile.SetTargetDirection(Vector3.forward); // velocity (0, 0, 10): the definition velocity is 10 (0x57C120)
                 foreach (State state in new[] { State.Resting, State.ExplodingInPlace, (State)9 })
                 {
                     SetMovement(projectile, state);
@@ -338,9 +350,9 @@ namespace ProjectLucid.Tests
                 GuardianProjectile projectile = rig.Rig.Projectile;
                 Character character = rig.Character;
                 character.SetWorldPosition(new Vector3(0f, 0f, 1000f));
-                projectile.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+                projectile.SetTargetDirection(Vector3.forward); // velocity (0, 0, 10): the definition velocity is 10 (0x57C120)
+                projectile.transform.rotation = Quaternion.Euler(0f, 90f, 0f); // the facing is independent of the velocity
                 projectile.transform.position = new Vector3(1f, 2f, 3f);
-                Set(projectile, "m_straightVelocity", new Vector3(0f, 0f, 10f));
                 foreach (State state in new[] { State.FiredStraight, State.ReturningStraight })
                 {
                     projectile.transform.position = new Vector3(1f, 2f, 3f);
@@ -361,21 +373,21 @@ namespace ProjectLucid.Tests
             {
                 GuardianProjectile projectile = rig.Rig.Projectile;
                 Character character = rig.Character;
-                Set(projectile, "m_cullTimeOnceBehindPlayer", 0.75f);
+                projectile.SetCullingValues(0.75f);
                 SetMovement(projectile, State.FiredStraight);
 
-                (Vector3 characterAt, Vector3 velocity, float step, bool culled, string label)[] cases =
+                (Vector3 characterAt, Vector3 direction, float step, bool culled, string label)[] cases =
                 {
-                    (Vector3.zero, new Vector3(0f, 0f, 10f), 1f, true, "moving away from the character"),
-                    (Vector3.zero, new Vector3(0f, 0f, -10f), 0.5f, false, "moving towards the character"),
-                    (Vector3.zero, new Vector3(0f, 0f, 10f), 0f, true, "a zero dot product"),
-                    (new Vector3(float.PositiveInfinity, 0f, 0f), new Vector3(0f, 0f, 10f), 0f, true, "an unordered (NaN) dot product"),
+                    (Vector3.zero, Vector3.forward, 1f, true, "moving away from the character"),
+                    (Vector3.zero, Vector3.back, 0.5f, false, "moving towards the character"),
+                    (Vector3.zero, Vector3.forward, 0f, true, "a zero dot product"),
+                    (new Vector3(float.PositiveInfinity, 0f, 0f), Vector3.forward, 0f, true, "an unordered (NaN) dot product"),
                 };
                 foreach (var testCase in cases)
                 {
                     character.SetWorldPosition(testCase.characterAt);
                     projectile.transform.position = new Vector3(0f, 0f, 10f);
-                    Set(projectile, "m_straightVelocity", testCase.velocity);
+                    projectile.SetTargetDirection(testCase.direction);
                     Set(projectile, "m_behindPlayerSoPreparingToDie", false);
                     SetLife(projectile, 4f);
                     Call(projectile, "DoMovement", testCase.step);
@@ -394,8 +406,8 @@ namespace ProjectLucid.Tests
             {
                 GuardianProjectile projectile = rig.Rig.Projectile;
                 rig.Character.SetWorldPosition(Vector3.zero);
-                Set(projectile, "m_cullTimeOnceBehindPlayer", 0.75f);
-                Set(projectile, "m_straightVelocity", new Vector3(0f, 0f, 10f));
+                projectile.SetCullingValues(0.75f);
+                projectile.SetTargetDirection(Vector3.forward); // velocity (0, 0, 10): the definition velocity is 10 (0x57C120)
                 projectile.transform.position = new Vector3(0f, 0f, 10f);
 
                 SetMovement(projectile, State.FiredStraight);
@@ -569,7 +581,7 @@ namespace ProjectLucid.Tests
                 returnPoint.position = new Vector3(0f, 0f, 10f);
                 projectile.transform.position = Vector3.zero;
                 Set(projectile, "m_returnTransform", returnPoint);
-                Set(projectile, "m_straightVelocity", new Vector3(10f, 0f, 0f));
+                projectile.SetTargetDirection(Vector3.right); // velocity (10, 0, 0)
                 SetMovement(projectile, State.ReturningFromOverhead);
                 var movement = Vec(Call(projectile, "DoMovement", 0.5f));
                 WorldMemberAccess.AreClose(new Vector3(0f, 0f, 5f), movement, "movement");
@@ -817,7 +829,7 @@ namespace ProjectLucid.Tests
                 Transform returnPoint = owned.Host("Lucid bounce return point", true).transform;
                 returnPoint.position = new Vector3(3f, 4f, 5f);
                 Set(projectile, "m_returnTransform", returnPoint);
-                Set(rig.Manager, "m_sharedHealthCurrent", 5);
+                rig.Manager.RestoreHealthToPool(5);
                 int[] phase4 = CountEvent(projectile, "m_onHitBossPhase4");
                 int[] ready = CountEvent(projectile, "m_onBossReadyForFinalHit");
                 SetMovement(projectile, State.ReturningFromOverhead);
@@ -832,14 +844,14 @@ namespace ProjectLucid.Tests
                 Assert.That(Get(projectile, "m_finalRestingTransform"), Is.SameAs(rig.RestPoints[0]));
                 Assert.That(Vec(Get(projectile, "m_startLerpMovementPosition")), Is.EqualTo(new Vector3(3f, 4f, 5f)));
                 Assert.That(float.IsPositiveInfinity(Life(projectile)), Is.True);
-                Assert.That(Get(rig.Manager, "m_sharedHealthCurrent"), Is.EqualTo(4), "the boss took the hit");
+                Assert.That(rig.Manager.BossHealthCurrent, Is.EqualTo(4), "the boss took the hit");
                 Assert.That(phase4[0], Is.EqualTo(1));
                 rig.Guardian.BossReadyForFinalHit();
                 Assert.That(ready[0], Is.EqualTo(1), "subscribed to the final hit");
 
                 Call(projectile, "Hit", rig.BossCollider);
                 Assert.That(phase4[0], Is.EqualTo(1), "a second hit does nothing");
-                Assert.That(Get(rig.Manager, "m_sharedHealthCurrent"), Is.EqualTo(4));
+                Assert.That(rig.Manager.BossHealthCurrent, Is.EqualTo(4));
             });
         }
 
@@ -850,7 +862,7 @@ namespace ProjectLucid.Tests
             {
                 GuardianProjectile projectile = rig.Rig.Projectile;
                 Set(rig.Guardian, "m_eggpawnRestPoints", new GuardianManager.EggpawnRestPoints[0]);
-                Set(rig.Manager, "m_sharedHealthCurrent", 5);
+                rig.Manager.RestoreHealthToPool(5);
                 int[] ready = CountEvent(projectile, "m_onBossReadyForFinalHit");
                 int[] expired = new int[1];
                 projectile.OnExpired = hit => expired[0]++;
@@ -861,7 +873,7 @@ namespace ProjectLucid.Tests
                 Assert.That(BaseState(projectile), Is.EqualTo(3), "killed");
                 Assert.That(expired[0], Is.EqualTo(1));
                 Assert.That(Get(projectile, "m_movementState"), Is.EqualTo(State.ReturningFromOverhead));
-                Assert.That(Get(rig.Manager, "m_sharedHealthCurrent"), Is.EqualTo(5), "the boss was not hit");
+                Assert.That(rig.Manager.BossHealthCurrent, Is.EqualTo(5), "the boss was not hit");
                 rig.Guardian.BossReadyForFinalHit();
                 Assert.That(ready[0], Is.EqualTo(0), "never subscribed");
             });
@@ -985,7 +997,7 @@ namespace ProjectLucid.Tests
                 {
                     projectile.transform.position = new Vector3(0f, 0f, 0f);
                     Set(projectile, "m_returnTransform", null);
-                    Set(projectile, "m_straightVelocity", Vector3.zero);
+                    projectile.SetTargetDirection(Vector3.zero);
                     SetMovement(projectile, from);
                     SetLife(projectile, 1f);
                     projectile.ReturnProjectile();
@@ -1210,7 +1222,7 @@ namespace ProjectLucid.Tests
                 rig.Guardian.BossReadyForFinalHit();
                 Assert.That(ready[0], Is.EqualTo(1), "unsubscribed");
 
-                Set(projectile, "m_guardianManager", null);
+                Set(projectile, "m_guardianManager", null); // Reflection: a projectile whose Awake found no guardian manager
                 Assert.DoesNotThrow(() => projectile.OnDestroy());
             });
         }
