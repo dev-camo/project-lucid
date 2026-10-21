@@ -3,7 +3,6 @@ using System.Linq;
 using System.Reflection;
 using HardlightProject;
 using NUnit.Framework;
-using UnityEditor;
 using UnityEngine;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 using Object = UnityEngine.Object;
@@ -14,7 +13,7 @@ namespace ProjectLucid.Tests
     // GroundAttack 0200053b, GroundMovement 0200053c, GroundMovement_WithTarget 0200053d, Idle 0200053e, Taunt 02000540)
     // against the 1.10.1 x86-64 bodies at 0x54BC60..0x54C1E0. Defaults are the constants the constructors store
     // (0x54BCF0, 0x54BCD0, 0x54BD80, 0x54BF30, 0x54BFE0, 0x54C060, 0x54C0E0, 0x54C1E0); definitions are created with
-    // ScriptableObject.CreateInstance and serialized fields are written through the editor JSON overwrite, as authored
+    // ScriptableObject.CreateInstance and serialized fields are written through the JSON overwrite, as authored
     // data would be.
     // Not covered here: a started Actor creating the ability from the definition (CreateAbility needs the EnemyAbility
     // types restored with their own definitions).
@@ -36,7 +35,7 @@ namespace ProjectLucid.Tests
             }
         }
 
-        private static void Overwrite(Object target, string json) => EditorJsonUtility.FromJsonOverwrite(json, target);
+        private static void Overwrite(Object target, string json) => JsonUtility.FromJsonOverwrite(json, target);
 
         private static void Validate(AbilityDefinition definition) =>
             definition.GetType().GetMethod("OnValidate", Instance).Invoke(definition, null);

@@ -4,7 +4,6 @@ using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.WorldSurfaceShared;
-using UnityEditor;
 using UnityEngine;
 using Random = UnityEngine.Random;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
@@ -28,7 +27,7 @@ namespace ProjectLucid.Tests
             {
                 if (json != null)
                 {
-                    EditorJsonUtility.FromJsonOverwrite(json, definition);
+                    JsonUtility.FromJsonOverwrite(json, definition);
                 }
             });
 
