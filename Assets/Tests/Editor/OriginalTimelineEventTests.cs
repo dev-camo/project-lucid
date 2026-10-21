@@ -193,7 +193,7 @@ namespace ProjectLucid.Tests
             {
                 var clip = owned.Track(ScriptableObject.CreateInstance<TimelineEventClip>());
                 Assert.That(clip.Behaviour, Is.Not.Null);
-                Assert.That(ScriptableObject.CreateInstance<TimelineEventClip>().Behaviour, Is.Not.SameAs(clip.Behaviour));
+                Assert.That(owned.Track(ScriptableObject.CreateInstance<TimelineEventClip>()).Behaviour, Is.Not.SameAs(clip.Behaviour));
                 Assert.That(clip.clipCaps, Is.EqualTo(ClipCaps.None));
                 PlayableGraph graph = PlayableGraph.Create("Lucid timeline event clip");
                 try
