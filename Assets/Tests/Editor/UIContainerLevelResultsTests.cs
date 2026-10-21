@@ -341,6 +341,7 @@ namespace ProjectLucid.Tests
                     container.TimeTrialUnlocked.Value = true;
                     container.TimeTrialMissionName.Value = "stale";
 
+                    LogAssert.Expect(LogType.Error, RefusedCoroutine); // the requested save starts its coroutine on the refusing host
                     Call(container, "UpdateTimeTrialBindings", missions.Manager, level);
 
                     Assert.That(container.TimeTrialUnlocked.Value, Is.False, goalFlag);
