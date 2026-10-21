@@ -6679,3 +6679,20 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTubeGeneratorPlayMo
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckWaveformGeneratorPlayModeTests." + name for name in (
     "SettersRebuildOnChangeAndSlicesClampAtOne",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimeScaledSplineFollowerTests." + name for name in (
+    "CheckIsValidIsTrueOnlyWhileAFollowerIsAssigned",
+    "OnValidateFindsTheSiblingFollowerOnlyWhileNoneIsAssigned",
+    "InitialiseWithoutAFollowerSubscribesNothingAndKeepsTheSpeeds",
+    "InitialiseSubscribesAndCapturesTheFollowersSpeed",
+    "InternalUpdateScalesTheCapturedSpeedWithoutCompounding",
+    "AnExternalSpeedChangeBecomesTheNewUnscaledSpeed",
+    "ASpeedWithinTheApproximateToleranceIsNotCaptured",
+    "OnPauseAppliesTheTimescaleToTheFollowerSpeed",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineToHLSplineTests." + name for name in (
+    "ConstructionDefaultsTheBaseRibbonWidthToOne",
+    "GettersReturnTheSerializedFields",
+    "InitialiseWithASplineStoresTheSplineAndComputersOnly",
+    "InitialiseWithARibbonStoresTheWidthAsTheLastUsedWidth",
+    "SerializedFieldsKeepTheirOriginalAttributes",
+))
