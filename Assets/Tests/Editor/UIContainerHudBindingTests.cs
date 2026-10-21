@@ -22,7 +22,7 @@ namespace ProjectLucid.Tests
     // Each is a real component on an owned inactive host, so its Unity messages are called directly. Paths that need
     // Addressables, the control mapping or the configuration assets are not covered: UIContainerLeaderboards.Start and
     // OnDestroy, UIContainerLevelDefinition.Setup's image load, UIContainerRewardRestriction.Setup,
-    // the UIContainerOrbCollectableCounter icon load that ends UpdateBindings and the UIContainerUtilities bodies.
+    // the UIContainerOrbCollectableCounter icon load that ends UpdateBindings.
     public sealed class UIContainerHudBindingTests
     {
         private static T Add<T>(Owned owned, string name) where T : Component => owned.Host(name, false).AddComponent<T>();
