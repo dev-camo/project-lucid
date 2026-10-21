@@ -60,26 +60,6 @@ namespace ProjectLucid.Tests
             Assert.That(renderer.GetComponent<MeshRenderer>() == null, Is.False);
         }
 
-        // set_slices 0x4cc600 is the same clamp-and-rebuild setter as the path generator.
-        [Test]
-        public void SlicesClampAtOneAndRebuildOnAnyDifferentValue()
-        {
-            SplineRenderer renderer = NewRenderer();
-            DreamteckPlayState.Cache(renderer); // the setter queues (play mode) instead of the editor's immediate rebuild
-            int builds = 0;
-            renderer.onPostBuild += delegate { builds++; };
-            DreamteckGeneratorFixture.Update(renderer);
-            renderer.slices = 1;
-            DreamteckGeneratorFixture.Update(renderer);
-            Assert.That(builds, Is.EqualTo(0));
-            renderer.slices = -3;
-            Assert.That(renderer.slices, Is.EqualTo(1));
-            DreamteckGeneratorFixture.Update(renderer);
-            Assert.That(builds, Is.EqualTo(1));
-            renderer.slices = 3;
-            Assert.That(renderer.slices, Is.EqualTo(3));
-        }
-
         // LateRun 0x4cc720 replaces the base late run: with an interval above 0 the frame counter goes up and wraps to 0 once it is
         // above the interval (cmovle keeps it while it is <= the interval); with 0 it stays untouched.
         [Test]

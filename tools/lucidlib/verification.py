@@ -6208,12 +6208,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckParticleControllerT
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshGeneratorTests." + name for name in (
     "FreshGeneratorKeepsTheShippedDefaults",
     "ComponentsAreFetchedByAwakeAndReset",
-    "ConfigurationSettersSkipEqualValuesAndRebuildOtherwise",
-    "SizeStoresAnEqualValueWithoutRebuilding",
     "IndexFormatAndMarkDynamicReplaceTheMeshes",
     "BakedGeneratorNeverRebuilds",
     "BuildCreatesTheMeshesAndClearsThemBelowTwoSamples",
-    "WriteMeshMovesTheMeshIntoLocalSpaceAndAppliesTheFaceOptions",
     "WriteMeshReportsTheSixteenBitVertexLimit",
     "AllocateMeshSizesTheArraysLikeTheNativeBody",
     "UvCoordinatesFollowTheModeTruthTable",
@@ -6225,11 +6222,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshGeneratorTests.
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckPathGeneratorTests." + name for name in (
     "FreshPathGeneratorKeepsTheShippedDefaults",
-    "SlicesClampAtOneAndRebuildOnAnyDifferentValue",
-    "CompensateCornersRebuildsOnChange",
-    "ShapeCurveToggleCreatesAFlatCurveOrDropsIt",
-    "ShapeExposureNeedsASplineAndADifferentValue",
-    "ShapeSetterComparesKeysWithTheBlankCopy",
     "SingleSliceRibbonFollowsTheLine",
     "SizeOffsetAndRotationShapeTheRibbon",
     "RotationIsNotAppliedTwiceToMultiSliceFacetNormals",
@@ -6242,7 +6234,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckPathGeneratorTests.
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineRendererTests." + name for name in (
     "FreshRendererKeepsTheShippedDefaults",
-    "SlicesClampAtOneAndRebuildOnAnyDifferentValue",
     "LateRunCountsFramesAndWrapsAboveTheInterval",
     "LateRunDoesNotUpdateTheCollider",
     "DefaultBuildFacesTheRowTowardsTheVertexDirection",
@@ -6667,4 +6658,24 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineProjectorPlay
     "CalculateProjectionReportsTheTriggersAndNodesItPassed",
     "ReachingTheEndOfALoopingRangeContinuesFromTheStart",
     "SettersQueueARebuildOnlyWhereTheShippedOnesDo",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshGeneratorPlayModeTests." + name for name in (
+    "BakedGeneratorNeverRebuilds",
+    "ConfigurationSettersSkipEqualValuesAndRebuildOtherwise",
+    "FreshGeneratorKeepsTheShippedDefaults",
+    "SizeStoresAnEqualValueWithoutRebuilding",
+    "WriteMeshMovesTheMeshIntoLocalSpaceAndAppliesTheFaceOptions",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckPathGeneratorPlayModeTests." + name for name in (
+    "CompensateCornersRebuildsOnChange",
+    "ShapeCurveToggleCreatesAFlatCurveOrDropsIt",
+    "ShapeExposureNeedsASplineAndADifferentValue",
+    "ShapeSetterComparesKeysWithTheBlankCopy",
+    "SlicesClampAtOneAndRebuildOnAnyDifferentValue",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineRendererPlayModeTests." + name for name in (
+    "SlicesClampAtOneAndRebuildOnAnyDifferentValue",
 ))

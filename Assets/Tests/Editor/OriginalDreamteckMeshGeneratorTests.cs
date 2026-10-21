@@ -25,9 +25,11 @@ namespace ProjectLucid.Tests
 
         // The ctor 0x49e3b0 field initialisers and the cctor 0x49e4c0 (__uvs starts at zero). The editor compile of the original
         // text runs Reset (which calls Awake) when the component is added, and SplineUser.Awake ends with RebuildImmediate while
-        // not playing, so the first build has already happened here: the meshes exist and WriteMesh armed _updateCollider. The
-        // player build (no UNITY_EDITOR code) builds in Awake only when playing, so the pre-build values of those three
-        // (null, null, false) cannot be observed in EditMode; _lastUpdateTime is only written by LateRun and stays 0.
+        // not playing, so the first build has already happened here: the meshes exist and WriteMesh armed _updateCollider. This
+        // test covers the editor branch only. The shipped player (no UNITY_EDITOR code) builds in Awake only when playing and
+        // keeps the pre-build values (null, null, false); they are asserted by
+        // OriginalDreamteckMeshGeneratorPlayModeTests.FreshGeneratorKeepsTheShippedDefaults. _lastUpdateTime is only written by
+        // LateRun and stays 0.
         [Test]
         public void FreshGeneratorKeepsTheShippedDefaults()
         {
@@ -84,71 +86,6 @@ namespace ProjectLucid.Tests
             Assert.That(DreamteckGeneratorFixture.Field<MeshCollider>(generator, "meshCollider") == null, Is.True, "Awake fetches again");
         }
 
-        // Each setter skips a value equal to the stored one (Color and Vector comparisons are the Unity operators: squared
-        // distance under 1e-10, so a 1e-6 change is equal) and otherwise queues a rebuild through Rebuild 0x49d4c0.
-        [Test]
-        public void ConfigurationSettersSkipEqualValuesAndRebuildOtherwise()
-        {
-            MeshGenerator generator = _fixture.NewGenerator<MeshGenerator>(_fixture.NewLine());
-            DreamteckPlayState.Cache(generator); // the setters queue (play mode) instead of the editor's immediate rebuild
-            int builds = 0;
-            generator.onPostBuild += delegate { builds++; };
-            DreamteckGeneratorFixture.Update(generator);
-            Assert.That(builds, Is.EqualTo(0), "nothing queued yet");
-
-            void Check(string name, Action equal, Action changed)
-            {
-                int before = builds;
-                equal();
-                DreamteckGeneratorFixture.Update(generator);
-                Assert.That(builds, Is.EqualTo(before), name + ": an equal value queues nothing");
-                changed();
-                DreamteckGeneratorFixture.Update(generator);
-                Assert.That(builds, Is.EqualTo(before + 1), name + ": a new value queues one build");
-            }
-
-            Check("size", () => generator.size = 1f, () => generator.size = 2f);
-            Check("color", () => generator.color = new Color(1f, 1f, 1f, 1f + 1e-6f), () => generator.color = Color.red);
-            Check("offset", () => generator.offset = new Vector3(1e-6f, 0f, 0f), () => generator.offset = new Vector3(1f, 0f, 0f));
-            Check("normalMethod", () => generator.normalMethod = MeshGenerator.NormalMethod.SplineNormals, () => generator.normalMethod = MeshGenerator.NormalMethod.Recalculate);
-            Check("useSplineSize", () => generator.useSplineSize = true, () => generator.useSplineSize = false);
-            Check("useSplineColor", () => generator.useSplineColor = true, () => generator.useSplineColor = false);
-            Check("calculateTangents", () => generator.calculateTangents = false, () => generator.calculateTangents = true);
-            generator.calculateTangents = false;
-            DreamteckGeneratorFixture.Update(generator);
-            builds = 0;
-            Check("rotation", () => generator.rotation = 0f, () => generator.rotation = 45f);
-            Check("flipFaces", () => generator.flipFaces = false, () => generator.flipFaces = true);
-            Check("doubleSided", () => generator.doubleSided = false, () => generator.doubleSided = true);
-            Check("uvMode", () => generator.uvMode = MeshGenerator.UVMode.Clip, () => generator.uvMode = MeshGenerator.UVMode.Clamp);
-            Check("uvScale", () => generator.uvScale = new Vector2(1f + 1e-6f, 1f), () => generator.uvScale = new Vector2(2f, 2f));
-            Check("uvOffset", () => generator.uvOffset = new Vector2(1e-6f, 0f), () => generator.uvOffset = new Vector2(0.5f, 0f));
-            Check("uvRotation", () => generator.uvRotation = 0f, () => generator.uvRotation = 30f);
-
-            Assert.That(generator.size, Is.EqualTo(2f));
-            Assert.That(generator.color, Is.EqualTo(Color.red));
-            Assert.That(generator.offset, Is.EqualTo(new Vector3(1f, 0f, 0f)), "the stored value is the new one, not the equal one");
-            Assert.That(generator.uvScale, Is.EqualTo(new Vector2(2f, 2f)));
-        }
-
-        // set_size 0x49cd00 stores the value before the compare decides on the rebuild (the other setters store after it): an
-        // equal value with different bits, -0f over 0f, is kept and queues nothing.
-        [Test]
-        public void SizeStoresAnEqualValueWithoutRebuilding()
-        {
-            MeshGenerator generator = _fixture.NewGenerator<MeshGenerator>(_fixture.NewLine());
-            DreamteckPlayState.Cache(generator); // queue the rebuild the way play mode does
-            int builds = 0;
-            generator.onPostBuild += delegate { builds++; };
-            generator.size = 0f;
-            DreamteckGeneratorFixture.Update(generator);
-            Assert.That(builds, Is.EqualTo(1));
-            generator.size = -0f;
-            DreamteckGeneratorFixture.Update(generator);
-            Assert.That(builds, Is.EqualTo(1), "an equal value queues nothing");
-            Assert.That(1f / generator.size, Is.EqualTo(float.NegativeInfinity), "-0f replaced +0f");
-        }
-
         // set_meshIndexFormat 0x49d1a0 and set_markDynamic 0x49d310 call RefreshMesh 0x49d1e0 before the rebuild: the Unity mesh
         // is destroyed and both meshes are created again (CreateMesh 0x49e280 hands the index format to both).
         [Test]
@@ -184,7 +121,9 @@ namespace ProjectLucid.Tests
 
         // Rebuild 0x49d4c0 and RebuildImmediate 0x49d4e0 return at once for a baked generator. The baked flag has no setter; the
         // serialized field is filled the way a saved scene would. The editor Awake build (see the defaults test) has already
-        // created the meshes before the flag is set, so the test checks that nothing is built or sampled afterwards.
+        // created the meshes before the flag is set, so the test checks that nothing is built or sampled afterwards. This covers the
+        // editor branch (immediate rebuild); the queued player path and the unbuilt Awake are asserted by
+        // OriginalDreamteckMeshGeneratorPlayModeTests.BakedGeneratorNeverRebuilds.
         [Test]
         public void BakedGeneratorNeverRebuilds()
         {
@@ -194,7 +133,6 @@ namespace ProjectLucid.Tests
             TS_Mesh before = DreamteckGeneratorFixture.TsMeshOf(generator);
             Assert.That(before, Is.Not.Null, "built by the editor Awake before the flag was set");
             generator.spline = _fixture.NewLine();
-            DreamteckPlayState.Cache(generator);
             int builds = 0;
             generator.onPostBuild += delegate { builds++; };
             generator.Rebuild();
@@ -253,53 +191,6 @@ namespace ProjectLucid.Tests
             ts.vertices = vertices;
             ts.normals = vertices.Select(v => Vector3.up).ToArray();
             ts.triangles = triangles;
-        }
-
-        // WriteMesh 0x49d940: the vertices go through the worldToLocal matrix of the transform, then (if doubleSided,
-        // else if flipFaces) the second half is mirrored or the winding flipped, then the mesh is written, the normals recalculated
-        // for NormalMethod.Recalculate, the filter gets the mesh and the collider update is armed.
-        [Test]
-        public void WriteMeshMovesTheMeshIntoLocalSpaceAndAppliesTheFaceOptions()
-        {
-            MeshGenerator generator = _fixture.NewGenerator<MeshGenerator>(_fixture.NewLine());
-            // Play mode queues the rebuild a setter asks for. The editor compile rebuilds at once instead, and that immediate
-            // build runs WriteMesh on the hand-filled mesh (flipFaces would flip twice; the three-vertex mesh makes the
-            // doubleSided mirror index past the array), so the test caches the play state and calls WriteMesh itself.
-            DreamteckPlayState.Cache(generator);
-            generator.transform.position = new Vector3(5f, 0f, 0f);
-            TS_Mesh ts = DreamteckGeneratorFixture.TsMeshOf(generator);
-            Fill(ts, new[] { new Vector3(5f, 0f, 0f), new Vector3(6f, 0f, 0f), new Vector3(5f, 1f, 0f) }, new[] { 0, 1, 2 });
-            Invoke(generator, "WriteMesh");
-            DreamteckGeneratorFixture.Near(ts.vertices[0], Vector3.zero, "world to local");
-            DreamteckGeneratorFixture.Near(ts.vertices[1], Vector3.right, "world to local");
-            DreamteckGeneratorFixture.Near(ts.vertices[2], Vector3.up, "world to local");
-            Mesh mesh = DreamteckGeneratorFixture.MeshOf(generator);
-            Assert.That(mesh.triangles, Is.EqualTo(new[] { 0, 1, 2 }));
-            DreamteckGeneratorFixture.Near(mesh.vertices[1], Vector3.right, "written mesh");
-            DreamteckGeneratorFixture.Near(mesh.normals[0], Vector3.up, "SplineNormals keeps the given normals");
-            Assert.That(generator.GetComponent<MeshFilter>().sharedMesh == mesh, Is.True);
-            Assert.That(DreamteckGeneratorFixture.Field<bool>(generator, "_updateCollider"), Is.True);
-
-            generator.transform.position = Vector3.zero;
-            generator.flipFaces = true;
-            Fill(ts, new[] { Vector3.zero, Vector3.right, Vector3.up }, new[] { 0, 1, 2 });
-            Invoke(generator, "WriteMesh");
-            Assert.That(ts.triangles, Is.EqualTo(new[] { 2, 1, 0 }), "flipFaces reverses the winding");
-            DreamteckGeneratorFixture.Near(ts.normals[0], Vector3.down, "and negates the normals");
-
-            generator.doubleSided = true;
-            Fill(ts, new[] { Vector3.zero, Vector3.right, Vector3.up, Vector3.zero, Vector3.zero, Vector3.zero }, new[] { 0, 1, 2, 0, 0, 0 });
-            Invoke(generator, "WriteMesh");
-            Assert.That(ts.triangles, Is.EqualTo(new[] { 0, 1, 2, 5, 4, 3 }), "doubleSided mirrors the first half and wins over flipFaces");
-            DreamteckGeneratorFixture.Near(ts.vertices[4], Vector3.right, "mirrored vertex");
-            DreamteckGeneratorFixture.Near(ts.normals[3], Vector3.down, "mirrored normal is negated");
-
-            generator.doubleSided = false;
-            generator.flipFaces = false;
-            generator.normalMethod = MeshGenerator.NormalMethod.Recalculate;
-            Fill(ts, new[] { Vector3.zero, Vector3.right, Vector3.up }, new[] { 0, 1, 2 });
-            Invoke(generator, "WriteMesh");
-            Assert.That(Mathf.Abs(mesh.normals[0].z), Is.EqualTo(1f).Within(1e-4f), "Recalculate replaces the given up normals with the face normal");
         }
 
         // The 16-bit limit check of WriteMesh 0x49d940 (cmp 0x10000 at 0x49dacc): a UInt16 mesh of 65536 vertices logs the error
