@@ -25,7 +25,7 @@ namespace ProjectLucid.Tests
         private const string SaveId = "Lucid test control";
         private const float Tolerance = 1e-4f;
 
-        private sealed class Rig
+        internal sealed class Rig
         {
             internal Services Services;
             internal UserEditableUIComponentControllerProbe Controller;
@@ -66,7 +66,7 @@ namespace ProjectLucid.Tests
                 .Invoke(ProcessManager.GetSystem<DataManager>(), new object[] { configuration });
         }
 
-        private static void WithController(Action<Rig> body, params (string saveId, Vector2 position, float scale)[] layoutDefaults) => With(services =>
+        internal static void WithController(Action<Rig> body, params (string saveId, Vector2 position, float scale)[] layoutDefaults) => With(services =>
         {
             Owned owned = services.Owned;
             var rig = new Rig { Services = services, Settings = new SaveDataSettings() };
@@ -216,8 +216,8 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The scale is clamped into [m_scaleMin, m_scaleMax] and the position into the unit square (minss/maxss and
-        // minps/cmpnltps at 0x697E7E and 0x697FCB); a position of (-1, 2) therefore lands at (0, 1).
+        // The scale is clamped into [m_scaleMin, m_scaleMax] and the position into the unit square (a minss then a cmpltss select at
+        // 0x697E7E..0x697E90 for Mathf.Clamp, and minps/cmpnltps at 0x697FCB for Clamp01 per axis); a position of (-1, 2) therefore lands at (0, 1).
         [Test]
         public void ScaleAndPositionAreClamped()
         {
@@ -236,6 +236,101 @@ namespace ProjectLucid.Tests
                 rig.Controller.RunDoInitialise();
                 AssertFloat(rig, "m_currentScale", 0.05f);
                 AssertNormalised(rig, "m_currentPositionNormalised", 1f, 0f);
+            });
+        }
+
+        // The bounds' bottom left is the origin of the normalised space. With the bounds at (10, 5) and the component's
+        // centre at (60, 30) (bottom left (50, 25)): DoInitialise subtracts the origin (subss 0x698195, 0x6981BB), so the
+        // default is ((50 - 10) / 80, (25 - 5) / 40) = (0.5, 0.5) rather than 0.625; DoUpdate subtracts it from the touch
+        // (subps 0x697CC7), so touch (70, 35) gives (70 - 10 - 10) / 80 = 0.625 and (35 - 5 - 5) / 40 = 0.625; and
+        // SetComponentNormalisedPositionAndScale adds it back (addps 0x697FEE): 0.625 * 80 + 10 + 10 = 70, 0.625 * 40 + 5 + 5 = 35.
+        [Test]
+        public void BoundsAwayFromTheOriginOffsetTheNormalisedPosition()
+        {
+            WithController(rig =>
+            {
+                rig.Bounds.position = new Vector3(10f, 5f, 0f);
+                rig.Rect.position = new Vector3(60f, 30f, 0f);
+
+                rig.Controller.RunDoInitialise();
+                AssertNormalised(rig, "m_defaultPositionNormalised", 0.5f, 0.5f);
+                AssertNormalised(rig, "m_currentPositionNormalised", 0.5f, 0.5f);
+                AssertWorldPosition(rig, 60f, 30f);
+
+                rig.Component.HasTouch = true;
+                rig.Component.Touch = new Vector2(70f, 35f);
+                rig.Controller.RunDoUpdate();
+                AssertNormalised(rig, "m_currentPositionNormalised", 0.625f, 0.625f);
+                AssertWorldPosition(rig, 70f, 35f);
+            });
+        }
+
+        // The pivot offset is (pivot.x * width, pivot.y * height) (mulps 0x698017). With pivot (0.25, 0.75) on the 20 x 10
+        // component whose bottom left is (50, 25), the position is (50 + 5, 25 + 7.5); swapped axes would give (65, 27.5).
+        // The same touch as above moves the bottom left to (60, 30) and so the position to (65, 37.5).
+        [Test]
+        public void AnOffCentrePivotOffsetsTheWorldPositionPerAxis()
+        {
+            WithController(rig =>
+            {
+                rig.Bounds.position = new Vector3(10f, 5f, 0f);
+                rig.Rect.pivot = new Vector2(0.25f, 0.75f);
+                rig.Rect.position = new Vector3(55f, 32.5f, 0f);
+
+                rig.Controller.RunDoInitialise();
+                AssertNormalised(rig, "m_defaultPositionNormalised", 0.5f, 0.5f);
+                AssertWorldPosition(rig, 55f, 32.5f);
+
+                rig.Component.HasTouch = true;
+                rig.Component.Touch = new Vector2(70f, 35f);
+                rig.Controller.RunDoUpdate();
+                AssertWorldPosition(rig, 65f, 37.5f);
+            });
+        }
+
+        // The rescale is gated by !Mathf.Approximately(m_currentScale, scale) (0x697EC7..0x697F11): one ulp above 0.2f
+        // (0.20000002f, a difference of 1.5e-8 against a tolerance of 2e-7) counts as equal, so the scale and the local
+        // scale are left bit for bit as they were.
+        [Test]
+        public void ANearlyEqualScaleDoesNotRescaleTheComponent()
+        {
+            WithController(rig =>
+            {
+                SaveDataSettingsEditableUIComponent saved = SavedData(rig);
+                saved.Position = new Vector2(0.5f, 0.5f);
+                saved.Scale = 0.20000002f;
+                saved.UserSet = true;
+
+                rig.Controller.RunDoInitialise();
+
+                Assert.That(Get<float>(rig.Controller, "m_currentScale"), Is.EqualTo(0.2f), "exactly, not within a tolerance");
+                Assert.That(rig.Rect.localScale.x, Is.EqualTo(1f));
+                Assert.That(rig.Rect.localScale.y, Is.EqualTo(1f));
+                Assert.That(rig.Rect.localScale.z, Is.EqualTo(1f));
+            });
+        }
+
+        // DoInitialise guards its divisions (ucomiss at 0x698160, 0x698186, 0x6981AC). A component that fills the 20 x 10
+        // bounds leaves no free space, so the default position is exactly (0, 0) and not 0 / 0. The default scale is
+        // 20 / 20 = 1, which is clamped to 0.5 on placement: the component is halved to 10 x 5 about its pivot and put at the
+        // bounds' bottom left, centre (5, 2.5). The free space is only measured again after that rescale.
+        [Test]
+        public void ADefaultPositionWithNoFreeSpaceIsZeroNotNaN()
+        {
+            WithController(rig =>
+            {
+                rig.Bounds.sizeDelta = new Vector2(20f, 10f);
+                rig.Rect.position = new Vector3(10f, 5f, 0f);
+
+                rig.Controller.RunDoInitialise();
+
+                var defaultPosition = Get<Vector2>(rig.Controller, "m_defaultPositionNormalised");
+                Assert.That((defaultPosition.x, defaultPosition.y), Is.EqualTo((0f, 0f)));
+                AssertFloat(rig, "m_defaultScale", 1f);
+                AssertFloat(rig, "m_currentScale", 0.5f);
+                AssertFloat(rig, "m_movableWidth", 10f);
+                AssertFloat(rig, "m_movableHeight", 5f);
+                AssertWorldPosition(rig, 5f, 2.5f);
             });
         }
 

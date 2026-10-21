@@ -8760,6 +8760,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIBaseTests." + name for
     "DestroyingWithoutAnExchangeOnlyClearsTheInitialisedFlag",
     "UpdateWaitsForTheSettingsThenInitialises",
     "UpdateStaysOutOfEditModeWithoutTheStoredFlag",
+    "InitialiseHandsDoInitialiseTheInvertedStoredFlag",
+    "InitialiseBranchesOnTheLocalNotOnTheFieldDoInitialiseLeft",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIComponentControllerTests." + name for name in (
     "SaveManagerValidFindsTheInterfaceTheMenuCameraAndTheSavedComponent",
@@ -8768,6 +8770,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIComponentControllerTes
     "InitialiseUsesTheListedDefaultForItsSaveId",
     "InitialisePlacesTheSavedComponentAndRescalesIt",
     "ScaleAndPositionAreClamped",
+    "BoundsAwayFromTheOriginOffsetTheNormalisedPosition",
+    "AnOffCentrePivotOffsetsTheWorldPositionPerAxis",
+    "ANearlyEqualScaleDoesNotRescaleTheComponent",
+    "ADefaultPositionWithNoFreeSpaceIsZeroNotNaN",
     "UpdateFollowsTheTouchAndSavesThePlacement",
     "PinchScalesRelativeToTheScaleAtPinchBegin",
     "EditStartBacksUpTheSettingsAndCancelRestoresThem",
@@ -8784,4 +8790,5 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIFlipperTests." + name 
     "InitialiseFlipAndResetEachStartTheDelayedUpdate",
     "ConfirmStoresTheFlipInTheSettingsBeforeTheyArePublished",
     "DelayedUpdateReversesTheLayoutAtTheEndOfTheFrame",
+    "DelayedUpdateRePlacesTheActiveComponents",
 ))

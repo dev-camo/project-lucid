@@ -186,5 +186,44 @@ namespace ProjectLucid.Tests
                 Assert.That(probe.UpdateCount, Is.EqualTo(0));
             });
         }
+
+        // Initialise 0x697610 stores the inverted flag (xor al, 1 at 0x697741) into m_editMode and EditModeActive before
+        // DoInitialise, so a stored true is seen as false there; the edit mode is then entered through OnEditStart.
+        [Test]
+        public void InitialiseHandsDoInitialiseTheInvertedStoredFlag()
+        {
+            With(services =>
+            {
+                Set(services.Save, "m_saveSettings", new SaveDataSettings()); // loaded by the save flow in the original
+                ProcessManager.GetSystem<App>().Storage.SetValue(AppFSMKeys.ControlsEditMode, true);
+                UserEditableUIBaseProbe probe = NewProbe(services.Owned, out EventSet _);
+                probe.RunOnSaveManagerValid(services.Save);
+
+                Call(probe, "Update");
+
+                Assert.That((probe.EditModeSeenByInitialise, probe.EditModeActiveSeenByInitialise), Is.EqualTo((false, false)), "inverted before DoInitialise");
+                Assert.That((probe.EditMode, probe.EditModeActive.Value), Is.EqualTo((true, true)), "edit mode entered afterwards");
+            });
+        }
+
+        // The branch after DoInitialise tests the saved local (r14b, test at 0x69777F) and not the field. With the flag
+        // off the local is true and DoInitialise (here: ExitEditMode) has already cleared the field, yet
+        // ExitEditMode still runs and edit mode stays off; reading the field again would enter it through OnEditStart.
+        [Test]
+        public void InitialiseBranchesOnTheLocalNotOnTheFieldDoInitialiseLeft()
+        {
+            With(services =>
+            {
+                Set(services.Save, "m_saveSettings", new SaveDataSettings()); // loaded by the save flow in the original
+                UserEditableUIBaseProbe probe = NewProbe(services.Owned, out EventSet _);
+                probe.RunOnSaveManagerValid(services.Save);
+                probe.ExitEditModeInInitialise = true;
+
+                Call(probe, "Update");
+
+                Assert.That((probe.EditModeSeenByInitialise, probe.EditModeActiveSeenByInitialise), Is.EqualTo((true, true)), "inverted before DoInitialise");
+                Assert.That((probe.Initialised, probe.EditMode, probe.EditModeActive.Value), Is.EqualTo((true, false, false)));
+            });
+        }
     }
 }
