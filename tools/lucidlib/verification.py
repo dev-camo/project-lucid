@@ -10555,6 +10555,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSaveSlotsTests." + name f
     "AwakeClearsTheLoadingFlagAndSetsUpTheSlotsForTheRegisteredSaveManager",
     "SettingTheActiveSlotStoresTheIndex",
     "NavigatingWithoutANavigationManagerDoesNothing",
+    "SelectingASaveStartsItAndRemembersTheChosenSlot",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsLanguageTests." + name for name in (
     "StartMarksTheCurrentLanguageAsChosenOnEveryButton",
@@ -10563,6 +10564,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsLanguageTests." +
     "CachingALanguageTellsEveryButton",
     "ClosingWithANewLanguageAppliesItAndLeavesTheFontsNotReady",
     "ClosingWithTheSameLanguageReportsTheFontsReadyOnTheNextFrame",
+    "ClosingMarksTheFontsNotReadyBeforeTheLanguageChangeIsAnnounced",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsLegalTests." + name for name in (
     "TheCreditsAreOfferedFromTheLevelSelect",

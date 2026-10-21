@@ -44,10 +44,11 @@ namespace HardlightProject
             SlotEmpty.Value = false;
             NumberOfOrbs.Value = data.Progress.Total.GetValueOrDefault(CollectableType.Orb).Collected;
             NumberOfOrnaments.Value = saveData.CollectedOrnamentsCount();
-            LastedUpdatedTimestamp.Value = TimeUtils.FromUnixTime(saveData.LastSavedTimestampMs).ToLocalTime().ToString(CultureInfo.CurrentCulture);
+            DateTime lastSaved = TimeUtils.FromUnixTime(saveData.LastSavedTimestampMs);
+            LastedUpdatedTimestamp.Value = lastSaved.ToLocalTime().ToString(CultureInfo.CurrentCulture);
             string playTimeFormat = StringTable.GetString(m_playTimeStringId);
-            PlayTimeTimestamp.Value = string.Format(playTimeFormat,
-                TimeSpan.FromMilliseconds(saveData.GetOrCreatePlayerStatData(SaveDataPlayerStat.Type.TotalPlayTimeMS).PlayerStatCounter).ToString(@"hh\:mm\:ss"));
+            TimeSpan playTime = TimeSpan.FromMilliseconds(saveData.GetOrCreatePlayerStatData(SaveDataPlayerStat.Type.TotalPlayTimeMS).PlayerStatCounter);
+            PlayTimeTimestamp.Value = string.Format(playTimeFormat, playTime.ToString(@"hh\:mm\:ss"));
         }
 
         // 0x060038be (0x6A5620)

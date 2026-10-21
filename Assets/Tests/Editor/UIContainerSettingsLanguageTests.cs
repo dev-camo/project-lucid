@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Hardlight;
@@ -114,7 +115,7 @@ namespace ProjectLucid.Tests
         }
 
         // OnDestroy 0x67D570 removes the handler from every button, marks the fonts as not ready for the new language
-        // (FontsChangeLanguageReady false, 0x67D79B) and applies the chosen language. A changed language returns there:
+        // (FontsChangeLanguageReady false, 0x67D798) and applies the chosen language. A changed language returns there:
         // the font loading it starts reports the fonts ready again.
         [Test]
         public void ClosingWithANewLanguageAppliesItAndLeavesTheFontsNotReady()
@@ -159,6 +160,28 @@ namespace ProjectLucid.Tests
                 Assert.That(scheduled, Is.Not.Null, "the lambda the next frame runs");
                 scheduled();
                 Assert.That(rig.App.Storage.GetValue<bool>(AppFSMKeys.FontsChangeLanguageReady), Is.True);
+            });
+        }
+
+        // The false write (0x67D798) comes before OverrideLanguage (0x67D7A4), which raises OnLanguageChanged at once: a
+        // listener (the font loading) sees the fonts as not ready.
+        [Test]
+        public void ClosingMarksTheFontsNotReadyBeforeTheLanguageChangeIsAnnounced()
+        {
+            Run((owned, rig) =>
+            {
+                var announced = new List<(Languages, bool)>();
+                Language.LanguageChangedHandler listener = language =>
+                    announced.Add((language, rig.App.Storage.GetValue<bool>(AppFSMKeys.FontsChangeLanguageReady)));
+                Language.OnLanguageChanged += listener;
+                owned.Lease(new ReleaseAction(() => Language.OnLanguageChanged -= listener));
+                Call(rig.Container, "Start");
+                rig.Buttons[1].Action_SetLanguage();
+                rig.App.Storage.SetValue(AppFSMKeys.FontsChangeLanguageReady, true);
+
+                Call(rig.Container, "OnDestroy");
+
+                Assert.That(announced, Is.EqualTo(new[] { (Languages.French, false) }));
             });
         }
     }

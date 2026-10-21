@@ -20,7 +20,8 @@ namespace HardlightProject
         // 0x06003508 (0x67DAD0): the credits are offered from the level select or the main menu only.
         private void OnEnable()
         {
-            CanShowAnalyticsConsentButton.Value = ProcessManager.GetSystem<AnalyticsConsentManager>().CanShowConsentScreenButtonOnSettings();
+            AnalyticsConsentManager consentManager = ProcessManager.GetSystem<AnalyticsConsentManager>();
+            CanShowAnalyticsConsentButton.Value = consentManager.CanShowConsentScreenButtonOnSettings();
             UIManager uiManager = ProcessManager.GetSystem<UIManager>();
             CanShowCreditsButton.Value = uiManager.IsOpen(m_levelSelectIdentifier) || uiManager.IsOpen(m_mainMenuIdentifier);
         }

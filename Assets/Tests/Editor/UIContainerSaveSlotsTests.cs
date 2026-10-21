@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
 using Hardlight;
 using Hardlight.Enums;
 using HardlightProject;
 using NUnit.Framework;
+using UnityEngine;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -14,8 +16,9 @@ namespace ProjectLucid.Tests
     // over the real SaveManager, App and a real ProgressionManager whose per-slot progress is cached empty (LevelRequirementWorld),
     // with three real UIWidgetToggleSaveData widgets. The UINavigationManager row is left empty, so the navigation step of
     // TryNavigateToWidget (0x679181) returns at the IsNull test (0x679178).
-    // Not covered: Action_SelectSave (0x6791C0) and the navigation manager's Select, which need a started SaveManager cloud
-    // facade and property store (SetLastSaveIndex 0x5EEDF0) and a UINavigationManager with its highlighter and input bridge.
+    // Action_SelectSave (0x6791C0) runs over an owned property store row and an unstarted cloud facade (not synchronised, so
+    // SyncPropertyValueFromSave returns after its lookup).
+    // Not covered: the navigation manager's Select, which needs a UINavigationManager with its highlighter and input bridge.
     public sealed class UIContainerSaveSlotsTests
     {
         private static readonly int[] OrbsPerSlot = { 4, 6, 9 };
@@ -203,6 +206,44 @@ namespace ProjectLucid.Tests
         {
             Run((owned, slots) =>
                 Assert.DoesNotThrow(() => Call(slots.Container, "TryNavigateToWidget", slots.Toggles[0])));
+        }
+
+        // Action_SelectSave 0x6791C0: ShowLoading is set (0x67921F), StartIsReady is written false (0x6792F3), the toggle's
+        // chosen slot (+0x70, not the open slot) is made the last used one with the property store write on (edx = 1,
+        // 0x67930E..0x679314), and the select-save event is queued (0x679320..0x679338). SetLastSaveIndex writes the OLD
+        // index to the store before assigning the new one.
+        [Test]
+        public void SelectingASaveStartsItAndRemembersTheChosenSlot()
+        {
+            Run((owned, slots) =>
+            {
+                FieldInfo instance = typeof(HLPropertyStore).GetField("s_internalInstance", BindingFlags.Static | BindingFlags.NonPublic);
+                if (instance.GetValue(null) != null) throw new InvalidOperationException("Fixture requires no property-store singleton");
+                // The store constructor publishes itself as the singleton; released after the store's row (taken later).
+                owned.Lease(new ReleaseAction(() => instance.SetValue(null, null)));
+                var store = owned.Register(new HLPropertyStore("fixture-only", 0, "save-slots-fixture")); // no file I/O
+                var cloud = owned.Host("Lucid save slots cloud", false).AddComponent<HLCloud.Cloud>();
+                Call(slots.World.Save, "OnCloudValid", cloud);
+
+                App app = ProcessManager.GetSystem<App>();
+                app.Storage.SetValue(AppFSMKeys.UIModernEvents, new List<UIModernEvent>());
+                app.Storage.SetValue(AppFSMKeys.StartIsReady, true);
+                UIModernEvent selectSave = owned.Track(ScriptableObject.CreateInstance<UIModernEvent>());
+                Set(slots.Container, "m_selectSaveUIEvent", selectSave); // serialized in the original
+
+                OpenSlot(slots, 0);
+                slots.World.Save.SetLastSaveIndex(0, false);
+                Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
+                slots.Toggles[2].Action_OnValueChanged(true);
+
+                slots.Container.Action_SelectSave();
+
+                Assert.That(slots.Container.ShowLoading.Value, Is.True);
+                Assert.That(app.Storage.GetValue<bool>(AppFSMKeys.StartIsReady), Is.False);
+                Assert.That(Get<int>(slots.World.Save, "m_lastSaveIndex"), Is.EqualTo(2), "the toggle's slot, not the open slot 0");
+                Assert.That(store.GetPropertyValue("GameSave_LastSaveIndex"), Is.EqualTo("0"), "the old index is written to the store");
+                Assert.That(app.GetUIModernEvents(), Is.EqualTo(new[] { selectSave }));
+            });
         }
     }
 }
