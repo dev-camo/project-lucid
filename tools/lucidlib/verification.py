@@ -7454,6 +7454,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossVulnerableStateTests." + name fo
     "WindUpUpdatePublishesTheOffensiveAbilitysWoundUpFlag",
     "WindUpUpdateLeavesTheFlagAloneForAnAbilityThatIsNotOffensive",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SplineProjectileSpawnerTests." + name for name in (
+    "FireWithNoConfiguredProjectilesTouchesNothing",
+    "FireAcquiresTheConfiguredProjectileTypeFromTheManager",
+    "TriggerExitSendsEveryFiredProjectileIntoCooldownWithoutExceptions",
+    "ExpiredProjectileLeavesTheFiredListAndLosesTheSpawnerCallback",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.NightmareEggmanProjectileTests." + name for name in (
     "ConstructedProjectileHasTheNativeTuningDefaults",
     "TheTrivialOverridesAndSetSplineDoWhatTheNativeBodiesDo",
