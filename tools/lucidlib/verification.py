@@ -9841,13 +9841,17 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionProgressTests." + 
     "TheGettersReadTheirSerializedFlags",
     "EnablingHidesTheGroupUnlessTheContainerIsAlwaysDisplayed",
     "TheProgressIconReplacesTheTextAndTheObjectiveIconOnlyWhileTheObjectivesAreIncomplete",
-    "HideWaitsOutTheDisplayTimeThenFadesTheGroupAndDeactivatesTheContainer",    "TheInstancedTrackerBackingFieldSitsBetweenTheSerializedFlagAndTheCoroutine",
+    "HideWaitsOutTheDisplayTimeThenFadesTheGroupAndDeactivatesTheContainer",
+    "AZeroDisplayTimeStartsTheFadeOnTheFirstStep",
+    "TheTrackersIconIsShownWhenItHasOne",
+    "TheInstancedTrackerBackingFieldSitsBetweenTheSerializedFlagAndTheCoroutine",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionBaseTests." + name for name in (
     "WithoutAnActiveContextTheNameIsTheFormattedMissionName",
     "OnlyTheActiveMissionTakesTheContextsDescription",
     "TheStringTableHandlerIsHeldOnceAndAppliesTheStateAgain",
     "ParametersWithoutAMissionStateWriteNothing",
+    "TheActiveContextIsMatchedByGuidNotByReference",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionFailureTests." + name for name in (
     "TheStoredMessageReplacesTheDefaultOnlyWhenItIsPresentAndNotZero",
@@ -9885,6 +9889,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionMusicPlayerTests."
     "SwitchingPlayOffDoesNothing",
     "UpdateShowsTheSourceTime",
     "TheClipLengthIsTheTotalTimeFormattedAsMinutesAndSeconds",
+    "PlayingTheClipAlreadyPlayingLeavesTheSourceUntouched",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionSelectTests." + name for name in (
     "ASavedNewStateIsReturnedOnlyForAMissionSomeGroupHolds",
@@ -9894,4 +9899,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionSelectTests." + na
     "AMissionWithoutALeaderboardShowsNoLeaderboards",
     "WithoutANavigationManagerOrAnActiveWidgetNavigationIsSkipped",
     "DestroyingTheContainerUnloadsItsZoneAccent",
+    "TheJukeboxStaysLockedOnceASubMissionIsLocked",
+    "RedStarRingsAndBlueCoinsFollowTheLastSubMissionOfTheirType",
+    "WithoutSubMissionsTheSubRewardsAreHidden",
+    "TheToggleCarriesItsIndexLabelAndJoinsTheToggleGroup",
+    "GhostsAreMadeForEachMissionOfAnUnmetGhostedGroupAndOnlyMetMissionsAreCounted",
 ))

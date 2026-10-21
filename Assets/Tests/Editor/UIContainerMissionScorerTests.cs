@@ -11,9 +11,12 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 namespace ProjectLucid.Tests
 {
     // UIContainerMissionScorer (Game.Runtime 0x020008e7; OnEnable 0x6409B0, Update 0x640A10, ShowPoints 0x641100, ClearValues
-    // 0x6409E0, TryInitialise 0x640F70, constructor 0x641180). Not covered: Update and TryInitialise once a scored mission is
-    // set up (they need the active mission's tracker, whose set-up is an asset load, and a loaded string table), so the
-    // copying of the scorer's values into the bindings and score texts is not exercised.
+    // 0x6409E0, TryInitialise 0x640F70, constructor 0x641180). Not covered: Update (0x640A10) once the container is initialised, because
+    // TryInitialise only returns true for a set-up active mission whose tracker is ready and a loaded string table (the tracker's set-up is an asset load), and
+    // m_initialised is lifecycle state that is not forced here. So three behaviours of Update are untested: a container with no
+    // scorer hides its root every frame (0x640A68 -> 0x640B78), the first frame copies the values without ShowPointsAdded and
+    // PointsAddedFromStreak (ShowPoints is covered directly), and the multiplier text is the product of the combo and combo-stage
+    // multipliers (mulss at 0x640EF3).
     public sealed class UIContainerMissionScorerTests
     {
         private static UIContainerMissionScorer NewContainer(Owned owned, bool rootActive = false)

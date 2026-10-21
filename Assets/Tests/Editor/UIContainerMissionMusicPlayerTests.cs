@@ -7,6 +7,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
+using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -14,9 +15,13 @@ namespace ProjectLucid.Tests
     // UIContainerMissionMusicPlayer (Game.Runtime 0x020008de; OnEnable 0x63D800, Update 0x63DF80, Action_* 0x63E0B0..0x63E210,
     // SetupAudioBindings 0x63E290) over a real AudioManager with a background audio source (OwnedAudioServices). Not covered:
     // everything that needs the MusicTrackManager (Awake, OnDestroy, SelectTrack, Action_PlayNext, Action_PlayPrevious,
-    // Action_ToggleShuffle, Play, OnMusicTrackChanged and the WaitForMusic iterator), because a real MusicTrackManager subscribes
-    // to the save, level and mission managers on construction; the toggles, the playing animations and the repeat-on branch of
-    // Action_ToggleRepeat, which need a UIToggle; and Seek, which needs a clip on the source.
+    // Action_ToggleShuffle, OnMusicTrackChanged and the WaitForMusic iterator), because a real MusicTrackManager subscribes
+    // to the save, level and mission managers on construction. Of SelectTrack that leaves untested the jukebox naming (0x63DCC0
+    // picks "{0}. {1}" for a track that is not hidden in the jukebox and the bare name for a hidden one), which also needs the
+    // string table, the data manager's track list and an Addressables clip load; and of Play the restart of a different clip
+    // (seek to 0, pause, PlayClipAtSource), which loads the clip through Addressables. Also not covered: the toggles, the playing
+    // animations and the repeat-on branch of Action_ToggleRepeat, which need a UIToggle; and Seek, which needs a clip on the
+    // source.
     public sealed class UIContainerMissionMusicPlayerTests
     {
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
@@ -168,6 +173,36 @@ namespace ProjectLucid.Tests
                     Assert.That(rig.Container.TrackTotalTime.Value, Is.EqualTo((float)seconds), expected);
                     Assert.That(rig.Container.TrackTotalTimeFormatted.Value, Is.EqualTo(expected));
                 }
+            });
+        }
+
+        // Play 0x63DE80 restarts the source (seek to 0, pause, PlayClipAtSource) only for a clip other than the one already
+        // playing (0x63DEB5); for the same clip the source keeps its position, then the slider is made interactable and the
+        // source's looping follows the repeat flag.
+        [Test]
+        public void PlayingTheClipAlreadyPlayingLeavesTheSourceUntouched()
+        {
+            Run(true, rig =>
+            {
+                AudioClip clip = AudioClip.Create("lucid mission music playing", 8 * 8000, 1, 8000, false);
+                rig.Services.Own(clip);
+                rig.Source.clip = clip;
+                rig.Source.time = 1.5f;
+                rig.Source.loop = true;
+                Assert.That(rig.Source.time, Is.EqualTo(1.5f).Within(0.01f));
+                Enable(rig);
+                MusicTrackDefinition track = Create<MusicTrackDefinition>(rig.Owned, "{\"m_identifier\":" + (int)HLAudioClipIdentifier.AmbientBossCrabWind + "}");
+                // Reflection: assigned by SelectTrack and WaitForMusic, which need the music track manager
+                Set(rig.Container, "m_currentTrackDefinition", track);
+                Set(rig.Container, "m_currentlyPlayingClip", HLAudioClipIdentifier.AmbientBossCrabWind);
+                Set(rig.Container, "m_playingAnimations", new Animation[0]); // Reflection: serialized array
+                Assert.That(rig.Container.TrackSliderInteractable.Value, Is.False);
+
+                Call(rig.Container, "Play");
+
+                Assert.That(rig.Source.time, Is.EqualTo(1.5f).Within(0.01f), "the source was not rewound");
+                Assert.That(rig.Container.TrackSliderInteractable.Value, Is.True);
+                Assert.That(rig.Source.loop, Is.False, "looping follows the repeat flag");
             });
         }
     }

@@ -13,8 +13,7 @@ namespace ProjectLucid.Tests
     // UIContainerMissionProgressParameters (Game.Runtime 0x020008e2, ctor 0x6353B0, getter 0x63ECA0) and
     // UIContainerMissionProgress (0x020008e0, 0x63E740..0x63EA9A, Hide state machine MoveNext 0x63EAD0) over a real
     // instanced tracker. Not covered: the HUD fade on an active host (Refresh with m_alwaysDisplay off starts the Hide
-    // coroutine, which Edit Mode does not run), a tracker whose Icon is set (it is set by completing an objective of a
-    // tracker with objectives) and the HUD layout of the serialized flags.
+    // coroutine, which Edit Mode does not run) and the HUD layout of the serialized flags.
     public sealed class UIContainerMissionProgressTests
     {
         private static readonly Dictionary<Strings, string> OwnedStrings = new Dictionary<Strings, string>
@@ -172,6 +171,70 @@ namespace ProjectLucid.Tests
                 Assert.That(fade.MoveNext(), Is.False);
                 Assert.That(group.alpha, Is.EqualTo(0f));
                 Assert.That(container.gameObject.activeSelf, Is.False);
+            });
+        }
+
+        // MoveNext 0x63EAD0 keeps waiting only while the display deadline is strictly after the current time (ucomiss until, time;
+        // jbe at 0x63EBC5 starts the fade when until <= time). Time.time does not advance inside this synchronous test, so with no
+        // display time the deadline equals the current time and the first step must already be the fade, at full alpha.
+        [Test]
+        public void AZeroDisplayTimeStartsTheFadeOnTheFirstStep()
+        {
+            Owned.Run(owned =>
+            {
+                var container = owned.Host("Lucid mission progress", false).AddComponent<UIContainerMissionProgress>();
+                var group = container.gameObject.AddComponent<CanvasGroup>();
+                Set(container, "m_canvasGroup", group); // Reflection: serialized reference and timings
+                Set(container, "m_displaySeconds", 0f);
+                Set(container, "m_fadeTimeSeconds", 0f);
+                container.gameObject.SetActive(true);
+                group.alpha = 0.5f;
+
+                var hide = (IEnumerator)Call(container, "Hide");
+
+                Assert.That(hide.MoveNext(), Is.True);
+                Assert.That(group.alpha, Is.EqualTo(1f), "no wait: the fade has begun");
+            });
+        }
+
+        // Refresh 0x635600 reads the tracker's icon (op_Inequality on +0x118 at 0x6356A4) before the mission's objective icon. The
+        // tracker takes the first incomplete objective's icon when an objective reports its status, so completing the second of two
+        // objectives gives it the first one's icon, which is neither the mission's objective icon nor the other objective's.
+        [Test]
+        public void TheTrackersIconIsShownWhenItHasOne()
+        {
+            WithWorld(world =>
+            {
+                Owned owned = world.Owned;
+                Mission mission = world.NewMission(2, 2);
+                var tracker = world.NewTracker<MissionInstancedTracker>();
+                var objectives = new List<MissionObjective>
+                {
+                    world.NewObjective<MissionObjective>(tracker.transform),
+                    world.NewObjective<MissionObjective>(tracker.transform),
+                };
+                Sprite firstIcon = NewSprite(owned);
+                Sprite secondIcon = NewSprite(owned);
+                Sprite objectiveIcon = NewSprite(owned);
+                Set(objectives[0], "m_icon", firstIcon); // Reflection: authored serialized icons
+                Set(objectives[1], "m_icon", secondIcon);
+                Set(tracker, "m_missionObjectives", objectives); // Reflection: authored list (the editor Reset finds none on inactive hosts)
+                Author(tracker, "m_onCompleted"); // Reflection: authored (empty) events
+                Author(tracker, "m_onAnyObjectiveCompleted");
+                Author(tracker, "m_onLastObjective");
+                tracker.Initialise(mission.State, null);
+                tracker.StartMission(false);
+                objectives[1].Action_ObjectiveComplete();
+                Assert.That(tracker.Icon, Is.SameAs(firstIcon), "the first incomplete objective's icon");
+                Set(mission.Definition, "m_missionObjectiveIcon", objectiveIcon); // Reflection: serialized icon
+                var container = owned.Host("Lucid mission progress", false).AddComponent<UIContainerMissionProgress>();
+                Set(container, "m_alwaysDisplay", true); // Reflection: serialized option
+
+                OwnedStringTable.Run(OwnedStrings, () => container.Setup(new UIContainerMissionProgressParameters(tracker)));
+
+                Assert.That(container.MissionIcon.Value, Is.SameAs(firstIcon));
+                Assert.That(container.ObjectivesComplete.Value, Is.EqualTo(1));
+                Assert.That(container.MissionProgress.Value, Is.EqualTo("1 of 2"));
             });
         }
 

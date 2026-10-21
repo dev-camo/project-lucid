@@ -121,6 +121,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The comparison at 0x63BACB is ScriptableObjectWithGuid.op_Equality, which compares GUIDs: a state whose definition is a
+        // distinct object with the active mission's GUID still takes the context's description.
+        [Test]
+        public void TheActiveContextIsMatchedByGuidNotByReference()
+        {
+            Run((owned, missions, container) =>
+            {
+                MissionDefinition active = NewMission(owned, Guid);
+                MissionDefinition twin = NewMission(owned, Guid);
+                Assert.That(twin, Is.Not.SameAs(active));
+                missions.Manager.SetActiveMissionContext(new MissionContextRegular(active, missions.CurrentLevel.LevelDefinition, false));
+
+                container.Setup(new MissionBaseProbeParameters(NewState(twin)));
+
+                Assert.That(container.MissionNameLabel.Value, Is.EqualTo("Collect 3 in "));
+            });
+        }
+
         // Setup 0x63B8F0..0x63B9DA removes SetMissionState from StringTable.StringsTableHandlers before adding it, so it is
         // held once however often the container is set up; running that handler applies the state again.
         [Test]
