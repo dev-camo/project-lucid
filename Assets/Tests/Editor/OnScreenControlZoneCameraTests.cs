@@ -242,6 +242,43 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Update 0x6916F0 adds the unscaled frame time to the timer already running (0x691716 addss of the old timer),
+        // whatever the engine reports for the frame.
+        [Test]
+        public void TheDoubleTapTimerAccumulatesTheUnscaledFrameTime()
+        {
+            WithZone((services, zone) =>
+            {
+                CacheCancelMagnitude(zone, 0.5f);
+                ModernUITestSupport.Set(zone, "m_cameraSnapDoubleTapTimeSeconds", 1e9f); // serialized in the original
+                Tap(zone);
+                ModernUITestSupport.Set(zone, "m_doubleTapTimerSeconds", 0.5f); // the timer is only written by Update and the resets
+
+                ModernUITestSupport.Call(zone, "Update");
+
+                Assert.That(Field<int>(zone, "m_snapTapCount"), Is.EqualTo(1));
+                Assert.That(Field<float>(zone, "m_doubleTapTimerSeconds"), Is.EqualTo(0.5f + Time.unscaledDeltaTime));
+            });
+        }
+
+        // The expiry compares with "greater or equal" (0x691723 ucomiss/jb skips only below the time): 1e9 plus any
+        // frame time below 32 s rounds back to 1e9 in single precision, so the timer equals the time whatever the frame.
+        [Test]
+        public void TheTapCountExpiresWhenTheTimerEqualsTheDoubleTapTime()
+        {
+            WithZone((services, zone) =>
+            {
+                CacheCancelMagnitude(zone, 0.5f);
+                ModernUITestSupport.Set(zone, "m_cameraSnapDoubleTapTimeSeconds", 1e9f); // serialized in the original
+                Tap(zone);
+                ModernUITestSupport.Set(zone, "m_doubleTapTimerSeconds", 1e9f); // the timer is only written by Update and the resets
+
+                ModernUITestSupport.Call(zone, "Update");
+
+                Assert.That((Field<int>(zone, "m_snapTapCount"), Field<float>(zone, "m_doubleTapTimerSeconds")), Is.EqualTo((0, 0f)));
+            });
+        }
+
         // ResetSnapValues 0x691620 clears the count and the timer with one 8-byte store.
         [Test]
         public void ResettingTheSnapValuesClearsTheCountAndTheTimer()

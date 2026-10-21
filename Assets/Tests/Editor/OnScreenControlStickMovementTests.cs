@@ -297,6 +297,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The comparison of the origin transform with its previous position is the Vector3 inequality, which treats
+        // positions as equal below a squared distance of 9.9999994e-11 (0x68F41F..0x68F463 against 0x29A6E8C): a move of
+        // 5e-6 (squared 2.5e-11) keeps the origin, one of 2e-5 (squared 4e-10) replaces it.
+        [Test]
+        public void AFixedStickTreatsAnOriginTransformMoveBelowTheVectorToleranceAsNoMove()
+        {
+            WithStick(rig =>
+            {
+                rig.Origin.position = Vector3.zero;
+                rig.Stick.Initialise();
+                Assert.That(Field<Vector2>(rig.Stick, "m_origin"), Is.EqualTo(Vector2.zero));
+
+                rig.Origin.position = new Vector3(5e-6f, 0f, 0f);
+                rig.Stick.TransformUpdated();
+                Assert.That(Field<Vector2>(rig.Stick, "m_origin").x, Is.EqualTo(0f), "within the tolerance of the previous position");
+                Assert.That(Field<Vector3>(rig.Stick, "m_originTransformCentrePrevious").x, Is.EqualTo(5e-6f), "the previous position is still stored");
+
+                rig.Origin.position = new Vector3(2e-5f, 0f, 0f);
+                rig.Stick.TransformUpdated();
+                Assert.That(Field<Vector2>(rig.Stick, "m_origin").x, Is.EqualTo(2e-5f), "beyond the tolerance of the stored position");
+            });
+        }
+
         // The stick input 0x68F920: the direction of the touch from the origin times how far it is through half the
         // display width (100 here), through OnDrag 0x68FD30 which moves the stick top by the input times half the
         // display size, picks the state (fine control inside the tolerance of both ends, full tilt beyond) and turns the
@@ -379,6 +402,47 @@ namespace ProjectLucid.Tests
 
                 rig.Stick.OnDrag(movement, 0.04f);
                 Assert.That(rig.State, Is.EqualTo("FINE_CONTROL"));
+            });
+        }
+
+        // The fine control branch of OnDrag buzzes the exiting event only when the previous state is full tilt
+        // (0x68FDCE compares the state with 4, jumping to SetState at 0x68FE37 otherwise), so a move from the held centre
+        // into fine control is silent even with the exiting event armed. The refused-coroutine error would show a buzz.
+        [Test]
+        public void EnteringFineControlFromTheCentreDoesNotBuzzTheExitingEvent()
+        {
+            WithStick(rig =>
+            {
+                ArmHaptics(rig, Definition(rig, VibrationEvent.LongPressSelection), Definition(rig, VibrationEvent.LongPressSelection));
+                ModernUITestSupport.Set(rig.Stick, "m_hapticsExitingFullTilt", VibrationEvent.LongPressSelection); // serialized in the original
+                rig.Stick.Initialise();
+                Assert.That(rig.State, Is.EqualTo("HELD_CENTRE"));
+
+                rig.Stick.OnDrag(new Vector3(0f, 10f, 0f), 0.5f);
+
+                Assert.That(rig.State, Is.EqualTo("FINE_CONTROL"));
+            });
+        }
+
+        // The non-camera branch of OnInput (0x68FC3B) reads the last input type of the control mapping and shows or
+        // hides the container for it inline (SetInputType 0x68FE60). An empty list hides the container whatever the last
+        // input type is; listing that type shows it again.
+        [Test]
+        public void AMoveByAStickThatIsNotControllingTheCameraShowsTheContainerForTheLastInputType()
+        {
+            WithStick(rig =>
+            {
+                ModernUITestSupport.Set(rig.Stick, "m_restrictToSingleTouch", true); // serialized in the original
+                rig.Stick.Initialise();
+                Assert.That(Field<bool>(rig.Stick, "m_isControllingCamera"), Is.False);
+                Assert.That(rig.Container.gameObject.activeSelf, Is.True);
+
+                rig.Press(1060f, 580f);
+                Assert.That(rig.Container.gameObject.activeSelf, Is.False, "no input type is listed");
+
+                Field<List<InputType>>(rig.Stick, "m_showOnInputTypes").Add(ControlMapping.LastInputType);
+                rig.Move(1061f, 580f);
+                Assert.That(rig.Container.gameObject.activeSelf, Is.True, "the last input type is listed");
             });
         }
 
