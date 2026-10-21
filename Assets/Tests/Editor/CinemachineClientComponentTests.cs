@@ -17,8 +17,9 @@ namespace ProjectLucid.Tests
     // Restored Game.Runtime CinemachineAssignTargetToCameraType (TypeDef 0x02000269, x86-64 0x717EE0..0x7183FF),
     // CinemachineCameraResetYRecenter (0x0200026F, 0x71C8A0..0x71D1A7) and CinemachineCameraYAxisOverride (0x02000270,
     // 0x71D1B0..0x71D42F). Each component is real, on an owned inactive host, beside a real CinemachineCameraManager
-    // registered into its absent row; the free-look camera is a real CinemachineFreeLook. The OnEnable of the recenter
-    // component and its level callbacks need a LevelManager and are not covered.
+    // registered into its absent row; the free-look camera is a real CinemachineFreeLook. Not covered: the OnEnable of the
+    // recenter component, which subscribes to the LevelManager's level events; its OnLevelActivated, ResetYAxisValue and
+    // OnDisable are called directly with an idle LevelManager row.
     public sealed class CinemachineClientComponentTests
     {
         // ---- CinemachineAssignTargetToCameraType ----

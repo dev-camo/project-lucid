@@ -14,8 +14,9 @@ namespace ProjectLucid.Tests
     // SelectionMode enum 0x02000732). The trigger is a real component beside a BoxCollider on an owned inactive host;
     // the CharacterManager, the CinemachineCameraManager and (for continuous updates) a TimeManager are real systems
     // registered before the trigger's field initialisers cache them. The enter, stay and exit callbacks are called by
-    // name, as CharacterTrigger's collider callbacks do after their filtering. Release timers and the delayed
-    // continuous-update path need a CoroutineUtils host and real time and are not covered.
+    // name, as CharacterTrigger's collider callbacks do after their filtering. Not covered: the release timer
+    // (m_useReleaseTimer, started with CoroutineUtils.Delay), which needs a CoroutineUtils host and real time. The
+    // continuous-update switch delay is covered, with its stored timer written directly.
     public sealed class CameraHeadingTriggerTests
     {
         private static readonly Type SelectionMode = typeof(CameraHeadingTrigger).GetNestedType("SelectionMode", BindingFlags.NonPublic);
