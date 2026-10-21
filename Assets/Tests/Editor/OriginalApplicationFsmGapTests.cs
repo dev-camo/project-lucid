@@ -1315,6 +1315,117 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // ApplicationStatePostLevelLoadReset 0x060007b5..b9, x86-64 0x659ea0..0x65a330. The
+        // four system references are field initializers taken in the order LevelManager,
+        // DataManager, ProceduralMesh_PlacementManager, ProcMeshPlacementUpdater (0x98f010
+        // each) before FSMState's constructor. DoOnEnter 0x65a040 never calls
+        // FSMState.DoOnEnter: it reads the current level (+0xc0), runs ReplaceMeshPools
+        // 0x65a130 and the inlined ReplaceCameraManager, then invokes OnLevelRestart (+0x90)
+        // without a null test. The level and its scene need the live level systems, so
+        // this compares the IL with the native order. Calling the base, or swapping the
+        // pool before the placements move, fails here.
+        [Test]
+        public void PostLevelLoadResetRebuildsThePoolsThenSwapsTheCameraAndRestarts()
+        {
+            Type state = typeof(ApplicationStatePostLevelLoadReset);
+            string refs = typeof(ProcessManager).FullName + "::GetSystemRef<";
+            ConstructorInfo ctor = state.GetConstructor(Instance, null, new[] { typeof(FiniteStateMachine), typeof(FSMIdentifier) }, null);
+            Assert.That(Calls(ctor), Is.EqualTo(new[]
+            {
+                refs + typeof(LevelManager).FullName + ">",
+                refs + typeof(DataManager).FullName + ">",
+                refs + typeof(ProceduralMesh_PlacementManager).FullName + ">",
+                refs + typeof(ProcMeshPlacementUpdater).FullName + ">",
+                typeof(FSMState).FullName + "::.ctor",
+            }));
+
+            MethodInfo enter = state.GetMethod("DoOnEnter", Instance | BindingFlags.DeclaredOnly);
+            Assert.That(Calls(enter), Is.EqualTo(new[]
+            {
+                typeof(SystemRef<LevelManager>).FullName + "::Get",
+                typeof(LevelManager).FullName + "::GetCurrentLevelUnsafe",
+                state.FullName + "::ReplaceMeshPools",
+                state.FullName + "::ReplaceCameraManager",
+                typeof(Action).FullName + "::Invoke",
+            }));
+
+            string systems = typeof(LevelManagerSystems).FullName;
+            string setups = typeof(Dictionary<LevelSetupTypes, LevelSetupDefinition>).FullName + "::get_Item";
+            Assert.That(Calls(state.GetMethod("ReplaceMeshPools", Instance)), Is.EqualTo(new[]
+            {
+                typeof(SystemRef<ProceduralMesh_PlacementManager>).FullName + "::Get",
+                typeof(ProceduralMesh_PlacementManager).FullName + "::get_Placements",
+                typeof(LevelManager).FullName + "::get_ManagedSystems",
+                systems + "::RemoveManagedSystem<" + typeof(ProceduralMesh_PlacementManager).FullName + ">",
+                typeof(ProceduralMesh_PlacementManager).FullName + "::.ctor",
+                typeof(LevelManager).FullName + "::get_ManagedSystems",
+                systems + "::AddManagedSystem<" + typeof(ProceduralMesh_PlacementManager).FullName + ">",
+                typeof(ProceduralMesh_PlacementManager).FullName + "::RegisterInstance",
+                typeof(SystemRef<ProcMeshPlacementUpdater>).FullName + "::Get",
+                typeof(ProcessManager).FullName + "::ProcessSystemAction",
+                typeof(ProcessManager).FullName + "::UnregisterSystem<" + typeof(ProcMeshPlacementUpdater).FullName + ">",
+                typeof(ProcMeshPlacementUpdater).FullName + "::.ctor",
+                typeof(ProcessManager).FullName + "::RegisterSystem",
+                typeof(SystemRef<DataManager>).FullName + "::Get",
+                typeof(LevelManagerLevel).FullName + "::get_LevelDefinition",
+                typeof(GameplayLevelDefinition).FullName + "::get_LevelSetupType",
+                setups,
+                typeof(LevelManager).FullName + "::get_ManagedSystems",
+                typeof(LevelSetupDefinition).FullName + "::get_PrefabPoolManager",
+                systems + "::ReplacePrefab<" + typeof(PrefabPoolManager).FullName + ">",
+                typeof(ProceduralMesh_PlacementManager).FullName + "::InitialiseSetup",
+            }));
+
+            Assert.That(Calls(state.GetMethod("ReplaceCameraManager", Instance)), Is.EqualTo(new[]
+            {
+                typeof(SystemRef<DataManager>).FullName + "::Get",
+                typeof(LevelManagerLevel).FullName + "::get_LevelDefinition",
+                typeof(GameplayLevelDefinition).FullName + "::get_LevelSetupType",
+                setups,
+                typeof(LevelManager).FullName + "::get_ManagedSystems",
+                typeof(LevelSetupDefinition).FullName + "::get_CinemachineCameraManager",
+                systems + "::ReplacePrefab<" + typeof(CinemachineCameraManager).FullName + ">",
+            }));
+        }
+
+        // ApplicationStateInitialiseHLCrashReport.DoOnEnter 0x0600068f, x86-64 0x6488d0:
+        // after FSMState.DoOnEnter (0x1ac3530), GetSystem<HLCrashReport> (0x98ea70) is
+        // resolved before a new HLCrashReportSettings (0x79b730) is asked
+        // GetServiceEnabled (0x79b6f0); only an enabled service is configured with those
+        // settings (0x1a0c480) and started (0x1a0ca00). Starting the native bridge is
+        // process-wide, so this compares the IL. HLCrashReportSettings.GetServiceEnabled
+        // 0x0600185a reads CoreGameConfiguration's SendCrashReports byte (+0x31).
+        [Test]
+        public void InitialiseHLCrashReportStartsOnlyWhenCrashReportsAreEnabled()
+        {
+            Type state = typeof(ApplicationStateInitialiseHLCrashReport);
+            MethodInfo enter = state.GetMethod("DoOnEnter", Instance | BindingFlags.DeclaredOnly);
+            Assert.That(Calls(enter), Is.EqualTo(new[]
+            {
+                typeof(FSMState).FullName + "::DoOnEnter",
+                typeof(ProcessManager).FullName + "::GetSystem<" + typeof(HLCrashReport).FullName + ">",
+                typeof(HLCrashReportSettings).FullName + "::.ctor",
+                typeof(HLCrashReportSettings).FullName + "::GetServiceEnabled",
+                typeof(HLCrashReport).FullName + "::Configure",
+                typeof(HLCrashReport).FullName + "::StartService",
+            }));
+            List<Instruction> body = Read(enter);
+            Instruction guard = body.First(IsConditional);
+            int configure = body.FindIndex(i => (i.Code == OpCodes.Call || i.Code == OpCodes.Callvirt) && Describe(enter, i).EndsWith("::Configure"));
+            int start = body.FindIndex(i => (i.Code == OpCodes.Call || i.Code == OpCodes.Callvirt) && Describe(enter, i).EndsWith("::StartService"));
+            Assert.That(body.IndexOf(guard), Is.LessThan(configure));
+            Assert.That(guard.Code == OpCodes.Brfalse || guard.Code == OpCodes.Brfalse_S, Is.True, "a false GetServiceEnabled jumps");
+            Assert.That(guard.Target, Is.GreaterThan(body[start].Offset), "a disabled service skips both calls");
+
+            MethodInfo enabled = typeof(HLCrashReportSettings).GetMethod("GetServiceEnabled");
+            Assert.That(Calls(enabled), Is.EqualTo(new[]
+            {
+                typeof(SystemConfiguration).FullName + "::GetConfig<" + typeof(CoreGameConfiguration).FullName + ">",
+                typeof(CoreGameConfiguration).FullName + "::get_SendCrashReports",
+            }));
+            Assert.That(typeof(ICrashReportSettings).IsAssignableFrom(typeof(HLCrashReportSettings)), Is.True);
+        }
+
         private sealed class Instruction
         {
             public int Offset;
@@ -1330,7 +1441,7 @@ namespace ProjectLucid.Tests
         private static bool IsConditional(Instruction instruction) =>
             instruction.Code.FlowControl == FlowControl.Cond_Branch;
 
-        private static List<Instruction> Read(MethodInfo method)
+        private static List<Instruction> Read(MethodBase method)
         {
             byte[] il = method.GetMethodBody().GetILAsByteArray();
             var result = new List<Instruction>();
@@ -1360,7 +1471,12 @@ namespace ProjectLucid.Tests
             return result;
         }
 
-        private static string Describe(MethodInfo owner, Instruction call)
+        // Every call, callvirt and newobj target of a rebuilt body, in IL order.
+        private static string[] Calls(MethodBase method) =>
+            Read(method).Where(i => i.Code == OpCodes.Call || i.Code == OpCodes.Callvirt || i.Code == OpCodes.Newobj)
+                .Select(i => Describe(method, i)).ToArray();
+
+        private static string Describe(MethodBase owner, Instruction call)
         {
             MethodBase target = owner.Module.ResolveMethod(call.Operand);
             string name = target.DeclaringType.FullName + "::" + target.Name;

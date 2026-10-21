@@ -10808,3 +10808,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalApplicationFsmGapTests." + n
     "TriggerCutsceneChoosesPreloadOrPlayByPreloadOnly",
     "TriggerScreenControlsPublishesItsGroupFromTheCharacterWhenMessagesExist",
 ))
+
+# ApplicationStatePostLevelLoadReset, ApplicationStateInitialiseHLCrashReport and
+# HLCrashReportSettings (#386).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalApplicationFsmGapTests." + name for name in (
+    "PostLevelLoadResetRebuildsThePoolsThenSwapsTheCameraAndRestarts",
+    "InitialiseHLCrashReportStartsOnlyWhenCrashReportsAreEnabled",
+))
