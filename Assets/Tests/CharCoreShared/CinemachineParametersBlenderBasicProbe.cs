@@ -6,8 +6,7 @@ namespace ProjectLucid.Tests.CharCoreShared
 {
     // Test-only subclass of CinemachineParametersBlender_Basic that builds the protected
     // BasicCameraBlendParameters (the case stores it in the private serialized field) and exposes the
-    // protected members a case drives. It lives in this runtime test assembly because Editor-only
-    // assemblies cannot supply attachable components.
+    // protected members a case drives.
     public sealed class CinemachineParametersBlenderBasicProbe : CinemachineParametersBlender_Basic
     {
         public object NewParameters(bool followOffsetActive, Vector3 negativeEnd, Vector3 start, Vector3 positiveEnd) =>

@@ -6,11 +6,25 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type 0x02000274 (nested VirtualCameraWeighting 0x02000275).
+    // Original Game.Runtime type 0x02000274 (nested VirtualCameraWeighting 0x02000275, declared before Start so the
+    // Start lambda is <Start>b__7_0).
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class CinemachineMix_CharacterBase : TimeScaledComponent_SDT
     {
+        // 0x02000275, ctor 0x06000dc1
+        [Serializable]
+        [Il2CppSetOption(Option.NullChecks, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        public class VirtualCameraWeighting
+        {
+            [Tooltip("X axis = float value\nY axis = camera weighting")]
+            public AnimationCurve ValueToWeightingCurve;
+            public CinemachineVirtualCameraBase VirtualCamera;
+
+            public VirtualCameraWeighting() { }
+        }
+
         [SerializeField]
         protected CinemachineMixingCamera m_mixingCamera;
         [SerializeField]
@@ -51,18 +65,5 @@ namespace HardlightProject
 
         // 0x06000dbf
         protected CinemachineMix_CharacterBase() { }
-
-        // 0x02000275, ctor 0x06000dc1
-        [Serializable]
-        [Il2CppSetOption(Option.NullChecks, false)]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        public class VirtualCameraWeighting
-        {
-            [Tooltip("X axis = float value\nY axis = camera weighting")]
-            public AnimationCurve ValueToWeightingCurve;
-            public CinemachineVirtualCameraBase VirtualCamera;
-
-            public VirtualCameraWeighting() { }
-        }
     }
 }

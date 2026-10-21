@@ -16,6 +16,7 @@ namespace HardlightProject
         private CinemachineParametersBlenderSource m_blendValueSource;
         [SerializeField]
         private AnimationCurve m_blendCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+        // The shipped EvaluateBlendCurve (0x71E8D0) never reads the debug pair; kept for the serialized layout.
         [SerializeField]
         private bool m_useDebugBlendValue;
         [SerializeField]
@@ -101,23 +102,25 @@ namespace HardlightProject
             return LerpWithNegative(parameter.StartValue, parameter.PositiveEndValue, parameter.NegativeEndValue, blendValue);
         }
 
-        // 0x06000dd1: the sign of the blend value picks the end point; its magnitude is the lerp factor.
+        // 0x06000dd1: the sign of the blend value picks the end point; the negative branch lerps by the negated value.
         // The native test sends an unordered blend value to the negative end.
         protected Vector3 BlendParameter(Parameter<Vector3> parameter, float blendValue)
         {
             if (!parameter.Active) return Vector3.zero;
-            Vector3 endValue = blendValue >= 0f ? parameter.PositiveEndValue : parameter.NegativeEndValue;
-            return Vector3.Lerp(parameter.StartValue, endValue, Mathf.Abs(blendValue));
+            return blendValue >= 0f
+                ? Vector3.Lerp(parameter.StartValue, parameter.PositiveEndValue, blendValue)
+                : Vector3.Lerp(parameter.StartValue, parameter.NegativeEndValue, -blendValue);
         }
 
         // 0x06000dd2
         protected float LerpWithNegative(float startValue, float positiveEndValue, float negativeEndValue, float blendValue)
         {
-            float endValue = blendValue >= 0f ? positiveEndValue : negativeEndValue;
-            return Mathf.Lerp(startValue, endValue, Mathf.Abs(blendValue));
+            return blendValue >= 0f
+                ? Mathf.Lerp(startValue, positiveEndValue, blendValue)
+                : Mathf.Lerp(startValue, negativeEndValue, -blendValue);
         }
 
-        // 0x06000dd3: the blend curve initialiser runs before the base constructor.
+        // 0x06000dd3
         protected CinemachineParametersBlender() { }
 
         // 0x0200027a, ctor 0x06000dd4

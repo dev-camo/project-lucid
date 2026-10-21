@@ -209,8 +209,8 @@ namespace ProjectLucid.Tests
             {
                 var probe = owned.Host("probe", false).AddComponent<CinemachineParametersBlenderProbe>();
                 probe.UseComponents(new CinemachineTransposer[0], new CinemachineComposer[0]);
-                probe.SetFloat("FOV", true, 20f, 40f, 60f);
-                probe.SetFloat("DutchAngle", true, -10f, 0f, 10f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.FOV, true, 20f, 40f, 60f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.DutchAngle, true, -10f, 0f, 10f);
                 CameraState state = CameraState.Default;
                 state.Lens.FieldOfView = 90f;
                 state.Lens.Dutch = 7f;
@@ -221,8 +221,8 @@ namespace ProjectLucid.Tests
                 Assert.That(state.Lens.FieldOfView, Is.EqualTo(30f).Within(Tolerance));
                 Assert.That(state.Lens.Dutch, Is.EqualTo(-5f).Within(Tolerance));
 
-                probe.SetFloat("FOV", false, 20f, 40f, 60f);
-                probe.SetFloat("DutchAngle", false, -10f, 0f, 10f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.FOV, false, 20f, 40f, 60f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.DutchAngle, false, -10f, 0f, 10f);
                 state.Lens.FieldOfView = 90f;
                 state.Lens.Dutch = 7f;
                 probe.RunEvaluate(ref state, 0.5f);
@@ -249,10 +249,10 @@ namespace ProjectLucid.Tests
                 Assert.That(state.Lens.IsPhysicalCamera, Is.True);
                 Assert.That(state.Lens.SensorSize.y, Is.EqualTo(24f));
 
-                probe.SetFloat("FOV", true, 0f, 50f, 50f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.FOV, true, 0f, 50f, 50f);
                 probe.RunEvaluate(ref state, 0.5f);
                 Assert.That(state.Lens.FieldOfView, Is.EqualTo(26.9915f).Within(1e-3f));
-                probe.SetFloat("FOV", true, 0f, 0f, 0f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.FOV, true, 0f, 0f, 0f);
                 probe.RunEvaluate(ref state, 0.5f);
                 Assert.That(state.Lens.FieldOfView, Is.EqualTo(179.99905f).Within(1e-3f));
             });
@@ -277,11 +277,11 @@ namespace ProjectLucid.Tests
                     owned.Host("composer b", false).AddComponent<CinemachineComposer>(),
                 };
                 probe.UseComponents(transposers, composers);
-                probe.SetFloat("YDamping", true, 0f, 1f, 3f);
-                probe.SetFloat("ZDamping", false, 9f, 9f, 9f);
-                probe.SetFloat("YawDamping", true, 0f, 0.2f, 0.6f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.YDamping, true, 0f, 1f, 3f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.ZDamping, false, 9f, 9f, 9f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.YawDamping, true, 0f, 0.2f, 0.6f);
                 probe.SetAimTrackedOffset(true, Vector3.zero, Vector3.zero, new Vector3(2f, 4f, 6f));
-                probe.SetFloat("LookaheadTime", true, 0f, 0f, 1f);
+                probe.SetFloat(CinemachineParametersBlenderProbe.FloatParameter.LookaheadTime, true, 0f, 0f, 1f);
                 float zBefore = transposers[0].m_ZDamping;
                 CameraState state = CameraState.Default;
                 probe.RunEvaluate(ref state, 0.5f);

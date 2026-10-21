@@ -3,8 +3,7 @@ using HardlightProject;
 namespace ProjectLucid.Tests.CharCoreShared
 {
     // Test-only concrete CinemachineMix_CharacterBase (an abstract MonoBehaviour) exposing the protected
-    // blend update, the liveness test and the inherited character manager reference. It lives in this runtime
-    // test assembly because Editor-only assemblies cannot supply attachable components.
+    // blend update, the liveness test and the inherited character manager reference.
     public sealed class CinemachineMixCharacterProbe : CinemachineMix_CharacterBase
     {
         public void RunInternalUpdate(float deltaTime) => InternalUpdate(deltaTime);

@@ -43,14 +43,13 @@ namespace HardlightProject
             m_isFreeLookCamera = VirtualCamera is CinemachineFreeLook;
         }
 
-        // 0x06000db3: casts one ray from each near-plane corner of the look-at target towards the camera
+        // 0x06000db3: casts one ray from each of the four near-plane corners and the near-plane centre of the look-at target towards the camera
         // and pushes the camera in front of the nearest blocker. Colliders with the ignore tag are
         // skipped, but report to the occlusion render features. The retail build elides the
         // [Conditional] DebugDrawRay call sites.
         protected override void PostPipelineStageCallback(CinemachineVirtualCameraBase vcam,
             CinemachineCore.Stage stage, ref CameraState state, float deltaTime)
         {
-            RaycastHit hit = default;
             if (stage != m_applyAfterStage || m_cameraManagerRef.IsNull()) return;
             if (m_isFreeLookCamera && VirtualCamera != vcam) return;
             CinemachineCameraManager cameraManager = m_cameraManagerRef.Get();
@@ -88,8 +87,7 @@ namespace HardlightProject
                 Vector3 target = lookAtMatrix.MultiplyPoint3x4(new Vector3(scaledCorner.x, scaledCorner.y, LookAtCornerZOffset));
                 Vector3 offset = origin - target;
                 float distance = offset.magnitude;
-                Vector3 direction = offset.normalized;
-                if (!Physics.Raycast(new Ray(target, direction), out hit, distance, m_collisionMask.value,
+                if (!Physics.Raycast(new Ray(target, offset), out RaycastHit hit, distance, m_collisionMask.value,
                         QueryTriggerInteraction.Ignore))
                     continue;
                 if (hit.collider.CompareTag(m_collisionIgnoreTag))

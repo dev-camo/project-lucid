@@ -40,19 +40,21 @@ namespace ProjectLucid.Tests.CharCoreShared
             EvaluatedBlendValues.Add(blendValue);
         }
 
+        public enum FloatParameter { FOV, YDamping, ZDamping, YawDamping, DutchAngle, LookaheadTime }
+
         // Authors one float parameter of the supplied BlendParameters.
-        public void SetFloat(string which, bool active, float negativeEnd, float start, float positiveEnd)
+        public void SetFloat(FloatParameter which, bool active, float negativeEnd, float start, float positiveEnd)
         {
             var parameter = new Parameter<float> { Active = active, NegativeEndValue = negativeEnd, StartValue = start, PositiveEndValue = positiveEnd };
             switch (which)
             {
-                case "FOV": m_supplied.FOV = parameter; break;
-                case "YDamping": m_supplied.YDamping = parameter; break;
-                case "ZDamping": m_supplied.ZDamping = parameter; break;
-                case "YawDamping": m_supplied.YawDamping = parameter; break;
-                case "DutchAngle": m_supplied.DutchAngle = parameter; break;
-                case "LookaheadTime": m_supplied.LookaheadTime = parameter; break;
-                default: throw new System.ArgumentException(which);
+                case FloatParameter.FOV: m_supplied.FOV = parameter; break;
+                case FloatParameter.YDamping: m_supplied.YDamping = parameter; break;
+                case FloatParameter.ZDamping: m_supplied.ZDamping = parameter; break;
+                case FloatParameter.YawDamping: m_supplied.YawDamping = parameter; break;
+                case FloatParameter.DutchAngle: m_supplied.DutchAngle = parameter; break;
+                case FloatParameter.LookaheadTime: m_supplied.LookaheadTime = parameter; break;
+                default: throw new System.ArgumentOutOfRangeException(nameof(which));
             }
         }
 

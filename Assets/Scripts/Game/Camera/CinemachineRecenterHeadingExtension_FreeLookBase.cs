@@ -59,8 +59,7 @@ namespace HardlightProject
         // 0x06000e0f
         protected abstract void OnUpdate(Character character, float deltaTime);
 
-        // 0x06000e10: decides whether the axis recentres this frame. Comparisons that the native code
-        // makes with ordered predicates keep NaN on the same branch as the disassembly.
+        // 0x06000e10: decides whether the axis recentres this frame.
         protected void EvaluateRecentering(Character character, ref AxisState.Recentering recentering,
             float deltaTime, float forwardAngle)
         {
@@ -95,7 +94,7 @@ namespace HardlightProject
             if (m_isOverridingYAxis && (headingOverride == null || m_overrideWaitAfterInput))
             {
                 if (!Mathf.Approximately(m_freeLookCamera.m_YAxis.Value, m_defaultYAxisValue)
-                    && 0.0001f > m_cameraManager.ControllerMovement.y)
+                    && m_cameraManager.ControllerMovement.y < 0.0001f)
                     MoveYAxisToTarget(m_defaultYAxisValue, m_defaultYAxisRevertSpeed, deltaTime);
                 else
                     SetOverrideYHeadingAxis(false);
@@ -142,7 +141,7 @@ namespace HardlightProject
                 recentering.m_enabled = false;
                 return;
             }
-            if (m_activeSettings.MinimumRequiredVelocityForRecenter > character.WorldVelocityMagnitude)
+            if (character.WorldVelocityMagnitude < m_activeSettings.MinimumRequiredVelocityForRecenter)
             {
                 recentering.m_enabled = false;
                 return;
@@ -151,14 +150,14 @@ namespace HardlightProject
             float angleThreshold = recentering.m_enabled
                 ? m_activeSettings.RecenterToHeadingDisableAngle
                 : m_activeSettings.RecenterToHeadingReEnableAngle;
-            recentering.m_enabled = angleThreshold >= forwardAngle;
+            recentering.m_enabled = forwardAngle <= angleThreshold;
         }
 
         // 0x06000e11
         private bool GetMaintainHeading(Character character, bool recenteringEnabled)
         {
             if (m_keepCameraHeadingWhileIdle) return true;
-            if (m_activeSettings.StoppedInputDisableRecenterSeconds >= Time.fixedTime - m_stopIdleRecenterTimeStamp) return true;
+            if (Time.fixedTime - m_stopIdleRecenterTimeStamp <= m_activeSettings.StoppedInputDisableRecenterSeconds) return true;
             if (recenteringEnabled) return false;
             return Vector3.Dot(character.CameraForwardOnCharacterPlane, character.ForwardDirection)
                 > m_activeSettings.StoppedInputDisableRecenterCosineAngleThreshold;
@@ -194,7 +193,7 @@ namespace HardlightProject
                 else
                     CalculateRecenteringTime(character, ref recentering, deltaTime);
             }
-            if (settings.OverrideYAxisValue && 0.0001f > cameraManager.ControllerMovement.y)
+            if (settings.OverrideYAxisValue && cameraManager.ControllerMovement.y < 0.0001f)
             {
                 MoveYAxisToTarget(settings.YAxisValue, settings.YAxisSpeed, deltaTime);
                 SetOverrideYHeadingAxis(true);
@@ -209,8 +208,7 @@ namespace HardlightProject
         // 0x06000e13
         private void MoveYAxisToTarget(float targetValue, float moveSpeed, float deltaTime)
         {
-            CinemachineFreeLook freeLook = m_freeLookCamera;
-            freeLook.m_YAxis.Value = Mathf.MoveTowards(freeLook.m_YAxis.Value, targetValue, moveSpeed * deltaTime);
+            m_freeLookCamera.m_YAxis.Value = Mathf.MoveTowards(m_freeLookCamera.m_YAxis.Value, targetValue, moveSpeed * deltaTime);
         }
 
         // 0x06000e14
@@ -279,9 +277,8 @@ namespace HardlightProject
         // 0x06000e18: the angle between the target heading and the camera's forward, re-aimed to the target's up.
         protected float GetCameraForwardFromTargetAngle(Vector3 targetForward, Vector3 targetUp, bool signedAngle = false)
         {
-            Transform cameraTransform = m_cameraManager.CinemachineBrain.transform;
-            Quaternion alignToTargetUp = Quaternion.FromToRotation(cameraTransform.up, targetUp);
-            Vector3 cameraForward = (alignToTargetUp * cameraTransform.forward).normalized;
+            Quaternion alignToTargetUp = Quaternion.FromToRotation(m_cameraManager.CinemachineBrain.transform.up, targetUp);
+            Vector3 cameraForward = (alignToTargetUp * m_cameraManager.CinemachineBrain.transform.forward).normalized;
             if (signedAngle) return Vector3.SignedAngle(targetForward, cameraForward, targetUp);
             return Vector3.Angle(targetForward, cameraForward);
         }
