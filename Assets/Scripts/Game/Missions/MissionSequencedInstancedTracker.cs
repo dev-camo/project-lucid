@@ -90,14 +90,13 @@ namespace HardlightProject
             MissionObjective previous = null;
             foreach (MissionObjective objective in MissionObjectives)
             {
-                Gizmos.DrawSphere(objective.transform.position, 0.5f);
+                Vector3 position = objective.transform.position;
+                Gizmos.DrawSphere(position, 0.5f);
                 if (previous != null)
-                    Gizmos.DrawLine(previous.transform.position, objective.transform.position);
+                    Gizmos.DrawLine(previous.transform.position, position);
                 previous = objective;
             }
         }
 
-        // 060027a9: explicit so that the constructor keeps its original place after the other members.
-        public MissionSequencedInstancedTracker() { }
     }
 }

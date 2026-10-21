@@ -69,7 +69,7 @@ namespace HardlightProject
             GameObject instance = Instantiate(ornamentObject, m_ornamentRoot.transform);
             m_currentOrnament = instance.GetComponent<Ornament>();
             Transform ornamentTransform = m_currentOrnament.transform;
-            // 0x5A0BB6..0x5A0BE6: the ping-pong rotator starts from no offset; Euler converts degrees to radians.
+            // 0x5A0BB6..0x5A0BE6: the ping-pong rotator starts from no offset.
             ornamentTransform.localRotation = Quaternion.Euler(0f, m_currentOrnament.TransformRotator.PingPongWhenIdle ? 0f : m_currentOrnament.YRotationOffset, 0f);
             ornamentTransform.localScale = Vector3.zero;
             m_currentOrnament.TransformRotator.enabled = true;
@@ -104,14 +104,13 @@ namespace HardlightProject
             }
         }
 
-        // 0600253f (0x5A0970)
+        // 0600253f (0x5A0970): native computes the scene hierarchy and discards it; whatever consumed the string is
+        // compiled out and not recoverable.
         [Conditional("BUILD_DEVELOPMENT")]
         private static void LogReleasingRenderTexture(Camera camera)
         {
             camera.gameObject.transform.GetSceneHierarchy();
         }
 
-        // 06002540: explicit so that the constructor keeps its original place after the other members.
-        public OrnamentViewer() { }
     }
 }

@@ -22,7 +22,5 @@ namespace HardlightProject
                 m_animatorSampler = gameObject.AddComponent<AnimatorSampler>();
         }
 
-        // 0600250d: explicit so that the constructor keeps its original place after the other members.
-        public OrnamentAdvanced() { }
     }
 }

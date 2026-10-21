@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 namespace HardlightProject
 {
     // Original Game.Runtime 020006dd: the base of a displayable ornament prefab. The thumbnail camera stays off,
-    // and the shadow keyword and float of the skinned renderer's material follow the enabled state.
+    // and only the shadow keyword of the skinned renderer's material follows the enabled state.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class Ornament : MonoBehaviour
@@ -18,7 +18,6 @@ namespace HardlightProject
         private SkinnedMeshRenderer m_rendererToEnableShadowsOn;
         [SerializeField]
         private float m_yRotationOffset;
-        // 0600250a: the property id is resolved before the MonoBehaviour constructor runs.
         private readonly int m_castShadows = Shader.PropertyToID(CastShadowsKeyword);
         private const string CastShadowsKeyword = "_CastShadows";
 
@@ -34,8 +33,8 @@ namespace HardlightProject
                 m_thumbnailCamera.gameObject.SetActive(false);
         }
 
-        // 06002507 (0x59CF10): OnDisable stores the same 1.0 (one constant, 0x29A6BE0, serves both bodies), so only the
-        // keyword and the call order differ between the two.
+        // 06002507 (0x59CF10): besides the keyword, OnEnable turns on shadow casting and updateWhenOffscreen, which OnDisable
+        // does not undo. Both bodies store 1.0 in _CastShadows (one constant, 0x29A6BE0).
         private void OnEnable()
         {
             if (m_rendererToEnableShadowsOn == null)
@@ -67,7 +66,5 @@ namespace HardlightProject
             m_transformRotator = gameObject.AddComponent<SmoothedTransformRotator>();
         }
 
-        // 0600250a: explicit so that the constructor keeps its original place after the other members.
-        public Ornament() { }
     }
 }

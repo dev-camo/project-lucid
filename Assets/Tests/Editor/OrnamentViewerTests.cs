@@ -166,10 +166,11 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // OrnamentRoot.Awake 0x59FFC0 publishes itself on the string exchange under "OrnamentViewer"; the viewer's
-        // OnEnable (0x5A02C9..0x5A031D) subscribes its OnOrnamentRootLoaded under the same message.
+        // OrnamentRoot.Awake 0x59FFC0 publishes itself on the string exchange under "OrnamentViewer". The viewer's own
+        // OnEnable subscription (0x5A02C9..0x5A031D) is not covered here (deferred with OnEnable); the subscription below
+        // is wired by hand with the literal from the metadata.
         [Test]
-        public void TheRootAnnouncesItselfToTheViewerUnderTheViewersMessage()
+        public void TheRootPublishesItselfOnTheExchangeUnderTheViewerMessage()
         {
             Owned.Run(owned =>
             {
@@ -179,7 +180,7 @@ namespace ProjectLucid.Tests
                 var other = owned.Host("Lucid other root", false).AddComponent<OrnamentRoot>();
                 MethodInfo handler = typeof(OrnamentViewer).GetMethod("OnOrnamentRootLoaded", BindingFlags.Instance | BindingFlags.NonPublic);
                 var callback = (MessageCallback<OrnamentRoot>)Delegate.CreateDelegate(typeof(MessageCallback<OrnamentRoot>), viewer, handler);
-                exchange.SubscribeToMessage(OrnamentViewer.MessageIdentifier, callback);
+                exchange.SubscribeToMessage("OrnamentViewer", callback);
 
                 exchange.PublishMessage("Another message", other);
                 Assert.That(Get<OrnamentRoot>(viewer, "m_ornamentRoot"), Is.Null, "a different message identifier is not delivered");
@@ -191,34 +192,26 @@ namespace ProjectLucid.Tests
         }
 
         // ReleaseRenderTextures 0x5A0890: every camera with a target texture, active or not, has the texture released
-        // and the target cleared; a camera without one is left alone. Cameras the Editor owns are put back afterwards.
+        // and the target cleared; a camera without one is left alone. The method walks every loaded Camera, so the case
+        // runs only when no Editor-owned camera holds a target (Release cannot be undone on a texture the test does not own).
         [Test]
         public void ReleasingRenderTexturesClearsEveryCamerasTarget()
         {
             Owned.Run(owned =>
             {
-                var foreign = Resources.FindObjectsOfTypeAll<Camera>().Where(camera => camera.targetTexture != null)
-                    .Select(camera => (camera, camera.targetTexture)).ToArray();
-                try
-                {
-                    var texture = owned.Track(new RenderTexture(4, 4, 0));
-                    texture.Create();
-                    var withTarget = owned.Host("Lucid camera with a target", false).AddComponent<Camera>();
-                    withTarget.targetTexture = texture;
-                    var withoutTarget = owned.Host("Lucid camera without a target", true).AddComponent<Camera>();
+                Assume.That(Resources.FindObjectsOfTypeAll<Camera>().Where(camera => camera.targetTexture != null), Is.Empty,
+                    "a camera outside the fixture holds a render texture that the release would invalidate");
+                var texture = owned.Track(new RenderTexture(4, 4, 0));
+                texture.Create();
+                var withTarget = owned.Host("Lucid camera with a target", false).AddComponent<Camera>();
+                withTarget.targetTexture = texture;
+                var withoutTarget = owned.Host("Lucid camera without a target", true).AddComponent<Camera>();
 
-                    typeof(OrnamentViewer).GetMethod("ReleaseRenderTextures", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+                typeof(OrnamentViewer).GetMethod("ReleaseRenderTextures", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
 
-                    Assert.That(withTarget.targetTexture, Is.Null);
-                    Assert.That(texture.IsCreated(), Is.False, "RenderTexture.Release was called");
-                    Assert.That(withoutTarget.targetTexture, Is.Null);
-                }
-                finally
-                {
-                    foreach ((Camera camera, RenderTexture target) in foreign)
-                        if (camera != null)
-                            camera.targetTexture = target;
-                }
+                Assert.That(withTarget.targetTexture, Is.Null);
+                Assert.That(texture.IsCreated(), Is.False, "RenderTexture.Release was called");
+                Assert.That(withoutTarget.targetTexture, Is.Null);
             });
         }
 

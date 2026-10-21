@@ -8819,7 +8819,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrnamentViewerTests." + name for nam
     "TheYawOffsetIsDroppedOnlyForAPingPongingRotator",
     "ANullCallbackFaultsAfterTheOrnamentIsShown",
     "TheCoroutineCannotBeReset",
-    "TheRootAnnouncesItselfToTheViewerUnderTheViewersMessage",
+    "TheRootPublishesItselfOnTheExchangeUnderTheViewerMessage",
     "ReleasingRenderTexturesClearsEveryCamerasTarget",
     "DeclarationsKeepTheOriginalMembersFlagsAndGeneratedNames",
 ))

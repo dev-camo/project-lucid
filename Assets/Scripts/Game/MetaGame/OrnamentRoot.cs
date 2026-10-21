@@ -16,7 +16,5 @@ namespace HardlightProject
             ProcessManager.GetSystemAutoCreate<MessageExchange<string>>().PublishMessage(OrnamentViewer.MessageIdentifier, this);
         }
 
-        // 06002534: explicit so that the constructor keeps its original place after the other members.
-        public OrnamentRoot() { }
     }
 }
