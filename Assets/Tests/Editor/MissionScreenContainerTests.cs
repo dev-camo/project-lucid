@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Hardlight;
+using Hardlight.Enums;
 using Hardlight.Localisation;
 using HardlightProject;
 using NUnit.Framework;
@@ -18,10 +19,10 @@ namespace ProjectLucid.Tests
     // (0x02000942, 0x67F210..0x67F2D0), UIContainerBonusZone (0x02000879, 0x619A70..0x61A4B0) and UIContainerActiveMission
     // (0x02000876, 0x617760..0x618EA0) as real components on inactive owned hosts over a real MissionManager and LevelManager.
     // Not covered: the skip with a current level (the current level comes from a loaded scene), the bonus zone's Start, SetupZone,
-    // SetupLevels, Continue and level widget listener (they need a save, a progression, a level configuration and the App's
-    // storage), and the active mission's Refresh with a live mission state, UpdateMissionDescription, the time-trial rank branches of
-    // UpdateIconography, PlayRankAudio with a rank and the rank synchronisation itself (they need an active mission context with a
-    // saved mission, the rank definitions of the DataManager and a timed mission tracker).
+    // SetupLevels, Continue and level widget listener (they need a level configuration with a zone category, a progression with
+    // collectable totals, real level widgets and, for Continue and Start, the App's storage), and the active mission's
+    // UpdateMissionDescription for a locked archetype mission, PlayRankAudio with a rank and the rank branches that load rank
+    // icons (they need the rank definitions of the DataManager and authored ranks).
     public sealed class MissionScreenContainerTests
     {
         // 0x60D360 / 0x60D370 return the two serialized fields, +0x10 and +0x18.
@@ -79,8 +80,8 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // SelectLevelDefinition 0x61A410 (and the listener closure 0x61A4B0): only a widget turning on changes the selection; turning
-        // another widget off leaves the selected level in place.
+        // SelectLevelDefinition 0x61A410: only a widget turning on changes the selection; turning another widget off leaves the
+        // selected level in place. The listener closure inlines the same store (0x61A4C0..0x61A4C9) and is not run here.
         [Test]
         public void OnlyAWidgetTurningOnChangesTheSelectedLevel()
         {
@@ -118,6 +119,8 @@ namespace ProjectLucid.Tests
         {
             RunActiveMission((owned, world, container) =>
             {
+                // The constructor stores MISSION_TIMER_ELAPSED_FORMAT (0xC54DBD8D, 0x618F6D) as the time format.
+                Assert.That(Get<Strings>(container, "m_timeFormatString"), Is.EqualTo(Strings.MISSION_TIMER_ELAPSED_FORMAT));
                 container.ShowMission.Value = true;
                 container.Refresh(null);
                 Assert.That(container.ShowMission.Value, Is.False);
@@ -255,6 +258,154 @@ namespace ProjectLucid.Tests
                 Assert.That(container.LowestRankIcon.Value, Is.SameAs(stale), "the rank bindings are untouched");
                 Assert.That(Get<bool>(container, "m_showRank"), Is.False);
             });
+        }
+
+        private const string TimerFormat = "{0}|{1}|{2}";
+        private const string ActiveMissionGuid = "lucid-active-mission";
+
+        private static readonly Dictionary<Strings, string> OwnedStrings = new Dictionary<Strings, string>
+        {
+            { Strings.MISSION_TIMER_ELAPSED_FORMAT, TimerFormat },
+            { Strings.MISSION_TIMER_FORMAT_DESCRIPTION, TimerFormat },
+            { (Strings)0, "Lucid mission" },
+        };
+
+        private static string TimedMissionJson(bool reachGoal = false) =>
+            "{\"m_timeLimitSeconds\":90,\"m_objectivesAdditionalTotalTimeSeconds\":5,\"TheoreticalBestTimePossibleSeconds\":30,\"m_isReachGoalTracker\":" +
+            (reachGoal ? "true" : "false") + "}";
+
+        // UpdateIconography 0x618750, time-trial gate: m_showRank = IsTimeTrial && (!m_hideRankIfBestTimeIsInvalid || best > theoretical
+        // best). The compare is ucomiss best, [definition+0xE8] (0x61879E) and seta (0x6187AA): strictly greater, false for NaN. A hidden
+        // rank returns at 0x61889C before any rank binding is written; a shown one reaches the failed lookups (no ranks authored) that
+        // clear the next rank (0x6188A7), best time (0x618AC0) and lowest rank (0x618B5A) icons. ShowRank is written from the same value.
+        [TestCase(true, 30f, false, TestName = "ABestTimeEqualToTheTheoreticalBestHidesTheRank")]
+        [TestCase(true, float.NaN, false, TestName = "ANaNBestTimeHidesTheRank")]
+        [TestCase(true, 30.5f, true, TestName = "ABestTimeAboveTheTheoreticalBestShowsTheRank")]
+        [TestCase(false, 0f, true, TestName = "TheHideOptionOffShowsTheRankWhateverTheBestTime")]
+        public void ATimeTrialShowsItsRankOnlyForAValidBestTimeWhenTheOptionIsOn(bool hideIfInvalid, float bestTime, bool expectedShown)
+        {
+            RunActiveMission((owned, world, container) => OwnedStringTable.Run(OwnedStrings, () =>
+            {
+                var mission = Create<MissionDefinition>(owned, TimedMissionJson());
+                Sprite objective = NewSprite(owned);
+                Sprite stale = NewSprite(owned);
+                Set(mission, "m_missionObjectiveIcon", objective); // Reflection: serialized icon
+                Set(mission, "m_isBeingOverridden", true); // Reflection: set by UpdateOverrides for a completed mission with overrides
+                Set(container, "m_hideRankIfBestTimeIsInvalid", hideIfInvalid); // Reflection: serialized option
+                container.NextRankIcon.Value = stale;
+                container.BestTimeRankIcon.Value = stale;
+                container.LowestRankIcon.Value = stale;
+
+                Call(container, "UpdateIconography", mission, mission, bestTime, 3.5f);
+
+                Assert.That(container.ShowRank.Value, Is.EqualTo(expectedShown));
+                Assert.That(Get<bool>(container, "m_showRank"), Is.EqualTo(expectedShown));
+                Assert.That(container.MissionIcon.Value, Is.SameAs(objective));
+                Sprite expectedRankIcon = expectedShown ? null : stale;
+                Assert.That(container.NextRankIcon.Value, Is.EqualTo(expectedRankIcon), "a hidden rank returns before the rank bindings");
+                Assert.That(container.BestTimeRankIcon.Value, Is.EqualTo(expectedRankIcon));
+                Assert.That(container.LowestRankIcon.Value, Is.EqualTo(expectedRankIcon));
+                if (expectedShown)
+                {
+                    // GetMissionTimerFormat(0f) is what the failed lookups format: a time of zero or less gives "-", "--", "--".
+                    Assert.That(container.NextRankTimeToBeatFormatted.Value, Is.EqualTo("-|--|--"));
+                    Assert.That(container.LowestRankTimeElapsedFormatted.Value, Is.EqualTo("-|--|--"));
+                }
+            }));
+        }
+
+        private static void RunActiveMissionInMissions(Action<Owned, OriginalPersistentLevelObjectTests.Missions, UIContainerActiveMission> body) =>
+            OriginalPersistentLevelObjectTests.WithMissions(true, (owned, missions) =>
+            {
+                // The container's field initialisers cache the App, SaveManager and MissionManager references; the mission definition,
+                // state and context field initialisers and the rank cache these rows.
+                owned.LeaseRow<App>();
+                owned.LeaseRow<TimeTrialLeaderboardManager>();
+                owned.LeaseRow<UIManager>();
+                owned.LeaseRow<ChallengeManager>();
+                owned.LeaseRow<DataManager>();
+                body(owned, missions, owned.Host("Lucid active mission", false).AddComponent<UIContainerActiveMission>());
+            });
+
+        // Publishes a regular context for a timed mission through the real manager (which loads its state), with a saved best time.
+        private static MissionDefinition ActivateMission(Owned owned, OriginalPersistentLevelObjectTests.Missions missions, bool timeTrial,
+            bool reachGoal = false, float bestTime = 0f)
+        {
+            var mission = Create<MissionDefinition>(owned, TimedMissionJson(reachGoal));
+            Set(mission, "m_guid", ActiveMissionGuid); // Reflection: authored GUID of a serialized definition
+            Set(mission, "m_subMissions", new List<MissionDefinition>()); // Reflection: authored (empty) list
+            missions.Save.CurrentSave.GetOrCreateLevelData(missions.CurrentLevel.LevelDefinition.GetGUID())
+                .GetOrCreateMissionData(ActiveMissionGuid).BestTimeSeconds = bestTime;
+            missions.Manager.SetActiveMissionContext(new MissionContextRegular(mission, missions.CurrentLevel.LevelDefinition, false));
+            // Loading the state ran UpdateOverrides, which cleared the flag; a time trial is a completed mission with overrides.
+            Set(mission, "m_isBeingOverridden", timeTrial); // Reflection: set by UpdateOverrides
+            return mission;
+        }
+
+        // SynchroniseRankTimes 0x617B60 after the gate: the current rank is kept for RankType.D (cmp [rank+0x10], 0x5C4C95FB at 0x617BD7)
+        // and while its time is not below the elapsed time (ucomiss rank.TimeInSeconds, elapsed; jae at 0x617BE9, taken on equality,
+        // not taken for NaN). Otherwise the lookup runs with the field itself as the out parameter (lea rsi, [rbx+0x158], 0x617BF2), and
+        // with no authored ranks it fails and clears the field. The mission here has not started, so the elapsed time is 0.
+        [TestCase(RankType.C, 0f, true, TestName = "ARankTimeEqualToTheElapsedTimeIsKept")]
+        [TestCase(RankType.C, 1f, true, TestName = "ARankTimeAfterTheElapsedTimeIsKept")]
+        [TestCase(RankType.C, -1f, false, TestName = "ARankTimeBeforeTheElapsedTimeIsLookedUpAgain")]
+        [TestCase(RankType.C, float.NaN, false, TestName = "ANaNRankTimeIsLookedUpAgain")]
+        [TestCase(RankType.D, -1f, true, TestName = "TheLowestRankIsNeverLookedUpAgain")]
+        public void TheDisplayedRankIsLookedUpAgainOnlyWhenTheMissionRunsPastIt(RankType rankType, float rankTime, bool kept)
+        {
+            RunActiveMissionInMissions((owned, missions, container) =>
+            {
+                ActivateMission(owned, missions, timeTrial: false);
+                var rank = new MissionRank();
+                Set(rank, "m_rankType", rankType); // Reflection: serialized rank data
+                Set(rank, "m_timeInSeconds", rankTime); // Reflection: computed by the editor Validate
+                Set(container, "m_missionManager", missions.Manager); // Reflection: set by OnMissionManagerValid
+                Set(container, "m_syncRankTimeWithMissionTime", true); // Reflection: serialized option
+                Set(container, "m_showRank", true); // Reflection: the state UpdateIconography sets from a time trial
+                Set(container, "m_currentMissionRank", rank); // Reflection: the rank UpdateIconography found
+
+                Call(container, "Update");
+
+                if (kept)
+                    Assert.That(Get<MissionRank>(container, "m_currentMissionRank"), Is.SameAs(rank));
+                else
+                    Assert.That(Get<MissionRank>(container, "m_currentMissionRank"), Is.Null);
+            });
+        }
+
+        // Refresh 0x617E00 with a live state. Total time is the limit plus the objectives' extra time (0x617FE3), and the unstarted timer
+        // leaves the elapsed time 0 (0x617F0B..0x617F33). NewBestTime is best >= elapsed (ucomiss; setae at 0x6181E2: true for a best
+        // time of 0, false for a negative one). ShowBestTime is the conjunction m_showBestTime && m_showRank && IsTimeTrial && best > 0
+        // && IsReachGoalTracker (0x618185..0x6181BA); each row has one operand off, except the first.
+        [TestCase(true, true, true, 12f, true, true, "0|12|00", TestName = "ABestTimeIsShownWhenEveryConditionHolds")]
+        [TestCase(false, true, true, 12f, false, true, "0|12|00", TestName = "TheBestTimeIsHiddenWithTheOptionOff")]
+        [TestCase(true, false, true, 12f, false, true, "0|12|00", TestName = "TheBestTimeIsHiddenForAMissionThatIsNotATimeTrial")]
+        [TestCase(true, true, false, 12f, false, true, "0|12|00", TestName = "TheBestTimeIsHiddenWithoutAReachGoalTracker")]
+        [TestCase(true, true, true, 0f, false, true, "-|--|--", TestName = "ABestTimeOfZeroIsNotShownButIsStillANewBest")]
+        [TestCase(true, true, true, -1f, false, false, "-|--|--", TestName = "ANegativeBestTimeIsNotANewBest")]
+        public void RefreshingAnActiveMissionPublishesItsTimesAndBestTimeState(bool showBestTimeOption, bool timeTrial, bool reachGoal,
+            float bestTime, bool expectedShowBestTime, bool expectedNewBestTime, string expectedBestFormatted)
+        {
+            RunActiveMissionInMissions((owned, missions, container) => OwnedStringTable.Run(OwnedStrings, () =>
+            {
+                ActivateMission(owned, missions, timeTrial, reachGoal, bestTime);
+                Assert.That(missions.Manager.TryGetActiveMissionState(out MissionState state), Is.True);
+                Set(container, "m_missionManager", missions.Manager); // Reflection: set by OnMissionManagerValid
+                Set(container, "m_showBestTime", showBestTimeOption); // Reflection: serialized option
+
+                container.Refresh(state);
+
+                Assert.That(container.ShowMission.Value, Is.True);
+                Assert.That(container.TimeTotalSeconds.Value, Is.EqualTo(95f));
+                Assert.That(container.TimeElapsedFormatted.Value, Is.EqualTo("-|--|--"), "an unstarted timer has no elapsed time");
+                Assert.That(container.TimeRemainingFormatted.Value, Is.EqualTo("1|35|00"));
+                Assert.That(container.MissionDescription.Value, Is.EqualTo("Lucid mission"));
+                Assert.That(container.ShowRank.Value, Is.EqualTo(timeTrial));
+                Assert.That(container.ShowBestTime.Value, Is.EqualTo(expectedShowBestTime));
+                Assert.That(container.NewBestTime.Value, Is.EqualTo(expectedNewBestTime));
+                Assert.That(container.BestTimeElapsedFormatted.Value, Is.EqualTo(expectedBestFormatted));
+                Assert.That(container.IsChallenge.Value, Is.False);
+            }));
         }
 
         // SetIcon 0x618DC0 loads the asset into the binding and keeps it; OnDestroy 0x6178B0 removes the string-table handler, unloads

@@ -18,7 +18,7 @@ namespace ProjectLucid.Tests
     // UIWidgetSDTLevel (Game.Runtime 0x020009c4, x86-64 0x69FD70..0x6A1E53) as a real component on an inactive owned host over a real
     // MissionManager, DataManager (whose reward collectable already holds its loaded sprite) and an owned string table.
     // Not covered: OnEnable (a coroutine cannot start on an inactive host), the unlock and boss preview animations (Unlock 0x6A0AD0,
-    // HideBoss 0x6A0A40: they play clips on the toggle's UITransitionAnimation), the navigation manager selection (0x6A1B0A..) and the
+    // HideBoss 0x6A0A40: they play clips on the toggle's UITransitionAnimation), the navigation manager selection (TryNavigateToWidget 0x6A17F0 and its inlined copies at 0x6A16FD / 0x6A179A / 0x6A1E08) and the
     // locking requirement messages (0x6A02B9..0x6A0549), which need level requirements with a save and a progression. The fixture
     // gives the toggle's transition an empty settings list so that queuing a state transition is a no-op.
     public sealed class UIWidgetSdtLevelTests
@@ -240,6 +240,32 @@ namespace ProjectLucid.Tests
                 Assert.That(Call(scene.Widget, "ShowRewardRequirementUI"), Is.False);
                 Assert.That(scene.Instances, Is.Empty);
                 Assert.That(scene.Widget.ShowRewardsLeftToUnlockMessage.Value, Is.False);
+            }, LevelJson(rewardRequirements: Requirement(10)));
+        }
+
+        // UpdateBinders 0x6A0050 combines the two answers without short-circuiting: HasRequirement<RequirementLevelAlwaysLocked> is called
+        // at 0x6A0297, ShowRewardRequirementUI unconditionally at 0x6A0549, and the results are or-ed (0x6A0551) before the message is
+        // chosen (cmovne at 0x6A0569). An always-locked level with an unmet reward requirement still builds its restriction containers
+        // (rejects a short-circuiting ||); with every requirement met it shows the requirement message and no containers (rejects
+        // ignoring the always-locked requirement). Only the type test over the requirement list is involved, so no save is needed.
+        [TestCase(4, 1, 6, TestName = "AnAlwaysLockedLevelStillBuildsItsUnmetRestrictions")]
+        [TestCase(10, 0, 0, TestName = "AnAlwaysLockedLevelWithMetRequirementsShowsNoRestriction")]
+        public void AnAlwaysLockedLevelShowsTheRequirementMessageAndStillRefreshesItsRestrictions(int overallCollected, int containers, int remaining)
+        {
+            Run((owned, scene) =>
+            {
+                var alwaysLocked = Create<RequirementLevelAlwaysLocked>(owned);
+                Set(scene.Level, "m_requirements", new List<RequirementGameplayLevelBase> { alwaysLocked }); // Reflection: serialized list
+                SetProgress(scene, 0, 1);
+                scene.Overall[CollectableType.Orb] = new ProgressionCollectable(CollectableType.Orb, overallCollected, 100);
+
+                scene.Widget.Setup(scene.Parameters());
+
+                Assert.That(scene.Widget.ShowRewardsLeftToUnlockMessage.Value, Is.True);
+                Assert.That(scene.Widget.RewardsUnlockMessage.Value, Is.EqualTo(NeedRewards));
+                Assert.That(scene.Instances, Has.Count.EqualTo(containers));
+                if (containers > 0)
+                    Assert.That(scene.Instances[0].Count.Value, Is.EqualTo(remaining));
             }, LevelJson(rewardRequirements: Requirement(10)));
         }
 

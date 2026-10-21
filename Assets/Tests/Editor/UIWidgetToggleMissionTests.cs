@@ -144,6 +144,20 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // IsReadyToUnlock 0x6A3F20 is !Locked && !UnlockSeen (je at 0x6A3F2B on the locked test, sete at 0x6A3F35 on the seen test). The
+        // locked, unseen row rejects a body that returns just !UnlockSeen.
+        [TestCase(false, false, true, TestName = "AnUnlockedMissionThatIsNotSeenIsReadyToUnlock")]
+        [TestCase(false, true, false, TestName = "AnUnlockedMissionThatIsSeenIsNotReadyToUnlock")]
+        [TestCase(true, false, false, TestName = "ALockedMissionIsNotReadyToUnlock")]
+        public void AMissionIsReadyToUnlockOnlyWhenItIsNeitherLockedNorSeen(bool locked, bool unlockSeen, bool expected)
+        {
+            Run((owned, scene) =>
+            {
+                Set(scene.Widget, "m_parameters", Parameters(locked: locked, unlockSeen: unlockSeen)); // Reflection: Setup would also load the reward icon
+                Assert.That(Call(scene.Widget, "IsReadyToUnlock"), Is.EqualTo(expected));
+            });
+        }
+
         // 0x6A4050 and 0x6A3EE0 write their bindings directly.
         [Test]
         public void SetIsNewAndSetRankIconVisibilityWriteTheirBindings()
