@@ -7,7 +7,7 @@ using ProjectLucid.Tests.CharCoreShared;
 using ProjectLucid.Tests.WorldSurfaceShared;
 using UnityEngine;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
-using static ProjectLucid.Tests.Enemies0102Support;
+using static ProjectLucid.Tests.EnemyAbilityTestSupport;
 using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -17,7 +17,7 @@ namespace ProjectLucid.Tests
     // FireProjectile (see EnemyFireProjectileAbilityTests), GroundMovement 02000636 and GroundMovement_WithTarget
     // 02000637; Dead 02000633, GroundAttack 02000635, Idle 02000638 and Taunt 0200063a) against the 1.10.1 x86-64
     // bodies at 0x56E4F0..0x570D30 and the shared generic bodies at 0x117F560..0x117FB00. Each ability is built by its
-    // shipped constructor and initialised with an authored definition on a real Enemy (see Enemies0102Support).
+    // shipped constructor and initialised with an authored definition on a real Enemy (see EnemyAbilityTestSupport).
     // Not covered: the abilities driven by a started Actor (Actor.InitialiseAbilities needs the actor traits and the
     // data manager's definitions) and the animator parameters through a started ActorAnimator update.
     public sealed class EnemyAbilityTests
@@ -152,7 +152,7 @@ namespace ProjectLucid.Tests
             WithScene(scene =>
             {
                 EnemyAbility ability = scene.Ability<EnemyAbility_Idle, EnemyAbilityDefinition_Idle>();
-                Enemies0102ProxyProbe proxy = scene.AttachProxy();
+                EnemyVisualProxyProbe proxy = scene.AttachProxy();
                 scene.Enemy.SetWorldRotation(Quaternion.Euler(0f, 30f, 0f));
 
                 ability.UpdateVisualProxyMovement(0.1f);
@@ -187,7 +187,7 @@ namespace ProjectLucid.Tests
             {
                 EnemyAbility attack = scene.Ability<EnemyAbility_GroundAttack, EnemyAbilityDefinition_GroundAttack>();
                 EnemyAbility withTarget = scene.Ability<EnemyAbility_GroundMovement_WithTarget, EnemyAbilityDefinition_GroundMovement_WithTarget>();
-                Enemies0102ProxyProbe proxy = scene.AttachProxy();
+                EnemyVisualProxyProbe proxy = scene.AttachProxy();
                 scene.Enemy.SetWorldRotation(Quaternion.Euler(0f, 30f, 0f));
                 Set(scene.Enemy, "m_navigation", scene.Owned.Host(Name(), false).AddComponent<EnemyNavigationSpline>());
 

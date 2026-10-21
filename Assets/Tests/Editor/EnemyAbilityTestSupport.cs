@@ -17,7 +17,7 @@ namespace ProjectLucid.Tests
     // owned inactive host (Edit Mode sends no Awake or Start) with a real brain, an authored definition, a simplified
     // body and the transform that Start would cache; an ability is built by its shipped constructor and given the enemy
     // and its definition through its own Initialise, as Actor.InitialiseAbilities does.
-    internal static class Enemies0102Support
+    internal static class EnemyAbilityTestSupport
     {
         // The value a parameter holds before an ability writes to it, so a write of zero is visible.
         internal const float Sentinel = 9f;
@@ -62,9 +62,9 @@ namespace ProjectLucid.Tests
             internal void Flag(string property, bool value) => SetProperty(Enemy, property, value);
 
             // A proxy that records the rotation it is asked for, installed as the enemy's visual proxy.
-            internal Enemies0102ProxyProbe AttachProxy()
+            internal EnemyVisualProxyProbe AttachProxy()
             {
-                var proxy = Owned.Host(Name(), false).AddComponent<Enemies0102ProxyProbe>();
+                var proxy = Owned.Host(Name(), false).AddComponent<EnemyVisualProxyProbe>();
                 proxy.ToggleSmoothing(false);
                 proxy.CacheTransform();
                 SetActorProperty(Enemy, "VisualProxy", proxy);

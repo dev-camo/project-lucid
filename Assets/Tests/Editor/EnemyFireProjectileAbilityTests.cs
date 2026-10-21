@@ -7,14 +7,14 @@ using ProjectLucid.Tests.WorldSurfaceShared;
 using UnityEditor;
 using UnityEngine;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
-using static ProjectLucid.Tests.Enemies0102Support;
+using static ProjectLucid.Tests.EnemyAbilityTestSupport;
 using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
     // EnemyAbility_FireProjectile (02000634) against the 1.10.1 x86-64 bodies at 0x56ED00..0x56FFA0. The enemy and the
-    // targets are real components on owned inactive hosts (see Enemies0102Support); a target's aim point is the node of
+    // targets are real components on owned inactive hosts (see EnemyAbilityTestSupport); a target's aim point is the node of
     // its real attachment points. The definition is authored through the editor JSON overwrite, as authored data is.
     // Not covered: WarmupProjectile (0x56FCB0), which acquires the projectile from the registered ProjectileManager's
     // pools (built from the data manager's projectile definitions) and attaches it to the enemy's node; the
@@ -31,8 +31,8 @@ namespace ProjectLucid.Tests
                 }
             });
 
-        private static Enemies0102ProjectileProbe NewProjectile(Scene scene) =>
-            scene.Owned.Host(Name(), false).AddComponent<Enemies0102ProjectileProbe>();
+        private static EnemyProjectileProbe NewProjectile(Scene scene) =>
+            scene.Owned.Host(Name(), false).AddComponent<EnemyProjectileProbe>();
 
         private static bool BrainHoldsTarget(Scene scene) => scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
 
@@ -137,7 +137,7 @@ namespace ProjectLucid.Tests
 
         // 0x56F180 with TargetValid inlined (0x56F43E..0x56F5F0): every target whose aim node exists and passes the range
         // and elevation band is considered, and the nearest wins; of equal distances the later one does. The enemy
-        // stands at the origin facing up the y axis, with the default range 20 and band of plus and minus 60 degrees.
+        // stands at the origin facing +z with up +y, with the default range 20 and band of plus and minus 60 degrees.
         [Test]
         public void TheNearestValidTargetIsChosenAndPublishedToTheBrain()
         {
@@ -313,7 +313,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x56F8B6: a clock that is already beyond the wind-up time never fires a projectile still in the slot, and
+        // 0x56F96D..0x56F979 (wind-up crossing check): a clock that is already beyond the wind-up time never fires a projectile still in the slot, and
         // returns before the finishing check, so the ability does not finish however far the clock runs.
         [Test]
         public void AProjectilePastTheWindUpTimeIsNeverFiredAndTheAbilityNeverFinishes()
@@ -331,6 +331,27 @@ namespace ProjectLucid.Tests
                 ability.Update(0.4f);
                 Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(1.6f).Within(1e-6f), "the clock still runs");
                 Assert.That(projectile.Fires, Is.EqualTo(0));
+                Assert.That(ability.AbilityFinished, Is.False);
+                Assert.That(ability.IsTriggered, Is.True);
+            });
+        }
+
+        // 0x56F872 (ucomiss 0, elapsed; jae): the warm-up branch is taken only when 0 >= elapsed. An unordered NaN clock
+        // therefore stays on the clock-only path, where `elapsed > 0` written the other way round would warm up a projectile.
+        [Test]
+        public void ANaNClockWithNoProjectileOnlyAdvancesTheClock()
+        {
+            WithScene(scene =>
+            {
+                var ability = Fire(scene, "{\"m_windUpTime\":1,\"m_windDownTime\":0.5}");
+                ability.Enter();
+                Call(ability, "SetTriggered", true);
+                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
+                Set(ability, "m_windUpElapsedTime", float.NaN);
+                ability.Update(0.4f);
+                Assert.That(float.IsNaN(Get<float>(ability, "m_windUpElapsedTime")), Is.True, "the clock keeps running as NaN");
+                Assert.That(Get<Projectile>(ability, "m_projectileInWarmup"), Is.Null, "no projectile is warmed up");
+                Assert.That(scene.Enemy.Storage.HasValue(ActorFSMKeys.EnemyFireProjectileTurnComplete), Is.False);
                 Assert.That(ability.AbilityFinished, Is.False);
                 Assert.That(ability.IsTriggered, Is.True);
             });

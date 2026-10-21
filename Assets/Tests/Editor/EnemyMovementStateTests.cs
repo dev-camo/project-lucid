@@ -6,7 +6,7 @@ using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
-using static ProjectLucid.Tests.Enemies0102Support;
+using static ProjectLucid.Tests.EnemyAbilityTestSupport;
 using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 

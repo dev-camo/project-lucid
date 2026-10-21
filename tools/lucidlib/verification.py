@@ -7079,7 +7079,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyBrainStateTests." + name for na
     "SteeringIgnoresTheOffsetAlongTheUpDirection",
     "SteeringMeasuresFromTheEnemyPosition",
 ))
-# Original enemy abilities, the ground, air, dead, idle, taunt, attack and fire projectile abilities, and the enemy movement state and transition (gr3-enemies-01, gr3-enemies-02).
+# Original enemy abilities, the ground, air, dead, idle, taunt, attack and fire projectile abilities, and the enemy movement state and transition.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyAbilityTests." + name for name in (
     "EmissionCheck_AbilitiesKeepTheirFlagsFieldsAndMethods",
     "InitialiseKeepsTheActorOnlyWhenItIsAnEnemy",
@@ -7117,6 +7117,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyFireProjectileAbilityTests." + 
     "TargetValidChecksRangeAndTheElevationBand",
     "TheProjectileFiresWhenTheWindUpTimeIsCrossedAndTheAbilityEndsAfterTheWindDown",
     "AProjectilePastTheWindUpTimeIsNeverFiredAndTheAbilityNeverFinishes",
+    "ANaNClockWithNoProjectileOnlyAdvancesTheClock",
     "GizmosAreDrawnOnlyForAnEnteredTriggeredAbilityWithAShootNode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyMovementStateTests." + name for name in (

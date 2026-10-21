@@ -108,13 +108,14 @@ namespace HardlightProject
             }
 
             float previousElapsed = m_windUpElapsedTime;
-            if (m_projectileInWarmup == null && !(previousElapsed <= 0f))
+            bool hasProjectile = m_projectileInWarmup != null;
+            if (!hasProjectile && !(previousElapsed <= 0f))
             {
                 m_windUpElapsedTime = deltaTime + previousElapsed;
             }
             else
             {
-                if (m_projectileInWarmup == null)
+                if (!hasProjectile)
                 {
                     WarmupProjectile();
                     m_enemy.Storage.SetValue(ActorFSMKeys.EnemyFireProjectileTurnComplete, true);

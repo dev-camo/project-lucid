@@ -31,7 +31,8 @@ namespace HardlightProject
             Definition = definition as T;
         }
 
-        // 06002191 (1.10.1 RVA 0x117F650): triggered while the brain is steering and the target is not locked.
+        // 06002191 (1.10.1 RVA 0x117F650): triggered while the brain is steering and the target is not locked. The
+        // native code evaluates both reads without branching, so the source operand order is not recoverable.
         protected override void DoOnUpdate(float deltaTime)
         {
             IsTriggered = m_enemy.BrainMovement != Vector2.zero && !m_enemy.BrainTargetLocked;

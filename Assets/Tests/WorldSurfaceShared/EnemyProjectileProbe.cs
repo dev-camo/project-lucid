@@ -6,7 +6,7 @@ namespace ProjectLucid.Tests.WorldSurfaceShared
 {
     // Test-only projectile for the fire-projectile ability fixtures. It supplies the four abstract members and
     // records the focus updates and fires the ability asks for; Kill is the shipped Projectile body.
-    public sealed class Enemies0102ProjectileProbe : Projectile
+    public sealed class EnemyProjectileProbe : Projectile
     {
         public readonly List<Vector3> Focuses = new List<Vector3>();
         public int Fires;
