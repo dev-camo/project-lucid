@@ -6,8 +6,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 020001e3; bodies translated from the 1.10.1 x86-64 binary (0x6FB520..0x6FB950).
     // Glides the boss to the arena edge, on the circle of the stated radius around the arena centre.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossAbility_MoveToArenaEdge : BossAbility_MoveTowardsTarget
     {
         public BossAbilityDefinition_MoveToArenaEdge DerivedDefinition;

@@ -8,8 +8,8 @@ namespace HardlightProject
     // Original Game.Runtime 020001e0; bodies translated from the 1.10.1 x86-64 binary (0x6F9EF0..0x6FA3F8).
     // Each boss orbits a point that itself travels round the big circle (counter-spinning, so the two arcs run in
     // opposite directions). The debug helpers are conditional on BUILD_DEVELOPMENT and have no calls in the retail body.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossAbility_MoveBigCircleWithCounterSpin : ActorAbility, IAbilityTrigger, IAbilityBossMovement
     {
         private readonly Vector3 ArenaCentre = Vector3.up;

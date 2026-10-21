@@ -9,8 +9,8 @@ namespace HardlightProject
     // Original Game.Runtime 020001ec; bodies translated from the 1.10.1 x86-64 binary (0x6FE0F0..0x6FE4D0).
     // Fires the stated waves of shots at the boss's target, each shot spread by a random offset up to the accuracy.
     // The debug helper is conditional on BUILD_DEVELOPMENT and has no calls in the retail body.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossAbility_RangedAttack : ActorAbility, IAbilityTrigger, IAbilityRange
     {
         public BossAbilityDefinition_RangedAttack Definition;

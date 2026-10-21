@@ -6,8 +6,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 020001de; bodies translated from the 1.10.1 x86-64 binary (0x6F99B0..0x6F9DD0).
     // The defeated boss flies off along the character's facing, with the height taken from a curve over flight time.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossAbility_DeathFlight : ActorAbility
     {
         public BossAbilityDefinition_DeathFlight Definition;

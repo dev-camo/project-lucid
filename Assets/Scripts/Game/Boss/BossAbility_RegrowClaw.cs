@@ -5,8 +5,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 020001ed; bodies translated from the 1.10.1 x86-64 binary (0x6FE4D0..0x6FE9B0).
     // Counts, per claw, the attacks made while the claw is deflated and tells when the claw should regrow.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossAbility_RegrowClaw : ActorAbility
     {
         public BossAbilityDefinition_RegrowClaw Definition;

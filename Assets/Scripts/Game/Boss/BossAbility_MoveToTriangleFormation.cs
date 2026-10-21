@@ -7,8 +7,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 020001e6; bodies translated from the 1.10.1 x86-64 binary (0x6FC290..0x6FC5F0).
     // Glides the bosses into an evenly spaced formation around the centroid of all bosses.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossAbility_MoveToTriangleFormation : BossAbility_MoveTowardsTarget
     {
         public BossAbilityDefinition_MoveToTriangleFormation DerivedDefinition;
