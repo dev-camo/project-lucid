@@ -457,8 +457,7 @@ namespace ProjectLucid.Tests
                 {
                     GiveDefinition(owned, boss, new BossTraits { UsesSmoothedTransformRotator = smoothed });
                     AttachAnimator(owned, boss, new string[0], new[] { SpeedFloat });
-                    SmoothedTransformRotator rotator = owned.Host("Lucid boss rotator", false).AddComponent<SmoothedTransformRotator>();
-                    Call(rotator, "Initialise"); // Awake does not run in Edit Mode; this is its body (it caches the transform).
+                    SmoothedTransformRotator rotator = NewRotator(owned);
                     Set(boss, "m_smoothedTransformRotator", rotator); // serialized scene reference
                     ScriptedMovement movement = NewMover(boss, new Vector3(3f, 0f, 4f));
                     movement.AngleMultiplier = 2f;
@@ -468,6 +467,18 @@ namespace ProjectLucid.Tests
                         "smoothed " + smoothed);
                 });
             }
+        }
+
+        // 0x68fcf8 evaluates the serialized slerp curve (m_rotationSlerpCurve, set in the original prefab) for its side effect
+        // before the result is discarded, so the rotator is given a curve through its serialized field.
+        private static SmoothedTransformRotator NewRotator(Owned owned)
+        {
+            SmoothedTransformRotator rotator = owned.Host("Lucid boss rotator", false).AddComponent<SmoothedTransformRotator>();
+            var serialized = new UnityEditor.SerializedObject(rotator);
+            serialized.FindProperty("m_rotationSlerpCurve").animationCurveValue = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            Call(rotator, "Initialise"); // Awake does not run in Edit Mode; this is its body (it caches the transform).
+            return rotator;
         }
 
         // 0x707509..0x707521: the direction is taken through the host transform's InverseTransformPoint. With the host yawed 90 degrees
@@ -480,8 +491,7 @@ namespace ProjectLucid.Tests
             {
                 GiveDefinition(owned, boss, new BossTraits { UsesSmoothedTransformRotator = true });
                 AttachAnimator(owned, boss, new string[0], new[] { SpeedFloat });
-                SmoothedTransformRotator rotator = owned.Host("Lucid boss rotator", false).AddComponent<SmoothedTransformRotator>();
-                Call(rotator, "Initialise"); // Awake does not run in Edit Mode; this is its body (it caches the transform).
+                SmoothedTransformRotator rotator = NewRotator(owned);
                 Set(boss, "m_smoothedTransformRotator", rotator); // serialized scene reference
                 ScriptedMovement movement = NewMover(boss, new Vector3(3f, 0f, 4f));
                 movement.AngleMultiplier = 2f;
