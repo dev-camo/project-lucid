@@ -611,6 +611,36 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x7001EE..0x70020C (clockwise, newBoss < character adds 2*pi = 6.2831855) and 0x70021D..0x70023C (counter-clockwise,
+        // character < newBoss adds -2*pi = -6.2831855): the boss's angle wraps a full turn towards the character's side before the clamp.
+        [Test]
+        public void StayAheadUpdateWrapsTheBossAngleAFullTurnTowardsTheCharacter()
+        {
+            foreach ((bool clockwise, double character, double boss, double expected, double lower, double upper, bool atMax) in new[]
+            {
+                (true, 350.0, 20.0, 0.349066 + 0.01 + 6.283185, 6.608652, 7.608652, false),
+                (false, 10.0, 320.0, 5.585053 - 0.01 - 6.283185, -1.325467, -0.325467, false),
+            })
+            {
+                WithManager((owned, manager, characterObject) =>
+                {
+                    MakeCurrent(manager, characterObject, OnCircle(character));
+                    Boss bossObject = NewBoss(owned, OnCircle(boss, 7f));
+                    BossAbility_StayAheadOfPlayer ability = NewStayAhead(owned, bossObject, d =>
+                    {
+                        d.Clockwise = clockwise;
+                        d.MovementPerSecond = 0.01f;
+                    });
+                    Tick(ability, 1f);
+                    string label = $"clockwise {clockwise} character {character} boss {boss}";
+                    Assert.That(expected, Is.InRange(lower, upper), label);
+                    Assert.That(Get<float>(ability, "m_progressionArcRadians"), Is.EqualTo((float)expected).Within(2e-3f), label);
+                    Assert.That(ability.AtMaxRange, Is.EqualTo(atMax), label);
+                    AssertNear(ability.CurrentTargetPosition, CircleLhs(Vector3.zero, (float)expected, 25.0, 7f), "target " + label, 0.05f);
+                });
+            }
+        }
+
         // 0x70021D..0x70027A: counter-clockwise the boss's angle moves down and the limits swap (character - maximum, character - minimum).
         // The clamp tests below the lower limit first and then takes the lesser of the upper limit and the value, so a minimum above
         // the maximum yields the lower limit for values under it and the upper limit otherwise (a max(lower, min(upper, v)) clamp would

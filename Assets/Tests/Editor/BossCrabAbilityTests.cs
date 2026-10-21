@@ -423,6 +423,38 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x6F7660 reads the angle change from storage (key at 0x6F75C7) and only defaults to the bearing when nothing is stored,
+        // so a stored angle change (the per-cycle rotation) replaces the bearing as the first point's angle.
+        [Test]
+        public void BodySlamEnterStartsTheTriangleAtTheStoredAngleChange()
+        {
+            Owned.Run(owned =>
+            {
+                Boss boss = NewBoss(owned, new Vector3(3f, 7f, 4f));
+                boss.Storage.SetValue(BossFSMKeys.BossAttackAngleChange, 1f);
+                BossAbility_BodySlam ability = NewBodySlam(owned, boss, d =>
+                {
+                    d.TriangleJumpDistance = 30f;
+                    d.AngleOfJumps = 36f;
+                    d.MinTriangleRotationDegreesPerCycle = 30f;
+                    d.MaxTriangleRotationDegreesPerCycle = 90f;
+                });
+                ability.Enter();
+
+                double jump = 36.0 * Math.PI / 180.0;
+                var points = (Vector3[])Get<object>(ability, "m_coordinateArray");
+                foreach ((int index, double angle) in new[] { (0, 1.0), (1, 1.0 + jump), (2, 1.0 - jump) })
+                {
+                    Assert.That(points[index].x, Is.EqualTo((float)(30.0 * Math.Cos(angle))).Within(1e-3f), "point " + index + " x");
+                    Assert.That(points[index].y, Is.EqualTo(7f), "point " + index + " y is the boss height");
+                    Assert.That(points[index].z, Is.EqualTo((float)(30.0 * Math.Sin(angle))).Within(1e-3f), "point " + index + " z");
+                }
+                float angleChange = Stored<float>(boss, BossFSMKeys.BossAttackAngleChange);
+                Assert.That(angleChange, Is.GreaterThanOrEqualTo(1f + (float)(Math.PI / 6) - 1e-4f));
+                Assert.That(angleChange, Is.LessThanOrEqualTo(1f + (float)(Math.PI / 2) + 1e-4f));
+            });
+        }
+
         // A stored count other than zero (0x6F756F..) leaves the layout and the angle change alone and is the attack index.
         [Test]
         public void BodySlamEnterKeepsTheTriangleAfterTheFirstJump()
@@ -656,6 +688,15 @@ namespace ProjectLucid.Tests
                 Assert.That(scene.Ability.CanAttack(boss, character, scene.Animation, 0f), Is.True, "the angle is about -31 degrees");
                 Assert.That(Stored<BossAttackTypes>(boss, BossFSMKeys.BossAttackType), Is.EqualTo(BossAttackTypes.BossCrab_LeftClaw));
                 Assert.That(Claws(scene), Is.EqualTo((true, true, false)));
+
+                // 0x6F8D4B..0x6F8D60: inside the near and far ranges (289 of 1..324) but outside the telegraph range (256) and at +90
+                // degrees (beyond the 45 valid attack angle), so only the angle gate rejects the target.
+                boss.SetWorldPosition(new Vector3(0f, 0f, -12f));
+                SetActorProperty(character, "ForwardDirection", new Vector3(1f, 0f, 0f));
+                Assert.That(scene.Ability.CanAttack(boss, character, scene.Animation, 0f), Is.False, "inside the range but outside the valid attack angle");
+                Assert.That(Stored<BossAttackTypes>(boss, BossFSMKeys.BossAttackType), Is.EqualTo(BossAttackTypes.None));
+                Assert.That(Claws(scene), Is.EqualTo((false, false, false)));
+                Assert.That(Get<float>(scene.Ability, "m_extraRange"), Is.EqualTo(10f), "no time passed: the ranges stay as they were");
 
                 boss.SetWorldPosition(new Vector3(0f, 0f, -5f));
                 SetActorProperty(character, "ForwardDirection", new Vector3(1f, 0f, 0f));

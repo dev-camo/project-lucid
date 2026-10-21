@@ -268,11 +268,12 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // The first slam may use its own tolerance (the initial face-angle tolerance), later ones the normal one.
+        // 0x704611..0x70461E: the initial face-angle tolerance applies only to the first slam (attack index 0) and only when the
+        // definition's custom initial tolerance flag is set; later slams, or a first slam without the flag, use the normal tolerance.
         [Test]
         public void BodySlamStateUsesTheInitialToleranceForTheFirstSlam()
         {
-            foreach ((int attackIndex, float expectedDegrees) in new[] { (0, 0f), (1, 10f) })
+            foreach ((int attackIndex, bool customInitial, float expectedDegrees) in new[] { (0, true, 0f), (1, true, 10f), (0, false, 10f) })
             {
                 WithManager((owned, manager, characterObject) =>
                 {
@@ -281,14 +282,14 @@ namespace ProjectLucid.Tests
                     BossAbility_BodySlam ability = NewWoundUpBodySlam(owned, boss, d =>
                     {
                         d.FaceAngleTolerance = 5f;
-                        d.CustomInitialFaceAngleTolerance = true;
+                        d.CustomInitialFaceAngleTolerance = customInitial;
                         d.InitialFaceAngleTolerance = 120f;
                         d.TurnSpeed = 20f;
                     }, Vector3.zero);
                     typeof(BossAbility_BodySlam).GetProperty(nameof(BossAbility_BodySlam.AttackIndex)).GetSetMethod(true).Invoke(ability, new object[] { attackIndex });
                     ability.SetAttackWoundUp();
                     UpdateState(NewState(nameof(BossState_BodySlam), AbilityJson(ActorAbilityType.Boss_BodySlam)), boss, 0.5f);
-                    AssertNear(boss.ForwardDirection, Quaternion.AngleAxis(expectedDegrees, Vector3.up) * Vector3.forward, "slam " + attackIndex, 1e-3f);
+                    AssertNear(boss.ForwardDirection, Quaternion.AngleAxis(expectedDegrees, Vector3.up) * Vector3.forward, $"slam {attackIndex} custom initial tolerance {customInitial}", 1e-3f);
                 });
             }
         }

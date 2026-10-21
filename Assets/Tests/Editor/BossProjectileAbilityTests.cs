@@ -17,7 +17,7 @@ namespace ProjectLucid.Tests
     // BossAbility_ProjectileSpawnAndShootOneAtATime (020001eb, 0x6FD4A0..0x6FE0F0). Expected values come from the x86-64 bodies cited per
     // case; the abilities are built by their real constructors against a real Boss whose projectile spawn point has real lane children.
     // Not covered, because they need the BossManager's projectile pools or a live Projectile: SpawnAProjectile (06000ade) and with it the
-    // spawning of the group, the firing and the gliding of the spawned projectiles, and the OneAtATime GetSpline error log.
+    // spawning of the group, the Projectile.Fire() call of the spawned projectiles, and the OneAtATime GetSpline error log.
     public sealed class BossProjectileAbilityTests
     {
         private const ActorAttachPointType SpawnAttach = ActorAttachPointType.Boss_Crab_Body_VulnerablePoint;
@@ -618,6 +618,36 @@ namespace ProjectLucid.Tests
                 Assert.That(Stored<BossEffectTriggerTypes>(scene.Boss, BossFSMKeys.BossEffectType), Is.EqualTo(BossEffectTriggerTypes.AttackStrike));
                 Assert.That((Get<bool>(ability, "m_attackAnimStarted"), Get<float>(ability, "m_attackAnimationTimer")), Is.EqualTo((false, 0f)));
                 Assert.That(Get<float>(ability, "m_projectileFireTimer"), Is.EqualTo(1f));
+            });
+        }
+
+        // 0x6FDC3D..0x6FDCD1: while the launch time runs, once the fire timer is past index*divisible the current projectile's local
+        // position moves towards zero by delta*ProjectileMoveToLaneVelocity (MoveTowards); it is fired only past (index+1)*divisible.
+        // Launch time 2 over 2 projectiles gives a divisible of 1; after 0.25 s the projectile at local (3,4,0) has moved 4*0.25 = 1
+        // along its 5-unit distance to (2.4,3.2,0) and has not been fired (0.25 is not above 1).
+        [Test]
+        public void OneAtATimeAttackingGlidesTheCurrentProjectileTowardsItsLane()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<MessageManager>();
+                ProjectileScene scene = NewScene(owned, 4, Vector3.zero);
+                BossAbility_ProjectileSpawnAndShootOneAtATime ability = NewOneAtATime(owned, scene, d =>
+                {
+                    d.ProjectileGroupLaunchTimeSeconds = 2f;
+                    d.ProjectileMoveToLaneVelocity = 4f;
+                });
+                ability.SetProjectileCount(2);
+                var projectile = owned.Host("Lucid gliding projectile", false).AddComponent<GuardianProjectile>();
+                projectile.transform.SetParent(scene.Spawn, false);
+                projectile.transform.localPosition = new Vector3(3f, 4f, 0f);
+                Get<List<Projectile>>(ability, "m_projectiles").Add(projectile);
+
+                Assert.That((bool)Call(ability, "Attacking", 0.25f), Is.True, "the launch time is still running");
+                AssertNear(projectile.transform.localPosition, new Vector3(2.4f, 3.2f, 0f), "glided one unit towards the lane", 1e-4f);
+                Assert.That(projectile.transform.parent, Is.SameAs(scene.Spawn), "not fired yet");
+                Assert.That(Get<int>(ability, "m_currentlyFiringProjectileIndex"), Is.Zero);
+                Assert.That(Get<float>(ability, "m_projectileFireTimer"), Is.EqualTo(0.25f));
             });
         }
     }

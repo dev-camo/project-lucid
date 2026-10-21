@@ -7106,6 +7106,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossCrabAbilityTests." + name for na
     "BodySlamAttackingUsesTheTrianglePointOfTheAttackIndex",
     "BodySlamUpdateFinishesTheAbilityWhenTheSlamEndsAndLeaveResets",
     "BodySlamEnterLaysOutTheTriangleAroundTheBossBearing",
+    "BodySlamEnterStartsTheTriangleAtTheStoredAngleChange",
     "BodySlamEnterKeepsTheTriangleAfterTheFirstJump",
     "BodySlamStrikePublishesTheAttackStrikeEffect",
     "ClawAttackFlagsFollowTheNativeStores",
@@ -7140,6 +7141,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossMovementAbilityTests." + name fo
     "StayAheadShouldNotActivateWithoutACharacter",
     "StayAheadUpdateKeepsTheBossBetweenTheArcLimits",
     "StayAheadUpdateClampsCounterClockwiseAndWithAMinimumAboveTheMaximum",
+    "StayAheadUpdateWrapsTheBossAngleAFullTurnTowardsTheCharacter",
     "StayAheadEnterResumesFromTheStoredAngleOrTheCharacterAndLeaveStoresIt",
     "ScuttleReportsTheSquaredRangesOfItsDefinition",
     "ScuttleFollowsTheDesiredPositionAndFinishesAfterWaitingAtIt",
@@ -7187,6 +7189,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossProjectileAbilityTests." + name 
     "OneAtATimeSpawningWaitsOutTheDelayBeforeTheLaneMove",
     "OneAtATimeBlocksUsedLanesForTheIgnoreCount",
     "OneAtATimeAttackingStrikesOnceTheLaunchTimeHasRunOut",
+    "OneAtATimeAttackingGlidesTheCurrentProjectileTowardsItsLane",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossStateTests." + name for name in (
     "ActiveBossSetupConfiguresTheFirstBossUnlessOneIsActive",
