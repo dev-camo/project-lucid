@@ -158,7 +158,10 @@ namespace ProjectLucid.Tests
         private static SequencedUnityEvent NewEvent(Owned owned, out List<ISequencedEffectWithCallback> received, Action<ISequencedEffectWithCallback> listener = null)
         {
             var effect = owned.Host("Lucid unity event effect", false).AddComponent<SequencedUnityEvent>();
-            var unityEvent = Get<UnityEvent<ISequencedEffectWithCallback>>(effect, "m_unityEvent");
+            // The constructor 0x56B1A0 sets only the time category; the event of an interface argument is not one Unity builds
+            // for a fresh component, so it is supplied as the scene would.
+            var unityEvent = new UnityEvent<ISequencedEffectWithCallback>();
+            Set(effect, "m_unityEvent", unityEvent); // serialized
             var log = new List<ISequencedEffectWithCallback>();
             unityEvent.AddListener(argument =>
             {

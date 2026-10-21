@@ -309,7 +309,10 @@ namespace ProjectLucid.Tests
                 var timeline = owned.Track(ScriptableObject.CreateInstance<TimelineAsset>());
                 TimeMachineTrack track = owned.Track(timeline.CreateTrack<TimeMachineTrack>(null, "Lucid time machine track"));
                 TimelineClip marker = AddClip(track, owned, Behaviour(0, label: "a"));
-                TimelineClip empty = AddClip(track, owned, Behaviour(0, label: ""));
+                // Writing "" over the null of a fresh in-memory behaviour changes nothing for the serialised object, so the
+                // label is first given a text; the second write then stores an empty string, as an authored asset holds.
+                TimelineClip empty = AddClip(track, owned, Behaviour(0, label: "x"));
+                Author(empty.asset, Behaviour(0, label: ""));
                 TimelineClip unlabelled = AddClip(track, owned, Behaviour(0));
                 TimelineClip jumpToTime = AddClip(track, owned, Behaviour(1, time: 3f));
                 TimelineClip jumpToMarker = AddClip(track, owned, Behaviour(2, marker: "m"));
