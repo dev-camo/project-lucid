@@ -786,6 +786,8 @@ namespace ProjectLucid.Tests
                 Tick(ability, 0.1f);
                 Assert.That(ability.AbilityFinished, Is.True, "0.3 is");
 
+                // Leave only acts on an enabled ability (ActorAbility.Leave), so the ability is entered first.
+                ability.Enter();
                 ability.Leave();
                 Assert.That((ability.AbilityFinished, ability.IsTriggered, Stored<float>(boss, BossFSMKeys.DestinationReachedTimer)), Is.EqualTo((false, false, 0f)));
             });

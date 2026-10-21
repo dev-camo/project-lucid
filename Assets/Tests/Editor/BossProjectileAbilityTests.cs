@@ -206,6 +206,7 @@ namespace ProjectLucid.Tests
                     Assert.That(Get<float>(ability, timer), Is.Zero, timer);
                 Assert.That(Get<List<Projectile>>(ability, "m_projectiles"), Is.Empty);
                 Assert.That(Get<int>(ability, "m_projectileGroupCount"), Is.EqualTo(1));
+                ability.Enter(); // a second Leave only acts on an enabled ability (ActorAbility.Leave)
                 ability.Leave();
                 Assert.That(Get<int>(ability, "m_projectileGroupCount"), Is.EqualTo(2));
             });

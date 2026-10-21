@@ -749,7 +749,11 @@ namespace ProjectLucid.Tests
                     ActorAnimationDefinition animation = NewAnimationDefinition(owned,
                         (ActorAnimationType.Boss_Telegraph_Choice, Choice), (ActorAnimationType.Boss_Use_Left, UseLeft), (ActorAnimationType.Boss_Use_Right, UseRight));
                     BossAbility_BossCrabClawAttack ability = NewAbility<BossAbility_BossCrabClawAttack>(boss, NewDefinition<BossAbilityDefinition_BossCrabClawAttack>(owned,
-                        d => d.TargetValidRangeNear = 1f));
+                        d =>
+                        {
+                            d.TargetValidRangeNear = 1f;
+                            d.ValidAttackAngle = 45; // the target angle is strictly below it (6F8D5D); zero would reject every target
+                        }));
                     Set(ability, "m_currentFarRangeSquared", 100f);
                     MakeCurrent(manager, character, new Vector3(0f, 0f, 5f));
                     SetActorProperty(character, "ForwardDirection", new Vector3(0f, 0f, -1f));
