@@ -181,9 +181,10 @@ namespace ProjectLucid.Tests
                 Call(rig.Container, "Start");
 
                 Assert.That(Get<CollectableManager>(rig.Container, "m_collectableManager"), Is.SameAs(rig.Manager));
-                // Rows follow the enum's value order (BlueCoin -64614013 before Orb 1797780346, 0x62F332..0x62F4A1), not the order the
-                // manager registered them in (Orb first, in WithRig).
-                Assert.That(rig.Rows.Select(row => row.Name.Value).ToArray(), Is.EqualTo(new[] { "BlueCoin", "Orb" }));
+                // The rows follow EnumUtilities.GetValues (0x62F332), which is Enum.GetValues of the running runtime. Edit Mode's Mono
+                // returns the values by unsigned magnitude (Orb 1797780346 before BlueCoin -64614013) and the order of the shipped
+                // IL2CPP player is not asserted here, so only the set of rows is.
+                Assert.That(rig.Rows.Select(row => row.Name.Value).ToArray(), Is.EquivalentTo(new[] { "BlueCoin", "Orb" }));
                 UIContainerDebugCollectableModifier orb = rig.Row("Orb");
                 Assert.That((orb.Collected.Value, orb.Total.Value), Is.EqualTo((3, 10)));
                 Assert.That(orb.FormatXOfY.Value, Is.EqualTo(FormatXOfY));

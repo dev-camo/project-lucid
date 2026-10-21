@@ -24,6 +24,8 @@ namespace ProjectLucid.Tests
     // mission manager, without running the queued application states.
     public sealed class FastLevelSelectAndFastLoadContainerTests
     {
+        private static readonly Regex DefinitionAwakeFault = new Regex("^NullReferenceException: Object reference not set to an instance of an object$");
+        private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
         private static readonly Regex RefusedDestroy = new Regex("^Destroy may not be called from edit mode");
         private static void ExpectRefusedDestroys(int count)
         {
@@ -180,6 +182,9 @@ namespace ProjectLucid.Tests
                 app.Storage.SetValue(AppFSMKeys.StateEvents, events);
                 var loadGame = owned.Track(ScriptableObject.CreateInstance<ApplicationStateEvent>());
                 Set(ProcessManager.GetSystem<LevelManager>(), "m_loadGameStartEvent", loadGame); // Reflection: serialized reference
+                // LevelManager.Initialise takes the App through its SystemRef but also parents a DontDestroyOnLoad object that Edit Mode
+                // cannot own, so the App it would take is assigned directly.
+                Set(ProcessManager.GetSystem<LevelManager>(), "m_app", app); // Reflection: private field Initialise assigns
                 Call(picker.Container, "Start");
                 UIWidgetButton[] buttons = Buttons(picker.Container).ToArray();
 
@@ -285,6 +290,14 @@ namespace ProjectLucid.Tests
             public GameplayLevelCategory OtherZone;
         }
 
+        // CreateInstance sends Awake, whose ActorDefinition.UpdateCachedValues (0x7A8060) calls Settings.UpdateCachedValues on the
+        // unassigned Settings with no null test: one logged fault per definition.
+        private static CharacterDefinition NewCharacter(Owned owned, CharacterId id)
+        {
+            LogAssert.Expect(LogType.Exception, DefinitionAwakeFault);
+            return Create<CharacterDefinition>(owned, "{\"m_id\":" + (int)id + "}");
+        }
+
         // A level with two missions named "Mission one" and "Mission two" in one group, as the app's load parameters; without
         // missions the level has no mission list. The data manager lists Sonic then Amy, the order of the first allowed character.
         private static void WithLoader(Action<Owned, Loader> body, bool withMissions = true) => LevelRequirementWorld.Run((owned, world) =>
@@ -299,8 +312,8 @@ namespace ProjectLucid.Tests
                 ? world.NewLevel("lucid-fast-load-level", false, world.NewGroup("lucid-fast-load-group", loader.Missions))
                 : world.NewLevel("lucid-fast-load-level", false, (MissionGroup[])null);
             var characters = ProcessManager.GetSystem<DataManager>().Characters;
-            characters[CharacterId.Sonic] = Create<CharacterDefinition>(owned, "{\"m_id\":" + (int)CharacterId.Sonic + "}");
-            characters[CharacterId.Amy] = Create<CharacterDefinition>(owned, "{\"m_id\":" + (int)CharacterId.Amy + "}");
+            characters[CharacterId.Sonic] = NewCharacter(owned, CharacterId.Sonic);
+            characters[CharacterId.Amy] = NewCharacter(owned, CharacterId.Amy);
             loader.Zone5 = world.AddZone("lucid-fast-load-zone5", loader.Level);
             loader.OtherZone = world.AddZone("lucid-fast-load-other-zone");
             GameObject root = owned.Track(new GameObject("Lucid fast load list", typeof(RectTransform)));
@@ -411,6 +424,14 @@ namespace ProjectLucid.Tests
             WithLoader((owned, loader) =>
             {
                 owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser
+                // The archetype lock filter of GetCharactersForActiveMission (0x5BA3A0) is the real CharacterManager's. The world
+                // leased an idle CharacterManager row; the manager is built by its real constructor, whose RequestSave and
+                // LoadStates coroutines the world's inactive coroutine host refuses, each with one logged engine error.
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                var characterManager = new CharacterManager(() => { });
+                owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(characterManager)));
+                owned.Register(characterManager);
                 App app = ProcessManager.GetSystem<App>();
                 app.Storage.SetValue(AppFSMKeys.StateEvents, new List<ApplicationStateEvent>());
                 app.Storage.SetValue(AppFSMKeys.IsFastLoading, true);
