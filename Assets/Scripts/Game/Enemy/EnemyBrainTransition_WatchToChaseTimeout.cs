@@ -21,10 +21,11 @@ namespace HardlightProject
 			return new EnemyBrainTransition_WatchToChaseTimeout(fsm, transitionId, JsonUtility.FromJson<BaseJSONCtorArgs>(jsonCtorArgs));
 		}
 
-		// 060021fe (1.10.1 RVA 0x575EF0): the retail body ignores its argument and always stores 0 (xorps at 0x57603E).
+		// 060021fe (1.10.1 RVA 0x575EF0): its only caller passes 0, and the retail body stores a constant 0 (xorps at
+		// 0x57603E, with no argument set up in DoOnEnter at 0x576160). Whether the argument was ever used is undetermined.
 		private void SetElapsedSeconds(IGraphUser user, float value)
 		{
-			user.Storage.SetValue(EnemyBrainFSMKeys.WatchElapsedTime, 0f);
+			user.Storage.SetValue(EnemyBrainFSMKeys.WatchElapsedTime, value);
 		}
 
 		// 060021ff (1.10.1 RVA 0x576060)

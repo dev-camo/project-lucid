@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -6,16 +7,19 @@ using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using ProjectLucid.Tests.WorldSurfaceShared;
 using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
     // The enemy brain transitions: the shared base and the nine transitions that do not need the ability of another
-    // cluster. Expected values come from the 1.10.1 x86-64 bodies cited per test. Each transition is built through its
-    // own ConstructInstance and updated against a real EnemyBrain with its own storage. An Enemy that has not started
-    // holds no definition (Start reads it from the DataManager), so the bodies that read traits are checked here only
-    // as far as they run without one; the traits-gated predicates are pinned by their compare instructions.
+    // cluster (EnemyBrainTransition_FireProjectileTriggered waits for EnemyAbility_FireProjectile and is not restored).
+    // Expected values come from the 1.10.1 x86-64 bodies cited per test. Each transition is built through its own
+    // ConstructInstance and updated against a real EnemyBrain with its own storage. An Enemy that has not started
+    // holds no definition (Start reads it from the DataManager), so the traits-reading bodies run against a real
+    // EnemyDefinition handed to the Enemy's definition field. An unstarted Enemy cannot be moved (its SetWorldPosition
+    // needs the transform Start caches), so every enemy stands at the origin and the targets are test actors.
     public sealed class EnemyBrainTransitionTests
     {
         private delegate IFSMTransition Factory(FiniteStateMachine fsm, FSMIdentifier id, string json);
@@ -182,19 +186,6 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x575EF0 ignores its argument: xorps xmm0 at 0x57603E precedes the tail-called SetValue<float>, and entry never
-        // reads xmm0.
-        [Test]
-        public void SettingTheWatchTimerStoresZeroWhateverTheArgument()
-        {
-            WithBrain((owned, brain, enemy) =>
-            {
-                var transition = (EnemyBrainTransition_WatchToChaseTimeout)Build(EnemyBrainTransition_WatchToChaseTimeout.ConstructInstance);
-                Call(transition, "SetElapsedSeconds", brain, 7.5f);
-                Assert.That(brain.Storage.GetValue(EnemyBrainFSMKeys.WatchElapsedTime, -1f, false), Is.EqualTo(0f));
-            });
-        }
-
         private static string[] CompareInstructions(Type type)
         {
             MethodInfo update = type.GetMethod("DoUpdate", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
@@ -205,18 +196,291 @@ namespace ProjectLucid.Tests
                 .ToArray();
         }
 
-        // 0x574B85 (ucomiss xmm0, [rax + 0x30]; setae) and 0x576345 (ucomiss xmm0, [rax + 0x40]; setae): the stored time
-        // against the idle seconds and against the watch timeout, true when the time is greater than or equal and
-        // ordered, so a NaN time is not enough. The traits sit behind the enemy definition that Start reads, so the
-        // operator is checked from the instructions. This is an emission self-check of the restored source, not a
-        // native-derived oracle; the equal, greater and NaN truth table for both timers is owed until a definition can
-        // be supplied without reflection. A floating >= compiles to clt.un followed by a negation, where
-        // > would be cgt and <= would be cgt.un and a negation.
+        // An emission self-check of the restored source, not a native-derived oracle: the equal, greater and NaN
+        // truth tables of the timers are the scene tests below. A floating >= compiles to clt.un followed by a negation,
+        // where > would be cgt and <= would be cgt.un and a negation.
         [Test]
         public void EmissionCheck_IdleAndWatchTimerComparesCompileToGreaterOrEqual()
         {
             Assert.That(CompareInstructions(typeof(EnemyBrainTransition_IdleToMove)), Is.EqualTo(new[] { "clt.un", "ceq" }));
             Assert.That(CompareInstructions(typeof(EnemyBrainTransition_WatchToChaseTimeout)), Is.EqualTo(new[] { "clt.un", "ceq" }));
+        }
+
+        // ---- scenes with a definition, a navigation and sensed targets ----
+
+        private sealed class Unsubscribe : IDisposable
+        {
+            private readonly ISystem m_system;
+
+            public Unsubscribe(ISystem system) => m_system = system;
+
+            public void Dispose() => ProcessManager.UnsubscribeFromAllActions(m_system);
+        }
+
+        // A brain on an Enemy at the origin with a real EnemyDefinition and its own EnemyManager. The manager is a
+        // plain instance whose action subscriptions are leased and removed, not a registered system. The Enemy joins it
+        // through its own registration method, and the manager hands out the list that SenseTarget reads.
+        private sealed class Scene
+        {
+            public Owned Owned;
+            public Enemy Enemy;
+            public EnemyBrain Brain;
+            public EnemyManager Manager;
+            public EnemyTraits Traits;
+
+            public Enemies03TargetProbe Target(Vector3 position)
+            {
+                var probe = Owned.Host(Name(), false).AddComponent<Enemies03TargetProbe>();
+                probe.SetWorldPosition(position);
+                return probe;
+            }
+
+            public EnemyNavigationForwardProbe Forward()
+            {
+                var navigation = Owned.Host(Name(), false).AddComponent<EnemyNavigationForwardProbe>();
+                navigation.RunSetUp();
+                Set(Enemy, "m_navigation", navigation);
+                return navigation;
+            }
+
+            // A home-radius navigation at the origin that constrains the enemy to the given distance from home.
+            public EnemyNavigationHomeRadiusProbe Within(float distance)
+            {
+                var navigation = Owned.Host(Name(), false).AddComponent<EnemyNavigationHomeRadiusProbe>();
+                navigation.RunSetUp();
+                Set(navigation, "m_constrain", true);
+                Set(navigation, "m_constrainDistance", distance);
+                Set(Enemy, "m_navigation", navigation);
+                return navigation;
+            }
+
+            // The brain senses the closest reachable of the manager's targets, as it does on each fixed update.
+            public void Sense(params Enemies03TargetProbe[] targets)
+            {
+                ((List<Actor>)Manager.GetTargetsForEnemies()).AddRange(targets);
+                Brain.OnFixedUpdate(0.02f);
+            }
+        }
+
+        private static void WithScene(Action<Scene> body, Action<EnemyTraits> configure = null) => Owned.Run(owned =>
+        {
+            owned.Lease(new VerificationFixtureOwnership.ActionPoolLease());
+            owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
+            var manager = new EnemyManager();
+            owned.Lease(new Unsubscribe(manager));
+            Enemy enemy = NewEnemy(owned);
+            var brain = new EnemyBrain();
+            brain.Initialise(enemy, NewFsm());
+            Call(enemy, "RegisterToEnemyManager", manager);
+            var definition = owned.Track(ScriptableObject.CreateInstance<EnemyDefinition>());
+            definition.Traits = new EnemyTraits();
+            configure?.Invoke(definition.Traits);
+            definition.Traits.UpdateCachedValues();
+            Set(enemy, "m_definition", definition);
+            body(new Scene { Owned = owned, Enemy = enemy, Brain = brain, Manager = manager, Traits = definition.Traits });
+        });
+
+        private static void AssertNear(Vector3 actual, Vector3 expected, string why) =>
+            Assert.That((actual - expected).magnitude, Is.LessThan(1e-4f), why + ": expected " + expected + " but was " + actual);
+
+        private static float Stored(Scene scene, GraphStorageKey key) => scene.Brain.Storage.GetValue(key, -1f, false);
+
+        // 0x574B85 (ucomiss xmm0 = the stored time, [rax + 0x30] = IdleSeconds; setae): true when the time is greater
+        // than or equal to the idle seconds and both are ordered. A missing time reads zero (useDefault, 0x574A60).
+        [Test]
+        public void IdleToMoveIsTrueWhenTheStoredTimeReachesTheIdleSeconds()
+        {
+            WithScene(scene =>
+            {
+                IFSMTransition transition = Build(EnemyBrainTransition_IdleToMove.ConstructInstance);
+                scene.Traits.IdleSeconds = 5f;
+                Assert.That(transition.Update(scene.Brain, Context()), Is.False, "a missing time reads zero");
+                Assert.That(scene.Brain.Storage.HasValue(EnemyBrainFSMKeys.IdleElapsedTime), Is.True, "the read stores the default");
+                scene.Traits.IdleSeconds = 0f;
+                Assert.That(transition.Update(scene.Brain, Context()), Is.True, "zero against zero idle seconds");
+
+                foreach ((float stored, float idleSeconds, bool expected) in new[]
+                {
+                    (5f, 5f, true), (4.999f, 5f, false), (5.001f, 5f, true), (float.NaN, 5f, false), (5f, float.NaN, false),
+                })
+                {
+                    scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.IdleElapsedTime, stored);
+                    scene.Traits.IdleSeconds = idleSeconds;
+                    Assert.That(transition.Update(scene.Brain, Context()), Is.EqualTo(expected), "stored " + stored + ", idle seconds " + idleSeconds);
+                }
+            });
+        }
+
+        // 0x576345 (ucomiss xmm0 = the sum, [rax + 0x40] = WatchToChaseTimeout; setae) after the adjusting read at
+        // 0x576060 added the update's delta: true when the sum reaches the timeout, and the sum is stored either way.
+        [Test]
+        public void WatchToChaseIsTrueWhenTheAccumulatedTimeReachesTheTimeout()
+        {
+            WithScene(scene =>
+            {
+                scene.Traits.WatchToChaseTimeout = 1f;
+                IFSMTransition transition = Build(EnemyBrainTransition_WatchToChaseTimeout.ConstructInstance);
+                foreach ((float stored, bool expected, float sum) in new[]
+                {
+                    (0.5f, true, 1f), (0.25f, false, 0.75f), (0.75f, true, 1.25f), (float.NaN, false, float.NaN),
+                })
+                {
+                    scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.WatchElapsedTime, stored);
+                    Assert.That(transition.Update(scene.Brain, Context(0.5f)), Is.EqualTo(expected), "stored " + stored);
+                    Assert.That(Stored(scene, EnemyBrainFSMKeys.WatchElapsedTime), Is.EqualTo(sum), "the sum after stored " + stored);
+                }
+                scene.Traits.WatchToChaseTimeout = float.NaN;
+                scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.WatchElapsedTime, 2f);
+                Assert.That(transition.Update(scene.Brain, Context(0.5f)), Is.False, "an unordered timeout");
+            });
+        }
+
+        // 0x574F69 -> 0x575224: without the caching trait the transition is the negated reachability of the focus
+        // target's live position, so a target outside the constraint is lost and one the navigation reaches is kept.
+        [Test]
+        public void TargetLostWithoutCachingNegatesTheReachabilityOfTheFocusTarget()
+        {
+            WithScene(scene =>
+            {
+                IFSMTransition transition = Build(EnemyBrainTransition_TargetLost.ConstructInstance);
+                scene.Brain.Storage.SetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, scene.Target(new Vector3(100f, 0f, 0f)));
+                scene.Within(5f);
+                Assert.That(transition.Update(scene.Brain, Context()), Is.True, "beyond the distance constraint");
+                scene.Forward();
+                Assert.That(transition.Update(scene.Brain, Context()), Is.False, "an unconstrained navigation reaches it");
+            });
+        }
+
+        // 0x575235 (r12b = 1 after the HasValue test of the cached position): with caching on and no sighting cached the
+        // target is lost, and the cache timer is neither read nor stored.
+        [Test]
+        public void TargetLostWithCachingIsTrueWithoutACachedPosition()
+        {
+            WithScene(scene =>
+            {
+                scene.Forward();
+                scene.Brain.Storage.SetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, scene.Target(Vector3.zero));
+                Assert.That(Build(EnemyBrainTransition_TargetLost.ConstructInstance).Update(scene.Brain, Context(0.5f)), Is.True);
+                Assert.That(scene.Brain.Storage.HasValue(EnemyBrainFSMKeys.TargetCachedTime), Is.False);
+            }, traits => { traits.CacheTargetLocationOnSight = true; traits.TimeoutForReachingCachedLocation = 1f; });
+        }
+
+        // 0x5750F2 (ucomiss xmm0 = the cached time after adding the delta, [rax + 0x3c] = TimeoutForReachingCachedLocation;
+        // ja 0x575235): strictly greater is lost; otherwise (equal, less or unordered) the result is the negated
+        // reachability of the cached position, not of the focus target.
+        [Test]
+        public void TargetLostWithCachingTimesOutStrictlyAfterTheCachedLocationTimeout()
+        {
+            WithScene(scene =>
+            {
+                scene.Forward();
+                scene.Brain.Storage.SetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, scene.Target(Vector3.zero));
+                scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedPosition, new Vector3(1f, 0f, 0f));
+                IFSMTransition transition = Build(EnemyBrainTransition_TargetLost.ConstructInstance);
+                foreach ((float stored, bool expected, float sum) in new[]
+                {
+                    (0.5f, false, 1f), (0.25f, false, 0.75f), (0.75f, true, 1.25f), (float.NaN, false, float.NaN),
+                })
+                {
+                    scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedTime, stored);
+                    Assert.That(transition.Update(scene.Brain, Context(0.5f)), Is.EqualTo(expected), "stored " + stored);
+                    Assert.That(Stored(scene, EnemyBrainFSMKeys.TargetCachedTime), Is.EqualTo(sum), "the sum after stored " + stored);
+                }
+            }, traits => { traits.CacheTargetLocationOnSight = true; traits.TimeoutForReachingCachedLocation = 1f; });
+        }
+
+        [Test]
+        public void TargetLostWithCachingReadsTheReachabilityOfTheCachedPositionNotTheFocusTarget()
+        {
+            WithScene(scene =>
+            {
+                scene.Within(5f);
+                scene.Brain.Storage.SetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, scene.Target(new Vector3(100f, 0f, 0f)));
+                scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedTime, 0.25f);
+                IFSMTransition transition = Build(EnemyBrainTransition_TargetLost.ConstructInstance);
+                scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedPosition, new Vector3(3f, 0f, 4f));
+                Assert.That(transition.Update(scene.Brain, Context(0.5f)), Is.False, "a reachable cached position, a far focus target");
+                scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedTime, 0.25f);
+                scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedPosition, new Vector3(100f, 0f, 0f));
+                Assert.That(transition.Update(scene.Brain, Context(0.5f)), Is.True, "an unreachable cached position");
+            }, traits => { traits.CacheTargetLocationOnSight = true; traits.TimeoutForReachingCachedLocation = 1f; });
+        }
+
+        private static void WithSpottedTarget(Action<Scene, Enemies03TargetProbe> body, Action<EnemyTraits> configure) =>
+            WithScene(scene =>
+            {
+                Enemies03TargetProbe target = scene.Target(new Vector3(3f, 0f, 4f));
+                body(scene, target);
+            }, configure);
+
+        // 0x575B6A stores the focus target before the traits test (0x575BD6-0x575C56 then push the cached position to
+        // the target plus the overshoot along the direction from the enemy, 0x575E2A zeroes the cache timer and 0x575E3C
+        // answers true): the enemy at the origin and the target at (3,0,4), five away, with an overshoot of five.
+        [Test]
+        public void TargetSpottedWithCachingStoresTheOvershotPositionAndRestartsTheCacheTimer()
+        {
+            WithSpottedTarget((scene, target) =>
+            {
+                scene.Forward();
+                scene.Sense(target);
+                Assert.That(scene.Brain.Target, Is.SameAs(target));
+                scene.Brain.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedTime, 9f);
+                Assert.That(Build(EnemyBrainTransition_TargetSpotted.ConstructInstance).Update(scene.Brain, Context()), Is.True);
+                Assert.That(scene.Brain.Storage.GetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, null, false), Is.SameAs(target));
+                AssertNear(scene.Brain.Storage.GetValue(EnemyBrainFSMKeys.TargetCachedPosition, Vector3.zero, false), new Vector3(6f, 0f, 8f), "the cached position");
+                Assert.That(Stored(scene, EnemyBrainFSMKeys.TargetCachedTime), Is.EqualTo(0f));
+            }, traits => { traits.CacheTargetLocationOnSight = true; traits.OvershootAmount = 5f; });
+        }
+
+        // 0x575C5B (ebx = 0): a cached position the enemy cannot reach is not a sighting, but the focus target stored
+        // before it stays, and neither the position nor the timer is stored. The target itself, five from home, is
+        // reachable under the distance of five, so the brain senses it.
+        [Test]
+        public void TargetSpottedWithCachingRejectsAnUnreachableOvershotPositionButKeepsTheFocusTarget()
+        {
+            WithSpottedTarget((scene, target) =>
+            {
+                scene.Within(5f);
+                scene.Sense(target);
+                Assert.That(scene.Brain.Target, Is.SameAs(target));
+                Assert.That(Build(EnemyBrainTransition_TargetSpotted.ConstructInstance).Update(scene.Brain, Context()), Is.False);
+                Assert.That(scene.Brain.Storage.GetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, null, false), Is.SameAs(target));
+                Assert.That(scene.Brain.Storage.HasValue(EnemyBrainFSMKeys.TargetCachedPosition), Is.False);
+                Assert.That(scene.Brain.Storage.HasValue(EnemyBrainFSMKeys.TargetCachedTime), Is.False);
+            }, traits => { traits.CacheTargetLocationOnSight = true; traits.OvershootAmount = 5f; });
+        }
+
+        [Test]
+        public void TargetSpottedWithoutCachingStoresOnlyTheFocusTarget()
+        {
+            WithSpottedTarget((scene, target) =>
+            {
+                scene.Forward();
+                scene.Sense(target);
+                Assert.That(Build(EnemyBrainTransition_TargetSpotted.ConstructInstance).Update(scene.Brain, Context()), Is.True);
+                Assert.That(scene.Brain.Storage.GetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, null, false), Is.SameAs(target));
+                Assert.That(scene.Brain.Storage.HasValue(EnemyBrainFSMKeys.TargetCachedPosition), Is.False);
+                Assert.That(scene.Brain.Storage.HasValue(EnemyBrainFSMKeys.TargetCachedTime), Is.False);
+            }, traits => { traits.CacheTargetLocationOnSight = false; });
+        }
+
+        // 0x575490: the negated CanSeeTarget of the stored focus target (not of the brain's sensed target). With a sight
+        // distance of ten, a focus target twenty away is out of range although the sensed target is one away, and a
+        // focus target five away is in range.
+        [Test]
+        public void TargetOutOfSightRangeNegatesCanSeeTargetForTheFocusTarget()
+        {
+            WithScene(scene =>
+            {
+                scene.Forward();
+                scene.Sense(scene.Target(new Vector3(1f, 0f, 0f)));
+                Assert.That(scene.Brain.Target, Is.Not.Null);
+                IFSMTransition transition = Build(EnemyBrainTransition_TargetOutOfSightRange.ConstructInstance);
+                scene.Brain.Storage.SetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, scene.Target(new Vector3(20f, 0f, 0f)));
+                Assert.That(transition.Update(scene.Brain, Context()), Is.True, "twenty away");
+                scene.Brain.Storage.SetValue<Actor>(EnemyBrainFSMKeys.FocusTarget, scene.Target(new Vector3(5f, 0f, 0f)));
+                Assert.That(transition.Update(scene.Brain, Context()), Is.False, "five away");
+            }, traits => traits.SightDistance = 10f);
         }
 
         // ---- construction ----

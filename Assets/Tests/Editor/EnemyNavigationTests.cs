@@ -15,8 +15,10 @@ namespace ProjectLucid.Tests
     // The four enemy navigations: forward, home radius, static and return after chase, and spline. Expected values come
     // from the 1.10.1 x86-64 bodies cited per test. Each navigation is a real component on an owned inactive host; Unity
     // runs SetUp from Awake, which Edit Mode never reaches, so the probes call the shipped SetUp directly. The spline
-    // navigation is only checked without a spline: its initialised paths need a built spline and the tracker's collision
-    // resolver, which no fixture here provides.
+    // navigation is only checked without a spline. Its initialised paths (the start direction and squared follow
+    // distance, the GetDestination walk with its end reversal and loop wrap, and the nearest-location line that
+    // ConstrainPosition uses) need a spline with baked length and lookup data; an InertSpline in Edit Mode carries
+    // none, and the tracker positions cannot be derived without a native run. That coverage is owed.
     public sealed class EnemyNavigationTests
     {
         private const float Tolerance = 1e-4f;
@@ -308,6 +310,43 @@ namespace ProjectLucid.Tests
                     if (first > 0) rejectedFirst++;
                 }
                 Assert.That(rejectedFirst, Is.GreaterThan(0), "some seed rejects a spot and takes a later one");
+            }));
+        }
+
+        // 0x57875D (ucomiss m_homeRadiusSqr, d; jb rejects) and 0x57878B (ucomiss d, minSq; setae accepts): a spot exactly
+        // on the squared radius is inside and a spot exactly at the squared minimum distance is far enough, while an
+        // unordered radius or minimum accepts nothing and leaves the twentieth. Home and enemy are the origin and the
+        // replay turns the spots by the same FromToRotation, so its squared length is bit-identical to the one measured.
+        [Test]
+        public void StartingAcceptsASpotExactlyOnTheRadiusAndExactlyAtTheMinimumDistance()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
+                Set(navigation, "m_homeRadius", 10f);
+                navigation.RunSetUp();
+                Quaternion toPlane = Quaternion.FromToRotation(Vector3.down, -navigation.transform.up);
+                foreach (int seed in new[] { 1, 2, 3, 4, 5 })
+                {
+                    List<Vector3> spots = Spots(seed, Vector3.zero, toPlane, 10f);
+                    float exact = spots[0].sqrMagnitude;
+                    Assert.That(spots.Skip(1).All(spot => (spot - spots[0]).magnitude > Tolerance), Is.True, "seed " + seed + " has distinct spots");
+
+                    Set(navigation, "m_homeRadiusSqr", exact);
+                    Set(navigation, "m_minNewDestinationDistanceSquared", 0f);
+                    AssertNear(StartAndRead(navigation, seed), spots[0], "seed " + seed + " exactly on the radius");
+
+                    Set(navigation, "m_homeRadiusSqr", 1e6f);
+                    Set(navigation, "m_minNewDestinationDistanceSquared", exact);
+                    AssertNear(StartAndRead(navigation, seed), spots[0], "seed " + seed + " exactly at the minimum distance");
+
+                    Set(navigation, "m_minNewDestinationDistanceSquared", float.NaN);
+                    AssertNear(StartAndRead(navigation, seed), spots[19], "seed " + seed + " with an unordered minimum");
+
+                    Set(navigation, "m_homeRadiusSqr", float.NaN);
+                    Set(navigation, "m_minNewDestinationDistanceSquared", 0f);
+                    AssertNear(StartAndRead(navigation, seed), spots[19], "seed " + seed + " with an unordered radius");
+                }
             }));
         }
 
