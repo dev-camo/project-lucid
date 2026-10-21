@@ -7,6 +7,7 @@ using HardlightProject;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
+using UnityEngine.Events;
 using static ProjectLucid.Tests.MissionTrackerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -75,6 +76,7 @@ namespace ProjectLucid.Tests
             Set(rig.Tracker, "m_failStateBehaviour", countsDown ? MissionTracker.FailStateBehaviourType.ShowResultsScreen : MissionTracker.FailStateBehaviourType.None);
             rig.Timer = EnemyAbilityTestSupport.AddTimeScaled<MissionTimer>(owned.Host("Lucid mission timer", false));
             Set(rig.Timer, "m_canBePaused", canBePaused); // Reflection: serialized options
+            Set(rig.Timer, "m_onTimeElapseEvents", new List<UnityEvent>()); // Reflection: authored (empty) serialized list, which a component added in code does not have
             if (timed) Set(rig.Tracker, "m_optionalMissionTimer", rig.Timer);
             Call(rig.State, "OnTrackerSetup", rig.Tracker, null, null, true); // the callback MissionState.SetUpTracker passes the loaded tracker
 

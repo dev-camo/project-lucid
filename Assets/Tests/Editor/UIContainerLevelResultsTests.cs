@@ -247,7 +247,7 @@ namespace ProjectLucid.Tests
                 Assert.That(copy, Is.Not.SameAs(prefab));
                 Assert.That(Get<UIContainerChallengeResults>(container, "m_challengeResultsContainer"), Is.SameAs(copy));
                 Assert.That(copy.ChallengeTitle.Value, Is.EqualTo("Challenge 3"));
-                Assert.That(copy.TimeString.Value, Is.EqualTo("0:00:00"));
+                Assert.That(copy.TimeString.Value, Is.EqualTo("-:--:--"), "GetMissionTimerFormat gives the placeholder digits for a time that is not above zero");
                 Assert.That(copy.IsNewRecord.Value, Is.True, "no previous best");
                 Assert.That(container.ExtraSpaceAboveXPReward.Value, Is.True);
             });
@@ -269,7 +269,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        private static void WithRegularContext(string missionJson, Action<UIContainerLevelResults, OriginalPersistentLevelObjectTests.Missions, MissionDefinition, GameplayLevelDefinition> body) =>
+        private static void WithRegularContext(string missionJson, Action<UIContainerLevelResults, OriginalPersistentLevelObjectTests.Missions, MissionDefinition, GameplayLevelDefinition> body, bool overridden = false) =>
             OriginalPersistentLevelObjectTests.WithMissions(false, (owned, missions) =>
             {
                 owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
@@ -280,6 +280,8 @@ namespace ProjectLucid.Tests
                 Set(mission, "m_subMissions", new List<MissionDefinition>()); // Reflection: authored (empty) list
                 GameplayLevelDefinition level = missions.CurrentLevel.LevelDefinition;
                 missions.Manager.SetActiveMissionContext(new MissionContextRegular(mission, level, false));
+                // Reflection: not serialized; UpdateOverrides sets it for a completed mission with overrides, and loading the mission has just run it.
+                if (overridden) Set(mission, "m_isBeingOverridden", true);
                 body(owned.Host("Lucid level results", false).AddComponent<UIContainerLevelResults>(), missions, mission, level);
             });
 
@@ -334,7 +336,7 @@ namespace ProjectLucid.Tests
         {
             foreach (string goalFlag in new[] { "false", "true" })
             {
-                WithRegularContext("{\"m_timeLimitSeconds\":60,\"m_isBeingOverridden\":true,\"m_isReachGoalTracker\":" + goalFlag + "}", (container, missions, mission, level) =>
+                WithRegularContext("{\"m_timeLimitSeconds\":60,\"m_isReachGoalTracker\":" + goalFlag + "}", (container, missions, mission, level) =>
                 {
                     container.TimeTrialUnlocked.Value = true;
                     container.TimeTrialMissionName.Value = "stale";
@@ -344,7 +346,7 @@ namespace ProjectLucid.Tests
                     Assert.That(container.TimeTrialUnlocked.Value, Is.False, goalFlag);
                     Assert.That(container.TimeTrialMissionName.Value, Is.EqualTo("stale"), goalFlag);
                     Assert.That(missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID()).TimeTrialUnlockSeen, Is.True, goalFlag);
-                });
+                }, true);
             }
         }
 

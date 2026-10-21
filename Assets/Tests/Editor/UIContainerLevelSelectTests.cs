@@ -138,12 +138,13 @@ namespace ProjectLucid.Tests
                 AddOrnament(rig, OrnamentCategory.Story, OrnamentIdentifier.OrnamentAmyAction, true, true, true);
                 rig.Container.HasNewOrnaments.Value = true;
                 rig.BadgeTarget.SetActive(true);
+                string textBefore = rig.BadgeText.text; // a fresh text component holds no string (null)
 
                 Call(rig.Container, "UpdateOrnamentBinders", rig.Manager);
 
                 Assert.That(rig.Container.HasNewOrnaments.Value, Is.False);
                 Assert.That(rig.BadgeTarget.activeSelf, Is.False);
-                Assert.That(rig.BadgeText.text, Is.Empty);
+                Assert.That(rig.BadgeText.text, Is.EqualTo(textBefore), "no text is written");
             });
         }
 
