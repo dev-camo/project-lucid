@@ -121,7 +121,12 @@ namespace ProjectLucid.Tests
         [Test]
         public void RailBoostCanTriggerUnlessTheOneShotFlagIsSet()
         {
-            WithAbility<CharacterAbility_MovementRailBoost, CharacterAbilityDefinition_MovementRailBoost>((owned, character, ability, definition) =>
+            WithAbility<CharacterAbility_MovementRailBoost, CharacterAbilityDefinition_MovementRailBoost>(owned =>
+            {
+                // CharacterAbility_MovementTracker's field initialisers create these rows.
+                owned.LeaseRow<DataManager>();
+                owned.LeaseRow<CinemachineCameraManager>();
+            }, (owned, character, ability, definition) =>
             {
                 Assert.That((bool)Call(ability, "CanTrigger"), Is.True, "no flag");
                 character.Storage.SetValue(ActorFSMKeys.OneShotCanTriggerBoost, true);
@@ -135,7 +140,12 @@ namespace ProjectLucid.Tests
         [Test]
         public void RailStandingSetActiveStoresTheTriggeredFlag()
         {
-            WithAbility<CharacterAbility_MovementRailStanding, CharacterAbilityDefinition_MovementRailStanding>((owned, character, ability, definition) =>
+            WithAbility<CharacterAbility_MovementRailStanding, CharacterAbilityDefinition_MovementRailStanding>(owned =>
+            {
+                // CharacterAbility_MovementTracker's field initialisers create these rows.
+                owned.LeaseRow<DataManager>();
+                owned.LeaseRow<CinemachineCameraManager>();
+            }, (owned, character, ability, definition) =>
             {
                 Assert.That(ability.IsTriggered, Is.False);
                 ability.SetActive(true);

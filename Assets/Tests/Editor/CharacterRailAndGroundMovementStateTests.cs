@@ -197,7 +197,12 @@ namespace ProjectLucid.Tests
         // The character's clock is cached at ten seconds, so a queued jump stamped 10.2 has waited 0.2 (the elapsed time
         // of a jump is the stamp minus the clock) and a queued boost stamped 9.8 has waited 0.2 (the clock minus the stamp).
         private static void WithRail(Action<Owned, Rail> body) =>
-            WithAbility<CharacterAbility_MovementRailStanding, CharacterAbilityDefinition_MovementRailStanding>((owned, character, standing, definition) =>
+            WithAbility<CharacterAbility_MovementRailStanding, CharacterAbilityDefinition_MovementRailStanding>(owned =>
+            {
+                // CharacterAbility_MovementTracker's field initialisers create these rows.
+                owned.LeaseRow<DataManager>();
+                owned.LeaseRow<CinemachineCameraManager>();
+            }, (owned, character, standing, definition) =>
             {
                 Set(character, "m_totalFixedTime", 10f);
                 SetProperty(character, "QueuedActions", new CharacterQueuedActions(character));
