@@ -53,7 +53,7 @@ namespace HardlightProject
             m_fourmenSystemRef.GetSafe().BossesInMotion.AddUnique(m_boss);
         }
 
-        // 06000acf: the movement timer is deliberately not reset.
+        // 06000acf: the movement timer is not reset.
         protected override void DoOnLeave()
         {
             base.DoOnLeave();
