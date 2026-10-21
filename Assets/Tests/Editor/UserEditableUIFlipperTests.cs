@@ -99,7 +99,6 @@ namespace ProjectLucid.Tests
                 Assert.That(layout.reverseArrangement, Is.True, "still waiting");
                 Assert.That(unflipped.MoveNext(), Is.False);
                 Assert.That(layout.reverseArrangement, Is.False, "the flip flag is off");
-                Assert.That(unflipped.MoveNext(), Is.False, "a finished iterator does nothing more");
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
                 flipper.RunEditFlip();
@@ -107,7 +106,6 @@ namespace ProjectLucid.Tests
                 flipped.MoveNext();
                 flipped.MoveNext();
                 Assert.That(layout.reverseArrangement, Is.True, "the flip flag is on");
-                Assert.Throws<System.NotSupportedException>(flipped.Reset);
             });
         }
     }

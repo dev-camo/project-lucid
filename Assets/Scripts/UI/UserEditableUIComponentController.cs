@@ -9,6 +9,8 @@ namespace HardlightProject
     // Original Game.Runtime 02000995; bodies translated from the 1.10.1 x86-64 binary.
     // Positions are normalised over the free space left inside the movement bounds
     // (0 = bounds minimum, 1 = bounds maximum); all geometry is in world space.
+    // The explicit (float) casts below keep each intermediate rounded to single precision, as the
+    // IL2CPP build does, so Mono's double evaluation cannot change the result.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class UserEditableUIComponentController : UserEditableUIBase
@@ -79,7 +81,7 @@ namespace HardlightProject
             if (!m_editableUIComponentInterface.GetTouchPosition(out touch)) return;
 
             // Component origin (touch minus half the component size) relative to the bounds, over the free space.
-            Vector2 offset = touch - m_movementRect.position + m_componentRect.size * new Vector2(-0.5f, -0.5f);
+            Vector2 offset = touch - m_movementRect.position - m_componentRect.size * 0.5f;
             Vector2 position = new Vector2(offset.x / m_movableWidth, offset.y / m_movableHeight);
             float scale = m_currentScale;
             float pinchDistance;
@@ -237,9 +239,8 @@ namespace HardlightProject
                 (float)(m_currentPositionNormalised.x * movable.x) + m_movementRect.x,
                 (float)(m_currentPositionNormalised.y * movable.y) + m_movementRect.y);
             Vector3 worldPosition = m_componentRectTransform.position;
-            Vector2 pivotOffset = new Vector2(
-                m_componentRectTransform.pivot.x * m_componentRect.width,
-                m_componentRectTransform.pivot.y * m_componentRect.height);
+            Vector2 pivot = m_componentRectTransform.pivot;
+            Vector2 pivotOffset = new Vector2(pivot.x * m_componentRect.width, pivot.y * m_componentRect.height);
             m_componentRectTransform.position = new Vector3(pivotOffset.x + bottomLeft.x, pivotOffset.y + bottomLeft.y, worldPosition.z);
             m_editableUIComponentInterface.TransformUpdated();
         }

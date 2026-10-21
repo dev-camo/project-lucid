@@ -81,11 +81,13 @@ namespace HardlightProject
         // 0600375d (RVA 0x697610): the stored ControlsEditMode flag arrives inverted into m_editMode.
         private void Initialise()
         {
-            m_editMode = !ProcessManager.GetSystem<App>().Storage.GetValue<bool>(AppFSMKeys.ControlsEditMode);
-            EditModeActive.Value = m_editMode;
+            // The original keeps the inverted flag in a local, so DoInitialise cannot change the branch below.
+            bool editMode = !ProcessManager.GetSystem<App>().Storage.GetValue<bool>(AppFSMKeys.ControlsEditMode);
+            m_editMode = editMode;
+            EditModeActive.Value = editMode;
             m_isFlipped = m_saveDataSettings.OnScreenControlsFlipped;
             DoInitialise();
-            if (m_editMode)
+            if (editMode)
             {
                 ExitEditMode();
             }

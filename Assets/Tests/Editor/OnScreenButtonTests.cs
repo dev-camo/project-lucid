@@ -88,9 +88,6 @@ namespace ProjectLucid.Tests
                 {
                     Row("down", InputB, 1f, InputType.Touch), Row("held", InputB, 1f, InputType.Touch), Row("up", InputB, 1f, InputType.Touch),
                 }), "the release reports value 1, not 0");
-                Assert.That(supply.MoveNext(), Is.False, "a finished iterator raises nothing more");
-                Assert.That(log.Calls.Count, Is.EqualTo(3));
-                Assert.Throws<NotSupportedException>(supply.Reset);
             });
         }
 

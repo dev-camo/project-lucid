@@ -21,7 +21,7 @@ namespace HardlightProject
             m_cameraManagerRef.InvokeOnValid(OnCameraManagerReady);
         }
 
-        // 0600364d (RVA 0x68C950): listens on the brain's camera-activated event (field 0x68 of the brain).
+        // 0600364d (RVA 0x68C950): listens on the brain's camera-activated event (CinemachineBrain.m_CameraActivatedEvent).
         private void OnCameraManagerReady(CinemachineCameraManager cameraManager)
         {
             cameraManager.CinemachineBrain.m_CameraActivatedEvent.AddListener(OnCameraTypeChanged);

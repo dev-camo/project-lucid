@@ -39,10 +39,7 @@ namespace HardlightProject
             GUISkin previousSkin = GUI.skin;
             GUI.skin = m_guiSkin;
             GUILayout.BeginArea(Screen.safeArea);
-            m_stringBuilder.Length = 0;
-            foreach (UserEditableUIComponentController control in m_touchControls)
-                control.GetPositionInfo(ref m_stringBuilder);
-            GUILayout.Box(m_stringBuilder.ToString());
+            GUILayout.Box(ShowCurrentTouchPositionInfo());
             GUILayout.EndArea();
             GUI.skin = previousSkin;
         }

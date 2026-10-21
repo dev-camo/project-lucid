@@ -130,8 +130,8 @@ namespace ProjectLucid.Tests
         // OnSaveManagerValid 0x66C150 (run by OnCharacterChange for the valid SaveManager): the stick and snap flags are
         // copied from the settings (+0x35, +0x34); both tertiary buttons need the character to have the AirStompAttack
         // (0x4DBE014F) or SpinDashCharge (0x21DFB747) ability, the left one for button mapping All (0x5240CCA8) or
-        // Primary (0xD7FFEB63) and the right one for All or Secondary (0xA06E9505). Both abilities are tested even
-        // when the first is present, and an absent character counts as having neither.
+        // Primary (0xD7FFEB63) and the right one for All or Secondary (0xA06E9505). An absent character counts as
+        // having neither ability.
         [Test]
         public void SettingsDriveTheStickSnapAndTertiaryButtons()
         {
