@@ -21,9 +21,9 @@ namespace ProjectLucid.Tests
     // shadow FTUE challenge is complete when its mission's save record says so. Challenge states are built by their constructor and
     // given their best score and time through UpdateScoreInfo. The serialized fields are authored data. Every update schedules the
     // navigation refresh on the process coroutine host, which is inactive here and refuses the coroutine with a logged error.
-    // Not covered: the surplus-toggle destruction of OnChallengesUpdated (Destroy is refused in Edit Mode), the leaderboard panel and
-    // the info popup and bonus XP events of OnChallengesUpdated, the test mode panel, the navigation manager's selection, and the
-    // launch data of the shadow FTUE challenge (it needs the FTUE cutscene's level).
+    // Not covered: the surplus-toggle destruction of OnChallengesUpdated (Destroy is refused in Edit Mode), the leaderboard panel
+    // (it needs the leaderboard integration), the active test mode branch (GetCycleDebugLabel reads that integration), the navigation
+    // manager's selection, and the launch data of the shadow FTUE challenge (it needs the FTUE cutscene's level).
     public sealed class UIContainerChallengesOverviewTests
     {
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
@@ -458,6 +458,72 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Bonus.gameObject.activeSelf, Is.False);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True, "untouched");
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.True, "untouched");
+            });
+        }
+
+        // ToggleChallenge 0x61EDE0 skips the validation for a null state (test r14 at 0x61EE10 jumps to 0x61EEE3) and selects null: the info panel
+        // is set up for nothing and shown (0x61EF61), the bonus panel hidden (0x61EF78), the valid flag raised (esi = 1 at 0x61EF8E) and the
+        // level preview hidden for lack of a selection.
+        [Test]
+        public void SelectingNoChallengeIsNotValidatedAndStillShowsTheInfoPanel()
+        {
+            Run(rig =>
+            {
+                rig.Bonus.gameObject.SetActive(true);
+
+                Call(rig.Container, "ToggleChallenge", null, true);
+
+                Assert.That(rig.Selected, Is.Null);
+                Assert.That(rig.Info.gameObject.activeSelf, Is.True);
+                Assert.That(rig.Bonus.gameObject.activeSelf, Is.False);
+                Assert.That(rig.Container.ValidChallengeSelected.Value, Is.True);
+                Assert.That(rig.LevelView.gameObject.activeSelf, Is.False);
+            });
+        }
+
+        // OnChallengesUpdated 0x61E98C..0x61E9F7: a period bonus that was not shown yet queues the bonus XP event and sets the latch (0x61E9F2,
+        // 0x61E9F7); once the latch is set the else-if is reached even though the period bonus is still positive (0x61E99E falls through to
+        // 0x61E9A0), and with no unacknowledged bonus it resets the latch (0x61E9AE).
+        [Test]
+        public void ThePeriodBonusIsAnnouncedOnceAndTheLatchResetsWithNothingUnacknowledged()
+        {
+            Run(rig =>
+            {
+                ChallengeState played = NewState(rig, "lucid-overview-bonus", 100, 12.5f);
+                var save = new SaveDataChallenges();
+                save.DisableSaving(); // the bonus award adds to the save, which would request a save otherwise
+                Set(rig.Manager, "m_saveDataChallenges", save); // Reflection: taken from the open save by OnSaveGameOpen, which needs the App
+                Assert.That(Call(rig.Manager, "CalculateBonusChallengeXP", played), Is.EqualTo(250), "set-up: the manager's own award of the period bonus");
+                save.BonusXPUnacknowledged = 0;
+                var pending = new List<UIModernEvent>();
+                ProcessManager.GetSystem<App>().Storage.SetValue(AppFSMKeys.UIModernEvents, pending);
+
+                Start(rig);
+
+                Assert.That(pending, Is.EqualTo(new[] { rig.BonusXpEvent }));
+                Assert.That(Get<bool>(rig.Container, "m_hasShownBonusXpAwarded"), Is.True);
+
+                Update(rig);
+
+                Assert.That(pending, Is.EqualTo(new[] { rig.BonusXpEvent }), "announced once");
+                Assert.That(Get<bool>(rig.Container, "m_hasShownBonusXpAwarded"), Is.False, "reset although the period bonus is still positive");
+            });
+        }
+
+        // The test mode panel always follows the flag (SetActive with esi = 0 at 0x61EA12) and the debug label is read only when the flag is set
+        // (the je at 0x61EA19), so with test mode off the panel is hidden and the label left empty.
+        [Test]
+        public void WithoutTestModeThePanelIsHiddenAndTheDebugLabelStaysEmpty()
+        {
+            Run(rig =>
+            {
+                GameObject display = Get<GameObject>(rig.Container, "m_testModeDisplay");
+                display.SetActive(true);
+
+                Start(rig);
+
+                Assert.That(display.activeSelf, Is.False);
+                Assert.That(rig.Container.CycleDebugLabel.Value, Is.Null);
             });
         }
 

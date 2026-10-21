@@ -165,6 +165,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The markers are published before the callback runs (the Bindable sets at 0x6A25F0..0x6A2638, the callback at 0x6A266A), so a callback
+        // that reads the toggle sees the new values.
+        [Test]
+        public void TheMarkersArePublishedBeforeTheCallbackRuns()
+        {
+            Run(rig =>
+            {
+                rig.Toggle.SetIsOnWithoutNotify(true);
+                var seen = new List<(bool isNew, bool isComplete)>();
+                var parameters = new UIWidgetSDTToggleChallenge.UIWidgetToggleChallengeParameters(true, true, "label",
+                    selected => seen.Add((rig.Widget.IsNew.Value, rig.Widget.IsComplete.Value)));
+
+                rig.Widget.Setup(parameters);
+
+                Assert.That(seen, Is.EqualTo(new[] { (true, true) }));
+            });
+        }
+
         [Test]
         public void AToggleThatIsNotSelectedDoesNotCallBack()
         {

@@ -24,8 +24,8 @@ namespace ProjectLucid.Tests
     // The process coroutine host is inactive, so every coroutine start is refused with a logged error, which the cases expect.
     // Start is not called: it takes a UINavigationManager, whose construction reads the navigation configuration asset, so the
     // service references that Start assigns are written the way it would assign them; only the navigation focus (the PopulateUI
-    // closure that selects the focused button) needs that manager. Not covered: Start, the focus closure, the unlocking delay's completion
-    // (<OnRewardClick>b__0), Action_SpendXP past its guards (it needs the XP reward container and the slider animation), the
+    // closure that selects the focused button) needs that manager. Not covered: Start, the focus closure, the unlocking delay's navigation
+    // of a ready button (<OnRewardClick>b__0), Action_SpendXP past its guards (it needs the XP reward container and the slider animation), the
     // ornament branch of GetRewardStatus, OnRewardHighlighted (it drives the scroll selection) and the shader offset of Action_OnScrollRectScroll.
     public sealed class UIContainerChallengeRewardTrackTests
     {
@@ -451,6 +451,70 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.ShowAddButton.Value, Is.False);
                 Assert.That(rig.Container.ShowAllCollected.Value, Is.False);
                 Assert.That(rig.Container.ShowMoreXPNeeded.Value, Is.False);
+            });
+        }
+
+        // Unlocking with XP that can be spent (RefreshBinders 0x610570): the collect button shows (0x6106E4, 0x6106ED) while the add button stays
+        // hidden because a reward is unlocking (the sete on m_isUnlocking at 0x610725). The first reward is 20 XP away.
+        [Test]
+        public void WhileARewardUnlocksWithSpendableXpTheAddButtonStaysHidden()
+        {
+            Run(rig =>
+            {
+                Configure(rig, 0, 50);
+                Set(rig.Container, "m_isUnlocking", true); // Reflection: set by OnRewardClick, which is covered separately
+
+                Call(rig.Container, "RefreshBinders");
+
+                Assert.That(rig.Container.ShowAddButton.Value, Is.False);
+                Assert.That(rig.Container.ShowCollectButton.Value, Is.True);
+                Assert.That(rig.Container.ShowAllCollected.Value, Is.False, "20 XP to the next reward");
+                Assert.That(rig.Container.ShowMoreXPNeeded.Value, Is.False);
+                Assert.That(rig.Container.EnableButtons.Value, Is.False);
+                Assert.That(rig.Container.XPIncrement.Value, Is.Null);
+            });
+        }
+
+        // Every reward collected while the slider animates: XPToNextReward is 0 and nothing can be spent, but the animating slider still
+        // offers the add button (0x61071F is not taken, then !m_isUnlocking at 0x610725), which in turn keeps "all collected" off (0x610806).
+        [Test]
+        public void WhileTheSliderAnimatesAfterTheLastRewardTheAddButtonShowsAndAllCollectedDoesNot()
+        {
+            Run(rig =>
+            {
+                Configure(rig, 60, 60, firstCollected: true, secondCollected: true);
+                Set(rig.Container, "m_sliderIsAnimating", true); // Reflection: set by Action_SpendXP's slider animation, which cannot run here
+
+                Call(rig.Container, "RefreshBinders");
+
+                Assert.That(rig.Container.ShowCollectButton.Value, Is.False);
+                Assert.That(rig.Container.ShowAddButton.Value, Is.True);
+                Assert.That(rig.Container.ShowAllCollected.Value, Is.False);
+                Assert.That(rig.Container.ShowMoreXPNeeded.Value, Is.False);
+            });
+        }
+
+        // The unlocking delay's closure <OnRewardClick>b__0 (0x611390) with no ready button ends the unlocking (0x6114BD) and refreshes the
+        // binders only when the captured skipRefreshBinders is false (0x6114C4).
+        [TestCase(false, true, TestName = "TheUnlockingDelayEndsTheUnlockingAndRefreshesTheBinders")]
+        [TestCase(true, false, TestName = "TheUnlockingDelayEndsTheUnlockingAndLeavesTheBindersWhenSkipped")]
+        public void TheUnlockingDelayEndsTheUnlocking(bool skipRefreshBinders, bool bindersRefreshed)
+        {
+            Run(rig =>
+            {
+                Configure(rig, 0, 50);
+                Set(rig.Container, "m_isUnlocking", true); // Reflection: set by OnRewardClick
+                rig.Container.EnableButtons.Value = false;
+                Type closureType = typeof(UIContainerChallengeRewardTrack).GetNestedType("<>c__DisplayClass37_0", BindingFlags.NonPublic);
+                object closure = Activator.CreateInstance(closureType);
+                Set(closure, "<>4__this", rig.Container); // Reflection: the closure's captured state
+                Set(closure, "skipRefreshBinders", skipRefreshBinders);
+
+                Call(closure, "<OnRewardClick>b__0");
+
+                Assert.That(Get<bool>(rig.Container, "m_isUnlocking"), Is.False);
+                Assert.That(rig.Container.EnableButtons.Value, Is.EqualTo(bindersRefreshed));
+                Assert.That(rig.Container.ShowAddButton.Value, Is.EqualTo(bindersRefreshed), "50 XP can be spent on the 20 XP reward");
             });
         }
 

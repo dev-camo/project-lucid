@@ -130,8 +130,8 @@ namespace HardlightProject
             RefreshBinders();
         }
 
-        // 0x06003074 (0x610570): the buttons follow the slider and unlock animations; the add button is offered while the
-        // XP can be spent on the next reward and nothing is waiting to be collected or unlocking; "more XP needed" only
+        // 0x06003074 (0x610570): the buttons follow the slider and unlock animations; the add button is offered unless
+        // nothing can be spent with the slider at rest, and never while a reward is unlocking; "more XP needed" only
         // when nothing else is on offer.
         private void RefreshBinders()
         {
