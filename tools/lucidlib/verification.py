@@ -7673,3 +7673,84 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineRecenterHeadingBasicTests
     "RotateAroundPointAppliesTheTurnBeforeTheExistingOrientation",
     "TheSettingsDefinitionIsTheAuthoredOne",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SequencedFollowerTests." + name for name in (
+    "ConstructionStoresTheOriginalDefaults",
+    "AnInactiveObjectCompletesImmediatelyWithoutMoving",
+    "TheDataIsCastBeforeTheActivityCheck",
+    "TheFollowerReachesTheTargetInStepsThenCompletes",
+    "ADurationShorterThanAStepArrivesInTheFirstStep",
+    "ANonPositiveDurationCompletesWithoutMoving",
+    "ANonStaticOffsetFollowsTheTargetsRotation",
+    "ScalingFollowsTheSameFractionOnlyWhenApplied",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SequencedAnimationTests." + name for name in (
+    "ConstructionStoresTheOriginalDefaults",
+    "ProgressIsTheFractionOfTheClipAndResetsToZero",
+    "TheSpeedIsScaledWhilePlayingAndRestoredWhenTheClipEnds",
+    "AZeroLengthClipCompletesInTheFirstCall",
+    "TheCollectorRootDefaultsToTheAnimationsTransformOnlyWhenUnassigned",
+    "TheCollectorRootFollowsTheTargetAlongItsUpVector",
+    "WithoutTheCollectorFlagTheRootStaysWhereItIs",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SequencedCharacterAnimationTests." + name for name in (
+    "TheTriggerTypeEnumKeepsItsOriginalMembers",
+    "ConstructionLeavesTheTriggerTypeAtBoolTrue",
+    "BoolTrueSetsTheParameterAndCompletes",
+    "BoolFalseClearsTheParameterAndCompletes",
+    "TriggerFiresTheTriggerParameterAndCompletes",
+    "ANameLessParameterOrNoCurrentCharacterDoesNothingAndNeverCompletes",
+    "AnUnknownTriggerTypeThrowsWithoutSettingOrCompleting",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SequencedCharacterFsmValueSetterTests." + name for name in (
+    "StartResolvesTheStorageKeyFromTheSerializedName",
+    "TheBoolValueIsStoredOnTheCurrentCharacterAndCompletes",
+    "TheIntValueIsStoredOnTheCurrentCharacterAndCompletes",
+    "WithoutACurrentCharacterNothingIsStoredButTheEffectStillCompletes",
+    "RemoveValueDropsOnlyTheSetterKey",
+    "SerializedFieldsKeepTheirOriginalNamesAndAttributes",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OutroSequenceFadeMainDirectionalLightTests." + name for name in (
+    "ConstructionStoresTheHalfSpeedMultiplier",
+    "StartRemembersTheScenesSunAndItsIntensity",
+    "UpdateLerpsTheIntensityTowardsTheMinimumWithAClampedTime",
+    "UpdateDisablesTheComponentOnceTheLerpTimeReachesOne",
+    "OnDestroyRestoresTheRememberedIntensity",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ComicPanelTimelineTests." + name for name in (
+    "ClipConstructionDefaultsTheScaleMultiplierToOne",
+    "CreatePlayableCopiesTheAuthoredFieldsAndTheScaleMultiplierOnBothAxes",
+    "TheTextureTakesTheTruncatedCutsceneSizeOnce",
+    "OnDisableRestoresTheDefaultSizeWithoutMarkingTheClipInitialised",
+    "TheTrackAcceptsComicPanelClips",
+    "TheTrackMixerIsNamedAfterTheTrack",
+    "OnGraphStartCountsTheInputsAndRegistersNothingOutsidePlayMode",
+    "ProcessFrameSpawnsDrivesAndDespawnsThePanelByTheInputWeight",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.HoldToSkipInputTests." + name for name in (
+    "ConstructionStoresTheOriginalDefaults",
+    "SetLabelStringStoresTheIdentifierOnTheLabel",
+    "StartResetsTheDisplayAndReadsItsSystems",
+    "StartWithoutAModifierKeepsItNullAndWithoutTheDefinitionFaults",
+    "TheButtonsPointerEventsHoldAndReleaseTheInput",
+    "AZeroInputOnlyRecordsItselfAndAnyOtherLightsThePrompt",
+    "TheHeldTimeAndBarFollowTheCategorysDeltaTime",
+    "TheFullSkipEventFiresOnEveryUpdatePastTheRequirement",
+    "AShortReleaseSkipsOnceOnlyWhenTapToSkipIsEnabled",
+    "EndingClearsTheStateAndFadesThePromptOnlyAfterHeldInput",
+    "EndingResetsTheDelayModifier",
+    "AHeldTouchSuppliesFullStrengthOrTheModifiersResultEveryStepUntilReleased",
+    "TheFadeOutHidesAtOnceWithoutATimeAndOtherwiseStepsTheAlphaDown",
+    "ForceReleaseCursorRequestsTheReleaseFromTheApp",
+    "OnDestroyClearsTheDisplayAndRevokesTheCursorButOnlyTheUpListenersAreRemoved",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CutsceneTheatreTests." + name for name in (
+    "ConstructionStartsEmptyAndSubscribesToTheManagersFinishedEvent",
+    "EnqueueTakesOnlyTheFirstCutsceneAndClaimsTheSessionKey",
+    "EnqueueRemembersTheUiBackgroundMusic",
+    "EnqueueAllQueuesTheSeenTheatreCutscenesInOrderAndClaimsTheKey",
+    "EnqueueAllDoesNothingWhileASessionIsRunning",
+    "DequeueNextWaitsWhileACutsceneIsPlayingAndKeepsTheQueueOrder",
+    "PlayWithoutAChosenCutsceneDoesNothing",
+    "ASkippedCutsceneEmptiesTheQueueWhenTheManagerReportsItFinished",
+    "CleanupDetachesAndClearsEverythingExceptTheSessionKey",
+))
