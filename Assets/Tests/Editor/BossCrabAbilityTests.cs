@@ -388,8 +388,8 @@ namespace ProjectLucid.Tests
 
         // 0x6F7440 starts at the boss's position and 0x6F7490 lays out the triangle: for the first jump of a cycle (stored count
         // zero) the first point is on the circle of the jump distance round the origin at the stored angle change, which defaults
-        // to the boss's bearing atan2(x, z) and is stored; the other points are the angle of jumps either side (0x76DC..0x7794).
-        // The angle change then grows by a random amount between the minimum and maximum rotation (AdjustValue at 0x77FD).
+        // to the boss's bearing atan2(x, z) and is stored; the other points are the angle of jumps either side (0x6F76DC..0x6F7794).
+        // The angle change then grows by a random amount between the minimum and maximum rotation (AdjustValue at 0x6F77FD).
         [Test]
         public void BodySlamEnterLaysOutTheTriangleAroundTheBossBearing()
         {
@@ -455,7 +455,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // A stored count other than zero (0x6F756F..) leaves the layout and the angle change alone and is the attack index.
+        // A stored count other than zero (0x6F7574) leaves the layout and the angle change alone and is the attack index.
         [Test]
         public void BodySlamEnterKeepsTheTriangleAfterTheFirstJump()
         {
@@ -584,7 +584,7 @@ namespace ProjectLucid.Tests
         }
 
         // 0x6F82F6 runs the strike only after the wind-up has been wound up (and a started long wind-up has waited out its extra
-        // seconds); the strike's end sets AbilityFinished (0x6F8369). 0x6F8383-0x6F8365 call Attacking with the delta.
+        // seconds); the strike's end sets AbilityFinished (0x6F8369). 0x6F8358..0x6F8365 call Attacking with the delta.
         [Test]
         public void ClawAttackUpdateRunsTheStrikeOnlyWhenWoundUp()
         {
@@ -749,7 +749,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x6F8958 skips the preparation and applies the stored attack override (read with a stored default of none, 0x6F89F1..);
+        // 0x6F8980 skips the preparation and applies the stored attack override (read with a stored default of none, 0x6F89F1..);
         // 0x6F8AA0 stores the choice and sets the telegraph flag for either claw and the left/right flags for the matching one.
         [Test]
         public void ClawAttackSkipPreparationAppliesTheStoredOverride()

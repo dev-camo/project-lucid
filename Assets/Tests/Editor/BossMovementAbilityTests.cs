@@ -15,7 +15,7 @@ namespace ProjectLucid.Tests
     // MoveToArenaEdge (020001e3), MoveToBigCircleWithCounterSpin (020001e4), MoveToTargetPoint (020001e5) and MoveToTriangleFormation
     // (020001e6); MoveBigCircleWithCounterSpin (020001e0, 0x6F9EF0), MoveBigCircleWithDecayingRadius (020001e1, 0x6FA400), MoveRandom
     // (020001e2, 0x6FA890), TurnTowardTarget (020001f2, 0x700640), SpinOnSpot (020001f0, 0x6FF5E0), StayAheadOfPlayer (020001f1,
-    // 0x6FF8E0), Scuttle (020001ef, 0x6EFFE0) and RetreatingJump (020001ee, 0x6FE9B0). Expected values come from the x86-64 bodies
+    // 0x6FF8E0), Scuttle (020001ef, 0x6FEFE0) and RetreatingJump (020001ee, 0x6FE9B0). Expected values come from the x86-64 bodies
     // cited per case; circle points are written out with double-precision trigonometry rather than with the extension methods.
     // The abilities derived from MoveTowardsTarget cache a typed FourmenManager reference when they are built, so each case registers
     // its FourmenManager first. The BUILD_DEVELOPMENT debug helpers (SetDebugActive, SetDebugPositions) are compiled out of retail
@@ -138,7 +138,7 @@ namespace ProjectLucid.Tests
 
         // ---- the abilities derived from MoveTowardsTarget ----
 
-        // 0x6FB88A: the target is the point at -90 degrees (-pi/2) of the circle of the definition's radius round the arena centre
+        // 0x6FB889: the target is the point at -90 degrees (-pi/2) of the circle of the definition's radius round the arena centre
         // (Vector3.up), at the boss's height; the base entry then starts the movement from the boss's position.
         [Test]
         public void MoveToArenaEdgeAimsAtTheEdgePointAtMinusNinetyDegrees()
@@ -191,7 +191,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x6FC3F0: the bosses share a circle of the definition's starting radius round the centroid of all bosses, spaced
+        // 0x6FC400: the bosses share a circle of the definition's starting radius round the centroid of all bosses, spaced
         // evenly by 2*pi over the boss count in order of their index.
         [Test]
         public void MoveToTriangleFormationSpacesTheBossesEvenlyAroundTheirCentroid()
@@ -212,7 +212,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x6FBDE4 ff.: the TurnSpeed comes from the derived definition. The target is its fixed Target, or, with TargetIsBossOrigin,
+        // get_TurnSpeed (0x6FBDF0): the TurnSpeed comes from the derived definition. The target is its fixed Target, or, with TargetIsBossOrigin,
         // the origin point from the FSM storage (default zero, which is stored). Leaving repeats the base leave's resets.
         [Test]
         public void MoveToTargetPointChoosesTheFixedTargetOrTheBossOrigin()
@@ -258,7 +258,7 @@ namespace ProjectLucid.Tests
 
         // ---- BossAbility_MoveBigCircleWithCounterSpin ----
 
-        // 0x6FA0F0: the circle centre is the arena centre (Vector3.up) and the big circle's point at angle zero is the counter
+        // 0x6FA12D..0x6FA1BE: the circle centre is the arena centre (Vector3.up) and the big circle's point at angle zero is the counter
         // circle's centre; the counter-spin angle starts at the boss's index times pi. The speeds are stored as seconds per radian
         // (radius over speed). 0x6FA2A5: each update moves the big arc backwards and the counter-spin arc forwards by delta over
         // those seconds. 0x6FA27B: leaving restarts the big arc and flips the direction flag.
@@ -531,7 +531,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x7002C0: the character's angle in radians, the boss's in degrees, and zero for both arc limits.
+        // 0x7002B0: the character's angle in radians, the boss's in degrees, and zero for both arc limits.
         [Test]
         public void StayAheadCalculatesTheCharacterAngleInRadiansAndTheBossAngleInDegrees()
         {
@@ -677,9 +677,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x70014B: a finished ability does nothing in its update. 0x6FFB5D: entering resumes from the stored angle, or starts the
+        // 0x70017E: a finished ability does nothing in its update. 0x6FFB5D: entering resumes from the stored angle, or starts the
         // minimum arc ahead of the current character, and publishes the circling direction; without a character or stored angle it only
-        // sets up the circle; 0x7000: leaving stores the angle.
+        // sets up the circle; 0x700020: leaving stores the angle.
         [Test]
         public void StayAheadEnterResumesFromTheStoredAngleOrTheCharacterAndLeaveStoresIt()
         {
@@ -903,7 +903,7 @@ namespace ProjectLucid.Tests
         });
 
         // 0x6FA8A0..0x6FA8F4: the definition supplies the tilt, face-angle tolerance and turn speed; the movement is not momentum based and turns
-        // to the character. 0x6FB54E: the first circle's arc starts at infinity, the recursion limit at 100.
+        // to the character. 0x6FB548 and 0x6FB54F: the first circle's arc starts at infinity, the recursion limit at 100.
         [Test]
         public void MoveRandomStartsWithAnUnchosenArcAndTheDefinitionsTurning()
         {
@@ -929,7 +929,7 @@ namespace ProjectLucid.Tests
                 d.EndDistanceTolerance = 0f;
             });
 
-        // 0x6FAA66: entering takes the boss's speed from its velocity, notes its position, picks a circle that passes through the
+        // 0x6FAA60: entering takes the boss's speed from its velocity, notes its position, picks a circle that passes through the
         // boss (the centre lies the radius from it towards the origin, the stored arc is the direction from the centre back to the
         // boss), picks a final target on that circle, flips the direction and runs an update with the enemy-movement delta. With delta
         // zero the target of that update is the boss's own position on the circle.
