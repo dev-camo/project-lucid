@@ -182,6 +182,10 @@ namespace ProjectLucid.Tests
                 IFSMState state = NewState(nameof(EnemyBrainState_Attack));
                 scene.Enter(state);
                 Assert.That(scene.Has(EnemyBrainFSMKeys.AttackTarget), Is.False);
+                // 0x573603/0x573605: GetValue(FocusTarget, null, storeDefault: true) leaves a null row behind.
+                Assert.That(scene.Has(EnemyBrainFSMKeys.FocusTarget), Is.True);
+                Assert.That(scene.Peek<Actor>(EnemyBrainFSMKeys.FocusTarget), Is.Null);
+                Assert.That(scene.Storage.GetCollection().Count, Is.EqualTo(1));
                 scene.Storage.SetValue(EnemyBrainFSMKeys.FocusTarget, scene.NewTarget(Vector3.zero));
                 scene.Enter(state);
                 Assert.That(scene.Peek<bool>(EnemyBrainFSMKeys.AttackTarget), Is.True);
@@ -231,6 +235,10 @@ namespace ProjectLucid.Tests
                 scene.Storage.SetValue(EnemyBrainFSMKeys.AttackWindUpComplete, true);
                 scene.Enter(state);
                 Assert.That(scene.Has(EnemyBrainFSMKeys.StartAttackWindUp), Is.False);
+                // 0x573f73/0x573f75: the missing focus target is stored as null (the seeded flag is the other row).
+                Assert.That(scene.Has(EnemyBrainFSMKeys.FocusTarget), Is.True);
+                Assert.That(scene.Peek<Actor>(EnemyBrainFSMKeys.FocusTarget), Is.Null);
+                Assert.That(scene.Storage.GetCollection().Count, Is.EqualTo(2));
                 Assert.That(scene.Peek<bool>(EnemyBrainFSMKeys.AttackWindUpComplete), Is.True);
                 scene.Storage.SetValue(EnemyBrainFSMKeys.FocusTarget, scene.NewTarget(Vector3.zero));
                 scene.Enter(state);
@@ -377,6 +385,9 @@ namespace ProjectLucid.Tests
                 IFSMState state = NewState(nameof(EnemyBrainState_MoveToTarget));
                 scene.Enter(state);
                 Assert.That(scene.Peek<bool>(EnemyBrainFSMKeys.TargetLocked), Is.True);
+                // 0x572b23/0x572b25: the missing focus target is stored as null.
+                Assert.That(scene.Has(EnemyBrainFSMKeys.FocusTarget), Is.True);
+                Assert.That(scene.Peek<Actor>(EnemyBrainFSMKeys.FocusTarget), Is.Null);
                 scene.Storage.SetValue(EnemyBrainFSMKeys.TargetLocked, false);
                 scene.Storage.SetValue(EnemyBrainFSMKeys.FocusTarget, scene.NewTarget(Vector3.zero));
                 scene.Enter(state);
@@ -405,6 +416,22 @@ namespace ProjectLucid.Tests
                 scene.Update(state);
                 Assert.That(scene.Peek<bool>(EnemyBrainFSMKeys.TargetReached), Is.True);
                 Assert.That(scene.Peek<Vector2>(EnemyBrainFSMKeys.MovementImpulse), Is.EqualTo(Vector2.zero));
+            });
+        }
+
+        // 0x572d5f..0x572d62 read the focus target's position (rax+0x48) before HasValue(TargetCachedPosition) at
+        // 0x572e08, and NullChecks are off, so a cached position does not spare a missing focus target. The failed
+        // read still stored the null focus target (0x572d54/0x572d56) and wrote no reached flag.
+        [Test]
+        public void MoveToTargetUpdateReadsTheFocusTargetEvenWhenAPositionIsCached()
+        {
+            WithScene(scene =>
+            {
+                IFSMState state = NewState(nameof(EnemyBrainState_MoveToTarget));
+                scene.Storage.SetValue(EnemyBrainFSMKeys.TargetCachedPosition, new Vector3(0f, 0f, 1f));
+                Assert.Throws<NullReferenceException>(() => scene.Update(state));
+                Assert.That(scene.Has(EnemyBrainFSMKeys.FocusTarget), Is.True);
+                Assert.That(scene.Has(EnemyBrainFSMKeys.TargetReached), Is.False);
             });
         }
 
@@ -549,6 +576,29 @@ namespace ProjectLucid.Tests
                 Steer(scene, side);
                 Assert.That(scene.Brain.GetMovement().x, Is.EqualTo(0f), "no turn against a NaN tolerance");
                 Assert.That(Steer(scene, side, true), Is.True, "a NaN tolerance counts as facing");
+            });
+        }
+
+        // NaN separates the forward predicate from its plausible rewrites. Native 0x572357..0x572378 is
+        // cmpleps(sqrDistance, toleranceSqr) OR cmpnltps(absAngle, limit), and either lane true stops the forward
+        // movement: a NaN distance tolerance leaves cmpleps false (the enemy moves forward, and setae at 0x5723F2
+        // reports not reached), a NaN forward limit makes cmpnltps true (no forward movement). Destination 10 units ahead.
+        [Test]
+        public void SteeringNaNTolerancesFollowTheNativePackedComparisons()
+        {
+            WithScene(scene =>
+            {
+                var ahead = new Vector3(0f, 0f, 10f);
+                scene.Traits.MoveWithinDistanceTolerance = float.NaN;
+                scene.Traits.UpdateCachedValues();
+                Assert.That(Steer(scene, ahead), Is.False);
+                Assert.That(scene.Brain.GetMovement(), Is.EqualTo(new Vector2(0f, 1f)), "a NaN distance tolerance does not stop the enemy");
+
+                scene.Traits.MoveWithinDistanceTolerance = 2f;
+                scene.Traits.UpdateCachedValues();
+                scene.Traits.MaxAngleForwardMovement = float.NaN;
+                Assert.That(Steer(scene, ahead), Is.False);
+                Assert.That(scene.Brain.GetMovement(), Is.EqualTo(Vector2.zero), "a NaN forward limit never allows forward movement");
             });
         }
 

@@ -37,6 +37,7 @@ namespace HardlightProject
 
         // 06001c76 (1.10.1 RVA 0x54BDA0)
         public override Type ScriptType => typeof(EnemyAbility_FireProjectile);
+        // 06001c77..06001c82 (1.10.1 RVA 0x54BE00..0x54BE50): the getters and auto-property accessors below.
         public ProjectileType ProjectileType => m_projectileType;
         public float WindUpTime => m_windUpTime;
         public float WindDownTime => m_windDownTime;
