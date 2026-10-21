@@ -10,6 +10,7 @@ using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.TestTools;
+using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -56,12 +57,11 @@ namespace ProjectLucid.Tests
             owned.LeaseRow<OrnamentManager>();
             var rig = new Rig { App = ProcessManager.GetSystem<App>() };
             rig.Manager = owned.Register(owned.Lease(new OwnedTimeScaledObjects("lucid-xp-counter")).Add<ChallengeManager>("manager"));
-            // The public save-open route loads the manager's challenge data; the seen-feature state keeps the unlock path closed
-            // and SetFeatureState reads the unlock list from the App's storage.
-            rig.App.Storage.SetValue(AppFSMKeys.MetaGameUnlocks, new List<IMetaGameUnlock>());
+            // The public save-open route loads the manager's challenge data. The save stays Locked and the manager's one unlock
+            // requirement (the feature being seen) is unmet in that state, so no state change reaches the FTUE settings.
+            Set(rig.Manager, "m_unlockRequirements", new RequirementGameplayLevelBase[] { Create<RequirementChallengesFeatureSeen>(owned) }); // Reflection: authored requirements
             var game = new SaveDataGame();
             rig.Save = game.SaveDataChallenges;
-            rig.Save.FeatureState = ChallengeManager.ChallengeFeatureState.UnlockedSeenFeature;
             rig.Save.TotalXPEarned = totalXp;
             rig.Save.BonusXPUnacknowledged = bonusXp;
             rig.Manager.OnSaveGameOpen(game);
