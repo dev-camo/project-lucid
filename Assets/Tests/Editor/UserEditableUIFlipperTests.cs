@@ -68,7 +68,7 @@ namespace ProjectLucid.Tests
                 flipper.RunEditConfirm();
                 Assert.That(settings.OnScreenControlsFlipped, Is.True);
                 // The base calls ExitEditMode after publishing (0x69799A, vcall 0x6979BF), by when the flip is already set.
-                Assert.That((flipper.FlippedSettingAtExit, flipper.SettingsPublishedAtExit), Is.EqualTo((true, true)), "set before the base ran");
+                Assert.That((flipper.FlippedSettingAtExit, flipper.SettingsPublishedAtExit), Is.EqualTo(((bool?)true, (bool?)true)), "set before the base ran");
                 Assert.That(ProcessManager.GetSystem<App>().Storage.TryGetValue(AppFSMKeys.GameSettings, out SaveDataSettings stored), Is.True);
                 Assert.That(stored, Is.SameAs(settings));
 

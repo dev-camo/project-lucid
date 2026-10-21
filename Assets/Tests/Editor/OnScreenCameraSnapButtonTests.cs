@@ -22,6 +22,11 @@ namespace ProjectLucid.Tests
             var button = owned.Host("Lucid owned camera snap button", false).AddComponent<OnScreenCameraSnapButton>();
             var uiButton = owned.Host("Lucid owned camera snap ui button", false).AddComponent<UIButtonProbe>();
             Set(button, "m_button", uiButton); // serialized in the original
+            // The button's Interactable change raises the selectable's event, which needs its entries and the vibration
+            // reference that UISelectable.Awake caches.
+            Set(uiButton, "m_events", new System.Collections.Generic.List<UISelectable.UIEventInfo>()); // serialized in the original
+            owned.LeaseRow<VibrationManager>();
+            Call(uiButton, "Awake");
             body(owned, rig, button, uiButton);
         });
 
