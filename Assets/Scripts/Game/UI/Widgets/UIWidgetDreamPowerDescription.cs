@@ -41,7 +41,7 @@ namespace HardlightProject
                 m_parameters.Definition.IconAsset.Unload();
         }
 
-        // 0x06003801: the bindable field initialisers precede the genuine base constructor.
+        // 0x06003801
         public UIWidgetDreamPowerDescription() { }
     }
 }

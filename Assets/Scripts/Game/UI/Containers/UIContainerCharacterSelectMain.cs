@@ -9,8 +9,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x0200088f; bodies translated from the 1.10.1 x86-64 binary.
     // The main character select screen: one toggle per character, the character skin entry and the continue button.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public sealed class UIContainerCharacterSelectMain : UIContainer
     {
         [SerializeField] private SerializableDictionary<CharacterId, UIWidgetToggle> m_characterIdToGameObject = new SerializableDictionary<CharacterId, UIWidgetToggle>(HardlightEnumComparers.CharacterIdComparer);
@@ -41,8 +41,7 @@ namespace HardlightProject
             m_continueInputEvent.enabled = false;
             UIContainerUtilities.SetBackgroundGradientBinders(ZoneBackgroundStartColour, ZoneBackgroundEndColour);
             UpdateCharacters();
-            if (UIContainerUtilities.TryGetSelectedLevelAndZone(out _, out GameplayLevelCategory zone))
-                m_collectableRewardCounter.UpdateValues(zone);
+            UpdateRewardCounter();
             ControlMapping.OnUpdateLastInputType += OnInputTypeChanged;
             IsChallengeMode.Value = m_missionManagerRef.Get().ActiveMissionContext is MissionContextChallenge;
             SkinsSelectionActive.Value = Requirements.AreMet(m_characterSkinUnlockRequirements);
@@ -61,11 +60,8 @@ namespace HardlightProject
             foreach (var (_, characterDefinition) in m_dataManagerRef.Get().Characters)
             {
                 CharacterSkinDefinition skin = characterDefinition.CurrentSkin;
-                if (skin == null)
-                    continue;
-                if (skin.UnlockedByDefault)
-                    continue;
-                return true;
+                if (skin != null && !skin.UnlockedByDefault)
+                    return true;
             }
             return false;
         }
@@ -158,29 +154,23 @@ namespace HardlightProject
             m_navigationManagerRef.Get().Select(characterToggle.WidgetNavigation);
         }
 
-        // 0x06003182
+        // 0x06003182: native inlines this into Awake.
         private void UpdateRewardCounter()
         {
             if (UIContainerUtilities.TryGetSelectedLevelAndZone(out _, out GameplayLevelCategory zone))
                 m_collectableRewardCounter.UpdateValues(zone);
         }
 
-        // 0x06003183: switching to a controller selects the first mission character when no toggle is selected.
+        // 0x06003183: any input type other than mouse, keyboard or touch selects the first mission character when no toggle is selected.
         private void OnInputTypeChanged(InputType inputType)
         {
             if (inputType == InputType.Mouse || inputType == InputType.Keyboard || inputType == InputType.Touch)
                 return;
-            bool noneSelected = true;
             foreach (var (_, characterToggle) in m_characterIdToGameObject)
             {
                 if (characterToggle.IsSelected())
-                {
-                    noneSelected = false;
-                    break;
-                }
+                    return;
             }
-            if (!noneSelected)
-                return;
             CharacterId firstCharacter = m_characterIds[0];
             foreach (var (characterId, characterToggle) in m_characterIdToGameObject)
             {
@@ -189,7 +179,7 @@ namespace HardlightProject
             }
         }
 
-        // 0x06003184: field initialisers precede the base constructor.
+        // 0x06003184
         public UIContainerCharacterSelectMain() { }
     }
 }

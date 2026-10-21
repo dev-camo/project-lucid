@@ -47,7 +47,7 @@ namespace Hardlight
             m_animation.Play(m_disabledClip.name);
         }
 
-        // 0x06000044: the bindable field initialisers precede the genuine base constructor.
+        // 0x06000044
         public UIWidgetImageDreamPowerSlot() { }
     }
 }

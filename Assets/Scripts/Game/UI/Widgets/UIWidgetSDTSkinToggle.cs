@@ -8,8 +8,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x020009c7; bodies translated from the 1.10.1 x86-64 binary.
     // A character skin toggle on the skin selection screen.
-    [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class UIWidgetSDTSkinToggle : UIWidgetToggle
     {
         [SerializeField] private UITransitionAnimation m_uiTransitionAnimation;
@@ -45,17 +45,13 @@ namespace HardlightProject
         // 0x0600385a
         public void Action_OnSkinSelected()
         {
-            if (m_parameters != null)
-                m_parameters.SetCharacterSkin(m_parameters.CharacterSkinDefinition);
-            UpdateBinders();
+            SetCharacterSkin();
         }
 
-        // 0x0600385b: the flag is ignored, the body matches the parameterless overload.
+        // 0x0600385b: the flag is ignored; native inlines SetCharacterSkin in all three bodies.
         public void Action_OnSkinSelected(bool isSelected)
         {
-            if (m_parameters != null)
-                m_parameters.SetCharacterSkin(m_parameters.CharacterSkinDefinition);
-            UpdateBinders();
+            SetCharacterSkin();
         }
 
         // 0x0600385c
@@ -73,7 +69,7 @@ namespace HardlightProject
                 m_parameters.CharacterSkinDefinition.Thumbnail.Unload();
         }
 
-        // 0x0600385e: field initialisers precede the base constructor.
+        // 0x0600385e
         public UIWidgetSDTSkinToggle() { }
 
         // Original Game.Runtime 0x020009c8.

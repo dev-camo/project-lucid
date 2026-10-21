@@ -88,7 +88,7 @@ namespace HardlightProject
                 {
                     DreamPowerDefinition definition = dataManager.DreamPowerDefinitions[dreamPowerGuid];
                     slot.Equip(definition);
-                    if (!m_dreamPowerStoreManagerRef.Get().ArchetypeAllowsPower(characterArchetype, definition))
+                    if (!ArchetypeAllowsPower(characterArchetype, definition))
                         slot.Disable();
                     m_powersBySlotWidget.Add(slot, definition);
                 }
@@ -106,7 +106,7 @@ namespace HardlightProject
                 return;
             foreach (var (slot, definition) in m_powersBySlotWidget)
             {
-                if (m_dreamPowerStoreManagerRef.Get().ArchetypeAllowsPower(characterArchetype, definition))
+                if (ArchetypeAllowsPower(characterArchetype, definition))
                     slot.Enable();
                 else
                     slot.Disable();
@@ -114,12 +114,13 @@ namespace HardlightProject
         }
 
         // 0x06003175
+        // Native inlines this wrapper into SetupPowers and RefreshPowers.
         private bool ArchetypeAllowsPower(CharacterArchetype characterArchetype, DreamPowerDefinition definition)
         {
             return m_dreamPowerStoreManagerRef.Get().ArchetypeAllowsPower(characterArchetype, definition);
         }
 
-        // 0x06003176: field initialisers precede the base constructor.
+        // 0x06003176
         public UIContainerCharacterSelectEquipDreamPower() { }
     }
 }

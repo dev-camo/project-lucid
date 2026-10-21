@@ -30,8 +30,7 @@ namespace HardlightProject
             Slot slot = m_slots[slotIndex];
             if (slot.IsEquipped)
             {
-                slot.Unequip();
-                m_dreamPowerStoreManager.Unequip(m_characterArchetype, slotIndex);
+                Unequip(slotIndex);
             }
             else
             {
@@ -53,13 +52,12 @@ namespace HardlightProject
                     continue;
                 if (m_slots[i].Definition == definition)
                 {
-                    m_slots[i].Unequip();
-                    m_dreamPowerStoreManager.Unequip(m_characterArchetype, i);
+                    Unequip(i);
                 }
             }
         }
 
-        // 0x060030dd
+        // 0x060030dd: native inlines this body into Toggle and Equip.
         private void Unequip(int slotIndex)
         {
             m_slots[slotIndex].Unequip();

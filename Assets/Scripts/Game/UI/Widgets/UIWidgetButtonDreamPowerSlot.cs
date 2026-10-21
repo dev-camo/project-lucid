@@ -9,8 +9,8 @@ namespace Hardlight
 {
     // Original Game.Runtime 0x02000015; bodies translated from the 1.10.1 x86-64 binary.
     // A dream power slot button on the character select screen.
-    [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public sealed class UIWidgetButtonDreamPowerSlot : UIInteractable
     {
         [SerializeField] private Button m_button;
@@ -80,10 +80,11 @@ namespace Hardlight
         {
             bool validForEquip = !IsEquipped && itemState == UIDreamPowerStoreItemState.Bought;
             ValidForEquip.Value = validForEquip;
+            // Native stores the clip identifier directly (SetClip inlined).
             m_sfxComponentButton.SetClip(validForEquip ? m_clipEquipped : IsEquipped ? m_clipUnequipped : m_clipDisabled);
         }
 
-        // 0x0600003b: the bindable field initialisers precede the genuine base constructor.
+        // 0x0600003b
         public UIWidgetButtonDreamPowerSlot() { }
     }
 }

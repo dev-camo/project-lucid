@@ -57,7 +57,7 @@ namespace HardlightProject
                 m_characterDefinition.Image.Unload();
         }
 
-        // 0x06003794: field initialisers precede the base constructor chain.
+        // 0x06003794
         public UIWidgetActiveCharacterImage() { }
     }
 }

@@ -9,8 +9,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x02000890; bodies translated from the 1.10.1 x86-64 binary.
     // Lists a character's skins as toggles and applies the chosen one.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class UIContainerCharacterSkinSelection : UIContainer
     {
         [SerializeField] private Transform m_toggleParent;
@@ -109,12 +109,12 @@ namespace HardlightProject
             m_currentSkin.Thumbnail.Unload();
         }
 
-        // 0x0600318b: the bindable and system reference initialisers precede the base constructor.
+        // 0x0600318b
         public UIContainerCharacterSkinSelection() { }
 
         // Original Game.Runtime 0x02000891.
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [Il2CppSetOption(Option.NullChecks, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         public sealed class UIContainerCharacterSkinSelectionParameters : IUIContainerParameters
         {
             public readonly CharacterDefinition CharacterDefinition;
