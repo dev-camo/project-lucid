@@ -14,10 +14,12 @@ namespace ProjectLucid.Tests
     public sealed class OpenLocalisedUrlTests
     {
         // A genuine App built by its own initialisers on an inactive host (Awake does not run, so the
-        // storage the FSM would fill is empty). Its field initialisers take the SaveManager reference.
+        // storage the FSM would fill is empty). Its field initialisers take the SaveManager and
+        // UIScreenTransitionManager references.
         private static App NewApp(Owned owned)
         {
             owned.LeaseRow<SaveManager>();
+            owned.LeaseRow<UIScreenTransitionManager>();
             App app = owned.Register(owned.Host("Lucid open url app", false).AddComponent<App>());
             app.Storage.SetValue(AppFSMKeys.UIModernEvents, new List<UIModernEvent>());
             return app;

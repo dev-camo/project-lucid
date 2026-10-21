@@ -41,18 +41,30 @@ namespace ProjectLucid.Tests
 
         // MoveNext 0x535480: without the file (File.Exists, 0x53554F) the default goes straight to the
         // callback and the iterator finishes without yielding; a null callback is skipped (0x5355D5).
+        // A prepared project holds the original's ApplicationInfo.json in StreamingAssets, so the case renames that
+        // file for its duration and puts it back afterwards.
         [Test]
         public void WithoutAFileTheDefaultReachesTheCallbackAtOnce()
         {
-            Assume.That(File.Exists(InfoPath), Is.False, "the project has a built ApplicationInfo.json");
-            ApplicationInfo delivered = null;
-            int calls = 0;
-            var iterator = ApplicationInfo.LoadOrCreateDefault(info => { delivered = info; calls++; });
-            Assert.That(iterator.MoveNext(), Is.False);
-            Assert.That(calls, Is.EqualTo(1));
-            Assert.That(delivered.BuildCode, Is.EqualTo("n/a"));
+            string hidden = InfoPath + ".lucid-hidden";
+            bool moved = File.Exists(InfoPath);
+            if (moved) File.Move(InfoPath, hidden);
+            try
+            {
+                Assert.That(File.Exists(InfoPath), Is.False, "set-up: no ApplicationInfo.json");
+                ApplicationInfo delivered = null;
+                int calls = 0;
+                var iterator = ApplicationInfo.LoadOrCreateDefault(info => { delivered = info; calls++; });
+                Assert.That(iterator.MoveNext(), Is.False);
+                Assert.That(calls, Is.EqualTo(1));
+                Assert.That(delivered.BuildCode, Is.EqualTo("n/a"));
 
-            Assert.That(ApplicationInfo.LoadOrCreateDefault(null).MoveNext(), Is.False);
+                Assert.That(ApplicationInfo.LoadOrCreateDefault(null).MoveNext(), Is.False);
+            }
+            finally
+            {
+                if (moved) File.Move(hidden, InfoPath);
+            }
         }
 
         // Constructor 0x606A40 builds both text bindables with "..." and the time bindable empty.
