@@ -344,26 +344,28 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x674E50, achievement branch (0x6750B4): the type is 0x71146f0d (the achievements label), the name is the localised
-        // title of the achievement (DataManager lookup +0x1f8, title +0x1c) and the image the achievement sprite.
+        // 0x674E50, achievement branch (0x6750B4): entered when the identifier differs from None (cmp dword [r12+0x28], 0;
+        // je 0x675160), so negative identifiers (Anger_Management is -397295049) take it as well as positive ones. The type
+        // is 0x71146f0d (the achievements label), the name is the localised title of the achievement (DataManager lookup
+        // +0x1f8, title +0x1c) and the image the achievement sprite.
         [Test]
         public void AnAchievementOrnamentShowsTheAchievementTitleAndSprite()
         {
-            WithTask(rig =>
-            {
-                var ornament = Create<OrnamentDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-ornament-achievement\"}");
-                Call(ornament, "OnEnable");
-                Cache(ornament.ThumbnailAsset, rig.Owned.Track(new Texture2D(2, 2)));
-                rig.World.Data.AchievementDefinitions[AchievementIdentifier.A_New_Challenger] =
-                    Create<AchievementDefinition>(rig.Owned, "{\"m_title\":" + (int)Strings.ORNAMENT_CAT_STORY + ",\"m_description\":" + (int)Strings.MISSING + "}");
-                UIContainerProgressionTask container = Show(rig,
-                    new MetaGameUnlockOrnament(ornament, AchievementIdentifier.A_New_Challenger));
-                Assert.That(container.TaskType.Value, Is.EqualTo(Strings.SETTINGS_BUTTON_LABEL_ACHIEVEMENTS));
-                Assert.That(container.TaskName.Value, Is.EqualTo("Achievement title"));
-                Assert.That(container.TaskImage.Value, Is.SameAs(rig.AchievementSprite));
-                Assert.That(container.ShowMissionData.Value, Is.False);
-                Assert.That(container.ShowChallengeData.Value, Is.False);
-            });
+            foreach (AchievementIdentifier identifier in new[] { AchievementIdentifier.A_New_Challenger, AchievementIdentifier.Anger_Management })
+                WithTask(rig =>
+                {
+                    var ornament = Create<OrnamentDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-ornament-achievement\"}");
+                    Call(ornament, "OnEnable");
+                    Cache(ornament.ThumbnailAsset, rig.Owned.Track(new Texture2D(2, 2)));
+                    rig.World.Data.AchievementDefinitions[identifier] =
+                        Create<AchievementDefinition>(rig.Owned, "{\"m_title\":" + (int)Strings.ORNAMENT_CAT_STORY + ",\"m_description\":" + (int)Strings.MISSING + "}");
+                    UIContainerProgressionTask container = Show(rig, new MetaGameUnlockOrnament(ornament, identifier));
+                    Assert.That(container.TaskType.Value, Is.EqualTo(Strings.SETTINGS_BUTTON_LABEL_ACHIEVEMENTS), identifier.ToString());
+                    Assert.That(container.TaskName.Value, Is.EqualTo("Achievement title"), identifier.ToString());
+                    Assert.That(container.TaskImage.Value, Is.SameAs(rig.AchievementSprite), identifier.ToString());
+                    Assert.That(container.ShowMissionData.Value, Is.False, identifier.ToString());
+                    Assert.That(container.ShowChallengeData.Value, Is.False, identifier.ToString());
+                });
         }
 
         // 0x674E50, last branch (0x675160..0x675193, reached when the achievement test at 0x6750B4 falls through): an ornament with neither mission nor achievement shows the challenge
@@ -387,6 +389,19 @@ namespace ProjectLucid.Tests
 
                 UIContainerProgressionTask negative = Show(rig, new MetaGameUnlockOrnament(ornament, -5, RewardTrackType.Outfits));
                 Assert.That(negative.ShowChallengeData.Value, Is.False, "the comparison is signed");
+            });
+        }
+
+        // OnDestroy 0x675660 has no null test on m_unlock: it reads the field and dispatches ReleaseAssets at once (0x675685),
+        // so a container without an unlock faults, unlike the sibling containers that use m_unlock?.
+        [Test]
+        public void DestroyingAContainerWithoutAnUnlockFaults()
+        {
+            WithTask(rig =>
+            {
+                var container = NewContainer<UIContainerProgressionTask>(rig.Owned);
+                Call(container, "Awake");
+                Assert.Throws<NullReferenceException>(() => Call(container, "OnDestroy"));
             });
         }
 

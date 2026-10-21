@@ -316,6 +316,59 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Setup clears the set of shown types first (HashSet.Clear 0x672223): a mission group shown by an earlier Setup does
+        // not make the next Setup's mission group a repeat.
+        [Test]
+        public void ASetupStartsWithAnEmptySetOfShownTypes()
+        {
+            WithRig(rig =>
+            {
+                var first = new Unlock("g1", PlayerProgressionTypes.MissionGroup, rig.Calls, NewWidget(rig.Owned, "g1"));
+                var second = new Unlock("g2", PlayerProgressionTypes.MissionGroup, rig.Calls, NewWidget(rig.Owned, "g2"));
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                rig.Container.Setup(Pending(first));
+                Assert.That(rig.Calls, Is.EqualTo(new[] { "g1:GetWidget", "g1:Texture" }));
+
+                rig.Calls.Clear();
+                LogAssert.Expect(LogType.Error, RefusedDestroy);
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                rig.Container.Setup(Pending(second));
+                Assert.That(rig.Calls, Is.EqualTo(new[] { "g2:GetWidget", "g2:Texture" }), "shown, not saved and released as a repeat");
+            });
+        }
+
+        // The type is added to the set only after the widget was obtained (HashSet.Add 0x672733 follows the null test at
+        // 0x672700), so a mission group without a widget does not make the next mission group a repeat.
+        [Test]
+        public void AMissionGroupAfterAGroupWithoutAWidgetIsStillShown()
+        {
+            WithRig(rig =>
+            {
+                var first = new Unlock("g1", PlayerProgressionTypes.MissionGroup, rig.Calls);
+                var second = new Unlock("g2", PlayerProgressionTypes.MissionGroup, rig.Calls, NewWidget(rig.Owned, "g2"));
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                rig.Container.Setup(Pending(first, second));
+                Assert.That(rig.Calls, Is.EqualTo(new[] { "g1:GetWidget", "g2:GetWidget", "g2:Texture" }));
+                Assert.That(rig.App.GetUIModernEvents(), Is.Empty);
+            });
+        }
+
+        // The texture callback 06003431 (0x6733c8) forwards only a non-null texture (op_Inequality, je 0x6733e6).
+        [Test]
+        public void ANullTextureLeavesTheMaskedImageAlone()
+        {
+            WithRig(rig =>
+            {
+                var unlock = new Unlock("a", PlayerProgressionTypes.MusicTrack, rig.Calls, NewWidget(rig.Owned, "a"));
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                rig.Container.Setup(Pending(unlock));
+                Texture marker = rig.Owned.Track(new Texture2D(2, 2));
+                LastClone(rig).MaskedTexture.Value = marker;
+                Call(rig.Container, "<PlayNextProgression>b__24_0", (Texture)null);
+                Assert.That(LastClone(rig).MaskedTexture.Value, Is.SameAs(marker));
+            });
+        }
+
         // The whole display path of PlayNextProgression 0x672350 for two unlocks, in order: the widget is instantiated under the
         // root (Instantiate 0x672764), the unlock is asked for its texture, which reaches the widget's masked image (06003431),
         // the widget is hidden (SetActive false 0x67286b) and its animation started (AnimateIn 0x672879), the activation is
@@ -364,6 +417,13 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Log.Errors, Is.EqualTo(new[] { NoClipAtSfx, NoClipAtSfx }), "another type restarts the audio");
                 Assert.That(rig.App.GetUIModernEvents(), Is.Empty);
 
+                // Continue removed itself from the finished widget (Delegate.Remove 0x6730a6): firing the first clone's event
+                // again changes nothing.
+                int callsBefore = rig.Calls.Count;
+                rig.Root.GetChild(0).GetComponent<UIWidgetProgression>().Action_AnimateOutComplete();
+                Assert.That(rig.Calls.Count, Is.EqualTo(callsBefore));
+                Assert.That(rig.App.GetUIModernEvents(), Is.Empty);
+
                 rig.Container.Action_AnimateOut();
                 FinishAnimateOut(rig);
                 Assert.That(rig.Calls[rig.Calls.Count - 2], Is.EqualTo("b:Save"));
@@ -392,6 +452,28 @@ namespace ProjectLucid.Tests
                     Assert.That(rig.Calls, Is.EqualTo(new[] { "a:GetWidget", "a:Texture" }), "nothing is saved before the animation ends");
                     FinishAnimateOut(rig);
                     Assert.That(rig.Calls, Is.EqualTo(new[] { "a:GetWidget", "a:Texture", "a:Save", "a:Release" }), "the second unlock is never seen");
+                    Assert.That(rig.App.GetUIModernEvents(),
+                        Is.EqualTo(new[] { alternative ? rig.AlternativeExitToMenu : rig.ExitToMenu }), "alternative " + alternative);
+                });
+        }
+
+        // The callback saves only while m_currentWidget is set (op_Inequality 0x673484, je 0x67349c); either way it clears
+        // the queue and publishes the exit event. No public path clears the field while the callback is pending, so the
+        // field is written directly.
+        [Test]
+        public void AnimatingToTheMenuWithoutAShownWidgetDoesNotSave()
+        {
+            foreach (bool alternative in new[] { false, true })
+                WithRig(rig =>
+                {
+                    var first = new Unlock("a", PlayerProgressionTypes.MusicTrack, rig.Calls, NewWidget(rig.Owned, "a"))
+                        { UsesAlternativeExit = alternative };
+                    LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                    rig.Container.Setup(Pending(first));
+                    Set(rig.Container, "m_currentWidget", null);
+
+                    Call(rig.Container, "<Action_AnimateToMenu>b__27_0", (UIWidgetProgression)null);
+                    Assert.That(rig.Calls, Is.EqualTo(new[] { "a:GetWidget", "a:Texture" }), "alternative " + alternative);
                     Assert.That(rig.App.GetUIModernEvents(),
                         Is.EqualTo(new[] { alternative ? rig.AlternativeExitToMenu : rig.ExitToMenu }), "alternative " + alternative);
                 });

@@ -9621,6 +9621,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerProgressionTaskTests." + 
     "AMissionOrnamentShowsTheMissionNameActZoneAndSprite",
     "AnAchievementOrnamentShowsTheAchievementTitleAndSprite",
     "AnOrnamentWithOnlyChallengeExperienceShowsTheChallengeDetails",
+    "DestroyingAContainerWithoutAnUnlockFaults",
     "TheRevealCompletionDoesNothing",
     "TheShownAnimationPublishesTheRevealEventOnce",
     "PressingTheButtonHidesItAndPublishesTheRevealEventWhenThereIsNoAnimation",
@@ -9632,6 +9633,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPlayerProgressionTests." 
     "OrnamentsBeyondTheCapAreSavedWithoutBeingShown",
     "UnlocksWithoutAWidgetArePassedOverUnsaved",
     "ASecondMissionGroupIsSkippedButASecondLevelIsShown",
+    "ASetupStartsWithAnEmptySetOfShownTypes",
+    "AMissionGroupAfterAGroupWithoutAWidgetIsStillShown",
     "UnlocksAreShownOneAtATimeAndSavedWhenContinued",
+    "ANullTextureLeavesTheMaskedImageAlone",
     "AnimatingToTheMenuSavesTheShownUnlockDropsTheRestAndPicksTheMenuEvent",
+    "AnimatingToTheMenuWithoutAShownWidgetDoesNotSave",
 ))
