@@ -153,6 +153,11 @@ namespace ProjectLucid.Tests
                 (new Vector3(10f, 0f, 0f), 5f, 30f, 0.25f, 7.5f, true),
                 (new Vector3(10f, 0f, 0f), 120f, 20f, 0.5f, 0f, false),
                 (new Vector3(0f, 0f, 10f), 5f, 20f, 0.5f, 0f, false),
+                // 0x70CDE5 compares strictly (ucomiss, jbe): a negative tolerance is exceeded by the zero angle, and the sign is
+                // taken as "angle above zero" (0x70CE13), so a zero angle turns the negative way (Mathf.Sign would turn positive).
+                (new Vector3(0f, 0f, 10f), -1f, 20f, 0.5f, -10f, true),
+                // The tolerance equal to the angle (Unity's own 90 degrees) is not exceeded: no turn, bool cleared.
+                (new Vector3(10f, 0f, 0f), Mathf.Abs(Vector3.SignedAngle(Vector3.forward, new Vector3(10f, 0f, 0f), Vector3.up)), 20f, 0.5f, 0f, false),
             })
             {
                 WithBoss((owned, boss) =>
@@ -246,6 +251,34 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The same predicate in TurnToCharacter (0x70C6A0): the zero angle against a negative tolerance turns the negative way, and a
+        // tolerance equal to the angle (Unity's own 90 degrees to a character at +X) does not turn.
+        [Test]
+        public void TurnToCharacterComparesTheAngleStrictlyAndTurnsNegativeAtZero()
+        {
+            foreach ((Vector3 character, float tolerance, float yaw, bool turning) in new[]
+            {
+                (new Vector3(0f, 0f, 10f), -1f, -10f, true),
+                (new Vector3(10f, 0f, 0f), Mathf.Abs(Vector3.SignedAngle(Vector3.forward, new Vector3(10f, 0f, 0f), Vector3.up)), 0f, false),
+            })
+            {
+                WithManager((owned, manager, characterObject) =>
+                {
+                    Boss boss = Prime(NewBoss(owned, Vector3.zero));
+                    Animator animator = AttachAnimator(owned, boss, new[] { TurningBool }, new string[0]);
+                    animator.SetBool(TurningBool, !turning);
+                    NewMovement(boss, Vector3.zero, tolerance);
+                    IFSMState state = NewState(nameof(BossState_TurnToCharacter));
+                    GiveStateAnimation(state, NewAnimationDefinition(owned, (ActorAnimationType.BoolSet, TurningBool)));
+                    MakeCurrent(manager, characterObject, character);
+
+                    UpdateState(state, boss, 0.5f);
+                    AssertNear(boss.ForwardDirection, Facing(yaw), $"character {character} tolerance {tolerance}", 1e-3f);
+                    Assert.That(animator.GetBool(TurningBool), Is.EqualTo(turning), "bool");
+                });
+            }
+        }
+
         // BossState_TurnToBossManagerTarget (0200022c, DoUpdate 0x70BF60): the angle runs to the boss's own position minus the Fourmen's average
         // position (not the reverse). The bosses at (0, 0, 0), (3, 0, 0) and (0, 0, 6) average (1, 0, 2); the first boss measures
         // (-1, 0, -2), which is -153 degrees, and the second (2, 0, -2), which is +135 degrees.
@@ -328,6 +361,13 @@ namespace ProjectLucid.Tests
                 UpdateState(state, boss, 0.5f);
                 Assert.That(animator.GetFloat(SpeedFloat), Is.EqualTo(99f), "at the target");
                 Assert.That(Has(boss, BossFSMKeys.CurrentPosition), Is.False);
+
+                // 5e-6 away is a squared distance of 2.5e-11, below the epsilon: still at the target (exact equality would move the boss).
+                movement.Target = new Vector3(5e-6f, 0f, 0f);
+                UpdateState(state, boss, 0.5f);
+                Assert.That(animator.GetFloat(SpeedFloat), Is.EqualTo(99f), "within the epsilon of the target");
+                Assert.That(Has(boss, BossFSMKeys.CurrentPosition), Is.False, "nothing stored within the epsilon");
+                Assert.That(boss.WorldPosition, Is.EqualTo(Vector3.zero), "not moved within the epsilon");
             });
         }
 
@@ -357,6 +397,31 @@ namespace ProjectLucid.Tests
                 Assert.That(Stored<Vector3>(boss, BossFSMKeys.CurrentPosition), Is.EqualTo(new Vector3(6f, 0f, 8f)));
                 Assert.That(animator.GetFloat(SpeedFloat), Is.EqualTo(100f).Within(1e-3f));
             });
+        }
+
+        // 0x707958..0x707976: the previous position falls back to the target when it equals zero under Vector3 equality (squared
+        // distance below 9.99999944E-11f), whether that zero was stored or approximate; "nothing stored" is not the test. Moving to
+        // (3, 0, 4) with a stored (0, 0, 0) or (1e-6, 0, 0) therefore gives speed 0, where the stored 1e-6 compared exactly would give 100.
+        [Test]
+        public void MoveToTargetTreatsAStoredApproximatelyZeroPreviousPositionAsTheTarget()
+        {
+            foreach (Vector3 stored in new[] { Vector3.zero, new Vector3(1e-6f, 0f, 0f) })
+            {
+                WithBoss((owned, boss) =>
+                {
+                    GiveDefinition(owned, boss, new BossTraits());
+                    Animator animator = AttachAnimator(owned, boss, new string[0], new[] { SpeedFloat });
+                    animator.SetFloat(SpeedFloat, 99f);
+                    IFSMState state = NewState(nameof(BossState_MoveToTarget));
+                    GiveStateAnimation(state, NewAnimationDefinition(owned, (ActorAnimationType.Boss_Speed, SpeedFloat)));
+                    NewMover(boss, new Vector3(3f, 0f, 4f));
+                    boss.Storage.SetValue(BossFSMKeys.CurrentPosition, stored);
+
+                    UpdateState(state, boss, 0.5f);
+                    Assert.That(animator.GetFloat(SpeedFloat), Is.EqualTo(0f).Within(1e-3f), "stored " + stored);
+                    Assert.That(Stored<Vector3>(boss, BossFSMKeys.CurrentPosition), Is.EqualTo(new Vector3(3f, 0f, 4f)));
+                });
+            }
         }
 
         // 0x7077D0 (momentum): the target vector is the horizontal velocity (y dropped); the boss is not moved, nothing is stored, and the
@@ -403,6 +468,28 @@ namespace ProjectLucid.Tests
                         "smoothed " + smoothed);
                 });
             }
+        }
+
+        // 0x707509..0x707521: the direction is taken through the host transform's InverseTransformPoint. With the host yawed 90 degrees
+        // (the Actor's own rotation stays the identity) the local offset of (3, 0, 4) is (-4, 0, 3), normalised (-0.8, 0, 0.6), so with
+        // the multiplier 2 the rotator gets Euler (-1.6, 0, 0.6), not the world-space (1.2, 0, 0.8) or an offset from the host position.
+        [Test]
+        public void MoveToTargetTakesTheTargetIntoTheHostTransformsLocalSpace()
+        {
+            WithBoss((owned, boss) =>
+            {
+                GiveDefinition(owned, boss, new BossTraits { UsesSmoothedTransformRotator = true });
+                AttachAnimator(owned, boss, new string[0], new[] { SpeedFloat });
+                SmoothedTransformRotator rotator = owned.Host("Lucid boss rotator", false).AddComponent<SmoothedTransformRotator>();
+                Call(rotator, "Initialise"); // Awake does not run in Edit Mode; this is its body (it caches the transform).
+                Set(boss, "m_smoothedTransformRotator", rotator); // serialized scene reference
+                ScriptedMovement movement = NewMover(boss, new Vector3(3f, 0f, 4f));
+                movement.AngleMultiplier = 2f;
+                boss.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+
+                UpdateState(NewState(nameof(BossState_MoveToTarget)), boss, 0.5f);
+                Assert.That(Quaternion.Angle(rotator.transform.localRotation, Quaternion.Euler(-1.6f, 0f, 0.6f)), Is.LessThan(1e-2f));
+            });
         }
 
         // DoOnLeave 0x707CE0: leaving stops the boss.
@@ -493,7 +580,7 @@ namespace ProjectLucid.Tests
 
         // ---- BossState_Scuttle ----
 
-        private static BossAbility_Scuttle NewScuttle(Owned owned, Boss boss)
+        private static BossAbility_Scuttle NewScuttle(Owned owned, Boss boss, AnimationCurve fullSpeedCurve = null)
         {
             var scuttle = NewAbility<BossAbility_Scuttle>(boss, NewDefinition<BossAbilityDefinition_MovementScuttle>(owned, d =>
             {
@@ -504,7 +591,7 @@ namespace ProjectLucid.Tests
                 d.ScuttleDestinationReachedSeconds = 0.2f;
                 d.FaceAngleTolerance = 5f;
                 d.TurnSpeed = 20f;
-                d.FullSpeedCurve = AnimationCurve.Linear(0f, 0f, 10f, 10f);
+                d.FullSpeedCurve = fullSpeedCurve ?? AnimationCurve.Linear(0f, 0f, 10f, 10f);
                 d.TargetDistanceForFullSpeed = 4f;
             }));
             AddAbility(boss, scuttle);
@@ -544,12 +631,65 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x7088D6..0x7088E9: the target is taken into local space through the host transform (InverseTransformPoint), not the Actor's
+        // rotation or the raw target. With the host yawed 90 degrees the local target of (4, 0, -9) is (9, 0, 4): normalised distances
+        // 81/16 = 5.0625 and 16/16 = 1, both positive, and the local velocity (10.125, 0, 2) rotated by the 10 degree turn towards the
+        // character is (10.318475, 0, 0.211428).
+        [Test]
+        public void ScuttleTakesTheTargetIntoTheHostTransformsLocalSpace()
+        {
+            WithManager((owned, manager, characterObject) =>
+            {
+                Boss boss = Prime(NewBoss(owned, new Vector3(0f, 2f, 0f)));
+                GiveDefinition(owned, boss, new BossTraits());
+                Animator animator = AttachAnimator(owned, boss, new string[0], new[] { XFloat, ZFloat });
+                BossAbility_Scuttle scuttle = NewScuttle(owned, boss);
+                IFSMState state = NewState(nameof(BossState_Scuttle));
+                GiveStateAnimation(state, NewAnimationDefinition(owned,
+                    (ActorAnimationType.Boss_XDirection, XFloat), (ActorAnimationType.Boss_ZDirection, ZFloat)));
+                MakeCurrent(manager, characterObject, new Vector3(10f, 0f, 0f));
+                boss.Storage.SetValue(BossFSMKeys.DesiredMovementPosition, new Vector3(4f, 0f, -9f));
+                scuttle.Update(0.1f);
+                boss.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+
+                UpdateState(state, boss, 0.5f);
+                Assert.That(animator.GetFloat(XFloat), Is.EqualTo(5.0625f).Within(1e-4f), "x direction");
+                Assert.That(animator.GetFloat(ZFloat), Is.EqualTo(1f).Within(1e-4f), "z direction");
+                AssertNear(boss.WorldVelocity, new Vector3(10.318475f, 0f, 0.211428f), "world velocity", 1e-3f);
+            });
+        }
+
+        // 0x7089A0..0x7089EC: only a positive local axis keeps its sign (ucomiss, ja); zero is negated. The curve (0, 1) to (10, 11) gives
+        // 1 at zero, so the local x of 0 has the speed 1 * 2 = 2, negated to -2, where ">= 0" would give +2. Local z = 4 is 16/16 = 1,
+        // curve 2, speed 4. The character straight ahead needs no turn.
+        [Test]
+        public void ScuttleNegatesAZeroLocalAxis()
+        {
+            WithManager((owned, manager, characterObject) =>
+            {
+                Boss boss = Prime(NewBoss(owned, Vector3.zero));
+                GiveDefinition(owned, boss, new BossTraits());
+                AttachAnimator(owned, boss, new string[0], new[] { XFloat, ZFloat });
+                BossAbility_Scuttle scuttle = NewScuttle(owned, boss, AnimationCurve.Linear(0f, 1f, 10f, 11f));
+                IFSMState state = NewState(nameof(BossState_Scuttle));
+                GiveStateAnimation(state, NewAnimationDefinition(owned,
+                    (ActorAnimationType.Boss_XDirection, XFloat), (ActorAnimationType.Boss_ZDirection, ZFloat)));
+                MakeCurrent(manager, characterObject, new Vector3(0f, 0f, 10f));
+                boss.Storage.SetValue(BossFSMKeys.DesiredMovementPosition, new Vector3(0f, 0f, 4f));
+                scuttle.Update(0.1f);
+
+                UpdateState(state, boss, 0.5f);
+                AssertNear(boss.WorldVelocity, new Vector3(-2f, 0f, 4f), "world velocity", 1e-3f);
+            });
+        }
+
         // 0x708BE0: the ray runs down the boss's gravity from the boss's position for (y + 20) * 2, and the boss is placed at the height
-        // of the hit (kept when nothing is hit). From y = 2 that is 44: a track whose top is 30 below is found, one 50 below is not.
+        // of the hit (kept when nothing is hit). From y = 2 that is 44: tracks whose top is 30 or 41 below are found (a constant 40 or
+        // y + 40 misses the second), one 50 below is not.
         [Test]
         public void ScuttleDropsTheBossOntoTheTrackWithinTheRayLength()
         {
-            foreach ((float trackTop, float expectedY) in new[] { (-30f, -30f), (-50f, 2f) })
+            foreach ((float trackTop, float expectedY) in new[] { (-30f, -30f), (-41f, -41f), (-50f, 2f) })
             {
                 WithManager((owned, manager, characterObject) =>
                 {
@@ -656,6 +796,13 @@ namespace ProjectLucid.Tests
             });
         }
 
+        private static LaserRig NewStaticLaserRig(Owned owned, params Vector3[] emitterPositions) =>
+            NewLaserRig(owned, d =>
+            {
+                d.HasStaticTargets = true;
+                d.LaserTarget = new Vector3(5f, 6f, 7f);
+            }, emitterPositions);
+
         private static LineRenderer AddLine(GameObject emitter, Vector3 start, Vector3 end)
         {
             var line = emitter.AddComponent<LineRenderer>();
@@ -688,6 +835,44 @@ namespace ProjectLucid.Tests
                 LineRenderer line = AddLine(trio.Emitters[0], new Vector3(1f, 2f, 3f), new Vector3(4f, 5f, 6f));
                 UpdateState(NewState(nameof(BossState_ShootLasers)), trio.Rig.Bosses[0], 0.5f);
                 Assert.That(Positions(line), Is.EqualTo(new[] { new Vector3(0f, 2f, 0f), new Vector3(5f, 5f, 7f) }));
+            });
+        }
+
+        // 0x70ACD4..0x70ACF0: DoUpdate repeats the entry guards. The second boss of a pair, and a boss whose fence is disabled, leave the
+        // laser positions untouched (static targets would otherwise rewrite them to (0, 2, 0) and (5, 5, 7)).
+        [Test]
+        public void ShootLasersUpdateSkipsTheSecondBossOfAPairAndADisabledFence()
+        {
+            Vector3[] untouched = { new Vector3(1f, 2f, 3f), new Vector3(4f, 5f, 6f) };
+            Owned.Run(owned =>
+            {
+                LaserRig pair = NewStaticLaserRig(owned, Vector3.zero, new Vector3(3f, 0f, 4f));
+                LineRenderer line = AddLine(pair.Emitters[1], untouched[0], untouched[1]);
+                UpdateState(NewState(nameof(BossState_ShootLasers)), pair.Rig.Bosses[1], 0.5f);
+                Assert.That(Positions(line), Is.EqualTo(untouched), "second boss of a pair");
+            });
+
+            Owned.Run(owned =>
+            {
+                LaserRig trio = NewStaticLaserRig(owned, Vector3.zero, new Vector3(3f, 0f, 4f), new Vector3(6f, 0f, 8f));
+                LineRenderer line = AddLine(trio.Emitters[0], untouched[0], untouched[1]);
+                Get<Dictionary<ActorAbilityType, ActorAbility>>(trio.Rig.Bosses[0], "m_abilities")[StateAbility].Leave();
+                UpdateState(NewState(nameof(BossState_ShootLasers)), trio.Rig.Bosses[0], 0.5f);
+                Assert.That(Positions(line), Is.EqualTo(untouched), "disabled fence");
+            });
+        }
+
+        // 0x70B040..0x70B048: leaving tests only that the ability exists, so a disabled fence still switches its lasers off.
+        [Test]
+        public void ShootLasersLeaveSwitchesTheLasersOffEvenWhileTheFenceIsDisabled()
+        {
+            Owned.Run(owned =>
+            {
+                LaserRig trio = NewLaserRig(owned, null, Vector3.zero, new Vector3(3f, 0f, 4f), new Vector3(6f, 0f, 8f));
+                Get<Dictionary<ActorAbilityType, ActorAbility>>(trio.Rig.Bosses[0], "m_abilities")[StateAbility].Leave();
+                trio.Emitters[0].SetActive(true);
+                Leave(NewState(nameof(BossState_ShootLasers)), trio.Rig.Bosses[0]);
+                Assert.That(trio.Emitters[0].activeSelf, Is.False);
             });
         }
 
