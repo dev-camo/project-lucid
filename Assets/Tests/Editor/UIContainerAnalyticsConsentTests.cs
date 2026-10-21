@@ -75,6 +75,7 @@ namespace ProjectLucid.Tests
             {
                 // Reflection: AppInitialiseProcess also wires the SaveManager; only the GameCenter reference is needed.
                 Set(manager, "m_gameCenterRef", ProcessManager.GetSystemRef<GameCenter>());
+                Set(page, "m_analyticsConsentManager", manager); // Reflection: the field Start assigns, which this case does not run
                 Assert.That(manager.IsPlayerUnderage(), Is.True);
                 page.ConsentState.Value = AnalyticsConsentState.Consented;
 

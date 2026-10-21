@@ -9,6 +9,7 @@ using Hardlight.Enums;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
 using UnityEngine.TestTools;
 using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
@@ -261,6 +262,7 @@ namespace ProjectLucid.Tests
             {
                 StartMission(rig);
                 GameplayLevelDefinition level = rig.Missions.CurrentLevel.LevelDefinition;
+                WithoutLevelImage(level);
                 GameplayLevelDefinition before = NewLevel(rig.Owned, "lucid-pause-before");
                 GameplayLevelDefinition after = NewLevel(rig.Owned, "lucid-pause-after");
                 var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
@@ -307,14 +309,19 @@ namespace ProjectLucid.Tests
             RunMissions(rig =>
             {
                 StartMission(rig);
+                GameplayLevelDefinition level = rig.Missions.CurrentLevel.LevelDefinition;
+                WithoutLevelImage(level);
                 var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
                 Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { level });
+                Cache(zone.ZoneAccent, NewSprite(rig.Owned));
+                Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
+                // The zone lookup finds the level through the cached level table; its entry list is then replaced, so the loop runs out.
+                rig.Levels.CacheLevels();
                 Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry>
                 {
                     NewLevel(rig.Owned, "lucid-pause-other-a"), NewLevel(rig.Owned, "lucid-pause-other-b"),
-                });
-                Cache(zone.ZoneAccent, NewSprite(rig.Owned));
-                Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
+                }); // Reflection: authored list of a serialized definition
                 Set(rig.Container, "m_levelManager", rig.Missions.Level);
                 rig.Container.DreamNumber.Value = 5;
 
@@ -333,6 +340,7 @@ namespace ProjectLucid.Tests
             {
                 StartMission(rig);
                 GameplayLevelDefinition level = rig.Missions.CurrentLevel.LevelDefinition;
+                WithoutLevelImage(level);
                 var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
                 Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
                 Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry>
@@ -348,6 +356,10 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.DreamNumber.Value, Is.EqualTo(2));
             });
         }
+
+        // A serialized level with no loading image key: its image callback publishes no image.
+        private static void WithoutLevelImage(GameplayLevelDefinition level) =>
+            Set(level, "m_loadingImageReference", new AssetReferenceT<Sprite>("")); // Reflection: serialized reference, which a definition created in code lacks
 
         private static GameplayLevelDefinition NewLevel(Owned owned, string guid)
         {

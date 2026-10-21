@@ -99,7 +99,11 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<CinemachineCameraManager>(rig.Background, "m_cinemachineCameraManager") == null, Is.True);
                 Assert.That(IsSubscribed(rig), Is.False);
 
-                rig.Owned.Register(rig.Cameras.Manager);
+                // The row was leased empty and now holds the background's deferred callback, so Owned.Register (which borrows only an idle row)
+                // is not used: the manager goes into the leased row itself and leaves it before the lease checks it idle.
+                string rowName = ProcessManager.GetDefaultName<CinemachineCameraManager>();
+                ProcessManager.RegisterSystem(rig.Cameras.Manager, rowName);
+                rig.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnregisterSystem(rowName)));
 
                 Assert.That(Get<CinemachineCameraManager>(rig.Background, "m_cinemachineCameraManager"), Is.SameAs(rig.Cameras.Manager));
                 Assert.That(IsSubscribed(rig), Is.True);
