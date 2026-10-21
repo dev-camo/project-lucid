@@ -153,7 +153,7 @@ namespace ProjectLucid.Tests
                 (new Vector3(10f, 0f, 0f), 5f, 30f, 0.25f, 7.5f, true),
                 (new Vector3(10f, 0f, 0f), 120f, 20f, 0.5f, 0f, false),
                 (new Vector3(0f, 0f, 10f), 5f, 20f, 0.5f, 0f, false),
-                // 0x70CDE5 compares strictly (ucomiss, jbe): a negative tolerance is exceeded by the zero angle, and the sign is
+                // 0x70CDEE compares strictly (ucomiss, jbe): a negative tolerance is exceeded by the zero angle, and the sign is
                 // taken as "angle above zero" (0x70CE13), so a zero angle turns the negative way (Mathf.Sign would turn positive).
                 (new Vector3(0f, 0f, 10f), -1f, 20f, 0.5f, -10f, true),
                 // The tolerance equal to the angle (Unity's own 90 degrees) is not exceeded: no turn, bool cleared.
