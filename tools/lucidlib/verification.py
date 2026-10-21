@@ -9835,3 +9835,63 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerOrnamentGalleryTests." + 
     "DestroyingTheGalleryDestroysTheOrnamentAndRequestsASave",
     "TheCountChangedEventAddsAndRemovesHandlers",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionProgressTests." + name for name in (
+    "TheParametersKeepTheirInstancedTracker",
+    "DeclarationKeepsTheAuthoredDefaults",
+    "TheGettersReadTheirSerializedFlags",
+    "EnablingHidesTheGroupUnlessTheContainerIsAlwaysDisplayed",
+    "TheProgressIconReplacesTheTextAndTheObjectiveIconOnlyWhileTheObjectivesAreIncomplete",
+    "HideWaitsOutTheDisplayTimeThenFadesTheGroupAndDeactivatesTheContainer",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionBaseTests." + name for name in (
+    "WithoutAnActiveContextTheNameIsTheFormattedMissionName",
+    "OnlyTheActiveMissionTakesTheContextsDescription",
+    "TheStringTableHandlerIsHeldOnceAndAppliesTheStateAgain",
+    "ParametersWithoutAMissionStateWriteNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionFailureTests." + name for name in (
+    "TheStoredMessageReplacesTheDefaultOnlyWhenItIsPresentAndNotZero",
+    "ExitClearsTheMessageDropsTheMissionQueuesTheEventAndShowsNoFailureScreen",
+    "ExitAndRestartRunOnlyOnceBetweenThem",
+    "RestartClearsTheMessageAndLeavesTheExitEventAndFlagAlone",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionRanksTests." + name for name in (
+    "TheRankTimesCountDownFromTheTotalTimeWhenTheMissionFailsOnTheTimeLimit",
+    "EachRankFillsItsOwnTextAndIconsWhichTheContainerReleasesWhenDestroyed",
+    "ARankOfNoDisplayedTypeFillsNothing",
+    "AChallengeShowsItsScoresWhateverTheMission",
+    "WithoutRanksToShowTheContainerHidesThem",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionResultsTests." + name for name in (
+    "TheParametersKeepTheMissionAndTheLevel",
+    "AMissionIsValidOnlyWhenEveryConditionHolds",
+    "TheValidSubMissionsComeBeforeTheMissionItself",
+    "SetupBuildsAProgressContainerForEachValidMissionAndOnDestroyClosesTheirIdentifiers",
+    "TheShortContainerIsUsedWhenAskedAndWithoutCachedDataThePreviousProgressIsZero",
+    "WithoutAValidMissionNothingIsBuiltAndShowIsFalse",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionScorerTests." + name for name in (
+    "DeclarationBuildsTheScoreTextsAndDelaysShowingPoints",
+    "EnablingHidesTheRootAndDelaysShowingPointsAgain",
+    "ClearValuesSetsTheRootsActiveState",
+    "ShowPointsFollowsTheScorersTwoTimersOnceTheDelayIsOver",
+    "NothingIsInitialisedWithoutASetUpActiveMission",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionMusicPlayerTests." + name for name in (
+    "EnablingUnlocksTheControlsAndKeepsTheBackgroundSource",
+    "WithoutTheBackgroundSourceEnablingDoesNothing",
+    "SeekingMutesTheSourceUntilTheSeekFinishes",
+    "TurningRepeatOffClearsTheLoopingWithoutTouchingTheShuffleToggle",
+    "SwitchingPlayOffDoesNothing",
+    "UpdateShowsTheSourceTime",
+    "TheClipLengthIsTheTotalTimeFormattedAsMinutesAndSeconds",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionSelectTests." + name for name in (
+    "ASavedNewStateIsReturnedOnlyForAMissionSomeGroupHolds",
+    "AMissionShowsUnlockedOnlyOnceItIsComplete",
+    "TheRankIconsFollowTheRankTheBestTimeEarns",
+    "AMissionWithoutRanksHidesTheRankIcons",
+    "AMissionWithoutALeaderboardShowsNoLeaderboards",
+    "WithoutANavigationManagerOrAnActiveWidgetNavigationIsSkipped",
+    "DestroyingTheContainerUnloadsItsZoneAccent",
+))
