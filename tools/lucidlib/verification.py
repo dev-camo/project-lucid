@@ -7873,3 +7873,66 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.TimeMachineMixerPlayModeTests." + na
     "LaterClipsInTheSameFrameOverrideEarlierTimeChanges",
     "AnInputClipWithADirectorPausesItAndIsMarkedExecuted",
 ))
+
+# Restored timeline-time components: time-scaled components, manipulator, director, timeline events, hooks.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimeScaledComponentTests." + name for name in (
+    "EmissionCheck_ShaderDefaultsAndEditorTypeKeepTheirDeclarations",
+    "TheShaderPublishesTheAccumulatedScaledTime",
+    "TheShaderRestartsFromZeroOnlyAfterPassingTheMaximum",
+    "TheShaderResetSynchroniseZeroesTheAccumulatedTime",
+    "OnlyTheFirstCinemachineCoreBecomesTheInstanceAndSubscribes",
+    "TheCinemachineCoreOverridesCinemachineTimeWithTheScaledTime",
+    "DisablingTheCinemachineCoreRestoresTheOverridesAndFreesTheInstance",
+    "TheBlendShapeTakesItsLengthFromTheLastKeyWhenValidated",
+    "TheBlendShapeDrivesShapeZeroAndStopsAtTheLength",
+    "PlayRestartsTheBlendAndDisablingResetsTheShape",
+    "TheBlendShapeDoesNothingWithoutACurveOrARenderer",
+    "TheAnimatorIsValidOnlyWhileItHasAnAnimator",
+    "AValidAnimatorSubscribesWhenInitialised",
+    "TheAnimatorSpeedIsWrittenOnlyWhenTheScaleChanges",
+    "PausingDisablesTheAnimatorAndResumingRestoresItOnlyIfItWasEnabled",
+    "TheAnimationIsValidOnlyWhileItHasAnAnimationAndSubscribesThen",
+    "PlayClipAssignsTheClipAndTheScaleStartsAtOne",
+    "AnIdleAnimationKeepsItsStateSpeeds",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimeScaledPlayableDirectorTests." + name for name in (
+    "ResetFindsTheSiblingDirector",
+    "AwakeSwitchesToManualUpdateAndPlaysOnlyWhenAsked",
+    "PlayRestartsFromZeroAndSubscribesOnce",
+    "StopUnsubscribesAndRewinds",
+    "ReachingTheAssetsDurationEndsThePlayback",
+    "IsPausedIsAPlainProperty",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimeManipulatorTests." + name for name in (
+    "ScaleTimeBlendsAlongTheCurveThenSettlesOnTheLastKey",
+    "ScaleTimeWithResetAfterSkipsTheFinalBlendAndCleansUp",
+    "AnInstantCurveStepsOnceBeforeSettling",
+    "CleanUpKeepsTheHandleWhileTheManagerIsAbsent",
+    "ApplyTimeScalingStoresTheCallbackThenNeedsTheCoroutineHost",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimelineEventTests." + name for name in (
+    "PlayInvokesTheNamedMethodOnTheTargetsComponent",
+    "ASingleParameterMethodReceivesTheConvertedArgumentValue",
+    "AMethodWithTheWrongParameterCountIsNeverCalled",
+    "NothingResolvesInEditModeUnlessTheClipAsksForIt",
+    "LaterFramesPlayOnlyWhenTimeAdvances",
+    "TheResolvedInformationIsKeptWhileTheKeyIsUnchanged",
+    "ANoneKeyResolvesNothingAndDropsTheCachedInformation",
+    "UnresolvableKeysFaultWithTheirOwnMessages",
+    "TheClipHoldsAFreshBehaviourAndCreatesItsPlayable",
+    "TheTrackHandsItsBoundObjectToEveryEventClip",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimeManagerHelperTests." + name for name in (
+    "TheSpeedSettingIndexIsTheFirstSettingTheTimeScaleExceeds",
+    "SpeedingUpSelectsTheNextFasterSettingAndStopsAtTheFirst",
+    "SlowingDownSelectsTheNextSlowerSettingAndStopsAtTheLast",
+    "TheGamePauseToggleResumesFromZeroAndPausesOtherwise",
+    "TheButtonLabelIsBoldOnlyForTheOverriddenSetting",
+    "StartSubscribesToTheSaveLoadedAndSavedEvents",
+    "ASaveStoresTheSavedGameSpeedInTheTimeManager",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimelineHookTests." + name for name in (
+    "EmissionCheck_HookWrapperAndSequencedEventKeepTheirFlagsFieldsAndMethods",
+    "TheHooksRaiseTheirEventsOnlyWhenAssigned",
+    "EndingOrSkippingTheVideoStopsItAndRaisesTheCompletedEvent",
+))
