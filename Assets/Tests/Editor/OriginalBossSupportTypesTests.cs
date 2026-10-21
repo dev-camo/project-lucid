@@ -330,8 +330,11 @@ namespace ProjectLucid.Tests
 
                     Assert.DoesNotThrow(() => burstable.RegisterHitPlayer(DamageAction.HardFailure, HazardType.BossDamageDealer));
 
-                    // The boss looks the target up in its homing-target dictionary, which is empty here: the
-                    // lookup fails, so the call did reach Boss.ReceiveHit(HomingTarget).
+                    // The boss looks the target up in its homing-target dictionary (a plain indexer in
+                    // Boss.ReceiveHit(HomingTarget)), which is empty here: the lookup fails, so the call
+                    // did reach Boss.ReceiveHit(HomingTarget). This probe relies on that KeyNotFoundException path and
+                    // on the private body entry (its destroyed flag makes the later call a no-op); Boss's own
+                    // registration happens in its Awake from authored body components, which is out of reach here.
                     Assert.Throws<KeyNotFoundException>(() => burstable.ReceiveHit(target.GetComponent<BoxCollider>()));
                     var bodyType = typeof(Boss).GetNestedType("BossBodyComponents", BindingFlags.NonPublic);
                     var lookup = (IDictionary)Get(boss, "m_homingTargetDictionary");
@@ -909,6 +912,8 @@ namespace ProjectLucid.Tests
                         Call(rig.Visuals, "Awake");
                         if (!down) rig.Boss.position = new Vector3(1f, 4f, 3f);
                         float delta = rig.Time.GetDeltaTime(TimeCategory.EnemyMovement);
+                        // With no engine delta nothing moves and both directions would pass vacuously.
+                        if (delta <= 0f) Assert.Inconclusive("Edit Mode reports no EnemyMovement delta time.");
                         float fraction = delta / 4f;
                         float start = down ? 10f : 4f;
                         float target = down ? 4f : 10f;
@@ -1053,11 +1058,13 @@ namespace ProjectLucid.Tests
                     Set(rig.Visuals, "m_materialRenderer", renderer);
                     Material first = NewMaterial(owned);
                     Material second = NewMaterial(owned);
+                    Material sentinel = NewMaterial(owned);
+                    renderer.sharedMaterial = sentinel;
 
                     var waiting = (IEnumerator)Call(rig.Visuals, "FlashBetweenFaces", first, second, -1f);
                     Assert.That(waiting.MoveNext(), Is.True);
                     Assert.That(waiting.Current, Is.Null);
-                    Assert.That(renderer.sharedMaterial, Is.Not.EqualTo(first), "no face before the TimeManager arrives");
+                    Assert.That(renderer.sharedMaterial, Is.EqualTo(sentinel), "no face before the TimeManager arrives");
 
                     Call(rig.Visuals, "Awake");
                     // A negative interval is always exceeded, so every step swaps, starting from the first face.

@@ -20,7 +20,6 @@ namespace HardlightProject
         // 06000b66: the axis amount is ignored.
         private void OnBossInfo(float amount) => ToggleDebugInfo();
 
-        // 06000b67.
         private void OnDestroy() => ControlMapping.Unsubscribe(GameInput.BossDebugInfo, OnBossInfo, -1);
     }
 }

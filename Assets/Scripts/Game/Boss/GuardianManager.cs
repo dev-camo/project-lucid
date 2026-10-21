@@ -21,7 +21,6 @@ namespace HardlightProject
         private EggpawnRestPoints[] m_eggpawnRestPoints;
         public Action FinalHitReady;
 
-        // 06000caf.
         private void Awake() => ProcessManager.RegisterSystem(this, null, false, false);
 
         // 06000cb0: claims the first unoccupied rest point.
@@ -38,10 +37,8 @@ namespace HardlightProject
             return false;
         }
 
-        // 06000cb1.
         public void BossReadyForFinalHit() => FinalHitReady?.Invoke();
 
-        // 06000cb2.
         private void OnDestroy() => ProcessManager.UnregisterSystem(this);
     }
 }

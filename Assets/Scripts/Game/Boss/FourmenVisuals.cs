@@ -39,16 +39,15 @@ namespace HardlightProject
         private Coroutine m_faceCoroutine;
         private TimeManager m_timeManager;
 
-        // 06002267: the drill range and rotation time come from the boss' starting height.
+        // 06002267: the surface and maximum drill depth come from the boss' starting height; the rotation time is the drill duration times its multiplier.
         protected void Awake()
         {
             m_surfaceDepth = m_boss.transform.position.y;
             m_maxDepth = m_surfaceDepth - m_depthToDrill;
-            m_rotateDuration = (float)(m_drillDuration * m_rotationDurationMultiplier);
+            m_rotateDuration = m_drillDuration * m_rotationDurationMultiplier;
             ProcessManager.GetSystemRef<TimeManager>(null, true).InvokeOnValid(manager => m_timeManager = manager);
         }
 
-        // 06002268.
         private void Start() => m_dangerousBossIndicator.StartEffect();
 
         // 06002269: the rotator spins backwards while drilling down.
@@ -94,10 +93,8 @@ namespace HardlightProject
             bossTransform.position = finalPosition;
         }
 
-        // 0600226b.
         public void OpenHelmet() => m_animation.Play(m_openAnimName);
 
-        // 0600226c.
         public void CloseHelmet() => m_animation.Play(m_closeAnimName);
 
         // 0600226d..06002272: each face change first stops any running flash.
@@ -157,16 +154,15 @@ namespace HardlightProject
             }
         }
 
-        // 06002274.
+        // 0x579E24 passes StopEmitting (1), so live particles fade out instead of being cleared.
         public void SetDangerousParticlesActive(bool active)
         {
             if (active)
                 m_dangerousBossIndicator.StartEffect();
             else
-                m_dangerousBossIndicator.StopEffect(ParticleSystemStopBehavior.StopEmittingAndClear);
+                m_dangerousBossIndicator.StopEffect(ParticleSystemStopBehavior.StopEmitting);
         }
 
-        // 06002275.
         protected void OnDisable()
         {
             this.SafeStopCoroutine(ref m_drillCoroutine);

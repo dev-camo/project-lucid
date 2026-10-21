@@ -19,7 +19,6 @@ namespace HardlightProject
                 pool.ForceDespawnAllObjects();
         }
 
-        // 06000b62.
         private void OnDestroy() => DespawnAttackWaves();
     }
 }

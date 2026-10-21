@@ -93,15 +93,13 @@ namespace HardlightProject
             }
         }
 
-        // 06003de2.
         protected override void OnDisable()
         {
             base.OnDisable();
-            if (m_instantiated && m_instantiatedTargetIndicator != null)
-                m_instantiatedTargetIndicator.gameObject.SetActive(false);
+            if (!m_instantiated || m_instantiatedTargetIndicator == null) return;
+            m_instantiatedTargetIndicator.gameObject.SetActive(false);
         }
 
-        // 06003de3.
         protected override void OnEnable()
         {
             base.OnEnable();
