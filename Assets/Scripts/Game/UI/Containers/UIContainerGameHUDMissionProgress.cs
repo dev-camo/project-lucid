@@ -72,9 +72,8 @@ namespace HardlightProject
         private void SetupMissionUI(MissionManager missionManager)
         {
             SetupActiveMissionsUI();
-            foreach (KeyValuePair<MissionDefinition, UIContainerMissionProgress> pair in m_activeMissionContainersByDefinition)
+            foreach ((MissionDefinition _, UIContainerMissionProgress container) in m_activeMissionContainersByDefinition)
             {
-                UIContainerMissionProgress container = pair.Value;
                 if (!container.OnlyShowWhenMissionIslandActive)
                     continue;
                 missionManager.OnMissionIslandActive += OnMissionIslandActive;
@@ -124,9 +123,8 @@ namespace HardlightProject
         // 0x0600328d (0x635080): the island-bound containers are shown only for the tracker of the active island mission.
         private void OnMissionIslandActive(MissionState missionState)
         {
-            foreach (KeyValuePair<MissionDefinition, UIContainerMissionProgress> pair in m_activeMissionContainersByDefinition)
+            foreach ((MissionDefinition _, UIContainerMissionProgress container) in m_activeMissionContainersByDefinition)
             {
-                UIContainerMissionProgress container = pair.Value;
                 if (!container.OnlyShowWhenMissionIslandActive)
                     continue;
                 container.gameObject.SetActive(container.InstancedTracker == missionState.Tracker);
@@ -144,10 +142,10 @@ namespace HardlightProject
             else
             {
                 MissionType missionType = tracker.Definition.Type;
-                foreach (KeyValuePair<MissionDefinition, UIContainerMissionProgress> pair in m_activeMissionContainersByDefinition)
+                foreach ((MissionDefinition definition, UIContainerMissionProgress groupMember) in m_activeMissionContainersByDefinition)
                 {
-                    if (pair.Key.Type == missionType)
-                        pair.Value.Refresh();
+                    if (definition.Type == missionType)
+                        groupMember.Refresh();
                 }
             }
         }

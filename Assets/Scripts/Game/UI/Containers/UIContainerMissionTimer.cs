@@ -115,7 +115,7 @@ namespace HardlightProject
             else
             {
                 lowTimeRemaining = m_isTimeTrial && m_lowTimeRemainingThresholdSeconds > timeRemaining;
-                displayedSeconds = (float)(m_missionTimer.GetTimeLimitSeconds() - timeRemaining);
+                displayedSeconds = m_missionTimer.GetTimeLimitSeconds() - timeRemaining;
             }
             TimeSpan displayedTime = TimeSpan.FromSeconds(displayedSeconds);
             string minutes = ((int)displayedTime.TotalMinutes).ToString("D2");

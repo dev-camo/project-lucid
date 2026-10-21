@@ -15,9 +15,9 @@ namespace ProjectLucid.Tests
     // UIContainerMissionTimer (Game.Runtime 0x020008ea; OnEnable 0x668A20, Update 0x668AB0, SetPauseState 0x669380, ClearValues
     // 0x668A60, TryInitialise 0x668F60, OnBonusTimeAdded 0x669400, OnDestroy 0x669480, constructor 0x6695B0) over a real mission
     // manager with an active mission whose state holds a real instanced tracker and a real MissionTimer (driven through its own
-    // start and update step). The time format is "{0}|{1}|{2}". Not covered: OnBonusTimeAdded and the bonus text's fade shape,
-    // because the bonus animation's Play and the frame time are engine behaviour (the fade is checked at its two ends only, with
-    // the display countdown written directly, since it is set by OnBonusTimeAdded alone).
+    // start and update step). The time format is "{0}|{1}|{2}". Not covered: the bonus text's fade shape between its two ends,
+    // because the frame time is engine behaviour (the fade is checked at its two ends only, with the display countdown written
+    // directly). The bonus animation plays an empty clip.
     public sealed class UIContainerMissionTimerTests
     {
         private static readonly Dictionary<Strings, string> OwnedStrings = new Dictionary<Strings, string>
@@ -282,6 +282,67 @@ namespace ProjectLucid.Tests
 
                 Assert.That(rig.TimerText.text, Is.EqualTo("00|07|75"));
                 Assert.That(rig.TimerText.color, Is.EqualTo(Alternate));
+            });
+        }
+
+        // The minutes are the whole minutes of the total (get_TotalMinutes at 0x668D13, cvttsd2si at 0x668D18), not the minutes
+        // component of a time span: 3700 s remaining is 61 minutes 40 seconds, where an hours-aware minutes field would read 01.
+        [Test]
+        public void MinutesPastAnHourAreTheWholeMinutesOfTheTotal()
+        {
+            Run(rig =>
+            {
+                Set(rig.Timer, "m_timeLimit", 4000f); // Reflection: serialized option
+                StartAndRun(rig, 300f);
+
+                Call(rig.Container, "Update");
+
+                Assert.That(rig.TimerText.text, Is.EqualTo("61|40|00"));
+            });
+        }
+
+        // The low-time test is strict (ucomiss then seta at 0x668CCD, and 0x668F17 for the count-up case): a time remaining exactly
+        // on the threshold is not low.
+        [Test]
+        public void ATimeRemainingOnTheThresholdIsNotLow()
+        {
+            Run(rig =>
+            {
+                Set(rig.Container, "m_lowTimeRemainingThresholdSeconds", 7.75f); // Reflection: serialized option
+                StartAndRun(rig, 52.25f); // exactly 7.75 s remain
+
+                Call(rig.Container, "Update");
+
+                Assert.That(rig.TimerText.color, Is.EqualTo(Normal));
+            });
+            Run(rig =>
+            {
+                Set(rig.Container, "m_lowTimeRemainingThresholdSeconds", 7.75f); // Reflection: serialized option
+                StartAndRun(rig, 52.25f);
+
+                Call(rig.Container, "Update");
+
+                Assert.That(rig.TimerText.color, Is.EqualTo(Normal), "counting up in a time trial");
+            }, countsDown: false, timeTrial: true);
+        }
+
+        // OnBonusTimeAdded 0x669400: the bonus text is switched on and shows the amount in the bonus format, and its display
+        // countdown starts from the full duration.
+        [Test]
+        public void BonusTimeShowsTheAmountAndRestartsTheDisplayCountdown()
+        {
+            Run(rig =>
+            {
+                Call(rig.Container, "TryInitialise");
+                var animation = Get<Animation>(rig.Container, "m_bonusTimeAnimation");
+                animation.clip = rig.Owned.Track(new AnimationClip { legacy = true, name = "Lucid bonus" }); // a default clip for Play
+                rig.BonusText.enabled = false;
+
+                Call(rig.Container, "OnBonusTimeAdded", 3f);
+
+                Assert.That(rig.BonusText.enabled, Is.True);
+                Assert.That(rig.BonusText.text, Is.EqualTo("+3s"));
+                Assert.That(Get<float>(rig.Container, "m_bonusTimeDisplayTimeRemainingSeconds"), Is.EqualTo(2f));
             });
         }
 

@@ -14,7 +14,9 @@ namespace ProjectLucid.Tests
     // UIContainerMissionXpRewards (Game.Runtime 0x020008eb; Awake 0x669640, Refresh 0x669650, constructor 0x669AD0) over a real
     // mission manager, collectable manager and save. The XP label is "XP", so the XP strings are "+{0}XP". The active context is
     // either a data-only context that supplies the ring XP, or a real regular context. Not covered: XP from clearing the mission
-    // (a regular context earns it in OnActiveMissionComplete, which also adds the XP to the challenge manager).
+    // (MissionClearXPEarned has a private setter and is written only by OnActiveMissionComplete, which also needs the level
+    // manager's ring reward table, the challenge manager's AddXP and the progression manager's level cache; writing the property's
+    // compiler field instead is not allowed).
     public sealed class UIContainerMissionXpRewardsTests
     {
         private static readonly Dictionary<Strings, string> OwnedStrings = new Dictionary<Strings, string>

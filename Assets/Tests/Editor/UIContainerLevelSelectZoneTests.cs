@@ -10,10 +10,11 @@ namespace ProjectLucid.Tests
 {
     // UIContainerLevelSelectZone (Game.Runtime 0x020008c9; AddValueChangeListener 0x639030 with its closures 0x020008ca/0x020008cb,
     // UpdateDisabledLevelWidgets 0x638FD0, ToggleOn 0x639190, TrySelectBestLevel 0x639210, constructor 0x6397C0, the property accessors
-    // 0x638EE0/0x638EF0) over real level widgets (see LevelSelectZoneTestSupport). Not covered: Setup, OnProgressionManagerValid,
-    // OnSaveManagerValid and SetupLevels, which follow the progression and save managers (a deferred callback would stay in the
-    // progression manager's row) and set up every widget from the progression totals, the save record of each level and the
-    // level requirements.
+    // 0x638EE0/0x638EF0) over real level widgets (see LevelSelectZoneTestSupport). Not covered: Setup and the two manager callbacks
+    // (a deferred callback would stay in the progression manager's row) and SetupLevels. SetupLevels calls the real
+    // UIWidgetSDTLevel.Setup of every widget, which is sealed and whose binder update needs a fill image, the level's progression
+    // record from a populated ProgressionManager and the data manager's reward definitions, so the parameters it passes (locked,
+    // unlock seen, new content, numerical name) and the save writes it makes after them cannot be observed here.
     public sealed class UIContainerLevelSelectZoneTests
     {
         // dump.cs TypeDefIndex 2250/2248/2249 and the DummyDll rows (fields 0x04002327..0x04002330). The closure classes carry the

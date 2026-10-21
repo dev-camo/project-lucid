@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Hardlight;
 using Hardlight.Enums;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.MissionTrackerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -16,11 +18,12 @@ namespace ProjectLucid.Tests
     // OnMissionIslandActive 0x635080, RefreshActiveMission 0x6353E0, the prefab getters 0x635270..0x635350, constructor 0x635810)
     // over a real mission manager whose states hold real instanced trackers (set up through MissionState's own tracker set-up
     // step) and real UIContainerMissionProgress prefabs. The progress containers are always displayed, so no fade coroutine
-    // runs. Not covered: a tracker that names a group container (the group container is spawned from the identifier's prefab
-    // and nested under a per-mission-type parent) and the island override state of the manager (SetupMissionUI's call of
-    // OnMissionIslandActive for it); the group is covered only through RefreshActiveMission, which reads it.
+    // runs, except in the one test that hides a container that is not always displayed (its fade coroutine is refused on the inactive parent). Not covered: the island override state of
+    // the manager (SetupMissionUI's call of OnMissionIslandActive for it).
     public sealed class UIContainerGameHUDMissionProgressTests
     {
+        private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
+
         private static readonly Dictionary<Strings, string> OwnedStrings = new Dictionary<Strings, string>
         {
             { (Strings)(-336558325), "{0} of {1}" }, // the progress container's default format string
@@ -133,6 +136,61 @@ namespace ProjectLucid.Tests
                 Assert.That(persistentContainer.gameObject.activeSelf, Is.False, "tied to its island");
                 Assert.That(Hooks(((MissionInstancedTracker)ordinary.Tracker).OnStatusChanged, rig.Hud), Is.EqualTo(1));
                 Assert.That(Hooks(((MissionInstancedTracker)persistent.Tracker).OnStatusChanged, rig.Hud), Is.EqualTo(1));
+            });
+        }
+
+        // 0x634E6E..0x634E74: a container is hidden when it is not always displayed, whether or not it is tied to its island.
+        [Test]
+        public void AContainerThatIsNotAlwaysDisplayedIsHiddenEvenWhenNotTiedToItsIsland()
+        {
+            Run(rig =>
+            {
+                var prefab = rig.Owned.Host("Lucid timed progress prefab", false).AddComponent<UIContainerMissionProgress>();
+                Set(prefab, "m_canvasGroup", prefab.gameObject.AddComponent<CanvasGroup>()); // Reflection: serialized reference, read when the container is enabled
+                Set(rig.Hud, "m_defaultActiveMissionProgressPrefab", prefab); // Reflection: serialized reference
+                MissionState state = AddMission(rig);
+
+                LogAssert.Expect(LogType.Error, RefusedCoroutine); // Refresh starts the fade of a container that is not always displayed
+                Call(rig.Hud, "SetupActiveMissionsUI");
+
+                Assert.That(prefab.AlwaysDisplay, Is.False);
+                Assert.That(prefab.OnlyShowWhenMissionIslandActive, Is.False);
+                Assert.That(Containers(rig)[state.Definition].gameObject.activeSelf, Is.False);
+            });
+        }
+
+        // SetupActiveMissionsUI 0x6348A0: a tracker that names a group gets a group container, cloned from the group identifier's
+        // prefab under the tracker's parent (0x634DC9) and kept per mission type (TryGetValue 0x634D31, set_Item 0x634DE6), and
+        // its container is parented to the group's transform (0x634DF1). A second tracker of the same type uses the first group
+        // even with another group identifier; a tracker of another type gets its own.
+        [Test]
+        public void GroupedTrackersShareOneGroupContainerPerMissionType()
+        {
+            Run(rig =>
+            {
+                Func<string, UIContainerIdentifier> newGroup = name =>
+                {
+                    var identifier = rig.Owned.Track(ScriptableObject.CreateInstance<UIContainerIdentifier>());
+                    identifier.RegisterContainer(NewPrefab(rig.Owned, name, false));
+                    return identifier;
+                };
+                MissionState first = AddMission(rig);
+                MissionState second = AddMission(rig);
+                MissionState other = AddMission(rig, type: MissionType.Jukebox);
+                Set(first.Tracker, "m_uiContainerIdentifierGroup", newGroup("Lucid group A")); // Reflection: authored groups
+                Set(second.Tracker, "m_uiContainerIdentifierGroup", newGroup("Lucid group B"));
+                Set(other.Tracker, "m_uiContainerIdentifierGroup", newGroup("Lucid group C"));
+
+                Call(rig.Hud, "SetupActiveMissionsUI");
+
+                Assert.That(rig.DefaultParent.childCount, Is.EqualTo(2));
+                Transform groupOfFirst = Containers(rig)[first.Definition].transform.parent;
+                Assert.That(groupOfFirst.name, Is.EqualTo("Lucid group A(Clone)"));
+                Assert.That(groupOfFirst.parent, Is.SameAs(rig.DefaultParent));
+                Assert.That(Containers(rig)[second.Definition].transform.parent, Is.SameAs(groupOfFirst));
+                Transform groupOfOther = Containers(rig)[other.Definition].transform.parent;
+                Assert.That(groupOfOther.name, Is.EqualTo("Lucid group C(Clone)"));
+                Assert.That(groupOfOther.parent, Is.SameAs(rig.DefaultParent));
             });
         }
 

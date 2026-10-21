@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Hardlight;
+using Hardlight.Enums;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -17,12 +18,23 @@ namespace ProjectLucid.Tests
     // instanced trackers, a real App and character manager (for Exit) and identifiers whose containers are already loaded.
     // Not covered: OnEnable (it also reads the data manager's level lookup, the ranks and results containers, the level
     // manager's zones and the App's storage), SetupZone (the level manager's zone table and an Addressables sprite load),
-    // the challenge branch of SetupChallenge (a challenge context with its results container), OnQualityManagerValid (a
+    // the mapping of the challenge context's NewScore, NewTime and BestTimeSeconds in SetupChallenge (NewScore and NewTime are
+    // written only by OnActiveMissionComplete, which also needs the analytics, challenge and progression managers; the best
+    // time comes from the open save's challenge record), OnQualityManagerValid (a
     // VisualQualityManager_SDT), Restart and Action_Restart (LevelManager.Restart) and OnDestroy's release of a loaded zone
     // accent.
     public sealed class UIContainerLevelResultsTests
     {
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
+
+        private static readonly Dictionary<Strings, string> ChallengeStrings = new Dictionary<Strings, string>
+        {
+            { Strings.MENU_TAILS_CHALLENGES_XP, "{0} XP" },
+            { Strings.CHALLENGES_RESULT_XP_DESCRIPTION, "Earned {0}" },
+            { Strings.CHALLENGES_RESULT_TITLE_CHALLENGE, "Challenge {0}" },
+            { Strings.CHALLENGE_BEST_TIME_FORMAT, "{0}:{1}:{2}" },
+            { (Strings)0, "Lucid challenge" }, // the context's description
+        };
 
         private static void Run(Action<World, UIContainerLevelResults> body) => WithWorld(world =>
         {
@@ -184,6 +196,60 @@ namespace ProjectLucid.Tests
                 Assert.That(container.ExtraSpaceAboveXPReward.Value, Is.False);
                 Assert.That(container.ShowMoreGamesButton.Value, Is.False);
                 Assert.That(Get<UIContainerChallengeResults>(container, "m_challengeResultsContainer"), Is.Null);
+            });
+        }
+
+        // SetupChallenge 0x6374C0 in a challenge: the flags are set (0x637599), a copy of the loaded results container is made under
+        // the challenge root and set up from the context (ChallengeIndex at +0x54, not ChallengeSetIndex at +0x58; the new time at
+        // +0x5C, not the real time taken at +0x44), and the extra space above the XP reward mirrors whether the copy shows a new
+        // record (0x6376FE). The context here is the third challenge of set 9, with no best time and a new time of zero.
+        [Test]
+        public void AChallengeContextSetsUpACopyOfTheResultsContainerAndMirrorsItsNewRecordFlag()
+        {
+            Run((world, container) =>
+            {
+                Owned owned = world.Owned;
+                owned.Register(owned.Host("Lucid data manager", false).AddComponent<DataManager>()); // the results container's field initialiser
+                SaveManager save = owned.Register(new SaveManager());
+                owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(save)));
+                var game = new SaveDataGame();
+                game.Initialise();
+                Set(save, "m_currentSave", game); // Reflection: the open save the manager keeps
+                Mission mission = world.NewMission();
+                Set(mission.Definition, "m_subMissions", new List<MissionDefinition>()); // Reflection: authored (empty) list
+                var level = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+                Set(level, "m_guid", "lucid-challenge-level"); // Reflection: authored GUID of a serialized definition
+                var definition = ChallengeRewardTestSupport.Create<ChallengeDefinition>(owned, "{\"m_timeLimitSeconds\":100,\"m_xpReward\":25}");
+                Set(definition, "m_mission", mission.Definition); // Reflection: serialized references and arrays
+                Set(definition, "m_level", level);
+                Set(definition, "m_characterSelection", new CharacterId[0]);
+                Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]);
+                Set(definition, "m_timeRemainingScoreCurve", AnimationCurve.Linear(0f, 0.5f, 100f, 1000.5f)); // Reflection: authored curve
+                var prefab = owned.Host("Lucid challenge results prefab", false).AddComponent<UIContainerChallengeResults>();
+                Transform root = owned.Host("Lucid challenge results root", false).transform;
+                Set(container, "m_challengeResultsContainerIdentifier", NewIdentifier(owned, prefab)); // Reflection: serialized references
+                Set(container, "m_challengeResultsRoot", root);
+                MissionState state = NewTrackedState(world);
+
+                OwnedStringTable.Run(ChallengeStrings, () =>
+                {
+                    var context = new MissionContextChallenge(new ChallengeState(2, definition, 0, null, 9), false);
+                    context.RealTimeTaken = 99f;
+                    world.Missions.SetActiveMissionContext(context);
+
+                    Call(container, "SetupChallenge", world.Missions, state.Tracker);
+                });
+
+                Assert.That(container.IsChallenge.Value, Is.True);
+                Assert.That(container.ShowMoreGamesButton.Value, Is.True);
+                Assert.That(root.childCount, Is.EqualTo(1));
+                var copy = root.GetChild(0).GetComponent<UIContainerChallengeResults>();
+                Assert.That(copy, Is.Not.SameAs(prefab));
+                Assert.That(Get<UIContainerChallengeResults>(container, "m_challengeResultsContainer"), Is.SameAs(copy));
+                Assert.That(copy.ChallengeTitle.Value, Is.EqualTo("Challenge 3"));
+                Assert.That(copy.TimeString.Value, Is.EqualTo("0:00:00"));
+                Assert.That(copy.IsNewRecord.Value, Is.True, "no previous best");
+                Assert.That(container.ExtraSpaceAboveXPReward.Value, Is.True);
             });
         }
 

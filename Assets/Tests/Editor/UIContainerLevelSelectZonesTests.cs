@@ -15,7 +15,8 @@ namespace ProjectLucid.Tests
     // UIContainerLevelSelectZones (Game.Runtime 0x020008cd; UpdateZone 0x63A430, GetZones 0x63A4E0, HideLockedZones 0x63A660,
     // SelectZone 0x63A920, SelectLevel 0x63AB90) and its nested types (0x020008ce..0x020008d2) over real zone pages and level
     // widgets (see LevelSelectZoneTestSupport). Not covered: Setup, OnLevelManagerValid, OnSaveManagerValid, SetupZones and the
-    // closures it makes (they follow the level and save managers, read the open save and set up every page), AnimatePagination
+    // closures it makes (SetupZones calls Setup on every zone page, which leaves a deferred callback in the progression manager's
+    // row, and on a pagination toggle widget, and finds the meta-game level through the level manager's tables), AnimatePagination
     // (Animation.Play on an inactive host).
     public sealed class UIContainerLevelSelectZonesTests
     {

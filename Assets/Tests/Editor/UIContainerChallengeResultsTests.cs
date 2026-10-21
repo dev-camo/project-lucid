@@ -59,7 +59,7 @@ namespace ProjectLucid.Tests
             };
 
         // The constructor stores true at +0xB0 and the doublewords at +0xB4 from the read-only data at 0x29A7AC0, which hold the
-        // strings 0x30E0029C, 0x84B9950F, 0xDEB5EE97 and 0xE141A380.
+        // strings 0x30E0029C, 0x84B9950F, 0xDEB5EE97 and 0x80A341E1.
         [Test]
         public void DeclarationKeepsTheAuthoredDefaults()
         {
@@ -152,6 +152,26 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.PreviousBestTimeString.Value, Is.EqualTo("0:20:00"));
                 Assert.That(rig.Container.ScoreString.Value, Is.EqualTo("-199"));
                 Assert.That(rig.Container.PreviousBestScoreString.Value, Is.EqualTo("601"));
+                Assert.That(rig.Container.IsNewRecord.Value, Is.True);
+                Assert.That(rig.Container.IsXPAwarded.Value, Is.False, "the XP follows the previous best alone (0x61D002), not the records");
+                Assert.That(rig.Container.XPAwardedString.Value, Is.EqualTo(string.Empty));
+            });
+        }
+
+        // The XP and the first-completion branch depend on the previous best being positive (setbe at 0x61D002, which also holds
+        // for a negative time): a previous best of -1 awards the XP, has the previous best score zero (0x61D22D) and is a record.
+        [Test]
+        public void ANegativePreviousBestIsTreatedAsNoPreviousBest()
+        {
+            Run(rig =>
+            {
+                Set(rig.Container, "m_showBestInsteadOfPrevious", false); // Reflection: serialized option
+
+                rig.Container.Setup(NewParameters(rig, -1f, 40f, 5));
+
+                Assert.That(rig.Container.IsXPAwarded.Value, Is.True);
+                Assert.That(rig.Container.ScoreString.Value, Is.EqualTo("606"));
+                Assert.That(rig.Container.PreviousBestScoreString.Value, Is.EqualTo("0"));
                 Assert.That(rig.Container.IsNewRecord.Value, Is.True);
             });
         }
