@@ -1,0 +1,11 @@
+{
+  "name": "ProjectLucid.Dreamteck.EngineVerification",
+  "references": [
+    "Dreamteck.Splines",
+    "Dreamteck.Utilities"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

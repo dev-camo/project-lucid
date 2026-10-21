@@ -19,7 +19,10 @@
     "ProjectLucid.Haptics.EngineVerification",
     "ProjectLucid.Screen.EngineVerification",
     "ProjectLucid.UISelection.EngineVerification",
-    "ProjectLucid.SharedStateIsolation"
+    "ProjectLucid.SharedStateIsolation",
+    "Dreamteck.Splines",
+    "Dreamteck.Utilities",
+    "ProjectLucid.Dreamteck.EngineVerification"
   ],
   "optionalUnityReferences": [
     "TestAssemblies"

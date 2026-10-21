@@ -5890,11 +5890,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshTests." + name 
     "SettersChooseWhichSideUpdatePushesAndUpdateClearsTheFlags",
     "LossyScaleSetterRaisesTheScaleFlagAndUpdatePushesTheLocalScaleFields",
     "ChangeDetectionComparesStoredValuesWithTheLiveTransform",
-    "PointAndDirectionTransformsScaleThenRotateThenTranslate",
     "GetComponentForwardsAndSetTransformDropsPendingSetters",
     "TransformSnapshotKeepsItsSerializedFieldLayout",
     "SnapshotHasUpdateIsEmittedVolatileFromBarrierEvidence",
     "TransformSnapshotFloatsAreEmittedVolatileFromBarrierEvidence",
+    "PointAndDirectionTransformsForwardToTheWrappedTransformInEditMode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplinePointTests." + name for name in (
     "TypeSetterOverwritesTheDirtyFlagWithTheChangeAndOnlyMirrorsForSmoothMirrored",
@@ -6610,4 +6610,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSvgTests." + name f
     "MapPointProjectsOntoTheAxisPlaneAndAttributeContentFallsBackToError",
     "WriteEncodesBezierPathsAndLinearPolylinesForEachAxis",
     "ComputersAreConvertedToBezierAndClosedOnesAreClosed",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformSnapshotPlayModeTests." + name for name in (
+    "PointAndDirectionTransformsScaleThenRotateThenTranslate",
 ))

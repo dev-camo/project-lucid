@@ -11,7 +11,7 @@ namespace ProjectLucid.Tests
     // Shared setup of the Dreamteck mesh generator tests (MeshGenerator, PathGenerator, SplineRenderer): spline computers that
     // hold a straight Linear line, generators on owned game objects and reflection access to the protected state the native
     // bodies read. Dispose destroys every game object and mesh the fixture made.
-    internal sealed class DreamteckGeneratorFixture : System.IDisposable
+    public sealed class DreamteckGeneratorFixture : System.IDisposable
     {
         public const float Tolerance = 1e-4f;
 

@@ -1222,27 +1222,36 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // Original TransformPoint 0x504e40 = rotation * Scale(point, lossyScale) + position (scale, then rotate,
-        // then translate); TransformDirection 0x504f50 = TransformPoint(direction) - position;
-        // InverseTransformPoint 0x5050a0 = inverse(rotation) * (point - position) divided component-wise by the
-        // lossy scale; InverseTransformDirection 0x5051b0 = inverse(rotation) * direction divided likewise.
-        // A quarter turn about Y maps (x, y, z) to (z, y, -x), so scaling (1, 1, 1) by (2, 3, 4) first gives
-        // (4, 3, -2); rotating first and scaling second would give (2, 3, -4).
-        // The editor compile (EditMode) starts each of the four methods with `if (!isPlaying) return transform.X(...)`, where
-        // isPlaying is the editor-only flag Update caches from Application.isPlaying; the shipped build compiles no such line.
-        // DreamteckPlayState sets that cache to the value play mode gives it, so the shipped arithmetic above is what runs.
+        // The four point/direction methods of the editor compile (EditMode, Application.isPlaying false) start with
+        // `if (!isPlaying) return transform.X(...)`, isPlaying being the flag Update caches from Application.isPlaying, so a snapshot
+        // wrapping a transform forwards to it and ignores its own position, rotation and lossyScale fields. This covers the editor
+        // branch only; the shipped scale-rotate-translate arithmetic (originals 0x504e40..0x5051b0) is covered by
+        // OriginalDreamteckTransformSnapshotPlayModeTests.PointAndDirectionTransformsScaleThenRotateThenTranslate.
         [Test]
-        public void PointAndDirectionTransformsScaleThenRotateThenTranslate()
+        public void PointAndDirectionTransformsForwardToTheWrappedTransformInEditMode()
         {
-            TS_Transform snapshot = DreamteckPlayState.Cache(new TS_Transform(null));
-            snapshot.position = new Vector3(1f, 0f, 0f);
-            snapshot.rotation = Quaternion.Euler(0f, 90f, 0f);
-            snapshot.lossyScale = new Vector3(2f, 3f, 4f);
+            GameObject target = new GameObject("snapshot target");
+            try
+            {
+                target.transform.position = new Vector3(1f, 2f, 3f);
+                target.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
+                target.transform.localScale = new Vector3(2f, 3f, 4f);
+                TS_Transform snapshot = new TS_Transform(target.transform);
+                snapshot.position = new Vector3(100f, 0f, 0f);
+                snapshot.rotation = Quaternion.identity;
+                snapshot.lossyScale = Vector3.one;
 
-            Near(snapshot.TransformPoint(Vector3.one), new Vector3(5f, 3f, -2f), "TransformPoint");
-            Near(snapshot.TransformDirection(Vector3.one), new Vector3(4f, 3f, -2f), "TransformDirection");
-            Near(snapshot.InverseTransformPoint(new Vector3(5f, 3f, -2f)), Vector3.one, "InverseTransformPoint");
-            Near(snapshot.InverseTransformDirection(new Vector3(4f, 3f, -2f)), Vector3.one, "InverseTransformDirection");
+                Vector3 world = target.transform.TransformPoint(Vector3.one);
+                Near(snapshot.TransformPoint(Vector3.one), world, "TransformPoint");
+                Vector3 direction = target.transform.TransformDirection(Vector3.one);
+                Near(snapshot.TransformDirection(Vector3.one), direction, "TransformDirection");
+                Near(snapshot.InverseTransformPoint(world), Vector3.one, "InverseTransformPoint");
+                Near(snapshot.InverseTransformDirection(direction), Vector3.one, "InverseTransformDirection");
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(target);
+            }
         }
 
         // Original GetComponent<T> (shared generic 0x9d2160) forwards to the wrapped transform; SetTransform

@@ -43,7 +43,8 @@
     "HLEventSystems.Runtime",
     "ProjectLucid.SharedStateIsolation",
     "Unity.RenderPipelines.Core.Runtime",
-    "Cinemachine"
+    "Cinemachine",
+    "ProjectLucid.Dreamteck.EngineVerification"
   ],
   "includePlatforms": [
     "Editor"
