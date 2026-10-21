@@ -62,30 +62,6 @@ namespace ProjectLucid.Tests
             return (T)info.Invoke(module, new[] { argument });
         }
 
-        private SplineUser NewUserWithLine()
-        {
-            GameObject lineOwner = NewObject("line");
-            SplineComputer computer = lineOwner.AddComponent<SplineComputer>();
-            computer.type = Spline.Type.Linear;
-            computer.SetPoints(new[]
-            {
-                new SplinePoint(new Vector3(0f, 0f, 0f)),
-                new SplinePoint(new Vector3(10f, 0f, 0f)),
-                new SplinePoint(new Vector3(10f, 0f, 10f))
-            });
-            computer.RebuildImmediate();
-            SplineUser user = NewObject("user").AddComponent<SplineUser>();
-            user.spline = computer;
-            return user;
-        }
-
-        private static void Update(SplineUser user)
-        {
-            MethodInfo info = typeof(SplineUser).GetMethod("Update", BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.That(info, Is.Not.Null);
-            info.Invoke(user, null);
-        }
-
         // Field initialisers of the ctor 0x4e7660 (the apply flags are one dword and one qword store) and the cctor 0x4e7710.
         [Test]
         public void FreshModuleKeepsTheShippedDefaults()
@@ -157,55 +133,6 @@ namespace ProjectLucid.Tests
             Assert.That(module.applyScaleX || module.applyScaleY || module.applyScaleZ, Is.False);
             module.applyScale = true;
             Assert.That(module.applyScaleX && module.applyScaleY && module.applyScaleZ, Is.True);
-        }
-
-        // set_offset 0x4e5b40 / set_rotationOffset 0x4e5c70 / set_baseScale 0x4e5e10: a value equal under Vector equality (squared
-        // distance below 1e-10) changes nothing; a real change refreshes the has-flag and queues a rebuild of the target user.
-        [Test]
-        public void OffsetSettersSkipEqualValuesRefreshTheFlagsAndRebuildTheUser()
-        {
-            // The editor compile rebuilds at once while the cached play state is false, so the flag is set to the value play
-            // mode caches (DreamteckPlayState) and the rebuild is queued by hand, as the spline setter queues it in the player.
-            SplineUser user = DreamteckPlayState.Cache(NewUserWithLine());
-            int builds = 0;
-            user.onPostBuild += delegate { builds++; };
-            user.Rebuild();
-            Update(user);
-            Assert.That(builds, Is.EqualTo(1), "initial queued build");
-
-            TransformModule module = new TransformModule();
-            module.targetUser = user;
-            module.offset = new Vector2(1e-6f, 0f);
-            module.rotationOffset = new Vector3(0f, 1e-6f, 0f);
-            module.baseScale = new Vector3(1f, 1f, 1f + 1e-6f);
-            Update(user);
-            Assert.That(builds, Is.EqualTo(1), "equal values queue nothing");
-            Assert.That(module.offset, Is.EqualTo(Vector2.zero), "the stored value is untouched");
-            Assert.That(module.hasOffset, Is.False);
-            Assert.That(module.hasRotationOffset, Is.False);
-            Assert.That(module.baseScale, Is.EqualTo(Vector3.one));
-
-            module.offset = new Vector2(1f, 0f);
-            Assert.That(module.hasOffset, Is.True);
-            Update(user);
-            Assert.That(builds, Is.EqualTo(2));
-            module.rotationOffset = new Vector3(0f, 10f, 0f);
-            Assert.That(module.hasRotationOffset, Is.True);
-            Update(user);
-            Assert.That(builds, Is.EqualTo(3));
-            module.baseScale = new Vector3(2f, 2f, 2f);
-            Assert.That(module.baseScale, Is.EqualTo(new Vector3(2f, 2f, 2f)));
-            Update(user);
-            Assert.That(builds, Is.EqualTo(4));
-
-            module.offset = Vector2.zero;
-            Assert.That(module.hasOffset, Is.False, "back to zero clears the flag");
-            module.rotationOffset = Vector3.zero;
-            Assert.That(module.hasRotationOffset, Is.False);
-
-            TransformModule free = new TransformModule();
-            free.offset = new Vector2(0f, 3f);
-            Assert.That(free.hasOffset, Is.True, "without a target user nothing is rebuilt");
         }
 
         // OnAfterDeserialize 0x4e7560 recomputes both has-flags from the serialized offsets, whatever the serialized flags say.
@@ -450,11 +377,10 @@ namespace ProjectLucid.Tests
             Assert.Throws<NullReferenceException>(() => module.ApplyTransform(null));
         }
 
-        // ApplyRigidbody 0x4e6e40 clears angular velocity X for applyRotationX, Y for applyRotationY and Z for applyRotationZ or
-        // applyRotation2D; ApplyRigidbody2D 0x4e73e0 (0x4e7513 reads applyRotationX) clears it for applyRotationX alone. In the
-        // original text that logic follows an `#if UNITY_EDITOR` block which, when Application.isPlaying is false, applies the
-        // transform and returns; the player branch cannot run in EditMode, so this test asserts the edit-mode behaviour: the
-        // angular velocity is left untouched for every flag combination and the transform entry point has run.
+        // Editor branch only. In the original text the angular-velocity logic (ApplyRigidbody 0x4e6e40, ApplyRigidbody2D 0x4e73e0)
+        // follows an `#if UNITY_EDITOR` block that applies the transform and returns while Application.isPlaying is false; this
+        // test asserts that branch: angular velocity is untouched for every flag combination and the transform entry point ran.
+        // The shipped branch is covered by OriginalDreamteckTransformModulePlayModeTests.RigidbodyAngularVelocityFollowsTheShippedRotationFlags.
         [Test]
         public void RigidbodyAngularVelocityFollowsTheShippedRotationFlags()
         {

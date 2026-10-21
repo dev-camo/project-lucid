@@ -274,10 +274,10 @@ namespace ProjectLucid.Tests
         }
 
         // LateRun 0x4bb6f0 follows only while follow is on. Follow 0x4bb720: Uniform moves by speed times the frame time, so a
-        // zero speed re-places the follower on its sample; Time mode with a zero duration does nothing. LateRun returns before
-        // Follow while Application.isPlaying is false (an `#if UNITY_EDITOR` block), so the follow flag test cannot run in
-        // EditMode: LateRun is asserted to move nothing with follow on, and Follow (below the gate) is called directly for the
-        // Uniform and Time arms. Lost shipped coverage: LateRun skipping Follow when follow is off.
+        // zero speed re-places the follower on its sample; Time mode with a zero duration does nothing. Editor branch only:
+        // LateRun returns before Follow while Application.isPlaying is false (an `#if UNITY_EDITOR` block), so LateRun is asserted
+        // to move nothing with follow on, and Follow (below the gate) is called directly for the Uniform and Time arms. The
+        // shipped follow gate is covered by OriginalDreamteckSplineFollowerPlayModeTests.LateRunFollowsOnlyWhileFollowIsOn.
         [Test]
         public void LateRunFollowsOnlyWhileFollowIsOn()
         {
@@ -505,7 +505,8 @@ namespace ProjectLucid.Tests
         // follower's group and invoke them with the follower) is the text after that block and cannot run in EditMode, and
         // nothing below the gate is reachable on its own. This test asserts the edit-mode behaviour: SetPercent never reaches
         // SplineTrigger.Check (a workOnce trigger is still unspent afterwards) and never calls a listener, for every setting
-        // that would fire a trigger in the player. Lost shipped coverage: the group selection, queue and invoke order.
+        // that would fire a trigger in the player. Editor branch only; the shipped group selection, queue and invoke are covered
+        // by OriginalDreamteckSplineFollowerPlayModeTests.SetPercentInvokesTheCrossedTriggersOfItsGroup.
         [Test]
         public void SetPercentInvokesTheCrossedTriggersOfItsGroup()
         {
@@ -537,8 +538,8 @@ namespace ProjectLucid.Tests
         // false (an `#if UNITY_EDITOR` block). The player branch (queue the nodes of the points passed, then raise onNode once)
         // is the text after that block and cannot run in EditMode, and no method below the gate is reachable on its own. This
         // test asserts the edit-mode behaviour: a node on the passed point is never queued, so onNode never fires and
-        // InvokeNodes finds an empty queue (it does not touch the missing subscriber). Lost shipped coverage: the junction
-        // lookup, the queue and the onNode payload.
+        // InvokeNodes finds an empty queue (it does not touch the missing subscriber). Editor branch only; the shipped junction
+        // lookup, queue and onNode payload are covered by OriginalDreamteckSplineFollowerPlayModeTests.SetPercentReportsTheNodesItPassed.
         [Test]
         public void SetPercentReportsTheNodesItPassed()
         {
@@ -701,7 +702,8 @@ namespace ProjectLucid.Tests
         // Move(double) Loop: CheckTriggers(start, 1) at 0x4bbe0a, then after the wrap CheckTriggers(0, end) at 0x4bbe70, and the queue
         // is fired once at the end (0x4bbf1a). Those calls return first while Application.isPlaying is false, so the player order
         // (0.95 then 0.1) cannot run in EditMode; this test asserts that the loop wrap still completes (percent 0.15) and fires
-        // nothing. Lost shipped coverage: the order of the two stretches' triggers.
+        // nothing. Editor branch only; the order of the two stretches' triggers is covered by
+        // OriginalDreamteckSplineFollowerPlayModeTests.LoopWrapReportsTheTriggersOfBothStretchesInOrder.
         [Test]
         public void LoopWrapReportsTheTriggersOfBothStretchesInOrder()
         {
@@ -740,8 +742,9 @@ namespace ProjectLucid.Tests
 
         // CheckNodes 0x4cb030: the Backward loop (0x4cb274) walks toPoint-1 down to fromPoint, and a range inside point 0 that
         // starts at the beginning reports point 0 (0x4cb12c..0x4cb165). CheckNodes returns first while Application.isPlaying is
-        // false, so those player branches cannot run in EditMode; this test asserts that neither range reports a node.
-        // Lost shipped coverage: the Backward loop bounds and the beginning edge.
+        // false, so those player branches cannot run in EditMode; this test asserts that neither range reports a node. Editor branch only; the
+        // Backward loop bounds and the beginning edge are covered by
+        // OriginalDreamteckSplineFollowerPlayModeTests.CheckNodesCoversTheBackwardLoopAndTheBeginningEdge.
         [Test]
         public void CheckNodesCoversTheBackwardLoopAndTheBeginningEdge()
         {

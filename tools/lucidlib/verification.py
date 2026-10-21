@@ -6117,7 +6117,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineFollowerTests
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformModuleTests." + name for name in (
     "FreshModuleKeepsTheShippedDefaults",
     "ApplyFlagGroupsFollowTheNativeTruthTable",
-    "OffsetSettersSkipEqualValuesRefreshTheFlagsAndRebuildTheUser",
     "DeserializationRecomputesTheOffsetFlags",
     "ApplyTransformMovesOnlyTheAppliedAxes",
     "ScaleIsBaseScaleTimesSampleSizeOnTheAppliedAxes",
@@ -6637,4 +6636,18 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineTriggerPlayMo
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineUserPlayModeTests." + name for name in (
     "AutoUpdateGatesTheQueuedRebuild",
     "UpdateMethodSelectsTheCallbackThatBuilds",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineFollowerPlayModeTests." + name for name in (
+    "CheckNodesCoversTheBackwardLoopAndTheBeginningEdge",
+    "LateRunFollowsOnlyWhileFollowIsOn",
+    "LoopWrapReportsTheTriggersOfBothStretchesInOrder",
+    "SetPercentInvokesTheCrossedTriggersOfItsGroup",
+    "SetPercentReportsTheNodesItPassed",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformModulePlayModeTests." + name for name in (
+    "OffsetSettersSkipEqualValuesRefreshTheFlagsAndRebuildTheUser",
+    "RigidbodyAngularVelocityFollowsTheShippedRotationFlags",
 ))
