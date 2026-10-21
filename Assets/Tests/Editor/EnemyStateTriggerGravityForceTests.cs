@@ -24,10 +24,27 @@ namespace ProjectLucid.Tests
         private static void WithEnemyBody(Action<Owned, Enemy, SimplifiedBody> body) => Owned.Run(owned =>
         {
             Enemy enemy = NewEnemy(owned);
-            var simplifiedBody = enemy.gameObject.AddComponent<SimplifiedBody>();
+            SimplifiedBody simplifiedBody = AddSimplifiedBody(enemy.gameObject);
             Set(enemy, "m_simplifiedBody", simplifiedBody);
             body(owned, enemy, simplifiedBody);
         });
+
+        // AddComponent sends the Editor Reset and OnValidate to the SimplifiedBody (a TimeScaledComponent_SDT); both read
+        // its s_config lookup, which with nothing cached registers the SystemConfiguration row (GetConfig). An owned
+        // empty lookup stands in while the body is added, and the prior cache is put back.
+        private static SimplifiedBody AddSimplifiedBody(GameObject host)
+        {
+            FieldInfo config = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+            object prior = config.GetValue(null);
+            var lookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
+            config.SetValue(null, lookup);
+            try { return host.AddComponent<SimplifiedBody>(); }
+            finally
+            {
+                config.SetValue(null, prior);
+                Object.DestroyImmediate(lookup);
+            }
+        }
 
         // 0x577E20: GetAs<Enemy>(), a null test, then Enemy.SetGravityForceEnabled with the stored flag (+0x28, read at
         // 0x577E97). The body starts with the force off, so the first state turns it on and a second state with the flag
