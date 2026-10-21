@@ -41,6 +41,7 @@ namespace ProjectLucid.Tests
         private static void WithBoss(Action<Owned, Boss> body) => Owned.Run(owned =>
         {
             Boss boss = owned.Host("Lucid boss transition boss", false).AddComponent<Boss>();
+            // Reflection: Actor.Awake (the only setter) does not run on an inactive host in Edit Mode.
             typeof(Actor).GetProperty(nameof(Actor.Storage)).GetSetMethod(true).Invoke(boss, new object[] { new FSMStorage(0) });
             body(owned, boss);
         });
@@ -48,6 +49,7 @@ namespace ProjectLucid.Tests
         // One of the boss's attach points, as the initialised record Boss.Initialise would add.
         private static void AddBodyPart(Boss boss, ActorAttachPointType point, bool destroyed)
         {
+            // Reflection: Boss.Initialise builds the attach point dictionary from the serialized body components of the boss prefab.
             Type part = typeof(Boss).GetNestedType("BossBodyComponents", BindingFlags.NonPublic);
             object record = Activator.CreateInstance(part);
             part.GetField("AttachPoint").SetValue(record, point);
@@ -729,7 +731,7 @@ namespace ProjectLucid.Tests
         // ---- BossTransition_DestinationIsScuttleDistance (02000240) ----
 
         private static void AddAbility(Boss boss, ActorAbilityType type, ActorAbility ability) =>
-            // Boss.Initialise would create the abilities from the traits' definitions, which needs a whole boss definition; no
+            // Reflection: Boss.Initialise would create the abilities from the traits' definitions, which needs a whole boss definition; no
             // other path puts a ready ability into the boss's dictionary.
             Get<Dictionary<ActorAbilityType, ActorAbility>>(boss, "m_abilities")[type] = ability;
 
@@ -818,6 +820,8 @@ namespace ProjectLucid.Tests
             return ability;
         }
 
+        // The boss angles and results are the rows of StayAheadUpdateKeepsTheBossBetweenTheArcLimits (120 not at maximum, 200 at it), same
+        // definition (clockwise, 0.5..1.5, 0.01 per second) and circle, so the expectations are the native-derived ones.
         // 0x70FC10 returns the stay-ahead ability's m_atMaxRange (byte at +0x68) of the configured type. The ability reaches
         // its maximum range when its update clamps the boss's angle to the upper arc limit: a boss at 200 degrees with the
         // character at 90 degrees is clamped to 90 + 1.5 radians-ahead, a boss at 120 degrees is not.
@@ -840,6 +844,7 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The rows are those of StayAheadShouldActivateOnlyInsideTheArcAheadOfTheCharacter (clockwise, character 90: 120 true, 100 and 180 false).
         // 0x70FDC0 returns StayAheadOfPlayer.ShouldAbilityActivate (0x7004F0): the boss's angle must lie strictly inside the
         // arc ahead of the character (clockwise, character at 90 degrees, arc 0.5..1.5 radians ahead: 120 degrees is inside,
         // 100 and 180 are not).
