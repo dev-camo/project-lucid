@@ -5601,6 +5601,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGuardianProjectileTests." + 
     "OutboundArcMovementAdvancesTheAngleAgainstTheClockwiseFlag",
     "OutboundArcMovementStartsTheCullWhenItMovesAwayFromTheCharacter",
     "ReturningArcMovementSpiralsInTowardsTheReturnPoint",
+    "ReturningArcMovementMeasuresInTheReturnTransformsSpaceAndAgainstTheOrigin",
     "ReturningFromOverheadReaimsAtTheReturnPointBeforeMoving",
     "LerpMovementEasesFromTheStartPositionAndArrivesPastOne",
     "LerpMovementAppliesTheEasingToTheProgress",
@@ -5619,8 +5620,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalGuardianProjectileTests." + 
     "FireReadsTheMovementAndDirectionFromTheBossStorageAndSetsUpTheArc",
     "FireWithAnEmptyBossStorageStartsAnAnticlockwiseArc",
     "SetSplineTracksTheWorldSplineWithOneTracker",
+    "SplineMovementAdvancesAlongTheWorldSplineByVelocityTimesTheStep",
     "FinalHitReadinessInvokesTheAuthoredEventWhenThereIsOne",
     "OnDestroyUnsubscribesFromTheGuardianManagersFinalHit",
+    "OnDestroyTreatsADestroyedGuardianManagerAsAbsent",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCharCorePickupTests." + name for name in (
     "BreakableObjectDeclarationsKeepTheOriginalFlagsFieldsAndMethods",

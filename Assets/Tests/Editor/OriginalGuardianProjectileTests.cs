@@ -20,9 +20,13 @@ namespace ProjectLucid.Tests
     // covers. The projectile definition is a real ProjectileDefinition whose private velocity and lifespan
     // are set as its serialized fields would be; the cached CharacterManager is the registered one the
     // original Setup would cache. Each expectation names the native address of the body it comes from.
-    // Not covered here: the damaging branches of Hit (HitIfNotHomingAttack past its guards calls
-    // Character.TryTakeDamage), SplineMovement (it needs a spline with knots), and the base teardown that
-    // OnDestroy skips without a guardian manager (its effect on the leased TimeManager row is not observed).
+    // Not covered here: the damaging branches of Hit. HitIfNotHomingAttack past its guards calls
+    // Character.TryTakeDamage, whose form checks read the form handler that Awake builds, so Edit Mode cannot
+    // drive it; that leaves the projectile-type gate at 0x57B6E4..0x57B6F7 (which ground-ability guards apply to
+    // which types) and the EnterCooldown after the damage call (0x57B799) unobserved for a hit that damages.
+    // Also not covered: the base teardown (TimeScaledComponent.Shutdown) that OnDestroy runs only with a guardian
+    // manager; its TimeManager unsubscription needs the logged-exception TimeManager build of the catch-connector
+    // case, so only the unsubscription from the guardian's final-hit event is observed.
     public sealed class OriginalGuardianProjectileTests
     {
         private const string BoundsAndNull = "Il2CppSetOptionAttribute(2,False) Il2CppSetOptionAttribute(1,False)";
@@ -505,6 +509,50 @@ namespace ProjectLucid.Tests
                     WorldMemberAccess.AreClose(expected - new Vector3(0f, 3f, 5f), movement, testCase.label + " movement");
                     Assert.That((float)Get(projectile, "m_currentDistanceSq"), Is.EqualTo(85f).Within(1e-3f), testCase.label);
                     Assert.That((float)Get(projectile, "m_finalRadius"), Is.EqualTo(15f).Within(1e-4f), testCase.label);
+                }
+            });
+        }
+
+        // 0x57ACF5 takes the squared distance in the return transform's local space (InverseTransformPoint), and
+        // 0x57AD5B..0x57ADE2 takes the final radius as the plain magnitude of the return point's world position, with no
+        // arc-centre subtraction. The basic case above has an identity return transform and a zero arc centre, where the
+        // world-space distance and the centre-relative radius would agree.
+        [Test]
+        public void ReturningArcMovementMeasuresInTheReturnTransformsSpaceAndAgainstTheOrigin()
+        {
+            WithBoss("lucid-guardian-arc-return-space", (owned, rig) =>
+            {
+                GuardianProjectile projectile = rig.Rig.Projectile;
+                (Vector3 centre, float scale, float distanceSq, float radius, float height, string label)[] cases =
+                {
+                    // Local offset (0, -3, -3.5): 21.25; progress (170 - 21.25) / 170 = 0.875.
+                    (Vector3.zero, 2f, 21.25f, 13.75f, 8.25f, "scaled return transform"),
+                    // World offset (0, -6, -7): 85; progress 0.5; the radius runs 5 -> 15 even though the centre is not the origin.
+                    (new Vector3(3f, 0f, 4f), 1f, 85f, 10f, 6f, "offset arc centre"),
+                };
+                foreach (var testCase in cases)
+                {
+                    Transform returnPoint = owned.Host("Lucid return point " + testCase.label, true).transform;
+                    returnPoint.position = new Vector3(0f, 9f, 12f);
+                    returnPoint.localScale = Vector3.one * testCase.scale;
+                    projectile.SetArcCenter(testCase.centre);
+                    projectile.SetProgressionRates(1f, 0.5f);
+                    Set(projectile, "m_radiusOfCircle", 5f);
+                    Set(projectile, "m_cachedY", 3f);
+                    Set(projectile, "m_returnTransform", returnPoint);
+                    Set(projectile, "m_movementIsClockwise", true);
+                    Set(projectile, "m_progressionArcRadians", 0f);
+                    Set(projectile, "m_startingDistanceSq", 170f);
+                    SetMovement(projectile, State.ReturningAsArc);
+                    projectile.transform.position = new Vector3(0f, 3f, 5f);
+
+                    Call(projectile, "DoMovement", 1f);
+
+                    var expected = new Vector3(testCase.centre.x + (float)Math.Sin(0.5) * testCase.radius, testCase.height,
+                        testCase.centre.z + (float)Math.Cos(0.5) * testCase.radius);
+                    Assert.That((float)Get(projectile, "m_currentDistanceSq"), Is.EqualTo(testCase.distanceSq).Within(1e-3f), testCase.label);
+                    Assert.That((float)Get(projectile, "m_finalRadius"), Is.EqualTo(15f).Within(1e-4f), testCase.label);
+                    WorldMemberAccess.AreClose(expected, projectile.transform.position, testCase.label);
                 }
             });
         }
@@ -1035,6 +1083,8 @@ namespace ProjectLucid.Tests
                     Assert.That(Get(rig.Projectile, "m_movementIsClockwise"), Is.False);
                     Assert.That((float)Get(rig.Projectile, "m_progressionArcRadians"), Is.EqualTo((float)Math.PI).Within(1e-6f), "atan2(0, -5)");
                     Assert.That(storage.GetValue(BossFSMKeys.GuardianIsClockwise, true, false), Is.False, "the default was stored");
+                    Assert.That(storage.GetValue(BossFSMKeys.GuardianProjectileMovement, State.Resting, false), Is.EqualTo(State.FiredAsArc),
+                        "0x57BEB5 reads the movement state with store-default set, so the default was written back");
                 }
             });
         }
@@ -1084,6 +1134,48 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x57B2B0 samples the world spline at the old distance, advances the distance by the step times the definition's
+        // velocity (0x57B388..0x57B3A1), samples again, applies the new orientation and then the new location, and returns
+        // the difference of the two sampled locations. The spline is a straight Bezier along +z (controls at thirds of its
+        // 90-unit knot length), so the location at distance d is (0, 0, d) and its tangent is +z.
+        [Test]
+        public void SplineMovementAdvancesAlongTheWorldSplineByVelocityTimesTheStep()
+        {
+            WithBoss("lucid-guardian-spline-move", (owned, rig) =>
+            {
+                GuardianProjectile projectile = rig.Rig.Projectile;
+                InertSpline inert = owned.Host("Lucid straight inert spline", false).AddComponent<InertSpline>();
+                Spline spline = owned.Host("Lucid straight spline", false).AddComponent<Spline>();
+                Set(spline, "m_inertSpline", inert);
+                Set(spline, "m_activeSplineType", SplineVariantType.Inert);
+                Set(inert, "m_splineType", SplineType.Bezier);
+                var start = new InertSplineKnot();
+                Set(start, "m_transform", new LightweightTransform(Vector3.zero, Quaternion.identity));
+                Set(start, "m_tangentNext", new Vector3(0f, 0f, 30f));
+                var end = new InertSplineKnot();
+                Set(end, "m_transform", new LightweightTransform(new Vector3(0f, 0f, 90f), Quaternion.identity));
+                Set(end, "m_tangentPrev", new Vector3(0f, 0f, -30f));
+                foreach (InertSplineKnot knot in new[] { start, end })
+                {
+                    Set(knot, "m_length", 90f);
+                    Set(knot, "m_lengthInverse", 1f / 90f);
+                    Set(knot, "m_tLut", new[] { 0f, 0.5f });
+                }
+                Set(inert, "m_knots", new[] { start, end });
+                projectile.SetSpline(spline);
+                Set(projectile, "m_distanceAlongSpline", 5f);
+                SetMovement(projectile, State.FiredOverhead);
+                projectile.transform.position = new Vector3(7f, 7f, 7f);
+
+                var movement = Vec(Call(projectile, "DoMovement", 0.5f));
+
+                Assert.That((float)Get(projectile, "m_distanceAlongSpline"), Is.EqualTo(10f).Within(1e-4f), "5 + 0.5 * velocity 10");
+                WorldMemberAccess.AreClose(new Vector3(0f, 0f, 10f), projectile.transform.position, "the new sample is applied");
+                WorldMemberAccess.AreClose(new Vector3(0f, 0f, 5f), movement, "new sample minus old sample, not minus the projectile's own position");
+                Assert.That(Quaternion.Angle(Quaternion.identity, projectile.transform.rotation), Is.LessThan(1e-2f), "looking down the tangent");
+            });
+        }
+
         // 0x57C880 tests the event for null.
         [Test]
         public void FinalHitReadinessInvokesTheAuthoredEventWhenThereIsOne()
@@ -1120,6 +1212,28 @@ namespace ProjectLucid.Tests
 
                 Set(projectile, "m_guardianManager", null);
                 Assert.DoesNotThrow(() => projectile.OnDestroy());
+            });
+        }
+
+        // 0x57C8A0 tests the manager with UnityEngine.Object equality, so a destroyed guardian that is still referenced counts
+        // as absent and the projectile leaves the subscription alone.
+        [Test]
+        public void OnDestroyTreatsADestroyedGuardianManagerAsAbsent()
+        {
+            WithBoss("lucid-guardian-destroy-gone", (owned, rig) =>
+            {
+                GuardianProjectile projectile = rig.Rig.Projectile;
+                int[] ready = CountEvent(projectile, "m_onBossReadyForFinalHit");
+                Delegate handler = Delegate.CreateDelegate(typeof(Action), projectile,
+                    typeof(GuardianProjectile).GetMethod("InvokeFinalHitReadiness", BindingFlags.Instance | BindingFlags.NonPublic));
+                rig.Guardian.FinalHitReady += (Action)handler;
+                UnityEngine.Object.DestroyImmediate(rig.Guardian.gameObject);
+                Assert.That(rig.Guardian == null, Is.True, "destroyed but still referenced");
+
+                projectile.OnDestroy();
+
+                rig.Guardian.BossReadyForFinalHit();
+                Assert.That(ready[0], Is.EqualTo(1), "the subscription was not removed");
             });
         }
     }
