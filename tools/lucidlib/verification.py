@@ -9729,7 +9729,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSkinSelectionTes
     "ASkinTheCharacterAlreadyWearsRaisesNoEventAndPlaysNoAnimation",
     "ADifferentObjectWithTheShownSkinsGuidIsTheShownSkin",
     "UnloadAndDestroyReleaseTheShownThumbnail",
-    "SetupMakesOneSkinToggleForEachListedSkin",
+    "SetupTakesTheCharacterThenFaultsWithoutANavigationManagerBeforeMakingAToggle",
     "TheParametersKeepTheirCharacterDefinition",
 ))
 

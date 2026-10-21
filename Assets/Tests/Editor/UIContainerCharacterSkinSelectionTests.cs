@@ -18,10 +18,11 @@ namespace ProjectLucid.Tests
     // UIContainerCharacterSkinSelection and its parameters (Game.Runtime 02000890 / 02000891, x86-64 0x624000..0x6246A0) as a
     // real component on an owned inactive host over the character select scene. Wearing a skin saves the choice, and the save
     // request is refused once by the fixture's coroutine host with an engine error. The character definition is assigned
-    // directly where Setup would take it. Setup's selection of the current skin's toggle (0x62429C..0x6242B6) needs the live
-    // UINavigationManager that the scene cannot build in Edit Mode, so Setup runs here for a character whose current skin is
-    // not one of its listed skins; the zone colours (a selected level) and the removal of toggles left from an earlier
-    // setup (Object.Destroy is refused in Edit Mode) are not covered.
+    // directly where Setup would take it. Setup asks for the live UINavigationManager (0x624154) before it makes any toggle, and
+    // its constructor reads the navigation configuration and the UI runtime, which the scene cannot build in Edit Mode, so only
+    // Setup's fault at that lookup is covered. Not covered: the toggle made for each listed skin, the selection of the current
+    // skin's toggle (0x62429C..0x6242B6), the zone colours (a selected level), the displayed skin shown last and the removal of
+    // toggles left from an earlier setup (Object.Destroy is refused in Edit Mode).
     public sealed class UIContainerCharacterSkinSelectionTests
     {
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
@@ -211,62 +212,30 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Setup 0x624000 takes the character from its parameters (0x6240A0), makes one toggle from the prefab under the toggle
-        // parent for each listed skin (0x6241F3), set up with that skin, the container's SetCharacterSkin and the toggle group
-        // (0x62424E), and shows the displayed skin's thumbnail and name (0x624322..0x62436A). A skin that is not the character's
-        // current one is not selected.
+        // Setup 0x624000 takes the character from its parameters (0x6240A0), clears the toggle parent (0x6240C8), and only then asks the
+        // registry for the UINavigationManager (GetSystem 0x624154, before the first toggle is instantiated at 0x6241F3). With the row
+        // empty, as Edit Mode leaves it, the lookup faults and no toggle is made. The character stays assigned.
         [Test]
-        public void SetupMakesOneSkinToggleForEachListedSkin()
+        public void SetupTakesTheCharacterThenFaultsWithoutANavigationManagerBeforeMakingAToggle()
         {
             Run(true, true, (scene, rig) =>
             {
                 Owned owned = scene.Owned;
-                // Edit Mode does not run Awake, so the toggle prefab has no transition state; queuing one finds none and does nothing.
-                GameObject prefabHost = owned.Host("Lucid skin toggle prefab", false);
-                var prefabToggle = prefabHost.AddComponent<UIToggle>();
-                var element = prefabHost.AddComponent<UIToggleGroupElement>();
-                Set(prefabToggle, "m_groupElement", element); // Reflection: serialized reference the editor assigns
-                Set(element, "m_toggle", prefabToggle);
-                var prefab = prefabHost.AddComponent<UIWidgetSDTSkinToggle>();
-                Call(prefab, "Reset");
-                var animation = prefabHost.AddComponent<Animation>();
-                var transition = prefabHost.AddComponent<UITransitionAnimation>();
-                Set(transition, "m_animation", animation);
-                Set(transition, "m_uiInteractable", prefabToggle);
-                Set(transition, "m_settings", new List<UITransitionAnimationSetting>());
-                Set(prefab, "m_uiTransitionAnimation", transition);
+                owned.LeaseRow<UINavigationManager>(); // GetSystem would otherwise add the row; it is released empty
                 Transform parent = owned.Host("Lucid skin toggle parent", true).transform;
-                UIToggleGroup group = owned.Host("Lucid skin toggle group", true).AddComponent<UIToggleGroup>();
-                Set(rig.Container, "m_toggleParent", parent); // Reflection: serialized references the editor assigns
-                Set(rig.Container, "m_skinTogglePrefab", prefab);
-                Set(rig.Container, "m_skinToggleGroup", group);
-                // The displayed skin is shown last by Setup, so one is needed first (the character wears none of its listed skins).
-                ExpectSaveRequests(1);
-                rig.Container.SetCharacterSkin(rig.SkinB);
+                Set(rig.Container, "m_toggleParent", parent); // Reflection: serialized reference the editor assigns
                 var start = new Color(0.1f, 0.2f, 0.3f);
                 rig.Container.ZoneBackgroundStartColour.Value = start;
                 var other = CreateCharacterDefinition(owned);
                 Set(other, "m_characterSkins", new[] { rig.SkinA, rig.SkinB }); // Reflection: authored serialized field
 
-                rig.Container.Setup(new UIContainerCharacterSkinSelection.UIContainerCharacterSkinSelectionParameters(other));
+                var fault = Assert.Throws<NullReferenceException>(() =>
+                    rig.Container.Setup(new UIContainerCharacterSkinSelection.UIContainerCharacterSkinSelectionParameters(other)));
 
+                Assert.That(fault.Message, Is.EqualTo("System 'Hardlight.UINavigationManager' is null"));
                 Assert.That(Get<CharacterDefinition>(rig.Container, "m_characterDefinition"), Is.SameAs(other));
-                Assert.That(parent.childCount, Is.EqualTo(2));
-                var skins = new List<CharacterSkinDefinition>();
-                foreach (Transform child in parent)
-                {
-                    var toggle = child.GetComponent<UIWidgetSDTSkinToggle>();
-                    var parameters = Get<UIWidgetSDTSkinToggle.UIWidgetSDTSkinToggleParameters>(toggle, "m_parameters");
-                    skins.Add(parameters.CharacterSkinDefinition);
-                    Assert.That(parameters.ToggleGroup, Is.SameAs(group));
-                    Assert.That(parameters.SetCharacterSkin.Target, Is.SameAs(rig.Container));
-                    Assert.That(toggle.GetComponent<UIToggle>().IsOn, Is.False, "the character's current skin is not one of these");
-                    Assert.That(toggle.Thumbnail.Value, Is.Not.Null);
-                }
-                Assert.That(skins, Is.EqualTo(new[] { rig.SkinA, rig.SkinB }));
-                Assert.That(rig.Container.Render.Value, Is.SameAs(rig.ThumbnailB));
-                Assert.That(rig.Container.SkinName.Value, Is.EqualTo(Strings.NONE));
-                Assert.That(rig.Container.ZoneBackgroundStartColour.Value, Is.EqualTo(start), "no selected level leaves the colours alone");
+                Assert.That(parent.childCount, Is.Zero, "no toggle was made");
+                Assert.That(rig.Container.ZoneBackgroundStartColour.Value, Is.EqualTo(start));
             });
         }
 
