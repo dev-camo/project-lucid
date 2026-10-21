@@ -131,9 +131,9 @@ namespace ProjectLucid.Tests
 
             // An actor the enemy can sense, whose aim point (its body attachment node) stands at the given position.
             // A target without a node has attachment points that hold no node at all.
-            internal Enemies03TargetProbe Target(Vector3 aimPoint, bool withNode = true)
+            internal EnemyTargetActorProbe Target(Vector3 aimPoint, bool withNode = true)
             {
-                var target = Owned.Host(Name(), false).AddComponent<Enemies03TargetProbe>();
+                var target = Owned.Host(Name(), false).AddComponent<EnemyTargetActorProbe>();
                 AttachPoints(target, withNode ? ActorAttachPointType.Body : (ActorAttachPointType?)null, aimPoint);
                 return target;
             }
