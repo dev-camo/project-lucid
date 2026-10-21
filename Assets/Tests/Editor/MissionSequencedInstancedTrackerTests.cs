@@ -148,6 +148,37 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x5C1696 skips an active objective and 0x5C16A5 a complete one. With limit 1, a still-waiting objective that
+        // completes is complete but not active, so when the active one completes the loop passes it over.
+        [Test]
+        public void ACompletedWaitingObjectiveIsSkippedWhenActivating()
+        {
+            Run(3, 1, rig =>
+            {
+                rig.Tracker.StartMission(false);
+                rig.Objectives[1].Action_ObjectiveComplete();
+                Assert.That(rig.ActivationCounts, Is.EqualTo(new[] { 1, 0, 0 }), "the limit is already reached");
+
+                rig.Objectives[0].Action_ObjectiveComplete();
+                Assert.That(rig.ActivationCounts, Is.EqualTo(new[] { 1, 0, 1 }));
+            });
+        }
+
+        // The base StatusChanged (0x5C17DD) runs after the activation loop, so its callback already sees the next
+        // objective active.
+        [Test]
+        public void TheBaseStatusChangeRunsAfterTheNextObjectiveIsActivated()
+        {
+            Run(2, 1, rig =>
+            {
+                bool seen = false;
+                rig.Tracker.OnStatusChanged = _ => seen = rig.Objectives[1].IsActive;
+                rig.Tracker.StartMission(false);
+                rig.Objectives[0].Action_ObjectiveComplete();
+                Assert.That(seen, Is.True);
+            });
+        }
+
         // 0x5C1496..0x5C16F3: an objective that reports itself neither complete nor active (a reset) goes back to
         // the waiting set and, being first in order, takes the free slot again.
         [Test]

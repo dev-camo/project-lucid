@@ -15,6 +15,5 @@ namespace HardlightProject
         {
             ProcessManager.GetSystemAutoCreate<MessageExchange<string>>().PublishMessage(OrnamentViewer.MessageIdentifier, this);
         }
-
     }
 }

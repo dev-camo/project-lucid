@@ -21,6 +21,5 @@ namespace HardlightProject
             if (m_animatorSampler == null && !gameObject.TryGetComponent(out m_animatorSampler))
                 m_animatorSampler = gameObject.AddComponent<AnimatorSampler>();
         }
-
     }
 }

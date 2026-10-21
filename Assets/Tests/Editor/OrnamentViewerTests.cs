@@ -111,6 +111,25 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x5A0AE7 waits with Object::op_Equality, so a root that was announced and then destroyed still holds the
+        // coroutine: it yields, instantiates nothing and shows no ornament.
+        [Test]
+        public void ADestroyedRootKeepsTheCoroutineWaiting()
+        {
+            Owned.Run(owned =>
+            {
+                Rig rig = NewRig(owned, 90f, 30f);
+                IEnumerator loading = Load(rig);
+                Call(rig.Viewer, "OnOrnamentRootLoaded", rig.Root);
+                UnityEngine.Object.DestroyImmediate(rig.Root.gameObject);
+
+                Assert.That(loading.MoveNext(), Is.True);
+                Assert.That(loading.Current, Is.Null);
+                Assert.That(rig.Instantiated, Is.EqualTo(0));
+                Assert.That(Get<Ornament>(rig.Viewer, "m_currentOrnament"), Is.Null);
+            });
+        }
+
         // 0x5A0BB6..0x5A0BE6: the yaw is the ornament's offset unless the rotator ping-pongs when idle, which needs
         // both the ping-pong and the idle-automation flags (PingPongWhenIdle); then the rotation is the identity.
         [Test]

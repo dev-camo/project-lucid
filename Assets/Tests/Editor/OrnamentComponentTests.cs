@@ -212,6 +212,33 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x59D0DA tests the camera field with a plain reference compare (cmp [rbx+0x20], 0) and 0x59D133 tests the
+        // rotator with Object::op_Inequality: a destroyed camera still counts as assigned (the child camera is not
+        // looked up), a destroyed rotator counts as absent (a new one is added).
+        [Test]
+        public void ValidationTreatsADestroyedCameraAsAssignedAndADestroyedRotatorAsAbsent()
+        {
+            Owned.Run(owned =>
+            {
+                var ornament = NewOrnament<Ornament>(owned);
+                var childCamera = owned.Host("Lucid child camera", true, ornament.transform).AddComponent<Camera>();
+                ClearReferences(ornament);
+                var deadCamera = owned.Host("Lucid dead camera", false).AddComponent<Camera>();
+                var deadRotator = owned.Host("Lucid dead rotator", false).AddComponent<SmoothedTransformRotator>();
+                Set(ornament, "m_thumbnailCamera", deadCamera); // Reflection: authored references
+                Set(ornament, "m_transformRotator", deadRotator);
+                UnityEngine.Object.DestroyImmediate(deadCamera);
+                UnityEngine.Object.DestroyImmediate(deadRotator);
+
+                IgnoringEngineMessages(() => Call(ornament, "OnValidate"));
+                Assert.That(ReferenceEquals(Get<Camera>(ornament, "m_thumbnailCamera"), deadCamera), Is.True);
+                Assert.That(Get<Camera>(ornament, "m_thumbnailCamera"), Is.Not.SameAs(childCamera));
+                Assert.That(ornament.GetComponents<SmoothedTransformRotator>().Length, Is.EqualTo(1));
+                Assert.That(ornament.TransformRotator != null, Is.True);
+                Assert.That(ornament.TransformRotator.gameObject, Is.SameAs(ornament.gameObject));
+            });
+        }
+
         // OrnamentAdvanced.OnValidate 0x59D200: the base runs first, then the animator sampler is taken from the object
         // or added; an assigned sampler is kept.
         [Test]

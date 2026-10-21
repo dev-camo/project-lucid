@@ -65,6 +65,5 @@ namespace HardlightProject
                 return;
             m_transformRotator = gameObject.AddComponent<SmoothedTransformRotator>();
         }
-
     }
 }

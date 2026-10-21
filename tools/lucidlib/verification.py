@@ -8809,12 +8809,14 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrnamentComponentTests." + name for 
     "ValidationFillsAnAbsentCameraAndAddsARotator",
     "ValidationReusesARotatorAlreadyOnTheObject",
     "ValidationKeepsAssignedReferencesAndAddsNothingThen",
+    "ValidationTreatsADestroyedCameraAsAssignedAndADestroyedRotatorAsAbsent",
     "AdvancedValidationRunsTheBaseThenFindsOrAddsTheAnimatorSampler",
     "SimpleValidationRunsTheBaseThenFindsOrAddsTheAnimationSampler",
     "DeclarationsKeepTheOriginalMembersFlagsAndOrder",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrnamentViewerTests." + name for name in (
     "TheCoroutineWaitsForTheRootThenInstantiatesTheOrnamentUnderIt",
+    "ADestroyedRootKeepsTheCoroutineWaiting",
     "TheRotatorIsEnabledWithTheViewersYawSpeedAndAutomation",
     "TheYawOffsetIsDroppedOnlyForAPingPongingRotator",
     "ANullCallbackFaultsAfterTheOrnamentIsShown",
@@ -8830,6 +8832,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionSequencedInstancedTrackerTest
     "AStatusChangeBeforeStartIsIgnoredEntirely",
     "CompletingTheActiveObjectiveActivatesTheNextWaitingOne",
     "EachCompletionFreesOneSlotForTheFirstWaitingObjective",
+    "ACompletedWaitingObjectiveIsSkippedWhenActivating",
+    "TheBaseStatusChangeRunsAfterTheNextObjectiveIsActivated",
     "AResetObjectiveWaitsAndIsActivatedAgainInOrder",
     "APersistingTrackerHandlesReportsBeforeTheMissionStarts",
     "InitialiseEmptiesTheSetsUnlessTheMissionIsComplete",

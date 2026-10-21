@@ -111,6 +111,5 @@ namespace HardlightProject
         {
             camera.gameObject.transform.GetSceneHierarchy();
         }
-
     }
 }

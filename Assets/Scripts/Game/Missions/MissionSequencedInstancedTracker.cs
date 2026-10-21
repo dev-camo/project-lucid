@@ -4,8 +4,9 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000718: an instanced mission whose objectives become active in sequence; at most
-    // m_activeObjectiveLimit are active at once and each completion activates the next waiting objective.
+    // Original Game.Runtime 02000718: an instanced mission whose objectives become active in sequence; the tracker
+    // itself activates objectives in order only while fewer than m_activeObjectiveLimit are active, and each completion
+    // lets the next waiting objective in.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class MissionSequencedInstancedTracker : MissionInstancedTracker
@@ -97,6 +98,5 @@ namespace HardlightProject
                 previous = objective;
             }
         }
-
     }
 }
