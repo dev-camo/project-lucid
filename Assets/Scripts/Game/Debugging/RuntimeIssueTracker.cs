@@ -61,7 +61,8 @@ namespace HardlightProject
             SetVisible(true);
         }
 
-        // 0600202e (1.10.1 RVA 0x560420): closing never allows an automatic reopen on invalid data.
+        // 0600202e (1.10.1 RVA 0x560420): closing disarms the invalid-data auto-open until a fully valid scan
+        // or a level activation re-arms it.
         public void CloseTracker(bool canReopen)
         {
             SetVisible(false);
@@ -69,8 +70,8 @@ namespace HardlightProject
             m_canOpenWhenInvalid = false;
         }
 
-        // 0600202f (1.10.1 RVA 0x560730): the close and end inputs are listened to only while visible. They are
-        // released on the next frame, so the press that closed the overlay is not seen by a later subscription.
+        // 0600202f (1.10.1 RVA 0x560730): the close and end inputs are listened to only while visible. Their
+        // unsubscription is deferred to the next frame.
         private void SetVisible(bool visible)
         {
             if (IsVisible == visible) return;
@@ -249,8 +250,11 @@ namespace HardlightProject
             foreach (RuntimeIssueData data in m_dataList)
             {
                 RuntimeIssueConfiguration configuration = data.Configuration;
-                if (data.Data != null && configuration.IsValidBytes(data.Data.AverageValue)) continue;
-                if (GetFrameData(configuration.Path, out float frameValue) && data.Configuration.IsValid(frameValue)) continue;
+                if (data.Data != null)
+                {
+                    if (configuration.IsValidBytes(data.Data.AverageValue)) continue;
+                }
+                else if (GetFrameData(configuration.Path, out float frameValue) && configuration.IsValid(frameValue)) continue;
                 if (m_canOpenWhenInvalid && m_canOpen) OpenTracker(true);
                 return;
             }
@@ -304,7 +308,7 @@ namespace HardlightProject
                     string formattedValue = data.Data.ToFormattedString();
                     GUIStatDraw(data.Data.DisplayName, averageValue, formattedValue, data.Configuration, m_invalidColour);
                 }
-                if (GetFrameData(data.Configuration.Path, out float frameValue))
+                else if (GetFrameData(data.Configuration.Path, out float frameValue))
                     GUIStatDraw(data.Configuration.Path, frameValue, string.Format("{0:F2} ", frameValue), data.Configuration, m_invalidColour);
             }
             GUILayout.EndVertical();
@@ -333,8 +337,9 @@ namespace HardlightProject
         private static void GUIStatDraw(string displayName, float statValue, string formattedStr, RuntimeIssueConfiguration configuration, string invalidColour)
         {
             if (!TryGetStat(formattedStr, out string valueStr, out string unitsStr)) return;
+            bool isGiB = unitsStr.Substring(1, unitsStr.Length - 1) == "GiB";
             float limit = configuration.Value;
-            if (unitsStr.Substring(1, unitsStr.Length - 1) == "GiB") limit /= 1024f;
+            if (isGiB) limit /= 1024f;
             string text = string.Format("{0}: {1} / {2:F2} {3}", displayName, valueStr, limit, unitsStr);
             bool valid = unitsStr.Length >= 2 ? configuration.IsValidBytes(statValue) : configuration.IsValid(statValue);
             if (!valid) text = "<color=" + invalidColour + ">" + text + "</color>";

@@ -687,7 +687,7 @@ namespace ProjectLucid.Tests
         }
 
         // A data row reads its reference's average value (zero with no samples) in megabytes and applies the row's own thresholds: a
-        // maximum of 5 holds, a minimum of 1 does not. A failed data row falls through to the frame lookup, which this path misses.
+        // maximum of 5 holds, a minimum of 1 does not. A failed data row goes straight to the open-gate check.
         [TestCase(true, 5f, true, TestName = "ADataRowBelowItsMaximumIsValid")]
         [TestCase(false, 1f, false, TestName = "ADataRowBelowItsMinimumIsInvalid")]
         public void ADataRowIsCheckedAgainstItsThreshold(bool isMaxThreshold, float limit, bool valid)

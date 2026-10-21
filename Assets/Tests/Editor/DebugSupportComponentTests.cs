@@ -188,9 +188,10 @@ namespace ProjectLucid.Tests
             {
                 Call(attack, "OnDrawGizmosSelected");
             }
-            catch (Exception)
+            catch (Exception exception) when (exception.ToString().Contains("Gizmos"))
             {
-                // Raised by the first gizmo call, after the state below was built.
+                // Raised by the first gizmo call (the engine's Gizmos frames are in the trace), after the state below was built;
+                // a fault from anywhere else in the method is not swallowed.
             }
             finally
             {
@@ -323,8 +324,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Without a custom profile the method loads or creates "UserPerformanceProfile" and appends it, giving it the serialized features
-        // when it has no attributes. It only reads the user's profile file; the profile it adds is destroyed here.
+        // Without a custom profile the method loads or creates "UserPerformanceProfile" and appends it. It only reads the user's profile
+        // file; the profile it adds is destroyed here. Not covered: giving the loaded profile the serialized features (SetAttributes),
+        // which runs only when the machine's user file is missing or has no attributes.
         [Test]
         public void WithoutACustomProfileTheUserProfileIsAppended()
         {

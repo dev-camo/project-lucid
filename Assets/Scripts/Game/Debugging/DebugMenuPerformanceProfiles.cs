@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Hardlight;
 using Unity.IL2CPP.CompilerServices;
@@ -34,9 +35,10 @@ namespace HardlightProject
         // 06001ff5 (1.10.1 RVA 0x55E3C0): each profile's name is read; the button built from it is compiled out.
         private void AddDebugPerformanceProfileSelection(ScalablePerformance scalablePerformance)
         {
-            for (int i = 0; i < scalablePerformance.PerformanceProfiles.Count; i++)
+            IReadOnlyList<PerformanceProfile> profiles = scalablePerformance.PerformanceProfiles;
+            for (int i = 0; i < profiles.Count; i++)
             {
-                string profileName = scalablePerformance.PerformanceProfiles[i].name;
+                _ = profiles[i].name;
             }
         }
 
@@ -45,9 +47,10 @@ namespace HardlightProject
         public void AddDebugCustomPerformanceOptions(ScalablePerformance scalablePerformance)
         {
             PerformanceProfileCustom customProfile = null;
-            for (int i = 0; i < scalablePerformance.PerformanceProfiles.Count; i++)
+            IReadOnlyList<PerformanceProfile> profiles = scalablePerformance.PerformanceProfiles;
+            for (int i = 0; i < profiles.Count; i++)
             {
-                if (scalablePerformance.PerformanceProfiles[i] is PerformanceProfileCustom existing)
+                if (profiles[i] is PerformanceProfileCustom existing)
                 {
                     customProfile = existing;
                     break;

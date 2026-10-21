@@ -95,8 +95,8 @@ namespace HardlightProject
         private ChallengeManager m_challengeManager;
         private int m_pressedMissionButtonIndex = -1;
 
-        // 060031fb (1.10.1 RVA 0x62B6F0): every toggle is set to the current state without notifying, and the
-        // invincibility and respawn controls stay hidden until a character exists.
+        // 060031fb (1.10.1 RVA 0x62B6F0): the act, FPS, mission timer and pools toggles are set to the current
+        // state without notifying, and the invincibility and respawn controls stay hidden until a character exists.
         private void Start()
         {
             bool allLevelsUnlocked = DebugUnlockLevels.AreAllLevelsUnlocked();
@@ -108,8 +108,7 @@ namespace HardlightProject
             m_characterManagerRef.InvokeOnValid(OnCharacterManagerValid);
             m_fpsToggle.SetIsOnWithoutNotify(VisualQualityManager_SDT.FPSDisplay);
             m_missionTimerUnlimitedToggle.SetIsOnWithoutNotify(MissionTimer.UnlimitedTime);
-            if (m_trackManagerRef.TryGet(out TrackManager trackManager))
-                m_poolsToggle.SetIsOnWithoutNotify(trackManager.DebugInstancePoolsUIIsOpen());
+            SetPoolsToggleState();
             ProcessManager.GetSystemRef<OrnamentManager>(null, true).InvokeOnValid(OnOrnamentManagerValid);
             ProcessManager.GetSystemRef<ChallengeManager>(null, true).InvokeOnValid(OnChallengeManagerValid);
             ProcessManager.GetSystemRef<DreamPowerStoreManager>(null, true).InvokeOnValid(OnDreamPowerStoreManagerValid);
@@ -161,7 +160,7 @@ namespace HardlightProject
                         app.Storage.SetValue(AppFSMKeys.OnPauseCloseEvent, onPauseClose);
                     };
                 }
-                void Select(UIWidgetNavigation _) => Action_OnWidgetSelected((RectTransform)button.transform);
+                void Select(UIWidgetNavigation _) => m_scrollRectSelection.Select((RectTransform)button.transform, true);
                 if (i == m_pressedMissionButtonIndex)
                 {
                     if (button.TryGetComponent(out UIWidgetNavigation navigation))
@@ -177,7 +176,9 @@ namespace HardlightProject
 
         // 060031fe (1.10.1 RVA 0x62C830): the three XP buttons run lambdas 33_0..33_2 (AddXP), the reset button
         // ResetXP. The amounts the lambdas passed to AddXP leave no trace in retail, where AddXP ignores them; they
-        // are taken from the button names.
+        // are taken from the button names (unverified; see the note at the listeners). Start's callees
+        // SetUnlockAllLevels and SetPoolsToggleState sit after Start in the binary, and OnUpdatedChallengeCycle and
+        // UpdateChallengeXPLabel after this method, which is the placement of inlined-then-called helpers.
         private void OnChallengeManagerValid(ChallengeManager challengeManager)
         {
             m_challengeManager = challengeManager;
@@ -185,12 +186,14 @@ namespace HardlightProject
             m_challengeFeatureToggle.SetIsOnWithoutNotify(challengeManager.FeatureState != ChallengeManager.ChallengeFeatureState.Locked);
             m_challengeCycleButtonNext.onClick.AddListener(ChallengeCycleAdvance);
             m_challengeCycleButtonPrevious.onClick.AddListener(ChallengeCycleRegress);
-            ChallengeCycleLabel.Value = m_challengeManager.GetCycleDebugLabel();
+            OnUpdatedChallengeCycle();
+            // The AddXP amounts below are inferred from the field names: retail AddXP ignores its argument, so they
+            // are not recoverable from the binary.
             m_xpPlus1k.onClick.AddListener(() => AddXP(1000));
             m_xpPlus10k.onClick.AddListener(() => AddXP(10000));
             m_xpPlus100k.onClick.AddListener(() => AddXP(100000));
             m_xpReset.onClick.AddListener(ResetXP);
-            ChallengeXP.Value = string.Format("Challenge XP: {0}", m_challengeManager.GetCurrentXP());
+            UpdateChallengeXPLabel();
             m_containerNavigation.UpdateChildWidgets();
         }
 
@@ -256,9 +259,8 @@ namespace HardlightProject
             SaveManager saveManager = m_saveManagerRef.Get();
             GameplayLevelDefinition levelDefinition = app.Storage.GetValue<MetaGameState>(AppFSMKeys.MetaGameState, null, true).LevelDefinition;
             SaveDataLevel levelData = saveManager.CurrentSave.GetOrCreateLevelData(levelDefinition.GetGUID());
-            MissionList missionList = levelDefinition.MissionList;
-            if (missionList == null) return false;
-            IReadOnlyList<MissionDefinition> missions = missionList.GetMissions(false);
+            if (levelDefinition.MissionList == null) return false;
+            IReadOnlyList<MissionDefinition> missions = levelDefinition.MissionList.GetMissions(false);
             for (int i = 0; i < missions.Count; i++)
             {
                 if (SetupForMission(levelData.GetOrCreateMissionData(missions[i].GetGUID()))) break;
@@ -266,7 +268,7 @@ namespace HardlightProject
             return true;
         }
 
-        // 06003208 (1.10.1 RVA 0x62D180): no button for an unknown mission, or for a completed one already ranked S.
+        // 06003208 (1.10.1 RVA 0x62D180): no button for an unknown mission, or for a completed one already ranked S or whose best time has no rank.
         // The button writes the best rank's time less 0.1 seconds, marks the mission complete and rebuilds the menu.
         private bool SetupForMission(SaveDataLevelMission nextMissionSave)
         {
@@ -288,7 +290,7 @@ namespace HardlightProject
                 Destroy(button.gameObject);
                 SetupForMenu();
             }));
-            void Select(UIWidgetNavigation _) => Action_OnWidgetSelected((RectTransform)button.transform);
+            void Select(UIWidgetNavigation _) => m_scrollRectSelection.Select((RectTransform)button.transform, true);
             if (button.TryGetComponent(out UIWidgetNavigation navigation))
                 navigation.OnWidgetSelected += Select;
             m_containerNavigation.UpdateChildWidgets();
@@ -410,8 +412,8 @@ namespace HardlightProject
             IReadOnlyList<RespawnPoint> respawnPoints = ProcessManager.GetSystem<LevelRespawnPoints>().GetRespawnPoints();
             for (int i = 0; i < respawnPoints.Count; i++)
             {
-                if (respawnPoints[i].transform == previousRespawnTransform && i < respawnPoints.Count - 1)
-                    return respawnPoints[i + 1];
+                if (respawnPoints[i].transform != previousRespawnTransform) continue;
+                if (i < respawnPoints.Count - 1) return respawnPoints[i + 1];
             }
             return respawnPoints[0];
         }
