@@ -19,12 +19,15 @@ namespace ProjectLucid.Tests
     // ActorVisualProxyModifier (0x020009df, 0x6A6660..0x6A66E0), ActorAnimationTrigger<T>
     // (0x0200076a, shared bodies 0xF19E70..0xF1A480) and AirRechargePickup (0x02000ab9,
     // 0x6E1100..0x6E2300 with its closure 0x02000aba). Components sit on owned objects (Edit Mode
-    // runs no Awake or OnEnable); every registry row a constructor reads is leased. Not covered: what
-    // TryPlayAnimation, Action_OnLeave and OnDisable make the actor do. Actor.TriggerAnimationEnter and
-    // TriggerAnimationLeave return at once until Actor.Initialise (060002bd) has set m_initialised, and
-    // that cannot run here: its TimeManager subscription needs a TimeManager that has run Awake (which
-    // registers SystemConfiguration and changes Time.timeScale), and its FSM must be acquired through
-    // the FSMManager. The flag has no other writer, and forcing it would fake the readiness.
+    // runs no Awake or OnEnable); every registry row a constructor reads is leased. Covered directly for
+    // ActorAnimationTrigger<T>: its bookkeeping (enable and disable resets, the filter, the pending list
+    // and the effect-handle dictionary on enter, leave and disable). Still needs a started Actor (PlayMode):
+    // what TryPlayAnimation, Action_OnLeave and OnDisable make the actor do, including which handle list
+    // reaches it. Actor.TriggerAnimationEnter and TriggerAnimationLeave are not virtual and return at once
+    // until Actor.Initialise (060002bd) has set m_initialised, so no directly callable method reaches that
+    // behaviour; and Initialise cannot run here, because its TimeManager subscription needs a TimeManager
+    // that has run Awake (which registers SystemConfiguration and changes Time.timeScale), and its FSM must
+    // be acquired through the FSMManager. The flag has no other writer, and forcing it would fake the readiness.
     public sealed class OriginalCharCorePickupTests
     {
         // ---- BreakableObject ----
