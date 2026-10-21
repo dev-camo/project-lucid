@@ -31,8 +31,7 @@ namespace HardlightProject
             if (m_characterManagerRef.IsNull())
                 return;
             m_characterManagerRef.Get().ReleaseOnCharacterChange(OnCharacterChange);
-            if (m_characterDefinition != null)
-                m_characterDefinition.Image.Unload();
+            UnloadImage(); // Native inlines UnloadImage here.
         }
 
         // 0x06003791
@@ -44,8 +43,7 @@ namespace HardlightProject
         // 0x06003792: the previous portrait is unloaded first; the lookup writes the field even when it misses.
         private void OnCharacterChange(Character character)
         {
-            if (m_characterDefinition != null)
-                m_characterDefinition.Image.Unload();
+            UnloadImage(); // Native inlines UnloadImage here.
             if (m_dataManagerRef.Get().Characters.TryGetValue(character.IdType, out m_characterDefinition))
                 CharacterSprite.Value = m_characterDefinition.Image.Load();
         }

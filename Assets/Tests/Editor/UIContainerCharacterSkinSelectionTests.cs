@@ -154,6 +154,43 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The event and the animation run only when the character accepts the skin (SetCharacterSkin result tested at 0x624616,
+        // je 0x624639): a character already wearing it gets neither, though the binders still show it.
+        [Test]
+        public void ASkinTheCharacterAlreadyWearsRaisesNoEventAndPlaysNoAnimation()
+        {
+            Run(true, false, (scene, rig) =>
+            {
+                ExpectSaveRequests(1);
+                Assert.That(rig.Character.SetCharacterSkin(rig.SkinA), Is.True);
+
+                rig.Container.SetCharacterSkin(rig.SkinA);
+
+                Assert.That(rig.Selected.Count, Is.Zero);
+                Assert.That(rig.Animation.IsPlaying(rig.Clip.name), Is.False);
+                Assert.That(rig.Container.IsLocked.Value, Is.False);
+                Assert.That(rig.Container.Render.Value, Is.SameAs(rig.ThumbnailA));
+            });
+        }
+
+        // The skin already shown is recognised by GUID (op_Equality, call 0x1b11a30 at 0x62440C), not by reference.
+        [Test]
+        public void ADifferentObjectWithTheShownSkinsGuidIsTheShownSkin()
+        {
+            Run(true, true, (scene, rig) =>
+            {
+                ExpectSaveRequests(1);
+                rig.Container.SetCharacterSkin(rig.SkinA);
+                CharacterSkinDefinition sameGuid = NewSkin(scene, "lucid-skin-a", Strings.MISSING, true, out _);
+
+                rig.Container.SetCharacterSkin(sameGuid);
+
+                Assert.That(Get<int>(rig.SkinA.Thumbnail, "m_refCount"), Is.EqualTo(1));
+                Assert.That(rig.Selected.Count, Is.EqualTo(1));
+                Assert.That(Get<CharacterSkinDefinition>(rig.Container, "m_currentSkin"), Is.SameAs(rig.SkinA));
+            });
+        }
+
         // UnloadRender 0x624500 and OnDestroy 0x624640 release the shown skin's thumbnail and do nothing without one.
         [Test]
         public void UnloadAndDestroyReleaseTheShownThumbnail()

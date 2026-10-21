@@ -87,33 +87,37 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // A refused equip (not bought, 0x566340 family) leaves the slot and the save alone and does not request a save.
+        // A refused equip (not bought, TryEquip 0x5661B0) leaves the slot and the save alone and does not request a save.
         [Test]
         public void APowerThatIsNotBoughtIsNotEquipped()
         {
             Run(2, world =>
             {
                 UIDreamPowerSlots slots = world.Slots(CharacterArchetype.None);
+                world.Buttons[0].Widget.Interactable = false;
 
                 slots.Equip(0, world.NotBought);
 
                 Assert.That(world.Buttons[0].Widget.IsEquipped, Is.False);
+                Assert.That(world.Buttons[0].Widget.Interactable, Is.False, "interactable only after TryEquip accepts (0x615A6D)");
                 Assert.That(world.Buttons[0].Widget.Icon.Value, Is.Null);
                 Assert.That(world.Guid(0), Is.Null);
             });
         }
 
-        // ArchetypeAllowsPower 0x6662B0 only lets None through unrestricted; a restricted archetype with no collated powers refuses.
+        // ArchetypeAllowsPower 0x5662B0 only lets None through unrestricted; a restricted archetype with no collated powers refuses.
         [Test]
         public void ARestrictedArchetypeThatDoesNotListThePowerRefusesIt()
         {
             Run(2, world =>
             {
                 UIDreamPowerSlots slots = world.Slots(CharacterArchetype.Climbing);
+                world.Buttons[0].Widget.Interactable = false;
 
                 slots.Equip(0, world.Bought);
 
                 Assert.That(world.Buttons[0].Widget.IsEquipped, Is.False);
+                Assert.That(world.Buttons[0].Widget.Interactable, Is.False, "interactable only after TryEquip accepts (0x615A6D)");
                 Assert.That(world.Game.GetOrCreateDreamPowerLoadout(CharacterArchetype.Climbing).SlotsByIndex, Is.Empty);
             });
         }
@@ -143,6 +147,28 @@ namespace ProjectLucid.Tests
                 Assert.That(world.Guid(0), Is.Null);
                 Assert.That(world.Guid(1), Is.EqualTo("lucid-slots-bought"));
                 Assert.That(world.Guid(2), Is.EqualTo("lucid-slots-other"));
+            });
+        }
+
+        // The other slots' powers are compared with ScriptableObjectWithGuid.op_Equality (call 0x1b11a30 at 0x615ADF), which compares
+        // GUIDs: a distinct definition object with the same GUID is the same power and is cleared from the other slot.
+        [Test]
+        public void ADifferentObjectWithTheSameGuidIsTheSamePower()
+        {
+            Run(2, world =>
+            {
+                UIDreamPowerSlots slots = world.Slots(CharacterArchetype.None);
+                DreamPowerDefinition sameGuid = NewDefinition(world.Owned, "lucid-slots-bought", Strings.MISSING, world.BoughtIcon);
+                ExpectSaveRequests(1);
+                slots.Equip(0, world.Bought);
+                ExpectSaveRequests(2);
+
+                slots.Equip(1, sameGuid);
+
+                Assert.That(world.Buttons[0].Widget.IsEquipped, Is.False);
+                Assert.That(world.Guid(0), Is.Null);
+                Assert.That(world.Buttons[1].Widget.IsEquipped, Is.True);
+                Assert.That(world.Guid(1), Is.EqualTo("lucid-slots-bought"));
             });
         }
 

@@ -10,6 +10,8 @@ using UnityEngine;
 using UnityEngine.TestTools;
 using UnityEngine.UI;
 using static ProjectLucid.Tests.CharacterSelectScene;
+using static ProjectLucid.Tests.ChallengeRewardTestSupport;
+using static ProjectLucid.Tests.DreamPowerSlotRigs;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -19,7 +21,8 @@ namespace ProjectLucid.Tests
     // equip container is a real one with its powers disabled. The screen's Awake takes no meta game selection from the
     // scene, so the zone colours and the reward counter (which need a selected level) are not covered, nor is Start's
     // call to action prompt (a real PromptTrigger) or the swap of the character manager. The UINavigationManager row is empty,
-    // so the navigation selection after a toggle is chosen (0x623663) is not covered either.
+    // so the navigation selection after a toggle is chosen (0x623663) is not covered either. The equip container is built with a
+    // store and slots only by the case that checks the refresh at the end of SetCharacter.
     public sealed class UIContainerCharacterSelectMainTests
     {
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
@@ -215,6 +218,119 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The scene's active mission context. The manager's setter is private, so the case calls it as the manager's own code does;
+        // it is cleared again before the scene is released.
+        private static void ActivateContext(Scene scene, IMissionContext context)
+        {
+            var setter = typeof(MissionManager).GetProperty("ActiveMissionContext").GetSetMethod(true);
+            setter.Invoke(scene.Missions, new object[] { context });
+            scene.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => setter.Invoke(scene.Missions, new object[] { null })));
+        }
+
+        private static MissionDefinition NewMission(Scene scene)
+        {
+            var mission = scene.Owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
+            Set(mission, "m_guid", "lucid-select-main-mission"); // Reflection: authored GUID of a serialized definition
+            Set(mission, "m_subMissions", new List<MissionDefinition>()); // Reflection: authored serialized list
+            return mission;
+        }
+
+        // Awake 0x622270 tests the active context's class (0x62246F..0x62248F) and asks the skin requirements (0x6224B9).
+        // A challenge context is a challenge; a regular one and none at all are not; one unmet requirement turns the skin entry off.
+        [Test]
+        public void ARegularContextIsNotChallengeMode()
+        {
+            Run((scene, rig) =>
+            {
+                scene.Owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser caches this row
+                var level = scene.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+                Set(level, "m_guid", "lucid-select-main-level"); // Reflection: authored GUID of a serialized definition
+                ActivateContext(scene, new MissionContextRegular(NewMission(scene), level, false));
+
+                Call(rig.Container, "Awake");
+
+                Assert.That(rig.Container.IsChallengeMode.Value, Is.False);
+            });
+        }
+
+        [Test]
+        public void AChallengeContextMakesTheScreenChallengeMode()
+        {
+            Run((scene, rig) =>
+            {
+                var definition = scene.Owned.Track(ScriptableObject.CreateInstance<ChallengeDefinition>());
+                Set(definition, "m_mission", NewMission(scene));
+                Set(definition, "m_level", scene.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>()));
+                Set(definition, "m_characterSelection", new CharacterId[0]);
+                Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]);
+                var state = new ChallengeState(0, definition, 0, null, 0);
+                OwnedStringTable.Run(new Dictionary<Hardlight.Enums.Strings, string> { { (Hardlight.Enums.Strings)0, "Lucid challenge" } },
+                    () => ActivateContext(scene, new MissionContextChallenge(state, false)));
+
+                Call(rig.Container, "Awake");
+
+                Assert.That(rig.Container.IsChallengeMode.Value, Is.True);
+            });
+        }
+
+        [Test]
+        public void AnUnmetSkinRequirementTurnsTheSkinEntryOff()
+        {
+            Run((scene, rig) =>
+            {
+                var unmet = scene.Owned.Track(ScriptableObject.CreateInstance<RequirementLevelAlwaysLocked>());
+                Set(rig.Container, "m_characterSkinUnlockRequirements", new RequirementGameplayLevelBase[] { unmet }); // Reflection: authored serialized field
+
+                Call(rig.Container, "Awake");
+
+                Assert.That(rig.Container.SkinsSelectionActive.Value, Is.False);
+            });
+        }
+
+        // SetCharacter 0x622C70 ends with RefreshPowers(characterDefinition.Archetype) on the equip container (0x622E65..0x622E7E).
+        // Over a powers-enabled container with one saved power, Climbing lists no powers (disabled) and None allows every power (enabled).
+        [Test]
+        public void ChoosingACharacterRefreshesTheEquippedPowersForItsArchetype()
+        {
+            Run((scene, rig) =>
+            {
+                Owned owned = scene.Owned;
+                owned.LeaseRow<ChallengeManager>(); // The store's and the mission context's field initialisers cache this row
+                Set(rig.Container, "m_app", scene.App); // Reflection: Awake takes it from the registry
+                var store = owned.Register(owned.Host("Lucid select main store", false).AddComponent<DreamPowerStoreManager>());
+                Set(store, "m_saveManager", scene.Save); // Reflection: the reference the store's start-up chain takes from the SaveManager row
+                Set(store, "m_unlockRequirements", new RequirementGameplayLevelBase[0]); // Reflection: authored serialized field
+                Set(scene.Save, "m_saveSettings", new SaveDataSettings()); // Reflection: the settings the SaveManager holds after loading
+                ImageSlot[] slots = { NewImageSlot(owned), NewImageSlot(owned) };
+                Set(rig.Equip, "m_slots", Array.ConvertAll(slots, slot => slot.Widget)); // Reflection: serialized references the editor assigns
+                GameObject overlayHost = owned.Host("Lucid select main equip overlay", false);
+                var overlayButton = overlayHost.AddComponent<Button>();
+                var overlay = overlayHost.AddComponent<UIWidgetButton>();
+                Set(overlay, "m_uiButton", overlayButton);
+                Set(rig.Equip, "m_buttonOverlay", overlay);
+                Set(rig.Equip, "m_controllerGroup", owned.Host("Lucid select main equip group", false).AddComponent<RectTransform>());
+                DreamPowerDefinition power = NewDefinition(owned, "lucid-select-main-power", Hardlight.Enums.Strings.MISSING, NewSprite(owned));
+                scene.Data.DreamPowerDefinitions["lucid-select-main-power"] = power;
+                scene.Save.CurrentSave.GetOrCreateDreamPowerLoadout(CharacterArchetype.None).Set(0, "lucid-select-main-power");
+                var mission = NewMission(scene);
+                Set(mission, "m_enableDreamPowers", true); // Reflection: authored mission data
+                var level = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+                Set(level, "m_guid", "lucid-select-main-level"); // Reflection: authored GUID of a serialized definition
+                ActivateContext(scene, new MissionContextRegular(mission, level, false));
+                Call(rig.Equip, "Start");
+                Assert.That(rig.Equip.PowersEnabled.Value, Is.True);
+                CharacterDefinition climber = AddCharacter(scene, CharacterId.Tails, CharacterArchetype.Climbing);
+                CharacterDefinition unrestricted = AddCharacter(scene, CharacterId.Sonic);
+
+                rig.Container.SetCharacter(climber);
+                Assert.That(slots[0].Animation.IsPlaying(slots[0].Disabled.name), Is.True, "climbing lists no powers");
+
+                rig.Container.SetCharacter(unrestricted);
+                Assert.That(slots[0].Animation.IsPlaying(slots[0].Enabled.name), Is.True, "the unrestricted archetype allows every power");
+                Assert.That(slots[0].Animation.IsPlaying(slots[0].Disabled.name), Is.False);
+            });
+        }
+
         // Action_OpenSkinSelection 0x622E90 passes the current character's definition to the skin selection screen as the
         // container parameters (0x62310A) and publishes the open event under OnClick (0x623191).
         [Test]
@@ -284,6 +400,25 @@ namespace ProjectLucid.Tests
                 rig.Toggles[CharacterId.Tails].SetSelected(true);
                 Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController);
                 Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Tails }), "a selection is kept");
+            }, CharacterId.Sonic, CharacterId.Tails);
+        }
+
+        // OnInputTypeChanged selects the toggle of m_characterIds[0] (0x623944, key compare 0x623A8A), whatever the toggle order.
+        [Test]
+        public void ControllerInputSelectsTheToggleOfTheFirstListedCharacterNotTheFirstToggle()
+        {
+            Run((scene, rig) =>
+            {
+                AddCharacter(scene, CharacterId.Sonic);
+                AddCharacter(scene, CharacterId.Tails);
+                Call(rig.Container, "Awake");
+                rig.Toggles[CharacterId.Sonic].SetSelected(false);
+                // Reflection: the list GetCharactersForActiveMission fills, written here with a different order than the toggles
+                Set(rig.Container, "m_characterIds", new List<CharacterId> { CharacterId.Tails, CharacterId.Sonic });
+
+                Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController);
+
+                Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Tails }));
             }, CharacterId.Sonic, CharacterId.Tails);
         }
 

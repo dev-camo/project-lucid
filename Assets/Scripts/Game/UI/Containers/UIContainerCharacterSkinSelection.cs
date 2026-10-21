@@ -104,9 +104,7 @@ namespace HardlightProject
         // 0x0600318a
         private void OnDestroy()
         {
-            if (m_currentSkin == null)
-                return;
-            m_currentSkin.Thumbnail.Unload();
+            UnloadRender(); // Native inlines UnloadRender here.
         }
 
         // 0x0600318b

@@ -149,29 +149,37 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x6A2190 / 0x6A2210 / 0x6A21D0: each of the three entry points hands the skin to the callback, then refreshes the binders.
+        // 0x6A2190 / 0x6A2210 / 0x6A21D0: each of the three entry points hands the skin to the callback (0x6A21B2) and only then
+        // refreshes the binders (tail call at 0x6A21BE): a callback that unlocks the skin is already seen by the refresh.
         [Test]
         public void EverySelectionEntryPointAppliesTheSkinAndRefreshesTheBinders()
         {
             Run((owned, rig) =>
             {
-                rig.Widget.Setup(rig.Parameters());
-                SetSaved(rig, true, false, false);
+                var applied = new List<CharacterSkinDefinition>();
+                var parameters = new UIWidgetSDTSkinToggle.UIWidgetSDTSkinToggleParameters(rig.Skin,
+                    skin => { applied.Add(skin); rig.Game.GetOrCreateSkinData(SkinGuid).Unlocked = true; }, rig.Group);
+                rig.Widget.Setup(parameters);
+                Action[] entryPoints =
+                {
+                    () => rig.Widget.Action_OnSkinSelected(),
+                    () => rig.Widget.Action_OnSkinSelected(false), // the flag is ignored
+                    () => Call(rig.Widget, "SetCharacterSkin"),
+                };
 
-                rig.Widget.IsNew.Value = false;
-                rig.Widget.Action_OnSkinSelected();
-                Assert.That(rig.Applied, Is.EqualTo(new[] { rig.Skin }));
-                Assert.That(rig.Widget.IsNew.Value, Is.True, "binders refreshed after the callback");
+                for (int i = 0; i < entryPoints.Length; i++)
+                {
+                    SetSaved(rig, false, false, false);
+                    Call(rig.Widget, "UpdateBinders");
+                    Assert.That(rig.Widget.IsLocked.Value, Is.True, "locked before entry point " + i);
 
-                rig.Widget.IsNew.Value = false;
-                rig.Widget.Action_OnSkinSelected(false);
-                Assert.That(rig.Applied, Is.EqualTo(new[] { rig.Skin, rig.Skin }), "the flag is ignored");
-                Assert.That(rig.Widget.IsNew.Value, Is.True);
+                    entryPoints[i]();
 
-                rig.Widget.IsNew.Value = false;
-                Call(rig.Widget, "SetCharacterSkin");
-                Assert.That(rig.Applied.Count, Is.EqualTo(3));
-                Assert.That(rig.Widget.IsNew.Value, Is.True);
+                    Assert.That(applied.Count, Is.EqualTo(i + 1));
+                    Assert.That(applied[i], Is.SameAs(rig.Skin));
+                    Assert.That(rig.Widget.IsLocked.Value, Is.False, "binders refreshed after the callback, entry point " + i);
+                    Assert.That(rig.Widget.IsNew.Value, Is.True, "entry point " + i);
+                }
             });
         }
 
