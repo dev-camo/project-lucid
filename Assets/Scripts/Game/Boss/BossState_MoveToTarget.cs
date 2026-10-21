@@ -83,7 +83,7 @@ namespace HardlightProject
         private float GetHeightFromRaycast(Boss boss, Vector3 worldPosition)
         {
             if (Physics.Raycast(new Ray(worldPosition, -boss.UpDirection), out RaycastHit hit,
-                (worldPosition.y + RaycastStartHeightBoost) * RaycastDistanceMultiplier, boss.GetTraits().TrackMask))
+                (float)(worldPosition.y + RaycastStartHeightBoost) * RaycastDistanceMultiplier, boss.GetTraits().TrackMask))
                 return hit.point.y;
             return worldPosition.y;
         }

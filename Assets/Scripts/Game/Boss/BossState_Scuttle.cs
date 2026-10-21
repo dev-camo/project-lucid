@@ -41,8 +41,9 @@ namespace HardlightProject
             float newY = GetHeightFromRaycast(boss, boss.WorldPosition);
             Vector3 local = boss.transform.InverseTransformPoint(target);
             BossAbilityDefinition_MovementScuttle definition = scuttle.Definition;
-            float normalisedDistanceX = local.x * local.x / definition.TargetDistanceForFullSpeedSquared;
-            float normalisedDistanceZ = local.z * local.z / definition.TargetDistanceForFullSpeedSquared;
+            // The product is rounded to single precision before the division, as the native mulss and divss do.
+            float normalisedDistanceX = (float)(local.x * local.x) / definition.TargetDistanceForFullSpeedSquared;
+            float normalisedDistanceZ = (float)(local.z * local.z) / definition.TargetDistanceForFullSpeedSquared;
             float speedX = definition.FullSpeedCurve.Evaluate(normalisedDistanceX) * definition.ScuttleSpeed;
             float speedZ = definition.FullSpeedCurve.Evaluate(normalisedDistanceZ) * definition.ScuttleSpeed;
             SetBossMovementDirections(boss.Animator,
@@ -76,7 +77,7 @@ namespace HardlightProject
         private float GetHeightFromRaycast(Boss boss, Vector3 worldPosition)
         {
             if (Physics.Raycast(new Ray(worldPosition, -boss.UpDirection), out RaycastHit hit,
-                (worldPosition.y + RaycastStartHeightBoost) * RaycastDistanceMultiplier, boss.GetTraits().TrackMask))
+                (float)(worldPosition.y + RaycastStartHeightBoost) * RaycastDistanceMultiplier, boss.GetTraits().TrackMask))
                 return hit.point.y;
             return worldPosition.y;
         }
