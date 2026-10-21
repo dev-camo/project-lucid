@@ -17,11 +17,11 @@ namespace ProjectLucid.Tests
     // through a concrete leaf closed over the rails homing definition probe. The character is a real component on an
     // owned inactive host with a real homing pool; the ability is built by its real constructor. The one branch that
     // needs a live camera manager (the heading override) is pinned by its call order instead.
-    public sealed class CharMoves07TargetingHomingTests
+    public sealed class CharacterTargetingHomingAbilityTests
     {
         // The generic base is abstract; this leaf adds only knobs for its two protected virtual members, which fall
         // back to the base implementation while unset.
-        private sealed class HomingProbe : CharacterAbility_TargetingHoming<CharMoves07RailsHomingDefinitionProbe>
+        private sealed class HomingProbe : CharacterAbility_TargetingHoming<RailsHomingDefinitionProbe>
         {
             public bool? ProjectFromCameraKnob;
             public AnimationCurve CurveKnob;
@@ -33,7 +33,7 @@ namespace ProjectLucid.Tests
 
         // The absent rows the constructors read are leased for the case: the character's island row, the App row of
         // CharacterAbility, the camera manager row of the homing ability and the message manager row of the pool.
-        private static void WithHoming(Action<Owned, CharacterGravityVectorProbe, HomingProbe, CharMoves07RailsHomingDefinitionProbe> body,
+        private static void WithHoming(Action<Owned, CharacterGravityVectorProbe, HomingProbe, RailsHomingDefinitionProbe> body,
             Dictionary<HomingTargetType, TargetingTypePriorityDefinition> priorities = null) => Owned.Run(owned =>
         {
             owned.LeaseRow<GameplayIslandManager>();
@@ -42,7 +42,7 @@ namespace ProjectLucid.Tests
             owned.LeaseRow<CinemachineCameraManager>();
             CharacterGravityVectorProbe character = NewCharacter(owned);
             SetProperty(character, "HomingPool", new CharacterHomingPool(character, priorities ?? new Dictionary<HomingTargetType, TargetingTypePriorityDefinition>()));
-            var definition = owned.Track(ScriptableObject.CreateInstance<CharMoves07RailsHomingDefinitionProbe>());
+            var definition = owned.Track(ScriptableObject.CreateInstance<RailsHomingDefinitionProbe>());
             var ability = new HomingProbe();
             Set(ability, "m_character", character);
             Set(ability, "m_definition", definition);
@@ -94,7 +94,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void CallOrderTheCameraProjectionTestsTheHeadingOverrideBeforeTheInput()
         {
-            List<MethodBase> calls = Calls(typeof(CharacterAbility_TargetingHoming<>), nameof(CharacterAbility_TargetingHoming<CharMoves07RailsHomingDefinitionProbe>.ShouldProjectFromCamera));
+            List<MethodBase> calls = Calls(typeof(CharacterAbility_TargetingHoming<>), nameof(CharacterAbility_TargetingHoming<RailsHomingDefinitionProbe>.ShouldProjectFromCamera));
             int valid = IndexOf(calls, "SystemRef", "IsValid");
             int manager = IndexOf(calls, "SystemRef", "Get", valid + 1);
             int heading = IndexOf(calls, "CinemachineCameraManager", "GetCameraSettingOverride", manager + 1);
@@ -117,7 +117,7 @@ namespace ProjectLucid.Tests
                 Assert.That((float)Call(ability, "get_CooldownTimeSeconds"), Is.EqualTo(0.6f));
                 Assert.That((bool)Call(ability, "get_UseTimeScaling"), Is.True);
 
-                var replacement = owned.Track(ScriptableObject.CreateInstance<CharMoves07RailsHomingDefinitionProbe>());
+                var replacement = owned.Track(ScriptableObject.CreateInstance<RailsHomingDefinitionProbe>());
                 replacement.TargetingIntervalSeconds = 1.5f;
                 replacement.CooldownTimeSeconds = 2.5f;
                 replacement.UseTimeScaling = false;

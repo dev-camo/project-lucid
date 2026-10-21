@@ -24,7 +24,7 @@ namespace ProjectLucid.Tests
     // owned inactive host with a real homing pool, and the brain is the minimal concrete CharacterBrain. The members
     // that need a started character (spawning the detection box, the coroutine host, the boost stamina) are pinned by
     // their compiled call order instead.
-    public sealed class CharMoves07HomingAttackTests
+    public sealed class CharacterHomingAttackAbilityTests
     {
         // The generic bodies are abstract-closed; this leaf adds only a knob over the one virtual the leaves override.
         private sealed class HomingAttackProbe : CharacterAbility_HomingAttack<CharacterAbilityDefinition_HomingAttackAirLightspeedDash>

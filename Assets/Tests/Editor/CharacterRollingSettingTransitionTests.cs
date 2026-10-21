@@ -15,7 +15,7 @@ namespace ProjectLucid.Tests
     // The rolling and setting transitions and the ground running state. Expected values come from the 1.10.1 x86-64
     // bodies cited per test; each transition is built from its JSON through the node factory and updated against a
     // real Character on an owned inactive host.
-    public sealed class CharMoves07TransitionTests
+    public sealed class CharacterRollingSettingTransitionTests
     {
         private static string Name() => "Lucid-moves07-" + Guid.NewGuid().ToString("N");
 

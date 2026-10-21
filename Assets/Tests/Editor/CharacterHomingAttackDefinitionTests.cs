@@ -16,7 +16,7 @@ namespace ProjectLucid.Tests
     // come from the 1.10.1 x86-64 constructors and bodies cited per test: the constructors inline every base
     // initialiser (HomingAttack 0x543230 and the leaf constructors write the same ten fields), so the immediates there
     // are the authoritative defaults.
-    public sealed class CharMoves07DefinitionTests
+    public sealed class CharacterHomingAttackDefinitionTests
     {
         private readonly List<Object> m_owned = new List<Object>();
 
@@ -174,7 +174,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void RailsHomingDefinitionStartsAtOneEightyDegreesAndOneUnit()
         {
-            var definition = Create<CharMoves07RailsHomingDefinitionProbe>();
+            var definition = Create<RailsHomingDefinitionProbe>();
             Assert.That(Bits(definition.HomingRotationalVelocity), Is.EqualTo(0x43340000));
             Assert.That(Bits(definition.HomingDistance), Is.EqualTo(0x3f800000));
             Assert.That(Bits(definition.TargetingIntervalSeconds), Is.EqualTo(0x3dcccccd));
@@ -188,7 +188,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void RailsHomingCalculateCachedValuesSquaresTheDistanceAndRefreshesTheTargetingCache()
         {
-            var definition = Create<CharMoves07RailsHomingDefinitionProbe>();
+            var definition = Create<RailsHomingDefinitionProbe>();
             definition.InputDiscardTargetAngle = 60f;
             definition.TargetMaxPitchAngle = 30f;
             definition.TargetInnerRadius = 2f;

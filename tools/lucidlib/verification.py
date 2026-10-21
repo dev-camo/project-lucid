@@ -2913,12 +2913,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterRailAndGroundMovementStateT
 ))
 
 # Original homing attack abilities, running ability and state, and the rolling and setting transitions with their definitions (gr2-char-moves-07).
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DeclarationTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterHomingAttackDeclarationTests." + name for name in (
     "DefinitionsKeepTheOriginalShape",
     "AbilitiesKeepTheOriginalShape",
     "NodesKeepTheOriginalShape",
 ))
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DefinitionTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterHomingAttackDefinitionTests." + name for name in (
     "ConcreteHomingDefinitionsStartWithTheNativeInitialisers",
     "ConcreteHomingDefinitionsLeaveTheFlagsTimesAndZoneBoxesAtZero",
     "TargetDistanceIsTheDepthOfTheDetectionBox",
@@ -2931,7 +2931,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07DefinitionTests." + name 
     "RailsHomingCalculateCachedValuesSquaresTheDistanceAndRefreshesTheTargetingCache",
     "FieldsKeepTheirAuthoringAttributesInOrder",
 ))
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07HomingAttackTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterHomingAttackAbilityTests." + name for name in (
     "TargetZoneSizeAddsTheAdjustmentToTheBoxOfTheCurrentProjection",
     "TargetZoneOffsetFollowsTheCurrentProjection",
     "CameraProjectionFlagIsTheAuthoredOne",
@@ -2991,7 +2991,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07HomingAttackTests." + nam
     "CallOrderTheGroundAttackUpdateFeedsTheBoostStaminaLast",
     "CallOrderTheRunningAttackReadsTheBoostStaminaAfterTheBase",
 ))
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TargetingHomingTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterTargetingHomingAbilityTests." + name for name in (
     "AFreshAbilityIsNotTriggeredAndNeverOverridesOrProjectsFromTheCamera",
     "WithoutACameraManagerTheCameraProjectionNeedsTheFlagAndNoControllerMovement",
     "CallOrderTheCameraProjectionTestsTheHeadingOverrideBeforeTheInput",
@@ -3005,7 +3005,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TargetingHomingTests." + 
     "ResetClearsThePendingTargetOfAnAbilityThatCanActivate",
     "CallOrderTheImmediateTargetNeedsAnActiveCharacterAndNoActiveTarget",
 ))
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves07TransitionTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterRollingSettingTransitionTests." + name for name in (
     "RollingFiresWhileTheRollingTriggerDiffersFromTheInverseFlag",
     "RollingIsFalseWithoutTheRollingAbilityEvenWhenInverted",
     "RollingKeepsTheFlagsOfItsJson",

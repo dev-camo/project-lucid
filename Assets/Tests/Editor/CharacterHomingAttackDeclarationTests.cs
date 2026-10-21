@@ -12,7 +12,7 @@ namespace ProjectLucid.Tests
     // interfaces, attribute order, and every declared field and method with its flags in metadata order. The expected
     // rows are the original DummyDll ECMA-335 tables (this is declaration shape, not behaviour). The compiler-generated
     // lambda methods and auto-property backing fields appear in the rows because they are part of the original shape.
-    public sealed class CharMoves07DeclarationTests
+    public sealed class CharacterHomingAttackDeclarationTests
     {
         private static Type Nested(Type owner, string name) => owner.GetNestedType(name, BindingFlags.Public | BindingFlags.NonPublic);
 
