@@ -40,6 +40,11 @@ namespace ProjectLucid.Tests
             owned.LeaseRow<TimeManager>();
             TimeManager manager = NewTimeManager(owned, TimeCategory.Environment, Scale);
             ProcessManager.RegisterSystem(manager, row);
+            // Awake (0x1B1AE58) never runs on the inactive host; Subscribe needs the three per-phase dictionaries it adds.
+            var phases = (IDictionary)Get<object>(manager, "m_updateObjects");
+            var categoryLists = phases.GetType().GetGenericArguments()[1];
+            foreach (UpdateOn phase in new[] { UpdateOn.FixedUpdate, UpdateOn.LateUpdate, UpdateOn.Update })
+                phases.Add(phase, Activator.CreateInstance(categoryLists));
             owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnregisterSystem(row)));
             var lookup = (TimeCategoryLookup)typeof(TimeExtensions).GetField("s_config_Internal", Statics).GetValue(null);
             GameObject host = owned.Host("Lucid owned time scaled spline follower", false);
