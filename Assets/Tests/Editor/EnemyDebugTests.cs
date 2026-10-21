@@ -1,89 +1,39 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
-using static ProjectLucid.Tests.Enemies03TestSupport;
+using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
     // The enemy debug overlay controller. Expected values come from the 1.10.1 x86-64 bodies cited per test. The
     // component is a real EnemyDebug on an active owned host with its UI container as a child; the controller binds
-    // itself to the shared ControlMapping, so every fixture checks that the boss debug input is unbound before it
-    // starts and removes the entries it made.
+    // itself to the shared ControlMapping, so every fixture leases the boss debug input through ControlTableLease.
     public sealed class EnemyDebugTests
     {
         private const string ContainerName = "uicontainer_enemy_debug_info";
 
-        private static readonly string[] MappingNames =
-        {
-            "s_onPointer", "s_onScrollWheel", "s_onTap", "s_onTouch", "s_onTouchRelease", "s_onMultiTouch", "s_onMultiTouchRelease",
-            "s_onVectorisedGameInput", "s_onButtonsHeld", "s_onButtonsDown", "s_onButtonsUp", "s_onAxis", "s_onAxisStart", "s_onAxisEnd", "s_onSwipe",
-        };
-
-        private static IEnumerable<(string name, IDictionary dictionary)> Mappings() =>
-            Array.ConvertAll(MappingNames, name => (name,
-                (IDictionary)typeof(ControlMapping).GetField(name, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null)));
-
-        private static bool IsBossDebugKey(object key) =>
-            (GameInput)key.GetType().GetField("GameInput").GetValue(key) == GameInput.BossDebugInfo
-            && (int)key.GetType().GetField("JoystickIndex").GetValue(key) == -1;
-
-        private static void RemoveBossDebugEntries()
-        {
-            foreach ((string name, IDictionary dictionary) in Mappings())
-            {
-                var keys = new List<object>();
-                foreach (DictionaryEntry entry in dictionary)
-                    if (IsBossDebugKey(entry.Key)) keys.Add(entry.Key);
-                foreach (object key in keys) dictionary.Remove(key);
-            }
-        }
-
-        // The callbacks bound to the boss debug input under the given dictionary, as target and method name.
-        private static List<(object target, string method)> Bound(string dictionaryName)
-        {
-            var bound = new List<(object, string)>();
-            foreach ((string name, IDictionary dictionary) in Mappings())
-            {
-                if (name != dictionaryName) continue;
-                foreach (DictionaryEntry entry in dictionary)
-                {
-                    if (!IsBossDebugKey(entry.Key)) continue;
-                    foreach (Action<float> callback in ((FastAction<float>)entry.Value).GetInvocationList())
-                        bound.Add((callback.Target, callback.Method.Name));
-                }
-            }
-            return bound;
-        }
-
+        // The boss debug input is leased for the fixture: admission refuses an already bound input, and release removes
+        // the keys the controller added and checks every other callback row is untouched.
         private static void WithDebug(bool withContainer, Action<Owned, EnemyDebug, GameObject> body)
         {
-            foreach ((string name, IDictionary dictionary) in Mappings())
-                foreach (DictionaryEntry entry in dictionary)
-                    Assert.That(IsBossDebugKey(entry.Key), Is.False, "the fixture needs the boss debug input unbound in " + name);
-            try
+            ControlTableLease.Run(() => Owned.Run(owned =>
             {
-                Owned.Run(owned =>
+                GameObject host = owned.Host(Name(), true);
+                GameObject container = null;
+                if (withContainer)
                 {
-                    GameObject host = owned.Host(Name(), true);
-                    GameObject container = null;
-                    if (withContainer)
-                    {
-                        container = owned.Host(ContainerName, true, host.transform);
-                    }
-                    body(owned, host.AddComponent<EnemyDebug>(), container);
-                });
-            }
-            finally
-            {
-                RemoveBossDebugEntries();
-            }
+                    container = owned.Host(ContainerName, true, host.transform);
+                }
+                body(owned, host.AddComponent<EnemyDebug>(), container);
+            }), GameInput.BossDebugInfo);
         }
+
+        private static Dictionary<string, string[]> Bound(EnemyDebug debug) => ControlTables.Subscriptions(GameInput.BossDebugInfo, debug);
 
         // 0x576580 returns the literal.
         [Test]
@@ -109,10 +59,7 @@ namespace ProjectLucid.Tests
                     debug.Init(enemy);
                     Assert.That(Get<Actor>(debug, "m_actor"), Is.SameAs(enemy));
                     Assert.That(Get<GameObject>(debug, "m_debugUIContainer"), Is.SameAs(container));
-                    foreach (string name in new[] { "s_onButtonsDown", "s_onAxisStart", "s_onSwipe", "s_onScrollWheel" })
-                        Assert.That(Bound(name), Is.EqualTo(new[] { ((object)debug, "OnEnemyInfo") }), name);
-                    foreach (string name in new[] { "s_onButtonsHeld", "s_onAxis", "s_onButtonsUp", "s_onAxisEnd", "s_onPointer", "s_onTap" })
-                        Assert.That(Bound(name), Is.Empty, name);
+                    Assert.That(Bound(debug), Is.EqualTo(ControlTables.Expected(InputTrigger.Down, "EnemyDebug.OnEnemyInfo")));
                 });
             });
         }
@@ -129,7 +76,7 @@ namespace ProjectLucid.Tests
                 {
                     Assert.That(() => debug.Init(enemy), Throws.InstanceOf<NullReferenceException>());
                     Assert.That(Get<Actor>(debug, "m_actor"), Is.SameAs(enemy));
-                    Assert.That(Bound("s_onButtonsDown"), Is.Empty);
+                    Assert.That(Bound(debug), Is.Empty);
                 });
             });
         }
@@ -187,10 +134,9 @@ namespace ProjectLucid.Tests
                 WithDebug(true, (inner, debug, container) =>
                 {
                     debug.Init(enemy);
-                    Assert.That(Bound("s_onButtonsDown"), Has.Count.EqualTo(1));
+                    Assert.That(Bound(debug), Is.EqualTo(ControlTables.Expected(InputTrigger.Down, "EnemyDebug.OnEnemyInfo")));
                     Call(debug, "OnDestroy");
-                    foreach ((string name, IDictionary dictionary) in Mappings())
-                        Assert.That(Bound(name), Is.Empty, name);
+                    Assert.That(Bound(debug), Is.Empty);
                 });
             });
         }

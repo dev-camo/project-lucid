@@ -9,7 +9,7 @@ namespace ProjectLucid.Tests
     // Shared construction for the enemy brain, state, navigation and debug fixtures. Every object is built through its
     // shipped constructor on an owned inactive host; the rows the Enemy field initialisers cache typed references from
     // are leased and released idle.
-    internal static class Enemies03TestSupport
+    internal static class EnemyTestSupport
     {
         internal static string Name() => "Lucid-enemy-" + Guid.NewGuid().ToString("N");
 

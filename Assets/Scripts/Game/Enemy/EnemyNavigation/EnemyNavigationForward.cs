@@ -32,7 +32,8 @@ namespace HardlightProject
 		// 06002243 (1.10.1 RVA 0x5782E0)
 		public override Vector3 GetDestination()
 		{
-			return transform.position + transform.forward * m_lookAheadDistance;
+			Transform self = transform;
+			return self.position + self.forward * m_lookAheadDistance;
 		}
 
 		// 06002244 (1.10.1 RVA 0x578340)

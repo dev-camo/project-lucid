@@ -6,7 +6,7 @@ using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.WorldSurfaceShared;
 using UnityEngine;
-using static ProjectLucid.Tests.Enemies03TestSupport;
+using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 using Random = UnityEngine.Random;
 
@@ -50,7 +50,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var navigation = NewNavigation<Enemies03ForwardNavigationProbe>(owned, Vector3.zero);
+                var navigation = NewNavigation<EnemyNavigationForwardProbe>(owned, Vector3.zero);
                 Assert.That(Get<float>(navigation, "m_lookAheadDistance"), Is.EqualTo(10f));
                 Assert.That(Convert.ToInt32(Get<object>(navigation, "m_constrainType")), Is.EqualTo(1));
                 Assert.That(navigation.IsInitialised, Is.False);
@@ -66,7 +66,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var navigation = NewNavigation<Enemies03ForwardNavigationProbe>(owned, new Vector3(1f, 2f, 3f), Quaternion.Euler(0f, 90f, 0f));
+                var navigation = NewNavigation<EnemyNavigationForwardProbe>(owned, new Vector3(1f, 2f, 3f), Quaternion.Euler(0f, 90f, 0f));
                 Set(navigation, "m_lookAheadDistance", 4f);
                 AssertNear(navigation.GetDestination(), new Vector3(5f, 2f, 3f), "four ahead");
                 Set(navigation, "m_lookAheadDistance", 0f);
@@ -83,7 +83,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var navigation = NewNavigation<Enemies03ForwardNavigationProbe>(owned, Vector3.zero);
+                var navigation = NewNavigation<EnemyNavigationForwardProbe>(owned, Vector3.zero);
                 Constrain(navigation, true, 1, 0f);
                 var far = new Vector3(100f, -50f, 7f);
                 Assert.That(navigation.CanReachPosition(far), Is.True);
@@ -101,7 +101,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
                 Assert.That(Get<float>(navigation, "m_homeRadius"), Is.EqualTo(10f));
                 Assert.That(navigation.m_minNewDestinationDistance, Is.EqualTo(5f));
                 Assert.That(Convert.ToInt32(Get<object>(navigation, "m_constrainType")), Is.EqualTo(1));
@@ -116,7 +116,7 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var home = new Vector3(3f, 0f, 4f);
-                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                var radius = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, home);
                 Set(radius, "m_homeRadius", 2f);
                 radius.m_minNewDestinationDistance = 1.5f;
                 radius.RunSetUp();
@@ -125,7 +125,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(radius, "m_minNewDestinationDistanceSquared"), Is.EqualTo(2.25f));
                 Assert.That(radius.IsInitialised, Is.True);
 
-                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, home);
+                var fixedHome = NewNavigation<EnemyNavigationStaticProbe>(owned, home);
                 fixedHome.RunSetUp();
                 Assert.That(Get<Vector3>(fixedHome, "m_home"), Is.EqualTo(home));
                 Assert.That(fixedHome.GetDestination(), Is.EqualTo(home));
@@ -139,11 +139,11 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
                 Assert.That(Get<bool>(navigation, "m_wasInterrupted"), Is.False);
                 navigation.InterruptNavigation();
                 Assert.That(Get<bool>(navigation, "m_wasInterrupted"), Is.True);
-                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, Vector3.zero);
+                var fixedHome = NewNavigation<EnemyNavigationStaticProbe>(owned, Vector3.zero);
                 Assert.That(() => { fixedHome.StartNavigation(); fixedHome.InterruptNavigation(); }, Throws.Nothing);
             });
         }
@@ -162,7 +162,7 @@ namespace ProjectLucid.Tests
                     (5f, float.NaN, float.NaN), (float.NaN, 1f, 1f), (0f, 1f, 0f),
                 })
                 {
-                    var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                    var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
                     Set(navigation, "m_homeRadius", radius);
                     navigation.m_minNewDestinationDistance = minimum;
                     Call(navigation, "OnValidate");
@@ -180,9 +180,9 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var home = new Vector3(1f, 2f, 3f);
-                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                var radius = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, home);
                 radius.RunSetUp();
-                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, home);
+                var fixedHome = NewNavigation<EnemyNavigationStaticProbe>(owned, home);
                 fixedHome.RunSetUp();
                 foreach (EnemyNavigation navigation in new EnemyNavigation[] { radius, fixedHome })
                 {
@@ -211,9 +211,9 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var home = new Vector3(1f, 2f, 3f);
-                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                var radius = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, home);
                 radius.RunSetUp();
-                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, home);
+                var fixedHome = NewNavigation<EnemyNavigationStaticProbe>(owned, home);
                 fixedHome.RunSetUp();
                 foreach (EnemyNavigation navigation in new EnemyNavigation[] { radius, fixedHome })
                 {
@@ -241,8 +241,8 @@ namespace ProjectLucid.Tests
                 GameObject volume = owned.Host(Name(), true);
                 var sphere = volume.AddComponent<SphereCollider>();
                 sphere.radius = 1f;
-                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
-                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, Vector3.zero);
+                var radius = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
+                var fixedHome = NewNavigation<EnemyNavigationStaticProbe>(owned, Vector3.zero);
                 foreach (EnemyNavigation navigation in new EnemyNavigation[] { radius, fixedHome })
                 {
                     string who = navigation.GetType().Name;
@@ -259,7 +259,8 @@ namespace ProjectLucid.Tests
         // spot at (x, 0, z) turned by FromToRotation(down, -up) and offset by the home; the first of at most
         // LoopLimit (20) spots that lies within the radius of home and at least the minimum distance from the position
         // projected onto the plane through home wins, and when none does the twentieth stays. The spots are replayed
-        // from the same seeded generator.
+        // from the same seeded generator. This replay restates the native loop (x then z drawn at 0x5786D7 and 0x5786F1,
+        // loop 0x5786AD..0x5787A2) over the generator state, so the tests that use it also pin a rejected first spot.
         private static List<Vector3> Spots(int seed, Vector3 home, Quaternion rotation, float radius)
         {
             Random.InitState(seed);
@@ -273,7 +274,7 @@ namespace ProjectLucid.Tests
             return spots;
         }
 
-        private static Vector3 StartAndRead(Enemies03HomeRadiusNavigationProbe navigation, int seed)
+        private static Vector3 StartAndRead(EnemyNavigationHomeRadiusProbe navigation, int seed)
         {
             Random.InitState(seed);
             navigation.StartNavigation();
@@ -293,21 +294,20 @@ namespace ProjectLucid.Tests
             WithRandomState(() => Owned.Run(owned =>
             {
                 var home = new Vector3(2f, 1f, -3f);
-                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, home);
                 Set(navigation, "m_homeRadius", 10f);
                 navigation.m_minNewDestinationDistance = 6f;
                 navigation.RunSetUp();
-                int accepted = 0, rejectedFirst = 0, exhausted = 0;
+                int rejectedFirst = 0;
                 for (int seed = 1; seed <= 40; seed++)
                 {
                     List<Vector3> spots = Spots(seed, home, Quaternion.identity, 10f);
                     int first = spots.FindIndex(spot => (home - spot).sqrMagnitude <= 100f && (home - spot).sqrMagnitude >= 36f);
                     Vector3 expected = first >= 0 ? spots[first] : spots[19];
                     AssertNear(StartAndRead(navigation, seed), expected, "seed " + seed);
-                    if (first < 0) exhausted++; else if (first == 0) accepted++; else rejectedFirst++;
+                    if (first > 0) rejectedFirst++;
                 }
                 Assert.That(rejectedFirst, Is.GreaterThan(0), "some seed rejects a spot and takes a later one");
-                Assert.That(accepted + rejectedFirst + exhausted, Is.EqualTo(40));
             }));
         }
 
@@ -316,7 +316,7 @@ namespace ProjectLucid.Tests
         {
             WithRandomState(() => Owned.Run(owned =>
             {
-                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
                 Set(navigation, "m_homeRadius", 4f);
                 navigation.m_minNewDestinationDistance = 100f;
                 navigation.RunSetUp();
@@ -333,7 +333,7 @@ namespace ProjectLucid.Tests
             WithRandomState(() => Owned.Run(owned =>
             {
                 Quaternion tilt = Quaternion.Euler(90f, 0f, 0f);
-                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero, tilt);
+                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero, tilt);
                 Set(navigation, "m_homeRadius", 5f);
                 navigation.m_minNewDestinationDistance = 0f;
                 navigation.RunSetUp();
@@ -344,6 +344,35 @@ namespace ProjectLucid.Tests
                     int first = spots.FindIndex(spot => spot.sqrMagnitude <= 25f);
                     AssertNear(StartAndRead(navigation, seed), first >= 0 ? spots[first] : spots[19], "seed " + seed);
                 }
+            }));
+        }
+
+        // The enemy position is projected onto the plane through home (Plane.ClosestPointOnPlane) before the distance
+        // test. The host is lifted 50 units along its up axis, so unprojected every spot would be at least 50 away and
+        // the first would always be taken; projected, the position is home itself and a first spot closer than the
+        // minimum distance of 3 is rejected.
+        [Test]
+        public void StartingMeasuresTheMinimumDistanceFromTheEnemyProjectedOntoThePlane()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
+                Set(navigation, "m_homeRadius", 5f);
+                navigation.m_minNewDestinationDistance = 3f;
+                navigation.RunSetUp();
+                navigation.transform.position = new Vector3(0f, 50f, 0f);
+                int checkedSeeds = 0;
+                for (int seed = 1; seed <= 60; seed++)
+                {
+                    List<Vector3> spots = Spots(seed, Vector3.zero, Quaternion.identity, 5f);
+                    if (spots[0].sqrMagnitude >= 9f) continue;
+                    checkedSeeds++;
+                    int first = spots.FindIndex(spot => spot.sqrMagnitude <= 25f && spot.sqrMagnitude >= 9f);
+                    Vector3 actual = StartAndRead(navigation, seed);
+                    AssertNear(actual, first >= 0 ? spots[first] : spots[19], "seed " + seed);
+                    Assert.That((actual - spots[0]).magnitude, Is.GreaterThan(Tolerance), "seed " + seed + " does not keep the near first spot");
+                }
+                Assert.That(checkedSeeds, Is.GreaterThan(0), "some seed starts with a spot nearer than the minimum distance");
             }));
         }
 
@@ -361,7 +390,7 @@ namespace ProjectLucid.Tests
                     (true, true, true), (true, false, false), (false, true, false), (false, false, false),
                 })
                 {
-                    var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, origin);
+                    var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, origin);
                     Set(navigation, "m_resetHomeOnInterrupt", reset);
                     navigation.RunSetUp();
                     navigation.transform.position = moved;
@@ -383,7 +412,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var navigation = NewNavigation<Enemies03SplineNavigationProbe>(owned, Vector3.zero);
+                var navigation = NewNavigation<EnemyNavigationSplineProbe>(owned, Vector3.zero);
                 Assert.That(Get<float>(navigation, "m_followDistance"), Is.EqualTo(3f));
                 Assert.That(Get<float>(navigation, "m_trackerStepSize"), Is.EqualTo(1f));
                 Assert.That(Convert.ToInt32(Get<object>(navigation, "m_constrainType")), Is.EqualTo(1));
@@ -402,7 +431,7 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var position = new Vector3(4f, 5f, 6f);
-                var navigation = NewNavigation<Enemies03SplineNavigationProbe>(owned, position);
+                var navigation = NewNavigation<EnemyNavigationSplineProbe>(owned, position);
                 Set(navigation, "m_startReversed", true);
                 Constrain(navigation, true, 1, 0f);
                 navigation.RunSetUp();

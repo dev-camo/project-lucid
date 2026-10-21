@@ -53,26 +53,27 @@ namespace HardlightProject
 		// 06002254 (1.10.1 RVA 0x578B30): without a spline the navigation stays uninitialised.
 		protected override void SetUp()
 		{
-			bool initialised = false;
-			if (m_spline != null)
+			if (m_spline == null)
 			{
-				m_reversing = m_startReversed;
-				m_followDistanceSqr = m_followDistance * m_followDistance;
-				ISpline spline = m_spline.GetSpline();
-				Vector3 startPosition = spline.GetWorldTransformFromSplineT(m_startPosition).Location;
-				m_trackableSurfaces.Clear();
-				m_trackableSurfacesList.Clear();
-				m_trackableSurfaces.Add(spline, Array.Empty<ISurface>());
-				m_trackableSurfacesList.Add(spline);
-				if (m_tracker2D == null)
-				{
-					m_tracker2D = new Tracker2D(new CollisionResolver2D());
-				}
-				m_tracker2D.SetWorldInformation(m_trackableSurfacesList, m_trackableSurfaces);
-				m_tracker2D.Teleport(startPosition);
-				initialised = true;
+				IsInitialised = false;
+				return;
 			}
-			IsInitialised = initialised;
+
+			m_reversing = m_startReversed;
+			m_followDistanceSqr = m_followDistance * m_followDistance;
+			ISpline spline = m_spline.GetSpline();
+			Vector3 startPosition = spline.GetWorldTransformFromSplineT(m_startPosition).Location;
+			m_trackableSurfaces.Clear();
+			m_trackableSurfacesList.Clear();
+			m_trackableSurfaces.Add(spline, Array.Empty<ISurface>());
+			m_trackableSurfacesList.Add(spline);
+			if (m_tracker2D == null)
+			{
+				m_tracker2D = new Tracker2D(new CollisionResolver2D());
+			}
+			m_tracker2D.SetWorldInformation(m_trackableSurfacesList, m_trackableSurfaces);
+			m_tracker2D.Teleport(startPosition);
+			IsInitialised = true;
 		}
 
 		// 06002255 (1.10.1 RVA 0x578EA0)
@@ -94,19 +95,21 @@ namespace HardlightProject
 		// carrying over the step left unused.
 		public override Vector3 GetDestination()
 		{
-			bool initialised = IsInitialised;
 			Vector3 position = transform.position;
-			if (!initialised)
+			if (!IsInitialised)
 			{
 				return position;
 			}
 
 			float stepSize = m_reversing ? -m_trackerStepSize : m_trackerStepSize;
 			Vector3 step = Vector3.forward * stepSize;
-			while ((position - TrackerPosition).sqrMagnitude < m_followDistanceSqr)
+			Vector3 trackerPosition = TrackerPosition;
+			while ((position - trackerPosition).sqrMagnitude < m_followDistanceSqr)
 			{
-				Vector3 previousPosition = TrackerPosition;
+				Vector3 previousPosition = trackerPosition;
 				m_tracker2D.MoveLocal(step);
+				// The retail code keeps the position read right after the move for the distance tests below.
+				trackerPosition = TrackerPosition;
 				if (!TrackerAtEnd)
 				{
 					continue;
@@ -121,14 +124,15 @@ namespace HardlightProject
 
 				float splineT = m_reversing ? 1f : 0f;
 				Vector3 wrappedPosition = m_spline.GetSpline().GetWorldTransformFromSplineT(splineT).Location;
-				float remainingStep = m_trackerStepSize - Vector3.Distance(previousPosition, TrackerPosition);
+				float remainingStep = m_trackerStepSize - Vector3.Distance(previousPosition, trackerPosition);
 				if (remainingStep > 0f)
 				{
 					wrappedPosition += TrackerForward * (m_reversing ? -remainingStep : remainingStep);
 				}
 				m_tracker2D.Teleport(wrappedPosition);
+				trackerPosition = TrackerPosition;
 			}
-			return TrackerPosition;
+			return trackerPosition;
 		}
 
 		// 06002258 (1.10.1 RVA 0x579360)

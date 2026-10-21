@@ -6,7 +6,7 @@ using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
-using static ProjectLucid.Tests.Enemies03TestSupport;
+using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -92,9 +92,10 @@ namespace ProjectLucid.Tests
 
         // 0x574C40 and 0x5752F0 read the focus target with ecx = 0 (null) and r8d = 0 (do not store) and finish in a
         // tail call of UnityEngine.Object.op_Equality whose result the void method drops. The one effect is therefore
-        // that nothing is stored for a missing key and that a stored target is left in place.
+        // that nothing is stored for a missing key and that a stored target is left in place. The read itself and the
+        // dropped comparison have no observable effect, so this test cannot tell them from an empty body.
         [Test]
-        public void EnteringTheFocusTransitionsReadsTheFocusTargetWithoutStoringADefault()
+        public void EnteringTheFocusTransitionsStoresNoDefaultAndKeepsAStoredTarget()
         {
             foreach (Factory factory in new Factory[] { EnemyBrainTransition_TargetLost.ConstructInstance, EnemyBrainTransition_TargetOutOfSightRange.ConstructInstance })
             {
@@ -181,6 +182,19 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x575EF0 ignores its argument: xorps xmm0 at 0x57603E precedes the tail-called SetValue<float>, and entry never
+        // reads xmm0.
+        [Test]
+        public void SettingTheWatchTimerStoresZeroWhateverTheArgument()
+        {
+            WithBrain((owned, brain, enemy) =>
+            {
+                var transition = (EnemyBrainTransition_WatchToChaseTimeout)Build(EnemyBrainTransition_WatchToChaseTimeout.ConstructInstance);
+                Call(transition, "SetElapsedSeconds", brain, 7.5f);
+                Assert.That(brain.Storage.GetValue(EnemyBrainFSMKeys.WatchElapsedTime, -1f, false), Is.EqualTo(0f));
+            });
+        }
+
         private static string[] CompareInstructions(Type type)
         {
             MethodInfo update = type.GetMethod("DoUpdate", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
@@ -194,10 +208,12 @@ namespace ProjectLucid.Tests
         // 0x574B85 (ucomiss xmm0, [rax + 0x30]; setae) and 0x576345 (ucomiss xmm0, [rax + 0x40]; setae): the stored time
         // against the idle seconds and against the watch timeout, true when the time is greater than or equal and
         // ordered, so a NaN time is not enough. The traits sit behind the enemy definition that Start reads, so the
-        // operator is checked from the instructions: a floating >= compiles to clt.un followed by a negation, where
+        // operator is checked from the instructions. This is an emission self-check of the restored source, not a
+        // native-derived oracle; the equal, greater and NaN truth table for both timers is owed until a definition can
+        // be supplied without reflection. A floating >= compiles to clt.un followed by a negation, where
         // > would be cgt and <= would be cgt.un and a negation.
         [Test]
-        public void TheIdleAndWatchTimersCompareWithGreaterOrEqualWhereNaNFails()
+        public void EmissionCheck_IdleAndWatchTimerComparesCompileToGreaterOrEqual()
         {
             Assert.That(CompareInstructions(typeof(EnemyBrainTransition_IdleToMove)), Is.EqualTo(new[] { "clt.un", "ceq" }));
             Assert.That(CompareInstructions(typeof(EnemyBrainTransition_WatchToChaseTimeout)), Is.EqualTo(new[] { "clt.un", "ceq" }));

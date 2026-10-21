@@ -37,15 +37,15 @@ namespace HardlightProject
 			if (focusTarget == null)
 				return true;
 
-			EnemyTraits traits = brain.Enemy.Definition.Traits;
-			if (!traits.CacheTargetLocationOnSight)
+			// The retail code reloads the definition chain at each use instead of holding it.
+			if (!brain.Enemy.Definition.Traits.CacheTargetLocationOnSight)
 				return !brain.CanReachTarget(focusTarget.WorldPosition);
 
 			if (!user.Storage.HasValue(EnemyBrainFSMKeys.TargetCachedPosition))
 				return true;
 
 			float cachedSeconds = user.Storage.AdjustValue(EnemyBrainFSMKeys.TargetCachedTime, context.DeltaTime, 0f);
-			if (cachedSeconds > traits.TimeoutForReachingCachedLocation)
+			if (cachedSeconds > brain.Enemy.Definition.Traits.TimeoutForReachingCachedLocation)
 				return true;
 
 			return !brain.CanReachTarget(user.Storage.GetValue(EnemyBrainFSMKeys.TargetCachedPosition, Vector3.zero, true));

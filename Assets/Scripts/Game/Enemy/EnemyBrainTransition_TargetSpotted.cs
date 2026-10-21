@@ -37,14 +37,14 @@ namespace HardlightProject
 				return false;
 
 			brain.Storage.SetValue(EnemyBrainFSMKeys.FocusTarget, brain.Target);
-			EnemyTraits traits = brain.Enemy.Definition.Traits;
-			if (!traits.CacheTargetLocationOnSight)
+			// The retail code reloads the definition chain at each use instead of holding it.
+			if (!brain.Enemy.Definition.Traits.CacheTargetLocationOnSight)
 				return true;
 
 			Vector3 toTarget = brain.Target.WorldPosition - brain.Enemy.WorldPosition;
 			float distance = toTarget.magnitude;
 			Vector3 direction = toTarget / distance;
-			Vector3 cachedPosition = brain.Enemy.WorldPosition + direction * (distance + traits.OvershootAmount);
+			Vector3 cachedPosition = brain.Enemy.WorldPosition + direction * (distance + brain.Enemy.Definition.Traits.OvershootAmount);
 			if (!brain.CanReachTarget(cachedPosition))
 				return false;
 

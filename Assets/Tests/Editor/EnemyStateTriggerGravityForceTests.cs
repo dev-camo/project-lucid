@@ -4,7 +4,7 @@ using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
-using static ProjectLucid.Tests.Enemies03TestSupport;
+using static ProjectLucid.Tests.EnemyTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 using Object = UnityEngine.Object;
 

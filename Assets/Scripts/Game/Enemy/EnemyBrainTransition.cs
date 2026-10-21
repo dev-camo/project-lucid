@@ -22,7 +22,7 @@ namespace HardlightProject
 			}
 		}
 
-		// 060021df (1.10.1 RVA 0x574430): the arguments carry no fields, so only the base registers the transition.
+		// 060021df (1.10.1 RVA 0x574430): ctorArgs is unused; the native body only chains to FSMTransition(fsm, transitionId).
 		protected EnemyBrainTransition(FiniteStateMachine fsm, FSMIdentifier transitionId, BaseJSONCtorArgs ctorArgs) : base(fsm, transitionId)
 		{
 		}
