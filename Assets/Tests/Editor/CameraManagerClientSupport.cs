@@ -50,6 +50,39 @@ namespace ProjectLucid.Tests
             return rig;
         }
 
+        // A virtual camera or free-look camera added to an owned host. The Editor sends Reset on AddComponent, which builds the
+        // camera's pipeline or rigs through static hooks the Cinemachine editor assembly points at its undo-recording versions;
+        // they are lent as null so the children are plain owned objects, and put back.
+        internal static T AddCinemachineCamera<T>(GameObject host) where T : Component
+        {
+            CinemachineVirtualCamera.CreatePipelineDelegate createPipeline = CinemachineVirtualCamera.CreatePipelineOverride;
+            CinemachineVirtualCamera.DestroyPipelineDelegate destroyPipeline = CinemachineVirtualCamera.DestroyPipelineOverride;
+            CinemachineFreeLook.CreateRigDelegate createRig = CinemachineFreeLook.CreateRigOverride;
+            CinemachineFreeLook.DestroyRigDelegate destroyRig = CinemachineFreeLook.DestroyRigOverride;
+            try
+            {
+                CinemachineVirtualCamera.CreatePipelineOverride = null;
+                CinemachineVirtualCamera.DestroyPipelineOverride = null;
+                CinemachineFreeLook.CreateRigOverride = null;
+                CinemachineFreeLook.DestroyRigOverride = null;
+                return host.AddComponent<T>();
+            }
+            finally
+            {
+                CinemachineVirtualCamera.CreatePipelineOverride = createPipeline;
+                CinemachineVirtualCamera.DestroyPipelineOverride = destroyPipeline;
+                CinemachineFreeLook.CreateRigOverride = createRig;
+                CinemachineFreeLook.DestroyRigOverride = destroyRig;
+            }
+        }
+
+        internal static CinemachineFreeLook NewFreeLook(Owned owned, float yValue)
+        {
+            var freeLook = AddCinemachineCamera<CinemachineFreeLook>(owned.Host("Lucid free look", false));
+            freeLook.m_YAxis.Value = yValue;
+            return freeLook;
+        }
+
         // A virtual camera of the given type and authored priority. Registering it records the priority as its starting
         // priority and, with nothing on the manager's camera stack yet, drops the camera to -1.
         internal static CinemachineMixingCamera AddCamera(Owned owned, Rig rig, HardlightProject.CameraType type, int priority)

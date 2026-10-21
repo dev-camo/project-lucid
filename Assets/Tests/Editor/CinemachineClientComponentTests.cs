@@ -128,13 +128,6 @@ namespace ProjectLucid.Tests
 
         // ---- CinemachineCameraResetYRecenter and CinemachineCameraYAxisOverride ----
 
-        private static CinemachineFreeLook NewFreeLook(Owned owned, float yValue)
-        {
-            var freeLook = owned.Host("Lucid free look", false).AddComponent<CinemachineFreeLook>();
-            freeLook.m_YAxis.Value = yValue;
-            return freeLook;
-        }
-
         private static CinemachineCameraResetYRecenter NewRecenter(Owned owned, CinemachineFreeLook freeLook, float resetValue)
         {
             var recenter = owned.Host("Lucid y recenter", false).AddComponent<CinemachineCameraResetYRecenter>();

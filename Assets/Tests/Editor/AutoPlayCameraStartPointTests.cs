@@ -28,7 +28,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Manager, "m_proxyTarget", EnemyAbilityTestSupport.AddTimeScaled<CameraProxyTarget>(owned.Host("Lucid proxy target", false)));
                 owned.Register(rig.Manager);
 
-                var camera = owned.Host("Lucid forced camera", false).AddComponent<CinemachineVirtualCamera>();
+                var camera = AddCinemachineCamera<CinemachineVirtualCamera>(owned.Host("Lucid forced camera", false));
                 camera.DestroyCinemachineComponent<CinemachineTransposer>();
                 camera.DestroyCinemachineComponent<CinemachineComposer>();
                 rig.Manager.RegisterCameraByType(new[]
