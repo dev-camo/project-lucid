@@ -20,16 +20,13 @@ namespace HardlightProject
         }
 
         // 060021ca (1.10.1 RVA 0x5729F0). The target lock is set whether or not a focus
-        // target exists; the native body evaluates the null comparison and discards it
-        // (the branch body is not in retail and cannot be recovered; possibly a compiled-out [Conditional] call).
+        // target exists; the native body calls UnityEngine.Object.op_Equality (0x572B53) and discards the result.
         protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
         {
             base.DoOnEnter(user, action);
             EnemyBrain enemyBrain = user.GetAs<EnemyBrain>();
             Actor target = enemyBrain.Storage.GetValue<Actor>(EnemyBrainFSMKeys.FocusTarget);
-            if (target == null)
-            {
-            }
+            _ = target == null;
             enemyBrain.Storage.SetValue(EnemyBrainFSMKeys.TargetLocked, true);
         }
 

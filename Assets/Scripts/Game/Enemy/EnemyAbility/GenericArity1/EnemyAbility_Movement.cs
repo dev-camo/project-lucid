@@ -14,7 +14,7 @@ namespace HardlightProject
         // 0600218d (1.10.1 RVA 0x117F560), 0600218e (1.10.1 RVA 0x117F570)
         public T Definition { get; private set; }
 
-        // Declared by the original but never read or written by any native body.
+        // Declared by the original; no native body accesses its offset 0x30..0x3b (the other fields are used).
         private Vector3 m_previousPosition;
         protected Vector2 m_thisFrameMovement;
         private Vector2 m_previousFrameMovement;
