@@ -110,6 +110,8 @@ namespace ProjectLucid.Tests
                     var rig = new CharacterRig { Manager = manager, Character = character, Rig = NewRig(owned, time) };
                     rig.PlayerCollider = character.GetComponent<BoxCollider>();
                     Set(character, "m_colliderCollision", rig.PlayerCollider);
+                    // Reflection: Character.Awake takes the body; SetWorldPosition writes through it outside the fixed update.
+                    Set(character, "m_body", character.gameObject.AddComponent<Rigidbody>());
                     CharacterTriggerTestSupport.SetCurrent(manager, character, true);
                     Set(rig.Rig.Projectile, "m_characterManager", manager); // Reflection: assigned by Awake, which these cases do not run
                     body(owned, rig);
