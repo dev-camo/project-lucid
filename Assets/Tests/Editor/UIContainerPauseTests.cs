@@ -1,0 +1,508 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
+using Hardlight;
+using Hardlight.Enums;
+using HardlightProject;
+using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
+using static ProjectLucid.Tests.ChallengeRewardTestSupport;
+using static ProjectLucid.Tests.CharacterTriggerTestSupport;
+using static ProjectLucid.Tests.UiPublishingFixtures;
+using static ProjectLucid.Tests.WorldTriggerTestSupport;
+
+namespace ProjectLucid.Tests
+{
+    // UIContainerPause (Game.Runtime 0x020008fd; Start 0x6700F0, OnLevelManagerValid 0x6702E0, OnQualityManagerValid
+    // 0x6703D0, OnMissionManagerValid 0x670440, Action_Restart 0x670870, Action_Respawn 0x670980, Restart 0x670910 and its
+    // iterator 0x6718E0, Respawn 0x670A20 and its iterator 0x671420, Close 0x670D20, FireMissionQuitAnalytics 0x670C10,
+    // OnDestroy 0x670DA0) as a real component on an owned inactive host. Two rigs: the mission rig (a real MissionManager,
+    // LevelManager and SaveManager from OriginalPersistentLevelObjectTests.WithMissions, a genuine App, a scripted
+    // UIManager and the quality services) and the character rig (CharacterTriggerTestSupport.WithManager, a real
+    // CharacterManager and Character, plus the scripted UIManager).
+    //
+    // Not covered: Action_Exit (its LevelManager.ExitLevel needs the state LevelManager.Initialise builds), the character
+    // swap wait in Respawn (the swap coroutine cannot be created without running a swap), Character.OnRestart in Restart (it
+    // needs the character's collider), the challenge context branch of OnMissionManagerValid (the sealed ranks container shows
+    // the same flag for a challenge without rank definitions) and the coroutines Action_Restart and Action_Respawn start,
+    // which the refusing coroutine host rejects with the engine error expected below.
+    public sealed class UIContainerPauseTests
+    {
+        private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
+
+        private const string MissionGuid = "lucid-pause-mission";
+
+        private sealed class MissionRig
+        {
+            internal Owned Owned;
+            internal OriginalPersistentLevelObjectTests.Missions Missions;
+            internal App App;
+            internal UIManager UiManager;
+            internal VisualQualityManager_SDT Quality;
+            internal GameLevels Levels;
+            internal UIContainerPause Container;
+            internal UIContainerMissionResults Results;
+            internal UIContainerMissionResults Secondary;
+            internal UIContainerMissionRanks Ranks;
+            internal UIModernEvent ResumeEvent;
+        }
+
+        private static UIContainerMissionResults NewResults(Owned owned)
+        {
+            var results = owned.Host("Lucid pause results", false).AddComponent<UIContainerMissionResults>();
+            Set(results, "m_root", owned.Host("Lucid pause results root", false).AddComponent<RectTransform>()); // serialized in the original
+            return results;
+        }
+
+        // The quality manager's "graphics switching" requirement is an authored level; the profile holds no attribute for it, so
+        // the device can change graphics quality exactly when the required level is above Medium.
+        private static void RunMissions(bool currentLevelValid, PerformanceProfile.QualityLevel requiredLevel, Action<MissionRig> body) =>
+            OriginalPersistentLevelObjectTests.WithMissions(currentLevelValid, (owned, missions) =>
+            {
+                owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
+                owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser
+                owned.LeaseRow<UIScreenTransitionManager>(); // App's field initialiser
+                var rig = new MissionRig { Owned = owned, Missions = missions };
+                rig.App = owned.Register(owned.Host("Lucid pause app", false).AddComponent<App>());
+                rig.App.Storage.SetValue(AppFSMKeys.UIModernEvents, new List<UIModernEvent>());
+                rig.UiManager = NewUiManager(owned, out _);
+                owned.Register(owned.Host("Lucid pause data manager", false).AddComponent<DataManager>());
+                var performance = owned.Register(owned.Host("Lucid pause scalable performance", false).AddComponent<ScalablePerformance>());
+                performance.SetPerformanceProfile(owned.Track(ScriptableObject.CreateInstance<PerformanceProfile>()));
+                rig.Quality = owned.Register(owned.Host("Lucid pause quality manager", false).AddComponent<VisualQualityManager_SDT>());
+                var feature = owned.Track(ScriptableObject.CreateInstance<ScalableFeature>());
+                feature.ID = "lucid-pause-graphics-switching";
+                Set(rig.Quality, "m_allowGraphicsQualitySwitching", new PerformanceAttribute { Feature = feature, Level = requiredLevel }); // serialized in the original
+                // Awake builds it from the configuration; this one lists no zone unless a case adds one.
+                rig.Levels = owned.Track(ScriptableObject.CreateInstance<GameLevels>());
+                typeof(LevelManager).GetProperty("GameLevels").SetValue(missions.Level, rig.Levels);
+                rig.Container = owned.Host("Lucid pause", false).AddComponent<UIContainerPause>();
+                rig.ResumeEvent = NewEvent(owned, "pause-resume");
+                rig.Results = NewResults(owned);
+                rig.Ranks = owned.Host("Lucid pause ranks", false).AddComponent<UIContainerMissionRanks>();
+                // Serialized in the original.
+                Set(rig.Container, "m_resumeEvent", rig.ResumeEvent);
+                Set(rig.Container, "m_resultsContainer", rig.Results);
+                Set(rig.Container, "m_missionRanksContainer", rig.Ranks);
+                body(rig);
+            });
+
+        private static void RunMissions(Action<MissionRig> body) => RunMissions(true, PerformanceProfile.QualityLevel.High, body);
+
+        private static List<UIModernEvent> Events(MissionRig rig) => rig.App.GetUIModernEvents();
+
+        // The active mission, published as the mission flow does (MissionManager.SetActiveMissionContext loads its mission).
+        private static MissionDefinition StartMission(MissionRig rig)
+        {
+            var mission = Create<MissionDefinition>(rig.Owned);
+            Set(mission, "m_guid", MissionGuid); // authored GUID of a serialized definition
+            Set(mission, "m_subMissions", new List<MissionDefinition>());
+            rig.Missions.Manager.SetActiveMissionContext(new MissionContextRegular(mission, rig.Missions.CurrentLevel.LevelDefinition, false));
+            return mission;
+        }
+
+        // ---- Start and the manager callbacks --------------------------------------------------------------------------
+
+        // Start 0x6700F0 runs the gameplay control base, then asks for the UIManager, the LevelManager and the visual quality
+        // manager in that order (0x6701E0, 0x670237, 0x670293); each is registered, so each callback runs at once. The level
+        // manager's callback asks for the MissionManager, whose callback publishes the level.
+        [Test]
+        public void StartTakesTheManagersAndPublishesTheLevelAndTheQualityFlags()
+        {
+            RunMissions(rig =>
+            {
+                JsonUtility.FromJsonOverwrite("{\"m_displayName\":" + (int)Strings.MISSING + ",\"m_actName\":" + (int)Strings.DECIMAL_SEPARATOR + "}",
+                    rig.Missions.CurrentLevel.LevelDefinition);
+
+                Call(rig.Container, "Start");
+
+                Assert.That(Get<UIManager>(rig.Container, "m_uiManager"), Is.SameAs(rig.UiManager));
+                Assert.That(Get<LevelManager>(rig.Container, "m_levelManager"), Is.SameAs(rig.Missions.Level));
+                Assert.That(Get<MissionManager>(rig.Container, "m_missionManager"), Is.SameAs(rig.Missions.Manager));
+                Assert.That(rig.Container.LevelTitle.Value, Is.EqualTo(Strings.MISSING));
+                Assert.That(rig.Container.LevelSubtitle.Value, Is.EqualTo(Strings.DECIMAL_SEPARATOR));
+                Assert.That(rig.Container.ShowFPSWarningMessage.Value, Is.False);
+                Assert.That(rig.Container.ShowFullscreenBackground.Value, Is.False);
+            });
+        }
+
+        // OnQualityManagerValid 0x6703D0 publishes LevelDippedFrames unchanged (0x6703EC) and the negation of
+        // DeviceCanChangeGraphicsQuality (xor al, 1 at 0x670418). All four combinations: the frame-time total decides the first
+        // flag and the required quality level the second.
+        [Test]
+        public void TheQualityFlagsFollowTheFrameTimeAndTheDeviceCapability()
+        {
+            foreach ((bool dipped, PerformanceProfile.QualityLevel required, bool fullscreen) in new[]
+            {
+                (false, PerformanceProfile.QualityLevel.High, false),
+                (true, PerformanceProfile.QualityLevel.High, false),
+                (false, PerformanceProfile.QualityLevel.Medium, true),
+                (true, PerformanceProfile.QualityLevel.Medium, true),
+            })
+            {
+                RunMissions(true, required, rig =>
+                {
+                    // Reflection: the total of the long frames is accumulated by the manager's own update; nothing sets it.
+                    Set(rig.Quality, "m_timeOverDesiredFrameTime", dipped ? 11f : 0f);
+
+                    Call(rig.Container, "OnQualityManagerValid", rig.Quality);
+
+                    Assert.That(rig.Container.ShowFPSWarningMessage.Value, Is.EqualTo(dipped), "dipped " + dipped + " " + required);
+                    Assert.That(rig.Container.ShowFullscreenBackground.Value, Is.EqualTo(fullscreen), "dipped " + dipped + " " + required);
+                });
+            }
+        }
+
+        // OnLevelManagerValid 0x6702E0 keeps the level manager and goes on to the MissionManager (0x6703B6).
+        [Test]
+        public void TheLevelManagerCallbackKeepsTheManagerAndAsksForTheMissionManager()
+        {
+            RunMissions(rig =>
+            {
+                Call(rig.Container, "OnLevelManagerValid", rig.Missions.Level);
+
+                Assert.That(Get<LevelManager>(rig.Container, "m_levelManager"), Is.SameAs(rig.Missions.Level));
+                Assert.That(Get<MissionManager>(rig.Container, "m_missionManager"), Is.SameAs(rig.Missions.Manager));
+            });
+        }
+
+        // ---- OnMissionManagerValid ------------------------------------------------------------------------------------
+
+        // Without a current level (0x670531) only the manager is kept.
+        [Test]
+        public void WithoutACurrentLevelOnlyTheMissionManagerIsKept()
+        {
+            RunMissions(false, PerformanceProfile.QualityLevel.High, rig =>
+            {
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Start's callback does this
+                rig.Container.LevelTitle.Value = Strings.MISSING;
+
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+
+                Assert.That(Get<MissionManager>(rig.Container, "m_missionManager"), Is.SameAs(rig.Missions.Manager));
+                Assert.That(rig.Container.LevelTitle.Value, Is.EqualTo(Strings.MISSING), "not republished");
+            });
+        }
+
+        // With a level but no active mission (0x670552 false, jump to 0x6706BE) the level's name (+0x20) and act name (+0x24)
+        // are published, the results and ranks containers are not touched (they are unset here, so any touch would fault)
+        // and a level in no zone ends the method (0x67070C).
+        [Test]
+        public void ALevelWithoutAMissionOrAZonePublishesOnlyItsNames()
+        {
+            RunMissions(rig =>
+            {
+                JsonUtility.FromJsonOverwrite("{\"m_displayName\":" + (int)Strings.MISSING + ",\"m_actName\":" + (int)Strings.DECIMAL_SEPARATOR + "}",
+                    rig.Missions.CurrentLevel.LevelDefinition);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                Set(rig.Container, "m_resultsContainer", null);
+                Set(rig.Container, "m_missionRanksContainer", null);
+
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+
+                Assert.That(rig.Container.LevelTitle.Value, Is.EqualTo(Strings.MISSING));
+                Assert.That(rig.Container.LevelSubtitle.Value, Is.EqualTo(Strings.DECIMAL_SEPARATOR));
+                Assert.That(rig.Container.DreamNumber.Value, Is.Zero);
+                Assert.That(rig.Container.ZoneIconAsset.Value == null, Is.True);
+                Assert.That(Get<object>(rig.Container, "m_zoneAccent"), Is.Null);
+            });
+        }
+
+        // With an active mission (0x670552 true) the primary results container gets the mission definition (state +0x48) and
+        // the level (0x67057D), the secondary one the same when it is set (the op_Inequality test at 0x6705D6) and the ranks
+        // container is set up with the mission (0x670688), which makes it hide its ranks for a mission without any.
+        [Test]
+        public void AnActiveMissionIsHandedToTheResultsAndRanksContainers()
+        {
+            foreach (bool withSecondary in new[] { true, false })
+            {
+                RunMissions(rig =>
+                {
+                    MissionDefinition mission = StartMission(rig);
+                    GameplayLevelDefinition level = rig.Missions.CurrentLevel.LevelDefinition;
+                    if (withSecondary)
+                    {
+                        rig.Secondary = NewResults(rig.Owned);
+                        Set(rig.Container, "m_resultsSecondaryContainer", rig.Secondary);
+                    }
+                    Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                    rig.Ranks.Show.Value = true;
+
+                    Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+
+                    var primary = Get<UIContainerMissionResultsParameters>(rig.Results, "m_parameters");
+                    Assert.That(primary.MissionDefinition, Is.SameAs(mission));
+                    Assert.That(primary.LevelDefinition, Is.SameAs(level));
+                    if (withSecondary)
+                    {
+                        var secondary = Get<UIContainerMissionResultsParameters>(rig.Secondary, "m_parameters");
+                        Assert.That(secondary.MissionDefinition, Is.SameAs(mission));
+                        Assert.That(secondary.LevelDefinition, Is.SameAs(level));
+                    }
+                    Assert.That(rig.Ranks.Show.Value, Is.False, "the ranks container was set up");
+                });
+            }
+        }
+
+        // With the level in a zone (0x67070C true) the previous accent is released (Unload at 0x67072B) and replaced by
+        // UIContainerUtilities.GetZoneAccent (0x670765), whose image is loaded and published (0x670794); the act number is the
+        // one-based position of the level's GUID in the zone's entries (the loop from 0x6707D0, leaving at the first match),
+        // and the level image callback runs last (0x67084D), publishing no image for a level without one.
+        [Test]
+        public void ALevelInAZoneShowsTheZoneAccentTheActNumberAndNoBackground()
+        {
+            // The utilities type keeps typed references in static fields built by its type initialiser; running it here,
+            // against rows released at once, keeps that from happening while the case has systems registered.
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<App>();
+                owned.LeaseRow<LevelManager>();
+                owned.LeaseRow<MissionManager>();
+                RuntimeHelpers.RunClassConstructor(typeof(UIContainerUtilities).TypeHandle);
+            });
+            RunMissions(rig =>
+            {
+                StartMission(rig);
+                GameplayLevelDefinition level = rig.Missions.CurrentLevel.LevelDefinition;
+                GameplayLevelDefinition before = NewLevel(rig.Owned, "lucid-pause-before");
+                GameplayLevelDefinition after = NewLevel(rig.Owned, "lucid-pause-after");
+                var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
+                Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { before, level, after });
+                Sprite accent = NewSprite(rig.Owned);
+                Cache(zone.ZoneAccent, accent);
+                Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
+                var previous = new ManagedAddressableAsset<Sprite>(null);
+                Cache(previous, NewSprite(rig.Owned));
+                previous.Load();
+                previous.Load();
+                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                Set(rig.Container, "m_zoneAccent", previous);
+                Assert.That(Count(previous), Is.EqualTo(2));
+
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+
+                Assert.That(Count(previous), Is.EqualTo(1), "released once");
+                Assert.That(Get<ManagedAddressableAsset<Sprite>>(rig.Container, "m_zoneAccent"), Is.SameAs(zone.ZoneAccent));
+                Assert.That(Count(zone.ZoneAccent), Is.EqualTo(1));
+                Assert.That(rig.Container.ZoneIconAsset.Value, Is.SameAs(accent));
+                Assert.That(rig.Container.DreamNumber.Value, Is.EqualTo(2));
+                Assert.That(rig.Container.ActBackground.Value == null, Is.True);
+            });
+        }
+
+        private static GameplayLevelDefinition NewLevel(Owned owned, string guid)
+        {
+            var level = Create<GameplayLevelDefinition>(owned);
+            Set(level, "m_guid", guid); // authored GUID of a serialized definition
+            Set(level, "m_sceneName", guid); // authored scene name
+            return level;
+        }
+
+        // ---- Close, FireMissionQuitAnalytics, OnDestroy ----------------------------------------------------------------
+
+        // Close 0x670D20 adds the resume event to the App's list, once.
+        [Test]
+        public void CloseQueuesTheResumeEventOnce()
+        {
+            RunMissions(rig =>
+            {
+                Call(rig.Container, "Close");
+                Call(rig.Container, "Close");
+
+                Assert.That(Events(rig), Is.EqualTo(new[] { rig.ResumeEvent }));
+            });
+        }
+
+        // FireMissionQuitAnalytics 0x670C10 does nothing without an active mission state (0x670C58). With one it sends the quit
+        // analytics through the active context (interface slot 22, 0x670CCF), whose regular implementation asks for the
+        // CharacterManager first: that row is empty here, so the fault names it.
+        [Test]
+        public void TheQuitAnalyticsGoThroughTheActiveContext()
+        {
+            RunMissions(rig =>
+            {
+                Set(rig.Container, "m_missionManager", rig.Missions.Manager);
+                Assert.DoesNotThrow(() => Call(rig.Container, "FireMissionQuitAnalytics"));
+
+                StartMission(rig);
+
+                var fault = Assert.Throws<NullReferenceException>(() => Call(rig.Container, "FireMissionQuitAnalytics"));
+                StringAssert.Contains("CharacterManager", fault.Message);
+            });
+        }
+
+        // OnDestroy 0x670DA0 runs the gameplay control base (which puts the remembered control state back), releases the zone
+        // accent (Unload at 0x670E4C) and, when the App holds an OnPauseCloseEvent action, hands it to WaitForUI (0x670FF7)
+        // and removes it (0x671096). The refusing coroutine host rejects the wait with the engine error expected here.
+        [Test]
+        public void DestroyingReleasesTheAccentAndForwardsThePauseCloseAction()
+        {
+            RunMissions(rig =>
+            {
+                var accent = new ManagedAddressableAsset<Sprite>(null);
+                Cache(accent, NewSprite(rig.Owned));
+                accent.Load();
+                Set(rig.Container, "m_zoneAccent", accent);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                rig.App.Storage.SetValue<Action>(AppFSMKeys.OnPauseCloseEvent, () => { });
+                rig.App.SetHasGameplayControl(true, true);
+
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                Call(rig.Container, "OnDestroy");
+
+                Assert.That(Count(accent), Is.Zero, "released");
+                Assert.That(rig.App.Storage.HasValue<Action>(AppFSMKeys.OnPauseCloseEvent), Is.False, "removed");
+                Assert.That(rig.App.HasGameplayControl(), Is.False, "the remembered state (off) is put back");
+            });
+        }
+
+        // With no action stored nothing is forwarded (the HasValue test at 0x670F2F); a published background image makes the
+        // current level release its level image (0x670EB1), which is a no-op for a level that never loaded one.
+        [Test]
+        public void DestroyingWithoutAPauseCloseActionStartsNoWait()
+        {
+            RunMissions(rig =>
+            {
+                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                rig.Container.ActBackground.Value = NewSprite(rig.Owned);
+
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"));
+
+                LogAssert.NoUnexpectedReceived();
+            });
+        }
+
+        // ---- The actions ----------------------------------------------------------------------------------------------
+
+        // Action_Restart 0x670870 and Action_Respawn 0x670980 each hand one new iterator to CoroutineUtils.RunCoroutine; the
+        // refusing host logs one engine error for each and returns no coroutine, which is then what is stored (+0xA8).
+        [Test]
+        public void RestartAndRespawnEachStartOneCoroutine()
+        {
+            RunMissions(rig =>
+            {
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                rig.Container.Action_Restart();
+                LogAssert.NoUnexpectedReceived();
+                Assert.That(Get<object>(rig.Container, "m_closingCoroutine"), Is.Null);
+
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                rig.Container.Action_Respawn();
+                LogAssert.NoUnexpectedReceived();
+                Assert.That(Get<object>(rig.Container, "m_closingCoroutine"), Is.Null);
+            });
+        }
+
+        // ---- The Respawn and Restart iterators ------------------------------------------------------------------------
+
+        private sealed class CharacterRig
+        {
+            internal Owned Owned;
+            internal CharacterManager Characters;
+            internal Character Character;
+            internal App App;
+            internal ScriptedExclusivityContainerManager Containers;
+            internal UIContainerPause Container;
+            internal UIContainerIdentifier Identifier;
+            internal UIModernEvent ResumeEvent;
+        }
+
+        private static void RunCharacters(Action<CharacterRig> body) => WithManager((owned, characters, character) =>
+        {
+            owned.LeaseRow<AudioManager>(); // LevelManager's field initialiser
+            var rig = new CharacterRig { Owned = owned, Characters = characters, Character = character, App = ProcessManager.GetSystem<App>() };
+            rig.App.Storage.SetValue(AppFSMKeys.UIModernEvents, new List<UIModernEvent>());
+            UIManager uiManager = NewUiManager(owned, out rig.Containers);
+            rig.Identifier = NewIdentifier(owned, "pause");
+            rig.Container = owned.Host("Lucid pause", false).AddComponent<UIContainerPause>();
+            rig.ResumeEvent = NewEvent(owned, "pause-resume");
+            // Serialized in the original, and the callback Start's InvokeOnValid runs.
+            Set(rig.Container, "m_resumeEvent", rig.ResumeEvent);
+            Set(rig.Container, "m_identifier", rig.Identifier);
+            Set(rig.Container, "m_uiManager", uiManager);
+            body(rig);
+        });
+
+        private static bool Waiting(object current) => ((WaitUntil)current).keepWaiting;
+
+        // The Respawn iterator 0x671420 queues the resume event (0x671595) and, while the pause menu is not open (IsOpen at
+        // 0x6715B0 false), yields a WaitUntil on the same test (b__0 at 0x6713C0: the UIManager's IsOpen for the container's
+        // identifier). It ends when that wait does.
+        [Test]
+        public void RespawnQueuesTheResumeEventThenWaitsForTheMenuToBeOpen()
+        {
+            RunCharacters(rig =>
+            {
+                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn");
+
+                Assert.That(respawn.MoveNext(), Is.True);
+
+                Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.ResumeEvent }));
+                Assert.That(respawn.Current, Is.InstanceOf<WaitUntil>());
+                Assert.That(Waiting(respawn.Current), Is.True, "the predicate is the manager's IsOpen, still false");
+                rig.Containers.Open.Add(rig.Identifier);
+                Assert.That(Waiting(respawn.Current), Is.False);
+                Assert.That(respawn.MoveNext(), Is.False, "no character is current");
+            });
+        }
+
+        // An already open menu skips the wait (the jne at 0x6715B7), and a current character is put out of bounds (the
+        // SetValue<bool> of IsOutOfBounds with true, 0x671828) in the same step.
+        [Test]
+        public void RespawnOfAnOpenMenuPutsTheCurrentCharacterOutOfBoundsAtOnce()
+        {
+            RunCharacters(rig =>
+            {
+                rig.Containers.Open.Add(rig.Identifier);
+                SetCurrent(rig.Characters, rig.Character, true);
+                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn");
+                Assert.That(rig.Character.Storage.TryGetValue(ActorFSMKeys.IsOutOfBounds, out bool unsetBefore), Is.False, "unset before");
+
+                Assert.That(respawn.MoveNext(), Is.False);
+
+                Assert.That(rig.Character.Storage.TryGetValue(ActorFSMKeys.IsOutOfBounds, out bool outOfBounds), Is.True);
+                Assert.That(outOfBounds, Is.True);
+                Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.ResumeEvent }));
+            });
+        }
+
+        // The Restart iterator 0x6718E0 queues the resume event (0x671AA0) and yields a WaitUntil on the same IsOpen test
+        // (b__23_0, 0x671300) without a pre-check; the next step restarts the level (LevelManager.Restart returns at once
+        // here, as no level is current) and the iterator ends.
+        [Test]
+        public void RestartQueuesTheResumeEventWaitsForTheMenuThenRestartsTheLevel()
+        {
+            RunCharacters(rig =>
+            {
+                rig.Owned.Register(rig.Owned.Host("Lucid pause level manager", false).AddComponent<LevelManager>());
+                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart");
+
+                Assert.That(restart.MoveNext(), Is.True);
+
+                Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.ResumeEvent }));
+                Assert.That(restart.Current, Is.InstanceOf<WaitUntil>());
+                Assert.That(Waiting(restart.Current), Is.True, "the predicate is the manager's IsOpen, still false");
+                rig.Containers.Open.Add(rig.Identifier);
+                Assert.That(Waiting(restart.Current), Is.False);
+                Assert.That(restart.MoveNext(), Is.False);
+            });
+        }
+
+        // The iterators are the state machines the metadata names (<Restart>d__23 and <Respawn>d__24) and resetting one is not
+        // supported (0x671886, 0x671B36).
+        [Test]
+        public void TheIteratorsCannotBeReset()
+        {
+            RunCharacters(rig =>
+            {
+                Assert.Throws<NotSupportedException>(() => ((IEnumerator)Call(rig.Container, "Restart")).Reset());
+                Assert.Throws<NotSupportedException>(() => ((IEnumerator)Call(rig.Container, "Respawn")).Reset());
+            });
+        }
+    }
+}

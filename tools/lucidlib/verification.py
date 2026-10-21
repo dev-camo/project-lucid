@@ -10418,3 +10418,99 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.DreamPowerStoreDeclarationTests." + 
     "TheUIWidgetToggleCollectionsParametersDeclarationMatchesTheOriginalMetadata",
     "TheUIWidgetToggleDreamPowerDeclarationMatchesTheOriginalMetadata",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.PauseAndSoundSettingsDeclarationTests." + name for name in (
+    "InvertCameraSettingMatchesTheOriginalMetadata",
+    "SoundLevelsOptionsValuesMatchesTheOriginalMetadata",
+    "UIContainerAnalyticsConsentMatchesTheOriginalMetadata",
+    "UIContainerCreditsMatchesTheOriginalMetadata",
+    "UIContainerEmailSupportMatchesTheOriginalMetadata",
+    "UIContainerPauseMatchesTheOriginalMetadata",
+    "UIContainerPauseBackgroundMatchesTheOriginalMetadata",
+    "UIContainerQRCodeMatchesTheOriginalMetadata",
+    "UIContainerResetGameDataMatchesTheOriginalMetadata",
+    "UIContainerSoundLevelsMatchesTheOriginalMetadata",
+    "UIContainerSoundLevelsOptionsMatchesTheOriginalMetadata",
+    "UIWidgetButtonSupportMatchesTheOriginalMetadata",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SoundLevelsOptionsTests." + name for name in (
+    "TheValuesHoldTheFourLevelsInTheirOwnOrder",
+    "ApplyingTheValuesWritesEachLevelToItsOwnSettingAndMarksThemChanged",
+    "ApplyingTheValuesToNoSettingsFaults",
+    "SetupPublishesTheLevelsAndGetValuesReadsThemBack",
+    "SetupStoresTheMusicAndSfxCallbacksBeforeItSetsTheBindablesAndTheOthersAfter",
+    "EachToggleSetsItsBindableBeforeCallingItsOwnCallback",
+    "ATogglePressedWithoutACallbackStillSetsItsBindable",
+    "TheSaveClickCallsItsCallbackAndFaultsWithoutOne",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SupportEmailPageTests." + name for name in (
+    "TheEmailBodyIsThePrefixThenTheDeviceAndVersionLinesThenTheSuffix",
+    "TheMailLinkEscapesTheAddressTheSubjectAndTheBodyIndividually",
+    "OpeningTheEmailContainerQueuesTheSupportEventOnce",
+    "EnablingTheEmailPageFormatsTheRequestTheAddressTheSubjectAndTheReport",
+    "ClosingTheEmailPageQueuesTheCloseEventOnce",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCreditsTests." + name for name in (
+    "ANewPageScrollsAtSpeedOne",
+    "WhileTheScrollToPointIsBelowTheEndPointTheParentMovesUpByTheFrameTimeTimesTheSpeedAndOneNullIsYielded",
+    "ReachingTheEndHeightStopsTheScrollAndWaitsTheConfiguredSeconds",
+    "TheScrollEndsOnTheFrameThePointReachesTheEndThenTheTriggerFiresOnceAfterTheWait",
+    "AMissingEndTriggerIsSkipped",
+    "AMissingMarkerPointFaultsTheFirstStep",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerQRCodeTests." + name for name in (
+    "SetupShowsTheLocalisedAddress",
+    "TheFirstOverrideForTheCurrentLanguageReplacesTheDefaultSprite",
+    "WithoutAnOverrideForTheCurrentLanguageTheDefaultSpriteIsShown",
+    "AStringWithoutALookupEntryKeepsTheSpriteAsItWas",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerResetGameDataTests." + name for name in (
+    "DeletingWithAnOpenSaveClosesItMarksTheGameNotLoadedAndQueuesTheConfirmEvent",
+    "DeletingWithoutAnOpenSaveOnlyQueuesTheConfirmEvent",
+    "ADeleteTwiceQueuesTheConfirmEventOnce",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerAnalyticsConsentTests." + name for name in (
+    "StartAppliesTheBaseGameplayControlThenPublishesTheManagersConsentState",
+    "TheToggleSetsConsentedForOnAndRejectedForOff",
+    "ClosingForAnUnderagePlayerLeavesTheManagerUntouched",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSoundLevelsTests." + name for name in (
+    "StartTakesTheServicesAndShowsTheStoredLevels",
+    "LoadSettingsReadsTheLiveSettingsOfTheSaveManager",
+    "EachToggleStoresItsOwnLevelAndGoesOnToTheMixer",
+    "ResettingToDefaultsRestoresFullVolumeInTheLiveSettingsAndThePage",
+    "SavingTheLevelsStoresACopyOfTheSettingsAndPublishesTheSaveEvent",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.InvertCameraSettingTests." + name for name in (
+    "AwakeTakesTheSaveManager",
+    "TheActionFlipsTheStoredFlagBothWaysAndSavesEachTime",
+    "TheActionBeforeAwakeDoesNothing",
+    "TheActionWithoutLoadedSettingsDoesNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseTests." + name for name in (
+    "StartTakesTheManagersAndPublishesTheLevelAndTheQualityFlags",
+    "TheQualityFlagsFollowTheFrameTimeAndTheDeviceCapability",
+    "TheLevelManagerCallbackKeepsTheManagerAndAsksForTheMissionManager",
+    "WithoutACurrentLevelOnlyTheMissionManagerIsKept",
+    "ALevelWithoutAMissionOrAZonePublishesOnlyItsNames",
+    "AnActiveMissionIsHandedToTheResultsAndRanksContainers",
+    "ALevelInAZoneShowsTheZoneAccentTheActNumberAndNoBackground",
+    "CloseQueuesTheResumeEventOnce",
+    "TheQuitAnalyticsGoThroughTheActiveContext",
+    "DestroyingReleasesTheAccentAndForwardsThePauseCloseAction",
+    "DestroyingWithoutAPauseCloseActionStartsNoWait",
+    "RestartAndRespawnEachStartOneCoroutine",
+    "RespawnQueuesTheResumeEventThenWaitsForTheMenuToBeOpen",
+    "RespawnOfAnOpenMenuPutsTheCurrentCharacterOutOfBoundsAtOnce",
+    "RestartQueuesTheResumeEventWaitsForTheMenuThenRestartsTheLevel",
+    "TheIteratorsCannotBeReset",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseBackgroundTests." + name for name in (
+    "WithoutTheRenderTextureEnablingSwitchesTheComponentOff",
+    "EnablingWithTheRenderTextureKeepsTheManagerAndSubscribesToTheMainCameraEvent",
+    "InitialisingFromACameraTakesItsSizeAndCullingMaskAndStopsListening",
+    "TheSizeIsHalvedWhileEitherDimensionExceedsTheQualityMaximum",
+    "RenderingWhileTheCameraIsNotReadyDoesNothing",
+    "UpdateRendersAndClearsTheFlagOnlyWithTheRenderTextureAndTheFlag",
+    "DisablingLeavesTheCameraAloneWhenThereIsNoRenderTextureOrTheCameraIsNotReady",
+    "AFreshQualitySettingHasNoMaximum",
+))
