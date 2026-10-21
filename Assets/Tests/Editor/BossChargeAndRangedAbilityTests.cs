@@ -115,13 +115,14 @@ namespace ProjectLucid.Tests
             });
         }
 
-        private static void Wound(BossAbility_BossFourmenChargeAttack ability)
+        // One update while winding up aims at the character at (0, 0, 10) (06000a6c), then the wind-up is wound up.
+        private static void Wound(BossAbility_BossFourmenChargeAttack ability, CharacterManager manager, Character character)
         {
             ability.Enter();
             ability.SetAttackFlow(true);
-            ability.SkipAttackPreparation(null);
-            Set(ability, "m_playerTargetPosition", new Vector3(0f, 0f, 10f));
-            Set(ability, "m_normalisedDirection", new Vector3(0f, 0f, 1f));
+            MakeCurrent(manager, character, new Vector3(0f, 0f, 10f));
+            ability.Update(0.25f);
+            ability.SetAttackWoundUp();
         }
 
         // 06000a6d: the charge accelerates along the curve while the boss is not past the aimed position; the target is the charge
@@ -135,7 +136,7 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<MessageManager>();
                 Boss boss = NewBoss(owned, Vector3.zero);
                 BossAbility_BossFourmenChargeAttack ability = NewCharge(owned, boss);
-                Wound(ability);
+                Wound(ability, manager, character);
 
                 ability.Update(0.5f);
                 Assert.That(ability.IsTriggered, Is.True, "the first attack tick raises the animation trigger");
@@ -178,7 +179,7 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<MessageManager>();
                 Boss outward = NewBoss(owned, new Vector3(0f, 1f, 30f));
                 BossAbility_BossFourmenChargeAttack ability = NewCharge(owned, outward);
-                Wound(ability);
+                Wound(ability, manager, character);
                 ability.Update(0.5f);
                 Assert.That(ability.AbilityFinished, Is.False, "30 from the centre is not beyond 30");
 
@@ -191,7 +192,7 @@ namespace ProjectLucid.Tests
                 Boss inward = NewBoss(owned, new Vector3(0f, 1f, 40f));
                 SetActorProperty(inward, "ForwardDirection", new Vector3(0f, 0f, -1f));
                 BossAbility_BossFourmenChargeAttack returning = NewCharge(owned, inward);
-                Wound(returning);
+                Wound(returning, manager, character);
                 returning.Update(0.5f);
                 Assert.That(returning.AbilityFinished, Is.False, "heading towards the centre it carries on");
                 Assert.That(Has(inward, BossFSMKeys.BossEffectType), Is.False);
@@ -206,7 +207,7 @@ namespace ProjectLucid.Tests
             {
                 Boss boss = NewBoss(owned, Vector3.zero);
                 BossAbility_BossFourmenChargeAttack ability = NewCharge(owned, boss);
-                Wound(ability);
+                Wound(ability, manager, character);
                 ability.Update(0.5f);
                 Set(ability, "m_reachedTarget", true);
                 Set(ability, "m_decelerationTimer", 0.75f);

@@ -132,8 +132,10 @@ namespace ProjectLucid.Tests
                 {
                     BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, NewScene(owned, 3, Vector3.zero));
                     ability.SetAttackFlow(true);
-                    Set(ability, "m_isWindingUp", windingUp);
-                    Set(ability, "m_isWoundUp", woundUp);
+                    if (windingUp)
+                        ability.SetAttackWindingUp();
+                    if (woundUp)
+                        ability.SetAttackWoundUp();
                     string label = $"winding up {windingUp}, wound up {woundUp}";
                     Assert.That((bool)Call(ability, "WindingUp"), Is.EqualTo(expected), label);
                     Assert.That(ability.StartWindUp, Is.EqualTo(startKept), label + " start request");

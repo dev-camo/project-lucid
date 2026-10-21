@@ -214,8 +214,10 @@ namespace ProjectLucid.Tests
             {
                 var ability = new BossAbility_BodySlam();
                 ability.SetAttackFlow(true);
-                Set(ability, "m_isWindingUp", windingUp);
-                Set(ability, "m_isWoundUp", woundUp);
+                if (windingUp)
+                    ability.SetAttackWindingUp();
+                if (woundUp)
+                    ability.SetAttackWoundUp();
                 Assert.That(Call(ability, "WindingUp"), Is.EqualTo(expected), $"{windingUp}/{woundUp}");
                 Assert.That(ability.StartWindUp, Is.EqualTo(startKept), $"{windingUp}/{woundUp} request");
             }
@@ -560,22 +562,35 @@ namespace ProjectLucid.Tests
                     (false, false, 2, true, true), (true, false, 2, true, false), (false, true, 1, false, false), (true, true, 1, false, false),
                 })
                 {
-                    var ability = new BossAbility_BossCrabClawAttack { Definition = definition };
-                    ability.SetAttackFlow(true);
-                    Set(ability, "m_isWindingUp", windingUp);
-                    Set(ability, "m_isWoundUp", woundUp);
-                    Set(ability, "m_thisAttackIndex", index);
-                    Assert.That(Call(ability, "WindingUp", 0.25f), Is.EqualTo(expected), $"{windingUp}/{woundUp}/{index}");
-                    Assert.That(ability.StartWindUp, Is.EqualTo(startKept), $"{windingUp}/{woundUp}/{index} request");
-                    Assert.That(Get<float>(ability, "m_extraWindUpTimer"), Is.Zero, $"{windingUp}/{woundUp}/{index} timer");
+                    // The attack index is the stored claw count read on entry (06000a4d).
+                    Owned.Run(owned =>
+                    {
+                        Boss boss = NewBoss(owned, Vector3.zero);
+                        boss.Storage.SetValue(ClawAttackCount, index);
+                        BossAbility_BossCrabClawAttack ability = NewAbility<BossAbility_BossCrabClawAttack>(boss, definition);
+                        ability.Enter();
+                        ability.SetAttackFlow(true);
+                        if (windingUp)
+                            ability.SetAttackWindingUp();
+                        if (woundUp)
+                            ability.SetAttackWoundUp();
+                        Assert.That(Call(ability, "WindingUp", 0.25f), Is.EqualTo(expected), $"{windingUp}/{woundUp}/{index}");
+                        Assert.That(ability.StartWindUp, Is.EqualTo(startKept), $"{windingUp}/{woundUp}/{index} request");
+                        Assert.That(Get<float>(ability, "m_extraWindUpTimer"), Is.Zero, $"{windingUp}/{woundUp}/{index} timer");
+                    });
                 }
 
-                var longAttack = new BossAbility_BossCrabClawAttack { Definition = definition };
-                Set(longAttack, "m_isWoundUp", true);
-                Set(longAttack, "m_thisAttackIndex", 2);
-                Assert.That(new[] { 0.25f, 0.25f, 0.25f, 0.25f, 0.25f }.Select(delta => (bool)Call(longAttack, "WindingUp", delta)).ToArray(),
-                    Is.EqualTo(new[] { true, true, true, false, false }), "0.25, 0.5, 0.75, then 1.0 which is not above 1.0");
-                Assert.That(Get<float>(longAttack, "m_extraWindUpTimer"), Is.EqualTo(1.25f));
+                Owned.Run(owned =>
+                {
+                    Boss boss = NewBoss(owned, Vector3.zero);
+                    boss.Storage.SetValue(ClawAttackCount, 2);
+                    BossAbility_BossCrabClawAttack longAttack = NewAbility<BossAbility_BossCrabClawAttack>(boss, definition);
+                    longAttack.Enter();
+                    longAttack.SetAttackWoundUp();
+                    Assert.That(new[] { 0.25f, 0.25f, 0.25f, 0.25f, 0.25f }.Select(delta => (bool)Call(longAttack, "WindingUp", delta)).ToArray(),
+                        Is.EqualTo(new[] { true, true, true, false, false }), "0.25, 0.5, 0.75, then 1.0 which is not above 1.0");
+                    Assert.That(Get<float>(longAttack, "m_extraWindUpTimer"), Is.EqualTo(1.25f));
+                });
             }
             finally
             {
