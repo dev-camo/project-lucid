@@ -6706,3 +6706,6 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTubeGeneratorPlayMo
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckWaveformGeneratorPlayModeTests." + name for name in (
     "SettersRebuildOnChangeAndSlicesClampAtOne",
 ))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
