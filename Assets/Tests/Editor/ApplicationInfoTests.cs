@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using Hardlight.Enums;
 using HardlightProject;
 using NUnit.Framework;
@@ -17,8 +18,6 @@ namespace ProjectLucid.Tests
     // ApplicationInfoView.OnEnable (it starts a coroutine on the shared coroutine runner).
     public sealed class ApplicationInfoTests
     {
-        private static string InfoPath => Application.streamingAssetsPath + Path.DirectorySeparatorChar + "ApplicationInfo.json";
-
         // The class is [Serializable] with two public fields; native ToJson (call at 0x535010) writes them in
         // declaration order.
         [Test]
@@ -41,17 +40,20 @@ namespace ProjectLucid.Tests
 
         // MoveNext 0x535480: without the file (File.Exists, 0x53554F) the default goes straight to the
         // callback and the iterator finishes without yielding; a null callback is skipped (0x5355D5).
-        // A prepared project holds the original's ApplicationInfo.json in StreamingAssets, so the case renames that
-        // file for its duration and puts it back afterwards.
+        // A prepared project holds the original's ApplicationInfo.json in StreamingAssets, so the case points the
+        // class's location (built by the class initialiser, 0x5352C0) at a path that does not exist for its duration
+        // and puts the original path back afterwards; the project's files are never touched.
         [Test]
         public void WithoutAFileTheDefaultReachesTheCallbackAtOnce()
         {
-            string hidden = InfoPath + ".lucid-hidden";
-            bool moved = File.Exists(InfoPath);
-            if (moved) File.Move(InfoPath, hidden);
+            // Reflection: the location is a private static readonly string with no public route to a different file.
+            FieldInfo location = typeof(ApplicationInfo).GetField("Location", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            object original = location.GetValue(null);
+            string missing = Path.Combine(Path.GetTempPath(), "lucid-" + Guid.NewGuid().ToString("N"), "ApplicationInfo.json");
             try
             {
-                Assert.That(File.Exists(InfoPath), Is.False, "set-up: no ApplicationInfo.json");
+                location.SetValue(null, missing);
+                Assert.That(File.Exists(missing), Is.False, "set-up: no ApplicationInfo.json");
                 ApplicationInfo delivered = null;
                 int calls = 0;
                 var iterator = ApplicationInfo.LoadOrCreateDefault(info => { delivered = info; calls++; });
@@ -63,7 +65,7 @@ namespace ProjectLucid.Tests
             }
             finally
             {
-                if (moved) File.Move(hidden, InfoPath);
+                location.SetValue(null, original);
             }
         }
 
