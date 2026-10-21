@@ -8,6 +8,7 @@
     "ProjectLucid.Cutscene.EngineVerification",
     "ProjectLucid.Selection.EngineVerification",
     "ProjectLucid.UISelection.EngineVerification",
+    "ProjectLucid.OnScreenControls.EngineVerification",
     "ProjectLucid.UnityCore.EngineVerification",
     "ProjectLucid.CrossPromoUI.EngineVerification",
     "ProjectLucid.UIContainer.EngineVerification",

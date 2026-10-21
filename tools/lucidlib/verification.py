@@ -8703,3 +8703,85 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSdtWaypointMarkerTests." + n
     "AHiddenHeightIndicatorLeavesItsLastDirection",
     "CloseForgetsTheTargetAndResetsThePublishedState",
 ))
+
+# Restored Game.Runtime on-screen controls: OnScreenInputButton, OnScreenBurstAttackButton, OnScreenCameraSnapButton,
+# OnScreenControlDebugging, OnScreenControlGroupListener, UIContainerOnScreenControls, UserEditableUIBase,
+# UserEditableUIComponentController and UserEditableUIFlipper.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlDeclarationTests." + name for name in (
+    "OnScreenInputButtonKeepsItsInterfaceEventsAndIteratorName",
+    "OnScreenBurstAttackButtonKeepsItsBindableFields",
+    "OnScreenCameraSnapButtonKeepsItsFieldsAndHandlerOrder",
+    "OnScreenControlDebuggingKeepsItsConstantsAndConditionalGui",
+    "OnScreenControlGroupListenerKeepsItsSerializedFieldsAndVirtualHooks",
+    "UIContainerOnScreenControlsKeepsItsFieldsAndClosureName",
+    "UserEditableUIBaseKeepsItsFieldsAccessorsAndHooks",
+    "UserEditableUIComponentControllerKeepsItsSerializedFieldRows",
+    "UserEditableUIFlipperKeepsItsFieldsAndIteratorName",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenButtonTests." + name for name in (
+    "EachRaiseCallsOnlyItsOwnEventWithJoystickZero",
+    "RemovedHandlersAreNoLongerCalled",
+    "SupplyCoroutineRaisesDownHeldAndUpOneFrameApart",
+    "SupplySequenceStartsTheCoroutineOnTheButton",
+    "BurstAttackMessageFlagsReachTheirOwnBindables",
+    "BurstAttackBindablesAreThreeDistinctObjects",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenCameraSnapButtonTests." + name for name in (
+    "EnablingListensToTheBrainAndTheEventDrivesTheButton",
+    "DisablingStopsListeningToTheBrain",
+    "DisablingWithoutACameraManagerDoesNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlDebuggingTests." + name for name in (
+    "TouchPositionInfoListsEveryControlInOrderAndRestartsEachTime",
+    "NoControlsGiveEmptyInfo",
+    "ToggleFlipsTheDebugFlagEachTime",
+    "OnGuiDoesNothingWhileTheDebugTextIsOff",
+    "AwakeAndOnDestroyChangeNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlGroupListenerTests." + name for name in (
+    "ShowAndHideRaiseTheirEventBeforeTheCompletion",
+    "ToggleShowsForListedGroupsAndHidesForOthers",
+    "AnEmptyGroupListAlwaysHides",
+    "EnablingAppliesTheDefaultGroupWithoutAContainer",
+    "EnablingWithAContainerThatHasNotAnnouncedUsesTheDefaultGroup",
+    "ListenerFollowsTheContainersAnnouncementsUntilDestroyed",
+    "WithoutAPublisherNothingIsSubscribed",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerOnScreenControlsTests." + name for name in (
+    "AwakeAnnouncesTheDefaultGroupAndListensForCharacterChanges",
+    "DestroyingStopsListeningToTheCharacterAndTheCharacterManager",
+    "RequestsAreAnnouncedAndAnInAirRequestWaitsOutATeleport",
+    "ChangingCharacterMovesTheRequestSubscription",
+    "SettingsDriveTheStickSnapAndTertiaryButtons",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIBaseTests." + name for name in (
+    "EachEditEventDrivesItsOwnHandler",
+    "DestroyingStopsListeningToTheEditEvents",
+    "DestroyingWithoutAnExchangeOnlyClearsTheInitialisedFlag",
+    "UpdateWaitsForTheSettingsThenInitialises",
+    "UpdateStaysOutOfEditModeWithoutTheStoredFlag",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIComponentControllerTests." + name for name in (
+    "SaveManagerValidFindsTheInterfaceTheMenuCameraAndTheSavedComponent",
+    "ScaleLimitsStartAtPointZeroFiveAndPointFive",
+    "InitialiseKeepsThePrefabPlacementWithoutAListedDefault",
+    "InitialiseUsesTheListedDefaultForItsSaveId",
+    "InitialisePlacesTheSavedComponentAndRescalesIt",
+    "ScaleAndPositionAreClamped",
+    "UpdateFollowsTheTouchAndSavesThePlacement",
+    "PinchScalesRelativeToTheScaleAtPinchBegin",
+    "EditStartBacksUpTheSettingsAndCancelRestoresThem",
+    "ALaterEditStartRefreshesTheSameBackup",
+    "CancelPlacesTheComponentByTheRestoredUserSettings",
+    "FlipMirrorsThePositionAndLaterMovesTheComponent",
+    "UpdateAfterParentFlippedSavesWithoutMarkingAnUnflippedLayoutAsUserSet",
+    "ResetRestoresTheDefaultPlacementAndClearsTheFlip",
+    "PositionInfoNamesTheControlItsPositionAndScale",
+    "ExitEditModeTellsTheComponentAndFiresTheEndEvent",
+    "ValidatingChangesNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIFlipperTests." + name for name in (
+    "InitialiseFlipAndResetEachStartTheDelayedUpdate",
+    "ConfirmStoresTheFlipInTheSettingsBeforeTheyArePublished",
+    "DelayedUpdateReversesTheLayoutAtTheEndOfTheFrame",
+))
