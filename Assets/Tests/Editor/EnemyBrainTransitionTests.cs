@@ -493,34 +493,30 @@ namespace ProjectLucid.Tests
         private static IFSMTransition BuildFireProjectileTriggered(ActorAbilityType type) =>
             Build(EnemyBrainTransition_FireProjectileTriggered.ConstructInstance, "{\"AbilityType\":" + (int)type + "}");
 
-        private static T TriggeredAbility<T>() where T : EnemyAbility, new()
-        {
-            var ability = new T();
-            SetProperty(ability, "IsTriggered", true);
-            return ability;
-        }
-
+        // Reflection: Actor.InitialiseAbilities fills m_abilities from the authored definition list, which an unstarted
+        // Enemy does not have.
         private static Dictionary<ActorAbilityType, ActorAbility> AbilitiesOf(Enemy enemy) =>
             Get<Dictionary<ActorAbilityType, ActorAbility>>(enemy, "m_abilities");
 
         // 0x574971..0x574998 take the brain's Enemy (+0x18) and call Actor.TryGetAbility<EnemyAbility_FireProjectile>
         // (0x7C7460) with the type the constructor stored at +0x1C; 0x57499D..0x5749AC return false when it finds none
         // (xor eax, eax at 0x5749AE) and otherwise the byte at +0x20 of the ability, its IsTriggered flag. So the
-        // transition is false without an ability of the configured type and follows IsTriggered once there is one.
+        // transition is false without an ability of the configured type and follows IsTriggered once there is one. The
+        // flag is raised by a real update on a sensed target and cleared by leaving the ability.
         [Test]
         public void FireProjectileTriggeredIsFalseWithoutTheAbilityAndFollowsItsTriggeredFlag()
         {
-            WithBrain((owned, brain, enemy) =>
+            EnemyAbilityTestSupport.WithScene(scene =>
             {
                 IFSMTransition transition = BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile);
-                Assert.That(transition.Update(brain, Context()), Is.False, "no ability");
-                var ability = new EnemyAbility_FireProjectile();
-                AbilitiesOf(enemy)[ActorAbilityType.Enemy_FireProjectile] = ability;
-                Assert.That(transition.Update(brain, Context()), Is.False, "ability not triggered");
-                SetProperty(ability, "IsTriggered", true);
-                Assert.That(transition.Update(brain, Context()), Is.True, "ability triggered");
-                SetProperty(ability, "IsTriggered", false);
-                Assert.That(transition.Update(brain, Context()), Is.False, "ability cleared again");
+                Assert.That(transition.Update(scene.Brain, Context()), Is.False, "no ability");
+                var ability = scene.Ability<EnemyAbility_FireProjectile, EnemyAbilityDefinition_FireProjectile>();
+                AbilitiesOf(scene.Enemy)[ActorAbilityType.Enemy_FireProjectile] = ability;
+                Assert.That(transition.Update(scene.Brain, Context()), Is.False, "ability not triggered");
+                scene.TriggerFireProjectile(ability, new Vector3(0f, 0f, 10f));
+                Assert.That(transition.Update(scene.Brain, Context()), Is.True, "ability triggered");
+                ability.Leave();
+                Assert.That(transition.Update(scene.Brain, Context()), Is.False, "ability cleared again");
             });
         }
 
@@ -529,15 +525,16 @@ namespace ProjectLucid.Tests
         [Test]
         public void FireProjectileTriggeredLooksUpTheAbilityTypeItWasConfiguredWith()
         {
-            WithBrain((owned, brain, enemy) =>
+            EnemyAbilityTestSupport.WithScene(scene =>
             {
-                var triggered = TriggeredAbility<EnemyAbility_FireProjectile>();
-                AbilitiesOf(enemy)[ActorAbilityType.Enemy_FireProjectile] = triggered;
-                AbilitiesOf(enemy)[ActorAbilityType.Enemy_Dead] = new EnemyAbility_FireProjectile();
-                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile).Update(brain, Context()), Is.True);
-                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_Dead).Update(brain, Context()), Is.False,
+                var triggered = scene.Ability<EnemyAbility_FireProjectile, EnemyAbilityDefinition_FireProjectile>();
+                scene.TriggerFireProjectile(triggered, new Vector3(0f, 0f, 10f));
+                AbilitiesOf(scene.Enemy)[ActorAbilityType.Enemy_FireProjectile] = triggered;
+                AbilitiesOf(scene.Enemy)[ActorAbilityType.Enemy_Dead] = scene.Ability<EnemyAbility_FireProjectile, EnemyAbilityDefinition_FireProjectile>();
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile).Update(scene.Brain, Context()), Is.True);
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_Dead).Update(scene.Brain, Context()), Is.False,
                     "the ability under the other type is not triggered");
-                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_GroundAttack).Update(brain, Context()), Is.False,
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_GroundAttack).Update(scene.Brain, Context()), Is.False,
                     "nothing is registered under that type");
             });
         }
@@ -547,17 +544,23 @@ namespace ProjectLucid.Tests
         [Test]
         public void FireProjectileTriggeredIgnoresATriggeredAbilityOfAnotherClass()
         {
-            WithBrain((owned, brain, enemy) =>
+            EnemyAbilityTestSupport.WithScene(scene =>
             {
-                AbilitiesOf(enemy)[ActorAbilityType.Enemy_FireProjectile] = TriggeredAbility<EnemyAbility_Dead>();
-                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile).Update(brain, Context()), Is.False);
+                var dead = scene.Ability<EnemyAbility_Dead, EnemyAbilityDefinition_Dead>();
+                scene.Flag("IsDead", true);
+                dead.Enter();
+                dead.Update(0.02f);
+                Assert.That(dead.IsTriggered, Is.True, "the dead ability is triggered while the enemy is dead");
+                AbilitiesOf(scene.Enemy)[ActorAbilityType.Enemy_FireProjectile] = dead;
+                Assert.That(BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile).Update(scene.Brain, Context()), Is.False);
             });
         }
 
         // DoUpdate (0x574930..0x5749B8) only reads: it makes no storage call, so the target position that
-        // EnemyAbility_FireProjectile.SetTriggered publishes on the brain (and that the ability's UpdateWhileTriggered
-        // waits on, jne to ret at 0x56F834) stays until some other node removes it. With a really triggered ability the
-        // transition is true on every update and the brain still holds the position, which this transition does not consume.
+        // EnemyAbility_FireProjectile.SetTriggered publishes on the brain stays until its consumer removes it (the
+        // ability's UpdateWhileTriggered waits on it, jne to ret at 0x56F834; EnemyBrainState_TurnTowardsPosition removes it
+        // once the enemy faces it, 0x573C34). With a really triggered ability the transition is true on every update
+        // and the brain still holds the position, which this transition does not consume.
         [Test]
         public void FireProjectileTriggeredLeavesThePublishedTargetPositionOnTheBrain()
         {
@@ -568,14 +571,15 @@ namespace ProjectLucid.Tests
                 IFSMTransition transition = BuildFireProjectileTriggered(ActorAbilityType.Enemy_FireProjectile);
                 Assert.That(transition.Update(scene.Brain, Context()), Is.False, "before the trigger");
 
-                Call(ability, "SetTriggered", true);
+                scene.TriggerFireProjectile(ability, new Vector3(0f, 0f, 10f));
                 Assert.That(scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition), Is.True);
                 Assert.That(transition.Update(scene.Brain, Context()), Is.True);
                 Assert.That(transition.Update(scene.Brain, Context()), Is.True, "still true on the next update");
                 Assert.That(scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition), Is.True,
                     "the transition does not consume the published position");
 
-                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
+                scene.ConsumeFireTargetPosition();
+                Assert.That(scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition), Is.False, "the turn state consumed it");
                 Assert.That(transition.Update(scene.Brain, Context()), Is.True, "the flag, not the stored position, decides");
             });
         }

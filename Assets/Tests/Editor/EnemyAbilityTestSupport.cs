@@ -151,6 +151,26 @@ namespace ProjectLucid.Tests
             // Hands the targets to the manager's list, which the ability reads each update.
             internal void Sense(params Actor[] targets) => ((List<Actor>)Manager.GetTargetsForEnemies()).AddRange(targets);
 
+            // The game's route to a triggered fire-projectile ability: an enemy target in range and elevation band is
+            // sensed and the entered ability is updated once (EnemyAbility_FireProjectile.DoOnUpdate, 0x56F180).
+            internal void TriggerFireProjectile(EnemyAbility_FireProjectile ability, Vector3 aim)
+            {
+                ability.Enter();
+                Sense(Target(aim));
+                ability.Update(0.02f);
+                NUnit.Framework.Assert.That(ability.IsTriggered, NUnit.Framework.Is.True, "triggered by the sensed target");
+            }
+
+            // The real consumer of the target position the ability publishes: an EnemyBrainState_TurnTowardsPosition
+            // with the key "FireProjectileTargetPosition" and RemoveWhenComplete (0x573B00 removes the stored position
+            // once the enemy faces it), updated once on the brain.
+            internal void ConsumeFireTargetPosition()
+            {
+                IFSMState state = EnemyBrainState_TurnTowardsPosition.ConstructInstance(NewFsm(), new FSMIdentifier(Name()),
+                    "{\"PositionFSMVariableName\":\"FireProjectileTargetPosition\",\"RemoveWhenComplete\":true}");
+                state.Update(Brain, Context());
+            }
+
             internal T BrainStore<T>(GraphStorageKey key, T fallback) => Brain.Storage.GetValue(key, fallback, false);
 
             internal T ActorStore<T>(GraphStorageKey key, T fallback) => Enemy.Storage.GetValue(key, fallback, false);
