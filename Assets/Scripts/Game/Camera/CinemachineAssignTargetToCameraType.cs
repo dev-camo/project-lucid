@@ -36,7 +36,7 @@ namespace HardlightProject
             if (cameraManager.MainCameraIsReady) OnMainCameraReady(cameraManager.MainCamera);
         }
 
-        // 0x06000d4c: a one-shot assignment; the unused flag simply leaves that target empty.
+        // 0x06000d4c: one-shot: unsubscribes first; a cleared flag passes null, which leaves that camera target unchanged.
         private void OnMainCameraReady(Camera _)
         {
             CinemachineCameraManager cameraManager = m_cameraManagerRef.Get();
