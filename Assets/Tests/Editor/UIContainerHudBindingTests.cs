@@ -331,7 +331,7 @@ namespace ProjectLucid.Tests
                 {
                     owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
                     owned.LeaseRow<UIManager>(); // MissionState's field initialiser
-                    owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser
+                    OwnedChallengeServices.Register(owned); // the cached progress and MissionContextRegular's field initialiser need the managers
                     var mission = owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
                     Set(mission, "m_guid", "lucid-orb-counter-mission"); // serialized authored data
                     Set(mission, "m_subMissions", new List<MissionDefinition>());
@@ -436,7 +436,8 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<NotificationManager>(request, "m_notificationManager"), Is.SameAs(manager));
                 Assert.That(Get<NotificationType>(request, "m_notification"), Is.EqualTo(NotificationType.LapsedPlayer));
                 Assert.That(image.sprite == null, Is.True, "no configuration of the requested type");
-                Assert.That(label.Identifier, Is.EqualTo(Strings.NONE));
+                // A new component's serialized identifier is unset (zero, not Strings.NONE) and the setup wrote nothing.
+                Assert.That(label.Identifier, Is.EqualTo((Strings)0));
             });
         }
 
@@ -544,6 +545,9 @@ namespace ProjectLucid.Tests
             {
                 var skip = Add<UIContainerSkipCutscene>(owned, "Lucid skip cutscene");
                 Call(skip, "Start");
+                // Consuming a skip answers false and records nothing unless a cutscene is playing.
+                ComicCutscene playing = owned.Host("Lucid playing cutscene", false).AddComponent<ComicCutscene>();
+                Set(cutscenes, "m_currentCutscene", playing); // Reflection: playing a cutscene needs the addressables load
 
                 skip.Action_OnSkipOnce();
                 Assert.That(cutscenes.ConsumeSkipTapEvent(), Is.True);
@@ -552,6 +556,7 @@ namespace ProjectLucid.Tests
                 skip.Action_OnFullSkip();
                 Assert.That(cutscenes.ConsumeSkipHoldEvent(), Is.True);
                 Assert.That(cutscenes.ConsumeSkipTapEvent(), Is.False, "a hold is not a tap");
+                Set(cutscenes, "m_currentCutscene", null);
             });
         }
 
@@ -573,7 +578,7 @@ namespace ProjectLucid.Tests
                 Call(skip, "Start");
                 Assert.That(Get<App>(skip, "m_app"), Is.SameAs(app));
                 Assert.That(Get<CutsceneManager>(skip, "m_cutsceneManager"), Is.SameAs(cutscenes));
-                Assert.That(label.Identifier, Is.EqualTo(Strings.NONE), "no theatre session");
+                Assert.That(label.Identifier, Is.EqualTo((Strings)0), "no theatre session leaves the new component's unset identifier");
 
                 var theatre = new CutsceneTheatre();
                 app.Storage.SetValue(AppFSMKeys.CutsceneTheatre, theatre);
