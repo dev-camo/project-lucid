@@ -9823,6 +9823,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerOrnamentGalleryTests." + 
     "AScaleDownReadsTheCurveAtTheInvertedProgress",
     "WaitingForAHandleYieldsItThenShowsItsPrefab",
     "ButtonRotationBecomesTheRotatorsImpulseOnce",
+    "ANegativeButtonRotationIsNotAnImpulse",
     "LateUpdateWithoutAnOrnamentDoesNothing",
     "ReleasingTheFingerAppliesTheReleaseImpulseToTheRotator",
     "DraggingTurnsTheOrnamentDirectlyByTheDragAmount",

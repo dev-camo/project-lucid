@@ -28,7 +28,8 @@ namespace ProjectLucid.Tests
     // Every ornament's prefab handle is already completed, so no Addressables load is made. Edit Mode refuses Object.Destroy and a
     // coroutine on the inactive host with an error, so those requests are checked by their logged errors. Not covered: the
     // HLScrollRectSelection hover scroll, the challenge reward string picker of a locked challenge ornament, the Addressables load of
-    // an uncached ornament, the release of live Addressables handles on destroy, and the time-stepped scaling.
+    // an uncached ornament, the release of live Addressables handles on destroy, the time-stepped scaling, and the 1.9/1.75 aspect
+    // thresholds of the row length and offset (Screen cannot be set in Edit Mode; only the branch of the current Game view runs).
     public sealed class UIContainerOrnamentGalleryTests
     {
         private static readonly Regex RefusedDestroy = new Regex("^Destroy may not be called from edit mode");
@@ -298,9 +299,7 @@ namespace ProjectLucid.Tests
         }
 
         // OnEnable 0x66D6F0 takes the six services from their rows, publishes the title (Strings 0xBCC4A28B, GLOSSARY_24), initialises
-        // the touch zone and shows the achievement category. The row length and offset depend on the screen shape: the two row lengths
-        // are authored as different values here, and a wide enough screen to use the notched row length (above 1.9) always also
-        // earns the widescreen offset (above 1.75).
+        // the touch zone and shows the achievement category.
         [Test]
         public void EnablingTakesTheServicesAndShowsTheAchievementCategory()
         {
@@ -332,7 +331,9 @@ namespace ProjectLucid.Tests
 
                 int perRow = Get<int>(rig.Gallery, "m_ornamentsPerRow");
                 float offset = Get<float>(rig.Gallery, "m_ornamentXOffset");
-                // Screen cannot be set in Edit Mode, so the branch follows whatever shape the Game view reports.
+                // Screen cannot be set in Edit Mode, so the branch follows whatever shape the Game view reports. Native thresholds:
+                // 1.9f at 0x29A7AE0 (strict, ucomiss/setbe at 0x66D811) and 1.75f at 0x29A7AE4 (strict, ucomiss/jbe at 0x66D828); an
+                // equal or NaN aspect takes the no-notch length and zero offset.
                 float aspect = (float)Screen.width / (float)Screen.height;
                 Assert.That(perRow, Is.EqualTo(aspect > 1.9f ? 5 : 2));
                 Assert.That(offset, Is.EqualTo(aspect > 1.75f ? 0.35f : 0f));
@@ -431,9 +432,17 @@ namespace ProjectLucid.Tests
             {
                 rig.Story[rig.S0.OrnamentIdentifier] = Status(true, true, false);
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
+                var names = new List<Strings>();
+                var texts = new List<string>();
+                rig.Gallery.OrnamentName.AddListener(() => names.Add(rig.Gallery.OrnamentName.Value));
+                rig.Gallery.InfoText.AddListener(() => texts.Add(rig.Gallery.InfoText.Value));
 
                 rig.Gallery.Action_TabStory(true);
 
+                // PopulateUI passes the Unlocked flag (0x66DD69: movzx of the first status byte), so the ornament is shown unlocked
+                // first; the default selection then reports it unavailable and overwrites it with the locked view.
+                Assert.That(names, Is.EqualTo(new[] { (Strings)NameS0, (Strings)NameLocked }));
+                Assert.That(texts, Is.EqualTo(new[] { "Lore S0", "Unlock S0 in act 0" }));
                 Assert.That(rig.Gallery.OrnamentName.Value, Is.EqualTo((Strings)NameLocked));
                 Assert.That(rig.InfoPanel.activeSelf, Is.True);
                 Assert.That(rig.UiButton.interactable, Is.False);
@@ -712,6 +721,24 @@ namespace ProjectLucid.Tests
                 Assert.That(ornament.TransformRotator.CurrentImpulseSpeed, Is.EqualTo(3.5f));
                 Assert.That(Get<float>(rig.Gallery, "m_rotationFromButtonInput"), Is.EqualTo(0f));
                 Assert.That(Get<bool>(ornament.TransformRotator, "m_idleAutomation"), Is.False, "the zone path was not taken");
+            });
+        }
+
+        // 0x66E0E7..0x66E0ED is xorps; ucomiss; jbe: a zero, negative or NaN stored speed falls through to the touch-zone path and the
+        // stored value is kept.
+        [Test]
+        public void ANegativeButtonRotationIsNotAnImpulse()
+        {
+            Run((owned, rig) =>
+            {
+                Ornament ornament = ShowOrnament(owned, rig, NewOrnamentPrefab(owned, 0f, false, out _));
+                rig.Gallery.Action_RotateOrnament(-3.5f);
+
+                Call(rig.Gallery, "LateUpdate");
+
+                Assert.That(Get<float>(rig.Gallery, "m_rotationFromButtonInput"), Is.EqualTo(-3.5f));
+                Assert.That(ornament.TransformRotator.CurrentImpulseSpeed, Is.EqualTo(0f));
+                Assert.That(Get<bool>(ornament.TransformRotator, "m_idleAutomation"), Is.True, "the zone path ran with no drag");
             });
         }
 
