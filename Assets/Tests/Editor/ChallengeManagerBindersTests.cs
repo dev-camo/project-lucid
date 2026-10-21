@@ -15,11 +15,9 @@ namespace ProjectLucid.Tests
     // ChallengeManagerBinders (x86-64 0x5A8C40..0x5A99C6) over a real ChallengeManager built by its constructor
     // (the manager and the binders sit on inactive or edit-mode hosts, so no Unity message runs). The manager's
     // feature state is authored through its auto-property backing field and its challenge list through the live
-    // list GetChallengeStates returns; no path reaches either without a started manager.
-    //
-    // Not covered: the ready branch of Update (the formatted time remaining). It needs ChallengeManager.Ready,
-    // whose flag is set only by a started leaderboard integration (OnIntegrationInitialised defers into the
-    // SaveManager and MissionManager rows), and a loaded StringTable for the formats; neither exists in Edit Mode.
+    // list GetChallengeStates returns; no path reaches either without a started manager. The ready flag is written the same way, and the
+    // period end and clock come from a test integration, so Update's formatting path runs over an owned string
+    // table.
     public sealed class ChallengeManagerBindersTests
     {
         // ChallengeManager's field initialisers read these six rows. The manager is added through the owned
@@ -329,6 +327,109 @@ namespace ProjectLucid.Tests
                 Set(binder, "m_challengeManagerRef", new SystemRef<ChallengeManager>("lucid-empty-reference", null));
                 Assert.DoesNotThrow(() => Call(binder, "OnDisable"));
                 Assert.That(manager.OnChallengesUpdated, Is.Null);
+            });
+        }
+
+        // Fixed period end and clock; GetChallengePeriodTimeRemaining is their difference.
+        private sealed class FixedClockIntegration : ChallengeLeaderboardIntegration
+        {
+            public static readonly DateTime Now = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            public TimeSpan Remaining;
+            public override DateTime GetCurrentPeriodEnd() => Now + Remaining;
+            public override DateTime GetTime() => Now;
+            protected override void DoInitialise(Action callback) => throw new NotSupportedException();
+            protected override void DoDeinitialise() => throw new NotSupportedException();
+            public override DateTime GetCurrentPeriodStart() => throw new NotSupportedException();
+            protected override void DoSubmitScore(int score) => throw new NotSupportedException();
+            public override void ShowLeaderboard() => throw new NotSupportedException();
+            public override bool CanShowLeaderboard() => throw new NotSupportedException();
+            public override void AdvanceCycle() => throw new NotSupportedException();
+            public override void RegressCycle() => throw new NotSupportedException();
+        }
+
+        // The four format hashes the constructor stores (0x29a79e0).
+        private static readonly Dictionary<Strings, string> Formats = new Dictionary<Strings, string>
+        {
+            { (Strings)895986815, "{0}:{1}:{2}:{3}" },
+            { (Strings)1845892065, "D{0}H{1}" },
+            { (Strings)(-2107480886), "H{0}M{1}" },
+            { (Strings)1277909823, "M{0}S{1}" },
+        };
+
+        private static void WithReadyBinder(Action<ChallengeManagerBinders, FixedClockIntegration> body) =>
+            WithBinder((owned, binder, manager) =>
+            {
+                // Ready (inlined at 0x5a942f..0x5a9448) is m_ready (+0xC0) && m_currentChallenges.Count > 0;
+                // the remaining time (0x5a946a..0x5a94be) is vslot 7 (period end) minus vslot 8 (clock) of +0xA8.
+                var integration = new FixedClockIntegration();
+                Set(manager, "m_ready", true);
+                Set(manager, "m_leaderboardIntegration", integration);
+                Get<List<ChallengeState>>(manager, "m_currentChallenges").Add(NewState(owned, 0, 0f));
+                OwnedStringTable.Run(Formats, () => body(binder, integration));
+            });
+
+        private static string UpdateText(ChallengeManagerBinders binder, FixedClockIntegration integration, TimeSpan remaining, bool shortFormats)
+        {
+            integration.Remaining = remaining;
+            Set(binder, "m_useShortFormats", shortFormats);
+            binder.TimeRemainingText.Value = null;
+            Call(binder, "Update");
+            return binder.TimeRemainingText.Value;
+        }
+
+        // Update 0x5A9370 short formats: Days > 0 (signed jle at 0x5a9563) picks days/hours (0x5a9569..0x5a9599),
+        // else Hours > 0 hours/minutes (0x5a976c..0x5a9794), else minutes/seconds (0x5a9796..0x5a97b9). A negative
+        // remainder with zero days and hours falls to minutes/seconds, which a Days != 0 test would not.
+        [Test]
+        public void ShortFormatsPickTheLargestPositiveUnitPair()
+        {
+            WithReadyBinder((binder, integration) =>
+            {
+                Assert.That(UpdateText(binder, integration, new TimeSpan(1, 2, 3, 4), true), Is.EqualTo("D1H2"));
+                Assert.That(UpdateText(binder, integration, new TimeSpan(0, 5, 6, 7), true), Is.EqualTo("H5M6"));
+                Assert.That(UpdateText(binder, integration, new TimeSpan(0, 0, 7, 8), true), Is.EqualTo("M7S8"));
+                Assert.That(UpdateText(binder, integration, new TimeSpan(0, 0, 0, -30), true), Is.EqualTo("M0S-30"));
+            });
+        }
+
+        // 0x5a95e3..0x5a972c store days, hours, minutes and seconds as strings in slots 0..3 of the parameter array.
+        [Test]
+        public void LongFormatFillsDaysHoursMinutesSeconds()
+        {
+            WithReadyBinder((binder, integration) =>
+            {
+                Assert.That(UpdateText(binder, integration, new TimeSpan(1, 2, 3, 4), false), Is.EqualTo("1:2:3:4"));
+                Assert.That(Get<object[]>(binder, "m_stringParams"), Is.EqualTo(new object[] { "1", "2", "3", "4" }));
+            });
+        }
+
+        // 0x5a94e3 skips the update only for a non-blank text whose whole seconds ((int) truncation, cvttsd2si at
+        // 0x5a951f/0x5a9524) equal the stored ones; otherwise the new remainder is stored and the text rebuilt.
+        [Test]
+        public void UpdateRebuildsTheTextOnlyWhenTheWholeSecondsChangeOrTheTextIsBlank()
+        {
+            WithReadyBinder((binder, integration) =>
+            {
+                TimeSpan last = new TimeSpan(0, 0, 0, 10, 900);
+                void Run(string text, TimeSpan previous, TimeSpan remaining, string expectedText, TimeSpan expectedLast, string why)
+                {
+                    integration.Remaining = remaining;
+                    Set(binder, "m_useShortFormats", false);
+                    binder.TimeRemainingText.Value = text;
+                    Set(binder, "m_lastTimeRemaining", previous);
+                    Call(binder, "Update");
+                    Assert.That(binder.TimeRemainingText.Value, Is.EqualTo(expectedText), why);
+                    Assert.That(Get<TimeSpan>(binder, "m_lastTimeRemaining"), Is.EqualTo(expectedLast), why);
+                }
+
+                TimeSpan sameSecond = new TimeSpan(0, 0, 0, 10, 200);
+                Run("x", last, sameSecond, "x", last, "10.9 and 10.2 both truncate to 10");
+                TimeSpan nextSecond = new TimeSpan(0, 0, 0, 9, 950);
+                Run("x", last, nextSecond, "0:0:0:9", nextSecond, "9.95 truncates to 9");
+                TimeSpan negative = new TimeSpan(0, 0, 0, 0, -500), positive = new TimeSpan(0, 0, 0, 0, 500);
+                Run("x", negative, positive, "x", negative, "-0.5 and 0.5 both truncate to 0");
+                Run(" ", last, sameSecond, "0:0:0:10", sameSecond, "a whitespace text is rebuilt");
+                Run("", last, sameSecond, "0:0:0:10", sameSecond, "an empty text is rebuilt");
             });
         }
 

@@ -7995,6 +7995,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ChallengeManagerBindersTests." + nam
     "EnableTakesTheManagerFromTheRegistryOnceAndSubscribesEachTime",
     "DisableTouchesNothingWithoutAManagerAndFaultsWithoutAReference",
     "UpdatePublishesNothingWithoutAReadyManager",
+    "ShortFormatsPickTheLargestPositiveUnitPair",
+    "LongFormatFillsDaysHoursMinutesSeconds",
+    "UpdateRebuildsTheTextOnlyWhenTheWholeSecondsChangeOrTheTextIsBlank",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCrossPromoTests." + name for name in (
     "DeclarationsMatchTheOriginalMetadata",
