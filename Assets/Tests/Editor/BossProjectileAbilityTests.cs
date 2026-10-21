@@ -45,6 +45,7 @@ namespace ProjectLucid.Tests
                 lane.localPosition = new Vector3(i * 2f, 0f, 0f);
                 scene.Lanes.Add(lane);
             }
+            // Reflection: Boss.Initialise builds the attach point dictionary from the serialized body components of the scene's boss prefab.
             Type part = typeof(Boss).GetNestedType("BossBodyComponents", BindingFlags.NonPublic);
             object record = Activator.CreateInstance(part);
             part.GetField("AttachPoint").SetValue(record, SpawnAttach);
@@ -180,23 +181,32 @@ namespace ProjectLucid.Tests
                 ProjectileScene scene = NewScene(owned, 3, Vector3.zero);
                 // Two equal patterns: the second Enter must find one outside the recently used queue (06000af4 loops until it does).
                 BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, scene,
-                    d => d.SpawnOrders = new[] { Row("0,1,2", "1"), Row("0,1,2", "1") });
+                    d =>
+                    {
+                        d.SpawnOrders = new[] { Row("0,1,2", "1"), Row("0,1,2", "1") };
+                        d.AttackAnimationLengthSeconds = 1f;
+                        d.ProjectileGroupLaunchTimeSeconds = 1f;
+                    });
                 ability.Enter();
                 Assert.That(Get<Transform>(ability, "m_spawnTransform"), Is.SameAs(scene.Spawn));
                 ability.SetAttackFlow(true);
                 ability.SkipAttackPreparation(null);
                 ability.SetAttackAnimStarted();
-                Set(ability, "m_canTriggerAttackAnim", true);
-                Set(ability, "m_projectilesSpawned", true);
-                Set(ability, "m_hasReturningProjectile", true);
+                // Group 0 and the returnable lane make the returning projectile; the updates run the animation (1 second), mark the
+                // projectiles spawned (the spawn time is zero) and start the launch time.
+                Decide(ability, 1);
+                foreach (float delta in new[] { 0.5f, 0.5f, 0.5f })
+                    ability.Update(delta);
+                Assert.That((ability.IsTriggered, Get<bool>(ability, "m_projectilesSpawned"), Get<bool>(ability, "m_hasReturningProjectile")), Is.EqualTo((true, true, true)));
+                Assert.That((Get<float>(ability, "m_attackAnimationTimer"), Get<float>(ability, "m_projectileFireTimer")), Is.EqualTo((1f, 0.5f)));
+                // Reflection: these are reached only by spawning a pooled projectile (BossManager.SpawnProjectileFromBoss), which this case cannot build.
                 Set(ability, "m_spawnedCurrentProjectile", true);
                 Set(ability, "m_currentlyFiringProjectileIndex", 2);
                 Set(ability, "m_currentlySpawningProjectileIndex", 2);
-                Set(ability, "m_attackAnimationTimer", 1f);
-                Set(ability, "m_projectileFireTimer", 1f);
                 Set(ability, "m_projectileSpawnTimer", 1f);
+                // Reflection: the spawn delay timer is advanced only by the one-at-a-time attack's Spawning override, not by this attack.
                 Set(ability, "m_spawnDelayTimer", 1f);
-                Get<List<Projectile>>(ability, "m_projectiles").Add(null);
+                Get<List<Projectile>>(ability, "m_projectiles").Add(null); // Reflection: only SpawnAProjectile fills the list
 
                 ability.Leave();
                 Assert.That((ability.AbilityFinished, ability.StartWindUp, ability.WoundUp, ability.IsTriggered), Is.EqualTo((false, false, false, false)));
@@ -332,16 +342,25 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 ProjectileScene scene = NewScene(owned, 3, Vector3.zero);
-                BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, scene, d => d.SpawnOrders = new[] { Row("0,1,2", "1") });
+                // Two equal patterns with an ignore count of one: each re-entry must find the one outside the recently used queue (06000af4 loops until it does).
+                BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, scene, d =>
+                {
+                    d.RowPatternIgnoreCount = 1;
+                    d.SpawnOrders = new[] { Row("0,1,2", "1"), Row("0,1,2", "1") };
+                });
                 ability.Enter();
                 Assert.That(Decide(ability, 0), Is.EqualTo(ProjectileType.GuardianKillerProjectile), "group 0, another lane");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.False);
                 Assert.That(Decide(ability, 1), Is.EqualTo(ProjectileType.GuardianReturnableProjectile), "group 0, the returnable lane");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.True);
 
-                Set(ability, "m_projectileGroupCount", 1);
+                ability.ResetProjectileGroupCounter();
                 Assert.That(Decide(ability, 1), Is.EqualTo(ProjectileType.GuardianKillerProjectile), "group 1 is not a multiple of 2");
-                Set(ability, "m_projectileGroupCount", 4);
+                for (int group = 2; group <= 4; group++)
+                {
+                    ability.Leave(); // each leave counts the group
+                    ability.Enter();
+                }
                 Assert.That(Decide(ability, 1), Is.EqualTo(ProjectileType.GuardianReturnableProjectile), "group 4 is");
 
                 BossAbility_ProjectileSpawnAndShootInRows divisionByZero = NewRows(owned, scene, d =>
@@ -385,9 +404,15 @@ namespace ProjectLucid.Tests
             {
                 owned.LeaseRow<MessageManager>();
                 ProjectileScene scene = NewScene(owned, 3, Vector3.zero);
-                BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, scene, d => d.ProjectileGroupLaunchTimeSeconds = 1f);
+                BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, scene, d =>
+                {
+                    d.ProjectileGroupLaunchTimeSeconds = 1f;
+                    d.AttackAnimationLengthSeconds = 1f;
+                });
                 ability.SetAttackAnimStarted();
-                Set(ability, "m_attackAnimationTimer", 0.75f);
+                Call(ability, "Spawning", 0.5f);
+                Call(ability, "Spawning", 0.25f);
+                Assert.That(Get<float>(ability, "m_attackAnimationTimer"), Is.EqualTo(0.75f), "the animation has run for 0.75 seconds");
                 Assert.That((bool)Call(ability, "Attacking", 0.5f), Is.True);
                 Assert.That((bool)Call(ability, "Attacking", 0.5f), Is.True, "0.5 is below 1");
                 Assert.That(Get<float>(ability, "m_projectileFireTimer"), Is.EqualTo(1f));
@@ -509,17 +534,24 @@ namespace ProjectLucid.Tests
                 BossAbility_ProjectileSpawnAndShootOneAtATime ability = NewOneAtATime(owned, scene);
                 ability.SetProjectileCount(3);
 
-                Set(ability, "m_projectileGroupCount", 1);
+                ability.ResetProjectileGroupCounter();
                 Assert.That(Decide(ability, 2), Is.EqualTo(ProjectileType.GuardianKillerProjectile), "group 1 carries no returnable");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.False);
 
-                Set(ability, "m_projectileGroupCount", 2);
+                ability.Enter();
+                ability.Leave(); // leaving counts the group: 2
                 Assert.That(Decide(ability, 2), Is.EqualTo(ProjectileType.GuardianReturnableProjectile), "the last of the group is always chosen");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.True);
                 Assert.That(Decide(ability, 0), Is.EqualTo(ProjectileType.GuardianKillerProjectile), "once chosen the rest are killers");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.True);
 
-                Set(ability, "m_hasReturningProjectile", false);
+                // Two more groups (3, 4); leaving also clears the chosen returning projectile.
+                for (int group = 3; group <= 4; group++)
+                {
+                    ability.Enter();
+                    ability.Leave();
+                }
+                Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.False);
                 ProjectileType drawn = Decide(ability, 0);
                 Assert.That(drawn, Is.EqualTo(ProjectileType.GuardianKillerProjectile).Or.EqualTo(ProjectileType.GuardianReturnableProjectile));
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.EqualTo(drawn == ProjectileType.GuardianReturnableProjectile),
@@ -615,10 +647,23 @@ namespace ProjectLucid.Tests
             {
                 owned.LeaseRow<MessageManager>();
                 ProjectileScene scene = NewScene(owned, 4, Vector3.zero);
-                BossAbility_ProjectileSpawnAndShootOneAtATime ability = NewOneAtATime(owned, scene, d => d.ProjectileGroupLaunchTimeSeconds = 1f);
+                BossAbility_ProjectileSpawnAndShootOneAtATime ability = NewOneAtATime(owned, scene, d =>
+                {
+                    d.ProjectileGroupLaunchTimeSeconds = 1f;
+                    d.AttackAnimationLengthSeconds = 1f;
+                });
+                ability.SetProjectileCount(1);
+                // The one projectile of the group glides while the launch time runs (see the glide case); a projectile is a TimeScaledComponent_SDT.
+                owned.LeaseRow<TimeManager>();
+                var projectile = EnemyAbilityTestSupport.AddTimeScaled<GuardianProjectile>(owned.Host("Lucid striking projectile", false));
+                projectile.transform.SetParent(scene.Spawn, false);
+                Get<List<Projectile>>(ability, "m_projectiles").Add(projectile); // Reflection: only SpawnAProjectile fills the list
                 ability.SetAttackAnimStarted();
-                Set(ability, "m_attackAnimationTimer", 0.5f);
-                Set(ability, "m_projectileFireTimer", 1f);
+                Call(ability, "Spawning", 0.5f);
+                Assert.That(Get<float>(ability, "m_attackAnimationTimer"), Is.EqualTo(0.5f));
+                Assert.That((bool)Call(ability, "Attacking", 0.5f), Is.True);
+                Assert.That((bool)Call(ability, "Attacking", 0.5f), Is.True, "0.5 is below 1");
+                Assert.That(Get<float>(ability, "m_projectileFireTimer"), Is.EqualTo(1f));
                 Assert.That((bool)Call(ability, "Attacking", 0.5f), Is.False, "1 is not above 1");
                 Assert.That(Stored<BossEffectTriggerTypes>(scene.Boss, BossFSMKeys.BossEffectType), Is.EqualTo(BossEffectTriggerTypes.AttackStrike));
                 Assert.That((Get<bool>(ability, "m_attackAnimStarted"), Get<float>(ability, "m_attackAnimationTimer")), Is.EqualTo((false, 0f)));
@@ -648,7 +693,7 @@ namespace ProjectLucid.Tests
                 var projectile = EnemyAbilityTestSupport.AddTimeScaled<GuardianProjectile>(owned.Host("Lucid gliding projectile", false));
                 projectile.transform.SetParent(scene.Spawn, false);
                 projectile.transform.localPosition = new Vector3(3f, 4f, 0f);
-                Get<List<Projectile>>(ability, "m_projectiles").Add(projectile);
+                Get<List<Projectile>>(ability, "m_projectiles").Add(projectile); // Reflection: only SpawnAProjectile fills the list
 
                 Assert.That((bool)Call(ability, "Attacking", 0.25f), Is.True, "the launch time is still running");
                 AssertNear(projectile.transform.localPosition, new Vector3(2.4f, 3.2f, 0f), "glided one unit towards the lane", 1e-4f);

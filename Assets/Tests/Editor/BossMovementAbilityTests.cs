@@ -72,6 +72,7 @@ namespace ProjectLucid.Tests
                     d.AccelerationCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
                 });
                 BossAbility_MoveTowardsTarget ability = NewAbility<BossAbility_MoveTowardsTarget>(boss, definition);
+                // Reflection: the base ability has no target setter (only the derived abilities assign it), and the base is the ability under test.
                 Set(ability, "m_targetPosition", new Vector3(10f, 0f, 0f));
 
                 ability.Enter();
@@ -120,11 +121,15 @@ namespace ProjectLucid.Tests
                         d.AccelerationTime = 1f;
                         d.AccelerationCurve = AnimationCurve.Constant(0f, 1f, 0f);
                     }));
+                // Reflection: the base ability has no target setter (only the derived abilities assign it), and the base is the ability under test.
                 Set(ability, "m_targetPosition", new Vector3(10f, 0f, 0f));
                 boss.Storage.SetValue(BossFSMKeys.DestinationReachedTimer, 3f);
                 ability.Enter();
                 ability.Update(0.75f);
-                Set(ability, "m_reachedTarget", true);
+                // The boss arriving at the target is the update that reaches it (Vector3 equality), and the next update finishes.
+                boss.SetWorldPosition(new Vector3(10f, 0f, 0f));
+                ability.Update(0.1f);
+                Assert.That(Get<bool>(ability, "m_reachedTarget"), Is.True);
                 ability.Update(0.1f);
                 Assert.That(ability.AbilityFinished, Is.True);
 
@@ -237,6 +242,7 @@ namespace ProjectLucid.Tests
                 {
                     d.TargetIsBossOrigin = true;
                     d.Target = new Vector3(9f, 9f, 9f);
+                    d.AccelerationCurve = AnimationCurve.Constant(0f, 1f, 0f);
                 });
                 BossAbility_MoveToTargetPoint origin = NewAbility<BossAbility_MoveToTargetPoint>(boss, fromOrigin);
                 Assert.That(Get<Vector3>(origin, "m_targetPosition"), Is.EqualTo(Vector3.zero), "no stored origin: the default");
@@ -247,8 +253,10 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<Vector3>(origin, "m_targetPosition"), Is.EqualTo(new Vector3(4f, 5f, 6f)));
 
                 boss.Storage.SetValue(BossFSMKeys.DestinationReachedTimer, 2f);
-                Set(origin, "m_reachedTarget", true);
                 origin.Enter();
+                boss.SetWorldPosition(new Vector3(4f, 5f, 6f));
+                origin.Update(0.1f);
+                Assert.That(Get<bool>(origin, "m_reachedTarget"), Is.True, "the boss at the target reaches it");
                 origin.Leave();
                 Assert.That(Stored<float>(boss, BossFSMKeys.DestinationReachedTimer), Is.Zero);
                 Assert.That(Get<bool>(origin, "m_reachedTarget"), Is.False);
@@ -710,7 +718,6 @@ namespace ProjectLucid.Tests
                 Assert.That(Stored<bool>(boss, BossFSMKeys.GuardianIsClockwise), Is.False);
                 Assert.That(Has(boss, BossFSMKeys.RadiansCurrentPosition), Is.True);
 
-                Set(counter, "m_progressionArcRadians", 2f);
                 counter.Update(1f);
                 Assert.That(counter.AbilityFinished, Is.False);
                 Assert.That(counter.FaceAngleTolerance, Is.EqualTo(1f));
@@ -873,8 +880,12 @@ namespace ProjectLucid.Tests
                 ability.Enter();
                 Assert.That(Get<Vector3>(ability, "m_preJumpPosition"), Is.EqualTo(new Vector3(4f, 5f, 6f)));
                 ability.SetAnimationComplete();
-                Set(ability, "m_triggerJump", true);
-                Set(ability, "m_jumpProgress", 0.5f);
+                // A desired position beyond the jump range triggers a jump, and the triggered animation then runs the progress.
+                boss.Storage.SetValue(BossFSMKeys.DesiredMovementPosition, new Vector3(4f, 5f, 50f));
+                Tick(ability, 0.25f);
+                ability.SetAnimationTriggered();
+                Tick(ability, 0.25f);
+                Assert.That((ability.IsTriggered, ability.JumpProgress), Is.EqualTo((true, 0.25f)));
                 ability.Leave();
                 Assert.That((ability.AbilityFinished, ability.IsTriggered, ability.JumpProgress), Is.EqualTo((false, false, 0f)));
             });
@@ -970,6 +981,7 @@ namespace ProjectLucid.Tests
         private static BossAbility_MoveRandom NewCruising(Owned owned, Boss boss, Action<BossAbilityDefinition_MoveRandom> setup = null)
         {
             BossAbility_MoveRandom ability = NewMoveRandom(owned, boss, setup);
+            // Reflection: Enter draws the circle and the final target with Random.Range, so no real path reaches this fixed cruising state.
             Set(ability, "m_radiusOfCircle", 10f);
             Set(ability, "m_speedAdjusted", 2f);
             Set(ability, "m_finalTargetPosition", new Vector3(100f, 0f, 0f));
@@ -1002,6 +1014,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(ability, "m_speedAdjusted"), Is.EqualTo(6f), "cruising holds the speed");
                 Assert.That(Get<float>(ability, "m_progressionArcRadians"), Is.EqualTo(1.6f).Within(1e-5f));
 
+                // Reflection: the direction flag is flipped by Enter's circle choice, which also redraws the fixed circle this case runs on.
                 Set(ability, "m_invertDirection", true);
                 Tick(ability, 0.5f);
                 Assert.That(Get<float>(ability, "m_progressionArcRadians"), Is.EqualTo(1.3f).Within(1e-5f), "an inverted direction runs backwards");
@@ -1018,12 +1031,14 @@ namespace ProjectLucid.Tests
             {
                 Boss boss = NewBoss(owned, Vector3.zero);
                 BossAbility_MoveRandom ability = NewCruising(owned, boss);
+                // Reflection: the speed state and the full-acceleration distance come from Enter's random circle and the acceleration run, not from a fixed one.
                 Set(ability, "m_speedAdjusted", 6f);
                 Set(ability, "m_reachedTopSpeed", true);
                 Set(ability, "m_distanceFullAccelerationReachedSquared", 5000f);
 
                 Tick(ability, 0.1f);
                 Assert.That(Get<bool>(ability, "m_pumpTheBrakes"), Is.False, "10000 away is not within the 5000 acceleration distance");
+                // Reflection: the acceleration distance is derived from the cruising speed on the fixed circle; there is no real path to a chosen value.
                 Set(ability, "m_distanceFullAccelerationReachedSquared", 20000f);
                 Tick(ability, 0.1f);
                 Assert.That(Get<bool>(ability, "m_pumpTheBrakes"), Is.True, "20000 > 10000 and the speed 6 is above the minimum 1");
@@ -1054,6 +1069,7 @@ namespace ProjectLucid.Tests
                     d.DistanceAllowedFromOrigin = 11f;
                     d.EndDistanceTolerance = 1e9f;
                 });
+                // Reflection: the flags and the retry count are state a circle choice resets; the case starts the update from a late stage of one.
                 Set(ability, "m_reachedTopSpeed", true);
                 Set(ability, "m_pumpTheBrakes", true);
                 Set(ability, "m_invertDirection", false);
@@ -1069,6 +1085,7 @@ namespace ProjectLucid.Tests
                     d.DistanceAllowedFromOrigin = 11f;
                     d.EndDistanceTolerance = 0f;
                 });
+                // Reflection: the recursion count is only reached by 101 target choices inside one circle setup.
                 Set(retry, "m_recursionCount", 101);
                 Set(retry, "m_invertDirection", false);
                 Tick(retry, 0.1f);
@@ -1086,18 +1103,21 @@ namespace ProjectLucid.Tests
             {
                 Boss boss = NewBoss(owned, new Vector3(50f, 0f, 0f));
                 BossAbility_MoveRandom outward = NewCruising(owned, boss, d => d.DistanceAllowedFromOrigin = 10f);
+                // Reflection: Enter draws the circle centre at random; the case needs fixed centres inside and outside the allowed distance.
                 Set(outward, "m_centerOfCircle", new Vector3(100f, 0f, 0f));
                 Set(outward, "m_radiusOfCircle", 5f);
                 Tick(outward, 0.1f);
                 Assert.That(outward.AbilityFinished, Is.True, "the boss (2500) is beyond 100 and the target (about 105) is farther out");
 
                 BossAbility_MoveRandom inward = NewCruising(owned, boss, d => d.DistanceAllowedFromOrigin = 10f);
+                // Reflection: as above, a fixed circle centre.
                 Set(inward, "m_centerOfCircle", new Vector3(10f, 0f, 0f));
                 Set(inward, "m_radiusOfCircle", 5f);
                 Tick(inward, 0.1f);
                 Assert.That(inward.AbilityFinished, Is.False, "the target is nearer the origin than the boss");
 
                 BossAbility_MoveRandom inside = NewCruising(owned, NewBoss(owned, new Vector3(5f, 0f, 0f)), d => d.DistanceAllowedFromOrigin = 10f);
+                // Reflection: as above, a fixed circle centre.
                 Set(inside, "m_centerOfCircle", new Vector3(100f, 0f, 0f));
                 Tick(inside, 0.1f);
                 Assert.That(inside.AbilityFinished, Is.False, "the boss is within the allowed distance");

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -190,7 +189,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Stored<BossEffectTriggerTypes>(outward, BossFSMKeys.BossEffectType), Is.EqualTo(BossEffectTriggerTypes.AttackStrike));
 
                 Boss inward = NewBoss(owned, new Vector3(0f, 1f, 40f));
-                SetActorProperty(inward, "ForwardDirection", new Vector3(0f, 0f, -1f));
+                inward.SetWorldRotation(Quaternion.LookRotation(new Vector3(0f, 0f, -1f))); // faces the arena centre
                 BossAbility_BossFourmenChargeAttack returning = NewCharge(owned, inward);
                 Wound(returning, manager, character);
                 returning.Update(0.5f);
@@ -208,10 +207,14 @@ namespace ProjectLucid.Tests
                 Boss boss = NewBoss(owned, Vector3.zero);
                 BossAbility_BossFourmenChargeAttack ability = NewCharge(owned, boss);
                 Wound(ability, manager, character);
+                // Accelerate, pass the aimed position (as the charge test does) and run into the deceleration.
                 ability.Update(0.5f);
-                Set(ability, "m_reachedTarget", true);
-                Set(ability, "m_decelerationTimer", 0.75f);
-                Set(ability, "m_debugWindUpTimer", 0.5f);
+                boss.SetWorldPosition(new Vector3(0f, 0f, 10f));
+                ability.Update(0.5f);
+                boss.SetWorldPosition(new Vector3(0f, 0f, 12f));
+                ability.Update(0.5f);
+                Assert.That((Get<bool>(ability, "m_reachedTarget"), Get<float>(ability, "m_decelerationTimer") > 0f, Get<float>(ability, "m_debugWindUpTimer") > 0f),
+                    Is.EqualTo((true, true, true)), "the state to be reset is reached through the update");
                 ability.Leave();
                 Assert.That((ability.AbilityFinished, ability.IsTriggered, ability.StartWindUp, ability.WoundUp), Is.EqualTo((false, false, false, false)));
                 Assert.That((Get<bool>(ability, "m_abilityActivated"), Get<bool>(ability, "m_isWindingUp"), Get<bool>(ability, "m_reachedTarget")),
@@ -224,8 +227,14 @@ namespace ProjectLucid.Tests
 
         // ---- BossAbility_RangedAttack ----
 
-        private static void SetTarget(Boss boss, Transform target) =>
-            typeof(Boss).GetProperty("Target", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).GetSetMethod(true).Invoke(boss, new object[] { target });
+        // The boss takes the current character's transform as its target through the character-change callback it registers (060009f0, 060009f2);
+        // the transform stands where the case puts it, as the ranged attack reads the target transform's position.
+        private static void SetTarget(CharacterManager manager, Character character, Boss boss, Vector3 position)
+        {
+            MakeCurrent(manager, character, position);
+            character.transform.position = position;
+            Call(boss, "RegisterCharacterManager", manager);
+        }
 
         private static BossAbility_RangedAttack NewRanged(Owned owned, Boss boss, System.Action<BossAbilityDefinition_RangedAttack> setup = null) =>
             NewAbility<BossAbility_RangedAttack>(boss, NewDefinition<BossAbilityDefinition_RangedAttack>(owned, d =>
@@ -262,11 +271,10 @@ namespace ProjectLucid.Tests
         [Test]
         public void RangedAttackFiresWavesOfShotsSeparatedByTheCooldowns()
         {
-            Owned.Run(owned =>
+            WithManager((owned, manager, character) =>
             {
                 Boss boss = NewBoss(owned, Vector3.zero);
-                SetTarget(boss, owned.Host("Lucid ranged target", true).transform);
-                boss.Target.position = new Vector3(4f, 5f, 6f);
+                SetTarget(manager, character, boss, new Vector3(4f, 5f, 6f));
                 BossAbility_RangedAttack ability = NewRanged(owned, boss);
                 ability.Enter();
 
@@ -298,11 +306,10 @@ namespace ProjectLucid.Tests
         [Test]
         public void RangedAttackSpreadsEachShotWithinTheAccuracy()
         {
-            Owned.Run(owned =>
+            WithManager((owned, manager, character) =>
             {
                 Boss boss = NewBoss(owned, Vector3.zero);
-                SetTarget(boss, owned.Host("Lucid ranged target", true).transform);
-                boss.Target.position = new Vector3(4f, 5f, 6f);
+                SetTarget(manager, character, boss, new Vector3(4f, 5f, 6f));
                 BossAbility_RangedAttack ability = NewRanged(owned, boss, d => d.ProjectileAccuracy = new Vector3(1f, 2f, 3f));
                 var offsets = new List<Vector3>();
                 for (int i = 0; i < 30; i++)
@@ -327,10 +334,10 @@ namespace ProjectLucid.Tests
         [Test]
         public void RangedAttackLeaveResetsTheWaves()
         {
-            Owned.Run(owned =>
+            WithManager((owned, manager, character) =>
             {
                 Boss boss = NewBoss(owned, Vector3.zero);
-                SetTarget(boss, owned.Host("Lucid ranged target", true).transform);
+                SetTarget(manager, character, boss, Vector3.zero);
                 BossAbility_RangedAttack ability = NewRanged(owned, boss);
                 ability.Enter();
                 foreach (float delta in new[] { 0.25f, 0.25f, 0.25f, 0.25f, 0.25f })

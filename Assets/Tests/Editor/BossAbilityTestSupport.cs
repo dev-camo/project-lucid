@@ -20,7 +20,7 @@ namespace ProjectLucid.Tests
         internal static Boss NewBoss(Owned owned, Vector3 position)
         {
             Boss boss = owned.Host("Lucid boss ability boss", false).AddComponent<Boss>();
-            SetActorProperty(boss, "Storage", new FSMStorage(0));
+            SetActorProperty(boss, "Storage", new FSMStorage(0)); // Reflection: Actor.Awake (the only setter) does not run on an inactive host in Edit Mode
             boss.SetWorldRotation(Quaternion.identity);
             boss.SetWorldPosition(position);
             return boss;
@@ -71,7 +71,7 @@ namespace ProjectLucid.Tests
             animator.runtimeAnimatorController = controller;
             animator.Rebind();
             animator.Update(0f);
-            SetActorProperty(boss, "Animator", new ActorAnimator(animator));
+            SetActorProperty(boss, "Animator", new ActorAnimator(animator)); // Reflection: Actor.Awake (the only setter) builds it from the host's Animator
             return animator;
         }
 
@@ -119,6 +119,7 @@ namespace ProjectLucid.Tests
         // The boss body dictionary entry the boss itself would hold for an attach point, with its destroyed flag.
         internal static void AddBodyPart(Boss boss, ActorAttachPointType point, bool destroyed)
         {
+            // Reflection: Boss.Initialise builds the attach point dictionary from the serialized body components of the boss prefab.
             Type part = typeof(Boss).GetNestedType("BossBodyComponents", System.Reflection.BindingFlags.NonPublic);
             object record = Activator.CreateInstance(part);
             part.GetField("AttachPoint").SetValue(record, point);

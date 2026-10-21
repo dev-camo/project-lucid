@@ -258,10 +258,19 @@ namespace ProjectLucid.Tests
 
                 SetActorProperty(character, "WorldPosition", new Vector3(0f, 0f, 2f));
                 Assert.That(ability.CanAttack(boss, character, null, 0f), Is.True, "a squared distance equal to the near range is in range");
-                Set(ability, "m_currentFarRangeSquared", 4f);
-                Assert.That(ability.CanAttack(boss, character, null, 0f), Is.True, "and one equal to the far range");
-                Set(ability, "m_currentFarRangeSquared", 3.9f);
-                Assert.That(ability.CanAttack(boss, character, null, 0f), Is.False, "just past the far range");
+
+                // The far range is grown by failed calls: (1 + 1)^2 = 4 equals the squared distance, (1.99)^2 = 3.9601 is just short of it.
+                BossAbility_BodySlam equalFar = NewBodySlam(owned, boss, d =>
+                {
+                    d.TargetValidRangeFar = 1f;
+                    d.TargetGrowthPerSecond = 1f;
+                });
+                Assert.That(equalFar.CanAttack(boss, character, null, 1f), Is.False, "the far range starts at zero");
+                Assert.That(Get<float>(equalFar, "m_currentFarRangeSquared"), Is.EqualTo(4f));
+                Assert.That(equalFar.CanAttack(boss, character, null, 0f), Is.True, "and one equal to the far range");
+                BossAbility_BodySlam shortFar = NewBodySlam(owned, boss, d => d.TargetValidRangeFar = 1.99f);
+                Assert.That(shortFar.CanAttack(boss, character, null, 0f), Is.False, "the far range starts at zero");
+                Assert.That(shortFar.CanAttack(boss, character, null, 0f), Is.False, "just past the far range");
             });
         }
 
@@ -290,16 +299,18 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 Boss boss = NewBoss(owned, new Vector3(2f, 5f, 4f));
+                // Entering notes the boss position as the pre-jump position and lays the first triangle point on the circle of the jump
+                // distance sqrt(500) at the stored angle change atan2(20, 10), which is (10, _, 20); the wave (0.8) is never reached.
+                boss.Storage.SetValue(BossFSMKeys.BossAttackAngleChange, 1.1071487f);
                 BossAbility_BodySlam ability = NewBodySlam(owned, boss, d =>
                 {
                     d.AttackAnimationLength = 1f;
                     d.TriggerWaveTime = 0.8f;
                     d.TraversalTime = 0.5f;
                     d.TraversalCurve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+                    d.TriangleJumpDistance = 22.36068f;
                 });
-                Set(ability, "m_preJumpPosition", new Vector3(2f, 5f, 4f));
-                ((Vector3[])Get<object>(ability, "m_coordinateArray"))[0] = new Vector3(10f, 99f, 20f);
-                Set(ability, "m_waveSpawned", true);
+                ability.Enter();
 
                 Assert.That(Call(ability, "Attacking", 0.25f), Is.EqualTo(true));
                 Assert.That(ability.IsTriggered, Is.True);
@@ -335,19 +346,23 @@ namespace ProjectLucid.Tests
                     d.TraversalTime = 1f;
                     d.AttackAnimationLength = 10f;
                     d.TraversalCurve = AnimationCurve.Constant(0f, 1f, 1f);
+                    d.TriangleJumpDistance = 10f;
+                    d.AngleOfJumps = 120f;
                 });
-                var points = (Vector3[])Get<object>(ability, "m_coordinateArray");
-                points[0] = new Vector3(1f, 0f, 2f);
-                points[1] = new Vector3(3f, 0f, 4f);
-                points[2] = new Vector3(5f, 0f, 6f);
-                Set(ability, "m_waveSpawned", true);
-                ability.SetAttackAnimStarted();
-                Call(ability, "Attacking", 0f);
+                // The index is the stored slam count read on entry; the first jump of a cycle (count zero) lays the triangle out round the
+                // origin at angle zero (the boss bearing at the origin), 120 degrees either side, at the jump distance 10.
+                var points = new[] { new Vector3(10f, 0f, 0f), new Vector3(-5f, 0f, 8.660254f), new Vector3(-5f, 0f, -8.660254f) };
                 foreach ((int index, Vector3 expected) in new[] { (0, points[0]), (1, points[1]), (2, points[2]), (3, points[0]), (7, points[1]) })
                 {
-                    typeof(BossAbility_BodySlam).GetProperty("AttackIndex").GetSetMethod(true).Invoke(ability, new object[] { index });
+                    boss.Storage.SetValue(BodySlamCount, index);
+                    if (index == 0)
+                        boss.Storage.SetValue(BossFSMKeys.BossAttackAngleChange, 0f);
+                    ability.Enter();
+                    ability.SetAttackAnimStarted();
                     Call(ability, "Attacking", 0f);
-                    AssertNear(ability.CurrentTargetPosition, new Vector3(expected.x, 0f, expected.z), "attack index " + index);
+                    Assert.That(ability.AttackIndex, Is.EqualTo(index));
+                    AssertNear(ability.CurrentTargetPosition, new Vector3(expected.x, 0f, expected.z), "attack index " + index, 1e-3f);
+                    ability.Leave();
                 }
             });
         }
@@ -357,23 +372,34 @@ namespace ProjectLucid.Tests
         [Test]
         public void BodySlamUpdateFinishesTheAbilityWhenTheSlamEndsAndLeaveResets()
         {
-            Owned.Run(owned =>
+            WithCharacter((owned, character) =>
             {
                 Boss boss = NewBoss(owned, Vector3.zero);
-                BossAbility_BodySlam ability = NewBodySlam(owned, boss, d => d.AttackAnimationLength = 1f);
+                BossAbility_BodySlam ability = NewBodySlam(owned, boss, d =>
+                {
+                    d.AttackAnimationLength = 1f;
+                    d.TargetGrowthPerSecond = 1f;
+                });
                 ability.Enter();
+                // Reflection: the wave flag is raised only by the wave, whose projectile spawn needs the BossManager's pooled prefab set-up.
                 Set(ability, "m_waveSpawned", true);
-                Set(ability, "m_canTriggerAttackAnim", true);
-                Set(ability, "m_attackAnimStarted", true);
-                Set(ability, "m_attackAnimationTimer", 1f);
-                Set(ability, "m_extraRange", 3f);
+                ability.SetAttackAnimStarted();
+                // A miss grows the extra range by delta times the growth.
+                SetActorProperty(character, "WorldPosition", new Vector3(0f, 0f, 5f));
+                Assert.That(ability.CanAttack(boss, character, null, 3f), Is.False);
+                Assert.That(Get<float>(ability, "m_extraRange"), Is.EqualTo(3f));
 
                 ability.Update(0.1f);
-                Assert.That(ability.AbilityFinished, Is.False, "not activated yet");
+                Assert.That((ability.AbilityFinished, ability.IsTriggered), Is.EqualTo((false, false)), "not activated yet: nothing runs");
                 ability.SetAttackFlow(true);
                 ability.Update(0.1f);
-                Assert.That(ability.AbilityFinished, Is.False, "activated but not wound up");
+                Assert.That((ability.AbilityFinished, ability.IsTriggered), Is.EqualTo((false, false)), "activated but not wound up");
                 ability.SetAttackWoundUp();
+                ability.Update(0.5f);
+                Assert.That((ability.AbilityFinished, ability.IsTriggered), Is.EqualTo((false, true)), "the slam runs");
+                ability.Update(0.5f);
+                Assert.That(ability.AbilityFinished, Is.False);
+                Assert.That(Get<float>(ability, "m_attackAnimationTimer"), Is.EqualTo(1f));
                 ability.Update(0.1f);
                 Assert.That(ability.AbilityFinished, Is.True, "the animation length was reached");
 
@@ -660,8 +686,12 @@ namespace ProjectLucid.Tests
                 Call(ability, "Attacking", 0.5f);
                 Assert.That(Get<float>(ability, "m_attackAnimationTimer"), Is.EqualTo(0.75f));
 
-                Set(ability, "m_attackTimeoutTimer", 2f);
+                // Back inside the near range the timeout runs on (1.5, then 2) until it has elapsed.
                 MakeCurrent(manager, character, new Vector3(0f, 0f, 1f));
+                Call(ability, "Attacking", 0.5f);
+                Call(ability, "Attacking", 0.5f);
+                Assert.That(Get<float>(ability, "m_attackTimeoutTimer"), Is.EqualTo(2f));
+                Assert.That(Get<float>(ability, "m_attackAnimationTimer"), Is.EqualTo(0.75f), "still waiting: the animation timer holds");
                 Call(ability, "Attacking", 0.25f);
                 Assert.That(Get<float>(ability, "m_attackAnimationTimer"), Is.EqualTo(1f), "an elapsed timeout lets the animation run even inside the near range");
             });
@@ -752,9 +782,14 @@ namespace ProjectLucid.Tests
                         d =>
                         {
                             d.TargetValidRangeNear = 1f;
+                            d.TargetValidRangeFar = 10f;
                             d.ValidAttackAngle = 45; // the target angle is strictly below it (6F8D5D); zero would reject every target
                         }));
-                    Set(ability, "m_currentFarRangeSquared", 100f);
+                    // A miss (the character 50 away is past the zero far range) sets the far range to (0 + 10)^2 = 100 (6F8554).
+                    MakeCurrent(manager, character, new Vector3(0f, 0f, 50f));
+                    SetActorProperty(character, "ForwardDirection", new Vector3(0f, 0f, -1f));
+                    Assert.That(ability.CanAttack(boss, character, animation, 0f), Is.False);
+                    Assert.That(Get<float>(ability, "m_currentFarRangeSquared"), Is.EqualTo(100f));
                     MakeCurrent(manager, character, new Vector3(0f, 0f, 5f));
                     SetActorProperty(character, "ForwardDirection", new Vector3(0f, 0f, -1f));
                     boss.Storage.SetValue(BossFSMKeys.BossAttackType, stored);
@@ -804,9 +839,21 @@ namespace ProjectLucid.Tests
         [Test]
         public void ClawAttackEnterReadsTheAttackIndexAndLeaveResets()
         {
-            Owned.Run(owned =>
+            WithManager((owned, manager, character) =>
             {
-                ClawScene scene = NewClawScene(owned);
+                // The long wind-up index 3 waits out the extra seconds (3) after the wind-up; the post wind-up timeout (1) runs while there is
+                // no character; the character farther than the near range then lets the animation (5 long) run.
+                ClawScene scene = NewClawScene(owned, d =>
+                {
+                    d.LongWindUpAttackComparison = 3;
+                    d.ExtraWindUpSeconds = 3f;
+                    d.PostWindUpAttackTimeOut = 1f;
+                    d.AttackAnimationLength = 5f;
+                    d.TargetGrowthPerSecond = 4f;
+                    d.TargetValidRangeNear = 1f;
+                    d.TargetValidRangeFar = 0f;
+                    d.TelegraphClawChoiceRange = 0f;
+                });
                 scene.Boss.Storage.SetValue(ClawAttackCount, 3);
                 BossAbility_BossCrabClawAttack ability = scene.Ability;
                 ability.Enter();
@@ -816,11 +863,13 @@ namespace ProjectLucid.Tests
                 ability.SetAttackWindingUp();
                 ability.SetAttackWoundUp();
                 ability.SetAttackAnimStarted();
-                Set(ability, "m_canTriggerAttackAnim", true);
-                Set(ability, "m_attackTimeoutTimer", 1f);
-                Set(ability, "m_attackAnimationTimer", 2f);
-                Set(ability, "m_extraWindUpTimer", 3f);
-                Set(ability, "m_extraRange", 4f);
+                ability.Update(3f);
+                MakeCurrent(manager, character, new Vector3(0f, 0f, 50f));
+                Assert.That(ability.CanAttack(scene.Boss, character, scene.Animation, 1f), Is.False, "a miss grows the extra range by delta times the growth");
+                ability.Update(1f);
+                Assert.That(ability.IsTriggered, Is.True);
+                Assert.That((Get<float>(ability, "m_attackTimeoutTimer"), Get<float>(ability, "m_attackAnimationTimer"), Get<float>(ability, "m_extraWindUpTimer"),
+                    Get<float>(ability, "m_extraRange")), Is.EqualTo((3f, 1f, 4f, 4f)));
                 ability.Leave();
                 Assert.That((Get<bool>(ability, "m_abilityActivated"), ability.IsTriggered, Get<bool>(ability, "m_attackAnimStarted"), ability.StartWindUp,
                     Get<bool>(ability, "m_isWindingUp"), ability.WoundUp), Is.EqualTo((false, false, false, false, false, false)));
