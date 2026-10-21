@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.BossAbilityTestSupport;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
@@ -23,6 +25,18 @@ namespace ProjectLucid.Tests
     // dereference the same lookup first (ActorState_Ability<T>.GetAnimationDefinition).
     public sealed class BossStateTests
     {
+        // CreateInstance sends Awake and OnEnable, and both reach ActorDefinition.UpdateCachedValues (0x7A8060), which calls
+        // Settings.UpdateCachedValues on the unassigned Settings with no null test: two faults each.
+        private static readonly Regex ActorDefinitionSettingsFault =
+            new Regex("^NullReferenceException: Object reference not set to an instance of an object$");
+
+        private static BossDefinition NewBossDefinition(Owned owned)
+        {
+            for (int i = 0; i < 2; i++)
+                LogAssert.Expect(LogType.Exception, ActorDefinitionSettingsFault);
+            return owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+        }
+
         private static string Name() => "Lucid-boss-state-" + Guid.NewGuid().ToString("N");
 
         private static IFSMState NewState(string node, string json = "{}") =>
@@ -341,6 +355,7 @@ namespace ProjectLucid.Tests
         // The rows GuardianProjectile.Fire reads (0x57BD00).
         private static void RegisterGuardianRows(Owned owned)
         {
+            owned.LeaseRow<TimeManager>(); // the time-scaled projectile subscribes to the TimeManager row
             owned.LeaseRow<SaveManager>(); // BossManager's field initialiser caches a typed SaveManager reference.
             owned.Register(owned.Host("Lucid cool-down boss manager", false).AddComponent<BossManager>());
             owned.Register(owned.Host("Lucid cool-down guardian manager", false).AddComponent<GuardianManager>());
@@ -438,7 +453,7 @@ namespace ProjectLucid.Tests
             WithManager((owned, manager, characterObject) =>
             {
                 Boss boss = Prime(NewBoss(owned, new Vector3(0f, 2f, 0f)));
-                var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+                BossDefinition definition = NewBossDefinition(owned);
                 definition.Traits = new BossTraits { TrackMask = 0 };
                 // Reflection: the boss definition is a serialized field that the scene supplies (no App-free setter).
                 Set(boss, "m_definition", definition);
@@ -455,6 +470,7 @@ namespace ProjectLucid.Tests
 
                 boss.Storage.SetValue(BossFSMKeys.OriginPoint, new Vector3(2f, 5f, 0f));
                 MakeCurrent(manager, characterObject, new Vector3(5f, -3f, 4f));
+                Leave(state, boss); // entering a state twice without leaving adds its effect row twice (ActorState_Effect.DoOnEnter)
                 Enter(state, boss);
                 AssertNear(Stored<Vector3>(boss, BossFSMKeys.DesiredMovementPosition), new Vector3(-4f, 52f, -8f), "round the stored origin, on the flattened plane", 1e-3f);
             });
@@ -466,7 +482,7 @@ namespace ProjectLucid.Tests
             WithManager((owned, manager, characterObject) =>
             {
                 Boss boss = Prime(NewBoss(owned, new Vector3(0f, 2f, 0f)));
-                var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+                BossDefinition definition = NewBossDefinition(owned);
                 definition.Traits = new BossTraits();
                 // Reflection: the boss definition is a serialized field that the scene supplies (no App-free setter).
                 Set(boss, "m_definition", definition);

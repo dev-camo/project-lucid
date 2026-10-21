@@ -641,7 +641,9 @@ namespace ProjectLucid.Tests
                     d.ProjectileMoveToLaneVelocity = 4f;
                 });
                 ability.SetProjectileCount(2);
-                var projectile = owned.Host("Lucid gliding projectile", false).AddComponent<GuardianProjectile>();
+                // A projectile is a TimeScaledComponent_SDT: AddComponent runs the editor Reset, so an owned empty lookup stands in (AddTimeScaled).
+                owned.LeaseRow<TimeManager>();
+                var projectile = EnemyAbilityTestSupport.AddTimeScaled<GuardianProjectile>(owned.Host("Lucid gliding projectile", false));
                 projectile.transform.SetParent(scene.Spawn, false);
                 projectile.transform.localPosition = new Vector3(3f, 4f, 0f);
                 Get<List<Projectile>>(ability, "m_projectiles").Add(projectile);
