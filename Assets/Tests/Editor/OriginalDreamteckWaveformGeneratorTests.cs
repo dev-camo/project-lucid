@@ -44,9 +44,7 @@ namespace ProjectLucid.Tests
 
         private WaveformGenerator NewWaveform(float height = 2f)
         {
-            // The cached play state makes a setter queue the rebuild for the next Update, as in the shipped build; the editor
-            // compile of SplineUser would rebuild at once while Application.isPlaying is false.
-            WaveformGenerator waveform = DreamteckPlayState.Cache(_fixture.NewGenerator<WaveformGenerator>(NewRaisedLine(height)));
+            WaveformGenerator waveform = _fixture.NewGenerator<WaveformGenerator>(NewRaisedLine(height));
             SplineSample first = new SplineSample();
             waveform.GetSample(0, ref first);
             Near(first.forward, Vector3.right, "line forward");
@@ -68,48 +66,6 @@ namespace ProjectLucid.Tests
             Assert.That(DreamteckGeneratorFixture.Invoke(waveform, "get_meshName"), Is.EqualTo("Waveform"));
             Assert.That(waveform.GetComponent<MeshFilter>() == null, Is.False, "RequireComponent adds the filter");
             Assert.That(waveform.GetComponent<MeshRenderer>() == null, Is.False, "and the renderer");
-        }
-
-        // set_axis 0x4d9580, set_symmetry 0x4d95c0 and set_uvWrapMode 0x4d9600 change and rebuild; set_slices 0x4d9640 raises the
-        // count to one (cmp 2 / cmovge) and rebuilds for any value that differs from the stored one.
-        [Test]
-        public void SettersRebuildOnChangeAndSlicesClampAtOne()
-        {
-            WaveformGenerator waveform = NewWaveform();
-            int builds = 0;
-            waveform.onPostBuild += delegate { builds++; };
-            DreamteckGeneratorFixture.Update(waveform);
-
-            waveform.axis = WaveformGenerator.Axis.Y;
-            waveform.symmetry = false;
-            waveform.uvWrapMode = WaveformGenerator.UVWrapMode.Clamp;
-            waveform.slices = 1;
-            DreamteckGeneratorFixture.Update(waveform);
-            Assert.That(builds, Is.EqualTo(0), "equal values");
-
-            waveform.axis = WaveformGenerator.Axis.Z;
-            DreamteckGeneratorFixture.Update(waveform);
-            Assert.That(builds, Is.EqualTo(1));
-            waveform.symmetry = true;
-            DreamteckGeneratorFixture.Update(waveform);
-            Assert.That(builds, Is.EqualTo(2));
-            waveform.uvWrapMode = WaveformGenerator.UVWrapMode.Uniform;
-            DreamteckGeneratorFixture.Update(waveform);
-            Assert.That(builds, Is.EqualTo(3));
-            waveform.slices = 0;
-            Assert.That(waveform.slices, Is.EqualTo(1), "clamped");
-            DreamteckGeneratorFixture.Update(waveform);
-            Assert.That(builds, Is.EqualTo(4), "0 differs from the stored 1, so it still rebuilds");
-            waveform.slices = -3;
-            DreamteckGeneratorFixture.Update(waveform);
-            Assert.That(builds, Is.EqualTo(5));
-            waveform.slices = 4;
-            Assert.That(waveform.slices, Is.EqualTo(4));
-            DreamteckGeneratorFixture.Update(waveform);
-            Assert.That(builds, Is.EqualTo(6));
-            Assert.That(waveform.axis, Is.EqualTo(WaveformGenerator.Axis.Z));
-            Assert.That(waveform.symmetry, Is.True);
-            Assert.That(waveform.uvWrapMode, Is.EqualTo(WaveformGenerator.UVWrapMode.Uniform));
         }
 
         // Generate 0x4d96d0 allocates (slices + 1) * sampleCount vertices and (sampleCount - 1) * slices * 6 indices. For axis Y

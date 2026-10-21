@@ -6376,9 +6376,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckCsvTests." + name f
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTubeGeneratorTests." + name for name in (
     "FreshTubeKeepsTheShippedDefaults",
-    "SidesClampAtThreeAndRebuildOnAnyDifferentRawValue",
-    "RoundCapLatitudeClampsAtOneAndOnlyRoundCapsRebuild",
-    "PlainSettersRebuildOnChangeOnly",
     "RingsFollowTheLine",
     "SizeRotationOffsetAndRevolveShapeTheRing",
     "VertexColourMultipliesTheBaseColourAndTheGeneratorColour",
@@ -6397,7 +6394,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTubeGeneratorTests.
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckWaveformGeneratorTests." + name for name in (
     "FreshWaveformKeepsTheShippedDefaults",
-    "SettersRebuildOnChangeAndSlicesClampAtOne",
     "SingleSliceRunsFromTheBaselineToTheSample",
     "SlicesInterpolateAndSymmetryMirrorsTheBaseline",
     "AxisChoosesTheDroppedCoordinate",
@@ -6411,9 +6407,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckWaveformGeneratorTe
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSurfaceGeneratorTests." + name for name in (
     "FreshSurfaceKeepsTheShippedDefaults",
-    "PlainSettersRebuildOnChangeOnly",
-    "SideUvSettersStoreTheValueBeforeTheyCompare",
-    "ExtrudeSplineFollowsTheComputerItIsGiven",
     "IsClockwiseFollowsTheShippedSum",
     "WriteTrisShiftsAndReversesTheTriangles",
     "GenerateSurfaceTrisTriangulatesTheOutlineAndFlipsOnRequest",
@@ -6696,4 +6689,20 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectControllerPla
 # Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectBenderPlayModeTests." + name for name in (
     "SettersQueueARebuildOnlyWithASplineAndOnlyForAChange",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSurfaceGeneratorPlayModeTests." + name for name in (
+    "ExtrudeSplineFollowsTheComputerItIsGiven",
+    "PlainSettersRebuildOnChangeOnly",
+    "SideUvSettersStoreTheValueBeforeTheyCompare",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTubeGeneratorPlayModeTests." + name for name in (
+    "PlainSettersRebuildOnChangeOnly",
+    "RoundCapLatitudeClampsAtOneAndOnlyRoundCapsRebuild",
+    "SidesClampAtThreeAndRebuildOnAnyDifferentRawValue",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckWaveformGeneratorPlayModeTests." + name for name in (
+    "SettersRebuildOnChangeAndSlicesClampAtOne",
 ))
