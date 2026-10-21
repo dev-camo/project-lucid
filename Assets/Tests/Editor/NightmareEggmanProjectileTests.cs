@@ -619,8 +619,8 @@ namespace ProjectLucid.Tests
 
                 Call(visual, "Awake");
 
-                Assert.That(GetField<Vector3>(first, "Offset"), Is.EqualTo(new Vector3(1f, 2f, 3f)));
-                Assert.That(GetField<Vector3>(second, "Offset"), Is.EqualTo(new Vector3(-4f, -5f, -6f)));
+                Assert.That(GetField<Vector3>(first, "Offset"), Is.EqualTo(new Vector3(1f, 2f, 3f)).Using(new UnityEngine.TestTools.Utils.Vector3EqualityComparer(1e-5f)), "draws from collapsed ranges");
+                Assert.That(GetField<Vector3>(second, "Offset"), Is.EqualTo(new Vector3(-4f, -5f, -6f)).Using(new UnityEngine.TestTools.Utils.Vector3EqualityComparer(1e-5f)), "draws from collapsed ranges");
                 Assert.That(Get<CharacterManager>(visual, "m_characterManager"), Is.SameAs(manager));
                 Assert.That(Get<bool>(visual, "m_hasCachedTransform"), Is.True, "the rotator base ran");
             });
