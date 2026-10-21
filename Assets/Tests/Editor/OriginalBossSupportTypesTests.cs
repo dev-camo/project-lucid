@@ -1635,13 +1635,10 @@ namespace ProjectLucid.Tests
                     var visuals = time.Objects.Create("Lucid dangerous boss visuals").AddComponent<FourmenVisuals>();
                     Set(visuals, "m_dangerousBossIndicator", wrapper);
 
-                    // SetParticles stores the particles at once, unlike Emit, which Edit Mode leaves to the next simulation step.
-                    var live = new ParticleSystem.Particle[3];
-                    for (int i = 0; i < live.Length; i++) { live[i].startLifetime = 10f; live[i].remainingLifetime = 10f; }
-                    main.SetParticles(live, 3);
-                    alwaysCleared.SetParticles(live, 3);
-                    Assert.That(main.particleCount, Is.EqualTo(3));
-                    Assert.That(alwaysCleared.particleCount, Is.EqualTo(3));
+                    main.Emit(3);
+                    alwaysCleared.Emit(3);
+                    Assert.That(main.particleCount, Is.EqualTo(3), "the main system keeps the emitted particles");
+                    Assert.That(alwaysCleared.particleCount, Is.EqualTo(3), "the always-cleared system keeps the emitted particles");
 
                     visuals.SetDangerousParticlesActive(false);
                     Assert.That(wrapper.Status, Is.EqualTo(ParticleEffectWrapper.ParticleEffectWrapperStatus.Stopping));
