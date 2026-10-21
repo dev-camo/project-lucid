@@ -553,6 +553,7 @@ namespace ProjectLucid.Tests
         }
 
         // ToggleWidgetNavigation 0x6A1660: turning it on enables the navigation unless the level is locked; turning it off disables it.
+        // The setup of an unlocked level asks its mission list (MissionManager.GetMissionTypeShowType, which has no null guard).
         [TestCase(true, false, true, TestName = "TurningNavigationOnEnablesAnUnlockedLevel")]
         [TestCase(true, true, false, TestName = "TurningNavigationOnLeavesALockedLevelDisabled")]
         [TestCase(false, false, false, TestName = "TurningNavigationOffDisablesAnUnlockedLevel")]
@@ -568,7 +569,7 @@ namespace ProjectLucid.Tests
                 scene.Widget.ToggleWidgetNavigation(on);
 
                 Assert.That(scene.Navigation.enabled, Is.EqualTo(expectedEnabled));
-            }, withMissionList: false);
+            });
         }
 
         // OnUnlockComplete 0x6A16A0 turns an off toggle on (so listeners are told once) and leaves one that is already on alone.
