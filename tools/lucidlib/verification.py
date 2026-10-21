@@ -2832,7 +2832,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterGroundBoostTransitionTests.
     "DeclarationShapeClassFactoryRegistersTheNodesWithTheirArgumentTypes",
     "DeclarationShapeTransitionsAndAbilityKeepTheirMembers",
 ))
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves05GroundStateTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterGroundStateTests." + name for name in (
     "LandingHoldRaisesASlowerVelocityToTheRecordedSpeedAlongItsDirection",
     "LandingHoldLeavesAFasterVelocityAlone",
     "LandingHoldEndsOnceTheElapsedTimeExceedsTheWindowButNotAtItsEdge",

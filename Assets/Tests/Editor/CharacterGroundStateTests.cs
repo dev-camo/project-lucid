@@ -21,7 +21,7 @@ namespace ProjectLucid.Tests
     // UpdateForLanding, UpdateForSlope, UpdateRemainTimer with ProcessQueuedJump and ProcessQueuedBoost, UpdateTurnGrip,
     // DetectLedgeAhead and UpdateLedgeBraking. Not run here: DoOnEnter, DoUpdate, DoOnLeave, ProcessTurningMovement,
     // SetCameraProxyTargetSettings, OrientateToGround, CanQueueActions and DebugInfo.
-    public sealed class CharMoves05GroundStateTests
+    public sealed class CharacterGroundStateTests
     {
         private static readonly Type GroundType = typeof(CharacterState_Ground<CharacterAbilityDefinition_MovementGroundBoost, CharacterAbility_MovementGroundBoost>);
         private static readonly Vector3 Origin = new Vector3(50f, 50f, 50f);
