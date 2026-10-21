@@ -75,6 +75,22 @@ namespace ProjectLucid.Tests
             }));
         }
 
+        // The percentage truncates (cvttss2si 0x679aeb) rather than rounds: 0.556f * 100f is 55.6 in single precision,
+        // which reads 55 where rounding would give 56.
+        [Test]
+        public void ThePercentageTruncatesTheSpeedProduct()
+        {
+            WithTime(page => OwnedStringTable.Run(PercentFormat, () =>
+            {
+                page.Settings.GameSpeed = 0.556f;
+                var container = Add<UIContainerSettingsAccessibility>(page);
+
+                Call(container, "RefreshBinders");
+
+                Assert.That(container.GameSpeedPercentageString.Value, Is.EqualTo("55%"));
+            }));
+        }
+
         // Action_SetGameSpeed 0x679BE0: the speed is stored without a save (the save path is entered with
         // saveImmediately false), the binders refresh and the page remembers to save on exit.
         [Test]

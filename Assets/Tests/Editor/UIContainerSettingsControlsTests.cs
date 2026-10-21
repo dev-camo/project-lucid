@@ -173,6 +173,32 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The new values are the bound strings (binder reads at 0x67be46 and 0x67bf05), not the list entries at the
+        // bound indices: the stick list holds NUMBER_SEPARATOR_SLASH at 2 and the camera list NUMBER_SEPARATOR at 0.
+        [Test]
+        public void ClosingThePageReportsTheBoundSensitivityStringsNotTheListEntries()
+        {
+            With(page =>
+            {
+                var container = NewControls(page);
+                Call(container, "Awake");
+                container.ControlStickSensitivityIndex.Value = 2;
+                container.ControlStickSensitivityString.Value = Strings.MISSING;
+
+                Call(container, "OnDestroy");
+
+                Assert.That(page.Reported.Last, Is.EqualTo(("control_stick_sensitivity", "DECIMAL_SEPARATOR", "MISSING")));
+
+                page.Reported.Clear();
+                container.CameraSecondarySensitivityIndex.Value = 0;
+                container.CameraSecondarySensitivityString.Value = Strings.MISSING;
+
+                Call(container, "OnDestroy");
+
+                Assert.That(page.Reported.Last, Is.EqualTo(("camera_secondary_sensitivity", "NUMBER_SEPARATOR_SLASH", "MISSING")));
+            });
+        }
+
         // The stick sensitivity is reported first (0x67be90) and the camera one last (the tail call at 0x67bf59).
         [Test]
         public void ClosingThePageWithBothChangedReportsTheCameraSensitivityLast()

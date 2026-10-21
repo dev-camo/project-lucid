@@ -21,7 +21,8 @@ namespace HardlightProject
         private readonly List<UIWidgetSliderPip> m_sliderPips = new List<UIWidgetSliderPip>();
 
         // 0x0600301c (0x60D3D0; iterator 0x02000850, MoveNext 0x60D6F0): only a whole-number slider gets pips. They are
-        // laid out two end-of-frame waits after start, one pip per whole value from 0 to maxValue, spaced width / maxValue apart from the parent rect's left edge; minValue is not used.
+        // laid out two end-of-frame waits after start: one pip for each i while i < maxValue + 1 (pips 0..3 for a
+        // maximum of 2.5), spaced width / maxValue apart from the parent rect's left edge; minValue is not used.
         private IEnumerator Start()
         {
             if (!m_slider.wholeNumbers)

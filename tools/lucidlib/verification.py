@@ -9926,6 +9926,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsBaseTests." + nam
     "ABooleanChangeIsReportedAndAnUnchangedOneIsNot",
     "AnEnumChangeIsReportedByName",
     "OtherValueTypesAreComparedAndReportedTheSameWay",
+    "TwoNullReferenceSettingsAreEqualAndReportNothing",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsTests." + name for name in (
     "EnablingPublishesTheMetaGameFlagAndTheGraphicsAvailability",
@@ -9935,6 +9936,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsTests." + name fo
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsAccessibilityTests." + name for name in (
     "AwakePublishesTheSavedSettingsThenCachesTheGameSpeed",
     "RefreshBindersPublishesTheSettingsAndTheTimeLimits",
+    "ThePercentageTruncatesTheSpeedProduct",
     "SettingTheGameSpeedStoresItAndLeavesTheSaveForExit",
     "ClosingThePageSavesAPendingGameSpeedAndReportsTheChange",
     "ClosingThePageWithoutChangesSavesAndReportsNothing",
@@ -9954,6 +9956,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsCameraTests." + n
     "ASavedSensitivityMissingFromTheListFaults",
     "ClosingThePageReportsAChangedCameraDistance",
     "ClosingThePageReportsAChangedCameraSensitivity",
+    "ClosingThePageReportsTheBoundSensitivityStringNotTheListEntry",
     "ClosingThePageWithBothChangedReportsTheSensitivityLast",
     "ClosingThePageWithoutChangesReportsNothing",
     "TheHeadingButtonsReportAutoAndManualAndSave",
@@ -9971,6 +9974,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsControlsTests." +
     "ASavedSensitivityMissingFromItsListFaults",
     "ClosingThePageReportsAChangedStickSensitivity",
     "ClosingThePageReportsAChangedSecondaryCameraSensitivity",
+    "ClosingThePageReportsTheBoundSensitivityStringsNotTheListEntries",
     "ClosingThePageWithBothChangedReportsTheCameraSensitivityLast",
     "ClosingThePageWithoutChangesReportsNothing",
     "TheHomingAttackMappingButtonsReportStoreAndSave",
@@ -10004,6 +10008,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSDTSliderTests." + name for 
     "StartDoesNothingForASliderWithoutWholeNumbers",
     "StartYieldsTheSameEndOfFrameWaitTwiceBeforeBuildingThePips",
     "StartSpawnsOnePipPerStepSpacedAcrossTheParentWidth",
+    "TheMinimumValueDoesNotChangeThePipLayoutOrPaint",
     "StartPaintsThePipsAndFollowsTheSlider",
     "TheValueArgumentOfThePaintIsIgnored",
     "SettingTheValueMovesTheSliderAndRepaintsThroughTheListener",

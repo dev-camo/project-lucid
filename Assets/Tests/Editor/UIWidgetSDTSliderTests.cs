@@ -27,12 +27,12 @@ namespace ProjectLucid.Tests
 
         // A slider from 0 to the given maximum, a 200 wide pip parent (pivot at its centre, so its rect starts at -100)
         // and a pip template, wired as the authored widget is.
-        private static Rig NewRig(Owned owned, float maximum, bool wholeNumbers)
+        private static Rig NewRig(Owned owned, float maximum, bool wholeNumbers, float minimum = 0f)
         {
             var rig = new Rig();
             rig.Widget = owned.Host("Lucid sdt slider", false).AddComponent<UIWidgetSDTSlider>();
             rig.Slider = rig.Widget.gameObject.AddComponent<Slider>();
-            rig.Slider.minValue = 0f;
+            rig.Slider.minValue = minimum;
             rig.Slider.maxValue = maximum;
             rig.Slider.wholeNumbers = wholeNumbers;
             GameObject parent = owned.Host("Lucid sdt slider pips", false, rig.Widget.transform);
@@ -140,6 +140,28 @@ namespace ProjectLucid.Tests
                     Assert.That(position.y, Is.EqualTo(0f).Within(1e-3f));
                     Assert.That(position.z, Is.EqualTo(0f).Within(1e-3f));
                 }
+            });
+        }
+
+        // minValue takes no part in the layout or the paint: spacing is width / maxValue (0x60d89b), the loop bound is
+        // maxValue + 1 (0x60d8eb) and a pip is filled when the value is at least its index. A slider from 1 to 4 gets
+        // five pips 50 apart (not four 66.67 apart), and its value 1 fills pips 0 and 1.
+        [Test]
+        public void TheMinimumValueDoesNotChangeThePipLayoutOrPaint()
+        {
+            Owned.Run(owned =>
+            {
+                Rig rig = NewRig(owned, 4f, true, 1f);
+
+                RunStart(rig);
+
+                List<UIWidgetSliderPip> pips = Pips(rig);
+                Assert.That(pips.Count, Is.EqualTo(5));
+                float[] expectedX = { -100f, -50f, 0f, 50f, 100f };
+                for (int i = 0; i < pips.Count; i++)
+                    Assert.That(pips[i].transform.localPosition.x, Is.EqualTo(expectedX[i]).Within(1e-3f), "pip " + i);
+                Assert.That(pips.Select(pip => pip.Colour.Value),
+                    Is.EqualTo(new[] { FillColour, FillColour, EmptyColour, EmptyColour, EmptyColour }));
             });
         }
 

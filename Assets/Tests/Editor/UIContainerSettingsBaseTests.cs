@@ -142,5 +142,19 @@ namespace ProjectLucid.Tests
                 Assert.That(page.Reported.Last, Is.EqualTo(("float_setting", "1.5", "2.25")));
             });
         }
+
+        // The comparison is the static System.Object.Equals (0x1DF2AB0), which treats two nulls as equal: nothing is
+        // reported and nothing throws, where an instance Equals on the null would fault.
+        [Test]
+        public void TwoNullReferenceSettingsAreEqualAndReportNothing()
+        {
+            With(page =>
+            {
+                var probe = Add<SettingsContainerBaseProbe>(page);
+
+                Assert.DoesNotThrow(() => probe.Report<string>("string_setting", null, null));
+                Assert.That(page.Reported.Sent, Is.False);
+            });
+        }
     }
 }

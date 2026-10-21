@@ -173,6 +173,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The new value is the bound string (the binder read at 0x67aab7..0x67aacf), not the list entry at the bound
+        // index: index 2 holds NUMBER_SEPARATOR_SLASH but the binder says MISSING.
+        [Test]
+        public void ClosingThePageReportsTheBoundSensitivityStringNotTheListEntry()
+        {
+            With(page =>
+            {
+                var container = NewCamera(page);
+                Call(container, "Awake");
+                container.CameraSensitivityIndex.Value = 2;
+                container.CameraSensitivityString.Value = Strings.MISSING;
+
+                Call(container, "OnDestroy");
+
+                Assert.That(page.Reported.Last, Is.EqualTo(("camera_sensitivity", "DECIMAL_SEPARATOR", "MISSING")));
+            });
+        }
+
         // The distance is reported first (0x67aa44) and the sensitivity last (the tail call at 0x67ab09), so the last
         // event the stub holds is the sensitivity one.
         [Test]
