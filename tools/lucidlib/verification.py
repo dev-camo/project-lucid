@@ -6841,6 +6841,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterAirChaosAimAbilityTests." +
     "TriggerEnterRegistersTheColliderWithTheFirstDefinitionWhoseTypeIsFound",
     "TriggerEnterFindsTheTargetTypeOnAParentAndIgnoresColliderWithoutIt",
     "TriggerEnterFiltersHomingTargetsByTheDefinitionHomingTypes",
+    "TriggerEnterFiltersEnemiesByEnabledStateAndEnemyTypes",
     "TriggerExitForgetsTheColliderAndToleratesAnUnknownOne",
     "ChildHomingTargetsAreDroppedWhenAnAncestorIsAlsoRegistered",
     "HitColliderIsTheNearestSolidColliderInTheCollisionMask",
@@ -6849,8 +6850,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterAirChaosAimAbilityTests." +
     "GroundProjectionPlacesTheGroundTargetOnTheTrackBelowTheAimPosition",
     "TransformFromHitTakesTheNormalPointOffsetAndRotation",
     "CameraOverrideWithoutCollisionDataIsTheTargetSlopeOverride",
+    "CameraOverrideWithCollisionDataTakesTheColliderRotationAndReversesOnlyOnAStrictlyOpposedAxis",
     "TargetTypeEventsWithoutAnEntryOnlyRecordTheEnteredType",
     "UpdateUiReportsNothingWhileTheAimIsInactive",
+    "UpdateUiLatchesTheScaleFromTheDistanceBeforeSmoothingAndAdvancesItOnlyWhileLatched",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterAirChaosStateTests." + name for name in (
     "TryGetAbilityAcceptsOnlyAnAbilityOfTheClosedType",

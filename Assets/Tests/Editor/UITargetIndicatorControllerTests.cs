@@ -376,6 +376,20 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(rig.Controller, "m_projectionTotalTime"), Is.EqualTo(0.1f).Within(1e-6f));
                 rig.Controller.UpdateTarget(0.1f, target, AbilityAimTargetType.Air, AbilityAimTargetType.None, 5f, 0.1f, -1);
                 Assert.That(Get<float>(rig.Controller, "m_projectionTotalTime"), Is.EqualTo(0.2f).Within(1e-6f), "the cycle continues while under the projection time");
+                // 0x60c65e..0x60c66f: `jb` skips the reset only while the total is below the projection time (2, VA
+                // 0x29a7a90), so a total equal to it restarts the cycle and a smaller one does not.
+                rig.Aim.gameObject.SetActive(false);
+                rig.Line.enabled = false;
+                Set(rig.Controller, "m_projectionTotalTime", 1.99f);
+                rig.Controller.UpdateTarget(0.1f, target, AbilityAimTargetType.Air, AbilityAimTargetType.None, 5f, 0.1f, -1);
+                Assert.That(Get<float>(rig.Controller, "m_projectionTotalTime"), Is.EqualTo(2.09f).Within(1e-5f));
+                Assert.That(rig.Aim.gameObject.activeSelf, Is.False, "below the projection time nothing restarts");
+                Assert.That(rig.Line.enabled, Is.False);
+                Set(rig.Controller, "m_projectionTotalTime", 2f);
+                rig.Controller.UpdateTarget(0.1f, target, AbilityAimTargetType.Air, AbilityAimTargetType.None, 5f, 0.1f, -1);
+                Assert.That(Get<float>(rig.Controller, "m_projectionTotalTime"), Is.EqualTo(0.1f).Within(1e-6f), "a total equal to the projection time restarts the cycle");
+                Assert.That(rig.Aim.gameObject.activeSelf, Is.True);
+                Assert.That(rig.Line.enabled, Is.True);
                 rig.Controller.UpdateTarget(0.1f, target, AbilityAimTargetType.Wall, AbilityAimTargetType.None, 5f, 0.1f, -1);
                 Assert.That(rig.Location.gameObject.activeSelf, Is.False, "leaving the air aim hides the location");
                 Assert.That(rig.Aim.gameObject.activeSelf, Is.False);

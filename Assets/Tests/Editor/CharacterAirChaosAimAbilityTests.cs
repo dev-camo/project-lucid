@@ -18,8 +18,8 @@ namespace ProjectLucid.Tests
     // on owned hosts. Cases cite the native comparison or store they pin. Not run here: the members that need a
     // started character, the camera manager or the track manager (Initialise, Close, DoOnEnter, DoOnUpdate,
     // DoOnLateUpdate, DoOnActivation and DoOnDeactivation, ControllerMovementActive, UpdateTarget, the rail and
-    // transporter hits, ApplyTargetingImpulse, UpdateUI while active) and the collision-data branches of
-    // RaycastHitIsValid and GetCameraOverride (they need character collision data with its modifiers and metadata).
+    // transporter hits, ApplyTargetingImpulse, the target-type lookup and the targeting-modifier rotation of UpdateUI)
+    // and the collision-data branches of RaycastHitIsValid (they need character collision data with its modifiers).
     public sealed class CharacterAirChaosAimAbilityTests
     {
         private const float Tolerance = 1e-3f;
@@ -177,6 +177,47 @@ namespace ProjectLucid.Tests
                 ability.OnTriggerEnter(collider);
                 Assert.That(Registered(ability)[collider], Is.SameAs(unrestricted));
             }, true);
+        }
+
+        // 0x74128c..0x741349: an Enemy that is disabled skips the definition (0x74131a back to the loop); a non-empty
+        // enemy type list skips it unless the list holds the enemy's type (0x741343); otherwise the definition is
+        // registered. The enemy sits on an inactive host so its Awake never runs.
+        [Test]
+        public void TriggerEnterFiltersEnemiesByEnabledStateAndEnemyTypes()
+        {
+            WithAim((owned, character, ability, definition) =>
+            {
+                owned.LeaseRow<EnemyManager>();
+                owned.LeaseRow<CharacterManager>();
+                GameObject host = owned.Host("Lucid chaos aim enemy", false);
+                var collider = host.AddComponent<BoxCollider>();
+                var enemy = host.AddComponent<Enemy>();
+                Set(enemy, "m_type", EnemyType.Motobug);
+                var byEnemy = HomingDefinition(typeof(Enemy));
+                byEnemy.EnemyTypes = new List<EnemyType>();
+                var fallback = HomingDefinition(typeof(BoxCollider));
+                definition.HomingTargetDefinitions = new List<CharacterAbilityDefinition_AirChaosAim.HomingTargetAimDefinition> { byEnemy, fallback };
+
+                enemy.enabled = false;
+                ability.OnTriggerEnter(collider);
+                Assert.That(Registered(ability)[collider], Is.SameAs(fallback), "a disabled enemy skips its definition");
+
+                enemy.enabled = true;
+                Registered(ability).Clear();
+                byEnemy.EnemyTypes = new List<EnemyType> { EnemyType.Crabmeat };
+                ability.OnTriggerEnter(collider);
+                Assert.That(Registered(ability)[collider], Is.SameAs(fallback), "the enemy type is not listed");
+
+                Registered(ability).Clear();
+                byEnemy.EnemyTypes = new List<EnemyType> { EnemyType.Crabmeat, EnemyType.Motobug };
+                ability.OnTriggerEnter(collider);
+                Assert.That(Registered(ability)[collider], Is.SameAs(byEnemy), "the enemy type is listed");
+
+                Registered(ability).Clear();
+                byEnemy.EnemyTypes = new List<EnemyType>();
+                ability.OnTriggerEnter(collider);
+                Assert.That(Registered(ability)[collider], Is.SameAs(byEnemy), "an empty list accepts every enemy type");
+            });
         }
 
         [Test]
@@ -379,6 +420,45 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x73ea45..0x73eb30: with camera override metadata on the hit, the override is the one stored under the
+        // target's key and the aim rotation takes the collision data's rotation. The rotation is multiplied by
+        // RotationReverseLocal only when ReverseByDirection is set and the override axis in world space has a strictly
+        // negative dot with the current aim forward (jbe at 0x73eae4 keeps a dot of zero unreversed).
+        [Test]
+        public void CameraOverrideWithCollisionDataTakesTheColliderRotationAndReversesOnlyOnAStrictlyOpposedAxis()
+        {
+            WithAim((owned, character, ability, definition) =>
+            {
+                var key = owned.Track(ScriptableObject.CreateInstance<MetadataKeyType>());
+                var overrideDefinition = owned.Track(ScriptableObject.CreateInstance<CameraAbilityOverrideDefinition>());
+                Set(overrideDefinition, "m_axisAlignment", Vector3.forward);
+                var group = owned.Track(ScriptableObject.CreateInstance<MetadataFixedGroup>());
+                var row = new MetadataFixed(key, string.Empty);
+                Set(row, "m_valueObject", overrideDefinition);
+                Get<List<MetadataFixed>>(Get<object>(group, "m_data"), "m_metadata").Add(row);
+                GameObject host = owned.Host("Lucid chaos aim camera override", false);
+                host.AddComponent<BoxCollider>();
+                var data = host.AddComponent<CharacterCollisionData>();
+                SetProperty(data, "CameraOverrideMetadata", group);
+                SetProperty(data, "HasCameraOverride", true);
+                Set(ability, "m_hitCollisionData", data);
+                var target = new CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget { CameraOverrideMetadataKey = key };
+
+                void Check(bool reverseByDirection, Quaternion aimRotation, Quaternion expected, string message)
+                {
+                    Set(overrideDefinition, "m_reverseByDirection", reverseByDirection);
+                    Set(ability, "m_aimRotation", aimRotation);
+                    Assert.That(Call(ability, "GetCameraOverride", target), Is.SameAs(overrideDefinition), message);
+                    Assert.That(Quaternion.Angle(Get<Quaternion>(ability, "m_aimRotation"), expected), Is.LessThan(0.01f), message);
+                }
+
+                Check(true, Quaternion.AngleAxis(180f, Vector3.up), Actor.RotationReverseLocal, "forward opposes the axis, so the rotation is reversed");
+                Check(true, Quaternion.AngleAxis(90f, Vector3.up), Quaternion.identity, "a dot of zero is not opposed");
+                Check(true, Quaternion.identity, Quaternion.identity, "forward along the axis");
+                Check(false, Quaternion.AngleAxis(180f, Vector3.up), Quaternion.identity, "without ReverseByDirection nothing is reversed");
+            });
+        }
+
         // ---- OnTargetType* without a registered target (06001045 @0x740550, 06001046, 06001047) ----
 
         // Entering stores the aim type before the target lookup (0x740591); with no entry for the type nothing else
@@ -396,6 +476,50 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<bool>(ability, "m_cameraTargetTimerActive"), Is.False);
                 Assert.That(Get<float>(ability, "m_cameraTargetTimer"), Is.EqualTo(0f));
                 Assert.That(Get<bool>(ability, "m_aimLerpActive"), Is.True);
+            });
+        }
+
+        // 0x74096d..0x740afa: the squared distance to the aim target is measured before SmoothDamp (0x7409cc). Only
+        // when it exceeds 0.1 (VA 0x29a6bfc) does the scale latch take (0.1 >= the distance after smoothing) and the
+        // scale time reset; otherwise the scale time advances while the latch is set. The scale is the curve at the
+        // scale time while latched, else 1, and the first call only seeds the lerp. Only branch outcomes are asserted.
+        [Test]
+        public void UpdateUiLatchesTheScaleFromTheDistanceBeforeSmoothingAndAdvancesItOnlyWhileLatched()
+        {
+            WithAim((owned, character, ability, definition) =>
+            {
+                SetProperty(ability, "AirActive", true);
+                definition.AimLerpSmoothTime = 1f;
+                definition.AimLerpMaxSpeed = 10f;
+                definition.AimLerpScaleAnim = AnimationCurve.Linear(0f, 2f, 1f, 4f);
+                Set(ability, "m_cameraTargetTimerActive", true);
+                Set(ability, "m_aimOffset", new Vector3(0f, 0f, 0.3f));
+                var indicator = new UITargetIndicatorController();
+                float Scale() => Get<float>(indicator, "m_arrowScaleMultiplier");
+
+                Assert.That(ability.UpdateUI(0.1f, indicator, null), Is.False, "no target type entry");
+                Assert.That(Get<bool>(ability, "m_aimLerpActive"), Is.True);
+                Assert.That(Get<Vector3>(ability, "m_aimLerpPosition"), Is.EqualTo(new Vector3(0f, 0f, 0.3f)).Using(Vec));
+                Assert.That(Scale(), Is.EqualTo(1f));
+
+                // The distance to the target before smoothing (0.4, squared 0.16) is above 0.1 but the smoothed one is below it, so the latch takes
+                // and the scale time restarts at zero. Measuring after SmoothDamp would leave the scale at 1.
+                Set(ability, "m_aimPosition", new Vector3(0f, 0f, 0.4f));
+                ability.UpdateUI(1f, indicator, null);
+                Assert.That(Get<bool>(ability, "m_aimLerpScaleActive"), Is.True);
+                Assert.That(Get<float>(ability, "m_aimLerpScaleTime"), Is.EqualTo(0f));
+                Assert.That(Scale(), Is.EqualTo(2f).Within(Tolerance));
+
+                // Now within 0.1 of the target before smoothing: the latched scale time advances.
+                ability.UpdateUI(0.5f, indicator, null);
+                Assert.That(Get<float>(ability, "m_aimLerpScaleTime"), Is.EqualTo(0.5f).Within(Tolerance));
+                Assert.That(Scale(), Is.EqualTo(3f).Within(Tolerance));
+
+                // Without the latch the time stays and the scale is 1.
+                Set(ability, "m_aimLerpScaleActive", false);
+                ability.UpdateUI(0.5f, indicator, null);
+                Assert.That(Get<float>(ability, "m_aimLerpScaleTime"), Is.EqualTo(0.5f).Within(Tolerance));
+                Assert.That(Scale(), Is.EqualTo(1f));
             });
         }
 
