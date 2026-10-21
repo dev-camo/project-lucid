@@ -249,7 +249,7 @@ namespace ProjectLucid.Tests
         private const string LevelGuid = "lucid-persistent-level";
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
 
-        private sealed class Missions
+        internal sealed class Missions
         {
             public MissionManager Manager;
             public SaveManager Save;
@@ -267,7 +267,7 @@ namespace ProjectLucid.Tests
         // The open save holds only the level dictionary GetOrCreateLevelData reads. RequestSave's
         // RunCoroutine reaches an inactive CoroutineUtils host, which refuses it with an error
         // that is appended to the case log in order.
-        private static void WithMissions(bool currentLevelValid, Action<Owned, Missions> body) => Owned.Run(owned =>
+        internal static void WithMissions(bool currentLevelValid, Action<Owned, Missions> body) => Owned.Run(owned =>
         {
             owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
             owned.LeaseRow<MissionManager>();

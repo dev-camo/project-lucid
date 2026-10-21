@@ -13,7 +13,8 @@ namespace ProjectLucid.Tests
     // OrbDetectorUI (x86-64 0x693080..0x693CAF) and its OrbDetectorLevel (0x693CB0..0x693CFF) over a real
     // UIContainerGameplayIsland whose public bindables are the proximity inputs. The detector is a real
     // time scaled component on an inactive host; the engine's per-frame call is the public OnUpdate.
-    // The ping audio itself (PlayAudio 0x6938F0 reaching AudioManager.PlayOneShotAtSource) is not covered here.
+    // A ping is read from the owned AudioManager's diagnostics: a declared clip sent to the Sfx source that was never
+    // added reports the missing source twice, the second time naming the clip (as OriginalAudioComponentPlaybackTests).
     public sealed class OrbDetectorUITests
     {
         // Editor callbacks run InternalValidate (0x693170) when the component is added, and the original enumerates
@@ -262,9 +263,10 @@ namespace ProjectLucid.Tests
             return filter;
         }
 
-        private static OrbDetectorUI MusicDetector(Scene scene, UIContainerGameplayIsland island, AudioManager audio, HLAudioSourceIdentifier musicSource)
+        private static OrbDetectorUI MusicDetector(Scene scene, UIContainerGameplayIsland island, AudioManager audio, HLAudioSourceIdentifier musicSource,
+            float[] minimums = null, GameObject[] marks = null)
         {
-            OrbDetectorUI detector = Detector(scene, island, new float[0], 1f, new GameObject[0]);
+            OrbDetectorUI detector = Detector(scene, island, minimums ?? new float[0], 1f, marks ?? new GameObject[0]);
             Set(detector, "m_gameplayMusicAudioSource", musicSource);
             // The cutoff is 1000 at proximity 0 and 21000 at proximity 1; the restore curve falls from 20000 to 500 over two seconds.
             Set(detector, "m_orbProximityMusicLowPassCutoff", AnimationCurve.Linear(0f, 1000f, 1f, 21000f));
@@ -375,6 +377,146 @@ namespace ProjectLucid.Tests
                 var host = scene.Owned.Host("Lucid audio manager", false).AddComponent<AudioManager>();
                 Call(detector, "OnAudioManagerValid", host);
                 Assert.That(Get<AudioManager>(detector, "m_audioManager"), Is.SameAs(host));
+            });
+        }
+
+        private static string[] PingAtMissingSfx(string clipName) => new[]
+        {
+            "Cannot load clip, the source Sfx does not exist.:0",
+            "Cannot play one shot of audio clip " + clipName + ", the source Sfx does not exist.:0",
+        };
+
+        private static void SetClips(OrbDetectorUI detector, params HLAudioClipIdentifier[] clips)
+        {
+            var levels = Get<List<OrbDetectorUI.OrbDetectorLevel>>(detector, "m_levels");
+            for (int index = 0; index < clips.Length; index++) Set(levels[index], "m_audioClip", clips[index]);
+        }
+
+        // SetLevel 0x6934F0 keeps overwriting the reached level while it walks (cmovle r15, 0x693568), so the level it
+        // pings is the last one shown, and it pings only when the level changes (je 0x6935ba skips an unchanged level).
+        [Test]
+        public void EnteringALevelPingsTheLastReachedLevelOnce()
+        {
+            WithManager(scene =>
+            {
+                using (var services = new OwnedAudioServices())
+                {
+                    AudioManager audio = services.RegisterAudioManager();
+                    services.Clip((HLAudioClipIdentifier)0x1A01, "lucid-orb-a");
+                    services.Clip((HLAudioClipIdentifier)0x1A02, "lucid-orb-b");
+                    UIContainerGameplayIsland island = AddIsland(scene);
+                    OrbDetectorUI detector = Detector(scene, island, new[] { 0.25f, 0.5f }, 1f, Marks(scene, 2));
+                    Set(detector, "m_audioSource", HLAudioSourceIdentifier.Sfx);
+                    SetClips(detector, (HLAudioClipIdentifier)0x1A01, (HLAudioClipIdentifier)0x1A02);
+                    Call(detector, "OnAudioManagerValid", audio);
+
+                    Tick(detector, island, 0.6f);
+                    Assert.That(services.Log.Errors, Is.EqualTo(PingAtMissingSfx("lucid-orb-b")), "the last reached level pings, not the first");
+                    services.Log.Errors.Clear();
+                    Tick(detector, island, 0.6f);
+                    Call(detector, "SetLevel", 1);
+                    Assert.That(services.Log.Errors, Is.Empty, "an unchanged level does not ping again");
+                }
+            });
+        }
+
+        // PlayAudio 0x6938F0 returns at each of four guards: no audio manager (0x693942), no ping source (0x69394b),
+        // no clip on the level (0x693951) and an orb being collected (0x69396a).
+        [Test]
+        public void ThePingNeedsAManagerASourceAClipAndNoOrbCollection()
+        {
+            WithManager(scene =>
+            {
+                using (var services = new OwnedAudioServices())
+                {
+                    AudioManager audio = services.RegisterAudioManager();
+                    services.Clip((HLAudioClipIdentifier)0x1A01, "lucid-orb-a");
+                    UIContainerGameplayIsland island = AddIsland(scene);
+                    OrbDetectorUI detector = Detector(scene, island, new[] { 0.25f }, 1f, Marks(scene, 1));
+                    SetClips(detector, (HLAudioClipIdentifier)0x1A01);
+                    var level = Get<List<OrbDetectorUI.OrbDetectorLevel>>(detector, "m_levels")[0];
+                    Set(detector, "m_audioSource", HLAudioSourceIdentifier.Sfx);
+
+                    Call(detector, "PlayAudio", level);
+                    Assert.That(services.Log.Errors, Is.Empty, "no audio manager yet");
+                    Call(detector, "OnAudioManagerValid", audio);
+                    Call(detector, "PlayAudio", level);
+                    Assert.That(services.Log.Errors, Is.EqualTo(PingAtMissingSfx("lucid-orb-a")), "all four guards pass");
+
+                    services.Log.Errors.Clear();
+                    island.CollectionInProgress.Value = true;
+                    Call(detector, "PlayAudio", level);
+                    Assert.That(services.Log.Errors, Is.Empty, "an orb is being collected");
+                    island.CollectionInProgress.Value = false;
+                    Set(detector, "m_audioSource", HLAudioSourceIdentifier.None);
+                    Call(detector, "PlayAudio", level);
+                    Assert.That(services.Log.Errors, Is.Empty, "no ping source");
+                    Set(detector, "m_audioSource", HLAudioSourceIdentifier.Sfx);
+                    Set(level, "m_audioClip", HLAudioClipIdentifier.None);
+                    Call(detector, "PlayAudio", level);
+                    Assert.That(services.Log.Errors, Is.Empty, "no clip on the level");
+                }
+            });
+        }
+
+        // OnEnable 0x6932B0 (stores 0x6932c0..0x6932fb) forgets the cached filter and clears the no-filter flag, the
+        // restore state and the timers, then SetMusicEffects(0) (cutoff 1000) and SetLevel(-1) hide every level.
+        [Test]
+        public void EnablingResetsTheMusicEffectsAndHidesEveryLevel()
+        {
+            WithManager(scene =>
+            {
+                using (var services = new OwnedAudioServices())
+                {
+                    AudioManager audio = services.RegisterAudioManager();
+                    AudioLowPassFilter filter = AddMusic(services, audio, true);
+                    UIContainerGameplayIsland island = AddIsland(scene);
+                    GameObject[] marks = Marks(scene, 1);
+                    OrbDetectorUI detector = MusicDetector(scene, island, audio, HLAudioSourceIdentifier.Background, new[] { 0.25f }, marks);
+
+                    Tick(detector, island, 0.3f);
+                    Tick(detector, island, 0.3f, 0.3f);
+                    island.CollectionInProgress.Value = true;
+                    detector.OnUpdate(0.016f);
+                    island.CollectionInProgress.Value = false;
+                    Tick(detector, island, 0.3f);
+                    Tick(detector, island, 0.3f, 0.3f);
+                    // No path sets this flag (a filterless source returns before the store), so it is written to see it cleared.
+                    Set(detector, "m_noLowPassFilterAvailable", true);
+                    Assert.That(Get<bool>(detector, "m_restoringMusicAfterOrbCollection"), Is.True);
+                    Assert.That(Get<float>(detector, "m_timeSinceAudio"), Is.EqualTo(0.3f).Within(1e-5f));
+                    Assert.That(filter.enabled, Is.False);
+
+                    Call(detector, "OnEnable");
+                    Assert.That(filter.enabled, Is.True);
+                    Assert.That(filter.cutoffFrequency, Is.EqualTo(1000f).Within(0.5f));
+                    Assert.That(Get<bool>(detector, "m_noLowPassFilterAvailable"), Is.False);
+                    Assert.That(Get<bool>(detector, "m_restoringMusicAfterOrbCollection"), Is.False);
+                    Assert.That(Get<float>(detector, "m_timeSinceAudio"), Is.EqualTo(0f));
+                    Assert.That(Get<float>(detector, "m_timeSinceOrbCollection"), Is.EqualTo(0f));
+                    Assert.That(Get<int>(detector, "m_currentLevel"), Is.EqualTo(-1));
+                    Assert.That(Active(marks), Is.EqualTo(new[] { false }));
+                }
+            });
+        }
+
+        // OnDisable 0x6935D0 ends with SetMusicEffects(0) (0x6935ec), dropping the cutoff to the proximity-zero value.
+        [Test]
+        public void DisablingResetsTheMusicCutoff()
+        {
+            WithManager(scene =>
+            {
+                using (var services = new OwnedAudioServices())
+                {
+                    AudioManager audio = services.RegisterAudioManager();
+                    AudioLowPassFilter filter = AddMusic(services, audio, true);
+                    OrbDetectorUI detector = MusicDetector(scene, AddIsland(scene), audio, HLAudioSourceIdentifier.Background);
+                    Call(detector, "OnEnable");
+                    Call(detector, "SetMusicEffects", 1f);
+                    Assert.That(filter.cutoffFrequency, Is.EqualTo(21000f).Within(0.5f));
+                    Call(detector, "OnDisable");
+                    Assert.That(filter.cutoffFrequency, Is.EqualTo(1000f).Within(0.5f));
+                }
             });
         }
     }

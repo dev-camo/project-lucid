@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Hardlight;
 using Hardlight.Enums;
 using Hardlight.Localisation;
@@ -8,6 +9,7 @@ using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -20,7 +22,7 @@ namespace ProjectLucid.Tests
     // Each is a real component on an owned inactive host, so its Unity messages are called directly. Paths that need
     // Addressables, the control mapping or the configuration assets are not covered: UIContainerLeaderboards.Start and
     // OnDestroy, UIContainerLevelDefinition.Setup's image load, UIContainerRewardRestriction.Setup,
-    // UIContainerOrbCollectableCounter.UpdateBindings and the UIContainerUtilities bodies.
+    // the UIContainerOrbCollectableCounter icon load that ends UpdateBindings and the UIContainerUtilities bodies.
     public sealed class UIContainerHudBindingTests
     {
         private static T Add<T>(Owned owned, string name) where T : Component => owned.Host(name, false).AddComponent<T>();
@@ -302,6 +304,66 @@ namespace ProjectLucid.Tests
                 Assert.Throws<NullReferenceException>(() => counter.UpdateValues(mission), "the Moon icon is released through the DataManager row");
                 Assert.That(Get<CollectableType>(counter, "m_rewardType"), Is.EqualTo(CollectableType.Orb), "the new type is stored before the release");
             });
+        }
+
+        private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
+
+        // UpdateBindings 0x66CB30 over the real ProgressionManager, MissionManager and a regular mission context. HasValues is
+        // Collected > 0 (test/setg 0x66cba2). The count is shown ahead of the saved total only when the counter animates, the
+        // mission is not a replay (0x66cbb9) and rewards are pending (test/jle 0x66cc36); the count is then collected - pending
+        // (0x66cc46) and a coroutine ticks it up. Everything is written before the icon load (0x66cd29), which faults here
+        // because no DataManager is registered. Rows: animate, replay, completed (2 pending orbs), collected, shown, has values.
+        [Test]
+        public void TheShownCountIsAheadOfTheSavedTotalOnlyForAnAnimatedPendingReward()
+        {
+            var rows = new[]
+            {
+                (animate: true, replay: false, completed: true, collected: 5, shown: 3, hasValues: true),
+                (animate: true, replay: true, completed: true, collected: 5, shown: 5, hasValues: true),
+                (animate: false, replay: false, completed: true, collected: 5, shown: 5, hasValues: true),
+                (animate: true, replay: false, completed: true, collected: 0, shown: -2, hasValues: false),
+                (animate: true, replay: false, completed: false, collected: 5, shown: 5, hasValues: true),
+            };
+            foreach (var row in rows)
+            {
+                string label = row.ToString();
+                OriginalPersistentLevelObjectTests.WithMissions(true, (owned, missions) =>
+                {
+                    owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
+                    owned.LeaseRow<UIManager>(); // MissionState's field initialiser
+                    owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser
+                    var mission = owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
+                    Set(mission, "m_guid", "lucid-orb-counter-mission"); // serialized authored data
+                    Set(mission, "m_subMissions", new List<MissionDefinition>());
+                    Set(mission, "m_rewardValue", 2);
+                    missions.Manager.SetActiveMissionContext(new MissionContextRegular(mission, missions.CurrentLevel.LevelDefinition, row.replay));
+                    if (row.completed)
+                    {
+                        Assert.That(missions.Manager.TryGetActiveMissionState(out MissionState state), Is.True, label);
+                        LogAssert.Expect(LogType.Error, RefusedCoroutine); // the completion's save request
+                        Call(state, "MarkComplete");
+                        Assert.That(missions.Manager.GetPendingRewards(CollectableType.Orb), Is.EqualTo(2), label);
+                    }
+
+                    // The totals are authored into a real cached save: Initialise would cache the whole zone graph on open.
+                    var handler = new ProgressionCollectableHandler();
+                    handler.CacheEmptyProgress(missions.Save.CurrentSaveIndex);
+                    if (row.collected > 0)
+                        ((IDictionary)Get<object>(handler.ProgressPerSave[missions.Save.CurrentSaveIndex], "m_total"))[CollectableType.Orb] =
+                            new ProgressionCollectable(CollectableType.Orb, row.collected, 10);
+                    var progression = new ProgressionManager();
+                    Set(progression, "m_saveManager", missions.Save); // set by Initialise, which also caches every zone
+                    Set(progression, "m_collectables", handler);
+
+                    UIContainerOrbCollectableCounter counter = Counter(owned);
+                    Set(counter, "m_rewardType", CollectableType.Orb); // serialized authored data
+                    Set(counter, "m_animatePendingCount", row.animate); // serialized authored data
+                    if (row.animate && !row.replay && row.completed) LogAssert.Expect(LogType.Error, RefusedCoroutine); // the inactive host
+                    Assert.Throws<NullReferenceException>(() => Call(counter, "ProgressionManagerValid", progression), label);
+                    Assert.That(counter.CollectedAmount.Value, Is.EqualTo(row.shown), label);
+                    Assert.That(counter.HasValues.Value, Is.EqualTo(row.hasValues), label);
+                });
+            }
         }
 
         // OnDestroy 0x66CDF0 guards the icon release with SystemRef.IsNull (0x66ced3) and the reward type.

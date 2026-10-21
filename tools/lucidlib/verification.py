@@ -8449,6 +8449,16 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrbDetectorUITests." + name for name
     "TheMusicRestoreSwitchesTheFilterOffAndAppliesTheLowerCutoff",
     "ASourceWithoutAFilterOrAnUnknownSourceRemembersNothing",
     "OnAudioManagerValidKeepsTheManager",
+    "EnteringALevelPingsTheLastReachedLevelOnce",
+    "ThePingNeedsAManagerASourceAClipAndNoOrbCollection",
+    "EnablingResetsTheMusicEffectsAndHidesEveryLevel",
+    "DisablingResetsTheMusicCutoff",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerUtilitiesTests." + name for name in (
+    "WithoutASelectedLevelThereIsNoZoneAndTheBindersAreLeftAlone",
+    "TheSelectedLevelAndItsZoneComeFromTheMetaGameState",
+    "OnlyTheMissingLevelOrZoneIsTakenFromTheSelection",
+    "TheGradientIsLayeredFromTheZoneThenTheLevelThenTheMission",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerHudBindingTests." + name for name in (
     "TheIslandNameIsTheFirstActiveIslandsKey",
@@ -8471,6 +8481,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerHudBindingTests." + name 
     "GameplayControlIsAppliedOnStartAndRestoredOnDestroy",
     "TheSkipActionsFlagTheCutsceneManager",
     "StartLabelsTheSkipInputOnlyDuringATheatreSession",
+    "TheShownCountIsAheadOfTheSavedTotalOnlyForAnAnimatedPendingReward",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerHudDeclarationTests." + name for name in (
     "OrbDetectorUiDeclarations",

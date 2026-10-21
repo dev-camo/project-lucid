@@ -47,11 +47,12 @@ namespace ProjectLucid.Tests
             return container;
         }
 
-        // 0x696BC0: IsLoaded (0x1a3af60) gates the loaded container, which is then type-tested for IUIContainerProgress.
+        // 0x696BC0: IsLoaded (0x1a3af60) gates the loaded container, which is then type-tested for IUIContainerProgress
+        // (IsInst 0x696c0c), so a loaded container without progress gives null and the call is skipped, never a cast fault.
         [Test]
         public void ASetterOnlyReachesALoadedContainer()
         {
-            Owned.Run(owned =>
+            WithOwned(owned =>
             {
                 var setter = Add<UIContainerValueProgressSetter>(owned, "Lucid value setter");
                 ValueSetterRecordingProgressContainer container = Open(owned, setter, false);
@@ -61,6 +62,25 @@ namespace ProjectLucid.Tests
                 container = Open(owned, setter, true);
                 setter.SetProgress(0.5f);
                 Assert.That(container.Calls, Is.EqualTo(new[] { "SetProgress(0.5)" }));
+
+                // A real container that does not report progress.
+                var plainIdentifier = owned.Track(ScriptableObject.CreateInstance<UIContainerIdentifier>());
+                plainIdentifier.RegisterContainer(Add<UIContainerGameplayIsland>(owned, "Lucid plain container"));
+                Set(setter, "m_identifier", plainIdentifier);
+                Assert.DoesNotThrow(() => setter.SetProgress(0.5f));
+
+                var trigger = Add<ConditionalTriggerEvent>(owned, "Lucid trigger");
+                Set(trigger, "m_conditions", new[] { Add<TriggerConditionProbe>(owned, "Lucid probe") });
+                var conditional = Add<UIContainerConditionalTriggerSetter>(owned, "Lucid conditional setter");
+                Set(conditional, "m_conditionalTrigger", trigger);
+                Set(conditional, "m_identifier", plainIdentifier);
+                Assert.DoesNotThrow(() =>
+                {
+                    Call(conditional, "OnEnable");
+                    Call(conditional, "Update");
+                    Call(conditional, "OnDisable");
+                });
+                Assert.That(container.Calls, Is.EqualTo(new[] { "SetProgress(0.5)" }), "the progress container was never reached");
             });
         }
 
