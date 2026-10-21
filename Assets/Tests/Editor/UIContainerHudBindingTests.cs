@@ -164,6 +164,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
+                owned.LeaseRow<SaveManager>(); // MissionDefinition's field initialiser
                 owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
                 var container = Add<UIContainerLevelDefinition>(owned, "Lucid level definition");
                 var mission = owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
@@ -291,6 +292,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
+                owned.LeaseRow<SaveManager>(); // MissionDefinition's field initialiser
                 owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
                 UIContainerOrbCollectableCounter counter = Counter(owned);
                 var mission = owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
@@ -351,7 +353,9 @@ namespace ProjectLucid.Tests
                     if (row.collected > 0)
                         ((IDictionary)Get<object>(handler.ProgressPerSave[missions.Save.CurrentSaveIndex], "m_total"))[CollectableType.Orb] =
                             new ProgressionCollectable(CollectableType.Orb, row.collected, 10);
+                    // The manager's constructor subscribes both actions; WithMissions leases those rows.
                     var progression = new ProgressionManager();
+                    owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(progression)));
                     Set(progression, "m_saveManager", missions.Save); // set by Initialise, which also caches every zone
                     Set(progression, "m_collectables", handler);
 
