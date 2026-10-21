@@ -39,7 +39,7 @@ namespace HardlightProject
 		}
 
 		// 060015c9 (1.10.1 RVA 0x77C9D0); the target spline is cleared when the look ahead leaves the tracker or the
-		// character becomes invulnerable while the dash had not been (inverted check preserved from the native body).
+		// character becomes invulnerable while the dash had not been.
 		protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			base.DoUpdate(user, updateContext);

@@ -226,6 +226,8 @@ namespace ProjectLucid.Tests
                 foreach ((float angle, Vector3 expected) in new[]
                 {
                     (0f, Vector3.up),
+                    // Not exactly zero rather than positive: a negative angle turns towards gravity.
+                    (-30f, new Vector3(0.5f, Mathf.Sqrt(3f) / 2f, 0f)),
                     (30f, new Vector3(-0.5f, Mathf.Sqrt(3f) / 2f, 0f)),
                     (45f, new Vector3(-root, root, 0f)),
                     (90f, new Vector3(-1f, 0f, 0f)),

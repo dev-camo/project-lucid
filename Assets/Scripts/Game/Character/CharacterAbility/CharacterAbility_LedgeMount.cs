@@ -26,8 +26,9 @@ namespace HardlightProject
 			IsTriggered = false;
 		}
 
-		// 0600111f (1.10.1 RVA 0x747B70); a mountable ledge triggers the ability, while the first climbable
-		// (non mountable) ledge hit is added to the stored edge normals.
+		// 0600111f (1.10.1 RVA 0x747B70); a mountable ledge triggers the ability, while the first non mountable
+		// ledge hit (one facing away from the character, 0x74835B, or a climbable one) is added to the stored
+		// edge normals.
 		protected sealed override void DoOnUpdate(CharacterBrain brain, float deltaTime)
 		{
 			base.DoOnUpdate(brain, deltaTime);
