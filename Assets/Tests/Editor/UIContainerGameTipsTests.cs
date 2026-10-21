@@ -19,12 +19,27 @@ namespace ProjectLucid.Tests
     {
         private static readonly Strings[] ThreeTips = { (Strings)0x101, (Strings)0x102, (Strings)0x103 };
 
-        private static void WithTips(Strings[] tips, System.Action<UIContainerGameTips> body) => Owned.Run(owned =>
+        // Literal string-table content, so a shown tip is checked against text and not against another lookup.
+        private static readonly Dictionary<Strings, string> TipTexts = new Dictionary<Strings, string>
         {
-            var container = owned.Host("Lucid game tips", false).AddComponent<UIContainerGameTips>();
-            Set(container, "m_tipIds", new List<Strings>(tips)); // serialized authored data
-            body(container);
-        });
+            { (Strings)0x101, "tip A" },
+            { (Strings)0x102, "tip B" },
+            { (Strings)0x103, "tip C" },
+            { (Strings)0x201, "override A" },
+            { (Strings)0x202, "override B" },
+            { (Strings)0x301, "single tip" },
+        };
+
+        private static void WithTips(Strings[] tips, System.Action<UIContainerGameTips> body) =>
+            OwnedStringTable.Run(TipTexts, () => Owned.Run(owned =>
+            {
+                var container = owned.Host("Lucid game tips", false).AddComponent<UIContainerGameTips>();
+                Set(container, "m_tipIds", new List<Strings>(tips)); // serialized authored data
+                body(container);
+            }));
+
+        // The text the tip at the given shuffled position must show.
+        private static string TextAt(UIContainerGameTips container, int index) => TipTexts[Shuffled(container)[index]];
 
         private static List<Strings> Shuffled(UIContainerGameTips container) => Get<List<Strings>>(container, "m_shuffledTipIds");
 
@@ -85,8 +100,8 @@ namespace ProjectLucid.Tests
                 Assert.That(Shuffled(container), Is.EquivalentTo(ThreeTips));
                 Assert.That(Get<int>(container, "m_currentIndex"), Is.Zero);
                 Assert.That(Get<float>(container, "m_showTimerSeconds"), Is.Zero);
-                Assert.That(container.CurrentTip.Value, Is.EqualTo(StringTable.GetString(Shuffled(container)[0])));
-                Assert.That(container.CurrentTip.Value, Is.Not.Null, "the bindable was written");
+                Assert.That(container.CurrentTip.Value, Is.EqualTo(TextAt(container, 0)));
+                Assert.That(container.CurrentTip.Value, Is.EqualTo("tip A").Or.EqualTo("tip B").Or.EqualTo("tip C"));
                 Assert.That(Get<List<Strings>>(container, "m_tipIds"), Is.EqualTo(ThreeTips), "the authored list is only read");
             });
         }
@@ -119,6 +134,8 @@ namespace ProjectLucid.Tests
                 Assert.That(Shuffled(container), Is.EquivalentTo(overrides));
                 Assert.That(Get<int>(container, "m_currentIndex"), Is.Zero);
                 Assert.That(Get<List<Strings>>(container, "m_tipIds"), Is.EqualTo(ThreeTips));
+                Assert.That(container.CurrentTip.Value, Is.EqualTo(TextAt(container, 0)));
+                Assert.That(container.CurrentTip.Value, Is.EqualTo("override A").Or.EqualTo("override B"));
                 Assert.That(overrides, Has.Count.EqualTo(2), "the caller's list is copied, not consumed");
             });
         }
@@ -135,6 +152,7 @@ namespace ProjectLucid.Tests
                 Call(container, "Update");
 
                 Assert.That(Get<int>(container, "m_currentIndex"), Is.Zero, "(0 + 1) % 1");
+                Assert.That(container.CurrentTip.Value, Is.EqualTo("single tip"));
             });
         }
 
@@ -154,6 +172,7 @@ namespace ProjectLucid.Tests
                 {
                     Call(container, "Update");
                     seen.Add(Get<int>(container, "m_currentIndex"));
+                    Assert.That(container.CurrentTip.Value, Is.EqualTo(TextAt(container, seen[frame])), "the tip of the new index is shown");
                     Assert.That(Get<float>(container, "m_showTimerSeconds"), Is.Zero, "a refresh restarts the timer");
                 }
 
@@ -173,6 +192,7 @@ namespace ProjectLucid.Tests
                 Call(container, "Update");
 
                 Assert.That(Get<int>(container, "m_currentIndex"), Is.Zero);
+                Assert.That(container.CurrentTip.Value, Is.EqualTo(TextAt(container, 0)));
                 Assert.That(Get<float>(container, "m_showTimerSeconds"), Is.GreaterThanOrEqualTo(0f).And.LessThan(1e9f));
             });
         }
@@ -190,6 +210,7 @@ namespace ProjectLucid.Tests
                 Call(container, "Update");
 
                 Assert.That(Get<int>(container, "m_currentIndex"), Is.EqualTo(1));
+                Assert.That(container.CurrentTip.Value, Is.EqualTo(TextAt(container, 1)));
             });
         }
     }

@@ -9,7 +9,7 @@ namespace HardlightProject
 {
     // Original Game.Runtime 020008bb..020008bd (iterators); bodies 0x6317F0..0x6323C0 (1.10.1 x86-64).
     // Positions the content over the Game Center access point and shows the access point half a second
-    // after the container starts, fading the glyph in afterwards.
+    // after the first update that sees it available but not yet shown, fading the glyph in afterwards.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public sealed class UIContainerGameCenterAccessPoint : UIContainer
@@ -89,6 +89,7 @@ namespace HardlightProject
             yield return m_delayCallToGCAP;
             gameCenterAccessPointManager.ShowAccessPoint(m_location, m_showHighlights);
             Visible.Value = true;
+            // The original clears the cache right after showing, so a later logout never hides the container.
             m_cachedVisible = false;
             yield return ShowGlyph();
         }
@@ -125,8 +126,9 @@ namespace HardlightProject
             m_gameCenterAccessPointRef.Get().ShowGameCenter();
         }
 
-        // 06003261: the container hides itself when the player is not logged in to Game Center. Once
-        // the access point has been reported available the Available bindable is never cleared.
+        // 06003261: m_cachedVisible is only ever assigned false (Start, DelayAppearance and here), so
+        // the Visible = false branch is dead in the original. Once the access point has been reported
+        // available the Available bindable is never cleared.
         private void ValidateAvailability(GameCenterAccessPointManager gameCenterAccessPointManager)
         {
             if (!m_gameCenterRef.IsValid() || !m_gameCenterRef.Get().IsLoggedIn())

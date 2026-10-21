@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using Hardlight;
+using Hardlight.UI.Binding;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
-using Hardlight.UI.Binding;
 
 namespace HardlightProject
 {
@@ -96,6 +96,7 @@ namespace HardlightProject
             GameSpeedApplied.Value = timeManager.GameSpeedApplied;
             if (CharacterSelectVisible.Value && m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character))
             {
+                // Both Behaviour getters are evaluated unconditionally in the original (no short-circuit).
                 CharacterSelectAllowed.Value = CharacterSelectActive(character)
                     & !m_bossHealthContainer.isActiveAndEnabled
                     & m_canvas.enabled;
@@ -178,9 +179,8 @@ namespace HardlightProject
         private void SetupCollectableViews(CollectableManager collectableManager)
         {
             collectableManager.OnCollectableStateUpdate += OnCollectableStateUpdate;
-            for (int i = 0; i < m_collectableContainers.Length; i++)
+            foreach (UIContainerCollectableCounter container in m_collectableContainers)
             {
-                UIContainerCollectableCounter container = m_collectableContainers[i];
                 CollectableType type = container.Type;
                 bool exists = collectableManager.TryGetCollectableState(type, out CollectableState state);
                 CollectableDefinition definition = collectableManager.GetCollectableDefinition(type);
@@ -191,10 +191,10 @@ namespace HardlightProject
         // 0600327d
         private void OnCollectableStateUpdate(CollectableType collectableType, CollectableState collectableState, CollectableChangeMetadata metadata)
         {
-            for (int i = 0; i < m_collectableContainers.Length; i++)
+            foreach (UIContainerCollectableCounter container in m_collectableContainers)
             {
-                if (m_collectableContainers[i].Type == collectableType)
-                    m_collectableContainers[i].OnCollectableStateUpdate(collectableState, metadata);
+                if (container.Type == collectableType)
+                    container.OnCollectableStateUpdate(collectableState, metadata);
             }
         }
 

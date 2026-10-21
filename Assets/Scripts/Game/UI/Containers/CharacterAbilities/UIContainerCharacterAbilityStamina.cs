@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000868; bodies 0x611E20..0x612E80 (1.10.1 x86-64).
+    // Original Game.Runtime 02000868; bodies 0x611E20, 0x612270, 0x612330 and 0x612E80 (1.10.1 x86-64).
     // Shared stamina bar behaviour: the bar sits at half the character's bounds height and stays
     // visible for m_staminaUIRemainTime seconds after the stamina was last shown.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
@@ -42,7 +42,8 @@ namespace HardlightProject
             if (!TryGetCharacter(out Character character))
                 return;
             OrientateToCamera(transform);
-            transform.localPosition = new Vector3(0f, character.Bounds.size.y * 0.5f, 0f);
+            Vector3 localPosition = new Vector3(0f, character.Bounds.size.y * 0.5f, 0f);
+            transform.localPosition = localPosition;
             TimeoutPercentageRemaining.Value = 1f;
             m_staminaUIRemainTimer += deltaTime;
             if (shouldShow)
@@ -59,7 +60,7 @@ namespace HardlightProject
             else if (m_staminaUIRemainTime > 0f)
             {
                 StaminaValue.Value = 1f;
-                TimeoutPercentageRemaining.Value = 1f - (float)(m_staminaUIRemainTimer / m_staminaUIRemainTime);
+                TimeoutPercentageRemaining.Value = 1f - m_staminaUIRemainTimer / m_staminaUIRemainTime;
             }
         }
 

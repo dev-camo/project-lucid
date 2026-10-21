@@ -83,7 +83,7 @@ namespace HardlightProject
                 SetEnabled(true);
                 return;
             }
-            if (Mathf.Approximately(progress, previousProgress))
+            if (Mathf.Approximately(previousProgress, progress))
                 return;
             if (m_animation.clip == m_clipIntro && m_animation[m_animation.clip.name].normalizedTime < 1f)
                 return;

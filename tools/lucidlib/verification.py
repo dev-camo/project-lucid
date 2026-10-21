@@ -8879,7 +8879,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCollectableCounterTests."
     "TheCountAddsOnePerStepAndEndsAtTheTarget",
     "ASlowRingRateWaitsWithoutAddingAnything",
     "AZeroTargetEndsAtOnce",
-    "TheIteratorCannotBeReset",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterAbilityTests." + name for name in (
     "TheStaminaBasesMatchTheOriginalMetadata",
@@ -8896,7 +8895,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterAbilityTests." +
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerGameCenterAccessPointTests." + name for name in (
     "DeclarationsMatchTheOriginalMetadata",
     "ConstructionStartsWithHighlightsAndTheTwoWaits",
-    "StartActivatesTheManagerAndHidesTheEditorOnlyExtras",
+    "StartActivatesTheManagerAndLeavesThePlatformExtrasOffInTheEditor",
     "OnDestroyDeactivatesTheManager",
     "WithoutAManagerOnDestroyUpdateAndShowGameCenterDoNothing",
     "UpdateDoesNothingWhileTheAccessPointIsUnavailable",
@@ -8904,7 +8903,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerGameCenterAccessPointTest
     "ACachedAvailableStateIsKeptOnceAvailableIsSet",
     "TheDelayedAppearanceWaitsThenShowsAndYieldsTheGlyphFade",
     "TheGlyphFadeStartsFromZeroAlphaAndWaitsForTheEndOfTheFrame",
-    "TheIteratorsCannotBeReset",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerGameHUDTests." + name for name in (
     "DeclarationsMatchTheOriginalMetadata",

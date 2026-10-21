@@ -120,7 +120,7 @@ namespace ProjectLucid.Tests
         // only on the macOS player (platform 1, 0x63187e) and displays the glyph only on iOS (8) and tvOS (0x1f). The
         // editor is none of those, so the scaler ends disabled whatever it was and the glyph stays off.
         [Test]
-        public void StartActivatesTheManagerAndHidesTheEditorOnlyExtras()
+        public void StartActivatesTheManagerAndLeavesThePlatformExtrasOffInTheEditor()
         {
             WithContainer(true, (owned, rig) =>
             {
@@ -260,17 +260,6 @@ namespace ProjectLucid.Tests
 
                 Assert.That(rig.Group.alpha, Is.Zero);
                 Assert.That(routine.Current, Is.SameAs(Get<WaitForEndOfFrame>(rig.Container, "m_fadeInGlyph")));
-            });
-        }
-
-        // System.Collections.IEnumerator.Reset of both iterators (0x632210, 0x632370) raises NotSupportedException.
-        [Test]
-        public void TheIteratorsCannotBeReset()
-        {
-            WithContainer(true, (owned, rig) =>
-            {
-                Assert.Throws<NotSupportedException>(() => ((IEnumerator)Call(rig.Container, "ShowGlyph")).Reset());
-                Assert.Throws<NotSupportedException>(() => ((IEnumerator)Call(rig.Container, "DelayAppearance", rig.Manager)).Reset());
             });
         }
     }

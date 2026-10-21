@@ -8,7 +8,7 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
-    // The character ability UI containers: the stamina base (Game.Runtime 02000868, x86-64 0x611E20..0x612E80), its
+    // The character ability UI containers: the stamina base (Game.Runtime 02000868, x86-64 0x611E20, 0x612270, 0x612330 and 0x612E80), its
     // generic form (02000867, 0xCA7690..0xCA7720) and the Air (02000862, 0x611D30), BoostStamina (02000863, 0x612030),
     // Chaos (02000864, 0x612490), ChaosStamina (02000865, 0x612940) and SpinDash (02000866, 0x612C30) containers.
     // Each is a real component on an owned inactive host. The Air container runs through a real Character, a real

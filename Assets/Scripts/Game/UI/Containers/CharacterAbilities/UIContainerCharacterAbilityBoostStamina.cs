@@ -19,8 +19,9 @@ namespace HardlightProject
         private float m_rechargeUITimer;
 
         // 06003093: the bar shows while the boost is active, was recharged from a collectable or
-        // stamina is below full, unless the character's storage disables the stamina UI. An
-        // immediate reset keeps the timer at its full period.
+        // stamina is below full, unless the character's storage disables the stamina UI. Disabling the
+        // UI or an immediate stamina reset marks the remain period as elapsed, so a bar that is not
+        // shown hides at once.
         private void Update()
         {
             if (!TryGetCharacter(out Character character))

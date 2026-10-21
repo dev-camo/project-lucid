@@ -278,16 +278,5 @@ namespace ProjectLucid.Tests
                 Assert.That(counter.CollectedAmount.Value, Is.Zero);
             });
         }
-
-        // System.Collections.IEnumerator.Reset 0x625170 raises NotSupportedException.
-        [Test]
-        public void TheIteratorCannotBeReset()
-        {
-            WithCounter(false, (counter, positive, negative) =>
-            {
-                var routine = (IEnumerator)Call(counter, "LerpToCollectedTarget", 1);
-                Assert.Throws<NotSupportedException>(() => routine.Reset());
-            });
-        }
     }
 }

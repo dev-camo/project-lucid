@@ -115,13 +115,14 @@ namespace HardlightProject
                 m_collectedTarget = collectableState.Collected;
             else
                 CollectedAmount.Value = collectableState.Collected;
-            int change = CollectedAmount.Value - previousCollected;
+            int collected = CollectedAmount.Value;
+            int change = collected - previousCollected;
             if (change > 0)
             {
                 if (m_onPositiveChange != null)
                     m_onPositiveChange.Invoke(change);
             }
-            else if (CollectedAmount.Value != previousCollected && m_onNegativeChange != null)
+            else if (collected != previousCollected && m_onNegativeChange != null)
             {
                 m_onNegativeChange.Invoke(change);
             }

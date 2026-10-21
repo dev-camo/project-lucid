@@ -35,7 +35,8 @@ namespace HardlightProject
         {
             if (m_appRef.IsNull())
                 return;
-            m_continueButton.gameObject.SetActive(m_appRef.Get().ValidateHasAtLeastOneController(m_hlInputModule));
+            bool hasController = m_appRef.Get().ValidateHasAtLeastOneController(m_hlInputModule);
+            m_continueButton.gameObject.SetActive(hasController);
         }
 
         // 060031d1
