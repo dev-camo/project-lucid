@@ -178,7 +178,9 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 ProjectileScene scene = NewScene(owned, 3, Vector3.zero);
-                BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, scene);
+                // Two equal patterns: the second Enter must find one outside the recently used queue (06000af4 loops until it does).
+                BossAbility_ProjectileSpawnAndShootInRows ability = NewRows(owned, scene,
+                    d => d.SpawnOrders = new[] { Row("0,1,2", "1"), Row("0,1,2", "1") });
                 ability.Enter();
                 Assert.That(Get<Transform>(ability, "m_spawnTransform"), Is.SameAs(scene.Spawn));
                 ability.SetAttackFlow(true);
