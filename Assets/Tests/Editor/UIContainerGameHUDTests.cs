@@ -15,8 +15,12 @@ namespace ProjectLucid.Tests
     // and the CollectableManager (whose row the cases read) is registered. Start, Update and OnDestroy are not
     // covered: they subscribe to the static control mapping and input bridge, instance the boss health prefab and
     // read the App, TimeManager, save and mission managers (the app's focus flag, the saved game speed, the active
-    // mission's tracker and characters). The override branch of DetermineIfCharacterSelectIsActive and a character
-    // swap need a real mission context and a started CharacterManager.
+    // mission's tracker and characters). The override branch of DetermineIfCharacterSelectIsActive needs an active
+    // mission context (SetActiveMissionContext loads the mission group and save) and the data manager's characters, and
+    // the ChangeCharacter wrap ends in CharacterManager.SwapCharacter, whose id is observable only through the swap
+    // coroutine on the process-wide host with a started current character; CharacterSelectActive's CanSwitch passthrough
+    // needs a character with modifiers and collision trackers. None of those is built here, so the index wrap, the
+    // archetype override's Visible = false, Update's non-short-circuit evaluation and the game speed predicate are not covered.
     public sealed class UIContainerGameHUDTests
     {
         private static void WithHud(Action<Owned, UIContainerGameHUD, CollectableManager> body) => Owned.Run(owned =>

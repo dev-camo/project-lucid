@@ -36,7 +36,8 @@ namespace HardlightProject
 
         // 060030a3: nothing happens until the parameters name a live character. While shown the
         // timer restarts; once hidden the remaining time drains the bar from full, and a timer at or
-        // past the remain time hides it. A non-positive remain time leaves the bindables untouched.
+        // past the remain time hides it. The drain branch needs a positive remain time; with a non-positive
+        // one the bar hides as soon as it is not shown.
         protected void UpdatePositionAndBinders(bool shouldShow, bool shouldUpdate, float currentStamina, float deltaTime)
         {
             if (!TryGetCharacter(out Character character))

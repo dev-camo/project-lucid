@@ -207,6 +207,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The cache is written with the bindable (m_cachedAvailable = available, 0x631c2f) only when it differs from the
+        // manager's answer: a stale true cache with the bindable still false is replaced by the unavailable answer.
+        [Test]
+        public void ADifferingCachedAvailableStateIsReplacedByTheManagersAnswer()
+        {
+            WithContainer(true, (owned, rig) =>
+            {
+                Set(rig.Container, "m_cachedAvailable", true);
+                rig.Container.Available.Value = false;
+
+                Call(rig.Container, "ValidateAvailability", rig.Manager);
+
+                Assert.That(Get<bool>(rig.Container, "m_cachedAvailable"), Is.False);
+                Assert.That(rig.Container.Available.Value, Is.False);
+            });
+        }
+
+        // With the bindable already true the comparison is skipped (0x631c0a..0x631c2f), so the cache keeps its value.
         [Test]
         public void ACachedAvailableStateIsKeptOnceAvailableIsSet()
         {

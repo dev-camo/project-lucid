@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Hardlight;
 using Hardlight.Enums;
 using Hardlight.Localisation;
@@ -12,7 +13,8 @@ namespace ProjectLucid.Tests
 {
     // UIContainerGameTips (Game.Runtime 020008c3, x86-64 0x636070..0x6363D0) as a real component on an owned
     // inactive host, so its Unity messages are called directly. The shuffle draws with UnityEngine.Random, so a
-    // case asserts what any draw order must satisfy (every tip exactly once, the first shown) and never an order.
+    // case asserts what any draw order must satisfy (every tip exactly once, the first shown) and never a drawn order
+    // exactly; TheShuffleDrawsFromTheRandomState checks only that the draws are used and repeat under a seed.
     // Not covered: ShuffleTips and Refresh with an empty list, where Refresh's modulo by the zero count is a
     // divide fault in the original (idiv at 0x636248) that this edit-mode host cannot reproduce faithfully.
     public sealed class UIContainerGameTipsTests
@@ -117,6 +119,39 @@ namespace ProjectLucid.Tests
 
                 Assert.That(Shuffled(container), Has.Count.EqualTo(3));
                 Assert.That(Shuffled(container), Is.EquivalentTo(ThreeTips));
+            });
+        }
+
+        // The order comes from Random.Range(0, remaining) draws (0x6361a2), each taking the tip at the drawn index and
+        // removing it (get_Item 0x6361be, RemoveAt 0x636189). A body that copied the list in order, or always took the
+        // first, would give the authored order for every seed; a drawing one does not, and the same seed repeats its order.
+        [Test]
+        public void TheShuffleDrawsFromTheRandomState()
+        {
+            WithTips(ThreeTips, container =>
+            {
+                UnityEngine.Random.State prior = UnityEngine.Random.state;
+                try
+                {
+                    bool anyReordered = false;
+                    for (int seed = 1; seed <= 16; seed++)
+                    {
+                        UnityEngine.Random.InitState(seed);
+                        Call(container, "OnEnable");
+                        var first = new List<Strings>(Shuffled(container));
+                        UnityEngine.Random.InitState(seed);
+                        Call(container, "OnEnable");
+
+                        Assert.That(Shuffled(container), Is.EqualTo(first), "seed " + seed + " repeats its order");
+                        Assert.That(first, Is.EquivalentTo(ThreeTips));
+                        anyReordered |= !first.SequenceEqual(ThreeTips);
+                    }
+                    Assert.That(anyReordered, Is.True, "sixteen seeds all gave the authored order");
+                }
+                finally
+                {
+                    UnityEngine.Random.state = prior;
+                }
             });
         }
 

@@ -14,9 +14,9 @@ namespace ProjectLucid.Tests
     // UIContainerCollectableCounter (Game.Runtime 02000892, x86-64 0x624890..0x625170, iterator 02000893) as a
     // real component on an owned host. Its field initialisers take the ProgressionManager and SaveManager
     // references, so those registry rows are leased first. The counter is added active only where a case needs
-    // StartCoroutine, which in Edit Mode runs the first iterator step at once. Setup, Refresh and the save-backed
-    // update are not covered: they read the collectable definition's addressable icon, the ProgressionManager and
-    // the open save.
+    // StartCoroutine, which in Edit Mode runs the first iterator step at once. Setup and the save-backed update are
+    // not covered: they read the collectable definition's addressable icon, the ProgressionManager and the open
+    // save. Refresh is covered for the gameplay path only.
     public sealed class UIContainerCollectableCounterTests
     {
         private static void WithCounter(bool active, Action<UIContainerCollectableCounter, List<int>, List<int>> body) => Owned.Run(owned =>
@@ -202,6 +202,50 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<Coroutine>(counter, "m_collectedCoroutine"), Is.Not.Null);
                 Assert.That(Get<int>(counter, "m_collectedTarget"), Is.EqualTo(4));
                 Assert.That(positive, Is.Empty, "nothing has been added yet");
+            });
+        }
+
+        // On a MissionStart update StartCoroutine has already run the first iterator step, which zeroed the amount, when
+        // the change is taken: the difference is the zeroed amount minus the previous one (get_Value 0x624d1a, then
+        // sub/jle/Invoke 0x624d22..0x624d54), so a count of 3 restarted towards 4 reports -3, not the target's +1.
+        [Test]
+        public void AMissionStartReportsTheDropToZeroAgainstThePreviousCount()
+        {
+            WithCounter(true, (counter, positive, negative) =>
+            {
+                Set(counter, "m_ringCountRate", 1000f); // authored; the first step then cannot add a ring
+                counter.OnCollectableStateUpdate(State(10, 3), default);
+                positive.Clear();
+
+                counter.OnCollectableStateUpdate(State(10, 4), From(CollectableSource.MissionStart));
+
+                Assert.That(negative, Is.EqualTo(new[] { -3 }));
+                Assert.That(positive, Is.Empty);
+                Assert.That(counter.CollectedAmount.Value, Is.Zero);
+            });
+        }
+
+        // Refresh 0x616fd0 branches on the parameters' InGameplay flag (+0xa1, set by the state constructor 0x6251ee) and
+        // then on CollectableExists (+0xa0): a missing collectable clears HasValues (0x61700a); an existing one shows its state.
+        [Test]
+        public void RefreshInGameplayClearsOrShowsTheState()
+        {
+            WithCounter(false, (counter, positive, negative) =>
+            {
+                Set(counter, "m_parameters", new UIContainerCollectableCounterParameters(State(5, 2), null, false));
+                counter.HasValues.Value = true;
+
+                counter.Refresh();
+
+                Assert.That(counter.HasValues.Value, Is.False);
+                Assert.That(counter.TotalAmount.Value, Is.Zero);
+
+                Set(counter, "m_parameters", new UIContainerCollectableCounterParameters(State(5, 2), null, true));
+                counter.Refresh();
+
+                Assert.That(counter.TotalAmount.Value, Is.EqualTo(5));
+                Assert.That(counter.CollectedAmount.Value, Is.EqualTo(2));
+                Assert.That(counter.HasValues.Value, Is.True);
             });
         }
 
