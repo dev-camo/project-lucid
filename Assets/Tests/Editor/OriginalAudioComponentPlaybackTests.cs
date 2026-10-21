@@ -980,7 +980,8 @@ namespace ProjectLucid.Tests
                         continue;
                     }
                     Assert.That(Get(ambient, "m_timeSinceLastPlay"), Is.EqualTo(0f), label);
-                    Assert.That(Get(ambient, "m_randomCooldown"), Is.EqualTo(2f), label);
+                    // Engine rounding, not our code: Random.Range(2f, 2f) can return one ulp above 2.
+                    Assert.That(Get(ambient, "m_randomCooldown"), Is.EqualTo(2f).Within(1e-5f), label);
                     // One clip: the pick equals m_lastPlayed, but Length 1 ends the loop.
                     Assert.That(Random.state, Is.EqualTo(afterSinglePick), label + " picks once");
                     Assert.That(Get(ambient, "m_lastPlayed"), Is.EqualTo(0), label);
@@ -1048,7 +1049,9 @@ namespace ProjectLucid.Tests
                     Call(typeof(HLAudioOneShotShuffledLoop), loop, "TryPlayOneShot");
                     Assert.That(Get(loop, "m_lastPlayedIndex"), Is.EqualTo(row.plays ? 1 : 0), label);
                     Assert.That(log.Count(LogType.Warning, UnityLogCounter.NullOneShot), Is.EqualTo(row.plays ? 1 : 0), label);
-                    Assert.That(Get(loop, "m_randomCooldown"), Is.EqualTo(row.plays ? 2f : float.PositiveInfinity), label);
+                    // Engine rounding, not our code: Random.Range(2f, 2f) can return one ulp above 2; the refused case stays exact.
+                    if (row.plays) Assert.That(Get(loop, "m_randomCooldown"), Is.EqualTo(2f).Within(1e-5f), label);
+                    else Assert.That(Get(loop, "m_randomCooldown"), Is.EqualTo(float.PositiveInfinity), label);
                     if (row.plays) Assert.That(Get(loop, "m_timeSinceLastPlay"), Is.EqualTo(0f), label);
                 }
 

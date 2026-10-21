@@ -933,7 +933,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // A boss 5 from the arena centre with a range of 11 makes the circle radius Random.Range(3, |11 - 3 - 5|) = 3 exactly and keeps
+        // A boss 5 from the arena centre with a range of 11 makes the circle radius Random.Range(3, |11 - 3 - 5|) = 3 (to the engine's float rounding) and keeps
         // every point of the circle inside the allowed diameter, so the random choices are fixed.
         private static BossAbility_MoveRandom NewBoundedMoveRandom(Owned owned, Boss boss) =>
             NewMoveRandom(owned, boss, d =>
@@ -958,7 +958,8 @@ namespace ProjectLucid.Tests
 
                 Assert.That(Get<float>(ability, "m_speedAdjusted"), Is.EqualTo(3f), "the velocity magnitude");
                 Assert.That(Get<Vector3>(ability, "m_bossEntryPoint"), Is.EqualTo(new Vector3(3f, 1f, 4f)));
-                Assert.That(Get<float>(ability, "m_radiusOfCircle"), Is.EqualTo(3f));
+                // Engine rounding, not our code: Random.Range(3f, 3f) can return 3.00000024 (one ulp up; run77d).
+                Assert.That(Get<float>(ability, "m_radiusOfCircle"), Is.EqualTo(3f).Within(1e-5f));
                 AssertNear(Get<Vector3>(ability, "m_centerOfCircle"), new Vector3(1.2f, 1f, 1.6f), "centre 3 from the boss towards the origin", 1e-4f);
                 Assert.That(Get<float>(ability, "m_originalArcRadians"), Is.EqualTo(Mathf.Atan2(4f - 1.6f, 3f - 1.2f)).Within(1e-4f),
                     "the stored arc is the direction from the centre to the boss");
