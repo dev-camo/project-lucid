@@ -268,8 +268,10 @@ namespace ProjectLucid.Tests
 
         // ---- Immediate target ----
 
-        // 0xE68E80: Character.IsActive first (it needs a live body), then no active target already
-        // (CharacterHomingPool.IsTargetActive) and finally SetTargetImmediately with the ability itself.
+        // 0xE68E80: Character.IsActive first (0xE68EAA, it needs a live body), then no active target already
+        // (CharacterHomingPool.IsTargetActive, 0xE68EC3) and finally SetTargetImmediately with the ability itself
+        // (0xE68F0C); those are the only native calls. The HomingPool getter, read once for each pool call, is
+        // inlined there and stays a call in IL.
         [Test]
         public void CallOrderTheImmediateTargetNeedsAnActiveCharacterAndNoActiveTarget()
         {
@@ -277,7 +279,8 @@ namespace ProjectLucid.Tests
             int active = IndexOf(calls, "Character", "IsActive");
             int targetActive = IndexOf(calls, "CharacterHomingPool", "IsTargetActive", active + 1);
             IndexOf(calls, "CharacterHomingPool", "SetTargetImmediately", targetActive + 1);
-            Assert.That(calls.Count, Is.EqualTo(3));
+            Assert.That(calls.Count(call => call.Name == "get_HomingPool"), Is.EqualTo(2));
+            Assert.That(calls.Count(call => call.Name != "get_HomingPool"), Is.EqualTo(3));
         }
     }
 }

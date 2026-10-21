@@ -16,7 +16,10 @@ namespace ProjectLucid.Tests
     {
         private static Type Nested(Type owner, string name) => owner.GetNestedType(name, BindingFlags.Public | BindingFlags.NonPublic);
 
+        // Serializable is TypeDef flag 0x2000 (checked with the type flags), not a CustomAttribute row, but
+        // Mono's reflection reports it among the attributes.
         private static string[] AttributeNames(Type type) => type.GetCustomAttributesData()
+            .Where(data => data.AttributeType != typeof(SerializableAttribute))
             .Select(data => data.AttributeType.Name == "Il2CppSetOptionAttribute"
                 ? "Il2CppSetOption:" + Convert.ToInt32(data.ConstructorArguments[0].Value)
                 : data.AttributeType.Name.Replace("Attribute", "")).ToArray();

@@ -655,6 +655,10 @@ namespace ProjectLucid.Tests
         }
 
         // 0xE61BE0: valid only while the ability is enabled, and for a target the mask and type lists accept.
+        // ActorAbility.Enter sets Enabled before DoOnEnter (0xE618D0), whose EnableHomingTarget (0xE61D10) sets the
+        // box body's detectCollisions and then schedules the box on the next frame. The body is the one Initialise
+        // reads from the spawned box; the next-frame host is absent in Edit Mode, so scheduling is the fault that
+        // ends the entry, after everything this case reads.
         [Test]
         public void ATargetIsValidOnlyWhileTheAbilityIsEnabled()
         {
@@ -663,7 +667,22 @@ namespace ProjectLucid.Tests
                 HomingTarget enemy = NewTarget(owned, "Lucid enemy", Vector3.zero);
                 HomingTarget ring = NewTarget(owned, "Lucid ring", Vector3.zero, HomingTargetType.Ring);
                 Assert.That(ability.IsHomingTargetValid(enemy), Is.False, "not entered");
-                ability.Enter();
+                var body = owned.Host("Lucid detection box body", false).AddComponent<Rigidbody>();
+                body.detectCollisions = false;
+                Set(ability, "m_rigidbody", body);
+                FieldInfo host = typeof(Hardlight.Utils.CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
+                object prior = host.GetValue(null);
+                host.SetValue(null, null);
+                try
+                {
+                    NullReferenceException fault = Assert.Throws<NullReferenceException>(() => ability.Enter());
+                    Assert.That(fault.StackTrace, Does.Contain("CoroutineUtils.OnNextFrame"), "the fault comes from scheduling the box");
+                }
+                finally
+                {
+                    host.SetValue(null, prior);
+                }
+                Assert.That(body.detectCollisions, Is.True, "EnableHomingTarget(true) ran");
                 Assert.That(ability.IsHomingTargetValid(enemy), Is.True);
                 Assert.That(ability.IsHomingTargetValid(ring), Is.False, "type not listed");
             });
