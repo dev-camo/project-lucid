@@ -96,10 +96,10 @@ namespace ProjectLucid.Tests
         [Test]
         public void FireSetsUpEachNightmareProjectileOnTheSplineAndSubscribesToItsExpiry()
         {
-            Owned.Run(owned =>
+            // Setup fetches the CharacterManager with GetSystem (060022cb), which faults without a registered one.
+            CharacterTriggerTestSupport.WithManager((owned, characters, character) =>
             {
                 owned.LeaseRow<TimeManager>();
-                owned.LeaseRow<CharacterManager>(); // Setup caches it
                 SplineProjectileSpawner spawner = NewSpawner(owned);
                 SplineSpawnRecordingNightmareProjectile projectile =
                     EnemyAbilityTestSupport.AddTimeScaled<SplineSpawnRecordingNightmareProjectile>(owned.Host("Lucid spline nightmare", false));
