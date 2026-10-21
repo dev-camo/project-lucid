@@ -9890,6 +9890,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionMusicPlayerTests."
     "UpdateShowsTheSourceTime",
     "TheClipLengthIsTheTotalTimeFormattedAsMinutesAndSeconds",
     "PlayingTheClipAlreadyPlayingLeavesTheSourceUntouched",
+    "PlayingAnotherClipHandsItToTheBackgroundSource",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionSelectTests." + name for name in (
     "ASavedNewStateIsReturnedOnlyForAMissionSomeGroupHolds",

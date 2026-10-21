@@ -18,8 +18,7 @@ namespace ProjectLucid.Tests
     // Action_ToggleShuffle, OnMusicTrackChanged and the WaitForMusic iterator), because a real MusicTrackManager subscribes
     // to the save, level and mission managers on construction. Of SelectTrack that leaves untested the jukebox naming (0x63DCC0
     // picks "{0}. {1}" for a track that is not hidden in the jukebox and the bare name for a hidden one), which also needs the
-    // string table, the data manager's track list and an Addressables clip load; and of Play the restart of a different clip
-    // (seek to 0, pause, PlayClipAtSource), which loads the clip through Addressables. Also not covered: the toggles, the playing
+    // string table, the data manager's track list and an Addressables clip load; and of Play the Addressables load of a clip the clip handler does not hold yet. Also not covered: the toggles, the playing
     // animations and the repeat-on branch of Action_ToggleRepeat, which need a UIToggle; and Seek, which needs a clip on the
     // source.
     public sealed class UIContainerMissionMusicPlayerTests
@@ -177,8 +176,9 @@ namespace ProjectLucid.Tests
         }
 
         // Play 0x63DE80 restarts the source (seek to 0, pause, PlayClipAtSource) only for a clip other than the one already
-        // playing (0x63DEB5); for the same clip the source keeps its position, then the slider is made interactable and the
-        // source's looping follows the repeat flag.
+        // playing (0x63DEB5); for the same clip the source is left as it is, then the slider is made interactable and the
+        // source's looping follows the repeat flag. The source sits on an inactive host, where Edit Mode keeps no playback
+        // position, so "untouched" is observed through what PlayClipAtSource would change: the source's clip and its current audio.
         [Test]
         public void PlayingTheClipAlreadyPlayingLeavesTheSourceUntouched()
         {
@@ -187,9 +187,7 @@ namespace ProjectLucid.Tests
                 AudioClip clip = AudioClip.Create("lucid mission music playing", 8 * 8000, 1, 8000, false);
                 rig.Services.Own(clip);
                 rig.Source.clip = clip;
-                rig.Source.time = 1.5f;
                 rig.Source.loop = true;
-                Assert.That(rig.Source.time, Is.EqualTo(1.5f).Within(0.01f));
                 Enable(rig);
                 MusicTrackDefinition track = Create<MusicTrackDefinition>(rig.Owned, "{\"m_identifier\":" + (int)HLAudioClipIdentifier.AmbientBossCrabWind + "}");
                 // Reflection: assigned by SelectTrack and WaitForMusic, which need the music track manager
@@ -200,9 +198,31 @@ namespace ProjectLucid.Tests
 
                 Call(rig.Container, "Play");
 
-                Assert.That(rig.Source.time, Is.EqualTo(1.5f).Within(0.01f), "the source was not rewound");
+                Assert.That(rig.Source.clip, Is.SameAs(clip), "the audio manager was not asked to play the clip again");
+                Assert.That(rig.Services.Source(HLAudioSourceIdentifier.Background).CurrentAudio, Is.EqualTo((HLAudioClipIdentifier)0));
                 Assert.That(rig.Container.TrackSliderInteractable.Value, Is.True);
                 Assert.That(rig.Source.loop, Is.False, "looping follows the repeat flag");
+            });
+        }
+
+        // The other branch of Play (0x63DEB5): a clip other than the one playing is handed to the audio manager, whose clip handler
+        // already holds it here, and the background source takes it.
+        [Test]
+        public void PlayingAnotherClipHandsItToTheBackgroundSource()
+        {
+            Run(true, rig =>
+            {
+                AudioClip clip = rig.Services.Clip(HLAudioClipIdentifier.AmbientBossCrabWind, "lucid mission music other");
+                Enable(rig);
+                MusicTrackDefinition track = Create<MusicTrackDefinition>(rig.Owned, "{\"m_identifier\":" + (int)HLAudioClipIdentifier.AmbientBossCrabWind + "}");
+                Set(rig.Container, "m_currentTrackDefinition", track); // Reflection: assigned by SelectTrack, which needs the music track manager
+                Set(rig.Container, "m_playingAnimations", new Animation[0]); // Reflection: serialized array
+
+                Call(rig.Container, "Play");
+
+                Assert.That(rig.Source.clip, Is.SameAs(clip));
+                Assert.That(rig.Services.Source(HLAudioSourceIdentifier.Background).CurrentAudio, Is.EqualTo(HLAudioClipIdentifier.AmbientBossCrabWind));
+                Assert.That(Get<HLAudioClipIdentifier>(rig.Container, "m_currentlyPlayingClip"), Is.EqualTo(HLAudioClipIdentifier.AmbientBossCrabWind));
             });
         }
     }

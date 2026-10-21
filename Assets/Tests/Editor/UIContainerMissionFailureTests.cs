@@ -10,8 +10,9 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 namespace ProjectLucid.Tests
 {
     // UIContainerMissionFailure (Game.Runtime 0x020008da; OnEnable 0x63BCF0, Exit 0x63BDE0, Restart 0x63BFA0, CleanUp 0x63C030)
-    // over a real App, MissionManager and LevelManager. Not covered: Restart with a current level (the current level comes
-    // from a loaded scene, so LevelManager.Restart returns at its first test here).
+    // over a real App, MissionManager and LevelManager holding a current level. Not covered: the mixer volume reset of
+    // LevelManager.Restart (it needs a registered AudioManager, which Edit Mode cannot build) and a restart that is refused
+    // because a restart is already in progress or the meta game is active.
     public sealed class UIContainerMissionFailureTests
     {
         private const Strings Default = (Strings)111;
@@ -117,8 +118,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Restart 0x63BFA0 cleans up the stored message and asks the level manager to restart (which does nothing without a
-        // current level), without queueing the exit event or writing the failure screen flag.
+        // Restart 0x63BFA0 cleans up the stored message and asks the level manager to restart. With a current level, no restart
+        // in progress and no meta game (LevelManager.Restart 0x5929F0) that queues the level manager's restart event and marks
+        // the restart in progress and the game not post-game; the exit event is not queued and the failure screen flag is not written.
         [Test]
         public void RestartClearsTheMessageAndLeavesTheExitEventAndFlagAlone()
         {
@@ -126,16 +128,23 @@ namespace ProjectLucid.Tests
             {
                 rig.App.Storage.SetValue(AppFSMKeys.FailureScreenStringOverride, Stored);
                 rig.App.Storage.SetValue(AppFSMKeys.ShowFailureScreen, true);
+                // LevelManager.Initialise takes the App through its SystemRef, but also parents a DontDestroyOnLoad object that Edit
+                // Mode cannot own, so the App it would take is assigned directly.
+                Set(rig.Missions.Level, "m_app", rig.App); // Reflection: private field Initialise assigns
+                var restartEvent = rig.Owned.Track(ScriptableObject.CreateInstance<UIModernEvent>());
+                Set(rig.Missions.Level, "m_restartUIEvent", restartEvent); // Reflection: serialized reference
 
                 rig.Container.Action_Restart();
 
                 Assert.That(TryStored(rig, out _), Is.False);
-                Assert.That(rig.Events, Is.Empty);
+                Assert.That(rig.Events, Is.EqualTo(new[] { restartEvent }), "the restart event, not the exit event");
+                Assert.That(rig.App.Storage.GetValueOnly<bool>(AppFSMKeys.RestartInProgress), Is.True);
+                Assert.That(rig.App.Storage.GetValueOnly<bool>(AppFSMKeys.IsInPostGame), Is.False);
                 Assert.That(rig.App.Storage.TryGetValue(AppFSMKeys.ShowFailureScreen, out bool show) && show, Is.True);
                 Assert.That(Get<bool>(rig.Container, "m_isExiting"), Is.True);
 
                 rig.Container.Action_Exit();
-                Assert.That(rig.Events, Is.Empty, "the restart already used the container");
+                Assert.That(rig.Events, Is.EqualTo(new[] { restartEvent }), "the restart already used the container");
             });
         }
     }

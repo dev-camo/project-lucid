@@ -248,6 +248,9 @@ namespace ProjectLucid.Tests
                 foreach (MissionDefinition mission in new[] { hidden, first, second, ghostA, ghostB, unshown, third })
                 {
                     SetComplete(rig, mission, true);
+                    // A mission whose unlock the player has seen plays no unlock animation (UIWidgetToggleMission.Setup 0x6A3CC0), which
+                    // would queue a clip on the toggle's UITransitionAnimation that the prefab does not have in Edit Mode.
+                    saveLevel.GetOrCreateMissionData(mission.GetGUID()).LevelSelectUnlockSeen = true;
                     Call(rig.Missions.Manager, "CreateMissionState", mission, saveLevel);
                 }
                 var unmet = Create<RequirementMissionGroupShadowFTUEAvailable>(owned);
@@ -274,15 +277,21 @@ namespace ProjectLucid.Tests
             });
         }
 
-        private static void AddRank(Owned owned, DataManager data, RankType type, out Sprite[] icons)
+        private static RankDefinition AddRank(Owned owned, DataManager data, RankType type, out Sprite[] icons)
         {
             RankDefinition definition = Create<RankDefinition>(owned, "{\"m_type\":" + (int)type + "}");
             Call(definition, "OnEnable"); // the wrappers Unity's own OnEnable builds, built again so they are certain to exist
             icons = new[] { NewSprite(owned), NewSprite(owned), NewSprite(owned) };
+            CacheIcons(definition, icons);
+            data.RankDefinitions[type] = definition;
+            return definition;
+        }
+
+        private static void CacheIcons(RankDefinition definition, Sprite[] icons)
+        {
             Cache(definition.BaseAddressable, icons[0]);
             Cache(definition.BackgroundAddressable, icons[1]);
             Cache(definition.ForegroundAddressable, icons[2]);
-            data.RankDefinitions[type] = definition;
         }
 
         // UpdateRankVisibility 0x643690 shows the rank icons of the rank the best time earns (TryGetRankForTimeSeconds, here S 30 s and
@@ -295,7 +304,7 @@ namespace ProjectLucid.Tests
             {
                 Owned owned = world.Owned;
                 var data = owned.Register(owned.Host("Lucid data manager", false).AddComponent<DataManager>());
-                AddRank(owned, data, RankType.A, out Sprite[] aIcons);
+                RankDefinition rankA = AddRank(owned, data, RankType.A, out Sprite[] aIcons);
                 var ranks = owned.Track(ScriptableObject.CreateInstance<MissionRankDefinition>());
                 foreach ((RankType type, int seconds) in new[] { (RankType.S, 30), (RankType.A, 45) })
                 {
@@ -313,14 +322,19 @@ namespace ProjectLucid.Tests
                 Assert.That(widget.ShowRankIcon.Value, Is.True);
                 Assert.That(new[] { widget.RankIconBase.Value, widget.RankIconBackground.Value, widget.RankIconForeground.Value }, Is.EqualTo(aIcons));
 
+                // Showing a rank again would first unload the widget's own wrapper of it, which at a count of one drops the cached sprite
+                // and loads it through Addressables (built player content, not available in Edit Mode). The rank's wrappers are cached
+                // again by hand before each further show, the way a finished load would leave them.
                 foreach (float bestTime in new[] { 10f, 50f })
                 {
-                    InvokeStatic("UpdateRankVisibility", mission, widget, 40f);
                     InvokeStatic("UpdateRankVisibility", mission, widget, bestTime);
                     Assert.That(widget.ShowRankIcon.Value, Is.False, "best time " + bestTime);
                     Assert.That(widget.RankIconBase.Value, Is.Null, "best time " + bestTime);
                     Assert.That(widget.RankIconBackground.Value, Is.Null);
                     Assert.That(widget.RankIconForeground.Value, Is.Null);
+                    CacheIcons(rankA, aIcons);
+                    InvokeStatic("UpdateRankVisibility", mission, widget, 40f);
+                    Assert.That(widget.ShowRankIcon.Value, Is.True, "shown again before " + bestTime);
                 }
             });
         }
