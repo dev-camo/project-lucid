@@ -7478,10 +7478,13 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraHeadingTriggerTests." + name f
     "TheIncomingDirectionModeUsesTheDirectionFromTheCharacterToEachOverride",
     "TheAlignedModesPickTheOverrideFacingTheirDirection",
     "AMinimumAngleRuleRejectsOverridesWhoseCosineIsBelowItsLimit",
+    "AMinimumAngleRuleKeepsAnOverrideWhoseCosineEqualsItsLimit",
     "TheClosestModeAnswersTheNearestOverrideThatPassesItsAngleRule",
+    "TheClosestModeKeepsTheFirstOfTwoEquidistantOverrides",
     "AwakeCachesTheLimitCosineOfEveryOverride",
     "EnteringAppliesTheSelectedOverrideAndExitingRemovesIt",
     "ATriggerThatTriggersOnceIgnoresEveryLaterEnterAndExit",
+    "ATriggerThatTriggersOnceOnlyClosesAfterReleasingALiveOverride",
     "ARepeatableTriggerAppliesAgainOnEveryEnter",
     "TheActionsApplyReplaceAndRemoveTheOverride",
     "ContinuousUpdatesSwitchTheOverrideOnlyAfterTheDelay",
@@ -7498,7 +7501,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraTypeOverrideComponentTests." +
     "RequestingAChangeSwitchesTheCharacterCamera",
     "ApplyingAndRemovingTheCameraTypeMovesThatCamerasPriorityAndCompletes",
     "WithoutTheCameraManagerOnlyAHandlelessRemovalCompletes",
+    "AProxyTargetTransformIsAssignedOnApplyAndReturnedToTheCharacterOnRemoval",
     "EnteringWithoutDelaysOverridesTheCameraTypeAndItsTargetsAndLeavingReleasesIt",
+    "ADelayThatIsNotPositiveAppliesTheOverrideAndTheTargetsAtOnce",
     "EnteringAgainReleasesTheEarlierOverrideBeforeApplyingTheNewOne",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineAddTransformToTargetGroupTests." + name for name in (
@@ -7512,6 +7517,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineAddTransformToTargetGroup
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineClientComponentTests." + name for name in (
     "TheTargetIsAssignedOnceWhenTheMainCameraBecomesReady",
+    "AnAlreadyReadyMainCameraAssignsTheTargetAtOnce",
     "EachTargetFlagControlsItsOwnTarget",
     "DisablingBeforeTheManagerExistsLeavesTheStartupSubscriptionInPlace",
     "ARecenterComponentResetsToHalfAndAllowsResetOnCameraLiveByDefault",

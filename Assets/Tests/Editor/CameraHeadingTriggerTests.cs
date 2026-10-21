@@ -179,6 +179,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The rule rejects only when the limit cosine is strictly above the direction cosine (ordered ucomiss, jbe to
+        // valid at 0x5c91c7 and ja to skip at 0x5c946f), so an override whose cosine equals its limit is kept. The
+        // authored tooltip ("greater than or equal to this angle") would reject it. A limit of 0 degrees has cosine 1
+        // and the aligned override's direction cosine is exactly 1.
+        [Test]
+        public void AMinimumAngleRuleKeepsAnOverrideWhoseCosineEqualsItsLimit()
+        {
+            WithTrigger(false, (owned, scene) =>
+            {
+                CameraHeadingOverride[] headings =
+                {
+                    Heading(owned, "faces x", Vector3.zero, Vector3.right),
+                    Heading(owned, "faces z", Vector3.zero, Vector3.forward, settings =>
+                    {
+                        settings.RequireMinimumAngle = true;
+                        settings.MaximumAngleThreshold = 0f;
+                    }),
+                };
+                Configure(scene, CharacterForward, headings);
+                Assert.That(Select(scene, headings), Is.EqualTo(1));
+            });
+        }
+
         // Mode 3 (SelectClosest 0x5C93D0) answers the nearest override by Vector3.Distance (the strict less test at
         // 0x5c94d9), skipping those the character's forward fails the same minimum-angle rule for (0x5c946f).
         [Test]
@@ -204,6 +227,23 @@ namespace ProjectLucid.Tests
                 headings[1].Settings.MaximumAngleThreshold = 100f;
                 headings[1].Settings.UpdateCachedValues();
                 Assert.That(Select(scene, headings), Is.EqualTo(1), "a 100 degree limit accepts it");
+            });
+        }
+
+        // SelectClosest replaces its answer only when the stored distance is strictly greater (ucomiss, jbe skip at
+        // 0x5c94d9), so the first of two equidistant overrides wins.
+        [Test]
+        public void TheClosestModeKeepsTheFirstOfTwoEquidistantOverrides()
+        {
+            WithTrigger(false, (owned, scene) =>
+            {
+                CameraHeadingOverride[] headings =
+                {
+                    Heading(owned, "on z", new Vector3(0f, 0f, 3f), Vector3.forward),
+                    Heading(owned, "on x", new Vector3(3f, 0f, 0f), Vector3.forward),
+                };
+                Configure(scene, ClosestDistance, headings);
+                Assert.That(Select(scene, headings), Is.EqualTo(0));
             });
         }
 
@@ -268,6 +308,31 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // m_canTrigger is cleared only inside RemoveCameraSettingOverride after a live handle was released: without a
+        // handle 0x5c8e32 jumps past the clear (0x5c8ec7; the clear is at 0x5c8ec0). A second enter while live removes
+        // first (0x5c87eb), which already clears it, so the following exit returns at 0x5c8dad and keeps the override.
+        [Test]
+        public void ATriggerThatTriggersOnceOnlyClosesAfterReleasingALiveOverride()
+        {
+            WithTrigger(false, (owned, scene) =>
+            {
+                CameraHeadingOverride heading = Heading(owned, "faces z", Vector3.zero, Vector3.forward);
+                Configure(scene, CharacterForward, heading);
+                Set(scene.Trigger, "m_onlyTriggerOnce", true);
+
+                Call(scene.Trigger, "OnDisable");
+                Call(scene.Trigger, "DoTriggerEnter", scene.Character);
+                Assert.That(Applied(scene), Is.SameAs(heading), "releasing nothing keeps the trigger open");
+
+                Call(scene.Trigger, "DoTriggerEnter", scene.Character);
+                Call(scene.Trigger, "DoTriggerExit", scene.Character);
+                Assert.That(Applied(scene), Is.SameAs(heading), "the replacing enter closed the trigger, so the exit is ignored");
+
+                Call(scene.Trigger, "OnDisable");
+                Assert.That(Applied(scene), Is.Null, "removal does not check the flag");
+            });
+        }
+
         [Test]
         public void ARepeatableTriggerAppliesAgainOnEveryEnter()
         {
@@ -324,7 +389,8 @@ namespace ProjectLucid.Tests
         // DoTriggerStay 0x5C88E0 only reconsiders the selection while continuously updating with a live override. A
         // different best override replaces the current one once the accumulated time reaches the switch delay (0x5c89c8,
         // jb), and the accumulated time is cleared when the best override is the current one (0x5c8a1c). The delay is
-        // chosen as zero and as a value no frame reaches, so the case does not depend on the frame time.
+        // chosen as a value no frame reaches and as one the stored timer already reaches, so the case does not depend on
+        // the frame time.
         [Test]
         public void ContinuousUpdatesSwitchTheOverrideOnlyAfterTheDelay()
         {
@@ -349,14 +415,24 @@ namespace ProjectLucid.Tests
                 Set(scene.Trigger, "m_continuousUpdateSwitchDelaySeconds", 1e9f);
                 Call(scene.Trigger, "DoTriggerStay", scene.Character);
                 Assert.That(Applied(scene), Is.SameAs(headings[1]), "the delay has not elapsed");
-                Assert.That(Get<float>(scene.Trigger, "m_continuousUpdateSwitchTimerSeconds"), Is.GreaterThanOrEqualTo(0f));
+
+                // While it waits the stored timer is added to, never replaced or cleared (0x5c89b6 GetDeltaTime, addss
+                // 0x5c89bb, store 0x5c89c0, then jb 0x5c8a26 past the reset at 0x5c8a1c). The timer is private and only
+                // grows by frame time, so a known value is written to it; the frame time is never negative.
+                Set(scene.Trigger, "m_continuousUpdateSwitchTimerSeconds", 3f);
+                Call(scene.Trigger, "DoTriggerStay", scene.Character);
+                Assert.That(Applied(scene), Is.SameAs(headings[1]), "still waiting with a stored timer");
+                Assert.That(Get<float>(scene.Trigger, "m_continuousUpdateSwitchTimerSeconds"), Is.GreaterThanOrEqualTo(3f));
 
                 // The wait test is jb after ucomiss (0x5c89c8), which also skips the switch when the delay is NaN.
                 Set(scene.Trigger, "m_continuousUpdateSwitchDelaySeconds", float.NaN);
                 Call(scene.Trigger, "DoTriggerStay", scene.Character);
                 Assert.That(Applied(scene), Is.SameAs(headings[1]), "a NaN delay never elapses");
 
-                Set(scene.Trigger, "m_continuousUpdateSwitchDelaySeconds", 0f);
+                // The stored timer plus the frame time reaches a delay equal to the stored timer, which a version that
+                // restarts the timer from the frame time does not.
+                Set(scene.Trigger, "m_continuousUpdateSwitchTimerSeconds", 5f);
+                Set(scene.Trigger, "m_continuousUpdateSwitchDelaySeconds", 5f);
                 Call(scene.Trigger, "DoTriggerStay", scene.Character);
                 Assert.That(Applied(scene), Is.SameAs(headings[0]), "the delay has elapsed");
                 Assert.That(Get<CameraHeadingOverride>(scene.Trigger, "m_currentHeadingOverride"), Is.SameAs(headings[0]));

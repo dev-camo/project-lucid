@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Cinemachine;
@@ -67,6 +68,30 @@ namespace ProjectLucid.Tests
                 camera.LookAt = keptLookAt;
                 rig.Manager.OnMainCameraReady(rig.Camera);
                 Assert.That(camera.LookAt, Is.SameAs(keptLookAt), "a second ready event assigns nothing");
+            });
+        }
+
+        // OnCameraManagerValid 0x717FD0 tests the manager's ready byte (+0xC0, 0x71808e) and, when set, runs the ready
+        // callback with the brain's output camera (0x718098..0x7180b5) instead of waiting for the event. The manager's
+        // own WaitForMainCamera iterator is stepped by hand to raise the readiness as the original does.
+        [Test]
+        public void AnAlreadyReadyMainCameraAssignsTheTargetAtOnce()
+        {
+            Owned.Run(owned =>
+            {
+                Rig rig = NewRig(owned, true, true);
+                CinemachineMixingCamera camera = AddCamera(owned, rig, CameraType.Rail, 5);
+                Transform target = owned.Host("Lucid assigned target", false).transform;
+                var waiting = (IEnumerator)Call(rig.Manager, "WaitForMainCamera");
+                Assert.That(waiting.MoveNext(), Is.True);
+                Assert.That(waiting.MoveNext(), Is.False);
+                Assert.That(rig.Manager.MainCameraIsReady, Is.True);
+                CinemachineAssignTargetToCameraType assign = NewAssign(owned, CameraType.Rail, target, true, false);
+
+                Call(assign, "OnEnable");
+
+                Assert.That(camera.LookAt, Is.SameAs(target));
+                Assert.That(MainCameraReadyHandlers(rig.Manager, assign), Is.Empty, "the immediate call unsubscribed itself");
             });
         }
 

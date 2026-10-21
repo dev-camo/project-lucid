@@ -125,6 +125,35 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The optional proxy target transform is handed to the type's proxy target on apply (SetProxyTargetTransform with
+        // m_transform, 0x7152c7..0x7152db) and removal gives it back to the character (a null transform, 0x7153be..0x7153c7).
+        [Test]
+        public void AProxyTargetTransformIsAssignedOnApplyAndReturnedToTheCharacterOnRemoval()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<CharacterManager>();
+                Rig rig = NewRig(owned, true, true);
+                var proxy = EnemyAbilityTestSupport.AddTimeScaled<CameraProxyTarget>(owned.Host("Lucid proxy target", false));
+                var camera = owned.Host("Lucid Rail camera", false).AddComponent<CinemachineMixingCamera>();
+                rig.Manager.RegisterCameraByType(new[]
+                {
+                    new CinemachineCameraManager.VirtualCameraByType { Type = CameraType.Rail, VirtualCamera = camera, CustomProxyTarget = proxy }
+                });
+                Transform target = owned.Host("Lucid proxy transform", false).transform;
+                CameraTypeManipulator manipulator = NewManipulator(owned, CameraType.Rail);
+                Set(manipulator, "m_transform", target);
+                Assert.That(proxy.TargetIsCharacter(), Is.False);
+
+                manipulator.ApplyCameraType();
+                Assert.That(Get<Transform>(proxy, "m_target"), Is.SameAs(target));
+                Assert.That(proxy.TargetIsCharacter(), Is.False);
+
+                manipulator.RemoveCameraType();
+                Assert.That(proxy.TargetIsCharacter(), Is.True);
+            });
+        }
+
         // Without a handle, RemoveCameraType skips the manager altogether and only completes (0x715361 jumps to 0x7153eb),
         // so it completes even when the manager is gone. ApplyCameraType and a removal with a handle both return
         // before onComplete when the manager reference has no live manager (0x715249, 0x715396).
@@ -194,6 +223,30 @@ namespace ProjectLucid.Tests
                 Call(volume, "OnDisable");
                 cameras.AssertPriorities(-1, -1, "disabled");
             });
+        }
+
+        // Each delay applies later only when it is above zero: the native test is ucomiss against 0 with jbe to the
+        // immediate path (0x71567e/0x715681 for the type, 0x7156d2/0x7156fa for the targets), and the unordered result
+        // for NaN takes that branch too. So a zero, negative or NaN delay applies in the same call, with no coroutine.
+        [Test]
+        public void ADelayThatIsNotPositiveAppliesTheOverrideAndTheTargetsAtOnce()
+        {
+            foreach (float delay in new[] { -1f, float.NaN })
+            {
+                WithCameras((owned, cameras) =>
+                {
+                    Transform follow = owned.Host("Lucid follow", false).transform;
+                    Transform lookAt = owned.Host("Lucid look at", false).transform;
+                    CameraTypeTriggerVolume volume = NewVolume(owned, CameraType.Rail, follow, lookAt);
+                    Set(volume, "m_delayTypeOverrideSeconds", delay);
+                    Set(volume, "m_delaySetTargetsSeconds", delay);
+
+                    Call(volume, "DoTriggerEnter", (object)null);
+
+                    cameras.AssertPriorities(-1, RailStart, "delay " + delay);
+                    Assert.That((cameras.Rail.Follow, cameras.Rail.LookAt), Is.EqualTo((follow, lookAt)), "delay " + delay);
+                });
+            }
         }
 
         // Entering first releases the override of the previous visit (TryRemoveOverride before the new apply, 0x715671),
