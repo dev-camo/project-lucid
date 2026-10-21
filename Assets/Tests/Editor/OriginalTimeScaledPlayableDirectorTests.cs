@@ -101,5 +101,21 @@ namespace ProjectLucid.Tests
                 Assert.That(director.time, Is.EqualTo(0.0));
             });
         }
+
+        // 0x5fd686: a time equal to the duration is not below it (jbe), so the playback ends rather than evaluating.
+        [Test]
+        public void ATimeEqualToTheDurationEndsThePlayback()
+        {
+            WithDirector((scene, scaled, director) =>
+            {
+                var timeline = scene.Owned.Track(ScriptableObject.CreateInstance<TimelineAsset>());
+                Set(scaled, "m_playableDirector", director);
+                director.playableAsset = timeline;
+                scaled.Play();
+                scaled.OnUpdate(0f);
+                Assert.That(Subscribed(scene, UpdateOn.Update), Is.EqualTo(0));
+                Assert.That(director.time, Is.EqualTo(0.0));
+            });
+        }
     }
 }

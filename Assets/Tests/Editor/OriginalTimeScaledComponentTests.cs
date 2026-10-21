@@ -102,6 +102,25 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x5fb663: an unordered compare (NaN maximum) also takes jbe, so the time is published without a reset.
+        [Test]
+        public void ANaNMaximumNeverRestartsTheShader()
+        {
+            WithManager(scene =>
+            {
+                var shader = Add<TimeScaledShader>(scene, scene.Owned.Host("Lucid owned time scaled shader", false));
+                Set(shader, "m_timePropertyName", ShaderProperty); // serialized in the original
+                Set(shader, "m_maxTime", float.NaN); // serialized in the original
+                try
+                {
+                    shader.OnUpdate(1f);
+                    Assert.That(Shader.GetGlobalFloat(ShaderProperty), Is.EqualTo(1f));
+                    Assert.That(Get<float>(shader, "m_time"), Is.EqualTo(1f));
+                }
+                finally { Shader.SetGlobalFloat(ShaderProperty, 0f); }
+            });
+        }
+
         private static void WithCinemachineCore(Action<Scene, TimeScaledCinemachineCore, TimeScaledCinemachineCore> body) => WithManager(scene =>
         {
             FieldInfo instance = typeof(TimeScaledCinemachineCore).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
@@ -133,6 +152,19 @@ namespace ProjectLucid.Tests
                 Call(second, "Initialise", scene.Manager);
                 Assert.That(Static<TimeScaledCinemachineCore>(typeof(TimeScaledCinemachineCore), "s_instance"), Is.SameAs(first));
                 Assert.That(Subscribed(scene, UpdateOn.FixedUpdate), Is.EqualTo(1), "the second component is not subscribed");
+            });
+        }
+
+        // 0x5f9d8d: the guard is Unity's op_Inequality, so a destroyed instance lets the next component take over.
+        [Test]
+        public void ADestroyedCinemachineCoreInstanceIsReplaced()
+        {
+            WithCinemachineCore((scene, first, second) =>
+            {
+                Call(first, "Initialise", scene.Manager);
+                UnityEngine.Object.DestroyImmediate(first); // OnDisable never ran on the inactive host, so the static still holds it
+                Call(second, "Initialise", scene.Manager);
+                Assert.That(Static<TimeScaledCinemachineCore>(typeof(TimeScaledCinemachineCore), "s_instance"), Is.SameAs(second));
             });
         }
 
@@ -222,6 +254,18 @@ namespace ProjectLucid.Tests
                 blend.OnUpdate(0.25f);
                 Assert.That(renderer.GetBlendShapeWeight(0), Is.EqualTo(100f).Within(1e-3f));
                 Assert.That(blend.enabled, Is.False, "2 is not below 2");
+            });
+        }
+
+        // 0x5f9611..0x5f9634: an unordered compare (NaN length) takes jbe too, so the component disables itself.
+        [Test]
+        public void ANaNLengthStopsTheBlendShape()
+        {
+            WithBlendShape((scene, blend, renderer) =>
+            {
+                Set(blend, "m_blendLength", float.NaN);
+                blend.OnUpdate(0.5f);
+                Assert.That(blend.enabled, Is.False);
             });
         }
 
@@ -320,7 +364,7 @@ namespace ProjectLucid.Tests
                 Assert.That(animator.speed, Is.EqualTo(1f), "the cached speed already equals the scale, so nothing is written");
 
                 // Mathf.Approximately, not exact equality: a cached speed one ulp above the scale (2.0000002) is still approximately it.
-                Set(scaled, "m_speed", 2.0000002f); // no real path leaves a cache that differs from the scale by an ulp
+                Set(scaled, "m_speed", 2.0000002f); // stands in for a scale that moved by less than Mathf.Approximately's tolerance since the last write
                 scaled.OnUpdate(0f);
                 Assert.That(animator.speed, Is.EqualTo(1f), "an approximately equal cached speed writes nothing");
             });
@@ -398,7 +442,8 @@ namespace ProjectLucid.Tests
         }
 
         // 0x5f8d10 returns at once unless the animation is playing, so an idle animation keeps its states' speed and
-        // the cached scale. (The playing branch needs the engine to advance an Animation; it is not covered.)
+        // the cached scale. (The playing branch needs the engine to play an Animation on an active object and is not
+        // covered: its strict 1e-4 threshold at 0x5f8d8e and the cache update after the loop at 0x5f8f8f are unpinned.)
         [Test]
         public void AnIdleAnimationKeepsItsStateSpeeds()
         {

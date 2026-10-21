@@ -68,8 +68,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x5f8989: with resetAfter the final blend is not applied; CleanUp runs instead (a no-op here: neither the
-        // handle nor the coroutine is set), then the callback.
+        // 0x5f8989: with resetAfter the final blend is not applied; CleanUp runs instead, then the callback.
         [Test]
         public void ScaleTimeWithResetAfterSkipsTheFinalBlendAndRunsTheCallback()
         {
@@ -83,6 +82,24 @@ namespace ProjectLucid.Tests
                 while (steps.MoveNext()) { }
                 Assert.That(Blended(scene, manipulator), Is.LessThan(3f), "the last in-loop blend stays");
                 Assert.That(completed, Is.EqualTo(1));
+            });
+        }
+
+        // 0x5f8997: with resetAfter, CleanUp removes the held handle before the callback runs (0x5f89a3).
+        [Test]
+        public void ScaleTimeWithResetAfterCleansUpBeforeTheCallback()
+        {
+            WithManipulator((scene, manipulator, current, target) =>
+            {
+                bool handleHeldInCallback = true;
+                IEnumerator steps = ScaleTime(manipulator, current, target, new AnimationCurve(new Keyframe(0f, 0.5f)), true);
+
+                Assert.That(steps.MoveNext(), Is.True, "the in-loop update skips the still null handle");
+                Set(manipulator, "m_stackableDataHandle", new StackableDataHandle()); // ApplyTimeScaling stacks it only on a live manager
+                Set(manipulator, "m_onComplete", (Action)(() => handleHeldInCallback = Get<StackableDataHandle>(manipulator, "m_stackableDataHandle") != null));
+                Assert.That(steps.MoveNext(), Is.False);
+                Assert.That(Get<StackableDataHandle>(manipulator, "m_stackableDataHandle"), Is.Null);
+                Assert.That(handleHeldInCallback, Is.False, "CleanUp ran before the callback");
             });
         }
 

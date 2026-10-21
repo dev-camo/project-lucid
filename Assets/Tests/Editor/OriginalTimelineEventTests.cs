@@ -233,6 +233,11 @@ namespace ProjectLucid.Tests
                     director.SetGenericBinding(track, null);
                     track.CreateTrackMixer(graph, directorHost, 1);
                     Assert.That(eventClip.Behaviour.TargetObject == null, Is.True, "no bound object, no target");
+
+                    // 0x506aa7: a binding that is not a GameObject converts to null instead of throwing.
+                    director.SetGenericBinding(track, bound.transform);
+                    Assert.DoesNotThrow(() => track.CreateTrackMixer(graph, directorHost, 1));
+                    Assert.That(eventClip.Behaviour.TargetObject == null, Is.True, "a Transform binding is not a GameObject");
                 }
                 finally { graph.Destroy(); }
             });
