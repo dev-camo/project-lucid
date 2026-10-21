@@ -6617,3 +6617,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSvgTests." + name f
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformSnapshotPlayModeTests." + name for name in (
     "PointAndDirectionTransformsScaleThenRotateThenTranslate",
 ))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineThreadingPlayModeTests." + name for name in (
+    "RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock",
+    "RunQueuesOnTheFirstIdleThreadAndWakesIt",
+    "RunQueuesOnTheLastThreadWhenEveryThreadIsBusy",
+    "ThreadCountOnlyGrowsAndStartsTheNewThreads",
+))

@@ -357,10 +357,9 @@ namespace ProjectLucid.Tests
         }
 
         // Original Run 0x4e38c0 restarts dead threads, queues the handler on the first thread that is not computing (or on the last
-        // one) and interrupts it. That loop is the text after the `#if UNITY_EDITOR` block in Run; the editor compile (EditMode,
-        // Application.isPlaying false, read directly) returns after calling the handler synchronously, so the player branch cannot
-        // run here and its selection is not covered (Queue, Interrupt and the worker drain are covered through ThreadDef above).
-        // This test asserts the edit-mode behaviour: the handler runs at once on the calling thread and no pool thread is started.
+        // one) and interrupts it. That loop is the text after the `#if UNITY_EDITOR` block in Run; this test covers the editor
+        // branch only (EditMode, Application.isPlaying false, read directly): Run calls the handler synchronously and starts no pool
+        // thread. The shipped selection is covered by OriginalDreamteckSplineThreadingPlayModeTests.RunQueuesOnTheFirstIdleThreadAndWakesIt.
         [Test]
         public void RunQueuesOnTheFirstIdleThreadAndWakesIt()
         {
@@ -378,11 +377,11 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // Original Run 0x4e38c0 and RunThread 0x4e34a0: a busy first thread sends the next handler to the next def, but every
-        // handler runs under SplineThreading.locker, so the second handler only starts once the first one has returned. Run's
-        // player branch cannot run in EditMode (see RunQueuesOnTheFirstIdleThreadAndWakesIt), so the second def is fed through
-        // Queue and Interrupt, the two calls Run makes; the shared lock is RunThread's. Run itself, called while the first thread
-        // computes under the lock, still calls its handler synchronously and neither waits for the lock nor touches the pool.
+        // Original RunThread 0x4e34a0: every handler runs under SplineThreading.locker, so while the first thread computes, a handler
+        // on a second awakened thread only starts once the first one has returned. The defs are driven through ThreadDef.Queue and
+        // Interrupt (the lock is RunThread's, independent of Run). Run's own selection of the next thread is player-branch text,
+        // covered by OriginalDreamteckSplineThreadingPlayModeTests.RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock;
+        // in the editor branch Run calls its handler synchronously and neither waits for the lock nor touches the pool.
         [Test]
         public void RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock()
         {
@@ -400,9 +399,9 @@ namespace ProjectLucid.Tests
                     Assert.That(firstStarted.Wait(WaitMilliseconds), Is.True);
                     Assert.That(Computing(scope.Def(0)), Is.True);
 
-                    int editModeRanOn = -1;
-                    SplineThreading.Run(() => { editModeRanOn = Thread.CurrentThread.ManagedThreadId; });
-                    Assert.That(editModeRanOn, Is.EqualTo(Thread.CurrentThread.ManagedThreadId), "edit-mode Run does not wait for the lock or move on");
+                    int editorRanOn = -1;
+                    SplineThreading.Run(() => { editorRanOn = Thread.CurrentThread.ManagedThreadId; });
+                    Assert.That(editorRanOn, Is.EqualTo(Thread.CurrentThread.ManagedThreadId), "editor branch: Run does not wait for the lock or move on");
                     Assert.That(ThreadOf(scope.Def(1)), Is.Null);
 
                     Invoke(scope.Def(1), "Restart");
@@ -422,11 +421,11 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // Original Run 0x4e38c0 falls back to the LAST thread when every thread is computing, queues the handler there and does not
-        // interrupt it again (it is already running or waiting for the lock); the thread drains the new handler in the same pass.
-        // Run's player branch cannot run in EditMode, where it calls the handler synchronously and queues nothing; the fallback is
-        // exercised on the ThreadDef calls Run makes (Queue without Interrupt on an already computing def), and RunThread's drain
-        // loop is the text under test.
+        // Original Run 0x4e38c0 falls back to the LAST thread when every thread is computing (player-branch text, covered by
+        // OriginalDreamteckSplineThreadingPlayModeTests.RunQueuesOnTheLastThreadWhenEveryThreadIsBusy). This test covers RunThread
+        // 0x4e34a0's drain loop through the calls Run makes (Queue without Interrupt on an already computing def): a handler queued
+        // while the thread is awake is drained in the same pass, in queue order. In the editor branch Run itself runs its handler
+        // synchronously and leaves the queues alone.
         [Test]
         public void RunQueuesOnTheLastThreadWhenEveryThreadIsBusy()
         {
@@ -448,15 +447,13 @@ namespace ProjectLucid.Tests
                     Invoke(scope.Def(1), "Interrupt");
                     Assert.That(WaitUntil(() => Computing(scope.Def(1))), Is.True, "the second thread is awake, waiting for the lock");
 
-                    // Every thread is busy now: the handler goes to the last def's queue without another interrupt.
                     Invoke(scope.Def(1), "Queue", (SplineThreading.EmptyHandler)(() => { lock (order) { order.Add("third:" + Thread.CurrentThread.ManagedThreadId); } thirdRan.Set(); }));
-                    Assert.That(QueuedCount(scope.Def(1)), Is.GreaterThanOrEqualTo(1), "the third handler joined the last thread's queue");
-
-                    // Run called in this state still runs its handler synchronously and leaves the queues alone.
                     int queuedBefore = QueuedCount(scope.Def(1));
+                    Assert.That(queuedBefore, Is.GreaterThanOrEqualTo(1), "the third handler joined the last thread's queue");
+
                     int syncCalls = 0;
                     SplineThreading.Run(() => syncCalls++);
-                    Assert.That(syncCalls, Is.EqualTo(1));
+                    Assert.That(syncCalls, Is.EqualTo(1), "editor branch: Run calls the handler at once");
                     Assert.That(QueuedCount(scope.Def(1)), Is.EqualTo(queuedBefore));
 
                     releaseFirst.Set();
@@ -472,10 +469,9 @@ namespace ProjectLucid.Tests
         }
 
         // Original threadCount 0x4e2db0 / 0x4e2e30: the getter is the pool length; the setter only ever grows the pool and a smaller
-        // value changes nothing. The shipped setter calls Restart on each added def; the original text guards that call with
-        // `#if UNITY_EDITOR if (Application.isPlaying)` (read directly), so in EditMode the added defs are not started and the
-        // player branch (an unconditional Restart) cannot run here. That start is therefore not covered; the edit-mode result
-        // (added defs exist, hold no thread) is asserted.
+        // value changes nothing. The shipped setter calls Restart on each added def; the editor compile guards that call with
+        // `if (Application.isPlaying)` (read directly), so this test covers the editor branch: the added defs exist and hold no
+        // thread. The shipped start is covered by OriginalDreamteckSplineThreadingPlayModeTests.ThreadCountOnlyGrowsAndStartsTheNewThreads.
         [Test]
         public void ThreadCountOnlyGrowsAndStartsTheNewThreads()
         {
