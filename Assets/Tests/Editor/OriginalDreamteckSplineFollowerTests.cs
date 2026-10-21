@@ -279,7 +279,7 @@ namespace ProjectLucid.Tests
         // to move nothing with follow on, and Follow (below the gate) is called directly for the Uniform and Time arms. The
         // shipped follow gate is covered by OriginalDreamteckSplineFollowerPlayModeTests.LateRunFollowsOnlyWhileFollowIsOn.
         [Test]
-        public void LateRunFollowsOnlyWhileFollowIsOn()
+        public void LateRunSkipsFollowInEditMode()
         {
             Assert.That(Application.isPlaying, Is.False);
             SplineFollower follower = NewFollower(NewLine());
@@ -508,7 +508,7 @@ namespace ProjectLucid.Tests
         // that would fire a trigger in the player. Editor branch only; the shipped group selection, queue and invoke are covered
         // by OriginalDreamteckSplineFollowerPlayModeTests.SetPercentInvokesTheCrossedTriggersOfItsGroup.
         [Test]
-        public void SetPercentInvokesTheCrossedTriggersOfItsGroup()
+        public void SetPercentInvokesNoTriggerInEditMode()
         {
             Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();
@@ -541,7 +541,7 @@ namespace ProjectLucid.Tests
         // InvokeNodes finds an empty queue (it does not touch the missing subscriber). Editor branch only; the shipped junction
         // lookup, queue and onNode payload are covered by OriginalDreamteckSplineFollowerPlayModeTests.SetPercentReportsTheNodesItPassed.
         [Test]
-        public void SetPercentReportsTheNodesItPassed()
+        public void SetPercentReportsNoNodeInEditMode()
         {
             Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();
@@ -705,7 +705,7 @@ namespace ProjectLucid.Tests
         // nothing. Editor branch only; the order of the two stretches' triggers is covered by
         // OriginalDreamteckSplineFollowerPlayModeTests.LoopWrapReportsTheTriggersOfBothStretchesInOrder.
         [Test]
-        public void LoopWrapReportsTheTriggersOfBothStretchesInOrder()
+        public void LoopWrapCompletesWithoutTriggersInEditMode()
         {
             Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();
@@ -746,7 +746,7 @@ namespace ProjectLucid.Tests
         // Backward loop bounds and the beginning edge are covered by
         // OriginalDreamteckSplineFollowerPlayModeTests.CheckNodesCoversTheBackwardLoopAndTheBeginningEdge.
         [Test]
-        public void CheckNodesCoversTheBackwardLoopAndTheBeginningEdge()
+        public void CheckNodesReportsNothingInEditMode()
         {
             Assert.That(Application.isPlaying, Is.False);
             SplineComputer computer = NewLine();

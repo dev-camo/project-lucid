@@ -382,7 +382,7 @@ namespace ProjectLucid.Tests
         // test asserts that branch: angular velocity is untouched for every flag combination and the transform entry point ran.
         // The shipped branch is covered by OriginalDreamteckTransformModulePlayModeTests.RigidbodyAngularVelocityFollowsTheShippedRotationFlags.
         [Test]
-        public void RigidbodyAngularVelocityFollowsTheShippedRotationFlags()
+        public void RigidbodyAngularVelocityIsUntouchedInEditMode()
         {
             Assert.That(Application.isPlaying, Is.False);
             TransformModule module = new TransformModule();
