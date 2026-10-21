@@ -9387,6 +9387,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.FastLevelSelectAndFastLoadContainerT
     "TheLevelSelectDeclarationsMatchTheOriginalMetadata",
     "TheFastLoadDeclarationsMatchTheOriginalMetadata",
     "StartListsTheLevelsShownInLevelSelect",
+    "ShowingAZoneStillListsEveryLevelOfTheGame",
+    "PressingALevelButtonFastLoadsThatLevelAndQueuesTheLoadGameEvent",
     "ShowingACategoryAddsABackButtonAndPushesIt",
     "TheBackButtonShowsThePreviousList",
     "TheBackButtonOnTheFirstListShowsItAgainAndOnAnEmptyStackDoesNothing",
@@ -9394,6 +9396,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.FastLevelSelectAndFastLoadContainerT
     "ConstructionTakesTheAppAndMissionManagerReferences",
     "TheLevelComesFromTheAppsLevelLoadParameters",
     "StartAddsAButtonPerMissionOfTheLoadingLevel",
+    "AMissionlessLevelContinuesAtOnceWithTheFirstCharacterAndTheBonusZone",
+    "ALevelOutsideTheZoneFiveCategoryLeavesTheBonusZoneUnset",
+    "PressingAMissionButtonContinuesWithThatMission",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.DebugInformationViewTests." + name for name in (
     "TheEnemyViewDeclarationsMatchTheOriginalMetadata",
@@ -9409,6 +9414,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.DebugInformationViewTests." + name f
     "TheTrackViewNextInfoCyclesThroughThePanels",
     "TheTrackUpdateWithoutATrackManagerLeavesTheTextAlone",
     "TheTrackUpdateClearsTheBuilderAndPublishesTheManagersPoolInfo",
+    "TheTrackUpdatePublishesWhatTheManagersVirtualPoolInfoAppends",
     "TheCharacterViewDeclarationsMatchTheOriginalMetadata",
     "TheCharacterViewStartsWithFourTextsAndNoCharacter",
     "EnablingRegistersForCharacterChangesAndTellsTheDebugMenu",

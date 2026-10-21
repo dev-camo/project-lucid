@@ -12,9 +12,8 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
-    // The debug collectables list and the frame counter container (Game.Runtime 020008af UIContainerDebugCollectableModifier,
-    // 020008b1/020008b2 UIContainerDebugCollectables and its closure, 020008ba UIContainerFPSDebug; x86-64 0x62EDA0..0x62F6F7 and
-    // 0x631730..0x6317DF). The list runs over a real CollectableManager and DataManager registered by the mission world fixture, the
+    // The debug collectables list (Game.Runtime 020008af UIContainerDebugCollectableModifier, 020008b1/020008b2
+    // UIContainerDebugCollectables and its closure; x86-64 0x62EDA0..0x62F6F7). The list runs over a real CollectableManager and DataManager registered by the mission world fixture, the
     // rows are clones of a real row component on an owned inactive host, and the string table is an owned one.
     // Not covered: the closure and row objects are only reached through the rows' own actions, as in the original (OnChange has no
     // other caller); the Start/InvokeOnValid path for a manager that is not yet registered (it queues a deferred call on the shared
@@ -182,7 +181,9 @@ namespace ProjectLucid.Tests
                 Call(rig.Container, "Start");
 
                 Assert.That(Get<CollectableManager>(rig.Container, "m_collectableManager"), Is.SameAs(rig.Manager));
-                Assert.That(rig.Rows.Select(row => row.Name.Value).OrderBy(name => name).ToArray(), Is.EqualTo(new[] { "BlueCoin", "Orb" }));
+                // Rows follow the enum's value order (BlueCoin -64614013 before Orb 1797780346, 0x62F332..0x62F4A1), not the order the
+                // manager registered them in (Orb first, in WithRig).
+                Assert.That(rig.Rows.Select(row => row.Name.Value).ToArray(), Is.EqualTo(new[] { "BlueCoin", "Orb" }));
                 UIContainerDebugCollectableModifier orb = rig.Row("Orb");
                 Assert.That((orb.Collected.Value, orb.Total.Value), Is.EqualTo((3, 10)));
                 Assert.That(orb.FormatXOfY.Value, Is.EqualTo(FormatXOfY));

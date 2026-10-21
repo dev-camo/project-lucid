@@ -6,6 +6,7 @@ using System.Text;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
+using ProjectLucid.Tests.UIContainerShared;
 using UnityEngine;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.EnemyTestSupport;
@@ -16,13 +17,13 @@ namespace ProjectLucid.Tests
 {
     // The enemy, frame, track and character debug overlays (Game.Runtime 02000606 ViewEnemyInformation, 02000607 ViewFrameInformation,
     // 02000608 ViewTrackInformation, 02000605 ViewCharacterInformation; x86-64 0x564500..0x5645C0, 0x5645D0..0x564AC0,
-    // 0x564BE0..0x564FB0 and 0x563E50..0x564330). The views are real components on owned inactive hosts, so Edit Mode sends them no
+    // 0x564BE0..0x564FB0 and 0x563E50..0x564330) and the frame counter container (020008ba UIContainerFPSDebug,
+    // 0x631730..0x6317DF). The views are real components on owned inactive hosts, so Edit Mode sends them no
     // Awake, OnEnable or Update and the cases call those directly, as ActorInformationViewTests does for the base view. The debug
     // inputs they bind are leased through ControlTableLease. The character view runs over a real CharacterManager and Character.
     // Not covered: ViewCharacterInformation.Update with an actor (it asks the character for its transform and ability tables, which
     // read the rigid body and gravity that Edit Mode never builds), ViewCharacterInformation.OnDisable with an invalid manager
-    // reference, the numbers of ViewFrameInformation.Update (the frame timer frequencies and the frame delta come from the engine),
-    // and the text the track manager's pools add (an empty manager adds none).
+    // reference, and the frame rate number of ViewFrameInformation.Update (the frame delta comes from the engine's clock).
     public sealed class DebugInformationViewTests
     {
         private static void WithInputs(Action<Owned> body, params GameInput[] inputs) =>
@@ -179,7 +180,10 @@ namespace ProjectLucid.Tests
         }
 
         // 0x5645D0: the update publishes the CPU text, the GPU text and the frame rate text in the original formats and queues one
-        // delta time sample. The numbers come from the engine's frame timing and clock, so only the formats are checked.
+        // delta time sample. The CPU and GPU texts show the timer frequencies (0x564649..0x5646E5, 0x564709..0x564783: Math.Round to
+        // three decimals of the converted GetCpuTimerFrequency/GetGpuTimerFrequency, never a captured frame time). Both are whole
+        // platform constants, so the rounding is the identity and the text is the ulong's own decimal text. The frame rate comes
+        // from the engine's clock, so only its format is checked.
         [Test]
         public void TheFrameUpdatePublishesAllThreeTextsInTheirFormats()
         {
@@ -189,8 +193,8 @@ namespace ProjectLucid.Tests
 
                 Call(view, "Update");
 
-                Assert.That(view.FramerateCPU.Value, Does.StartWith("CPU: ").And.EndsWith("ms"));
-                Assert.That(view.FramerateGPU.Value, Does.StartWith("GPU: ").And.EndsWith("ms"));
+                Assert.That(view.FramerateCPU.Value, Is.EqualTo("CPU: " + FrameTimingManager.GetCpuTimerFrequency().ToString() + "ms"));
+                Assert.That(view.FramerateGPU.Value, Is.EqualTo("GPU: " + FrameTimingManager.GetGpuTimerFrequency().ToString() + "ms"));
                 Assert.That(view.Framerate.Value, Does.StartWith("Framerate: ").And.EndsWith(" FPS"));
                 Assert.That(Get<Queue<float>>(view, "m_framerateSamplesMs").Count, Is.EqualTo(1));
             });
@@ -301,6 +305,27 @@ namespace ProjectLucid.Tests
 
                 Assert.That(view.InstancePrefabPoolsInfo.Value, Is.Empty);
                 Assert.That(Get<StringBuilder>(view, "m_stringInfo").Length, Is.Zero);
+            }), GameInput.DebugNextInfo);
+        }
+
+        // 0x564F5C..0x564F6D: the update calls the manager's virtual DebugGetInstancePrefabPoolsInfo (slot 4), so a manager that
+        // appends text reaches the published value, and the stale builder text is cleared first.
+        [Test]
+        public void TheTrackUpdatePublishesWhatTheManagersVirtualPoolInfoAppends()
+        {
+            ControlTableLease.Run(() => Owned.Run(owned =>
+            {
+                owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
+                var manager = owned.Host("Lucid track manager probe", false).AddComponent<TrackManagerPoolInfoProbe>();
+                owned.Register<TrackManager>(manager);
+                ViewTrackInformation view = NewView<ViewTrackInformation>(owned);
+                Get<StringBuilder>(view, "m_stringInfo").Append("old text");
+                view.InstancePrefabPoolsInfo.Value = "stale";
+
+                Call(view, "Update");
+
+                Assert.That(manager.Calls, Is.EqualTo(1));
+                Assert.That(view.InstancePrefabPoolsInfo.Value, Is.EqualTo(TrackManagerPoolInfoProbe.Marker));
             }), GameInput.DebugNextInfo);
         }
 

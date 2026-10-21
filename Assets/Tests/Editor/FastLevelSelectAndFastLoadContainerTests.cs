@@ -19,9 +19,9 @@ namespace ProjectLucid.Tests
     // LevelManager with an authored GameLevels, a real App (whose storage is a plain FSM storage) and a real MissionManager. The
     // buttons are clones of a real UIWidgetButton on an owned inactive host. ClearList destroys the old buttons with Destroy, which
     // Edit Mode refuses (one logged error each, expected below) and the objects stay under the owned list root.
-    // Not covered: pressing a level button (it runs App.FastLoad and LevelManager.LoadGame, which queue application states), and
-    // everything FastLoad.Continue does (it loads the mission through the mission manager's tracker prefabs and sets up the
-    // meta game state); the hidden-group argument of MissionList.GetMissions(true) needs a hidden-requirement group.
+    // Not covered: the hidden-group argument of MissionList.GetMissions(true) needs a hidden-requirement group. Pressing a level
+    // button and FastLoad.Continue (with and without a mission) are observed through the app's plain FSM storage and the
+    // mission manager, without running the queued application states.
     public sealed class FastLevelSelectAndFastLoadContainerTests
     {
         private static readonly Regex RefusedDestroy = new Regex("^Destroy may not be called from edit mode");
@@ -43,16 +43,18 @@ namespace ProjectLucid.Tests
             public UIContainerFastLevelSelect Container;
             public GameplayLevelDefinition[] Levels;
             public GameplayLevelCategory Zone;
+            public GameplayLevelDefinition OtherLevel;
             public GameObject Root;
         }
 
         // Three levels in one zone: the first and last are shown in level select (display names "First level" and "Third level"),
-        // the one between is hidden.
-        private static void WithPicker(Action<Owned, Picker> body) => LevelRequirementWorld.Run((owned, world) =>
+        // the one between is hidden. With a second zone, that zone holds one more shown level ("Other zone level").
+        private static void WithPicker(Action<Owned, Picker> body, bool secondZone = false) => LevelRequirementWorld.Run((owned, world) =>
             OwnedStringTable.Run(new Dictionary<Strings, string>
             {
                 { Strings.CULTURE_NUMBER_MILLIONS, "First level" },
                 { Strings.CULTURE_NUMBER_BILLIONS, "Third level" },
+                { Strings.CULTURE_NUMBER_THOUSANDS, "Other zone level" },
             }, () =>
             {
                 var picker = new Picker { Levels = new GameplayLevelDefinition[3] };
@@ -62,9 +64,15 @@ namespace ProjectLucid.Tests
                     bool shown = i != 1;
                     // Reflection through the engine serializer: authored level data.
                     JsonUtility.FromJsonOverwrite("{\"m_showInLevelSelect\":" + (shown ? "true" : "false") + ",\"m_displayName\":" +
-                        (int)(i == 0 ? Strings.CULTURE_NUMBER_MILLIONS : Strings.CULTURE_NUMBER_BILLIONS) + "}", picker.Levels[i]);
+                        (int)(i == 0 ? Strings.CULTURE_NUMBER_MILLIONS : Strings.CULTURE_NUMBER_BILLIONS) + ",\"m_exclusiveCharacters\":[]}", picker.Levels[i]);
                 }
                 picker.Zone = world.AddZone("lucid-fast-zone", picker.Levels);
+                if (secondZone)
+                {
+                    picker.OtherLevel = world.NewLevel("lucid-fast-level-other", false, (MissionGroup[])null);
+                    JsonUtility.FromJsonOverwrite("{\"m_showInLevelSelect\":true,\"m_displayName\":" + (int)Strings.CULTURE_NUMBER_THOUSANDS + "}", picker.OtherLevel);
+                    world.AddZone("lucid-fast-zone-2", picker.OtherLevel);
+                }
                 picker.Root = owned.Host("Lucid fast level select list", false);
                 picker.Container = owned.Host("Lucid fast level select", false).AddComponent<UIContainerFastLevelSelect>();
                 Set(picker.Container, "m_listRoot", picker.Root); // Reflection: serialized references
@@ -137,6 +145,54 @@ namespace ProjectLucid.Tests
 
                 Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level" }));
                 Assert.That(picker.Root.GetComponentsInChildren<UIWidgetButton>(true).Length, Is.EqualTo(2), "the buttons are under the list root");
+                Assert.That(Stack(picker.Container).ToArray(), Is.EqualTo(new GameplayLevelCategory[] { null }));
+            });
+        }
+
+        // 0x6300B7..0x6300C0 calls the parameterless GetLevels (0x06001812), not GetLevels(category) (0x06001813): selecting the
+        // first zone still lists the level of the second zone, which GetLevels(zone) would drop.
+        [Test]
+        public void ShowingAZoneStillListsEveryLevelOfTheGame()
+        {
+            WithPicker((owned, picker) =>
+            {
+                Call(picker.Container, "Start");
+                Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level", "Other zone level" }));
+                ExpectRefusedDestroys(3);
+
+                Call(picker.Container, "OnUISelection", picker.Zone);
+
+                Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level", "Other zone level", "Back" }));
+            }, secondZone: true);
+        }
+
+        // 0x630855..0x6308AF: a level runs App.FastLoad(level) then LevelManager.LoadGame(). FastLoad stores the level load
+        // parameters, the current character (Sonic: no exclusive character) and IsFastLoading in the app storage; LoadGame adds the
+        // load-game event to the state events once. Each button keeps its own level (the closure of 0x6301E3 is per iteration), and
+        // the list and category stack are untouched.
+        [Test]
+        public void PressingALevelButtonFastLoadsThatLevelAndQueuesTheLoadGameEvent()
+        {
+            WithPicker((owned, picker) =>
+            {
+                App app = ProcessManager.GetSystem<App>();
+                var events = new List<ApplicationStateEvent>();
+                app.Storage.SetValue(AppFSMKeys.StateEvents, events);
+                var loadGame = owned.Track(ScriptableObject.CreateInstance<ApplicationStateEvent>());
+                Set(ProcessManager.GetSystem<LevelManager>(), "m_loadGameStartEvent", loadGame); // Reflection: serialized reference
+                Call(picker.Container, "Start");
+                UIWidgetButton[] buttons = Buttons(picker.Container).ToArray();
+
+                buttons[0].Action_OnButtonPress();
+                Assert.That(app.Storage.GetValueOnly<LevelManagerLoadLevelParameters>(AppFSMKeys.LevelLoadParameters).LevelDefinition, Is.SameAs(picker.Levels[0]));
+
+                buttons[1].Action_OnButtonPress();
+
+                Assert.That(app.Storage.GetValueOnly<LevelManagerLoadLevelParameters>(AppFSMKeys.LevelLoadParameters).LevelDefinition, Is.SameAs(picker.Levels[2]));
+                Assert.That(app.Storage.GetValueOnly<bool>(AppFSMKeys.IsFastLoading), Is.True);
+                Assert.That(app.Storage.GetValueOnly<CharacterId>(AppFSMKeys.CurrentCharacterId), Is.EqualTo(CharacterId.Sonic));
+                Assert.That(events, Is.EqualTo(new[] { loadGame }), "added once by both presses");
+                Assert.That(Buttons(picker.Container).ToArray(), Is.EqualTo(buttons));
                 Assert.That(Stack(picker.Container).ToArray(), Is.EqualTo(new GameplayLevelCategory[] { null }));
             });
         }
@@ -225,10 +281,13 @@ namespace ProjectLucid.Tests
             public RectTransform Root;
             public GameplayLevelDefinition Level;
             public MissionDefinition[] Missions;
+            public GameplayLevelCategory Zone5;
+            public GameplayLevelCategory OtherZone;
         }
 
-        // A level with two missions named "Mission one" and "Mission two" in one group, as the app's load parameters.
-        private static void WithLoader(Action<Owned, Loader> body) => LevelRequirementWorld.Run((owned, world) =>
+        // A level with two missions named "Mission one" and "Mission two" in one group, as the app's load parameters; without
+        // missions the level has no mission list. The data manager lists Sonic then Amy, the order of the first allowed character.
+        private static void WithLoader(Action<Owned, Loader> body, bool withMissions = true) => LevelRequirementWorld.Run((owned, world) =>
         {
             var loader = new Loader { Missions = new MissionDefinition[2] };
             for (int i = 0; i < 2; i++)
@@ -236,13 +295,22 @@ namespace ProjectLucid.Tests
                 loader.Missions[i] = world.NewMission("lucid-fast-load-mission-" + i);
                 loader.Missions[i].name = i == 0 ? "Mission one" : "Mission two";
             }
-            loader.Level = world.NewLevel("lucid-fast-load-level", false, world.NewGroup("lucid-fast-load-group", loader.Missions));
+            loader.Level = withMissions
+                ? world.NewLevel("lucid-fast-load-level", false, world.NewGroup("lucid-fast-load-group", loader.Missions))
+                : world.NewLevel("lucid-fast-load-level", false, (MissionGroup[])null);
+            var characters = ProcessManager.GetSystem<DataManager>().Characters;
+            characters[CharacterId.Sonic] = Create<CharacterDefinition>(owned, "{\"m_id\":" + (int)CharacterId.Sonic + "}");
+            characters[CharacterId.Amy] = Create<CharacterDefinition>(owned, "{\"m_id\":" + (int)CharacterId.Amy + "}");
+            loader.Zone5 = world.AddZone("lucid-fast-load-zone5", loader.Level);
+            loader.OtherZone = world.AddZone("lucid-fast-load-other-zone");
             GameObject root = owned.Track(new GameObject("Lucid fast load list", typeof(RectTransform)));
             root.SetActive(false);
             loader.Root = (RectTransform)root.transform;
             loader.Container = owned.Host("Lucid fast load", false).AddComponent<UIContainerFastLoad>();
             Set(loader.Container, "m_rootTransform", loader.Root); // Reflection: serialized references
             Set(loader.Container, "m_buttonPrefab", owned.Host("Lucid fast load button", false).AddComponent<UIWidgetButton>());
+            Set(loader.Container, "m_continueEvent", owned.Track(ScriptableObject.CreateInstance<ApplicationStateEvent>()));
+            Set(loader.Container, "m_zone5", loader.Zone5);
             body(owned, loader);
         });
 
@@ -282,6 +350,83 @@ namespace ProjectLucid.Tests
 
                 UIWidgetButton[] buttons = loader.Root.GetComponentsInChildren<UIWidgetButton>(true);
                 Assert.That(Labels(buttons), Is.EqualTo(new[] { "Mission one", "Mission two" }));
+            });
+        }
+
+        // 0x630EF0 with no mission list (PopulateMissions 0x630C4F..0x630C75 continues at once, without buttons): the meta game state
+        // holds the level and no mission (key stored at 0x630F0..), LoadMission(null) loads nothing and the null context leaves no
+        // active mission, the first character of the data manager (Sonic) is stored as both current and mission character, the
+        // level of the zone-5 category sets BonusZoneActive (0x6312F0..0x6313CB), and the continue event is added once (AddUnique, 0x631491)
+        // when Start runs twice.
+        [Test]
+        public void AMissionlessLevelContinuesAtOnceWithTheFirstCharacterAndTheBonusZone()
+        {
+            WithLoader((owned, loader) =>
+            {
+                App app = ProcessManager.GetSystem<App>();
+                var events = new List<ApplicationStateEvent>();
+                app.Storage.SetValue(AppFSMKeys.StateEvents, events);
+                app.Storage.SetValue(AppFSMKeys.LevelLoadParameters, new LevelManagerLoadLevelParameters(loader.Level));
+
+                Call(loader.Container, "Start");
+                Call(loader.Container, "Start");
+
+                Assert.That(loader.Root.GetComponentsInChildren<UIWidgetButton>(true), Is.Empty);
+                var state = app.Storage.GetValueOnly<MetaGameState>(AppFSMKeys.MetaGameState);
+                Assert.That(state.LevelDefinition, Is.SameAs(loader.Level));
+                Assert.That(state.MissionDefinition, Is.Null);
+                Assert.That(ProcessManager.GetSystem<MissionManager>().ActiveMissionContext, Is.Null);
+                Assert.That(app.Storage.GetValueOnly<CharacterId>(AppFSMKeys.CurrentCharacterId), Is.EqualTo(CharacterId.Sonic));
+                Assert.That(app.Storage.GetValueOnly<CharacterId>(AppFSMKeys.MissionCharacterId), Is.EqualTo(CharacterId.Sonic));
+                Assert.That(app.Storage.GetValueOnly<bool>(AppFSMKeys.BonusZoneActive), Is.True);
+                Assert.That(events, Is.EqualTo(new[] { Get<ApplicationStateEvent>(loader.Container, "m_continueEvent") }));
+            }, withMissions: false);
+        }
+
+        // 0x6312F0..0x6313CB: only a level of the zone-5 category sets BonusZoneActive; with another category there, the key is
+        // never written.
+        [Test]
+        public void ALevelOutsideTheZoneFiveCategoryLeavesTheBonusZoneUnset()
+        {
+            WithLoader((owned, loader) =>
+            {
+                App app = ProcessManager.GetSystem<App>();
+                app.Storage.SetValue(AppFSMKeys.StateEvents, new List<ApplicationStateEvent>());
+                app.Storage.SetValue(AppFSMKeys.LevelLoadParameters, new LevelManagerLoadLevelParameters(loader.Level));
+                Set(loader.Container, "m_zone5", loader.OtherZone); // Reflection: serialized reference
+
+                Call(loader.Container, "Start");
+
+                Assert.That(app.Storage.TryGetValue(AppFSMKeys.BonusZoneActive, out bool _), Is.False);
+                Assert.That(app.Storage.GetValueOnly<CharacterId>(AppFSMKeys.MissionCharacterId), Is.EqualTo(CharacterId.Sonic), "the rest still ran");
+            }, withMissions: false);
+        }
+
+        // 0x6314C0 closure and 0x630EF0: a mission button continues with its own mission (not the last of the loop): the meta game
+        // state holds it and the active context is a regular context for it. Fast loading is set, as App.FastLoad does, so the
+        // archetype lock filter allows the characters.
+        [Test]
+        public void PressingAMissionButtonContinuesWithThatMission()
+        {
+            WithLoader((owned, loader) =>
+            {
+                owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser
+                App app = ProcessManager.GetSystem<App>();
+                app.Storage.SetValue(AppFSMKeys.StateEvents, new List<ApplicationStateEvent>());
+                app.Storage.SetValue(AppFSMKeys.IsFastLoading, true);
+                app.Storage.SetValue(AppFSMKeys.LevelLoadParameters, new LevelManagerLoadLevelParameters(loader.Level));
+                Call(loader.Container, "Start");
+                UIWidgetButton[] buttons = loader.Root.GetComponentsInChildren<UIWidgetButton>(true);
+
+                buttons[0].Action_OnButtonPress();
+
+                var state = app.Storage.GetValueOnly<MetaGameState>(AppFSMKeys.MetaGameState);
+                Assert.That(state.LevelDefinition, Is.SameAs(loader.Level));
+                Assert.That(state.MissionDefinition, Is.SameAs(loader.Missions[0]));
+                var context = ProcessManager.GetSystem<MissionManager>().ActiveMissionContext;
+                Assert.That(context, Is.TypeOf<MissionContextRegular>());
+                Assert.That(context.MissionDefinition, Is.SameAs(loader.Missions[0]));
+                Assert.That(context.LevelDefinition, Is.SameAs(loader.Level));
             });
         }
     }
