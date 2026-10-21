@@ -34,7 +34,8 @@ namespace HardlightProject
 
 		// 06001602 (1.10.1 RVA 0x780090); while the homing target is held the character is flown straight at it,
 		// at the target speed plus the ability's additional speed over the time spent homing, and turned
-		// towards the target rotation. Without a target of this ability's kind the transporter is no longer active.
+		// towards the target rotation. Without an active homing target, or when the ability's definition is not a
+		// transporter proximity definition (in practice a missing definition), the transporter is no longer active.
 		protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
 		{
 			base.DoUpdate(user, updateContext);

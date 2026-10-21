@@ -7,6 +7,7 @@ using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.CharCoreShared;
+using ProjectLucid.Tests.WorldSurfaceShared;
 using UnityEngine;
 using static ProjectLucid.Tests.CharacterAbilityTestSupport;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
@@ -20,10 +21,13 @@ namespace ProjectLucid.Tests
     // The states are built from their JSON through the node factory and run against a real Character on an owned inactive
     // host; the effect states get the animation storage the started Actor would have created.
     // Not covered by any test, because they need a started Character, a live tracker, camera or UI manager, or the data
-    // manager: the TransporterMovement and TransporterHomingProximity enter, update and leave bodies beyond the call-order
-    // witnesses below, the ProximityCheckToTargetedObject branches after the track manager lookup, the TriggerRespawn
-    // enter, SetupRespawn, RespawnCharacter and the TriggerRespawn iterator, the GamePlayControl and SetCameraProxySettings
-    // and StickyControls trigger starts, and the construction of the two states that look their data up by name.
+    // manager: the TransporterMovement enter, update and leave bodies and its UpdateVelocity, OrientateToTracker (the
+    // 1e-4 squared speed gate) and OrientateOnExit helpers beyond the call-order witnesses below, the
+    // TransporterHomingProximity enter, update and leave bodies beyond those witnesses (their ability state base chain
+    // sets camera overrides and reads the input modifier), the ProximityCheckToTargetedObject search through the track
+    // manager's transporter octrees (TryGetTransporterHit) and its distance gate, the TriggerRespawn enter, SetupRespawn,
+    // RespawnCharacter and the TriggerRespawn iterator, the GamePlayControl and SetCameraProxySettings and StickyControls
+    // trigger starts, and the construction of the two states that look their data up by name.
     public sealed class CharMoves09TransporterAndTriggerStateTests
     {
         private const BindingFlags AnyStatic = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -336,6 +340,45 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x754B52: a stored auto attach surface skips the HomingDistanceSqr test (test r14,r14; jne 0x754BBA), so it is
+        // trusted at any distance (HomingDistanceSqr stays zero here, the surface is fifty units away). The surface must be
+        // a Component (isinst at 0x754B10); its game object becomes the target, typed Transporter (0xd2ca8fc3, 0x754C0E).
+        [Test]
+        public void ProximityCheckTrustsAStoredSurfaceAtAnyDistance()
+        {
+            WithTransporterAbility((owned, character, ability, definition) =>
+            {
+                Set(character, "m_trackManagerRef", new SystemRef<TrackManager>("TrackManager", owned.Host("Lucid proximity tracks", false).AddComponent<TrackManager>()));
+                var surface = owned.Host("Lucid auto attach surface", false).AddComponent<CharMoves09SurfaceProbe>();
+                surface.NearestPosition = new Vector3(0f, 0f, 50f);
+                character.Storage.SetValue<ISurface>(ActorFSMKeys.TransporterAutoAttach, surface);
+                Assert.That(definition.HomingDistanceSqr, Is.EqualTo(0f));
+
+                Assert.That((bool)Call(ability, "ProximityCheckToTargetedObject", 1f), Is.True);
+                var target = Get<CharacterTargetObjectData>(ability, "m_targetedObject");
+                Assert.That(target.Target, Is.SameAs(surface.gameObject));
+                Assert.That(target.Type, Is.EqualTo(HomingTargetType.Transporter));
+                Assert.That(target.WorldPosition, Is.EqualTo(new Vector3(0f, 0f, 50f)));
+            });
+        }
+
+        // 0x754B0E -> 0x754B3A: a stored surface that locates no surface of its own fails the Component test, and no target is set.
+        [Test]
+        public void ProximityCheckFailsWhenTheStoredSurfaceLocatesNoComponent()
+        {
+            WithTransporterAbility((owned, character, ability, definition) =>
+            {
+                Set(character, "m_trackManagerRef", new SystemRef<TrackManager>("TrackManager", owned.Host("Lucid proximity tracks", false).AddComponent<TrackManager>()));
+                var surface = owned.Host("Lucid auto attach surface", false).AddComponent<CharMoves09SurfaceProbe>();
+                surface.ReturnsItself = false;
+                surface.NearestPosition = new Vector3(0f, 0f, 50f);
+                character.Storage.SetValue<ISurface>(ActorFSMKeys.TransporterAutoAttach, surface);
+
+                Assert.That((bool)Call(ability, "ProximityCheckToTargetedObject", 1f), Is.False);
+                Assert.That(Get<CharacterTargetObjectData>(ability, "m_targetedObject").Target, Is.Null);
+            });
+        }
+
         private static InertSpline StoreSurface(Owned owned, Character character)
         {
             InertSpline surface = owned.Host("Lucid proximity surface", false).AddComponent<InertSpline>();
@@ -588,6 +631,33 @@ namespace ProjectLucid.Tests
                 Assert.That(steps.MoveNext(), Is.True);
                 Assert.That(steps.Current, Is.TypeOf<WaitForFixedUpdate>());
                 Assert.That(steps.MoveNext(), Is.False);
+            });
+        }
+
+        // 0x77D5A6 in the sibling dash is the same shape: 0x7817B0 makes the visual proxy follow the character's rotation
+        // followed by a quarter turn about right (AngleAxis 90 about Vector3.right, character rotation first), and 0x781C10
+        // releases it. A character turned 90 degrees about up gives a proxy whose forward is down and whose up is the
+        // character's right; the swapped product would give a different pose.
+        [Test]
+        public void MovementTipsTheProxyAQuarterTurnAndLaterReleasesIt()
+        {
+            WithStateCharacter((owned, character) =>
+            {
+                var proxy = owned.Host("Lucid transporter proxy").AddComponent<SmoothedTransformProxy>();
+                Call(proxy, "Awake"); // Edit Mode does not run Awake, which caches the transform the proxy rotates
+                SetActorProperty(character, "VisualProxy", proxy);
+                SetActorProperty(character, "WorldRotation", Quaternion.Euler(0f, 90f, 0f));
+                IFSMState state = NewState(nameof(CharacterState_TransporterMovement), AbilityJson(ActorAbilityType.Character_MovementAir));
+
+                Call(state, "OverrideProxy", character);
+                Quaternion rotation = proxy.transform.rotation;
+                Assert.That(Get<bool>(proxy, "m_rotationOverriden"), Is.True);
+                Assert.That(Vector3.Distance(rotation * Vector3.forward, new Vector3(0f, -1f, 0f)), Is.LessThan(1e-5f));
+                Assert.That(Vector3.Distance(rotation * Vector3.up, new Vector3(1f, 0f, 0f)), Is.LessThan(1e-5f));
+
+                Call(state, "ResetProxy", character);
+                Assert.That(Get<bool>(proxy, "m_rotationOverriden"), Is.False);
+                Assert.That(proxy.transform.rotation, Is.EqualTo(rotation), "the pose is left as it was");
             });
         }
 

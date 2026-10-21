@@ -9,7 +9,7 @@ namespace HardlightProject
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public class CharacterAbility_TransporterProximity : CharacterAbility_TargetingHoming<CharacterAbilityDefinition_TransporterProximity>, IAbilityTrigger
 	{
-		// 060012b3 (1.10.1 RVA 0x754570); m_targetRequiresRefresh is reused as the "an auto-attach surface is stored" flag.
+		// 060012b3 (1.10.1 RVA 0x754570); while the refresh flag is down it is raised when an auto-attach surface is stored (0x7546F4); this body never lowers it.
 		protected override void DoOnUpdate(CharacterBrain brain, float deltaTime)
 		{
 			base.DoOnUpdate(brain, deltaTime);
