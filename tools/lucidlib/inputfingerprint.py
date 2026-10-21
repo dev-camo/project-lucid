@@ -323,7 +323,8 @@ def compare_fingerprints(a, b):
     _compare_assembly(a["game_assembly"], b["game_assembly"], differences)
     _compare_metadata(a["metadata"], b["metadata"], differences)
     if a["variant"] != b["variant"]:
-        _diff(differences, "variant", "declared variant", False, a=a["variant"], b=b["variant"])
+        # The variant name follows from the binary and metadata hashes, which are judged above.
+        _diff(differences, "variant", "declared variant (follows from the file hashes)", True, a=a["variant"], b=b["variant"])
     other = [item for item in differences if not item["packaging"]]
     return {"a": a["app"], "b": b["app"], "variants": [a["variant"], b["variant"]],
             "differences": differences,

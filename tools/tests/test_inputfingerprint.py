@@ -206,6 +206,16 @@ class CompareTests(unittest.TestCase):
         changed = [d["path"] for d in verdict["differences"] if d["area"] == "manifest"]
         self.assertEqual(["Contents/Frameworks/GameAssembly.dylib", "Contents/_CodeSignature/CodeResources"], sorted(changed))
 
+    def test_different_declared_variants_alone_stay_packaging_only(self):
+        # Two declared variants always differ in their binary hash, so the name alone must not
+        # decide the verdict; the per-section and per-table comparisons do.
+        left, right = self.report(), self.report(uuid=UUID_B, signature=SIGNATURE_B)
+        left["variant"], right["variant"] = "6c89-acb", "e94d-88af"
+        verdict = inputfingerprint.compare_fingerprints(left, right)
+        self.assertTrue(verdict["summary"]["packaging_only"], verdict["differences"])
+        self.assertEqual(["6c89-acb", "e94d-88af"], verdict["variants"])
+        self.assertIn("variant", {d["area"] for d in verdict["differences"]})
+
     def test_one_text_byte_names_exactly_that_section(self):
         verdict = inputfingerprint.compare_fingerprints(self.report(), self.report(text=TEXT[:-1] + b"X"))
         self.assertFalse(verdict["summary"]["packaging_only"])
