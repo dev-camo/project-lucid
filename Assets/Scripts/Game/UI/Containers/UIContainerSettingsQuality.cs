@@ -14,7 +14,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x0200093c; bodies translated from the 1.10.1 x86-64 binary.
     // The graphics page: the quality level (a performance profile), the resolution scale and the anti-aliasing level.
-    // Changes reach the live rendering at once; the page reports them and saves them when it closes.
+    // The chosen quality level becomes the active profile at once; the resolution scale and anti-aliasing level are
+    // held by the page and applied, reported and saved when it closes.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class UIContainerSettingsQuality : UIContainerSettingsBase
@@ -38,8 +39,6 @@ namespace HardlightProject
                 return nameFormat;
             }
 
-            // 0x06003520 (0x67EF80)
-            public MSAASetting() { }
         }
 
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
@@ -134,7 +133,8 @@ namespace HardlightProject
             SetQualityValue(currentLevel);
         }
 
-        // 0x06003511 (0x67E600): the slider value is rounded to the nearest level (halves to even).
+        // 0x06003511 (0x67E600): the slider value is rounded to the nearest level (halves to even). The body is an
+        // inlined Mathf.RoundToInt: its _inline method-initialized flag (0x319EAAE) is checked at 0x67E611.
         public void Action_OnQualitySliderUpdated(float qualityValue)
         {
             SetQualityValue(Mathf.RoundToInt(qualityValue));
@@ -146,7 +146,8 @@ namespace HardlightProject
             SetResolutionScale(resolutionScale);
         }
 
-        // 0x06003513 (0x67E810): the slider value is rounded to the nearest setting (halves to even).
+        // 0x06003513 (0x67E810): the slider value is rounded to the nearest setting (halves to even); the same inlined
+        // Mathf.RoundToInt, its flag checked at 0x67E821.
         public void Action_OnMsaaSliderUpdated(float msaaSetting)
         {
             SetMSAAValue(Mathf.RoundToInt(msaaSetting));

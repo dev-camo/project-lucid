@@ -36,6 +36,9 @@ namespace ProjectLucid.Tests
             // Taken first, so it is released last: the rows of the App, DataManager and SaveManager.
             owned.Lease(new OwnedCharacterManagers());
             if (Language.Instance != null) throw new InvalidOperationException("Fixture requires no live Language instance");
+            // OverrideLanguage raises the static OnLanguageChanged event; foreign subscribers would be called with the test languages.
+            if (typeof(Language).GetField("OnLanguageChanged", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic).GetValue(null) != null)
+                throw new InvalidOperationException("Fixture requires no OnLanguageChanged subscribers");
             var rig = new Rig { App = ProcessManager.GetSystem<App>() };
             rig.Language = owned.Host("Lucid language", false).AddComponent<Language>();
             SetLanguageInstance.Invoke(null, new object[] { rig.Language });

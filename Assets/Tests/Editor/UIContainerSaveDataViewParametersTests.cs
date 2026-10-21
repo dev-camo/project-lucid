@@ -32,24 +32,6 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The save and the progress are different fields (+0x20 and +0x28): swapping the arguments would show here.
-        [Test]
-        public void TheSaveAndTheProgressAreKeptApart()
-        {
-            Owned.Run(owned =>
-            {
-                OwnedChallengeServices.Register(owned);
-                var first = new SaveDataGame();
-                var second = new SaveDataGame();
-                var progress = new ProgressionCollectableSave();
-
-                var parameters = new UIContainerSaveDataViewParameters(first, progress, null, null);
-
-                Assert.That(parameters.SaveData, Is.SameAs(first).And.Not.SameAs(second));
-                Assert.That(parameters.Progress, Is.SameAs(progress));
-            });
-        }
-
         // Nothing is checked or replaced: an empty slot passes no save, and the label and callback may be absent.
         [Test]
         public void NothingIsValidatedOrReplaced()

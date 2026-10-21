@@ -10531,7 +10531,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.SaveSlotAndSettingsPageDeclarationTe
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSaveDataViewParametersTests." + name for name in (
     "TheParametersKeepTheSaveTheProgressTheLabelAndTheCallback",
-    "TheSaveAndTheProgressAreKeptApart",
     "NothingIsValidatedOrReplaced",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetToggleSaveDataTests." + name for name in (

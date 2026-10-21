@@ -43,7 +43,7 @@ namespace HardlightProject
                 toggle.Setup(new UIContainerSaveDataViewParameters(saveData, progress, string.Empty, isOn =>
                 {
                     if (isOn)
-                        m_selectedSlotIndex = slotIndex;
+                        SetActiveSaveSlotIndex(slotIndex);
                 }));
                 if (i == saveManager.CurrentSaveIndex)
                 {
@@ -53,7 +53,7 @@ namespace HardlightProject
             }
         }
 
-        // 0x0600349b (0x6791B0): no other body of the class calls it.
+        // 0x0600349b (0x6791B0): the toggle callback's closure body (0x6794A0) is this setter inlined.
         private void SetActiveSaveSlotIndex(int index)
         {
             m_selectedSlotIndex = index;
