@@ -87,7 +87,7 @@ namespace HardlightProject
             collectableDefinition.UnloadIcon();
         }
 
-        // 0x06003836 (0x6A0770): a hidden level is hidden, a locked level is locked, an unseen
+        // 0x06003836 (0x6A0770): the native body inlines Hide, Lock, HideBoss and the unlock gating. A hidden level is hidden, a locked level is locked, an unseen
         // hidden boss plays its preview and a level whose unlock has not been seen unlocks.
         private void Refresh()
         {
@@ -289,7 +289,7 @@ namespace HardlightProject
             return true;
         }
 
-        // 0x06003844 (0x6A1750)
+        // 0x06003844 (0x6A1750): the native body inlines TryNavigateToWidget.
         public void Select(bool navigateToWidget = true)
         {
             m_toggle.IsOn = true;
@@ -319,7 +319,7 @@ namespace HardlightProject
         // 0x06003848 (0x6A1660)
         public void ToggleWidgetNavigation(bool on)
         {
-            m_uiWidgetNavigation.enabled = on ? !m_parameters.Locked : false;
+            m_uiWidgetNavigation.enabled = on && !m_parameters.Locked;
         }
 
         // 0x06003849 (0x6A17F0)

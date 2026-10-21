@@ -8704,6 +8704,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScreenContainerTests." + name
     "RankTimesAreNotSynchronisedWithBothOff",
     "RankTimesAreNotSynchronisedWithoutAShownRank",
     "RankTimesAreNotSynchronisedWithoutTheOption",
+    "RankTimesReachTheMissionManagerWhenTheOptionAndTheShownRankAreBothOn",
     "AFailingMissionCountsDownFromItsLimitAndExtraTime",
     "TheCountdownIsEvaluatedInSinglePrecision",
     "AMissionThatDoesNotFailAtTheLimitKeepsTheTime",

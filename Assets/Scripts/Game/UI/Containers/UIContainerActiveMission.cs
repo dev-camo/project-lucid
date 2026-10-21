@@ -95,8 +95,8 @@ namespace HardlightProject
         // an island override (or else the active mission) is shown and followed as islands change.
         private void OnMissionManagerValid(MissionManager missionManager)
         {
-            MissionState missionState;
             m_missionManager = missionManager;
+            MissionState missionState;
             if (!m_includeIslandOverrides && missionManager.TryGetActiveMissionState(out missionState))
             {
                 Refresh(missionState);
@@ -206,21 +206,9 @@ namespace HardlightProject
         // and the lowest rank; other missions only show their objective icon.
         private void UpdateIconography(MissionDefinition activeContextMissionDefinition, MissionDefinition missionDefinition, float bestTimeSeconds, float timeElapsedSeconds)
         {
-            bool showRank = false;
-            m_showRank = activeContextMissionDefinition.IsTimeTrial();
-            if (m_showRank)
-            {
-                if (m_hideRankIfBestTimeIsInvalid)
-                {
-                    showRank = bestTimeSeconds > activeContextMissionDefinition.TheoreticalBestTimePossibleSeconds;
-                    m_showRank = showRank;
-                }
-                else
-                {
-                    showRank = true;
-                }
-            }
-            ShowRank.Value = showRank;
+            m_showRank = activeContextMissionDefinition.IsTimeTrial()
+                && (!m_hideRankIfBestTimeIsInvalid || bestTimeSeconds > activeContextMissionDefinition.TheoreticalBestTimePossibleSeconds);
+            ShowRank.Value = m_showRank;
             if (!m_showRank)
             {
                 MissionIcon.Value = missionDefinition.MissionObjectiveIcon;
@@ -295,10 +283,9 @@ namespace HardlightProject
         // next rank to beat down to the rank for the elapsed time.
         private void SynchroniseRankTimes()
         {
-            MissionState activeMissionState;
             if (!m_syncRankTimeWithMissionTime || !m_showRank)
                 return;
-            if (!m_missionManager.TryGetActiveMissionState(out activeMissionState))
+            if (!m_missionManager.TryGetActiveMissionState(out MissionState activeMissionState))
                 return;
             float timeElapsed = activeMissionState.TrackerTimeElapsed;
             if (m_currentMissionRank.RankType == RankType.D)
@@ -324,6 +311,7 @@ namespace HardlightProject
         }
 
         // 0x060030f6 (0x618D70): a time-limit mission counts down, so rank times are measured from the limit.
+        // The float casts pin single-precision rounding, as the native body rounds after each add and subtract.
         private static float AdjustForObjectives(MissionDefinition missionDefinition, float timeInSeconds)
         {
             if (missionDefinition.FailOnTimeLimitReached)

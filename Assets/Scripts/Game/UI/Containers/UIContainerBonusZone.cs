@@ -41,7 +41,7 @@ namespace HardlightProject
             SetupLevels();
         }
 
-        // 0x06003101 (0x61A320)
+        // 0x06003101 (0x61A320): the native body is an inlined copy of Continue.
         public void Action_Continue()
         {
             Continue();
@@ -99,7 +99,7 @@ namespace HardlightProject
                     }
                 }
             }
-            bool playReveal = revealUnlocked & revealNotSeen;
+            bool playReveal = revealUnlocked && revealNotSeen;
             IReadOnlyDictionary<CollectableType, ProgressionCollectable> totalProgress = m_progressionManager.GetTotalProgress();
             for (int i = 0; i < m_widgetToLevelPairs.Length; i++)
             {
@@ -120,13 +120,13 @@ namespace HardlightProject
                 bool hidden = !showInLevelSelect;
                 bool isNew = !locked && levelData.HasAnyNewContent(missionGuids);
                 int levelNumericalName = m_levelNumericalNameOffset + i;
-                bool waitsForReveal = m_revealIsDoneAnimating & m_levelsWaitForReveal.Contains(levelDefinition);
+                bool waitsForReveal = m_levelsWaitForReveal.Contains(levelDefinition) && m_revealIsDoneAnimating;
                 unlockSeen &= !waitsForReveal;
                 widget.Setup(new UIWidgetSDTLevelParameters(levelDefinition, levelProgress, totalProgress, isNextLevel, locked, unlockSeen, isNew, levelNumericalName, hidden));
                 widget.AddValueChangeListener(isOn => SelectLevelDefinition(isOn, levelDefinition));
                 if (levelToSelect == levelDefinition)
                     widget.Select(true);
-                if (!(waitsForReveal | locked | unlockSeen))
+                if (!waitsForReveal && !locked && !unlockSeen)
                 {
                     levelData.LevelSelectUnlockSeen = true;
                     levelData.UnlockSeen = true;

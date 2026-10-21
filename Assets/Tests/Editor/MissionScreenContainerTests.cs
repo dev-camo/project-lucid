@@ -195,6 +195,21 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Control for the gate above: with both on, the mission manager (still unknown here) is asked, which faults.
+        [Test]
+        public void RankTimesReachTheMissionManagerWhenTheOptionAndTheShownRankAreBothOn()
+        {
+            RunActiveMission((owned, world, container) =>
+            {
+                Set(container, "m_syncRankTimeWithMissionTime", true); // Reflection: serialized option
+                Set(container, "m_showRank", true); // Reflection: the state UpdateIconography sets from a time trial
+                Exception thrown = Assert.Catch(() => Call(container, "Update"));
+                if (thrown is TargetInvocationException)
+                    thrown = thrown.InnerException;
+                Assert.That(thrown, Is.InstanceOf<NullReferenceException>(), "0x617B92 / 0x617B9C passed, so m_missionManager is dereferenced");
+            });
+        }
+
         // AdjustForObjectives 0x618D70: a mission that fails at its time limit counts down from the limit plus the objectives' extra time
         // (single-precision adds, 0x618DA2 / 0x618DA7); any other mission keeps the time. 100.1f + 0.2f - 3.3f is 96.99999f in single
         // precision (a double evaluation would give 97).
