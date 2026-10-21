@@ -14,9 +14,9 @@ namespace HardlightProject
 	{
 		// Original nested 0200023c.
 		[Serializable]
-		[FiniteStateMachineJsonCtorArgs]
 		[Il2CppSetOption(Option.NullChecks, false)]
 		[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+		[FiniteStateMachineJsonCtorArgs]
 		protected class DelayTransitionJSONCtorArgs
 		{
 			public float DelayTransitionFiringTime;

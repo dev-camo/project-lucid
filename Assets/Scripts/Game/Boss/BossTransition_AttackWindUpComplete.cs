@@ -6,6 +6,7 @@ namespace HardlightProject
 {
 	// Original Game.Runtime 02000234; bodies translated from the 1.10.1 x86-64 binary.
 	[GraphNodeMenuFormat("Boss/{0}")]
+	// The original shares the StartWindUp default name with BossTransition_StartWindUp (metadata blob); not a copy slip.
 	[GraphNodeDefaultName("StartWindUp")]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[Il2CppSetOption(Option.NullChecks, false)]

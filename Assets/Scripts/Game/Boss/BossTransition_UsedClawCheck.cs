@@ -14,9 +14,9 @@ namespace HardlightProject
 	{
 		// Original nested 02000250.
 		[Serializable]
-		[FiniteStateMachineJsonCtorArgs]
 		[Il2CppSetOption(Option.NullChecks, false)]
 		[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+		[FiniteStateMachineJsonCtorArgs]
 		protected class ClawJSONCtorArgs
 		{
 			public BossAttackTypes Claw;

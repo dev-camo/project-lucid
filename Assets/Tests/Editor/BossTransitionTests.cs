@@ -185,7 +185,7 @@ namespace ProjectLucid.Tests
                     IFSMTransition transition = Build(nameof(BossTransition_BothClawsBroken), "{\"DelayTransitionFiringTime\":0.125}");
                     Assert.That(Get<float>(transition, "m_delayTransitionFiringTime"), Is.EqualTo(0.125f));
 
-                    Assert.That(Update(transition, boss, 0.125f), Is.False, $"{left}/{right}: a wait equal to the delay does not fire");
+                    Assert.That(Update(transition, boss, 0.125f), Is.False, left && right ? $"{left}/{right}: a wait equal to the delay does not fire" : $"{left}/{right}: a claw point is intact");
                     Assert.That(Update(transition, boss, 0.125f), Is.EqualTo(fires), $"{left}/{right}");
                     Assert.That(Has(boss, BossFSMKeys.PhaseTransitionWait), Is.EqualTo(left && right), $"{left}/{right}: the wait advances only for both");
                 });
