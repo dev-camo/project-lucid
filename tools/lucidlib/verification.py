@@ -9578,4 +9578,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetChallengesSliderTests." + na
     "AZeroAnimationTimeEndsAfterEmptyingTheBar",
     "ANegativeAnimationTimeEndsAfterEmptyingTheBar",
     "ANaNAnimationTimeEndsAfterEmptyingTheBar",
+    "TheLargeSliderEasesTowardTheTargetWithASmoothstep",
+    "TheLargeSliderEasingWeightIsClampedAtOne",
+    "TheMiniAnimationLerpsTheCurrentValueTowardTheParametersValue",
 ))

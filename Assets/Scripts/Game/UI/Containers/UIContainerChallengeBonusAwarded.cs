@@ -38,7 +38,7 @@ namespace HardlightProject
             m_challengeManager = challengeManager;
             BonusXPAwarded.Value = challengeManager.PeriodBonusXP;
             TotalXPAfter.Value = challengeManager.GetCurrentXP();
-            TotalXPBefore.Value = TotalXPAfter.Value - BonusXPAwarded.Value;
+            TotalXPBefore.Value = TotalXPAfter - BonusXPAwarded;
             BonusXPString.Value = string.Format(StringTable.GetString(m_xpStringFormat), BonusXPAwarded.Value.ToString());
             XPRewardTitle.Value = m_titleChallengesComplete;
             RewardIcon.Value = m_iconChallenges;

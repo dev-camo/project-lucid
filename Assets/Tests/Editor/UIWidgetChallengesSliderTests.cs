@@ -11,8 +11,8 @@ namespace ProjectLucid.Tests
 {
     // UIWidgetChallengesSlider (Game.Runtime 0x020009a8, x86-64 0x69C220..0x69C6D0, iterator 0x020009a9) and UIWidgetChallengesSliderMini
     // (0x020009ab, 0x69C710..0x69CA80, iterator 0x020009ac) as real components on inactive owned hosts over a real Slider. The iterators
-    // are stepped by hand. Not covered: the smoothstep easing of the large slider and the lerp of the mini slider over real frame time,
-    // which read Time.time and Time.deltaTime (the cases cover the steps whose result does not depend on elapsed time), and the start of
+    // are stepped by hand; the elapsed-time state (<startTime>5__2, <timeElapsed>5__2) is set on the iterator because Time.time and
+    // Time.deltaTime are constant inside a synchronous EditMode test. Not covered: the easing over real frame time, and the start of
     // the mini slider's coroutine on the process coroutine host.
     public sealed class UIWidgetChallengesSliderTests
     {
@@ -261,6 +261,68 @@ namespace ProjectLucid.Tests
 
                 Assert.That(rig.Slider.value, Is.Zero, "emptied, and an elapsed time of zero eases nothing");
                 if (waits) Assert.That(steps.Current, Is.Null);
+            });
+        }
+
+        // AnimateSlider MoveNext 0x69C4F0 (0x69C53D..0x69C5B1): after the first wait, t = (Time.time - startTime) / duration eases the slider
+        // value toward the target with the clamped smoothstep 3t^2 - 2t^3. At t = 0.25 the weight is 0.15625: 5 * 0.84375 + 8 * 0.15625 =
+        // 5.46875 (a linear lerp gives 5.75).
+        [Test]
+        public void TheLargeSliderEasesTowardTheTargetWithASmoothstep()
+        {
+            Run(rig =>
+            {
+                rig.Slider.maxValue = 10f;
+                rig.Slider.value = 5f;
+                var steps = (IEnumerator)Call(rig.Widget, "AnimateSlider", 8f);
+                Assert.That(steps.MoveNext(), Is.True);
+                Set(steps, "<startTime>5__2", Time.time - 0.125f); // Reflection: Time.time cannot advance inside the test
+
+                Assert.That(steps.MoveNext(), Is.True);
+
+                Assert.That(rig.Slider.value, Is.EqualTo(5.46875f).Within(1e-3f));
+            });
+        }
+
+        // The easing weight is clamped to 1 (minss at 0x69C53D..): t = 2 reaches the target exactly, so the loop ends and the callback runs
+        // in the same step. An unclamped polynomial gives a negative weight, a slider value of 0 and a further wait.
+        [Test]
+        public void TheLargeSliderEasingWeightIsClampedAtOne()
+        {
+            Run(rig =>
+            {
+                rig.Slider.maxValue = 10f;
+                rig.Slider.value = 5f;
+                int completions = 0;
+                Set(rig.Widget, "m_onCompleteCurrentAnimation", (Action)(() => completions++)); // Reflection: the callback SetValue stores
+                var steps = (IEnumerator)Call(rig.Widget, "AnimateSlider", 8f);
+                Assert.That(steps.MoveNext(), Is.True);
+                Set(steps, "<startTime>5__2", Time.time - 1f); // Reflection: Time.time cannot advance inside the test
+
+                Assert.That(steps.MoveNext(), Is.False);
+
+                Assert.That(rig.Slider.value, Is.EqualTo(8f));
+                Assert.That(completions, Is.EqualTo(1));
+            });
+        }
+
+        // Animate MoveNext 0x69C8D0 (0x69C979..0x69C9DB): after the wait the slider value is lerped from its current value toward the
+        // parameters' Value (not MaxValue) by elapsed / time, then the elapsed time grows by the frame time. Lerp(2, 6, 5 / 10) = 4.
+        [Test]
+        public void TheMiniAnimationLerpsTheCurrentValueTowardTheParametersValue()
+        {
+            Run(rig =>
+            {
+                rig.Mini.Setup(new UIWidgetChallengesSliderMiniParameters(6f, 9));
+                var steps = (IEnumerator)Call(rig.Mini, "Animate");
+                Assert.That(steps.MoveNext(), Is.True);
+                rig.Slider.value = 2f;
+                Set(steps, "<timeElapsed>5__2", 5f); // Reflection: elapsed time cannot advance inside the test
+
+                Assert.That(steps.MoveNext(), Is.True);
+
+                Assert.That(rig.Slider.value, Is.EqualTo(4f).Within(1e-4f));
+                Assert.That(Get<float>(steps, "<timeElapsed>5__2"), Is.EqualTo(5f + Time.deltaTime).Within(1e-5f));
             });
         }
     }
