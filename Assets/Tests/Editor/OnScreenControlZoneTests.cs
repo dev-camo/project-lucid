@@ -18,6 +18,15 @@ namespace ProjectLucid.Tests
     // unregisters it) or never registers. Not covered: touches from the player loop.
     public sealed class OnScreenControlZoneTests
     {
+        // The Editor raises Reset when it creates a ScriptableObject, which the probe counts, so a new modifier starts
+        // counting the zone's own resets from zero.
+        private static OnScreenControlZoneModifierProbe NewModifier(Services services)
+        {
+            var modifier = services.Owned.Track(ScriptableObject.CreateInstance<OnScreenControlZoneModifierProbe>());
+            modifier.Resets = 0;
+            return modifier;
+        }
+
         private static readonly GameInput Tap = GameInput.Tap;
 
         private static string Row(string kind, GameInput input, float value) => ButtonCallbackLog.Row(kind, 0, input, value, InputType.Touch);
@@ -179,9 +188,9 @@ namespace ProjectLucid.Tests
             {
                 SaveDataSettings settings = WithSettings(services);
                 var constants = services.Owned.Track(ScriptableObject.CreateInstance<GlobalConstantDefinition_Input>());
-                var medium = services.Owned.Track(ScriptableObject.CreateInstance<OnScreenControlZoneModifierProbe>());
-                var highFirst = services.Owned.Track(ScriptableObject.CreateInstance<OnScreenControlZoneModifierProbe>());
-                var highSecond = services.Owned.Track(ScriptableObject.CreateInstance<OnScreenControlZoneModifierProbe>());
+                var medium = NewModifier(services);
+                var highFirst = NewModifier(services);
+                var highSecond = NewModifier(services);
                 medium.Scale = new Vector2(2f, 3f);
                 highFirst.Scale = new Vector2(10f, 100f);
                 highSecond.Scale = new Vector2(2f, 2f);
@@ -220,7 +229,7 @@ namespace ProjectLucid.Tests
             {
                 WithSettings(services);
                 var constants = services.Owned.Track(ScriptableObject.CreateInstance<GlobalConstantDefinition_Input>());
-                var modifier = services.Owned.Track(ScriptableObject.CreateInstance<OnScreenControlZoneModifierProbe>());
+                var modifier = NewModifier(services);
                 constants.CompositeMovementModifierLookups[InputModifierType.Medium] = new List<InputModifier> { modifier };
                 ProcessManager.GetSystem<DataManager>().GlobalConstantDefinitions[GlobalConstantType.Input] = constants;
                 zone.Initialise();

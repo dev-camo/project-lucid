@@ -16,6 +16,11 @@ namespace ProjectLucid.Tests
     // as the inspector would. Not covered: the position and phase of real touches, which need the player loop.
     public sealed class OnScreenTouchZoneTests
     {
+        // GetTotalFixedTime (060002c6) returns its cached total unless that is zero, and only then asks the TimeManager
+        // reference that an awake character caches; this character never wakes, so the cache is filled directly.
+        private static void SetTotalFixedTime(Character character) =>
+            ModernUITestSupport.Set(character, "m_totalFixedTime", 10f); // Reflection: the cache is private
+
         private static readonly Vector2 Zero = Vector2.zero;
 
         private static Touch TouchAt(int fingerId, float x, float y) =>
@@ -414,6 +419,7 @@ namespace ProjectLucid.Tests
                 Assert.That(zone.ValidFor(new List<ActorAbilityType>()), Is.True, "no abilities listed");
                 Assert.That(zone.ValidFor(listed), Is.True, "no current character");
                 SetCurrent(services.Characters, services.Character, true);
+                SetTotalFixedTime(services.Character);
                 Assert.That(zone.ValidFor(listed), Is.True, "nothing in use");
 
                 storeUse(ActorAbilityType.Character_AirStompAttack, true, 0f);
@@ -440,6 +446,7 @@ namespace ProjectLucid.Tests
                 SingleTouch(zone);
                 ModernUITestSupport.Set(zone, "m_touchIgnoreAbilities", new List<ActorAbilityType> { ActorAbilityType.Character_AirStompAttack }); // serialized in the original
                 SetCurrent(services.Characters, services.Character, true);
+                SetTotalFixedTime(services.Character);
                 var use = new Dictionary<ActorAbilityType, ActorAbilityInUseData>(HardlightProject.HardlightEnumComparers.ActorAbilityTypeComparer);
                 use[ActorAbilityType.Character_AirStompAttack] = new ActorAbilityInUseData { InUse = true };
                 services.Character.Storage.SetValue(ActorFSMKeys.AbilitiesInUse, use);

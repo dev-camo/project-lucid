@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.OnScreenControlsShared;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.OnScreenControlTestServices;
 
 namespace ProjectLucid.Tests
@@ -49,6 +51,10 @@ namespace ProjectLucid.Tests
                 ModernUITestSupport.Set(configuration, "m_inputBridge", rig.Bridge); // serialized in the original
                 owned.Register(configuration);
                 rig.Monitor = owned.Track(ScriptableObject.CreateInstance<InputMonitor>());
+                // Destroying a monitor that was never initialised faults in the original too: OnDestroy (0x0600017e) runs
+                // Shutdown, whose first call (BaseInputMonitor 0x06000188) asks IsActiveOnPlatform (0x06000180) for a platform
+                // list that a new, unserialised monitor does not have. Unity logs the exception when the case releases it.
+                LogAssert.Expect(LogType.Exception, new Regex(@"ArgumentNullException: Value cannot be null\.\s+Parameter name: array"));
                 var inputSystem = owned.Host("Lucid owned input system", false).AddComponent<InputSystem>();
                 ModernUITestSupport.Set(inputSystem, "m_inputMonitor", rig.Monitor); // serialized in the original
                 owned.Register(inputSystem);

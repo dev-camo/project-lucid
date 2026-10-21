@@ -50,6 +50,9 @@ namespace ProjectLucid.Tests
             var rig = new Rig { Mapping = scope.RegisterInputSystem(), Log = new ButtonCallbackLog() };
             rig.Ui = scope.Inactive("Lucid owned on-screen ui button").AddComponent<UIButtonProbe>();
             ModernUITestSupport.Set(rig.Ui, "m_events", new List<UISelectable.UIEventInfo>()); // serialized in the original
+            // Interactable's change event vibrates through the reference that UISelectable.Awake caches.
+            scope.Row<VibrationManager>();
+            ModernUITestSupport.Call(typeof(UISelectable), rig.Ui, "Awake");
             rig.Ui.OnButtonDown = new UnityEvent();
             rig.Ui.OnButtonUp = new UnityEvent();
             rig.Ui.OnButtonExit = new UnityEvent();
