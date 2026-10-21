@@ -130,7 +130,8 @@ namespace HardlightProject
             {
                 m_lastWeightedProximity = weightedProximity;
                 level = NoLevel;
-                while (level < m_levels.Count - 1 && m_levels[level + 1].MinProximity <= weightedProximity)
+                // ucomiss/jbe 0x69382d keeps climbing unless the next minimum is above the proximity, so NaN climbs.
+                while (level < m_levels.Count - 1 && !(m_levels[level + 1].MinProximity > weightedProximity))
                     level++;
                 if (m_currentLevel != level)
                 {

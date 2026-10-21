@@ -115,7 +115,9 @@ namespace ProjectLucid.Tests
         }
 
         // Mathf.Approximately(last, current) (0x69378c..0x6937d6) leaves the levels alone, so an unchanged or
-        // epsilon-different proximity does not run SetLevel; a real change does.
+        // epsilon-different proximity does not run SetLevel. SetLevel also runs only when the walked level differs
+        // from the current one (cmp m_currentLevel, r14d; jne 0x69382f), so a real change that lands on the same
+        // level index leaves the shown levels alone too, and a change of level index refreshes them.
         [Test]
         public void AnUnchangedProximityLeavesTheShownLevelsAlone()
         {
@@ -133,7 +135,24 @@ namespace ProjectLucid.Tests
                 Tick(detector, island, 0.5000001f);
                 Assert.That(marks[0].activeSelf, Is.False, "within the relative tolerance of 1e-6");
                 Tick(detector, island, 0.51f);
-                Assert.That(marks[0].activeSelf, Is.True, "a real change refreshes the levels (the level index is unchanged)");
+                Assert.That(marks[0].activeSelf, Is.False, "a real change that keeps the level index does not run SetLevel (0x69382f)");
+                Tick(detector, island, 0.3f);
+                Assert.That(Active(marks), Is.EqualTo(new[] { true, false }), "a new level index runs SetLevel");
+            });
+        }
+
+        // The walk's compare is ucomiss min, w; jbe (0x6937ea..0x69382d), taken when min <= w or the compare is
+        // unordered, so a NaN proximity climbs to the last level (an ordered <= would stay at no level).
+        [Test]
+        public void ANaNProximityShowsEveryLevel()
+        {
+            WithManager(scene =>
+            {
+                UIContainerGameplayIsland island = AddIsland(scene);
+                GameObject[] marks = Marks(scene, 3);
+                OrbDetectorUI detector = Detector(scene, island, new[] { 0.25f, 0.5f, 0.75f }, 1f, marks);
+                Tick(detector, island, float.NaN);
+                Assert.That(Active(marks), Is.EqualTo(new[] { true, true, true }));
             });
         }
 
@@ -313,10 +332,12 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // A music source without a low-pass filter is remembered as unavailable (0x6934d8); an unknown source, or no
-        // audio manager, leaves the lookup open.
+        // HLAudioSourceData's constructor reads the filter with GetComponent, so a source without one has a null
+        // LowPassFilter and SetMusicEffects returns at the null test (0x693435) before HasLowPassFilter is read;
+        // the m_noLowPassFilterAvailable store (0x6934d8) cannot be reached through it. Nothing is remembered for a
+        // filterless source, an unknown source, or a missing audio manager.
         [Test]
-        public void AMusicSourceWithoutAFilterIsRememberedAndAnUnknownSourceIsNot()
+        public void ASourceWithoutAFilterOrAnUnknownSourceRemembersNothing()
         {
             WithManager(scene =>
             {
@@ -328,7 +349,7 @@ namespace ProjectLucid.Tests
 
                     OrbDetectorUI plain = MusicDetector(scene, island, audio, HLAudioSourceIdentifier.Background);
                     Call(plain, "SetMusicEffects", 0.5f);
-                    Assert.That(Get<bool>(plain, "m_noLowPassFilterAvailable"), Is.True);
+                    Assert.That(Get<bool>(plain, "m_noLowPassFilterAvailable"), Is.False);
                     Assert.That(Get<AudioLowPassFilter>(plain, "m_musicLowPassFilter") == null, Is.True);
 
                     OrbDetectorUI unknown = MusicDetector(scene, island, audio, HLAudioSourceIdentifier.Ambient);

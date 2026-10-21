@@ -3,7 +3,7 @@ using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
-using ProjectLucid.Tests.CrossPromoUIShared;
+using ProjectLucid.Tests.UIContainerShared;
 using ProjectLucid.Tests.WorldTriggersShared;
 using UnityEngine;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;

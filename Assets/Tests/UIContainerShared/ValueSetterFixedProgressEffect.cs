@@ -1,6 +1,6 @@
 using HardlightProject;
 
-namespace ProjectLucid.Tests.CrossPromoUIShared
+namespace ProjectLucid.Tests.UIContainerShared
 {
     // Test-only SequencedEffect whose Progress is the value a case sets, and which counts how often it is read.
     // Editor-only assemblies cannot supply attachable components.

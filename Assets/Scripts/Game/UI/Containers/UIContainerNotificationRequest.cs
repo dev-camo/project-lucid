@@ -30,9 +30,8 @@ namespace HardlightProject
         {
             m_notificationManager = ProcessManager.GetSystem<NotificationManager>(null, true);
             m_notification = (uiContainerParameters as UIContainerNotificationRequestParameters).Notification;
-            for (int i = 0; i < m_notificationTypes.Length; i++)
+            foreach (NotificationPermissionConfig config in m_notificationTypes)
             {
-                NotificationPermissionConfig config = m_notificationTypes[i];
                 if (config.Notification == m_notification)
                 {
                     m_displayImage.sprite = config.Sprite;

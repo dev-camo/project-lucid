@@ -10,6 +10,7 @@
     "ProjectLucid.UISelection.EngineVerification",
     "ProjectLucid.UnityCore.EngineVerification",
     "ProjectLucid.CrossPromoUI.EngineVerification",
+    "ProjectLucid.UIContainer.EngineVerification",
     "ProjectLucid.WorldTriggers.EngineVerification",
     "ProjectLucid.WorldSurface.EngineVerification",
     "ProjectLucid.CharCore.EngineVerification",

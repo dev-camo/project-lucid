@@ -8438,6 +8438,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerValueSetterTests." + name
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrbDetectorUITests." + name for name in (
     "TheShownLevelsFollowTheWeightedProximity",
     "TheLevelWalkStopsAtTheFirstMinimumAboveTheProximity",
+    "ANaNProximityShowsEveryLevel",
     "AnUnchangedProximityLeavesTheShownLevelsAlone",
     "CollectingAnOrbHidesEveryLevelAndStartsTheMusicRestore",
     "TheMusicRestoreEndsWhenTheElapsedTimeReachesTheLastKey",
@@ -8446,7 +8447,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrbDetectorUITests." + name for name
     "IsCollectingOrbReadsTheIslandBindable",
     "TheMusicLowPassFollowsTheClampedProximity",
     "TheMusicRestoreSwitchesTheFilterOffAndAppliesTheLowerCutoff",
-    "AMusicSourceWithoutAFilterIsRememberedAndAnUnknownSourceIsNot",
+    "ASourceWithoutAFilterOrAnUnknownSourceRemembersNothing",
     "OnAudioManagerValidKeepsTheManager",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerHudBindingTests." + name for name in (

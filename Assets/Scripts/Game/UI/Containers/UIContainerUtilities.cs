@@ -28,7 +28,7 @@ namespace HardlightProject
 
         // 06003576 (1.10.1 RVA 0x681DF0): the zone's colours, adjusted by the selected level's theme
         // override and then by the mission's (the active mission's when none is passed).
-        public static void SetBackgroundGradientBinders(Bindable<Color> startColour, Bindable<Color> endColour, MissionDefinition missionDefinition)
+        public static void SetBackgroundGradientBinders(Bindable<Color> startColour, Bindable<Color> endColour, MissionDefinition missionDefinition = null)
         {
             if (!TryGetSelectedLevelAndZone(out GameplayLevelDefinition levelDefinition, out GameplayLevelCategory zone))
                 return;

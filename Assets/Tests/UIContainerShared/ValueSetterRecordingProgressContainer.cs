@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Hardlight;
 using HardlightProject;
 
-namespace ProjectLucid.Tests.CrossPromoUIShared
+namespace ProjectLucid.Tests.UIContainerShared
 {
     // Test-only UIContainer that reports progress, standing in for the container a UIContainerValueSetter
     // finds through its UIContainerIdentifier. Each IUIContainerProgress call is logged as written below.

@@ -183,6 +183,9 @@ namespace ProjectLucid.Tests
             ParameterInfo[] accent = typeof(UIContainerUtilities).GetMethod("GetZoneAccent").GetParameters();
             Assert.That(accent.Select(parameter => (parameter.Name, parameter.IsOptional, parameter.DefaultValue)).ToArray(),
                 Is.EqualTo(new[] { ("missionDefinition", true, (object)null), ("zone", true, (object)null), ("levelDefinition", true, (object)null) }));
+            ParameterInfo[] gradient = typeof(UIContainerUtilities).GetMethod("SetBackgroundGradientBinders").GetParameters();
+            Assert.That(gradient.Select(parameter => (parameter.Name, parameter.IsOptional, parameter.DefaultValue)).ToArray(),
+                Is.EqualTo(new[] { ("startColour", false, (object)null), ("endColour", false, (object)null), ("missionDefinition", true, (object)null) }));
             ParameterInfo[] selected = typeof(UIContainerUtilities).GetMethod("TryGetSelectedLevelAndZone").GetParameters();
             Assert.That(selected.Select(parameter => (parameter.Name, parameter.IsOut)).ToArray(),
                 Is.EqualTo(new[] { ("levelDefinition", true), ("zone", true) }));
