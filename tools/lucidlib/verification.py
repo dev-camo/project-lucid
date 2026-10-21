@@ -7278,6 +7278,58 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.AppRatingRequesterBossTests." + name
     "ValidateAsksTheMissionManagerOnlyAfterTheBaseCheckAndAnExistingManager",
     "DeclarationShapeKeepsTheAssetMenuAndTheSealedRequesterSurface",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementAppStorageTests." + name for name in (
+    "TheAuthoredValueIsComparedWithTheStoredValueOrTheAuthoredDefault",
+    "ALaterStoredValueIsReadAfterTheKeyWasCached",
+    "ChallengesAreOpenOnlyForAStoredTrueFlag",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementSaveDataTests." + name for name in (
+    "AnyCompletedMissionOfTheLevelMeetsTheAtLeastOneRequirement",
+    "ALevelRewardIsUnlockedOnlyOnceItsRecordIsCollected",
+    "ARewardTrackIsUnlockedOnlyAfterItsOwnUnlockStateLeavesLocked",
+    "ARewardTrackWithoutASaveManagerIsLocked",
+    "ASpecificMissionIsCompleteWhenItsRecordInTheLookedUpLevelIsComplete",
+    "ASpecificMissionWithoutTheManagersIsNotComplete",
+    "ANotCompletedMissionRequirementNegatesTheRecordedCompletion",
+    "ANotCompletedMissionRequirementWithoutAMissionManagerIsNotMet",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementChallengeFeatureTests." + name for name in (
+    "TheFeatureIsSeenOnlyInTheFinalState",
+    "TheFeatureIsUnlockedInEveryStatePastLocked",
+    "TheUnlockedStatesAreTheThreeStatesPastLockedInOrder",
+    "WithoutAChallengeManagerNoFeatureRequirementIsMet",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementProgressionTests." + name for name in (
+    "ThePreviousActRequirementChecksOnlyTheFirstMissionOfThePreviousLevel",
+    "ThePreviousZoneBossRequirementChecksTheFirstMissionOfTheBossOfThePreviousZone",
+    "ACategoryIsLockedUntilEveryBossLevelOfThePreviousZoneIsFinished",
+    "EveryGroupBeforeTheRequirementsGroupMustBeComplete",
+    "EveryListedMissionMustBeCompleteInItsFirstLevel",
+    "OnlyExistingPersistentTrackerStatesCanFailThePersistentRequirement",
+    "ALevelOutsideTheGameLevelsDoesNotHaveEnoughRewards",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementDeclarationTests." + name for name in (
+    "GameplayLevelRequirementsKeepTheirMetadata",
+    "TheGenericAppValueRequirementKeepsItsConstraintAndSerializedFields",
+    "MissionGroupAndCategoryRequirementsKeepTheirMetadata",
+    "PromptSaveSequencedAndLeaderboardTypesKeepTheirMetadata",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.PromptTriggerActionTests." + name for name in (
+    "HidingAllPromptsWithoutAPromptManagerDoesNothing",
+    "HidingAllPromptsOfAnIdlePromptManagerLeavesNoActivePrompt",
+    "AnEffectWhosePromptIsRefusedCompletesAtOnce",
+    "TheEffectCompletesWhenItsOwnPromptIsHiddenAndIgnoresOthers",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeTrialLeaderboardDevTests." + name for name in (
+    "TheDevLeaderboardIsAlwaysReadyAndIgnoresChallenges",
+    "ASubmittedTimeReplacesTheLabelOfItsLeaderboardAndShutdownClearsThem",
+    "ShowingALeaderboardOnlyReadsTheDebugMenuReference",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SaveGameUIActionsTests." + name for name in (
+    "DeletingAllSavesClosesTheOpenSaveReplacesEverySlotAndStartsReopening",
+    "DeletingAllSavesWithoutAnOpenSaveDoesNotStartReopening",
+    "ResettingAnalyticsWithoutAnAnalyticsSaveTouchesNothing",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyAbilityDefinitionTests." + name for name in (
     "MovementDefinitionsStartAt120DegreesTurnSpeedAnd3ForwardSpeed",
     "AirMovementStartsWithoutAHeightRestriction",
