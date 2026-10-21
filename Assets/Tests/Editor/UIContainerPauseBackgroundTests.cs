@@ -17,7 +17,7 @@ namespace ProjectLucid.Tests
     // comes from its Awake coroutine), which is the state where RenderBackgroundImage returns before it renders.
     //
     // Not covered: the render itself (RenderBackgroundImage 0x671E00..0x671EA5 and the OnDisable release), which runs
-    // Camera.Render on the owned inactive camera host, and a manager that is not yet registered when OnEnable runs.
+    // Camera.Render on the owned inactive camera host.
     public sealed class UIContainerPauseBackgroundTests
     {
         private const int CullingMask = 0x2D;
@@ -32,12 +32,13 @@ namespace ProjectLucid.Tests
 
         // The quality feature sits on the background as the engine serializer delivers it: the profile's level for the
         // scalable feature selects the first row of that level (PerformanceFeature.TryGet).
-        private static void Run(bool useRenderTexture, Action<Rig> body, Func<Owned, PerformanceFeature<UIContainerPauseBackground.QualityBackground>> quality = null) =>
+        private static void Run(bool useRenderTexture, Action<Rig> body, Func<Owned, PerformanceFeature<UIContainerPauseBackground.QualityBackground>> quality = null, bool registerManager = true) =>
             Owned.Run(owned =>
             {
                 if (quality == null) owned.LeaseRow<ScalablePerformance>(); // PerformanceFeature's field initialiser
                 var rig = new Rig { Owned = owned };
-                rig.Cameras = CameraManagerClientSupport.NewRig(owned, true, true);
+                rig.Cameras = CameraManagerClientSupport.NewRig(owned, true, registerManager);
+                if (!registerManager) owned.LeaseRow<CinemachineCameraManager>(); // the empty row the background's reference waits on
                 rig.Cameras.Camera.cullingMask = CullingMask;
                 rig.Cameras.Camera.targetTexture = owned.Track(new RenderTexture(CameraSize.x, CameraSize.y, 0));
                 PerformanceFeature<UIContainerPauseBackground.QualityBackground> feature = quality?.Invoke(owned);
@@ -84,6 +85,25 @@ namespace ProjectLucid.Tests
                 Assert.That(IsSubscribed(rig), Is.True);
                 Assert.That(Get<Vector2Int>(rig.Background, "m_screenSize"), Is.EqualTo(Vector2Int.zero), "no camera seen yet");
             });
+        }
+
+        // With the manager absent (TryGet false at 0x671BF2) OnEnable hands Initialise to InvokeOnValid (0x671C68): nothing is
+        // kept or subscribed until the manager registers, and then the callback runs Initialise.
+        [Test]
+        public void EnablingBeforeTheManagerRegistersInitialisesWhenItDoes()
+        {
+            Run(true, rig =>
+            {
+                Call(rig.Background, "OnEnable");
+
+                Assert.That(Get<CinemachineCameraManager>(rig.Background, "m_cinemachineCameraManager") == null, Is.True);
+                Assert.That(IsSubscribed(rig), Is.False);
+
+                rig.Owned.Register(rig.Cameras.Manager);
+
+                Assert.That(Get<CinemachineCameraManager>(rig.Background, "m_cinemachineCameraManager"), Is.SameAs(rig.Cameras.Manager));
+                Assert.That(IsSubscribed(rig), Is.True);
+            }, registerManager: false);
         }
 
         // InitialiseFromCamera 0x671EC0 unsubscribes from the manager's event (Delegate.Remove at 0x671F75), takes the camera's

@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using System.Collections.Generic;
 using Hardlight;
 using Hardlight.Enums;
 using Hardlight.UI.Binding;

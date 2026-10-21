@@ -10467,6 +10467,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerResetGameDataTests." + na
     "DeletingWithAnOpenSaveClosesItMarksTheGameNotLoadedAndQueuesTheConfirmEvent",
     "DeletingWithoutAnOpenSaveOnlyQueuesTheConfirmEvent",
     "ADeleteTwiceQueuesTheConfirmEventOnce",
+    "DeletingASaveOpenInANumberedSlotClearsThatSlot",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerAnalyticsConsentTests." + name for name in (
     "StartAppliesTheBaseGameplayControlThenPublishesTheManagersConsentState",
@@ -10495,18 +10496,22 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseTests." + name for n
     "AnActiveMissionIsHandedToTheResultsAndRanksContainers",
     "ALevelInAZoneShowsTheZoneAccentTheActNumberAndNoBackground",
     "AZoneThatDoesNotListTheLevelPublishesActNumberZero",
+    "ALevelListedTwiceInAZoneTakesTheFirstPosition",
     "CloseQueuesTheResumeEventOnce",
     "TheQuitAnalyticsGoThroughTheActiveContext",
     "DestroyingReleasesTheAccentAndForwardsThePauseCloseAction",
     "DestroyingWithoutAPauseCloseActionStartsNoWait",
+    "DestroyingReleasesTheLevelImageOnlyWhenABackgroundIsPublished",
     "RestartAndRespawnEachStartOneCoroutine",
     "RespawnQueuesTheResumeEventThenWaitsForTheMenuToBeOpen",
     "RespawnOfAnOpenMenuPutsTheCurrentCharacterOutOfBoundsAtOnce",
     "RestartQueuesTheResumeEventWaitsForTheMenuThenRestartsTheLevel",
+    "RestartOfAnOpenMenuStillYieldsAWaitThatIsAlreadySatisfied",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseBackgroundTests." + name for name in (
     "WithoutTheRenderTextureEnablingSwitchesTheComponentOff",
     "EnablingWithTheRenderTextureKeepsTheManagerAndSubscribesToTheMainCameraEvent",
+    "EnablingBeforeTheManagerRegistersInitialisesWhenItDoes",
     "InitialisingFromACameraTakesItsSizeAndCullingMaskAndStopsListening",
     "TheSizeIsHalvedWhileEitherDimensionExceedsTheQualityMaximum",
     "RenderingWhileTheCameraIsNotReadyDoesNothing",

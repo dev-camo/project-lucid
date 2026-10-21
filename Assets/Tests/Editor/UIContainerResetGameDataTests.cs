@@ -1,19 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
+using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.UiPublishingFixtures;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
     // UIContainerResetGameData (Game.Runtime 0x0200091d; Action_DeleteCurrentSave 0x678970) over the genuine SaveManager
-    // (with an open save) and App of OwnedCharacterManagers. That open save sits in no numbered slot (its index stays at
-    // the no-save-open value), so SaveManager.DeleteSave, which refuses the open slot, deletes nothing here.
+    // (with an open save) and App of OwnedCharacterManagers. That open save sits in no numbered slot unless a case seeds
+    // one (its index stays at the no-save-open value), and SaveManager.DeleteSave refuses the open slot.
     //
-    // Not covered: the deletion of the numbered slot the save was open in (DeleteSave 0x678A3F with the index read at
-    // 0x678A29 before CloseSave); no fixture opens a save in a numbered slot without the property store and cloud.
+    // Not covered: the save the deletion queues (the refusing coroutine host rejects SaveImmediate with the engine error
+    // expected below).
     public sealed class UIContainerResetGameDataTests
     {
         private static void Run(Action<Owned, App, SaveManager, UIContainerResetGameData, UIModernEvent> body) => Owned.Run(owned =>
@@ -59,6 +62,28 @@ namespace ProjectLucid.Tests
 
                 Assert.That(app.Storage.TryGetValue(AppFSMKeys.GameSaveLoaded, out bool loaded), Is.True);
                 Assert.That(loaded, Is.True, "not written");
+                Assert.That(app.GetUIModernEvents(), Is.EqualTo(new[] { confirm }));
+            });
+        }
+
+        // The index is read before the save is closed (0x678A29, then CloseSave at 0x678A32) and handed to DeleteSave
+        // (0x678A3F): CloseSave resets the index, so reading it afterwards would delete nothing. The slot's raw save is
+        // replaced by the cleared save DeleteSaveSlot writes.
+        [Test]
+        public void DeletingASaveOpenInANumberedSlotClearsThatSlot()
+        {
+            Run((owned, app, save, container, confirm) =>
+            {
+                // Reflection: the index is set by OpenSave, which needs the property store; this is the open-slot state.
+                typeof(SaveManager).GetProperty("CurrentSaveIndex").SetValue(save, 1);
+                save.RawSaves[1] = "lucid-sentinel";
+                LogAssert.Expect(LogType.Error, new Regex("Coroutine couldn't be started"));
+
+                container.Action_DeleteCurrentSave();
+
+                Assert.That(save.RawSaves[1], Is.Not.EqualTo("lucid-sentinel"));
+                Assert.That(JsonUtility.FromJson<SaveDataGame>(save.RawSaves[1]).LastDeletionTimestamp, Is.GreaterThan(0L));
+                Assert.That(save.IsAnySaveOpen, Is.False);
                 Assert.That(app.GetUIModernEvents(), Is.EqualTo(new[] { confirm }));
             });
         }

@@ -140,7 +140,8 @@ namespace ProjectLucid.Tests
         // Action_OnExit 0x67F690 reads the levels the options page shows (0x67F759..0x67F7A4), copies the live settings into a
         // new SaveDataSettings (CopyFrom 0x67F7CF), applies the levels to the copy, stores the copy under GameSettings in the
         // App's storage (0x67F8C9) and publishes the save event as an OnClick (event type 8, 0x67F8DD). The live settings are
-        // not changed. The options page's save click is wired to it.
+        // not changed. The options page's save click is wired to it. The broadcast type is Both (ecx = 3 at 0x67F8FD), so the
+        // callback bound to the save event runs as well as the unbound ones.
         [Test]
         public void SavingTheLevelsStoresACopyOfTheSettingsAndPublishesTheSaveEvent()
         {
@@ -153,8 +154,9 @@ namespace ProjectLucid.Tests
                 rig.Options.SfxVolume.Value = 0.7f;
                 rig.Options.VoiceVolume.Value = 0.6f;
                 var received = new List<(UIModernEventType, UIModernEvent)>();
+                var bound = new List<UIModernEvent>();
 
-                Publishing(rig, received, () => rig.Options.Action_OnSaveClick());
+                Publishing(rig, received, bound, () => rig.Options.Action_OnSaveClick());
 
                 SaveDataSettings stored = rig.App.Storage.GetValueOnly<SaveDataSettings>(AppFSMKeys.GameSettings);
                 Assert.That(stored, Is.Not.SameAs(rig.Page.Settings));
@@ -162,11 +164,13 @@ namespace ProjectLucid.Tests
                 Assert.That(stored.CameraInvertedControls, Is.True, "the rest of the settings are copied");
                 Assert.That((rig.Page.Settings.MasterVolume, rig.Page.Settings.VoiceVolume), Is.EqualTo((0.11f, 0.44f)));
                 Assert.That(received, Is.EqualTo(new[] { (UIModernEventType.OnClick, rig.SaveEvent) }));
+                Assert.That(bound, Is.EqualTo(new[] { rig.SaveEvent }), "the callback bound to the save event");
             });
         }
 
-        // Publishes through a genuine message exchange in its row, with a subscriber to every event type.
-        private static void Publishing(Rig rig, List<(UIModernEventType, UIModernEvent)> received, Action action)
+        // Publishes through a genuine message exchange in its row, with a subscriber to every event type and one bound to the
+        // save event for OnClick.
+        private static void Publishing(Rig rig, List<(UIModernEventType, UIModernEvent)> received, List<UIModernEvent> bound, Action action)
         {
             string name = ProcessManager.GetDefaultName<MessageExchangeBoundCallbackArg<UIModernMessage>>();
             var row = rig.Owned.Lease(new VerificationFixtureOwnership.RegistryRow(name));
@@ -181,6 +185,11 @@ namespace ProjectLucid.Tests
                 exchange.SubscribeToMessage(in message, callback);
                 unsubscribe.Add(() => exchange.UnsubscribeFromMessage(in message, callback));
             }
+            var onClick = new UIModernMessage(UIModernEventType.OnClick);
+            UIModernEvent target = rig.SaveEvent;
+            MessageCallback<UIModernEvent> boundCallback = (in UIModernEvent value) => bound.Add(value);
+            exchange.SubscribeToMessage(in onClick, in target, boundCallback);
+            unsubscribe.Add(() => exchange.UnsubscribeFromMessage(in onClick, in target, boundCallback));
             try
             {
                 action();

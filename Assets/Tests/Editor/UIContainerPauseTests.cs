@@ -324,6 +324,31 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The loop leaves at the first match (the je at 0x6707EF, with r12 = i + 1): a level listed twice takes its first position.
+        [Test]
+        public void ALevelListedTwiceInAZoneTakesTheFirstPosition()
+        {
+            RunUtilitiesTypeInitialiser();
+            RunMissions(rig =>
+            {
+                StartMission(rig);
+                GameplayLevelDefinition level = rig.Missions.CurrentLevel.LevelDefinition;
+                var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
+                Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry>
+                {
+                    NewLevel(rig.Owned, "lucid-pause-before"), level, level,
+                });
+                Cache(zone.ZoneAccent, NewSprite(rig.Owned));
+                Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+
+                Assert.That(rig.Container.DreamNumber.Value, Is.EqualTo(2));
+            });
+        }
+
         private static GameplayLevelDefinition NewLevel(Owned owned, string guid)
         {
             var level = Create<GameplayLevelDefinition>(owned);
@@ -390,20 +415,43 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // With no action stored nothing is forwarded (the HasValue test at 0x670F2F); a published background image makes the
-        // current level release its level image (0x670EB1), which is a no-op for a level that never loaded one.
+        // With no action stored nothing is forwarded (the HasValue test at 0x670F2F).
         [Test]
         public void DestroyingWithoutAPauseCloseActionStartsNoWait()
         {
             RunMissions(rig =>
             {
                 Set(rig.Container, "m_levelManager", rig.Missions.Level);
-                rig.Container.ActBackground.Value = NewSprite(rig.Owned);
 
                 Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"));
 
                 LogAssert.NoUnexpectedReceived();
             });
+        }
+
+        // A published background image (ActBackground.Value tested with op_Inequality at 0x670E8A) makes the current level
+        // release its level image (TryGetCurrentLevel 0x670EA0, UnloadLevelImage 0x670EB3); without one the image stays loaded.
+        [Test]
+        public void DestroyingReleasesTheLevelImageOnlyWhenABackgroundIsPublished()
+        {
+            foreach (bool published in new[] { true, false })
+            {
+                RunMissions(rig =>
+                {
+                    var levelImage = new ManagedAddressableAsset<Sprite>(null);
+                    Cache(levelImage, NewSprite(rig.Owned));
+                    levelImage.Load();
+                    // Reflection: stands for the wrapper an earlier LoadLevelImage request made.
+                    Set(rig.Missions.CurrentLevel.LevelDefinition, "m_managedLoadingImage", levelImage);
+                    Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                    if (published)
+                        rig.Container.ActBackground.Value = NewSprite(rig.Owned);
+
+                    Call(rig.Container, "OnDestroy");
+
+                    Assert.That(Count(levelImage), Is.EqualTo(published ? 0 : 1), "published " + published);
+                });
+            }
         }
 
         // ---- The actions ----------------------------------------------------------------------------------------------
@@ -501,25 +549,67 @@ namespace ProjectLucid.Tests
         }
 
         // The Restart iterator 0x6718E0 queues the resume event (0x671AA0) and yields a WaitUntil on the same IsOpen test
-        // (b__23_0, 0x671300) without a pre-check; the next step restarts the level (LevelManager.Restart returns at once
-        // here, as no level is current) and the iterator ends.
+        // (b__23_0, 0x671300) without a pre-check; the next step restarts the level (LevelManager.Restart, 0x6719AC) and the
+        // iterator ends. Restart queues the level's restart event and marks the restart in progress.
         [Test]
         public void RestartQueuesTheResumeEventWaitsForTheMenuThenRestartsTheLevel()
         {
             RunCharacters(rig =>
             {
+                StartRestartableLevel(rig, out UIModernEvent restartEvent);
+                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart");
+                try
+                {
+                    Assert.That(restart.MoveNext(), Is.True);
+
+                    Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.ResumeEvent }));
+                    Assert.That(restart.Current, Is.InstanceOf<WaitUntil>());
+                    Assert.That(Waiting(restart.Current), Is.True, "the predicate is the manager's IsOpen, still false");
+                    rig.Containers.Open.Add(rig.Identifier);
+                    Assert.That(Waiting(restart.Current), Is.False);
+                    Assert.That(restart.MoveNext(), Is.False);
+
+                    Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.ResumeEvent, restartEvent }));
+                    Assert.That(rig.App.Storage.TryGetValue(AppFSMKeys.RestartInProgress, out bool inProgress), Is.True);
+                    Assert.That(inProgress, Is.True);
+                }
+                finally
+                {
+                    rig.App.Storage.RemoveValue<bool>(AppFSMKeys.RestartInProgress);
+                    rig.App.Storage.RemoveValue<bool>(AppFSMKeys.IsInPostGame);
+                }
+            });
+        }
+
+        // Unlike Respawn there is no IsOpen check before the wait (0x671AA0 runs on into 0x671AE8): a menu that is already open
+        // still yields a WaitUntil, which is already satisfied, and only the next step ends the iterator.
+        [Test]
+        public void RestartOfAnOpenMenuStillYieldsAWaitThatIsAlreadySatisfied()
+        {
+            RunCharacters(rig =>
+            {
+                rig.Containers.Open.Add(rig.Identifier);
                 rig.Owned.Register(rig.Owned.Host("Lucid pause level manager", false).AddComponent<LevelManager>());
                 IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart");
 
                 Assert.That(restart.MoveNext(), Is.True);
 
-                Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.ResumeEvent }));
                 Assert.That(restart.Current, Is.InstanceOf<WaitUntil>());
-                Assert.That(Waiting(restart.Current), Is.True, "the predicate is the manager's IsOpen, still false");
-                rig.Containers.Open.Add(rig.Identifier);
                 Assert.That(Waiting(restart.Current), Is.False);
                 Assert.That(restart.MoveNext(), Is.False);
             });
+        }
+
+        // A level manager with a current level, the App and a restart event: the state LevelManager.Restart (0x06002460) needs.
+        private static void StartRestartableLevel(CharacterRig rig, out UIModernEvent restartEvent)
+        {
+            var levelManager = rig.Owned.Register(rig.Owned.Host("Lucid pause level manager", false).AddComponent<LevelManager>());
+            restartEvent = NewEvent(rig.Owned, "pause-level-restart");
+            GameplayLevelDefinition definition = NewLevel(rig.Owned, "lucid-pause-restart-level");
+            // Reflection: LevelManager.Initialise builds these from a loaded level and the serialized event.
+            Set(levelManager, "m_currentLevel", new LevelManagerLevel(definition, definition));
+            Set(levelManager, "m_app", rig.App);
+            Set(levelManager, "m_restartUIEvent", restartEvent);
         }
     }
 }
