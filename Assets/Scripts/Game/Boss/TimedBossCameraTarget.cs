@@ -5,8 +5,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0200067a; bodies translated from the 1.10.1 x86-64 binary, 0x583430..0x5835A0.
     // A timed object that the boss's camera looks at for as long as it lives.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class TimedBossCameraTarget : TimedLifetimeObject
     {
         private Boss m_boss;

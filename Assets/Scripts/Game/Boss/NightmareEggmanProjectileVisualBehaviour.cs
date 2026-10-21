@@ -15,6 +15,8 @@ namespace HardlightProject
     public class NightmareEggmanProjectileVisualBehaviour : SmoothedTransformProxy
     {
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
         private class MovementPhaseSettings
         {
             public NightmareEggmanProjectile.ProjectileMovementState MovementState;

@@ -9,9 +9,9 @@ using Random = UnityEngine.Random;
 namespace HardlightProject
 {
     // Original Game.Runtime 0200066b and nested 0200066c; bodies translated from the 1.10.1 x86-64 binary,
-    // 0x57D330..0x57EB40. The projectile flies a spline a random distance ahead of the player, holds, charges back along
-    // the spline towards the player and explodes (cools down) shortly after reaching it. Its visual behaviours add the
-    // authored offsets on top of the spline position.
+    // 0x57D330..0x57EB40. The projectile starts a random distance behind the player on a spline, holds, charges along the spline towards
+    // the player and explodes (cools down) shortly after reaching it. Its visual behaviours add the authored offsets on
+    // top of the spline position.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class NightmareEggmanProjectile : Projectile
@@ -49,7 +49,7 @@ namespace HardlightProject
         private ProjectileMovementState m_currentMovementState;
 
         // 060022ab (1.10.1 RVA 0x57D330): picks the random distance and hold time, starts on the spline that distance
-        // ahead of the player, and then fires like any projectile (the base Fire is inlined at the end).
+        // behind the player, and then fires like any projectile (the base Fire is inlined at the end).
         public override void Fire()
         {
             m_desiredMetersAheadOfPlayer = Random.Range(m_metersAheadOfPlayerMin, m_metersAheadOfPlayerMax);
@@ -227,6 +227,11 @@ namespace HardlightProject
         protected override bool ShouldTeleportToHitPoint()
         {
             return false;
+        }
+
+        // 060022bb (1.10.1 RVA 0x57E9F0): the field initialisers are the whole constructor.
+        public NightmareEggmanProjectile()
+        {
         }
     }
 }

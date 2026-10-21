@@ -6,7 +6,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 02000200; bodies translated from the 1.10.1 x86-64 binary.
     // The claw that made the last attack becomes the homing target while the crab is vulnerable; both claw targets are
-    // switched off on leaving. An attack that was not made with a claw leaves the state without any vulnerability effect.
+    // switched off on leaving. An attack not made with a claw is still vulnerable (base entry) but activates no claw target and triggers
+    // no Vulnerable effect.
     [GraphNodeMenuFormat("Boss/Crab/{0}")]
     [GraphNodeDefaultName("Vulnerable")]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

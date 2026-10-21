@@ -8,16 +8,16 @@ namespace HardlightProject
     // Original Game.Runtime 0200022f; bodies translated from the 1.10.1 x86-64 binary.
     // Marks the boss vulnerable for the authored time: the vulnerable clock restarts on entry and the state ends the
     // vulnerability (and consumes ForceNotVulnerable) once the clock passes the time or the boss was forced out of it.
-    [Il2CppSetOption(Option.NullChecks, false)]
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [GraphNodeMenuFormat("Boss/{0}")]
     [GraphNodeDefaultName("Vulnerable")]
+    [Il2CppSetOption(Option.NullChecks, false)]
+    [GraphNodeMenuFormat("Boss/{0}")]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossState_Vulnerable : ActorState_Effect
     {
         [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         [FiniteStateMachineJsonCtorArgs]
         [Il2CppSetOption(Option.NullChecks, false)]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
         protected class VulnerableJSONCtorArgs : BaseJSONCtorArgs
         {
             public float VulnerableTime;

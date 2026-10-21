@@ -7404,6 +7404,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.NightmareEggmanProjectileTests." + n
     "ReachedPlayerClosesAtThePlainSpeedAndCoolsDownAfterTheExplosionTime",
     "PhaseChangesAndStepsReachTheVisualBehaviours",
     "ACollidingVisualBehaviourSweepsFromWhereItWasLastFrame",
+    "ASweepThroughTwoWallsReportsTheLastHitTheCastReturns",
     "TheProjectileCollidesThroughItsVisualBehaviours",
     "ABehaviourWithNestedBehavioursCollidesOnlyThroughThem",
     "PhaseSettingsStartWithTheNativeTimes",
@@ -7423,6 +7424,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossSubstituteObjectTests." + name f
     "FourmanEnablingSubstitutesTheVisualProxy",
     "FourmanEnablingLeavesTheReplacedObjectAloneWithoutAVisualProxy",
     "FourmenEnablingPicksTheBossAtTheAuthoredIndex",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimedBossCameraTargetTests." + name for name in (
     "InitialiseJoinsTheBossCameraGroupAndStartsTheLifetime",
     "DisablingLeavesTheCameraGroupUnlessTheBossIsGone",
 ))

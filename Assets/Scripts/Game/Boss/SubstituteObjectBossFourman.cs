@@ -7,8 +7,8 @@ namespace HardlightProject
     // Original Game.Runtime 02000446; bodies translated from the 1.10.1 x86-64 binary, 0x7A5820..0x7A5940.
     // A cutscene stand-in for the Fourman boss: it replaces the boss's visual proxy rather than the boss itself, when
     // the boss and its visual proxy exist.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class SubstituteObjectBossFourman : SubstituteObject
     {
         [SerializeField] protected BossDefinition m_bossDefinition;

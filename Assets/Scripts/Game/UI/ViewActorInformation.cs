@@ -11,8 +11,8 @@ namespace HardlightProject
     // Debug overlay of an actor: cycles the visible info panel with the DebugNextInfo input and publishes the
     // information texts as bindables. The development-only calls that fill the actor, state, FSM, collision and animator
     // texts (Actor.DebugGet...) are compiled out of the retail build, so only the entity activation text is ever filled.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ViewActorInformation : MonoBehaviour
     {
         [Tooltip("List of info panels to cycle visibility.")]

@@ -6,8 +6,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 02000231; bodies translated from the 1.10.1 x86-64 binary.
-    // A vulnerable state whose homing target is only switched on once the target activation delay has passed within
-    // the vulnerable time; it is switched off again on leaving.
+    // A vulnerable state whose homing target is switched on, once, when the vulnerable clock reaches the target
+    // activation delay; it is switched off again on leaving.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [GraphNodeDefaultName("Vulnerable")]
@@ -15,9 +15,9 @@ namespace HardlightProject
     public class BossState_Vulnerable_Target : BossState_Vulnerable
     {
         [Serializable]
-        [FiniteStateMachineJsonCtorArgs]
         [Il2CppSetOption(Option.NullChecks, false)]
         [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [FiniteStateMachineJsonCtorArgs]
         protected class AttachPointJSONCtorArgs : VulnerableJSONCtorArgs
         {
             public ActorAttachPointType VulnerableTarget;

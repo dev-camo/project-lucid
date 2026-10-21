@@ -405,6 +405,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x57E8DF takes the entry at count - 1: with two walls along the sweep the reported hit is the second one the cast returns.
+        [Test]
+        public void ASweepThroughTwoWallsReportsTheLastHitTheCastReturns()
+        {
+            Owned.Run(owned =>
+            {
+                NightmareEggmanProjectileVisualBehaviour visual = NewCollidingVisual(owned, out Collider farWall);
+                GameObject nearHost = owned.Host("Lucid nightmare near wall");
+                nearHost.transform.position = new Vector3(0f, 0f, 3f);
+                nearHost.AddComponent<BoxCollider>().size = new Vector3(4f, 4f, 0.5f);
+                Physics.SyncTransforms();
+
+                var expected = new RaycastHit[4];
+                var sphere = visual.GetComponent<SphereCollider>();
+                Assert.That(sphere.PhysicsCastFromCollider(new Vector3(0f, 0f, 2f), -1, expected, QueryTriggerInteraction.Ignore), Is.EqualTo(2),
+                    "both walls lie on the sweep from the origin to the visual");
+
+                Assert.That(visual.DoCollisions(-1, out RaycastHit hit), Is.True);
+                Assert.That(hit.collider, Is.SameAs(expected[1].collider), "the last entry the cast returned");
+                Assert.That(hit.collider, Is.Not.SameAs(expected[0].collider));
+            });
+        }
+
         // 0x57E7A0: the projectile asks its visual behaviours with the definition's layer mask; the first that hits supplies the hit,
         // and without a hit the hit info is cleared.
         [Test]

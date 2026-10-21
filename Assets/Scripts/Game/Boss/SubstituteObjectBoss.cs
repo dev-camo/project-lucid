@@ -6,9 +6,10 @@ namespace HardlightProject
 {
     // Original Game.Runtime 02000445; bodies translated from the 1.10.1 x86-64 binary, 0x7A52B0..0x7A5810.
     // A cutscene stand-in for a boss: while it is enabled the real boss's visual proxy is hidden, and when it is disabled
-    // the boss is shown again, placed on the ground below where it was and resumed there.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    // the boss is shown again; its transform is dropped onto the ground below it and its movement is resumed from its
+    // cached world position with zero velocity.
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class SubstituteObjectBoss : SubstituteObject
     {
         [SerializeField] protected BossDefinition m_bossDefinition;
@@ -16,8 +17,8 @@ namespace HardlightProject
         private const float RaycastDistanceMultiplier = 2f;
         protected Boss m_replacedBoss;
 
-        // 06001941 (1.10.1 RVA 0x7A52B0): the boss is looked up once by its definition; the null test is a plain reference
-        // test, not Unity's.
+        // 06001941 (1.10.1 RVA 0x7A52B0): the boss is looked up once by its definition. The null tests here and in
+        // OnDisable (`??=`, `?.` on VisualProxy) are plain reference tests, not Unity's.
         protected override void OnEnable()
         {
             BossManager bossManager = ProcessManager.GetSystem<BossManager>(null, true);

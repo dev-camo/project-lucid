@@ -208,6 +208,8 @@ namespace ProjectLucid.Tests
             WithView(owned =>
             {
                 ViewBossInformation view = NewView<ViewBossInformation>(owned);
+                if (UnityEngine.Object.FindObjectsOfType<Boss>().Length != 0)
+                    Assert.Inconclusive("a boss from outside this case is active in the scene");
                 Call(view, "OnEnable");
                 Assert.That(Get<Actor>(view, "m_actor"), Is.Null, "no active boss in the scene");
                 Assert.That(ControlTables.Subscriptions(GameInput.DebugNextInfo, view), Is.Not.Empty, "the base ran");
