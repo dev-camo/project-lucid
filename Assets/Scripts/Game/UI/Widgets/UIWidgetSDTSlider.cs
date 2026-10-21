@@ -21,7 +21,7 @@ namespace HardlightProject
         private readonly List<UIWidgetSliderPip> m_sliderPips = new List<UIWidgetSliderPip>();
 
         // 0x0600301c (0x60D3D0; iterator 0x02000850, MoveNext 0x60D6F0): only a whole-number slider gets pips. They are
-        // laid out two end-of-frame waits after start, spaced across the parent's width, one per step from the minimum.
+        // laid out two end-of-frame waits after start, one pip per whole value from 0 to maxValue, spaced width / maxValue apart from the parent rect's left edge; minValue is not used.
         private IEnumerator Start()
         {
             if (!m_slider.wholeNumbers)
@@ -34,9 +34,8 @@ namespace HardlightProject
             for (int i = 0; i < m_slider.maxValue + 1f; i++)
             {
                 UIWidgetSliderPip pip = Instantiate(m_prefabToSpawn, m_pipParent);
-                RectTransform pipTransform = (RectTransform)pip.transform;
-                // Single-precision product, as in the native code.
-                pipTransform.transform.localPosition = new Vector3((float)(i * pipSpacing) + m_pipParent.rect.x, 0f, 0f);
+                // The native reads transform again on the cast result; the cast throws for a non-RectTransform pip.
+                ((RectTransform)pip.transform).transform.localPosition = new Vector3(i * pipSpacing + m_pipParent.rect.x, 0f, 0f);
                 m_sliderPips.Add(pip);
             }
 

@@ -288,7 +288,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Action_SetCameraConfiguration 0x67B210 rounds the slider value with Math.Round (modf, then the half-to-even
+        // Action_SetCameraConfiguration 0x67B210 rounds the slider value with Mathf.RoundToInt (modf, then the half-to-even
         // branch at 0x67b2d8/0x67b2f6) and takes that list entry. 0.5 rounds to 0, 1.5 to 2 and 2.5 to 2; away-from-zero
         // rounding would give 1, 2 and 3. The action itself reports nothing.
         [Test]

@@ -14,7 +14,6 @@ namespace ProjectLucid.Tests
     // member ordinal that fixes their names.
     public sealed class SettingsPageDeclarationTests
     {
-
         // UIContainerSettingsBase, TypeDef 0x0200092a.
         [Test]
         public void UIContainerSettingsBaseMatchesTheOriginalMetadata()

@@ -47,11 +47,10 @@ namespace HardlightProject
                     m_controlStickSensitivity[m_cachedControlStickSensitivity].Value.GetString(),
                     ControlStickSensitivityString.Value.GetString());
 
-            if (m_cachedCameraSecondarySensitivity == CameraSecondarySensitivityIndex.Value)
-                return;
-            AnalyticsEventCollector.SettingChangedEvent("camera_secondary_sensitivity",
-                m_cameraSecondarySensitivity[m_cachedCameraSecondarySensitivity].Value.GetString(),
-                CameraSecondarySensitivityString.Value.GetString());
+            if (m_cachedCameraSecondarySensitivity != CameraSecondarySensitivityIndex.Value)
+                AnalyticsEventCollector.SettingChangedEvent("camera_secondary_sensitivity",
+                    m_cameraSecondarySensitivity[m_cachedCameraSecondarySensitivity].Value.GetString(),
+                    CameraSecondarySensitivityString.Value.GetString());
         }
 
         // 0x060034e2 (0x67BF60): the two "can" flags are the constant false of the retail build.
@@ -156,14 +155,14 @@ namespace HardlightProject
         // 0x060034ee (0x67C730): the slider value is rounded to the nearest list index (halves to even).
         public void Action_SetControlStickSensitivity(float value)
         {
-            int index = (int)Math.Round(value);
+            int index = Mathf.RoundToInt(value);
             SetSaveData(data => data.ControlStickSensitivity = m_controlStickSensitivity[index].Key);
         }
 
         // 0x060034ef (0x67C960)
         public void Action_SetCameraSecondarySensitivity(float value)
         {
-            int index = (int)Math.Round(value);
+            int index = Mathf.RoundToInt(value);
             SetSaveData(data => data.CameraSecondarySensitivity = m_cameraSecondarySensitivity[index].Key);
         }
 

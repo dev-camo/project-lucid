@@ -15,10 +15,10 @@ namespace HardlightProject
         protected readonly SystemRef<SaveManager> m_saveManagerRef = ProcessManager.GetSystemRef<SaveManager>(null, true);
 
         // 0x060034be: shared generic (RVA -1); the bool, Int32Enum and fully shared bodies are 0x9DB980, 0x9DBA90 and
-        // 0x9DBBC0. Compares through the boxed values' Equals and reports only a real change.
+        // 0x9DBBC0. Compares with the static object.Equals on the two boxed values and reports only a real change.
         protected void SendAnalyticsEventOnSettingChanged<TSettingType>(string settingName, TSettingType currentSetting, TSettingType newSetting)
         {
-            if (!currentSetting.Equals(newSetting))
+            if (!object.Equals(currentSetting, newSetting))
                 AnalyticsEventCollector.SettingChangedEvent(settingName, currentSetting.ToString(), newSetting.ToString());
         }
 

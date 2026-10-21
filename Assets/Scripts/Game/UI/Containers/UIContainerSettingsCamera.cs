@@ -47,9 +47,8 @@ namespace HardlightProject
                 AnalyticsEventCollector.SettingChangedEvent("camera_distance", previous.GetString(), current.GetString());
             }
 
-            if (m_cachedCameraSensitivity == CameraSensitivityIndex.Value)
-                return;
-            AnalyticsEventCollector.SettingChangedEvent("camera_sensitivity",
+            if (m_cachedCameraSensitivity != CameraSensitivityIndex.Value)
+                AnalyticsEventCollector.SettingChangedEvent("camera_sensitivity",
                 m_cameraSensitivity[m_cachedCameraSensitivity].Value.GetString(), CameraSensitivityString.Value.GetString());
         }
 
@@ -73,7 +72,7 @@ namespace HardlightProject
             saveDataSettings.SetCameraDefaults();
         }
 
-        // 0x060034ca (0x67ADE0): an unchanged heading saves nothing but still refreshes the page. The page names the
+        // 0x060034ca (0x67ADE0): an unchanged heading is neither reported nor written, but the settings save is still requested and the page refreshed. The page names the
         // two headings "Auto" (medium) and "Manual" (anything else) in its analytics.
         private void SetCameraHeadingType(CameraRecenterHeadingType cameraRecenterHeadingType)
         {
@@ -133,14 +132,14 @@ namespace HardlightProject
         // 0x060034d0 (0x67B210): the slider value is rounded to the nearest configuration index (halves to even).
         public void Action_SetCameraConfiguration(float value)
         {
-            int index = (int)Math.Round(value);
+            int index = Mathf.RoundToInt(value);
             SetSaveData(data => data.CameraConfiguration = m_cameraConfiguration[index]);
         }
 
         // 0x060034d1 (0x67B440)
         public void Action_SetCameraSensitivity(float value)
         {
-            int index = (int)Math.Round(value);
+            int index = Mathf.RoundToInt(value);
             SetSaveData(data => data.CameraSensitivity = m_cameraSensitivity[index].Key);
         }
 

@@ -296,7 +296,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Action_SetControlStickSensitivity 0x67C730 rounds the slider value with Math.Round (modf, then the half-to-even
+        // Action_SetControlStickSensitivity 0x67C730 rounds the slider value with Mathf.RoundToInt (modf, then the half-to-even
         // branch) and takes that entry's key. 0.5 rounds to 0, 1.5 to 2 and 2.5 to 2; away-from-zero rounding would give
         // 1, 2 and 3. The action itself reports nothing.
         [Test]
