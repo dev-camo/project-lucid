@@ -21,9 +21,11 @@ namespace ProjectLucid.Tests
 
         // AddComponent sends the editor's OnValidate, whose nested AddComponent calls (a rotator, a sampler and the
         // sampler's own Animator or Animation) draw engine messages that are not what these cases examine.
+        // The test framework logs each change of the setting, so a case that checks for unexpected logs expects both.
         private static void IgnoringEngineMessages(Action body)
         {
             bool before = LogAssert.ignoreFailingMessages;
+            if (!before) LogAssert.Expect(LogType.Log, new Regex("IgnoreFailingMessages:true"));
             LogAssert.ignoreFailingMessages = true;
             try
             {
@@ -31,6 +33,7 @@ namespace ProjectLucid.Tests
             }
             finally
             {
+                if (!before) LogAssert.Expect(LogType.Log, new Regex("IgnoreFailingMessages:false"));
                 LogAssert.ignoreFailingMessages = before;
             }
         }
@@ -116,7 +119,10 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var shader = owned.Track(ShaderUtil.CreateShaderAsset(
-                    "Shader \"Hidden/ProjectLucid/OrnamentCastShadows\" { Properties { _CastShadows (\"\", Float) = 0 } SubShader { Pass { } } }"));
+                    "Shader \"Hidden/ProjectLucid/OrnamentCastShadows\" { Properties { _CastShadows (\"\", Float) = 0 } " +
+                    // The keyword has to be declared by the shader for a material to hold it.
+                    "SubShader { Pass { HLSLPROGRAM\n#pragma vertex Vertex\n#pragma fragment Fragment\n#pragma shader_feature_local _CastShadows\n" +
+                    "float4 Vertex(float4 position : POSITION) : SV_POSITION { return position; } float4 Fragment() : SV_Target { return 0; }\nENDHLSL } } }"));
                 var shared = owned.Track(new Material(shader) { hideFlags = HideFlags.HideAndDontSave });
                 var renderer = owned.Host("Lucid shadow renderer", false).AddComponent<SkinnedMeshRenderer>();
                 renderer.sharedMaterial = shared;

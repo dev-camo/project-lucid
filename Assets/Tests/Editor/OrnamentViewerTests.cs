@@ -193,7 +193,11 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var exchange = owned.Register(new MessageExchange<string>());
+                // The exchange's constructor subscribes to the Shutdown action before the row is admitted.
+                owned.LeaseActions(SystemAction.Shutdown);
+                var exchange = new MessageExchange<string>();
+                owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(exchange)));
+                owned.Register(exchange);
                 var viewer = owned.Host("Lucid ornament viewer", false).AddComponent<OrnamentViewer>();
                 var root = owned.Host("Lucid ornament root", false).AddComponent<OrnamentRoot>();
                 var other = owned.Host("Lucid other root", false).AddComponent<OrnamentRoot>();
