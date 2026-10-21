@@ -379,7 +379,7 @@ namespace ProjectLucid.Tests
         // trigger listeners nor onNode are called, with or without the request. The reports of the shipped branch are asserted in
         // OriginalDreamteckSplinePositionerPlayModeTests.SetPercentAndSetDistanceReportTriggersAndNodes.
         [Test]
-        public void SetPercentAndSetDistanceReportTriggersAndNodes()
+        public void SetPercentAndSetDistanceReportNothingInEditMode()
         {
             SplineComputer computer = NewLine();
             SplineTrigger trigger = computer.AddTrigger(0, 0.5, SplineTrigger.Type.Double);

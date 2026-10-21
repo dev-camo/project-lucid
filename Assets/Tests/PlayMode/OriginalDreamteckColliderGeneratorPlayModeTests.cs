@@ -192,8 +192,12 @@ namespace ProjectLucid.Tests
             Assert.That(Read<bool>(polygon, "updateCollider"), Is.False);
             Near(collider.GetPath(0), new[] { new Vector2(-100f, -50f), new Vector2(-90f, -50f) }, "applied at once");
 
+            // A pending update reached through the real path (an update rate, then a build), then the collider reference
+            // Awake fetched is gone: LateRun keeps the update pending.
+            polygon.updateRate = 0.1f;
+            polygon.RebuildImmediate();
+            Assert.That(Read<bool>(polygon, "updateCollider"), Is.True, "pending again");
             Write(polygon, "polygonCollider", null);
-            Write(polygon, "updateCollider", true);
             Assert.That(() => Invoke(polygon, "LateRun"), Throws.Nothing);
             Assert.That(Read<bool>(polygon, "updateCollider"), Is.True, "no collider to give the path to");
         }

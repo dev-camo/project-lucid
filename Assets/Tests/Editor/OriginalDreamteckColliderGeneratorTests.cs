@@ -207,7 +207,7 @@ namespace ProjectLucid.Tests
         // playing, leaving nothing for LateRun. The deferred shipped branch runs in play mode:
         // OriginalDreamteckColliderGeneratorPlayModeTests.UpdateRateDefersTheColliderToLateRun.
         [Test]
-        public void UpdateRateDefersTheColliderToLateRun()
+        public void UpdateRateAppliesTheColliderAtOnceInEditMode()
         {
             EdgeColliderGenerator edge = NewEdge(NewComputer(new Vector3(0f, 0f, 0f), new Vector3(10f, 0f, 0f)), 0.1f);
             EdgeCollider2D collider = edge.GetComponent<EdgeCollider2D>();

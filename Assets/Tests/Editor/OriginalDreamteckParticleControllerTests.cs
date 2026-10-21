@@ -257,21 +257,21 @@ namespace ProjectLucid.Tests
             Assert.That(actual, Is.EqualTo(expected).Within(1e-9), message);
         }
 
-        // The Default product (1 - L) * cycleSpeed is a float multiplication before it widens (mulss, cvtss2sd), and the sum is in
-        // double: the shipped build returns 0.75f * 0.1f = 0.07500000298..., not 0.75 * (double)0.1f = 0.07500000111...; the Loop
-        // keeps all of it in double. The text has no cast and its compiled IL for the Default case is sub, mul, conv.r8 with no
-        // conv.r4; C# lets float arithmetic run at higher precision, and the editor's Mono keeps the product at double precision.
-        // The test asserts that editor value and that it rounds to the float the shipped build returns.
+        // The Default product (1 - L) * cycleSpeed has no cast in the text. The evidence that the shipped build multiplies in float
+        // before widening (0.75f * 0.1f = 0.07500000298..., not 0.75 * (double)0.1f = 0.07500000111...) is the disassembly (mulss,
+        // cvtss2sd). This test cannot tell float from double arithmetic: the IL is sub, mul, conv.r8 with no conv.r4, and the
+        // editor's Mono evaluates it at double precision. It pins the value the editor returns for Default and Loop (the double
+        // product) and that the Default value narrows to the float product.
         [Test]
-        public void SplinePercentKeepsTheShippedPrecision()
+        public void SplinePercentEditorProductNarrowsToTheFloatProduct()
         {
             ParticleSystem.Particle source = NewParticle(Vector3.zero, 4f, 1f, new Color32(255, 255, 255, 255));
             double floatProduct = (double)(float)((1f - 0.25f) * 0.1f);
             double doubleProduct = (1.0 - 0.25) * (double)0.1f;
             Assert.That(floatProduct, Is.Not.EqualTo(doubleProduct), "the two orders differ in the last bits");
             double defaultPercent = SplinePercent(NewState(0.1f, 0.0), ParticleController.Wrap.Default, source, ParticleController.MotionType.FollowForward);
-            Assert.That(defaultPercent, Is.EqualTo(doubleProduct), "the editor keeps the product at double precision");
-            Assert.That((float)defaultPercent, Is.EqualTo((float)floatProduct), "the shipped float product (mulss, cvtss2sd)");
+            Assert.That(defaultPercent, Is.EqualTo(doubleProduct), "the editor (Mono) value");
+            Assert.That((float)defaultPercent, Is.EqualTo((float)floatProduct), "narrows to the float product");
             Assert.That(SplinePercent(NewState(0.1f, 0.0), ParticleController.Wrap.Loop, source, ParticleController.MotionType.FollowForward), Is.EqualTo(doubleProduct));
         }
 

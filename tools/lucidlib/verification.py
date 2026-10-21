@@ -6145,8 +6145,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplinePositionerTes
     "FollowLoopContinuesFromTheOtherEnd",
     "SelfReferenceIsRefusedAfterTheOldTargetWasReleased",
     "AwakeAndOnDestroyTieTheSerializedFollowTarget",
-    "SetPercentAndSetDistanceReportTriggersAndNodes",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
+    "SetPercentAndSetDistanceReportNothingInEditMode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineProjectorTests." + name for name in (
     "FreshProjectorKeepsTheShippedDefaults",
@@ -6157,11 +6157,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineProjectorTest
     "AccurateModeProjectsOntoTheCurve",
     "ReachingTheEndsRaisesTheReachEventsOnce",
     "ReachingTheEndOfALoopingRangeContinuesFromTheStart",
-    "CalculateProjectionReportsTheTriggersAndNodesItPassed",
     "LateRunProjectsOnlyAfterTheTargetMoved",
     "LateRunProjectsAMoveOfExactlyTheNativeEpsilon",
     "LateRunWithoutAProjectTargetOnlyRemembersThePosition",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
+    "CalculateProjectionReportsNothingInEditMode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckLengthCalculatorTests." + name for name in (
     "FreshCalculatorAndEventKeepTheShippedDefaults",
@@ -6177,7 +6177,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckColliderGeneratorTe
     "FreshEdgeGeneratorKeepsTheShippedDefaults",
     "BuildTakesOneVertexPerSamplePositionInLocalSpace",
     "OffsetMovesTheVerticesAlongTheScaledPlanarNormal",
-    "UpdateRateDefersTheColliderToLateRun",
     "WithoutAColliderNothingIsLocalisedOrApplied",
     "TheLifecycleOverridesCallTheBase",
     "EdgeSerializedLayoutKeepsTheFieldOrderAndAttributes",
@@ -6186,11 +6185,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckColliderGeneratorTe
     "ShapeTypeBuildsOneVertexPerSample",
     "PolygonUpdateRateAndLocalSpaceFollowTheEdgeGenerator",
     "PolygonSerializedLayoutKeepsTheFieldOrderAndAttributes",
+    "UpdateRateAppliesTheColliderAtOnceInEditMode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckParticleControllerTests." + name for name in (
     "FreshControllerAndParticleStateKeepTheShippedDefaults",
     "SplinePercentFollowsTheNativeTable",
-    "SplinePercentKeepsTheShippedPrecision",
     "SystemSetterFetchesTheRendererAndResetFindsTheSystem",
     "LateRunSizesItsArraysFromTheSystem",
     "BornParticlesAreMarkedAndNotBornAgain",
@@ -6204,6 +6203,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckParticleControllerT
     "ByNormalRandomizedTurnsUpAroundForward",
     "LocalSimulationSpaceRoundTripsThroughWorldSpace",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
+    "SplinePercentEditorProductNarrowsToTheFloatProduct",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshGeneratorTests." + name for name in (
     "FreshGeneratorKeepsTheShippedDefaults",

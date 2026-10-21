@@ -388,7 +388,7 @@ namespace ProjectLucid.Tests
         // listener nor onNode is called. The reports of the shipped branch are asserted in
         // OriginalDreamteckSplineProjectorPlayModeTests.CalculateProjectionReportsTheTriggersAndNodesItPassed.
         [Test]
-        public void CalculateProjectionReportsTheTriggersAndNodesItPassed()
+        public void CalculateProjectionReportsNothingInEditMode()
         {
             SplineComputer computer = NewLine();
             SplineTrigger trigger = computer.AddTrigger(0, 0.5, SplineTrigger.Type.Double);

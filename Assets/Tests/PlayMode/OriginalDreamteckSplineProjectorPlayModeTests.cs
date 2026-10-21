@@ -79,11 +79,6 @@ namespace ProjectLucid.Tests
             return DreamteckGeneratorFixture.Field<T>(target, name);
         }
 
-        private static void Write(object target, string name, object value)
-        {
-            DreamteckGeneratorFixture.SetField(target, name, value);
-        }
-
         // Settling the queued rebuild lets a test see whether a setter queues a new one.
         private static bool RebuildQueued(SplineUser user)
         {
@@ -169,9 +164,9 @@ namespace ProjectLucid.Tests
             accurate.spline = null;
             Assert.That(accurate.result.percent, Is.EqualTo(0.75).Within(2e-3), "a cleared computer leaves the result");
 
-            // Reset is not called in play mode, so the field is empty already; it is written null so a placeholder cannot stand in.
+            // Reset (which fills the field in the editor) is not called by AddComponent in play mode, so the field stays empty.
             SplineProjector headless = NewObject("headless").AddComponent<SplineProjector>();
-            Write(headless, "_projectTarget", null);
+            Assert.That(DreamteckGeneratorFixture.Field<Transform>(headless, "_projectTarget") == null, Is.True, "no project target in play mode");
             Assert.Throws<NullReferenceException>(() => headless.spline = computer, "no project target field to read");
         }
 
