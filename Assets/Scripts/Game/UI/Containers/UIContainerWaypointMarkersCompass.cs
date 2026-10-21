@@ -65,10 +65,11 @@ namespace HardlightProject
             return anchoredPosition.x > rect.xMax ? ScreenDirection.Right : ScreenDirection.None;
         }
 
-        // 0x06003582 (0x682FC0): moves a marker that is outside the strip onto the strip's edge, inset by the padding.
+        // 0x06003582 (0x682FC0): moves a marker that is outside the strip onto the strip's edge, inset by the padding. Only
+        // x and y are kept: the write-back at 0x683034 passes z = 0 (xorps xmm1), as does the inlined copy in DoUpdate (0x682E3C).
         private void ClampMarkerToSide(UIWidgetSDTWaypointMarker waypointMarker, ScreenDirection screenDirection, float padding)
         {
-            Vector3 anchoredPosition = waypointMarker.RectTransform.anchoredPosition3D;
+            Vector2 anchoredPosition = waypointMarker.RectTransform.anchoredPosition3D;
             switch (screenDirection)
             {
                 case ScreenDirection.Left:
@@ -80,7 +81,7 @@ namespace HardlightProject
                 default:
                     return;
             }
-            waypointMarker.RectTransform.anchoredPosition3D = anchoredPosition;
+            waypointMarker.RectTransform.anchoredPosition3D = anchoredPosition; // z becomes 0
         }
 
         // 0x06003583 (0x683060)

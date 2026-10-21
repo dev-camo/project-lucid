@@ -34,12 +34,12 @@ namespace HardlightProject
         }
 
         // 0x0600304d (0x60E710): the base setup is inlined in the native body. The indicator sprite is only replaced when
-        // the parameters carry one.
+        // the parameters are the indicator's own type (a type check, not a cast: plain target parameters return quietly)
+        // and carry one.
         protected override void OnSetup(ViewParameters viewParams)
         {
             base.OnSetup(viewParams);
-            ViewTargetIndicatorParameters parameters = (ViewTargetIndicatorParameters)viewParams;
-            if (parameters.TargetIndicator != null)
+            if (viewParams is ViewTargetIndicatorParameters parameters && parameters.TargetIndicator != null)
                 m_targetImage.sprite = parameters.TargetIndicator;
         }
 

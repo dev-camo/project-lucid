@@ -106,11 +106,11 @@ namespace ProjectLucid.Tests
         }
 
         // ClampMarkerToSide 0x682FC0: a marker on the left goes to the strip's left edge plus the padding, one on the right to the right
-        // edge minus the padding, and any other direction leaves it; the other two components are kept.
-        [TestCase(2, -90f, TestName = "ALeftMarkerGoesToTheLeftEdgeInsetByThePadding")]
-        [TestCase(1, 90f, TestName = "ARightMarkerGoesToTheRightEdgeInsetByThePadding")]
-        [TestCase(0, 500f, TestName = "AMarkerWithNoDirectionIsLeftWhereItIs")]
-        public void AMarkerIsClampedToTheSideItIsOn(int direction, float expectedX)
+        // edge minus the padding, and any other direction leaves it untouched. A clamped marker's z is dropped to 0 (xorps xmm1 at 0x683034, and 0x682E3C in DoUpdate); the None case keeps z.
+        [TestCase(2, -90f, 0f, TestName = "ALeftMarkerGoesToTheLeftEdgeInsetByThePadding")]
+        [TestCase(1, 90f, 0f, TestName = "ARightMarkerGoesToTheRightEdgeInsetByThePadding")]
+        [TestCase(0, 500f, 3f, TestName = "AMarkerWithNoDirectionIsLeftWhereItIs")]
+        public void AMarkerIsClampedToTheSideItIsOn(int direction, float expectedX, float expectedZ)
         {
             Run((scene, container) =>
             {
@@ -121,7 +121,7 @@ namespace ProjectLucid.Tests
 
                 Assert.That(marker.RectTransform.anchoredPosition3D.x, Is.EqualTo(expectedX).Within(Tolerance));
                 Assert.That(marker.RectTransform.anchoredPosition3D.y, Is.EqualTo(7f).Within(Tolerance));
-                Assert.That(marker.RectTransform.anchoredPosition3D.z, Is.EqualTo(3f).Within(Tolerance));
+                Assert.That(marker.RectTransform.anchoredPosition3D.z, Is.EqualTo(expectedZ).Within(Tolerance));
             });
         }
 

@@ -10,8 +10,8 @@ using UnityEngine.Events;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x02000857; bodies translated from the 1.10.1 x86-64 binary.
-    // Counts the experience counter up from the last value the player saw to the current one, firing the highest
-    // threshold effect the gained amount reaches.
+    // Counts the experience counter up from the last value the player saw to the current one, firing the effect of
+    // the threshold the gained amount last passed (see Trigger).
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class XPCounterBufferedIncrease : MonoBehaviour
@@ -58,8 +58,8 @@ namespace HardlightProject
             CoroutineUtils.StopUtilCoroutine(ref m_waitForBonusAcknowledgementCoroutine);
         }
 
-        // 0x0600305d (0x60F110): the experience gained since it was last seen is stored as seen. The last threshold (in list
-        // order) that the gain reaches fires its event and sets the count-up time. Without a gain the counter just shows the
+        // 0x0600305d (0x60F110): the experience gained since it was last seen is stored as seen. The thresholds are walked in list
+        // order until one exceeds the gain; the last one passed fires its event and sets the count-up time. Without a gain the counter just shows the
         // current value.
         private void Trigger()
         {

@@ -267,18 +267,22 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The parameters are cast to the indicator's own type (0x60E7F3, the failing cast raises InvalidCastException) after the
-        // base setup has already taken the world target.
+        // The parameters are type-checked, not cast, against the indicator's own type (0x60E7F3 jb and 0x60E801 jne both go to the
+        // plain return at 0x60E84B; only the base cast at 0x60E793 reaches RaiseInvalidCastException). Plain parameters still
+        // give the world target and leave the sprite alone.
         [Test]
-        public void SetupWithPlainTargetParametersFailsTheCast()
+        public void SetupWithPlainTargetParametersLeavesTheSpriteAlone()
         {
             Run(rig =>
             {
+                Sprite original = NewSprite(rig.Owned);
+                rig.Image.sprite = original;
                 var plain = new ViewTargetParameters { WorldspaceTarget = new Vector3(7f, 8f, 9f) };
 
-                Assert.Throws<InvalidCastException>(() => Call(rig.View, "OnSetup", plain));
+                Assert.DoesNotThrow(() => Call(rig.View, "OnSetup", plain));
 
                 Assert.That(rig.View.TargetWorldPosition, Is.EqualTo(new Vector3(7f, 8f, 9f)));
+                Assert.That(rig.Image.sprite, Is.SameAs(original));
             });
         }
 

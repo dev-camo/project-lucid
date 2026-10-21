@@ -48,13 +48,12 @@ namespace HardlightProject
         // marker untouched. Markers beyond the target count are closed and hidden.
         public void Refresh()
         {
-            WaypointDefinition definition = null;
             DataManager dataManager = m_appRef.Get().DataManager;
             IReadOnlyList<WaypointTarget> targets = m_waypointManagerRef.Get().GetTargets();
             for (int i = 0; i < targets.Count; i++)
             {
                 WaypointTarget target = targets[i];
-                if (!dataManager.WaypointDefinitions.TryGetValue(target.Type, out definition))
+                if (!dataManager.WaypointDefinitions.TryGetValue(target.Type, out WaypointDefinition definition))
                     continue;
                 UIWidgetSDTWaypointMarker marker;
                 if (i < m_waypointMarkers.Count)
@@ -80,10 +79,9 @@ namespace HardlightProject
         // 0x0600357d (0x682980)
         private void Update()
         {
-            Character character = null;
             if (m_cameraManagerRef.IsNull() || m_characterManagerRef.IsNull())
                 return;
-            if (m_characterManagerRef.Get().TryGetCurrentCharacter(out character))
+            if (m_characterManagerRef.Get().TryGetCurrentCharacter(out Character character))
                 DoUpdate(character, m_cameraManagerRef.Get().MainCamera);
         }
 

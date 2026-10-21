@@ -30,11 +30,9 @@ namespace HardlightProject
 
         // 0x060032f6 (0x63B170): without a level the default image is shown and the tips are left alone. A mission with a
         // loading image override takes the image from the override; otherwise the level image is loaded. The native body
-        // calls ShuffleTips directly (0x636080), which is the inlined SetTipOverrides.
+        // calls the private ShuffleTips directly (0x636080); SetTipOverrides, its public one-call wrapper, is taken to be inlined.
         public override void Setup(IUIContainerParameters parameters)
         {
-            Sprite loadingImageOverride = null;
-            IReadOnlyList<Strings> tips = null;
             base.Setup(parameters);
             UIContainerLoadingParameters data = parameters.GetAs<UIContainerLoadingParameters>();
             if (data == null || data.LevelDefinition == null)
@@ -44,7 +42,7 @@ namespace HardlightProject
             }
             m_levelDefinition = data.LevelDefinition;
             MissionDefinition missionDefinition = data.MissionDefinition;
-            if (missionDefinition != null && missionDefinition.TryGetLoadingImageOverride(out loadingImageOverride))
+            if (missionDefinition != null && missionDefinition.TryGetLoadingImageOverride(out Sprite loadingImageOverride))
             {
                 m_missionDefinition = missionDefinition;
                 Image.Value = loadingImageOverride;
@@ -53,8 +51,9 @@ namespace HardlightProject
             {
                 data.LevelDefinition.LoadLevelImage(image => Image.Value = image);
             }
-            if (m_uiContainerGameTips != null && missionDefinition != null && missionDefinition.TryGetTips(out tips))
-                m_uiContainerGameTips.SetTipOverrides(tips);
+            if (m_uiContainerGameTips == null || missionDefinition == null || !missionDefinition.TryGetTips(out IReadOnlyList<Strings> tips))
+                return;
+            m_uiContainerGameTips.SetTipOverrides(tips);
         }
 
         // 0x060032f7 (0x63B340)

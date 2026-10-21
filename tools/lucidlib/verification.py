@@ -9273,7 +9273,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ViewTargetIndicatorTests." + name fo
     "ADepthAboveTheMaximumIsOutOfRange",
     "ADepthThatIsNotANumberIsInRange",
     "SetupTakesTheTargetAndReplacesTheSpriteOnlyWhenOneIsGiven",
-    "SetupWithPlainTargetParametersFailsTheCast",
+    "SetupWithPlainTargetParametersLeavesTheSpriteAlone",
     "ASurfaceDetectionOfAListedTypePinsTheSurfacePosition",
     "ADetectionThatDoesNotMatchClearsTheTarget",
     "AMessageThatCannotActivateOrIsNotListedClearsTheTarget",

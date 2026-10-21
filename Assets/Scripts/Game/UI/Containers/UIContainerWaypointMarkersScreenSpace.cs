@@ -61,13 +61,13 @@ namespace HardlightProject
         // position (distance indicator shown unless the marker disables it). The position's depth is always 0.
         private void ClampMarkerToEllipse(UIWidgetSDTWaypointMarker waypointMarker)
         {
-            Vector3 offset = (Vector2)(waypointMarker.RectTransform.position - m_ellipseCentre.position);
+            Vector2 offset = waypointMarker.RectTransform.position - m_ellipseCentre.position;
             bool showDistanceIndicator;
             bool showArrowIndicator;
             if (waypointMarker.IsBehindCamera.Value)
             {
                 Vector3 edgePoint = GetClosestPointOnEllipseEdge(-offset);
-                waypointMarker.RectTransform.position = (Vector2)m_ellipseCentre.position + (Vector2)edgePoint;
+                waypointMarker.RectTransform.position = (Vector2)m_ellipseCentre.position + (Vector2)edgePoint; // depth reset to 0
                 showDistanceIndicator = false;
                 showArrowIndicator = true;
             }
@@ -76,7 +76,7 @@ namespace HardlightProject
                 Vector3 edgePoint = GetClosestPointOnEllipseEdge(offset);
                 bool clampedX = MathUtilities.TryClamp(ref offset.x, -Mathf.Abs(edgePoint.x), Mathf.Abs(edgePoint.x));
                 bool clampedY = MathUtilities.TryClamp(ref offset.y, -Mathf.Abs(edgePoint.y), Mathf.Abs(edgePoint.y));
-                waypointMarker.RectTransform.position = (Vector2)m_ellipseCentre.position + (Vector2)offset;
+                waypointMarker.RectTransform.position = (Vector2)m_ellipseCentre.position + offset; // depth reset to 0
                 if (clampedX | clampedY)
                 {
                     showDistanceIndicator = false;

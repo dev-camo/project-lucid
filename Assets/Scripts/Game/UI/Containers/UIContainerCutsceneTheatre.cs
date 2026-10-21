@@ -82,7 +82,7 @@ namespace HardlightProject
         }
 
         // 0x060031f3 (0x62B150): widgets beyond the page keep their previous setup; a cutscene is locked until seen
-        // and new until it has been played from the theatre.
+        // and new until it has been played from the theatre. The save is not read when there are no widgets (0x62B1EF).
         private void SetupWidgets(IReadOnlyList<CutsceneDefinition> cutsceneDefinitions)
         {
             if (m_cutsceneWidgets.Count <= 0)
@@ -90,14 +90,15 @@ namespace HardlightProject
             IReadOnlyList<string> playedGuids = m_saveManager.CurrentSave.CutsceneIsNewGuids;
             for (int i = 0; i < m_cutsceneWidgets.Count; i++)
             {
-                if (i >= cutsceneDefinitions.Count)
-                    continue;
-                UIWidgetCutscene widgetCutscene = m_cutsceneWidgets[i];
-                CutsceneDefinition cutsceneDefinition = cutsceneDefinitions[i];
-                string guid = cutsceneDefinition.GetGUID();
-                bool locked = !m_seenCutsceneGUIDs.Contains(guid);
-                bool isNew = !playedGuids.Contains(guid);
-                widgetCutscene.Setup(new UIWidgetCutsceneParameters(cutsceneDefinition.name, () => PlayCutscene(widgetCutscene, cutsceneDefinition), locked, cutsceneDefinition.TheatreImage, isNew));
+                if (i < cutsceneDefinitions.Count)
+                {
+                    UIWidgetCutscene widgetCutscene = m_cutsceneWidgets[i];
+                    CutsceneDefinition cutsceneDefinition = cutsceneDefinitions[i];
+                    string guid = cutsceneDefinition.GetGUID();
+                    bool locked = !m_seenCutsceneGUIDs.Contains(guid);
+                    bool isNew = !playedGuids.Contains(guid);
+                    widgetCutscene.Setup(new UIWidgetCutsceneParameters(cutsceneDefinition.name, () => PlayCutscene(widgetCutscene, cutsceneDefinition), locked, cutsceneDefinition.TheatreImage, isNew));
+                }
             }
         }
 
