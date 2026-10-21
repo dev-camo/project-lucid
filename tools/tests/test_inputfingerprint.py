@@ -57,14 +57,14 @@ def macho(cputype, uuid, signature, text=TEXT, cryptid=None):
 
 
 def fat(*slices):
-    """Fat32 big-endian header with 16-byte aligned slices; slices are (cputype, bytes)."""
+    """Fat32 big-endian header with 16-byte aligned slices; slices are (cputype, bytes[, cpusubtype])."""
     offset = 8 + 20 * len(slices)
     entries, body = b"", b""
-    for cputype, data in slices:
+    for cputype, data, *subtype in slices:
         pad = (-offset) % 16
         offset += pad
         body += b"\0" * pad + data
-        entries += struct.pack(">iiIII", cputype, 3, offset, len(data), 4)
+        entries += struct.pack(">iiIII", cputype, subtype[0] if subtype else 3, offset, len(data), 4)
         offset += len(data)
     return struct.pack(">II", 0xCAFEBABE, len(slices)) + entries + body
 
@@ -117,6 +117,9 @@ class ParsingTests(unittest.TestCase):
         self.assertIsNone(x86["encryption"])
         self.assertEqual(0, arm["encryption"]["cryptid"])
         self.assertEqual(["__TEXT", "__DATA", "__LINKEDIT"], [s["segname"] for s in x86["segments"]])
+        self.assertEqual([sha(TEXT), None, sha(SYMBOLS + SIGNATURE_A)], [s["sha256"] for s in x86["segments"]])
+        self.assertEqual((0xCAFEBABE, 2, [4, 4]), (assembly["magic"], assembly["count"], [s["align"] for s in assembly["slices"]]))
+        self.assertEqual(64, len(assembly["container_sha256"]))
         text = x86["segments"][0]["sections"][0]
         self.assertEqual(("__text", "__TEXT", 42, sha(b"\x90" * 32 + b"TEXT-BYTES")),
                          (text["sectname"], text["segname"], text["size"], text["sha256"]))
@@ -221,8 +224,10 @@ class CompareTests(unittest.TestCase):
         self.assertFalse(verdict["summary"]["packaging_only"])
         real = [d for d in verdict["differences"] if not d["packaging"]]
         self.assertEqual([("slice arm64", "section sha256", "__TEXT", "__text"),
+                          ("slice arm64", "segment sha256", "__TEXT", None),
                           ("slice arm64", "slice bytes outside LINKEDIT, UUID and signature fields", None, None),
                           ("slice x86_64", "section sha256", "__TEXT", "__text"),
+                          ("slice x86_64", "segment sha256", "__TEXT", None),
                           ("slice x86_64", "slice bytes outside LINKEDIT, UUID and signature fields", None, None)],
                          sorted((d["area"], d["detail"], d.get("segname"), d.get("sectname")) for d in real))
 
@@ -247,6 +252,140 @@ class CompareTests(unittest.TestCase):
         b = json.loads(json.dumps(a))
         b["game_assembly"]["slices"][0]["residual_sha256"] = "0" * 64
         self.assertFalse(inputfingerprint.compare_fingerprints(a, b)["summary"]["packaging_only"])
+
+    def binary_report(self, mutate):
+        """Report for an app whose GameAssembly bytes were edited in place by mutate(bytearray)."""
+        self.counter += 1
+        root = Path(self.tmp.name) / str(self.counter)
+        root.mkdir()
+        app = make_app(root)
+        dylib = app / inputfingerprint.inputvariants.GAME_ASSEMBLY
+        blob = bytearray(dylib.read_bytes())
+        mutate(blob)
+        dylib.write_bytes(bytes(blob))
+        return inputfingerprint.fingerprint_input(app)
+
+    def real(self, verdict):
+        return [(d["area"], d["detail"]) for d in verdict["differences"] if not d["packaging"]]
+
+    def test_flipped_fat_padding_byte_is_not_packaging(self):
+        # x86_64 slice ends at 574 and the arm64 slice starts at 576, so 574..575 is alignment padding.
+        def flip(blob):
+            self.assertEqual(b"\0\0", bytes(blob[574:576]))
+            blob[574] = 1
+        verdict = inputfingerprint.compare_fingerprints(self.report(), self.binary_report(flip))
+        self.assertFalse(verdict["summary"]["packaging_only"])
+        self.assertIn(("GameAssembly.dylib", "bytes outside the slices (fat header and padding)"), self.real(verdict))
+
+    def test_trailing_bytes_after_the_last_slice_are_not_packaging(self):
+        verdict = inputfingerprint.compare_fingerprints(self.report(), self.binary_report(lambda blob: blob.extend(b"\0")))
+        self.assertFalse(verdict["summary"]["packaging_only"])
+
+    def test_fat_align_field_is_not_packaging(self):
+        verdict = inputfingerprint.compare_fingerprints(
+            self.report(), self.binary_report(lambda blob: blob.__setitem__(slice(27, 28), b"\x05")))
+        self.assertIn(("slice x86_64", "fat align"), self.real(verdict))
+
+    def test_fat_magic_and_count_are_compared(self):
+        a = self.report()
+        b = json.loads(json.dumps(a))
+        b["game_assembly"]["magic"], b["game_assembly"]["count"] = 0xCAFEBABF, 3
+        details = [d for _, d in self.real(inputfingerprint.compare_fingerprints(a, b))]
+        self.assertIn("fat magic", details)
+        self.assertIn("fat architecture count", details)
+
+    def test_linkedit_extent_without_a_signature_change_is_not_packaging(self):
+        def grow(blob):  # x86_64 slice at 48; __LINKEDIT command at 336, vmsize at +8+24
+            blob[48 + 368] = 0x20
+        verdict = inputfingerprint.compare_fingerprints(self.report(), self.binary_report(grow))
+        self.assertFalse(verdict["summary"]["packaging_only"])
+        self.assertIn(("slice x86_64", "segment vmsize"), self.real(verdict))
+
+    def test_linkedit_vmaddr_and_fileoff_are_always_compared(self):
+        a = self.report()
+        b = json.loads(json.dumps(a))
+        b["game_assembly"]["slices"][0]["segments"][2].update(vmaddr=0x9000, fileoff=1)
+        b2 = self.report(uuid=UUID_B, signature=SIGNATURE_B)
+        b2["game_assembly"]["slices"][0]["segments"][2].update(vmaddr=0x9000, fileoff=1)
+        for other in (b, b2):
+            details = [d for _, d in self.real(inputfingerprint.compare_fingerprints(a, other))]
+            self.assertIn("segment vmaddr", details)
+            self.assertIn("segment fileoff", details)
+
+    def test_non_linkedit_segment_hash_is_not_packaging(self):
+        a = self.report()
+        b = json.loads(json.dumps(a))
+        b["game_assembly"]["slices"][1]["segments"][0]["sha256"] = "0" * 64
+        self.assertEqual([("slice arm64", "segment sha256")], self.real(inputfingerprint.compare_fingerprints(a, b)))
+
+    def test_linkedit_segment_hash_change_needs_equal_unsigned_bytes(self):
+        a = self.report()
+        b = json.loads(json.dumps(a))
+        linkedit = b["game_assembly"]["slices"][0]["segments"][2]
+        linkedit["sha256"] = "0" * 64
+        self.assertTrue(inputfingerprint.compare_fingerprints(a, b)["summary"]["packaging_only"])
+        b["game_assembly"]["slices"][0]["linkedit"]["sha256_without_signature"] = "1" * 64
+        self.assertFalse(inputfingerprint.compare_fingerprints(a, b)["summary"]["packaging_only"])
+
+    def test_arm64_and_arm64e_slices_are_kept_apart(self):
+        path = Path(self.tmp.name) / "multi"
+        arm, arme = macho(ARM64, UUID_A, SIGNATURE_A), macho(ARM64, UUID_B, SIGNATURE_A, text=TEXT[:-1] + b"X")
+        path.write_bytes(fat((ARM64, arm, 0), (ARM64, arme, 2)))
+        slices = inputfingerprint.fingerprint_macho(path)["slices"]
+        self.assertEqual([(ARM64, 0), (ARM64, 2)], [(s["cputype"], s["cpusubtype"]) for s in slices])
+        reports = []
+        for blob in (fat((ARM64, arm, 0), (ARM64, arme, 2)), fat((ARM64, arm, 0), (ARM64, macho(ARM64, UUID_B, SIGNATURE_A), 2))):
+            reports.append(dict(self.report(), game_assembly=None))
+            path.write_bytes(blob)
+            reports[-1]["game_assembly"] = dict(inputfingerprint.fingerprint_macho(path), sha256="x", path="p")
+        verdict = inputfingerprint.compare_fingerprints(*reports)
+        areas = {d["area"] for d in verdict["differences"] if not d["packaging"]}
+        self.assertEqual({"slice arm64 (subtype 0x2)"}, areas)
+
+    def test_repeated_cpu_pair_in_the_fat_table_is_rejected(self):
+        path = Path(self.tmp.name) / "dup"
+        arm = macho(ARM64, UUID_A, SIGNATURE_A)
+        path.write_bytes(fat((ARM64, arm), (ARM64, arm)))
+        with self.assertRaisesRegex(ValueError, "repeats"):
+            inputfingerprint.fingerprint_macho(path)
+
+    def test_malformed_slice_in_a_fat_file_raises_value_error(self):
+        path = Path(self.tmp.name) / "overrun"
+        blob = bytearray(fat((X86_64, macho(X86_64, UUID_A, SIGNATURE_A))))
+        struct.pack_into("<Q", blob, 32 + 152, 10 ** 6)  # __text section size
+        path.write_bytes(bytes(blob))
+        with self.assertRaisesRegex(ValueError, "overruns the slice"):
+            inputfingerprint.fingerprint_macho(path)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root can read every directory")
+    def test_unreadable_directory_fails_instead_of_shrinking_the_manifest(self):
+        app = make_app(self.tmp.name)
+        locked = app / "Contents" / "Resources" / "locked"
+        locked.mkdir()
+        (locked / "hidden.txt").write_text("x")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o755)
+        with self.assertRaises(OSError):
+            inputfingerprint.build_manifest(app)
+
+    def test_code_signature_symlink_changes_are_packaging(self):
+        a = self.report()
+        self.counter += 1
+        root = Path(self.tmp.name) / str(self.counter)
+        root.mkdir()
+        app = make_app(root)
+        os.symlink("CodeResources", app / "Contents" / "_CodeSignature" / "alias")
+        b = inputfingerprint.fingerprint_input(app)
+        verdict = inputfingerprint.compare_fingerprints(a, b)
+        self.assertEqual([("manifest", "symlink", True)], [(d["area"], d["detail"], d["packaging"]) for d in verdict["differences"]])
+        c = json.loads(json.dumps(a))
+        c["manifest"]["symlinks"].append({"path": "Contents/Resources/alias", "target": "a.txt"})
+        self.assertFalse(inputfingerprint.compare_fingerprints(a, c)["summary"]["packaging_only"])
+
+    def test_format_one_reports_are_rejected(self):
+        old = dict(self.report(), format=1)
+        with self.assertRaisesRegex(ValueError, "Unsupported fingerprint format 1"):
+            inputfingerprint.compare_fingerprints(old, self.report())
 
     def test_cli_round_trip(self):
         app = make_app(self.tmp.name)

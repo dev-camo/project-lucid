@@ -12,7 +12,7 @@ import struct
 
 from . import inputvariants
 
-FORMAT = 1
+FORMAT = 2
 
 FAT_MAGIC, FAT_MAGIC_64 = 0xCAFEBABE, 0xCAFEBABF  # stored big-endian
 MH_MAGIC_64 = 0xFEEDFACF                           # stored little-endian
@@ -50,10 +50,15 @@ def _cstr(raw):
     return raw.split(b"\0", 1)[0].decode("ascii", "replace")
 
 
+def _raise(error):
+    # os.walk swallows unreadable directories by default; a silently smaller manifest would hide files.
+    raise error
+
+
 def build_manifest(app):
     """Every regular file as (path, size, sha256) and every symlink as a link, never followed."""
     files, links = [], []
-    for directory, dirnames, filenames in os.walk(app, followlinks=False):
+    for directory, dirnames, filenames in os.walk(app, followlinks=False, onerror=_raise):
         for name in dirnames + filenames:
             full = os.path.join(directory, name)
             relative = os.path.relpath(full, app).replace(os.sep, "/")
@@ -67,7 +72,10 @@ def build_manifest(app):
 
 
 def _slice_ranges(data):
-    """Return (cputype, cpusubtype, offset, size) per architecture of a fat or thin Mach-O."""
+    """Return (header, entries): header holds magic, count, align fields and the container bytes hash.
+
+    entries are (cputype, cpusubtype, offset, size) per architecture of a fat or thin Mach-O.
+    """
     if len(data) < 8:
         raise ValueError("Mach-O file is too small to hold a header")
     big = struct.unpack_from(">I", data, 0)[0]
@@ -78,98 +86,128 @@ def _slice_ranges(data):
         entry = struct.calcsize(layout)
         if count > 64 or 8 + count * entry > len(data):
             raise ValueError("Fat header declares {} architectures, which does not fit the file".format(count))
-        result = []
+        result, aligns, masked = [], [], []
         for index in range(count):
-            fields = struct.unpack_from(layout, data, 8 + index * entry)
+            at = 8 + index * entry
+            fields = struct.unpack_from(layout, data, at)
             result.append((fields[0], fields[1], fields[2], fields[3]))
-        return result
+            aligns.append(fields[4])
+            # The offset and size fields follow from the slice sizes and are judged by the slice comparison.
+            width = 8 if wide else 4
+            masked.append((at + 8, at + 8 + 2 * width))
+        if len({(entry[0], entry[1]) for entry in result}) != len(result):
+            raise ValueError("Fat header repeats a (cputype, cpusubtype) pair")
+        for _, _, offset, size in result:
+            if offset < 0 or size < 0 or offset + size > len(data):
+                raise ValueError("Slice at 0x{:x} size 0x{:x} lies outside the file".format(offset, size))
+            masked.append((offset, offset + size))
+        # Bytes outside the slices are hashed literally, except all-zero alignment padding between the arch
+        # table and the last slice: its length follows from the slice sizes, so only its content counts.
+        digest, cursor, table_end = hashlib.sha256(), 0, 8 + count * entry
+        last_end = max([end for start, end in masked] or [0])
+        for start, end in sorted(masked):
+            if start > cursor:
+                gap = bytes(data[cursor:start])
+                zero_padding = cursor >= table_end and start <= last_end and not any(gap)
+                digest.update(b"Z" if zero_padding else gap)
+            cursor = max(cursor, end)
+        digest.update(data[cursor:])
+        return {"magic": big, "count": count, "aligns": aligns, "container_sha256": digest.hexdigest()}, result
     if struct.unpack_from("<I", data, 0)[0] == MH_MAGIC_64:
         cputype, cpusubtype = struct.unpack_from("<ii", data, 4)
-        return [(cputype, cpusubtype, 0, len(data))]
+        return {"magic": big, "count": 1, "aligns": [None], "container_sha256": None}, [(cputype, cpusubtype, 0, len(data))]
     raise ValueError("Unsupported Mach-O magic 0x{:08x}; expected a fat or 64-bit little-endian binary".format(big))
 
 
-def _parse_slice(data, cputype, cpusubtype, offset, size):
+def _parse_slice(data, cputype, cpusubtype, offset, size, align):
     """Parse one Mach-O 64 slice: segments, sections, UUID, signature, encryption and LINKEDIT hashes."""
     if offset < 0 or size < 32 or offset + size > len(data):
         raise ValueError("Slice at 0x{:x} size 0x{:x} lies outside the file".format(offset, size))
     view = memoryview(data)[offset:offset + size]
-    magic = struct.unpack_from("<I", view, 0)[0]
-    if magic != MH_MAGIC_64:
-        raise ValueError("Slice magic 0x{:08x} is not a 64-bit little-endian Mach-O".format(magic))
-    ncmds, sizeofcmds = struct.unpack_from("<II", view, 16)
-    record = {"arch": CPU_NAMES.get(cputype, "cpu_0x{:x}".format(cputype)), "cputype": cputype,
-              "cpusubtype": cpusubtype, "offset": offset, "size": size, "sha256": _sha256(view),
-              "uuid": None, "code_signature": None, "encryption": None, "segments": [], "linkedit": None}
-    if 32 + sizeofcmds > size:
-        raise ValueError("Load commands overrun the slice")
-    masked = []  # byte ranges (relative to the slice) that legitimately change when a bundle is re-signed
-    position = 32
-    for _ in range(ncmds):
-        cmd, cmdsize = struct.unpack_from("<II", view, position)
-        if cmdsize < 8 or position + cmdsize > 32 + sizeofcmds:
-            raise ValueError("Malformed load command at 0x{:x}".format(position))
-        body = position + 8
-        if cmd == LC_SEGMENT_64:
-            name, vmaddr, vmsize, fileoff, filesize, _, _, nsects, _ = struct.unpack_from("<16sQQQQiiII", view, body)
-            segment = {"segname": _cstr(name), "vmaddr": vmaddr, "vmsize": vmsize, "fileoff": fileoff,
-                       "filesize": filesize, "sections": []}
-            for index in range(nsects):
-                sect, seg, addr, length, sect_off, _, _, _, flags, _, _, _ = struct.unpack_from(
-                    "<16s16sQQIIIIIIII", view, body + 64 + index * 80)
-                zerofill = (flags & 0xFF) in ZEROFILL_TYPES
-                if not zerofill and sect_off + length > size:
-                    raise ValueError("Section {} overruns the slice".format(_cstr(sect)))
-                segment["sections"].append({
-                    "sectname": _cstr(sect), "segname": _cstr(seg), "addr": addr, "offset": sect_off,
-                    "size": length, "zerofill": zerofill,
-                    "sha256": None if zerofill else _sha256(view[sect_off:sect_off + length])})
-            record["segments"].append(segment)
+    try:
+        magic = struct.unpack_from("<I", view, 0)[0]
+        if magic != MH_MAGIC_64:
+            raise ValueError("Slice magic 0x{:08x} is not a 64-bit little-endian Mach-O".format(magic))
+        ncmds, sizeofcmds = struct.unpack_from("<II", view, 16)
+        record = {"arch": CPU_NAMES.get(cputype, "cpu_0x{:x}".format(cputype)), "cputype": cputype,
+                  "cpusubtype": cpusubtype, "offset": offset, "size": size, "align": align, "sha256": _sha256(view),
+                  "uuid": None, "code_signature": None, "encryption": None, "segments": [], "linkedit": None}
+        if 32 + sizeofcmds > size:
+            raise ValueError("Load commands overrun the slice")
+        masked = []  # byte ranges (relative to the slice) that legitimately change when a bundle is re-signed
+        position = 32
+        for _ in range(ncmds):
+            cmd, cmdsize = struct.unpack_from("<II", view, position)
+            if cmdsize < 8 or position + cmdsize > 32 + sizeofcmds:
+                raise ValueError("Malformed load command at 0x{:x}".format(position))
+            body = position + 8
+            if cmd == LC_SEGMENT_64:
+                name, vmaddr, vmsize, fileoff, filesize, _, _, nsects, _ = struct.unpack_from("<16sQQQQiiII", view, body)
+                segment = {"segname": _cstr(name), "vmaddr": vmaddr, "vmsize": vmsize, "fileoff": fileoff,
+                           "filesize": filesize, "sha256": None, "sections": []}
+                if filesize:
+                    if fileoff + filesize > size:
+                        raise ValueError("Segment {} overruns the slice".format(segment["segname"]))
+                    segment["sha256"] = _sha256(view[fileoff:fileoff + filesize])
+                for index in range(nsects):
+                    sect, seg, addr, length, sect_off, _, _, _, flags, _, _, _ = struct.unpack_from(
+                        "<16s16sQQIIIIIIII", view, body + 64 + index * 80)
+                    zerofill = (flags & 0xFF) in ZEROFILL_TYPES
+                    if not zerofill and sect_off + length > size:
+                        raise ValueError("Section {} overruns the slice".format(_cstr(sect)))
+                    segment["sections"].append({
+                        "sectname": _cstr(sect), "segname": _cstr(seg), "addr": addr, "offset": sect_off,
+                        "size": length, "zerofill": zerofill,
+                        "sha256": None if zerofill else _sha256(view[sect_off:sect_off + length])})
+                record["segments"].append(segment)
+                if segment["segname"] == "__LINKEDIT":
+                    masked += [(body + 24, body + 32), (body + 40, body + 48)]  # vmsize, filesize
+            elif cmd == LC_UUID:
+                record["uuid"] = bytes(view[body:body + 16]).hex()
+                masked.append((body, body + 16))
+            elif cmd == LC_CODE_SIGNATURE:
+                dataoff, datasize = struct.unpack_from("<II", view, body)
+                record["code_signature"] = {"dataoff": dataoff, "datasize": datasize}
+                masked.append((body, body + 8))
+            elif cmd == LC_ENCRYPTION_INFO_64:
+                cryptoff, cryptsize, cryptid = struct.unpack_from("<III", view, body)
+                record["encryption"] = {"cryptoff": cryptoff, "cryptsize": cryptsize, "cryptid": cryptid}
+            position += cmdsize
+        for segment in record["segments"]:
             if segment["segname"] == "__LINKEDIT":
-                masked += [(body + 24, body + 32), (body + 40, body + 48)]  # vmsize, filesize
-        elif cmd == LC_UUID:
-            record["uuid"] = bytes(view[body:body + 16]).hex()
-            masked.append((body, body + 16))
-        elif cmd == LC_CODE_SIGNATURE:
-            dataoff, datasize = struct.unpack_from("<II", view, body)
-            record["code_signature"] = {"dataoff": dataoff, "datasize": datasize}
-            masked.append((body, body + 8))
-        elif cmd == LC_ENCRYPTION_INFO_64:
-            cryptoff, cryptsize, cryptid = struct.unpack_from("<III", view, body)
-            record["encryption"] = {"cryptoff": cryptoff, "cryptsize": cryptsize, "cryptid": cryptid}
-        position += cmdsize
-    for segment in record["segments"]:
-        if segment["segname"] == "__LINKEDIT":
-            start, end = segment["fileoff"], segment["fileoff"] + segment["filesize"]
-            if end > size:
-                raise ValueError("__LINKEDIT overruns the slice")
-            digest = hashlib.sha256()
-            signature = record["code_signature"]
-            if signature and start <= signature["dataoff"] and signature["dataoff"] + signature["datasize"] <= end:
-                digest.update(view[start:signature["dataoff"]])
-                digest.update(view[signature["dataoff"] + signature["datasize"]:end])
-            else:
-                digest.update(view[start:end])
-            masked.append((start, end))
-            record["linkedit"] = {"sha256_with_signature": _sha256(view[start:end]),
-                                  "sha256_without_signature": digest.hexdigest()}
-    # Everything else in the slice (header, load commands, padding, all sections); a change here that
-    # no section or LINKEDIT hash explains would otherwise hide behind the slice hash.
-    residual, cursor = hashlib.sha256(), 0
-    for start, end in sorted(masked):
-        residual.update(view[cursor:start])
-        cursor = max(cursor, end)
-    residual.update(view[cursor:])
-    record["residual_sha256"] = residual.hexdigest()
-    view.release()
-    return record
+                start, end = segment["fileoff"], segment["fileoff"] + segment["filesize"]
+                if end > size:
+                    raise ValueError("__LINKEDIT overruns the slice")
+                digest = hashlib.sha256()
+                signature = record["code_signature"]
+                if signature and start <= signature["dataoff"] and signature["dataoff"] + signature["datasize"] <= end:
+                    digest.update(view[start:signature["dataoff"]])
+                    digest.update(view[signature["dataoff"] + signature["datasize"]:end])
+                else:
+                    digest.update(view[start:end])
+                masked.append((start, end))
+                record["linkedit"] = {"sha256_with_signature": _sha256(view[start:end]),
+                                      "sha256_without_signature": digest.hexdigest()}
+        # Everything else in the slice (header, load commands, padding, all sections); a change here that
+        # no section or LINKEDIT hash explains would otherwise hide behind the slice hash.
+        residual, cursor = hashlib.sha256(), 0
+        for start, end in sorted(masked):
+            residual.update(view[cursor:start])
+            cursor = max(cursor, end)
+        residual.update(view[cursor:])
+        record["residual_sha256"] = residual.hexdigest()
+        return record
+    finally:
+        view.release()  # an error must stay a ValueError, not a BufferError from closing the mmap
 
 
 def fingerprint_macho(path):
     with open(path, "rb") as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
-        ranges = _slice_ranges(data)
-        return {"fat": struct.unpack_from(">I", data, 0)[0] in (FAT_MAGIC, FAT_MAGIC_64),
-                "slices": [_parse_slice(data, *entry) for entry in ranges]}
+        header, ranges = _slice_ranges(data)
+        fat = header["magic"] in (FAT_MAGIC, FAT_MAGIC_64)
+        return {"fat": fat, "magic": header["magic"], "count": header["count"],
+                "container_sha256": header["container_sha256"],
+                "slices": [_parse_slice(data, *entry, align) for entry, align in zip(ranges, header["aligns"])]}
 
 
 def fingerprint_metadata(path):
@@ -236,34 +274,35 @@ def _compare_manifest(a, b, out):
     links_b = {item["path"]: item["target"] for item in b["symlinks"]}
     for path in sorted(links_a.keys() | links_b.keys()):
         if links_a.get(path) != links_b.get(path):
-            _diff(out, "manifest", "symlink", False, path=path, a=links_a.get(path), b=links_b.get(path))
+            _diff(out, "manifest", "symlink", path.startswith(CODE_SIGNATURE_DIRECTORY),
+                  path=path, a=links_a.get(path), b=links_b.get(path))
 
 
-def _compare_slice(arch, a, b, out):
-    area = "slice " + arch
-    for key in ("cputype", "cpusubtype"):
-        if a[key] != b[key]:
-            _diff(out, area, key, False, a=a[key], b=b[key])
+def _compare_slice(label, a, b, out):
+    area = "slice " + label
     # Fat offsets, sizes and the slice hash follow from the signature and UUID differences.
     for key in ("offset", "size", "sha256"):
         if a[key] != b[key]:
             _diff(out, area, "slice " + key + " (follows from other differences)", True, a=a[key], b=b[key])
+    if a["align"] != b["align"]:
+        _diff(out, area, "fat align", False, a=a["align"], b=b["align"])
     if a["residual_sha256"] != b["residual_sha256"]:
         _diff(out, area, "slice bytes outside LINKEDIT, UUID and signature fields", False,
               a=a["residual_sha256"], b=b["residual_sha256"])
     if a["uuid"] != b["uuid"]:
         _diff(out, area, "LC_UUID", True, a=a["uuid"], b=b["uuid"])
-    if a["code_signature"] != b["code_signature"]:
+    signature_changed = a["code_signature"] != b["code_signature"]
+    if signature_changed:
         _diff(out, area, "LC_CODE_SIGNATURE", True, a=a["code_signature"], b=b["code_signature"])
     if a["encryption"] != b["encryption"]:
         _diff(out, area, "LC_ENCRYPTION_INFO_64", False, a=a["encryption"], b=b["encryption"])
     la, lb = a["linkedit"], b["linkedit"]
+    unsigned_equal = False
     if (la is None) != (lb is None):
         _diff(out, area, "__LINKEDIT presence", False, a=la is not None, b=lb is not None)
     elif la is not None:
-        if la["sha256_with_signature"] != lb["sha256_with_signature"]:
-            _diff(out, area, "__LINKEDIT with signature (follows from the signature range)", True)
-        if la["sha256_without_signature"] != lb["sha256_without_signature"]:
+        unsigned_equal = la["sha256_without_signature"] == lb["sha256_without_signature"]
+        if not unsigned_equal:
             _diff(out, area, "__LINKEDIT without the code-signature range", False,
                   a=la["sha256_without_signature"], b=lb["sha256_without_signature"])
     segments_a = {s["segname"]: s for s in a["segments"]}
@@ -271,11 +310,19 @@ def _compare_slice(arch, a, b, out):
     for name in sorted(segments_a.keys() ^ segments_b.keys()):
         _diff(out, area, "segment only on one side", False, segname=name)
     for name in sorted(segments_a.keys() & segments_b.keys()):
-        if name == "__LINKEDIT":  # its extent follows from the signature size; its bytes are compared above
-            continue
+        left, right = segments_a[name], segments_b[name]
         for key in ("vmaddr", "vmsize", "fileoff", "filesize"):
-            if segments_a[name][key] != segments_b[name][key]:
-                _diff(out, area, "segment " + key, False, segname=name, a=segments_a[name][key], b=segments_b[name][key])
+            if left[key] == right[key]:
+                continue
+            # __LINKEDIT's extent follows from the signature size, so only a signature change explains it.
+            explained = name == "__LINKEDIT" and key in ("vmsize", "filesize") and signature_changed
+            _diff(out, area, "segment " + key + (" (follows from the signature range)" if explained else ""),
+                  explained, segname=name, a=left[key], b=right[key])
+        if left["sha256"] != right["sha256"]:
+            # __LINKEDIT bytes may differ only inside the signature range, judged by the unsigned hash above.
+            explained = name == "__LINKEDIT" and unsigned_equal
+            _diff(out, area, "segment sha256" + (" (follows from the signature range)" if explained else ""),
+                  explained, segname=name, a=left["sha256"], b=right["sha256"])
     sections_a = {(s["segname"], s["sectname"]): s for seg in a["segments"] for s in seg["sections"]}
     sections_b = {(s["segname"], s["sectname"]): s for seg in b["segments"] for s in seg["sections"]}
     for key in sorted(sections_a.keys() ^ sections_b.keys()):
@@ -287,17 +334,31 @@ def _compare_slice(arch, a, b, out):
                       a=sections_a[key][field], b=sections_b[key][field])
 
 
+def _slice_labels(slices):
+    """Display name per (cputype, cpusubtype); the subtype is added only where names would collide."""
+    names = [s["arch"] for s in slices.values()]
+    return {key: s["arch"] if names.count(s["arch"]) == 1 else "{} (subtype 0x{:x})".format(s["arch"], key[1] & 0xFFFFFFFF)
+            for key, s in slices.items()}
+
+
 def _compare_assembly(a, b, out):
+    area = "GameAssembly.dylib"
     if a["fat"] != b["fat"]:
-        _diff(out, "GameAssembly.dylib", "fat versus thin", False, a=a["fat"], b=b["fat"])
+        _diff(out, area, "fat versus thin", False, a=a["fat"], b=b["fat"])
     if a["sha256"] != b["sha256"]:
-        _diff(out, "GameAssembly.dylib", "binary sha256 (follows from other differences)", True, a=a["sha256"], b=b["sha256"])
-    slices_a = {s["arch"]: s for s in a["slices"]}
-    slices_b = {s["arch"]: s for s in b["slices"]}
-    for arch in sorted(slices_a.keys() ^ slices_b.keys()):
-        _diff(out, "GameAssembly.dylib", "architecture only on one side", False, arch=arch)
-    for arch in sorted(slices_a.keys() & slices_b.keys()):
-        _compare_slice(arch, slices_a[arch], slices_b[arch], out)
+        _diff(out, area, "binary sha256 (follows from other differences)", True, a=a["sha256"], b=b["sha256"])
+    # The fat header and every byte between slices must match; only the per-slice offset and size follow from sizes.
+    for key, detail in (("magic", "fat magic"), ("count", "fat architecture count"),
+                        ("container_sha256", "bytes outside the slices (fat header and padding)")):
+        if a[key] != b[key]:
+            _diff(out, area, detail, False, a=a[key], b=b[key])
+    slices_a = {(s["cputype"], s["cpusubtype"]): s for s in a["slices"]}
+    slices_b = {(s["cputype"], s["cpusubtype"]): s for s in b["slices"]}
+    labels = _slice_labels({**slices_a, **slices_b})
+    for key in sorted(slices_a.keys() ^ slices_b.keys()):
+        _diff(out, area, "architecture only on one side", False, arch=labels[key])
+    for key in sorted(slices_a.keys() & slices_b.keys()):
+        _compare_slice(labels[key], slices_a[key], slices_b[key], out)
 
 
 def _compare_metadata(a, b, out):
