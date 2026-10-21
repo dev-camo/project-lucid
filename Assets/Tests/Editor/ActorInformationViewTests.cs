@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using Hardlight;
 using HardlightProject;
@@ -306,6 +307,17 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // SetText reads the default style sheet from TMP_Settings.instance (TMP_Text.GetStyle). The Resources "TMP Settings" asset of
+        // the recovered project is not bound to this TextMesh Pro package's settings script, so no instance loads; an owned empty
+        // settings object stands in for the case and the loaded one (none) is put back.
+        private static void LeaseTextSettings(Owned owned)
+        {
+            FieldInfo instance = typeof(TMP_Settings).GetField("s_Instance", BindingFlags.Static | BindingFlags.NonPublic);
+            object prior = instance.GetValue(null);
+            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => instance.SetValue(null, prior)));
+            instance.SetValue(null, owned.Track(ScriptableObject.CreateInstance<TMP_Settings>()));
+        }
+
         // 0x60DC40..0x60DD0F: each update asks the ability for its text. Without text the view is hidden and nothing else changes; with
         // text it is shown and placed one boss height (the collider bounds' size.y = 3) above the boss, and the label gets the text.
         [Test]
@@ -313,6 +325,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
+                LeaseTextSettings(owned);
                 Boss boss = owned.Host("Lucid boss ability info boss").AddComponent<Boss>();
                 BoxCollider collider = boss.gameObject.AddComponent<BoxCollider>();
                 collider.size = new Vector3(2f, 3f, 4f);
@@ -331,7 +344,7 @@ namespace ProjectLucid.Tests
                 Call(view, "Update");
                 Assert.That(view.gameObject.activeSelf, Is.False, "no text hides the view");
                 AssertNear(view.transform.localPosition, new Vector3(5f, 5f, 5f), "and leaves it where it was", 1e-5f);
-                Assert.That(label.text, Is.Empty.Or.Null);
+                Assert.That(label.text, Is.Null.Or.Empty);
 
                 view.gameObject.SetActive(true);
                 ability.HasText = true;
