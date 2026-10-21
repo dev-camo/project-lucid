@@ -12,9 +12,7 @@ namespace ProjectLucid.Tests
 {
     // SplineProjectileSpawner (Game.Runtime 02000677; x86-64 0x582850..0x582E60). Real components on owned hosts. No Awake runs in
     // Edit Mode, so the manager and fired list are reached through the members the cases cover.
-    // Not covered: the pooled-acquisition paths of Fire (the NightmareEggmanProjectile branch with Setup, SetSpline, Fire and the
-    // OnExpired subscription, and the log branch for another projectile type), which need a ProjectileManager with real object
-    // pools of prefab projectiles.
+    // Fire's pooled paths run on a ProjectileManager whose pool factory returns a prepared projectile.
     public sealed class SplineProjectileSpawnerTests
     {
         private static readonly Type ConfigType = typeof(ProjectileSpawnerBase).GetNestedType("ProjectilesAndCount", BindingFlags.NonPublic);
@@ -82,6 +80,76 @@ namespace ProjectLucid.Tests
             });
         }
 
+        private static ProjectileManager NewManagerReturning(Owned owned, ProjectileType type, Projectile projectile)
+        {
+            ProjectileManager manager = owned.Host("Lucid spline manager", false).AddComponent<ProjectileManager>();
+            Get<Dictionary<ProjectileType, UnityEngine.Pool.ObjectPool<Projectile>>>(manager, "m_projectilePools")[type] =
+                new UnityEngine.Pool.ObjectPool<Projectile>(() => projectile);
+            return manager;
+        }
+
+        // 0x582A9E..0x582B78: for each acquired NightmareEggmanProjectile Setup runs inlined with focus (0, 50, 0) (constant 0x29a7990
+        // loaded at 0x582ac1, z zeroed by xorps at 0x582abb) and a null owner collider ([r13+0x80] = 0), leaving the base state
+        // WarmingUp (0); the spline is stored (0x582b00) before the virtual Fire (slot 33, 0x582b1a); AddUnique (0x582b31) keeps the
+        // one pooled instance in the list once although it is acquired twice; each iteration combines a spawner callback into
+        // OnExpired (0x582b78).
+        [Test]
+        public void FireSetsUpEachNightmareProjectileOnTheSplineAndSubscribesToItsExpiry()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<TimeManager>();
+                owned.LeaseRow<CharacterManager>(); // Setup caches it
+                SplineProjectileSpawner spawner = NewSpawner(owned);
+                SplineSpawnRecordingNightmareProjectile projectile =
+                    EnemyAbilityTestSupport.AddTimeScaled<SplineSpawnRecordingNightmareProjectile>(owned.Host("Lucid spline nightmare", false));
+                // The base component's UnityEvent is a serialized field the prefab would supply; Setup invokes it.
+                Set(projectile, "m_onWarmingUp", new UnityEngine.Events.UnityEvent());
+                Spline spline = owned.Host("Lucid spline", false).AddComponent<Spline>();
+                Set(spawner, "m_spline", spline);
+                Set(spawner, "m_projectileManager", NewManagerReturning(owned, ProjectileType.BuzzBomberProjectile, projectile));
+                Set(spawner, "m_projectileConfigs", Configs((2, ProjectileType.BuzzBomberProjectile)));
+
+                Call(spawner, "Fire");
+
+                Assert.That(projectile.FocusTargets, Is.EqualTo(new[] { new Vector3(0f, 50f, 0f), new Vector3(0f, 50f, 0f) }));
+                Assert.That(Get<Collider>(projectile, "m_ownerCollider"), Is.Null);
+                Assert.That(projectile.StatesAtFire, Is.EqualTo(new[] { 0, 0 }), "Setup ran before Fire");
+                Assert.That(projectile.SplinesAtFire, Is.EqualTo(new[] { spline, spline }), "SetSpline ran before Fire");
+                Assert.That(Get<List<Projectile>>(spawner, "m_firedProjectiles"), Is.EqualTo(new Projectile[] { projectile }));
+                Delegate[] callbacks = projectile.OnExpired.GetInvocationList();
+                Assert.That(callbacks.Length, Is.EqualTo(2));
+                Assert.That(callbacks, Has.All.Matches<Delegate>(callback =>
+                    callback.Target == spawner && callback.Method.Name == "OnProjectileExpired"));
+            });
+        }
+
+        // 0x5829fa: any other acquired projectile type is reported through String.Format(message, projectile, GetString(type)) and
+        // skipped (the loop goes on, 0x58293c); it is not set up, listed or subscribed.
+        [Test]
+        public void FireReportsAnAcquiredProjectileThatIsNotANightmareProjectile()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<TimeManager>();
+                SplineProjectileSpawner spawner = NewSpawner(owned);
+                CoolDownRecordingProjectileProbe other = NewProjectile(owned, "Lucid spline unsupported");
+                var definition = owned.Track(ScriptableObject.CreateInstance<ProjectileDefinition>());
+                Set(definition, "m_projectileType", ProjectileType.BuzzBomberProjectile);
+                Set(other, "m_definition", definition); // Initialise needs the App's hazard table
+                Set(spawner, "m_projectileManager", NewManagerReturning(owned, ProjectileType.BuzzBomberProjectile, other));
+                Set(spawner, "m_projectileConfigs", Configs((2, ProjectileType.BuzzBomberProjectile)));
+
+                List<string> errors = HLOutputDiagnosticCapture.CaptureErrors(() => Call(spawner, "Fire"));
+
+                const string Expected = "Lucid spline unsupported (ProjectLucid.Tests.WorldSurfaceShared.CoolDownRecordingProjectileProbe)"
+                    + " is of type BuzzBomberProjectile and is not currently supported as a spline following projectile.:0";
+                Assert.That(errors, Is.EqualTo(new[] { Expected, Expected }));
+                Assert.That(Get<List<Projectile>>(spawner, "m_firedProjectiles"), Is.Empty);
+                Assert.That(other.OnExpired, Is.Null);
+            });
+        }
+
         // 0x582C10/0x582CCF: the base trigger exit runs, then every fired projectile gets the virtual cooldown call (slot 39) with
         // esi = 0, so allowExceptions is false; the list itself is left as it was.
         [Test]
@@ -119,7 +187,7 @@ namespace ProjectLucid.Tests
                 var fired = Get<List<Projectile>>(spawner, "m_firedProjectiles");
                 fired.Add(expiring);
                 fired.Add(other);
-                // Only Fire subscribes the callback, and it needs pooled projectiles, so the same delegate is built directly.
+                // Fire's subscription is covered above; here the same delegate is built directly so the removal is tested alone.
                 var callback = (Action<Projectile>)Delegate.CreateDelegate(typeof(Action<Projectile>), spawner,
                     typeof(SplineProjectileSpawner).GetMethod("OnProjectileExpired", BindingFlags.NonPublic | BindingFlags.Instance));
                 expiring.OnExpired += callback;
