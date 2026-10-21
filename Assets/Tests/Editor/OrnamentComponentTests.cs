@@ -22,11 +22,13 @@ namespace ProjectLucid.Tests
         // AddComponent sends the editor's OnValidate, whose nested AddComponent calls (a rotator, a sampler and the
         // sampler's own Animator or Animation) draw engine messages that are not what these cases examine.
         // The test framework logs each change of the setting, so a case that checks for unexpected logs expects both.
-        private static void IgnoringEngineMessages(Action body)
+        private static void IgnoringEngineMessages(Action body, bool expectSendMessageWarning = false)
         {
             bool before = LogAssert.ignoreFailingMessages;
             if (!before) LogAssert.Expect(LogType.Log, new Regex("IgnoreFailingMessages:true"));
             LogAssert.ignoreFailingMessages = true;
+            // Ignoring covers errors only; the warning of the rotator that OnValidate adds is not an error.
+            if (expectSendMessageWarning) LogAssert.Expect(LogType.Warning, new Regex("SendMessage cannot be called during Awake, CheckConsistency, or OnValidate"));
             try
             {
                 body();
@@ -38,10 +40,10 @@ namespace ProjectLucid.Tests
             }
         }
 
-        private static T NewOrnament<T>(Owned owned, bool active = true) where T : Ornament
+        private static T NewOrnament<T>(Owned owned, bool active = true, bool expectRotatorWarning = false) where T : Ornament
         {
             T ornament = null;
-            IgnoringEngineMessages(() => ornament = owned.Host("Lucid ornament", active).AddComponent<T>());
+            IgnoringEngineMessages(() => ornament = owned.Host("Lucid ornament", active).AddComponent<T>(), expectRotatorWarning);
             return ornament;
         }
 
@@ -128,7 +130,7 @@ namespace ProjectLucid.Tests
                 renderer.sharedMaterial = shared;
                 renderer.shadowCastingMode = ShadowCastingMode.Off;
                 renderer.updateWhenOffscreen = false;
-                var ornament = NewOrnament<Ornament>(owned);
+                var ornament = NewOrnament<Ornament>(owned, expectRotatorWarning: true);
                 Set(ornament, "m_rendererToEnableShadowsOn", renderer); // Reflection: authored reference
 
                 // The first .material read instantiates; the second finds the instance.
@@ -155,7 +157,7 @@ namespace ProjectLucid.Tests
         {
             Owned.Run(owned =>
             {
-                var ornament = NewOrnament<Ornament>(owned);
+                var ornament = NewOrnament<Ornament>(owned, expectRotatorWarning: true);
                 Assert.DoesNotThrow(() => Call(ornament, "OnEnable"));
                 Assert.DoesNotThrow(() => Call(ornament, "OnDisable"));
             });
