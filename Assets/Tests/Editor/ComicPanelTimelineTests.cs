@@ -119,6 +119,32 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // InitialiseRenderTexture returns at 0x79e0b9 (jne 0x79e118) without the m_initialised store at 0x79e114 when
+        // there is no manager, so a playable made before the manager exists does not use up the clip's one-time sizing.
+        [Test]
+        public void ACreatePlayableWithoutAManagerDoesNotMarkTheClipInitialised()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<VisualQualityManager_SDT>();
+                ComicPanelClip clip = NewClip(owned);
+                var texture = owned.Track(new RenderTexture(8, 8, 0));
+                owned.LeaseRow<SaveManager>();
+                owned.LeaseRow<ScalablePerformance>();
+                SetSerialized(clip, "m_renderTexture", property => property.objectReferenceValue = texture);
+                WithGraph(owned, graph =>
+                {
+                    clip.CreatePlayable(graph, null);
+                    Assert.That((texture.width, texture.height), Is.EqualTo((8, 8)), "no manager yet");
+                    // Added last, so the clip is destroyed (and its OnDisable runs) while the manager is still there.
+                    var manager = owned.Register(owned.Host("Lucid visual quality manager", false).AddComponent<VisualQualityManager_SDT>());
+                    manager.SetCutsceneRenderSize(new Vector2(64f, 32f));
+                    clip.CreatePlayable(graph, null);
+                    Assert.That((texture.width, texture.height), Is.EqualTo((64, 32)));
+                });
+            });
+        }
+
         // OnDisable 0x79E130: with a manager the texture is resized to its DefaultRenderSize (+0xc8, 1280x720),
         // but m_initialised is not touched, so the next playable still applies the cutscene size.
         [Test]

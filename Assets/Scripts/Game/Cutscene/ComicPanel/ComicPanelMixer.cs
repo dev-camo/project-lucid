@@ -64,7 +64,7 @@ namespace HardlightProject
                         m_comicCutscene.SetPanelLooping(m_thisTrackHandle, i);
                         if (!Application.isPlaying)
                         {
-                            // Retail reads isPlaying here and acts on nothing; a [Conditional] call leaves no trace.
+                            // Retail reads isPlaying here and acts on nothing; the editor-only call it guarded is compiled out.
                         }
                     }
                 }

@@ -30,8 +30,8 @@ namespace ProjectLucid.Tests
     //
     // Time.deltaTime cannot be controlled in Edit Mode, so the expectations that depend on it are the engine's own
     // delta times the System category scale of 2 (TimeManager.GetDeltaTime, 0x5f7860), and the cases that pin an exact
-    // value use a hold requirement or modifier delay that makes the outcome independent of it. The ControlMapping
-    // subscriptions made by Start and removed by OnDestroy are not observed here; a lease restores the tables.
+    // value use a hold requirement or modifier delay that makes the outcome independent of it. A lease restores the
+    // ControlMapping tables after each case; one case reads them to check the subscriptions Start and OnDestroy make.
     public sealed class HoldToSkipInputTests
     {
         // Undefined, so no other component's subscription can share the key Start makes for m_gameInput.
@@ -78,6 +78,8 @@ namespace ProjectLucid.Tests
                 }
                 m_exclusive = new HashSet<GameInput>(OwnedControlInputs.Exclusive());
             }
+
+            public static Delegate[] ListenersOf(object action) => Listeners(action);
 
             private static Delegate[] Listeners(object action) =>
                 ((IEnumerable)action.GetType().GetMethod("GetInvocationList").Invoke(action, null)).Cast<Delegate>().ToArray();
@@ -147,6 +149,21 @@ namespace ProjectLucid.Tests
             try { body(scene); }
             finally { Call(scene.Input, "OnDestroy"); }
         });
+
+        // The (input, method name) pairs this component has subscribed in one ControlMapping table. The table's
+        // keys are the private GameInputKey struct, so its GameInput field is read by name.
+        private static List<(GameInput Input, string Method)> Subscriptions(string table, HoldToSkipInput component)
+        {
+            var rows = new List<(GameInput, string)>();
+            var live = (IDictionary)typeof(ControlMapping).GetField(table, BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+            foreach (DictionaryEntry row in live)
+            {
+                var input = (GameInput)row.Key.GetType().GetField("GameInput").GetValue(row.Key);
+                foreach (Delegate listener in ControlMappingLease.ListenersOf(row.Value))
+                    if (ReferenceEquals(listener.Target, component)) rows.Add((input, listener.Method.Name));
+            }
+            return rows;
+        }
 
         // The engine's delta time times the System category scale.
         private static float Step => Time.deltaTime * 2f;
@@ -294,6 +311,44 @@ namespace ProjectLucid.Tests
                 Supply(scene, 1f);
                 Assert.That(scene.FullSkips, Is.EqualTo(0));
             }, required: 100f);
+        }
+
+        // Start 0x68AAF0 subscribes SupplyHeldInput on Held (0x68acb6), EndHeldInput on Up (0x68ad24) and
+        // ForceReleaseCursor on Down for ReleaseCursor (0x68ad91), and OnDestroy 0x68B3D0 removes all three
+        // (0x68b4cf, 0x68b508, 0x68b53f). The table adds a callback only once, so the unsubscribe that precedes each
+        // Subscribe cannot be told apart from a second Start here.
+        [Test]
+        public void StartSubscribesEachCallbackOnItsTriggerAndOnDestroyRemovesThem()
+        {
+            WithInput(scene =>
+            {
+                Call(scene.Input, "Start");
+                Call(scene.Input, "Start");
+                Assert.That(Subscriptions("s_onButtonsHeld", scene.Input), Is.EqualTo(new[] { (OwnedInput, "SupplyHeldInput") }));
+                Assert.That(Subscriptions("s_onButtonsUp", scene.Input), Is.EqualTo(new[] { (OwnedInput, "EndHeldInput") }));
+                Assert.That(Subscriptions("s_onButtonsDown", scene.Input), Is.EqualTo(new[] { (GameInput.ReleaseCursor, "ForceReleaseCursor") }));
+                Call(scene.Input, "OnDestroy");
+                Assert.That(Subscriptions("s_onButtonsHeld", scene.Input), Is.Empty);
+                Assert.That(Subscriptions("s_onButtonsUp", scene.Input), Is.Empty);
+                Assert.That(Subscriptions("s_onButtonsDown", scene.Input), Is.Empty);
+            });
+        }
+
+        // The full-skip comparison is strict (ucomiss then jbe, 0x68b26b/0x68b26e; inlined copy 0x68b8d6/0x68b8d9): a
+        // held time equal to the requirement does not skip, one update later it does.
+        [Test]
+        public void AHeldTimeEqualToTheRequirementDoesNotFullSkip()
+        {
+            Assume.That(Time.deltaTime, Is.GreaterThan(0f));
+            WithInput(scene =>
+            {
+                Call(scene.Input, "Start");
+                Supply(scene, 1f);
+                Assert.That(Held(scene), Is.EqualTo(Step));
+                Assert.That(scene.FullSkips, Is.EqualTo(0));
+                Supply(scene, 1f);
+                Assert.That(scene.FullSkips, Is.EqualTo(1));
+            }, required: Step);
         }
 
         // EndHeldInput 0x68B130: a release shorter than the maximum tap duration (0x68b1b6: strictly greater than the

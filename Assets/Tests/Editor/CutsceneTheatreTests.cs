@@ -176,6 +176,18 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // EnqueueAll's own inlined music store (0x7a46e5..0x7a472f), as in Enqueue.
+        [Test]
+        public void EnqueueAllRemembersTheUiBackgroundMusic()
+        {
+            WithTheatre(scene =>
+            {
+                Define(scene, HLCutsceneIdentifier.CS_Intro_A_2D, "lucid-a", true, true);
+                scene.Theatre.EnqueueAll();
+                Assert.That(scene.Theatre.PreviousMusic, Is.EqualTo(HLAudioClipIdentifier.AmbientBossCrabOcean));
+            }, withAudio: true);
+        }
+
         // 0x7A4560: a running session (key held, 0x7a46c3) or a waiting queue (0x7a4675) refuses the whole call.
         [Test]
         public void EnqueueAllDoesNothingWhileASessionIsRunning()
@@ -239,24 +251,30 @@ namespace ProjectLucid.Tests
                     ComicCutscene finished = scene.Owned.Host("Lucid finished cutscene", false).AddComponent<ComicCutscene>();
                     finished.WasSkipped = skipped;
                     Set(scene.Manager, "m_currentCutscene", finished); // Reflection: playing a cutscene needs the addressables load
+                    Set(scene.Theatre, "<IsPlaying>k__BackingField", true); // Reflection: Play's positive path needs the addressables load
                     Get<Action>(scene.Manager, "OnCutsceneFinished")();
-                    Assert.That(scene.Theatre.IsPlaying, Is.False);
+                    Assert.That(scene.Theatre.IsPlaying, Is.False, "skipped " + skipped);
                     Assert.That(scene.Theatre.IsEmpty(), Is.EqualTo(skipped), "skipped " + skipped);
                 });
             }
         }
 
-        // Cleanup 0x7A4120: detaches the finished handler, and clears the playing flag, the chosen cutscene and the
-        // queue - but not the session key in the App's storage.
+        // Cleanup 0x7A4120: detaches the finished handler, and clears the playing flag (0x7a4239), the chosen cutscene
+        // and the queue (0x7a425e) - but not the session key in the App's storage. Two cutscenes are queued by
+        // EnqueueAll so one is still waiting when Cleanup runs.
         [Test]
         public void CleanupDetachesAndClearsEverythingExceptTheSessionKey()
         {
             WithTheatre(scene =>
             {
-                scene.Theatre.Enqueue(Define(scene, HLCutsceneIdentifier.CS_Intro_A_2D, "lucid-a", true, true));
-                scene.Theatre.Enqueue(Define(scene, HLCutsceneIdentifier.CS_Intro_B_2D, "lucid-b", true, true));
+                Define(scene, HLCutsceneIdentifier.CS_Intro_A_2D, "lucid-a", true, true);
+                Define(scene, HLCutsceneIdentifier.CS_Intro_B_2D, "lucid-b", true, true);
+                scene.Theatre.EnqueueAll();
                 scene.Theatre.DequeueNext();
                 Assert.That(scene.Theatre.Cutscene == null, Is.False);
+                Assert.That(scene.Theatre.IsEmpty(), Is.False, "the second cutscene is still waiting");
+                Set(scene.Theatre, "<IsPlaying>k__BackingField", true); // Reflection: Play's positive path needs the addressables load
+                Assert.That(scene.Theatre.IsPlaying, Is.True);
                 Assert.That(Subscribed(scene), Is.True);
                 scene.Theatre.Cleanup();
                 Assert.That(Subscribed(scene), Is.False);

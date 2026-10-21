@@ -207,5 +207,27 @@ namespace ProjectLucid.Tests
                 });
             }
         }
+
+        // 0x56904c and 0x5690af capture the start offset and start scale once, while the target's position is read
+        // again every step (0x5691e6) and added to the lerped offset. A duration of 2 gives four steps of a quarter
+        // each. The target moves from x=10 to x=20 after the first step: the position is then 20 + lerp(-10, 0, 0.5)
+        // and the scale lerps from its start value (1) rather than from its current one.
+        [Test]
+        public void TheStartOffsetAndScaleAreCapturedOnceAndTheTargetIsReadEveryStep()
+        {
+            WithFollower(scene =>
+            {
+                SetSerialized(scene.Follower, "m_duration", property => property.floatValue = 2f);
+                SetSerialized(scene.Follower, "m_scalingApplied", property => property.boolValue = true);
+                SetSerialized(scene.Follower, "m_scalingTarget", property => property.vector3Value = new Vector3(3f, 5f, 7f));
+                IEnumerator steps = Steps(scene);
+                Assert.That(steps.MoveNext(), Is.True);
+                Assert.That(scene.Follower.transform.position, Is.EqualTo(new Vector3(2.5f, 0f, 0f)));
+                scene.Target.position = new Vector3(20f, 0f, 0f);
+                Assert.That(steps.MoveNext(), Is.True);
+                Assert.That(scene.Follower.transform.position, Is.EqualTo(new Vector3(15f, 0f, 0f)));
+                Assert.That(scene.Follower.transform.localScale, Is.EqualTo(new Vector3(2f, 3f, 4f)));
+            });
+        }
     }
 }

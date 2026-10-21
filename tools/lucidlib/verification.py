@@ -7682,6 +7682,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.SequencedFollowerTests." + name for 
     "ANonPositiveDurationCompletesWithoutMoving",
     "ANonStaticOffsetFollowsTheTargetsRotation",
     "ScalingFollowsTheSameFractionOnlyWhenApplied",
+    "TheStartOffsetAndScaleAreCapturedOnceAndTheTargetIsReadEveryStep",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.SequencedAnimationTests." + name for name in (
     "ConstructionStoresTheOriginalDefaults",
@@ -7696,6 +7697,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.SequencedCharacterAnimationTests." +
     "TheTriggerTypeEnumKeepsItsOriginalMembers",
     "ConstructionLeavesTheTriggerTypeAtBoolTrue",
     "BoolTrueSetsTheParameterAndCompletes",
+    "ANullCompletionCallbackIsSkipped",
     "BoolFalseClearsTheParameterAndCompletes",
     "TriggerFiresTheTriggerParameterAndCompletes",
     "ANameLessParameterOrNoCurrentCharacterDoesNothingAndNeverCompletes",
@@ -7714,12 +7716,14 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OutroSequenceFadeMainDirectionalLigh
     "StartRemembersTheScenesSunAndItsIntensity",
     "UpdateLerpsTheIntensityTowardsTheMinimumWithAClampedTime",
     "UpdateDisablesTheComponentOnceTheLerpTimeReachesOne",
+    "UpdateAddsTheMultipliedFrameDeltaToTheLerpTime",
     "OnDestroyRestoresTheRememberedIntensity",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.ComicPanelTimelineTests." + name for name in (
     "ClipConstructionDefaultsTheScaleMultiplierToOne",
     "CreatePlayableCopiesTheAuthoredFieldsAndTheScaleMultiplierOnBothAxes",
     "TheTextureTakesTheTruncatedCutsceneSizeOnce",
+    "ACreatePlayableWithoutAManagerDoesNotMarkTheClipInitialised",
     "OnDisableRestoresTheDefaultSizeWithoutMarkingTheClipInitialised",
     "TheTrackAcceptsComicPanelClips",
     "TheTrackMixerIsNamedAfterTheTrack",
@@ -7735,6 +7739,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.HoldToSkipInputTests." + name for na
     "AZeroInputOnlyRecordsItselfAndAnyOtherLightsThePrompt",
     "TheHeldTimeAndBarFollowTheCategorysDeltaTime",
     "TheFullSkipEventFiresOnEveryUpdatePastTheRequirement",
+    "AHeldTimeEqualToTheRequirementDoesNotFullSkip",
+    "StartSubscribesEachCallbackOnItsTriggerAndOnDestroyRemovesThem",
     "AShortReleaseSkipsOnceOnlyWhenTapToSkipIsEnabled",
     "EndingClearsTheStateAndFadesThePromptOnlyAfterHeldInput",
     "EndingResetsTheDelayModifier",
@@ -7748,6 +7754,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CutsceneTheatreTests." + name for na
     "EnqueueTakesOnlyTheFirstCutsceneAndClaimsTheSessionKey",
     "EnqueueRemembersTheUiBackgroundMusic",
     "EnqueueAllQueuesTheSeenTheatreCutscenesInOrderAndClaimsTheKey",
+    "EnqueueAllRemembersTheUiBackgroundMusic",
     "EnqueueAllDoesNothingWhileASessionIsRunning",
     "DequeueNextWaitsWhileACutsceneIsPlayingAndKeepsTheQueueOrder",
     "PlayWithoutAChosenCutsceneDoesNothing",

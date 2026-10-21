@@ -10,9 +10,8 @@ namespace ProjectLucid.Tests
 {
     // Restored Game.Runtime OutroSequenceFadeMainDirectionalLight (TypeDef 0x02000a8d, x86-64 0x6CE8B0..0x6CEA00). The
     // scene sun is a real directional Light on an owned host, installed through RenderSettings.sun and put back
-    // afterwards. Time.deltaTime cannot be controlled in Edit Mode, so every update case sets the speed multiplier to
-    // zero and the accumulated lerp time directly (the only state that Update itself accumulates); the intensity is
-    // then a pure function of it: default + (0.01 - default) * clamp01(lerpTime), with 0.01 the MinIntensity constant
+    // afterwards. Time.deltaTime cannot be controlled in Edit Mode, so every update case but the accumulation one sets
+    // the speed multiplier to zero and the accumulated lerp time directly; the intensity is then a pure function of it: default + (0.01 - default) * clamp01(lerpTime), with 0.01 the MinIntensity constant
     // (0x29a6c04). The case without a scene sun is not covered, because the engine may substitute another light.
     public sealed class OutroSequenceFadeMainDirectionalLightTests
     {
@@ -113,6 +112,24 @@ namespace ProjectLucid.Tests
                 Assert.That(scene.Sun.intensity, Is.EqualTo(0.01f).Within(1e-6f));
                 Call(scene.Fade, "OnDestroy");
                 Assert.That(scene.Sun.intensity, Is.EqualTo(DefaultIntensity));
+            });
+        }
+
+        // Update 0x6CE940 (0x6ce949..0x6ce96e): the lerp time grows by the speed multiplier times the frame delta
+        // time, added to what it already holds.
+        [Test]
+        public void UpdateAddsTheMultipliedFrameDeltaToTheLerpTime()
+        {
+            Assume.That(Time.deltaTime, Is.GreaterThan(0f));
+            WithFade(scene =>
+            {
+                var serialized = new SerializedObject(scene.Fade);
+                serialized.FindProperty("lerpSpeedMultiplier").floatValue = 0.5f;
+                serialized.ApplyModifiedPropertiesWithoutUndo();
+                Call(scene.Fade, "Start");
+                Set(scene.Fade, "m_lerpTime", 0.25f); // Reflection: the accumulated time, not reachable without a frame delta
+                Call(scene.Fade, "Update");
+                Assert.That(Get<float>(scene.Fade, "m_lerpTime"), Is.EqualTo(0.25f + 0.5f * Time.deltaTime).Within(1e-6f));
             });
         }
     }

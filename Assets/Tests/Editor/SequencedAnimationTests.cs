@@ -17,8 +17,9 @@ namespace ProjectLucid.Tests
     // 0x568250). The effect sits on an owned inactive host, so triggering it takes the real OnEffectTriggered path up to
     // StartCoroutine, which the engine refuses with its logged error; the iterator is then stepped directly. The
     // legacy Animation lives on an active host, with a two second clip that animates a child only, so the collector
-    // pose is never overwritten by the sampled clip. The fixed time step is 0.25 and the Effects scale 1, so with the
-    // length multiplier 0.5 each step advances the animation by exactly 0.5 seconds.
+    // pose is never overwritten by the sampled clip. The fixed time step is 0.25 and the Effects scale 2 (so the step
+    // is told apart from the raw fixed time step), and with the length multiplier 0.5 each step advances the
+    // animation by exactly 1 second.
     public sealed class SequencedAnimationTests
     {
         private sealed class Scene
@@ -37,7 +38,7 @@ namespace ProjectLucid.Tests
             float priorStep = Time.fixedDeltaTime;
             owned.Lease(new ReleaseAction(() => Time.fixedDeltaTime = priorStep));
             Time.fixedDeltaTime = 0.25f;
-            owned.Register(NewTimeManager(owned, TimeCategory.Effects, 1f));
+            owned.Register(NewTimeManager(owned, TimeCategory.Effects, 2f));
             var scene = new Scene { Owned = owned };
             GameObject animationHost = owned.Host("Lucid owned sequenced animation", true);
             owned.Host("Lucid animated child", true, animationHost.transform);
@@ -89,7 +90,7 @@ namespace ProjectLucid.Tests
         }
 
         // 0x567f64..0x567f76: the progress is the animation time over its length, and zero until the length is
-        // positive. A step later it is a quarter, half, three quarters and one of the two second clip.
+        // positive. A step later it is half and then all of the two second clip.
         [Test]
         public void ProgressIsTheFractionOfTheClipAndResetsToZero()
         {
@@ -97,7 +98,7 @@ namespace ProjectLucid.Tests
             {
                 IEnumerator steps = Trigger(scene);
                 Assert.That(scene.Effect.Progress, Is.EqualTo(0f), "no length yet");
-                foreach (float expected in new[] { 0.25f, 0.5f, 0.75f, 1f })
+                foreach (float expected in new[] { 0.5f, 1f })
                 {
                     Assert.That(steps.MoveNext(), Is.True);
                     Assert.That(steps.Current, Is.InstanceOf<WaitForFixedUpdate>());
@@ -121,9 +122,8 @@ namespace ProjectLucid.Tests
                 Assert.That(state.speed, Is.EqualTo(1f));
                 Assert.That(steps.MoveNext(), Is.True);
                 Assert.That(state.speed, Is.EqualTo(2f), "1 / 0.5");
-                Assert.That(state.time, Is.EqualTo(0.5f));
-                for (int step = 0; step < 3; step++)
-                    Assert.That(steps.MoveNext(), Is.True);
+                Assert.That(state.time, Is.EqualTo(1f), "(0.25 * 2) / 0.5; the raw fixed step would give 0.5");
+                Assert.That(steps.MoveNext(), Is.True);
                 Assert.That(state.time, Is.EqualTo(2f));
                 Assert.That(scene.Completed, Is.EqualTo(0));
                 Assert.That(steps.MoveNext(), Is.False);

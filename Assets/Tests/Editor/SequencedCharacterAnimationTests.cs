@@ -75,6 +75,21 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x5686dc and 0x5686fb: this is the one effect that null-checks its stored callback (test rax,rax before the
+        // call), so a missing callback still sets the parameter and does not fault.
+        [Test]
+        public void ANullCompletionCallbackIsSkipped()
+        {
+            WithManager((owned, manager, character) =>
+            {
+                SetCurrent(manager, character, true);
+                Animator animator = AttachAnimator(owned, character, new string[0], Triggers);
+                SequencedCharacterAnimation effect = NewEffect(owned, 0);
+                Assert.DoesNotThrow(() => Play(effect, null));
+                Assert.That(animator.GetBool(Parameter), Is.True);
+            });
+        }
+
         // 0x5686e3..0x5686f0 (type 1): the same call with edx=0.
         [Test]
         public void BoolFalseClearsTheParameterAndCompletes()
