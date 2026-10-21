@@ -649,7 +649,8 @@ namespace ProjectLucid.Tests
 
         // The multiplied minimum is rounded to single (mulss at 0x53EECB) before it is subtracted (subss at 0x53EED2). With
         // 1.1 and 3.3 the product is not a single, and the subtraction of the unrounded product would end one step higher
-        // (0x41AAF5C3). The expected bit patterns are single-precision arithmetic done outside the game.
+        // (0x41AAF5C3). The expected bit patterns are single-precision arithmetic done outside the game: 1.1f * 3.3f is
+        // 0x406851EC and 25 - that is 0x41AAF5C2, whose square is 0x43E456A3.
         [Test]
         public void MoveRandomRoundsTheMultipliedMinimumToSingleBeforeSubtracting()
         {
