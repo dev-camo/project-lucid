@@ -315,6 +315,9 @@ namespace ProjectLucid.Tests
         {
             WithYAxisOverride((owned, rig, freeLook, component) =>
             {
+                // Subscribing reads the saved sensitivity (0x71D240 -> InvokeOnSensitivityChanged) from the settings of the
+                // SaveManager the character fixture registered, which has no settings until the save flow loads them.
+                Set(ProcessManager.GetSystem<SaveManager>(null, true), "m_saveSettings", new SaveDataSettings()); // loaded by the save flow in the original
                 Call(component, "OnCameraManagerReady", rig.Manager);
                 // Subscribing also applies the saved sensitivity at once, so the axis is reset to a known state first.
                 freeLook.m_YAxis.m_MaxSpeed = 99f;
