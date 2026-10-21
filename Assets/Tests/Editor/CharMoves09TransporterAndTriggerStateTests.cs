@@ -698,13 +698,14 @@ namespace ProjectLucid.Tests
         }
 
         // 0x7806D8..0x78089A: a held target places the character, restores its velocity and teleports the tracker before
-        // the target is cleared.
+        // the target is cleared. The placement and velocity are the Actor virtual slots 35 and 37 (0x780709, 0x780728),
+        // so the IL names their Actor declarations.
         [Test]
         public void CallOrderHomingLeavePlacesTheCharacterOnTheTargetBeforeClearingIt()
         {
             List<MethodBase> calls = Calls(typeof(CharacterState_TransporterHomingProximity), "DoOnLeave");
-            int position = IndexOf(calls, "Character", "SetWorldPosition");
-            int velocity = IndexOf(calls, "Character", "SetWorldVelocity", position + 1);
+            int position = IndexOf(calls, "Actor", "SetWorldPosition");
+            int velocity = IndexOf(calls, "Actor", "SetWorldVelocity", position + 1);
             int teleport = IndexOf(calls, "CharacterTracker", "OnTeleport", velocity + 1);
             IndexOf(calls, "CharacterHomingPool", "ClearTarget", teleport + 1);
         }
