@@ -6572,18 +6572,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSvgTests." + name f
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformSnapshotPlayModeTests." + name for name in (
     "PointAndDirectionTransformsScaleThenRotateThenTranslate",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineThreadingPlayModeTests." + name for name in (
     "RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock",
     "RunQueuesOnTheFirstIdleThreadAndWakesIt",
     "RunQueuesOnTheLastThreadWhenEveryThreadIsBusy",
     "ThreadCountOnlyGrowsAndStartsTheNewThreads",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineComputerPlayModeTests." + name for name in (
     "ResampleRebuildsUsersAndRaisesOnRebuild",
     "TriggerApisCreateGroupsLogMissingOnesAndDropTheUser",
@@ -6597,9 +6591,6 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineUserPlayModeT
     "AutoUpdateGatesTheQueuedRebuild",
     "UpdateMethodSelectsTheCallbackThatBuilds",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineFollowerPlayModeTests." + name for name in (
     "CheckNodesCoversTheBackwardLoopAndTheBeginningEdge",
     "LateRunFollowsOnlyWhileFollowIsOn",
@@ -6611,9 +6602,6 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformModulePlay
     "OffsetSettersSkipEqualValuesRefreshTheFlagsAndRebuildTheUser",
     "RigidbodyAngularVelocityFollowsTheShippedRotationFlags",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckColliderGeneratorPlayModeTests." + name for name in (
     "OffsetSetterQueuesARebuildForAChangedValue",
     "PolygonSettersQueueARebuildForAChangedValue",
@@ -6635,9 +6623,6 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineProjectorPlay
     "ReachingTheEndOfALoopingRangeContinuesFromTheStart",
     "SettersQueueARebuildOnlyWhereTheShippedOnesDo",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshGeneratorPlayModeTests." + name for name in (
     "BakedGeneratorNeverRebuilds",
     "ConfigurationSettersSkipEqualValuesAndRebuildOtherwise",
@@ -6655,9 +6640,6 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckPathGeneratorPlayMo
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineRendererPlayModeTests." + name for name in (
     "SlicesClampAtOneAndRebuildOnAnyDifferentValue",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshChannelPlayModeTests." + name for name in (
     "CountIsRaisedToOneAndTheSeedRebuildsOnlyWithRandomOrder",
     "MeshListChangesRebuildAndRejectBadIndices",
@@ -6673,9 +6655,6 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshPlayModeT
     "SwapChannelsExchangesTheChannelsAndIgnoresBadIndices",
     "UnknownChannelTypeDoesNotAdvanceTheCombineIndex",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectControllerPlayModeTests." + name for name in (
     "ClearGivesTheBaseScaleBackAndHidesOrDestroys",
     "CustomScaleReadsTheOffsetRuleAsShipped",
@@ -6684,15 +6663,9 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectControllerPla
     "RotationAppliesTheSampleRotationAndTheRandomEuler",
     "SettersQueueARebuildOnlyForChanges",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectBenderPlayModeTests." + name for name in (
     "SettersQueueARebuildOnlyWithASplineAndOnlyForAChange",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSurfaceGeneratorPlayModeTests." + name for name in (
     "ExtrudeSplineFollowsTheComputerItIsGiven",
     "PlainSettersRebuildOnChangeOnly",
@@ -6706,6 +6679,3 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTubeGeneratorPlayMo
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckWaveformGeneratorPlayModeTests." + name for name in (
     "SettersRebuildOnChangeAndSlicesClampAtOne",
 ))
-
-# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
-# Application.isPlaying gates the editor compile skips in EditMode.
