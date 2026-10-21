@@ -10519,3 +10519,88 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseBackgroundTests." + 
     "DisablingLeavesTheCameraAloneWhenThereIsNoRenderTextureOrTheCameraIsNotReady",
     "AFreshQualitySettingHasNoMaximum",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SaveSlotAndSettingsPageDeclarationTests." + name for name in (
+    "UIContainerSaveDataViewParametersMatchesTheOriginalMetadata",
+    "UIWidgetToggleSaveDataMatchesTheOriginalMetadata",
+    "UIContainerSaveSlotsMatchesTheOriginalMetadata",
+    "UIContainerSettingsLanguageMatchesTheOriginalMetadata",
+    "UIContainerSettingsLegalMatchesTheOriginalMetadata",
+    "UIContainerSettingsNotificationsMatchesTheOriginalMetadata",
+    "UIContainerSettingsQualityMatchesTheOriginalMetadata",
+    "TheQualityPageAttributesMatchTheOriginalMetadata",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSaveDataViewParametersTests." + name for name in (
+    "TheParametersKeepTheSaveTheProgressTheLabelAndTheCallback",
+    "TheSaveAndTheProgressAreKeptApart",
+    "NothingIsValidatedOrReplaced",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetToggleSaveDataTests." + name for name in (
+    "AFreshWidgetHasFiveSeparateEmptyBinders",
+    "ASlotWithoutASaveIsOnlyMarkedEmpty",
+    "ASaveWithoutAVisitedLevelIsEmpty",
+    "ASaveWhoseVisitedLevelIsBlankIsEmpty",
+    "ASavedSlotPublishesTheCollectedOrbsAndTheOrnamentCount",
+    "ProgressWithoutAnOrbTotalShowsNoOrbs",
+    "TheSaveTimeIsShownInLocalTimeFromUnixMilliseconds",
+    "ThePlayTimeFillsTheLocalisedPlayTimeString",
+    "ThePlayTimeShowsTheHoursOfTheDayOnly",
+    "OnlyTheTotalPlayTimeStatisticIsUsed",
+    "SelectingTurnsTheToggleOnOnce",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSaveSlotsTests." + name for name in (
+    "TheSelectedSlotStartsAsTheOpenSlot",
+    "EachStoredSaveIsSetUpOnTheToggleOfItsIndex",
+    "OnlyTheOpenSlotsToggleIsSelected",
+    "WithNoOpenSlotNoToggleIsSelected",
+    "TurningAToggleOnSelectsItsOwnSlot",
+    "AwakeClearsTheLoadingFlagAndSetsUpTheSlotsForTheRegisteredSaveManager",
+    "SettingTheActiveSlotStoresTheIndex",
+    "NavigatingWithoutANavigationManagerDoesNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsLanguageTests." + name for name in (
+    "StartMarksTheCurrentLanguageAsChosenOnEveryButton",
+    "StartCachesTheDefaultLanguageWhenNothingWasChosen",
+    "SelectingAButtonChoosesItsLanguageOnEveryButton",
+    "CachingALanguageTellsEveryButton",
+    "ClosingWithANewLanguageAppliesItAndLeavesTheFontsNotReady",
+    "ClosingWithTheSameLanguageReportsTheFontsReadyOnTheNextFrame",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsLegalTests." + name for name in (
+    "TheCreditsAreOfferedFromTheLevelSelect",
+    "TheCreditsAreOfferedFromTheMainMenu",
+    "TheCreditsAreOfferedWhenBothAreOpen",
+    "TheCreditsAreHiddenFromAnyOtherPage",
+    "TheConsentButtonFollowsTheConsentManagerAndIsIndependentOfTheCredits",
+    "TheConstructorBuildsTwoSeparateBinders",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsNotificationsTests." + name for name in (
+    "StartShowsAGrantedPermissionWithoutNotifying",
+    "StartShowsARefusedPermissionWithoutNotifying",
+    "TurningThePermissionOnGrantsIt",
+    "TurningThePermissionOffRetractsIt",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsQualityTests." + name for name in (
+    "AwakeOpensOnTheActiveProfileAndTheLiveRenderSettings",
+    "TheFirstLevelHoldingTheActiveProfileIsShown",
+    "WithoutAMatchingLevelTheMiddleLevelIsShown",
+    "ChoosingALevelGivesItsProfileTheDefaultProfilesLockedLevels",
+    "ALowHalfRoundsDownToTheEvenLevel",
+    "AMiddleHalfRoundsUpToTheEvenLevel",
+    "AHighHalfRoundsDownToTheEvenLevel",
+    "ABelowHalfValueRoundsDown",
+    "ChoosingALevelShowsItsNameAndRestoresTheMenuRenderScale",
+    "TheResolutionSliderIsShownWithOneDecimal",
+    "ALowHalfSelectsTheFirstAntiAliasingSetting",
+    "AHighHalfSelectsTheEvenAntiAliasingSetting",
+    "AWholeValueSelectsThatAntiAliasingSetting",
+    "TwoSettingsWithTheSameSampleCountShowTheFirst",
+    "ANameWithoutAPlaceholderIsNotFormatted",
+    "ClosingUnchangedReportsNothingAndSavesTheProfileAndScale",
+    "ClosingWithAnotherLevelReportsTheQuality",
+    "ClosingWithAnotherResolutionScaleReportsItAndAppliesIt",
+    "ClosingWithAnotherAntiAliasingReportsItAndAppliesIt",
+    "ClosingWithEverythingChangedReportsTheAntiAliasingLast",
+    "RefreshingShowsTheLevelOfTheActiveProfile",
+    "ResettingReturnsToTheDefaultProfileScaleAndAntiAliasing",
+    "TheConstructorBuildsFourSeparateBinders",
+))
