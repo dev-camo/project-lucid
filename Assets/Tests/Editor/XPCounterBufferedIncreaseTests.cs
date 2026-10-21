@@ -54,7 +54,11 @@ namespace ProjectLucid.Tests
             owned.Lease(new OwnedCharacterManagers());
             owned.LeaseRow<VisualQualityManager_SDT>();
             owned.LeaseRow<CutsceneManager>();
-            owned.LeaseRow<OrnamentManager>();
+            // OnSaveGameOpen waits for a valid OrnamentManager, so the case registers one. Its constructor subscribes Initialise
+            // and Shutdown (unregistering removes those) and its field initialiser caches the MissionManager reference.
+            owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
+            owned.LeaseRow<MissionManager>();
+            owned.Register(new OrnamentManager());
             var rig = new Rig { App = ProcessManager.GetSystem<App>() };
             rig.Manager = owned.Register(owned.Lease(new OwnedTimeScaledObjects("lucid-xp-counter")).Add<ChallengeManager>("manager"));
             // The public save-open route loads the manager's challenge data. The save stays Locked and the manager's one unlock
