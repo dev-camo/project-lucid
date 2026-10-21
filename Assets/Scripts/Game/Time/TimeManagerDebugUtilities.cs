@@ -45,7 +45,7 @@ namespace HardlightProject
             float timeScale = Time.timeScale;
             for (int i = 0; i < m_debugSpeedSettings.Length; i++)
             {
-                if (timeScale > m_debugSpeedSettings[i] + -0.001f) return i;
+                if (timeScale > m_debugSpeedSettings[i] - 0.001f) return i;
             }
             return m_debugSpeedSettings.Length - 1;
         }
@@ -60,17 +60,17 @@ namespace HardlightProject
         [System.Diagnostics.Conditional("BUILD_DEVELOPMENT")]
         private void AddDebugInput()
         {
-            ControlMapping.Subscribe(GameInput.DebugGamePause, OnDebugGamePause, InputTrigger.Down, -1);
-            ControlMapping.Subscribe(GameInput.DebugGameSpeedInc, OnDebugGameSpeedInc, InputTrigger.Down, -1);
-            ControlMapping.Subscribe(GameInput.DebugGameSpeedDec, OnDebugGameSpeedDec, InputTrigger.Down, -1);
+            ControlMapping.Subscribe(GameInput.DebugGamePause, OnDebugGamePause, InputTrigger.Down);
+            ControlMapping.Subscribe(GameInput.DebugGameSpeedInc, OnDebugGameSpeedInc, InputTrigger.Down);
+            ControlMapping.Subscribe(GameInput.DebugGameSpeedDec, OnDebugGameSpeedDec, InputTrigger.Down);
         }
 
         [System.Diagnostics.Conditional("BUILD_DEVELOPMENT")]
         private void RemoveDebugInput() // 06002e01
         {
-            ControlMapping.Unsubscribe(GameInput.DebugGamePause, OnDebugGamePause, -1);
-            ControlMapping.Unsubscribe(GameInput.DebugGameSpeedInc, OnDebugGameSpeedInc, -1);
-            ControlMapping.Unsubscribe(GameInput.DebugGameSpeedDec, OnDebugGameSpeedDec, -1);
+            ControlMapping.Unsubscribe(GameInput.DebugGamePause, OnDebugGamePause);
+            ControlMapping.Unsubscribe(GameInput.DebugGameSpeedInc, OnDebugGameSpeedInc);
+            ControlMapping.Unsubscribe(GameInput.DebugGameSpeedDec, OnDebugGameSpeedDec);
         }
 
         // 06002e02: the button label is bold while Unity's time scale is overridden to this setting.

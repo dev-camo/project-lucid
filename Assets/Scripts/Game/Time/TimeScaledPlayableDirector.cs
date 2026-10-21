@@ -17,7 +17,7 @@ namespace HardlightProject
         private PlayableDirector m_playableDirector;
         [SerializeField] private TimeCategoryObject m_timeCategory;
         [SerializeField] private bool m_playOnAwake;
-        private readonly SystemRef<TimeManager> m_timeManagerRef = ProcessManager.GetSystemRef<TimeManager>(null, true);
+        private readonly SystemRef<TimeManager> m_timeManagerRef = ProcessManager.GetSystemRef<TimeManager>();
 
         public bool IsPaused { get; set; } // 06002e8d / 06002e8e
 
@@ -33,29 +33,29 @@ namespace HardlightProject
         // 06002e91: restarts from zero; the unsubscribe first keeps a replay from subscribing twice.
         public void Play()
         {
-            m_timeManagerRef.Get().Unsubscribe(this, m_timeCategory, UpdateOn.Update);
+            m_timeManagerRef.Get().Unsubscribe(this, m_timeCategory);
             m_playableDirector.time = 0.0;
-            m_timeManagerRef.Get().Subscribe(this, m_timeCategory, UpdateOn.Update, "");
+            m_timeManagerRef.Get().Subscribe(this, m_timeCategory);
         }
 
         // 06002e92: the time is advanced in double precision; reaching the asset's duration ends the playback.
         public void OnUpdate(float deltaTime)
         {
-            m_playableDirector.time = m_playableDirector.time + deltaTime;
-            if (m_playableDirector.playableAsset.duration > m_playableDirector.time)
+            m_playableDirector.time += deltaTime;
+            if (m_playableDirector.time < m_playableDirector.playableAsset.duration)
             {
                 m_playableDirector.Evaluate();
             }
             else
             {
-                m_timeManagerRef.Get().Unsubscribe(this, m_timeCategory, UpdateOn.Update);
+                m_timeManagerRef.Get().Unsubscribe(this, m_timeCategory);
                 m_playableDirector.time = 0.0;
             }
         }
 
         public void Stop() // 06002e93
         {
-            m_timeManagerRef.Get().Unsubscribe(this, m_timeCategory, UpdateOn.Update);
+            m_timeManagerRef.Get().Unsubscribe(this, m_timeCategory);
             m_playableDirector.time = 0.0;
         }
 

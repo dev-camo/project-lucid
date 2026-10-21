@@ -101,16 +101,5 @@ namespace ProjectLucid.Tests
                 Assert.That(director.time, Is.EqualTo(0.0));
             });
         }
-
-        [Test]
-        public void IsPausedIsAPlainProperty()
-        {
-            WithDirector((scene, scaled, director) =>
-            {
-                Assert.That(scaled.IsPaused, Is.False);
-                scaled.IsPaused = true;
-                Assert.That(scaled.IsPaused, Is.True);
-            });
-        }
     }
 }

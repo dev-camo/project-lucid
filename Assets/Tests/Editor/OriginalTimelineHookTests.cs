@@ -60,7 +60,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x6b9900, 0x6b9940 and 0x6b9980 are one body: stop the player, then raise the completed event if assigned.
+        // 0x6b9900, 0x6b9940 and 0x6b9980 are identical bodies (the call into SkipVideo is inlined): stop the player, then raise the completed event if assigned.
         [Test]
         public void EndingOrSkippingTheVideoStopsItAndRaisesTheCompletedEvent()
         {

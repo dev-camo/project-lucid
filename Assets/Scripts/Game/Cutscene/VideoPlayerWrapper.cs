@@ -24,16 +24,17 @@ namespace HardlightProject
 
         private void OnDestroy() { m_videoPlayer.loopPointReached -= OnVideoComplete; } // 06003a9d
 
-        // 06003a9e, 06003a9f and 06003aa0 share one native body: stop the player, then raise the completed event.
-        private void OnVideoComplete(VideoPlayer videoPlayer) { SkipVideo(); }
+        // 06003a9e (0x6B9900), 06003a9f (0x6B9940) and 06003aa0 (0x6B9980) have identical native bodies: stop the
+        // player, then raise the completed event. OnVideoComplete and Action_SkipVideo are written as calls to SkipVideo.
+        private void OnVideoComplete(VideoPlayer videoPlayer) { SkipVideo(); } // 06003a9e
 
-        private void SkipVideo()
+        private void SkipVideo() // 06003a9f
         {
             m_videoPlayer.Stop();
             if (m_onVideoCompleted != null) m_onVideoCompleted.Invoke();
         }
 
-        public void Action_SkipVideo() { SkipVideo(); }
+        public void Action_SkipVideo() { SkipVideo(); } // 06003aa0
 
         public VideoPlayerWrapper() { } // 06003aa1
     }

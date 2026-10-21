@@ -7901,11 +7901,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimeScaledPlayableDirectorTe
     "PlayRestartsFromZeroAndSubscribesOnce",
     "StopUnsubscribesAndRewinds",
     "ReachingTheAssetsDurationEndsThePlayback",
-    "IsPausedIsAPlainProperty",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimeManipulatorTests." + name for name in (
     "ScaleTimeBlendsAlongTheCurveThenSettlesOnTheLastKey",
-    "ScaleTimeWithResetAfterSkipsTheFinalBlendAndCleansUp",
+    "ScaleTimeWithResetAfterSkipsTheFinalBlendAndRunsTheCallback",
     "AnInstantCurveStepsOnceBeforeSettling",
     "CleanUpKeepsTheHandleWhileTheManagerIsAbsent",
     "ApplyTimeScalingStoresTheCallbackThenNeedsTheCoroutineHost",

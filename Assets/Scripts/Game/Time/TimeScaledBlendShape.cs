@@ -34,8 +34,8 @@ namespace HardlightProject
         // 06002e2a: the weight is the curve value times 100.
         public void UpdateBlend(float time)
         {
-            if (m_blendAnim != null && m_skinnedMeshRenderer != null)
-                m_skinnedMeshRenderer.SetBlendShapeWeight(0, m_blendAnim.Evaluate(time) * 100f);
+            if (m_blendAnim == null || m_skinnedMeshRenderer == null) return;
+            m_skinnedMeshRenderer.SetBlendShapeWeight(0, m_blendAnim.Evaluate(time) * 100f);
         }
 
         // 06002e2b: a blend time that is not below the length (or is NaN) stops the component.
@@ -50,8 +50,8 @@ namespace HardlightProject
         protected override void OnValidate() // 06002e2c
         {
             base.OnValidate();
-            if (gameObject.CanValidate() && m_skinnedMeshRenderer != null && m_blendAnim != null && m_blendAnim.length != 0)
-                m_blendLength = m_blendAnim[m_blendAnim.length - 1].time;
+            if (!gameObject.CanValidate() || m_skinnedMeshRenderer == null || m_blendAnim == null || m_blendAnim.length == 0) return;
+            m_blendLength = m_blendAnim[m_blendAnim.length - 1].time;
         }
 
         public TimeScaledBlendShape() { } // 06002e2d

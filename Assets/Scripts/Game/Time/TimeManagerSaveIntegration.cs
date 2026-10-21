@@ -11,7 +11,7 @@ namespace HardlightProject
     public class TimeManagerSaveIntegration : MonoBehaviour
     {
         [SerializeField] private TimeManager m_timeManager;
-        private readonly SystemRef<SaveManager> m_saveManagerRef = ProcessManager.GetSystemRef<SaveManager>(null, true);
+        private readonly SystemRef<SaveManager> m_saveManagerRef = ProcessManager.GetSystemRef<SaveManager>();
 
         // 06002e04, with the closures <Start>b__2_0 (06002e08) and <Start>b__2_1 (06002e09).
         private void Start()

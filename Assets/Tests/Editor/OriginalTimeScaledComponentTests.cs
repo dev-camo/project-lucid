@@ -318,6 +318,11 @@ namespace ProjectLucid.Tests
                 animator.speed = 1f;
                 scaled.OnUpdate(0f);
                 Assert.That(animator.speed, Is.EqualTo(1f), "the cached speed already equals the scale, so nothing is written");
+
+                // Mathf.Approximately, not exact equality: a cached speed one ulp above the scale (2.0000002) is still approximately it.
+                Set(scaled, "m_speed", 2.0000002f); // no real path leaves a cache that differs from the scale by an ulp
+                scaled.OnUpdate(0f);
+                Assert.That(animator.speed, Is.EqualTo(1f), "an approximately equal cached speed writes nothing");
             });
         }
 

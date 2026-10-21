@@ -17,7 +17,8 @@ namespace HardlightProject
         protected override void OnValidate() // 06002e21
         {
             base.OnValidate();
-            if (gameObject.CanValidate() && m_animator == null) m_animator = GetComponent<Animator>();
+            if (!gameObject.CanValidate() || m_animator != null) return;
+            m_animator = GetComponent<Animator>();
         }
 
         public override bool CheckIsValid() { return m_animator != null; } // 06002e22
@@ -31,7 +32,7 @@ namespace HardlightProject
         protected override void InternalUpdate(float deltaTime)
         {
             float timescale = GetTimescale();
-            if (Mathf.Approximately(m_speed, timescale)) return;
+            if (Mathf.Approximately(timescale, m_speed)) return;
             m_speed = timescale;
             m_animator.speed = timescale;
         }

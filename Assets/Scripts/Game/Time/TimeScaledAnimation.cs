@@ -16,7 +16,8 @@ namespace HardlightProject
         protected override void OnValidate() // 06002e16
         {
             base.OnValidate();
-            if (gameObject.CanValidate() && m_animation == null) m_animation = GetComponent<Animation>();
+            if (!gameObject.CanValidate() || m_animation != null) return;
+            m_animation = GetComponent<Animation>();
         }
 
         public override bool CheckIsValid() { return m_animation != null; } // 06002e17

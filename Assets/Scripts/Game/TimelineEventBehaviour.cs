@@ -67,7 +67,7 @@ public class TimelineEventBehaviour : PlayableBehaviour
 		for (int i = 0; i < behaviours.Length; i++)
 		{
 			Behaviour behaviour = behaviours[i];
-			if (behaviour.GetType().ToString() == typeName)
+			if (typeName == behaviour.GetType().ToString())
 			{
 				targetBehaviour = behaviour;
 				break;

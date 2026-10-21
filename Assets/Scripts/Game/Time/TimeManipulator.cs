@@ -22,8 +22,8 @@ namespace HardlightProject
 
         private void Awake() // 06002e0a
         {
-            m_timeManagerRef = ProcessManager.GetSystemRef<TimeManager>(null, true);
-            m_currentSetting = TimeSetting.GetDefault(1f);
+            m_timeManagerRef = ProcessManager.GetSystemRef<TimeManager>();
+            m_currentSetting = TimeSetting.GetDefault();
             m_blendedSetting = TimeSetting.Clone(m_currentSetting);
         }
 

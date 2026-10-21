@@ -23,7 +23,7 @@ namespace ProjectLucid.Tests
     {
         private static void WithManipulator(Action<Scene, TimeManipulator, TimeSetting, TimeSetting> body) => WithManager(scene =>
         {
-            Assert.That(Time.fixedUnscaledDeltaTime, Is.InRange(0.01f, 0.03f), "the cases step the fixed time of the project settings");
+            Assert.That(Time.fixedUnscaledDeltaTime, Is.GreaterThan(0.015f).And.AtMost(0.03f), "the cases step the fixed time of the project settings");
             var manipulator = scene.Owned.Host("Lucid owned time manipulator", false).AddComponent<TimeManipulator>();
             var current = new TimeSetting();
             current.SetCategory(scene.Category, 1f);
@@ -68,9 +68,10 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x5f8989: with resetAfter the final blend is not applied; CleanUp runs instead, then the callback.
+        // 0x5f8989: with resetAfter the final blend is not applied; CleanUp runs instead (a no-op here: neither the
+        // handle nor the coroutine is set), then the callback.
         [Test]
-        public void ScaleTimeWithResetAfterSkipsTheFinalBlendAndCleansUp()
+        public void ScaleTimeWithResetAfterSkipsTheFinalBlendAndRunsTheCallback()
         {
             WithManipulator((scene, manipulator, current, target) =>
             {
