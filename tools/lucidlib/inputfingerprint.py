@@ -12,7 +12,7 @@ import struct
 
 from . import inputvariants
 
-FORMAT = 2
+FORMAT = 3
 
 FAT_MAGIC, FAT_MAGIC_64 = 0xCAFEBABE, 0xCAFEBABF  # stored big-endian
 MH_MAGIC_64 = 0xFEEDFACF                           # stored little-endian
@@ -56,7 +56,7 @@ def _raise(error):
 
 
 def build_manifest(app):
-    """Every regular file as (path, size, sha256) and every symlink as a link, never followed."""
+    """Every regular file as (path, size, sha256, permission bits) and every symlink as a link, never followed."""
     files, links = [], []
     for directory, dirnames, filenames in os.walk(app, followlinks=False, onerror=_raise):
         for name in dirnames + filenames:
@@ -65,7 +65,8 @@ def build_manifest(app):
             if os.path.islink(full):
                 links.append({"path": relative, "target": os.readlink(full)})
             elif os.path.isfile(full):
-                files.append({"path": relative, "size": os.path.getsize(full), "sha256": _file_sha256(full)})
+                files.append({"path": relative, "size": os.path.getsize(full), "sha256": _file_sha256(full),
+                              "mode": os.stat(full).st_mode & 0o7777})
     files.sort(key=lambda item: item["path"])
     links.sort(key=lambda item: item["path"])
     return {"files": files, "symlinks": links}
@@ -101,6 +102,13 @@ def _slice_ranges(data):
             if offset < 0 or size < 0 or offset + size > len(data):
                 raise ValueError("Slice at 0x{:x} size 0x{:x} lies outside the file".format(offset, size))
             masked.append((offset, offset + size))
+        # A slice is canonical when it starts at the first aligned position after the arch table (first slice)
+        # or after the previous slice (in file order); only canonical offsets follow from the slice sizes.
+        canonical, previous = [False] * count, 8 + count * entry
+        for index in sorted(range(count), key=lambda i: result[i][2]):
+            step = 1 << aligns[index] if aligns[index] < 32 else 0
+            canonical[index] = bool(step) and result[index][2] == -(-previous // step) * step
+            previous = result[index][2] + result[index][3]
         # Bytes outside the slices are hashed literally, except all-zero alignment padding between the arch
         # table and the last slice: its length follows from the slice sizes, so only its content counts.
         digest, cursor, table_end = hashlib.sha256(), 0, 8 + count * entry
@@ -112,14 +120,15 @@ def _slice_ranges(data):
                 digest.update(b"Z" if zero_padding else gap)
             cursor = max(cursor, end)
         digest.update(data[cursor:])
-        return {"magic": big, "count": count, "aligns": aligns, "container_sha256": digest.hexdigest()}, result
+        return {"magic": big, "count": count, "aligns": aligns, "canonical": canonical,
+                        "container_sha256": digest.hexdigest()}, result
     if struct.unpack_from("<I", data, 0)[0] == MH_MAGIC_64:
         cputype, cpusubtype = struct.unpack_from("<ii", data, 4)
-        return {"magic": big, "count": 1, "aligns": [None], "container_sha256": None}, [(cputype, cpusubtype, 0, len(data))]
+        return {"magic": big, "count": 1, "aligns": [None], "canonical": [True], "container_sha256": None}, [(cputype, cpusubtype, 0, len(data))]
     raise ValueError("Unsupported Mach-O magic 0x{:08x}; expected a fat or 64-bit little-endian binary".format(big))
 
 
-def _parse_slice(data, cputype, cpusubtype, offset, size, align):
+def _parse_slice(data, cputype, cpusubtype, offset, size, align, canonical):
     """Parse one Mach-O 64 slice: segments, sections, UUID, signature, encryption and LINKEDIT hashes."""
     if offset < 0 or size < 32 or offset + size > len(data):
         raise ValueError("Slice at 0x{:x} size 0x{:x} lies outside the file".format(offset, size))
@@ -130,7 +139,7 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align):
             raise ValueError("Slice magic 0x{:08x} is not a 64-bit little-endian Mach-O".format(magic))
         ncmds, sizeofcmds = struct.unpack_from("<II", view, 16)
         record = {"arch": CPU_NAMES.get(cputype, "cpu_0x{:x}".format(cputype)), "cputype": cputype,
-                  "cpusubtype": cpusubtype, "offset": offset, "size": size, "align": align, "sha256": _sha256(view),
+                  "cpusubtype": cpusubtype, "offset": offset, "size": size, "align": align, "canonical": canonical, "sha256": _sha256(view),
                   "uuid": None, "code_signature": None, "encryption": None, "segments": [], "linkedit": None}
         if 32 + sizeofcmds > size:
             raise ValueError("Load commands overrun the slice")
@@ -143,6 +152,14 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align):
             if cmdsize < 8 or position + cmdsize > 32 + sizeofcmds:
                 raise ValueError("Malformed load command at 0x{:x}".format(position))
             body = position + 8
+            minimum = {LC_UUID: 24, LC_CODE_SIGNATURE: 16, LC_ENCRYPTION_INFO_64: 24}.get(cmd)
+            if cmd == LC_SEGMENT_64:
+                minimum = 72
+                if cmdsize >= 72:
+                    minimum += 80 * struct.unpack_from("<I", view, body + 56)[0]
+            if minimum is not None and cmdsize < minimum:
+                raise ValueError("Load command 0x{:x} at 0x{:x} has cmdsize {}, below the {} its payload needs".format(
+                    cmd, position, cmdsize, minimum))
             if cmd == LC_SEGMENT_64:
                 name, vmaddr, vmsize, fileoff, filesize, _, _, nsects, _ = struct.unpack_from("<16sQQQQiiII", view, body)
                 segment = {"segname": _cstr(name), "vmaddr": vmaddr, "vmsize": vmsize, "fileoff": fileoff,
@@ -206,10 +223,12 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align):
 def fingerprint_macho(path):
     with open(path, "rb") as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as data:
         header, ranges = _slice_ranges(data)
+        file_sha256 = _sha256(data)
         fat = header["magic"] in (FAT_MAGIC, FAT_MAGIC_64)
-        return {"fat": fat, "magic": header["magic"], "count": header["count"],
+        return {"file_sha256": file_sha256, "fat": fat, "magic": header["magic"], "count": header["count"],
                 "container_sha256": header["container_sha256"],
-                "slices": [_parse_slice(data, *entry, align) for entry, align in zip(ranges, header["aligns"])]}
+                "slices": [_parse_slice(data, *entry, align, canonical)
+                           for entry, align, canonical in zip(ranges, header["aligns"], header["canonical"])]}
 
 
 def fingerprint_metadata(path):
@@ -237,7 +256,8 @@ def fingerprint_metadata(path):
                 raise ValueError("Table {} (0x{:x}+0x{:x}) lies outside the file".format(name, offset, length))
             tables[name] = {"offset": offset, "size": length,
                             "sha256": _sha256(memoryview(data)[offset:offset + length])}
-        return {"sanity": sanity, "version": version, "header_size": first, "tables": tables}
+        return {"file_sha256": _sha256(data), "sanity": sanity, "version": version, "header_size": first,
+                "tables": tables}
 
 
 def _bundle_file(app, relative):
@@ -262,6 +282,10 @@ def fingerprint_input(app):
     assembly = fingerprint_macho(_bundle_file(app, inputvariants.GAME_ASSEMBLY))
     metadata = fingerprint_metadata(_bundle_file(app, inputvariants.METADATA))
     binary, meta = hashes.get(inputvariants.GAME_ASSEMBLY), hashes.get(inputvariants.METADATA)
+    # The parsed bytes must be the bytes the manifest hashed, or the report would mix two snapshots.
+    for relative, parsed, expected in ((inputvariants.GAME_ASSEMBLY, assembly, binary), (inputvariants.METADATA, metadata, meta)):
+        if parsed.pop("file_sha256") != expected:
+            raise ValueError("Critical input changed while fingerprinting: " + relative)
     return {"format": FORMAT, "app": os.path.basename(app), "manifest": manifest,
             "game_assembly": dict(assembly, path=inputvariants.GAME_ASSEMBLY, sha256=binary),
             "metadata": dict(metadata, path=inputvariants.METADATA, sha256=meta),
@@ -286,6 +310,10 @@ def _compare_manifest(a, b, out):
             # GameAssembly.dylib is judged by its slice comparison; any other file is a real difference.
             _diff(out, "manifest", "changed", path.startswith(CODE_SIGNATURE_DIRECTORY) or path == inputvariants.GAME_ASSEMBLY,
                   path=path, a=[left[path]["size"], left[path]["sha256"]], b=[right[path]["size"], right[path]["sha256"]])
+        if left[path]["mode"] != right[path]["mode"]:
+            # An exec bit changes behaviour; only the signature seal's own files may differ in mode.
+            _diff(out, "manifest", "mode", path.startswith(CODE_SIGNATURE_DIRECTORY),
+                  path=path, a=oct(left[path]["mode"]), b=oct(right[path]["mode"]))
     links_a = {item["path"]: item["target"] for item in a["symlinks"]}
     links_b = {item["path"]: item["target"] for item in b["symlinks"]}
     for path in sorted(links_a.keys() | links_b.keys()):
@@ -296,10 +324,13 @@ def _compare_manifest(a, b, out):
 
 def _compare_slice(label, a, b, out):
     area = "slice " + label
-    # Fat offsets, sizes and the slice hash follow from the signature and UUID differences.
+    # Sizes and the slice hash follow from the signature and UUID differences; an offset follows from the
+    # sizes only when the slice sits at its canonical aligned position on both sides.
     for key in ("offset", "size", "sha256"):
         if a[key] != b[key]:
-            _diff(out, area, "slice " + key + " (follows from other differences)", True, a=a[key], b=b[key])
+            explained = key != "offset" or (a["canonical"] and b["canonical"])
+            _diff(out, area, "slice " + key + (" (follows from other differences)" if explained else " (not at its canonical position)"),
+                  explained, a=a[key], b=b[key])
     if a["align"] != b["align"]:
         _diff(out, area, "fat align", False, a=a["align"], b=b["align"])
     if a["residual_sha256"] != b["residual_sha256"]:

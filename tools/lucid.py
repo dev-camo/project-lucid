@@ -3,6 +3,7 @@
 
 import argparse
 import json
+import os
 from pathlib import Path
 import sys
 import subprocess
@@ -86,6 +87,11 @@ def main(argv=None):
             return 0
         if args.command == "compare-input-fingerprints":
             from lucidlib.inputfingerprint import compare_fingerprints
+            if args.output:
+                for source in (args.a, args.b):  # never overwrite a report that is being compared
+                    if args.output.resolve() == source.resolve() or (
+                            args.output.exists() and os.path.samefile(args.output, source)):
+                        raise ValueError("--output must not be one of the input reports")
             reports = [json.loads(path.read_text(encoding="utf-8")) for path in (args.a, args.b)]
             verdict = compare_fingerprints(*reports)
             print(json.dumps(verdict, indent=2, sort_keys=True))

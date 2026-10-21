@@ -56,12 +56,15 @@ def macho(cputype, uuid, signature, text=TEXT, cryptid=None):
             blob + text + SYMBOLS + signature)
 
 
-def fat(*slices):
-    """Fat32 big-endian header with 16-byte aligned slices; slices are (cputype, bytes[, cpusubtype])."""
+def fat(*slices, extra_pad=0):
+    """Fat32 big-endian header with 16-byte aligned slices; slices are (cputype, bytes[, cpusubtype]).
+
+    extra_pad adds that many zero bytes (a multiple of 16) before every slice after the first.
+    """
     offset = 8 + 20 * len(slices)
     entries, body = b"", b""
-    for cputype, data, *subtype in slices:
-        pad = (-offset) % 16
+    for number, (cputype, data, *subtype) in enumerate(slices):
+        pad = (-offset) % 16 + (extra_pad if number else 0)
         offset += pad
         body += b"\0" * pad + data
         entries += struct.pack(">iiIII", cputype, subtype[0] if subtype else 3, offset, len(data), 4)
@@ -96,6 +99,9 @@ def make_app(root, uuid=UUID_A, signature=SIGNATURE_A, text=TEXT, meta=None, res
     (metadata_dir / "global-metadata.dat").write_bytes(meta or metadata())
     (app / "Contents" / "_CodeSignature" / "CodeResources").write_bytes(signature)
     (app / "Contents" / "Resources" / "a.txt").write_text(resource)
+    for path in app.rglob("*"):
+        if path.is_file():
+            path.chmod(0o644)  # independent of the umask, since modes are part of the manifest
     os.symlink("a.txt", app / "Contents" / "Resources" / "link")
     os.symlink("Resources", app / "Contents" / "dirlink")
     return app
@@ -140,7 +146,7 @@ class ParsingTests(unittest.TestCase):
         manifest = inputfingerprint.fingerprint_input(make_app(self.tmp.name))["manifest"]
         paths = [item["path"] for item in manifest["files"]]
         self.assertEqual(sorted(paths), paths)
-        self.assertIn({"path": "Contents/Resources/a.txt", "size": 5, "sha256": sha(b"alpha")}, manifest["files"])
+        self.assertIn({"path": "Contents/Resources/a.txt", "size": 5, "sha256": sha(b"alpha"), "mode": 0o644}, manifest["files"])
         self.assertEqual([{"path": "Contents/Resources/link", "target": "a.txt"},
                           {"path": "Contents/dirlink", "target": "Resources"}], manifest["symlinks"])
         self.assertNotIn("Contents/Resources/link", paths)
@@ -277,6 +283,34 @@ class CompareTests(unittest.TestCase):
         self.assertFalse(verdict["summary"]["packaging_only"])
         self.assertIn(("GameAssembly.dylib", "bytes outside the slices (fat header and padding)"), self.real(verdict))
 
+    def test_relocated_slice_with_zero_padding_is_not_packaging(self):
+        left = self.write_fat(fat((X86_64, macho(X86_64, UUID_A, SIGNATURE_A)), (ARM64, macho(ARM64, UUID_A, SIGNATURE_A))))
+        right = self.write_fat(fat((X86_64, macho(X86_64, UUID_A, SIGNATURE_A)), (ARM64, macho(ARM64, UUID_A, SIGNATURE_A)),
+                                   extra_pad=16))
+        self.assertEqual([True, True], [s["canonical"] for s in left["slices"]])
+        self.assertEqual([True, False], [s["canonical"] for s in right["slices"]])
+        verdict = inputfingerprint.compare_fingerprints(self.wrap(left), self.wrap(right))
+        self.assertFalse(verdict["summary"]["packaging_only"])
+        self.assertIn(("slice arm64", "slice offset (not at its canonical position)"), self.real(verdict))
+
+    def write_fat(self, blob):
+        path = Path(self.tmp.name) / "relocated{}".format(self.counter)
+        self.counter += 1
+        path.write_bytes(blob)
+        return inputfingerprint.fingerprint_macho(path)
+
+    def wrap(self, assembly):
+        return dict(self.report(), game_assembly=dict(assembly, sha256="x", path="p"))
+
+    def test_size_change_moves_canonical_offsets_as_packaging(self):
+        # A longer signature in the first slice shifts the second slice; both stay canonical, so it is explained.
+        left = self.write_fat(fat((X86_64, macho(X86_64, UUID_A, SIGNATURE_A)), (ARM64, macho(ARM64, UUID_A, SIGNATURE_A))))
+        right = self.write_fat(fat((X86_64, macho(X86_64, UUID_A, SIGNATURE_B)), (ARM64, macho(ARM64, UUID_A, SIGNATURE_A))))
+        verdict = inputfingerprint.compare_fingerprints(self.wrap(left), self.wrap(right))
+        self.assertIn(("slice arm64", "slice offset (follows from other differences)"),
+                      [(d["area"], d["detail"]) for d in verdict["differences"]])
+        self.assertNotIn("slice offset", " ".join(detail for _, detail in self.real(verdict)))
+
     def test_trailing_bytes_after_the_last_slice_are_not_packaging(self):
         verdict = inputfingerprint.compare_fingerprints(self.report(), self.binary_report(lambda blob: blob.extend(b"\0")))
         self.assertFalse(verdict["summary"]["packaging_only"])
@@ -365,6 +399,23 @@ class CompareTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "outside sizeofcmds"):
             inputfingerprint.fingerprint_macho(path)
 
+    def test_short_load_command_payloads_are_value_errors(self):
+        def broken(name, edit):
+            path = Path(self.tmp.name) / name
+            blob = bytearray(macho(X86_64, UUID_A, SIGNATURE_A))
+            edit(blob)
+            path.write_bytes(bytes(blob))
+            return path
+        # __TEXT is the first command at 32: cmdsize at 36, nsects at 32 + 8 + 56.
+        cases = {"segment8": (lambda b: struct.pack_into("<I", b, 36, 8), None),
+                 "nsects": (lambda b: struct.pack_into("<I", b, 96, 5), None),
+                 # UUID is the 4th command: 32 + 152 + 152 + 72.
+                 "uuid": (lambda b: struct.pack_into("<I", b, 412, 8), None)}
+        for name, (edit, _) in cases.items():
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, "cmdsize"):
+                    inputfingerprint.fingerprint_macho(broken(name, edit))
+
     def test_symlinked_critical_files_are_refused(self):
         outside = Path(self.tmp.name) / "outside"
         outside.mkdir()
@@ -403,10 +454,58 @@ class CompareTests(unittest.TestCase):
         c["manifest"]["symlinks"].append({"path": "Contents/Resources/alias", "target": "a.txt"})
         self.assertFalse(inputfingerprint.compare_fingerprints(a, c)["summary"]["packaging_only"])
 
-    def test_format_one_reports_are_rejected(self):
-        old = dict(self.report(), format=1)
-        with self.assertRaisesRegex(ValueError, "Unsupported fingerprint format 1"):
-            inputfingerprint.compare_fingerprints(old, self.report())
+    def test_removed_exec_bit_is_not_packaging(self):
+        a = self.report()
+        self.counter += 1
+        root = Path(self.tmp.name) / str(self.counter)
+        root.mkdir()
+        app = make_app(root)
+        (app / "Contents" / "Resources" / "a.txt").chmod(0o755)
+        os.chmod(app / "Contents" / "Frameworks" / "GameAssembly.dylib", 0o600)
+        (app / "Contents" / "_CodeSignature" / "CodeResources").chmod(0o600)
+        verdict = inputfingerprint.compare_fingerprints(a, inputfingerprint.fingerprint_input(app))
+        modes = [(d["path"], d["packaging"]) for d in verdict["differences"] if d["detail"] == "mode"]
+        self.assertEqual([("Contents/Frameworks/GameAssembly.dylib", False), ("Contents/Resources/a.txt", False),
+                          ("Contents/_CodeSignature/CodeResources", True)], sorted(modes))
+        self.assertFalse(verdict["summary"]["packaging_only"])
+
+    def test_critical_file_changing_after_the_manifest_is_refused(self):
+        app = make_app(self.tmp.name)
+        real = inputfingerprint.build_manifest
+
+        def stale(path):
+            manifest = real(path)
+            for item in manifest["files"]:
+                if item["path"] == inputfingerprint.inputvariants.GAME_ASSEMBLY:
+                    item["sha256"] = "0" * 64
+            return manifest
+        with mock.patch.object(inputfingerprint, "build_manifest", stale):
+            with self.assertRaisesRegex(ValueError, "changed while fingerprinting"):
+                inputfingerprint.fingerprint_input(app)
+
+    def test_cli_refuses_to_overwrite_an_input_report(self):
+        app = make_app(self.tmp.name)
+        report = Path(self.tmp.name) / "report.json"
+        other = Path(self.tmp.name) / "other.json"
+        self.assertEqual(0, lucid.main(["fingerprint-input", str(app), "--output", str(report)]))
+        other.write_bytes(report.read_bytes())
+        before = report.read_bytes()
+        link = Path(self.tmp.name) / "alias.json"
+        link.symlink_to(report)
+        for target in (report, link, Path(self.tmp.name) / "." / "report.json"):
+            for pair in ((report, other), (other, report)):
+                with self.subTest(output=str(target), pair=pair[0].name), mock.patch("builtins.print"), mock.patch("sys.stderr"):
+                    if target.resolve() not in (pair[0].resolve(), pair[1].resolve()):
+                        continue
+                    self.assertNotEqual(0, lucid.main(["compare-input-fingerprints", str(pair[0]), str(pair[1]),
+                                                       "--output", str(target)]))
+                    self.assertEqual(before, report.read_bytes())
+
+    def test_older_format_reports_are_rejected(self):
+        for number in (1, 2):
+            old = dict(self.report(), format=number)
+            with self.assertRaisesRegex(ValueError, "Unsupported fingerprint format {}".format(number)):
+                inputfingerprint.compare_fingerprints(old, self.report())
 
     def test_cli_refuses_an_output_inside_the_bundle(self):
         app = make_app(self.tmp.name)
