@@ -32,6 +32,12 @@ namespace ProjectLucid.Tests
         {
             FieldInfo field = typeof(SequencedCharacterFSMValueSetter<T>).GetField("m_characterManagerRef", Statics);
             var reference = (SystemRef<CharacterManager>)field.GetValue(null);
+            // Run's scene already fills its condition and cached references; this static may be the same object.
+            if (ReferenceEquals(reference, scene.ConditionReference) || ReferenceEquals(reference, scene.CachedReference))
+            {
+                body(owned, scene);
+                return;
+            }
             if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty CharacterManager reference");
             object priorObservers = StartupObservers.GetValue(reference);
             try
