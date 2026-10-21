@@ -7,8 +7,8 @@ using UnityEngine;
 namespace HardlightProject
 {
 	// Original Game.Runtime 020002cc; bodies translated from the 1.10.1 x86-64 binary.
-	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+	[Il2CppSetOption(Option.NullChecks, false)]
 	public class CharacterAbility_HalfPipeAir : CharacterAbility_HalfPipe<CharacterAbilityDefinition_HalfPipeAir>
 	{
 		private float m_airTime;

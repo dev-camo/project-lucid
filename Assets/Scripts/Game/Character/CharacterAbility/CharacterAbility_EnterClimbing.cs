@@ -6,8 +6,8 @@ using UnityEngine;
 namespace HardlightProject
 {
 	// Original Game.Runtime 020002c9; bodies translated from the 1.10.1 x86-64 binary.
-	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+	[Il2CppSetOption(Option.NullChecks, false)]
 	public abstract class CharacterAbility_EnterClimbing<T> : CharacterAbility<T>, IAbilityTrigger where T : CharacterAbilityDefinition_EnterClimbing
 	{
 		public bool IsTriggered { get; private set; }

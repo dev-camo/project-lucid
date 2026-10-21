@@ -30,8 +30,8 @@ namespace HardlightProject
 
 		// Original nested 020004d2.
 		[Serializable]
-		[Il2CppSetOption(Option.NullChecks, false)]
 		[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+		[Il2CppSetOption(Option.NullChecks, false)]
 		public class HalfPipeMotionExclude
 		{
 			[Tooltip("The angle of the half pipe to exclude motion.")]
