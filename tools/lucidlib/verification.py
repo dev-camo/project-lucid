@@ -9071,6 +9071,66 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTouchZoneTests." + name for 
     "ATouchIsIgnoredWhileAListedAbilityIsInUseOnTheCurrentCharacter",
     "TrackedTouchesSupplyNothingWhileAnIgnoredAbilityIsInUse",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTouchZoneOrnamentTests." + name for name in (
+    "AFreshZoneReportsNoDragAndNoImpulse",
+    "TheDragAmountIsTheMovementAsAFractionOfTheWorldWidthOfTheTouchArea",
+    "TheInputIsTheDragAmountOnTheXAxisOnly",
+    "ReleasingKeepsTheLastMovementAsAnImpulseThatIsConsumedOnce",
+    "ANegativeOrNaNImpulseIsClearedWhenConsumed",
+    "TheZoneSuppliesNoGameInput",
+    "InitialiseDropsTheTrackedTouches",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTouchZoneEditableUITests." + name for name in (
+    "AwakeStartsActiveOnlyWhenInitiallyActiveAndTheZoneNeedsTheObjectActiveToo",
+    "SetActiveDecidesTheFlagOfAnActiveObject",
+    "EditingSetsTheActiveFlagAndTurnsMultiTouchOnWithoutDroppingTouches",
+    "TheRectTransformIsTheEditableComponent",
+    "TheTouchPositionIsKeptAndReportedWithWhetherATouchIsTracked",
+    "PinchInfoIsTheCurrentAndInitialDistanceOnlyWhileAPinchIsInProgress",
+    "TheScoreIsZeroOnTheComponentOrWithATouchAndOtherwiseTheSquaredDistanceToItsCentre",
+    "TheZoneSuppliesNoGameInput",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlZoneCameraTests." + name for name in (
+    "TheConstructorSetsTheSensitivitiesTheDoubleTapTimeAndAnEnabledSnap",
+    "InitialiseAndValidateCacheTheSquareOfTheCancelMagnitude",
+    "TheCameraInputIsTheMovementScaledByTheSensitivityOverTheScreenSize",
+    "ADefaultZoneNeverCountsATap",
+    "ATapCountsTowardsADoubleTapAndMovementCancelsIt",
+    "ADisabledSnapLeavesTheCountAndTheTotalAlone",
+    "ADoubleTapStartsEveryListedInput",
+    "TheTapCountExpiresOnceTheDoubleTapTimeHasPassed",
+    "ResettingTheSnapValuesClearsTheCountAndTheTimer",
+    "TheDebugOverlayTogglesTheViewAndItsText",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlStickMovementTests." + name for name in (
+    "TheConstructorSetsTheDefaultScaleToleranceAndSecondarySensitivities",
+    "InitialiseShowsTheContainerScalesTheOuterGraphicsAndSetsTheOrigin",
+    "TheStickFollowsTheSecondaryMovementOfTheCameraManagerUntilItIsDestroyed",
+    "ASingleTouchStickDoesNotStartAsTheCameraControl",
+    "TheDynamicFlagComesFromTheSaveDataAndAFlaggedStickMovesItsContainerToTheOrigin",
+    "SetActiveShowsAndHidesTheContainer",
+    "TheFirstTouchOfAPressPlacesTheOriginAtTheTouchForADynamicStickAndOnTheTransformForAFixedOne",
+    "AFixedStickKeepsAnEarlierOriginWhileItsOriginTransformStaysPut",
+    "TheStickInputIsTheDirectionScaledByTheDistanceAndDrivesTheGraphics",
+    "TheStateAndTheHapticsFollowTheMagnitudeAgainstTheToleranceAtBothEnds",
+    "TheHeadingRotatesTheOuterAndTheStickTopBySignedAngle",
+    "EverySetOriginBuzzesTheSelectEvent",
+    "UpdatingTheTransformMeasuresTheDisplayAreaAgainAndCentresTheStick",
+    "ReleasingRestsTheStickAndShowsTheContainerForTheLastInputType",
+    "TheContainerIsShownForTheListedInputTypesOnly",
+    "ACameraControllingStickSuppliesTheScaledMovementAndShowsForUnsupported",
+    "ASingleTouchZoneThatControlsTheCameraTakesSeveralTouches",
+    "EditingFollowsTheEnabledStateAndNotTheArgument",
+    "TheTouchPositionIsTheLastTouchWhileATouchIsTracked",
+    "PinchInfoIsReportedOnlyWhileAPinchIsInProgress",
+    "TheRectTransformIsTheContainer",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTouchZoneDerivedDeclarationTests." + name for name in (
+    "OnScreenTouchZoneOrnamentKeepsItsFieldsAndHooks",
+    "OnScreenTouchZoneEditableUIKeepsItsFieldsAndInterfaceMethods",
+    "OnScreenControlZoneCameraKeepsItsFieldsHooksAndEntryClass",
+    "OnScreenControlStickMovementKeepsItsFieldsStatesAndLambdaName",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlZoneTests." + name for name in (
     "TheFourAxesDefaultToLeftRightUpAndDown",
     "EachAxisHoldsTheInputOfItsSignWithTheValueOrItsMagnitude",
