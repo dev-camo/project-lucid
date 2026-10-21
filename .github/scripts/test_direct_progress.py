@@ -18,6 +18,7 @@ import direct_progress as direct
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
+from lucidlib import codeprogress
 from lucidlib.verification import artifact_fingerprint
 
 
@@ -44,6 +45,14 @@ class HTTPSFixture:
         # Deliberately mocked new receipt/source identity, never written to production files.
         self.report["compiler_receipt_sha256"] = "e" * 64
         self.report["source_fingerprint"] = artifact_fingerprint(ROOT)
+        # The published snapshot is main-owned and may predate this head's scope; model the next publication's scope identity.
+        names, _, scope_sha256 = codeprogress._scope(ROOT)
+        self.report["scope_sha256"] = scope_sha256
+        rows = {row["assembly"]: row for row in self.report["assemblies"]}
+        for name in names:
+            rows.setdefault(name, {"assembly": name, "measurement_status": "no_recovered_source", "unavailable_reason": None,
+                                   **{key: 0 for key in self.report["totals"]}})
+        self.report["assemblies"] = [rows[name] for name in names]
         self.raw = (json.dumps(self.report, indent=2, sort_keys=True) + "\n").encode()
         self.producer = {"head": self.head, "image": direct.EDITOR, "control_commit": self.head,
                          "run_id": "456", "source_fingerprint": self.report["source_fingerprint"],
