@@ -140,6 +140,7 @@ namespace ProjectLucid.Tests
         {
             WithTask(rig =>
             {
+                SetUnlocks(rig.App); // an empty pending list: the App stores one, and an absent list would fault in TryGetCurrentUnlock's loop
                 var container = NewContainer<UIContainerProgressionTask>(rig.Owned);
                 Call(container, "Awake");
                 Assert.That(container.ShowNextButton.Value, Is.False);
@@ -399,6 +400,7 @@ namespace ProjectLucid.Tests
         {
             WithTask(rig =>
             {
+                SetUnlocks(rig.App); // an empty pending list, so Awake returns without an unlock
                 var container = NewContainer<UIContainerProgressionTask>(rig.Owned);
                 Call(container, "Awake");
                 Assert.Throws<NullReferenceException>(() => Call(container, "OnDestroy"));
