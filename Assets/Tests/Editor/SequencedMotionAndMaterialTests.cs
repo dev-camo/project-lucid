@@ -2,10 +2,12 @@ using System;
 using System.Collections;
 using Hardlight;
 using HardlightProject;
+using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 using static ProjectLucid.Tests.TimelineTestSupport;
@@ -20,7 +22,8 @@ namespace ProjectLucid.Tests
     // effects run through their public PlayEffect entry (open input gate); the coroutine bodies are stepped by
     // hand, because Edit Mode never ticks coroutines and an inactive host cannot start one. Time is the real
     // TimeManager component registered into its absent row; Time.fixedDeltaTime is set to 0.5 seconds (exact in
-    // binary) for the case and restored.
+    // binary) for the case and restored. The coroutine hosts of an active effect are started in Edit Mode, where only the
+    // first step runs (synchronously) and the host's destruction stops the rest.
     public sealed class SequencedMotionAndMaterialTests
     {
         private const float FixedStep = 0.5f;
@@ -95,6 +98,41 @@ namespace ProjectLucid.Tests
                 Trigger(effect, new TargetedEffect { Target = NewTarget(owned, Vector3.zero, Quaternion.identity) }, () => completed++);
                 Assert.That(completed, Is.EqualTo(1));
                 Assert.That(host.transform.position, Is.EqualTo(new Vector3(5f, 6f, 7f)));
+            });
+        }
+
+        // OnEffectTriggered 0x569340 on an active host (0x56940f je not taken) starts the chase and does not complete:
+        // StartCoroutine runs the first MoveNext at once, which moves speed * 0.5 = 5 toward the target 100 units away.
+        [Test]
+        public void MagnetismOnAnActiveHostStartsTheChaseAndWaitsForItToEnd()
+        {
+            WithClock(1f, (owned, manager) =>
+            {
+                GameObject host = owned.Host("Lucid magnetism", true);
+                var effect = host.AddComponent<SequencedMagnetism>();
+                int completed = 0;
+                Trigger(effect, new TargetedEffect { Target = NewTarget(owned, new Vector3(0f, 0f, 100f), Quaternion.identity) }, () => completed++);
+                Assert.That(completed, Is.EqualTo(0), "the chase is still running");
+                AssertPosition(effect.transform, new Vector3(0f, 0f, 5f), "the first step ran inside StartCoroutine");
+            });
+        }
+
+        // The chase reads TimeExtensions.GetFixedDeltaTime for the Effects category (0x5696cd), here 0.5 * 2 = 1:
+        // steps of 10 then 11 (speed grows by one), the timeout 2 - 1 - 1 reaches zero after two steps.
+        [Test]
+        public void TheChaseStepsByTheCategorysScaledFixedDeltaTime()
+        {
+            WithClock(2f, (owned, manager) =>
+            {
+                IEnumerator steps = StartChase(owned, Vector3.zero,
+                    new TargetedEffect { Target = NewTarget(owned, new Vector3(0f, 0f, 100f), Quaternion.identity) },
+                    out SequencedMagnetism effect, out Func<int> completed);
+                Assert.That(steps.MoveNext(), Is.True);
+                AssertPosition(effect.transform, new Vector3(0f, 0f, 10f), "first scaled step");
+                Assert.That(steps.MoveNext(), Is.True);
+                AssertPosition(effect.transform, new Vector3(0f, 0f, 21f), "second scaled step");
+                Assert.That(steps.MoveNext(), Is.False, "the timeout ended the chase after two steps");
+                Assert.That(completed(), Is.EqualTo(1));
             });
         }
 
@@ -264,6 +302,27 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // OnEffectTriggered 0x5699F0 takes the immediate path only for a blend time equal to zero (ucomiss against 0, then
+        // jne/jp to StartCoroutine at 0x569a37), so a negative or NaN time starts the coroutine instead. The host is
+        // inactive, so Unity refuses the coroutine (logged) and neither completes nor writes the end value; an
+        // implementation that treated "not positive" as zero would complete with the end value 7.
+        [Test]
+        public void ANegativeOrNaNBlendTimeIsNotTheImmediatePathOfTheTrigger()
+        {
+            foreach (float blendTime in new[] { -1f, float.NaN })
+                WithClock(1f, (owned, manager) =>
+                {
+                    Material material = NewMaterial(owned);
+                    material.SetFloat("_BumpScale", 1f);
+                    SequencedMaterialProperty effect = NewPropertyEffect(owned, material, blendTime, 3f, 7f);
+                    int completed = 0;
+                    LogAssert.Expect(LogType.Error, new Regex("Coroutine couldn't be started"));
+                    Trigger(effect, null, () => completed++);
+                    Assert.That(completed, Is.EqualTo(0), "blend time " + blendTime);
+                    Assert.That(material.GetFloat("_BumpScale"), Is.EqualTo(1f), "blend time " + blendTime);
+                });
+        }
+
         // A fresh blending effect whose completion callback has been stored by an earlier zero-length trigger.
         private static SequencedMaterialProperty ArmedPropertyEffect(Owned owned, Material material, float blendTime, float start, float end, Action onComplete)
         {
@@ -292,6 +351,29 @@ namespace ProjectLucid.Tests
                     Assert.That(steps.Current, Is.InstanceOf<WaitForFixedUpdate>());
                     Assert.That(material.GetFloat("_BumpScale"), Is.EqualTo(value).Within(1e-5f));
                     Assert.That(completed, Is.EqualTo(0));
+                }
+                Assert.That(steps.MoveNext(), Is.False);
+                Assert.That(material.GetFloat("_BumpScale"), Is.EqualTo(20f));
+                Assert.That(completed, Is.EqualTo(1));
+            });
+        }
+
+        // The blend advances by TimeExtensions.GetFixedDeltaTime of the Effects category (0x569d26), here 0.5 * 2 = 1:
+        // blend 2 from 10 to 20 gives 10, 15 and then the end value 20.
+        [Test]
+        public void TheBlendAdvancesByTheCategorysScaledFixedDeltaTime()
+        {
+            WithClock(2f, (owned, manager) =>
+            {
+                Material material = NewMaterial(owned);
+                int completed = 0;
+                SequencedMaterialProperty effect = ArmedPropertyEffect(owned, material, 2f, 10f, 20f, () => completed++);
+                completed = 0;
+                var steps = (IEnumerator)Call(effect, "WaitForAnimation");
+                foreach (float value in new[] { 10f, 15f })
+                {
+                    Assert.That(steps.MoveNext(), Is.True);
+                    Assert.That(material.GetFloat("_BumpScale"), Is.EqualTo(value).Within(1e-5f));
                 }
                 Assert.That(steps.MoveNext(), Is.False);
                 Assert.That(material.GetFloat("_BumpScale"), Is.EqualTo(20f));
@@ -365,6 +447,35 @@ namespace ProjectLucid.Tests
                 Set(effect, "m_onComplete", (Action)(() => completed++));
                 body(effect, volume, () => completed);
             });
+
+        // The elapsed time advances by GetDeltaTime of the Effects category (0x56a899, call target 0x5f7860), not by its fixed
+        // delta (0x5f77f0): at scale 1 the two differ, and the second sample is the curve at the delta time.
+        [Test]
+        public void TheCurveAdvancesByTheCategorysDeltaTimeNotItsFixedDeltaTime()
+        {
+            WithClock(1f, (owned, manager) =>
+            {
+                float delta = manager.GetDeltaTime(TimeCategory.Effects);
+                float fixedDelta = manager.GetFixedDeltaTime(TimeCategory.Effects);
+                Assert.That(delta, Is.Not.EqualTo(fixedDelta), "precondition: the two deltas differ");
+                Assert.That(delta, Is.LessThan(1f), "precondition: one resume stays inside the curve");
+                AnimationCurve curve = AnimationCurve.Linear(0f, 0f, 1f, 1f);
+                var volume = owned.Host("Lucid post process volume", false).AddComponent<Volume>();
+                var effect = owned.Host("Lucid sequenced post processing", false).AddComponent<SequencedPostProcessing>();
+                Author(effect, serialized =>
+                {
+                    serialized.FindProperty("m_curve").animationCurveValue = curve;
+                    serialized.FindProperty("m_postProcessVolume").objectReferenceValue = volume;
+                });
+                Set(effect, "m_timeManager", manager);
+                var steps = (IEnumerator)Call(effect, "ScalePostProcessWeight");
+                Assert.That(steps.MoveNext(), Is.True);
+                Assert.That(volume.weight, Is.EqualTo(0f).Within(1e-6f));
+                Assert.That(steps.MoveNext(), Is.True, "the loop is still inside the curve");
+                Assert.That(volume.weight, Is.EqualTo(curve.Evaluate(delta)).Within(1e-6f));
+                Assert.That(volume.weight, Is.Not.EqualTo(curve.Evaluate(fixedDelta)).Within(1e-6f));
+            });
+        }
 
         // MoveNext 0x56A7A0: the first resume samples the curve at zero into Volume.weight (field +0x2c) and yields
         // null; the next resume adds the (huge) delta, leaves the loop, sets the final key's value and completes.

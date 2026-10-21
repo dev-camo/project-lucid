@@ -19,6 +19,13 @@ namespace ProjectLucid.Tests
     // 0x56ACB0..0x56AF0F). The components are real, on owned inactive hosts that never wake; the effects run
     // through their public PlayEffect entry, whose input gate is open when no input types are authored. Authored
     // fields are written through SerializedObject, as the inspector does.
+    //
+    // Not covered: the positive m_lengthOverrideSeconds of SequencedUnityEvent (jbe past zero, then
+    // DelayFixedSeconds(override, m_timeCategory, onComplete) at 0x56AF7B, 0x56AFB7, 0x56B019 and 0x56B172). It needs the
+    // shared CoroutineUtils host (its Awake does not run in Edit Mode) plus a registered TimeManager whose typed reference
+    // TimeScaledUtilities caches once, and neither can be provided without forcing static host state. Expectation for a
+    // genuine fixture: a positive override leaves a trigger, an OnSequenceEnd and a BeginSequence uncompleted until the
+    // scaled fixed time has passed (about 0.5 s for 0.5), while a negative override completes synchronously like zero.
     public sealed class SequencedControlEffectTests
     {
         private static void Trigger(SequencedEffect effect, Action onComplete)

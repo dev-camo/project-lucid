@@ -24,6 +24,14 @@ namespace ProjectLucid.Tests
     // from a TimelineAsset, behaviours from ScriptPlayable on a real PlayableGraph. The mixer's and the skip
     // behaviour's frame logic is gated on Application.isPlaying and is covered by the play-mode tests; here only the
     // Edit Mode guards are checked.
+    //
+    // Not covered (each needs a started CutsceneManager, which cannot be lifecycle-forced here); the expectations to
+    // verify natively when a genuine CutsceneManager fixture exists:
+    //  - TimeMachineSkipBehaviour.OnBehaviourPlay (0x5FCA86): the SkipEnabledState selects EnableCutsceneSkip (0x7A3500)
+    //    or DisableCutsceneSkip (0x7A31C0).
+    //  - TimeMachineSkipBehaviour.ProcessFrame (0x5FCB7D): condition 2 (InputHeld) stores ConsumeSkipHoldEvent (0x7A3700)
+    //    into the hold flag (+0x3a), condition 1 (Input) stores ConsumeSkipTapEvent (0x7A3670) into the press flag (+0x39),
+    //    any other condition touches neither; a version that swaps tap and hold would otherwise pass.
     public sealed class TimeMachineTimelineTests
     {
         private static readonly BindingFlags Statics = BindingFlags.Static | BindingFlags.NonPublic;

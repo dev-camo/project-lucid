@@ -56,7 +56,7 @@ namespace ProjectLucid.Tests
                 });
         }
 
-        // SubtitleTrack 0x0200044c; its Track attributes are checked by the time machine track test.
+        // SubtitleTrack 0x0200044c; its Track attributes are checked by SubtitleTimelineTests.TrackKeepsItsBindingAndClipTypes.
         [Test]
         public void SubtitleTrackKeepsTheOriginalDeclaration()
         {

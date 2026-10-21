@@ -21,7 +21,10 @@ namespace ProjectLucid.Tests
     // PlayableGraph and the mixer's ProcessFrame is called directly (no graph output evaluates it in Edit Mode)
     // with a real TextMeshProUGUI under an inactive root, so the backing-panel toggles never wake the text. Not
     // covered: the play-mode branch of SubtitleClip.CreatePlayable (needs a DataManager with subtitle character
-    // definitions) and SubtitleMixer.OnGraphStart (needs a SaveManager).
+    // definitions) and SubtitleMixer.OnGraphStart (needs a SaveManager). Expectations for those, to verify natively
+    // when such fixtures exist: the play-mode branch (0x7A5F69) takes
+    // SystemRef<DataManager>.Get().SubtitleDefGroup.GetFormattedString(m_subtitleText) as the behaviour text; OnGraphStart
+    // (0x7A6163) copies the SaveManager settings' SubtitlesEnabled flag (+0x65) into the mixer, then calls the base method.
     public sealed class SubtitleTimelineTests
     {
         // The mixer's SubtitleBehaviour inputs, one per (text, weight, background).
@@ -161,6 +164,47 @@ namespace ProjectLucid.Tests
                 Assert.That(scene.Text.color, Is.EqualTo(Color.magenta));
                 Assert.That(scene.Panel.activeSelf, Is.True, "the panel was never looked up");
                 Assert.That(Get<GameObject>(scene.Mixer, "m_backingPanel"), Is.Null);
+            });
+        }
+
+        // m_anyTextShowing is cleared at 0x7a625c before the binding and subtitlesEnabled guards, so a frame that ends at
+        // a guard leaves it false even after a frame that set it.
+        [Test]
+        public void ADisabledFrameClearsTheAnyTextShowingFlag()
+        {
+            Owned.Run(owned =>
+            {
+                MixerScene scene = NewScene(owned, ("line", 1f, Color.red));
+                Process(scene, scene.Text);
+                Assert.That(Get<bool>(scene.Mixer, "m_anyTextShowing"), Is.True, "precondition");
+                Set(scene.Mixer, "m_subtitlesEnabled", false);
+                Process(scene, scene.Text);
+                Assert.That(Get<bool>(scene.Mixer, "m_anyTextShowing"), Is.False);
+                Set(scene.Mixer, "m_subtitlesEnabled", true);
+                Process(scene, scene.Text);
+                Assert.That(Get<bool>(scene.Mixer, "m_anyTextShowing"), Is.True, "precondition for the missing binding");
+                Process(scene, null);
+                Assert.That(Get<bool>(scene.Mixer, "m_anyTextShowing"), Is.False, "a missing binding clears it too");
+            });
+        }
+
+        // The backing panel is looked up only while it is Unity-null (op_Equality 0x7a6424, parent 0x7a6436..0x7a644f):
+        // once found it is kept, so a text moved under another panel does not change which panel is toggled.
+        [Test]
+        public void TheBackingPanelIsFoundOnlyOnce()
+        {
+            Owned.Run(owned =>
+            {
+                MixerScene scene = NewScene(owned, ("line", 1f, Color.red));
+                Process(scene, scene.Text);
+                Assert.That(Get<GameObject>(scene.Mixer, "m_backingPanel"), Is.SameAs(scene.Panel), "precondition");
+                GameObject otherPanel = owned.Host("Lucid other subtitle panel", true, scene.Panel.transform.parent);
+                scene.Text.transform.SetParent(otherPanel.transform, false);
+                scene.Typed.SetInputWeight(0, 0f);
+                Process(scene, scene.Text);
+                Assert.That(scene.Panel.activeSelf, Is.False, "the panel found first is toggled");
+                Assert.That(otherPanel.activeSelf, Is.True, "the text's new parent is never looked up");
+                Assert.That(Get<GameObject>(scene.Mixer, "m_backingPanel"), Is.SameAs(scene.Panel));
             });
         }
 

@@ -1,9 +1,12 @@
 using System;
 using System.Collections;
+using System.Reflection;
+using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
+using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 using static ProjectLucid.Tests.TimelineTestSupport;
 using Object = UnityEngine.Object;
@@ -63,8 +66,13 @@ namespace ProjectLucid.Tests
                         serialized.FindProperty("m_offsetMultiplier").vector3Value = new Vector3(2f, 3f, 4f);
                     });
                     Transform target = owned.Host("Lucid spawn target", false).transform;
+                    // Without a manager Spawn() invokes the spawner's own stored callback and Spawn(Action) does not, which
+                    // tells the two apart (0x569fd5 calls Spawn(m_onComplete) 0x6d1b70 only when waiting, else Spawn() 0x6d1870).
+                    int sentinel = 0;
+                    Set(spawner, "m_onCompleteCallback", (Action)(() => sentinel++));
                     int completed = 0;
                     Trigger(effect, new TargetedEffect { Target = target, Offset = new Vector3(5f, 7f, 11f) }, () => completed++);
+                    Assert.That(sentinel, Is.EqualTo(wait ? 0 : 1), "the spawner's own callback runs only for the plain Spawn (wait " + wait + ")");
                     Assert.That(Get<Transform>(spawner, "m_spawnPoint"), Is.SameAs(target));
                     Assert.That(Get<Vector3>(spawner, "m_spawnOffset"), Is.EqualTo(new Vector3(10f, 21f, 44f)));
                     Assert.That(completed, Is.EqualTo(1), "no manager: the spawner completes at once (wait " + wait + ")");
@@ -105,11 +113,11 @@ namespace ProjectLucid.Tests
                 Assert.DoesNotThrow(() => Trigger(effect, new TargetedEffect(), null)));
         }
 
-        private static void WithParticles(Action<Owned, SequencedParticles, ParticleSystem> body) => Owned.Run(owned =>
+        private static void WithParticles(Action<Owned, SequencedParticles, ParticleSystem> body, bool activeEffectHost = false) => Owned.Run(owned =>
         {
             ParticleSystem system = owned.Host("Lucid sequenced particle system", true).AddComponent<ParticleSystem>();
             system.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-            var effect = owned.Host("Lucid sequenced particles", false).AddComponent<SequencedParticles>();
+            var effect = owned.Host("Lucid sequenced particles", activeEffectHost).AddComponent<SequencedParticles>();
             Author(effect, serialized => serialized.FindProperty("m_particleSystem").objectReferenceValue = system);
             body(owned, effect, system);
         });
@@ -140,6 +148,23 @@ namespace ProjectLucid.Tests
                     Trigger(effect, null, () => completed++);
                     Assert.That(completed, Is.EqualTo(2), "null data passes the cast (wait " + wait + ")");
                 });
+        }
+
+        // The main branch of OnEffectTriggered: on an active host the watch coroutine is started after Play(true) and, when
+        // waiting (cmp m_waitForParticleCompletion at 0x56a2a2; jne returns), the effect stays open; when not waiting it
+        // falls through to the completion. StartCoroutine runs the first step, which yields because the system plays.
+        [Test]
+        public void AnActiveHostWatchesTheParticlesAndCompletesAtOnceOnlyWhenNotWaiting()
+        {
+            foreach (bool wait in new[] { true, false })
+                WithParticles((owned, effect, system) =>
+                {
+                    SetWait(effect, wait);
+                    int completed = 0;
+                    Trigger(effect, new TargetedEffect { Target = effect.transform }, () => completed++);
+                    Assert.That(system.isPlaying, Is.True, "Play(true) started the system");
+                    Assert.That(completed, Is.EqualTo(wait ? 0 : 1), "wait " + wait);
+                }, activeEffectHost: true);
         }
 
         // The cast at 0x56a1f2..0x56a2cf raises InvalidCastException for any other effect data.
@@ -217,10 +242,72 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // OnValidate 0x56A380 selects the field to clear with the mode flag: the particle system when wrapper mode
-        // is on, otherwise the wrapper (which this test cannot assign, so only the kept system is observable).
+        // The wrapper is a TimeScaledComponent_SDT: its editor Reset/OnValidate read the category lookup (an owned empty one
+        // stands in while it is added), its typed TimeManager reference caches a registered manager and its camera
+        // reference creates the CinemachineCameraManager row, which is leased. The wrapper sits under an inactive root, so
+        // StartEffect's SetActive(true) does not wake it (no Awake, no particle callbacks).
+        private static void WithWrapper(Action<Owned, SequencedParticles, ParticleEffectWrapper> body) => Owned.Run(owned =>
+        {
+            owned.LeaseRow<CinemachineCameraManager>();
+            owned.Register(NewTimeManager(owned, TimeCategory.Environment, 1f));
+            FieldInfo config = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
+            object prior = config.GetValue(null);
+            var emptyLookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
+            config.SetValue(null, emptyLookup);
+            ParticleEffectWrapper wrapper;
+            try
+            {
+                GameObject root = owned.Host("Lucid particle wrapper root", false);
+                wrapper = owned.Host("Lucid particle wrapper", true, root.transform).AddComponent<ParticleEffectWrapper>();
+            }
+            finally
+            {
+                config.SetValue(null, prior);
+                Object.DestroyImmediate(emptyLookup);
+            }
+            Author(wrapper, serialized => serialized.FindProperty("m_mainParticleSystem").objectReferenceValue = wrapper.GetComponent<ParticleSystem>());
+            var effect = owned.Host("Lucid sequenced particles", false).AddComponent<SequencedParticles>();
+            Author(effect, serialized =>
+            {
+                serialized.FindProperty("m_useParticleEffectWrapper").boolValue = true;
+                serialized.FindProperty("m_particleEffectWrapper").objectReferenceValue = wrapper;
+            });
+            body(owned, effect, wrapper);
+        });
+
+        // Wrapper mode of OnEffectTriggered (0x56a174..0x56a1d1): when waiting, SetUp stores a completion callback in the
+        // wrapper (the <OnEffectTriggered>b__5_0 delegate) before StartEffect and the effect returns without completing,
+        // so the wrapper's own completion finishes it; when not waiting there is no SetUp and the effect completes at once.
         [Test]
-        public void OnValidateClearsTheSystemOnlyInWrapperMode()
+        public void AWrapperCompletesTheEffectThroughItsOwnCallbackOnlyWhenWaiting()
+        {
+            WithWrapper((owned, effect, wrapper) =>
+            {
+                SetWait(effect, true);
+                int completed = 0;
+                Trigger(effect, null, () => completed++);
+                Assert.That(wrapper.Status, Is.EqualTo(ParticleEffectWrapper.ParticleEffectWrapperStatus.Started), "StartEffect ran");
+                Assert.That(completed, Is.EqualTo(0), "waiting for the wrapper");
+                var onComplete = Get<Action<ParticleEffectWrapper>>(wrapper, "m_onEffectComplete");
+                Assert.That(onComplete, Is.Not.Null);
+                onComplete(wrapper);
+                Assert.That(completed, Is.EqualTo(1));
+            });
+            WithWrapper((owned, effect, wrapper) =>
+            {
+                SetWait(effect, false);
+                int completed = 0;
+                Trigger(effect, null, () => completed++);
+                Assert.That(wrapper.Status, Is.EqualTo(ParticleEffectWrapper.ParticleEffectWrapperStatus.Started), "StartEffect ran");
+                Assert.That(Get<Action<ParticleEffectWrapper>>(wrapper, "m_onEffectComplete"), Is.Null, "no SetUp without waiting");
+                Assert.That(completed, Is.EqualTo(1));
+            });
+        }
+
+        // OnValidate 0x56A380 clears the field the current mode does not use: the particle system in wrapper mode and
+        // the wrapper in system mode.
+        [Test]
+        public void OnValidateClearsTheUnusedReferenceForTheCurrentMode()
         {
             WithParticles((owned, effect, system) =>
             {
@@ -229,6 +316,14 @@ namespace ProjectLucid.Tests
                 Author(effect, serialized => serialized.FindProperty("m_useParticleEffectWrapper").boolValue = true);
                 Call(effect, "OnValidate");
                 Assert.That(Get<ParticleSystem>(effect, "m_particleSystem"), Is.Null, "wrapper mode drops it");
+            });
+            WithWrapper((owned, effect, wrapper) =>
+            {
+                Call(effect, "OnValidate");
+                Assert.That(Get<ParticleEffectWrapper>(effect, "m_particleEffectWrapper"), Is.SameAs(wrapper), "wrapper mode keeps the wrapper");
+                Author(effect, serialized => serialized.FindProperty("m_useParticleEffectWrapper").boolValue = false);
+                Call(effect, "OnValidate");
+                Assert.That(Get<ParticleEffectWrapper>(effect, "m_particleEffectWrapper"), Is.Null, "system mode drops the wrapper");
             });
         }
     }
