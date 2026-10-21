@@ -78,10 +78,10 @@ namespace ProjectLucid.Tests
         }
 
         // Invoke 0x4e4330, AddListener 0x4e4910 / 0x4e4960 (closure ignores the user), RemoveListener 0x4e4a50,
-        // RemoveAllListeners 0x4e4aa0. Invoke reads Application.isPlaying directly and returns while not playing (the editor
-        // compile of the source); the player branch is the text after the #if UNITY_EDITOR block and cannot run in EditMode.
-        // The listener side is therefore driven through the public onCross event that Invoke forwards to, and Invoke itself is
-        // asserted to stay silent.
+        // RemoveAllListeners 0x4e4aa0. This covers the EDITOR branch only: Invoke reads Application.isPlaying directly and returns
+        // while not playing (the editor compile of the source). The shipped branch, the text after the #if UNITY_EDITOR block, is
+        // covered by OriginalDreamteckSplineTriggerPlayModeTests.ListenersReceiveInvokeAndRemovalWorks. The listener side is
+        // driven here through the public onCross event that Invoke forwards to, and Invoke itself is asserted to stay silent.
         [Test]
         public void ListenersReceiveInvokeAndRemovalWorks()
         {
@@ -113,9 +113,10 @@ namespace ProjectLucid.Tests
             Assert.That(withoutUser, Is.EqualTo(2));
         }
 
-        // Group Check 0x4e41a0: null triggers are skipped and the group's own enabled flag is not consulted. Each checked trigger
-        // that crosses sets its private worked flag before Invoke; Invoke returns while not playing (player branch not reachable
-        // in EditMode), so the crossing is observed through that flag and the listeners stay silent.
+        // Group Check 0x4e41a0: null triggers are skipped and the group's own enabled flag is not consulted. This covers the
+        // EDITOR branch only (shipped branch: OriginalDreamteckSplineTriggerPlayModeTests.GroupChecksFireCrossedTriggersSkipNullsAnd
+        // IgnoreTheGroupFlag). Each checked trigger that crosses sets its private worked flag before Invoke; Invoke returns while
+        // not playing, so the crossing is observed through that flag and the listeners stay silent.
         [Test]
         public void GroupChecksFireCrossedTriggersSkipNullsAndIgnoreTheGroupFlag()
         {

@@ -67,13 +67,6 @@ namespace ProjectLucid.Tests
             return computer;
         }
 
-        private static void Call(object target, string method)
-        {
-            MethodInfo info = target.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.That(info, Is.Not.Null, method);
-            info.Invoke(target, null);
-        }
-
         // Defaults come from the field initialisers of the ctor and the Spline(CatmullRom) member.
         [Test]
         public void FreshComputerKeepsTheShippedDefaults()
@@ -221,69 +214,6 @@ namespace ProjectLucid.Tests
             Near(computer.Evaluate(0.75, SplineComputer.EvaluateMode.Calculate).position, new Vector3(10f, 0f, 5f), "calculated sample");
         }
 
-        // Update/FixedUpdate/LateUpdate 0x4b3970/0x4b3760/0x4b3950: the callback that matches updateMode (or any of the three for
-        // AllUpdate) runs the queued resample; None never queues one. Rows are callbacks, columns are modes.
-        [Test]
-        public void UpdateModeSelectsTheCallbacksThatResample()
-        {
-            string[] callbacks = { "Update", "FixedUpdate", "LateUpdate" };
-            SplineComputer.UpdateMode[] modes =
-            {
-                SplineComputer.UpdateMode.Update, SplineComputer.UpdateMode.FixedUpdate, SplineComputer.UpdateMode.LateUpdate,
-                SplineComputer.UpdateMode.AllUpdate, SplineComputer.UpdateMode.None
-            };
-            bool[][] runs =
-            {
-                new[] { true, false, false, true, false },
-                new[] { false, true, false, true, false },
-                new[] { false, false, true, true, false }
-            };
-            for (int callback = 0; callback < callbacks.Length; callback++)
-            {
-                for (int mode = 0; mode < modes.Length; mode++)
-                {
-                    // Play mode caches Application.isPlaying in Awake; the editor-only _editorIsPlaying=false would resample at once.
-                    SplineComputer computer = DreamteckPlayState.Cache(NewComputer("mode" + callback + mode, Vector3.zero));
-                    computer.updateMode = modes[mode];
-                    computer.type = Spline.Type.Linear;
-                    computer.SetPoints(Corner());
-                    Call(computer, callbacks[callback]);
-                    Assert.That(computer.sampleCount, Is.EqualTo(runs[callback][mode] ? 3 : 0), callbacks[callback] + " in " + modes[mode]);
-                }
-            }
-        }
-
-        // RunUpdate 0x4b3780 / RebuildUsers 0x4b3b30: after a resample the subscribers rebuild (last first), destroyed ones are
-        // dropped and onRebuild is raised once.
-        [Test]
-        public void ResampleRebuildsUsersAndRaisesOnRebuild()
-        {
-            // The shipped queue path: the editor-only play-state caches are set to what play mode caches (the computer so that
-            // SetPoints queues the resample, the users so that Rebuild queues and OnDestroy does not unsubscribe a destroyed one).
-            SplineComputer computer = DreamteckPlayState.Cache(NewComputer("users", Vector3.zero));
-            computer.type = Spline.Type.Linear;
-            SplineUser alive = DreamteckPlayState.Cache(computer.gameObject.AddComponent<SplineUser>());
-            GameObject doomedOwner = new GameObject("doomed");
-            _owned.Add(doomedOwner);
-            SplineUser doomed = DreamteckPlayState.Cache(doomedOwner.AddComponent<SplineUser>());
-            alive.spline = computer;
-            doomed.spline = computer;
-            Assert.That(computer.subscriberCount, Is.EqualTo(2));
-
-            int rebuilds = 0;
-            int builds = 0;
-            computer.onRebuild += delegate { rebuilds++; };
-            alive.onPostBuild += delegate { builds++; };
-            UnityEngine.Object.DestroyImmediate(doomedOwner);
-            computer.SetPoints(Corner());
-            Call(computer, "Update");
-            Assert.That(rebuilds, Is.EqualTo(1));
-            Assert.That(computer.subscriberCount, Is.EqualTo(1), "the destroyed user is dropped");
-            Call(alive, "Update");
-            Assert.That(builds, Is.EqualTo(1), "the rebuild reached the live user");
-            Assert.That(alive.sampleCount, Is.EqualTo(3));
-        }
-
         // Subscribe 0x4b45a0, Unsubscribe 0x4b4740, IsSubscribed 0x4b46a0, GetSubscribers 0x4b4820 (a copy).
         [Test]
         public void SubscriptionsIgnoreDuplicatesAndReturnACopy()
@@ -376,6 +306,9 @@ namespace ProjectLucid.Tests
 
         // AddTrigger 0x4b8990 creates the missing groups; RemoveTrigger 0x4b8a80, CheckTriggers 0x4b8b60 / 0x4b8bd0 and
         // ResetTriggers 0x4b8cc0 / 0x4b8d10 log an error for a missing group. The user argument of CheckTriggers is not forwarded.
+        // This covers the EDITOR branch only (SplineTrigger.Invoke returns while not playing, so the listener stays silent and the
+        // group routing is observed through the worked flag); the shipped branch, where the listener is called, is covered by
+        // OriginalDreamteckSplineComputerPlayModeTests.TriggerApisCreateGroupsLogMissingOnesAndDropTheUser.
         [Test]
         public void TriggerApisCreateGroupsLogMissingOnesAndDropTheUser()
         {
@@ -390,9 +323,7 @@ namespace ProjectLucid.Tests
             SplineUser user = computer.gameObject.AddComponent<SplineUser>();
             int calls = 0;
             trigger.AddListener(delegate (SplineUser sender) { calls++; });
-            // SplineTrigger.Invoke reads Application.isPlaying directly and returns while not playing; the player branch is the
-            // text after the #if UNITY_EDITOR block and cannot run in EditMode. Check marks the crossed trigger as worked before
-            // Invoke, so the group routing is observed through that flag and the listener stays silent.
+            // Check marks the crossed trigger as worked before Invoke, which returns while not playing.
             Assert.That(Worked(trigger), Is.False);
             computer.CheckTriggers(0.4, 0.6, user);
             Assert.That(Worked(trigger), Is.True, "CheckTriggers(start, end, user) checks every group");

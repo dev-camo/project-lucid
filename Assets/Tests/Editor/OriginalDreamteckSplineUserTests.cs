@@ -62,22 +62,13 @@ namespace ProjectLucid.Tests
         {
             GameObject owner = new GameObject("user");
             _owned.Add(owner);
-            // Play mode caches Application.isPlaying in Awake; the editor-only _isPlaying=false would rebuild at once instead of
-            // queueing, so the cache is set before the spline (and its Rebuild) is assigned.
-            SplineUser user = DreamteckPlayState.Cache(owner.AddComponent<SplineUser>());
+            SplineUser user = owner.AddComponent<SplineUser>();
             if (computer != null)
             {
                 user.spline = computer;
             }
 
             return user;
-        }
-
-        private static void Call(object target, string method)
-        {
-            MethodInfo info = target.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
-            Assert.That(info, Is.Not.Null, method);
-            info.Invoke(target, null);
         }
 
         // Field initialisers of the ctor 0x4cbb40 and the Awake 0x4cd790 that fetches the (absent) samples in edit mode.
@@ -286,49 +277,6 @@ namespace ProjectLucid.Tests
             user.Project(new Vector3(10f, 0f, 5f), ref projected);
             Near(projected.position, new Vector3(10f, 0f, 5f), "projection");
             Assert.That(projected.percent, Is.EqualTo(0.5).Within(1e-3));
-        }
-
-        // Update/LateUpdate/FixedUpdate 0x4cf060/0x4cf210/0x4cf260 only run when updateMethod matches; RunUpdate 0x4cf0b0 builds
-        // and then raises onPostBuild in the same call.
-        [Test]
-        public void UpdateMethodSelectsTheCallbackThatBuilds()
-        {
-            string[] callbacks = { "Update", "FixedUpdate", "LateUpdate" };
-            SplineUser.UpdateMethod[] methods = { SplineUser.UpdateMethod.Update, SplineUser.UpdateMethod.FixedUpdate, SplineUser.UpdateMethod.LateUpdate };
-            SplineComputer computer = NewLine();
-            for (int callback = 0; callback < callbacks.Length; callback++)
-            {
-                for (int method = 0; method < methods.Length; method++)
-                {
-                    SplineUser user = NewUser(computer);
-                    user.updateMethod = methods[method];
-                    int builds = 0;
-                    user.onPostBuild += delegate { builds++; };
-                    Call(user, callbacks[callback]);
-                    Assert.That(builds, Is.EqualTo(callback == method ? 1 : 0), callbacks[callback] + " for " + methods[method]);
-                    Assert.That(user.sampleCount, Is.EqualTo(callback == method ? 3 : 0));
-                }
-            }
-        }
-
-        // Rebuild 0x4cef30 and autoUpdate 0x4ce3a0: Rebuild only queues while autoUpdate is on; switching it on queues one.
-        [Test]
-        public void AutoUpdateGatesTheQueuedRebuild()
-        {
-            SplineUser user = NewUser(NewLine());
-            int builds = 0;
-            user.onPostBuild += delegate { builds++; };
-            Call(user, "Update");
-            Assert.That(builds, Is.EqualTo(1));
-            user.autoUpdate = false;
-            user.Rebuild();
-            Call(user, "Update");
-            Assert.That(builds, Is.EqualTo(1), "Rebuild is ignored without autoUpdate");
-            user.autoUpdate = true;
-            Call(user, "Update");
-            Assert.That(builds, Is.EqualTo(2));
-            Call(user, "Update");
-            Assert.That(builds, Is.EqualTo(2), "nothing is queued any more");
         }
 
         // OnDidApplyAnimationProperties 0x4c9ea0 replaces the clip range with the animation mirrors. The setters fill the mirror

@@ -6038,8 +6038,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineComputerTests
     "CalculateModeMatchesTheCachedWorldSamples",
     "OptimizedModeDropsCollinearSamplesAndKeepsCorners",
     "RaycastDerivesThePercentFromTheSquaredDistanceRatio",
-    "UpdateModeSelectsTheCallbacksThatResample",
-    "ResampleRebuildsUsersAndRaisesOnRebuild",
     "SubscriptionsIgnoreDuplicatesAndReturnACopy",
     "PointSettersAppendAndIgnoreNegativeIndices",
     "PointPercentAndIndexTruthTable",
@@ -6073,8 +6071,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineUserTests." +
     "AngleCompensationWidensTheCornerAndLeavesTheEnds",
     "ModifySampleWithEmptyModifiersKeepsTheSample",
     "QueriesWorkInClippedPercents",
-    "UpdateMethodSelectsTheCallbackThatBuilds",
-    "AutoUpdateGatesTheQueuedRebuild",
     "AnimationPropertiesReplaceTheClipRangeWithTheMirrors",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
     "SetClipRangeAsksTheComputerBeforeComparingTheEnds",
@@ -6625,4 +6621,20 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineThreadingPlay
     "RunQueuesOnTheFirstIdleThreadAndWakesIt",
     "RunQueuesOnTheLastThreadWhenEveryThreadIsBusy",
     "ThreadCountOnlyGrowsAndStartsTheNewThreads",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineComputerPlayModeTests." + name for name in (
+    "ResampleRebuildsUsersAndRaisesOnRebuild",
+    "TriggerApisCreateGroupsLogMissingOnesAndDropTheUser",
+    "UpdateModeSelectsTheCallbacksThatResample",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineTriggerPlayModeTests." + name for name in (
+    "GroupChecksFireCrossedTriggersSkipNullsAndIgnoreTheGroupFlag",
+    "ListenersReceiveInvokeAndRemovalWorks",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineUserPlayModeTests." + name for name in (
+    "AutoUpdateGatesTheQueuedRebuild",
+    "UpdateMethodSelectsTheCallbackThatBuilds",
 ))
