@@ -123,7 +123,8 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Bosses.Select(boss => boss.MovementPriority), Is.EqualTo(new[] { 0, 1, 0 }));
                 Assert.That(rig.Bosses.Select(boss => boss.HasBeenActiveThisLoop), Is.EqualTo(new[] { true, false, false }));
 
-                Set(rig.Fourmen, "m_activeBossIndex", 4);
+                for (int i = 0; i < 3; i++)
+                    rig.Fourmen.IncrementActiveBossIndex();
                 Enter(NewState(nameof(BossState_ActiveBossChange)), user);
                 Assert.That(rig.Bosses.Select(boss => boss.IsActivePartOfMultiBodyBoss), Is.EqualTo(new[] { false, false, true }), "index 5 wraps to the third boss");
             });
@@ -136,7 +137,8 @@ namespace ProjectLucid.Tests
         {
             WithFourmen((rig, user) =>
             {
-                Set(rig.Fourmen, "m_activeBossIndex", 2);
+                rig.Fourmen.IncrementActiveBossIndex();
+                rig.Fourmen.IncrementActiveBossIndex();
                 rig.Bosses[1].SetActiveBossEntity();
                 rig.Bosses[2].SetActiveBossEntity();
                 rig.Bosses[2].ClearActiveBossEntity();
@@ -225,11 +227,14 @@ namespace ProjectLucid.Tests
             });
         }
 
-        private static BossAbility_BodySlam NewWoundUpBodySlam(Owned owned, Boss boss, Action<BossAbilityDefinition_BodySlam> setup, Vector3 target)
+        // The slam is entered for real with the given stored slam count (06000a37): its jump target is the boss's position at entry
+        // and its attack index is the stored count (a non-zero count also skips the triangle layout).
+        private static BossAbility_BodySlam NewEnteredBodySlam(Owned owned, Boss boss, Action<BossAbilityDefinition_BodySlam> setup, int attackIndex)
         {
             BossAbility_BodySlam ability = NewAbility<BossAbility_BodySlam>(boss, NewDefinition<BossAbilityDefinition_BodySlam>(owned, setup));
             AddAbility(boss, ActorAbilityType.Boss_BodySlam, ability);
-            Set(ability, "m_currentTargetPosition", target);
+            boss.Storage.SetValue(new GraphStorageKey("bodySlamCount", 0, 0), attackIndex);
+            ability.Enter();
             return ability;
         }
 
@@ -246,13 +251,15 @@ namespace ProjectLucid.Tests
             {
                 WithManager((owned, manager, characterObject) =>
                 {
-                    Boss boss = Prime(NewBoss(owned, Vector3.zero));
+                    // The boss enters the slam at the jump target, then stands at the origin.
+                    Boss boss = Prime(NewBoss(owned, new Vector3(1f, 2f, 3f)));
                     MakeCurrent(manager, characterObject, character);
-                    BossAbility_BodySlam ability = NewWoundUpBodySlam(owned, boss, d =>
+                    BossAbility_BodySlam ability = NewEnteredBodySlam(owned, boss, d =>
                     {
                         d.FaceAngleTolerance = tolerance;
                         d.TurnSpeed = 20f;
-                    }, new Vector3(1f, 2f, 3f));
+                    }, 1);
+                    boss.SetWorldPosition(Vector3.zero);
                     IFSMState state = NewState(nameof(BossState_BodySlam), AbilityJson(ActorAbilityType.Boss_BodySlam));
 
                     UpdateState(state, boss, 0.5f);
@@ -279,14 +286,13 @@ namespace ProjectLucid.Tests
                 {
                     Boss boss = Prime(NewBoss(owned, Vector3.zero));
                     MakeCurrent(manager, characterObject, new Vector3(10f, 0f, 0f));
-                    BossAbility_BodySlam ability = NewWoundUpBodySlam(owned, boss, d =>
+                    BossAbility_BodySlam ability = NewEnteredBodySlam(owned, boss, d =>
                     {
                         d.FaceAngleTolerance = 5f;
                         d.CustomInitialFaceAngleTolerance = customInitial;
                         d.InitialFaceAngleTolerance = 120f;
                         d.TurnSpeed = 20f;
-                    }, Vector3.zero);
-                    typeof(BossAbility_BodySlam).GetProperty(nameof(BossAbility_BodySlam.AttackIndex)).GetSetMethod(true).Invoke(ability, new object[] { attackIndex });
+                    }, attackIndex);
                     ability.SetAttackWoundUp();
                     UpdateState(NewState(nameof(BossState_BodySlam), AbilityJson(ActorAbilityType.Boss_BodySlam)), boss, 0.5f);
                     AssertNear(boss.ForwardDirection, Quaternion.AngleAxis(expectedDegrees, Vector3.up) * Vector3.forward, $"slam {attackIndex} custom initial tolerance {customInitial}", 1e-3f);
