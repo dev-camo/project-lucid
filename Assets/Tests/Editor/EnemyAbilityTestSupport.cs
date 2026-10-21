@@ -58,6 +58,7 @@ namespace ProjectLucid.Tests
             }
 
             // The brain's movement impulse as the enemy mirrors it each fixed update.
+            // Reflection: the private setter is written only by Enemy.UpdateBrain, which runs the whole brain and animator.
             internal void Impulse(float x, float y) => SetProperty(Enemy, "BrainMovement", new Vector2(x, y));
 
             // Enemy.SetWorldVelocity (0x56D3A0) calls Actor.SetWorldVelocity (0x517130) before it writes the body, and that
@@ -69,7 +70,21 @@ namespace ProjectLucid.Tests
                 Enemy.SetWorldVelocity(worldVelocity);
             }
 
+            // Reflection: these flags have private setters written by Enemy.UpdateBrain and its death handling.
             internal void Flag(string property, bool value) => SetProperty(Enemy, property, value);
+
+            // The player-hit flag through the enemy's public API (Enemy.RegisterHitPlayer sets it; ClearHitPlayer clears it).
+            internal void HitPlayer(bool hit)
+            {
+                if (hit)
+                {
+                    Enemy.RegisterHitPlayer(default, HazardType.Bomb);
+                }
+                else
+                {
+                    Enemy.ClearHitPlayer();
+                }
+            }
 
             // A proxy that records the rotation it is asked for, installed as the enemy's visual proxy.
             internal EnemyVisualProxyProbe AttachProxy()

@@ -163,6 +163,7 @@ namespace ProjectLucid.Tests
                 Assert.That(proxy.RotationWrites, Is.EqualTo(1));
                 AssertRotation(proxy.LastRotation, Quaternion.Euler(0f, 30f, 0f), "no navigation");
 
+                // Reflection: m_navigation is a serialized scene reference that only the inspector assigns.
                 Set(scene.Enemy, "m_navigation", scene.Owned.Host(Name(), false).AddComponent<EnemyNavigationProbe>());
                 ability.UpdateVisualProxyMovement(0.1f);
                 AssertRotation(proxy.LastRotation, Quaternion.Euler(0f, 30f, 0f), "another navigation");
@@ -189,6 +190,7 @@ namespace ProjectLucid.Tests
                 EnemyAbility withTarget = scene.Ability<EnemyAbility_GroundMovement_WithTarget, EnemyAbilityDefinition_GroundMovement_WithTarget>();
                 EnemyVisualProxyProbe proxy = scene.AttachProxy();
                 scene.Enemy.SetWorldRotation(Quaternion.Euler(0f, 30f, 0f));
+                // Reflection: m_navigation is a serialized scene reference that only the inspector assigns.
                 Set(scene.Enemy, "m_navigation", scene.Owned.Host(Name(), false).AddComponent<EnemyNavigationSpline>());
 
                 attack.UpdateVisualProxyMovement(0.1f);
@@ -395,10 +397,12 @@ namespace ProjectLucid.Tests
                 }
 
                 var spline = scene.Owned.Host(Name(), false).AddComponent<EnemyNavigationSpline>();
+                // Reflection: m_navigation is a serialized scene reference that only the inspector assigns.
                 Set(scene.Enemy, "m_navigation", spline);
                 scene.Velocity(new Vector3(0.5f, 0f, 0f));
                 ability.UpdateMovementAnimation(scene.Animation);
                 Assert.That(scene.Animator.GetFloat("Lateral"), Is.EqualTo(-1f), "a spline that is not reversing");
+                // Reflection: the spline reverses at the end of a real spline track, which needs a spline asset.
                 Set(spline, "m_reversing", true);
                 ability.UpdateMovementAnimation(scene.Animation);
                 Assert.That(scene.Animator.GetFloat("Lateral"), Is.EqualTo(1f), "a reversing spline");
@@ -574,7 +578,7 @@ namespace ProjectLucid.Tests
         {
             WithScene(scene =>
             {
-                var ability = scene.Ability<EnemyAbility_Dead, EnemyAbilityDefinition_Dead>(definition => Set(definition, "m_reviveTime", 2f));
+                var ability = scene.Ability<EnemyAbility_Dead, EnemyAbilityDefinition_Dead>(definition => JsonUtility.FromJsonOverwrite("{\"m_reviveTime\":2}", definition));
                 ability.Enter();
                 ability.Update(0.5f);
                 Assert.That(ability.IsTriggered, Is.False, "alive");
@@ -599,7 +603,7 @@ namespace ProjectLucid.Tests
         {
             WithScene(scene =>
             {
-                var ability = scene.Ability<EnemyAbility_Dead, EnemyAbilityDefinition_Dead>(definition => Set(definition, "m_reviveTime", 0f));
+                var ability = scene.Ability<EnemyAbility_Dead, EnemyAbilityDefinition_Dead>(definition => JsonUtility.FromJsonOverwrite("{\"m_reviveTime\":0}", definition));
                 scene.Flag("IsDead", true);
                 ability.Enter();
                 ability.Update(100f);
@@ -686,8 +690,8 @@ namespace ProjectLucid.Tests
         {
             WithScene(scene =>
             {
-                var ability = scene.Ability<EnemyAbility_Taunt, EnemyAbilityDefinition_Taunt>(definition => Set(definition, "m_tauntingAnimationLength", 1f));
-                scene.Flag("HitPlayer", true);
+                var ability = scene.Ability<EnemyAbility_Taunt, EnemyAbilityDefinition_Taunt>(definition => JsonUtility.FromJsonOverwrite("{\"m_tauntingAnimationLength\":1}", definition));
+                scene.HitPlayer(true);
                 ability.Enter();
                 Assert.That(ability.IsTriggered, Is.True, "entering while the player was hit");
                 ability.Update(0.5f);
@@ -699,7 +703,7 @@ namespace ProjectLucid.Tests
 
                 ability.Update(0.5f);
                 Assert.That(Get<float>(ability, "m_tauntedForSeconds"), Is.EqualTo(1f), "no hit: the clock does not run");
-                scene.Flag("HitPlayer", true);
+                scene.HitPlayer(true);
                 ability.Leave();
                 ability.Enter();
                 Assert.That(Get<float>(ability, "m_tauntedForSeconds"), Is.EqualTo(0f), "entering restarts the clock");
@@ -711,14 +715,14 @@ namespace ProjectLucid.Tests
         {
             WithScene(scene =>
             {
-                var ability = scene.Ability<EnemyAbility_Taunt, EnemyAbilityDefinition_Taunt>(definition => Set(definition, "m_tauntingAnimationLength", 0f));
-                scene.Flag("HitPlayer", true);
+                var ability = scene.Ability<EnemyAbility_Taunt, EnemyAbilityDefinition_Taunt>(definition => JsonUtility.FromJsonOverwrite("{\"m_tauntingAnimationLength\":0}", definition));
+                scene.HitPlayer(true);
                 ability.Enter();
                 ability.Update(100f);
                 Assert.That(ability.IsTriggered, Is.True);
                 Assert.That(scene.Enemy.HitPlayer, Is.True);
                 Assert.That(Get<float>(ability, "m_tauntedForSeconds"), Is.EqualTo(0f));
-                scene.Flag("HitPlayer", false);
+                scene.HitPlayer(false);
                 ability.Update(0.02f);
                 Assert.That(ability.IsTriggered, Is.False, "the hit ended elsewhere");
             });
