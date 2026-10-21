@@ -21,6 +21,12 @@ body recovery is a separate mode and must be audited before its output is used.
 manifest. `prepare` promotes generated content without overwriting maintained
 source. None of these steps alone restores playable game behavior.
 
+`fingerprint-input <app> [--output file]` writes a read-only JSON fingerprint of a
+bundle (file manifest, Mach-O sections, UUID and signature ranges, metadata tables).
+`compare-input-fingerprints <a.json> <b.json>` lists where two bundles differ and
+whether the differences are packaging only; the result is evidence for review and
+qualifies nothing by itself.
+
 Preparation requires the matching Unity Editor to check restored script bindings.
 Install the Editor and recover the code schemas before running `prepare`.
 

@@ -56,12 +56,39 @@ def parser():
             mode = command.add_mutually_exclusive_group()
             mode.add_argument("--check", action="store_true", help="check the generated table without game input or Unity")
             mode.add_argument("--stage", action="store_true", help="validate the staged source and preserve main Actions-owned generated progress")
+    fingerprint = commands.add_parser("fingerprint-input", help="read-only fingerprint of an original .app bundle")
+    fingerprint.add_argument("app", type=Path, help="path to SonicDreamTeam.app")
+    fingerprint.add_argument("--output", type=Path, help="write the JSON report here instead of stdout")
+    compare = commands.add_parser("compare-input-fingerprints", help="compare two fingerprint reports")
+    compare.add_argument("a", type=Path)
+    compare.add_argument("b", type=Path)
+    compare.add_argument("--output", type=Path, help="also write the verdict here")
     return result
+
+
+def emit_json(report, output):
+    text = json.dumps(report, indent=2, sort_keys=True)
+    if output:
+        output.write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
 
 
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        if args.command == "fingerprint-input":
+            from lucidlib.inputfingerprint import fingerprint_input
+            emit_json(fingerprint_input(args.app), args.output)
+            return 0
+        if args.command == "compare-input-fingerprints":
+            from lucidlib.inputfingerprint import compare_fingerprints
+            reports = [json.loads(path.read_text(encoding="utf-8")) for path in (args.a, args.b)]
+            verdict = compare_fingerprints(*reports)
+            print(json.dumps(verdict, indent=2, sort_keys=True))
+            if args.output:
+                emit_json(verdict, args.output)
+            return 0
         if args.command == "progress" and args.check:
             from lucidlib.progressreport import check_progress
             report = check_progress(ROOT)
