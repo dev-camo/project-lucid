@@ -140,6 +140,11 @@ namespace ProjectLucid.Tests
         internal static void Buy(World world, DreamPowerDefinition power) =>
             world.Scene.Save.CurrentSave.DreamPowerStore.GetOrCreateDreamPowerData(power.GetGUID()).Bought = true;
 
+        // The store's item list is filled from its by-GUID table only when the save serializes (OnBeforeSerialize 0x06002be1); the
+        // availability test and the counter read the list. A case that bought a power through the table writes it out as the save does.
+        internal static void WriteStoreItems(World world) =>
+            world.Scene.Save.CurrentSave.DreamPowerStore.OnBeforeSerialize();
+
         // Two band definitions, listed in the DataManager's band table and, in this order, in its band group (the store manager
         // reads a band's tier from its position in the group). Each band's slot background already holds its sprite.
         internal static DreamPowerStoreBandDefinition[] AddBands(World world, out Sprite[] backgrounds, params (DreamPowerStoreBandType type, Strings name)[] bands)
@@ -207,6 +212,7 @@ namespace ProjectLucid.Tests
             rig.ClearSelected = Clip("clear selected");
             rig.Available = Clip("available");
             rig.Equipped = Clip("equipped");
+            Set(rig.GroupElement, "m_toggle", rig.Toggle); // Reflection: serialized reference the editor fills in, which a toggle group registration reads
             Widget(rig, "m_toggle", rig.Toggle);
             Widget(rig, "m_groupElement", rig.GroupElement);
             Widget(rig, "m_transitionAnimation", rig.Transitions.Transition);

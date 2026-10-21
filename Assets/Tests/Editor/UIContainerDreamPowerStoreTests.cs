@@ -258,6 +258,7 @@ namespace ProjectLucid.Tests
                     Buy(world, powers[0]);
                     Buy(world, powers[2]);
                     world.Scene.Save.CurrentSave.DreamPowerStore.GetOrCreateDreamPowerData(powers[1].GetGUID());
+                    WriteStoreItems(world);
 
                     Call(store, "UpdateCounter");
 

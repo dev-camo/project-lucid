@@ -131,6 +131,7 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Widgets[0].Name.Value, Is.EqualTo(default(Strings)));
 
                 Buy(rig.World, rig.Powers[1]);
+                WriteStoreItems(rig.World);
                 Call(rig.List, "Start");
 
                 Assert.That(rig.List.Visible.Value, Is.True, "a bought power opens the store");

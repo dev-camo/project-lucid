@@ -53,7 +53,8 @@ namespace ProjectLucid.Tests
             Owned owned = rig.World.Scene.Owned;
             FastAction<UIInputType> priorListeners = InputBridge.OnUpdateLastInputType;
             owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => InputBridge.OnUpdateLastInputType = priorListeners));
-            owned.LeaseActions(SystemAction.Shutdown);
+            // The world already leases the Shutdown row (MissionTrackerTestSupport), before any manager subscribes. A second lease taken here
+            // would be released while the progression manager, subscribed before it, has already left the row when its registration ends.
             var systemConfiguration = owned.Register(new SystemConfiguration());
             var configuration = owned.Track(ScriptableObject.CreateInstance<UINavigationConfiguration>());
             // The override SystemConfiguration.AddConfig makes, into this case's own configuration system.
@@ -306,6 +307,10 @@ namespace ProjectLucid.Tests
                 Assert.That(unlocks.Count, Is.EqualTo(1));
                 Assert.That(unlocks[0], Is.InstanceOf<MetaGameUnlockDreamPowerStoreItem>());
                 Assert.That(((MetaGameUnlockDreamPowerStoreItem)unlocks[0]).Definition, Is.SameAs(rig.Powers[power]));
+                // The counter reads the store's item list, which the save refills only when it serializes: the purchase is not in it yet.
+                Assert.That(rig.Store.BoughtAmount.Value, Is.Zero);
+                WriteStoreItems(rig.World);
+                Call(rig.Store, "UpdateCounter");
                 Assert.That(rig.Store.BoughtAmount.Value, Is.EqualTo(1));
                 Assert.That(rig.Cost.ShowCost.Value, Is.False);
                 Assert.That(rig.Store.ActionLabel.Value, Is.EqualTo(Equippable));
