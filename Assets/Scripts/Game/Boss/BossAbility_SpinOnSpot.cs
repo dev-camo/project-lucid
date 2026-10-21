@@ -58,7 +58,7 @@ namespace HardlightProject
         protected override void DoOnUpdate(float deltaTime)
         {
             base.DoOnUpdate(deltaTime);
-            m_spunTime = deltaTime + m_spunTime;
+            m_spunTime += deltaTime;
             float spun = m_spunTime / Definition.TimeToFullyRotateInSeconds;
             float rotation = Mathf.Lerp(0f, DegreesInCircle, Definition.SpinRotationCurve.Evaluate(spun));
             float step = Mathf.Abs(rotation - m_rotationPreviousTick);

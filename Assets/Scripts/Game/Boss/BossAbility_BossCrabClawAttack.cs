@@ -169,7 +169,7 @@ namespace HardlightProject
             m_startWindup = false;
             if (m_thisAttackIndex != Definition.LongWindUpAttackComparison)
                 return false;
-            m_extraWindUpTimer = deltaTime + m_extraWindUpTimer;
+            m_extraWindUpTimer += deltaTime;
             return Definition.ExtraWindUpSeconds > m_extraWindUpTimer;
         }
 

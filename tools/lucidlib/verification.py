@@ -7139,6 +7139,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossMovementAbilityTests." + name fo
     "StayAheadShouldActivateOnlyInsideTheArcAheadOfTheCharacter",
     "StayAheadShouldNotActivateWithoutACharacter",
     "StayAheadUpdateKeepsTheBossBetweenTheArcLimits",
+    "StayAheadUpdateClampsCounterClockwiseAndWithAMinimumAboveTheMaximum",
     "StayAheadEnterResumesFromTheStoredAngleOrTheCharacterAndLeaveStoresIt",
     "ScuttleReportsTheSquaredRangesOfItsDefinition",
     "ScuttleFollowsTheDesiredPositionAndFinishesAfterWaitingAtIt",

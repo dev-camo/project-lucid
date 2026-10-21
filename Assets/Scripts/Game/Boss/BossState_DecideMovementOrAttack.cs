@@ -41,10 +41,9 @@ namespace HardlightProject
 
         protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
         {
-            ActorAbility ability = null;
             base.DoOnEnter(user, action);
             Boss boss = user.GetAs<Boss>();
-            if (boss.TryGetAbilityFromType(m_attackAbilityDefinition.AbilityType, out ability)
+            if (boss.TryGetAbilityFromType(m_attackAbilityDefinition.AbilityType, out ActorAbility ability)
                 && ability is IOffensiveAbility offensiveAbility
                 && CanAttack(boss, offensiveAbility, 0f))
                 offensiveAbility.SetAttackFlow(true);
@@ -52,10 +51,9 @@ namespace HardlightProject
 
         protected override void DoUpdate(IGraphUser user, FSMUpdateContext updateContext)
         {
-            ActorAbility ability = null;
             base.DoUpdate(user, updateContext);
             Boss boss = user.GetAs<Boss>();
-            if (boss.TryGetAbilityFromType(m_attackAbilityDefinition.AbilityType, out ability)
+            if (boss.TryGetAbilityFromType(m_attackAbilityDefinition.AbilityType, out ActorAbility ability)
                 && ability is IOffensiveAbility offensiveAbility
                 && CanAttack(boss, offensiveAbility, updateContext.DeltaTime))
                 offensiveAbility.SetAttackFlow(true);
@@ -64,10 +62,8 @@ namespace HardlightProject
         // Without a current character the ability cannot attack.
         private bool CanAttack(Boss boss, IOffensiveAbility attackAbility, float deltaTime)
         {
-            bool canAttack = false;
-            if (ProcessManager.GetSystem<CharacterManager>().TryGetCurrentCharacter(out Character character))
-                canAttack = attackAbility.CanAttack(boss, character, m_stateAnimationDefinition, deltaTime);
-            return canAttack;
+            return ProcessManager.GetSystem<CharacterManager>().TryGetCurrentCharacter(out Character character)
+                && attackAbility.CanAttack(boss, character, m_stateAnimationDefinition, deltaTime);
         }
     }
 }

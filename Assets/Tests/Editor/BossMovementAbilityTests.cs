@@ -611,6 +611,42 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x70021D..0x70027A: counter-clockwise the boss's angle moves down and the limits swap (character - maximum, character - minimum).
+        // The clamp tests below the lower limit first and then takes the lesser of the upper limit and the value, so a minimum above
+        // the maximum yields the lower limit for values under it and the upper limit otherwise (a max(lower, min(upper, v)) clamp would
+        // give the lower limit for both). Character at 90 degrees, movement 0.01 per second.
+        [Test]
+        public void StayAheadUpdateClampsCounterClockwiseAndWithAMinimumAboveTheMaximum()
+        {
+            WithManager((owned, manager, character) =>
+            {
+                MakeCurrent(manager, character, OnCircle(90.0));
+                double half = Math.PI / 2;
+                foreach ((bool clockwise, float min, float max, double bossDegrees, double expected, bool atMax) in new[]
+                {
+                    (false, 0.5f, 1.5f, 60.0, 60.0 * Math.PI / 180.0 - 0.01, false),
+                    (false, 0.5f, 1.5f, 1.0, half - 1.5, false),
+                    (false, 0.5f, 1.5f, 80.0, half - 0.5, true),
+                    (true, 1.5f, 0.5f, 120.0, half + 1.5, false),
+                    (true, 1.5f, 0.5f, 200.0, half + 0.5, true),
+                })
+                {
+                    Boss boss = NewBoss(owned, OnCircle(bossDegrees, 7f));
+                    BossAbility_StayAheadOfPlayer ability = NewStayAhead(owned, boss, d =>
+                    {
+                        d.Clockwise = clockwise;
+                        d.MinRadiansAheadOfPlayer = min;
+                        d.MaxRadiansAheadOfPlayer = max;
+                        d.MovementPerSecond = 0.01f;
+                    });
+                    Tick(ability, 1f);
+                    string label = $"clockwise {clockwise} min {min} max {max} boss {bossDegrees}";
+                    Assert.That(Get<float>(ability, "m_progressionArcRadians"), Is.EqualTo((float)expected).Within(2e-3f), label);
+                    Assert.That(ability.AtMaxRange, Is.EqualTo(atMax), label);
+                }
+            });
+        }
+
         // 0x70014B: a finished ability does nothing in its update. 0x6FFB5D: entering resumes from the stored angle, or starts the
         // minimum arc ahead of the current character, and publishes the circling direction; without a character or stored angle it only
         // sets up the circle; 0x7000: leaving stores the angle.

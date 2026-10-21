@@ -65,7 +65,11 @@ namespace HardlightProject
             m_abilityActivated = false;
             m_attackAnimationTimer = 0f;
             m_extraRange = 0f;
+            // Native clears the six flags at 0x20..0x25 together (0x6F7836, 0x6F783D).
             m_startWindup = false;
+            m_isWindingUp = false;
+            m_isWoundUp = false;
+            m_canTriggerAttackAnim = false;
             m_attackAnimStarted = false;
             m_waveSpawned = false;
         }
@@ -139,10 +143,10 @@ namespace HardlightProject
             float traversal = Mathf.Clamp01(Definition.TraversalCurve.Evaluate(m_attackAnimationTimer / Definition.TraversalTime));
             Vector3 target = m_coordinateArray[AttackIndex % PointsInATriangle];
             // Unclamped single-precision lerp on X and Z; Y stays at the pre-jump height.
-            float x = (float)(target.x - m_preJumpPosition.x) * traversal + m_preJumpPosition.x;
-            float z = (float)(target.z - m_preJumpPosition.z) * traversal + m_preJumpPosition.z;
+            float x = (target.x - m_preJumpPosition.x) * traversal + m_preJumpPosition.x;
+            float z = (target.z - m_preJumpPosition.z) * traversal + m_preJumpPosition.z;
             m_currentTargetPosition = new Vector3(x, m_preJumpPosition.y, z);
-            m_attackAnimationTimer = deltaTime + m_attackAnimationTimer;
+            m_attackAnimationTimer += deltaTime;
             return running;
         }
 
@@ -180,7 +184,7 @@ namespace HardlightProject
         // 06000a45
         private void IncreaseValidAttackRange(float deltaTime)
         {
-            m_extraRange = deltaTime * Definition.TargetGrowthPerSecond + m_extraRange;
+            m_extraRange += deltaTime * Definition.TargetGrowthPerSecond;
             m_currentFarRangeSquared = (m_extraRange + Definition.TargetValidRangeFar) * (m_extraRange + Definition.TargetValidRangeFar);
         }
 

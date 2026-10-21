@@ -117,11 +117,9 @@ namespace HardlightProject
         // end of the frame it takes the definition's returnable spawn angle as its local rotation.
         private void SpawnAProjectile(int projectileIndex)
         {
-            ProjectileType projectileType = default(ProjectileType);
-            Transform transform;
-            DecideProjectileType(projectileIndex, out projectileType);
+            DecideProjectileType(projectileIndex, out ProjectileType projectileType);
             Projectile spawned = m_bossManager.SpawnProjectileFromBoss(projectileType, m_boss, GetSpawnOrigin(projectileIndex));
-            transform = spawned.transform;
+            Transform transform = spawned.transform;
             GuardianProjectile guardianProjectile = spawned as GuardianProjectile;
             guardianProjectile.SetBoss(m_boss);
             if (Definition.InitialMovementState == GuardianProjectile.ProjectileMovementState.FiredOverhead)
@@ -131,11 +129,13 @@ namespace HardlightProject
             Transform lane = GetLaneChoice(projectileIndex);
             OffsetSpawnLocation(projectileIndex, transform);
             BlockSpawnLane(lane);
-            transform.SetParent(lane);
+            transform.parent = lane;
             CoroutineUtils.OnFrameEnd(() =>
             {
-                Quaternion discarded = transform.localRotation;
-                transform.localRotation = Quaternion.Euler(Definition.ReturnableProjectileSpawnAngle);
+                // The eulerAngles setter idiom: read the rotation, set its euler angles, write it back.
+                Quaternion rotation = transform.localRotation;
+                rotation.eulerAngles = Definition.ReturnableProjectileSpawnAngle;
+                transform.localRotation = rotation;
             });
             guardianProjectile.SetTargetDirection(lane.forward);
             m_projectiles.Add(guardianProjectile);

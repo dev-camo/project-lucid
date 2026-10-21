@@ -63,7 +63,7 @@ namespace HardlightProject
         }
 
         // 06000ad0: once the target was reached the ability finishes and the boss stops counting as in motion. Otherwise the
-        // target counts as reached within sqrt(minSqrMagnitude squared) of it, and the boss moves at the curve's speed.
+        // target counts as reached once Vector3 equality holds, and the boss moves at the curve's speed.
         protected override void DoOnUpdate(float deltaTime)
         {
             base.DoOnUpdate(deltaTime);
@@ -75,7 +75,7 @@ namespace HardlightProject
                 return;
             }
             float speedFactor = Definition.AccelerationCurve.Evaluate(m_movementTimer / Definition.AccelerationTime);
-            if ((m_targetPosition - m_boss.WorldPosition).sqrMagnitude < minSqrMagnitude * minSqrMagnitude)
+            if (m_targetPosition == m_boss.WorldPosition)
             {
                 m_currentTargetPosition = m_targetPosition;
                 m_reachedTarget = true;

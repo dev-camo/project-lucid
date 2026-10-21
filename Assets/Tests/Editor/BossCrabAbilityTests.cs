@@ -380,7 +380,9 @@ namespace ProjectLucid.Tests
                 Assert.That((Get<bool>(ability, "m_abilityActivated"), ability.StartWindUp, Get<bool>(ability, "m_attackAnimStarted"), Get<bool>(ability, "m_waveSpawned")),
                     Is.EqualTo((false, false, false, false)));
                 Assert.That((Get<float>(ability, "m_attackAnimationTimer"), Get<float>(ability, "m_extraRange")), Is.EqualTo((0f, 0f)));
-                Assert.That(Get<bool>(ability, "m_isWoundUp"), Is.True, "the wind-up flags survive leaving");
+                // 0x6F7836 (dword at 0x20) and 0x6F783D (word at 0x24) clear all six flags.
+                Assert.That((Get<bool>(ability, "m_isWindingUp"), Get<bool>(ability, "m_isWoundUp"), Get<bool>(ability, "m_canTriggerAttackAnim")),
+                    Is.EqualTo((false, false, false)), "leaving clears the wind-up and trigger flags too");
             });
         }
 

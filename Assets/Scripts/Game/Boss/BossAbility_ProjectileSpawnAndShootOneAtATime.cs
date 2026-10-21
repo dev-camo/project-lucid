@@ -103,8 +103,8 @@ namespace HardlightProject
                 int index = m_currentlyFiringProjectileIndex;
                 if (m_projectileFireTimer > index * m_projectileFireDivisible)
                 {
-                    Transform gliding = m_projectiles[index].transform;
-                    gliding.localPosition = Vector3.MoveTowards(gliding.localPosition, Vector3.zero,
+                    Projectile gliding = m_projectiles[index];
+                    gliding.transform.localPosition = Vector3.MoveTowards(gliding.transform.localPosition, Vector3.zero,
                         deltaTime * Definition.ProjectileMoveToLaneVelocity);
                 }
                 if (m_projectileFireTimer > (m_currentlyFiringProjectileIndex + 1) * m_projectileFireDivisible)

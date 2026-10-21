@@ -54,7 +54,7 @@ namespace HardlightProject
         }
 
         // Nothing happens without a current character. The target is the circle point whose angle is that of the line from the
-        // character through the origin (the origin mirrored through the character, both on the boss's ground plane).
+        // character through the origin (the character mirrored through the origin, both on the boss's ground plane).
         private void CalculateMovementTarget(IGraphUser user)
         {
             Boss boss = user.GetAs<Boss>();

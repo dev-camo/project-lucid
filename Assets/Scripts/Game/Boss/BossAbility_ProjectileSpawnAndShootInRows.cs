@@ -100,7 +100,7 @@ namespace HardlightProject
             float fireTimer = m_projectileFireTimer;
             if (launchTime > fireTimer)
             {
-                m_projectileFireTimer = deltaTime + fireTimer;
+                m_projectileFireTimer = fireTimer + deltaTime;
             }
             else
             {

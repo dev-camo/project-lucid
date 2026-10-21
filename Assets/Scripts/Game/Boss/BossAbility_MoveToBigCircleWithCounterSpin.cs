@@ -23,12 +23,13 @@ namespace HardlightProject
         }
 
         // 06000aba: the small circle's centre is the big circle's point at angle zero; each boss takes the point of its
-        // index times pi on the small circle. The native body evaluates the big-circle point once more and discards it,
-        // and has the base entry inlined after the target is set.
+        // index times pi on the small circle. The native body also evaluates the big-circle point before looking up the index and
+        // discards it (0x6FBCA0), and has the base entry inlined after the target is set.
         protected override void DoOnEnter()
         {
-            Vector3 smallCircleCentre = ArenaCentre.PointOnCircleWithFixedY(0f, DerivedDefinition.BigCircleRadius, m_boss.WorldPosition.y);
+            ArenaCentre.PointOnCircleWithFixedY(0f, DerivedDefinition.BigCircleRadius, m_boss.WorldPosition.y);
             int index = ProcessManager.GetSystem<FourmenManager>().GetIndexForBoss(m_boss);
+            Vector3 smallCircleCentre = ArenaCentre.PointOnCircleWithFixedY(0f, DerivedDefinition.BigCircleRadius, m_boss.WorldPosition.y);
             float angle = index * Mathf.PI;
             m_targetPosition = smallCircleCentre.PointOnCircleWithFixedY(angle, DerivedDefinition.CounterSpinRadius, m_boss.WorldPosition.y);
             base.DoOnEnter();

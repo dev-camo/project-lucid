@@ -6,8 +6,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 020001f1; bodies translated from the 1.10.1 x86-64 binary (0x6FF8E0..0x700640).
     // The guardian circles the arena at a stated radius and stays a set arc ahead of the character: its angle is
-    // kept between the minimum and maximum radians ahead of the character's angle (in the circling direction) and
-    // creeps away at the movement rate when the character stops closing in.
+    // advanced by the movement rate in the circling direction each update, then clamped between the minimum and maximum
+    // radians ahead of the character's angle.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class BossAbility_StayAheadOfPlayer : ActorAbility, IAbilityBossMovement
@@ -57,7 +57,6 @@ namespace HardlightProject
         // (nothing else is set up without a character). The direction is published for the guardian's projectiles.
         private void SetupAbility()
         {
-            Character character = null;
             AbilityFinished = false;
             m_centerOfCircle = ArenaCentre;
             m_radiusOfCircle = Definition.Radius;
@@ -67,7 +66,7 @@ namespace HardlightProject
             }
             else
             {
-                if (!m_characterManager.TryGetCurrentCharacter(out character))
+                if (!m_characterManager.TryGetCurrentCharacter(out Character character))
                     return;
                 m_progressionArcRadians = GetArcAngle(character.WorldPosition) * Mathf.Deg2Rad + Definition.MinRadiansAheadOfPlayer;
             }
@@ -95,22 +94,16 @@ namespace HardlightProject
         }
 
         // 06000b50: the boss's angle moves by the movement rate (towards the character's side, wrapping a full turn) and is
-        // kept between the minimum and maximum arc ahead of the character (selected through the same comparisons the native
-        // code makes, since the minimum can exceed the maximum). At the limit it counts as at maximum range.
+        // kept between the minimum and maximum arc ahead of the character. At the upper limit it counts as at maximum range.
         protected override void DoOnUpdate(float deltaTime)
         {
-            Character character = null;
-            float characterArcAngleRad = 0f;
-            float bossArcAngleDeg = 0f;
-            float minArcRadians;
-            float maxArcRadians;
             base.DoOnUpdate(deltaTime);
             if (AbilityFinished)
                 return;
             m_radiusOfCircle = Definition.Radius;
-            if (!m_characterManager.TryGetCurrentCharacter(out character))
+            if (!m_characterManager.TryGetCurrentCharacter(out Character character))
                 return;
-            CalculateAngles(character, out characterArcAngleRad, out bossArcAngleDeg, out minArcRadians, out maxArcRadians);
+            CalculateAngles(character, out float characterArcAngleRad, out float bossArcAngleDeg, out _, out _);
 
             float bossArcRadians = bossArcAngleDeg * Mathf.Deg2Rad;
             float movement = deltaTime * Definition.MovementPerSecond;
@@ -121,7 +114,7 @@ namespace HardlightProject
             {
                 newBossArc = bossArcRadians + movement;
                 if (newBossArc < characterArcAngleRad)
-                    newBossArc = newBossArc + Mathf.PI * 2f;
+                    newBossArc += Mathf.PI * 2f;
                 lower = characterArcAngleRad + Definition.MinRadiansAheadOfPlayer;
                 upper = characterArcAngleRad + Definition.MaxRadiansAheadOfPlayer;
             }
@@ -129,12 +122,11 @@ namespace HardlightProject
             {
                 newBossArc = bossArcRadians - movement;
                 if (characterArcAngleRad < newBossArc)
-                    newBossArc = -Mathf.PI * 2f + newBossArc;
+                    newBossArc -= Mathf.PI * 2f;
                 lower = characterArcAngleRad - Definition.MaxRadiansAheadOfPlayer;
                 upper = characterArcAngleRad - Definition.MinRadiansAheadOfPlayer;
             }
-            float belowUpper = upper < newBossArc ? upper : newBossArc;
-            m_progressionArcRadians = newBossArc < lower ? lower : belowUpper;
+            m_progressionArcRadians = Mathf.Clamp(newBossArc, lower, upper);
             m_atMaxRange = m_progressionArcRadians == upper;
             m_currentTargetPosition = m_centerOfCircle.PointOnCircleWithFixedYLHS(m_progressionArcRadians, m_radiusOfCircle, m_boss.WorldPosition.y);
         }
@@ -153,42 +145,34 @@ namespace HardlightProject
         // ahead of the character. It leaves the wrapped angle as the progression angle.
         public bool ShouldAbilityActivate()
         {
-            Character character = null;
-            bool activate = false;
-            if (m_characterManager.TryGetCurrentCharacter(out character))
+            if (!m_characterManager.TryGetCurrentCharacter(out Character character))
+                return false;
+            CalculateAngles(character, out float characterArcAngleRad, out float bossArcAngleDeg, out _, out _);
+            float bossArcRadians = bossArcAngleDeg * Mathf.Deg2Rad;
+            m_progressionArcRadians = bossArcRadians;
+            float lower;
+            float upper;
+            if (Definition.Clockwise)
             {
-                float characterArcAngleRad;
-                float bossArcAngleDeg;
-                float minArcRadians;
-                float maxArcRadians;
-                CalculateAngles(character, out characterArcAngleRad, out bossArcAngleDeg, out minArcRadians, out maxArcRadians);
-                float bossArcRadians = bossArcAngleDeg * Mathf.Deg2Rad;
-                m_progressionArcRadians = bossArcRadians;
-                float lower;
-                float upper;
-                if (Definition.Clockwise)
+                if (characterArcAngleRad > bossArcRadians)
                 {
-                    if (characterArcAngleRad > bossArcRadians)
-                    {
-                        bossArcRadians = bossArcRadians + Mathf.PI * 2f;
-                        m_progressionArcRadians = bossArcRadians;
-                    }
-                    lower = characterArcAngleRad + Definition.MinRadiansAheadOfPlayer;
-                    upper = characterArcAngleRad + Definition.MaxRadiansAheadOfPlayer;
+                    bossArcRadians += Mathf.PI * 2f;
+                    m_progressionArcRadians = bossArcRadians;
                 }
-                else
-                {
-                    if (bossArcRadians > characterArcAngleRad)
-                    {
-                        bossArcRadians = bossArcRadians + -Mathf.PI * 2f;
-                        m_progressionArcRadians = bossArcRadians;
-                    }
-                    lower = characterArcAngleRad - Definition.MaxRadiansAheadOfPlayer;
-                    upper = characterArcAngleRad - Definition.MinRadiansAheadOfPlayer;
-                }
-                activate = bossArcRadians > lower && upper > bossArcRadians;
+                lower = characterArcAngleRad + Definition.MinRadiansAheadOfPlayer;
+                upper = characterArcAngleRad + Definition.MaxRadiansAheadOfPlayer;
             }
-            return activate;
+            else
+            {
+                if (bossArcRadians > characterArcAngleRad)
+                {
+                    bossArcRadians -= Mathf.PI * 2f;
+                    m_progressionArcRadians = bossArcRadians;
+                }
+                lower = characterArcAngleRad - Definition.MaxRadiansAheadOfPlayer;
+                upper = characterArcAngleRad - Definition.MinRadiansAheadOfPlayer;
+            }
+            return bossArcRadians > lower && upper > bossArcRadians;
         }
     }
 }

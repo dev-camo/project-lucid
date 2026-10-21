@@ -320,8 +320,12 @@ namespace ProjectLucid.Tests
                     MemberInfo found = type.GetMethods(Declared).FirstOrDefault(method => method.Name == member)
                         ?? (MemberInfo)type.GetField(member, Declared);
                     Assert.That(found, Is.Not.Null, row.Name + "." + member);
-                    Assert.That(AttributeRow(found), Is.SupersetOf(attributes), row.Name + "." + member + " attributes");
+                    Assert.That(AttributeRow(found), Is.EqualTo(attributes), row.Name + "." + member + " attributes");
                 }
+                // The metadata lists [Conditional] only on the members named above, so no other method may carry one.
+                string[] conditional = row.MemberAttributes.Select(entry => entry.name).ToArray();
+                foreach (MethodInfo method in type.GetMethods(Declared).Where(method => !conditional.Contains(method.Name)))
+                    Assert.That(AttributeRow(method).Where(text => text.StartsWith("ConditionalAttribute")), Is.Empty, row.Name + "." + method.Name);
             }
         }
 

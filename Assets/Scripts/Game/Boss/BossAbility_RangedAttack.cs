@@ -81,7 +81,7 @@ namespace HardlightProject
             }
             if (m_projectileOnCooldown)
             {
-                m_projectileTimerInSeconds = deltaTime + m_projectileTimerInSeconds;
+                m_projectileTimerInSeconds += deltaTime;
                 m_projectileOnCooldown = Definition.ProjectileCooldownSeconds > m_projectileTimerInSeconds;
                 if (waveCoolingDown || m_projectileOnCooldown)
                     return;

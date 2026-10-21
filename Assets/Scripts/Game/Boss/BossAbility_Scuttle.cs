@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 020001ef; bodies translated from the 1.10.1 x86-64 binary (0x6EFFE0..0x6FF5E0).
+    // Original Game.Runtime 020001ef; bodies translated from the 1.10.1 x86-64 binary (0x6FEFE0..0x6FF5E0).
     // A short scuttle towards the desired movement position stored by the FSM. It can start between the minimum movement
     // distance and the scuttle range, and finishes once the boss has stayed within the end tolerance for the stated seconds
     // (counted in the FSM's destination-reached timer) or the target is out of range.

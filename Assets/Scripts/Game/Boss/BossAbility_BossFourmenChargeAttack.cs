@@ -110,7 +110,7 @@ namespace HardlightProject
                 float squaredDistance = (m_playerTargetPosition - m_boss.WorldPosition).sqrMagnitude;
                 if (m_previousSquareMagnitude >= squaredDistance)
                 {
-                    m_attackAnimationTimer = deltaTime + m_attackAnimationTimer;
+                    m_attackAnimationTimer += deltaTime;
                     float acceleration = Definition.AccelerationCurve.Evaluate(m_attackAnimationTimer / Definition.AccelerationTime);
                     m_currentTargetPosition = m_normalisedDirection * (acceleration * Definition.TopSpeed);
                     m_previousSquareMagnitude = squaredDistance;

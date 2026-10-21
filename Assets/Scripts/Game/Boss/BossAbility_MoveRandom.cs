@@ -107,7 +107,7 @@ namespace HardlightProject
             }
             else
             {
-                speed = Definition.AccelerationPerSecond * deltaTime + m_speedAdjusted;
+                speed = m_speedAdjusted + Definition.AccelerationPerSecond * deltaTime;
                 m_speedAdjusted = speed;
                 m_reachedTopSpeed = speed > Definition.MaximumSpeed;
                 m_distanceFullAccelerationReachedSquared = (m_boss.WorldPosition - m_bossEntryPoint).sqrMagnitude;
@@ -145,7 +145,6 @@ namespace HardlightProject
         }
 
         // 06000aaf
-        [Conditional("BUILD_DEVELOPMENT")]
         private static void SetDebugObjectActive(Transform debugObject, bool isActive)
         {
             if (debugObject == null)
@@ -185,7 +184,7 @@ namespace HardlightProject
             return centre;
         }
 
-        // 06000ab2: a random point on the circle, at least one lap ahead of the original angle. Too many retries set up
+        // 06000ab2: a random point on the circle, up to one full turn ahead of the original angle. Too many retries set up
         // a new circle; a point too far from the arena centre is retried while the ability is still running.
         private Vector3 CalculateTargetPositionFromNewCenter()
         {
