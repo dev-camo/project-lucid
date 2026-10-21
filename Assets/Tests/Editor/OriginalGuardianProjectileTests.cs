@@ -388,6 +388,9 @@ namespace ProjectLucid.Tests
                 };
                 foreach (var testCase in cases)
                 {
+                    // The engine refuses an infinite body position with an error; the actor keeps the position it was given.
+                    if (float.IsInfinity(testCase.characterAt.x))
+                        LogAssert.Expect(LogType.Error, new Regex("^rigidbody\\.position assign attempt for '.*' is not valid"));
                     character.SetWorldPosition(testCase.characterAt);
                     projectile.transform.position = new Vector3(0f, 0f, 10f);
                     projectile.SetTargetDirection(testCase.direction);
