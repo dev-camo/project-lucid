@@ -144,6 +144,9 @@ namespace ProjectLucid.Tests
             Run("{\"m_gameTitle\":\"lucid-title\",\"m_routerPropertyName\":\"lucid-router\",\"m_platformName\":\"lucid-platform\"," +
                 "\"m_server\":1,\"m_canUseLocalStorage\":false}", (owned, host, bridge, row) =>
             {
+                // With no Language singleton, GetLanguage falls back to EnglishUS (Language.GetLanguage); the
+                // expected language below holds only in that state.
+                Assert.That(MonoSingleton<Language>.IsNull(), Is.True, "no Language instance is alive");
                 var iterator = (IEnumerator)Call(host, "Start");
                 Assert.That(iterator.MoveNext(), Is.True);
                 Assert.That(iterator.Current.GetType().DeclaringType, Is.EqualTo(typeof(MonoSingleton<HLUnityCore>)), "the core wait");

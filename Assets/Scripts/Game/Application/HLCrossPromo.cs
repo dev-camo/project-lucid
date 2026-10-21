@@ -20,8 +20,9 @@ namespace HardlightProject
             yield return MonoSingleton<HLUnityCore>.WaitOnInstance();
             string country = HLUnityCore.GetDeviceISO2CountryCode();
             yield return MonoSingleton<Language>.WaitOnInstance();
+            string language = Language.GetLanguage().ToString();
             CrossPromoConfig config = new CrossPromoConfig(configurationAsset, Application.version, country,
-                Language.GetLanguage().ToString(), Application.persistentDataPath);
+                language, Application.persistentDataPath);
             CrossPromo crossPromo;
             if (config.CanUseLocalStorage)
             {

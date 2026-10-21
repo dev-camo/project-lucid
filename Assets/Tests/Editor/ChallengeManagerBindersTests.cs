@@ -223,7 +223,8 @@ namespace ProjectLucid.Tests
 
         // 0x5A9135..0x5A91bc: with a badge, SetAlert(isNew || BonusXPUnacknowledged > 0, count). The badge object is
         // deactivated for no alert and no count (0x69f5d0 first branch); otherwise it is activated and then the badge
-        // writes its text, which faults here because the badge has no text component.
+        // writes its text, which faults with a NullReferenceException here because the badge has no text component.
+        // Not covered: the displayed count, which needs a text component (RTLTextMeshPro) the Edit Mode host lacks.
         [Test]
         public void AlertBadgeShowsForANewFeatureOrUnacknowledgedBonusXp()
         {
@@ -242,7 +243,7 @@ namespace ProjectLucid.Tests
                 // A new feature alerts.
                 shown.SetActive(false);
                 SetFeatureState(manager, ChallengeManager.ChallengeFeatureState.UnlockedShowInterstitial);
-                Assert.Catch<Exception>(() => Publish(binder));
+                Assert.Throws<NullReferenceException>(() => Publish(binder));
                 Assert.That(shown.activeSelf, Is.True);
 
                 // A seen feature without bonus XP does not, even with the feature unlocked.
@@ -253,13 +254,13 @@ namespace ProjectLucid.Tests
 
                 // Unacknowledged bonus XP alerts a seen feature.
                 Set(manager, "m_saveDataChallenges", new SaveDataChallenges { BonusXPUnacknowledged = 7 });
-                Assert.Catch<Exception>(() => Publish(binder));
+                Assert.Throws<NullReferenceException>(() => Publish(binder));
                 Assert.That(shown.activeSelf, Is.True);
 
                 // A new challenge alone shows a number.
                 shown.SetActive(false);
                 Set(manager, "m_saveDataChallenges", new SaveDataChallenges { BonusXPUnacknowledged = 0 });
-                Assert.Catch<Exception>(() => Publish(binder, NewState(owned, 0, 0f)));
+                Assert.Throws<NullReferenceException>(() => Publish(binder, NewState(owned, 0, 0f)));
                 Assert.That(shown.activeSelf, Is.True);
             });
         }
@@ -344,8 +345,11 @@ namespace ProjectLucid.Tests
                 Call(binder, "Update");
                 Assert.That(binder.TimeRemainingText.Value, Is.EqualTo("lucid-sentinel"), "the manager is not ready");
 
+                // The flag guard comes before the reference test: with the flag clear, a never-created reference
+                // is not touched (IsNull on it would fault, as OnDisable shows).
                 Set(binder, "m_updateTimeRemaining", false);
-                Call(binder, "Update");
+                Set(binder, "m_challengeManagerRef", null);
+                Assert.DoesNotThrow(() => Call(binder, "Update"), "the update flag is clear");
                 Assert.That(binder.TimeRemainingText.Value, Is.EqualTo("lucid-sentinel"), "the update flag is clear");
 
                 Set(binder, "m_updateTimeRemaining", true);

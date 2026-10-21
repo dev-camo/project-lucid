@@ -61,8 +61,7 @@ namespace HardlightProject
         // 0x06001dc9: the title of the zone containing the level; None when it has none.
         public Strings GetZoneName()
         {
-            GameplayLevelCategory zone = null;
-            if (ProcessManager.GetSystem<LevelManager>(null, true).GameLevels.TryGetZoneForLevel(m_reward, out zone))
+            if (ProcessManager.GetSystem<LevelManager>(null, true).GameLevels.TryGetZoneForLevel(m_reward, out GameplayLevelCategory zone))
                 return zone.Title;
             return Strings.NONE;
         }

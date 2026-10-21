@@ -1,4 +1,5 @@
 using System;
+using Hardlight;
 using Hardlight.Enums;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
@@ -40,7 +41,7 @@ namespace HardlightProject
         // 0x06001dae: the reward record is found by the virtual reward GUID.
         public override void Save()
         {
-            SaveManager saveManager = Hardlight.ProcessManager.GetSystem<SaveManager>(null, true);
+            SaveManager saveManager = ProcessManager.GetSystem<SaveManager>(null, true);
             SaveDataGame saveData = saveManager.CurrentSave;
             saveData.GetRewardDataByRewardGUIDUnsafe(GetRewardGUID()).Collected = true;
             saveManager.RequestSave();

@@ -78,10 +78,9 @@ namespace HardlightProject
         private void OnChallengesUpdated(IReadOnlyList<ChallengeState> challengeStates)
         {
             ChallengeManager challengeManager = m_challengeManagerRef.Get();
-            ChallengeManager.ChallengeFeatureState featureState = challengeManager.FeatureState;
-            ChallengeFeatureUnlocked.Value = featureState != ChallengeManager.ChallengeFeatureState.Locked;
-            ChallengeFeatureIsNew.Value = featureState == ChallengeManager.ChallengeFeatureState.UnlockedShowInterstitial
-                || featureState == ChallengeManager.ChallengeFeatureState.UnlockedSeenInterstitial;
+            ChallengeFeatureUnlocked.Value = challengeManager.FeatureState != ChallengeManager.ChallengeFeatureState.Locked;
+            ChallengeFeatureIsNew.Value = challengeManager.FeatureState == ChallengeManager.ChallengeFeatureState.UnlockedShowInterstitial
+                || challengeManager.FeatureState == ChallengeManager.ChallengeFeatureState.UnlockedSeenInterstitial;
             int newChallengeCount = 0;
             foreach (ChallengeState challengeState in challengeStates)
             {
@@ -89,11 +88,9 @@ namespace HardlightProject
                     newChallengeCount++;
             }
             NewChallengeCount.Value = newChallengeCount;
-            if (m_alertBadge != null)
-            {
-                bool alert = ChallengeFeatureIsNew.Value || challengeManager.BonusXPUnacknowledged > 0;
-                m_alertBadge.SetAlert(alert, NewChallengeCount.Value);
-            }
+            if (m_alertBadge == null)
+                return;
+            m_alertBadge.SetAlert(ChallengeFeatureIsNew.Value || challengeManager.BonusXPUnacknowledged > 0, NewChallengeCount.Value);
         }
 
         // 0x060025d9: refresh the formatted time left whenever its whole-second value changes.
