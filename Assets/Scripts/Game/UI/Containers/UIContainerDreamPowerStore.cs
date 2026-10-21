@@ -151,7 +151,7 @@ namespace HardlightProject
             UpdateCounter();
         }
 
-        // 0x060030b2 (0x614460): the archetype is the active mission's, or the default one outside a mission.
+        // 0x060030b2 (0x614460): the archetype is the active mission's, or CharacterArchetype.None (no archetype) outside a mission.
         private void SetCharacterArchetype()
         {
             CharacterArchetype characterArchetype = default;
@@ -160,7 +160,7 @@ namespace HardlightProject
             m_characterArchetype = characterArchetype;
         }
 
-        // 0x060030b3 (0x6146E0): the first band is always open; the others open with their collected reward.
+        // 0x060030b3 (0x6146E0): the None band is always open; the others open with their collected reward.
         private void SetUnlockedBands()
         {
             if (m_dreamPowerStoreManager.IsDebugUnlockAll())
@@ -429,6 +429,7 @@ namespace HardlightProject
                     actionAvailable = true;
                     break;
                 case UIDreamPowerStoreItemState.Equipped:
+                    // The original uses the UNEQUIP literal; m_actionEquippedString is serialized but unused.
                     actionLabel = Strings.MENU_DREAM_POWER_STORE_UNEQUIP;
                     actionAvailable = m_allowEquipping;
                     break;
@@ -563,8 +564,8 @@ namespace HardlightProject
             RefreshDreamPowers();
         }
 
-        // 0x060030c9 (0x6139E0): m_allowEquipping and the counter format default before the binders
-        // are created; the combined icon list stays null until Unity fills it.
+        // 0x060030c9 (0x6139E0): m_allowEquipping and the counter format have field defaults; the
+        // combined icon list stays null until Unity fills it.
         public UIContainerDreamPowerStore() { }
     }
 }

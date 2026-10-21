@@ -10219,6 +10219,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreBlueCoinCo
     "AnUnaffordablePowerShowsItsCost",
     "AnEquippedPowerShowsNoCost",
     "AStatePastEquippedShowsTheCost",
+    "ANegativeStateShowsTheCost",
     "TheCostTextIsThePurchaseCostOfTheDefinitionWhateverTheState",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreInfoTests." + name for name in (
@@ -10236,6 +10237,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetToggleDreamPowerTests." + na
     "SelectingAProgressionLockedPowerShowsNoSelection",
     "SelectingAnArchetypeLockedPowerShowsNoSelection",
     "SelectingABoughtPowerShowsTheSelection",
+    "SelectingANegativeStatePowerShowsTheSelection",
     "SelectingAPurchasablePowerShowsTheSelection",
     "SelectingAnEquippedPowerShowsTheSelection",
     "DeselectingClearsTheSelectionAndRestoresTheItemStateVisuals",

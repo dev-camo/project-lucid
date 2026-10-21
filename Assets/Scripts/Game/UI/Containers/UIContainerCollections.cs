@@ -36,7 +36,7 @@ namespace HardlightProject
         private MusicTrackManager m_musicTrackManager;
 
         // 0x0600319d (0x625200): the toggles are set up and the badge/prompt callbacks hooked before the
-        // tab opened last time is reselected; reselecting runs that tab's analytics event.
+        // tab opened last time is selected; Start then reports that tab's open analytics event.
         private void Start()
         {
             m_app = ProcessManager.GetSystem<App>();
@@ -196,7 +196,7 @@ namespace HardlightProject
             m_tabsGroup.SelectNext();
         }
 
-        // 0x060031ac (0x6264E0): the bindables are created before the UIContainer base constructor.
+        // 0x060031ac (0x6264E0)
         public UIContainerCollections() { }
     }
 }

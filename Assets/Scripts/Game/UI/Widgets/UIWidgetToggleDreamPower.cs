@@ -47,7 +47,7 @@ namespace HardlightProject
         public UIWidgetNavigation UIWidgetNavigation => m_uiWidgetNavigation;
 
         // 0x06003881 (0x6A3340): the tier index is one-based; the icon loads asynchronously and
-        // the widget navigation is enabled only for an available dream power.
+        // the widget navigation follows the parameters' Available flag (the store's availability).
         public override void Setup(IUIWidgetParameters parameters)
         {
             base.Setup(parameters);
@@ -96,7 +96,7 @@ namespace HardlightProject
             }
         }
 
-        // 0x06003883 (0x6A36F0): the band background is unloaded through the Unity null check.
+        // 0x06003883 (0x6A36F0): the band definition is null-checked through ScriptableObjectWithGuid's operator.
         private void OnDestroy()
         {
             if (m_parameters != null)
@@ -111,14 +111,15 @@ namespace HardlightProject
             OnSelected(toggleValue);
         }
 
-        // 0x06003885 (0x6A3790): selecting shows the selection from the Bought state upwards and
+        // 0x06003885 (0x6A3790): selecting shows the selection unless the power is locked and
         // reports the definition; deselecting restores the item-state visuals.
         private void OnSelected(bool toggleValue)
         {
             if (toggleValue)
             {
                 m_onSelected?.Invoke();
-                ShowSelected.Value = m_parameters.State >= UIDreamPowerStoreItemState.Bought;
+                ShowSelected.Value = m_parameters.State != UIDreamPowerStoreItemState.LockedByProgression
+                    && m_parameters.State != UIDreamPowerStoreItemState.LockedByArchetype;
                 m_transitionAnimation.QueueCustomAnimation(m_clearSelectedAnimation, null);
                 m_transitionAnimation.QueueCustomAnimation(m_selectedAnimation, null);
                 m_parameters.OnToggleChanged(m_parameters.Definition);
@@ -145,7 +146,7 @@ namespace HardlightProject
             SetVisualState();
         }
 
-        // 0x06003888 (0x6A3930): the field initializers run before the UIWidget base constructor.
+        // 0x06003888 (0x6A3930)
         public UIWidgetToggleDreamPower() { }
     }
 }

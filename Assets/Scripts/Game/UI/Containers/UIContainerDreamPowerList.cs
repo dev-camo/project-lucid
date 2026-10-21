@@ -6,7 +6,7 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x020008b4; bodies translated from the 1.10.1 x86-64 binary.
-    // The three equipped dream powers shown during a mission (for example on the pause screen).
+    // The three equipped dream powers shown during a mission.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public sealed class UIContainerDreamPowerList : UIContainer
@@ -32,7 +32,7 @@ namespace HardlightProject
 
         // 0x06003242 (0x62F8D0): the list is hidden when the store is unavailable, the active mission
         // disallows dream powers or the loadout of the mission's archetype holds no slot. Without an
-        // active mission the loadout of the default archetype is used.
+        // active mission the loadout of CharacterArchetype.None (no archetype) is used.
         private void LoadDreamPowerSlots()
         {
             CharacterArchetype characterArchetype = default;

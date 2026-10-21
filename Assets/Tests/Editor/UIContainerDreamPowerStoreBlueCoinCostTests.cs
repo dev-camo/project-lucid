@@ -23,7 +23,8 @@ namespace ProjectLucid.Tests
         [TestCase(UIDreamPowerStoreItemState.Insufficient, true, TestName = "AnUnaffordablePowerShowsItsCost")]
         [TestCase(UIDreamPowerStoreItemState.Equipped, false, TestName = "AnEquippedPowerShowsNoCost")]
         [TestCase((UIDreamPowerStoreItemState)6, true, TestName = "AStatePastEquippedShowsTheCost")]
-        public void TheCostIsShownForTheStatesAboveBoughtExceptEquipped(UIDreamPowerStoreItemState state, bool shown)
+        [TestCase((UIDreamPowerStoreItemState)(-1), true, TestName = "ANegativeStateShowsTheCost")]
+        public void TheCostIsShownExceptForTheLockedBoughtAndEquippedStates(UIDreamPowerStoreItemState state, bool shown)
         {
             Owned.Run(owned =>
             {

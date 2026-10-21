@@ -144,14 +144,15 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // OnSelected 0x6A3790 with the toggle on: the selection event fires (0x6A37A6), ShowSelected follows state >= Bought
-        // (cmp 2, setae at 0x6A37B6..0x6A37C1), the selected clip plays last (0x6A37F2), and the callback gets the definition.
+        // OnSelected 0x6A3790 with the toggle on: the selection event fires (0x6A37A6), ShowSelected is the unsigned state >= 2
+        // (cmp 2, setae at 0x6A37B6..0x6A37C1), so a negative state selects too, the selected clip plays last (0x6A37F2), and the callback gets the definition.
         [TestCase(UIDreamPowerStoreItemState.LockedByProgression, false, TestName = "SelectingAProgressionLockedPowerShowsNoSelection")]
         [TestCase(UIDreamPowerStoreItemState.LockedByArchetype, false, TestName = "SelectingAnArchetypeLockedPowerShowsNoSelection")]
         [TestCase(UIDreamPowerStoreItemState.Bought, true, TestName = "SelectingABoughtPowerShowsTheSelection")]
         [TestCase(UIDreamPowerStoreItemState.Purchasable, true, TestName = "SelectingAPurchasablePowerShowsTheSelection")]
         [TestCase(UIDreamPowerStoreItemState.Equipped, true, TestName = "SelectingAnEquippedPowerShowsTheSelection")]
-        public void SelectingReportsThePowerAndShowsTheSelectionFromBoughtUpwards(UIDreamPowerStoreItemState state, bool shown)
+        [TestCase((UIDreamPowerStoreItemState)(-1), true, TestName = "SelectingANegativeStatePowerShowsTheSelection")]
+        public void SelectingReportsThePowerAndShowsTheSelectionUnlessLocked(UIDreamPowerStoreItemState state, bool shown)
         {
             Run(rig =>
             {

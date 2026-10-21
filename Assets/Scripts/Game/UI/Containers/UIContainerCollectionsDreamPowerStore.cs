@@ -22,8 +22,7 @@ namespace HardlightProject
         // 0x060030a5/0x060030a6: ordinary atomic event accessors; the field starts as an empty callback.
         public event Action<Strings> OnSelectionChanged = delegate { };
 
-        // 0x060030a7 (0x613010): the info button and glyph are optional parts of the prefab and are
-        // switched off through the Unity null check.
+        // 0x060030a7 (0x613010): the info button and glyph are switched off when assigned (Unity null checks).
         protected override void OnEnable()
         {
             base.OnEnable();
@@ -62,7 +61,7 @@ namespace HardlightProject
             Purchasable.Value = false;
         }
 
-        // 0x060030ab (0x613880): the title binder and the empty selection callback are created before the base constructor.
+        // 0x060030ab (0x613880)
         public UIContainerCollectionsDreamPowerStore() { }
     }
 }

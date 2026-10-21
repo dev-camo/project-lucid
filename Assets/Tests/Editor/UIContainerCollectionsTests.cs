@@ -20,7 +20,7 @@ namespace ProjectLucid.Tests
     // subscribe to the level, mission and save managers) and subscribes to the gallery container. The App reference it takes is
     // assigned to the container's field as Start assigns it. Not covered because they report the tab to the analytics collector, whose
     // static references are shared by the whole process: Start, the badge setup of the gallery and music toggles, turning a tab on
-    // from another tab, the next-frame refresh of the badges, and the activation of the ornament viewer scene.
+    // from another tab, the badge refresh handlers (they read the ornament and music track managers, which Start takes), and the activation of the ornament viewer scene.
     public sealed class UIContainerCollectionsTests
     {
         private sealed class Rig

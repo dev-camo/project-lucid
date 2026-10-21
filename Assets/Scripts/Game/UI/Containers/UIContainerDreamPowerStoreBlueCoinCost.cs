@@ -14,19 +14,22 @@ namespace HardlightProject
         public readonly Bindable<bool> ShowCost = new Bindable<bool>();
         public readonly Bindable<string> Cost = new Bindable<string>();
 
-        // 0x060030d3 (0x6172C0): the cost is shown for the states past Bought other than Equipped
-        // (Purchasable and Insufficient); the price is formatted with the invariant culture.
+        // 0x060030d3 (0x6172C0): the cost is shown for every state except the locked ones, Bought and
+        // Equipped; the native folds the inequalities into an unsigned compare, so negative values show it too.
+        // The price is formatted with the invariant culture.
         public override void Setup(IUIContainerParameters parameters)
         {
             base.Setup(parameters);
             UIContainerDreamPowerStoreBlueCoinCostParameters data = parameters.GetAs<UIContainerDreamPowerStoreBlueCoinCostParameters>();
             UIDreamPowerStoreItemState itemState = data.ItemState;
-            ShowCost.Value = itemState > UIDreamPowerStoreItemState.Bought
+            ShowCost.Value = itemState != UIDreamPowerStoreItemState.LockedByProgression
+                && itemState != UIDreamPowerStoreItemState.LockedByArchetype
+                && itemState != UIDreamPowerStoreItemState.Bought
                 && itemState != UIDreamPowerStoreItemState.Equipped;
             Cost.Value = data.DreamPowerDefinition.PurchaseCost.ToString(CultureInfo.InvariantCulture);
         }
 
-        // 0x060030d4 (0x6173D0): the binders are created before the UIContainer base constructor.
+        // 0x060030d4 (0x6173D0)
         public UIContainerDreamPowerStoreBlueCoinCost() { }
     }
 }

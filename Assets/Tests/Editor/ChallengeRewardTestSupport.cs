@@ -38,6 +38,32 @@ namespace ProjectLucid.Tests
         internal static bool IsCached<T>(ManagedAddressableAsset<T> wrapper) where T : Object =>
             Get<T>(wrapper, "m_loadedAsset") != null;
 
+        // A static readonly SystemRef whose type initialiser ran once per process may be empty. It is filled through its own
+        // InternalReplaceSystem and the returned action revokes it again and restores the observers; null when the reference
+        // already holds the system.
+        internal static Action BindEmptyStaticReference<T>(Type owner, string field, T system) where T : class, ISystem
+        {
+            const BindingFlags Statics = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+            const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic;
+            var reference = (SystemRef<T>)owner.GetField(field, Statics).GetValue(null);
+            if (reference.IsValid())
+            {
+                if (!ReferenceEquals(reference.GetSafe(), system))
+                    throw new InvalidOperationException("Fixture requires an empty static reference: " + field);
+                return null;
+            }
+            MethodInfo replace = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", Instance);
+            MethodInfo revoke = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
+            FieldInfo startup = typeof(SystemRef<T>).GetField("OnSystemStartup", Instance);
+            object priorObservers = startup.GetValue(reference);
+            replace.Invoke(reference, new object[] { system });
+            return () =>
+            {
+                revoke.Invoke(reference, null);
+                startup.SetValue(reference, priorObservers);
+            };
+        }
+
         // ChallengeReward's static initialiser creates the DataManager and SaveManager rows when they are
         // absent; a case that does not take OwnedChallengeRewardServices leases them first.
         internal static void LeaseRewardRows(Owned owned)

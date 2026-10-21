@@ -23,8 +23,7 @@ namespace HardlightProject
             m_alertBadge.SetAlert(false, parameters.GetAs<UIWidgetToggleCollectionsParameters>().DisplayNumber);
         }
 
-        // 0x0600387b (0x6A3280): the base callback runs first; the sprite is chosen by indexing the
-        // adjacent off/on fields with the value.
+        // 0x0600387b (0x6A3280): the base callback runs first.
         public override void Action_OnValueChanged(bool value)
         {
             base.Action_OnValueChanged(value);

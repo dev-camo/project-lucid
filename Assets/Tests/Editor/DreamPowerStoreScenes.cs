@@ -171,25 +171,9 @@ namespace ProjectLucid.Tests
         internal static void BindStaticReference<T>(Owned owned, Type owner, string field, T system) where T : class, ISystem
         {
             RuntimeHelpers.RunClassConstructor(owner.TypeHandle);
-            const BindingFlags Statics = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
-            const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic;
-            var reference = (SystemRef<T>)owner.GetField(field, Statics).GetValue(null);
-            if (reference.IsValid())
-            {
-                if (!ReferenceEquals(reference.GetSafe(), system))
-                    throw new InvalidOperationException("Fixture requires an empty static reference: " + field);
-                return;
-            }
-            MethodInfo replace = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", Instance);
-            MethodInfo revoke = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
-            FieldInfo startup = typeof(SystemRef<T>).GetField("OnSystemStartup", Instance);
-            object priorObservers = startup.GetValue(reference);
-            replace.Invoke(reference, new object[] { system });
-            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() =>
-            {
-                revoke.Invoke(reference, null);
-                startup.SetValue(reference, priorObservers);
-            }));
+            Action restore = ChallengeRewardTestSupport.BindEmptyStaticReference(owner, field, system);
+            if (restore != null)
+                owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(restore));
         }
 
         internal sealed class PowerWidget
