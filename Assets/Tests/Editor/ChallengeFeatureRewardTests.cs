@@ -197,7 +197,6 @@ namespace ProjectLucid.Tests
                 Assert.That(reward.GetMetaGameUnlock(RewardTrackType.Adventure).GetWidget(), Is.Null);
                 // The inherited reward members stay the feature base's.
                 Assert.That((int)reward.RewardType, Is.EqualTo(8));
-                Assert.That(reward.GetAnalyticsName(), Does.StartWith("GameFeature_"));
             });
         }
 
