@@ -6943,3 +6943,43 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyDebugTests." + name for name in
     "DestroyingUnbindsTheOverlayCallback",
     "DeclarationShapeKeepsFlagsFieldsAndIl2CppOptions",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossTransitionTests." + name for name in (
+    "WindUpTransitionsReadDifferentFlagsOfTheConfiguredOffensiveAbility",
+    "BodyBrokenAccumulatesThePhaseWaitOnlyWhileTheBodyPointIsDestroyed",
+    "BodyBrokenEnterResetsTheWaitAndLeaveClearsTheStoredAttackOnly",
+    "BodyBrokenLeaveChainsToTheBaseEnterHook",
+    "BothClawsBrokenNeedsBothClawPointsDestroyed",
+    "BothClawsBrokenReadsTheRightClawPointEvenWhenTheLeftIsIntact",
+    "BothClawsBrokenEnterResetsThePhaseWait",
+    "ClearLineOfSightKeepsItsRangeAndConeAndNeverSetsThePreAttackWait",
+    "ClearLineOfSightIsFalseWhenTheBossHasNoCharacterManager",
+    "ClearLineOfSightDropsTheBaseResultAndPassesRangeFullConeAndCone",
+    "ConsumeBossManagerFlagReportsTheManagersPhaseFlagOnce",
+    "ExitedAnimationReadsTheStoredFlagAndLeaveClearsIt",
+    "HealthCheckComparesTheBossHealthWithTheConfiguredValue",
+    "HealthCheckLeaveChangesNothing",
+    "HitPlayerReadsTheStoredFlagAndLeaveClearsBothFlags",
+    "RangeTransitionsReadTheMoveToRangeFlagAndNegateOneOfThem",
+    "ActiveBossTransitionsFollowTheBossActiveEntityFlag",
+    "ActiveBossTimeoutFiresOnceTheTimerPassesTheTimeout",
+    "TimerTransitionsDoNotFireOnANaNWait",
+    "UsedClawCheckMatchesTheConfiguredClawAttackAndDeflatedState",
+    "UsedClawCheckReadsTheClawPointBeforeComparingTheAttackAndIgnoresOtherClaws",
+    "VulnerableTimeOutFiresWhileTheBossIsNotVulnerable",
+    "WasHitReadsTheStoredFlagAndLeaveClearsIt",
+    "DeclarationShapeTypesKeepTheirFlagsMembersAndAttributeOrder",
+    "DeclarationShapeBasesAndJsonArgumentClassesMatchTheMetadata",
+    "DeclarationShapeClassFactoryRegistersEachNodeWithItsArgumentType",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.AnimatorSetBossStorageBoolTests." + name for name in (
+    "EntryResolvesTheBossAndStoresTheEntryValueUnderTheNamedKey",
+    "TheFirstEntryBuildsBothKeysAndLaterEntriesKeepThem",
+    "AnEmptyOrMissingNameLeavesTheKeyDefault",
+    "ExitStoresTheExitValueIntoTheBossOfTheLastEntry",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.AppRatingRequesterBossTests." + name for name in (
+    "ConstructionCachesTheMissionManagerReferenceAndKeepsTheSevenDayCooldown",
+    "ARecentRatingRequestKeepsTheBossRequesterFromFiring",
+    "ValidateAsksTheMissionManagerOnlyAfterTheBaseCheckAndAnExistingManager",
+    "DeclarationShapeKeepsTheAssetMenuAndTheSealedRequesterSurface",
+))
