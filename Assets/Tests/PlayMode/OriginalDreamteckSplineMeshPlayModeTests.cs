@@ -113,7 +113,7 @@ namespace ProjectLucid.Tests
         // The average is not taken for a mesh whose bounds are flat along z (a front spacing of -1 cancels the depth), so the count stays.
         // The flat bounds also make MeshDefinition.Refresh log its small-bounds warning (asserted in the EditMode MeshDefinition
         // tests); in play mode the original HLOutput.OnRuntimeMethodLoad has set Debug.unityLogger.filterLogType to Error, so the
-        // warning never reaches the log here (native run63d).
+        // warning never reaches the log here.
         [Test]
         public void AutoCountKeepsTheCountForAFlatAverage()
         {
