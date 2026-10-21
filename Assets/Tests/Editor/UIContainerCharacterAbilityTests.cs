@@ -266,8 +266,9 @@ namespace ProjectLucid.Tests
                 Assert.That(container.ShouldShow.Value, Is.True);
                 Assert.That(container.StaminaValue.Value, Is.EqualTo(0.5f), "not written while the ability is inactive");
                 Assert.That(container.TimeoutPercentageRemaining.Value, Is.EqualTo(1f));
-                Assume.That(rig.Capsule.bounds.size.y, Is.GreaterThan(0f), "the editor reports the capsule's bounds");
-                Assert.That(container.transform.localPosition, Is.EqualTo(new Vector3(0f, rig.Capsule.bounds.size.y * 0.5f, 0f)));
+                // The unrotated, unscaled capsule is its height (2) tall, so half of it is 1.
+                Assert.That(rig.Capsule.bounds.size.y, Is.EqualTo(2f), "the capsule's bounds");
+                Assert.That(container.transform.localPosition, Is.EqualTo(new Vector3(0f, 1f, 0f)));
             });
         }
 
