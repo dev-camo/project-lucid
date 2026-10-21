@@ -23,8 +23,6 @@ namespace ProjectLucid.Tests
     // UIAnimatingCounter's own coroutine, and the running of the wait coroutine, which the owned coroutine host refuses.
     public sealed class XPCounterBufferedIncreaseTests
     {
-        private const BindingFlags Statics = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
-        private const BindingFlags InstanceMembers = BindingFlags.Instance | BindingFlags.NonPublic;
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
 
         private sealed class Rig
@@ -41,27 +39,11 @@ namespace ProjectLucid.Tests
             public float AnimationSeconds => Get<float>(Counter, "m_animationTimeSeconds");
         }
 
-        // The static reference of the component is a typed reference of a registry row that an earlier case's row release may have
-        // left empty; an empty one is filled through its own InternalReplaceSystem and revoked again.
+        // The component's static references are filled and revoked again by StaticSystemReference.
         private static void Bind<T>(Owned owned, string field, T system) where T : class, ISystem
         {
-            var reference = (SystemRef<T>)typeof(XPCounterBufferedIncrease).GetField(field, Statics).GetValue(null);
-            if (reference.IsValid())
-            {
-                if (!ReferenceEquals(reference.GetSafe(), system))
-                    throw new InvalidOperationException("Fixture requires an empty reference: " + field);
-                return;
-            }
-            MethodInfo replace = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", InstanceMembers);
-            MethodInfo revoke = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", InstanceMembers);
-            FieldInfo startup = typeof(SystemRef<T>).GetField("OnSystemStartup", InstanceMembers);
-            object priorObservers = startup.GetValue(reference);
-            replace.Invoke(reference, new object[] { system });
-            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() =>
-            {
-                revoke.Invoke(reference, null);
-                startup.SetValue(reference, priorObservers);
-            }));
+            Action restore = StaticSystemReference.Bind(typeof(XPCounterBufferedIncrease), field, system);
+            if (restore != null) owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(restore));
         }
 
         private static void Run(Action<Rig> body, int totalXp = 0, int bonusXp = 0, bool onOverview = false, int[] thresholds = null,
@@ -74,8 +56,13 @@ namespace ProjectLucid.Tests
             owned.LeaseRow<OrnamentManager>();
             var rig = new Rig { App = ProcessManager.GetSystem<App>() };
             rig.Manager = owned.Register(owned.Lease(new OwnedTimeScaledObjects("lucid-xp-counter")).Add<ChallengeManager>("manager"));
-            rig.Save = new SaveDataChallenges { TotalXPEarned = totalXp, BonusXPUnacknowledged = bonusXp };
-            Set(rig.Manager, "m_saveDataChallenges", rig.Save); // Reflection: loaded from the open save and the App in the game
+            // The public save-open route loads the manager's challenge data; the seen-feature state keeps the unlock path closed.
+            var game = new SaveDataGame();
+            rig.Save = game.SaveDataChallenges;
+            rig.Save.FeatureState = ChallengeManager.ChallengeFeatureState.UnlockedSeenFeature;
+            rig.Save.TotalXPEarned = totalXp;
+            rig.Save.BonusXPUnacknowledged = bonusXp;
+            rig.Manager.OnSaveGameOpen(game);
             Bind(owned, "s_challengeManagerRef", rig.Manager);
             Bind(owned, "s_appRef", rig.App);
             rig.Counter = owned.Host("Lucid xp animating counter", false).AddComponent<UIAnimatingCounter>();

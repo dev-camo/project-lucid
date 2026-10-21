@@ -92,33 +92,13 @@ namespace ProjectLucid.Tests
         }
 
         // RequirementChallengeRewardCollected reads its SaveManager through a readonly static reference that its type
-        // initialiser creates once per process. A reference left empty by an earlier case's row is filled through its
-        // own InternalReplaceSystem and revoked again, as OwnedChallengeRewardServices does for ChallengeReward.
+        // initialiser creates once per process; StaticSystemReference fills and revokes it as for ChallengeReward.
         private sealed class OwnedStaticSaveReference : IDisposable
         {
             private Action m_restore;
 
-            public OwnedStaticSaveReference(Type owner, SaveManager save)
-            {
-                var reference = (SystemRef<SaveManager>)owner.GetField("s_saveManagerRef", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(null);
-                if (reference.IsValid())
-                {
-                    if (!ReferenceEquals(reference.GetSafe(), save))
-                        throw new InvalidOperationException("Fixture requires an empty save reference");
-                    return;
-                }
-                const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic;
-                MethodInfo replace = typeof(SystemRef<SaveManager>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", Instance);
-                MethodInfo revoke = typeof(SystemRef<SaveManager>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
-                FieldInfo startup = typeof(SystemRef<SaveManager>).GetField("OnSystemStartup", Instance);
-                object priorObservers = startup.GetValue(reference);
-                replace.Invoke(reference, new object[] { save });
-                m_restore = () =>
-                {
-                    revoke.Invoke(reference, null);
-                    startup.SetValue(reference, priorObservers);
-                };
-            }
+            public OwnedStaticSaveReference(Type owner, SaveManager save) =>
+                m_restore = StaticSystemReference.Bind(owner, "s_saveManagerRef", save);
 
             public void Dispose()
             {

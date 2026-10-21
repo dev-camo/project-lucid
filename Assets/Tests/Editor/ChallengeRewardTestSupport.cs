@@ -55,9 +55,7 @@ namespace ProjectLucid.Tests
 
     // The genuine SaveManager (with an open save), DataManager and App of OwnedCharacterManagers, and the
     // two static references ChallengeReward reads them through. The static fields are readonly, so they are
-    // never replaced: a reference left empty by an earlier case's row (the static initialiser runs once per
-    // process) is filled through its own InternalReplaceSystem and revoked again, as the trigger-condition
-    // fixtures do for the CharacterManager reference.
+    // never replaced: an empty reference is filled and revoked again by StaticSystemReference.
     internal sealed class OwnedChallengeRewardServices : IDisposable
     {
         private const BindingFlags Statics = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
@@ -85,23 +83,8 @@ namespace ProjectLucid.Tests
 
         private void Bind<T>(string field, T system) where T : class, ISystem
         {
-            var reference = (SystemRef<T>)typeof(ChallengeReward).GetField(field, Statics).GetValue(null);
-            if (reference.IsValid())
-            {
-                if (!ReferenceEquals(reference.GetSafe(), system))
-                    throw new InvalidOperationException("Fixture requires an empty reward reference: " + field);
-                return;
-            }
-            MethodInfo replace = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", Instance);
-            MethodInfo revoke = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
-            FieldInfo startup = typeof(SystemRef<T>).GetField("OnSystemStartup", Instance);
-            object priorObservers = startup.GetValue(reference);
-            replace.Invoke(reference, new object[] { system });
-            m_restore.Add(() =>
-            {
-                revoke.Invoke(reference, null);
-                startup.SetValue(reference, priorObservers);
-            });
+            Action restore = StaticSystemReference.Bind(typeof(ChallengeReward), field, system);
+            if (restore != null) m_restore.Add(restore);
         }
 
         // A reward record the open save can look up by the track GUID the reward carries.
@@ -119,6 +102,39 @@ namespace ProjectLucid.Tests
             steps.Reverse();
             steps.Add(m_characters.Dispose);
             VerificationFixtureOwnership.RunThenCleanUp(() => { }, steps.ToArray());
+        }
+    }
+
+    // The typed registry references that fixture owners read through private static readonly fields. A type
+    // initialiser creates each once per process, and an earlier case's row release may leave it empty. An empty
+    // one is filled through its own private InternalReplaceSystem; the returned action revokes it again and
+    // restores the observers it had, so nothing outlives the case. A reference already holding the system needs
+    // no restore (null); one holding another system is refused.
+    internal static class StaticSystemReference
+    {
+        private const BindingFlags Statics = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        internal static Action Bind<T>(Type owner, string field, T system) where T : class, ISystem
+        {
+            var reference = (SystemRef<T>)owner.GetField(field, Statics).GetValue(null);
+            if (reference.IsValid())
+            {
+                if (!ReferenceEquals(reference.GetSafe(), system))
+                    throw new InvalidOperationException("Fixture requires an empty reference: " + owner.Name + "." + field);
+                return null;
+            }
+            // Reflection: the system reference exposes no public route that fills an empty reference without the App.
+            MethodInfo replace = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", Instance);
+            MethodInfo revoke = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
+            FieldInfo startup = typeof(SystemRef<T>).GetField("OnSystemStartup", Instance);
+            object priorObservers = startup.GetValue(reference);
+            replace.Invoke(reference, new object[] { system });
+            return () =>
+            {
+                revoke.Invoke(reference, null);
+                startup.SetValue(reference, priorObservers);
+            };
         }
     }
 }
