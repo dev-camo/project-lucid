@@ -6,6 +6,7 @@ using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.TestTools;
 using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
@@ -97,6 +98,8 @@ namespace ProjectLucid.Tests
             Set(definition, "m_promptPrefab", prefab); // Reflection: serialized reference without a setter
             var trigger = owned.Host("Lucid prompt trigger", false).AddComponent<PromptTrigger>();
             Set(trigger, "m_promptDefinition", definition);
+            Set(trigger, "m_onShown", new UnityEvent()); // Reflection: serialized events, which a new component lacks
+            Set(trigger, "m_onHidden", new UnityEvent());
             return trigger;
         }
 
@@ -133,6 +136,8 @@ namespace ProjectLucid.Tests
         {
             GameObject host = owned.Host("Lucid sequenced prompt", false);
             trigger = host.AddComponent<PromptTrigger>();
+            Set(trigger, "m_onShown", new UnityEvent()); // Reflection: serialized events, which a new component lacks
+            Set(trigger, "m_onHidden", new UnityEvent());
             var effect = host.AddComponent<SequencedPromptTrigger>();
             Call(effect, "Reset"); // Reflection: the editor callback that AddComponent also runs
             return effect;

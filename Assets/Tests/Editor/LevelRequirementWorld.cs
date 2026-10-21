@@ -124,6 +124,7 @@ namespace ProjectLucid.Tests
         internal Dictionary<CollectableType, ProgressionCollectable> AddProgression()
         {
             Save.CloseSave();
+            OwnedChallengeServices.Register(m_owned);
             m_owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
             var progression = new ProgressionManager();
             // The constructor subscribes now, before the row is admitted; released after the unregistration.
