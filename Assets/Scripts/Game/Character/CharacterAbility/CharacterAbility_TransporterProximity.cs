@@ -17,6 +17,7 @@ namespace HardlightProject
 			{
 				return;
 			}
+			// The original clears the already false flag here (0x754617).
 			IsTriggered = false;
 			if (!m_targetRequiresRefresh)
 			{
@@ -40,8 +41,8 @@ namespace HardlightProject
 			{
 				return false;
 			}
-			TrackManager trackManager = m_character.TrackManager;
-			if (trackManager == null)
+			// The original reads the TrackManager getter again for the search below (0x7548A5, 0x754A25).
+			if (m_character.TrackManager == null)
 			{
 				return false;
 			}

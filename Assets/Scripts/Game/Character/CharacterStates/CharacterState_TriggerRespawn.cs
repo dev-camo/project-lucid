@@ -97,21 +97,16 @@ namespace HardlightProject
 				RespawnCharacter(character);
 				FinishRespawn(character);
 			}
-			MissionManager missionManager = ProcessManager.GetSystemSafe<MissionManager>();
-			if (missionManager != null)
-			{
-				missionManager.IncrementActiveMissionDeathCount();
-			}
+			ProcessManager.GetSystemSafe<MissionManager>()?.IncrementActiveMissionDeathCount();
 		}
 
 		// 06001647 (1.10.1 RVA 0x7844C0); any invulnerability still running is ended and restarted for the stored duration.
 		private static void SetupRespawn(Character character)
 		{
-			CharacterAbility_Invulnerability invulnerability = null;
 			character.Storage.SetValue(ActorFSMKeys.RespawnTeleportRequired, true);
 			character.MovementResume(character.WorldPosition, Vector3.zero);
 			ProcessManager.GetSystem<CinemachineCameraManager>().RequestCharacterCameraChange(CameraType.None);
-			if (character.TryGetAbility(ActorAbilityType.Character_Invulnerability, out invulnerability))
+			if (character.TryGetAbility(ActorAbilityType.Character_Invulnerability, out CharacterAbility_Invulnerability invulnerability))
 			{
 				invulnerability.Finish();
 				invulnerability.TriggerForDuration(character.Storage.GetValue(ActorFSMKeys.RespawnInvulnerableDuration, 0f, true));
