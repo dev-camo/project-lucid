@@ -14,7 +14,8 @@ namespace ProjectLucid.Tests
 {
     // The four enemy navigations: forward, home radius, static and return after chase, and spline. Expected values come
     // from the 1.10.1 x86-64 bodies cited per test. Each navigation is a real component on an owned inactive host; Unity
-    // runs SetUp from Awake, which Edit Mode never reaches, so the probes call the shipped SetUp directly. The spline
+    // runs SetUp from Awake, which Edit Mode never reaches, and from the Editor OnValidate that AddComponent sends
+    // (0x578060; CanValidate 0x6B1910 always answers true), so the probes also call the shipped SetUp directly. The spline
     // navigation is only checked without a spline. Its initialised paths (the start direction and squared follow
     // distance, the GetDestination walk with its end reversal and loop wrap, and the nearest-location line that
     // ConstrainPosition uses) need a spline with baked length and lookup data; an InertSpline in Edit Mode carries
@@ -46,7 +47,8 @@ namespace ProjectLucid.Tests
         // ---- forward ----
 
         // 0x5783D0 stores 10 (0x41200000) in the look-ahead distance and 1 in the constrain type (the base's Distance);
-        // 0x5782B0 marks the navigation initialised, which nothing else does.
+        // 0x5782B0 marks the navigation initialised, which nothing else does. AddComponent already sent the Editor
+        // OnValidate (0x578060), which reaches that SetUp because CanValidate (0x6B1910) is a bare "mov al, 1".
         [Test]
         public void ForwardStartsWithTenUnitsAheadAndInitialisesOnSetUp()
         {
@@ -55,6 +57,8 @@ namespace ProjectLucid.Tests
                 var navigation = NewNavigation<EnemyNavigationForwardProbe>(owned, Vector3.zero);
                 Assert.That(Get<float>(navigation, "m_lookAheadDistance"), Is.EqualTo(10f));
                 Assert.That(Convert.ToInt32(Get<object>(navigation, "m_constrainType")), Is.EqualTo(1));
+                Assert.That(navigation.IsInitialised, Is.True, "the Editor OnValidate ran SetUp");
+                navigation.ClearInitialised();
                 Assert.That(navigation.IsInitialised, Is.False);
                 navigation.RunSetUp();
                 Assert.That(navigation.IsInitialised, Is.True);
@@ -86,6 +90,7 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var navigation = NewNavigation<EnemyNavigationForwardProbe>(owned, Vector3.zero);
+                navigation.ClearInitialised();
                 Constrain(navigation, true, 1, 0f);
                 var far = new Vector3(100f, -50f, 7f);
                 Assert.That(navigation.CanReachPosition(far), Is.True);
@@ -121,6 +126,7 @@ namespace ProjectLucid.Tests
                 var radius = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, home);
                 Set(radius, "m_homeRadius", 2f);
                 radius.m_minNewDestinationDistance = 1.5f;
+                radius.ClearInitialised();
                 radius.RunSetUp();
                 Assert.That(Get<Vector3>(radius, "m_home"), Is.EqualTo(home));
                 Assert.That(Get<float>(radius, "m_homeRadiusSqr"), Is.EqualTo(4f));
