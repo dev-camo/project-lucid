@@ -14,7 +14,7 @@ namespace ProjectLucid.Tests
 {
     // Restored Game.Runtime TimeScaledSplineFollower (TypeDef 0x02000801, x86-64 0x5FB790..0x5FBBD0). Components are
     // real, on owned inactive hosts that never wake. The TimeManager is a real component holding the Environment
-    // category at scale 2, registered into its absent row; the follower is added with an owned empty category lookup
+    // category at scale 2, registered into its row; the follower is added with an owned empty category lookup
     // in place (its editor Reset/OnValidate read the TimeScaledComponent_SDT lookup), then given the manager's
     // category object. Followers and managers are never updated by the engine.
     public sealed class OriginalTimeScaledSplineFollowerTests
@@ -34,7 +34,13 @@ namespace ProjectLucid.Tests
         // The follower component is added after the spline follower, so its editor OnValidate finds it.
         private static void WithFollower(Action<Scene> body, bool withSplineFollower = true) => Owned.Run(owned =>
         {
-            TimeManager manager = owned.Register(NewTimeManager(owned, TimeCategory.Environment, Scale));
+            // The row may already exist, idle, from an earlier case's TimeScaledComponent type initializer, so it is
+            // leased rather than required absent; the manager is registered into it and unregistered before release.
+            string row = ProcessManager.GetDefaultName<TimeManager>();
+            owned.LeaseRow<TimeManager>();
+            TimeManager manager = NewTimeManager(owned, TimeCategory.Environment, Scale);
+            ProcessManager.RegisterSystem(manager, row);
+            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnregisterSystem(row)));
             var lookup = (TimeCategoryLookup)typeof(TimeExtensions).GetField("s_config_Internal", Statics).GetValue(null);
             GameObject host = owned.Host("Lucid owned time scaled spline follower", false);
             SplineFollower spline = withSplineFollower ? host.AddComponent<SplineFollower>() : null;
