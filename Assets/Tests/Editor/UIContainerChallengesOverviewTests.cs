@@ -151,6 +151,11 @@ namespace ProjectLucid.Tests
             return state;
         }
 
+        // Start takes the manager reference. The cases that call the validation or the launch data without running the whole first update
+        // take the same reference.
+        private static void TakeManagerReference(Rig rig) =>
+            Set(rig.Container, "m_challengeManagerRef", ProcessManager.GetSystemRef<ChallengeManager>(null, true)); // Reflection: private field Start assigns
+
         // Start runs the whole first update; the update schedules the navigation refresh on the refused coroutine host.
         private static void Start(Rig rig)
         {
@@ -534,6 +539,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                TakeManagerReference(rig);
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 ChallengeState stranger = NewState(rig, "lucid-overview-stranger", 0, 0f, false);
 
@@ -547,6 +553,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                TakeManagerReference(rig);
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 var shadow = new ChallengeState(0, rig.ShadowChallenge, 0, null, 0);
 
@@ -562,6 +569,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                TakeManagerReference(rig);
                 ChallengeState first = NewState(rig, "lucid-overview-first", 0, 0f);
                 ChallengeState second = NewState(rig, "lucid-overview-second", 0, 0f);
                 rig.Bonus.gameObject.SetActive(true);
@@ -596,6 +604,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                TakeManagerReference(rig);
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 ChallengeState stranger = NewState(rig, "lucid-overview-stranger", 0, 0f, false);
                 Call(rig.Container, "ToggleChallenge", listed, true);
@@ -639,6 +648,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                TakeManagerReference(rig);
                 ChallengeState stranger = NewState(rig, "lucid-overview-stranger", 0, 0f, false);
                 Set(rig.Container, "m_selectedChallenge", stranger); // Reflection: ToggleChallenge refuses to select an invalid challenge
                 rig.Container.ValidChallengeSelected.Value = true;
@@ -659,6 +669,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                TakeManagerReference(rig);
                 ChallengeState state = NewState(rig, "lucid-overview-launch", 0, 0f);
                 Call(rig.Container, "ToggleChallenge", state, true);
 

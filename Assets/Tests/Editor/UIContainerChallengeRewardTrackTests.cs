@@ -694,7 +694,7 @@ namespace ProjectLucid.Tests
                 Populate(rig);
                 PrepareStorage(out List<IMetaGameUnlock> unlocks, out List<ApplicationStateEvent> events);
 
-                Assert.That((bool)Call(rig.Container, "TryCollectReward"), Is.False);
+                Assert.That((bool)Call(rig.Container, "TryCollectReward", false), Is.False);
                 rig.Container.Action_CollectReward();
 
                 Assert.That(rig.First.Calls, Does.Not.Contain("Save"));
