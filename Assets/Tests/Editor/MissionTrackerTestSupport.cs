@@ -112,6 +112,8 @@ namespace ProjectLucid.Tests
             owned.LeaseRow<TimeTrialLeaderboardManager>();
             owned.LeaseRow<GameplayIslandManager>();
             owned.LeaseRow<UIManager>();
+            // The level manager's field initialisers create the MissionManager row before the manager is registered into it.
+            owned.LeaseRow<MissionManager>();
             var world = new World { Owned = owned };
             world.Levels = owned.Register(owned.Host("Lucid level manager", false).AddComponent<LevelManager>());
             world.Tracks = owned.Register(owned.Host("Lucid track manager", false).AddComponent<TrackManager>());
