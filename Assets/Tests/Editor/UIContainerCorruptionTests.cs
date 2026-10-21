@@ -12,9 +12,9 @@ namespace ProjectLucid.Tests
     // UIContainerCorruption (Game.Runtime 0200089f, x86-64 0x629530..0x629F50, closure 020008a0) as a real
     // component on an owned inactive host with a real Animation of legacy clips. The meter is never given an
     // Awake or OnDestroy: those use the type's static UIManager reference, whose registry row the type
-    // initialiser would create permanently. Not covered either: the disable branch of SetEnabled, which hands the
-    // two callbacks to CoroutineUtils.OnPredicateActive and so starts a coroutine on the process-wide host; its
-    // predicate (the closure) is covered on its own.
+    // initialiser creates when the first instance is made, so every case leases it. Not covered either: the disable
+    // branch of SetEnabled, which hands the two callbacks to CoroutineUtils.OnPredicateActive and so starts a coroutine
+    // on the process-wide host; its predicate (the closure) is covered on its own.
     public sealed class UIContainerCorruptionTests
     {
         private sealed class Rig
@@ -34,6 +34,8 @@ namespace ProjectLucid.Tests
 
         private static void WithMeter(Action<Owned, Rig> body) => Owned.Run(owned =>
         {
+            // The first instance runs the type initialiser, which caches the static UIManager reference.
+            owned.LeaseRow<UIManager>();
             var rig = new Rig();
             rig.Root = owned.Host("Lucid corruption root", false);
             GameObject animated = owned.Host("Lucid corruption animation", true);
