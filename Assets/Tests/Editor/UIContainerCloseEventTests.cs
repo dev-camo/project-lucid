@@ -181,6 +181,7 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 LeaseLevelManagerRows(owned);
+                owned.LeaseRow<LevelManager>(); // GameplayLevelCategory's field initialiser caches its reference
                 var intro = owned.Host("Lucid act intro", false).AddComponent<UIContainerActTransitionIntro>();
                 var levelManager = owned.Host("Lucid level manager", false).AddComponent<LevelManager>();
                 var definition = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
