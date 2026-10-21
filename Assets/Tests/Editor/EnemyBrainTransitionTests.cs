@@ -272,6 +272,10 @@ namespace ProjectLucid.Tests
             var brain = new EnemyBrain();
             brain.Initialise(enemy, NewFsm());
             Call(enemy, "RegisterToEnemyManager", manager);
+            // CreateInstance sends Awake, whose ActorDefinition.UpdateCachedValues (0x7A8060) calls
+            // Settings.UpdateCachedValues on the unassigned Settings (+0x28) with no null test.
+            UnityEngine.TestTools.LogAssert.Expect(LogType.Exception,
+                new System.Text.RegularExpressions.Regex("^NullReferenceException: Object reference not set to an instance of an object$"));
             var definition = owned.Track(ScriptableObject.CreateInstance<EnemyDefinition>());
             definition.Traits = new EnemyTraits();
             configure?.Invoke(definition.Traits);
