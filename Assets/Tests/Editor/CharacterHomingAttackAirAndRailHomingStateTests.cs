@@ -103,20 +103,6 @@ namespace ProjectLucid.Tests
             body(owned, character, ability, definition);
         });
 
-        private static void WithInvariantCulture(Action body)
-        {
-            CultureInfo culture = CultureInfo.CurrentCulture;
-            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-            try
-            {
-                body();
-            }
-            finally
-            {
-                CultureInfo.CurrentCulture = culture;
-            }
-        }
-
         private static void ActivateTarget(Owned owned, Character character, IHomingAbility ability, float speed, float rotationalSpeed)
         {
             GameObject target = owned.Host("Lucid homing target");
@@ -222,12 +208,6 @@ namespace ProjectLucid.Tests
         }
 
         // ---- Declarations ----
-
-        private static string[] AttributeNames(Type type) => type.GetCustomAttributesData()
-            .Where(data => data.AttributeType != typeof(SerializableAttribute))
-            .Select(data => data.AttributeType.Name == "Il2CppSetOptionAttribute"
-                ? "Il2CppSetOption:" + Convert.ToInt32(data.ConstructorArguments[0].Value)
-                : data.AttributeType.Name.Replace("Attribute", "")).ToArray();
 
         private static Type Nested(Type owner, string name) => owner.GetNestedType(name, BindingFlags.Public | BindingFlags.NonPublic);
 

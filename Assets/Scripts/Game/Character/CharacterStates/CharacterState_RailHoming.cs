@@ -58,7 +58,7 @@ namespace HardlightProject
 				if (!Physics.Raycast(center, direction, distance, character.CollisionMask, QueryTriggerInteraction.Ignore))
 				{
 					TAbility ability = GetAbility(character);
-					float speed = ability.GetAdditionalSpeed(time) + activeTarget.Speed;
+					float speed = activeTarget.Speed + ability.GetAdditionalSpeed(time);
 					float stepDistance = speed * deltaTime;
 					if (stepDistance > distance)
 					{
@@ -118,7 +118,7 @@ namespace HardlightProject
 		// 060015db (1.10.1 RVA 0xE76170, shared generic)
 		private CharacterAbilityDefinition_RailsHoming GetRailsHomingDefinition(Character character)
 		{
-			return GetAbility(character).DefinitionBase as CharacterAbilityDefinition_RailsHoming;
+			return GetAbility(character).CharacterAbilityDefinition as CharacterAbilityDefinition_RailsHoming;
 		}
 	}
 }

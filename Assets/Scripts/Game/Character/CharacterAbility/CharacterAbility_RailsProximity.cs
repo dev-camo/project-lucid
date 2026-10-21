@@ -1,6 +1,6 @@
-using Unity.IL2CPP.CompilerServices;
 using System.Text;
 using Hardlight;
+using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
 namespace HardlightProject
@@ -30,6 +30,7 @@ namespace HardlightProject
 			{
 				return;
 			}
+			IsTriggered = false;
 			if (!ValidToTrigger())
 			{
 				m_targetRequiresRefresh = true;

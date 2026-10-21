@@ -1,6 +1,6 @@
-using Unity.IL2CPP.CompilerServices;
 using System.Text;
 using Hardlight;
+using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
 namespace HardlightProject
@@ -40,7 +40,7 @@ namespace HardlightProject
 			m_railDefinition = ProcessManager.GetSystem<DataManager>().RailDefinitions[RailType.Default];
 		}
 
-		// 0600127c (1.10.1 RVA 0x750900); the native body inlines the targeting timer update. A queued rail target action
+		// 0600127c (1.10.1 RVA 0x750900); the base targeting update runs first (0x750989). A queued rail target action
 		// locks the pending target, and a refresh request re-projects the cone.
 		protected override void DoOnUpdate(CharacterBrain brain, float deltaTime)
 		{
@@ -61,8 +61,7 @@ namespace HardlightProject
 			bool pendingTargetIsValid = m_character.HomingPool.PendingTargetIsValidForAbility(this);
 			if (pendingTargetIsValid && brain.ActionStateQueued.GetValue(GameAction.CharacterRailTarget))
 			{
-				float homingVelocity = Definition.HomingVelocity;
-				m_character.HomingPool.LockPendingTarget(homingVelocity, m_character.WorldVelocity, Definition.HomingRotationalVelocity);
+				m_character.HomingPool.LockPendingTarget(Definition.HomingVelocity, m_character.WorldVelocity, Definition.HomingRotationalVelocity);
 				IsTriggered = true;
 				m_targetRequiresRefresh = false;
 			}
@@ -112,7 +111,7 @@ namespace HardlightProject
 			m_cone.Distance = cameraDistance + Definition.HomingDistance;
 			m_cone.Step = Definition.HomingProjectDistanceStep;
 			m_cone.Tangents = Definition.HomingProjectConeTangents;
-			if (!m_character.TrackManager.TryGetProjectedRailHit(m_cone, m_character, ref m_targetedLocation, null, new System.Func<ISurface, bool>(IsSurfaceTargetable)))
+			if (!m_character.TrackManager.TryGetProjectedRailHit(m_cone, m_character, ref m_targetedLocation, null, IsSurfaceTargetable))
 			{
 				return;
 			}

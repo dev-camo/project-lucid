@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Hardlight;
@@ -87,5 +88,39 @@ namespace ProjectLucid.Tests
 
         internal static int Count(List<MethodBase> calls, string typeName, string name) =>
             calls.Count(m => (m.DeclaringType.Name == typeName || m.DeclaringType.Name.StartsWith(typeName + "`", StringComparison.Ordinal)) && m.Name == name);
+
+        // A brain with no input of its own, for abilities whose update reads the queued actions.
+        internal sealed class RailsBrain : CharacterBrain
+        {
+            public override void Close()
+            {
+            }
+        }
+
+        // Keeps the targeting interval from firing, so only the refresh request that the ability itself makes is seen.
+        internal static void SuppressTargetingRefresh(object ability) => Set(ability, "m_nextTargetIntervalTime", 100f);
+
+        internal static bool RefreshRequested(object ability) => Get<bool>(ability, "m_targetRequiresRefresh");
+
+        // Serializable is a TypeDef flag, not a CustomAttribute row, but Mono's reflection reports it among the attributes.
+        internal static string[] AttributeNames(Type type) => type.GetCustomAttributesData()
+            .Where(data => data.AttributeType != typeof(SerializableAttribute))
+            .Select(data => data.AttributeType.Name == "Il2CppSetOptionAttribute"
+                ? "Il2CppSetOption:" + Convert.ToInt32(data.ConstructorArguments[0].Value)
+                : data.AttributeType.Name.Replace("Attribute", "")).ToArray();
+
+        internal static void WithInvariantCulture(Action body)
+        {
+            CultureInfo culture = CultureInfo.CurrentCulture;
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            try
+            {
+                body();
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = culture;
+            }
+        }
     }
 }

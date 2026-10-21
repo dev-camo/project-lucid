@@ -25,13 +25,6 @@ namespace ProjectLucid.Tests
     // 0x75147D..0x75176F), and the bounds calculation of OnDrawGizmosSelected, whose drawing calls are absent from the binary.
     public sealed class CharacterRailsTargetingAbilityTests
     {
-        private sealed class RailsBrain : CharacterBrain
-        {
-            public override void Close()
-            {
-            }
-        }
-
         private static void WithTargeting(Action<Owned, CharacterGravityVectorProbe, CharacterAbility_RailsTargeting, CharacterAbilityDefinition_RailsTargeting> body) => Owned.Run(owned =>
         {
             owned.LeaseRow<GameplayIslandManager>();
@@ -85,12 +78,7 @@ namespace ProjectLucid.Tests
                 .SelectMany(group => (List<CharacterHomingPool.PooledTarget>)group.GetType().GetProperty("PooledTargets").GetValue(group)).ToList();
         }
 
-        // Keeps the targeting interval from firing, so only the refresh request that the ability itself makes is seen.
-        private static void SuppressTargetingRefresh(object ability) => Set(ability, "m_nextTargetIntervalTime", 100f);
-
         private static void Update(object ability, CharacterBrain brain) => Call(ability, "DoOnUpdate", brain, 0.02f);
-
-        private static bool RefreshRequested(object ability) => Get<bool>(ability, "m_targetRequiresRefresh");
 
         // ---- Properties ----
 
@@ -330,35 +318,20 @@ namespace ProjectLucid.Tests
         [Test]
         public void TheDebugTextEndsWithTheProjectDistanceAndConeAngles()
         {
-            CultureInfo culture = CultureInfo.CurrentCulture;
-            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
-            try
+            WithInvariantCulture(() => WithTargeting((owned, character, ability, definition) =>
             {
-                WithTargeting((owned, character, ability, definition) =>
-                {
-                    var text = new StringBuilder();
-                    Call(ability, "GetDebugExtraInfo", text);
-                    Assert.That(text.ToString(), Does.EndWith("ProjectDistance = 1 ProjectConeAngles = (30.0, 30.0) "));
-                    definition.HomingDistance = 2.5f;
-                    definition.HomingProjectConeAngle = new Vector2(10f, 20.5f);
-                    text.Clear();
-                    Call(ability, "GetDebugExtraInfo", text);
-                    Assert.That(text.ToString(), Does.EndWith("ProjectDistance = 2.5 ProjectConeAngles = (10.0, 20.5) "));
-                });
-            }
-            finally
-            {
-                CultureInfo.CurrentCulture = culture;
-            }
+                var text = new StringBuilder();
+                Call(ability, "GetDebugExtraInfo", text);
+                Assert.That(text.ToString(), Does.EndWith("ProjectDistance = 1 ProjectConeAngles = (30.0, 30.0) "));
+                definition.HomingDistance = 2.5f;
+                definition.HomingProjectConeAngle = new Vector2(10f, 20.5f);
+                text.Clear();
+                Call(ability, "GetDebugExtraInfo", text);
+                Assert.That(text.ToString(), Does.EndWith("ProjectDistance = 2.5 ProjectConeAngles = (10.0, 20.5) "));
+            }));
         }
 
         // ---- Declarations ----
-
-        private static string[] AttributeNames(Type type) => type.GetCustomAttributesData()
-            .Where(data => data.AttributeType != typeof(SerializableAttribute))
-            .Select(data => data.AttributeType.Name == "Il2CppSetOptionAttribute"
-                ? "Il2CppSetOption:" + Convert.ToInt32(data.ConstructorArguments[0].Value)
-                : data.AttributeType.Name.Replace("Attribute", "")).ToArray();
 
         // The declaration rows of the original DummyDll tables; this is declaration shape, not behaviour.
         [Test]

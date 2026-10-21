@@ -4,6 +4,7 @@ using System.Reflection;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using static ProjectLucid.Tests.CharacterAbilityTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -194,11 +195,6 @@ namespace ProjectLucid.Tests
             Assert.That(Tooltip(camera), Is.EqualTo("If disabled, collider will always project from character position."));
             Assert.That(AttributeTypes(camera), Is.EqualTo(new[] { typeof(TooltipAttribute) }));
         }
-
-        private static string[] AttributeNames(Type type) => type.GetCustomAttributesData()
-            .Select(data => data.AttributeType.Name == "Il2CppSetOptionAttribute"
-                ? "Il2CppSetOption:" + Convert.ToInt32(data.ConstructorArguments[0].Value)
-                : data.AttributeType.Name.Replace("Attribute", "")).ToArray();
 
         private static void AssertAssetMenu(Type type, string name)
         {

@@ -23,13 +23,6 @@ namespace ProjectLucid.Tests
     // (TrySetTargetImmediately, which needs Character.IsActive and so a rigid body, 0xE682C0..0xE68394).
     public sealed class CharacterRailsProximityAbilityTests
     {
-        private sealed class RailsBrain : CharacterBrain
-        {
-            public override void Close()
-            {
-            }
-        }
-
         // CharacterAbility_TargetingHoming's field initialiser creates the camera manager row.
         private static void WithProximity<TAbility, TDefinition>(Action<Owned, CharacterGravityVectorProbe, TAbility, TDefinition> body)
             where TAbility : CharacterAbility, new()
@@ -52,13 +45,7 @@ namespace ProjectLucid.Tests
             Set(ground, "m_maxDistance", maximum);
         }
 
-        // Keeps the targeting interval from firing, so the refresh request of the base update does not hide the request
-        // that the proximity body makes itself.
-        private static void SuppressTargetingRefresh(object ability) => Set(ability, "m_nextTargetIntervalTime", 100f);
-
         private static void Update(object ability) => Call(ability, "DoOnUpdate", new RailsBrain(), 0.02f);
-
-        private static bool RefreshRequested(object ability) => Get<bool>(ability, "m_targetRequiresRefresh");
 
         private static SurfaceLocation Surface(Owned owned, Quaternion rotation, Vector3 position) => new SurfaceLocation
         {
@@ -361,12 +348,6 @@ namespace ProjectLucid.Tests
         }
 
         // ---- Declarations ----
-
-        private static string[] AttributeNames(Type type) => type.GetCustomAttributesData()
-            .Where(data => data.AttributeType != typeof(SerializableAttribute))
-            .Select(data => data.AttributeType.Name == "Il2CppSetOptionAttribute"
-                ? "Il2CppSetOption:" + Convert.ToInt32(data.ConstructorArguments[0].Value)
-                : data.AttributeType.Name.Replace("Attribute", "")).ToArray();
 
         // The declaration rows of the original DummyDll tables; this is declaration shape, not behaviour.
         [Test]

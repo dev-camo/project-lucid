@@ -72,7 +72,7 @@ namespace HardlightProject
 			}
 			float distance = Mathf.Sqrt(characterToTargetDistanceSqr);
 			Vector3 direction = characterToTarget / distance;
-			float speed = ability.GetAdditionalSpeed(time) + activeTarget.Speed;
+			float speed = activeTarget.Speed + ability.GetAdditionalSpeed(time);
 			float stepDistance = speed * deltaTime;
 			if (stepDistance >= distance)
 			{

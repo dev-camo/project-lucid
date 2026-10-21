@@ -1,5 +1,5 @@
-using Unity.IL2CPP.CompilerServices;
 using Hardlight;
+using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
 namespace HardlightProject
@@ -15,8 +15,9 @@ namespace HardlightProject
 			return !m_character.Collider.GroundHit.Hit;
 		}
 
-		// 06001275 (1.10.1 RVA 0x7504C0); the surface must face the direction of travel within the angle tolerance. While
-		// the rail tracker is active the character must instead be moving towards the surface and within the attach distance.
+		// 06001275 (1.10.1 RVA 0x7504C0); without the rail tracker, the cached cosine tolerance must be at least the dot of the
+		// normalised velocity with the surface normal. With the tracker, the height along the normal must exceed
+		// -RailTrackerAttachDistance when moving along the normal, or be below +RailTrackerAttachDistance when moving against it.
 		protected override bool CanJoinSurface(Vector3 position, SurfaceLocation surfaceLocation, bool railTrackerActive)
 		{
 			if (!base.CanJoinSurface(position, surfaceLocation, railTrackerActive))
