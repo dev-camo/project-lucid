@@ -282,15 +282,13 @@ namespace ProjectLucid.Tests
 
         // ControllerMovement has a private setter that the manager's InternalUpdate drives from its save settings,
         // which this fixture does not open; the case calls the setter as the manager's own code does.
-        private static CinemachineCameraManager NewCameraManager(OwnedTimeScaledObjects time, Vector2 movement)
+        // Registered into the manager row before the source is added, so the source's field initialiser takes it.
+        private static CinemachineCameraManager NewCameraManager(Owned owned, OwnedTimeScaledObjects time, Vector2 movement)
         {
-            var manager = AddSource<CinemachineCameraManager>(time, "camera manager");
+            var manager = owned.Register(AddSource<CinemachineCameraManager>(time, "camera manager"));
             typeof(CinemachineCameraManager).GetProperty("ControllerMovement").GetSetMethod(true).Invoke(manager, new object[] { movement });
             return manager;
         }
-
-        private static void UseCameraManager(object source, CinemachineCameraManager manager) =>
-            Set(source, "m_cameraManagerRef", new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), manager));
 
         [Test]
         public void CameraInputBlendsTheMagnitudeOfTheCameraMovement()
@@ -301,8 +299,8 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<CinemachineCameraManager>();
                 owned.LeaseRow<CameraStackManager>();
                 OwnedTimeScaledObjects time = owned.Lease(new OwnedTimeScaledObjects("lucid-camera-input"));
+                NewCameraManager(owned, time, new Vector2(3f, 4f));
                 var source = AddSource<CinemachineParametersBlenderSource_CameraInput>(time, "source");
-                UseCameraManager(source, NewCameraManager(time, new Vector2(3f, 4f)));
                 source.OnUpdate(0.1f);
                 Assert.That(source.BlendValue, Is.EqualTo(5f).Within(Tolerance));
             });
@@ -317,10 +315,9 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<CinemachineCameraManager>();
                 owned.LeaseRow<CameraStackManager>();
                 OwnedTimeScaledObjects time = owned.Lease(new OwnedTimeScaledObjects("lucid-camera-input"));
+                CinemachineCameraManager manager = NewCameraManager(owned, time, new Vector2(0f, -0.001f));
                 var source = AddSource<CinemachineParametersBlenderSource_CameraInput>(time, "source");
                 Set(source, "m_binaryValue", true);
-                CinemachineCameraManager manager = NewCameraManager(time, new Vector2(0f, -0.001f));
-                UseCameraManager(source, manager);
                 source.OnUpdate(0.1f);
                 Assert.That(source.BlendValue, Is.EqualTo(1f));
                 typeof(CinemachineCameraManager).GetProperty("ControllerMovement").GetSetMethod(true).Invoke(manager, new object[] { Vector2.zero });
@@ -380,10 +377,9 @@ namespace ProjectLucid.Tests
                 GameObject host = time.Objects.Create("camera and source");
                 host.SetActive(false);
                 var camera = CinemachineCameraTestRig.AddWithoutPipelineHooks<CinemachineVirtualCamera>(host);
-                var source = host.AddComponent<CinemachineParametersBlenderSource_TimeSinceLive>();
-                CinemachineCameraManager cameraManager = AddSource<CinemachineCameraManager>(time, "camera manager");
+                CinemachineCameraManager cameraManager = owned.Register(AddSource<CinemachineCameraManager>(time, "camera manager"));
                 Set(cameraManager, "m_cinemachineBrain", AddSource<CinemachineBrain>(time, "brain"));
-                UseCameraManager(source, cameraManager);
+                var source = host.AddComponent<CinemachineParametersBlenderSource_TimeSinceLive>();
                 Set(source, "m_maxTimeSeconds", 2f);
 
                 using (CinemachineCameraTestRig.MakeLive(camera))

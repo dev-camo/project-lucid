@@ -43,9 +43,6 @@ namespace ProjectLucid.Tests
         private static void SetCameraMovement(CinemachineCameraManager manager, Vector2 movement) =>
             typeof(CinemachineCameraManager).GetProperty("ControllerMovement").GetSetMethod(true).Invoke(manager, new object[] { movement });
 
-        private static SystemRef<CinemachineCameraManager> RefTo(CinemachineCameraManager manager) =>
-            new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), manager);
-
         // ---- CinemachineControllerMovementProvider (0x71DFB0) ----
 
         [Test]
@@ -64,10 +61,9 @@ namespace ProjectLucid.Tests
         {
             WithCameras((owned, characters, character, time) =>
             {
-                var manager = Inactive<CinemachineCameraManager>(time, "camera manager");
+                var manager = owned.Register(Inactive<CinemachineCameraManager>(time, "camera manager"));
                 SetCameraMovement(manager, new Vector2(0.3f, -0.6f));
                 var provider = Inactive<CinemachineControllerMovementProvider>(time, "provider");
-                Set(provider, "m_cameraManagerRef", RefTo(manager));
                 Assert.That(provider.GetAxisValue(0), Is.EqualTo(0.3f));
                 Assert.That(provider.GetAxisValue(1), Is.EqualTo(-0.6f));
             });
@@ -80,10 +76,9 @@ namespace ProjectLucid.Tests
         {
             WithCameras((owned, characters, character, time) =>
             {
-                var manager = Inactive<CinemachineCameraManager>(time, "camera manager");
+                var manager = owned.Register(Inactive<CinemachineCameraManager>(time, "camera manager"));
                 SetCameraMovement(manager, new Vector2(0.3f, -0.6f));
                 var provider = Inactive<CinemachineControllerMovementProvider>(time, "provider");
-                Set(provider, "m_cameraManagerRef", RefTo(manager));
                 Set(provider, "m_xAxisEnabled", false);
                 Assert.That(provider.GetAxisValue(0), Is.EqualTo(0f));
                 Assert.That(provider.GetAxisValue(1), Is.EqualTo(-0.6f));
@@ -102,9 +97,8 @@ namespace ProjectLucid.Tests
         {
             WithCameras((owned, characters, character, time) =>
             {
-                var manager = Inactive<CinemachineCameraManager>(time, "camera manager");
+                var manager = owned.Register(Inactive<CinemachineCameraManager>(time, "camera manager"));
                 var provider = Inactive<CinemachineControllerMovementProvider>(time, "provider");
-                Set(provider, "m_cameraManagerRef", RefTo(manager));
                 Assert.Throws<IndexOutOfRangeException>(() => provider.GetAxisValue(-1));
             });
         }
@@ -205,7 +199,7 @@ namespace ProjectLucid.Tests
             rig.OutputCamera.nearClipPlane = 0.3f;
             rig.OutputCamera.fieldOfView = 60f;
             var brain = brainHost.AddComponent<CinemachineBrain>();
-            rig.Manager = Inactive<CinemachineCameraManager>(time, "camera manager");
+            rig.Manager = owned.Register(Inactive<CinemachineCameraManager>(time, "camera manager"));
             Set(rig.Manager, "m_cinemachineBrain", brain);
             rig.Feature = time.Objects.Own(ScriptableObject.CreateInstance<RenderObjects>());
             Set(rig.Manager, "m_occlusionRenderFeatures", new ScriptableRendererFeature[] { rig.Feature });
@@ -216,7 +210,6 @@ namespace ProjectLucid.Tests
                 ? (CinemachineVirtualCameraBase)CinemachineCameraTestRig.AddWithoutPipelineHooks<CinemachineFreeLook>(host)
                 : CinemachineCameraTestRig.AddWithoutPipelineHooks<CinemachineVirtualCamera>(host);
             rig.Extension = host.AddComponent<CinemachineClipPlaneCollisionExtension>();
-            Set(rig.Extension, "m_cameraManagerRef", RefTo(rig.Manager));
             Set(rig.Extension, "m_collisionMask", new LayerMask { value = -1 });
             Set(rig.Extension, "m_collisionIgnoreTag", "EditorOnly");
             rig.LookAt = owned.Host("Lucid look at target").transform;

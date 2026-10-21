@@ -20,6 +20,9 @@ namespace ProjectLucid.Tests
     // settings. Expected values are written from the native predicates (cited per case) and from geometry. Not
     // run here: the live-camera branch of ClearSnapToCharacter, the camera sensitivity overrides of
     // ManualXAxis, its clamped OnUpdate branch (it needs registered proxy-setting operations) and RecenterImmediately.
+    // Reflection (Set/Get): the authored, serialized fields (settings assets, axis defaults, events, the manager's brain and
+    // proxy target) have no setters, and a few private frame-state fields (named at their sites) are placed directly so a
+    // single evaluation can be checked; the registry references are filled by registering the managers instead.
     public sealed class CinemachineFreeLookRecenterTests
     {
         private const float Tolerance = 1e-3f;
@@ -47,7 +50,8 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<CameraYAxisProxyManager>();
                 var rig = new Rig<T> { Characters = characters, Character = character };
                 rig.Time = owned.Lease(new OwnedTimeScaledObjects("lucid-free-look-recenter"));
-                rig.Manager = Inactive<CinemachineCameraManager>(rig.Time, "camera manager");
+                // Registered before the extension is added, so its field initialiser takes the row's reference.
+                rig.Manager = owned.Register(Inactive<CinemachineCameraManager>(rig.Time, "camera manager"));
                 rig.Brain = Inactive<CinemachineBrain>(rig.Time, "brain");
                 Set(rig.Manager, "m_cinemachineBrain", rig.Brain);
                 rig.Proxy = Inactive<CameraProxyTarget>(rig.Time, "proxy target");
@@ -62,7 +66,6 @@ namespace ProjectLucid.Tests
                 Set(rig.Settings, "m_angleRecenteringTimeMultiplierCurve", AnimationCurve.Constant(0f, 180f, 1f));
                 Set(rig.Settings, "m_angleMultiplierLimitByVelocityCurve", AnimationCurve.Constant(0f, 10f, 0f));
                 Set(rig.Extension, "m_defaultSettingsDefinition", rig.Settings);
-                Set(rig.Extension, "m_cameraManagerRef", new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), rig.Manager));
                 Set(rig.Extension, "m_onYAxisHeadingOverrideStart", Counting(() => rig.StartEvents++));
                 Set(rig.Extension, "m_onYAxisHeadingOverrideEnd", Counting(() => rig.EndEvents++));
                 SetActorProperty(character, "UpDirection", Vector3.up);
@@ -331,6 +334,7 @@ namespace ProjectLucid.Tests
             WithRig<CinemachineRecenterHeadingExtension_FreeLookCameraXAxis>((owned, rig) =>
             {
                 SetHeading(rig.Settings, CameraRecenterHeadingDefinition_FreeLook.HeadingDefinition.PositionDelta);
+                // Reflection: the position FixedUpdate remembers from the previous frame (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_previousTargetPosition", new Vector3(3f, 0f, 0f));
                 SetActorProperty(rig.Character, "WorldPosition", new Vector3(3f, 2f, 4f));
                 (Vector3 forward, _) = Directions(rig);
@@ -367,6 +371,7 @@ namespace ProjectLucid.Tests
                 target.rotation = Quaternion.Euler(0f, 90f, 0f);
                 var headingOverride = new CameraHeadingOverride { Target = target, Settings = new CameraHeadingOverride.CameraHeadingOverrideSettings() };
                 rig.Manager.ApplyCameraSettingOverride(CameraSettingType.HeadingOverride, headingOverride);
+                // Reflection: a flag an earlier override frame raised (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_headingOverrideActive", true); // EvaluateRecentering raises it when an override applies.
 
                 (Vector3 forward, Vector3 up) = Directions(rig);
@@ -410,10 +415,13 @@ namespace ProjectLucid.Tests
             WithRig<CinemachineRecenterHeadingExtension_FreeLookCameraXAxis>((owned, rig) =>
             {
                 Set(rig.Settings, "m_stoppedInputDisableRecenterSeconds", 1f);
+                // Reflection: the time stamp a prior fixed frame took (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_stopIdleRecenterTimeStamp", Time.fixedTime - 1000f);
                 Assert.That(MaintainHeading(rig, true), Is.False, "window expired, recentering already on");
+                // Reflection: the time stamp a prior fixed frame took (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_stopIdleRecenterTimeStamp", Time.fixedTime);
                 Assert.That(MaintainHeading(rig, true), Is.True, "inside the window");
+                // Reflection: the time stamp a prior fixed frame took (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_stopIdleRecenterTimeStamp", Time.fixedTime - 1000f);
                 Set(rig.Extension, "m_keepCameraHeadingWhileIdle", true);
                 Assert.That(MaintainHeading(rig, true), Is.True, "kept while idle");
@@ -428,13 +436,17 @@ namespace ProjectLucid.Tests
             WithRig<CinemachineRecenterHeadingExtension_FreeLookCameraXAxis>((owned, rig) =>
             {
                 Set(rig.Settings, "m_stoppedInputDisableRecenterSeconds", 1f);
+                // Reflection: the time stamp a prior fixed frame took (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_stopIdleRecenterTimeStamp", Time.fixedTime - 1000f);
                 Set(rig.Character, "m_cameraForwardOnCharacterPlane", Vector3.forward);
                 Assert.That(MaintainHeading(rig, false), Is.True, "aligned: dot 1");
+                // Reflection: the camera forward the camera pipeline writes each frame (no setter) (private frame state, placed to check one evaluation).
                 Set(rig.Character, "m_cameraForwardOnCharacterPlane", Vector3.right);
                 Assert.That(MaintainHeading(rig, false), Is.False, "perpendicular: dot 0");
+                // Reflection: the camera forward the camera pipeline writes each frame (no setter) (private frame state, placed to check one evaluation).
                 Set(rig.Character, "m_cameraForwardOnCharacterPlane", new Vector3(0.8f, 0f, 0.6f));
                 Assert.That(MaintainHeading(rig, false), Is.False, "dot 0.6 is below 0.7071");
+                // Reflection: the camera forward the camera pipeline writes each frame (no setter) (private frame state, placed to check one evaluation).
                 Set(rig.Character, "m_cameraForwardOnCharacterPlane", new Vector3(0.6f, 0f, 0.8f));
                 Assert.That(MaintainHeading(rig, false), Is.True, "dot 0.8 is above 0.7071");
             });
@@ -616,6 +628,7 @@ namespace ProjectLucid.Tests
             WithRig<CinemachineRecenterHeadingExtension_FreeLookCameraXAxis>((owned, rig) =>
             {
                 SetMode(rig.Settings, CameraRecenterHeadingDefinition_FreeLook.RecenteringMode.Never);
+                // Reflection: a flag an earlier override frame raised (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_overrideWaitAfterInput", true);
                 Set(rig.Extension, "m_overrideResetAfterInputTimer", 5f);
                 Set(rig.Extension, "m_headingOverrideActive", true);
@@ -719,6 +732,7 @@ namespace ProjectLucid.Tests
                     settings.OverrideXAxisRecenteringTime = true;
                     settings.XAxisRecenteringTime = 0.5f;
                 });
+                // Reflection: a flag an earlier override frame raised (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_overrideWaitAfterInput", true);
                 Set(rig.Extension, "m_overrideResetAfterInputTimer", 0.2f);
                 AxisState.Recentering recentering = Enabled(false, 9f);
@@ -726,6 +740,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(rig.Extension, "m_overrideResetAfterInputTimer"), Is.EqualTo(0.3f).Within(Tolerance));
                 Assert.That(recentering.m_enabled, Is.False, "still waiting");
 
+                // Reflection: a timer earlier override frames accumulated (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_overrideResetAfterInputTimer", 2f);
                 Assert.That(UpdateWithOverride(rig, headingOverride, ref recentering, 0.1f), Is.True);
                 Assert.That(Get<bool>(rig.Extension, "m_overrideWaitAfterInput"), Is.False);
@@ -851,9 +866,11 @@ namespace ProjectLucid.Tests
             });
         }
 
-        private static CameraYAxisProxyManager NewYAxisProxy<T>(Rig<T> rig, Vector3 targetForward) where T : CinemachineRecenterHeadingExtension_FreeLookBase
+        // `register` puts the proxy into the CameraYAxisProxyManager row the extension's reference reads (one proxy per case).
+        private static CameraYAxisProxyManager NewYAxisProxy<T>(Rig<T> rig, Vector3 targetForward, Owned register = null) where T : CinemachineRecenterHeadingExtension_FreeLookBase
         {
             var proxy = Inactive<CameraYAxisProxyManager>(rig.Time, "y axis proxy");
+            if (register != null) register.Register(proxy);
             typeof(CameraYAxisProxyManager).GetProperty("TargetForward").GetSetMethod(true).Invoke(proxy, new object[] { targetForward });
             return proxy;
         }
@@ -918,6 +935,7 @@ namespace ProjectLucid.Tests
         {
             WithRig<CinemachineRecenterHeadingExtension_FreeLookManualXAxis>((owned, rig) =>
             {
+                // Reflection: the range an earlier OnUpdate eased towards (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_currentMaxXAxisAngle", 90f);
                 Call(rig.Extension, "EvaluateXAxisLimit", 10f, 0.1f, 90f, 100f);
                 AxisState axis = rig.Extension.XAxisState;
@@ -935,9 +953,9 @@ namespace ProjectLucid.Tests
             WithRig<CinemachineRecenterHeadingExtension_FreeLookManualXAxis>((owned, rig) =>
             {
                 SetMode(rig.Settings, CameraRecenterHeadingDefinition_FreeLook.RecenteringMode.Never);
-                CameraYAxisProxyManager proxy = NewYAxisProxy(rig, Vector3.forward);
+                CameraYAxisProxyManager proxy = NewYAxisProxy(rig, Vector3.forward, owned);
                 typeof(CameraYAxisProxyManager).GetProperty("SignedAngleDifferenceFromLastForward").GetSetMethod(true).Invoke(proxy, new object[] { 10f });
-                Set(rig.Extension, "m_cameraYAxisProxyManagerRef", new SystemRef<CameraYAxisProxyManager>(ProcessManager.GetDefaultName<CameraYAxisProxyManager>(), proxy));
+                // Reflection: the range an earlier OnUpdate eased towards (private frame state, placed to check one evaluation).
                 Set(rig.Extension, "m_currentMaxXAxisAngle", 33f);
 
                 Call(rig.Extension, "OnUpdate", rig.Character, 0.1f);
@@ -952,21 +970,21 @@ namespace ProjectLucid.Tests
 
         // 0x723657..0x72366B: recentering that was enabled before the evaluation and is disabled after it (mode
         // Never) cancels the axis recentering, which stamps the real time on its last-input field (-1 after
-        // RecenterNow). The axis state has no setter, so the case writes the field to start the recentering.
+        // RecenterNow, which SnapToCharacter performs).
         [Test]
         public void ManualXAxisCancelsTheAxisRecenteringWhenTheEvaluationSwitchesItOff()
         {
             WithRig<CinemachineRecenterHeadingExtension_FreeLookManualXAxis>((owned, rig) =>
             {
                 SetMode(rig.Settings, CameraRecenterHeadingDefinition_FreeLook.RecenteringMode.Never);
-                CameraYAxisProxyManager proxy = NewYAxisProxy(rig, Vector3.forward);
-                Set(rig.Extension, "m_cameraYAxisProxyManagerRef", new SystemRef<CameraYAxisProxyManager>(ProcessManager.GetDefaultName<CameraYAxisProxyManager>(), proxy));
-                AxisState axis = Get<AxisState>(rig.Extension, "m_xAxisState");
-                axis.m_Recentering.m_enabled = true;
-                axis.m_Recentering.RecenterNow();
-                Set(rig.Extension, "m_xAxisState", axis);
+                NewYAxisProxy(rig, Vector3.forward, owned);
+                // SnapToCharacter enables the axis recentering and starts it (RecenterNow, last input -1); the snap itself is
+                // then ended, as it is once the character is close enough, so that the evaluation reaches the mode test.
+                BeginSnap(rig);
+                rig.Extension.ClearSnapToCharacter();
                 var lastInput = typeof(AxisState.Recentering).GetField("mLastAxisInputTime", BindingFlags.Instance | BindingFlags.NonPublic);
                 Assert.That((float)lastInput.GetValue(rig.Extension.XAxisState.m_Recentering), Is.EqualTo(-1f), "precondition");
+                Assert.That(rig.Extension.XAxisState.m_Recentering.m_enabled, Is.True, "precondition");
 
                 Call(rig.Extension, "OnUpdate", rig.Character, 0.1f);
                 Assert.That(rig.Extension.XAxisState.m_Recentering.m_enabled, Is.False);
