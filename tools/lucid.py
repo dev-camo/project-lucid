@@ -79,6 +79,9 @@ def main(argv=None):
     try:
         if args.command == "fingerprint-input":
             from lucidlib.inputfingerprint import fingerprint_input
+            # The command is read-only: never write the report into the bundle it describes.
+            if args.output and args.app.resolve() in (args.output.resolve(), *args.output.resolve().parents):
+                raise ValueError("--output must lie outside the input bundle")
             emit_json(fingerprint_input(args.app), args.output)
             return 0
         if args.command == "compare-input-fingerprints":

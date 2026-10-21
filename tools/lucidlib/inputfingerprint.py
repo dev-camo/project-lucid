@@ -137,6 +137,8 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align):
         masked = []  # byte ranges (relative to the slice) that legitimately change when a bundle is re-signed
         position = 32
         for _ in range(ncmds):
+            if position + 8 > 32 + sizeofcmds:
+                raise ValueError("Load command header at 0x{:x} lies outside sizeofcmds".format(position))
             cmd, cmdsize = struct.unpack_from("<II", view, position)
             if cmdsize < 8 or position + cmdsize > 32 + sizeofcmds:
                 raise ValueError("Malformed load command at 0x{:x}".format(position))
@@ -238,13 +240,27 @@ def fingerprint_metadata(path):
         return {"sanity": sanity, "version": version, "header_size": first, "tables": tables}
 
 
+def _bundle_file(app, relative):
+    """Resolve a critical file without following any symlink, so it is the same file the manifest hashed."""
+    path = app
+    for part in relative.split("/"):
+        path = os.path.join(path, part)
+        if os.path.islink(path):
+            raise ValueError("Critical input path is a symlink: " + relative)
+    if not os.path.isfile(path):
+        raise ValueError("Critical input file is missing: " + relative)
+    return path
+
+
 def fingerprint_input(app):
     """Build the full report for a .app bundle without touching it."""
     app = os.path.abspath(app)
+    if os.path.islink(app):
+        raise ValueError("The input bundle itself is a symlink")
     manifest = build_manifest(app)
     hashes = {item["path"]: item["sha256"] for item in manifest["files"]}
-    assembly = fingerprint_macho(os.path.join(app, inputvariants.GAME_ASSEMBLY))
-    metadata = fingerprint_metadata(os.path.join(app, inputvariants.METADATA))
+    assembly = fingerprint_macho(_bundle_file(app, inputvariants.GAME_ASSEMBLY))
+    metadata = fingerprint_metadata(_bundle_file(app, inputvariants.METADATA))
     binary, meta = hashes.get(inputvariants.GAME_ASSEMBLY), hashes.get(inputvariants.METADATA)
     return {"format": FORMAT, "app": os.path.basename(app), "manifest": manifest,
             "game_assembly": dict(assembly, path=inputvariants.GAME_ASSEMBLY, sha256=binary),

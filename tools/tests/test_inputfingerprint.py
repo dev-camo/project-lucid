@@ -357,6 +357,27 @@ class CompareTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "overruns the slice"):
             inputfingerprint.fingerprint_macho(path)
 
+    def test_load_command_header_outside_sizeofcmds_is_a_value_error(self):
+        path = Path(self.tmp.name) / "short"
+        blob = bytearray(macho(X86_64, UUID_A, SIGNATURE_A))
+        struct.pack_into("<II", blob, 16, 1, 0)  # ncmds=1, sizeofcmds=0
+        path.write_bytes(bytes(blob))
+        with self.assertRaisesRegex(ValueError, "outside sizeofcmds"):
+            inputfingerprint.fingerprint_macho(path)
+
+    def test_symlinked_critical_files_are_refused(self):
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir()
+        for relative in ("Contents/Frameworks/GameAssembly.dylib", "Contents/Resources/Data/il2cpp_data"):
+            with self.subTest(relative=relative):
+                app = make_app(Path(self.tmp.name) / relative.replace("/", "_"))
+                target = app / relative
+                moved = outside / target.name
+                target.rename(moved)
+                target.symlink_to(moved)
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    inputfingerprint.fingerprint_input(app)
+
     @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root can read every directory")
     def test_unreadable_directory_fails_instead_of_shrinking_the_manifest(self):
         app = make_app(self.tmp.name)
@@ -386,6 +407,13 @@ class CompareTests(unittest.TestCase):
         old = dict(self.report(), format=1)
         with self.assertRaisesRegex(ValueError, "Unsupported fingerprint format 1"):
             inputfingerprint.compare_fingerprints(old, self.report())
+
+    def test_cli_refuses_an_output_inside_the_bundle(self):
+        app = make_app(self.tmp.name)
+        out = app / "Contents" / "report.json"
+        with mock.patch("sys.stderr"):
+            self.assertNotEqual(0, lucid.main(["fingerprint-input", str(app), "--output", str(out)]))
+        self.assertFalse(out.exists())
 
     def test_cli_round_trip(self):
         app = make_app(self.tmp.name)
