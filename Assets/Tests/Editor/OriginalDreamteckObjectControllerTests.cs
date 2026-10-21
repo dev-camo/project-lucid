@@ -20,7 +20,8 @@ namespace ProjectLucid.Tests
     // EditMode runs the editor compile of the original text, which adds editor-only code to the shipped methods. The copies
     // are instantiated through the player path (the editor branch uses PrefabUtility.InstantiatePrefab, which returns null for
     // a scene object, so retainPrefabInstancesInEditor is switched off), Clear destroys the copies at once while not playing,
-    // and the tests of the queued rebuild cache the play state the way play mode does (DreamteckPlayState).
+    // and the shipped branches (the rebuild a setter queues, Clear's deferred Destroy) are covered in play mode by
+    // OriginalDreamteckObjectControllerPlayModeTests; here the setters build at once, as the editor text does.
     public sealed class OriginalDreamteckObjectControllerTests
     {
         private const float Tolerance = 1e-3f;
@@ -205,82 +206,6 @@ namespace ProjectLucid.Tests
             Assert.That(controller.customOffsetRule == null, Is.True);
             Assert.That(controller.customRotationRule == null, Is.True);
             Assert.That(controller.customScaleRule == null, Is.True);
-        }
-
-        // Every setter 0x4a72c0..0x4a7c10 returns without a rebuild for an equal value and queues exactly one for a new one; the
-        // vector setters compare with Vector3 equality, the rotationOffset setter with both limits. The play state is cached as
-        // play mode does: with it unset the editor text rebuilds at once and the queued build never runs from Update.
-        [Test]
-        public void SettersQueueARebuildOnlyForChanges()
-        {
-            SplineComputer line = NewLine();
-            ObjectController controller = DreamteckPlayState.Cache(NewBareController(line));
-            controller.RebuildImmediate();
-            int builds = 0;
-            controller.onPostBuild += delegate { builds++; };
-            ObjectControllerSineRule rule = ScriptableObject.CreateInstance<ObjectControllerSineRule>();
-            _owned.Add(rule);
-
-            Action[] same =
-            {
-                () => controller.rotationOffset = controller.rotationOffset,
-                () => controller.objectPositioning = controller.objectPositioning,
-                () => controller.iteration = controller.iteration,
-                () => controller.randomSeed = controller.randomSeed,
-                () => controller.minOffset = controller.minOffset,
-                () => controller.maxOffset = controller.maxOffset,
-                () => controller.offsetUseWorldCoords = controller.offsetUseWorldCoords,
-                () => controller.minRotation = controller.minRotation,
-                () => controller.maxRotation = controller.maxRotation,
-                () => controller.minScaleMultiplier = controller.minScaleMultiplier,
-                () => controller.maxScaleMultiplier = controller.maxScaleMultiplier,
-                () => controller.uniformScaleLerp = controller.uniformScaleLerp,
-                () => controller.shellOffset = controller.shellOffset,
-                () => controller.applyRotation = controller.applyRotation,
-                () => controller.rotateByOffset = controller.rotateByOffset,
-                () => controller.applyScale = controller.applyScale,
-                () => controller.evaluateOffset = controller.evaluateOffset,
-                () => controller.minObjectDistance = controller.minObjectDistance,
-                () => controller.maxObjectDistance = controller.maxObjectDistance,
-                () => controller.customOffsetRule = controller.customOffsetRule,
-                () => controller.customRotationRule = controller.customRotationRule,
-                () => controller.customScaleRule = controller.customScaleRule
-            };
-            Action[] different =
-            {
-                () => controller.rotationOffset = new Vector3(5f, 5f, 5f),
-                () => controller.objectPositioning = ObjectController.Positioning.Clip,
-                () => controller.iteration = ObjectController.Iteration.Random,
-                () => controller.randomSeed = 7,
-                () => controller.minOffset = new Vector3(1f, 0f, 0f),
-                () => controller.maxOffset = new Vector3(0f, 1f, 0f),
-                () => controller.offsetUseWorldCoords = true,
-                () => controller.minRotation = new Vector3(1f, 0f, 0f),
-                () => controller.maxRotation = new Vector3(0f, 1f, 0f),
-                () => controller.minScaleMultiplier = new Vector3(2f, 1f, 1f),
-                () => controller.maxScaleMultiplier = new Vector3(1f, 2f, 1f),
-                () => controller.uniformScaleLerp = false,
-                () => controller.shellOffset = true,
-                () => controller.applyRotation = false,
-                () => controller.rotateByOffset = true,
-                () => controller.applyScale = true,
-                () => controller.evaluateOffset = 0.5f,
-                () => controller.minObjectDistance = 1f,
-                () => controller.maxObjectDistance = 2f,
-                () => controller.customOffsetRule = rule,
-                () => controller.customRotationRule = rule,
-                () => controller.customScaleRule = rule
-            };
-            Assert.That(same.Length, Is.EqualTo(different.Length));
-            for (int i = 0; i < same.Length; i++)
-            {
-                same[i]();
-                Call(controller, "Update");
-                Assert.That(builds, Is.EqualTo(i), "an equal value does not queue a rebuild (setter " + i + ")");
-                different[i]();
-                Call(controller, "Update");
-                Assert.That(builds, Is.EqualTo(i + 1), "a new value queues one rebuild (setter " + i + ")");
-            }
         }
 
         // The rotationOffset getter 0x4a7630 is the middle of the limits, and the setter 0x4a7670 pins both limits to the value.
@@ -625,47 +550,6 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // The rotation is the sample rotation times Euler(Lerp per axis) with the draws x, y, z in turn from System.Random(seed + 2),
-        // and applyRotation off leaves the copy turned the way the last build left it (as spawned if it was never built). The
-        // fresh controller caches the play state, so its setters queue instead of building at once with applyRotation still on.
-        [Test]
-        public void RotationAppliesTheSampleRotationAndTheRandomEuler()
-        {
-            SplineComputer line = NewLine();
-            ObjectController controller = NewBareController(line);
-            controller.objects = new[] { NewSource("A") };
-            controller.spawnCount = 2;
-            controller.rotationOffset = new Vector3(0f, 90f, 0f);
-            controller.RebuildImmediate();
-            NearRotation(Copy(controller, 0).rotation, line.Evaluate(0.0).rotation * Quaternion.Euler(0f, 90f, 0f), "fixed euler");
-
-            controller.minRotation = Vector3.zero;
-            controller.maxRotation = new Vector3(90f, 180f, 270f);
-            controller.randomSeed = 4;
-            controller.RebuildImmediate();
-            double[] r = Doubles(6, 6);
-            for (int i = 0; i < 2; i++)
-            {
-                Quaternion euler = Quaternion.Euler(Lerp(0f, 90f, r[3 * i]), Lerp(0f, 180f, r[3 * i + 1]), Lerp(0f, 270f, r[3 * i + 2]));
-                NearRotation(Copy(controller, i).rotation, line.Evaluate((double)i).rotation * euler, "random euler of copy " + i);
-            }
-
-            // Build 0x4a99b0 skips the only write to ObjectControl.rotation (0x4aa063) and the controls survive the builds, so
-            // the copy keeps the rotation of the previous build.
-            controller.applyRotation = false;
-            controller.RebuildImmediate();
-            Quaternion lastEuler = Quaternion.Euler(Lerp(0f, 90f, r[0]), Lerp(0f, 180f, r[1]), Lerp(0f, 270f, r[2]));
-            NearRotation(Copy(controller, 0).rotation, line.Evaluate(0.0).rotation * lastEuler, "applyRotation off keeps the last built rotation");
-
-            ObjectController fresh = NewBareController(NewLine());
-            DreamteckPlayState.Cache(fresh);
-            fresh.objects = new[] { NewSource("A") };
-            fresh.spawnCount = 2;
-            fresh.applyRotation = false;
-            fresh.RebuildImmediate();
-            NearRotation(Copy(fresh, 0).rotation, Quaternion.identity, "a copy never rotated stays as spawned");
-        }
-
         // rotateByOffset replaces the sample rotation by LookRotation(sample forward, copy position - sample position).
         [Test]
         public void RotateByOffsetLooksAlongTheSampleForwardWithTheOffsetAsUp()
@@ -757,34 +641,6 @@ namespace ProjectLucid.Tests
             NearRotation(Copy(controller, 1).rotation, line.Evaluate(1.0).rotation * Quaternion.AngleAxis(-90f, Vector3.forward), "spiral at percent 1");
         }
 
-        // Build 0x4a8e80 sets the context on the scale rule but reads GetScale from the offset rule; with no offset rule the
-        // build faults (RebuildImmediate logs the message). The play state is cached so that the setters queue: the editor
-        // compile would build at once from the customOffsetRule setter and log the fault a second time.
-        [Test]
-        public void CustomScaleReadsTheOffsetRuleAsShipped()
-        {
-            ObjectControllerSineRule scaleRule = ScriptableObject.CreateInstance<ObjectControllerSineRule>();
-            ObjectControllerSineRule offsetRule = ScriptableObject.CreateInstance<ObjectControllerSineRule>();
-            _owned.Add(scaleRule);
-            _owned.Add(offsetRule);
-            scaleRule.minScale = 5f;
-            scaleRule.maxScale = 5f;
-            offsetRule.minScale = 3f;
-            offsetRule.maxScale = 3f;
-            ObjectController controller = DreamteckPlayState.Cache(NewBareController(NewLine()));
-            controller.objects = new[] { NewSource("A") };
-            controller.spawnCount = 2;
-            controller.applyScale = true;
-            controller.customScaleRule = scaleRule;
-            controller.customOffsetRule = offsetRule;
-            controller.RebuildImmediate();
-            Near(Copy(controller, 0).localScale, new Vector3(3f, 3f, 3f), "the offset rule's scale, not the scale rule's");
-
-            controller.customOffsetRule = null;
-            LogAssert.Expect(LogType.Error, new Regex("Object reference not set"));
-            controller.RebuildImmediate();
-        }
-
         // With the custom distance on, each copy is placed where the previous one travelled to: Lerp(min, max, draw) units further.
         [Test]
         public void CustomObjectDistanceTravelsAlongTheSpline()
@@ -828,34 +684,6 @@ namespace ProjectLucid.Tests
             controller.offsetUseWorldCoords = true;
             controller.RebuildImmediate();
             Near(Copy(controller, 0).position, new Vector3(2f, 3f, 4f), "world offset is not scaled");
-        }
-
-        // The rule's own context is set after the scale was read (0x4a98f3 against 0x4a93be), so the scale comes from the
-        // offset rule's context of the previous copy, or of the previous build for the first one, and is stored as is: no base
-        // scale, no sample size. The play state is cached so that the setters queue: immediate editor builds from the setters
-        // would leave a different stale context before the first RebuildImmediate.
-        [Test]
-        public void CustomScaleUsesTheStaleContextOfTheOffsetRule()
-        {
-            ObjectControllerSineRule scaleRule = ScriptableObject.CreateInstance<ObjectControllerSineRule>();
-            ObjectControllerSineRule offsetRule = ScriptableObject.CreateInstance<ObjectControllerSineRule>();
-            _owned.Add(scaleRule);
-            _owned.Add(offsetRule);
-            offsetRule.minScale = 1f;
-            offsetRule.maxScale = 3f;
-            offsetRule.offset = 0.5f;
-            ObjectController controller = DreamteckPlayState.Cache(NewBareController(NewLine()));
-            controller.objects = new[] { NewSource("A", new Vector3(2f, 2f, 2f)) };
-            controller.spawnCount = 2;
-            controller.applyScale = true;
-            controller.customScaleRule = scaleRule;
-            controller.customOffsetRule = offsetRule;
-            controller.RebuildImmediate();
-            Near(Copy(controller, 0).localScale, new Vector3(3f, 3f, 3f), "a fresh context: percent -0, sin(0.5 pi) = 1");
-            Near(Copy(controller, 1).localScale, new Vector3(3f, 3f, 3f), "copy 1 reads the context of copy 0, not its own (own would be sin(1.5 pi) = -1, 1)");
-            controller.RebuildImmediate();
-            Near(Copy(controller, 0).localScale, new Vector3(1f, 1f, 1f), "copy 0 reads the context copy 1 left in the last build");
-            Near(Copy(controller, 1).localScale, new Vector3(3f, 3f, 3f), "copy 1 reads the context of copy 0");
         }
 
         // The distance draws come from System.Random(seed + 4), one per copy, and Lerp(min, max, draw) units are travelled from the
@@ -955,37 +783,6 @@ namespace ProjectLucid.Tests
             NearRotation(Copy(controller, 0).rotation, Quaternion.LookRotation(Vector3.right, new Vector3(0f, 0f, 3f)) * Quaternion.Euler(0f, 0f, 45f), "look rotation times the euler");
         }
 
-        // The vector setters compare with Vector3 inequality (squared distance against 1e-10, 0x4a73d2..0x4a73dd) and the
-        // rotationOffset setter does so against both limits (0x4a76b5/0x4a76f6): a difference of 1e-6 queues no rebuild (play
-        // state cached, see SettersQueueARebuildOnlyForChanges).
-        [Test]
-        public void NearlyEqualVectorsQueueNoRebuild()
-        {
-            ObjectController controller = DreamteckPlayState.Cache(NewBareController(NewLine()));
-            controller.RebuildImmediate();
-            int builds = 0;
-            controller.onPostBuild += delegate { builds++; };
-            Vector3 tiny = new Vector3(1e-6f, 0f, 0f);
-            Action[] nearly =
-            {
-                () => controller.minOffset = tiny,
-                () => controller.maxOffset = tiny,
-                () => controller.minRotation = tiny,
-                () => controller.minScaleMultiplier = Vector3.one + tiny,
-                () => controller.rotationOffset = tiny
-            };
-            for (int i = 0; i < nearly.Length; i++)
-            {
-                nearly[i]();
-                Call(controller, "Update");
-                Assert.That(builds, Is.EqualTo(0), "setter " + i);
-            }
-
-            controller.minOffset = new Vector3(1e-3f, 0f, 0f);
-            Call(controller, "Update");
-            Assert.That(builds, Is.EqualTo(1), "a larger difference does");
-        }
-
         // set_objectMethod 0x4a6cf0 and GetAll 0x4a8150: the children become the controlled objects, in order, remembering their
         // scale, and only the switch to the children method spawns.
         [Test]
@@ -1046,9 +843,9 @@ namespace ProjectLucid.Tests
         }
 
         // Clear 0x4a7cb0 restores the base scale of every controlled object, deactivates taken over children, and for copies
-        // destroys the copies. The editor text does that with DestroyImmediate while not playing; the player text after the
-        // #if UNITY_EDITOR block calls Destroy, which edit mode refuses, so that branch cannot run in EditMode (shipped
-        // coverage of the deferred Destroy is not reachable here).
+        // destroys the copies. This covers the editor branch: DestroyImmediate while not playing. The player text after the
+        // #if UNITY_EDITOR block calls Destroy, which edit mode refuses, so it cannot run here (shipped
+        // coverage of the deferred Destroy is in OriginalDreamteckObjectControllerPlayModeTests.ClearGivesTheBaseScaleBackAndHidesOrDestroys).
         [Test]
         public void ClearGivesTheBaseScaleBackAndHidesOrDestroys()
         {

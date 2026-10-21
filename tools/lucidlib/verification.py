@@ -6248,7 +6248,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineRendererTests
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectControllerTests." + name for name in (
     "FreshControllerKeepsTheShippedDefaults",
-    "SettersQueueARebuildOnlyForChanges",
     "RotationOffsetIsTheMiddleOfTheLimitsAndPinsBoth",
     "SpawnCountInstantiatesTheCopiesFromTheSourcesInTurn",
     "SpawningNeedsASplineAndSources",
@@ -6265,21 +6264,17 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectControllerTes
     "OffsetIsAppliedInTheSampleFrameOrTheWorldFrame",
     "RandomOffsetsFollowTheSeededGenerator",
     "ShellOffsetPlacesTheCopiesOnTheEllipse",
-    "RotationAppliesTheSampleRotationAndTheRandomEuler",
     "RotateByOffsetLooksAlongTheSampleForwardWithTheOffsetAsUp",
     "ScaleMultipliesTheBaseScaleBySizeAndTheMultiplier",
     "RandomScalesFollowTheSeededGenerator",
     "CustomRulesDriveOffsetAndRotation",
-    "CustomScaleReadsTheOffsetRuleAsShipped",
     "CustomObjectDistanceTravelsAlongTheSpline",
     "SampleSizeScalesTheLocalOffsetAndTheScaleButNotTheWorldOffset",
-    "CustomScaleUsesTheStaleContextOfTheOffsetRule",
     "RandomObjectDistancesFollowTheSeededGenerator",
     "ClipPositioningTravelsOnTheComputerNotTheClippedUser",
     "StretchPositioningLeavesHiddenCopiesHidden",
     "ANullSourceEndsAnAttemptWithoutACopy",
     "RotateByOffsetKeepsTheEulerFactor",
-    "NearlyEqualVectorsQueueNoRebuild",
     "GetChildrenTakesTheChildrenOver",
     "GetAllRecreatesTheControlsAndRereadsTheBaseScale",
     "ClearGivesTheBaseScaleBackAndHidesOrDestroys",
@@ -6685,4 +6680,15 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshPlayModeT
     "RemoveChannelRebuildsAndRejectsABadIndex",
     "SwapChannelsExchangesTheChannelsAndIgnoresBadIndices",
     "UnknownChannelTypeDoesNotAdvanceTheCombineIndex",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectControllerPlayModeTests." + name for name in (
+    "ClearGivesTheBaseScaleBackAndHidesOrDestroys",
+    "CustomScaleReadsTheOffsetRuleAsShipped",
+    "CustomScaleUsesTheStaleContextOfTheOffsetRule",
+    "NearlyEqualVectorsQueueNoRebuild",
+    "RotationAppliesTheSampleRotationAndTheRandomEuler",
+    "SettersQueueARebuildOnlyForChanges",
 ))
