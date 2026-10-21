@@ -149,10 +149,11 @@ namespace ProjectLucid.Tests
         {
             WithRig((owned, rig) =>
             {
+                // The native compare immediates at 0x60C436..0x60C446: 0xC275E621, 0x1828C5EF, 0x7A2212C8.
+                int[] nativeGroundTypes = { -1032460767, 405325295, 2049053384 };
                 foreach (AbilityAimTransformType type in Enum.GetValues(typeof(AbilityAimTransformType)))
                 {
-                    bool ground = type == AbilityAimTransformType.GroundTranslate || type == AbilityAimTransformType.GroundTranslateCameraFacing
-                        || type == AbilityAimTransformType.GroundTranslateRotate;
+                    bool ground = Array.IndexOf(nativeGroundTypes, (int)type) >= 0;
                     Assert.That((bool)Call(rig.Controller, "IsTransformTypeGround", type), Is.EqualTo(ground), type.ToString());
                 }
             });

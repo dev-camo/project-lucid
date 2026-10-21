@@ -218,7 +218,7 @@ namespace ProjectLucid.Tests
             Assert.That(definition.ExitSpeedBySlopeCurve.Evaluate(123f), Is.EqualTo(20f));
         }
 
-        // 0x54220f..0x542224: the cosine of OffsetAngleToWorldUp in degrees. The ground base's cached cosines are
+        // 0x54220f..0x542224: the cosine of OffsetAngleToWorldUp in degrees. The air base's (CharacterAbilityDefinition_Air) cached cosines are
         // computed first (0x5421b3..0x5421ff), so the default 45 degree gravity change cosine is present too.
         [Test]
         public void DashCachedValuesTakeTheCosineOfTheOffsetAngleInDegrees()

@@ -38,6 +38,8 @@ namespace HardlightProject
 
 		private TransporterDefinition m_transporterDefinition;
 
+		// The native code tests this by reference (is not null) in DoOnUpdate, the homing loop of
+		// UpdateTarget and UpdateUI, and with the Unity-object comparison everywhere else.
 		private CharacterCollisionData m_hitCollisionData;
 
 		private AbilityAimTargetType m_aimType;
@@ -113,7 +115,6 @@ namespace HardlightProject
 		}
 
 		// 0600103d (1.10.1 RVA 0x73D020). Releasing the aim dashes to the aimed target.
-		// m_hitCollisionData is tested against null by reference here, as in the native code.
 		protected override void DoOnUpdate(CharacterBrain brain, float deltaTime)
 		{
 			CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target = null;
@@ -326,10 +327,8 @@ namespace HardlightProject
 			float minimumAlignment = Mathf.Min(
 				Mathf.Abs(DefinitionAirChaos.HomingTargetProjectConeCosAngle.x),
 				Mathf.Abs(DefinitionAirChaos.HomingTargetProjectConeCosAngle.y));
-			foreach (KeyValuePair<Collider, CharacterAbilityDefinition_AirChaosAim.HomingTargetAimDefinition> homingTarget in m_homingTargetAimDefinitions)
+			foreach ((Collider collider, CharacterAbilityDefinition_AirChaosAim.HomingTargetAimDefinition aimDefinition) in m_homingTargetAimDefinitions)
 			{
-				Collider collider = homingTarget.Key;
-				CharacterAbilityDefinition_AirChaosAim.HomingTargetAimDefinition aimDefinition = homingTarget.Value;
 				Transform colliderTransform = collider.transform;
 				Vector3 targetPosition = colliderTransform.TransformPoint(aimDefinition.OffsetLocal);
 				if (!m_character.WorldPositionIsOnScreen(targetPosition, DefinitionAirChaos.HomingTargetScreenBorders))
@@ -390,9 +389,8 @@ namespace HardlightProject
 		// 06001045 (1.10.1 RVA 0x740550)
 		private void OnTargetTypeEnter(AbilityAimTargetType aimType)
 		{
-			CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target = null;
 			m_aimType = aimType;
-			if (DefinitionAirChaos.TargetTypes.TryGetValue(aimType, out target))
+			if (DefinitionAirChaos.TargetTypes.TryGetValue(aimType, out CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target))
 			{
 				m_character.TriggerAnimationEnter(target.AnimationDefinition);
 				m_cameraTargetTimerActive = true;
@@ -404,8 +402,7 @@ namespace HardlightProject
 		// target timer restarts; once it runs out the camera override for the target applies.
 		private void OnTargetTypeUpdate(float deltaTime)
 		{
-			CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target = null;
-			if (!DefinitionAirChaos.TargetTypes.TryGetValue(m_aimType, out target))
+			if (!DefinitionAirChaos.TargetTypes.TryGetValue(m_aimType, out CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target))
 				return;
 			if (!target.RequiresLerpToTarget)
 				m_aimLerpActive = false;
@@ -439,8 +436,7 @@ namespace HardlightProject
 		// 06001047 (1.10.1 RVA 0x73E870)
 		private void OnTargetTypeLeave(AbilityAimTargetType aimType)
 		{
-			CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target = null;
-			if (DefinitionAirChaos.TargetTypes.TryGetValue(aimType, out target))
+			if (DefinitionAirChaos.TargetTypes.TryGetValue(aimType, out CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target))
 			{
 				m_character.TriggerAnimationLeave(target.AnimationDefinition);
 				m_cameraTargetTimerActive = false;
@@ -474,10 +470,9 @@ namespace HardlightProject
 		// 0600104a (1.10.1 RVA 0x740600)
 		private bool IsSurfaceTargetableRail(ISurface surface)
 		{
-			bool targetable = false;
 			MetadataGroup metadataGroup = surface.GetSurfaceMetadata().GetGroup(m_railDefinition.MetadataGroupKey);
 			if (metadataGroup != null)
-				return metadataGroup.TryGetValue(m_railDefinition.MetadataTargetableKey, out targetable) & targetable;
+				return metadataGroup.TryGetValue(m_railDefinition.MetadataTargetableKey, out bool targetable) && targetable;
 			return false;
 		}
 
@@ -496,10 +491,9 @@ namespace HardlightProject
 		// 0600104c (1.10.1 RVA 0x740710)
 		private bool IsSurfaceTargetableTransporter(ISurface surface)
 		{
-			TrackerMotionDefinition motionDefinition = null;
 			MetadataGroup metadataGroup = surface.GetSurfaceMetadata().GetGroup(m_transporterDefinition.MetadataGroupKey);
 			if (metadataGroup != null)
-				return metadataGroup.TryGetObject(m_transporterDefinition.MetadataMotionKey, out motionDefinition) && motionDefinition != null;
+				return metadataGroup.TryGetObject(m_transporterDefinition.MetadataMotionKey, out TrackerMotionDefinition motionDefinition) && motionDefinition != null;
 			return false;
 		}
 
@@ -536,7 +530,7 @@ namespace HardlightProject
 		// the collider axis faces against the current aim forward.
 		private CameraAbilityDefinition GetCameraOverride(CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target)
 		{
-			CameraAbilityOverrideDefinition overrideDefinition = null;
+			CameraAbilityOverrideDefinition overrideDefinition;
 			if (target == null)
 				return null;
 			if (m_hitCollisionData == null
@@ -571,7 +565,6 @@ namespace HardlightProject
 		// eases towards the target and the arrows scale in once it has nearly arrived.
 		public bool UpdateUI(float deltaTime, UITargetIndicatorController transforms, Action<Transform> orientateToCamera)
 		{
-			CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target = null;
 			if (!AirActive)
 				return false;
 			Vector3 aimTarget = m_aimPosition + m_aimOffset;
@@ -605,7 +598,7 @@ namespace HardlightProject
 			if (m_hitCollisionData is not null && m_hitCollisionData.HasTargetingModifier)
 				aimRotation = aimRotation * m_hitCollisionData.TargetingModifier.UIRotationOffset;
 			transforms.Set(m_aimLerpPosition, aimRotation, m_groundPosition, m_groundRotation, scale);
-			if (DefinitionAirChaos.TargetTypes.TryGetValue(m_aimType, out target))
+			if (DefinitionAirChaos.TargetTypes.TryGetValue(m_aimType, out CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target))
 			{
 				transforms.UpdateTarget(deltaTime, target, m_aimType, m_groundType, DefinitionAirChaos.GroundDistance, DefinitionAirChaos.OffsetDistance, DefinitionAirChaos.CollisionMask);
 				return true;
@@ -677,11 +670,10 @@ namespace HardlightProject
 		// filters registers the collider.
 		public void OnTriggerEnter(Collider otherCollider)
 		{
-			Component component = null;
 			foreach (CharacterAbilityDefinition_AirChaosAim.HomingTargetAimDefinition definition in DefinitionAirChaos.HomingTargetDefinitions)
 			{
 				Type targetType = definition.TargetType.Type;
-				component = otherCollider.gameObject.GetComponentInParent(targetType);
+				Component component = otherCollider.gameObject.GetComponentInParent(targetType);
 				if (component == null && !otherCollider.TryGetComponent(targetType, out component))
 					continue;
 				if (component is Enemy enemy)
@@ -704,8 +696,9 @@ namespace HardlightProject
 			m_homingTargetAimDefinitions.Remove(otherCollider);
 		}
 
-		// 0600105c (1.10.1 RVA 0x740270). Drops every homing target that is a transform
-		// ancestor of another; a collider is compared with the whole list, itself included.
+		// 0600105c (1.10.1 RVA 0x740270). Drops every homing target that has another
+		// registered target among its transform ancestors; each collider is compared with the
+		// whole list, itself included.
 		private void RemoveHomingTargetChildren()
 		{
 			m_homingTargets.Clear();

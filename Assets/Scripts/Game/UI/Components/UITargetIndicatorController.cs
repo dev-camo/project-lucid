@@ -117,7 +117,8 @@ namespace HardlightProject
 
 		// 0600300c (1.10.1 RVA 0x60BCB0). A scale multiplier above one scales both arrows
 		// and holds their animation at the start; otherwise the arrow clocks advance. The
-		// disc and ring are hidden for ground types when there is no ground target.
+		// disc is hidden whenever there is no ground target; the ring is hidden then only when its
+		// transform type is a ground type.
 		public void UpdateTarget(float deltaTime, CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget target, AbilityAimTargetType aimType, AbilityAimTargetType groundType, float groundDistance, float groundOffset, LayerMask collisionMask)
 		{
 			m_aimTarget = target;
@@ -132,7 +133,7 @@ namespace HardlightProject
 			{
 				m_aimTarget.UpdateAnimation(ref m_arrow0AnimTime, ref m_arrow1AnimTime, deltaTime);
 			}
-			m_overrideRotation = new Quaternion?(m_aimTarget.TargetRotation);
+			m_overrideRotation = m_aimTarget.TargetRotation;
 			SetTransform(m_disc, groundType != AbilityAimTargetType.None ? m_aimTarget.DiscTransformType : AbilityAimTransformType.None);
 			AbilityAimTransformType ringTransformType = m_aimTarget.RingTransformType;
 			if (IsTransformTypeGround(ringTransformType) && groundType == AbilityAimTargetType.None)
@@ -142,7 +143,7 @@ namespace HardlightProject
 			m_overrideRotation = null;
 			SetTransformAnimation(m_arrow0, m_aimTarget.Arrow0Enabled, m_aimTarget.Arrow0PositionAnimation, m_aimTarget.Arrow0RotationAnimation, m_arrow0AnimTime);
 			SetTransformAnimation(m_arrow1, m_aimTarget.Arrow1Enabled, m_aimTarget.Arrow1PositionAnimation, m_aimTarget.Arrow1RotationAnimation, m_arrow1AnimTime);
-			m_overrideRotation = new Quaternion?(m_aimTarget.ArrowsRotation);
+			m_overrideRotation = m_aimTarget.ArrowsRotation;
 			SetTransform(m_arrowsParent, m_aimTarget.ArrowsTransformType);
 			m_overrideRotation = null;
 			m_arrow0Scaler.localScale = arrowScale;
@@ -163,8 +164,8 @@ namespace HardlightProject
 		}
 
 		// 0600300e (1.10.1 RVA 0x60C590). Only an air aim shows projections. The route from
-		// the character to the aim point is traced once per cycle; each projection then
-		// advances along it at a speed scaled by the route length, and the first one still
+		// the character to the aim point is traced on every update (only the projection reset
+		// happens once per m_projectionTime cycle); each projection then advances along it at a speed scaled by the route length, and the first one still
 		// visible (and, when the route hit something, not below the hit) places the
 		// location marker. Returns whether the aim type is Air.
 		private bool UpdateProjections(AbilityAimTargetType aimType, float groundDistance, float groundOffset, LayerMask collisionMask, float deltaTime)
@@ -173,13 +174,13 @@ namespace HardlightProject
 			bool isAir = aimType == AbilityAimTargetType.Air;
 			bool wasActive = m_projectionLocation.gameObject.activeSelf;
 			m_projectionLocation.gameObject.SetActive(isAir);
-			if (aimType != AbilityAimTargetType.Air)
+			if (!isAir)
 			{
 				m_projectionAim.gameObject.SetActive(false);
 				m_projectionGround.gameObject.SetActive(false);
 				m_projectionTarget.gameObject.SetActive(false);
 				m_projectionLocationRenderer.SetActive(false);
-				return aimType == AbilityAimTargetType.Air;
+				return false;
 			}
 			if (!wasActive || m_projectionTotalTime >= m_projectionTime)
 				ResetProjections();
@@ -200,11 +201,11 @@ namespace HardlightProject
 				if (routeHit && projection.RaycastHit && Vector3.Dot(projection.Position - hitInfo.point, m_character.GravityNormalised) > 0f)
 					continue;
 				SetProjectionLocation(projection.Position, groundDistance, groundOffset, collisionMask);
-				return aimType == AbilityAimTargetType.Air;
+				return true;
 			}
 			m_projectionLocationVisual.gameObject.SetActive(false);
 			m_projectionGround.gameObject.SetActive(false);
-			return aimType == AbilityAimTargetType.Air;
+			return true;
 		}
 
 		// 0600300f (1.10.1 RVA 0x60CF30)
