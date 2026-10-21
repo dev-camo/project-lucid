@@ -174,10 +174,10 @@ namespace HardlightProject
             character.OrientateToPlaneWithLookDirection(surfaceNormal, -gravity);
         }
 
-        // 0600154e. Succeeds when a climbable position lies within snapDistance. Moving onto a new collider
-        // needs that collider to be climbable; the character is then placed SnapGroundCollisionBuffer behind the hit point along the surface
-        // normal (just into the surface) and turned
-        // to it unless the normal is unchanged.
+        // 0600154e. Succeeds when a climbable position lies within snapDistance. Moving onto a new
+        // collider needs that collider to be climbable; the character is then placed
+        // SnapGroundCollisionBuffer behind the hit point along the surface normal (just into the
+        // surface) and turned to it unless the normal is unchanged.
         private bool SnapPositionToSurface(Character character, TAbility ability, float snapDistance, Vector3 currentNormal, out Vector3 surfaceNormal, float deltaTime = 0f, bool limitRotation = false)
         {
             CharacterCollisionData collisionData = null;

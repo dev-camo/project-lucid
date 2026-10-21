@@ -148,8 +148,10 @@ namespace HardlightProject
             }
             m_character.FakeParent.StartParenting(colliderTransform, offset - positionOffset, rotation, point.IgnoreRotation);
             CatchConnector connector = m_data.Catch.Connector;
-            if (connector != null)
-                connector.SetPivots(colliderTransform, m_character.FakeParent.transform, m_attachOffset);
+            // UnityEngine.Object.op_Equality at 0x744194.
+            if (connector == null)
+                return;
+            connector.SetPivots(colliderTransform, m_character.FakeParent.transform, m_attachOffset);
         }
 
         // 060010c1 (1.10.1 RVA 0x744250). Derives the velocity from the distance moved since the last update.
@@ -260,8 +262,8 @@ namespace HardlightProject
             return m_data != null && m_data.FormType != ActorFormType.None ? m_data.FormType : base.GetFormType();
         }
 
-        // 060010c9 (1.10.1 RVA 0x744B10). The native body tests m_data and AnimationDefinition by reference, with no Unity Object
-        // equality, which `?.`/`??` reproduces.
+        // 060010c9 (1.10.1 RVA 0x744B10). The native body tests m_data and AnimationDefinition by
+        // reference, with no Unity Object equality, which `?.`/`??` reproduces.
         public override ActorAnimationDefinition GetAnimationDefinition()
         {
             return m_data?.AnimationDefinition ?? base.GetAnimationDefinition();

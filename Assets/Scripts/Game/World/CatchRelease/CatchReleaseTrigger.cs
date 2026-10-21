@@ -90,10 +90,10 @@ namespace HardlightProject
             DoTriggerEnter(character);
         }
 
-        // 06003e03 (1.10.1 RVA 0x6E58A0) with iterator 02000ac1 (MoveNext 0x6E5B80). Waits out the frames
-        // before the trigger, then for the attach input, attaches, and (for a continuous input) releases
-        // when the input ends. A character that disappears before attaching stops without release; one that disappears
-        // during a continuous hold is released.
+        // 06003e03 (1.10.1 RVA 0x6E58A0) with iterator 02000ac1 (MoveNext 0x6E5B80). Waits out the
+        // frames before the trigger, then for the attach input, attaches, and (for a continuous input)
+        // releases when the input ends. A character that disappears before attaching stops without
+        // release; one that disappears during a continuous hold is released.
         private IEnumerator ProcessStayEvents(Character character)
         {
             for (int frameCount = 0; frameCount < WaitNumberOfFramesBeforeTrigger; frameCount++)
