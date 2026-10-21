@@ -2863,7 +2863,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterGroundStateTests." + name f
     "DeclarationShapeGroundStateKeepsItsBaseAndConstraints",
 ))
 
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves06RailAbilityTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterRailAbilityTests." + name for name in (
     "RailSwitchDefinitionStoresTheNativeDefaults",
     "RailSwitchDefinitionCachesTheSquareOfTheProjectDistance",
     "RailBoostAndStandingDefinitionsStoreTheNativeRailDefaults",
@@ -2883,7 +2883,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves06RailAbilityTests." + name
     "TransitionFiresOnlyWhileTheAbilityHasASwitchInProgress",
     "TransitionKeepsItsGraphNodeAttributes",
 ))
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves06StateTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterRailAndGroundMovementStateTests." + name for name in (
     "LeafStatesReadTheirAbilityTypeFromJson",
     "OrbCollectWithoutAGhostedAnimationNameLeavesItUnset",
     "StatesKeepTheirGraphNodeNames",
