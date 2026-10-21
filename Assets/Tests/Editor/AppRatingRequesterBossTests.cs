@@ -91,6 +91,8 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<MissionManager>();
                 owned.LeaseRow<AudioManager>();
                 owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
+                owned.LeaseRow<GameplayIslandManager>(); // MissionManager's field initialisers create this row and the next
+                owned.LeaseRow<CharacterManager>();
                 SaveManager save = owned.Register(new SaveManager());
                 var game = new SaveDataGame();
                 game.DisableSaving();
