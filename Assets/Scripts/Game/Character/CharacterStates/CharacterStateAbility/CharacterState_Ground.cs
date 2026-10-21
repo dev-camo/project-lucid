@@ -267,8 +267,9 @@ namespace HardlightProject
 		}
 
 		// 06001565 (1.10.1 RVA 0xE71590); returns whether turning is gripped. While the grip is being
-		// restored it is zero. Otherwise the grip comes from the slope-direction curves, and a grip
-		// of zero or less steers the turn input toward the surface and starts the restore time.
+		// restored it is zero. Otherwise the grip comes from the slope-direction curves: a positive grip
+		// steers the turn input toward the surface, and a grip of zero or less starts the restore time
+		// (0xE71CF6 jbe).
 		private bool UpdateTurnGrip(Character character, TAbilityType ability, float deltaTime, ref Vector3 inputForward, ref float inputTurn)
 		{
 			float boostRestoreTimer = character.Storage.GetValue(ActorFSMKeys.GroundBoostRestoreTimer, 0f, true);

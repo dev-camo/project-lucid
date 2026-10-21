@@ -16,9 +16,11 @@ namespace ProjectLucid.Tests
 {
     // Restored Game.Runtime CharacterState_Ground<TAbilityDef, TAbility> (TypeDef 0x02000367, shared x86-64 bodies
     // 0xE6FA00..0xE73190), exercised through a concrete leaf closed over the ground boost ability. The character is a
-    // real component on an owned inactive host; the ability and the state are built by their real constructors. Each
-    // case cites the native comparison it pins and carries a negative control that flips the predicate. Only the camera
-    // proxy settings need a started Character and are not covered here.
+    // real component on an owned inactive host; the ability and the state are built by their real constructors. The
+    // behaviour cases cite the native comparison they pin and carry a negative control that flips the predicate. Run:
+    // UpdateForLanding, UpdateForSlope, UpdateRemainTimer with ProcessQueuedJump and ProcessQueuedBoost, UpdateTurnGrip,
+    // DetectLedgeAhead and UpdateLedgeBraking. Not run here: DoOnEnter, DoUpdate, DoOnLeave, ProcessTurningMovement,
+    // SetCameraProxyTargetSettings, OrientateToGround, CanQueueActions and DebugInfo.
     public sealed class CharMoves05GroundStateTests
     {
         private static readonly Type GroundType = typeof(CharacterState_Ground<CharacterAbilityDefinition_MovementGroundBoost, CharacterAbility_MovementGroundBoost>);

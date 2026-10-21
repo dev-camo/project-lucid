@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 020004ec; bodies translated from the 1.10.1 x86-64 binary.
+	// Original Game.Runtime 020004ec.
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[CreateAssetMenu(fileName = "CharacterAbilityDefinition_MovementGroundBoost", menuName = "HardlightProject/DefinitionData/AbilityDef/MovementGroundBoost", order = 1)]
