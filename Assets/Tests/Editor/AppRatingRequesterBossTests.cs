@@ -52,6 +52,33 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x667ACB (je 0x667AE4) returns false only when the base is false; with the base true (cooldown elapsed, so the
+        // request time is stored and RequestSave returns early on the disabled item) 0x667AE2 (je 0x667AED) reaches Get
+        // only when IsNull is false. No mission manager is registered, so the result is false without a Get call.
+        [Test]
+        public void AnElapsedCooldownWithoutAMissionManagerStillRefusesTheBossRequest()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
+                owned.LeaseRow<MissionManager>();
+                SaveManager save = owned.Register(new SaveManager());
+                var game = new SaveDataGame();
+                game.DisableSaving();
+                Set(save, "m_currentSave", game);
+                game.LastRatingRequestTimestampSeconds = 0;
+                var requester = owned.Track(ScriptableObject.CreateInstance<AppRatingRequesterBoss>());
+
+                long before = TimeUtils.ToUnixTimeSeconds(DateTime.UtcNow);
+                bool result = false;
+                Assert.DoesNotThrow(() => result = (bool)Call(requester, "Validate"));
+                long after = TimeUtils.ToUnixTimeSeconds(DateTime.UtcNow);
+
+                Assert.That(result, Is.False);
+                Assert.That(game.LastRatingRequestTimestampSeconds, Is.InRange(before, after), "the base check returned true and stored the request time");
+            });
+        }
+
         // 0x667A90 ends in the base call, then IsNull (0x667ADB) and a tail call of AnyMissionCompleted (0x667B0F) on
         // Get() with m_bossDefinition (+0x20). The later calls need the base result, a registered manager and a started
         // save, so their order is read from the compiled IL.

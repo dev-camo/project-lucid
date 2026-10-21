@@ -115,6 +115,28 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The exit key is built independently of the entry name (0x7271FB skips only the entry key, then reaches the exit
+        // IsNullOrEmpty check at 0x727220/0x727226).
+        [Test]
+        public void AnExitNameAloneStillBuildsTheExitKey()
+        {
+            WithScene((owned, scene) =>
+            {
+                AnimatorSetBossStorageBool setter = NewSetter(owned);
+                Set(setter, "m_fsmVarOnEntry", "");
+                Set(setter, "m_fsmVarOnExit", "Lucid-boss-exit-only");
+                Set(setter, "m_setOnExit", true);
+                Set(setter, "m_exitValue", true);
+                setter.OnStateEnter(scene.Animator, default, 0);
+
+                Assert.That(Get<bool>(setter, "m_varNamesCreated"), Is.True);
+                Assert.That(Get<GraphStorageKey>(setter, "m_entryVarName"), Is.EqualTo(default(GraphStorageKey)));
+                Assert.That(Get<GraphStorageKey>(setter, "m_exitVarName"), Is.EqualTo(Key("Lucid-boss-exit-only")));
+                setter.OnStateExit(scene.Animator, default, 0);
+                Assert.That(scene.Boss.Storage.GetValue(Key("Lucid-boss-exit-only"), false, false), Is.True);
+            });
+        }
+
         // OnStateExit 0x06000e87 (0x727310) tests m_setOnExit (+0x29) and stores m_exitValue (+0x38) under the exit key
         // (+0x4C) into the storage of the boss found on the last entry, whatever animator it is given.
         [Test]

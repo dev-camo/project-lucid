@@ -6967,6 +6967,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossTransitionTests." + name for nam
     "UsedClawCheckReadsTheClawPointBeforeComparingTheAttackAndIgnoresOtherClaws",
     "VulnerableTimeOutFiresWhileTheBossIsNotVulnerable",
     "WasHitReadsTheStoredFlagAndLeaveClearsIt",
+    "AnimatorSetBossStorageBoolSerializesExactlyItsSixConfigurationFields",
     "DeclarationShapeTypesKeepTheirFlagsMembersAndAttributeOrder",
     "DeclarationShapeBasesAndJsonArgumentClassesMatchTheMetadata",
     "DeclarationShapeClassFactoryRegistersEachNodeWithItsArgumentType",
@@ -6975,11 +6976,13 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.AnimatorSetBossStorageBoolTests." + 
     "EntryResolvesTheBossAndStoresTheEntryValueUnderTheNamedKey",
     "TheFirstEntryBuildsBothKeysAndLaterEntriesKeepThem",
     "AnEmptyOrMissingNameLeavesTheKeyDefault",
+    "AnExitNameAloneStillBuildsTheExitKey",
     "ExitStoresTheExitValueIntoTheBossOfTheLastEntry",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.AppRatingRequesterBossTests." + name for name in (
     "ConstructionCachesTheMissionManagerReferenceAndKeepsTheSevenDayCooldown",
     "ARecentRatingRequestKeepsTheBossRequesterFromFiring",
+    "AnElapsedCooldownWithoutAMissionManagerStillRefusesTheBossRequest",
     "ValidateAsksTheMissionManagerOnlyAfterTheBaseCheckAndAnExistingManager",
     "DeclarationShapeKeepsTheAssetMenuAndTheSealedRequesterSurface",
 ))

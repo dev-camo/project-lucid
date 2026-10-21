@@ -696,6 +696,15 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // The DummyDll field rows 0x04000994-0x04000999 carry SerializeField; the runtime fields after them do not.
+        [Test]
+        public void AnimatorSetBossStorageBoolSerializesExactlyItsSixConfigurationFields()
+        {
+            Assert.That(
+                typeof(AnimatorSetBossStorageBool).GetFields(Declared).Where(f => f.GetCustomAttribute<SerializeField>() != null).Select(f => f.Name).ToArray(),
+                Is.EqualTo(new[] { "m_setOnEntry", "m_fsmVarOnEntry", "m_entryValue", "m_setOnExit", "m_fsmVarOnExit", "m_exitValue" }));
+        }
+
         [Test]
         public void DeclarationShapeTypesKeepTheirFlagsMembersAndAttributeOrder()
         {
