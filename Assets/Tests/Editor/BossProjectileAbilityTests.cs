@@ -186,6 +186,7 @@ namespace ProjectLucid.Tests
                         d.SpawnOrders = new[] { Row("0,1,2", "1"), Row("0,1,2", "1") };
                         d.AttackAnimationLengthSeconds = 1f;
                         d.ProjectileGroupLaunchTimeSeconds = 1f;
+                        d.ProjectileGroupSpawnTimeSeconds = 0f;
                     });
                 ability.Enter();
                 Assert.That(Get<Transform>(ability, "m_spawnTransform"), Is.SameAs(scene.Spawn));

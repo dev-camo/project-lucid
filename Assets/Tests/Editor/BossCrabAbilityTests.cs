@@ -379,6 +379,8 @@ namespace ProjectLucid.Tests
                 {
                     d.AttackAnimationLength = 1f;
                     d.TargetGrowthPerSecond = 1f;
+                    d.TraversalTime = 1f;
+                    d.TraversalCurve = AnimationCurve.Constant(0f, 1f, 1f);
                 });
                 ability.Enter();
                 // Reflection: the wave flag is raised only by the wave, whose projectile spawn needs the BossManager's pooled prefab set-up.
