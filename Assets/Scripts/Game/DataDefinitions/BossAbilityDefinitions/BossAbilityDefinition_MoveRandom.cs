@@ -46,8 +46,8 @@ namespace HardlightProject
 		{
 			base.CalculateCachedValues();
 			DistanceAllowedFromOriginSquared = DistanceAllowedFromOrigin * DistanceAllowedFromOrigin;
-			// The product is rounded to single before the subtraction (mulss, then subss).
-			DistanceAllowedFromOriginAdjustedForDiameter = DistanceAllowedFromOrigin - (float)(FinalTargetRadiusMultiplier * MinDistanceTargetX);
+			// Single precision throughout, as in native (mulss, then subss).
+			DistanceAllowedFromOriginAdjustedForDiameter = DistanceAllowedFromOrigin - FinalTargetRadiusMultiplier * MinDistanceTargetX;
 			DistanceAllowedFromOriginAdjustedForDiameterSquared = DistanceAllowedFromOriginAdjustedForDiameter * DistanceAllowedFromOriginAdjustedForDiameter;
 			DistanceAllowedFromOriginAdjustedForRadius = DistanceAllowedFromOrigin - MinDistanceTargetX;
 		}

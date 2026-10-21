@@ -5,7 +5,7 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace HardlightProject
 {
-	// Original Game.Runtime 02000490; bodies translated from the 1.10.1 x86-64 binary (0x53EFB0..0x53F200).
+	// Original Game.Runtime 02000490; bodies translated from the 1.10.1 x86-64 binary (.ctor 0x53EFB0, get_ScriptType 0x53F1A0).
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	[CreateAssetMenu(fileName = "BossAbilityDefinition_MoveTowardsTarget", menuName = "HardlightProject/DefinitionData/AbilityDef/MoveTowardsTarget", order = 1)]
 	[Il2CppSetOption(Option.NullChecks, false)]

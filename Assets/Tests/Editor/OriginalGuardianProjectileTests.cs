@@ -22,7 +22,7 @@ namespace ProjectLucid.Tests
     // original Setup would cache. Each expectation names the native address of the body it comes from.
     // Not covered here: the damaging branches of Hit (HitIfNotHomingAttack past its guards calls
     // Character.TryTakeDamage), SplineMovement (it needs a spline with knots), and the base teardown that
-    // OnDestroy skips without a guardian manager (it has no observable effect without a TimeManager).
+    // OnDestroy skips without a guardian manager (its effect on the leased TimeManager row is not observed).
     public sealed class OriginalGuardianProjectileTests
     {
         private const string BoundsAndNull = "Il2CppSetOptionAttribute(2,False) Il2CppSetOptionAttribute(1,False)";

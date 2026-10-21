@@ -177,7 +177,8 @@ namespace HardlightProject
             }
         }
 
-        // 0x57BA40: every damaging action reports the hit to the boss; ReturnDamage is not expected here.
+        // 0x57BA40: HardFailure, Stumble and Knockback report the hit to the boss; None returns; any other value,
+        // ReturnDamage included, throws.
         private void OnProcessDamageAction(DamageAction damageAction, Collider damagedCollider)
         {
             switch (damageAction)
@@ -223,7 +224,7 @@ namespace HardlightProject
                 float returnStep = adjustedDeltaTime * m_returningRadians;
                 m_progressionArcRadians += m_movementIsClockwise ? returnStep : -returnStep;
                 m_finalRadius = m_returnTransform.position.magnitude;
-                float progress = (float)(m_startingDistanceSq - m_currentDistanceSq) / m_startingDistanceSq;
+                float progress = (m_startingDistanceSq - m_currentDistanceSq) / m_startingDistanceSq;
                 float radius = Mathf.Lerp(m_radiusOfCircle, m_finalRadius, progress);
                 float height = Mathf.Lerp(m_cachedY, m_returnTransform.position.y, progress);
                 newPosition = m_centerOfCircle.PointOnCircleWithFixedYLHS(m_progressionArcRadians, radius, height);
@@ -291,7 +292,8 @@ namespace HardlightProject
             m_cullTimeOnceBehindPlayer = cullTimeOnceBehindPlayer;
         }
 
-        // 0x57C1B0: turns a fired projectile around towards the boss's return point and extends its life.
+        // 0x57C1B0: fired arc -> return point; fired straight, overhead or exploding -> phase-4 spawn point.
+        // Every state, including those left unchanged, gains another MaxLifespanSeconds.
         public void ReturnProjectile()
         {
             switch (m_movementState)
@@ -370,7 +372,7 @@ namespace HardlightProject
         private Vector3 SplineMovement(float adjustedDeltaTime)
         {
             LightweightTransform previous = m_worldSpline.GetWorldTransformFromDistance(m_distanceAlongSpline);
-            m_distanceAlongSpline += (float)(adjustedDeltaTime * m_definition.Velocity);
+            m_distanceAlongSpline += adjustedDeltaTime * m_definition.Velocity;
             LightweightTransform current = m_worldSpline.GetWorldTransformFromDistance(m_distanceAlongSpline);
             transform.rotation = current.Orientation;
             transform.position = current.Location;
@@ -405,7 +407,8 @@ namespace HardlightProject
             m_hasHitBoss = false;
         }
 
-        // 0x57C810: a projectile that is returning or resting is left alone when exceptions are allowed.
+        // 0x57C810: with exceptions allowed, states in mask 0xE2 (returning as an arc or from overhead, moving to rest,
+        // resting) are left alone; ReturningStraight still cools down.
         public override void ForceEnterCoolDown(bool allowExceptions)
         {
             if (allowExceptions)
