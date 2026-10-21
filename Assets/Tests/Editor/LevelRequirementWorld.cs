@@ -50,7 +50,7 @@ namespace ProjectLucid.Tests
             LevelManager levelManager = owned.Register(owned.Host("Lucid level manager", false).AddComponent<LevelManager>());
             world.GameLevels = Create<GameLevels>(owned);
             // Reflection: the property is filled from the configuration asset by the manager's initialisation.
-            Set(levelManager, "<GameLevels>k__BackingField", world.GameLevels);
+            typeof(LevelManager).GetProperty(nameof(LevelManager.GameLevels)).GetSetMethod(true).Invoke(levelManager, new object[] { world.GameLevels });
 
             var missions = new MissionManager();
             // The constructor subscribes now, before the row is admitted; released after the unregistration.

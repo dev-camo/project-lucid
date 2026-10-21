@@ -37,7 +37,7 @@ namespace ProjectLucid.Tests
 
         // Reflection: the state's setter is private and the public routes need an open save and the App.
         private static void SetFeatureState(ChallengeManager manager, ChallengeManager.ChallengeFeatureState state) =>
-            Set(manager, "<FeatureState>k__BackingField", state);
+            typeof(ChallengeManager).GetProperty(nameof(ChallengeManager.FeatureState)).GetSetMethod(true).Invoke(manager, new object[] { state });
 
         // 0x557acc compares the state with 3 (UnlockedSeenFeature) and nothing else.
         [Test]
