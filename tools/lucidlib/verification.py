@@ -7449,3 +7449,75 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ActorInformationViewTests." + name f
     "AbilityInfoSetupHidesWithoutAnAbilityAndOtherwiseParentsToTheBoss",
     "AbilityInfoUpdateShowsTheAbilityTextAboveTheBoss",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.AutoPlayCameraStartPointTests." + name for name in (
+    "AwakeForcesTheVirtualCamerasToTheStartPoint",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraAversionWithLimitTests." + name for name in (
+    "ADefaultComponentOrbitsAtRadiusTwoOnNoAxis",
+    "TheStartupCallbackCapturesTheBrainOutputCamera",
+    "UpdateWithoutACameraLeavesThePositionAlone",
+    "UpdateMovesFromTheCapturedRestPositionAlongTheCameraForwardOnTheEnabledAxes",
+    "TheRestPositionIsTheLocalPositionCapturedInAwake",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraComponentDeclarationTests." + name for name in (
+    "EmissionCheck_StartPointAndSimpleComponentsKeepTheirDeclarations",
+    "EmissionCheck_FacingListenerAndCameraTypeComponentsKeepTheirDeclarations",
+    "EmissionCheck_CinemachineClientComponentsKeepTheirDeclarations",
+    "EmissionCheck_InputHandlerAndHeadingTriggerKeepTheirDeclarations",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraFacingListenerTests." + name for name in (
+    "EnteringStayingAndLeavingFollowTheAlignmentThresholds",
+    "AnAlignmentEqualToTheEnterThresholdEnters",
+    "AnAlignmentEqualToTheLeaveThresholdStays",
+    "AnInvalidCharacterOrALostLookTargetLeavesOnce",
+    "EnablingForgetsTheEnteredState",
+    "ResetDefaultsTheLookTargetToTheListenerItself",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraHeadingTriggerTests." + name for name in (
+    "NoOverridesOrAnUnknownModeSelectNothing",
+    "TheIncomingDirectionModeUsesTheDirectionFromTheCharacterToEachOverride",
+    "TheAlignedModesPickTheOverrideFacingTheirDirection",
+    "AMinimumAngleRuleRejectsOverridesWhoseCosineIsBelowItsLimit",
+    "TheClosestModeAnswersTheNearestOverrideThatPassesItsAngleRule",
+    "AwakeCachesTheLimitCosineOfEveryOverride",
+    "EnteringAppliesTheSelectedOverrideAndExitingRemovesIt",
+    "ATriggerThatTriggersOnceIgnoresEveryLaterEnterAndExit",
+    "ARepeatableTriggerAppliesAgainOnEveryEnter",
+    "TheActionsApplyReplaceAndRemoveTheOverride",
+    "ContinuousUpdatesSwitchTheOverrideOnlyAfterTheDelay",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraInputHandlerTests." + name for name in (
+    "TheConstructorTakesTheCameraMappingFromTheCharacterConstants",
+    "TheConstructorKeepsNoMappingWhenTheCharacterEntryIsAnotherConstantType",
+    "TheConstructorFaultsWithoutTheCharacterConstants",
+    "EachAxisIsReportedAsAHeldButtonOfItsDirectionWithTheAbsoluteValue",
+    "NothingIsReportedWhileTheHandlerIsNotRegistered",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CameraTypeOverrideComponentTests." + name for name in (
+    "RequestChangeStartTakesTheRegisteredCameraManager",
+    "RequestingAChangeSwitchesTheCharacterCamera",
+    "ApplyingAndRemovingTheCameraTypeMovesThatCamerasPriorityAndCompletes",
+    "WithoutTheCameraManagerOnlyAHandlelessRemovalCompletes",
+    "EnteringWithoutDelaysOverridesTheCameraTypeAndItsTargetsAndLeavingReleasesIt",
+    "EnteringAgainReleasesTheEarlierOverrideBeforeApplyingTheNewOne",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineAddTransformToTargetGroupTests." + name for name in (
+    "ANewComponentJoinsAndLeavesWithUnitWeightAndRadius",
+    "AddingAppendsTheOwnTransformWithTheAuthoredWeightAndRadius",
+    "ClearingParksTheOtherMembersLastToFirstAndRestoringBringsThemBackInThatOrder",
+    "RemovingWithoutTheRestoreFlagLeavesTheParkedMembersParked",
+    "AddingTwiceReplacesTheParkedListWithTheFirstAddsOwnEntry",
+    "EnableAndDisableFollowTheirOwnFlags",
+    "OverridingTheTargetGroupRedirectsLaterAdds",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineClientComponentTests." + name for name in (
+    "TheTargetIsAssignedOnceWhenTheMainCameraBecomesReady",
+    "EachTargetFlagControlsItsOwnTarget",
+    "DisablingBeforeTheManagerExistsLeavesTheStartupSubscriptionInPlace",
+    "ARecenterComponentResetsToHalfAndAllowsResetOnCameraLiveByDefault",
+    "ActivatingALevelStoresTheResetValueInTheYAxis",
+    "ACameraGoingLiveResetsTheYAxisWhenAllowedOrComingFromAListedCamera",
+    "TheManagersYAxisRecenterRequestResetsTheAxisUntilTheComponentIsDisabled",
+    "ASensitivityWithADefinitionSetsTheFourAxisParametersOnly",
+    "TheManagersSensitivityChangesReachTheComponentUntilItIsDestroyed",
+))
