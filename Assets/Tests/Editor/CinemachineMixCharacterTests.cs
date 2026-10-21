@@ -320,6 +320,16 @@ namespace ProjectLucid.Tests
                     Set(mixer, "m_velocityAxisMultiplier", new Vector3(1f, 0f, 1f));
                     mixer.OnUpdate(0.1f);
                     Assert.That(rig.FirstWeight, Is.EqualTo(0.65f).Within(Tolerance), "sum 3 / 10");
+
+                    // 0x71E6CB and 0x71E6D8 read the z component and scale it by the multiplier's z.
+                    SetActorProperty(character, "LocalVelocity", new Vector3(1f, 2f, 2f));
+                    Set(mixer, "m_velocityAxisMultiplier", new Vector3(1f, 1f, 0.5f));
+                    Set(mixer, "m_useAbsoluteValues", false);
+                    mixer.OnUpdate(0.1f);
+                    Assert.That(rig.FirstWeight, Is.EqualTo(0.6224745f).Within(Tolerance), "magnitude sqrt(6) / 10");
+                    Set(mixer, "m_useAbsoluteValues", true);
+                    mixer.OnUpdate(0.1f);
+                    Assert.That(rig.FirstWeight, Is.EqualTo(0.7f).Within(Tolerance), "sum 4 / 10");
                 }
             });
         }
@@ -336,10 +346,13 @@ namespace ProjectLucid.Tests
                     SetActorProperty(character, "LocalVelocity", new Vector3(3f, 4f, 0f));
                     mixer.OnUpdate(0.1f);
                     Assert.That(rig.FirstWeight, Is.EqualTo(1f).Within(Tolerance), "5 / 2");
+                    // 0x71E73A..0x71E74E clamp before the weighting; without smoothing the stored value is the target.
+                    Assert.That(Get<float>(mixer, "m_currentBlendValue"), Is.EqualTo(1f));
                     Set(mixer, "m_useAbsoluteValues", true);
                     SetActorProperty(character, "LocalVelocity", new Vector3(-3f, -4f, 0f));
                     mixer.OnUpdate(0.1f);
                     Assert.That(rig.FirstWeight, Is.EqualTo(0f).Within(Tolerance), "-7 / 2");
+                    Assert.That(Get<float>(mixer, "m_currentBlendValue"), Is.EqualTo(-1f));
                 }
             });
         }

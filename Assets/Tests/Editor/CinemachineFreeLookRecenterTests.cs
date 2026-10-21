@@ -391,6 +391,11 @@ namespace ProjectLucid.Tests
                 Assert.That((float)Call(rig.Extension, "GetCameraForwardFromTargetAngle", Vector3.left, Vector3.up, true), Is.EqualTo(90f).Within(Tolerance));
                 rig.Brain.transform.rotation = Quaternion.Euler(0f, 90f, 0f);
                 Assert.That((float)Call(rig.Extension, "GetCameraForwardFromTargetAngle", Vector3.right, Vector3.up, false), Is.EqualTo(0f).Within(Tolerance));
+
+                // 0x722CA3..0x722CF7 re-aim the brain's up onto the target's up first, so a pitched camera still
+                // looks along the target's forward.
+                rig.Brain.transform.rotation = Quaternion.Euler(30f, 0f, 0f);
+                Assert.That((float)Call(rig.Extension, "GetCameraForwardFromTargetAngle", Vector3.forward, Vector3.up, false), Is.EqualTo(0f).Within(Tolerance));
             });
         }
 
@@ -942,6 +947,30 @@ namespace ProjectLucid.Tests
                 Assert.That(axis.m_MaxValue, Is.EqualTo(180f));
                 Assert.That(Get<float>(rig.Extension, "m_currentMaxXAxisAngle"), Is.EqualTo(180f));
                 Assert.That(axis.m_Recentering.m_enabled, Is.False);
+            }, true, rig => Set(rig.Extension, "m_xAxisStateDefault", AuthoredAxis(50f)));
+        }
+
+        // 0x723657..0x72366B: recentering that was enabled before the evaluation and is disabled after it (mode
+        // Never) cancels the axis recentering, which stamps the real time on its last-input field (-1 after
+        // RecenterNow). The axis state has no setter, so the case writes the field to start the recentering.
+        [Test]
+        public void ManualXAxisCancelsTheAxisRecenteringWhenTheEvaluationSwitchesItOff()
+        {
+            WithRig<CinemachineRecenterHeadingExtension_FreeLookManualXAxis>((owned, rig) =>
+            {
+                SetMode(rig.Settings, CameraRecenterHeadingDefinition_FreeLook.RecenteringMode.Never);
+                CameraYAxisProxyManager proxy = NewYAxisProxy(rig, Vector3.forward);
+                Set(rig.Extension, "m_cameraYAxisProxyManagerRef", new SystemRef<CameraYAxisProxyManager>(ProcessManager.GetDefaultName<CameraYAxisProxyManager>(), proxy));
+                AxisState axis = Get<AxisState>(rig.Extension, "m_xAxisState");
+                axis.m_Recentering.m_enabled = true;
+                axis.m_Recentering.RecenterNow();
+                Set(rig.Extension, "m_xAxisState", axis);
+                var lastInput = typeof(AxisState.Recentering).GetField("mLastAxisInputTime", BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.That((float)lastInput.GetValue(rig.Extension.XAxisState.m_Recentering), Is.EqualTo(-1f), "precondition");
+
+                Call(rig.Extension, "OnUpdate", rig.Character, 0.1f);
+                Assert.That(rig.Extension.XAxisState.m_Recentering.m_enabled, Is.False);
+                Assert.That((float)lastInput.GetValue(rig.Extension.XAxisState.m_Recentering), Is.GreaterThan(0f));
             }, true, rig => Set(rig.Extension, "m_xAxisStateDefault", AuthoredAxis(50f)));
         }
     }

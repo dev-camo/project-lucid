@@ -193,6 +193,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x721B5F..0x721C1E take the turn as the left operand of the product, which only differs from the reverse
+        // order when the camera is already rotated: a camera pitched 30 degrees down, turned 90 degrees about up,
+        // looks along (0.866025, -0.5, 0); the reverse order would look along (1, 0, 0).
+        [Test]
+        public void RotateAroundPointAppliesTheTurnBeforeTheExistingOrientation()
+        {
+            WithRig((owned, rig) =>
+            {
+                CameraState state = StateAt(new Vector3(2f, 0f, 0f));
+                state.RawOrientation = Quaternion.Euler(30f, 0f, 0f);
+                object[] arguments = { state, new Vector3(1f, 0f, 0f), Vector3.up, 90f };
+                Call(rig.Extension, "RotateAroundPoint", arguments);
+                state = (CameraState)arguments[0];
+                Vector3 forward = state.RawOrientation * Vector3.forward;
+                Assert.That(Vector3.Distance(forward, new Vector3(0.866025f, -0.5f, 0f)), Is.LessThan(Tolerance), forward.ToString("F5"));
+            });
+        }
+
         [Test]
         public void TheSettingsDefinitionIsTheAuthoredOne()
         {

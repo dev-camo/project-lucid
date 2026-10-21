@@ -177,6 +177,15 @@ namespace ProjectLucid.Tests
                 Set(source, "m_useAbsoluteValues", false);
                 source.OnUpdate(0.1f);
                 Assert.That(source.BlendValue, Is.EqualTo(0.3f).Within(Tolerance), "magnitude 3");
+
+                // 0x71FA19 and 0x71FA26 read the z component and scale it by the multiplier's z.
+                SetActorProperty(character, "LocalVelocity", new Vector3(1f, 2f, 2f));
+                Set(source, "m_velocityAxisMultiplier", new Vector3(1f, 1f, 0.5f));
+                source.OnUpdate(0.1f);
+                Assert.That(source.BlendValue, Is.EqualTo(0.244949f).Within(Tolerance), "magnitude sqrt(6)");
+                Set(source, "m_useAbsoluteValues", true);
+                source.OnUpdate(0.1f);
+                Assert.That(source.BlendValue, Is.EqualTo(0.4f).Within(Tolerance), "sum 4");
             });
         }
 
@@ -391,6 +400,17 @@ namespace ProjectLucid.Tests
                 {
                     source.OnUpdate(0.25f);
                     Assert.That(source.BlendValue, Is.EqualTo(0.125f).Within(Tolerance), "the timer restarted");
+                }
+
+                // 0x71FC08 is a bare division by the maximum time: the value runs past one.
+                source.OnUpdate(0.25f);
+                Set(source, "m_maxTimeSeconds", 0.2f);
+                using (CinemachineCameraTestRig.MakeLive(camera))
+                {
+                    source.OnUpdate(0.25f);
+                    Assert.That(source.BlendValue, Is.EqualTo(1.25f).Within(Tolerance));
+                    source.OnUpdate(0.25f);
+                    Assert.That(source.BlendValue, Is.EqualTo(2.5f).Within(Tolerance));
                 }
             }, true);
         }

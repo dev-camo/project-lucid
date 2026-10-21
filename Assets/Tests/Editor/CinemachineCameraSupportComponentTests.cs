@@ -73,7 +73,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x71DFEA and 0x72E00C: a disabled axis reads zero, and so does the third (Z) axis the provider is
+        // 0x71DFEA and 0x71E00C: a disabled axis reads zero, and so does the third (Z) axis the provider is
         // also asked for.
         [Test]
         public void ADisabledAxisAndTheThirdAxisReadZero()
@@ -255,6 +255,28 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(rig.Extension, "m_previousFieldOfView"), Is.EqualTo(60f));
                 Assert.That(Get<Vector3[]>(rig.Extension, "m_localFrustumPositions")[4], Is.EqualTo(new Vector3(0f, 0f, 0.3f)));
                 Assert.That(rig.Feature.isActive, Is.False, "no ignored collider was hit: the occlusion features go off");
+            });
+        }
+
+        // 0x71D98B..0x71D995 scale the near-plane corner x and y by the near-clip-plane scale (1.3). A strip spanning
+        // y 0.22..0.30 is reached only by the scaled top corners (0.3 * tan 30 degrees = 0.173205, scaled 0.225167);
+        // the unscaled corners and the centre ray pass beneath it.
+        [Test]
+        public void TheNearPlaneCornersAreSpreadByTheNearClipPlaneScale()
+        {
+            WithCameras((owned, characters, character, time) =>
+            {
+                ClipRig rig = NewClipRig(owned, time);
+                rig.Wall.enabled = false;
+                GameObject stripHost = owned.Host("Lucid strip");
+                stripHost.transform.position = new Vector3(0f, 0.26f, -5f);
+                BoxCollider strip = stripHost.AddComponent<BoxCollider>();
+                strip.size = new Vector3(20f, 0.08f, 1f);
+                Physics.SyncTransforms();
+                CameraState state = StateAtTen();
+                using (CinemachineCameraTestRig.MakeLive(rig.Camera))
+                    rig.Extension.InvokePostPipelineStageCallback(rig.Camera, CinemachineCore.Stage.Body, ref state, 0.1f);
+                Assert.That(Vector3.Distance(state.PositionCorrection, new Vector3(0f, 0f, 5.2f)), Is.LessThan(Tolerance), state.PositionCorrection.ToString("F4"));
             });
         }
 

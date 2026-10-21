@@ -7537,6 +7537,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineCameraSupportComponentTes
     "TheLookAtTransformIsTheVirtualCamerasLookAtTarget",
     "TheCharacterVariantLooksAtTheCurrentCharacterElseTheCamerasTarget",
     "AWallBetweenTheCameraAndTheTargetPushesTheCameraInFrontOfIt",
+    "TheNearPlaneCornersAreSpreadByTheNearClipPlaneScale",
     "AnIgnoredColliderOnlySwitchesTheOcclusionFeaturesOn",
     "ThePostPipelineCallbackIgnoresOtherStagesCamerasThatAreNotLiveAndMissingTargets",
     "AFreeLookExtensionIgnoresTheCallbackOfItsRigs",
@@ -7592,6 +7593,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineFreeLookRecenterTests." +
     "TheXAxisLimitNarrowsTheRangeAroundTheRecenteringHeading",
     "ARangeThatHasReachedTheLimitOnlyReExpressesTheValueAroundTheHeading",
     "ManualXAxisOnUpdateCompensatesTheProxyRotationAndRestoresTheDefaultRange",
+    "ManualXAxisCancelsTheAxisRecenteringWhenTheEvaluationSwitchesItOff",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineMixCharacterTests." + name for name in (
     "TheBaseWeighsEveryCameraByItsCurveAtTheTargetValue",
@@ -7655,6 +7657,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineParametersBlenderTests." 
     "TheFreeLookTrackedOffsetsAreGatedByTheTopRowsActiveFlag",
     "TheFreeLookBlenderSuppliesItsAuthoredParameters",
     "WithoutABoostingCharacterTheBoostBlendStaysAtTheTransitionCurveStart",
+    "TheBoostTimerFallsAtTheBlendOutSpeedAndIsHeldAtTheTransitionCurveEnd",
     "TheBoostBlenderDefaultsToUnitSpeedsAndAConstantTransitionCurve",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineRecenterHeadingBasicTests." + name for name in (
@@ -7667,5 +7670,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CinemachineRecenterHeadingBasicTests
     "WithinTheExitThresholdTheSnapEndsAndTheCameraStaysPut",
     "TheOrbitIsMeasuredInTheFollowTargetsFrame",
     "RotateAroundPointTurnsThePositionAboutThePointAndComposesTheOrientation",
+    "RotateAroundPointAppliesTheTurnBeforeTheExistingOrientation",
     "TheSettingsDefinitionIsTheAuthoredOne",
 ))

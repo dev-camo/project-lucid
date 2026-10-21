@@ -537,6 +537,31 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Not boosting, the timer falls by deltaTime * blendOutSpeed (0x720D5C) and is held between zero and the
+        // last key time of the transition curve (0x720D76..0x720DBE), here 2, not one.
+        [Test]
+        public void TheBoostTimerFallsAtTheBlendOutSpeedAndIsHeldAtTheTransitionCurveEnd()
+        {
+            Run((owned, time) =>
+            {
+                owned.LeaseRow<CharacterManager>();
+                var blender = Inactive(time, "blender").AddComponent<CinemachineParametersBlenderFreeLookBoostProbe>();
+                Set(blender, "m_blendValueSource", NewSource(time, 0.5f));
+                Set(blender, "m_blendCurveBoosting", AnimationCurve.Linear(0f, 10f, 1f, 20f));
+                Set(blender, "m_blendInSpeed", 5f);
+                Set(blender, "m_blendOutSpeed", 2f);
+                Set(blender, "m_blendBetweenDefaultAndBoostCurve", AnimationCurve.Linear(0f, 0f, 2f, 1f));
+
+                Set(blender, "m_boostToDefaultTime", 0.6f);
+                Assert.That(blender.RunEvaluateBlendCurve(0.1f), Is.EqualTo(3.4f).Within(Tolerance));
+                Assert.That(Get<float>(blender, "m_boostToDefaultTime"), Is.EqualTo(0.4f).Within(Tolerance));
+
+                Set(blender, "m_boostToDefaultTime", 5f);
+                Assert.That(blender.RunEvaluateBlendCurve(0.1f), Is.EqualTo(15f).Within(Tolerance));
+                Assert.That(Get<float>(blender, "m_boostToDefaultTime"), Is.EqualTo(2f));
+            });
+        }
+
         [Test]
         public void TheBoostBlenderDefaultsToUnitSpeedsAndAConstantTransitionCurve()
         {
