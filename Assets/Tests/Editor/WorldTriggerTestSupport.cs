@@ -123,11 +123,22 @@ namespace ProjectLucid.Tests
             internal void LeaseRow<T>() where T : class, ISystem =>
                 m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<T>()));
 
-            // An absent row the fixture registers its own system into, before any
-            // component's field initialiser caches a typed reference from it.
+            // The row the fixture registers its own system into, before any component's field initialiser caches a
+            // typed reference from it. An absent row becomes the fixture's. A row that exists must be idle, because
+            // an original type initialiser creates some permanently (TimeScaledUtilities' TimeManager row): it is
+            // borrowed, the system is unregistered first and the row is handed back as admitted.
             internal T Register<T>(T system) where T : class, ISystem
             {
-                var row = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<T>());
+                string name = ProcessManager.GetDefaultName<T>();
+                var borrowed = new VerificationFixtureOwnership.LifecycleRow(name);
+                if (borrowed.Existed)
+                {
+                    m_leases.Add(borrowed);
+                    ProcessManager.RegisterSystem(system, name);
+                    m_leases.Add(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnregisterSystem(name)));
+                    return system;
+                }
+                var row = new VerificationFixtureOwnership.RegistryRow(name);
                 m_leases.Add(row);
                 row.Register(system);
                 return system;
