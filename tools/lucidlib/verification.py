@@ -9906,3 +9906,107 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionSelectTests." + na
     "TheToggleCarriesItsIndexLabelAndJoinsTheToggleGroup",
     "GhostsAreMadeForEachMissionOfAnUnmetGhostedGroupAndOnlyMetMissionsAreCounted",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SettingsPageDeclarationTests." + name for name in (
+    "UIContainerSettingsBaseMatchesTheOriginalMetadata",
+    "UIContainerSettingsMatchesTheOriginalMetadata",
+    "UIContainerSettingsAccessibilityMatchesTheOriginalMetadata",
+    "UIContainerSettingsCameraMatchesTheOriginalMetadata",
+    "UIContainerSettingsControlsMatchesTheOriginalMetadata",
+    "UISettingsBackgroundImageMatchesTheOriginalMetadata",
+    "UIWidgetSDTCheckboxMatchesTheOriginalMetadata",
+    "UIWidgetSDTLanguageSelectMatchesTheOriginalMetadata",
+    "UIWidgetSDTSliderMatchesTheOriginalMetadata",
+    "TheOtherAttributesMatchTheOriginalMetadata",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsBaseTests." + name for name in (
+    "SettingsAreEditedThenSavedThenTheHooksRun",
+    "NotSavingStillRefreshesTheBinders",
+    "ResettingToDefaultsResetsThenRefreshesSavesAndRefreshesAgain",
+    "TheBaseAfterSaveHookDoesNothing",
+    "ABooleanChangeIsReportedAndAnUnchangedOneIsNot",
+    "AnEnumChangeIsReportedByName",
+    "OtherValueTypesAreComparedAndReportedTheSameWay",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsTests." + name for name in (
+    "EnablingPublishesTheMetaGameFlagAndTheGraphicsAvailability",
+    "EnablingPublishesTheGameplayFlagAndAnUnavailableGraphicsSetting",
+    "EachFlagHasItsOwnBinder",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsAccessibilityTests." + name for name in (
+    "AwakePublishesTheSavedSettingsThenCachesTheGameSpeed",
+    "RefreshBindersPublishesTheSettingsAndTheTimeLimits",
+    "SettingTheGameSpeedStoresItAndLeavesTheSaveForExit",
+    "ClosingThePageSavesAPendingGameSpeedAndReportsTheChange",
+    "ClosingThePageWithoutChangesSavesAndReportsNothing",
+    "ClosingThePageSavesButDoesNotReportAnUnchangedSpeed",
+    "ResettingTheAccessibilitySettingsRestoresTheirDefaultsAndClearsThePendingSave",
+    "TheResetButtonSavesTheDefaultsAndRefreshesThePage",
+    "SettingSubtitlesSavesAtOnceAndClearsThePendingSpeedSave",
+    "TheFailStateButtonsSaveTheirStateAndReportTheChange",
+    "ChoosingTheCurrentFailStateAgainSavesButReportsNothing",
+    "TheGameSpeedToggleIsReportedSavedAndReappliedWhenSwitchedOff",
+    "SkippingTheIntroductionIsSavedWithoutAReport",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsCameraTests." + name for name in (
+    "AwakePublishesTheSettingsThenCachesTheSelectedIndices",
+    "RefreshBindersPublishesTheSavedCameraSettings",
+    "ASavedConfigurationWithoutAnEntryKeepsTheDistanceString",
+    "ASavedSensitivityMissingFromTheListFaults",
+    "ClosingThePageReportsAChangedCameraDistance",
+    "ClosingThePageReportsAChangedCameraSensitivity",
+    "ClosingThePageWithBothChangedReportsTheSensitivityLast",
+    "ClosingThePageWithoutChangesReportsNothing",
+    "TheHeadingButtonsReportAutoAndManualAndSave",
+    "ChoosingTheCurrentHeadingAgainSavesButReportsNothing",
+    "TheInvertedControlsButtonsReportAndSave",
+    "TheSnapBehindButtonVisibilityIsReportedAndSaved",
+    "TheConfigurationSliderRoundsHalvesToEven",
+    "TheConfigurationSliderRefreshesThePageAfterStoring",
+    "TheSensitivitySliderRoundsHalvesToEven",
+    "TheResetButtonRestoresTheCameraDefaults",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsControlsTests." + name for name in (
+    "AwakePublishesTheSettingsThenCachesTheSelectedIndices",
+    "RefreshBindersPublishesTheSavedControlSettings",
+    "ASavedSensitivityMissingFromItsListFaults",
+    "ClosingThePageReportsAChangedStickSensitivity",
+    "ClosingThePageReportsAChangedSecondaryCameraSensitivity",
+    "ClosingThePageWithBothChangedReportsTheCameraSensitivityLast",
+    "ClosingThePageWithoutChangesReportsNothing",
+    "TheHomingAttackMappingButtonsReportStoreAndSave",
+    "TheAirStompMappingButtonsReportStoreAndSave",
+    "ChoosingTheCurrentMappingAgainSavesButReportsNothing",
+    "TheMovementStickStyleButtonsReportTheDynamicFlag",
+    "TheStickSensitivitySliderRoundsHalvesToEven",
+    "TheSecondaryCameraSensitivitySliderRoundsHalvesToEven",
+    "TheAirAbilityHoldIsReportedStoredAndSaved",
+    "TheResetButtonRestoresTheControlDefaults",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UISettingsBackgroundImageTests." + name for name in (
+    "AFreshComponentHoldsTheAuthoredMainMenuTint",
+    "ResetFindsTheImageOnTheSameObject",
+    "AwakeTintsTheBackgroundInTheMetaGame",
+    "AwakeTintsTheBackgroundWhenNoCharacterIsInGameplay",
+    "AwakeLeavesTheBackgroundAloneDuringGameplay",
+    "AwakeWithoutAnImageDoesNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSDTCheckboxTests." + name for name in (
+    "TogglingAppendsTheMatchingEventsToThePendingList",
+    "TogglingOffAddsOnlyTheCloseEvents",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSDTLanguageSelectTests." + name for name in (
+    "AFreshWidgetHasAnUnchosenFlagAndNoListener",
+    "SelectingAnnouncesTheWidgetsLanguage",
+    "TheChosenFlagFollowsTheCachedLanguage",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSDTSliderTests." + name for name in (
+    "AFreshWidgetHoldsWhitePipColoursAndAnEmptyPipList",
+    "StartDoesNothingForASliderWithoutWholeNumbers",
+    "StartYieldsTheSameEndOfFrameWaitTwiceBeforeBuildingThePips",
+    "StartSpawnsOnePipPerStepSpacedAcrossTheParentWidth",
+    "StartPaintsThePipsAndFollowsTheSlider",
+    "TheValueArgumentOfThePaintIsIgnored",
+    "SettingTheValueMovesTheSliderAndRepaintsThroughTheListener",
+    "SettingTheValueWithoutNotifyingStillRepaintsThePips",
+    "DestroyingStopsTheSliderFromRepaintingThePips",
+))
