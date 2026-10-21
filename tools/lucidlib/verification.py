@@ -6140,22 +6140,18 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplinePositionerTes
     "DistanceModeMovesBySetDistanceAndStoresTheDistance",
     "SetDistanceInPercentModeStoresTheTravelledPercent",
     "PostBuildAppliesTheStoredPositionAgain",
-    "TargetObjectReplacesTheOwnerAsTheMovedObject",
     "FollowTargetPlacesTheDistanceFromTheFollowedTracer",
     "FollowSettersReapplyTheFollowOnlyWithATarget",
     "FollowLoopContinuesFromTheOtherEnd",
     "SelfReferenceIsRefusedAfterTheOldTargetWasReleased",
     "AwakeAndOnDestroyTieTheSerializedFollowTarget",
-    "AnimatedPositionMovesTheTargetOnce",
     "SetPercentAndSetDistanceReportTriggersAndNodes",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineProjectorTests." + name for name in (
     "FreshProjectorKeepsTheShippedDefaults",
     "ResetTargetsTheOwnTransform",
-    "SettersQueueARebuildOnlyWhereTheShippedOnesDo",
     "TargetObjectTakesOverTheLegacyApplyTarget",
-    "ANewComputerIsProjectedOntoAtOnce",
     "ANewComputerIsProjectedOverTheClipRangeAndClipped",
     "CalculateProjectionPlacesTheTargetObjectOnTheProjection",
     "AccurateModeProjectsOntoTheCurve",
@@ -6171,7 +6167,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckLengthCalculatorTes
     "FreshCalculatorAndEventKeepTheShippedDefaults",
     "CheckFollowsTheNativeTruthTable",
     "AddEventAppendsToACopyOfTheArray",
-    "AwakeMeasuresAndFiresTheEventsWithTheExactLength",
     "BuildChecksTheEventsAgainstTheChangedLength",
     "AwakeMeasuresOnlyTheClipRange",
     "BuildNoticesAChangeOfTheClipRangeAlone",
@@ -6182,7 +6177,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckColliderGeneratorTe
     "FreshEdgeGeneratorKeepsTheShippedDefaults",
     "BuildTakesOneVertexPerSamplePositionInLocalSpace",
     "OffsetMovesTheVerticesAlongTheScaledPlanarNormal",
-    "OffsetSetterQueuesARebuildForAChangedValue",
     "UpdateRateDefersTheColliderToLateRun",
     "WithoutAColliderNothingIsLocalisedOrApplied",
     "TheLifecycleOverridesCallTheBase",
@@ -6190,7 +6184,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckColliderGeneratorTe
     "FreshPolygonGeneratorKeepsTheShippedDefaults",
     "PathTypeBuildsAClosedBandAroundTheSamples",
     "ShapeTypeBuildsOneVertexPerSample",
-    "PolygonSettersQueueARebuildForAChangedValue",
     "PolygonUpdateRateAndLocalSpaceFollowTheEdgeGenerator",
     "PolygonSerializedLayoutKeepsTheFieldOrderAndAttributes",
 ))
@@ -6650,4 +6643,28 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineFollowerPlayM
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckTransformModulePlayModeTests." + name for name in (
     "OffsetSettersSkipEqualValuesRefreshTheFlagsAndRebuildTheUser",
     "RigidbodyAngularVelocityFollowsTheShippedRotationFlags",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckColliderGeneratorPlayModeTests." + name for name in (
+    "OffsetSetterQueuesARebuildForAChangedValue",
+    "PolygonSettersQueueARebuildForAChangedValue",
+    "PolygonUpdateRateAndLocalSpaceFollowTheEdgeGenerator",
+    "UpdateRateDefersTheColliderToLateRun",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckLengthCalculatorPlayModeTests." + name for name in (
+    "AwakeBuildChecksTheEventsFromTheOldLengthBeforeItFiresTheExactTargets",
+    "AwakeMeasuresAndFiresTheEventsWithTheExactLength",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplinePositionerPlayModeTests." + name for name in (
+    "AnimatedPositionMovesTheTargetOnce",
+    "SetPercentAndSetDistanceReportTriggersAndNodes",
+    "TargetObjectReplacesTheOwnerAsTheMovedObject",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineProjectorPlayModeTests." + name for name in (
+    "ANewComputerIsProjectedOntoAtOnce",
+    "CalculateProjectionReportsTheTriggersAndNodesItPassed",
+    "ReachingTheEndOfALoopingRangeContinuesFromTheStart",
+    "SettersQueueARebuildOnlyWhereTheShippedOnesDo",
 ))

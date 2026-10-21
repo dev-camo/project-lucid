@@ -124,12 +124,6 @@ namespace ProjectLucid.Tests
             return null;
         }
 
-        // Settling the queued rebuild lets a test see whether a setter queues a new one.
-        private static bool RebuildQueued(SplineUser user)
-        {
-            return Read<bool>(user, "rebuild");
-        }
-
         // Constructor 0x4cc550: Cached mode, auto project on, 4 subdivisions, zero offsets and last position. The project target
         // getter 0x4cb500 falls back to the own transform; the target object getter 0x4cb610 has no fallback.
         [Test]
@@ -166,55 +160,6 @@ namespace ProjectLucid.Tests
             Assert.That(projector.projectTarget, Is.SameAs(projector.transform));
         }
 
-        // The setters 0x4cb440 (mode), 0x4cb480 (autoProject: only switching on), 0x4cb4c0 (subdivide: only in the Accurate mode),
-        // 0x4cb570 (projectTarget) and 0x4cb6e0 (targetObject) queue a rebuild for a changed value; an equal value does nothing.
-        // The queue is the player text of Rebuild; the editor compile rebuilds at once while the cached play state is false, so the
-        // flag is set to what play mode caches (DreamteckPlayState).
-        [Test]
-        public void SettersQueueARebuildOnlyWhereTheShippedOnesDo()
-        {
-            SplineComputer computer = NewLine();
-            Transform target = NewTarget(new Vector3(4f, 0f, 2f));
-            SplineProjector projector = DreamteckPlayState.Cache(NewProjector(computer, target));
-            Assert.That(RebuildQueued(projector), Is.False, "RebuildImmediate settled the queue");
-
-            projector.autoProject = true;
-            Assert.That(RebuildQueued(projector), Is.False, "unchanged");
-            projector.autoProject = false;
-            Assert.That(RebuildQueued(projector), Is.False, "switching off does not rebuild");
-            projector.autoProject = true;
-            Assert.That(RebuildQueued(projector), Is.True, "switching on does");
-            projector.RebuildImmediate();
-
-            projector.subdivide = 6;
-            Assert.That(projector.subdivide, Is.EqualTo(6));
-            Assert.That(RebuildQueued(projector), Is.False, "the Cached mode ignores the subdivision");
-            projector.mode = SplineProjector.Mode.Accurate;
-            Assert.That(RebuildQueued(projector), Is.True, "a changed mode rebuilds");
-            projector.RebuildImmediate();
-            projector.mode = SplineProjector.Mode.Accurate;
-            Assert.That(RebuildQueued(projector), Is.False, "unchanged");
-            projector.subdivide = 7;
-            Assert.That(RebuildQueued(projector), Is.True, "the Accurate mode rebuilds for a new subdivision");
-            projector.RebuildImmediate();
-            projector.subdivide = 7;
-            Assert.That(RebuildQueued(projector), Is.False, "unchanged");
-
-            projector.projectTarget = target;
-            Assert.That(RebuildQueued(projector), Is.False, "unchanged");
-            projector.projectTarget = NewTarget(Vector3.zero);
-            Assert.That(RebuildQueued(projector), Is.True);
-            projector.RebuildImmediate();
-
-            GameObject mover = NewObject("mover");
-            projector.targetObject = mover;
-            Assert.That(projector.targetObject, Is.SameAs(mover));
-            Assert.That(RebuildQueued(projector), Is.True);
-            projector.RebuildImmediate();
-            projector.targetObject = mover;
-            Assert.That(RebuildQueued(projector), Is.False, "unchanged");
-        }
-
         // get_targetObject 0x4cb610: a target kept in the legacy applyTarget field moves to targetObject (as its game object) the
         // first time it is read, and the legacy field is cleared. GetTransform / GetRigidbody / GetRigidbody2D 0x4cbac0/0x4cbb40/
         // 0x4cbbe0 answer nothing without a target object and read its components otherwise.
@@ -248,45 +193,6 @@ namespace ProjectLucid.Tests
             projector.targetObject = null;
             projector.targetObject = explicitTarget;
             Assert.That(Read<Rigidbody>(projector, "targetRigidbody"), Is.SameAs(explicitBody), "the physics mode's component is fetched");
-        }
-
-        // OnSplineChanged 0x4cc2a0: a new computer is projected onto at once from the raw project target field (a projector
-        // without one faults); nothing happens for a cleared computer. Set_spline only queues the rebuild in the player build (the
-        // editor compile rebuilds at once), so the projectors have the cached play state set (DreamteckPlayState).
-        [Test]
-        public void ANewComputerIsProjectedOntoAtOnce()
-        {
-            SplineComputer computer = NewLine();
-            SplineProjector projector = DreamteckPlayState.Cache(NewObject("projector").AddComponent<SplineProjector>());
-            projector.projectTarget = NewTarget(new Vector3(4f, 0f, 2f));
-            projector.spline = computer;
-            Near(projector.result.position, new Vector3(4f, 0f, 0f), "projected position");
-            // The user has fetched no samples yet (set_spline only queues the rebuild), so ClipPercent 0x4cf500 reports 0.
-            Assert.That(projector.result.percent, Is.EqualTo(0.0), "clipped over no samples");
-
-            // With the samples fetched, the next computer is clipped properly (Cached mode).
-            projector.RebuildImmediate();
-            projector.spline = NewLine();
-            Assert.That(projector.result.percent, Is.EqualTo(0.2).Within(1e-4), "Cached mode");
-            Near(projector.result.position, new Vector3(4f, 0f, 0f), "projected position");
-
-            SplineProjector accurate = DreamteckPlayState.Cache(NewObject("accurate").AddComponent<SplineProjector>());
-            accurate.mode = SplineProjector.Mode.Accurate;
-            accurate.subdivide = 5;
-            accurate.projectTarget = NewTarget(new Vector3(12f, 0f, 5f));
-            accurate.spline = computer;
-            accurate.RebuildImmediate();
-            accurate.spline = NewLine();
-            Assert.That(accurate.result.percent, Is.EqualTo(0.75).Within(2e-3), "Accurate mode on the second segment");
-            Near(accurate.result.position, new Vector3(10f, 0f, 5f), "projected position");
-
-            accurate.spline = null;
-            Assert.That(accurate.result.percent, Is.EqualTo(0.75).Within(2e-3), "a cleared computer leaves the result");
-
-            // Reset filled the field, so the read of a project target field that is empty needs it cleared.
-            SplineProjector headless = DreamteckPlayState.Cache(NewObject("headless").AddComponent<SplineProjector>());
-            Write(headless, "_projectTarget", null);
-            Assert.Throws<NullReferenceException>(() => headless.spline = computer, "no project target field to read");
         }
 
         // OnSplineChanged 0x4cc2a0 projects over [clipFrom, clipTo] (0x4cc327..0x4cc3a6) and then clips the percent. The line is
@@ -404,10 +310,10 @@ namespace ProjectLucid.Tests
         // CalculateProjection 0x4cbeb0 on a looping range (loopSamples, clipFrom >= clipTo; native 0x4cc00d..0x4cc041): reaching the
         // end reports the triggers up to the end (unclipped 1.0) and then continues from the start, so a trigger fires when it lies
         // in [last, end] or in [start, new] - not when it only lies between the two clipped percents. Expected firings are
-        // evaluated from the Forward rule (position >= from and to >= position) over the unclipped ends. CheckTriggers and
-        // SplineTrigger.Invoke return while Application.isPlaying is false under UNITY_EDITOR (read directly), and the player text
-        // after that block cannot run in EditMode; the test keeps the end event and the scenario check and asserts that no trigger
-        // is reported in edit mode.
+        // evaluated from the Forward rule (position >= from and to >= position) over the unclipped ends. Editor branch: CheckTriggers and
+        // SplineTrigger.Invoke return while Application.isPlaying is false (read directly), so the test keeps the end event and the
+        // scenario check and asserts that no trigger is reported. The wrapped firing of the shipped branch is asserted in
+        // OriginalDreamteckSplineProjectorPlayModeTests.ReachingTheEndOfALoopingRangeContinuesFromTheStart.
         [Test]
         public void ReachingTheEndOfALoopingRangeContinuesFromTheStart()
         {
@@ -477,9 +383,10 @@ namespace ProjectLucid.Tests
         }
 
         // CalculateProjection 0x4cbeb0 reports the triggers and nodes between the previous and the new percent (the tracer's own
-        // CheckTriggers / CheckNodes), invokes the queued triggers (with the projector) and then the nodes. Those tracer methods return
-        // while Application.isPlaying is false under UNITY_EDITOR (read directly), so in EditMode the projection is computed and
-        // neither the trigger listener nor onNode is called (the player text after the #if block cannot run in EditMode).
+        // CheckTriggers / CheckNodes), invokes the queued triggers (with the projector) and then the nodes. Editor branch: those tracer
+        // methods return while Application.isPlaying is false (read directly), so the projection is computed and neither the trigger
+        // listener nor onNode is called. The reports of the shipped branch are asserted in
+        // OriginalDreamteckSplineProjectorPlayModeTests.CalculateProjectionReportsTheTriggersAndNodesItPassed.
         [Test]
         public void CalculateProjectionReportsTheTriggersAndNodesItPassed()
         {

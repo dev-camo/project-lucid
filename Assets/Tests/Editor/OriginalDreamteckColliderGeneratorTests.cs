@@ -133,11 +133,6 @@ namespace ProjectLucid.Tests
             return null;
         }
 
-        private static bool RebuildQueued(SplineUser user)
-        {
-            return Read<bool>(user, "rebuild");
-        }
-
         // Constructor 0x49c7f0, Awake 0x49c2b0 (fetches the EdgeCollider2D that RequireComponent adds): an empty vertex array, an
         // update rate of 0.1, no offset.
         [Test]
@@ -207,26 +202,10 @@ namespace ProjectLucid.Tests
             Near(Read<Vector2[]>(diagonal, "vertices"), new[] { new Vector2(-shift, shift), new Vector2(10f - shift, 10f + shift) }, "diagonal");
         }
 
-        // set_offset 0x49c270 rebuilds for a changed value only. Rebuild queues in the player build; the editor compile rebuilds at
-        // once while the cached play state is false, so the flag is set to what play mode caches (DreamteckPlayState).
-        [Test]
-        public void OffsetSetterQueuesARebuildForAChangedValue()
-        {
-            EdgeColliderGenerator edge = DreamteckPlayState.Cache(NewEdge(NewComputer(new Vector3(0f, 0f, 0f), new Vector3(10f, 0f, 0f))));
-            edge.RebuildImmediate();
-            Assert.That(RebuildQueued(edge), Is.False);
-            edge.offset = 0f;
-            Assert.That(RebuildQueued(edge), Is.False, "unchanged");
-            edge.offset = 1.5f;
-            Assert.That(edge.offset, Is.EqualTo(1.5f));
-            Assert.That(RebuildQueued(edge), Is.True);
-        }
-
-        // With an update rate PostBuild 0x49c6b0 only flags the collider and LateRun 0x49c350 gives it the vertices once
-        // updateRate seconds have passed since the last update; the flag clears and the time is remembered. A pending update waits
-        // when the last one is too recent. PostBuild reads Application.isPlaying directly under UNITY_EDITOR (applies at once while
-        // not playing); the player branch that sets the flag is the text after that block and cannot run in EditMode, so the test
-        // asserts the edit-mode application and then sets the private flag to reach LateRun, which sits below the gate.
+        // Editor branch. With an update rate the player PostBuild 0x49c6b0 only flags the collider and LateRun 0x49c350 gives it the
+        // vertices later; the editor compile reads Application.isPlaying directly and applies the vertices at once while not
+        // playing, leaving nothing for LateRun. The deferred shipped branch runs in play mode:
+        // OriginalDreamteckColliderGeneratorPlayModeTests.UpdateRateDefersTheColliderToLateRun.
         [Test]
         public void UpdateRateDefersTheColliderToLateRun()
         {
@@ -235,23 +214,12 @@ namespace ProjectLucid.Tests
             Vector2[] untouched = collider.points;
             edge.RebuildImmediate();
             Assert.That(Read<bool>(edge, "updateCollider"), Is.False, "the editor compile applies at once while not playing");
-            Near(collider.points, new[] { new Vector2(0f, 0f), new Vector2(10f, 0f) }, "applied at once in edit mode");
+            Near(collider.points, new[] { new Vector2(0f, 0f), new Vector2(10f, 0f) }, "applied at once");
+
             collider.points = untouched;
-            Write(edge, "updateCollider", true);
-
-            Write(edge, "lastUpdateTime", float.MaxValue);
             Invoke(edge, "LateRun");
-            Assert.That(Read<bool>(edge, "updateCollider"), Is.True, "too recent");
-            Near(collider.points, untouched, "still untouched");
-
-            Write(edge, "lastUpdateTime", -1000000f);
-            Invoke(edge, "LateRun");
+            Near(collider.points, untouched, "nothing is pending for LateRun");
             Assert.That(Read<bool>(edge, "updateCollider"), Is.False);
-            Assert.That(Read<float>(edge, "lastUpdateTime"), Is.GreaterThan(-1000f), "the time was remembered");
-            Near(collider.points, new[] { new Vector2(0f, 0f), new Vector2(10f, 0f) }, "applied");
-
-            Near(collider.points, new[] { new Vector2(0f, 0f), new Vector2(10f, 0f) }, "stays");
-            Assert.That(() => Invoke(edge, "LateRun"), Throws.Nothing, "nothing pending");
         }
 
         // PostBuild 0x49c6b0 and LateRun 0x49c350 do nothing without a collider (the serialized field is empty).
@@ -384,35 +352,10 @@ namespace ProjectLucid.Tests
             Near(Read<Vector2[]>(along, "vertices"), new[] { new Vector2(3f, 4f), new Vector2(3f, 4f) }, "a line along z has no planar normal");
         }
 
-        // The setters 0x4ae710/0x4ae750/0x4ae7a0 rebuild for a changed value only. The queue is the player text of Rebuild, so the
-        // cached play state is set (DreamteckPlayState); the editor compile otherwise rebuilds at once.
-        [Test]
-        public void PolygonSettersQueueARebuildForAChangedValue()
-        {
-            PolygonColliderGenerator polygon = DreamteckPlayState.Cache(NewPolygon(NewComputer(new Vector3(0f, 0f, 0f), new Vector3(10f, 0f, 0f))));
-            polygon.RebuildImmediate();
-            Assert.That(RebuildQueued(polygon), Is.False);
-            polygon.type = PolygonColliderGenerator.Type.Path;
-            polygon.size = 1f;
-            polygon.offset = 0f;
-            Assert.That(RebuildQueued(polygon), Is.False, "unchanged values");
-            polygon.type = PolygonColliderGenerator.Type.Shape;
-            Assert.That(polygon.type, Is.EqualTo(PolygonColliderGenerator.Type.Shape));
-            Assert.That(RebuildQueued(polygon), Is.True);
-            polygon.RebuildImmediate();
-            polygon.size = 4f;
-            Assert.That(polygon.size, Is.EqualTo(4f));
-            Assert.That(RebuildQueued(polygon), Is.True);
-            polygon.RebuildImmediate();
-            polygon.offset = -2f;
-            Assert.That(polygon.offset, Is.EqualTo(-2f));
-            Assert.That(RebuildQueued(polygon), Is.True);
-        }
-
-        // PostBuild 0x4aee70 and LateRun 0x4ae880 as the edge generator's, with SetPath(0, vertices) for the collider and the vertices
-        // moved into the local space first. As the edge generator's test: the PostBuild gate reads Application.isPlaying directly, so
-        // edit mode applies the path at once (the player text after the #if UNITY_EDITOR block cannot run in EditMode) and the
-        // private flag is set to reach LateRun.
+        // Editor branch of PostBuild 0x4aee70 as the edge generator's: the vertices are moved into the local space and SetPath(0,
+        // vertices) is applied at once while not playing, even with an update rate. The deferred shipped branch, LateRun 0x4ae880
+        // and the missing collider run in play mode:
+        // OriginalDreamteckColliderGeneratorPlayModeTests.PolygonUpdateRateAndLocalSpaceFollowTheEdgeGenerator.
         [Test]
         public void PolygonUpdateRateAndLocalSpaceFollowTheEdgeGenerator()
         {
@@ -423,29 +366,13 @@ namespace ProjectLucid.Tests
             Vector2[] untouched = collider.GetPath(0);
             polygon.RebuildImmediate();
             Assert.That(Read<bool>(polygon, "updateCollider"), Is.False, "the editor compile applies at once while not playing");
-            Near(collider.GetPath(0), new[] { new Vector2(-100f, -50f), new Vector2(-90f, -50f) }, "applied at once in edit mode");
-            Near(Read<Vector2[]>(polygon, "vertices"), new[] { new Vector2(-100f, -50f), new Vector2(-90f, -50f) }, "local vertices");
-            collider.SetPath(0, untouched);
-            Write(polygon, "updateCollider", true);
-
-            Write(polygon, "lastUpdateTime", float.MaxValue);
-            Invoke(polygon, "LateRun");
-            Assert.That(Read<bool>(polygon, "updateCollider"), Is.True, "too recent");
-            Near(collider.GetPath(0), untouched, "still untouched");
-            Write(polygon, "lastUpdateTime", -1000000f);
-            Invoke(polygon, "LateRun");
-            Assert.That(Read<bool>(polygon, "updateCollider"), Is.False);
-            Near(collider.GetPath(0), new[] { new Vector2(-100f, -50f), new Vector2(-90f, -50f) }, "applied");
-
-            polygon.updateRate = 0f;
-            polygon.RebuildImmediate();
-            Assert.That(Read<bool>(polygon, "updateCollider"), Is.False);
             Near(collider.GetPath(0), new[] { new Vector2(-100f, -50f), new Vector2(-90f, -50f) }, "applied at once");
+            Near(Read<Vector2[]>(polygon, "vertices"), new[] { new Vector2(-100f, -50f), new Vector2(-90f, -50f) }, "local vertices");
 
-            Write(polygon, "polygonCollider", null);
-            Write(polygon, "updateCollider", true);
-            Assert.That(() => Invoke(polygon, "LateRun"), Throws.Nothing);
-            Assert.That(Read<bool>(polygon, "updateCollider"), Is.True, "no collider to give the path to");
+            collider.SetPath(0, untouched);
+            Invoke(polygon, "LateRun");
+            Near(collider.GetPath(0), untouched, "nothing is pending for LateRun");
+            Assert.That(Read<bool>(polygon, "updateCollider"), Is.False);
         }
 
         [Test]
