@@ -350,7 +350,8 @@ namespace ProjectLucid.Tests
         }
 
         // Action_PlayAll 0x62B550 likewise needs the theatre to be the only open container; then a CutsceneTheatre queues every seen
-        // cutscene that is valid in the theatre, starting with A.
+        // cutscene that is valid in the theatre, starting with A. EnqueueAll tests only the save's seen list (one Contains, 0x7A47D5),
+        // so C, which was seen on a level alone, is not queued; the theatre's page listing does count it.
         [Test]
         public void PlayAllQueuesTheSeenCutscenesWhileTheTheatreIsOpen()
         {
@@ -364,9 +365,7 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.App.Storage.TryGetValue(AppFSMKeys.CutsceneTheatre, out CutsceneTheatre theatre), Is.True);
                 Assert.That(theatre.Peek(), Is.SameAs(rig.Definitions[0]));
                 theatre.DequeueNext();
-                Assert.That(theatre.Peek(), Is.SameAs(rig.Definitions[2]), "B was never seen and E neither");
-                theatre.DequeueNext();
-                Assert.That(theatre.Peek(), Is.SameAs(rig.Definitions[3]));
+                Assert.That(theatre.Peek(), Is.SameAs(rig.Definitions[3]), "B and E were never seen and C only on a level");
                 theatre.DequeueNext();
                 Assert.That(theatre.IsEmpty(), Is.True, "the credits are not valid in the theatre");
             }, withCutsceneManager: true);

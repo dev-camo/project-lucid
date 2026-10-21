@@ -37,6 +37,8 @@ namespace ProjectLucid.Tests
                 Assume.That(Screen.width > 0 && Screen.height > 0, "the ellipse radius is a fraction of the screen size");
                 var rig = new Rig { Scene = scene, Container = scene.NewContainer<UIContainerWaypointMarkersScreenSpace>() };
                 rig.Centre = scene.Owned.Track(new GameObject("Lucid ellipse centre", typeof(RectTransform))).GetComponent<RectTransform>();
+                // The pivot at the top right corner keeps a change of the bottom offset from moving the centre's position.
+                rig.Centre.pivot = Vector2.one;
                 rig.Centre.position = new Vector3(330f, 260f, 5f);
                 rig.Centre.offsetMin = new Vector2(5f, 7f);
                 Set(rig.Container, "m_ellipseCentre", rig.Centre);

@@ -56,7 +56,9 @@ namespace ProjectLucid.Tests
             owned.LeaseRow<OrnamentManager>();
             var rig = new Rig { App = ProcessManager.GetSystem<App>() };
             rig.Manager = owned.Register(owned.Lease(new OwnedTimeScaledObjects("lucid-xp-counter")).Add<ChallengeManager>("manager"));
-            // The public save-open route loads the manager's challenge data; the seen-feature state keeps the unlock path closed.
+            // The public save-open route loads the manager's challenge data; the seen-feature state keeps the unlock path closed
+            // and SetFeatureState reads the unlock list from the App's storage.
+            rig.App.Storage.SetValue(AppFSMKeys.MetaGameUnlocks, new List<IMetaGameUnlock>());
             var game = new SaveDataGame();
             rig.Save = game.SaveDataChallenges;
             rig.Save.FeatureState = ChallengeManager.ChallengeFeatureState.UnlockedSeenFeature;
