@@ -192,8 +192,9 @@ namespace ProjectLucid.Tests
                 Set(zone, "m_iconAsset", new AssetReferenceAtlasedSprite(Guid.NewGuid().ToString("N")));
                 var levels = owned.Track(ScriptableObject.CreateInstance<GameLevels>());
                 Set(levels, "m_gameplayEntries", new List<GameplayLevelUIEntry> { zone });
-                Set(levelManager, "<GameLevels>k__BackingField", levels);
-                Set(levelManager, "<CurrentLevelValid>k__BackingField", true);
+                typeof(LevelManager).GetProperty(nameof(LevelManager.GameLevels)).GetSetMethod(true).Invoke(levelManager, new object[] { levels });
+                typeof(LevelManager).GetProperty(nameof(LevelManager.CurrentLevelValid)).GetSetMethod(true).Invoke(levelManager, new object[] { true });
+                // Reflection: only a level load sets the current level, and Edit Mode cannot load one.
                 Set(levelManager, "m_currentLevel", new LevelManagerLevel(definition, definition));
 
                 Call(intro, "OnLevelManager", levelManager);
