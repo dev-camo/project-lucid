@@ -14,6 +14,12 @@ namespace ProjectLucid.Tests
     // the corner positions relative to the centre (5,5,0): (-5,-5), (5,-5), (5,5), (-5,5). The shipped IsClockwise sum of that
     // outline is -100, so it counts as clockwise. Expected values are hand arithmetic from the native bodies cited per test
     // (x86-64 addresses in the 0x4d2b.. - 0x4d6.. range; Generate is 0x4d3080).
+    // The squares keep the default linearAverageDirection, so CalculateLinearTangent 0x4e0540 gives each Linear corner sample
+    // Slerp(P1 - P0, P2 - P1, 0.5), the halfway direction between the edge that arrives and the edge that leaves (the closed
+    // spline wraps P0 of the first corner to the last one). Every sample runs diagonally: measured natively, the five samples
+    // of NewSquare have the forwards (1,-1,0), (1,1,0), (-1,1,0), (-1,-1,0), (1,-1,0), each divided by sqrt 2. The sample right
+    // is Cross(up, forward) with up (0,0,1), that is (-forward.y, forward.x, 0), so the first right is (1,1,0) / sqrt 2, which
+    // points into the square.
     public sealed class OriginalDreamteckSurfaceGeneratorTests
     {
         private const BindingFlags AnyInstance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -41,6 +47,9 @@ namespace ProjectLucid.Tests
             return DreamteckGeneratorFixture.TsMeshOf(generator);
         }
 
+        // 1 / sqrt 2, the component of a diagonal corner direction.
+        private const float D = 0.70710678f;
+
         private static readonly Vector3[] Corners =
         {
             new Vector3(0f, 0f, 0f), new Vector3(10f, 0f, 0f), new Vector3(10f, 10f, 0f), new Vector3(0f, 10f, 0f)
@@ -57,10 +66,7 @@ namespace ProjectLucid.Tests
             new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(1f, 0f), new Vector2(0f, 0f)
         };
 
-        // The default linearAverageDirection (CalculateLinearTangent 0x4e0540) blends the two edges that meet at a Linear corner, so
-        // on the closed seam the first sample would run along (1,-1,0) / sqrt 2 instead of the first edge. These tests hand-compute
-        // the geometry from edge directions, so both squares switch the averaging off with the shipped public option; the averaged
-        // seam tangent itself is pinned in the Spline tests.
+        // The first sample sits at the seam between the edges (0,-10,0) and (10,0,0), so its averaged forward is (1,-1,0) / sqrt 2.
         private SplineComputer NewSquare()
         {
             SplinePoint[] points = new SplinePoint[4];
@@ -70,13 +76,14 @@ namespace ProjectLucid.Tests
             }
 
             SplineComputer square = _fixture.NewComputer(points);
-            square.linearAverageDirection = false;
             square.Close();
             square.RebuildImmediate();
             return square;
         }
 
-        // The same square with the corners reversed: the shipped IsClockwise sum is +300, so it does not count as clockwise.
+        // The same square with the corners reversed: the shipped IsClockwise sum is +300, so it does not count as clockwise. The
+        // corners run (0,0,0), (0,10,0), (10,10,0), (10,0,0); the first sample lies between the edges (-10,0,0) and (0,10,0), so its
+        // averaged forward is (-1,1,0) / sqrt 2 and its right (-1,-1,0) / sqrt 2, which points out of the square.
         private SplineComputer NewReversedSquare()
         {
             SplinePoint[] points = new SplinePoint[4];
@@ -87,7 +94,6 @@ namespace ProjectLucid.Tests
             }
 
             SplineComputer square = _fixture.NewComputer(points);
-            square.linearAverageDirection = false;
             square.Close();
             square.RebuildImmediate();
             return square;
@@ -114,7 +120,7 @@ namespace ProjectLucid.Tests
             Assert.That(surface.sampleCount, Is.EqualTo(5), "the closed square repeats its first sample");
             SplineSample first = new SplineSample();
             surface.GetSample(0, ref first);
-            Near(first.forward, firstForward ?? Vector3.right, "first edge direction");
+            Near(first.forward, firstForward ?? new Vector3(D, -D, 0f), "first sample: the average of the closing and the first edge");
             Near(first.up, new Vector3(0f, 0f, 1f), "point normal");
             return surface;
         }
@@ -274,8 +280,8 @@ namespace ProjectLucid.Tests
 
         // GetIdentityVerts 0x4d60c0: the sample positions relative to the centre, pushed out along the (clockwise: reversed) sample
         // right by expand, and the rights themselves, both turned by the inverse look rotation of the normal. The first sample
-        // sits at the origin with right (0,1,0). For the normal (1,0,0) the look rotation maps (x,y,z) to (z,y,-x), the inverse
-        // maps (a,b,c) to (-c,b,a).
+        // sits at the origin with the averaged corner right (D,D,0), D = 1 / sqrt 2. For the normal (0,0,1) the look rotation is
+        // the identity; for the normal (1,0,0) it maps (x,y,z) to (z,y,-x), and the inverse maps (a,b,c) to (-c,b,a).
         [Test]
         public void IdentityVertsAreRelativeToTheCentreInTheNormalFrame()
         {
@@ -286,16 +292,16 @@ namespace ProjectLucid.Tests
             Vector3[] normals = DreamteckGeneratorFixture.Field<Vector3[]>(surface, "identityNormals");
             Assert.That(vertices.Length, Is.EqualTo(5));
             Assert.That(normals.Length, Is.EqualTo(5));
-            Near(vertices[0], new Vector3(-5f, -4f, 0f), "(0,0,0) - centre + right * expand");
-            Near(normals[0], new Vector3(0f, 1f, 0f), "right");
+            Near(vertices[0], new Vector3(-5f + D, -5f + D, 0f), "(0,0,0) - centre + right * expand");
+            Near(normals[0], new Vector3(D, D, 0f), "right");
 
             method.Invoke(surface, new object[] { new Vector3(5f, 5f, 0f), new Vector3(0f, 0f, 1f), true });
-            Near(vertices[0], new Vector3(-5f, -6f, 0f), "clockwise: the right is reversed");
-            Near(normals[0], new Vector3(0f, -1f, 0f), "clockwise: the right is reversed");
+            Near(vertices[0], new Vector3(-5f - D, -5f - D, 0f), "clockwise: the right is reversed");
+            Near(normals[0], new Vector3(-D, -D, 0f), "clockwise: the right is reversed");
 
             method.Invoke(surface, new object[] { new Vector3(5f, 5f, 0f), new Vector3(1f, 0f, 0f), false });
-            Near(vertices[0], new Vector3(0f, -4f, -5f), "inverse look rotation of (1,0,0): (-5,-4,0) -> (-c,b,a)");
-            Near(normals[0], new Vector3(0f, 1f, 0f), "inverse look rotation of (1,0,0): (0,1,0) -> (0,1,0)");
+            Near(vertices[0], new Vector3(0f, -5f + D, -5f + D), "inverse look rotation of (1,0,0): (-5 + D,-5 + D,0) -> (-c,b,a)");
+            Near(normals[0], new Vector3(0f, D, D), "inverse look rotation of (1,0,0): (D,D,0) -> (0,D,D)");
         }
 
         // A flat build (extrude 0, no extrude spline): the outline vertices only. BuildMesh 0x4d3030 hands over to Generate; the
@@ -354,13 +360,13 @@ namespace ProjectLucid.Tests
         }
 
         // The expand moves each outline vertex along the sample right (reversed for a clockwise outline): the right of the first
-        // sample is (0,1,0) (Cross(up, forward)), so the first corner moves to (0,-1,0).
+        // sample is Cross(up, forward) = Cross((0,0,1), (D,-D,0)) = (D,D,0), so the first corner moves diagonally out to (-D,-D,0).
         [Test]
         public void ExpandPushesTheOutlineAlongTheReversedSampleRight()
         {
             SurfaceGenerator surface = NewSurface(NewSquare(), s => s.expand = 1f);
             TS_Mesh ts = Ts(surface);
-            Near(ts.vertices[0], new Vector3(0f, -1f, 0f), "corner 0");
+            Near(ts.vertices[0], new Vector3(-D, -D, 0f), "corner 0");
             for (int i = 0; i < 4; i++)
             {
                 SplineSample sample = Sample(surface, i);
@@ -371,8 +377,9 @@ namespace ProjectLucid.Tests
         // With an extrude distance: the surface is lifted by normal * extrude, a copy of the unlifted surface follows with the
         // negated normal and the U mirrored, then two rims of vertexCount + 1 wall vertices (rim A lowered by the extrude from the
         // lifted surface, rim B at the lifted surface). Rim A takes U from j / (vertexCount - 1), rim B from j / vertexCount; a
-        // clockwise outline mirrors U. The wall normal is the reversed sample right. The triangles are the surface, the flipped
-        // copy shifted by vertexCount, and the two-row wall plane shifted by 2 * vertexCount.
+        // clockwise outline mirrors U. The wall normal is the reversed sample right, so at the averaged first corner it is
+        // (-D,-D,0), diagonal out of the square. The triangles are the surface, the flipped copy shifted by vertexCount, and the
+        // two-row wall plane shifted by 2 * vertexCount.
         [Test]
         public void ExtrudeBuildsTheBottomCopyAndTwoWallRims()
         {
@@ -395,6 +402,8 @@ namespace ProjectLucid.Tests
                 Near(ts.uv[4 + i], new Vector2(1f - SurfaceUv[i].x, SurfaceUv[i].y), "bottom uv " + i);
             }
 
+            Near(ts.normals[8], new Vector3(-D, -D, 0f), "rim A normal 0: the reversed averaged corner right");
+            Near(ts.normals[13], new Vector3(-D, -D, 0f), "rim B normal 0: the reversed averaged corner right");
             for (int j = 0; j < 5; j++)
             {
                 SplineSample sample = Sample(surface, j % 4);
@@ -549,19 +558,19 @@ namespace ProjectLucid.Tests
         // Every other Generate test uses the clockwise outline. With the corners reversed (sum +300, not clockwise) the branches
         // take the other side: the expand follows the sample right (0x4d3b84), the wall normal is the sample right itself
         // (0x4d4ff2/0x4d5020), U is not mirrored (0x4d5107, 0x4d5324) and a positive extrude flips the wall plane (0x4d54e8).
-        // The first sample runs along +y, so its right is Cross(up, forward) = (-1,0,0).
+        // The first sample runs along the averaged direction (-D,D,0), so its right is Cross(up, forward) = (-D,-D,0).
         [Test]
         public void AnOutlineThatIsNotClockwiseTakesTheOtherBranches()
         {
-            Vector3 firstForward = Vector3.up;
+            Vector3 firstForward = new Vector3(-D, D, 0f);
             SurfaceGenerator expanded = NewSurface(NewReversedSquare(), s => s.expand = 1f, firstForward);
-            Near(Ts(expanded).vertices[0], new Vector3(-1f, 0f, 0f), "corner 0 moved along its right");
+            Near(Ts(expanded).vertices[0], new Vector3(-D, -D, 0f), "corner 0 moved along its right");
 
             SurfaceGenerator surface = NewSurface(NewReversedSquare(), s => s.extrude = 2f, firstForward);
             TS_Mesh ts = Ts(surface);
-            Near(Sample(surface, 0).right, new Vector3(-1f, 0f, 0f), "first sample right");
-            Near(ts.normals[8], new Vector3(-1f, 0f, 0f), "rim A normal is the sample right");
-            Near(ts.normals[13], new Vector3(-1f, 0f, 0f), "rim B normal is the sample right");
+            Near(Sample(surface, 0).right, new Vector3(-D, -D, 0f), "first sample right");
+            Near(ts.normals[8], new Vector3(-D, -D, 0f), "rim A normal is the sample right");
+            Near(ts.normals[13], new Vector3(-D, -D, 0f), "rim B normal is the sample right");
             Near(ts.uv[9], new Vector2(1f / 3f, 0f), "rim A U is not mirrored");
             Near(ts.uv[14], new Vector2(1f / 4f, 1f), "rim B U is not mirrored");
             Assert.That(ts.triangles.Skip(12).Take(24).ToArray(), Is.EqualTo(Offset(MeshUtility.GeneratePlaneTriangles(4, 2, true), 8)),

@@ -8,7 +8,10 @@ namespace ProjectLucid.Tests
     // Dreamteck.Splines.SurfaceGenerator setters on a closed Linear square in the XY plane, corners (0,0,0), (10,0,0), (10,10,0),
     // (0,10,0). The shipped build queues the rebuild of a changed setter for the next Update (SplineUser.Rebuild sets rebuild and
     // getSamples, RunUpdate builds and then raises onPostBuild). The editor compile rebuilds at once while Application.isPlaying
-    // is false, so these tests run in play mode, where the engine caches the play state itself.
+    // is false, so these tests run in play mode, where the engine caches the play state itself. The square keeps the default
+    // linearAverageDirection, so CalculateLinearTangent 0x4e0540 gives each Linear corner sample the halfway direction between
+    // its two edges (Slerp(P1 - P0, P2 - P1, 0.5), wrapping round the closed spline); measured natively, the first sample runs
+    // along (1,-1,0) / sqrt 2.
     public sealed class OriginalDreamteckSurfaceGeneratorPlayModeTests
     {
         private readonly DreamteckGeneratorFixture _fixture = new DreamteckGeneratorFixture();
@@ -39,7 +42,6 @@ namespace ProjectLucid.Tests
             }
 
             SplineComputer square = _fixture.NewComputer(points);
-            square.linearAverageDirection = false;
             square.Close();
             square.RebuildImmediate();
             return square;
@@ -66,7 +68,7 @@ namespace ProjectLucid.Tests
             Assert.That(surface.sampleCount, Is.EqualTo(5), "the closed square repeats its first sample");
             SplineSample first = new SplineSample();
             surface.GetSample(0, ref first);
-            Near(first.forward, firstForward ?? Vector3.right, "first edge direction");
+            Near(first.forward, firstForward ?? new Vector3(0.70710678f, -0.70710678f, 0f), "first sample: the average of the closing and the first edge");
             Near(first.up, new Vector3(0f, 0f, 1f), "point normal");
             return surface;
         }
