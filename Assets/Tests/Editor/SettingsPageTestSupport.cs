@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Hardlight;
 using Hardlight.Analytics;
 using HardlightProject;
@@ -26,14 +27,38 @@ namespace ProjectLucid.Tests
 
         // The settings are installed as the save flow of the original does (SaveManager.m_saveSettings has no
         // setter) and are marked saved, so that a case sees which edits dirty them and which save them.
-        internal static void With(Action<Page> body) => Owned.Run(owned => body(NewPage(owned)));
+        internal static void With(Action<Page> body)
+        {
+            InitialiseAnalytics();
+            Owned.Run(owned => body(NewPage(owned)));
+        }
 
         // The same with a TimeManager registered into its absent row, for the pages that take a typed reference to it.
-        internal static void WithTime(Action<Page> body) => TimeScaledTestHarness.WithRegisteredManager(scene =>
+        internal static void WithTime(Action<Page> body)
         {
-            Page page = NewPage(scene.Owned);
-            page.Time = scene.Manager;
-            body(page);
+            InitialiseAnalytics();
+            TimeScaledTestHarness.WithRegisteredManager(scene =>
+            {
+                Page page = NewPage(scene.Owned);
+                page.Time = scene.Manager;
+                body(page);
+            });
+        }
+
+        // AnalyticsEventCollector's type initialiser (0x0600006d) auto-creates the UIModernMessage exchange row, subscribes the
+        // button-press callback and takes a typed DataManager reference, which would leave those rows (and a Shutdown subscriber)
+        // behind in whichever case reports a setting change first. It runs here against an owned exchange and an idle
+        // DataManager row that are released at once, the way the other fixtures run theirs; the reference to the released
+        // DataManager row is not read by the setting-changed event.
+        private static void InitialiseAnalytics() => Owned.Run(owned =>
+        {
+            owned.LeaseActions(SystemAction.Shutdown);
+            owned.LeaseRow<DataManager>();
+            var row = owned.Lease(new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<MessageExchangeBoundCallbackArg<UIModernMessage>>()));
+            var exchange = new MessageExchangeBoundCallbackArg<UIModernMessage>();
+            owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(exchange)));
+            row.Register(exchange);
+            RuntimeHelpers.RunClassConstructor(typeof(AnalyticsEventCollector).TypeHandle);
         });
 
         private static Page NewPage(Owned owned)
