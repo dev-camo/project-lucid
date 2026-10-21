@@ -9,8 +9,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 02000834; bodies 0x607950..0x607E00 (1.10.1 x86-64).
     // Relays the hub-interaction string messages to UnityEvents and a bindable label.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ButtonBinaryStateMessageListener : MonoBehaviour
     {
         [SerializeField]

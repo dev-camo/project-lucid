@@ -29,7 +29,7 @@ namespace ProjectLucid.Tests
 
         // CreateDefault 0x535170 stores the "n/a" literal and DateTime.Now.ToFileTimeUtc() (0x5351D2..0x5351E1).
         [Test]
-        public void TheDefaultStampIsNotAvailableAtTheCurrentFileTime()
+        public void TheDefaultStampIsNaAtTheCurrentFileTime()
         {
             long before = DateTime.Now.ToFileTimeUtc();
             ApplicationInfo info = ApplicationInfo.CreateDefault();

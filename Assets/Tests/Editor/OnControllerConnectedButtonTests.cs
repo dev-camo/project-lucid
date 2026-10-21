@@ -114,7 +114,7 @@ namespace ProjectLucid.Tests
         // OnDestroy 0x58C2B0 unregisters from the control mapping first (0x58C2FC), which a button that
         // never started does not have.
         [Test]
-        public void OnDestroyNeedsTheControlMappingStartTakes()
+        public void OnDestroyBeforeStartFaultsOnTheMissingControlMapping()
         {
             Owned.Run(owned =>
             {

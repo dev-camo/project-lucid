@@ -7,7 +7,7 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
-    // UIAnimatingCounter (Game.Runtime 02000842, bodies 0x60A4C0..0x60AB70) against the 1.10.1 x86-64
+    // UIAnimatingCounter (Game.Runtime 02000842, bodies 0x60A4C0..0x60AB80) against the 1.10.1 x86-64
     // bodies cited per case. The counter lives on an owned host that is inactive unless a case says so.
     //
     // The frame time is not controllable in Edit Mode, so the animation is driven with a negative duration:

@@ -7,8 +7,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 02000a15; bodies 0x6B2DC0..0x6B3060 (1.10.1 x86-64).
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class OpenLocalisedURL : MonoBehaviour
     {
         [SerializeField]
@@ -19,8 +19,8 @@ namespace HardlightProject
         [SerializeField]
         private bool m_debugQRCodeInEditor;
 
-        // 060039c5: the retail body contains only the OpenUrl path. Nothing in this build
-        // reads m_debugQRCodeInEditor or calls OpenQRCode, so any branch that did is compiled out.
+        // 060039c5: the retail body is exactly OpenUrl; no code in this build reads
+        // m_debugQRCodeInEditor or calls OpenQRCode (a preprocessor-excluded branch, if any, is not recoverable).
         public void Action_Open()
         {
             OpenUrl();

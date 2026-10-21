@@ -7,7 +7,7 @@ using UnityEngine.Events;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime 02000842; bodies 0x60A4C0..0x60A930 (1.10.1 x86-64).
+    // Original Game.Runtime 02000842; bodies 0x60A4C0..0x60AB80 (1.10.1 x86-64).
     // Counts a bindable number from one amount to another over a fixed time.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
@@ -29,7 +29,7 @@ namespace HardlightProject
         private bool m_animateWhenEnabled;
 
         // 06002fe2: a zero duration keeps the current animation time.
-        public void SetUp(int startAmount, int endAmount, string outputStringFormat, float durationSeconds = 0f)
+        public void SetUp(int startAmount, int endAmount, string outputStringFormat = null, float durationSeconds = 0f)
         {
             StopAllCoroutines();
             m_startAmount = startAmount;

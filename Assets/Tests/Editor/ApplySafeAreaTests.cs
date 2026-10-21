@@ -6,9 +6,10 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
-    // ApplySafeArea (Game.Runtime 0200082e, bodies 0x606BD0..0x606DB0). The device safe area is whatever
-    // the editor reports, so the expected offsets restate the native arithmetic (0x606D20..0x606D9A) on
-    // the live Screen values: offsetMin = (x, y), offsetMax = (x + width - Screen.width, y + height - Screen.height).
+    // ApplySafeArea (Game.Runtime 0200082e, bodies 0x606BD0..0x606DB0). The Editor normally reports a safe
+    // area covering the whole screen, so these cases only show that Apply and Awake overwrite the offsets
+    // with the safe-area insets (zero there). They cannot separate a swapped sign or operand in the native
+    // arithmetic (0x606D20..0x606D9A); that needs a device run with an inset safe area.
     public sealed class ApplySafeAreaTests
     {
         private const float Tolerance = 1e-3f;

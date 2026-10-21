@@ -9,8 +9,8 @@ namespace HardlightProject
     // Original Game.Runtime 0200083d; bodies 0x609240..0x609740 (1.10.1 x86-64).
     // Lays its children out one canvas width apart and slides between them.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-    [Il2CppSetOption(Option.NullChecks, false)]
     [ExecuteInEditMode]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class ScreenWidthHorizontalScrollGroup : MonoBehaviour
     {
         [SerializeField]
@@ -38,8 +38,9 @@ namespace HardlightProject
         // 06002fc1: every child must be a RectTransform.
         private void Reset()
         {
-            m_childTransforms = new RectTransform[transform.childCount];
-            for (int i = 0; i < m_childTransforms.Length; i++)
+            int childCount = transform.childCount;
+            m_childTransforms = new RectTransform[childCount];
+            for (int i = 0; i < childCount; i++)
             {
                 m_childTransforms[i] = (RectTransform)transform.GetChild(i);
             }
@@ -58,9 +59,10 @@ namespace HardlightProject
             float canvasWidth = GetCanvasWidth();
             for (int i = 0; i < m_childTransforms.Length; i++)
             {
-                Vector2 anchoredPosition = m_childTransforms[i].anchoredPosition;
+                RectTransform child = m_childTransforms[i];
+                Vector2 anchoredPosition = child.anchoredPosition;
                 anchoredPosition.x = i * canvasWidth;
-                m_childTransforms[i].anchoredPosition = anchoredPosition;
+                child.anchoredPosition = anchoredPosition;
             }
         }
 
@@ -107,7 +109,7 @@ namespace HardlightProject
             float scrollLerpValue = 0f;
             while (scrollLerpValue <= 1f)
             {
-                scrollLerpValue += (float)(Time.deltaTime * m_scrollSpeed);
+                scrollLerpValue += Time.deltaTime * m_scrollSpeed;
                 m_rectTransform.anchoredPosition = Vector2.Lerp(fromPosition, targetPosition, scrollLerpValue);
                 yield return null;
             }

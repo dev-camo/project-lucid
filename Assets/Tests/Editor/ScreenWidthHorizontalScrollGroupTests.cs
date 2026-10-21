@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -136,7 +137,7 @@ namespace ProjectLucid.Tests
                 Scene scene = NewScene(owned, Vector2.zero, Vector2.zero, Vector2.zero);
                 scene.Host.SetActive(true);
 
-                var seen = new System.Collections.Generic.List<int>();
+                var seen = new List<int>();
                 scene.Group.Action_ScrollToNext();
                 seen.Add(Get<int>(scene.Group, "m_targetIndex"));
                 scene.Group.Action_ScrollToNext();

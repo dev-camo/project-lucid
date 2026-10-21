@@ -8338,7 +8338,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerPrefabPoolTests." + nam
 # Restored HardlightProject.ApplicationInfo and ApplicationInfoView (Game.Runtime 020000ad, 0200082c).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.ApplicationInfoTests." + name for name in (
     "TheStampSerialisesItsCodeThenItsTime",
-    "TheDefaultStampIsNotAvailableAtTheCurrentFileTime",
+    "TheDefaultStampIsNaAtTheCurrentFileTime",
     "WithoutAFileTheDefaultReachesTheCallbackAtOnce",
     "TheViewStartsWithPlaceholders",
     "LoadedInformationFillsTheThreeBindables",
@@ -8368,7 +8368,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnControllerConnectedButtonTests." +
     "EveryControllerTypeMapsToItsNativeInputType",
     "AConnectedControllerSetsTheInputTypeUnlessItIsASiriRemote",
     "ADisabledButtonDoesNothing",
-    "OnDestroyNeedsTheControlMappingStartTakes",
+    "OnDestroyBeforeStartFaultsOnTheMissingControlMapping",
 ))
 
 # Restored HardlightProject.OpenLocalisedURL (Game.Runtime 02000a15).

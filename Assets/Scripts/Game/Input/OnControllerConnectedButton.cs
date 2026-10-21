@@ -2,17 +2,14 @@ using System;
 using System.Collections.Generic;
 using Apple.GameController.Controller;
 using Hardlight;
-using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
 namespace HardlightProject
 {
     // Original Game.Runtime 020006b2; bodies translated from the 1.10.1 x86-64 binary, 0x58BA50..0x58C380.
-    // Presses its game input once at start, and again for every controller that connects, while the
-    // Apple controller provider is in use.
-    [Il2CppSetOption(Option.NullChecks, false)]
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    // Presses its game input once at start when the Apple controller provider is in use; connecting
+    // controllers only update the input type.
     public class OnControllerConnectedButton : MonoBehaviour, IInputButton
     {
         // 060023eb..060023f0: compiler-generated accessors.
@@ -57,7 +54,7 @@ namespace HardlightProject
             }
         }
 
-        // 060023f3: the newest connected controller that is not a Siri Remote decides the input type.
+        // 060023f3: the last non-Siri-Remote controller in the provider list decides the input type.
         private void TryGetActiveControllerType()
         {
             if (!m_systemEnabled)

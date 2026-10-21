@@ -9,8 +9,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 0200082c; bodies 0x606880..0x606A40 (1.10.1 x86-64).
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class ApplicationInfoView : MonoBehaviour
     {
         [SerializeField]

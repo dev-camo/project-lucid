@@ -15,7 +15,7 @@ namespace HardlightProject
     public class ApplicationInfo
     {
         private static readonly string FileName = "ApplicationInfo.json";
-        private static readonly string Location = Application.streamingAssetsPath + Path.DirectorySeparatorChar.ToString() + FileName;
+        private static readonly string Location = Application.streamingAssetsPath + Path.DirectorySeparatorChar + FileName;
 
         public string BuildCode;
         public long BuildTime;
@@ -34,7 +34,8 @@ namespace HardlightProject
         // 06000595
         public static ApplicationInfo CreateDefault()
         {
-            return new ApplicationInfo { BuildCode = "n/a", BuildTime = DateTime.Now.ToFileTimeUtc() };
+            long buildTime = DateTime.Now.ToFileTimeUtc();
+            return new ApplicationInfo { BuildCode = "n/a", BuildTime = buildTime };
         }
 
         // 06000596 / MoveNext 0600059d: the file is read through the streaming-assets importer
@@ -43,7 +44,12 @@ namespace HardlightProject
         {
             if (File.Exists(Location))
             {
-                yield return JSONExtensions.ImportJsonFile(FileName, jsonData => callback?.Invoke(JsonUtility.FromJson<ApplicationInfo>(jsonData)));
+                yield return JSONExtensions.ImportJsonFile(FileName, jsonData =>
+                {
+                    // Parsed even without a callback, so malformed JSON still throws.
+                    ApplicationInfo info = JsonUtility.FromJson<ApplicationInfo>(jsonData);
+                    callback?.Invoke(info);
+                });
             }
             else
             {

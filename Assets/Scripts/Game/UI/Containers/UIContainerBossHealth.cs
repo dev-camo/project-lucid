@@ -10,8 +10,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0200087b; bodies 0x61A4F0..0x61B1E0 (1.10.1 x86-64).
     // Boss health pips: one object and fill image per health point, refilled as the boss health changes.
-    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
+    [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class UIContainerBossHealth : UIContainer
     {
         public readonly Bindable<bool> Visible = new Bindable<bool>();

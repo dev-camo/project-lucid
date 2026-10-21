@@ -61,7 +61,7 @@ namespace ProjectLucid.Tests
 
         private static float[] Fill(Image[] images) => Array.ConvertAll(images, image => image.fillAmount);
 
-        private static bool Visited(Image image) => !(image.fillAmount == 0f);
+        private static bool Visited(Image image) => image.fillAmount != 0f;
 
         // Constructor 0x61AD70: hidden bindables, half a second of lerp, no health yet (-1).
         [Test]
