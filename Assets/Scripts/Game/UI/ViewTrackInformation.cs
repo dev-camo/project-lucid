@@ -15,10 +15,11 @@ namespace HardlightProject
     public class ViewTrackInformation : MonoBehaviour
     {
         [Tooltip("List of info panels to cycle visibility.")]
-        [SerializeField] private List<GameObject> m_infoList = new List<GameObject>();
+        [SerializeField]
+        private List<GameObject> m_infoList = new List<GameObject>();
         public readonly Bindable<string> InstancePrefabPoolsInfo = new Bindable<string>();
         private int m_infoIndex;
-        private StringBuilder m_stringInfo = new StringBuilder(0);
+        private StringBuilder m_stringInfo = new StringBuilder();
         private readonly SystemRef<TrackManager> m_trackManagerRef = ProcessManager.GetSystemRef<TrackManager>(null, true);
 
         // 06002062 (1.10.1 RVA 0x564BE0)
@@ -44,7 +45,7 @@ namespace HardlightProject
         // 06002065 (1.10.1 RVA 0x564D00): only the panel at the current index is visible.
         private void EnableInfoList()
         {
-            for (int i = 0; i < m_infoList.Count; ++i)
+            for (int i = 0; i < m_infoList.Count; i++)
                 m_infoList[i].SetActive(i == m_infoIndex);
         }
 

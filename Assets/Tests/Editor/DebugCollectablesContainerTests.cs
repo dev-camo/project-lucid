@@ -106,16 +106,6 @@ namespace ProjectLucid.Tests
                 new (string, int)[] { (".ctor", 0x1886), ("<PopulateCollectables>b__0", 0x0083), ("<PopulateCollectables>b__1", 0x0083) });
         }
 
-        [Test]
-        public void TheFrameCounterDeclarationsMatchTheOriginalMetadata()
-        {
-            AssertMembers(typeof(UIContainerFPSDebug), 0x00100101,
-                new (string, int)[] { ("FPSCount", 0x0026) },
-                new (string, int)[] { ("Update", 0x0081), (".ctor", 0x1886) });
-            AssertIl2CppOptions(typeof(UIContainerFPSDebug), 2, 1);
-            Assert.That(typeof(UIContainerFPSDebug).BaseType, Is.EqualTo(typeof(UIContainer)));
-        }
-
         // 0x62EDA0: the base setup, the X-of-Y format string from the table (0xEBF0870B is FORMAT_X_OF_Y), then the name, the collected
         // count at +8 and the total at +12 of the parameters and the two actions, each into its own field.
         [Test]
@@ -292,32 +282,6 @@ namespace ProjectLucid.Tests
 
                 Assert.That(closed, Is.EqualTo(new[] { identifier }));
             });
-        }
-
-        // 0x631730: every update publishes VisualQualityManager_SDT.FramesPerSecond (the shared "N0" text of the static count). The
-        // count is a private static the manager's own update fills, so the case sets it and puts it back.
-        [Test]
-        public void TheFrameCounterPublishesTheStaticFrameRateEachUpdate()
-        {
-            FieldInfo frames = typeof(VisualQualityManager_SDT).GetField("s_framesPerSecond", BindingFlags.Static | BindingFlags.NonPublic);
-            float prior = (float)frames.GetValue(null);
-            try
-            {
-                Owned.Run(owned =>
-                {
-                    var counter = owned.Host("Lucid frame counter", false).AddComponent<UIContainerFPSDebug>();
-                    frames.SetValue(null, 59.6f);
-                    Call(counter, "Update");
-                    Assert.That(counter.FPSCount.Value, Is.EqualTo("60"));
-                    frames.SetValue(null, 144.4f);
-                    Call(counter, "Update");
-                    Assert.That(counter.FPSCount.Value, Is.EqualTo("144"));
-                });
-            }
-            finally
-            {
-                frames.SetValue(null, prior);
-            }
         }
     }
 }

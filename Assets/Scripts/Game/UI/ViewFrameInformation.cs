@@ -19,10 +19,10 @@ namespace HardlightProject
         private void Update()
         {
             FrameTimingManager.CaptureFrameTimings();
-            FramerateCPU.Value = "CPU: " + Math.Round((double)FrameTimingManager.GetCpuTimerFrequency(), 3, MidpointRounding.ToEven).ToString() + "ms";
-            FramerateGPU.Value = "GPU: " + Math.Round((double)FrameTimingManager.GetGpuTimerFrequency(), 3, MidpointRounding.ToEven).ToString() + "ms";
+            FramerateCPU.Value = "CPU: " + Math.Round((double)FrameTimingManager.GetCpuTimerFrequency(), 3, MidpointRounding.ToEven) + "ms";
+            FramerateGPU.Value = "GPU: " + Math.Round((double)FrameTimingManager.GetGpuTimerFrequency(), 3, MidpointRounding.ToEven) + "ms";
             Framerate.Value = string.Format("Framerate: {0} FPS",
-                Math.Round((double)(float)(1f / GetAverageFramerateMs(Time.deltaTime)), 2, MidpointRounding.ToEven));
+                Math.Round(1f / GetAverageFramerateMs(Time.deltaTime), 2, MidpointRounding.ToEven));
         }
 
         // 06002060 (1.10.1 RVA 0x564940): the sample queue keeps the newest 60 values; the sample passed in is the raw

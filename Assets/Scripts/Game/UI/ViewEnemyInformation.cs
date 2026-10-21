@@ -20,7 +20,8 @@ namespace HardlightProject
         }
 
         // 0600205d (1.10.1 RVA 0x564530): replaces the base update. Only the state text is published, from the builder
-        // as it stands: nothing in the retail build fills it first and it is not cleared.
+        // as it stands. A [Conditional("BUILD_DEVELOPMENT")] call (Actor.DebugGetStateInfo(StringBuilder), 0600030e) that would fill
+        // it is probably compiled out of retail here, so the builder is published unfilled and uncleared.
         protected override void Update()
         {
             if (m_actor == null)

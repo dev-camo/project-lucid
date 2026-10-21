@@ -9372,7 +9372,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.XPCounterBufferedIncreaseTests." + n
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.DebugCollectablesContainerTests." + name for name in (
     "DeclarationsMatchTheOriginalMetadata",
-    "TheFrameCounterDeclarationsMatchTheOriginalMetadata",
     "ARowPublishesItsParametersAndKeepsBothActions",
     "ARowWithoutActionsIgnoresBothButtons",
     "UpdatingTheCollectedAmountLeavesTheRestAlone",
@@ -9383,7 +9382,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.DebugCollectablesContainerTests." + 
     "ARowShowsTheCappedCountWhenTheDefinitionHasATotal",
     "ChangingATypeWithoutAStateLeavesTheRowAlone",
     "ClosingAsksTheUiManagerToCloseTheIdentifier",
-    "TheFrameCounterPublishesTheStaticFrameRateEachUpdate",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.FastLevelSelectAndFastLoadContainerTests." + name for name in (
     "TheLevelSelectDeclarationsMatchTheOriginalMetadata",
@@ -9418,4 +9416,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.DebugInformationViewTests." + name f
     "ACharacterChangeStoresTheCharacterTwice",
     "DisablingReleasesTheCallbackAndTellsTheDebugMenu",
     "TheCharacterUpdateWithoutAnActorLeavesTheTextsAlone",
+    "TheFrameCounterDeclarationsMatchTheOriginalMetadata",
+    "TheFrameCounterPublishesTheStaticFrameRateEachUpdate",
 ))

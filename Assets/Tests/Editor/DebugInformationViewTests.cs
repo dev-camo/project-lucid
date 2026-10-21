@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using Hardlight;
 using HardlightProject;
@@ -335,7 +336,10 @@ namespace ProjectLucid.Tests
                 Assert.That(texts.All(text => text != null && text.Value == null), Is.True);
                 Assert.That(texts.Distinct().Count(), Is.EqualTo(4));
                 foreach (string name in new[] { "m_stringAbilityNameInfo", "m_stringAbilityEnabledInfo", "m_stringAbilityUpdateInfo", "m_stringAbilityExtraInfo" })
+                {
                     Assert.That(Get<StringBuilder>(view, name).Length, Is.Zero, name);
+                    Assert.That(Get<StringBuilder>(view, name).Capacity, Is.EqualTo(new StringBuilder().Capacity), name);
+                }
                 Assert.That(Get<object>(view, "m_characterManagerRef"), Is.Null);
                 Assert.That(Get<Character>(view, "m_character"), Is.Null);
             });
@@ -455,6 +459,44 @@ namespace ProjectLucid.Tests
                 Assert.That(view.AbilityNameInfo.Value, Is.EqualTo("stale"));
                 Assert.That(view.ActorInfo.Value, Is.EqualTo("stale"));
             });
+        }
+
+        // ---- UIContainerFPSDebug ----
+
+        [Test]
+        public void TheFrameCounterDeclarationsMatchTheOriginalMetadata()
+        {
+            AssertMembers(typeof(UIContainerFPSDebug), 0x00100101,
+                new (string, int)[] { ("FPSCount", 0x0026) },
+                new (string, int)[] { ("Update", 0x0081), (".ctor", 0x1886) });
+            AssertIl2CppOptions(typeof(UIContainerFPSDebug), 2, 1);
+            Assert.That(typeof(UIContainerFPSDebug).BaseType, Is.EqualTo(typeof(UIContainer)));
+        }
+
+        // 0x631730: every update publishes VisualQualityManager_SDT.FramesPerSecond (the shared "N0" text of the static count). The
+        // count is a private static the manager's own update fills, so the case sets it and puts it back.
+        [Test]
+        public void TheFrameCounterPublishesTheStaticFrameRateEachUpdate()
+        {
+            FieldInfo frames = typeof(VisualQualityManager_SDT).GetField("s_framesPerSecond", BindingFlags.Static | BindingFlags.NonPublic);
+            float prior = (float)frames.GetValue(null);
+            try
+            {
+                Owned.Run(owned =>
+                {
+                    var counter = owned.Host("Lucid frame counter", false).AddComponent<UIContainerFPSDebug>();
+                    frames.SetValue(null, 59.6f);
+                    Call(counter, "Update");
+                    Assert.That(counter.FPSCount.Value, Is.EqualTo("60"));
+                    frames.SetValue(null, 144.4f);
+                    Call(counter, "Update");
+                    Assert.That(counter.FPSCount.Value, Is.EqualTo("144"));
+                });
+            }
+            finally
+            {
+                frames.SetValue(null, prior);
+            }
         }
     }
 }

@@ -17,10 +17,10 @@ namespace HardlightProject
         public readonly Bindable<string> AbilityEnabledInfo = new Bindable<string>();
         public readonly Bindable<string> AbilityUpdateInfo = new Bindable<string>();
         public readonly Bindable<string> AbilityExtraInfo = new Bindable<string>();
-        private readonly StringBuilder m_stringAbilityNameInfo = new StringBuilder(0);
-        private readonly StringBuilder m_stringAbilityEnabledInfo = new StringBuilder(0);
-        private readonly StringBuilder m_stringAbilityUpdateInfo = new StringBuilder(0);
-        private readonly StringBuilder m_stringAbilityExtraInfo = new StringBuilder(0);
+        private readonly StringBuilder m_stringAbilityNameInfo = new StringBuilder();
+        private readonly StringBuilder m_stringAbilityEnabledInfo = new StringBuilder();
+        private readonly StringBuilder m_stringAbilityUpdateInfo = new StringBuilder();
+        private readonly StringBuilder m_stringAbilityExtraInfo = new StringBuilder();
         private SystemRef<CharacterManager> m_characterManagerRef;
         private Character m_character;
 

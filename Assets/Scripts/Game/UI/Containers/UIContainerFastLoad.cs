@@ -54,8 +54,9 @@ namespace HardlightProject
             button.Setup(new UIWidgetButtonParameters(missionDefinition.name, () => Continue(levelDefinition, missionDefinition)));
         }
 
-        // 06003255: set up the meta game, the mission and its first character as the app would, then queue the
-        // continue event.
+        // 06003255: store the meta game state, load the mission, set the regular mission context (null without a mission),
+        // store the first mission character as current and mission character, set BonusZoneActive for zone-5 levels, then
+        // queue the continue event.
         private void Continue(GameplayLevelDefinition levelDefinition, MissionDefinition missionDefinition = null)
         {
             MissionManager missionManager = m_missionManagerRef.Get();
