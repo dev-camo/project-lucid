@@ -25,7 +25,7 @@ namespace ProjectLucid.Tests
         private static void WithEnemyBody(Action<Owned, Enemy, SimplifiedBody> body) => Owned.Run(owned =>
         {
             Enemy enemy = NewEnemy(owned);
-            SimplifiedBody simplifiedBody = AddSimplifiedBody(enemy.gameObject);
+            SimplifiedBody simplifiedBody = AddTimeScaled<SimplifiedBody>(enemy.gameObject);
             Set(enemy, "m_simplifiedBody", simplifiedBody);
             body(owned, enemy, simplifiedBody);
         });

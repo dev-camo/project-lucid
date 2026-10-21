@@ -175,7 +175,7 @@ namespace ProjectLucid.Tests
             configure?.Invoke(definition.Traits);
             definition.Traits.UpdateCachedValues();
             Set(enemy, "m_definition", definition);
-            SimplifiedBody bodyComponent = AddSimplifiedBody(enemy.gameObject);
+            SimplifiedBody bodyComponent = AddTimeScaled<SimplifiedBody>(enemy.gameObject);
             Set(enemy, "m_simplifiedBody", bodyComponent);
             // Start caches the transform; Enemy.SetWorldPosition writes through it.
             Set(enemy, "m_transform", enemy.transform);
@@ -184,16 +184,16 @@ namespace ProjectLucid.Tests
             body(new Scene { Owned = owned, Enemy = enemy, Brain = brain, Manager = manager, Definition = definition, Body = bodyComponent });
         });
 
-        // AddComponent sends the Editor Reset and OnValidate to the SimplifiedBody (a TimeScaledComponent_SDT); both read
-        // its s_config lookup, which with nothing cached registers the SystemConfiguration row (GetConfig). An owned
+        // AddComponent sends the Editor Reset and OnValidate to a TimeScaledComponent_SDT (the SimplifiedBody, a projectile);
+        // both read its s_config lookup, which with nothing cached registers the SystemConfiguration row (GetConfig). An owned
         // empty lookup stands in while the body is added, and the prior cache is put back.
-        internal static SimplifiedBody AddSimplifiedBody(GameObject host)
+        internal static T AddTimeScaled<T>(GameObject host) where T : Component
         {
             FieldInfo config = typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", BindingFlags.Static | BindingFlags.NonPublic);
             object prior = config.GetValue(null);
             var lookup = ScriptableObject.CreateInstance<TimeCategoryLookup>();
             config.SetValue(null, lookup);
-            try { return host.AddComponent<SimplifiedBody>(); }
+            try { return host.AddComponent<T>(); }
             finally
             {
                 config.SetValue(null, prior);

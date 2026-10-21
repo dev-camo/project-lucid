@@ -32,7 +32,7 @@ namespace ProjectLucid.Tests
             });
 
         private static EnemyProjectileProbe NewProjectile(Scene scene) =>
-            scene.Owned.Host(Name(), false).AddComponent<EnemyProjectileProbe>();
+            AddTimeScaled<EnemyProjectileProbe>(scene.Owned.Host(Name(), false));
 
         private static bool BrainHoldsTarget(Scene scene) => scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
 
