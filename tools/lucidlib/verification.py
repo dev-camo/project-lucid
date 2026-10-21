@@ -7292,10 +7292,13 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementSaveDataTests." + na
     "ASpecificMissionWithoutTheManagersIsNotComplete",
     "ANotCompletedMissionRequirementNegatesTheRecordedCompletion",
     "ANotCompletedMissionRequirementWithoutAMissionManagerIsNotMet",
+    "AChallengeRewardIsCollectedOnlyWhenItsSaveRecordIsCollected",
+    "AChallengeRewardWithoutASaveManagerIsNotCollected",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementChallengeFeatureTests." + name for name in (
     "TheFeatureIsSeenOnlyInTheFinalState",
     "TheFeatureIsUnlockedInEveryStatePastLocked",
+    "TheShadowFtueIsAvailableOnceItsMissionIsCompleteAndTheFeatureIsNotLocked",
     "TheUnlockedStatesAreTheThreeStatesPastLockedInOrder",
     "WithoutAChallengeManagerNoFeatureRequirementIsMet",
 ))
@@ -7307,6 +7310,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementProgressionTests." +
     "EveryListedMissionMustBeCompleteInItsFirstLevel",
     "OnlyExistingPersistentTrackerStatesCanFailThePersistentRequirement",
     "ALevelOutsideTheGameLevelsDoesNotHaveEnoughRewards",
+    "EveryRewardRequirementOfAListedLevelMustBeReached",
+    "OrbGatedGroupsNeedAtLeastTheAuthoredOrbCountCollected",
+    "AMissionHostedByTwoLevelsIsReadFromTheFirstHostingLevel",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementDeclarationTests." + name for name in (
     "GameplayLevelRequirementsKeepTheirMetadata",
@@ -7317,6 +7323,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.LevelRequirementDeclarationTests." +
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.PromptTriggerActionTests." + name for name in (
     "HidingAllPromptsWithoutAPromptManagerDoesNothing",
     "HidingAllPromptsOfAnIdlePromptManagerLeavesNoActivePrompt",
+    "HidingAllPromptsHidesEveryActivePrompt",
     "AnEffectWhosePromptIsRefusedCompletesAtOnce",
     "TheEffectCompletesWhenItsOwnPromptIsHiddenAndIgnoresOthers",
 ))
@@ -7329,6 +7336,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.SaveGameUIActionsTests." + name for 
     "DeletingAllSavesClosesTheOpenSaveReplacesEverySlotAndStartsReopening",
     "DeletingAllSavesWithoutAnOpenSaveDoesNotStartReopening",
     "ResettingAnalyticsWithoutAnAnalyticsSaveTouchesNothing",
+    "ResettingAnalyticsReplacesTheAnalyticsSaveAndReloadsBothConsumers",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyAbilityDefinitionTests." + name for name in (
     "MovementDefinitionsStartAt120DegreesTurnSpeedAnd3ForwardSpeed",

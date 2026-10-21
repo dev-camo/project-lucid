@@ -15,10 +15,12 @@ namespace HardlightProject
         private readonly SystemRef<MissionManager> m_missionManagerRef = ProcessManager.GetSystemRef<MissionManager>(null, true);
 
         // 0x06001f02 (x86-64 0x556ed0): after the DebugUnlockLevels class
-        // initialisation (its inlined always-false query; the dead branch's return value is inferred from the sibling requirements) the boss level of the
-        // zone before this level's zone must have its first mission complete.
-        // The scan keeps the last zone it passed; for the first zone nothing
-        // precedes it, so the zone itself is used.
+        // initialisation (its inlined always-false query is folded away, so the true
+        // return below is an unreachable source stand-in, as in
+        // GameplayLevelDefinition.MeetsAllRequirements) the boss level of the zone
+        // before this level's zone must have its first mission complete. The scan
+        // keeps the last zone it passed; for the first zone nothing precedes it, so
+        // the zone itself is used.
         public override bool RequirementsMet(GameplayLevelDefinition levelDefinition)
         {
             if (DebugUnlockLevels.AreAllLevelsUnlocked()) return true;

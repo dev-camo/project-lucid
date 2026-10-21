@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Hardlight;
+using Hardlight.Analytics;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -71,6 +72,54 @@ namespace ProjectLucid.Tests
                 Assert.That(save.HasSaveDataAnalytics(), Is.False);
                 Assert.DoesNotThrow(actions.Action_ResetAnalyticsData);
                 Assert.That(save.HasSaveDataAnalytics(), Is.False);
+            });
+        }
+
+        // 0x5ed4c3..0x5ed59b: with an analytics save, DeleteSaveAnalytics nulls the raw text and replaces the object
+        // (SaveSynchronous then returns at once here, as the fixture's SaveManager never loaded), after which the
+        // consent manager and then the session manager reload from the fresh save.
+        [Test]
+        public void ResettingAnalyticsReplacesTheAnalyticsSaveAndReloadsBothConsumers()
+        {
+            Owned.Run(owned =>
+            {
+                owned.Lease(new OwnedCharacterManagers());
+                SaveManager save = ProcessManager.GetSystem<SaveManager>();
+                owned.LeaseRow<GameCenter>(); // read by the consent manager's initialise
+                owned.LeaseActions(SystemAction.AppInitialise, SystemAction.Update, SystemAction.AppShutdown);
+                var consent = new AnalyticsConsentManager();
+                var session = new AnalyticsSessionManager();
+                // The constructors subscribe now, before the rows are admitted; released after the unregistration.
+                owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() =>
+                {
+                    ProcessManager.UnsubscribeFromAllActions(consent);
+                    ProcessManager.UnsubscribeFromAllActions(session);
+                }));
+                owned.Register(consent);
+                owned.Register(session);
+                // The consent manager's initialise (its own subscribed callback) takes the references its reload reads.
+                // No analytics save exists yet and no GameCenter is ready, so it waits on a coroutine the fixture refuses.
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+                Call(consent, "AppInitialiseProcess", (object)null);
+
+                save.DeleteSaveAnalytics(); // the real route that creates an analytics save
+                SaveDataAnalytics old = save.GetSaveDataAnalytics();
+                old.SessionNumber = 7;
+                save.RequestSaveAnalytics();
+                session.LoadFromSaveData(save);
+                Assert.That(session.SessionNumber, Is.EqualTo(7));
+                Assert.That(Get<string>(save, "m_rawSaveAnalytics"), Is.Not.Null.And.Not.Empty);
+                var actions = owned.Host("Lucid save actions", false).AddComponent<SaveGameUIActions>();
+
+                LogAssert.Expect(LogType.Error, RefusedCoroutine); // the consent manager reloads: GameCenter is still not ready
+                actions.Action_ResetAnalyticsData();
+
+                Assert.That(save.HasSaveDataAnalytics(), Is.True);
+                Assert.That(save.GetSaveDataAnalytics(), Is.Not.Null.And.Not.SameAs(old), "a fresh analytics save");
+                Assert.That(save.GetSaveDataAnalytics().SessionNumber, Is.EqualTo(0));
+                Assert.That(old.SessionNumber, Is.EqualTo(7), "the old object is untouched");
+                Assert.That(Get<string>(save, "m_rawSaveAnalytics"), Is.Null, "the raw text is dropped");
+                Assert.That(session.SessionNumber, Is.EqualTo(0), "the session manager reloaded from the fresh save");
             });
         }
     }

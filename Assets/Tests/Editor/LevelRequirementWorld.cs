@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Hardlight;
 using HardlightProject;
+using UnityEngine;
 using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -104,5 +105,39 @@ namespace ProjectLucid.Tests
         // Reflection: the routine is private; LoadMission, its only public route, loads tracker prefabs.
         internal void AddMissionState(GameplayLevelDefinition level, MissionDefinition mission) =>
             Call(Missions, "CreateMissionState", mission, SaveGame.GetOrCreateLevelData(level.GetGUID()));
+
+        // Authors the level's reward requirements the way the engine serializer delivers them (an enum is its integer value).
+        internal void AuthorRewardRequirements(GameplayLevelDefinition level, params (CollectableType type, int count)[] requirements)
+        {
+            string json = "{\"m_rewardRequirements\":[";
+            for (int index = 0; index < requirements.Length; ++index)
+                json += (index > 0 ? "," : "") + "{\"RewardType\":" + (int)requirements[index].type + ",\"Count\":" + requirements[index].count + "}";
+            JsonUtility.FromJsonOverwrite(json + "]}", level);
+        }
+
+        // A real ProgressionManager over the world's SaveManager. The save is closed first because the manager's
+        // Initialise registers its save listener before it creates its progress handler, so an open save would call
+        // OnSaveGameOpen on a missing handler (the original order). Initialise is the manager's own subscribed
+        // callback, called through reflection since only the process manager invokes it. The closed save's cache slot
+        // is created empty through the handler, and the returned dictionary is that slot's total, which the
+        // collectable scan would otherwise fill from authored mission collectables.
+        internal Dictionary<CollectableType, ProgressionCollectable> AddProgression()
+        {
+            Save.CloseSave();
+            m_owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
+            var progression = new ProgressionManager();
+            // The constructor subscribes now, before the row is admitted; released after the unregistration.
+            m_owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() =>
+            {
+                ProcessManager.UnsubscribeFromAllActions(progression);
+                Save.RemoveListener(progression);
+            }));
+            m_owned.Register(progression);
+            Call(progression, "Initialise", (object)null);
+            var handler = Get<ProgressionCollectableHandler>(progression, "m_collectables");
+            handler.CacheEmptyProgress(Save.CurrentSaveIndex);
+            // Reflection: the total of a cached save is private and only filled from authored collectables.
+            return Get<Dictionary<CollectableType, ProgressionCollectable>>(handler.ProgressPerSave[Save.CurrentSaveIndex], "m_total");
+        }
     }
 }

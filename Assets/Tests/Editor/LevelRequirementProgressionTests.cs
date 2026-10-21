@@ -86,8 +86,9 @@ namespace ProjectLucid.Tests
         }
 
         // 0x557e40: the first zone is open; any other listed zone is open when every boss level of the zone
-        // before it meets its own requirements and has every mission of its first group complete. A zone before
-        // it without boss levels is vacuously satisfied; a category outside the zone list is locked.
+        // before it meets its own requirements and has every mission of its first group complete (MissionList.Groups
+        // at index 0 only, 0x5582f8..0x558366). A zone before it without boss levels is vacuously satisfied; a
+        // category outside the zone list is locked.
         [Test]
         public void ACategoryIsLockedUntilEveryBossLevelOfThePreviousZoneIsFinished()
         {
@@ -98,7 +99,9 @@ namespace ProjectLucid.Tests
                 MissionDefinition plain = world.NewMission("lucid-lock-plain");
                 MissionDefinition bossTwo = world.NewMission("lucid-lock-boss-two");
                 MissionDefinition bossThree = world.NewMission("lucid-lock-boss-three");
-                GameplayLevelDefinition boss = world.NewLevel("lucid-lock-level-1", true, world.NewGroup("lucid-lock-group-1", bossA, bossB));
+                MissionDefinition laterGroup = world.NewMission("lucid-lock-later-group"); // never completed: only group 0 is read
+                GameplayLevelDefinition boss = world.NewLevel("lucid-lock-level-1", true,
+                    world.NewGroup("lucid-lock-group-1", bossA, bossB), world.NewGroup("lucid-lock-group-1b", laterGroup));
                 GameplayLevelDefinition ordinary = world.NewLevel("lucid-lock-level-2", false, world.NewGroup("lucid-lock-group-2", plain));
                 GameplayLevelDefinition secondBoss = world.NewLevel("lucid-lock-level-3", true, world.NewGroup("lucid-lock-group-3", bossTwo));
                 GameplayLevelDefinition lockedBoss = world.NewLevel("lucid-lock-level-4", true, world.NewGroup("lucid-lock-group-4", bossThree));
@@ -119,7 +122,7 @@ namespace ProjectLucid.Tests
                 world.SetComplete(boss, bossA, true);
                 Assert.That(requirement.RequirementsMet(zoneTwo), Is.False, "only one mission of the boss group is complete");
                 world.SetComplete(boss, bossB, true);
-                Assert.That(requirement.RequirementsMet(zoneTwo), Is.True, "every mission of the boss's first group is complete");
+                Assert.That(requirement.RequirementsMet(zoneTwo), Is.True, "every mission of the boss's first group is complete, whatever a later group holds");
                 Assert.That(requirement.RequirementsMet(unlisted), Is.False, "a category that is not a zone");
 
                 Assert.That(requirement.RequirementsMet(zoneThree), Is.False, "the boss of zone 2 is not finished");
@@ -192,6 +195,29 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x559232: GetFirstLevelForMission picks the first hosting level in authored order, so a mission hosted
+        // by two levels is read from the first one's record (GetMissionSaveDataForLevel creates it incomplete).
+        [Test]
+        public void AMissionHostedByTwoLevelsIsReadFromTheFirstHostingLevel()
+        {
+            LevelRequirementWorld.Run((owned, world) =>
+            {
+                MissionDefinition shared = world.NewMission("lucid-shared-mission");
+                GameplayLevelDefinition first = world.NewLevel("lucid-shared-level-1", false, world.NewGroup("lucid-shared-group-1", shared));
+                GameplayLevelDefinition second = world.NewLevel("lucid-shared-level-2", false, world.NewGroup("lucid-shared-group-2", shared));
+                world.AddZone("lucid-shared-zone", first, second);
+                var requirement = Create<RequirementMissionsCompleted>(owned);
+                Set(requirement, "m_missionDefinitions", new[] { shared }); // Reflection: serialized array without a setter
+
+                world.SetComplete(second, shared, true);
+                Assert.That(requirement.RequirementsMet(null, null), Is.False, "complete only in the second hosting level");
+                world.SetComplete(first, shared, true);
+                Assert.That(requirement.RequirementsMet(null, null), Is.True, "complete in the first hosting level");
+                world.SetComplete(second, shared, false);
+                Assert.That(requirement.RequirementsMet(null, null), Is.True, "the second hosting level is not read");
+            });
+        }
+
         // 0x558900: only persistent trackers that already have a mission state can fail; a tracker without a state
         // counts as complete, and states of other missions are not looked at.
         [Test]
@@ -219,8 +245,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x556970: a level that GameLevels does not list is not met; the progression totals are only consulted
-        // for listed levels, which needs a ProgressionManager and is not covered here.
+        // 0x556970: a level that GameLevels does not list is not met, before the progression totals are consulted.
         [Test]
         public void ALevelOutsideTheGameLevelsDoesNotHaveEnoughRewards()
         {
@@ -229,8 +254,69 @@ namespace ProjectLucid.Tests
                 GameplayLevelDefinition listed = world.NewLevel("lucid-rewards-listed", false);
                 GameplayLevelDefinition unlisted = world.NewLevel("lucid-rewards-unlisted", false);
                 world.AddZone("lucid-rewards-zone", listed);
+                world.AuthorRewardRequirements(unlisted);
                 var requirement = Create<RequirementPlayerHasEnoughRewards>(owned);
-                Assert.That(requirement.RequirementsMet(unlisted), Is.False);
+                Assert.That(requirement.RequirementsMet(unlisted), Is.False, "an empty requirement list does not rescue an unlisted level");
+            });
+        }
+
+        // 0x556aa2 compares the collected total with the count (setge) and the loop ANDs every result (0x556aa8, r14b);
+        // no requirement leaves the initial true (0x556a73 jle to 0x556adf). A type with no total counts as zero.
+        [Test]
+        public void EveryRewardRequirementOfAListedLevelMustBeReached()
+        {
+            LevelRequirementWorld.Run((owned, world) =>
+            {
+                GameplayLevelDefinition none = world.NewLevel("lucid-rewards-none", false);
+                GameplayLevelDefinition single = world.NewLevel("lucid-rewards-single", false);
+                GameplayLevelDefinition both = world.NewLevel("lucid-rewards-both", false);
+                world.AddZone("lucid-rewards-reached-zone", none, single, both);
+                world.AuthorRewardRequirements(none);
+                world.AuthorRewardRequirements(single, (CollectableType.Orb, 5));
+                world.AuthorRewardRequirements(both, (CollectableType.Orb, 5), (CollectableType.BlueCoin, 3));
+                Dictionary<CollectableType, ProgressionCollectable> totals = world.AddProgression();
+                var requirement = Create<RequirementPlayerHasEnoughRewards>(owned);
+                void Collect(int orbs, int blueCoins)
+                {
+                    totals[CollectableType.Orb] = new ProgressionCollectable(CollectableType.Orb, orbs, 100);
+                    totals[CollectableType.BlueCoin] = new ProgressionCollectable(CollectableType.BlueCoin, blueCoins, 100);
+                }
+
+                totals.Clear();
+                Assert.That(requirement.RequirementsMet(none), Is.True, "no requirements");
+                Assert.That(requirement.RequirementsMet(single), Is.False, "no total for the type counts as zero");
+                Collect(4, 3);
+                Assert.That(requirement.RequirementsMet(single), Is.False, "one below the count");
+                Assert.That(requirement.RequirementsMet(both), Is.False, "the second requirement alone is reached");
+                Collect(5, 2);
+                Assert.That(requirement.RequirementsMet(single), Is.True, "exactly the count");
+                Assert.That(requirement.RequirementsMet(both), Is.False, "the first requirement alone is reached");
+                Collect(5, 3);
+                Assert.That(requirement.RequirementsMet(both), Is.True, "both are reached");
+                Collect(9, 7);
+                Assert.That(requirement.RequirementsMet(both), Is.True, "above both counts");
+            });
+        }
+
+        // 0x558db9 compares m_orbs with the Orb total (setle) after fetching GetTotalProgress(0x6b27f37a, the
+        // CollectableType.Orb hash); other types never count.
+        [Test]
+        public void OrbGatedGroupsNeedAtLeastTheAuthoredOrbCountCollected()
+        {
+            LevelRequirementWorld.Run((owned, world) =>
+            {
+                Dictionary<CollectableType, ProgressionCollectable> totals = world.AddProgression();
+                RequirementMissionGroupGatedByPlayerOrbs Gate(int orbs) =>
+                    Create<RequirementMissionGroupGatedByPlayerOrbs>(owned, "{\"m_orbs\":" + orbs + "}");
+
+                Assert.That(Gate(0).RequirementsMet(null, null), Is.True, "nothing needed, nothing collected");
+                Assert.That(Gate(1).RequirementsMet(null, null), Is.False, "one needed, nothing collected");
+                totals[CollectableType.BlueCoin] = new ProgressionCollectable(CollectableType.BlueCoin, 99, 99);
+                Assert.That(Gate(1).RequirementsMet(null, null), Is.False, "another type's total is not counted");
+                totals[CollectableType.Orb] = new ProgressionCollectable(CollectableType.Orb, 5, 40);
+                Assert.That(Gate(5).RequirementsMet(null, null), Is.True, "exactly the orbs needed");
+                Assert.That(Gate(4).RequirementsMet(null, null), Is.True, "more than needed");
+                Assert.That(Gate(6).RequirementsMet(null, null), Is.False, "one orb short");
             });
         }
     }

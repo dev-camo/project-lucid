@@ -44,7 +44,11 @@ namespace ProjectLucid.Tests
                 Assert.That(Labels(leaderboard)[LeaderboardIdentifier.TimeTrials_Z1A1M5],
                     Does.StartWith(LeaderboardIdentifier.TimeTrials_Z1A1M5.GetString() + ": "));
 
+                string firstLabel = Labels(leaderboard)[LeaderboardIdentifier.TimeTrials_Z1A1M5];
+
                 Assert.DoesNotThrow(() => leaderboard.SubmitBestTime(LeaderboardIdentifier.TimeTrials_Z1A1M5, 59.25f));
+                // String.Concat (0x5C4A02) builds the replacement text afresh; the empty timer format gives equal text.
+                Assert.That(Labels(leaderboard)[LeaderboardIdentifier.TimeTrials_Z1A1M5], Is.Not.SameAs(firstLabel));
                 leaderboard.SubmitBestTime(LeaderboardIdentifier.TimeTrials_Z1A2M5, 70f);
                 Assert.That(Labels(leaderboard).Count, Is.EqualTo(2), "one label per leaderboard");
 

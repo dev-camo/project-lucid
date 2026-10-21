@@ -13,8 +13,10 @@ namespace HardlightProject
         [SerializeField] private int m_orbs;
 
         // 0x06001f23 (x86-64 0x558d50): the retail body begins with the class
-        // initialisation of DebugUnlockLevels (its inlined always-false query; the dead branch's return value is inferred from the sibling requirements).
-        // The player needs at least m_orbs collected orbs; neither argument is read.
+        // initialisation of DebugUnlockLevels (its inlined always-false query is
+        // folded away, so the true return below is an unreachable source stand-in, as
+        // in GameplayLevelDefinition.MeetsAllRequirements). The player needs at least
+        // m_orbs collected orbs; neither argument is read.
         public override bool RequirementsMet(MissionGroup missionGroup, GameplayLevelDefinition gameplayLevelDefinition)
         {
             if (DebugUnlockLevels.AreAllLevelsUnlocked()) return true;

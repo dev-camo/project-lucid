@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -55,6 +57,74 @@ namespace ProjectLucid.Tests
                 Assert.That(requirement.RequirementsMet(level), Is.True, "collected");
                 Assert.That(requirement.RequirementsMet(unrelated), Is.False, "another level has no record");
             });
+        }
+
+        // 0x5567e8: SaveManager.TryGet fails without a SaveManager; 0x55681b: a reward with no save record is null;
+        // 0x55681d reads the record's Collected flag (+0x28).
+        [Test]
+        public void AChallengeRewardIsCollectedOnlyWhenItsSaveRecordIsCollected()
+        {
+            Owned.Run(owned =>
+            {
+                OwnedChallengeRewardServices services = owned.Lease(new OwnedChallengeRewardServices());
+                owned.Lease(new OwnedStaticSaveReference(typeof(RequirementChallengeRewardCollected), services.Save));
+                var reward = NewReward<ChallengeRewardGameFeature>(owned, "{\"m_guid\":\"lucid-collected-reward\"}");
+                var requirement = Create<RequirementChallengeRewardCollected>(owned);
+                Set(requirement, "m_challengeReward", reward); // Reflection: serialized reference without a setter
+
+                Assert.That(requirement.RequirementsMet(null), Is.False, "no record for the reward");
+                SaveDataChallengeReward record = services.AddRecord("lucid-collected-track", "lucid-collected-reward");
+                Assert.That(requirement.RequirementsMet(null), Is.False, "a record that is not collected");
+                record.Collected = true;
+                Assert.That(requirement.RequirementsMet(null), Is.True, "collected");
+            });
+        }
+
+        [Test]
+        public void AChallengeRewardWithoutASaveManagerIsNotCollected()
+        {
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<SaveManager>();
+                var requirement = Create<RequirementChallengeRewardCollected>(owned);
+                Assert.That(requirement.RequirementsMet(null), Is.False, "false before the reward is read");
+            });
+        }
+
+        // RequirementChallengeRewardCollected reads its SaveManager through a readonly static reference that its type
+        // initialiser creates once per process. A reference left empty by an earlier case's row is filled through its
+        // own InternalReplaceSystem and revoked again, as OwnedChallengeRewardServices does for ChallengeReward.
+        private sealed class OwnedStaticSaveReference : IDisposable
+        {
+            private Action m_restore;
+
+            public OwnedStaticSaveReference(Type owner, SaveManager save)
+            {
+                var reference = (SystemRef<SaveManager>)owner.GetField("s_saveManagerRef", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly).GetValue(null);
+                if (reference.IsValid())
+                {
+                    if (!ReferenceEquals(reference.GetSafe(), save))
+                        throw new InvalidOperationException("Fixture requires an empty save reference");
+                    return;
+                }
+                const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic;
+                MethodInfo replace = typeof(SystemRef<SaveManager>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", Instance);
+                MethodInfo revoke = typeof(SystemRef<SaveManager>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
+                FieldInfo startup = typeof(SystemRef<SaveManager>).GetField("OnSystemStartup", Instance);
+                object priorObservers = startup.GetValue(reference);
+                replace.Invoke(reference, new object[] { save });
+                m_restore = () =>
+                {
+                    revoke.Invoke(reference, null);
+                    startup.SetValue(reference, priorObservers);
+                };
+            }
+
+            public void Dispose()
+            {
+                m_restore?.Invoke();
+                m_restore = null;
+            }
         }
 
         // GetOrCreateRewardTrackData(type).UnlockState (+0x28) must differ from Locked (0x558864); a missing

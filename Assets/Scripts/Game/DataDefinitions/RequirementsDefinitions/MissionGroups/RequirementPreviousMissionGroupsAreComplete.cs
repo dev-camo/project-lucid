@@ -11,9 +11,11 @@ namespace HardlightProject
     public sealed class RequirementPreviousMissionGroupsAreComplete : RequirementMissionGroupBase
     {
         // 0x06001f2c (x86-64 0x5593b0): after the DebugUnlockLevels class
-        // initialisation (its inlined always-false query; the dead branch's return value is inferred from the sibling requirements) every mission of each
-        // group listed before this one in the level must be recorded complete.
-        // A group that is first, or absent from the level, has nothing before it.
+        // initialisation (its inlined always-false query is folded away, so the true
+        // return below is an unreachable source stand-in, as in
+        // GameplayLevelDefinition.MeetsAllRequirements) every mission of each group
+        // listed before this one in the level must be recorded complete. A group that
+        // is first, or absent from the level, has nothing before it.
         public override bool RequirementsMet(MissionGroup missionGroup, GameplayLevelDefinition levelDefinition)
         {
             if (DebugUnlockLevels.AreAllLevelsUnlocked()) return true;

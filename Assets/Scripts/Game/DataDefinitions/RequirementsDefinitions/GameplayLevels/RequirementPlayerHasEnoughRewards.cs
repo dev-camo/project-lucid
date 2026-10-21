@@ -13,11 +13,12 @@ namespace HardlightProject
     {
         private readonly SystemRef<LevelManager> m_levelManagerRef = ProcessManager.GetSystemRef<LevelManager>(null, true);
 
-        // 0x06001efe (x86-64 0x556970): a level outside the game's level list is
-        // never met. After the DebugUnlockLevels class initialisation (its inlined
-        // always-false query; the dead branch's return value is inferred from the
-        // sibling requirements) every reward requirement is compared with the
-        // collected total of its type; all of them are always evaluated.
+        // 0x06001efe (x86-64 0x556970): a level outside the game's level list is never
+        // met. After the DebugUnlockLevels class initialisation (its inlined always-
+        // false query is folded away, so the true return below is an unreachable
+        // source stand-in, as in GameplayLevelDefinition.MeetsAllRequirements) every
+        // reward requirement is compared with the collected total of its type; all of
+        // them are always evaluated.
         public override bool RequirementsMet(GameplayLevelDefinition levelDefinition)
         {
             if (!m_levelManagerRef.Get().GameLevels.GetLevels().Contains(levelDefinition)) return false;

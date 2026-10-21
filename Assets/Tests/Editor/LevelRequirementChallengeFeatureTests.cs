@@ -84,6 +84,42 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x558e8e calls ShouldShowShadowFTUE and 0x558e97 compares the state with Locked: the answer is
+        // !ShouldShowShadowFTUE() && FeatureState != Locked. ShouldShowShadowFTUE is true until the FTUE cutscene has
+        // been seen or the FTUE challenge mission is complete; only the mission route is driven here, since the
+        // cutscene route needs a started CutsceneManager (not covered; its row stays empty, so the cutscene is unseen).
+        [Test]
+        public void TheShadowFtueIsAvailableOnceItsMissionIsCompleteAndTheFeatureIsNotLocked()
+        {
+            LevelRequirementWorld.Run((owned, world) =>
+            {
+                // The world already registers the DataManager, SaveManager and MissionManager that the manager reads.
+                owned.LeaseRow<VisualQualityManager_SDT>();
+                owned.LeaseRow<CutsceneManager>();
+                owned.LeaseRow<OrnamentManager>();
+                ChallengeManager manager = owned.Register(owned.Lease(new OwnedTimeScaledObjects("lucid-ftue-requirement")).Add<ChallengeManager>("manager"));
+                MissionDefinition mission = world.NewMission("lucid-ftue-mission");
+                GameplayLevelDefinition level = world.NewLevel("lucid-ftue-level", false, world.NewGroup("lucid-ftue-group", mission));
+                var challenge = Create<ChallengeDefinition>(owned);
+                Set(challenge, "m_mission", mission); // Reflection: serialized references without setters
+                Set(challenge, "m_level", level);
+                Set(manager, "m_shadowFtueChallenge", challenge);
+                var requirement = Create<RequirementMissionGroupShadowFTUEAvailable>(owned);
+
+                foreach (ChallengeManager.ChallengeFeatureState state in States)
+                {
+                    SetFeatureState(manager, state);
+                    Assert.That(requirement.RequirementsMet(null, null), Is.False, state + " with the FTUE still to be shown");
+                }
+                world.SetComplete(level, mission, true);
+                foreach (ChallengeManager.ChallengeFeatureState state in States)
+                {
+                    SetFeatureState(manager, state);
+                    Assert.That(requirement.RequirementsMet(null, null), Is.EqualTo((int)state != 0), state + " with the FTUE mission complete");
+                }
+            });
+        }
+
         // TryGet fails when no ChallengeManager is registered (0x557ac4, 0x557962, 0x558e86): the answer is false.
         [Test]
         public void WithoutAChallengeManagerNoFeatureRequirementIsMet()
