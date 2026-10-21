@@ -34,8 +34,15 @@ namespace ProjectLucid.Tests
         private static void WithClock(float scale, Action<Owned, TimeManager> body) => Owned.Run(owned =>
         {
             TimeManager manager = owned.Register(NewTimeManager(owned, TimeCategory.Effects, scale));
+            // A fixed step above the maximum allowed timestep raises that maximum, and the engine keeps it raised when the
+            // step goes back, which would rewrite ProjectSettings/TimeManager.asset; both are put back.
             float prior = Time.fixedDeltaTime;
-            owned.Lease(new ReleaseAction(() => Time.fixedDeltaTime = prior));
+            float priorMaximum = Time.maximumDeltaTime;
+            owned.Lease(new ReleaseAction(() =>
+            {
+                Time.fixedDeltaTime = prior;
+                Time.maximumDeltaTime = priorMaximum;
+            }));
             Time.fixedDeltaTime = FixedStep;
             body(owned, manager);
         });
