@@ -8393,7 +8393,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ScreenWidthHorizontalScrollGroupTest
     "ScrollingDoesNothingWithoutChildren",
     "ALargeNegativeOffsetLeavesANegativeTargetIndex",
     "TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(1.0f,True)",
-    "TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(1.0000001f,False)",
+    "TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(1.0f,False)",
     "TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(float.NaN,False)",
     "TheScrollHoldsTheStartWhileNoTimePasses",
     "TheScrollEndsOnTheExactTargetAndClearsTheRoutine",
