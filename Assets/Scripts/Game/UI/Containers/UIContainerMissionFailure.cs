@@ -44,8 +44,7 @@ namespace HardlightProject
             m_isExiting = true;
             CleanUp();
             ProcessManager.GetSystem<MissionManager>(null, true).SetActiveMissionContext(null);
-            App app = m_appRef.Get();
-            app.AddUniqueUIModernEvent(m_exitEvent);
+            m_appRef.Get().AddUniqueUIModernEvent(m_exitEvent);
             m_appRef.Get().Storage.SetValue(AppFSMKeys.ShowFailureScreen, false);
         }
 

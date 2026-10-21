@@ -155,7 +155,7 @@ namespace HardlightProject
         // 0600332b (0x63E130)
         public void Action_Seek(float trackTime)
         {
-            m_audioSourceData.Seek(trackTime);
+            Seek(trackTime);
         }
 
         // 0600332c (0x63E170): the supplied time is unused.

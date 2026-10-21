@@ -56,7 +56,7 @@ namespace HardlightProject
         {
             m_initialised = false;
             m_delayShowingPoints = true;
-            m_enableRoot.gameObject.SetActive(false);
+            ClearValues(false);
         }
 
         // 06003362 (0x640A10): the first frame after enabling copies the values without the added-points flags,
@@ -67,7 +67,7 @@ namespace HardlightProject
                 return;
             if (!m_hasMissionScorer)
             {
-                m_enableRoot.gameObject.SetActive(false);
+                ClearValues(false);
                 return;
             }
             PointsTotal.Value = m_missionScorer.PointsTotal;
@@ -77,15 +77,7 @@ namespace HardlightProject
             PointsTotalThisCombo.Value = m_missionScorer.PointsTotalThisCombo;
             PointsAddedFromCombo.Value = m_missionScorer.PointsAddedFromCombo;
             PointsTotalThisStreak.Value = m_missionScorer.PointsTotalThisStreak;
-            if (m_delayShowingPoints)
-            {
-                m_delayShowingPoints = false;
-            }
-            else
-            {
-                ShowPointsAdded.Value = m_missionScorer.ShowPointsAdded;
-                PointsAddedFromStreak.Value = m_missionScorer.PointsAddedFromStreak;
-            }
+            ShowPoints();
             ComboActive.Value = m_missionScorer.ComboActive;
             ComboMultiplier.Value = m_missionScorer.ComboMultiplier;
             ComboStageMultiplier.Value = m_missionScorer.ComboStageMultiplier;
@@ -97,7 +89,8 @@ namespace HardlightProject
             m_currentScoreUI.Apply(PointsTotal.Value);
             m_addedScoreUI.Apply(PointsAdded.Value);
             m_addedStreakUI.Apply(PointsTotalThisStreak.Value);
-            m_currentMultiplierUI.Apply((float)(ComboStageMultiplier.Value * ComboMultiplier.Value));
+            // The float cast pins the single-precision rounding of the native product.
+            m_currentMultiplierUI.Apply((float)(ComboMultiplier.Value * ComboStageMultiplier.Value));
         }
 
         // 06003363 (0x641100)
@@ -141,7 +134,7 @@ namespace HardlightProject
             m_addedScoreUI.Initialise();
             m_addedStreakUI.Initialise();
             m_currentMultiplierUI.Initialise();
-            m_enableRoot.gameObject.SetActive(true);
+            ClearValues(true);
             m_initialised = true;
             return true;
         }

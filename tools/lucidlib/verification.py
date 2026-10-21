@@ -9841,7 +9841,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionProgressTests." + 
     "TheGettersReadTheirSerializedFlags",
     "EnablingHidesTheGroupUnlessTheContainerIsAlwaysDisplayed",
     "TheProgressIconReplacesTheTextAndTheObjectiveIconOnlyWhileTheObjectivesAreIncomplete",
-    "HideWaitsOutTheDisplayTimeThenFadesTheGroupAndDeactivatesTheContainer",
+    "HideWaitsOutTheDisplayTimeThenFadesTheGroupAndDeactivatesTheContainer",    "TheInstancedTrackerBackingFieldSitsBetweenTheSerializedFlagAndTheCoroutine",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerMissionBaseTests." + name for name in (
     "WithoutAnActiveContextTheNameIsTheFormattedMissionName",

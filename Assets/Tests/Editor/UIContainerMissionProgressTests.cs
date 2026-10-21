@@ -174,5 +174,23 @@ namespace ProjectLucid.Tests
                 Assert.That(container.gameObject.activeSelf, Is.False);
             });
         }
+
+        // DummyDll TypeDef 0x020008e0 field rows 0x040023a6..0x040023a8 (and dump.cs offsets 0x78, 0x80, 0x88) put the
+        // InstancedTracker backing field between the last serialized flag and the coroutine field.
+        [Test]
+        public void TheInstancedTrackerBackingFieldSitsBetweenTheSerializedFlagAndTheCoroutine()
+        {
+            var names = new List<string>();
+            foreach (System.Reflection.FieldInfo field in typeof(UIContainerMissionProgress).GetFields(
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.DeclaredOnly))
+                names.Add(field.Name);
+            names.Sort((a, b) => typeof(UIContainerMissionProgress).GetField(a, (System.Reflection.BindingFlags)(-1)).MetadataToken
+                .CompareTo(typeof(UIContainerMissionProgress).GetField(b, (System.Reflection.BindingFlags)(-1)).MetadataToken));
+            int flag = names.IndexOf("m_onlyShowWhenMissionIslandActive");
+            Assert.That(names[flag + 1], Is.EqualTo("<InstancedTracker>k__BackingField"));
+            Assert.That(names[flag + 2], Is.EqualTo("m_hideUICoroutine"));
+            Assert.That(names[flag + 3], Is.EqualTo("m_missionManager"));
+        }
     }
 }

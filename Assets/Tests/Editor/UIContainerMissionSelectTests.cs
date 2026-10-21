@@ -179,7 +179,7 @@ namespace ProjectLucid.Tests
         }
 
         // TryNavigateToWidget 0x642C00 returns when the navigation manager row has no system; so does OnContainerClosed 0x642B30
-        // (via the same test) and, with no active widget, before it.
+        // (via the same test). The null-widget early return is not observable without a navigation manager recording its calls, so only the absence of a throw is checked.
         [Test]
         public void WithoutANavigationManagerOrAnActiveWidgetNavigationIsSkipped()
         {

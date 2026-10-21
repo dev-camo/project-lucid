@@ -65,7 +65,8 @@ namespace HardlightProject
             }
             MissionRankDefinition ranks = missionDefinition.Ranks;
             bool failOnTimeLimitReached = missionDefinition.CompletedMissionOverrides.FailOnTimeLimitReached;
-            float totalTimeSeconds = (float)(missionDefinition.ObjectivesAdditionalTotalTimeSeconds + missionDefinition.TimeLimitSeconds);
+            // Float casts pin the single-precision rounding of the native body.
+            float totalTimeSeconds = (float)(missionDefinition.TimeLimitSeconds + missionDefinition.ObjectivesAdditionalTotalTimeSeconds);
             foreach ((RankType rankType, MissionRank rank) in ranks.Ranks)
             {
                 float timeSeconds = 0f;

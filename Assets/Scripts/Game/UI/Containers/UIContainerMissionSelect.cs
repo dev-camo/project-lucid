@@ -122,8 +122,8 @@ namespace HardlightProject
         }
 
         // 0600336f (0x642180): a toggle is made for every mission of a group whose requirements are met (or a ghost
-        // for a group that shows as ghosted). The first incomplete, unlocked mission becomes the selection unless
-        // the meta game state names a mission, whose toggle is then selected.
+        // for a group that shows as ghosted). The first incomplete, unlocked mission becomes the active selection; only
+        // when there is none is the meta game state's mission selected instead.
         private void PopulateUI(IReadOnlyList<MissionGroup> missionGroups)
         {
             GameplayLevelDefinition levelDefinition = m_metaGameState.LevelDefinition;
@@ -238,29 +238,26 @@ namespace HardlightProject
         // 06003372 (0x643690)
         private static void UpdateRankVisibility(MissionDefinition missionDefinition, UIWidgetToggleMission missionWidget, float bestTimeSeconds)
         {
-            ManagedAddressableAsset<Sprite> foregroundIcon;
             if (missionDefinition.TryGetRankForTimeSeconds(bestTimeSeconds, out MissionRank missionRank))
             {
                 missionWidget.SetRankIconVisibility(true);
                 missionWidget.SetRankIconBase(missionRank.GetBaseAddressable());
                 missionWidget.SetRankIconBackground(missionRank.GetBackgroundAddressable());
-                foregroundIcon = missionRank.GetForegroundAddressable();
+                missionWidget.SetRankIconForeground(missionRank.GetForegroundAddressable());
             }
             else
             {
-                foregroundIcon = null;
                 missionWidget.SetRankIconVisibility(false);
                 missionWidget.SetRankIconBase(null);
                 missionWidget.SetRankIconBackground(null);
+                missionWidget.SetRankIconForeground(null);
             }
-            missionWidget.SetRankIconForeground(foregroundIcon);
         }
 
         // 06003373 (0x643750): selecting a mission makes it the active one and shows its results (the alternate
         // layout uses the alternate container when there is one). Deselecting clears it.
         private void ToggleMission(MissionDefinition mission, bool selected, bool complete, UIWidgetToggleMission widgetToggleMission)
         {
-            MissionState activeMissionState = null;
             IsExpertLevel.Value = m_expertMissionDefinitions.Contains(mission);
             UseAltLayout.Value = mission.UseAltUILayout;
             m_activeWidget = widgetToggleMission;
@@ -281,11 +278,10 @@ namespace HardlightProject
             resultsContainer.gameObject.SetActive(resultsContainer.CanShow());
             if (m_resultsSecondaryContainer != null)
             {
-                UIContainerMissionResults secondaryResultsContainer = m_resultsSecondaryContainer;
-                secondaryResultsContainer.Setup(new UIContainerMissionResultsParameters(mission, m_metaGameState.LevelDefinition));
+                m_resultsSecondaryContainer.Setup(new UIContainerMissionResultsParameters(mission, m_metaGameState.LevelDefinition));
                 m_resultsSecondaryContainer.gameObject.SetActive(m_resultsSecondaryContainer.CanShow());
             }
-            m_missionManager.TryGetActiveMissionState(out activeMissionState);
+            m_missionManager.TryGetActiveMissionState(out MissionState activeMissionState);
             m_activeMissionContainer.Refresh(activeMissionState);
             bool hasActiveMission = m_missionManager.HasActiveMission();
             MissionSelected.Value = hasActiveMission;
@@ -327,8 +323,7 @@ namespace HardlightProject
         // 06003377 (0x643BF0)
         private void SetupLeaderboards(MissionDefinition mission)
         {
-            LeaderboardIdentifier leaderboardIdentifier = default(LeaderboardIdentifier);
-            if (mission.TryGetLeaderboardIdentifier(out leaderboardIdentifier))
+            if (mission.TryGetLeaderboardIdentifier(out LeaderboardIdentifier leaderboardIdentifier))
             {
                 ShowLeaderboards.Value = true;
                 LeaderboardIdentifier.Value = leaderboardIdentifier;

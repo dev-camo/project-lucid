@@ -41,9 +41,10 @@ namespace HardlightProject
         // 06003358 (0x63FF90)
         private void OnSaveManagerValid(SaveManager saveManager)
         {
-            List<MissionDefinition> missions = GetMissions(m_parameters.MissionDefinition);
+            UIContainerMissionResultsParameters parameters = m_parameters;
+            List<MissionDefinition> missions = GetMissions(parameters.MissionDefinition);
             foreach (MissionDefinition mission in missions)
-                InstantiateInstancedTrackerPrefab(m_parameters.LevelDefinition, mission);
+                InstantiateInstancedTrackerPrefab(parameters.LevelDefinition, mission);
             Show.Value = missions.Count > 0;
         }
 

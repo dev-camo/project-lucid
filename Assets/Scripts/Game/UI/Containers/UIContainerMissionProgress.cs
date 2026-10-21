@@ -10,7 +10,7 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x020008e0; bodies translated from the 1.10.1 x86-64 binary.
     // The HUD view of an instanced mission's objective count: shows it, then fades it out unless always displayed.
-    // The compiler-generated Hide iterator (<Hide>d__24) follows member order: 13 fields, 3 properties, 8 methods.
+    // The compiler-generated Hide iterator (<Hide>d__24) follows member order; the InstancedTracker backing field sits between the serialized fields and the coroutine field.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public sealed class UIContainerMissionProgress : UIContainer
@@ -29,8 +29,6 @@ namespace HardlightProject
         [HideIf("m_alwaysDisplay", null)]
         private float m_fadeTimeSeconds = 1f;
         [SerializeField] private bool m_onlyShowWhenMissionIslandActive;
-        private Coroutine m_hideUICoroutine;
-        private MissionManager m_missionManager;
 
         // 0600333d (0x63E740)
         public bool AlwaysDisplay => m_alwaysDisplay;
@@ -40,6 +38,9 @@ namespace HardlightProject
 
         // 0600333f / 06003340
         public MissionInstancedTracker InstancedTracker { get; private set; }
+
+        private Coroutine m_hideUICoroutine;
+        private MissionManager m_missionManager;
 
         // 06003341 (0x63E790)
         private void OnEnable()
