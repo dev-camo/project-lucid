@@ -352,6 +352,9 @@ namespace ProjectLucid.Tests
                 unlock.ReleaseAssets();
                 Assert.That(Count(power.IconAsset), Is.EqualTo(0));
                 Assert.That(Get<Sprite>(power.IconAsset, "m_loadedAsset") == null, Is.True);
+                // The icon is loaded again before the callback is called (0x5D8660), so it is cached once more to keep
+                // the load off the addressables system.
+                Cache(power.IconAsset, icon);
                 Assert.Throws<NullReferenceException>(() => unlock.GetCustomSprite(null), "the callback has no null guard");
             });
         }

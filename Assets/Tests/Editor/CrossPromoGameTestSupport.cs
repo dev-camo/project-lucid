@@ -177,8 +177,10 @@ namespace ProjectLucid.Tests
             return container;
         }
 
+        // Identifiers compare, hash and key the manager's open set by their GUID (ScriptableObjectWithGuid), so each one
+        // is given a GUID of its own; two with the empty GUID would be the same container.
         public UIContainerIdentifier NewIdentifier(string name) =>
-            Create<UIContainerIdentifier>(m_owned, "{\"m_name\":\"" + name + "\"}");
+            Create<UIContainerIdentifier>(m_owned, "{\"m_name\":\"" + name + "\",\"m_guid\":\"lucid-" + name + "\"}");
 
         // A container another container hides: open in the recording manager and loaded in its identifier.
         public UIContainerIdentifier NewHideable(string name)

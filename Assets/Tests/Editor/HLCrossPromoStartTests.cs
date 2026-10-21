@@ -75,6 +75,15 @@ namespace ProjectLucid.Tests
                     () => Bridge.SetValue(null, prior));
             });
 
+        // The wait is the nested iterator of MonoSingleton<T>.WaitOnInstance. Reflection reports its declaring type as the
+        // open MonoSingleton<T> and carries the closed type argument on the iterator type itself.
+        private static void AssertWaitsOnSingleton(object wait, Type singleton, string label)
+        {
+            Type type = wait.GetType();
+            Assert.That(type.DeclaringType, Is.EqualTo(typeof(MonoSingleton<>)), label);
+            Assert.That(type.GetGenericArguments(), Is.EqualTo(new[] { singleton }), label);
+        }
+
         // dump.cs TypeDefIndex 1062 and 1061 with the DummyDll rows.
         [Test]
         public void DeclarationsMatchTheOriginalMetadata()
@@ -149,12 +158,12 @@ namespace ProjectLucid.Tests
                 Assert.That(MonoSingleton<Language>.IsNull(), Is.True, "no Language instance is alive");
                 var iterator = (IEnumerator)Call(host, "Start");
                 Assert.That(iterator.MoveNext(), Is.True);
-                Assert.That(iterator.Current.GetType().DeclaringType, Is.EqualTo(typeof(MonoSingleton<HLUnityCore>)), "the core wait");
+                AssertWaitsOnSingleton(iterator.Current, typeof(HLUnityCore), "the core wait");
                 Assert.That(bridge.CountryReads, Is.EqualTo(0));
                 Assert.That(ProcessManager.IsSystemNull<CrossPromo>(), Is.True);
 
                 Assert.That(iterator.MoveNext(), Is.True);
-                Assert.That(iterator.Current.GetType().DeclaringType, Is.EqualTo(typeof(MonoSingleton<Language>)), "the language wait");
+                AssertWaitsOnSingleton(iterator.Current, typeof(Language), "the language wait");
                 Assert.That(bridge.CountryReads, Is.EqualTo(1));
                 Assert.That(ProcessManager.IsSystemNull<CrossPromo>(), Is.True);
 
