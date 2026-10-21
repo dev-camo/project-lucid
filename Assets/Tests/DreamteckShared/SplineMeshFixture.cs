@@ -14,7 +14,7 @@ namespace ProjectLucid.Tests
     //
     // On the Linear line (0,0,0) -> (10,0,0) every sample has forward (1,0,0), up (0,1,0) and right Cross(up, forward) =
     // (0,0,-1), so the rotation of a sample maps the local x axis to (0,0,-1), y to (0,1,0) and z to (1,0,0).
-    internal sealed class SplineMeshFixture : System.IDisposable
+    public sealed class SplineMeshFixture : System.IDisposable
     {
         public const float Tolerance = DreamteckGeneratorFixture.Tolerance;
 
@@ -77,13 +77,10 @@ namespace ProjectLucid.Tests
             return Generators.NewComputer(start, end);
         }
 
-        // A generator that follows the computer and has built once, without the default channel the engine's Reset adds. It caches
-        // the play-mode state (DreamteckPlayState): the editor compile of SplineUser.Rebuild otherwise builds at once, which would
-        // run a build from every channel setter and break the queued-build counts of the shipped Rebuild path.
+        // A generator that follows the computer and has built once, without the default channel the engine's Reset adds.
         public SplineMesh NewSplineMesh(SplineComputer computer)
         {
             SplineMesh generator = Generators.NewGenerator<SplineMesh>(computer);
-            DreamteckPlayState.Cache(generator);
             while (generator.GetChannelCount() > 0)
             {
                 generator.RemoveChannel(0);

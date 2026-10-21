@@ -6441,9 +6441,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSurfaceGeneratorTes
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshTests." + name for name in (
     "FreshComponentKeepsTheShippedMeshName",
     "ResetAddsTheFirstChannel",
-    "AddChannelCreatesTheChannelAndOnlyTheMeshOverloadRebuilds",
-    "RemoveChannelRebuildsAndRejectsABadIndex",
-    "SwapChannelsExchangesTheChannelsAndIgnoresBadIndices",
     "NoChannelsOrMeshesClearTheMesh",
     "AChannelWithoutMeshesBetweenOthersTakesNoCombineSlot",
     "PlaceStampsOneCopyPerCountAtEvenPercents",
@@ -6466,10 +6463,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshTests." +
     "ExtrudeHandlersSeeThePercentOfEachGroup",
     "ExtrudeDrawsOncePerCopyAndSharesTheDrawsBetweenItsGroups",
     "AutoCountFitsTheCopiesToTheClippedLength",
-    "AutoCountKeepsTheCountForAFlatAverage",
-    "AutoCountKeepsTheCountForANegativeAverage",
     "CombineListFollowsTheTotalCopyCount",
-    "UnknownChannelTypeDoesNotAdvanceTheCombineIndex",
     "MaterialIdWritesTheTrianglesIntoThatSubmesh",
     "SerializedLayoutKeepsTheFieldOrderAttributesAndNestedTypes",
     "ChannelNestedTypesKeepTheShippedValues",
@@ -6478,12 +6472,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshTests." +
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshChannelTests." + name for name in (
     "FreshChannelKeepsTheShippedDefaults",
-    "SettersSkipEqualValuesAndRebuildTheOwner",
     "ChannelWithoutAnOwnerStoresWithoutRebuilding",
-    "CountIsRaisedToOneAndTheSeedRebuildsOnlyWithRandomOrder",
-    "MeshListChangesRebuildAndRejectBadIndices",
-    "SwapAndDuplicateRespectTheRange",
-    "RefreshReReadsEveryMeshAndRebuilds",
     "CopyToCopiesTheSettingsAndTheMeshesOnly",
     "NextMeshWalksTheMeshesAndWraps",
     "RandomOrderPicksFromTheSeededSequence",
@@ -6678,4 +6667,22 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckPathGeneratorPlayMo
 ))
 PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineRendererPlayModeTests." + name for name in (
     "SlicesClampAtOneAndRebuildOnAnyDifferentValue",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshChannelPlayModeTests." + name for name in (
+    "CountIsRaisedToOneAndTheSeedRebuildsOnlyWithRandomOrder",
+    "MeshListChangesRebuildAndRejectBadIndices",
+    "RefreshReReadsEveryMeshAndRebuilds",
+    "SettersSkipEqualValuesAndRebuildTheOwner",
+    "SwapAndDuplicateRespectTheRange",
+))
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineMeshPlayModeTests." + name for name in (
+    "AddChannelCreatesTheChannelAndOnlyTheMeshOverloadRebuilds",
+    "AutoCountKeepsTheCountForAFlatAverage",
+    "AutoCountKeepsTheCountForANegativeAverage",
+    "RemoveChannelRebuildsAndRejectsABadIndex",
+    "SwapChannelsExchangesTheChannelsAndIgnoresBadIndices",
+    "UnknownChannelTypeDoesNotAdvanceTheCombineIndex",
 ))
