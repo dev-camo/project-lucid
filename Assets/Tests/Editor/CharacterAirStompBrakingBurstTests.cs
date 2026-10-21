@@ -492,8 +492,8 @@ namespace ProjectLucid.Tests
         // 0600106c (0x742770): the ground hit position is applied once (only when only the projected hit exists);
         // the slope angle is Vector3.Angle against negated gravity, the downhill is the normalised
         // plane projection of gravity, then the settings lookup and either the look rotation or the forward dot.
-        // SetWorldPosition, SetWorldRotation and SetWorldVelocity are Actor virtuals (native vcalls, e.g. 0x5cbf02 slot 37), so the
-        // IL call targets are declared by Actor even though the receivers are Characters.
+        // SetWorldPosition and SetWorldRotation are Actor virtuals (here vcall slot 35 at 0x7427EE and slot 36 at
+        // 0x742B60), so the IL call targets are declared by Actor even though the receivers are Characters.
         [Test]
         public void AirStompDownhillRotationCallsTheNativeMathInOrder()
         {
@@ -871,6 +871,7 @@ namespace ProjectLucid.Tests
             int velocity = IndexOf(calls, "Actor", "SetWorldVelocity");
             int orientate = IndexOf(calls, "Character", "OrientateToPlane");
             Assert.That(new[] { baseUpdate, target, sphere, component, hit, timer, grounded, normal, velocity, orientate }, Is.Ordered.Ascending.And.Unique);
+            Assert.That(Count(calls, "Character", "get_ActiveTracking"), Is.EqualTo(2), "read again for the normal (0xE6C3BF, 0xE6C3DE)");
         }
 
         // 06001528 (0xE6BDA0): after the effect entry the horizontal velocity is kept, the timer restarts, and the
@@ -919,20 +920,72 @@ namespace ProjectLucid.Tests
             Assert.That(lambdas.Count(l => Count(l, "IAbilityBurstAttackChaos", "TryStopTimeDilation") == 1), Is.EqualTo(1));
         }
 
-        // 06000442 (0x5286D0): disabling walks the actor's abilities. A passive definition (+0x30, tested at
-        // 0x528767) or one matched by the exception list (List.Exists, 0x5287AA) returns early; everything
-        // else is left (ActorAbility.Leave, tail call at 0x5287C9).
+        // 0600043f (0x528290) keeps only the exception names DataManager.AbilityDefinitions resolves.
+        // 06000441 (0x528620) and its lambda 06000442 (0x5286D0) walk the actor's abilities: a passive
+        // definition (+0x30, tested at 0x528767) or one whose ScriptType an exception shares (List.Exists,
+        // 0x5287AA) is kept; everything else is left (ActorAbility.Leave, tail call at 0x5287C9).
         [Test]
         public void DisableAbilitiesStateLeavesEveryNonPassiveNonExceptedAbility()
         {
-            List<MethodBase> start = Calls(typeof(ActorState_TriggerDisableAbilities), "InvokeTriggerStart");
-            Assert.That(Count(start, "Actor", "GetAbilitiesOfType"), Is.EqualTo(1));
-            MethodBase lambda = typeof(ActorState_TriggerDisableAbilities).GetMethods(Declared).Single(m => m.Name.StartsWith("<InvokeTriggerStart>", StringComparison.Ordinal));
-            List<MethodBase> body = OriginalILCallSequence.Calls(lambda).Select(call => call.Target).ToList();
-            int definition = IndexOf(body, "ActorAbility", "get_DefinitionBase");
-            int exists = IndexOf(body, "List", "Exists");
-            int leave = IndexOf(body, "ActorAbility", "Leave");
-            Assert.That(new[] { definition, exists, leave }, Is.Ordered.Ascending.And.Unique);
+            using (var characters = new OwnedCharacterManagers())
+            {
+                var plain = Own(ScriptableObject.CreateInstance<ProbeAbilityDefinition>());
+                var passive = Own(ScriptableObject.CreateInstance<ProbeAbilityDefinition>());
+                passive.Passive = true;
+                var excepted = Own(ScriptableObject.CreateInstance<OtherProbeAbilityDefinition>());
+                // The exception is a different asset: only its ScriptType has to match.
+                var exception = Own(ScriptableObject.CreateInstance<OtherProbeAbilityDefinition>());
+                string key = "Lucid-ability-" + Guid.NewGuid().ToString("N");
+                Dictionary<string, AbilityDefinition> definitions = ProcessManager.GetSystemRef<App>().Get().DataManager.AbilityDefinitions;
+                definitions.Add(key, exception);
+                try
+                {
+                    ProbeActor actor = NewProbeActor();
+                    DefinedProbeAbility Add(ActorAbilityType type, AbilityDefinition definition)
+                    {
+                        var ability = new DefinedProbeAbility(definition);
+                        ability.Enter();
+                        actor.AddAbility(type, ability);
+                        return ability;
+                    }
+                    DefinedProbeAbility left = Add(ActorAbilityType.Character_AirStompAttack, plain);
+                    DefinedProbeAbility kept = Add(ActorAbilityType.Character_BrakingRunning, passive);
+                    DefinedProbeAbility spared = Add(ActorAbilityType.Character_BurstAttackGround, excepted);
+
+                    // A name with no registered definition is skipped by the constructor, not stored as null.
+                    IFSMState state = ActorState_TriggerDisableAbilities.ConstructInstance(Machine(), new FSMIdentifier(Name()),
+                        "{\"ExceptionList\":[\"" + key + "\",\"Lucid-missing-" + Guid.NewGuid().ToString("N") + "\"]}");
+                    Assert.That(typeof(ActorState_TriggerDisableAbilities).GetField("m_exceptionList", Declared).GetValue(state), Is.EqualTo(new AbilityDefinition[] { exception }));
+
+                    typeof(ActorState_TriggerDisableAbilities).GetMethod("InvokeTriggerStart", Declared).Invoke(state, new object[] { actor, null });
+
+                    Assert.That(left.Enabled, Is.False, "a non-passive ability outside the exceptions is left");
+                    Assert.That(left.Log, Is.EqualTo(new[] { "Enter", "Leave" }));
+                    Assert.That(kept.Enabled, Is.True, "a passive ability is kept");
+                    Assert.That(kept.Log, Is.EqualTo(new[] { "Enter" }));
+                    Assert.That(spared.Enabled, Is.True, "an ability sharing an exception's ScriptType is kept");
+                    Assert.That(spared.Log, Is.EqualTo(new[] { "Enter" }));
+                }
+                finally
+                {
+                    definitions.Remove(key);
+                }
+            }
+        }
+
+        private sealed class DefinedProbeAbility : ActorAbility
+        {
+            private readonly AbilityDefinition m_definition;
+            public readonly List<string> Log = new List<string>();
+            public DefinedProbeAbility(AbilityDefinition definition) => m_definition = definition;
+            public override AbilityDefinition DefinitionBase => m_definition;
+            protected override void DoOnEnter() => Log.Add("Enter");
+            protected override void DoOnLeave() => Log.Add("Leave");
+        }
+
+        private sealed class OtherProbeAbilityDefinition : AbilityDefinition
+        {
+            public override Type ScriptType => typeof(DefinedProbeAbility);
         }
     }
 }

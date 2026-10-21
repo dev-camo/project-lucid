@@ -79,10 +79,10 @@ namespace HardlightProject
                 }
             }
             character.Storage.AdjustValue(ActorFSMKeys.BurstAttackDurationTimer, updateContext.DeltaTime, 0f);
-            CharacterTracking tracking = character.ActiveTracking;
-            if (tracking.IsOnGround())
+            // ActiveTracking is read again for the normal (0xE6C3BF, 0xE6C3DE).
+            if (character.ActiveTracking.IsOnGround())
             {
-                Vector3 contactNormal = tracking.GetContactNormal();
+                Vector3 contactNormal = character.ActiveTracking.GetContactNormal();
                 Vector3 worldVelocity = character.WorldVelocity;
                 character.SetWorldVelocity(worldVelocity - contactNormal * Vector3.Dot(contactNormal, worldVelocity));
                 character.OrientateToPlane(contactNormal);
