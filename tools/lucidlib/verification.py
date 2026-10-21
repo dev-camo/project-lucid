@@ -6206,7 +6206,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckParticleControllerT
     "SplinePercentEditorProductNarrowsToTheFloatProduct",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshGeneratorTests." + name for name in (
-    "FreshGeneratorKeepsTheShippedDefaults",
     "ComponentsAreFetchedByAwakeAndReset",
     "IndexFormatAndMarkDynamicReplaceTheMeshes",
     "BakedGeneratorNeverRebuilds",
@@ -6219,6 +6218,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMeshGeneratorTests.
     "ColliderFollowsTheMeshAtTheUpdateRate",
     "DestroyingTheGeneratorRestoresTheHideFlagsOfFilterAndRenderer",
     "SerializedLayoutKeepsTheFieldOrderAttributesAndNestedTypes",
+    "FreshGeneratorHasBuiltOnceInEditMode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckPathGeneratorTests." + name for name in (
     "FreshPathGeneratorKeepsTheShippedDefaults",

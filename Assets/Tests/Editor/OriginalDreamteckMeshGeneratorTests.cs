@@ -31,7 +31,7 @@ namespace ProjectLucid.Tests
         // OriginalDreamteckMeshGeneratorPlayModeTests.FreshGeneratorKeepsTheShippedDefaults. _lastUpdateTime is only written by
         // LateRun and stays 0.
         [Test]
-        public void FreshGeneratorKeepsTheShippedDefaults()
+        public void FreshGeneratorHasBuiltOnceInEditMode()
         {
             MeshGenerator generator = _fixture.NewBare<MeshGenerator>();
             Assert.That(generator.markDynamic, Is.True);
