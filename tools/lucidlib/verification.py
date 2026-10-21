@@ -9640,3 +9640,97 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPlayerProgressionTests." 
     "AnimatingToTheMenuSavesTheShownUnlockDropsTheRestAndPicksTheMenuEvent",
     "AnimatingToTheMenuWithoutAShownWidgetDoesNotSave",
 ))
+
+# Restored Hardlight.UIWidgetButtonDreamPowerSlot, UIWidgetImageDreamPowerSlot and HardlightProject.UIWidgetDreamPowerDescription.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.DreamPowerSlotWidgetTests." + name for name in (
+    "EquippingASlotShowsTheIconAndPlaysTheEquipClip",
+    "UnequippingASlotClearsTheIconAndPlaysTheUnequipClip",
+    "AnEmptySlotIsValidForEquipOnlyForABoughtPower",
+    "AnEquippedSlotIsNeverValidForEquipAndTakesTheUnequippedClip",
+    "SettingInteractableQueuesTheStateWritesTheButtonAndTheBaseFlag",
+    "ASlotWithoutATransitionStillWritesTheButtonAndTheBaseFlag",
+    "SetInteractableOnlyWritesAChange",
+    "TheSlotPublishesItsEventUnderOnClick",
+    "TheImageSlotEquipShowsTheIconAndPlaysTheEquipClip",
+    "TheImageSlotUnequipClearsTheIconAndPlaysTheUnequipClip",
+    "TheImageSlotEnableAndDisablePlayTheirOwnClips",
+    "ThePowerDescriptionShowsTheNameAndIconAndReleasesThemOnDestroy",
+    "ThePowerDescriptionWithoutAPowerOnlySetsTheEmptyFlag",
+    "ThePowerDescriptionDestroyedBeforeSetupReleasesNothing",
+))
+
+# Restored HardlightProject.UIDreamPowerSlots and its Slot record.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIDreamPowerSlotsTests." + name for name in (
+    "EquippingABoughtPowerFillsTheSlotAndTheSavedLoadout",
+    "APowerThatIsNotBoughtIsNotEquipped",
+    "ARestrictedArchetypeThatDoesNotListThePowerRefusesIt",
+    "EquippingAPowerClearsItFromEveryOtherSlot",
+    "ToggleEmptiesAnEquippedSlotAndFillsAnEmptyOne",
+    "ToggleOfAnEmptySlotWithAPowerThatIsNotBoughtChangesNothing",
+    "UnequipEmptiesTheSlotAndRemovesItsSavedEntry",
+    "ConstructionBuildsOneUnequippedRecordPerWidget",
+))
+
+# Restored HardlightProject.UIWidgetSDTSkinToggle and its parameters.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetSDTSkinToggleTests." + name for name in (
+    "SetupJoinsTheGroupShowsTheThumbnailAndRetainsIt",
+    "LockedAndNewFollowTheSavedFlagsAndTheDefaultFlag",
+    "TheTransitionShowsSelectedThenDisabledThenNormal",
+    "EverySelectionEntryPointAppliesTheSkinAndRefreshesTheBinders",
+    "AWidgetThatWasNeverSetUpIgnoresSelectionAndDestroy",
+    "DestroyReleasesTheThumbnail",
+    "TheParametersKeepTheirArguments",
+))
+
+# Restored HardlightProject.UIContainerCharacterSelect.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSelectTests." + name for name in (
+    "OnlyTheMissionsCharactersAreShown",
+    "ChoosingTheCurrentCharacterOnlyPublishesTheContinueEventOnce",
+    "SelectingADefinitionChoosesItsCharacter",
+    "DestroyingTheScreenGivesGameplayControlBack",
+))
+
+# Restored HardlightProject.UIContainerCharacterSelectMain.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSelectMainTests." + name for name in (
+    "AwakeDisablesContinuingAndSelectsTheFirstAllowedCharacter",
+    "TheRememberedCharacterIsSelectedWhenTheMissionAllowsIt",
+    "NoUsableMemoryFallsBackToTheFirstAllowedCharacter",
+    "DestroyingTheScreenRemovesItsInputSubscription",
+    "ChoosingACharacterMovesItToTheFrontOfTheRememberedList",
+    "ChoosingACharacterStoresItAndEnablesContinuing",
+    "OpeningSkinSelectionHandsOverTheCurrentCharacterAndPublishesTheEvent",
+    "ControllerInputSelectsTheFirstMissionCharacterOnlyWhenNothingIsSelected",
+    "OnlyANonDefaultCurrentSkinCounts",
+))
+
+# Restored HardlightProject.UIContainerCharacterSelectEquipDreamPower.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSelectEquipDreamPowerTests." + name for name in (
+    "StartShowsTheArchetypeAndTheSavedLoadoutOfADreamPowerMission",
+    "AnUnrestrictedMissionShowsNoArchetypeAndKeepsPowersEnabled",
+    "AMissionWithoutDreamPowersHidesTheLoadout",
+    "RefreshingEnablesOrDisablesEachRecordedSlotByTheArchetype",
+    "TheContainerAsksTheStoreWhichArchetypeMayUseAPower",
+    "ApowerIsEquippedWhenAnyArchetypesLoadoutHoldsASlot",
+    "DestroyReleasesTheArchetypeImage",
+))
+
+# Restored HardlightProject.UIContainerCharacterSkinSelection and its parameters.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSkinSelectionTests." + name for name in (
+    "AnUnlockedSkinIsWornAndShown",
+    "ALockedSkinIsShownButNotWorn",
+    "ASkinUnlockedByDefaultIsWornWithoutASavedUnlock",
+    "ChangingSkinReleasesThePreviousThumbnailAndRepeatingDoesNothing",
+    "UnloadAndDestroyReleaseTheShownThumbnail",
+    "SetupMakesOneSkinToggleForEachListedSkin",
+    "TheParametersKeepTheirCharacterDefinition",
+))
+
+# Restored HardlightProject.UIWidgetActiveCharacterImage.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetActiveCharacterImageTests." + name for name in (
+    "EnablingShowsTheCurrentCharactersPortrait",
+    "ANewCharacterReleasesTheOldPortraitAndShowsItsOwn",
+    "AnUnlistedCharacterKeepsTheSpriteAndForgetsTheDefinition",
+    "DisablingRemovesTheCallbackAndReleasesThePortrait",
+    "UnloadImageReleasesTheHeldPortraitOnly",
+    "StartDoesNothing",
+))

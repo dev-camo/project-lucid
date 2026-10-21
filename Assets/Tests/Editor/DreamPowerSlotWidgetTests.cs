@@ -227,32 +227,6 @@ namespace ProjectLucid.Tests
             });
         }
 
-        private sealed class ImageSlot
-        {
-            public UIWidgetImageDreamPowerSlot Widget;
-            public Animation Animation;
-            public AnimationClip Equip, Unequip, Enabled, Disabled;
-        }
-
-        private static ImageSlot NewImageSlot(Owned owned)
-        {
-            GameObject host = owned.Host("Lucid dream power slot image", false);
-            var slot = new ImageSlot { Animation = host.AddComponent<Animation>() };
-            slot.Animation.playAutomatically = false;
-            slot.Widget = host.AddComponent<UIWidgetImageDreamPowerSlot>();
-            slot.Equip = AddClip(owned, slot.Animation, "image equip");
-            slot.Unequip = AddClip(owned, slot.Animation, "image unequip");
-            slot.Enabled = AddClip(owned, slot.Animation, "image enabled");
-            slot.Disabled = AddClip(owned, slot.Animation, "image disabled");
-            Set(slot.Widget, "m_animation", slot.Animation); // Reflection: serialized reference the editor assigns
-            Set(slot.Widget, "m_equipClip", slot.Equip); // Reflection: authored serialized field
-            Set(slot.Widget, "m_unequipClip", slot.Unequip); // Reflection: authored serialized field
-            Set(slot.Widget, "m_enabledClip", slot.Enabled); // Reflection: authored serialized field
-            Set(slot.Widget, "m_disabledClip", slot.Disabled); // Reflection: authored serialized field
-            host.SetActive(true);
-            return slot;
-        }
-
         // 0x508220: the icon is requested, the equip clip played by name (0x5082C9), the debug name reset (0x5082F7).
         [Test]
         public void TheImageSlotEquipShowsTheIconAndPlaysTheEquipClip()

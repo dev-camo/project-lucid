@@ -47,14 +47,9 @@ namespace ProjectLucid.Tests
                 {
                     owned.LeaseRow<ChallengeManager>(); // The store's field initialiser caches this row
                     owned.LeaseRow<AudioManager>(); // The slot buttons' audio components cache this row
-                    owned.LeaseRow<DreamPowerStoreManager>();
-                    var store = owned.Host("Lucid dream power slots store", false).AddComponent<DreamPowerStoreManager>();
+                    var store = owned.Register(owned.Host("Lucid dream power slots store", false).AddComponent<DreamPowerStoreManager>());
                     SaveManager save = ProcessManager.GetSystem<SaveManager>();
                     Set(store, "m_saveManager", save); // Reflection: the reference the store's start-up chain takes from the SaveManager row
-                    string row = ProcessManager.GetDefaultName<DreamPowerStoreManager>();
-                    ProcessManager.RegisterSystem(store, row);
-                    // The store unregisters itself when destroyed; releasing the row twice is harmless.
-                    owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnregisterSystem(row)));
 
                     var world = new World { Owned = owned, Game = save.CurrentSave, Buttons = new ButtonSlot[slotCount] };
                     for (int i = 0; i < slotCount; i++) world.Buttons[i] = NewButtonSlot(owned, true, false);
