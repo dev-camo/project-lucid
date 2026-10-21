@@ -66,7 +66,8 @@ namespace HardlightProject
             if (m_currentHeadingOverride != headingOverride)
             {
                 m_continuousUpdateSwitchTimerSeconds += m_timeManagerRef.Get().GetDeltaTime(TimeCategory.Camera);
-                if (m_continuousUpdateSwitchTimerSeconds < m_continuousUpdateSwitchDelaySeconds) return;
+                // jb after ucomiss: an unordered (NaN) delay keeps the current override as well.
+                if (!(m_continuousUpdateSwitchTimerSeconds >= m_continuousUpdateSwitchDelaySeconds)) return;
 
                 m_currentHeadingOverride = headingOverride;
                 m_cameraManagerRef.Get().ModifyCameraSettingOverride(CameraSettingType.HeadingOverride,

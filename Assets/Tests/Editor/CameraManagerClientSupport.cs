@@ -24,9 +24,13 @@ namespace ProjectLucid.Tests
 
         // The manager's field initialisers take the SaveManager and CameraStackManager references, so those rows are
         // leased. A case that already registered a SaveManager (CharacterTriggerTestSupport.WithManager) passes
-        // leaseSaveRow false. A registered manager goes into its absent row before any component caches the reference.
-        internal static Rig NewRig(Owned owned, bool leaseSaveRow, bool registerManager)
+        // leaseSaveRow false. The manager is a TimeScaledComponent_SDT, whose type initialiser takes the TimeManager
+        // row, so that row is leased first unless the case handled it itself (leaseTimeRow false, for a case that
+        // registers a TimeManager). A registered manager goes into its absent row before any component caches the
+        // reference.
+        internal static Rig NewRig(Owned owned, bool leaseSaveRow, bool registerManager, bool leaseTimeRow = true)
         {
+            if (leaseTimeRow) owned.LeaseRow<TimeManager>();
             if (leaseSaveRow) owned.LeaseRow<SaveManager>();
             owned.LeaseRow<CameraStackManager>();
             var rig = new Rig();

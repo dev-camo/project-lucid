@@ -33,10 +33,11 @@ namespace ProjectLucid.Tests
         private static void WithTrigger(bool timed, Action<Owned, Scene> body) =>
             WithManager((owned, manager, character) =>
             {
-                var scene = new Scene { Manager = manager, Character = character, Rig = NewRig(owned, false, true) };
-                // The trigger's field initialisers take typed TimeManager and camera manager references.
+                // The camera manager's type initialiser and the trigger's field initialisers take the TimeManager row, so it is
+                // registered (or leased) before either is built.
                 if (timed) owned.Register(NewTimeManager(owned, TimeCategory.Camera, 1f));
                 else owned.LeaseRow<TimeManager>();
+                var scene = new Scene { Manager = manager, Character = character, Rig = NewRig(owned, false, true, false) };
                 GameObject host = owned.Host("Lucid camera heading trigger", false);
                 host.AddComponent<BoxCollider>();
                 scene.Trigger = host.AddComponent<CameraHeadingTrigger>();
@@ -349,6 +350,11 @@ namespace ProjectLucid.Tests
                 Call(scene.Trigger, "DoTriggerStay", scene.Character);
                 Assert.That(Applied(scene), Is.SameAs(headings[1]), "the delay has not elapsed");
                 Assert.That(Get<float>(scene.Trigger, "m_continuousUpdateSwitchTimerSeconds"), Is.GreaterThanOrEqualTo(0f));
+
+                // The wait test is jb after ucomiss (0x5c89c8), which also skips the switch when the delay is NaN.
+                Set(scene.Trigger, "m_continuousUpdateSwitchDelaySeconds", float.NaN);
+                Call(scene.Trigger, "DoTriggerStay", scene.Character);
+                Assert.That(Applied(scene), Is.SameAs(headings[1]), "a NaN delay never elapses");
 
                 Set(scene.Trigger, "m_continuousUpdateSwitchDelaySeconds", 0f);
                 Call(scene.Trigger, "DoTriggerStay", scene.Character);
