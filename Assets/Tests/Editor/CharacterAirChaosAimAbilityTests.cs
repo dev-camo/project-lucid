@@ -436,12 +436,14 @@ namespace ProjectLucid.Tests
                 var row = new MetadataFixed(key, string.Empty);
                 Set(row, "m_valueObject", overrideDefinition);
                 Get<List<MetadataFixed>>(Get<object>(group, "m_data"), "m_metadata").Add(row);
-                GameObject host = owned.Host("Lucid chaos aim camera override", false);
-                host.AddComponent<BoxCollider>();
-                var data = host.AddComponent<CharacterCollisionData>();
+                // The collision data is found by the ray cast of TryGetHitCollider (0x73F5F0), which stores it as the last hit.
+                var data = Box(owned, "Lucid chaos aim camera override", new Vector3(0f, 0f, 5f)).gameObject.AddComponent<CharacterCollisionData>();
+                // Reflection: OnCharacterManagerValid derives these from the data manager's terrain definitions, which need a started App
                 SetProperty(data, "CameraOverrideMetadata", group);
                 SetProperty(data, "HasCameraOverride", true);
-                Set(ability, "m_hitCollisionData", data);
+                var hitArguments = new object[] { Vector3.zero, Vector3.forward, 20f, null };
+                Assert.That((bool)Call(ability, "TryGetHitCollider", hitArguments), Is.True, "precondition: the ray hits the collider");
+                Assert.That(Get<CharacterCollisionData>(ability, "m_hitCollisionData"), Is.SameAs(data), "precondition: the hit data is stored");
                 var target = new CharacterAbilityDefinition_AirChaosAim.ChaosAimTarget { CameraOverrideMetadataKey = key };
 
                 void Check(bool reverseByDirection, Quaternion aimRotation, Quaternion expected, string message)
@@ -488,7 +490,7 @@ namespace ProjectLucid.Tests
         {
             WithAim((owned, character, ability, definition) =>
             {
-                SetProperty(ability, "AirActive", true);
+                SetProperty(ability, "AirActive", true); // Reflection: SetAirActive(true) reads the save data settings (IsControlContinuous 0xE5D960), which need a started save manager
                 definition.AimLerpSmoothTime = 1f;
                 definition.AimLerpMaxSpeed = 10f;
                 definition.AimLerpScaleAnim = AnimationCurve.Linear(0f, 2f, 1f, 4f);
