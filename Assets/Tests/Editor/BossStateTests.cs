@@ -373,7 +373,9 @@ namespace ProjectLucid.Tests
             var counter = new int[1];
             var cooling = new UnityEvent();
             cooling.AddListener(() => counter[0]++);
-            // Reflection: the cool-down event is a serialized field that the scene normally supplies.
+            // Reflection: the fired and cool-down events are serialized fields that the scene normally supplies; Fire and the
+            // cool-down invoke them without a null check.
+            Set(projectile, "m_onFired", new UnityEvent());
             Set(projectile, "m_onCoolingDown", cooling);
             projectile.SetBoss(boss);
             boss.Storage.SetValue(BossFSMKeys.GuardianProjectileMovement, movement);
