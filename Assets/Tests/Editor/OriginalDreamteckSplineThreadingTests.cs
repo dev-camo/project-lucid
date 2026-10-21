@@ -361,7 +361,7 @@ namespace ProjectLucid.Tests
         // branch only (EditMode, Application.isPlaying false, read directly): Run calls the handler synchronously and starts no pool
         // thread. The shipped selection is covered by OriginalDreamteckSplineThreadingPlayModeTests.RunQueuesOnTheFirstIdleThreadAndWakesIt.
         [Test]
-        public void RunQueuesOnTheFirstIdleThreadAndWakesIt()
+        public void RunCallsTheHandlerAtOnceInEditMode()
         {
             using (PoolScope scope = new PoolScope(2))
             {
@@ -383,7 +383,7 @@ namespace ProjectLucid.Tests
         // covered by OriginalDreamteckSplineThreadingPlayModeTests.RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock;
         // in the editor branch Run calls its handler synchronously and neither waits for the lock nor touches the pool.
         [Test]
-        public void RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock()
+        public void HandlersShareTheLockAndRunDoesNotWaitInEditMode()
         {
             using (PoolScope scope = new PoolScope(2))
             {
@@ -427,7 +427,7 @@ namespace ProjectLucid.Tests
         // while the thread is awake is drained in the same pass, in queue order. In the editor branch Run itself runs its handler
         // synchronously and leaves the queues alone.
         [Test]
-        public void RunQueuesOnTheLastThreadWhenEveryThreadIsBusy()
+        public void ABusyThreadDrainsALateQueueInTheSamePassInEditMode()
         {
             using (PoolScope scope = new PoolScope(2))
             {
@@ -473,7 +473,7 @@ namespace ProjectLucid.Tests
         // `if (Application.isPlaying)` (read directly), so this test covers the editor branch: the added defs exist and hold no
         // thread. The shipped start is covered by OriginalDreamteckSplineThreadingPlayModeTests.ThreadCountOnlyGrowsAndStartsTheNewThreads.
         [Test]
-        public void ThreadCountOnlyGrowsAndStartsTheNewThreads()
+        public void ThreadCountOnlyGrowsAndLeavesTheNewThreadsUnstartedInEditMode()
         {
             using (PoolScope scope = new PoolScope(2))
             {

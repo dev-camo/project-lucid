@@ -99,9 +99,10 @@ namespace ProjectLucid.Tests
 
         // Original moveStep 0x4da4a0 and iterations 0x4da500. Linear: iterations = points (+1 closed), moveStep = 1f / (points - 1)
         // for open and closed alike. Other types: (sampleRate - 1) * (points, or points - 1 open) segments, iterations = that + 1 and
-        // moveStep = 1f / segments. The text has no cast, and the compiled editor IL has no conv.r4 after the div (only conv.r8), so
-        // the editor's Mono keeps the quotient at double precision (1.0 / n) while the shipped build divides in float (divss, then
-        // cvtss2sd). Both are asserted: the editor value exactly, and that it narrows to the float the shipped build returns.
+        // moveStep = 1f / segments, with no cast in the text. The evidence for the shipped single-precision quotient is the
+        // disassembly (divss, then cvtss2sd); this test cannot tell float from double arithmetic, because the editor's Mono evaluates
+        // the uncast quotient at double precision (the IL has no conv.r4 after the div). It pins the type/closure rules, the value the
+        // editor returns (1.0 / n) and that this value narrows to the float 1f / n.
         [Test]
         public void MoveStepAndIterationsFollowTheSplineTypeAndClosure()
         {
@@ -127,8 +128,7 @@ namespace ProjectLucid.Tests
             AssertMoveStep(coarse.moveStep, 6);
         }
 
-        // moveStep is `1f / n` returned as double without a cast: the editor Mono result is 1.0 / n, the shipped (float) result is
-        // 1f / n widened. The float narrowing of the editor value is that shipped float.
+        // The editor (Mono) value of the uncast `1f / n` is 1.0 / n; its float narrowing is 1f / n.
         private static void AssertMoveStep(double actual, int n, string message = null)
         {
             Assert.That(actual, Is.EqualTo(1.0 / n), message);
@@ -505,8 +505,7 @@ namespace ProjectLucid.Tests
         public void EvaluateIntoAnArrayWalksFromFloorToCeilAndRepeatsTheEndPercent()
         {
             Spline spline = Build(Spline.Type.Linear, Vector3.zero, new Vector3(3f, 0f, 0f), new Vector3(6f, 0f, 0f), new Vector3(9f, 0f, 0f));
-            // The editor's moveStep is 1.0 / 3 (double precision, see MoveStepAndIterationsFollowTheSplineTypeAndClosure); the
-            // shipped float step 1f / 3 differs from it by about 1e-8.
+            // The editor (Mono) moveStep is 1.0 / 3 (see MoveStepAndIterationsFollowTheSplineTypeAndClosure).
             double step = 1.0 / 3.0;
 
             SplineSample[] samples = null;
@@ -556,7 +555,7 @@ namespace ProjectLucid.Tests
             spline.Evaluate(ref samples);
             Assert.That(samples.Length, Is.EqualTo(19));
             Assert.That(samples[1].percent, Is.EqualTo(1.0 / 18.0).Within(1e-12), "a step read after the reopen would be 1 / 9");
-            Assert.That((float)samples[1].percent, Is.EqualTo(1f / 18f), "the float step the shipped build walks with");
+            Assert.That((float)samples[1].percent, Is.EqualTo(1f / 18f), "the editor step narrows to the float 1f / 18");
             Assert.That(ReadClosed(spline), Is.False);
         }
 

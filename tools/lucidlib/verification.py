@@ -5964,13 +5964,13 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineThreadingTest
     "AHandlerExceptionEscapesUnloggedAndLeavesTheWorkerComputing",
     "AnAbortDuringTheSleepLogsTheThreadException",
     "InterruptNeedsAThreadAbortIgnoresDeadOnesAndRestartReplaces",
-    "RunQueuesOnTheFirstIdleThreadAndWakesIt",
-    "RunMovesToTheNextThreadWhileTheFirstIsComputingAndHandlersShareTheLock",
-    "RunQueuesOnTheLastThreadWhenEveryThreadIsBusy",
-    "ThreadCountOnlyGrowsAndStartsTheNewThreads",
     "PrewarmThreadsStartsOnlyTheThreadsThatAreNotAlive",
     "StopAndQuittingAbortLiveThreads",
     "NestedDelegateTypesKeepTheirSignatures",
+    "ABusyThreadDrainsALateQueueInTheSamePassInEditMode",
+    "HandlersShareTheLockAndRunDoesNotWaitInEditMode",
+    "RunCallsTheHandlerAtOnceInEditMode",
+    "ThreadCountOnlyGrowsAndLeavesTheNewThreadsUnstartedInEditMode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineModifierTests." + name for name in (
     "KeyStartsWithTheShippedDefaultsAndConstructorClampsTheRange",
