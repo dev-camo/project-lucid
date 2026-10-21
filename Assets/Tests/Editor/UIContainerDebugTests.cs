@@ -23,10 +23,14 @@ namespace ProjectLucid.Tests
     // LevelRespawnPoints holding real RespawnPoints. The mission buttons run over the real MissionManager of OriginalPersistentLevelObjectTests
     // .WithMissions with a registered App, and a regular mission context for a definition set up in the manager. Closing the old
     // buttons calls Object.Destroy, which Edit Mode refuses with an error, so those cases expect it once per existing child.
-    // Not covered: Start (it queues callbacks on the ornament, challenge and dream power store rows), OnChallengeManagerValid, AddXP,
-    // ResetXP, the cycle buttons, OnOrnamentManagerValid, OnDreamPowerStoreManagerValid and the Action_ methods that forward to those
-    // systems (they need a started ChallengeManager and DreamPowerStoreManager, whose first call reaches the save), SetupForMission and
-    // the found branch of CanSetupForMissionSelect (they need a MissionList in the game's level configuration and a UIContainerMissionSelect),
+    // SetupForMission runs over a MissionList on a level-select level of a GameLevels set on the LevelManager, with ranks S 10 s and A 20 s.
+    // Not covered: Start (it queues callbacks on the ornament, challenge and dream power store rows), OnChallengeManagerValid (the
+    // toggle initialisation from FeatureState, 0x62c8de), AddXP, ResetXP, the cycle buttons, OnOrnamentManagerValid,
+    // OnDreamPowerStoreManagerValid and the Action_ methods that forward to those systems, including the bool to feature state mapping
+    // of Action_OnChallengeFeatureToggle (0x62df1e: true is UnlockedShowInterstitial, false Locked). They need a started ChallengeManager
+    // and DreamPowerStoreManager; setting a feature state reaches the shadow tutorial challenge, the leaderboard integration and the
+    // save, which an inactive owned manager does not have, and the state has no setter to reach it by,
+    // the found branch of CanSetupForMissionSelect (it needs a UIContainerMissionSelect),
     // the widget-navigation branches of the mission buttons, and Action_OnWidgetSelected (it needs a HLScrollRectSelection).
     public sealed class UIContainerDebugTests
     {
@@ -478,6 +482,119 @@ namespace ProjectLucid.Tests
                 Assert.That(queued.Length, Is.EqualTo(1));
                 Assert.That(queued[0].Target, Is.SameAs(tracker));
                 Assert.That(queued[0].Method.Name, Is.EqualTo("MissionObjectivesCompleted"));
+            });
+        }
+
+        private static MissionRank NewRank(RankType type, int seconds)
+        {
+            var rank = new MissionRank();
+            JsonUtility.FromJsonOverwrite("{\"m_rankType\":" + (int)type + ",\"m_seconds\":" + seconds + "}", rank);
+            rank.Validate();
+            return rank;
+        }
+
+        // SetupForMission finds its definition through MissionManager.GetAllMissionDefinitions: the mission is listed by a level with
+        // ShowInLevelSelect in the LevelManager's GameLevels (one zone holding it). Ranks S 10 s and A 20 s are added when asked.
+        // Returns the save record of the mission, in the level's saved data.
+        private static SaveDataLevelMission ListMission(MissionButtons rig, bool ranked)
+        {
+            Owned owned = rig.Owned;
+            owned.LeaseRow<DataManager>(); // the rank's field initialiser
+            if (ranked)
+            {
+                var ranks = owned.Track(ScriptableObject.CreateInstance<MissionRankDefinition>());
+                ranks.Ranks.Add(RankType.S, NewRank(RankType.S, 10));
+                ranks.Ranks.Add(RankType.A, NewRank(RankType.A, 20));
+                Call(ranks, "OnEnable"); // the sorted list built from the ranks just added
+                Set(rig.Definition, "m_ranks", ranks); // Reflection: serialized reference
+            }
+            var group = new MissionGroup();
+            Set(group, "m_definitions", new List<MissionDefinition> { rig.Definition }); // Reflection: authored group contents
+            Set(group, "m_requirements", new List<RequirementMissionGroupBase>());
+            var missionList = owned.Track(ScriptableObject.CreateInstance<MissionList>());
+            Set(missionList, "m_groups", new List<MissionGroup> { group });
+            var level = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+            Set(level, "m_guid", "lucid-debug-container-level");
+            Set(level, "m_missionList", missionList);
+            var zone = owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
+            Set(zone, "m_guid", "lucid-debug-container-zone");
+            Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { level });
+            var levels = owned.Track(ScriptableObject.CreateInstance<GameLevels>());
+            ((List<GameplayLevelUIEntry>)typeof(GameLevels).GetField("m_gameplayEntries", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(levels)).Add(zone);
+            typeof(LevelManager).GetProperty("GameLevels").SetValue(rig.Missions.Level, levels); // the property is set by the LevelManager's Awake
+            return rig.Missions.Save.CurrentSave.GetOrCreateLevelData("lucid-debug-container-level").GetOrCreateMissionData(MissionGuid);
+        }
+
+        // SetupForMission 0x62D180 offers no button for a mission the manager does not list (0x62d2ef).
+        [Test]
+        public void NoButtonIsOfferedForAMissionTheManagerDoesNotKnow()
+        {
+            WithMissionButtons(false, rig =>
+            {
+                ListMission(rig, true);
+
+                Assert.That(Call(rig.Container, "SetupForMission", new SaveDataLevelMission("lucid-unlisted-mission")), Is.EqualTo(false));
+                Assert.That(rig.Buttons, Is.Empty);
+            });
+        }
+
+        // A completed mission whose best time earns no rank gets no button (0x62d318); with ranks S 10 s and A 20 s, 25 s is past both
+        // and there is no D rank. A completed mission already ranked S gets none either (the literal 0xDF9F103C at 0x62d322, which is
+        // not A: 15 s earns A and does get a button).
+        [TestCase(25f, false, TestName = "ACompletedMissionWithAnUnrankedBestTimeGetsNoButton")]
+        [TestCase(5f, false, TestName = "ACompletedMissionRankedSGetsNoButton")]
+        [TestCase(15f, true, TestName = "ACompletedMissionRankedAGetsAButton")]
+        public void ACompletedMissionIsOfferedAButtonUnlessItsBestTimeEarnsNoRankOrS(float bestTime, bool offered)
+        {
+            WithMissionButtons(false, rig =>
+            {
+                SaveDataLevelMission save = ListMission(rig, true);
+                save.BestTimeSeconds = bestTime;
+                save.MarkComplete(1);
+
+                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(offered));
+                Assert.That(rig.Buttons.Length, Is.EqualTo(offered ? 1 : 0));
+            });
+        }
+
+        // An incomplete mission is never ranked: even a best time that would earn S gets a button, labelled with the mission name.
+        [Test]
+        public void AnIncompleteMissionIsOfferedACompleteMissionButton()
+        {
+            WithMissionButtons(false, rig =>
+            {
+                SaveDataLevelMission save = ListMission(rig, true);
+                save.BestTimeSeconds = 5f;
+
+                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(true));
+
+                UIWidgetButton button = rig.Buttons.Single();
+                Assert.That(button.gameObject.activeSelf, Is.True);
+                Assert.That(button.Label.Value, Is.EqualTo("Complete mission: Lucid debug mission"));
+                Assert.That(button.transform.parent, Is.SameAs(rig.Root));
+            });
+        }
+
+        // The button's lambda 0x62E760 sets the best time to the best rank's 10 s less 0.1 (an addition of -0.1f, 0xbdcccccd at
+        // 0x29a70d4, rounded to single: 9.9f), marks the mission complete with progress 1 (0x62e816), destroys the button (refused in
+        // Edit Mode) and offers the next mission, of which there is none. A mission without ranks keeps its best time.
+        [TestCase(true, 9.9f, TestName = "PressingTheMissionButtonSetsTheBestTimeJustUnderTheBestRank")]
+        [TestCase(false, 5f, TestName = "PressingTheButtonOfAMissionWithoutRanksKeepsTheBestTime")]
+        public void PressingTheMissionButtonCompletesTheMission(bool ranked, float expectedBestTime)
+        {
+            WithMissionButtons(false, rig =>
+            {
+                SaveDataLevelMission save = ListMission(rig, ranked);
+                save.BestTimeSeconds = 5f;
+                Call(rig.Container, "SetupForMission", save);
+                UIWidgetButton button = rig.Buttons.Single();
+
+                LogAssert.Expect(LogType.Error, RefusedDestroy);
+                button.Action_OnButtonPress();
+
+                Assert.That(save.BestTimeSeconds, Is.EqualTo(expectedBestTime));
+                Assert.That(save.Complete, Is.True);
+                Assert.That(save.Progress, Is.EqualTo(1));
             });
         }
     }

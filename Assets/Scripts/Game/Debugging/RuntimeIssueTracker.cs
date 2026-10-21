@@ -179,6 +179,7 @@ namespace HardlightProject
             m_dataList.Clear();
             foreach (RuntimeIssueConfiguration configuration in m_configurations)
             {
+                // The original copies the path (String.CreateString over its span, 0x561273) before GetTrackerList consumes it by ref.
                 string path = new string(configuration.Path);
                 if (GetFrameData(path, out float frameValue))
                 {

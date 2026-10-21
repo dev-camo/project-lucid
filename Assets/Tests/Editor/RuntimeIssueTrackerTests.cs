@@ -27,7 +27,9 @@ namespace ProjectLucid.Tests
     // values through those setters. Closing needs a CoroutineUtils host, which an inactive owned host refuses with the engine's error.
     // Not covered: OnGUI and the GUI* methods (the engine accepts IMGUI calls only inside OnGUI), UIScaledWidth and UIScaledHeight
     // (they read the screen's safe area), the m_raycastUIBlocker toggle of SetVisible and the AverageValue of a recorded stat in megabytes
-    // (a recorder with no samples reads zero).
+    // (a recorder with no samples reads zero, and HLProfilerData is sealed with a non-virtual AverageValue, so no sample can be fed in; the
+    // data-row threshold test of FixedUpdate 0x561b17..0x561b4c therefore cannot tell IsValid from IsValidBytes, which scales the average
+    // by 1/1048576 (0x35800000 at 0x561b24); 1048576 against a minimum of 2 would be the separating case).
     public sealed class RuntimeIssueTrackerTests
     {
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");

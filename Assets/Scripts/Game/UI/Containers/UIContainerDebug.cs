@@ -174,11 +174,7 @@ namespace HardlightProject
             m_containerNavigation.UpdateChildWidgets();
         }
 
-        // 060031fe (1.10.1 RVA 0x62C830): the three XP buttons run lambdas 33_0..33_2 (AddXP), the reset button
-        // ResetXP. The amounts the lambdas passed to AddXP leave no trace in retail, where AddXP ignores them; they
-        // are taken from the button names (unverified; see the note at the listeners). Start's callees
-        // SetUnlockAllLevels and SetPoolsToggleState sit after Start in the binary, and OnUpdatedChallengeCycle and
-        // UpdateChallengeXPLabel after this method, which is the placement of inlined-then-called helpers.
+        // 060031fe (1.10.1 RVA 0x62C830): the three XP buttons run lambdas 33_0..33_2 (AddXP), the reset button ResetXP.
         private void OnChallengeManagerValid(ChallengeManager challengeManager)
         {
             m_challengeManager = challengeManager;

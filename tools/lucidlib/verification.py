@@ -10045,6 +10045,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.DebugSupportComponentTests." + name 
     "StartLeavesAListThatAlreadyHoldsACustomProfileAsItIs",
     "ACustomProfileAfterOtherEntriesIsEnoughAndNothingIsAdded",
     "WithoutACustomProfileTheUserProfileIsAppended",
+    "WithoutAUserProfileFileTheSerializedFeaturesBecomeMediumAttributesInOrder",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.RuntimeIssueTrackerTests." + name for name in (
     "AFreshTrackerIsClosedWithAUnitUserScale",
@@ -10113,4 +10114,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDebugTests." + name for n
     "TheObjectiveButtonDoesNothingForAStateWithoutAnInstancedTracker",
     "PressingTheObjectiveButtonCompletesOnlyTheFirstIncompleteObjectiveAndRebuilds",
     "PressingTheCompleteButtonQueuesTheTrackersCompletionForThePauseClose",
+    "NoButtonIsOfferedForAMissionTheManagerDoesNotKnow",
+    "ACompletedMissionWithAnUnrankedBestTimeGetsNoButton",
+    "ACompletedMissionRankedSGetsNoButton",
+    "ACompletedMissionRankedAGetsAButton",
+    "AnIncompleteMissionIsOfferedACompleteMissionButton",
+    "PressingTheMissionButtonSetsTheBestTimeJustUnderTheBestRank",
+    "PressingTheButtonOfAMissionWithoutRanksKeepsTheBestTime",
 ))

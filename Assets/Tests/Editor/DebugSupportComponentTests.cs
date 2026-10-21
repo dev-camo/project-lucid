@@ -325,8 +325,7 @@ namespace ProjectLucid.Tests
         }
 
         // Without a custom profile the method loads or creates "UserPerformanceProfile" and appends it. It only reads the user's profile
-        // file; the profile it adds is destroyed here. Not covered: giving the loaded profile the serialized features (SetAttributes),
-        // which runs only when the machine's user file is missing or has no attributes.
+        // file; the profile it adds is destroyed here. The SetAttributes branch has its own case below.
         [Test]
         public void WithoutACustomProfileTheUserProfileIsAppended()
         {
@@ -351,6 +350,43 @@ namespace ProjectLucid.Tests
                 finally
                 {
                     foreach (PerformanceProfile profile in profiles.Skip(1)) Object.DestroyImmediate(profile);
+                }
+            });
+        }
+
+        // 0x55e776 tests the loaded profile's attribute count against zero and 0x55e787 gives it the serialized features, one attribute
+        // each at the Medium level (0) in array order. The user file cannot be redirected (the path is Application.persistentDataPath),
+        // and a case may not create, move or delete it, so the attributes are asserted only on a machine without that file; with one,
+        // the file decides the outcome and the branch stays unasserted.
+        [Test]
+        public void WithoutAUserProfileFileTheSerializedFeaturesBecomeMediumAttributesInOrder()
+        {
+            Owned.Run(owned =>
+            {
+                ScalablePerformance performance = owned.Register(owned.Host("Lucid scalable performance", false).AddComponent<ScalablePerformance>());
+                var profiles = new List<PerformanceProfile>();
+                Set(performance, "m_performanceProfiles", profiles); // Reflection: serialized list
+                var first = owned.Track(ScriptableObject.CreateInstance<ScalableFeature>());
+                first.ID = "Lucid feature A";
+                var second = owned.Track(ScriptableObject.CreateInstance<ScalableFeature>());
+                second.ID = "Lucid feature B";
+                var menu = owned.Host("Lucid performance profile menu", false).AddComponent<DebugMenuPerformanceProfiles>();
+                Set(menu, "m_scalableFeatures", new[] { first, second }); // Reflection: serialized array
+                bool userFileExists = File.Exists(Path.Combine(Application.persistentDataPath, "UserPerformanceProfile.json"));
+
+                try
+                {
+                    menu.AddDebugCustomPerformanceOptions(performance);
+
+                    Assert.That(profiles.Count, Is.EqualTo(1));
+                    if (userFileExists) return;
+                    var attributes = ((PerformanceProfileCustom)profiles[0]).Attributes;
+                    Assert.That(attributes.Select(attribute => attribute.Feature).ToArray(), Is.EqualTo(new[] { first, second }));
+                    Assert.That(attributes.Select(attribute => (int)attribute.Level).ToArray(), Is.EqualTo(new[] { 0, 0 }));
+                }
+                finally
+                {
+                    foreach (PerformanceProfile profile in profiles) Object.DestroyImmediate(profile);
                 }
             });
         }
