@@ -245,7 +245,7 @@ namespace ProjectLucid.Tests
                 rig.Container.SetCharacterSkin(rig.SkinB);
                 var start = new Color(0.1f, 0.2f, 0.3f);
                 rig.Container.ZoneBackgroundStartColour.Value = start;
-                var other = owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
+                var other = CreateCharacterDefinition(owned);
                 Set(other, "m_characterSkins", new[] { rig.SkinA, rig.SkinB }); // Reflection: authored serialized field
 
                 rig.Container.Setup(new UIContainerCharacterSkinSelection.UIContainerCharacterSkinSelectionParameters(other));

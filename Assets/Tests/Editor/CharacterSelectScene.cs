@@ -1,9 +1,11 @@
 using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -69,10 +71,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        private static readonly Regex DefinitionAwakeFault = new Regex("^NullReferenceException: Object reference not set to an instance of an object$");
+
+        // A character definition as the engine serializer would deliver it. CreateInstance sends Awake, whose
+        // ActorDefinition.UpdateCachedValues (0x7A8060) calls Settings.UpdateCachedValues on the unassigned Settings (+0x28) with no
+        // null test: one logged fault per definition. The authored settings and lookup lists are then written, so that wearing a
+        // skin (CharacterDefinition.SetCharacterSkin 0x5470B0 refreshes the same caches) has what it reads.
+        internal static CharacterDefinition CreateCharacterDefinition(Owned owned)
+        {
+            LogAssert.Expect(LogType.Exception, DefinitionAwakeFault);
+            var definition = owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
+            JsonUtility.FromJsonOverwrite("{\"Settings\":{\"Collider\":{}},\"PFXLookups\":[],\"AudioDefinitions\":[]}", definition);
+            return definition;
+        }
+
         // A character definition under the given id, listed in the scene's DataManager.
         internal static CharacterDefinition AddCharacter(Scene scene, CharacterId id, CharacterArchetype archetype = CharacterArchetype.None)
         {
-            var definition = scene.Owned.Track(ScriptableObject.CreateInstance<CharacterDefinition>());
+            var definition = CreateCharacterDefinition(scene.Owned);
             Set(definition, "m_id", id); // Reflection: authored serialized field
             Set(definition, "m_archetype", archetype); // Reflection: authored serialized field
             scene.Data.Characters[id] = definition;
