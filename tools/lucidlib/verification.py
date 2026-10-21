@@ -10109,6 +10109,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerLevelResultsTests." + nam
     "WithoutARegularContextNoTimeTrialIsAnnounced",
     "ATimeTrialIsAnnouncedOnlyOnceItsUnlockIsRecordedAsSeen",
     "OnlyATimedReachGoalMissionAnnouncesATimeTrial",
+    "ATimeTrialMissionOnlyRecordsItsUnlockAsSeenWhateverItsGoalFlag",
     "ExitPublishesTheExitEventOnlyOnce",
     "ExitStopsTheCurrentCharacterCollectingOrbs",
 ))

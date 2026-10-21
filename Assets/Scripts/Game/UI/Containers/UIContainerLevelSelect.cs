@@ -99,9 +99,9 @@ namespace HardlightProject
             TotalOrnaments.Value = ornamentManager.TotalOrnaments;
             HasNewOrnaments.Value = false;
             int newOrnamentCount = 0;
-            foreach (KeyValuePair<OrnamentCategory, Dictionary<OrnamentIdentifier, OrnamentManager.OrnamentStatus>> collection in ornamentManager.OrnamentCollections)
+            foreach ((OrnamentCategory _, Dictionary<OrnamentIdentifier, OrnamentManager.OrnamentStatus> collection) in ornamentManager.OrnamentCollections)
             {
-                foreach (KeyValuePair<OrnamentIdentifier, OrnamentManager.OrnamentStatus> ornament in collection.Value)
+                foreach (KeyValuePair<OrnamentIdentifier, OrnamentManager.OrnamentStatus> ornament in collection)
                 {
                     OrnamentManager.OrnamentStatus status = ornament.Value;
                     if (status.Unlocked && !status.Seen && status.Collected)

@@ -261,6 +261,27 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // A mission that already is a time trial (the overridden timed mission) takes the branch at 0x63716B: the unlock flag is
+        // cleared and the unlock is recorded as seen with a save, without reading the goal flag (+0xCF) or the mission name.
+        [Test]
+        public void ATimeTrialMissionOnlyRecordsItsUnlockAsSeenWhateverItsGoalFlag()
+        {
+            foreach (string goalFlag in new[] { "false", "true" })
+            {
+                WithRegularContext("{\"m_timeLimitSeconds\":60,\"m_isBeingOverridden\":true,\"m_isReachGoalTracker\":" + goalFlag + "}", (container, missions, mission, level) =>
+                {
+                    container.TimeTrialUnlocked.Value = true;
+                    container.TimeTrialMissionName.Value = "stale";
+
+                    Call(container, "UpdateTimeTrialBindings", missions.Manager, level);
+
+                    Assert.That(container.TimeTrialUnlocked.Value, Is.False, goalFlag);
+                    Assert.That(container.TimeTrialMissionName.Value, Is.EqualTo("stale"), goalFlag);
+                    Assert.That(missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID()).TimeTrialUnlockSeen, Is.True, goalFlag);
+                });
+            }
+        }
+
         // Exit 0x637830 with no current character publishes the exit event to the App once (PublishUIMessage 0x637B60,
         // AddUniqueUIModernEvent) and a second Exit does nothing, whatever the event (the guard at 0x637889).
         [Test]

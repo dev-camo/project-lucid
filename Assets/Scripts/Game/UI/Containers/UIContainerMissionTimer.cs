@@ -11,7 +11,7 @@ namespace HardlightProject
 {
     // Original Game.Runtime 0x020008ea; bodies translated from the 1.10.1 x86-64 binary.
     // The in-game mission timer: shows the time remaining (or elapsed) of the active mission's timer, its pause state and a fading
-    // "bonus time" text. Float casts pin the single-precision rounding of the native body.
+    // "bonus time" text.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class UIContainerMissionTimer : UIContainer
@@ -124,11 +124,11 @@ namespace HardlightProject
             m_timerText.text = string.Format(m_timeDisplayFormatString, minutes, seconds, hundredths);
             m_timerText.color = (lowTimeRemaining | (timeRemaining < 0f)) ? m_textColourAlternate : m_textColourNormal;
 
-            m_bonusTimeDisplayTimeRemainingSeconds = (float)(m_bonusTimeDisplayTimeRemainingSeconds - Time.deltaTime);
+            m_bonusTimeDisplayTimeRemainingSeconds = m_bonusTimeDisplayTimeRemainingSeconds - Time.deltaTime;
             if (m_bonusTimeDisplayTimeRemainingSeconds > 0f)
             {
-                float displayProgress = (float)(m_bonusTimeDisplayTimeRemainingSeconds / m_bonusTimeDisplayDurationSeconds);
-                float curveTime = (float)((float)(1f - Mathf.Clamp01(displayProgress)) * m_bonusTimeOpacityCurveTotalTime);
+                float displayProgress = m_bonusTimeDisplayTimeRemainingSeconds / m_bonusTimeDisplayDurationSeconds;
+                float curveTime = (1f - Mathf.Clamp01(displayProgress)) * m_bonusTimeOpacityCurveTotalTime;
                 m_bonusTimeText.alpha = Mathf.Clamp01(m_bonusTimeOpacityCurve.Evaluate(curveTime));
             }
             else

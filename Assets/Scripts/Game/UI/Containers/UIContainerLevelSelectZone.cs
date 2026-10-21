@@ -135,7 +135,7 @@ namespace HardlightProject
                     continue;
                 }
                 bool hasAnyNewContent = levelSave.HasAnyNewContent(missionGUIDs);
-                HasAnyNewContent = HasAnyNewContent | hasAnyNewContent;
+                HasAnyNewContent |= hasAnyNewContent;
                 levelWidget.Setup(new UIWidgetSDTLevelParameters(levelDefinition, levelProgress, overallProgress, isNextLevel, false, unlockSeen, hasAnyNewContent, levelNumericalName, hidden));
                 if (unlockSeen)
                     continue;

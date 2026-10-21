@@ -77,8 +77,8 @@ namespace HardlightProject
             ProcessManager.GetSystem<App>(null, true).Storage.SetValue(AppFSMKeys.MetaGameState, new MetaGameState(levelDefinition, missionDefinition));
         }
 
-        // 0x060032af (0x6370A0): a time trial is announced once, when a reach-goal mission with a time limit has been won and
-        // its unlock has not been seen yet.
+        // 0x060032af (0x6370A0): for a regular mission with a time trial whose unlock is unseen, a reach-goal mission announces
+        // the time trial and the time-trial mission itself only clears the flag. Both record the unlock as seen and request a save.
         private void UpdateTimeTrialBindings(MissionManager missionManager, GameplayLevelDefinition levelDefinition)
         {
             TimeTrialUnlocked.Value = false;
@@ -91,11 +91,16 @@ namespace HardlightProject
             if (saveData.TimeTrialUnlockSeen)
                 return;
             if (missionDefinition.IsTimeTrial())
+            {
                 TimeTrialUnlocked.Value = false;
-            if (!missionDefinition.IsReachGoalTracker)
-                return;
-            TimeTrialUnlocked.Value = true;
-            TimeTrialMissionName.Value = regularContext.OverrideDescription;
+            }
+            else
+            {
+                if (!missionDefinition.IsReachGoalTracker)
+                    return;
+                TimeTrialUnlocked.Value = true;
+                TimeTrialMissionName.Value = regularContext.OverrideDescription;
+            }
             saveData.TimeTrialUnlockSeen = true;
             saveData.RequestSave();
         }
