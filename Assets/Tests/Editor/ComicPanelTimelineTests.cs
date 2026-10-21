@@ -16,8 +16,8 @@ namespace ProjectLucid.Tests
     // 0x79E2D0..0x79EA40) and ComicPanelTrack (0x02000430, 0x79EA50..0x79EB50). Playable graphs, clips, tracks and the
     // comic cutscene are real objects on owned hosts. Application.isPlaying is false here, so the mixer's play-mode
     // registration with the CutsceneManager in OnGraphStart (0x79e396 onwards) is not covered; ProcessFrame takes the
-    // edit-mode branch (0x79e64f), which skips nothing the retail build keeps, and its comic cutscene is handed over
-    // directly.
+    // edit-mode branch (0x79e64f), whose scene lookup (EditModeCreateComicCutscene) is not reached because the comic
+    // cutscene is handed over directly.
     public sealed class ComicPanelTimelineTests
     {
         private static void WithGraph(Owned owned, Action<PlayableGraph> body)

@@ -46,7 +46,7 @@ namespace HardlightProject
         {
             if (!Application.isPlaying && m_comicCutscene == null)
             {
-                // Retail keeps the test but nothing runs here; a [Conditional] call leaves no trace.
+                EditModeCreateComicCutscene();
             }
             for (int i = 0; i < m_inputCount; i++)
             {
