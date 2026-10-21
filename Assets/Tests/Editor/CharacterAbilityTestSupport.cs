@@ -95,6 +95,9 @@ namespace ProjectLucid.Tests
             public override void Close()
             {
             }
+
+            // Queues the action without applying it, as a press between two brain updates does.
+            public void Press(GameAction action) => SetState(action, true);
         }
 
         // Keeps the targeting interval from firing, so only the refresh request that the ability itself makes is seen.

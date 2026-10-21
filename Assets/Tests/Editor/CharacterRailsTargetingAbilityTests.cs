@@ -126,6 +126,37 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x750B03: the lock reads the applied state (get_RailTargeting, m_actionStateApplied at CharacterBrain+0x18), not the
+        // queued one (+0x14). An action ended after being applied is still locked on; one only queued is not.
+        [Test]
+        public void TheLockReadsTheAppliedRailTargetStateNotTheQueuedOne()
+        {
+            foreach ((bool appliedOnly, bool locks) in new[] { (true, true), (false, false) })
+            {
+                WithTargeting((owned, character, ability, definition) =>
+                {
+                    SuppressTargetingRefresh(ability);
+                    SetPending(character.HomingPool, ability, owned.Host("Lucid rail target"));
+                    RailsBrain brain;
+                    if (appliedOnly)
+                    {
+                        brain = Brain(character, GameAction.CharacterRailTarget);
+                        brain.EndAction(GameAction.CharacterRailTarget);
+                    }
+                    else
+                    {
+                        brain = Brain(character);
+                        brain.Press(GameAction.CharacterRailTarget);
+                    }
+                    Assert.That(brain.ActionStateQueued.GetValue(GameAction.CharacterRailTarget), Is.EqualTo(!appliedOnly), "precondition: queued");
+                    Assert.That(brain.RailTargeting, Is.EqualTo(appliedOnly), "precondition: applied");
+                    Update(ability, brain);
+                    Assert.That(character.HomingPool.ActiveTarget != null, Is.EqualTo(locks), "applied only " + appliedOnly);
+                    Assert.That(ability.IsTriggered, Is.EqualTo(locks), "applied only " + appliedOnly);
+                });
+            }
+        }
+
         // The lock needs both the pending target and the queued action; the action is consumed (SetState false, 0x750B99) whenever
         // the update gets that far.
         [Test]
@@ -258,6 +289,19 @@ namespace ProjectLucid.Tests
                     Assert.That(character.Storage.TryGetValue(ActorFSMKeys.RailTargetCancelled, out bool flag) && flag, Is.EqualTo(cancelled), "type " + type);
                 });
             }
+        }
+
+        // 0x751C35..0x751C54 reads the pool's active target without asking who owns it.
+        [Test]
+        public void ResettingMarksTheRailTargetCancelledWhoeverOwnsTheActiveRail()
+        {
+            WithTargeting((owned, character, ability, definition) =>
+            {
+                CharacterAbility_RailsTargeting other = Build(character, definition);
+                Activate(character.HomingPool, other, owned.Host("Lucid rail target"));
+                ability.Reset();
+                Assert.That(character.Storage.TryGetValue(ActorFSMKeys.RailTargetCancelled, out bool flag) && flag, Is.True);
+            });
         }
 
         [Test]

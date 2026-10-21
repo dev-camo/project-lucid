@@ -23,7 +23,8 @@ namespace ProjectLucid.Tests
     // witnesses are emission-only checks of the reconstruction's own IL, separate from the behaviour cases. Not covered by
     // any test, because they need a started Character: the arithmetic of the three update bodies (the step clamp with
     // 0xE73BC8 jb / 0xE75AD1 jbe, the 180 degree turn for a zero rotational speed 0xE75BE3, the ground steering
-    // conditions 0x779E98 / 0x779EA5) and the enter and leave effects.
+    // conditions 0x779E98 ColliderRadiusSqr > sqrMagnitude / 0x779EA5 height > ColliderRadius), the air enter force trigger
+    // polarity (0xE739C4 xor r14b,1), the rail homing timeout (0xE7592C jae, equality cancels) and the enter and leave effects.
     public sealed class CharacterHomingAttackAirAndRailHomingStateTests
     {
         private static string Name() => "Lucid-char-moves-08-" + Guid.NewGuid().ToString("N");

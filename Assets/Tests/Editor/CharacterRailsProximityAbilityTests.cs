@@ -20,7 +20,8 @@ namespace ProjectLucid.Tests
     // Not covered by any test, because they need a track manager with an octree or a body-bearing character: the
     // proximity check once a track manager exists (TryGetRailHit, FindNearestSurfaceLocationFromWorld, the
     // TargetedLocationIsValid raycast and SetTargetedObject, 0xE68428..0xE68A25) and the final target hand over
-    // (TrySetTargetImmediately, which needs Character.IsActive and so a rigid body, 0xE682C0..0xE68394).
+    // (TrySetTargetImmediately, which needs Character.IsActive and so a rigid body, 0xE682C0..0xE68394), including the
+    // reactivation delay (0xE682A5..0xE682BA, 0.1f at 0x29A6BFC).
     public sealed class CharacterRailsProximityAbilityTests
     {
         // CharacterAbility_TargetingHoming's field initialiser creates the camera manager row.

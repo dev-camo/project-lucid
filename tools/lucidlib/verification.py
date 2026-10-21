@@ -6728,6 +6728,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterRailsProximityAbilityTests.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterRailsTargetingAbilityTests." + name for name in (
     "TheCameraProjectionFlagAndSpeedCurveComeFromTheDefinition",
     "TheRailTargetActionLocksThePendingTargetAtTheDefinitionVelocities",
+    "TheLockReadsTheAppliedRailTargetStateNotTheQueuedOne",
     "TheLockNeedsBothAValidPendingTargetAndTheQueuedAction",
     "AnAbilityThatOwnsTheActiveTargetLeavesAtOnce",
     "AnIdleAbilityClearsItsTrigger",
@@ -6735,6 +6736,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterRailsTargetingAbilityTests.
     "ARefreshRequestRemovesTheAbilityFromThePooledTargetsAndSpendsTheRequest",
     "ARefreshRequestClearsAnotherAbilitiesActiveTargetOnlyForAValidPendingTarget",
     "ResettingWhileARailIsTargetedMarksTheRailTargetCancelled",
+    "ResettingMarksTheRailTargetCancelledWhoeverOwnsTheActiveRail",
     "ResettingAlsoRunsTheBaseResetAfterTheCancelMark",
     "ASurfaceIsTargetableUnlessItsMetadataSaysOtherwise",
     "TheDebugTextEndsWithTheProjectDistanceAndConeAngles",

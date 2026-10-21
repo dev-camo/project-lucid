@@ -40,8 +40,8 @@ namespace HardlightProject
 			m_railDefinition = ProcessManager.GetSystem<DataManager>().RailDefinitions[RailType.Default];
 		}
 
-		// 0600127c (1.10.1 RVA 0x750900); the base targeting update runs first (0x750989). A queued rail target action
-		// locks the pending target, and a refresh request re-projects the cone.
+		// 0600127c (1.10.1 RVA 0x750900); the base targeting update runs first (0x750989). The applied rail target state (get_RailTargeting,
+		// 0x750B03) locks the pending target, and a refresh request re-projects the cone.
 		protected override void DoOnUpdate(CharacterBrain brain, float deltaTime)
 		{
 			base.DoOnUpdate(brain, deltaTime);
@@ -59,7 +59,7 @@ namespace HardlightProject
 				return;
 			}
 			bool pendingTargetIsValid = m_character.HomingPool.PendingTargetIsValidForAbility(this);
-			if (pendingTargetIsValid && brain.ActionStateQueued.GetValue(GameAction.CharacterRailTarget))
+			if (pendingTargetIsValid && brain.RailTargeting)
 			{
 				m_character.HomingPool.LockPendingTarget(Definition.HomingVelocity, m_character.WorldVelocity, Definition.HomingRotationalVelocity);
 				IsTriggered = true;
@@ -157,12 +157,13 @@ namespace HardlightProject
 		public override bool OnDrawGizmosSelected()
 		{
 			bool selected = base.OnDrawGizmosSelected();
-			if (selected && m_targetedObject.Target != null)
+			if (!selected || m_targetedObject.Target == null)
 			{
-				ConeVolume.CalculateConeBounds(m_cone);
-				_ = m_targetedLocation.m_worldRotation * Vector3.forward;
-				_ = m_targetedLocation.m_worldRotation * Vector3.up;
+				return selected;
 			}
+			ConeVolume.CalculateConeBounds(m_cone);
+			_ = m_targetedLocation.m_worldRotation * Vector3.forward;
+			_ = m_targetedLocation.m_worldRotation * Vector3.up;
 			return selected;
 		}
 
