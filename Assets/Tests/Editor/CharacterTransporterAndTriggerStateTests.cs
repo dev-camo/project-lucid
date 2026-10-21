@@ -303,8 +303,9 @@ namespace ProjectLucid.Tests
 
         // 0x754894 returns false for exactly zero (ucomiss with zero, jne/jnp) before anything else is read; any other
         // distance, negative included, reads the track manager and then the stored auto attach surface (0x7548AD..0x754935).
-        // The stored read inserts a default, so it is visible in the storage. An unstarted track manager has no octrees, so
-        // the search that follows the read faults; only the read is checked.
+        // The stored read inserts a default, so it is visible in the storage. An unstarted track manager has no transporters
+        // octree: TryGetTransporterHit loads it (0x6DFD63) and TryGetSurfaceHit calls GetColliding on it (0x6DF7F4) with null
+        // checks disabled, so the search that follows the read faults with a NullReferenceException.
         [Test]
         public void ProximityCheckReadsTheStoredSurfaceOnlyForANonZeroDistance()
         {
@@ -317,13 +318,7 @@ namespace ProjectLucid.Tests
                 foreach (float distance in new[] { 1f, -1f })
                 {
                     character.Storage.RemoveValue<ISurface>(ActorFSMKeys.TransporterAutoAttach);
-                    try
-                    {
-                        Call(ability, "ProximityCheckToTargetedObject", distance);
-                    }
-                    catch (NullReferenceException)
-                    {
-                    }
+                    Assert.Throws<NullReferenceException>(() => Call(ability, "ProximityCheckToTargetedObject", distance), "distance " + distance);
                     Assert.That(character.Storage.HasValue(ActorFSMKeys.TransporterAutoAttach), Is.True, "distance " + distance);
                 }
             });
@@ -386,12 +381,7 @@ namespace ProjectLucid.Tests
             return surface;
         }
 
-        private static void Update(CharacterAbility_TransporterProximity ability)
-        {
-            // The targeting interval cannot elapse, so the update leaves the refresh flag to the ability alone.
-            Set(ability, "m_lastUpdateTime", 1000f);
-            Call(ability, "DoOnUpdate", null, 0.02f);
-        }
+        private static void Update(CharacterAbility_TransporterProximity ability) => Call(ability, "DoOnUpdate", null, 0.02f);
 
         // 0x75460A: an already triggered ability returns after the targeting base update, without reading the stored surface.
         [Test]
@@ -399,6 +389,7 @@ namespace ProjectLucid.Tests
         {
             WithTransporterAbility((owned, character, ability, definition) =>
             {
+                SuppressTargetingRefresh(ability, definition);
                 StoreSurface(owned, character);
                 ability.IsTriggered = true;
                 Update(ability);
@@ -415,6 +406,8 @@ namespace ProjectLucid.Tests
         {
             WithTransporterAbility((owned, character, ability, definition) =>
             {
+                // The targeting interval cannot elapse, so the update leaves the refresh flag to the ability alone.
+                SuppressTargetingRefresh(ability, definition);
                 Update(ability);
                 Assert.That(Get<bool>(ability, "m_targetRequiresRefresh"), Is.False, "nothing stored");
                 StoreSurface(owned, character);
@@ -429,7 +422,8 @@ namespace ProjectLucid.Tests
         {
             WithTransporterAbility((owned, character, ability, definition) =>
             {
-                Set(ability, "m_targetRequiresRefresh", true);
+                // Not suppressed: the first update starts the targeting interval, which raises the flag (0xE69233) before the
+                // ability looks at the stored surface.
                 Update(ability);
                 Assert.That(Get<bool>(ability, "m_targetRequiresRefresh"), Is.True);
                 Assert.That(character.Storage.HasValue(ActorFSMKeys.TransporterAutoAttach), Is.False, "the stored surface was not read");
@@ -511,9 +505,10 @@ namespace ProjectLucid.Tests
             {
                 GraceConstants(owned, character);
                 CharacterHomingPool pool = character.HomingPool;
-                pool.SetTargetImmediately(ability, new CharacterTargetObjectData(), Vector3.zero, 5f);
                 ability.IsTriggered = true;
-                Set(pool, "m_targetGracePeriodTimer", 7f);
+                pool.ClearTarget(true);
+                Assert.That(Get<float>(pool, "m_targetGracePeriodTimer"), Is.EqualTo(2.5f), "precondition: the grace period runs");
+                pool.SetTargetImmediately(ability, new CharacterTargetObjectData(), Vector3.zero, 5f);
                 Assert.That(pool.IsTargetActive(), Is.True);
                 Call(NewState(nameof(CharacterState_TriggerClearHomingTarget), "{}"), "InvokeTriggerStart", character, null);
                 Assert.That(Get<float>(pool, "m_targetGracePeriodTimer"), Is.EqualTo(0f));
@@ -645,8 +640,8 @@ namespace ProjectLucid.Tests
             {
                 var proxy = owned.Host("Lucid transporter proxy").AddComponent<SmoothedTransformProxy>();
                 Call(proxy, "Awake"); // Edit Mode does not run Awake, which caches the transform the proxy rotates
-                SetActorProperty(character, "VisualProxy", proxy);
-                SetActorProperty(character, "WorldRotation", Quaternion.Euler(0f, 90f, 0f));
+                SetActorProperty(character, "VisualProxy", proxy); // Reflection: Character.Awake assigns it from the component lookup, which Edit Mode does not run
+                character.SetWorldRotation(Quaternion.Euler(0f, 90f, 0f));
                 IFSMState state = NewState(nameof(CharacterState_TransporterMovement), AbilityJson(ActorAbilityType.Character_MovementAir));
 
                 Call(state, "OverrideProxy", character);
