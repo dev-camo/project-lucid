@@ -261,7 +261,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x71E63F: a preserved zero input skips the update (any other value, and NaN, update).
+        // 0x71E63F: a preserved exact-zero input skips the update; every other value updates.
         [Test]
         public void LateralSkipsAnExactZeroOnlyWhilePreservingTheLastInput()
         {

@@ -6,8 +6,8 @@ using Unity.IL2CPP.CompilerServices;
 namespace HardlightProject
 {
     // Original Game.Runtime type 0x02000287.
-    [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class CinemachinePlayerCharacterAssign : MonoBehaviour
     {
         [SerializeField]
