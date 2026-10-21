@@ -21,7 +21,7 @@ namespace ProjectLucid.Tests
     // BossBurstableComponent (020001f3, 0x7008D0), BossCrabManager (020001f4, 0x700910), BossDebug
     // (020001f5, 0x700A20), BossManagerTrigger (020001f9, 0x7036B0), BossVisualProxyModifier
     // (020009e8, 0x6A6E90), FourmenManager (02000253), GuardianManager (02000254, nested 02000255) and
-    // FourmenVisuals (02000662 with the iterators 02000663 and 02000664, 0x579CE0..0x57A930). Every
+    // FourmenVisuals (02000662 with the iterators 02000663 and 02000664, 0x579CE0..0x57A920). Every
     // component is a real one on an owned host; no Awake or OnEnable runs in Edit Mode, so a case
     // calls the lifecycle entry it covers itself. Bosses come from their real constructor, and the
     // BossManager that lists them from its own, with the SaveManager row its field initialiser reads
@@ -452,7 +452,7 @@ namespace ProjectLucid.Tests
 
         // Awake 0x6E22F0 runs the HomingTarget Awake, then with the indicator on instantiates the prefab, sets it up with the
         // target's position and the target object as its origin (the AnimatedTargetIndicatorParameters; the Nullable<Vector3>
-        // constructor call at 0x6e2315), marks it instantiated (+0xE8) and takes the CharacterManager (GetSystem, not a reference).
+        // constructor call at 0x6e2400), marks it instantiated (+0xE8) and takes the CharacterManager (GetSystem, not a reference).
         [Test]
         public void BossHomingTargetAwakeWithAnIndicatorInstantiatesAndSetsItUp()
         {
@@ -602,6 +602,7 @@ namespace ProjectLucid.Tests
                 cameraHost.AddComponent<Camera>();
                 Set(cameraManager, "m_cinemachineBrain", cameraHost.AddComponent<CinemachineBrain>());
                 Awaken(owned, rig);
+                // Reflection: ViewTarget's readonly reference was built from the leased, empty camera row when the clone was instantiated
                 Set(rig.Clone, "m_cameraManagerRef",
                     new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), cameraManager));
                 Call(rig.Target, "OnEnable");
@@ -658,6 +659,8 @@ namespace ProjectLucid.Tests
 
         // RegisterHitPlayer 0x7008F0 is a shipped RET body; ReceiveHit 0x7008D0 tail-calls Boss.ReceiveHit(HomingTarget)
         // with the stored homing target and ignores its collider, which this probes through the boss's own lookup.
+        // A boss holding a one hit point body for that target loses the body and one health to the first call (the manager
+        // registers the hit), and the destroyed body ends the second call before the manager is consulted.
         [Test]
         public void BossBurstableComponentReportsTheHomingTargetNotTheColliderToItsBoss()
         {
@@ -666,7 +669,9 @@ namespace ProjectLucid.Tests
                 using (var time = new OwnedTimeScaledObjects("lucid-boss-burstable"))
                 {
                     BossHomingTarget target = NewHomingTarget(owned, time);
+                    BossManager manager = owned.Register(NewBossManager(owned));
                     Boss boss = NewBoss(owned, "Lucid burstable boss", Vector3.zero);
+                    CharacterTriggerTestSupport.SetActorProperty(boss, "Storage", new FSMStorage(0));
                     var burstable = owned.Host("Lucid burstable", false).AddComponent<BossBurstableComponent>();
                     Set(burstable, "m_boss", boss);
                     Set(burstable, "m_bossHomingTarget", target);
@@ -675,20 +680,34 @@ namespace ProjectLucid.Tests
 
                     // The boss looks the target up in its homing-target dictionary (a plain indexer in
                     // Boss.ReceiveHit(HomingTarget)), which is empty here: the lookup fails, so the call
-                    // did reach Boss.ReceiveHit(HomingTarget). This probe relies on that KeyNotFoundException path and
-                    // on the private body entry (its destroyed flag makes the later call a no-op); Boss's own
-                    // registration happens in its Awake from authored body components, which is out of reach here.
+                    // did reach Boss.ReceiveHit(HomingTarget).
                     Assert.Throws<KeyNotFoundException>(() => burstable.ReceiveHit(target.GetComponent<BoxCollider>()));
+
+                    // Registered with the manager as Boss.Awake's callback does; a second listed boss keeps the first
+                    // registration from switching HUD focus through the App, which is absent here.
+                    for (int i = 0; i < 2; i++) LogAssert.Expect(LogType.Exception, ActorDefinitionSettingsFault);
+                    var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+                    definition.Traits = new BossTraits { HealthPool = 3 };
+                    Set(boss, "m_definition", definition); // Reflection: serialized field without a setter
+                    manager.Bosses.Add(NewBoss(owned, "Lucid burstable placeholder", Vector3.zero));
+                    Call(boss, "RegisterBoss", manager);
+                    boss.RestoreAllBossHealth();
+
+                    // Reflection: Boss.Initialise fills the lookups from the authored body components, which needs the full actor setup
                     var bodyType = typeof(Boss).GetNestedType("BossBodyComponents", BindingFlags.NonPublic);
-                    var lookup = (IDictionary)Get(boss, "m_homingTargetDictionary");
                     object body = Activator.CreateInstance(bodyType);
-                    Set(body, "HitPoints", 1);
-                    Set(body, "HomingTarget", target);
-                    lookup.Add(target, body);
-                    // With the stored target listed (as a destroyed part, which is ignored before the manager is
-                    // consulted) the call succeeds even though the collider argument is null: the key is the target.
-                    Set(body, "m_destroyed", true);
+                    bodyType.GetField("HomingTarget").SetValue(body, target);
+                    bodyType.GetMethod("Initialise").Invoke(body, null);
+                    ((IDictionary)Get(boss, "m_homingTargetDictionary")).Add(target, body);
+                    var destroyed = bodyType.GetProperty("Destroyed");
+
                     Assert.DoesNotThrow(() => burstable.ReceiveHit(null));
+                    Assert.That(destroyed.GetValue(body), Is.True, "one hit point: the first hit destroys the body");
+                    Assert.That(boss.CurrentHealth, Is.EqualTo(2));
+                    Assert.That(manager.BossHealthCurrent, Is.EqualTo(2), "the manager registered the hit");
+
+                    Assert.DoesNotThrow(() => burstable.ReceiveHit(null));
+                    Assert.That(boss.CurrentHealth, Is.EqualTo(2), "a destroyed body is ignored before the manager is consulted");
                 }
             });
         }
@@ -734,11 +753,12 @@ namespace ProjectLucid.Tests
                 Assert.That(Get(wavePool, "m_forceDespawn"), Is.True);
                 Assert.That(Get(otherPool, "m_forceDespawn"), Is.False, "only the pool of the wave type");
 
-                Set(wavePool, "m_forceDespawn", false);
+                wavePool.OnUpdate(0f); // an update consumes the flag
+                Assert.That(Get(wavePool, "m_forceDespawn"), Is.False);
                 Call(crab, "OnDestroy");
                 Assert.That(Get(wavePool, "m_forceDespawn"), Is.True, "OnDestroy despawns the waves");
 
-                Set(wavePool, "m_forceDespawn", false);
+                wavePool.OnUpdate(0f);
                 Set(crab, "m_attackWaveType", unregistered);
                 crab.DespawnAttackWaves();
                 Assert.That(Get(wavePool, "m_forceDespawn"), Is.False);
@@ -790,7 +810,10 @@ namespace ProjectLucid.Tests
         {
             Boss boss = NewBoss(owned, "Lucid proxy boss", Vector3.zero);
             Set(boss, "m_definition", definition);
-            Set(boss, "m_formHandler", boss.gameObject.AddComponent<ActorFormHandler>());
+            // InitialiseTraits (060002f2) takes the form handler from the component lookup and initialises it.
+            var lookup = boss.gameObject.AddComponent<ActorComponentLookup>();
+            Set(lookup, "m_actorFormHandler", boss.gameObject.AddComponent<ActorFormHandler>()); // Reflection: serialized reference
+            Call(boss, "InitialiseTraits", new BossTraits(), lookup);
             proxyHost = owned.Host("Lucid boss visual proxy", true);
             CharacterTriggerTestSupport.SetActorProperty(boss, "VisualProxy", proxyHost.AddComponent<SmoothedTransformProxy>());
             return boss;
@@ -1293,8 +1316,6 @@ namespace ProjectLucid.Tests
                         Call(rig.Visuals, "Awake");
                         if (!down) rig.Boss.position = new Vector3(1f, 4f, 3f);
                         float delta = rig.Time.GetDeltaTime(TimeCategory.EnemyMovement);
-                        // With no engine delta nothing moves and both directions would pass vacuously.
-                        if (delta <= 0f) Assert.Inconclusive("Edit Mode reports no EnemyMovement delta time.");
                         float fraction = delta / 4f;
                         float start = down ? 10f : 4f;
                         float target = down ? 4f : 10f;
@@ -1530,15 +1551,15 @@ namespace ProjectLucid.Tests
                 using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-delta"))
                     delta = NewVisualsRig(owned, time, 4f).Time.GetDeltaTime(TimeCategory.EnemyMovement);
             });
-            if (delta <= 0f) Assert.Inconclusive("Edit Mode reports no EnemyMovement delta time.");
 
-            // Per step: the material after the first step of Targeting, Dying and Charging (0 neutral, 1 attacking, 2 dead).
-            foreach ((float step, int[] expected) in new[]
-            {
-                (0.1f, new[] { 1, 2, 0 }),
-                (0.3f, new[] { 0, 0, 0 }),
-                (0.6f, new[] { 0, 0, 2 })
-            })
+            // The material after the first step of Targeting, Dying and Charging (0 neutral, 1 attacking, 2 dead): the first
+            // face until the timer exceeds the interval, then the second (attacking->neutral 0.2, dead->neutral 0.2,
+            // neutral->dead 0.5, with the strict test of 0x57A866). With an engine delta the scale makes the step 0.1, 0.3
+            // and 0.6; without one no time passes and every step keeps the first face.
+            int[] firstFaces = { 1, 2, 0 };
+            int[] secondFaces = { 0, 0, 2 };
+            float[] intervals = { 0.2f, 0.2f, 0.5f };
+            foreach (float step in new[] { 0.1f, 0.3f, 0.6f })
             {
                 string[] faces = { "SetFaceTargeting", "SetFaceDying", "SetFaceCharging" };
                 for (int face = 0; face < faces.Length; face++)
@@ -1548,15 +1569,15 @@ namespace ProjectLucid.Tests
                     {
                         using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-intervals"))
                         {
-                            VisualsRig rig = NewVisualsRig(owned, time, 4f, true, step / delta);
+                            VisualsRig rig = NewVisualsRig(owned, time, 4f, true, delta > 0f ? step / delta : 1f);
                             MeshRenderer renderer = AttachFaces(owned, rig, out Material neutral, out Material attacking, out Material dead);
                             Call(rig.Visuals, "Awake");
                             float actual = rig.Time.GetDeltaTime(TimeCategory.EnemyMovement);
-                            if (Mathf.Abs(actual - step) > 1e-3f) Assert.Inconclusive("Edit Mode delta time is not steady: " + actual + " for a step of " + step);
+                            int expected = actual > intervals[index] ? secondFaces[index] : firstFaces[index];
 
                             Call(rig.Visuals, faces[index]);
 
-                            Assert.That(renderer.sharedMaterial, Is.EqualTo(new[] { neutral, attacking, dead }[expected[index]]), faces[index] + " after a step of " + step);
+                            Assert.That(renderer.sharedMaterial, Is.EqualTo(new[] { neutral, attacking, dead }[expected]), faces[index] + " after a step of " + step);
                             Call(rig.Visuals, "OnDisable");
                         }
                     });
@@ -1611,9 +1632,13 @@ namespace ProjectLucid.Tests
                     var visuals = time.Objects.Create("Lucid dangerous boss visuals").AddComponent<FourmenVisuals>();
                     Set(visuals, "m_dangerousBossIndicator", wrapper);
 
-                    main.Emit(3);
-                    alwaysCleared.Emit(3);
-                    if (main.particleCount != 3 || alwaysCleared.particleCount != 3) Assert.Inconclusive("Edit Mode does not keep emitted particles.");
+                    // SetParticles stores the particles at once, unlike Emit, which Edit Mode leaves to the next simulation step.
+                    var live = new ParticleSystem.Particle[3];
+                    for (int i = 0; i < live.Length; i++) { live[i].startLifetime = 10f; live[i].remainingLifetime = 10f; }
+                    main.SetParticles(live, 3);
+                    alwaysCleared.SetParticles(live, 3);
+                    Assert.That(main.particleCount, Is.EqualTo(3));
+                    Assert.That(alwaysCleared.particleCount, Is.EqualTo(3));
 
                     visuals.SetDangerousParticlesActive(false);
                     Assert.That(wrapper.Status, Is.EqualTo(ParticleEffectWrapper.ParticleEffectWrapperStatus.Stopping));
