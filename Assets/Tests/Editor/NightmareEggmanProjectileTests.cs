@@ -26,6 +26,10 @@ namespace ProjectLucid.Tests
     {
         private const float PlayerDistance = 40f;
         private const float PositionTolerance = 0.1f;
+        // A sweep from a collider reports that collider too (the cast starts inside it), so the visual behaviour sits on the
+        // Ignore Raycast layer and the walls and the casts use the Default layer only.
+        private const int IgnoreRaycastLayer = 2;
+        private const int WallMask = 1;
         private static readonly Type SettingsType =
             typeof(NightmareEggmanProjectileVisualBehaviour).GetNestedType("MovementPhaseSettings", BindingFlags.NonPublic);
         private static readonly Type RotationTypeType =
@@ -90,7 +94,7 @@ namespace ProjectLucid.Tests
             var definition = owned.Track(ScriptableObject.CreateInstance<ProjectileDefinition>());
             Set(definition, "m_velocity", 10f);
             Set(definition, "m_maxLifespanSeconds", 4f);
-            Set(definition, "m_collisionLayerMask", (LayerMask)(-1));
+            Set(definition, "m_collisionLayerMask", (LayerMask)WallMask);
             Set(scene.Projectile, "m_definition", definition); // Initialise needs the App's hazard table
             Set(scene.Projectile, "m_characterManager", manager); // cached by Setup, which these cases do not run
             Set(scene.Projectile, "m_offsetVisualBehaviours", new NightmareEggmanProjectileVisualBehaviour[0]); // serialized, supplied by the prefab
@@ -445,6 +449,7 @@ namespace ProjectLucid.Tests
         private static NightmareEggmanProjectileVisualBehaviour NewCollidingVisual(Owned owned, out Collider wall)
         {
             GameObject host = owned.Host("Lucid nightmare colliding visual");
+            host.layer = IgnoreRaycastLayer;
             host.transform.position = new Vector3(0f, 0f, 2f);
             host.AddComponent<SphereCollider>();
             NightmareEggmanProjectileVisualBehaviour visual = host.AddComponent<NightmareEggmanProjectileVisualBehaviour>();
@@ -466,12 +471,12 @@ namespace ProjectLucid.Tests
             {
                 NightmareEggmanProjectileVisualBehaviour visual = NewCollidingVisual(owned, out Collider wall);
 
-                Assert.That(visual.DoCollisions(-1, out RaycastHit hit), Is.True);
+                Assert.That(visual.DoCollisions(WallMask, out RaycastHit hit), Is.True);
                 Assert.That(hit.collider, Is.SameAs(wall));
                 Assert.That(hit.distance, Is.EqualTo(1.25f).Within(1e-3f));
                 Assert.That(Get<Vector3>(visual, "m_lastFrameWorldPosition"), Is.EqualTo(new Vector3(0f, 0f, 2f)), "the position is remembered");
 
-                Assert.That(visual.DoCollisions(-1, out RaycastHit again), Is.False, "no movement since the last call: a zero-length cast");
+                Assert.That(visual.DoCollisions(WallMask, out RaycastHit again), Is.False, "no movement since the last call: a zero-length cast");
                 Assert.That(again.collider, Is.Null);
                 Assert.That(again.distance, Is.Zero, "the hit info is default");
             });
@@ -491,10 +496,10 @@ namespace ProjectLucid.Tests
 
                 var expected = new RaycastHit[4];
                 var sphere = visual.GetComponent<SphereCollider>();
-                Assert.That(sphere.PhysicsCastFromCollider(new Vector3(0f, 0f, 2f), -1, expected, QueryTriggerInteraction.Ignore), Is.EqualTo(2),
+                Assert.That(sphere.PhysicsCastFromCollider(new Vector3(0f, 0f, 2f), WallMask, expected, QueryTriggerInteraction.Ignore), Is.EqualTo(2),
                     "both walls lie on the sweep from the origin to the visual");
 
-                Assert.That(visual.DoCollisions(-1, out RaycastHit hit), Is.True);
+                Assert.That(visual.DoCollisions(WallMask, out RaycastHit hit), Is.True);
                 Assert.That(hit.collider, Is.SameAs(expected[1].collider), "the last entry the cast returned");
                 Assert.That(hit.collider, Is.Not.SameAs(expected[0].collider));
             });
@@ -535,11 +540,11 @@ namespace ProjectLucid.Tests
                     owned.Host("Lucid nightmare parent visual").AddComponent<NightmareEggmanProjectileVisualBehaviour>();
                 Set(parent, "m_offsetVisualBehaviours", new[] { colliding });
 
-                Assert.That(parent.DoCollisions(-1, out RaycastHit hit), Is.True);
+                Assert.That(parent.DoCollisions(WallMask, out RaycastHit hit), Is.True);
                 Assert.That(hit.collider, Is.SameAs(wall));
                 Assert.That(Get<Vector3>(parent, "m_lastFrameWorldPosition"), Is.EqualTo(Vector3.zero), "the parent's own position is not tracked");
 
-                Assert.That(parent.DoCollisions(-1, out RaycastHit second), Is.False);
+                Assert.That(parent.DoCollisions(WallMask, out RaycastHit second), Is.False);
                 Assert.That(second.collider, Is.Null);
             });
         }
@@ -552,6 +557,14 @@ namespace ProjectLucid.Tests
             SettingsType.GetField("MovementState").SetValue(settings, state);
             configure?.Invoke(settings);
             return settings;
+        }
+
+        // Awake rolls every phase's Offset between OffsetMin and OffsetMax (0x57ECB0), so a case that runs Awake fixes the
+        // offset through both bounds.
+        private static void SetRolledOffset(object settings, Vector3 offset)
+        {
+            SetField(settings, "OffsetMin", offset);
+            SetField(settings, "OffsetMax", offset);
         }
 
         private static void SetField(object settings, string name, object value) => SettingsType.GetField(name).SetValue(settings, value);
@@ -733,7 +746,7 @@ namespace ProjectLucid.Tests
                 NightmareEggmanProjectileVisualBehaviour visual = NewVisual(owned, parent);
                 SetSettings(visual, NewSettings(State.ChargingPlayer, s =>
                 {
-                    SetField(s, "Offset", new Vector3(2f, 4f, 6f));
+                    SetRolledOffset(s, new Vector3(2f, 4f, 6f));
                     SetField(s, "HomeInOnPlayerPosition", true);
                     SetField(s, "LerpXYTime", 10f);
                 }));
@@ -818,7 +831,7 @@ namespace ProjectLucid.Tests
                     NightmareEggmanProjectileVisualBehaviour visual = NewVisual(owned);
                     SetSettings(visual, NewSettings(State.HoldingPosition, s =>
                     {
-                        SetField(s, "Offset", new Vector3(5f, 0f, 0f));
+                        SetRolledOffset(s, new Vector3(5f, 0f, 0f));
                         SetField(s, "RotateDuringPhase", true);
                         SetField(s, "RotationType", Enum.ToObject(RotationTypeType, rotationType));
                     }));
@@ -836,7 +849,7 @@ namespace ProjectLucid.Tests
             WithManager((owned, manager, character) =>
             {
                 NightmareEggmanProjectileVisualBehaviour visual = NewVisual(owned);
-                SetSettings(visual, NewSettings(State.HoldingPosition, s => SetField(s, "Offset", new Vector3(5f, 0f, 0f))));
+                SetSettings(visual, NewSettings(State.HoldingPosition, s => SetRolledOffset(s, new Vector3(5f, 0f, 0f))));
                 Call(visual, "Awake");
                 visual.ToggleSmoothing(false);
                 visual.RegisterStateChange(State.HoldingPosition);
