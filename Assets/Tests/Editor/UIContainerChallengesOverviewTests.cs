@@ -670,6 +670,8 @@ namespace ProjectLucid.Tests
             Run(rig =>
             {
                 TakeManagerReference(rig);
+                // Reflection: the level manager's Initialise callback assigns it, and Initialise never runs on the inactive host.
+                Set(ProcessManager.GetSystem<LevelManager>(), "m_app", ProcessManager.GetSystem<App>());
                 ChallengeState state = NewState(rig, "lucid-overview-launch", 0, 0f);
                 Call(rig.Container, "ToggleChallenge", state, true);
 
