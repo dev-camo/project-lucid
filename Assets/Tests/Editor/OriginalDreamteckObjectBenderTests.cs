@@ -300,65 +300,6 @@ namespace ProjectLucid.Tests
             Assert.That(parentFlag.destinationSpline, Is.Null);
         }
 
-        // Setters 0x4a0a10..0x4a10c0: every one is silent without a spline; with one, a changed value queues a rebuild (the user's
-        // rebuild flag), the axis also re-reads the hierarchy, a custom vector counts as unchanged below squared distance 1e-10
-        // but is still stored.
-        [Test]
-        public void SettersQueueARebuildOnlyWithASplineAndOnlyForAChange()
-        {
-            ObjectBender alone = NewObject("alone").AddComponent<ObjectBender>();
-            alone.axis = ObjectBender.Axis.Y;
-            alone.upMode = ObjectBender.NormalMode.Custom;
-            alone.customNormal = Vector3.right;
-            alone.forwardMode = ObjectBender.ForwardMode.Custom;
-            alone.customForward = Vector3.left;
-            Assert.That(Read<bool>(alone, "rebuild"), Is.False, "no spline, no rebuild");
-            Assert.That(alone.bendProperties.Length, Is.EqualTo(0), "the axis setter needs a spline to re-read the hierarchy");
-            Assert.That(alone.axis, Is.EqualTo(ObjectBender.Axis.Y));
-            Assert.That(alone.upMode, Is.EqualTo(ObjectBender.NormalMode.Custom));
-            Near(alone.customNormal, Vector3.right, "custom normal");
-            Assert.That(alone.forwardMode, Is.EqualTo(ObjectBender.ForwardMode.Custom));
-            Near(alone.customForward, Vector3.left, "custom forward");
-
-            MeshFilter filter;
-            Mesh source;
-            ObjectBender bender = NewBender(out filter, out source);
-            // The setters queue through SplineUser.Rebuild; the editor compile builds at once while the play state is not cached
-            // (DreamteckPlayState), so the queued flag the shipped Rebuild sets is only observable with the cache set.
-            DreamteckPlayState.Cache(bender);
-            bender.RebuildImmediate();
-            Assert.That(Read<bool>(bender, "rebuild"), Is.False);
-            bender.axis = ObjectBender.Axis.Z;
-            bender.upMode = ObjectBender.NormalMode.Auto;
-            bender.forwardMode = ObjectBender.ForwardMode.Spline;
-            bender.customNormal = Vector3.up;
-            bender.customForward = Vector3.forward;
-            Assert.That(Read<bool>(bender, "rebuild"), Is.False, "unchanged values queue nothing");
-            Assert.That(bender.bendProperties.Length, Is.EqualTo(0));
-
-            bender.axis = ObjectBender.Axis.X;
-            Assert.That(Read<bool>(bender, "rebuild"), Is.True);
-            Assert.That(bender.bendProperties.Length, Is.EqualTo(1), "the axis re-reads the hierarchy");
-            bender.RebuildImmediate();
-            bender.upMode = ObjectBender.NormalMode.Custom;
-            Assert.That(Read<bool>(bender, "rebuild"), Is.True);
-            bender.RebuildImmediate();
-            bender.forwardMode = ObjectBender.ForwardMode.Custom;
-            Assert.That(Read<bool>(bender, "rebuild"), Is.True);
-            bender.RebuildImmediate();
-            bender.customNormal = Vector3.back;
-            Assert.That(Read<bool>(bender, "rebuild"), Is.True);
-            bender.RebuildImmediate();
-            bender.customForward = Vector3.down;
-            Assert.That(Read<bool>(bender, "rebuild"), Is.True);
-
-            bender.RebuildImmediate();
-            Vector3 almost = Vector3.down + new Vector3(1e-6f, 0f, 0f);
-            bender.customForward = almost;
-            Assert.That(Read<bool>(bender, "rebuild"), Is.False, "within the Vector3 equality tolerance");
-            Assert.That(bender.customForward.x, Is.EqualTo(almost.x), "still stored");
-        }
-
         // GetObjects 0x4a1530 / GetTransformsRecursively 0x4a11d0: one property per transform, the object itself first and each
         // child's subtree before its next sibling; only the bender's own transform is the parent.
         [Test]

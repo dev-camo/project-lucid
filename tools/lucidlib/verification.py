@@ -6508,7 +6508,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectBenderTests."
     "EditMeshesFollowTheirFlagsAndTheSharedColliderMeshIsNotCopied",
     "SwitchingTheMeshFlagOffRestoresTheOriginalMeshAndOnRereadsTheNormals",
     "SplineComputerOnTheTransformIsSnapshotAndTheParentFlagSkipsTheLookup",
-    "SettersQueueARebuildOnlyWithASplineAndOnlyForAChange",
     "UpdateReferencesCreatesOnePropertyPerTransformDepthFirst",
     "UpdateReferencesCarriesOverTheSettingsOfTheEarlierProperty",
     "BoundsStartAtTheOriginAndGrowWithVerticesAndChildOrigins",
@@ -6691,4 +6690,10 @@ PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectControllerPla
     "NearlyEqualVectorsQueueNoRebuild",
     "RotationAppliesTheSampleRotationAndTheRandomEuler",
     "SettersQueueARebuildOnlyForChanges",
+))
+
+# Dreamteck shipped player branches (Application.isPlaying true): queued Rebuild/RunUpdate, cached transforms and the
+# Application.isPlaying gates the editor compile skips in EditMode.
+PLAYMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckObjectBenderPlayModeTests." + name for name in (
+    "SettersQueueARebuildOnlyWithASplineAndOnlyForAChange",
 ))
