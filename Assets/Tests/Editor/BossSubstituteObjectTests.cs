@@ -23,12 +23,14 @@ namespace ProjectLucid.Tests
             new Regex("^NullReferenceException: Object reference not set to an instance of an object$");
 
         // CreateInstance sends Awake and OnEnable, and both reach ActorDefinition.UpdateCachedValues, which faults on the unassigned
-        // Settings: two logged exceptions each, as the other boss fixtures expect.
-        private static BossDefinition NewBossDefinition(Owned owned)
+        // Settings: two logged exceptions each, as the other boss fixtures expect. Definitions compare, and are found, by their
+        // GUID (ScriptableObjectWithGuid), so each is given its own.
+        private static BossDefinition NewBossDefinition(Owned owned, string guid)
         {
             for (int i = 0; i < 2; i++)
                 LogAssert.Expect(LogType.Exception, ActorDefinitionSettingsFault);
             var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+            Set(definition, "m_guid", guid); // serialized, no setter
             definition.Traits = new BossTraits();
             return definition;
         }
@@ -39,8 +41,8 @@ namespace ProjectLucid.Tests
         {
             owned.LeaseRow<SaveManager>(); // BossManager's field initialiser caches a typed SaveManager reference
             BossManager manager = owned.Register(owned.Host("Lucid substitute boss manager", false).AddComponent<BossManager>());
-            BossDefinition definition = NewBossDefinition(owned);
-            BossDefinition other = decoy ? NewBossDefinition(owned) : definition;
+            BossDefinition definition = NewBossDefinition(owned, "lucid-substitute-boss");
+            BossDefinition other = decoy ? NewBossDefinition(owned, "lucid-substitute-decoy") : definition;
             var bosses = new List<Boss>();
             for (int i = 0; i < count; i++)
             {
