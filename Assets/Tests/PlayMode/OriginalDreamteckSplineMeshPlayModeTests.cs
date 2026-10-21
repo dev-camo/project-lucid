@@ -111,13 +111,15 @@ namespace ProjectLucid.Tests
         }
 
         // The average is not taken for a mesh whose bounds are flat along z (a front spacing of -1 cancels the depth), so the count stays.
+        // The flat bounds also make MeshDefinition.Refresh log its small-bounds warning (asserted in the EditMode MeshDefinition
+        // tests); in play mode the original HLOutput.OnRuntimeMethodLoad has set Debug.unityLogger.filterLogType to Error, so the
+        // warning never reaches the log here (native run63d).
         [Test]
         public void AutoCountKeepsTheCountForAFlatAverage()
         {
             SplineMesh generator = _fixture.NewSplineMesh();
             SplineMesh.Channel channel = _fixture.AddTetra(generator, SplineMesh.Channel.Type.Place, 3);
             channel.autoCount = true;
-            UnityEngine.TestTools.LogAssert.Expect(LogType.Warning, "The size of [Tetra]'s bounds is too small! This could cause an issue if the [Auto Count] option is enabled!");
             channel.GetMesh(0).spacing = new SplineMesh.Channel.BoundsSpacing { front = -1f, back = 0f };
             Assert.That(channel.GetMesh(0).bounds.size.z, Is.EqualTo(0f).Within(1e-6f));
             generator.RebuildImmediate();
@@ -126,14 +128,13 @@ namespace ProjectLucid.Tests
         }
 
         // Native 0x4bd236 is `ucomiss average, 0.0; jbe skip`: the count is only fitted for an average greater than zero, so a negative
-        // depth (front spacing -2 turns the bounds into z 0..-1) keeps the count as well.
+        // depth (front spacing -2 turns the bounds into z 0..-1) keeps the count as well (the small-bounds warning is filtered as above).
         [Test]
         public void AutoCountKeepsTheCountForANegativeAverage()
         {
             SplineMesh generator = _fixture.NewSplineMesh();
             SplineMesh.Channel channel = _fixture.AddTetra(generator, SplineMesh.Channel.Type.Place, 3);
             channel.autoCount = true;
-            UnityEngine.TestTools.LogAssert.Expect(LogType.Warning, "The size of [Tetra]'s bounds is too small! This could cause an issue if the [Auto Count] option is enabled!");
             channel.GetMesh(0).spacing = new SplineMesh.Channel.BoundsSpacing { front = -2f, back = 0f };
             Assert.That(channel.GetMesh(0).bounds.size.z, Is.EqualTo(-1f).Within(1e-6f));
             generator.RebuildImmediate();
