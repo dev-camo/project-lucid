@@ -576,6 +576,317 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // ---- BossTransition_BossesCount (02000237) ----
+
+        // 0x70E6C0 copies BossesForTransition into +0x1C. 0x70E790 drops the base result and compares the length of the
+        // Fourmen manager's boss manager list (the Fourmen manager's field at +0x30, its list at +0x40, count at +0x18) with
+        // that number for equality (sete), so both fewer and more bosses are false.
+        [Test]
+        public void BossesCountFiresOnlyWhileTheListedBossCountEqualsTheConfiguredNumber()
+        {
+            Owned.Run(owned =>
+            {
+                BossAbilityTestSupport.FourmenRig rig = BossAbilityTestSupport.NewFourmenRig(owned, Vector3.zero, Vector3.zero, Vector3.zero);
+                IFSMTransition two = Build(nameof(BossTransition_BossesCount), "{\"BossesForTransition\":2}");
+                IFSMTransition none = Build(nameof(BossTransition_BossesCount), "{\"BossesForTransition\":0}");
+                Assert.That(Get<int>(two, "m_bossCount"), Is.EqualTo(2));
+                Boss user = rig.Bosses[0];
+
+                Assert.That((Update(two, user), Update(none, user)), Is.EqualTo((false, false)), "three bosses are more than two");
+                rig.Manager.Bosses.RemoveAt(2);
+                Assert.That((Update(two, user), Update(none, user)), Is.EqualTo((true, false)), "two bosses");
+                rig.Manager.Bosses.RemoveAt(1);
+                Assert.That((Update(two, user), Update(none, user)), Is.EqualTo((false, false)), "one boss is fewer than two");
+                rig.Manager.Bosses.Clear();
+                Assert.That((Update(two, user), Update(none, user)), Is.EqualTo((false, true)), "no bosses");
+            });
+        }
+
+        // ---- BossTransition_BossesInMotion (02000239) ----
+
+        // 0x70E860 copies NoneInMotionCausesTransition (+0x1C) and AdditionalPauseSeconds (+0x20). 0x70EAD0 drops the base
+        // result and compares "the Fourmen manager lists a boss in motion" (setg) with the flag (sete on zero): when they
+        // differ the AllBossesMotionTimer gains the delta (AdjustValue) and fires once the pause is not above it (ucomiss,
+        // ja skips the firing), removing the timer as it does. Otherwise the timer is stored as zero and the result is false.
+        [Test]
+        public void BossesInMotionPausesBeforeFiringWhileTheMotionStateHoldsAndResetsTheTimerOtherwise()
+        {
+            foreach (bool noneCausesTransition in new[] { false, true })
+            {
+                Owned.Run(owned =>
+                {
+                    BossAbilityTestSupport.FourmenRig rig = BossAbilityTestSupport.NewFourmenRig(owned, Vector3.zero);
+                    Boss boss = rig.Bosses[0];
+                    IFSMTransition transition = Build(nameof(BossTransition_BossesInMotion),
+                        "{\"NoneInMotionCausesTransition\":" + (noneCausesTransition ? "true" : "false") + ",\"AdditionalPauseSeconds\":0.5}");
+                    Assert.That(Get<bool>(transition, "m_noneInMotionCausesTransition"), Is.EqualTo(noneCausesTransition));
+                    Assert.That(Get<float>(transition, "m_additionalPauseSeconds"), Is.EqualTo(0.5f));
+                    string label = "none causes transition " + noneCausesTransition;
+
+                    // The state that does not hold: a boss in motion when none is wanted, no boss when one is.
+                    if (!noneCausesTransition) rig.Fourmen.BossesInMotion.Clear(); else rig.Fourmen.BossesInMotion.Add(boss);
+                    boss.Storage.SetValue(BossFSMKeys.AllBossesMotionTimer, 3f);
+                    Assert.That(Update(transition, boss), Is.False, label + ": state does not hold");
+                    Assert.That(Stored<float>(boss, BossFSMKeys.AllBossesMotionTimer), Is.Zero, label + ": the timer is held at zero");
+
+                    // The state that holds.
+                    if (!noneCausesTransition) rig.Fourmen.BossesInMotion.Add(boss); else rig.Fourmen.BossesInMotion.Clear();
+                    Assert.That(Update(transition, boss), Is.False, label + ": 0.25 of 0.5");
+                    Assert.That(Stored<float>(boss, BossFSMKeys.AllBossesMotionTimer), Is.EqualTo(0.25f));
+                    Assert.That(Update(transition, boss), Is.True, label + ": a timer equal to the pause fires");
+                    Assert.That(Has(boss, BossFSMKeys.AllBossesMotionTimer), Is.False, label + ": firing removes the timer");
+                    Assert.That(Update(transition, boss), Is.False, label + ": the timer restarts from zero");
+                });
+            }
+        }
+
+        // 0x70EBB2..0x70ED46: the pause is compared as `pause > timer` with ucomiss and ja, so an unordered (NaN) timer
+        // does not skip the firing.
+        [Test]
+        public void BossesInMotionFiresOnANaNTimer()
+        {
+            Owned.Run(owned =>
+            {
+                BossAbilityTestSupport.FourmenRig rig = BossAbilityTestSupport.NewFourmenRig(owned, Vector3.zero);
+                rig.Fourmen.BossesInMotion.Add(rig.Bosses[0]);
+                IFSMTransition transition = Build(nameof(BossTransition_BossesInMotion), "{\"NoneInMotionCausesTransition\":false,\"AdditionalPauseSeconds\":0.5}");
+                Assert.That(Update(transition, rig.Bosses[0], float.NaN), Is.True);
+            });
+        }
+
+        // 0x70E940 chains to the base enter hook and then stores 0 into AllBossesMotionTimer (SetValue<float>, xorps).
+        [Test]
+        public void BossesInMotionEnterRestartsTheTimerAtZero()
+        {
+            WithBoss((owned, boss) =>
+            {
+                IFSMTransition transition = Build(nameof(BossTransition_BossesInMotion), "{\"NoneInMotionCausesTransition\":false,\"AdditionalPauseSeconds\":1}");
+                boss.Storage.SetValue(BossFSMKeys.AllBossesMotionTimer, 2f);
+                transition.OnEnter(boss, null);
+                Assert.That(Stored<float>(boss, BossFSMKeys.AllBossesMotionTimer), Is.Zero);
+            });
+        }
+
+        // 0x70E940 calls the base enter hook before the store, and 0x70E790 and 0x70EAD0 call the base update (0x1ACDA70) first
+        // and drop its result: nothing tests the value before the Fourmen manager is fetched.
+        [Test]
+        public void FourmenTransitionsDropTheBaseResultBeforeTheirOwnWork()
+        {
+            foreach (Type type in new[] { typeof(BossTransition_BossesCount), typeof(BossTransition_BossesInMotion) })
+            {
+                MethodInfo update = type.GetMethod("DoUpdate", Declared);
+                List<OriginalILCallSequence.Call> calls = OriginalILCallSequence.Calls(update);
+                Assert.That(OriginalILCallSequence.Names(calls).First(), Is.EqualTo("FSMTransition.DoUpdate"), type.Name);
+                List<(int Offset, OpCode Code)> il = OriginalILCallSequence.Instructions(update);
+                Assert.That(il[il.FindIndex(i => i.Offset == calls[0].Offset) + 1].Code, Is.EqualTo(OpCodes.Pop), type.Name + ": the base result is dropped");
+            }
+            Assert.That(CallNames(typeof(BossTransition_BossesInMotion), "DoOnEnter").First(), Is.EqualTo("FSMTransition.DoOnEnter"));
+            Assert.That(CallNames(typeof(BossTransition_HasCompletedActiveLoop), "DoUpdate"), Does.Not.Contain("FSMTransition.DoUpdate"),
+                "0x70FF40 never calls the base update");
+        }
+
+        // ---- BossTransition_HasCompletedActiveLoop (02000244) ----
+
+        // 0x70FF40 calls FourmenManager.HasCompletedActiveLoop (0x710040); when that is true it walks the manager's bosses and
+        // clears each one's active entity (Boss.ClearActiveBossEntity, 0x6F5BA0) before returning the result. Nothing is cleared
+        // while some boss has not yet been active this loop.
+        [Test]
+        public void HasCompletedActiveLoopClearsTheActiveBossesOnlyOnceTheLoopIsComplete()
+        {
+            Owned.Run(owned =>
+            {
+                BossAbilityTestSupport.FourmenRig rig = BossAbilityTestSupport.NewFourmenRig(owned, Vector3.zero, Vector3.zero, Vector3.zero);
+                IFSMTransition transition = Build(nameof(BossTransition_HasCompletedActiveLoop));
+                foreach (Boss boss in rig.Bosses) boss.SetActiveBossEntity();
+
+                Assert.That(Update(transition, rig.Bosses[0]), Is.False, "no boss has been active this loop");
+                Assert.That(rig.Bosses.Select(boss => boss.IsActivePartOfMultiBodyBoss), Is.All.True, "nothing is cleared");
+
+                rig.Fourmen.ClearActiveBosses();
+                foreach (Boss boss in rig.Bosses) boss.SetActiveBossEntity();
+                Assert.That(Update(transition, rig.Bosses[0]), Is.True, "every boss has been active this loop");
+                Assert.That(rig.Bosses.Select(boss => boss.IsActivePartOfMultiBodyBoss), Is.All.False, "every active boss is cleared");
+                Assert.That(Update(transition, rig.Bosses[0]), Is.True, "the loop stays complete");
+
+                rig.Fourmen.ClearLoopStatus();
+                Assert.That(Update(transition, rig.Bosses[0]), Is.False, "clearing the loop status starts a new loop");
+            });
+        }
+
+        // An empty boss list completes the loop (no boss lacks the mark, 0x710040) and there is nothing to clear.
+        [Test]
+        public void HasCompletedActiveLoopIsTrueForNoBosses()
+        {
+            Owned.Run(owned =>
+            {
+                BossAbilityTestSupport.FourmenRig rig = BossAbilityTestSupport.NewFourmenRig(owned, Vector3.zero);
+                Boss user = rig.Bosses[0];
+                rig.Manager.Bosses.Clear();
+                Assert.That(Update(Build(nameof(BossTransition_HasCompletedActiveLoop)), user), Is.True);
+            });
+        }
+
+        // ---- BossTransition_DestinationIsScuttleDistance (02000240) ----
+
+        private static void AddAbility(Boss boss, ActorAbilityType type, ActorAbility ability) =>
+            // Boss.Initialise would create the abilities from the traits' definitions, which needs a whole boss definition; no
+            // other path puts a ready ability into the boss's dictionary.
+            Get<Dictionary<ActorAbilityType, ActorAbility>>(boss, "m_abilities")[type] = ability;
+
+        // A scuttle ability of the boss with a range of 10 (squared 100) and a minimum movement distance of 0.5 (squared 0.25).
+        private static BossAbility_Scuttle AddScuttle(Owned owned, Boss boss, ActorAbilityType type)
+        {
+            BossAbility_Scuttle scuttle = BossAbilityTestSupport.NewAbility<BossAbility_Scuttle>(boss,
+                BossAbilityTestSupport.NewDefinition<BossAbilityDefinition_MovementScuttle>(owned, d =>
+                {
+                    d.ScuttleRange = 10f;
+                    d.ScuttleStartMinimumMovementDistance = 0.5f;
+                }));
+            AddAbility(boss, type, scuttle);
+            return scuttle;
+        }
+
+        // 0x70F580 gets the stored DesiredMovementPosition as GetValue<Vector3>(key, positiveInfinity, false) and tests the
+        // boss's squared distance to it against the scuttle's MaxRangeSquared (ucomiss, jbe: it must be below the maximum)
+        // and MinRangeSquared (seta: and above the minimum). A distance equal to either limit is false.
+        [Test]
+        public void DestinationIsScuttleDistanceNeedsTheDesiredPositionStrictlyBetweenTheScuttleRanges()
+        {
+            Owned.Run(owned =>
+            {
+                Boss boss = BossAbilityTestSupport.NewBoss(owned, new Vector3(1f, 0f, 0f));
+                AddScuttle(owned, boss, ConfiguredAbility);
+                IFSMTransition transition = Build(nameof(BossTransition_DestinationIsScuttleDistance), AbilityJson(ConfiguredAbility));
+
+                Assert.That(Update(transition, boss), Is.False, "no desired position is infinitely far");
+                Assert.That(Has(boss, BossFSMKeys.DesiredMovementPosition), Is.False, "the read stores nothing");
+                foreach ((Vector3 desired, bool expected) in new[]
+                {
+                    (new Vector3(1f, 0f, 5f), true), (new Vector3(1f, 0f, 0.6f), true), (new Vector3(1f, 0f, 0.5f), false), (new Vector3(1f, 0f, 0.4f), false),
+                    (new Vector3(1f, 0f, 9.9f), true), (new Vector3(1f, 0f, 10f), false), (new Vector3(1f, 0f, 10.1f), false), (new Vector3(1f, 0f, 0f), false),
+                    (new Vector3(1f, 3f, 4f), true), (new Vector3(float.NaN, 0f, 0f), false),
+                })
+                {
+                    boss.Storage.SetValue(BossFSMKeys.DesiredMovementPosition, desired);
+                    Assert.That(Update(transition, boss), Is.EqualTo(expected), desired.ToString());
+                }
+            });
+        }
+
+        // A boss without the configured ability, with another type's ability, or with an ability of the type that is not a
+        // scuttle (0x70F622..0x70F63E: the null and class checks both give false) is false whatever position is stored.
+        [Test]
+        public void DestinationIsScuttleDistanceIsFalseWithoutAScuttleAbilityOfTheConfiguredType()
+        {
+            Owned.Run(owned =>
+            {
+                Boss boss = BossAbilityTestSupport.NewBoss(owned, Vector3.zero);
+                boss.Storage.SetValue(BossFSMKeys.DesiredMovementPosition, new Vector3(0f, 0f, 5f));
+                IFSMTransition transition = Build(nameof(BossTransition_DestinationIsScuttleDistance), AbilityJson(ConfiguredAbility));
+                Assert.That(Update(transition, boss), Is.False, "no ability");
+                AddScuttle(owned, boss, OtherAbility);
+                Assert.That(Update(transition, boss), Is.False, "only another type is registered");
+                AddAbility(boss, ConfiguredAbility, new PlainAbility());
+                Assert.That(Update(transition, boss), Is.False, "not a scuttle");
+                AddAbility(boss, ConfiguredAbility, BossAbilityTestSupport.NewAbility<BossAbility_Scuttle>(boss,
+                    BossAbilityTestSupport.NewDefinition<BossAbilityDefinition_MovementScuttle>(owned, d =>
+                    {
+                        d.ScuttleRange = 10f;
+                        d.ScuttleStartMinimumMovementDistance = 0.5f;
+                    })));
+                Assert.That(Update(transition, boss), Is.True, "a scuttle of the configured type");
+            });
+        }
+
+        // ---- BossTransition_GuardianMaxRange (02000242) and BossTransition_GuardianWIthinRange (02000243) ----
+
+        // A point on the guardian's circle of radius 25 (the definition default) at an angle from the forward axis.
+        private static Vector3 OnGuardianCircle(double degrees) =>
+            new Vector3((float)(25.0 * Math.Sin(degrees * Math.PI / 180.0)), 7f, (float)(25.0 * Math.Cos(degrees * Math.PI / 180.0)));
+
+        private static BossAbility_StayAheadOfPlayer AddStayAhead(Owned owned, Boss boss, ActorAbilityType type)
+        {
+            BossAbility_StayAheadOfPlayer ability = BossAbilityTestSupport.NewAbility<BossAbility_StayAheadOfPlayer>(boss,
+                BossAbilityTestSupport.NewDefinition<BossAbilityDefinition_StayAheadOfPlayer>(owned, d =>
+                {
+                    d.Clockwise = true;
+                    d.MinRadiansAheadOfPlayer = 0.5f;
+                    d.MaxRadiansAheadOfPlayer = 1.5f;
+                    d.MovementPerSecond = 0.01f;
+                }));
+            AddAbility(boss, type, ability);
+            return ability;
+        }
+
+        // 0x70FC10 returns the stay-ahead ability's m_atMaxRange (byte at +0x68) of the configured type. The ability reaches
+        // its maximum range when its update clamps the boss's angle to the upper arc limit: a boss at 200 degrees with the
+        // character at 90 degrees is clamped to 90 + 1.5 radians-ahead, a boss at 120 degrees is not.
+        [Test]
+        public void GuardianMaxRangeReportsWhetherTheStayAheadAbilityIsAtItsMaximumRange()
+        {
+            foreach ((double bossDegrees, bool atMax) in new[] { (120.0, false), (200.0, true) })
+            {
+                CharacterTriggerTestSupport.WithManager((owned, manager, character) =>
+                {
+                    BossAbilityTestSupport.MakeCurrent(manager, character, OnGuardianCircle(90.0));
+                    Boss boss = BossAbilityTestSupport.NewBoss(owned, OnGuardianCircle(bossDegrees));
+                    BossAbility_StayAheadOfPlayer ability = AddStayAhead(owned, boss, ConfiguredAbility);
+                    IFSMTransition transition = Build(nameof(BossTransition_GuardianMaxRange), AbilityJson(ConfiguredAbility));
+
+                    Assert.That(Update(transition, boss), Is.False, "before the first update the ability is not at its maximum");
+                    Call(ability, "DoOnUpdate", 1f);
+                    Assert.That(Update(transition, boss), Is.EqualTo(atMax), "boss at " + bossDegrees);
+                });
+            }
+        }
+
+        // 0x70FDC0 returns StayAheadOfPlayer.ShouldAbilityActivate (0x7004F0): the boss's angle must lie strictly inside the
+        // arc ahead of the character (clockwise, character at 90 degrees, arc 0.5..1.5 radians ahead: 120 degrees is inside,
+        // 100 and 180 are not).
+        [Test]
+        public void GuardianWithinRangeReportsWhetherTheBossIsInsideTheArcAheadOfTheCharacter()
+        {
+            foreach ((double bossDegrees, bool expected) in new[] { (120.0, true), (100.0, false), (180.0, false) })
+            {
+                CharacterTriggerTestSupport.WithManager((owned, manager, character) =>
+                {
+                    BossAbilityTestSupport.MakeCurrent(manager, character, OnGuardianCircle(90.0));
+                    Boss boss = BossAbilityTestSupport.NewBoss(owned, OnGuardianCircle(bossDegrees));
+                    AddStayAhead(owned, boss, ConfiguredAbility);
+                    Assert.That(Update(Build(nameof(BossTransition_GuardianWIthinRange), AbilityJson(ConfiguredAbility)), boss), Is.EqualTo(expected), "boss at " + bossDegrees);
+                });
+            }
+        }
+
+        // Both guardian transitions log "Ability {0} could not be found in {1} definition." through HLOutput.LogError and are
+        // false when the boss has no stay-ahead ability of the configured type (0x70FC85..0x70FD0B and 0x70FE55..0x70FEBD);
+        // another type's ability or one of another class gives the same answer.
+        [Test]
+        public void GuardianTransitionsLogAnErrorAndAreFalseWithoutAStayAheadAbilityOfTheConfiguredType()
+        {
+            foreach (string node in new[] { nameof(BossTransition_GuardianMaxRange), nameof(BossTransition_GuardianWIthinRange) })
+            {
+                WithBoss((owned, boss) =>
+                {
+                    IFSMTransition transition = Build(node, AbilityJson(ConfiguredAbility));
+                    string expected = "Ability " + (int)ConfiguredAbility + " could not be found in " + boss + " definition.";
+                    AddAbility(boss, OtherAbility, new PlainAbility());
+                    AssertLogsMissingAbility(transition, boss, expected, node + ": no ability");
+                    AddAbility(boss, ConfiguredAbility, new PlainAbility());
+                    AssertLogsMissingAbility(transition, boss, expected, node + ": not a stay-ahead ability");
+                });
+            }
+        }
+
+        private static void AssertLogsMissingAbility(IFSMTransition transition, Boss boss, string expected, string label)
+        {
+            bool result = true;
+            List<string> errors = HLOutputDiagnosticCapture.CaptureErrors(() => result = Update(transition, boss));
+            Assert.That(result, Is.False, label);
+            Assert.That(errors, NUnit.Framework.Has.Count.EqualTo(1), label);
+            Assert.That(errors[0], Does.StartWith(expected), label);
+        }
+
         // ---- Declarations ----
 
         private static List<string> CallNames(Type owner, string name) =>
@@ -617,6 +928,38 @@ namespace ProjectLucid.Tests
                 NoFields,
                 new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4) },
                 new[] { "GraphNodeMenuFormat(Boss/{0})", "GraphNodeDefaultName(StartWindUp)", "Il2CppSetOption2", "Il2CppSetOption1" }),
+            new Shape(typeof(BossTransition_BossesCount), 0x00100001,
+                new[] { ("m_bossCount", 0x0021) },
+                new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4) },
+                new[] { "GraphNodeMenuFormat(Boss/Fourmen/{0})", "GraphNodeDefaultName(NumberOfBosses)", "Il2CppSetOption2", "Il2CppSetOption1" }),
+            new Shape(Nested(typeof(BossTransition_BossesCount), "JSONCtorArgs"), 0x00102004,
+                new[] { ("BossesForTransition", 0x0006) },
+                new[] { (".ctor", 0x1886) },
+                new[] { "FiniteStateMachineJsonCtorArgs", "Il2CppSetOption2", "Il2CppSetOption1" }),
+            new Shape(typeof(BossTransition_BossesInMotion), 0x00100001,
+                new[] { ("m_noneInMotionCausesTransition", 0x0021), ("m_additionalPauseSeconds", 0x0021) },
+                new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoOnEnter", 0x00c4), ("DoUpdate", 0x00c4) },
+                new[] { "GraphNodeMenuFormat(Boss/Fourmen/{0})", "GraphNodeDefaultName(BossTransition_BossesInMotion)", "Il2CppSetOption2", "Il2CppSetOption1" }),
+            new Shape(Nested(typeof(BossTransition_BossesInMotion), "JSONCtorArgs"), 0x00102004,
+                new[] { ("NoneInMotionCausesTransition", 0x0006), ("AdditionalPauseSeconds", 0x0006) },
+                new[] { (".ctor", 0x1886) },
+                new[] { "FiniteStateMachineJsonCtorArgs", "Il2CppSetOption2", "Il2CppSetOption1" }),
+            new Shape(typeof(BossTransition_DestinationIsScuttleDistance), 0x00100001,
+                NoFields,
+                new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4) },
+                new[] { "Il2CppSetOption1", "Il2CppSetOption2", "GraphNodeDefaultName(DestinationIsScuttleDistance)", "GraphNodeMenuFormat(Boss/Crab/{0})" }),
+            new Shape(typeof(BossTransition_GuardianMaxRange), 0x00100001,
+                NoFields,
+                new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4) },
+                new[] { "GraphNodeDefaultName(GuardianAtMaxRange)", "Il2CppSetOption1", "Il2CppSetOption2", "GraphNodeMenuFormat(Boss/Guardian/{0})" }),
+            new Shape(typeof(BossTransition_GuardianWIthinRange), 0x00100001,
+                NoFields,
+                new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4) },
+                new[] { "Il2CppSetOption1", "Il2CppSetOption2", "GraphNodeMenuFormat(Boss/Guardian/{0})", "GraphNodeDefaultName(GuardianWithinRange)" }),
+            new Shape(typeof(BossTransition_HasCompletedActiveLoop), 0x00100001,
+                NoFields,
+                new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4) },
+                new[] { "GraphNodeMenuFormat(Boss/Fourmen/{0})", "Il2CppSetOption1", "GraphNodeDefaultName(HasCompletedActiveLoop)", "Il2CppSetOption2" }),
             new Shape(typeof(BossTransition_BodyBroken), 0x00100001,
                 new[] { ("m_delayTransitionFiringTime", 0x0001) },
                 new[] { (".ctor", 0x1884), ("ConstructInstance", 0x0096), ("DoUpdate", 0x00c4), ("DoOnEnter", 0x00c4), ("DoOnLeave", 0x00c4) },
@@ -751,8 +1094,11 @@ namespace ProjectLucid.Tests
         {
             foreach (Type node in Shapes.Select(s => s.Type).Where(t => typeof(FSMTransition).IsAssignableFrom(t)))
             {
-                Type expectedBase = node == typeof(BossTransition_AttackWindUpComplete) || node == typeof(BossTransition_StartWindUp)
-                    ? typeof(Transition_Ability) : typeof(FSMTransition);
+                Type expectedBase = new[]
+                {
+                    typeof(BossTransition_AttackWindUpComplete), typeof(BossTransition_StartWindUp), typeof(BossTransition_DestinationIsScuttleDistance),
+                    typeof(BossTransition_GuardianMaxRange), typeof(BossTransition_GuardianWIthinRange),
+                }.Contains(node) ? typeof(Transition_Ability) : typeof(FSMTransition);
                 Assert.That(node.BaseType, Is.EqualTo(expectedBase), node.Name);
             }
             foreach (Type args in Shapes.Select(s => s.Type).Where(t => t.IsNested))
@@ -771,6 +1117,12 @@ namespace ProjectLucid.Tests
             {
                 (typeof(BossTransition_AttackWindUpComplete), "AbilityJSONCtorArgs", typeof(Transition_Ability)),
                 (typeof(BossTransition_StartWindUp), "AbilityJSONCtorArgs", typeof(Transition_Ability)),
+                (typeof(BossTransition_DestinationIsScuttleDistance), "AbilityJSONCtorArgs", typeof(Transition_Ability)),
+                (typeof(BossTransition_GuardianMaxRange), "AbilityJSONCtorArgs", typeof(Transition_Ability)),
+                (typeof(BossTransition_GuardianWIthinRange), "AbilityJSONCtorArgs", typeof(Transition_Ability)),
+                (typeof(BossTransition_BossesCount), "JSONCtorArgs", typeof(BossTransition_BossesCount)),
+                (typeof(BossTransition_BossesInMotion), "JSONCtorArgs", typeof(BossTransition_BossesInMotion)),
+                (typeof(BossTransition_HasCompletedActiveLoop), null, null),
                 (typeof(BossTransition_BodyBroken), "DelayTransitionJSONCtorArgs", typeof(BossTransition_BodyBroken)),
                 (typeof(BossTransition_BothClawsBroken), "DelayTransitionJSONCtorArgs", typeof(BossTransition_BothClawsBroken)),
                 (typeof(BossTransition_ClearLineOfSight), "JSONCtorArgs", typeof(BossTransition_ClearLineOfSight)),
