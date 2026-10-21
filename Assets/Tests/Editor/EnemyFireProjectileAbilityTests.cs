@@ -18,7 +18,9 @@ namespace ProjectLucid.Tests
     // its real attachment points. The definition is authored through the editor JSON overwrite, as authored data is.
     // Not covered: WarmupProjectile (0x56FCB0), which acquires the projectile from the registered ProjectileManager's
     // pools (built from the data manager's projectile definitions) and attaches it to the enemy's node; the
-    // tests put a real projectile into the warm-up slot instead, as the warm-up leaves it. The gizmo drawing at the end
+    // tests put a real projectile into the warm-up slot instead, as the warm-up leaves it (a `// Reflection:` write, the
+    // slot being private). The target position is published and consumed through the real flow: a sensed target and an
+    // update trigger the ability, EnemyBrainState_TurnTowardsPosition removes the published position. The gizmo drawing at the end
     // of OnDrawGizmosSelected (0x56FF3D), which the engine accepts only inside its gizmo callback.
     public sealed class EnemyFireProjectileAbilityTests
     {
@@ -33,6 +35,9 @@ namespace ProjectLucid.Tests
 
         private static EnemyProjectileProbe NewProjectile(Scene scene) =>
             AddTimeScaled<EnemyProjectileProbe>(scene.Owned.Host(Name(), false));
+
+        // Straight ahead of the enemy (+z) and inside the default range and elevation band.
+        private static readonly Vector3 Aim = new Vector3(0f, 0f, 10f);
 
         private static bool BrainHoldsTarget(Scene scene) => scene.Brain.Storage.HasValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
 
@@ -71,7 +76,8 @@ namespace ProjectLucid.Tests
                 var projectile = NewProjectile(scene);
                 int expired = 0;
                 projectile.OnExpired += _ => expired++;
-                Call(ability, "SetTriggered", true);
+                scene.TriggerFireProjectile(ability, Aim);
+                // Reflection: the warm-up slot is private and WarmupProjectile needs the registered ProjectileManager.
                 Set(ability, "m_projectileInWarmup", projectile);
                 scene.Enemy.Storage.SetValue(ActorFSMKeys.EnemyFireProjectileTurnComplete, true);
                 scene.Enemy.Storage.SetValue(ActorFSMKeys.EnemyFireProjectileWindUpComplete, true);
@@ -92,20 +98,20 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x56FEB0: leaving an entered ability clears it the same way; leaving one that is not entered does nothing.
+        // 0x56FEB0: leaving an entered ability clears it the same way; leaving one that is not entered does nothing. A second
+        // ability of the same enemy that was never entered leaves the first one's published position on the brain alone.
         [Test]
         public void LeavingClearsTheTriggeredStateOnlyForAnEnteredAbility()
         {
             WithScene(scene =>
             {
                 var ability = Fire(scene);
-                Call(ability, "SetTriggered", true);
-                ability.Leave();
+                var neverEntered = Fire(scene);
+                scene.TriggerFireProjectile(ability, Aim);
+                neverEntered.Leave();
                 Assert.That(ability.IsTriggered, Is.True, "not entered: nothing to leave");
                 Assert.That(BrainHoldsTarget(scene), Is.True);
 
-                ability.Enter();
-                Call(ability, "SetTriggered", true);
                 ability.Leave();
                 Assert.That(ability.IsTriggered, Is.False);
                 Assert.That(BrainHoldsTarget(scene), Is.False);
@@ -121,13 +127,18 @@ namespace ProjectLucid.Tests
             {
                 var ability = Fire(scene);
                 var projectile = NewProjectile(scene);
+                ability.Enter();
+                // Reflection: the warm-up slot and the clock only advance past zero with a warmed-up projectile, which
+                // needs the registered ProjectileManager; the real trigger below must reset them.
                 Set(ability, "m_projectileInWarmup", projectile);
                 Set(ability, "m_windUpElapsedTime", 0.75f);
                 scene.Enemy.Storage.SetValue(ActorFSMKeys.EnemyFireProjectileTurnComplete, true);
-                Call(ability, "SetTriggered", true);
+                scene.Sense(scene.Target(Aim));
+                ability.Update(0.02f);
+                Assert.That(ability.IsTriggered, Is.True);
                 Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(0f));
                 Assert.That(ability.IsTriggered, Is.True);
-                Assert.That(scene.BrainStore(EnemyBrainFSMKeys.FireProjectileTargetPosition, Vector3.one), Is.EqualTo(Vector3.zero));
+                Assert.That(scene.BrainStore(EnemyBrainFSMKeys.FireProjectileTargetPosition, Vector3.one), Is.EqualTo(Aim));
                 Assert.That(scene.Enemy.Storage.HasValue(ActorFSMKeys.EnemyFireProjectileTurnComplete), Is.True);
                 Assert.That(Get<Projectile>(ability, "m_projectileInWarmup"), Is.SameAs(projectile));
             });
@@ -316,7 +327,9 @@ namespace ProjectLucid.Tests
         // 0x56F770: while the brain still holds the published target position nothing advances. Once it is taken the
         // wind-up clock advances by the frame time; when the clock crosses the wind-up time (1) the projectile is
         // detached and fired at the target, the wind-up-complete flag is raised, and the ability finishes (flag, cleared
-        // state) when the clock reaches wind-up plus wind-down (1.5). Every comparison includes its equal case.
+        // state) when the clock reaches wind-up plus wind-down (1.5). The new clock reaches a threshold inclusively
+        // (jb at 0x56F979, jae at 0x56FA73) while the previous clock must be strictly below it (jbe at 0x56F970 and
+        // 0x56FA69 after the ucomiss at 0x56F96D and 0x56FA66), so each threshold is crossed once.
         [Test]
         public void TheProjectileFiresWhenTheWindUpTimeIsCrossedAndTheAbilityEndsAfterTheWindDown()
         {
@@ -325,15 +338,14 @@ namespace ProjectLucid.Tests
                 scene.AttachPoints(scene.Enemy, null, Vector3.zero);
                 var ability = Fire(scene, "{\"m_windUpTime\":1,\"m_windDownTime\":0.5}");
                 var projectile = NewProjectile(scene);
-                ability.Enter();
-                scene.Sense(scene.Target(new Vector3(0f, 0f, 10f)));
-                ability.Update(0.02f);
-                Assert.That(ability.IsTriggered, Is.True);
+                scene.TriggerFireProjectile(ability, Aim);
+                // Reflection: the warm-up slot is private and WarmupProjectile needs the registered ProjectileManager.
                 Set(ability, "m_projectileInWarmup", projectile);
 
                 ability.Update(0.5f);
                 Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(0f), "the brain still holds the target position");
-                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
+                scene.ConsumeFireTargetPosition();
+                Assert.That(BrainHoldsTarget(scene), Is.False, "the turn state took the position");
 
                 ability.Update(0.5f);
                 Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(0.5f));
@@ -341,7 +353,7 @@ namespace ProjectLucid.Tests
                 ability.Update(0.5f);
                 Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(1f));
                 Assert.That(projectile.Fires, Is.EqualTo(1), "fired at the wind-up time itself");
-                Assert.That(projectile.Focuses, Is.EqualTo(new[] { new Vector3(0f, 0f, 10f) }));
+                Assert.That(projectile.Focuses, Is.EqualTo(new[] { Aim }));
                 Assert.That(Get<Projectile>(ability, "m_projectileInWarmup"), Is.Null);
                 Assert.That(scene.ActorStore(ActorFSMKeys.EnemyFireProjectileWindUpComplete, false), Is.True);
                 Assert.That(ability.IsTriggered, Is.True);
@@ -369,11 +381,12 @@ namespace ProjectLucid.Tests
                 scene.AttachPoints(scene.Enemy, null, Vector3.zero);
                 var ability = Fire(scene, "{\"m_windUpTime\":1,\"m_windDownTime\":0.5}");
                 var projectile = NewProjectile(scene);
-                ability.Enter();
-                Call(ability, "SetTriggered", true);
-                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
+                scene.TriggerFireProjectile(ability, Aim);
+                // Reflection: the warm-up slot is private and WarmupProjectile needs the registered ProjectileManager.
                 Set(ability, "m_projectileInWarmup", projectile);
-                Set(ability, "m_windUpElapsedTime", 0.5f);
+                scene.ConsumeFireTargetPosition();
+                ability.Update(0.5f);
+                Assert.That(projectile.Fires, Is.EqualTo(0), "the clock is at 0.5, below the wind-up time");
                 ability.Update(1.0f);
                 Assert.That(projectile.Fires, Is.EqualTo(1));
                 Assert.That(projectile.Focuses, Is.EqualTo(new[] { ability.TargetPosition }));
@@ -384,24 +397,29 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x56F96D..0x56F979 (wind-up crossing check): a clock that is already beyond the wind-up time never fires a projectile still in the slot, and
-        // returns before the finishing check, so the ability does not finish however far the clock runs.
+        // 0x56F96D (ucomiss wind-up, previous clock; jbe to the return at 0x56FA75): a projectile fires only when the previous
+        // clock is strictly below the wind-up time, and that return skips the finishing check. A wind-up time of 0, authored
+        // through the definition, is therefore never crossed: the previous clock (0, then 0.4) is never below it, so the
+        // projectile stays in the slot, and the ability does not finish although the clock passes wind-up plus wind-down (0.5).
         [Test]
         public void AProjectilePastTheWindUpTimeIsNeverFiredAndTheAbilityNeverFinishes()
         {
             WithScene(scene =>
             {
                 scene.AttachPoints(scene.Enemy, null, Vector3.zero);
-                var ability = Fire(scene, "{\"m_windUpTime\":1,\"m_windDownTime\":0.5}");
+                var ability = Fire(scene, "{\"m_windUpTime\":0,\"m_windDownTime\":0.5}");
                 var projectile = NewProjectile(scene);
-                ability.Enter();
-                Call(ability, "SetTriggered", true);
-                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
+                scene.TriggerFireProjectile(ability, Aim);
+                // Reflection: the warm-up slot is private and WarmupProjectile needs the registered ProjectileManager.
                 Set(ability, "m_projectileInWarmup", projectile);
-                Set(ability, "m_windUpElapsedTime", 1.2f);
+                scene.ConsumeFireTargetPosition();
                 ability.Update(0.4f);
-                Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(1.6f).Within(1e-6f), "the clock still runs");
+                Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(0.4f).Within(1e-6f), "the clock runs");
+                Assert.That(projectile.Fires, Is.EqualTo(0), "the previous clock 0 is not below the wind-up time 0");
+                ability.Update(0.4f);
+                Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(0.8f).Within(1e-6f), "the clock still runs");
                 Assert.That(projectile.Fires, Is.EqualTo(0));
+                Assert.That(Get<Projectile>(ability, "m_projectileInWarmup"), Is.SameAs(projectile));
                 Assert.That(ability.AbilityFinished, Is.False);
                 Assert.That(ability.IsTriggered, Is.True);
             });
@@ -409,16 +427,23 @@ namespace ProjectLucid.Tests
 
         // 0x56F872 (ucomiss 0, elapsed; jae): the warm-up branch is taken only when 0 >= elapsed. An unordered NaN clock
         // therefore stays on the clock-only path, where `elapsed > 0` written the other way round would warm up a projectile.
+        // The NaN clock comes from a real update with a NaN frame time after the projectile was fired.
         [Test]
         public void ANaNClockWithNoProjectileOnlyAdvancesTheClock()
         {
             WithScene(scene =>
             {
+                scene.AttachPoints(scene.Enemy, null, Vector3.zero);
                 var ability = Fire(scene, "{\"m_windUpTime\":1,\"m_windDownTime\":0.5}");
-                ability.Enter();
-                Call(ability, "SetTriggered", true);
-                scene.Brain.Storage.RemoveValue<Vector3>(EnemyBrainFSMKeys.FireProjectileTargetPosition);
-                Set(ability, "m_windUpElapsedTime", float.NaN);
+                var projectile = NewProjectile(scene);
+                scene.TriggerFireProjectile(ability, Aim);
+                // Reflection: the warm-up slot is private and WarmupProjectile needs the registered ProjectileManager.
+                Set(ability, "m_projectileInWarmup", projectile);
+                scene.ConsumeFireTargetPosition();
+                ability.Update(1.0f);
+                Assert.That(projectile.Fires, Is.EqualTo(1), "fired at the wind-up time, leaving the slot empty");
+
+                ability.Update(float.NaN);
                 ability.Update(0.4f);
                 Assert.That(float.IsNaN(Get<float>(ability, "m_windUpElapsedTime")), Is.True, "the clock keeps running as NaN");
                 Assert.That(Get<Projectile>(ability, "m_projectileInWarmup"), Is.Null, "no projectile is warmed up");
@@ -442,7 +467,7 @@ namespace ProjectLucid.Tests
                 Assert.That(ability.OnDrawGizmosSelected(), Is.False, "not entered");
                 ability.Enter();
                 Assert.That(ability.OnDrawGizmosSelected(), Is.False, "entered but not triggered");
-                Call(ability, "SetTriggered", true);
+                scene.TriggerFireProjectile(ability, Aim);
                 Assert.That(ability.OnDrawGizmosSelected(), Is.False, "triggered, but the enemy has no shoot node");
             });
         }
