@@ -150,6 +150,22 @@ namespace ProjectLucid.Tests
                 return system;
             }
 
+            // The system goes into a row the case already leased with LeaseRow. Register borrows only an idle row, but a component
+            // that waited on the row (InvokeOnValid) leaves its deferred callback there until the system arrives. The system leaves
+            // the row first at release, and the row lease then checks the row idle.
+            internal T RegisterIntoLeasedRow<T>(T system) where T : class, ISystem
+            {
+                string name = ProcessManager.GetDefaultName<T>();
+                SystemRef reference = ProcessManager.RegisterSystem(system, name);
+                m_leases.Add(new CharacterTriggerTestSupport.ReleaseAction(() =>
+                {
+                    if (!ReferenceEquals(reference.GetSafe(), system))
+                        throw new InvalidOperationException("Fixture registry row has a foreign owner: " + name);
+                    ProcessManager.UnregisterSystem(name);
+                }));
+                return system;
+            }
+
             internal static void Run(Action<Owned> body)
             {
                 var owned = new Owned();
