@@ -133,6 +133,7 @@ namespace ProjectLucid.Tests
                 var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
                 definition.Traits = new BossTraits();
                 Set(rig.Boss, "m_definition", definition); // Reflection: serialized field without a setter
+                // A boss already listed keeps Register (BossManager.Register) off the first-boss HUD focus, which needs the App.
                 Boss placeholder = owned.Host("Lucid guardian boss placeholder", false).AddComponent<Boss>();
                 rig.Manager.Bosses.Add(placeholder);
                 Call(rig.Boss, "RegisterBoss", rig.Manager);
