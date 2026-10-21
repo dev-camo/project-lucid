@@ -24,11 +24,15 @@ namespace ProjectLucid.Tests
     // Mode does not build); the ability is built by its real constructor and given its definition
     // through the real Initialise, so only the character's link is assigned. The next-frame host of
     // CoroutineUtils is absent in Edit Mode, which makes scheduling the last statement of an exit or
-    // reset: those cases run with the static host cleared and read everything before the fault. Not covered:
-    // the release transform an exit applies (SetCharacterReleaseTransform 0x7442C0, its multiplier, world
-    // speed and fixed-point offsets, and the fake-parent placement before it). DoTriggerExit applies it only
-    // when AreModifiersBlocked is false, which needs Actor.Initialise to have set m_initialised, and that
-    // cannot run here (its TimeManager subscription needs an awakened TimeManager and its FSM an FSMManager).
+    // reset: those cases run with the static host cleared and read everything before the fault.
+    // DoTriggerExit applies the release transform only when AreModifiersBlocked is false, which needs
+    // Actor.Initialise to have set m_initialised, and that cannot run here (its TimeManager subscription needs
+    // an awakened TimeManager and its FSM an FSMManager). Covered directly instead: SetCharacterReleaseTransform
+    // (0x7442C0: the launch along the facing, the attach-time multiplier, the world-speed re-evaluation, the
+    // fixed-position offset and SetAsTrigger(false)) and RemoveParentConstraints (0x7445B0), each called on its
+    // own, and the blocked exit. Still needs a started Character (PlayMode): the unblocked DoTriggerExit as a
+    // whole, that is the two calls in order with the ControlsEnabled and Override modifier overrides and the
+    // AirDecelerationDisabled store that follow them (0x744706..0x744889).
     public sealed class CharacterCatchReleaseTests
     {
         private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
@@ -696,6 +700,143 @@ namespace ProjectLucid.Tests
                 WithoutCoroutineHost(() => Assert.DoesNotThrow(() => scene.Ability.DoTriggerExit()));
                 Assert.That(scene.Ability.Enabled, Is.True, "not left");
                 Assert.That(scene.Storage.GetCollection().ContainsKey(ActorFSMKeys.AirDecelerationDisabled), Is.False);
+            }
+        }
+
+        // A character with a fake parent and no release points, facing +x at a known position. The release
+        // transform is called directly: DoTriggerExit reaches it only for an initialised character.
+        private static void PrepareRelease(CatchScene scene)
+        {
+            AddFakeParent(scene);
+            Set(scene.Character, "m_colliderCollision", scene.Character.gameObject.GetComponent<CapsuleCollider>());
+            scene.Data.Release.TransformPoints = new CatchReleasePoints();
+            scene.Data.Release.VelocityPoints = new CatchReleasePoints();
+            scene.Character.SetWorldRotation(Quaternion.Euler(0f, 90f, 0f));
+            scene.Character.SetWorldPosition(Origin + new Vector3(1f, 2f, 3f));
+        }
+
+        private static void Release(CatchScene scene) => Call(scene.Ability, "SetCharacterReleaseTransform");
+
+        // SetCharacterReleaseTransform 0x7442C0: with points that fix nothing the character keeps its pose and is
+        // launched along the release rotation's forward at the multiplier curve times the release speed
+        // (0x744515..0x744531), after SetAsTrigger(false) (0x74453e) undoes the attach's trigger state.
+        [Test]
+        public void ReleaseTransformLaunchesAlongTheFacingAtTheReleaseSpeed()
+        {
+            using (var scene = new CatchScene())
+            {
+                PrepareRelease(scene);
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                scene.Character.SetAsTrigger(true);
+
+                Release(scene);
+
+                Assert.That(scene.Character.WorldVelocity.x, Is.EqualTo(6f).Within(1e-4f), "facing +x at the release speed");
+                Assert.That(scene.Character.WorldVelocity.y, Is.EqualTo(0f).Within(1e-4f));
+                Assert.That(scene.Character.WorldVelocity.z, Is.EqualTo(0f).Within(1e-4f));
+                Assert.That(scene.Character.WorldPosition, Is.EqualTo(Origin + new Vector3(1f, 2f, 3f)));
+                Assert.That(scene.Body.isKinematic, Is.False, "SetAsTrigger(false)");
+                Assert.That(scene.Character.ColliderCollision.isTrigger, Is.False, "SetAsTrigger(false)");
+            }
+        }
+
+        // The facing direction is scaled by MultiplierCurve at the attach time (0x7444b2..0x744531), not at the
+        // release speed: Linear(0,1,10,3) at 5 is 2, at the release speed 6 it would be 2.2.
+        [Test]
+        public void ReleaseTransformScalesTheVelocityByTheMultiplierAtTheAttachTime()
+        {
+            using (var scene = new CatchScene())
+            {
+                PrepareRelease(scene);
+                scene.Data.Release.MultiplierCurve = AnimationCurve.Linear(0f, 1f, 10f, 3f);
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                Set(scene.Ability, "m_attachTime", 5f);
+
+                Release(scene);
+
+                Assert.That(scene.Character.WorldVelocity.x, Is.EqualTo(12f).Within(1e-4f), "multiplier 2 times the release speed 6");
+            }
+        }
+
+        private static float ReleaseSpeedAlongTheFacing(bool useWorldSpeed)
+        {
+            using (var scene = new CatchScene())
+            {
+                PrepareRelease(scene);
+                scene.Data.Release.UseWorldSpeed = useWorldSpeed;
+                scene.Data.Release.SpeedCurve = AnimationCurve.Linear(0f, 0f, 100f, 200f);
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                scene.Move(new Vector3(0f, 0f, 10f));
+                Release(scene);
+                return scene.Character.WorldVelocity.x;
+            }
+        }
+
+        // UseWorldSpeed (0x7444de..0x744503) evaluates the release curve again at the character's speed at the
+        // release (10 gives 20); without it the speed stored on entry (6 gives 12) is kept.
+        [Test]
+        public void ReleaseTransformReevaluatesTheSpeedAtTheWorldSpeedOnlyWhenAsked()
+        {
+            Assert.That(ReleaseSpeedAlongTheFacing(false), Is.EqualTo(12f).Within(1e-4f), "the entry speed");
+            Assert.That(ReleaseSpeedAlongTheFacing(true), Is.EqualTo(20f).Within(1e-4f), "the world speed at the release");
+        }
+
+        // Release points that fix the position (here the closest of them) add the attach offset to the point's
+        // position, turned half a circle about gravity unless the catch was reversed (0x744368..0x7443dd).
+        [Test]
+        public void ReleaseTransformOffsetsAFixedPositionByTheAttachOffsetTurnedAgainstGravity()
+        {
+            foreach ((bool reversed, Vector3 offset) in new[] { (false, new Vector3(-1f, 0f, 0f)), (true, new Vector3(1f, 0f, 0f)) })
+            {
+                using (var scene = new CatchScene())
+                {
+                    PrepareRelease(scene);
+                    Vector3 pointPosition = Origin + new Vector3(10f, 0f, 0f);
+                    var points = new CatchReleasePoints();
+                    Set(points, "m_points", new[] { scene.Objects.Create("release point", pointPosition, Quaternion.identity).transform });
+                    Set(points, "m_releasePositionType", CatchReleasePositionType.QuantizeClosestPosition);
+                    scene.Data.Release.TransformPoints = points;
+                    scene.Move(new Vector3(0f, 0f, 6f));
+                    scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                    Set(scene.Ability, "m_attachOffset", new Vector3(1f, 0f, 0f));
+                    Set(scene.Ability, "m_isReversed", reversed);
+
+                    Release(scene);
+
+                    Vector3 released = scene.Character.WorldPosition - (pointPosition + offset);
+                    Assert.That(released.magnitude, Is.EqualTo(0f).Within(1e-4f), "reversed " + reversed);
+                }
+            }
+        }
+
+        // RemoveParentConstraints 0x7445B0 (called first by DoTriggerExit, 0x744706, whatever the modifiers say) puts
+        // the character at the fake parent's evaluated position and stops the fake parent; with no parent left it
+        // changes nothing.
+        [Test]
+        public void RemovingTheParentConstraintsPlacesTheCharacterAtTheFakeParentAndStopsIt()
+        {
+            using (var scene = new CatchScene())
+            {
+                PrepareRelease(scene);
+                TransformFakeParent fake = scene.Character.FakeParent;
+                scene.Move(new Vector3(0f, 0f, 6f));
+                scene.Ability.DoTriggerEnter(scene.Data, scene.Trigger);
+                scene.Ability.OnAttach();
+                scene.Trigger.transform.position += new Vector3(0f, 1f, 0f);
+                Assert.That(fake.Evaluate(out Vector3 parented, out Quaternion _), Is.True);
+                Vector3 before = scene.Character.WorldPosition;
+                Assert.That((parented - before).magnitude, Is.GreaterThan(0.5f), "the fixture tells the two poses apart");
+
+                Call(scene.Ability, "RemoveParentConstraints");
+
+                Assert.That((scene.Character.WorldPosition - parented).magnitude, Is.EqualTo(0f).Within(1e-4f));
+                Assert.That(fake.Evaluate(out Vector3 _, out Quaternion _), Is.False, "stopped");
+                scene.Character.SetWorldPosition(before);
+                Call(scene.Ability, "RemoveParentConstraints");
+                Assert.That(scene.Character.WorldPosition, Is.EqualTo(before), "no parent: unchanged");
             }
         }
 
