@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using ProjectLucid.Tests.OnScreenControlsShared;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using static ProjectLucid.Tests.OnScreenControlTestServices;
 
 namespace ProjectLucid.Tests
@@ -13,11 +15,14 @@ namespace ProjectLucid.Tests
     // OnScreenControlInputHandler (02000970) against its 1.10.1 x86-64 bodies (0x68D000..0x68F02F). The handler sits
     // on an owned inactive object with probe touch zones, a UIRuntimeConfiguration whose bridge answers the case's
     // last input type, and an InputSystem holding a real InputMonitor. InputBridge's static type action is taken
-    // over for the case and restored. Not covered: the distribution of real touches to the zones (the best zone
-    // by score, ended and updated touches), which needs a touch source that reports touches; the monitor's source
-    // reports none outside play mode.
+    // over for the case and restored. The touch cases fill the list of active touches of the provider's mouse
+    // source (the touch source the handler reads), which the handler never refreshes itself. Not covered: touches
+    // a player would produce (position, phase and finger ids from the engine) and a pointer over a UI object, which
+    // needs an input module that is running.
     public sealed class OnScreenControlInputHandlerTests
     {
+        private static readonly Vector2 Zero = Vector2.zero;
+
         private sealed class Rig
         {
             public Services Services;
@@ -156,6 +161,114 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Zones[0].Order, Is.EqualTo(new[] { "release", "held" }), "the active zone releases its pointer");
                 Assert.That(rig.Zones[1].Order, Is.Empty, "the inactive zone supplies nothing");
                 Assert.That(ModernUITestSupport.Get(rig.Handler, "m_firstUpdateComplete"), Is.EqualTo(true));
+            });
+        }
+
+        private const BindingFlags NonPublicInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+
+        // The handler on a monitor whose touch source reports the returned list, two zones that accept touches
+        // anywhere in a 100 by 100 area around the origin, and an EventSystem without an input module, which reports
+        // no pointer over a UI object. Edit Mode runs no OnEnable or OnDisable for the EventSystem, so the case calls
+        // them to join and leave the engine's list of event systems, and puts the previous current one back.
+        private static void WithTouches(Action<Rig, List<Touch>> body) => WithHandler(rig =>
+        {
+            var owned = rig.Services.Owned;
+            EventSystem priorSystem = EventSystem.current;
+            var eventSystem = owned.Host("Lucid owned event system", true).AddComponent<EventSystem>();
+            ModernUITestSupport.Call(eventSystem, "OnEnable");
+            EventSystem.current = eventSystem;
+            try
+            {
+                rig.Bridge.LastInputType = UIInputType.Touch;
+                Call(rig, "OnEnable");
+                ((SourceProvider)rig.Monitor.SourceProvider).Initialise(null);
+                object source = rig.Monitor.SourceProvider.TouchSource;
+                var touches = (List<Touch>)source.GetType().GetField("m_currentActiveTouches", NonPublicInstance).GetValue(source);
+                foreach (OnScreenTouchZoneProbe zone in rig.Zones)
+                {
+                    var area = owned.Track(new GameObject("Lucid owned touch area", typeof(RectTransform))).GetComponent<RectTransform>();
+                    area.sizeDelta = new Vector2(100f, 100f);
+                    ModernUITestSupport.Set(zone, "m_validTouchTransform", area); // serialized in the original
+                    zone.ActiveOverride = true;
+                }
+                body(rig, touches);
+            }
+            finally
+            {
+                ModernUITestSupport.Call(eventSystem, "OnDisable");
+                if (priorSystem != null) EventSystem.current = priorSystem;
+            }
+        });
+
+        private static Touch TouchIn(int fingerId, TouchPhase phase, float x, float y) =>
+            new Touch { fingerId = fingerId, phase = phase, position = new Vector2(x, y) };
+
+        private static bool[] Tracking(Rig rig, int fingerId) =>
+            rig.Zones.Select(zone => zone.IsTrackingTouch(TouchAt(fingerId, 0f, 0f))).ToArray();
+
+        // Update 0x68D430 gives a new touch to the zone with the lowest score among those that can take it and
+        // contain it (0x68DEC9..0x68DEED: a zone is taken when none was found or the best is above its score), and
+        // before the first update has completed (0x68DD0C..0x68DD1E) a Moved touch starts tracking too. Touches a
+        // zone already follows go to UpdateTouch, or to StopTrackingTouch for Ended (3) and Canceled (4)
+        // (0x68D970, 0x68DBDA). The search stops at the first zone scoring 0 or less (ucomiss, jae), so the later
+        // zone scoring -1 loses to the earlier one scoring 0.
+        [Test]
+        public void TouchesGoToTheLowestScoringZoneAndFollowTheirPhaseAfterTheFirstUpdate()
+        {
+            WithTouches((rig, touches) =>
+            {
+                OnScreenTouchZoneProbe first = rig.Zones[0], second = rig.Zones[1];
+                first.ScoreOverride = 5f;
+                second.ScoreOverride = 2f;
+                touches.Add(TouchIn(1, TouchPhase.Moved, 10f, 10f));
+                Call(rig, "Update");
+                Assert.That(Tracking(rig, 1), Is.EqualTo(new[] { false, true }), "the lower score takes the Moved touch of the first update");
+                Assert.That(second.Processed, Is.EqualTo(new[] { (new Vector2(10f, 10f), Zero, 0f, 0f) }));
+                Assert.That(first.Order, Is.Empty);
+                Assert.That(ModernUITestSupport.Get(rig.Handler, "m_firstUpdateComplete"), Is.EqualTo(true));
+
+                touches.Clear();
+                touches.Add(TouchIn(1, TouchPhase.Moved, 20f, 30f));
+                touches.Add(TouchIn(2, TouchPhase.Moved, 5f, 5f));
+                Call(rig, "Update");
+                Assert.That(second.Processed[1], Is.EqualTo((new Vector2(20f, 30f), new Vector2(10f, 20f), 0f, 0f)), "a followed touch is updated");
+                Assert.That(Tracking(rig, 2), Is.EqualTo(new[] { false, false }), "a Moved touch is no longer a new touch");
+
+                first.ScoreOverride = 0f;
+                second.ScoreOverride = -1f;
+                touches.Clear();
+                touches.Add(TouchIn(1, TouchPhase.Ended, 20f, 30f));
+                touches.Add(TouchIn(2, TouchPhase.Began, 5f, 5f));
+                second.Order.Clear();
+                Call(rig, "Update");
+                Assert.That(Tracking(rig, 1), Is.EqualTo(new[] { false, false }), "an Ended touch is dropped");
+                Assert.That(second.Processed.Count, Is.EqualTo(2), "and not updated");
+                Assert.That(second.Order, Is.EqualTo(new[] { "release", "held" }));
+                Assert.That(Tracking(rig, 2), Is.EqualTo(new[] { true, false }), "the search stops at the first zone scoring 0");
+
+                touches.Clear();
+                touches.Add(TouchIn(2, TouchPhase.Canceled, 5f, 5f));
+                int processed = first.Processed.Count;
+                Call(rig, "Update");
+                Assert.That(Tracking(rig, 2), Is.EqualTo(new[] { false, false }), "a Canceled touch is dropped");
+                Assert.That(first.Processed.Count, Is.EqualTo(processed), "and not updated");
+                Assert.That(first.Order.Skip(first.Order.Count - 2).ToArray(), Is.EqualTo(new[] { "release", "held" }));
+            });
+        }
+
+        // The first valid zone is taken even when its score is NaN: nothing is above or below it, and it does not
+        // stop the search, so the later zone with a real score does not replace it (a version comparing with
+        // "below the best" from the largest float would pick the later zone).
+        [Test]
+        public void AZoneWithANotANumberScoreIsKeptOverALaterZone()
+        {
+            WithTouches((rig, touches) =>
+            {
+                rig.Zones[0].ScoreOverride = float.NaN;
+                rig.Zones[1].ScoreOverride = 3f;
+                touches.Add(TouchIn(1, TouchPhase.Began, 10f, 10f));
+                Call(rig, "Update");
+                Assert.That(Tracking(rig, 1), Is.EqualTo(new[] { true, false }));
             });
         }
 

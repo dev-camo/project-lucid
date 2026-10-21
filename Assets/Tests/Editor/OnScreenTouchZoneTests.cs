@@ -283,6 +283,46 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // A zone that is not single-touch takes the bounds path even for one touch (0x68EE39/0x68EE58: fewer than two
+        // touches leave the pinch distance at 0): the first supply after the change has no movement, unlike the
+        // single-touch path (0x692B70), which measures from the zero previous position. No pinch is supplied.
+        [Test]
+        public void OneTouchOnAMultiTouchZoneSuppliesNoMovementAtFirstAndNoPinch()
+        {
+            WithZone((scope, zone) =>
+            {
+                zone.StartTrackingTouch(TouchAt(1, 100f, 100f));
+                zone.SupplyTouchData();
+                Assert.That(zone.Processed[0], Is.EqualTo((new Vector2(100f, 100f), Zero, 0f, 0f)));
+
+                zone.UpdateTouch(TouchAt(1, 110f, 120f));
+                zone.SupplyTouchData();
+                Assert.That(zone.Processed[1], Is.EqualTo((new Vector2(110f, 120f), new Vector2(10f, 20f), 0f, 0f)));
+                Assert.That(zone.Order, Is.EqualTo(new[] { "process", "input", "held", "process", "input", "held" }), "no pinch row");
+            });
+        }
+
+        // SupplySingleTouch 0x692B70 passes the stored initial pinch distance (+0x80, 0x692C18) to ProcessTouch and
+        // measures from the stored previous position; ClearAllTouches resets neither. A pinch of two touches stores
+        // distance 100 and centre (130, 140); the same zone restricted to a single touch then moves from that centre.
+        [Test]
+        public void ASingleTouchKeepsTheInitialPinchDistanceAndPreviousPositionOfEarlierTouches()
+        {
+            WithZone((scope, zone) =>
+            {
+                zone.StartTrackingTouch(TouchAt(1, 100f, 100f));
+                zone.StartTrackingTouch(TouchAt(2, 160f, 180f));
+                zone.SupplyTouchData();
+
+                zone.ClearAllTouches();
+                SingleTouch(zone);
+                zone.StartTrackingTouch(TouchAt(3, 10f, 10f));
+                zone.SupplyTouchData();
+                Assert.That(zone.Processed[1], Is.EqualTo((new Vector2(10f, 10f), new Vector2(-120f, -130f), 0f, 100f)));
+                Assert.That(zone.Pinching, Is.False);
+            });
+        }
+
         // With several touches the zone works from the bounding box of all of them (0x68EBA8..0x68ED90): its centre
         // is the position, its diagonal the pinch distance, clamped to at least the minimum (50, constructor 0x6910E0
         // stores 0x42480000). The first supply after a change has no movement and takes the distance as the

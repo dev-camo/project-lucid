@@ -23,8 +23,8 @@ namespace ProjectLucid.Tests
     // the cases call them, and take the button off the owned ControlMapping again after Awake: the inputs it
     // supplies are recorded here and never reach the shared ControlMapping tables. The held-button cases use an
     // active owner and a CoroutineUtils host that starts real coroutines. Not covered: the frame-by-frame timing of
-    // the held coroutine, which needs a running player loop; the case steps a fresh iterator instead, which takes
-    // the same path as a resumed one (both states 0 and 1 run the loop of 0x68C770).
+    // the held coroutine, which needs a running player loop; the cases step the iterator by hand instead (a fresh
+    // one takes the same path as a resumed one: both states 0 and 1 run the loop of 0x68C770).
     public sealed class OnScreenUiButtonTests
     {
         private static readonly GameInput InputA = (GameInput)(int.MinValue + 0x4E21);
@@ -107,7 +107,7 @@ namespace ProjectLucid.Tests
         // Awake 0x68BB60 registers the button as a provider with the input mapping, listens for the last input type, and
         // hooks the UIButton events its trigger needs: Held (0) down to begin the hold, up to end it and exit; Up (2)
         // up; Down (1) down; any other trigger throws ArgumentOutOfRangeException. OnDestroy 0x68BE70 withdraws the
-        // registration and the type listener. The press and release below happen on an inactive owner, so a hold
+        // registration, the type listener and the down and up listeners only. The press and release below happen on an inactive owner, so a hold
         // ends at once (0x68C1F1 tests activeInHierarchy).
         [Test]
         public void AwakeHooksTheEventsOfTheTriggerAndDestroyingWithdrawsTheRegistration()
@@ -145,6 +145,14 @@ namespace ProjectLucid.Tests
                     }
                     Assert.That(Providers(rig.Mapping), Is.Empty);
                     Assert.That(LastInputTypeSubscriptions(rig.Button), Is.EqualTo(0));
+
+                    // 0x68BF98 and 0x68BFE0 withdraw only the OnButtonDown and OnButtonUp listeners, so the hold
+                    // listeners the Held trigger added stay on the UIButton: its press still begins (and, on this
+                    // inactive owner, ends) a hold, while the Down and Up triggers have nothing left to hear.
+                    rig.Log.Calls.Clear();
+                    rig.Ui.OnButtonDown.Invoke();
+                    rig.Ui.OnButtonUp.Invoke();
+                    Assert.That(rig.Log.Calls, Is.EqualTo(trigger == InputTrigger.Held ? new[] { Row("down", InputA), Row("up", InputA) } : new string[0]), trigger + " after destroy");
                 });
             }
 
@@ -292,6 +300,32 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Log.Calls[rig.Log.Calls.Count - 1], Is.EqualTo(Row("up", InputA)));
                 Assert.That(next.MoveNext(), Is.False);
                 Assert.That(calls, Is.EqualTo(1), "the callback runs once");
+            });
+        }
+
+        // MoveNext 0x68C740 while the hold lasts (0x68C76B..0x68C7EE, 0x68C80A): every input is held with value 1 (0x29A6BE0)
+        // as a touch, in array order, and the iterator yields. Deactivating the owner ends the loop on the next pass,
+        // which clears the flag and releases the inputs. A fresh iterator takes the same path as a resumed one.
+        [Test]
+        public void AHeldButtonHoldsItsInputsEachPassUntilItsObjectIsDeactivated()
+        {
+            WithHost(scope =>
+            {
+                Rig rig = NewRig(scope, InputTrigger.Held, InputA, InputB);
+                Activate(scope, rig);
+                rig.Ui.OnButtonDown.Invoke();
+                rig.Log.Calls.Clear();
+
+                var next = (IEnumerator)Call(rig, "SupplyHeldButton");
+                Assert.That(next.MoveNext(), Is.True);
+                Assert.That(rig.Log.Calls, Is.EqualTo(new[] { ButtonCallbackLog.Row("held", 0, InputA, 1f, InputType.Touch), ButtonCallbackLog.Row("held", 0, InputB, 1f, InputType.Touch) }));
+                Assert.That((bool)ModernUITestSupport.Get(rig.Button, "m_buttonHeld"), Is.True);
+
+                rig.Log.Calls.Clear();
+                rig.Owner.SetActive(false);
+                Assert.That(next.MoveNext(), Is.False);
+                Assert.That(rig.Log.Calls, Is.EqualTo(new[] { Row("up", InputA), Row("up", InputB) }));
+                Assert.That((bool)ModernUITestSupport.Get(rig.Button, "m_buttonHeld"), Is.False);
             });
         }
 

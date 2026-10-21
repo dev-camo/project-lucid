@@ -9063,6 +9063,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTouchZoneTests." + name for 
     "TurningMultiTouchOffDropsEveryTouchButTurningItOnKeepsThem",
     "InitialiseAndShutdownClearTheTouchesAndShutdownReportsOnlyForAValidInputType",
     "ASingleTouchSuppliesItsPositionAndMovementThenReleasesOnce",
+    "OneTouchOnAMultiTouchZoneSuppliesNoMovementAtFirstAndNoPinch",
+    "ASingleTouchKeepsTheInitialPinchDistanceAndPreviousPositionOfEarlierTouches",
     "SeveralTouchesSupplyTheCentreOfTheirBoundsAndAPinchDistance",
     "ATightPinchIsRaisedToTheMinimumDistance",
     "ALostTouchHoldsTheLastPositionUntilEveryTouchIsGone",
@@ -9086,6 +9088,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenUiButtonTests." + name for n
     "DisablingAnIdleButtonCallsBackAtOnce",
     "TheGraphicIsShownForTheListedInputTypesOnly",
     "ADisabledHeldButtonCallsBackOnlyWhenItsHoldHasBeenReleased",
+    "AHeldButtonHoldsItsInputsEachPassUntilItsObjectIsDeactivated",
     "ReleasingTheUiButtonEndsTheHoldOnTheNextPass",
     "DestroyingAHeldButtonReleasesItsInputs",
     "HidingTheListenerWaitsForAHeldButtonToBeReleased",
@@ -9095,6 +9098,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlInputHandlerTests." +
     "ZonesAreShutDownAsNotValidWhenTheLastInputTypeIsNotListed",
     "UpdateDoesNothingWithoutAnInputMonitor",
     "UpdateWaitsForATouchSourceThenClearsAndSuppliesTheActiveZones",
+    "TouchesGoToTheLowestScoringZoneAndFollowTheirPhaseAfterTheFirstUpdate",
+    "AZoneWithANotANumberScoreIsKeptOverALaterZone",
     "TheConstructorSeedsTheTouchListAndTheMouseFlag",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenJoystickDebugTests." + name for name in (
