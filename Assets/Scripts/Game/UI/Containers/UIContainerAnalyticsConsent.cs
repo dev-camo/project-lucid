@@ -27,7 +27,7 @@ namespace HardlightProject
             ConsentState.Value = value ? AnalyticsConsentState.Consented : AnalyticsConsentState.Rejected;
         }
 
-        // 0x060030fe (0x619980): an underage player is never asked; an unanswered toggle counts as consent.
+        // 0x060030fe (0x619980): for an underage player, closing records neither consent nor refusal; otherwise an unanswered toggle (None) counts as consent.
         public void Action_Close()
         {
             if (m_analyticsConsentManager.IsPlayerUnderage())

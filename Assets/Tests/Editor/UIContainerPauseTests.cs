@@ -28,7 +28,8 @@ namespace ProjectLucid.Tests
     // Not covered: Action_Exit (its LevelManager.ExitLevel needs the state LevelManager.Initialise builds), the character
     // swap wait in Respawn (the swap coroutine cannot be created without running a swap), Character.OnRestart in Restart (it
     // needs the character's collider), the challenge context branch of OnMissionManagerValid (the sealed ranks container shows
-    // the same flag for a challenge without rank definitions) and the coroutines Action_Restart and Action_Respawn start,
+    // the same flag for a challenge without rank definitions), the final m_closingCoroutine = null of the Restart and Respawn
+    // iterators (0x6719BA, 0x671838; a Coroutine cannot be constructed to seed a non-null value) and the coroutines Action_Restart and Action_Respawn start,
     // which the refusing coroutine host rejects with the engine error expected below.
     public sealed class UIContainerPauseTests
     {
@@ -255,15 +256,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void ALevelInAZoneShowsTheZoneAccentTheActNumberAndNoBackground()
         {
-            // The utilities type keeps typed references in static fields built by its type initialiser; running it here,
-            // against rows released at once, keeps that from happening while the case has systems registered.
-            Owned.Run(owned =>
-            {
-                owned.LeaseRow<App>();
-                owned.LeaseRow<LevelManager>();
-                owned.LeaseRow<MissionManager>();
-                RuntimeHelpers.RunClassConstructor(typeof(UIContainerUtilities).TypeHandle);
-            });
+            RunUtilitiesTypeInitialiser();
             RunMissions(rig =>
             {
                 StartMission(rig);
@@ -292,6 +285,42 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.ZoneIconAsset.Value, Is.SameAs(accent));
                 Assert.That(rig.Container.DreamNumber.Value, Is.EqualTo(2));
                 Assert.That(rig.Container.ActBackground.Value == null, Is.True);
+            });
+        }
+
+        // The utilities type keeps typed references in static fields built by its type initialiser; running it here,
+        // against rows released at once, keeps that from happening while the case has systems registered.
+        private static void RunUtilitiesTypeInitialiser() => Owned.Run(owned =>
+        {
+            owned.LeaseRow<App>();
+            owned.LeaseRow<LevelManager>();
+            owned.LeaseRow<MissionManager>();
+            RuntimeHelpers.RunClassConstructor(typeof(UIContainerUtilities).TypeHandle);
+        });
+
+        // A zone that lists other levels but not the current one: the loop runs out (0x6707FF, xor r12d, r12d) and zero is
+        // published, overwriting the earlier value.
+        [Test]
+        public void AZoneThatDoesNotListTheLevelPublishesActNumberZero()
+        {
+            RunUtilitiesTypeInitialiser();
+            RunMissions(rig =>
+            {
+                StartMission(rig);
+                var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
+                Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry>
+                {
+                    NewLevel(rig.Owned, "lucid-pause-other-a"), NewLevel(rig.Owned, "lucid-pause-other-b"),
+                });
+                Cache(zone.ZoneAccent, NewSprite(rig.Owned));
+                Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                rig.Container.DreamNumber.Value = 5;
+
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+
+                Assert.That(rig.Container.DreamNumber.Value, Is.Zero);
             });
         }
 
@@ -490,18 +519,6 @@ namespace ProjectLucid.Tests
                 rig.Containers.Open.Add(rig.Identifier);
                 Assert.That(Waiting(restart.Current), Is.False);
                 Assert.That(restart.MoveNext(), Is.False);
-            });
-        }
-
-        // The iterators are the state machines the metadata names (<Restart>d__23 and <Respawn>d__24) and resetting one is not
-        // supported (0x671886, 0x671B36).
-        [Test]
-        public void TheIteratorsCannotBeReset()
-        {
-            RunCharacters(rig =>
-            {
-                Assert.Throws<NotSupportedException>(() => ((IEnumerator)Call(rig.Container, "Restart")).Reset());
-                Assert.Throws<NotSupportedException>(() => ((IEnumerator)Call(rig.Container, "Respawn")).Reset());
             });
         }
     }

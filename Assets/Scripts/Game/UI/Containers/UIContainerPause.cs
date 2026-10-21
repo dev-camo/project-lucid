@@ -92,15 +92,15 @@ namespace HardlightProject
             ZoneIconAsset.Value = m_zoneAccent.Load();
 
             // The act number is the level's one-based position in its zone, or zero when the zone does not list it.
+            string levelGuid = levelDefinition.GetGUID();
             int dreamNumber = 0;
-            List<GameplayLevelUIEntry> entries = zone.GameplayEntries;
-            for (int i = 0; i < entries.Count; i++)
+            for (int i = 0; i < zone.GameplayEntries.Count; i++)
             {
-                if (entries[i].GetGUID() == levelDefinition.GetGUID())
-                {
-                    dreamNumber = i + 1;
-                    break;
-                }
+                if (zone.GameplayEntries[i].GetGUID() != levelGuid)
+                    continue;
+
+                dreamNumber = i + 1;
+                break;
             }
 
             DreamNumber.Value = dreamNumber;
@@ -125,7 +125,7 @@ namespace HardlightProject
             m_closingCoroutine = CoroutineUtils.RunCoroutine(Respawn());
         }
 
-        // 0x06003404 (0x670A90): the closing coroutine stays set because the level is left.
+        // 0x06003404 (0x670A90): the closing coroutine is never cleared here; ExitLevel leaves the level.
         public void Action_Exit()
         {
             if (m_closingCoroutine != null)
@@ -161,11 +161,11 @@ namespace HardlightProject
                 yield return new WaitUntil(() => !characterManager.IsCharacterSwapInProgress());
 
             Character character = characterManager.GetCurrentCharacterUnsafe();
-            if (character != null)
-            {
-                character.Storage.SetValue<bool>(ActorFSMKeys.IsOutOfBounds, true);
-                m_closingCoroutine = null;
-            }
+            if (character == null)
+                yield break;
+
+            character.Storage.SetValue<bool>(ActorFSMKeys.IsOutOfBounds, true);
+            m_closingCoroutine = null;
         }
 
         // 0x06003407 (0x670D20)

@@ -66,7 +66,8 @@ namespace ProjectLucid.Tests
                 credits.Parent.position = new Vector3(0f, 3f, 0f);
                 IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start");
 
-                // Time.deltaTime is the editor's own and may be zero in a frame; the case holds for any value.
+                // Time.deltaTime is the editor's own and may be zero in a frame; the case holds for any value, but a zero frame
+                // cannot tell a missing Translate or a wrong speed factor apart (a precondition on it would depend on ambient editor state).
                 float frameTime = Time.deltaTime;
                 Assert.That(scroll.MoveNext(), Is.True);
 

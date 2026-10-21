@@ -8,7 +8,7 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x020008b5; bodies translated from the 1.10.1 x86-64 binary.
-    // The tvOS support page, which shows the support address and the device report because the platform cannot open a mail client.
+    // The support page shown on tvOS (from its TVOS string labels): it displays the support address, the subject and the device report.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class UIContainerEmailSupport : UIContainer

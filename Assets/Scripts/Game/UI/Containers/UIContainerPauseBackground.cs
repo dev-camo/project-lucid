@@ -7,7 +7,7 @@ using UnityEngine.UI;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x02000902; bodies translated from the 1.10.1 x86-64 binary.
-    // The blurred-looking backdrop of the pause menu: a one-off render of the gameplay camera into a texture.
+    // The pause menu backdrop: a one-off render of the gameplay camera into a texture.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     [Il2CppSetOption(Option.NullChecks, false)]
     public class UIContainerPauseBackground : UIContainer
@@ -52,7 +52,7 @@ namespace HardlightProject
             }
         }
 
-        // 0x06003422 (0x671C80): initialises at once when the main camera is ready, and again for every later one.
+        // 0x06003422 (0x671C80): initialises at once when the main camera is ready, and subscribes so that the next main-camera-ready event initialises it once more (InitialiseFromCamera unsubscribes itself).
         private void Initialise(CinemachineCameraManager cinemachineCameraManager)
         {
             m_cinemachineCameraManager = cinemachineCameraManager;
@@ -77,8 +77,8 @@ namespace HardlightProject
             RenderBackgroundImage();
         }
 
-        // 0x06003424 (0x671DC0): the camera renders everything it culls normally into the texture, then culls nothing
-        // until OnDisable gives the mask back.
+        // 0x06003424 (0x671DC0): the camera renders its normal layers into the texture, then renders no layers
+        // (culling mask 0) until OnDisable restores the cached mask.
         private void RenderBackgroundImage()
         {
             if (!m_cinemachineCameraManager.MainCameraIsReady)

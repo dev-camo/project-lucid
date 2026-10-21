@@ -5,7 +5,7 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x02000943; bodies translated from the 1.10.1 x86-64 binary.
-    // The sound levels page: edits go to the live mixer while the page is open and reach the save data only on exit.
+    // The sound levels page: volume edits go to the live mixer and reach the settings only through the copy stored for the save event on exit; reset-to-defaults changes the live settings directly.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public sealed class UIContainerSoundLevels : UIContainer

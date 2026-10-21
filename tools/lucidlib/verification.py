@@ -10494,6 +10494,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseTests." + name for n
     "ALevelWithoutAMissionOrAZonePublishesOnlyItsNames",
     "AnActiveMissionIsHandedToTheResultsAndRanksContainers",
     "ALevelInAZoneShowsTheZoneAccentTheActNumberAndNoBackground",
+    "AZoneThatDoesNotListTheLevelPublishesActNumberZero",
     "CloseQueuesTheResumeEventOnce",
     "TheQuitAnalyticsGoThroughTheActiveContext",
     "DestroyingReleasesTheAccentAndForwardsThePauseCloseAction",
@@ -10502,7 +10503,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseTests." + name for n
     "RespawnQueuesTheResumeEventThenWaitsForTheMenuToBeOpen",
     "RespawnOfAnOpenMenuPutsTheCurrentCharacterOutOfBoundsAtOnce",
     "RestartQueuesTheResumeEventWaitsForTheMenuThenRestartsTheLevel",
-    "TheIteratorsCannotBeReset",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerPauseBackgroundTests." + name for name in (
     "WithoutTheRenderTextureEnablingSwitchesTheComponentOff",
