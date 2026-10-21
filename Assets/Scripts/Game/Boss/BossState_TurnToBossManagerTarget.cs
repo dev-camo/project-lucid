@@ -30,8 +30,9 @@ namespace HardlightProject
             if (ability == null)
                 return;
             IAbilityBossMovement movement = ability as IAbilityBossMovement;
-            Vector3 toTarget = boss.WorldPosition - ProcessManager.GetSystem<FourmenManager>().GetAveragePosition();
-            float angle = Vector3.SignedAngle(boss.ForwardDirection, toTarget, boss.UpDirection);
+            FourmenManager fourmen = ProcessManager.GetSystem<FourmenManager>();
+            Vector3 fromAverage = boss.WorldPosition - fourmen.GetAveragePosition();
+            float angle = Vector3.SignedAngle(boss.ForwardDirection, fromAverage, boss.UpDirection);
             float absoluteAngle = Mathf.Abs(angle);
             float tolerance = movement.FaceAngleTolerance;
             float direction = 0f;

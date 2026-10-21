@@ -7,7 +7,7 @@ namespace HardlightProject
     // Original Game.Runtime 02000223; bodies translated from the 1.10.1 x86-64 binary.
     // While the laser fence ability is enabled, the Fourmen's lasers are switched on at entry, aimed every update (at the
     // ability's fixed target when it has static targets, otherwise between this boss and the next one) and switched off on
-    // leaving. With two bosses or fewer only the boss at index zero fires, so the pair shares one fence.
+    // leaving. With two bosses or fewer, only the boss at index zero enables, aims and fires its lasers.
     [Il2CppSetOption(Option.NullChecks, false)]
     [GraphNodeMenuFormat("Boss/Fourmen/{0}")]
     [GraphNodeDefaultName("ShootLasers")]

@@ -19,8 +19,8 @@ namespace ProjectLucid.Tests
     // The boss graph states that move or turn a Boss in Game.Runtime: BossState_ForcedRotation (02000209, 0x706C10), MoveToTarget
     // (0200020d, 0x707210), RetreatingJump (02000210, 0x7080F0), Scuttle (02000211, 0x7086A0), ShootLasers (02000223, 0x70A800) and the
     // four turning states TurnAwayFromTarget (0200022b, 0x70B8A0), TurnToBossManagerTarget (0200022c, 0x70BE30), TurnToCharacter
-    // (0200022d, 0x70C570) and TurnToTarget (0200022e, 0x70CAF0). Each state is built from its JSON through the node factory and driven through its own
-    // DoOnEnter/DoUpdate/DoOnLeave bodies against a real Boss on an owned inactive host, which gets the animation storage and the
+    // (0200022d, 0x70C570) and TurnToTarget (0200022e, 0x70CAF0). Each state is built from its JSON through the node factory and
+    // driven through its own DoOnEnter/DoUpdate/DoOnLeave bodies against a real Boss on an owned inactive host, which gets the animation storage and the
     // time-manager reference a started Actor would have created. Where a state casts its ability to a type, the case supplies a real
     // ability (SpinOnSpot, RetreatingJump, Scuttle, LaserFence) driven through its own update; the turning states only read the
     // IAbilityBossMovement members, so they get a scripted implementation of that interface.
@@ -305,8 +305,8 @@ namespace ProjectLucid.Tests
             return movement;
         }
 
-        // BossState_MoveToTarget (DoUpdate 0x707340): nothing happens while the ability is disabled, nor while the target is within 1E-10 (squared) of the
-        // boss's world position.
+        // BossState_MoveToTarget (DoUpdate 0x707340): nothing happens while the ability is disabled, nor while the target equals the boss's
+        // world position under Vector3 equality (squared distance below 9.99999944E-11f, the float at 0x29A6E8C).
         [Test]
         public void MoveToTargetDoesNothingWhileDisabledOrAlreadyAtTheTarget()
         {
@@ -619,7 +619,7 @@ namespace ProjectLucid.Tests
         }
 
         // 0x70A940..0x70AAA1: the lasers are switched on for the fence's attach point, unless the ability is disabled or the Fourmen
-        // have two bosses or fewer and this is not the first (a pair shares one fence). Leaving switches them off (0x70AFBA) with no
+        // have two bosses or fewer and this is not the first. Leaving switches them off (0x70AFBA) with no
         // such condition.
         [Test]
         public void ShootLasersSwitchesTheEmitterOnAndOffExceptForTheSecondBossOfAPair()

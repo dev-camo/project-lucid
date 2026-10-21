@@ -9,11 +9,12 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
 {
-    // The declarations of the boss abilities and boss FSM states (Game.Runtime 020001db..020001f2 and 020001fa..0200022e, without the abstract SetValue base, with the
-    // arguments classes and the projectile base's closure class). Every row is the original DummyDll ECMA-335 table of the type:
+    // The declarations of the boss abilities and boss FSM states (Game.Runtime 020001db..020001f2 and 020001fa..0200022e, without the abstract SetValue
+    // base, with the arguments classes and the projectile base's closure class). Every row is the original DummyDll ECMA-335
+    // table of the type:
     // type flags, base type, directly declared interfaces, type attributes in metadata order, then fields and methods in
-    // metadata order with their flags, and the attributes of the few members that carry any (the compiler may add its own to those). Compiler-generated names (the
-    // projectile base's instance callback b__39_0 and its closure DisplayClass46_0) are part of the rows.
+    // metadata order with their flags, and the attributes of the few members that carry any (the compiler may add its own to those).
+    // Compiler-generated names (the projectile base's instance callback b__39_0 and its closure DisplayClass46_0) are part of the rows.
     public sealed class BossAbilityDeclarationTests
     {
         private sealed class Row

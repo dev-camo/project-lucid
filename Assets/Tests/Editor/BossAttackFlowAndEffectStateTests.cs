@@ -20,8 +20,8 @@ namespace ProjectLucid.Tests
     // 0x706FB0), RestoreAllHealth (0200020f, 0x708000), SetAttackOverride (02000216, 0x709960), SetProjectileCount (0200021a, 0x709E70),
     // TriggerEffectOnEntry (02000227, 0x70B440) and TriggerEffectOnLeave (02000229, 0x70B670), the four SetValue states SetBossScale
     // (02000218, 0x709BE0), SetProjectileSpawnPoint (0200021c, 0x70A050), SetWorldY (02000221, 0x70A590) and SnapBodyToRotation
-    // (02000224, 0x70B0A0), and SwitchActiveProjectileReturnCollider (02000226, 0x70B2D0). Each state is built from its JSON through the node factory and driven through its own
-    // DoOnEnter/DoOnLeave bodies against a real Boss on an owned inactive host, which gets the animation storage and the
+    // (02000224, 0x70B0A0), and SwitchActiveProjectileReturnCollider (02000226, 0x70B2D0). Each state is built from its JSON through the node factory and
+    // driven through its own DoOnEnter/DoOnLeave bodies against a real Boss on an owned inactive host, which gets the animation storage and the
     // time-manager reference a started Actor would have created.
     // The IOffensiveAbility states are driven against a recording implementation of that interface, whose slot order (0x138 + 16 *
     // slot in the native vtable reads) decides which member each state calls.

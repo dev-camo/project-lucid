@@ -25,7 +25,7 @@ namespace HardlightProject
             return new BossState_MoveToTarget(fsm, transitionId, JsonUtility.FromJson<AbilityJSONCtorArgs>(jsonCtorArgs));
         }
 
-        // Nothing happens while the target is (practically) where the boss already is.
+        // Nothing happens while the target equals (Vector3 equality) the boss's position.
         protected override void DoUpdate(IGraphUser user, FSMUpdateContext context)
         {
             base.DoUpdate(user, context);
@@ -35,7 +35,7 @@ namespace HardlightProject
                 return;
             IAbilityBossMovement movement = ability as IAbilityBossMovement;
             Vector3 destination = movement.CurrentTargetPosition;
-            if ((movement.CurrentTargetPosition - boss.WorldPosition).sqrMagnitude < 1E-10f)
+            if (movement.CurrentTargetPosition == boss.WorldPosition)
                 return;
             Vector3 direction = boss.transform.InverseTransformPoint(destination).normalized;
             if (boss.GetTraits().UsesSmoothedTransformRotator)
@@ -45,7 +45,7 @@ namespace HardlightProject
 
         // A momentum move sets the horizontal velocity from the vector itself. Otherwise the boss is moved onto the destination
         // and the animator speed is the squared speed implied by the step from the previous position (the destination itself
-        // when none has been stored yet). The ground raycast result is not used.
+        // when the stored previous position is approximately zero, including when none was stored). The ground raycast result is not used.
         private void HandleMovement(Boss boss, Vector3 destination, bool isMomentum, float deltaTime)
         {
             float speed;
@@ -58,7 +58,7 @@ namespace HardlightProject
             else
             {
                 GetHeightFromRaycast(boss, boss.WorldPosition);
-                Vector3 previous = boss.Storage.GetValue(BossFSMKeys.CurrentPosition, Vector3.zero, true);
+                Vector3 previous = boss.Storage.GetValue<Vector3>(BossFSMKeys.CurrentPosition);
                 if (previous == Vector3.zero)
                     previous = destination;
                 speed = ((previous - destination) / deltaTime).sqrMagnitude;
@@ -83,7 +83,7 @@ namespace HardlightProject
         private float GetHeightFromRaycast(Boss boss, Vector3 worldPosition)
         {
             if (Physics.Raycast(new Ray(worldPosition, -boss.UpDirection), out RaycastHit hit,
-                (float)(worldPosition.y + RaycastStartHeightBoost) * RaycastDistanceMultiplier, boss.GetTraits().TrackMask))
+                (worldPosition.y + RaycastStartHeightBoost) * RaycastDistanceMultiplier, boss.GetTraits().TrackMask))
                 return hit.point.y;
             return worldPosition.y;
         }
