@@ -30,6 +30,8 @@ namespace ProjectLucid.Tests
     {
         private const string NullAndBounds = "Il2CppSetOptionAttribute(1,False) Il2CppSetOptionAttribute(2,False)";
         private const string BoundsAndNull = "Il2CppSetOptionAttribute(2,False) Il2CppSetOptionAttribute(1,False)";
+        private static readonly Regex ActorDefinitionSettingsFault =
+            new Regex("^NullReferenceException: Object reference not set to an instance of an object$");
 
         // The system a row currently holds, read through its untyped reference without registering anything.
         private static ISystem RegisteredSystem<T>() where T : class, ISystem =>
@@ -81,7 +83,8 @@ namespace ProjectLucid.Tests
             Type type = typeof(BossHomingTarget);
             Assert.That((int)type.Attributes, Is.EqualTo(0x00100001));
             Assert.That(type.BaseType, Is.EqualTo(typeof(HomingTarget)));
-            Assert.That(AttributeRow(type), Is.EqualTo("RequireComponentAttribute(Collider) " + BoundsAndNull));
+            // The DummyDll attribute row names UnityEngine.RequireComponent, which has no Attribute suffix.
+            Assert.That(AttributeRow(type), Is.EqualTo("RequireComponent(Collider) " + BoundsAndNull));
             Assert.That(Fields(type), Is.EqualTo(new[]
             {
                 "m_useAnimatedTargetIndicator:Boolean:0001", "m_animatedTargetIndicator:AnimatedTargetIndicator:0001",
@@ -271,6 +274,9 @@ namespace ProjectLucid.Tests
         // Awake 0x6E22F0 runs the HomingTarget Awake first (it caches the collider and raises the authored
         // awake event) and only then, with the indicator switched on, instantiates it and resolves the
         // CharacterManager; with it switched off it returns, so nothing is created and no manager is read.
+        // AddComponent has already sent the Editor OnValidate, and HomingTarget.OnValidate (0x6E7060) runs
+        // CacheComponents whenever CanValidate (0x6B1910, always true) allows it; the case clears that cache,
+        // as a player build that never validates would have it, so Awake's own caching is what is seen.
         [Test]
         public void BossHomingTargetAwakeWithoutAnIndicatorOnlyRunsTheHomingTargetAwake()
         {
@@ -281,6 +287,8 @@ namespace ProjectLucid.Tests
                     BossHomingTarget target = NewHomingTarget(owned, time);
                     int[] awakened = CountAwakeEvent(target);
                     Set(target, "m_useAnimatedTargetIndicator", false);
+                    Assert.That(target.Collider, Is.SameAs(target.GetComponent<BoxCollider>()), "the Editor OnValidate cached the collider");
+                    Set(target, "m_collider", null);
                     Assert.That(target.Collider == null, Is.True, "the collider is cached by Awake");
 
                     Call(target, "Awake");
@@ -694,6 +702,13 @@ namespace ProjectLucid.Tests
             return pool;
         }
 
+        private static PrefabPoolType NewPoolType(Owned owned, string guid)
+        {
+            PrefabPoolType type = owned.Track(ScriptableObject.CreateInstance<PrefabPoolType>());
+            Set(type, "m_guid", guid);
+            return type;
+        }
+
         // DespawnAttackWaves 0x700910 reads the PrefabPoolManager with TryGet, looks up the pool of the authored
         // wave type and, only when that is a BossTimedObjectPool (class test at 0x7009c7), raises its force flag;
         // OnDestroy 0x700A00 tail-calls it.
@@ -703,9 +718,11 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var manager = owned.Register(owned.Host("Lucid prefab pool manager", false).AddComponent<PrefabPoolManager>());
-                PrefabPoolType wave = owned.Track(ScriptableObject.CreateInstance<PrefabPoolType>());
-                PrefabPoolType other = owned.Track(ScriptableObject.CreateInstance<PrefabPoolType>());
-                PrefabPoolType unregistered = owned.Track(ScriptableObject.CreateInstance<PrefabPoolType>());
+                // PrefabPoolType is a ScriptableObjectWithGuid, whose Equals and GetHashCode (0x06000e5f, 0x06000e60)
+                // compare m_guid; the pool dictionary keys on them, so each type needs its own GUID.
+                PrefabPoolType wave = NewPoolType(owned, "lucid-boss-crab-wave");
+                PrefabPoolType other = NewPoolType(owned, "lucid-boss-crab-other");
+                PrefabPoolType unregistered = NewPoolType(owned, "lucid-boss-crab-unregistered");
                 BossTimedObjectPool wavePool = NewTimedPool(owned, wave);
                 BossTimedObjectPool otherPool = NewTimedPool(owned, other);
                 manager.RegisterPool(wavePool);
@@ -789,8 +806,15 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 BossManager manager = owned.Register(NewBossManager(owned));
+                // GetBossByDefinition compares definitions with the ScriptableObjectWithGuid operator (0x06000e61),
+                // which matches equal m_guid values, so the two definitions need distinct GUIDs. CreateInstance sends
+                // Awake and OnEnable, and both reach ActorDefinition.UpdateCachedValues (0x7A8060), which calls
+                // Settings.UpdateCachedValues on the unassigned Settings (+0x28) with no null test: two faults each.
+                for (int i = 0; i < 4; i++) LogAssert.Expect(LogType.Exception, ActorDefinitionSettingsFault);
                 var ours = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+                Set(ours, "m_guid", "lucid-boss-proxy-ours");
                 var theirs = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+                Set(theirs, "m_guid", "lucid-boss-proxy-theirs");
                 Boss bossOurs = NewProxyBoss(owned, ours, out GameObject proxyOurs);
                 Boss bossTheirs = NewProxyBoss(owned, theirs, out GameObject proxyTheirs);
                 manager.Bosses.Add(bossTheirs);
