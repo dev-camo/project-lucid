@@ -1,0 +1,501 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using HardlightProject;
+using NUnit.Framework;
+using ProjectLucid.Tests.WorldSurfaceShared;
+using UnityEngine;
+using static ProjectLucid.Tests.Enemies03TestSupport;
+using static ProjectLucid.Tests.WorldTriggerTestSupport;
+using Random = UnityEngine.Random;
+
+namespace ProjectLucid.Tests
+{
+    // The four enemy navigations: forward, home radius, static and return after chase, and spline. Expected values come
+    // from the 1.10.1 x86-64 bodies cited per test. Each navigation is a real component on an owned inactive host; Unity
+    // runs SetUp from Awake, which Edit Mode never reaches, so the probes call the shipped SetUp directly. The spline
+    // navigation is only checked without a spline: its initialised paths need a built spline and the tracker's collision
+    // resolver, which no fixture here provides.
+    public sealed class EnemyNavigationTests
+    {
+        private const float Tolerance = 1e-4f;
+
+        private static readonly Type ConstrainType = typeof(EnemyNavigation).GetNestedType("ConstrainType", BindingFlags.NonPublic);
+
+        private static T NewNavigation<T>(Owned owned, Vector3 position, Quaternion? rotation = null) where T : Component
+        {
+            GameObject host = owned.Host(Name(), false);
+            host.transform.SetPositionAndRotation(position, rotation ?? Quaternion.identity);
+            return host.AddComponent<T>();
+        }
+
+        private static void Constrain(EnemyNavigation navigation, bool enabled, int type, float distance = 0f, Collider collider = null)
+        {
+            Set(navigation, "m_constrain", enabled);
+            Set(navigation, "m_constrainType", Enum.ToObject(ConstrainType, type));
+            Set(navigation, "m_constrainDistance", distance);
+            Set(navigation, "m_constrainCollider", collider);
+        }
+
+        private static void AssertNear(Vector3 actual, Vector3 expected, string why) =>
+            Assert.That((actual - expected).magnitude, Is.LessThan(Tolerance), why + ": expected " + expected + " but was " + actual);
+
+        // ---- forward ----
+
+        // 0x5783D0 stores 10 (0x41200000) in the look-ahead distance and 1 in the constrain type (the base's Distance);
+        // 0x5782B0 marks the navigation initialised, which nothing else does.
+        [Test]
+        public void ForwardStartsWithTenUnitsAheadAndInitialisesOnSetUp()
+        {
+            Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<Enemies03ForwardNavigationProbe>(owned, Vector3.zero);
+                Assert.That(Get<float>(navigation, "m_lookAheadDistance"), Is.EqualTo(10f));
+                Assert.That(Convert.ToInt32(Get<object>(navigation, "m_constrainType")), Is.EqualTo(1));
+                Assert.That(navigation.IsInitialised, Is.False);
+                navigation.RunSetUp();
+                Assert.That(navigation.IsInitialised, Is.True);
+            });
+        }
+
+        // 0x5782E0: the transform position plus its forward scaled by the look-ahead distance (get_position first, then
+        // get_forward, mulss/mulps by [rbx + 0x3C], addps/addss). A host turned a quarter about Y looks along +X.
+        [Test]
+        public void ForwardDestinationIsAHeadOfTheTransformAlongItsForward()
+        {
+            Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<Enemies03ForwardNavigationProbe>(owned, new Vector3(1f, 2f, 3f), Quaternion.Euler(0f, 90f, 0f));
+                Set(navigation, "m_lookAheadDistance", 4f);
+                AssertNear(navigation.GetDestination(), new Vector3(5f, 2f, 3f), "four ahead");
+                Set(navigation, "m_lookAheadDistance", 0f);
+                AssertNear(navigation.GetDestination(), new Vector3(1f, 2f, 3f), "nothing ahead");
+                Set(navigation, "m_lookAheadDistance", -2f);
+                AssertNear(navigation.GetDestination(), new Vector3(-1f, 2f, 3f), "a negative distance looks behind");
+            });
+        }
+
+        // 0x578340 returns its argument and 0x578350 always answers true, even for a navigation that is constrained to
+        // nothing; starting and interrupting (0x5782C0, 0x5782D0) are bare returns.
+        [Test]
+        public void ForwardNeverConstrainsAndHasNothingToStartOrInterrupt()
+        {
+            Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<Enemies03ForwardNavigationProbe>(owned, Vector3.zero);
+                Constrain(navigation, true, 1, 0f);
+                var far = new Vector3(100f, -50f, 7f);
+                Assert.That(navigation.CanReachPosition(far), Is.True);
+                Assert.That(navigation.ConstrainPosition(far), Is.EqualTo(far));
+                Assert.That(() => { navigation.StartNavigation(); navigation.InterruptNavigation(); }, Throws.Nothing);
+                Assert.That(navigation.IsInitialised, Is.False, "starting does not initialise");
+            });
+        }
+
+        // ---- home radius and static ----
+
+        // 0x578A70 stores 10 and 5 (0x41200000, 0x40A00000) in the radius and minimum distance and 1 in the constrain type.
+        [Test]
+        public void HomeRadiusStartsWithTenAndFive()
+        {
+            Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                Assert.That(Get<float>(navigation, "m_homeRadius"), Is.EqualTo(10f));
+                Assert.That(navigation.m_minNewDestinationDistance, Is.EqualTo(5f));
+                Assert.That(Convert.ToInt32(Get<object>(navigation, "m_constrainType")), Is.EqualTo(1));
+            });
+        }
+
+        // 0x5783F0 takes the home from the transform, squares the radius and the minimum distance (mulss) and marks the
+        // navigation initialised; 0x579A20 only takes the home, so the static navigation never reports initialised.
+        [Test]
+        public void SetUpTakesTheHomeFromTheTransform()
+        {
+            Owned.Run(owned =>
+            {
+                var home = new Vector3(3f, 0f, 4f);
+                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                Set(radius, "m_homeRadius", 2f);
+                radius.m_minNewDestinationDistance = 1.5f;
+                radius.RunSetUp();
+                Assert.That(Get<Vector3>(radius, "m_home"), Is.EqualTo(home));
+                Assert.That(Get<float>(radius, "m_homeRadiusSqr"), Is.EqualTo(4f));
+                Assert.That(Get<float>(radius, "m_minNewDestinationDistanceSquared"), Is.EqualTo(2.25f));
+                Assert.That(radius.IsInitialised, Is.True);
+
+                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, home);
+                fixedHome.RunSetUp();
+                Assert.That(Get<Vector3>(fixedHome, "m_home"), Is.EqualTo(home));
+                Assert.That(fixedHome.GetDestination(), Is.EqualTo(home));
+                Assert.That(fixedHome.IsInitialised, Is.False, "the static navigation never marks itself initialised");
+            });
+        }
+
+        // 0x5787C0 raises the interrupted flag and nothing else; 0x579A60 and 0x579A50 are bare returns.
+        [Test]
+        public void InterruptingOnlyRaisesTheFlagOfTheHomeRadiusNavigation()
+        {
+            Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                Assert.That(Get<bool>(navigation, "m_wasInterrupted"), Is.False);
+                navigation.InterruptNavigation();
+                Assert.That(Get<bool>(navigation, "m_wasInterrupted"), Is.True);
+                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, Vector3.zero);
+                Assert.That(() => { fixedHome.StartNavigation(); fixedHome.InterruptNavigation(); }, Throws.Nothing);
+            });
+        }
+
+        // 0x578A20 (jbe at 0x578A4B, jb at 0x578A51): the minimum distance is reset to zero only when it is positive and
+        // at least the radius; a smaller, zero, negative or unordered value stays, and so does everything when the radius
+        // is unordered.
+        [Test]
+        public void ValidatingZeroesAMinimumDistanceThatReachesTheRadius()
+        {
+            Owned.Run(owned =>
+            {
+                foreach ((float radius, float minimum, float expected) in new[]
+                {
+                    (5f, 5f, 0f), (5f, 6f, 0f), (5f, 4.9f, 4.9f), (5f, 0f, 0f), (5f, -1f, -1f),
+                    (5f, float.NaN, float.NaN), (float.NaN, 1f, 1f), (0f, 1f, 0f),
+                })
+                {
+                    var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                    Set(navigation, "m_homeRadius", radius);
+                    navigation.m_minNewDestinationDistance = minimum;
+                    Call(navigation, "OnValidate");
+                    Assert.That(navigation.m_minNewDestinationDistance, Is.EqualTo(expected), "radius " + radius + ", minimum " + minimum);
+                }
+            });
+        }
+
+        // 0x5788A0 and 0x579B40: unconstrained navigations reach everything; a distance constraint reaches the points
+        // within its distance of home (ucomiss against the squared distance, so the boundary counts); an unknown constrain
+        // type reaches nothing.
+        [Test]
+        public void TheDistanceConstraintReachesPointsWithinItsDistanceOfHome()
+        {
+            Owned.Run(owned =>
+            {
+                var home = new Vector3(1f, 2f, 3f);
+                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                radius.RunSetUp();
+                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, home);
+                fixedHome.RunSetUp();
+                foreach (EnemyNavigation navigation in new EnemyNavigation[] { radius, fixedHome })
+                {
+                    string who = navigation.GetType().Name;
+                    Constrain(navigation, false, 1, 0.5f);
+                    Assert.That(navigation.CanReachPosition(new Vector3(500f, 0f, 0f)), Is.True, who + " unconstrained");
+                    Constrain(navigation, true, 1, 2f);
+                    Assert.That(navigation.CanReachPosition(home), Is.True, who + " at home");
+                    Assert.That(navigation.CanReachPosition(home + new Vector3(0f, 0f, 2f)), Is.True, who + " exactly at the distance");
+                    Assert.That(navigation.CanReachPosition(home + new Vector3(0f, 2.01f, 0f)), Is.False, who + " just beyond");
+                    Assert.That(navigation.CanReachPosition(home + new Vector3(1.5f, 1.5f, 0f)), Is.False, who + " diagonally beyond");
+                    Assert.That(navigation.CanReachPosition(home + new Vector3(1f, 1f, 1f)), Is.True, who + " diagonally within");
+                    Constrain(navigation, true, 3, 2f);
+                    Assert.That(navigation.CanReachPosition(home), Is.False, who + " with an unknown constrain type");
+                    Constrain(navigation, true, 0, 2f);
+                    Assert.That(navigation.CanReachPosition(home), Is.False, who + " with no constrain type");
+                }
+            });
+        }
+
+        // 0x5787E0 and 0x579A80: a reachable position is returned unchanged; a distance constraint pulls an unreachable
+        // one back along the line from home to the point at exactly the distance; an unknown constrain type leaves it.
+        [Test]
+        public void TheDistanceConstraintPullsAnUnreachablePositionBackToTheDistance()
+        {
+            Owned.Run(owned =>
+            {
+                var home = new Vector3(1f, 2f, 3f);
+                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                radius.RunSetUp();
+                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, home);
+                fixedHome.RunSetUp();
+                foreach (EnemyNavigation navigation in new EnemyNavigation[] { radius, fixedHome })
+                {
+                    string who = navigation.GetType().Name;
+                    Constrain(navigation, true, 1, 2f);
+                    var within = home + new Vector3(1f, 0f, 0f);
+                    AssertNear(navigation.ConstrainPosition(within), within, who + " within");
+                    AssertNear(navigation.ConstrainPosition(home + new Vector3(6f, 0f, 0f)), home + new Vector3(2f, 0f, 0f), who + " along X");
+                    AssertNear(navigation.ConstrainPosition(home + new Vector3(0f, -9f, 0f)), home + new Vector3(0f, -2f, 0f), who + " along -Y");
+                    AssertNear(navigation.ConstrainPosition(home + new Vector3(3f, 0f, 4f)), home + new Vector3(1.2f, 0f, 1.6f), who + " along a diagonal");
+                    Constrain(navigation, true, 3, 2f);
+                    var beyond = home + new Vector3(50f, 0f, 0f);
+                    AssertNear(navigation.ConstrainPosition(beyond), beyond, who + " with an unknown constrain type");
+                }
+            });
+        }
+
+        // A volume constraint reaches the points the collider contains (Collider.ClosestPoint returns a contained point
+        // unchanged, which the squared-distance equality at 0x578938 accepts) and pulls the others to its surface.
+        [Test]
+        public void TheVolumeConstraintFollowsTheColliderClosestPoint()
+        {
+            Owned.Run(owned =>
+            {
+                GameObject volume = owned.Host(Name(), true);
+                var sphere = volume.AddComponent<SphereCollider>();
+                sphere.radius = 1f;
+                var radius = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                var fixedHome = NewNavigation<Enemies03StaticNavigationProbe>(owned, Vector3.zero);
+                foreach (EnemyNavigation navigation in new EnemyNavigation[] { radius, fixedHome })
+                {
+                    string who = navigation.GetType().Name;
+                    Constrain(navigation, true, 2, 0f, sphere);
+                    Assert.That(navigation.CanReachPosition(new Vector3(0.5f, 0f, 0f)), Is.True, who + " inside");
+                    Assert.That(navigation.CanReachPosition(new Vector3(3f, 0f, 0f)), Is.False, who + " outside");
+                    AssertNear(navigation.ConstrainPosition(new Vector3(0.5f, 0f, 0f)), new Vector3(0.5f, 0f, 0f), who + " inside");
+                    AssertNear(navigation.ConstrainPosition(new Vector3(3f, 0f, 0f)), new Vector3(1f, 0f, 0f), who + " outside");
+                }
+            });
+        }
+
+        // The destinations 0x578440 picks. Each attempt draws x then z from Random.Range(-radius, radius) and places the
+        // spot at (x, 0, z) turned by FromToRotation(down, -up) and offset by the home; the first of at most
+        // LoopLimit (20) spots that lies within the radius of home and at least the minimum distance from the position
+        // projected onto the plane through home wins, and when none does the twentieth stays. The spots are replayed
+        // from the same seeded generator.
+        private static List<Vector3> Spots(int seed, Vector3 home, Quaternion rotation, float radius)
+        {
+            Random.InitState(seed);
+            var spots = new List<Vector3>();
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                float x = Random.Range(-radius, radius);
+                float z = Random.Range(-radius, radius);
+                spots.Add(rotation * new Vector3(x, 0f, z) + home);
+            }
+            return spots;
+        }
+
+        private static Vector3 StartAndRead(Enemies03HomeRadiusNavigationProbe navigation, int seed)
+        {
+            Random.InitState(seed);
+            navigation.StartNavigation();
+            return navigation.GetDestination();
+        }
+
+        private static void WithRandomState(Action body)
+        {
+            Random.State saved = Random.state;
+            try { body(); }
+            finally { Random.state = saved; }
+        }
+
+        [Test]
+        public void StartingPicksTheFirstSpotWithinTheRadiusAndFarEnoughFromTheEnemy()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                var home = new Vector3(2f, 1f, -3f);
+                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, home);
+                Set(navigation, "m_homeRadius", 10f);
+                navigation.m_minNewDestinationDistance = 6f;
+                navigation.RunSetUp();
+                int accepted = 0, rejectedFirst = 0, exhausted = 0;
+                for (int seed = 1; seed <= 40; seed++)
+                {
+                    List<Vector3> spots = Spots(seed, home, Quaternion.identity, 10f);
+                    int first = spots.FindIndex(spot => (home - spot).sqrMagnitude <= 100f && (home - spot).sqrMagnitude >= 36f);
+                    Vector3 expected = first >= 0 ? spots[first] : spots[19];
+                    AssertNear(StartAndRead(navigation, seed), expected, "seed " + seed);
+                    if (first < 0) exhausted++; else if (first == 0) accepted++; else rejectedFirst++;
+                }
+                Assert.That(rejectedFirst, Is.GreaterThan(0), "some seed rejects a spot and takes a later one");
+                Assert.That(accepted + rejectedFirst + exhausted, Is.EqualTo(40));
+            }));
+        }
+
+        [Test]
+        public void StartingKeepsTheTwentiethSpotWhenNoneQualifies()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero);
+                Set(navigation, "m_homeRadius", 4f);
+                navigation.m_minNewDestinationDistance = 100f;
+                navigation.RunSetUp();
+                foreach (int seed in new[] { 3, 17, 91 })
+                    AssertNear(StartAndRead(navigation, seed), Spots(seed, Vector3.zero, Quaternion.identity, 4f)[19], "seed " + seed);
+            }));
+        }
+
+        // A host turned about X has a different down: the spots are turned by FromToRotation(down, -transform.up), and the
+        // enemy position is projected onto the plane through home with that normal before the distance test.
+        [Test]
+        public void StartingPlacesTheSpotsOnTheEnemysOwnPlane()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                Quaternion tilt = Quaternion.Euler(90f, 0f, 0f);
+                var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, Vector3.zero, tilt);
+                Set(navigation, "m_homeRadius", 5f);
+                navigation.m_minNewDestinationDistance = 0f;
+                navigation.RunSetUp();
+                Quaternion toPlane = Quaternion.FromToRotation(Vector3.down, -(tilt * Vector3.up));
+                foreach (int seed in new[] { 5, 12, 33, 64 })
+                {
+                    List<Vector3> spots = Spots(seed, Vector3.zero, toPlane, 5f);
+                    int first = spots.FindIndex(spot => spot.sqrMagnitude <= 25f);
+                    AssertNear(StartAndRead(navigation, seed), first >= 0 ? spots[first] : spots[19], "seed " + seed);
+                }
+            }));
+        }
+
+        // 0x578474: the home moves to the position only when the reset flag is set and the navigation was interrupted, and
+        // that clears the interrupted flag; otherwise the home and the flag stay.
+        [Test]
+        public void StartingMovesTheHomeToTheEnemyOnlyAfterAnInterruptWhenAsked()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                var origin = new Vector3(1f, 0f, 1f);
+                var moved = new Vector3(8f, 0f, 2f);
+                foreach ((bool reset, bool interrupt, bool homeMoves) in new[]
+                {
+                    (true, true, true), (true, false, false), (false, true, false), (false, false, false),
+                })
+                {
+                    var navigation = NewNavigation<Enemies03HomeRadiusNavigationProbe>(owned, origin);
+                    Set(navigation, "m_resetHomeOnInterrupt", reset);
+                    navigation.RunSetUp();
+                    navigation.transform.position = moved;
+                    if (interrupt) navigation.InterruptNavigation();
+                    navigation.StartNavigation();
+                    string why = "reset " + reset + ", interrupted " + interrupt;
+                    Assert.That(Get<Vector3>(navigation, "m_home"), Is.EqualTo(homeMoves ? moved : origin), why);
+                    Assert.That(Get<bool>(navigation, "m_wasInterrupted"), Is.EqualTo(interrupt && !homeMoves), why);
+                }
+            }));
+        }
+
+        // ---- spline ----
+
+        // 0x579940 stores a follow distance of 3 and a step size of 1 (0x40400000, 0x3F800000) and the Distance constrain
+        // type, and creates the two empty surface collections.
+        [Test]
+        public void SplineStartsWithAFollowDistanceOfThreeAndAStepOfOne()
+        {
+            Owned.Run(owned =>
+            {
+                var navigation = NewNavigation<Enemies03SplineNavigationProbe>(owned, Vector3.zero);
+                Assert.That(Get<float>(navigation, "m_followDistance"), Is.EqualTo(3f));
+                Assert.That(Get<float>(navigation, "m_trackerStepSize"), Is.EqualTo(1f));
+                Assert.That(Convert.ToInt32(Get<object>(navigation, "m_constrainType")), Is.EqualTo(1));
+                Assert.That(Get<System.Collections.ICollection>(navigation, "m_trackableSurfaces").Count, Is.EqualTo(0));
+                Assert.That(Get<System.Collections.ICollection>(navigation, "m_trackableSurfacesList").Count, Is.EqualTo(0));
+                Assert.That(navigation.GetReversing(), Is.False);
+            });
+        }
+
+        // 0x578B30 initialises only when a spline is assigned (op_Equality at 0x578BE4, jne 0x578E2A stores r15b = 0): with
+        // none the navigation stays uninitialised, every query falls back to the transform and the unconstrained answers
+        // (0x579369, 0x57943A, 0x579824, 0x578F42) even for a constrained navigation, and a reversing start is ignored.
+        [Test]
+        public void WithoutASplineTheSplineNavigationStaysUninitialisedAndFallsBackToTheTransform()
+        {
+            Owned.Run(owned =>
+            {
+                var position = new Vector3(4f, 5f, 6f);
+                var navigation = NewNavigation<Enemies03SplineNavigationProbe>(owned, position);
+                Set(navigation, "m_startReversed", true);
+                Constrain(navigation, true, 1, 0f);
+                navigation.RunSetUp();
+                Assert.That(navigation.IsInitialised, Is.False);
+                Assert.That(navigation.GetReversing(), Is.False, "the start direction is only taken with a spline");
+                Assert.That(navigation.GetDestination(), Is.EqualTo(position));
+                Assert.That(navigation.CanReachPosition(new Vector3(99f, 0f, 0f)), Is.True);
+                Assert.That(navigation.ConstrainPosition(new Vector3(99f, 0f, 0f)), Is.EqualTo(new Vector3(99f, 0f, 0f)));
+                Assert.That(navigation.GetLocationWorldRotation(), Is.EqualTo(Quaternion.identity));
+                Assert.That(() => { navigation.StartNavigation(); navigation.InterruptNavigation(); }, Throws.Nothing);
+            });
+        }
+
+        // ---- declarations ----
+
+        // The navigations carry the IL2CPP options in their metadata order and none of the graph authoring attributes.
+        [Test]
+        public void NavigationsCarryTheirOriginalIl2CppOptions()
+        {
+            AssertIl2CppOptions(typeof(EnemyNavigationForward), 2, 1);
+            AssertIl2CppOptions(typeof(EnemyNavigationHomeRadius), 1, 2);
+            AssertIl2CppOptions(typeof(EnemyNavigationSpline), 1, 2);
+            AssertIl2CppOptions(typeof(EnemyNavigationStaticAndReturnAfterChase), 1, 2);
+        }
+
+        // Authored fields and their editor attributes in metadata order, so that the serialised layout of the original
+        // scenes and prefabs still lines up.
+        [Test]
+        public void AuthoredFieldsKeepTheirEditorAttributes()
+        {
+            AssertAttributes(typeof(EnemyNavigationForward), "m_lookAheadDistance", typeof(SerializeField), typeof(MinAttribute), typeof(TooltipAttribute));
+            AssertAttributes(typeof(EnemyNavigationHomeRadius), "m_homeRadius", typeof(TooltipAttribute), typeof(MinAttribute), typeof(SerializeField));
+            AssertAttributes(typeof(EnemyNavigationHomeRadius), "m_minNewDestinationDistance", typeof(MinAttribute), typeof(TooltipAttribute));
+            AssertAttributes(typeof(EnemyNavigationHomeRadius), "m_resetHomeOnInterrupt", typeof(TooltipAttribute), typeof(SerializeField));
+            AssertAttributes(typeof(EnemyNavigationSpline), "m_spline", typeof(SerializeField));
+            AssertAttributes(typeof(EnemyNavigationSpline), "m_startPosition", typeof(UnityEngine.RangeAttribute), typeof(SerializeField));
+            AssertAttributes(typeof(EnemyNavigationSpline), "m_followDistance", typeof(MinAttribute), typeof(SerializeField));
+            AssertAttributes(typeof(EnemyNavigationSpline), "m_trackerStepSize", typeof(SerializeField), typeof(MinAttribute));
+            AssertAttributes(typeof(EnemyNavigationSpline), "m_startReversed", typeof(SerializeField));
+            AssertAttributes(typeof(EnemyNavigationSpline), "m_loop", typeof(SerializeField));
+            Assert.That(Tooltip(typeof(EnemyNavigationForward).GetField("m_lookAheadDistance", Declared)),
+                Is.EqualTo("How far ahead to set the target. Make sure this is larger than the enemy's 'Move Within Distance'."));
+            Assert.That(Tooltip(typeof(EnemyNavigationHomeRadius).GetField("m_homeRadius", Declared)),
+                Is.EqualTo("Max distance to choose to move to from current home position."));
+            Assert.That(Tooltip(typeof(EnemyNavigationHomeRadius).GetField("m_minNewDestinationDistance", Declared)),
+                Is.EqualTo("Minimum distance to choose a new spot to move to."));
+            Assert.That(Tooltip(typeof(EnemyNavigationHomeRadius).GetField("m_resetHomeOnInterrupt", Declared)),
+                Is.EqualTo("If ticked, the \"home\" position is reset to the enemy's current location whenever navigation is interrupted."));
+        }
+
+        private static void AssertAttributes(Type owner, string field, params Type[] expected) =>
+            Assert.That(AttributeTypes(owner.GetField(field, Declared)), Is.EqualTo(expected), owner.Name + "." + field);
+
+        // Type, field and method flags straight from the metadata of the original assembly.
+        [Test]
+        public void DeclarationShapeNavigationsKeepTheirFieldsAndMethodFlags()
+        {
+            const int hook = 0x00c4, overrideMethod = 0x00c6, privateMethod = 0x0081, publicMethod = 0x0086, constructor = 0x1886, getter = 0x0881;
+            AssertMembers(typeof(EnemyNavigationForward), 0x00100001, new[] { ("m_lookAheadDistance", 0x0001) }, new[]
+            {
+                ("SetUp", hook), ("StartNavigation", overrideMethod), ("InterruptNavigation", overrideMethod), ("GetDestination", overrideMethod),
+                ("ConstrainPosition", overrideMethod), ("CanReachPosition", overrideMethod), ("OnDrawGizmos", privateMethod), (".ctor", constructor),
+            });
+            AssertMembers(typeof(EnemyNavigationHomeRadius), 0x00100001, new[]
+            {
+                ("m_homeRadius", 0x0001), ("m_minNewDestinationDistance", 0x0006), ("m_resetHomeOnInterrupt", 0x0001), ("m_home", 0x0001),
+                ("m_homeRadiusSqr", 0x0001), ("m_destination", 0x0001), ("m_wasInterrupted", 0x0001), ("m_minNewDestinationDistanceSquared", 0x0001),
+                ("LoopLimit", 0x8051),
+            }, new[]
+            {
+                ("SetUp", hook), ("StartNavigation", overrideMethod), ("InterruptNavigation", overrideMethod), ("GetDestination", overrideMethod),
+                ("ConstrainPosition", overrideMethod), ("CanReachPosition", overrideMethod), ("OnDrawGizmosSelected", publicMethod),
+                ("OnValidate", privateMethod), (".ctor", constructor),
+            });
+            AssertMembers(typeof(EnemyNavigationStaticAndReturnAfterChase), 0x00100001, new[] { ("m_home", 0x0001) }, new[]
+            {
+                ("SetUp", hook), ("StartNavigation", overrideMethod), ("InterruptNavigation", overrideMethod), ("GetDestination", overrideMethod),
+                ("ConstrainPosition", overrideMethod), ("CanReachPosition", overrideMethod), ("OnDrawGizmosSelected", publicMethod), (".ctor", constructor),
+            });
+            AssertMembers(typeof(EnemyNavigationSpline), 0x00100001, new[]
+            {
+                ("m_spline", 0x0001), ("m_startPosition", 0x0001), ("m_followDistance", 0x0001), ("m_trackerStepSize", 0x0001),
+                ("m_startReversed", 0x0001), ("m_loop", 0x0001), ("m_reversing", 0x0001), ("m_followDistanceSqr", 0x0001), ("m_tracker2D", 0x0001),
+                ("m_trackableSurfaces", 0x0021), ("m_trackableSurfacesList", 0x0021), ("m_nearestSplineLocationWorld", 0x0001),
+            }, new[]
+            {
+                ("get_TrackerPosition", getter), ("get_TrackerForward", getter), ("get_TrackerAtEnd", getter), ("SetUp", hook),
+                ("StartNavigation", overrideMethod), ("InterruptNavigation", overrideMethod), ("GetDestination", overrideMethod),
+                ("ConstrainPosition", overrideMethod), ("CanReachPosition", overrideMethod), ("CalculateLine", privateMethod),
+                ("GetLocationWorldRotation", publicMethod), ("GetReversing", publicMethod), ("OnDrawGizmos", privateMethod), (".ctor", constructor),
+            });
+            foreach (Type type in new[] { typeof(EnemyNavigationForward), typeof(EnemyNavigationHomeRadius), typeof(EnemyNavigationSpline), typeof(EnemyNavigationStaticAndReturnAfterChase) })
+                Assert.That(type.BaseType, Is.EqualTo(typeof(EnemyNavigation)), type.Name);
+        }
+    }
+}
