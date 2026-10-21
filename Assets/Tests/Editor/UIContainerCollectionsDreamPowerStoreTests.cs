@@ -89,6 +89,25 @@ namespace ProjectLucid.Tests
             }));
         }
 
+        // The order inside OnEnable 0x613010: the base OnEnable (0x61303C) runs the base UpdateTitle, which shows the archetype's
+        // alternate image (+0x60); this class's own UpdateTitle is the last call (tail jmp 0x6130E1) and replaces it with the UI image.
+        [Test]
+        public void EnablingEndsWithTheUiImageOfTheArchetypeNotTheBaseAlternateImage()
+        {
+            WithStringTable(() => DreamPowerStoreScenes.Run(world =>
+            {
+                Parts parts = WithInfoParts(world, false);
+                ActivateMission(world.Scene, CharacterArchetype.Climbing, true);
+                ArchetypeImages images = AddArchetype(world, CharacterArchetype.Climbing);
+
+                Call(parts.Store, "OnEnable");
+
+                Assert.That(parts.Store.HasArchetype.Value, Is.True);
+                Assert.That(parts.Store.CharacterArchetypeImage.Value, Is.SameAs(images.Ui));
+                Assert.That(parts.Store.CharacterArchetypeImage.Value, Is.Not.SameAs(images.Alternate));
+            }));
+        }
+
         // UpdateTitle 0x613360 (this class's own method, not the base's): without an archetype (m_characterArchetype at +0x160 is
         // zero) the archetype art is hidden (0x613441); otherwise it is shown and the archetype's UI image (+0x58, not the
         // alternate or silhouette image the base title uses) loads into CharacterArchetypeImage (0x6133F5..0x61343C).

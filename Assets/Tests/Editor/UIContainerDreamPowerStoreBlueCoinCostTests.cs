@@ -50,8 +50,24 @@ namespace ProjectLucid.Tests
                 Assert.That(container.Cost.Value, Is.EqualTo("35"));
 
                 container.Setup(new UIContainerDreamPowerStoreBlueCoinCostParameters(Power(owned, 1200), UIDreamPowerStoreItemState.Equipped));
-                Assert.That(container.Cost.Value, Is.EqualTo("1200"), "no digit grouping");
+                Assert.That(container.Cost.Value, Is.EqualTo("1200"));
                 Assert.That(container.ShowCost.Value, Is.False);
+            });
+        }
+
+        // The price is formatted with Int32.ToString(IFormatProvider) and CultureInfo.InvariantCulture (0x617394..0x6173A2), not with
+        // the current culture: a current culture whose negative sign is "~" still gives "-5".
+        [Test]
+        public void TheCostIsFormattedWithTheInvariantCultureNotTheCurrentOne()
+        {
+            Owned.Run(owned =>
+            {
+                var container = owned.Host("Lucid blue coin cost", false).AddComponent<UIContainerDreamPowerStoreBlueCoinCost>();
+
+                TildeNegativeSignCulture.Run(() =>
+                    container.Setup(new UIContainerDreamPowerStoreBlueCoinCostParameters(Power(owned, -5), UIDreamPowerStoreItemState.Purchasable)));
+
+                Assert.That(container.Cost.Value, Is.EqualTo("-5"));
             });
         }
     }

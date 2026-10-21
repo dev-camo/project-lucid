@@ -10221,6 +10221,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreBlueCoinCo
     "AStatePastEquippedShowsTheCost",
     "ANegativeStateShowsTheCost",
     "TheCostTextIsThePurchaseCostOfTheDefinitionWhateverTheState",
+    "TheCostIsFormattedWithTheInvariantCultureNotTheCurrentOne",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreInfoTests." + name for name in (
     "StartMarksANewStoreAsSeenAndRequestsASave",
@@ -10232,6 +10233,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreInfoTests.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetToggleDreamPowerTests." + name for name in (
     "TheGroupElementAndTheNavigationAreTheSerializedReferences",
     "SetupPublishesTheTierTheBackgroundTheIconAndTheCost",
+    "SetupFormatsTheCostWithTheCurrentCulture",
     "ThePowerOfTheFirstBandIsTierOne",
     "EachItemStateShowsItsFlagsAndPlaysItsClip",
     "SelectingAProgressionLockedPowerShowsNoSelection",
@@ -10266,6 +10268,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreTests." + 
     "ClearingTheSelectionNavigatesEveryWidgetAwayAndTurnsTheActionOff",
     "TheActionDoesNothingWithoutAvailabilityOrASelectedPower",
     "ChoosingAPurchasablePowerPublishesItsPriceDescriptionAndAction",
+    "TheStorePriceFollowsTheCurrentCultureAndTheCostContainerTheInvariantOne",
     "TheLockMessageFollowsTheItemStateAndTheArchetype",
     "ACombinedIconMatchesExactlyItsArchetypeSet",
     "TheDescriptionShowsTheArchetypeOrTheMatchingCombinedIconAndReleasesTheLastOne",
@@ -10277,9 +10280,21 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreTests." + 
     "EachClonedWidgetShowsTheStateOfItsPower",
     "SettingUpAgainClearsTheRecordsAndDestroysTheChildren",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerDreamPowerStoreEquipTests." + name for name in (
+    "FinishingWhileChoosingASlotEquipsThePowerThereAndResumesBrowsing",
+    "FinishingWhileBrowsingTogglesTheSlotWithoutAnimation",
+    "StartingTheEquipSelectsTheFirstEmptySlotAfterAnEquippedFirstSlot",
+    "StartingTheEquipSelectsTheFirstSlotWhenOnlyTheSecondIsEquipped",
+    "StartingTheEquipSelectsTheOnlyEmptySlot",
+    "StartingTheEquipFallsBackToTheFirstSlotWhenEveryOneIsEquipped",
+    "TheActionOnAnEquippedPowerUnequipsItsSlot",
+    "TheActionOnABoughtPowerInNoSlotStartsTheSlotSelection",
+    "TheActionOnAnUnboughtPowerPurchasesItAndQueuesItsUnlock",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCollectionsDreamPowerStoreTests." + name for name in (
     "EnablingShowsTheCollectionsTitleAndSwitchesTheInfoPartsOff",
     "EnablingWithoutTheInfoPartsStillShowsTheTitle",
+    "EnablingEndsWithTheUiImageOfTheArchetypeNotTheBaseAlternateImage",
     "TheTitleShowsTheUiImageOfTheMissionsArchetype",
     "ChoosingAPowerReportsTheUnlockPromptOnlyForAPurchasableOne",
     "ARemovedSelectionHandlerNoLongerHearsTheSelection",

@@ -94,6 +94,20 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The cost is formatted by Int32.ToString() with the current culture (0x6A3575): a "~" negative sign shows in the text.
+        [Test]
+        public void SetupFormatsTheCostWithTheCurrentCulture()
+        {
+            Run(rig =>
+            {
+                Set(rig.Power, "m_purchaseCost", -5); // Reflection: authored serialized field
+
+                TildeNegativeSignCulture.Run(() => rig.Widget.Setup(Parameters(rig, UIDreamPowerStoreItemState.Purchasable)));
+
+                Assert.That(rig.Widget.Cost.Value, Is.EqualTo("~5"));
+            });
+        }
+
         // A power in the first band is tier one.
         [Test]
         public void ThePowerOfTheFirstBandIsTierOne()

@@ -22,10 +22,10 @@ namespace ProjectLucid.Tests
     // since it has no unlock requirement), the open save, a ProgressionManager with authored totals, the DataManager's dream powers,
     // real power widgets, slot buttons and a collectable counter. Awake is not run: it asks the process manager for a
     // UINavigationManager, whose constructor reads the UI runtime configuration, so the services it would take are assigned to the
-    // container's fields as Awake assigns them. Not covered because they select through the navigation manager: Awake, the
-    // selection of the last selected power in SetupDreamPowers, StartEquip, the widget registration in SetAllToggles,
-    // ReselectCurrentPower (so Action_FinishEquip, Action_ExitEquip and the purchase of Action_DoAction), and the next frame
-    // callback of OnDreamPowerChanged, which the inactive coroutine host refuses; the progression lock text of
+    // container's fields as Awake assigns them. The equip and purchase flow that selects through the navigation manager (StartEquip,
+    // Action_FinishEquip, Action_DoAction on a bought or unbought power) is in UIContainerDreamPowerStoreEquipTests. Not covered:
+    // Awake, the selection of the last selected power in SetupDreamPowers, the widget registration in SetAllToggles, Action_ExitEquip,
+    // and the next frame callback of OnDreamPowerChanged, which the inactive coroutine host refuses; the progression lock text of
     // UpdateLockedStatus (the reward string picker keeps static service references).
     public sealed class UIContainerDreamPowerStoreTests
     {
@@ -202,6 +202,10 @@ namespace ProjectLucid.Tests
                 ActivateMission(world.Scene, CharacterArchetype.Climbing, true);
                 Call(store, "SetCharacterArchetype");
                 Assert.That(State(open, 0), Is.EqualTo(UIDreamPowerStoreItemState.LockedByArchetype), "bought, but of another archetype");
+                // The archetype check comes before the loadout lookup (0x6159C3..0x6159CA skips EquippedSlot): a power the climbing
+                // loadout holds is still locked by archetype.
+                world.Scene.Save.CurrentSave.GetOrCreateDreamPowerLoadout(CharacterArchetype.Climbing).Set(0, open.GetGUID());
+                Assert.That(State(open, 0), Is.EqualTo(UIDreamPowerStoreItemState.LockedByArchetype), "held by the loadout, but of another archetype");
                 DreamPowerDefinition unbought = AddPower(world, "lucid-state-unbought", 5);
                 Assert.That(State(unbought, 99), Is.EqualTo(UIDreamPowerStoreItemState.Purchasable), "an unbought power is not archetype locked");
                 Assert.That(State(unbought, 1), Is.EqualTo(UIDreamPowerStoreItemState.Insufficient));
@@ -462,6 +466,29 @@ namespace ProjectLucid.Tests
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
                 Call(store, "OnDreamPowerChanged", power, UIDreamPowerStoreItemState.Purchasable);
                 Assert.That(store.Purchasable.Value, Is.False);
+            });
+        }
+
+        // OnDreamPowerChanged formats the price for the store's BlueCoinCost with the current culture (Int32.ToString 0x060007a8 at
+        // 0x613629), while the cost container formats it with the invariant culture (0x617394): with a "~" negative sign as the
+        // current culture a price of -5 reads "~5" in the store and "-5" in the container.
+        [Test]
+        public void TheStorePriceFollowsTheCurrentCultureAndTheCostContainerTheInvariantOne()
+        {
+            DreamPowerStoreScenes.Run(world =>
+            {
+                UIContainerDreamPowerStore store = NewStore(world);
+                DreamPowerDefinition power = NewDefinition(world.Scene.Owned, "lucid-culture-power", PowerName, NewSprite(world.Scene.Owned));
+                Set(power, "m_purchaseCost", -5); // Reflection: authored serialized field
+                var cost = world.Scene.Owned.Host("Lucid culture blue coin cost", false).AddComponent<UIContainerDreamPowerStoreBlueCoinCost>();
+                Set(store, "m_blueCoinCost", cost); // Reflection: serialized reference the editor assigns
+                Set(store, "m_slotButtons", new UIWidgetButtonDreamPowerSlot[0]); // Reflection: serialized references the editor assigns
+                LogAssert.Expect(LogType.Error, RefusedCoroutine);
+
+                TildeNegativeSignCulture.Run(() => Call(store, "OnDreamPowerChanged", power, UIDreamPowerStoreItemState.Purchasable));
+
+                Assert.That(store.BlueCoinCost.Value, Is.EqualTo("~5"));
+                Assert.That(cost.Cost.Value, Is.EqualTo("-5"));
             });
         }
 
