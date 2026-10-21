@@ -390,13 +390,13 @@ namespace ProjectLucid.Tests
             Near(computer.position, new Vector3(5f, 0f, 0f), "position");
         }
 
-        // The Roslyn names in the shipped assembly (DummyDll) place the RunUpdate local functions at ordinal 88
-        // (<RunUpdate>g__CalculateWithTransform|88_0 and ...WithoutTransform|88_1; the player-define compile of the source
-        // reproduces them). The editor compile this test runs declares the UNITY_EDITOR members ahead of RunUpdate (the editor
-        // fields, the EditorUpdateMode enum, EditorAwake, EditorUpdateConnectedNodes, Reset), so its ordinal is 99, and it adds
-        // the public nested enum EditorUpdateMode (editor-vs-ship declaration diff).
+        // This test asserts the EDITOR compile it runs in: the UNITY_EDITOR members declared ahead of RunUpdate (the editor fields,
+        // the EditorUpdateMode enum, EditorAwake, EditorUpdateConnectedNodes, Reset) give the RunUpdate local functions ordinal 99,
+        // and EditorUpdateMode is an extra nested type. The shipped names (<RunUpdate>g__CalculateWithTransform|88_0 and
+        // ...WithoutTransform|88_1, no EditorUpdateMode) are checked by the player-define declaration comparison of the source
+        // against the DummyDll (0 differences), not by this test.
         [Test]
-        public void CompilerGeneratedNamesAndNestedTypesMatchTheShippedAssembly()
+        public void CompilerGeneratedNamesAndNestedTypesOfTheEditorCompile()
         {
             Assert.That(typeof(SplineComputer).GetMethods(Anything).Select(m => m.Name).ToArray(),
                 Does.Contain("<RunUpdate>g__CalculateWithTransform|99_0"));

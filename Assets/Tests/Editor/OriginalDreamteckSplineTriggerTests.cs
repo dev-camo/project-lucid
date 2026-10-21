@@ -83,7 +83,7 @@ namespace ProjectLucid.Tests
         // covered by OriginalDreamteckSplineTriggerPlayModeTests.ListenersReceiveInvokeAndRemovalWorks. The listener side is
         // driven here through the public onCross event that Invoke forwards to, and Invoke itself is asserted to stay silent.
         [Test]
-        public void ListenersReceiveInvokeAndRemovalWorks()
+        public void ListenerRemovalWorksAndInvokeStaysSilentInEditMode()
         {
             SplineTrigger trigger = new SplineTrigger(SplineTrigger.Type.Double);
             int withUser = 0;
@@ -118,7 +118,7 @@ namespace ProjectLucid.Tests
         // IgnoreTheGroupFlag). Each checked trigger that crosses sets its private worked flag before Invoke; Invoke returns while
         // not playing, so the crossing is observed through that flag and the listeners stay silent.
         [Test]
-        public void GroupChecksFireCrossedTriggersSkipNullsAndIgnoreTheGroupFlag()
+        public void GroupChecksMarkCrossedTriggersSkipNullsAndIgnoreTheGroupFlagInEditMode()
         {
             TriggerGroup group = new TriggerGroup();
             group.enabled = false;

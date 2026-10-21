@@ -6045,21 +6045,21 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineComputerTests
     "TriggerApisCreateGroupsLogMissingOnesAndDropTheUser",
     "GetSamplesSharesTheCachedArrays",
     "TransformHelpersUseTheCachedMatrices",
-    "CompilerGeneratedNamesAndNestedTypesMatchTheShippedAssembly",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
+    "CompilerGeneratedNamesAndNestedTypesOfTheEditorCompile",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineTriggerTests." + name for name in (
     "ConstructorKeepsTheShippedDefaults",
     "CheckFollowsTheNativeTruthTable",
     "WorkOnceBlocksUntilResetAndMissesDoNotCount",
-    "ListenersReceiveInvokeAndRemovalWorks",
-    "GroupChecksFireCrossedTriggersSkipNullsAndIgnoreTheGroupFlag",
     "GroupResetRearmsWorkOnceTriggers",
     "GroupResetFaultsOnANullEntryAfterResettingEarlierOnes",
     "GetTriggersIncludesBothEnds",
     "GroupAddAndRemoveTriggers",
     "SerializedLayoutKeepsTheFieldOrderAndAttributes",
     "ClosureKeepsTheShippedCompilerName",
+    "GroupChecksMarkCrossedTriggersSkipNullsAndIgnoreTheGroupFlagInEditMode",
+    "ListenerRemovalWorksAndInvokeStaysSilentInEditMode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckSplineUserTests." + name for name in (
     "FreshUserKeepsTheShippedDefaults",
