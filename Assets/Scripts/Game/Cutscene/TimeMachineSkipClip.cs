@@ -20,6 +20,6 @@ namespace HardlightProject
             return ScriptPlayable<TimeMachineSkipBehaviour>.Create(graph, behaviour, 0);
         }
 
-        // Implicit original06002e8a: skipping is enabled by default.
+        // Implicit original06002e8a.
     }
 }

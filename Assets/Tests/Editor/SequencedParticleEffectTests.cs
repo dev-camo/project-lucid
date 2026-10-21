@@ -5,6 +5,7 @@ using NUnit.Framework;
 using UnityEditor;
 using UnityEngine;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
+using static ProjectLucid.Tests.TimelineTestSupport;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
@@ -18,13 +19,6 @@ namespace ProjectLucid.Tests
     public sealed class SequencedParticleEffectTests
     {
         private sealed class OtherEffectData : IEffectData { }
-
-        private static void Author(Object target, Action<SerializedObject> edit)
-        {
-            var serialized = new SerializedObject(target);
-            edit(serialized);
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
 
         private static void Trigger(SequencedEffect effect, IEffectData data, Action onComplete) => effect.PlayEffect(in data, onComplete);
 

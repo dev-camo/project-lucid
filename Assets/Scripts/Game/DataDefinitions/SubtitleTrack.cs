@@ -19,6 +19,6 @@ namespace HardlightProject
             return ScriptPlayable<SubtitleMixer>.Create(graph, inputCount);
         }
 
-        // Implicit original06001959: TrackAsset base constructor only.
+        // Implicit original06001959.
     }
 }

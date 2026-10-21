@@ -69,6 +69,6 @@ namespace HardlightProject
             else m_particleEffectWrapper = null;
         }
 
-        // Implicit original060020e5: m_waitForParticleCompletion starts true.
+        // Implicit original060020e5.
     }
 }

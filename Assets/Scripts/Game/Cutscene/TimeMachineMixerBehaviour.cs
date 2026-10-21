@@ -20,8 +20,8 @@ namespace HardlightProject
             set => m_markerClips = value;
         }
 
-        // Original06002e83: only while playing. The first not-yet-executed clip with positive weight whose condition is
-        // met (and that has a director) is executed once and moves the director's time, or pauses it.
+        // Original06002e83: only while playing. Every not-yet-executed clip with positive weight whose condition is met
+        // (and that has a director) executes once, in input order; later clips in the same frame override earlier time changes.
         public override void ProcessFrame(Playable playable, FrameData info, object playerData)
         {
             if (!Application.isPlaying) return;

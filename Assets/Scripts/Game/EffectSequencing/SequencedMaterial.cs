@@ -31,7 +31,7 @@ namespace HardlightProject
             else StartCoroutine(WaitForAnimation());
         }
 
-        // Original060020d0 and iterator 02000620 (MoveNext 0x569C00): one fixed step per frame, then the end value.
+        // Original060020d0 and iterator 02000620 (MoveNext 0x569C00): one blend step per fixed update (advancing by the category's fixed delta), then the end value.
         private IEnumerator WaitForAnimation()
         {
             TimeManager timeManager = m_timeManagerRef.Get();
@@ -50,6 +50,6 @@ namespace HardlightProject
         // Original060020d1.
         public void ResetProperties() { SetBlendValue(m_blendValueReset); }
 
-        // Implicit original060020d2: blend time and end value of one, then the real SystemRef initialiser, precede the base constructor.
+        // Implicit original060020d2.
     }
 }

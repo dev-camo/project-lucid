@@ -54,6 +54,6 @@ namespace HardlightProject
             return playable;
         }
 
-        // Implicit original06002e8c: TrackAsset base constructor only.
+        // Implicit original06002e8c.
     }
 }

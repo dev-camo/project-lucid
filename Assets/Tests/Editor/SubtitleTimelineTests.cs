@@ -11,6 +11,7 @@ using UnityEngine.Playables;
 using UnityEngine.Timeline;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
+using static ProjectLucid.Tests.TimelineTestSupport;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
@@ -23,20 +24,6 @@ namespace ProjectLucid.Tests
     // definitions) and SubtitleMixer.OnGraphStart (needs a SaveManager).
     public sealed class SubtitleTimelineTests
     {
-        private static void Author(Object target, Action<SerializedObject> edit)
-        {
-            var serialized = new SerializedObject(target);
-            edit(serialized);
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        private static PlayableGraph NewGraph(Owned owned)
-        {
-            PlayableGraph graph = PlayableGraph.Create("Lucid subtitle graph");
-            owned.Lease(new ReleaseAction(() => { if (graph.IsValid()) graph.Destroy(); }));
-            return graph;
-        }
-
         // The mixer's SubtitleBehaviour inputs, one per (text, weight, background).
         private sealed class MixerScene
         {

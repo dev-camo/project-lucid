@@ -12,6 +12,7 @@ using UnityEngine.Playables;
 using UnityEngine.Timeline;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
+using static ProjectLucid.Tests.TimelineTestSupport;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
@@ -27,20 +28,6 @@ namespace ProjectLucid.Tests
     {
         private static readonly BindingFlags Statics = BindingFlags.Static | BindingFlags.NonPublic;
 
-        private static void Author(Object target, Action<SerializedObject> edit)
-        {
-            var serialized = new SerializedObject(target);
-            edit(serialized);
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
-        private static PlayableGraph NewGraph(Owned owned)
-        {
-            PlayableGraph graph = PlayableGraph.Create("Lucid time machine graph");
-            owned.Lease(new ReleaseAction(() => { if (graph.IsValid()) graph.Destroy(); }));
-            return graph;
-        }
-
         // A behaviour whose protected configuration the case sets directly, as an authored asset would hold it.
         private sealed class ConfiguredBehaviour : TimeMachineBehaviour
         {
@@ -55,6 +42,8 @@ namespace ProjectLucid.Tests
                 return this;
             }
             public void ReleaseHeldInput() { m_inputHoldOccurred = true; }
+            // The press handler is private and fed by ControlMapping; a subclass raises the same pending flag.
+            public void PressInput() { m_inputPressOccurred = true; }
             public bool HoldOccurred => m_inputHoldOccurred;
             public bool PressOccurred => m_inputPressOccurred;
         }
@@ -257,7 +246,9 @@ namespace ProjectLucid.Tests
             Assert.That(Get<CutsceneManager>(behaviour, "m_cutsceneManager"), Is.Null);
         }
 
-        // ProcessFrame 0x5FC650 returns at once outside play mode (Application.isPlaying 0x5fc712), before any input is read.
+        // ProcessFrame 0x5FC650 returns at once outside play mode (Application.isPlaying 0x5fc712). Past that guard the
+        // loop evaluates ConditionMet first (0x5fc850), which consumes an Input condition's pending press, so a press
+        // that is still pending afterwards shows the guard returned before any input was examined.
         [Test]
         public void MixerDoesNothingOutsidePlayMode()
         {
@@ -265,14 +256,17 @@ namespace ProjectLucid.Tests
             {
                 PlayableGraph graph = NewGraph(owned);
                 ScriptPlayable<TimeMachineMixerBehaviour> mixer = ScriptPlayable<TimeMachineMixerBehaviour>.Create(graph, 1);
-                ScriptPlayable<TimeMachineBehaviour> input = ScriptPlayable<TimeMachineBehaviour>.Create(graph, new TimeMachineBehaviour(), 0);
+                ScriptPlayable<ConfiguredBehaviour> input = ScriptPlayable<ConfiguredBehaviour>.Create(graph, 0);
                 graph.Connect(input, 0, mixer, 0);
                 mixer.SetInputWeight(0, 1f);
+                ConfiguredBehaviour pressed = input.GetBehaviour().Configure(TimeMachineBehaviour.TimeMachineCondition.Input);
+                pressed.PressInput();
                 TimeMachineMixerBehaviour behaviour = mixer.GetBehaviour();
                 Assert.That(behaviour.MarkerClips, Is.Null);
                 behaviour.MarkerClips = new Dictionary<string, TimelineClip>();
                 Assert.DoesNotThrow(() => behaviour.ProcessFrame(mixer, default(FrameData), null));
-                Assert.That(input.GetBehaviour().ClipExecuted, Is.False);
+                Assert.That(pressed.PressOccurred, Is.True, "the pending press is not consumed");
+                Assert.That(pressed.ClipExecuted, Is.False);
             });
         }
 

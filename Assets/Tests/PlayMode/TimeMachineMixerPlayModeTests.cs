@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -21,7 +22,7 @@ namespace ProjectLucid.Tests
     {
         private sealed class Scene
         {
-            public readonly System.Collections.Generic.List<Object> Assets = new System.Collections.Generic.List<Object>();
+            public readonly List<Object> Assets = new List<Object>();
             public GameObject Host;
             public PlayableDirector Director;
             public TimelineAsset Timeline;
@@ -121,17 +122,19 @@ namespace ProjectLucid.Tests
         }
 
         // The JumpToEnd action (0x5fc758) looks the clip's own label up and sets the time to that clip's end minus the
-        // authored soften time (0.25 here): a 20 second clip is left at 19.75 before the director moves on.
+        // authored soften time (5 here): a 20 second clip is left at 15, well short of its end at 20. A later clip keeps
+        // the 100 second timeline running past 20, so a jump to the plain end would land outside the asserted window.
         [UnityTest]
         public IEnumerator AJumpToEndClipLandsJustBeforeItsOwnEnd()
         {
             Scene scene = NewScene();
             try
             {
-                AddClip(scene, 0.0, 20.0, "{\"m_action\":" + ActionJumpToEnd + ",\"m_markerLabel\":\"end\",\"m_endSoftenTime\":0.25,\"m_condition\":0}");
+                AddClip(scene, 0.0, 20.0, "{\"m_action\":" + ActionJumpToEnd + ",\"m_markerLabel\":\"end\",\"m_endSoftenTime\":5,\"m_condition\":0}");
+                AddClip(scene, 20.0, 80.0, "{\"m_action\":5,\"m_condition\":0}");
                 scene.Director.Play();
                 for (int frame = 0; frame < 3; frame++) yield return null;
-                Assert.That(scene.Director.time, Is.GreaterThanOrEqualTo(19.75).And.LessThan(21.0));
+                Assert.That(scene.Director.time, Is.GreaterThanOrEqualTo(15.0).And.LessThan(18.0));
             }
             finally { Dispose(scene); }
         }

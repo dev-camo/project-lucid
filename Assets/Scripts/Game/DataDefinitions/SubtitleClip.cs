@@ -23,7 +23,8 @@ namespace HardlightProject
         private readonly SystemRef<DataManager> m_dataManagerRef = ProcessManager.GetSystemRef<DataManager>(null, true);
 
         // Original06001953: play mode formats the string through the subtitle character definitions;
-        // edit mode shows the plain localisation (or nothing) because no systems are running.
+        // outside play mode the plain StringTable entry is used when it exists, otherwise string.Empty.
+        // The native metadata also registers the "" literal (0x7a5ee3) with no live use; the source shape behind it is unrecovered.
         public override Playable CreatePlayable(PlayableGraph graph, GameObject owner)
         {
             ScriptPlayable<SubtitleBehaviour> playable = ScriptPlayable<SubtitleBehaviour>.Create(graph, 0);
@@ -37,6 +38,6 @@ namespace HardlightProject
             return playable;
         }
 
-        // Implicit original06001954: translucent black background and the real DataManager SystemRef initialiser precede the base constructor.
+        // Implicit original06001954.
     }
 }

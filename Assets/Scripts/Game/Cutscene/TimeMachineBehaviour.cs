@@ -90,6 +90,6 @@ namespace HardlightProject
             }
         }
 
-        // Implicit original06002e7c: end soften time defaults to 0.1 seconds.
+        // Implicit original06002e7c.
     }
 }

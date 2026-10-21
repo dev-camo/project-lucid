@@ -39,6 +39,6 @@ namespace HardlightProject
             if (m_effectSpawner == null) m_effectSpawner = GetComponent<ParticleEffectSpawner>();
         }
 
-        // Implicit original060020e1: the offset multiplier starts at Vector3.one.
+        // Implicit original060020e1.
     }
 }

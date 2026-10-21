@@ -22,6 +22,6 @@ namespace HardlightProject
             m_material.color = color;
         }
 
-        // Original060020db: base constructor only.
+        // Implicit original060020db.
     }
 }

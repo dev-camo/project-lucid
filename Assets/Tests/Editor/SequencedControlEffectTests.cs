@@ -9,6 +9,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
+using static ProjectLucid.Tests.TimelineTestSupport;
 using Object = UnityEngine.Object;
 
 namespace ProjectLucid.Tests
@@ -20,13 +21,6 @@ namespace ProjectLucid.Tests
     // fields are written through SerializedObject, as the inspector does.
     public sealed class SequencedControlEffectTests
     {
-        private static void Author(Object target, Action<SerializedObject> edit)
-        {
-            var serialized = new SerializedObject(target);
-            edit(serialized);
-            serialized.ApplyModifiedPropertiesWithoutUndo();
-        }
-
         private static void Trigger(SequencedEffect effect, Action onComplete)
         {
             IEffectData data = new TargetedEffect();

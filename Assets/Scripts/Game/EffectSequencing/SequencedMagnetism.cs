@@ -48,6 +48,6 @@ namespace HardlightProject
             m_onComplete();
         }
 
-        // Implicit original060020c7: speed 10, minimum distance 1 and timeout 2 seconds precede the base constructor.
+        // Implicit original060020c7.
     }
 }

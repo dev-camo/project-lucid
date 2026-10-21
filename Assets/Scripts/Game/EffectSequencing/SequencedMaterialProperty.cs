@@ -24,6 +24,6 @@ namespace HardlightProject
             m_material.SetFloat(m_propertyHash, value);
         }
 
-        // Original060020de: base constructor only.
+        // Implicit original060020de.
     }
 }

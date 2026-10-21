@@ -20,11 +20,9 @@ namespace HardlightProject
         // Original060020fd: only the sequenced follower's own completion unsubscribes and completes the effect.
         private void OnComplete(TransformSurfaceFollower transformSurfaceFollower)
         {
-            if (m_transformSurfaceFollower == transformSurfaceFollower)
-            {
-                m_transformSurfaceFollower.OnCompleteAction -= OnComplete;
-                m_onComplete?.Invoke();
-            }
+            if (m_transformSurfaceFollower != transformSurfaceFollower) return;
+            m_transformSurfaceFollower.OnCompleteAction -= OnComplete;
+            m_onComplete?.Invoke();
         }
 
         // Implicit original060020fe.

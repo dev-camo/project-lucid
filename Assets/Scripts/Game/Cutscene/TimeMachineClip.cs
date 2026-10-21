@@ -26,6 +26,6 @@ namespace HardlightProject
             return ScriptPlayable<TimeMachineBehaviour>.Create(graph, m_timeMachinePlayableAsset, 0);
         }
 
-        // Implicit original06002e80: the authored behaviour exists before the base constructor runs.
+        // Implicit original06002e80.
     }
 }

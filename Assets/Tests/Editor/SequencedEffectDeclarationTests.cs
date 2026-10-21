@@ -17,7 +17,6 @@ namespace ProjectLucid.Tests
             Assert.That(type.BaseType, Is.EqualTo(baseType), type.FullName);
         }
 
-
         // SequencedMagnetism 0x0200061d and its iterator 0x0200061e.
         [Test]
         public void MagnetismKeepsTheOriginalDeclaration()

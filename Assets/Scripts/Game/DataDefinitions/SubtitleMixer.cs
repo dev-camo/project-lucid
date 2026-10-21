@@ -11,7 +11,7 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class SubtitleMixer : PlayableBehaviour
     {
-        private string m_currentText = string.Empty;
+        private string m_currentText = "";
         private float m_currentAlpha;
         private Color m_backgroundColour = new Color(0f, 0f, 0f, 0.7f);
         private int m_inputCount;
@@ -52,6 +52,6 @@ namespace HardlightProject
             m_backingPanel.SetActive(m_anyTextShowing);
         }
 
-        // Implicit original06001957: empty text, translucent black background and enabled subtitles.
+        // Implicit original06001957.
     }
 }
