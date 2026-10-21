@@ -60,6 +60,15 @@ namespace ProjectLucid.Tests
             // The brain's movement impulse as the enemy mirrors it each fixed update.
             internal void Impulse(float x, float y) => SetProperty(Enemy, "BrainMovement", new Vector2(x, y));
 
+            // Enemy.SetWorldVelocity (0x56D3A0) calls Actor.SetWorldVelocity (0x517130) before it writes the body, and that
+            // base body rereads the virtual WorldVelocity (the body's, 0x517160, 0x5171C3, 0x517264) to cache the local
+            // velocity. The body is written first so LocalVelocity follows the velocity set rather than the previous one.
+            internal void Velocity(Vector3 worldVelocity)
+            {
+                Body.WorldVelocity = worldVelocity;
+                Enemy.SetWorldVelocity(worldVelocity);
+            }
+
             internal void Flag(string property, bool value) => SetProperty(Enemy, property, value);
 
             // A proxy that records the rotation it is asked for, installed as the enemy's visual proxy.

@@ -251,7 +251,7 @@ namespace ProjectLucid.Tests
                     definition.ForwardSpeed = 4f;
                     TimeCurves(definition);
                 });
-                scene.Enemy.SetWorldVelocity(new Vector3(0f, -2f, 0f));
+                scene.Velocity(new Vector3(0f, -2f, 0f));
                 scene.Impulse(1f, 1f);
 
                 ability.UpdateMovement(0.5f);
@@ -364,7 +364,7 @@ namespace ProjectLucid.Tests
                 });
                 scene.Impulse(0.5f, 0f);
                 ability.UpdateMovement(0.1f);
-                scene.Enemy.SetWorldVelocity(new Vector3(0.5f, 0f, 0f));
+                scene.Velocity(new Vector3(0.5f, 0f, 0f));
                 scene.Animator.SetBool("Moving", true);
                 ability.UpdateMovementAnimation(scene.Animation);
                 Assert.That(scene.Animator.GetFloat("Speed"), Is.EqualTo(4f));
@@ -388,7 +388,7 @@ namespace ProjectLucid.Tests
                 {
                     scene.Animator.SetBool("Moving", !moving);
                     scene.Animator.SetFloat("Lateral", Sentinel);
-                    scene.Enemy.SetWorldVelocity(local);
+                    scene.Velocity(local);
                     ability.UpdateMovementAnimation(scene.Animation);
                     Assert.That(scene.Animator.GetBool("Moving"), Is.EqualTo(moving), "local velocity " + local);
                     Assert.That(scene.Animator.GetFloat("Lateral"), Is.EqualTo(moving ? -1f : 0f), "local velocity " + local);
@@ -396,13 +396,13 @@ namespace ProjectLucid.Tests
 
                 var spline = scene.Owned.Host(Name(), false).AddComponent<EnemyNavigationSpline>();
                 Set(scene.Enemy, "m_navigation", spline);
-                scene.Enemy.SetWorldVelocity(new Vector3(0.5f, 0f, 0f));
+                scene.Velocity(new Vector3(0.5f, 0f, 0f));
                 ability.UpdateMovementAnimation(scene.Animation);
                 Assert.That(scene.Animator.GetFloat("Lateral"), Is.EqualTo(-1f), "a spline that is not reversing");
                 Set(spline, "m_reversing", true);
                 ability.UpdateMovementAnimation(scene.Animation);
                 Assert.That(scene.Animator.GetFloat("Lateral"), Is.EqualTo(1f), "a reversing spline");
-                scene.Enemy.SetWorldVelocity(Vector3.zero);
+                scene.Velocity(Vector3.zero);
                 ability.UpdateMovementAnimation(scene.Animation);
                 Assert.That(scene.Animator.GetFloat("Lateral"), Is.EqualTo(0f), "not moving");
 
@@ -817,7 +817,7 @@ namespace ProjectLucid.Tests
                 var ability = scene.Ability<EnemyAbility_GroundAttack, EnemyAbilityDefinition_GroundAttack>();
                 foreach ((float y, float expected) in new[] { (-2f, -2f), (2f, 0f), (0f, 0f) })
                 {
-                    scene.Enemy.SetWorldVelocity(new Vector3(3f, y, 5f));
+                    scene.Velocity(new Vector3(3f, y, 5f));
                     ability.UpdateMovement(0.1f);
                     AssertNear(scene.Enemy.WorldVelocity, new Vector3(0f, expected, 0f), "vertical velocity " + y);
                 }
