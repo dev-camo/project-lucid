@@ -8175,3 +8175,94 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.GenericTriggerStateTests." + name fo
     "TheFactoriesStoreTheNodeSettings",
     "TheBoolEventTriggerRunsTheEventMatchingTheStoredApplicationValue",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerEvaluatorTests." + name for name in (
+    "TheLastBandWhoseDistanceIsStrictlyExceededScores",
+    "TheSelectedBandSuppliesTheAnimationAlongWithTheScore",
+    "OnlyTheEnabledLocalAxesContributeToTheDistance",
+    "AllThreeAxesAreEnabledByDefault",
+    "TheOverrideTransformIsTheOriginAndItsRotationSetsTheLocalAxes",
+    "ASingleBandAndANullEntryBothLeaveTheFirstBandSelected",
+    "AnEmptyBandListFaultsReadingTheFirstBand",
+    "TargetDistanceDefinitionExposesItsThreeAuthoredFields",
+    "TheCurveIsReadAtTheRoundedUpSecondsAndMultipliesTheProximityScore",
+    "TheTimeEvaluatorReturnsTheBandAnimationAndMultipliesTheSelectedBandScore",
+    "EnteringTheProximityTargetScoresTheObjectiveAndCompletesIt",
+    "EnteringTheSpeedCheckStoresTheScoreAndCompletesTheObjectiveEvenDuringItsCooldown",
+    "TheInstanceExposesItsEvaluatorAndTheObjectiveItIsGiven",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionInstancedTrackerTests." + name for name in (
+    "InitialiseTakesTheTargetFromTheDefinitionAndPublishesItToTheState",
+    "InitialiseAnnouncesTheLastObjectiveOnlyWhenOneMoreCompletesTheMission",
+    "ObjectiveCompletionIsIgnoredUntilTheMissionStarts",
+    "CompletingTheTargetNumberOfObjectivesCompletesTheMissionAndDetachesTheObjectives",
+    "ARepeatedCompletionReportIsNotCountedAgainButStillReportsTheStatus",
+    "ResettingACompletedObjectiveWithdrawsItFromTheCount",
+    "TheIconIsTheFirstIncompleteObjectivesOrTheFirstObjectivesOnceAllAreComplete",
+    "PersistedObjectiveCompletionIsRecordedInTheSaveAndNeedsNoStartedMission",
+    "SavedObjectiveCompletionIsRestoredOnlyForAPersistentDefinition",
+    "AReplayContextIgnoresSavedProgressAndSuppliesTheTarget",
+    "ResettingTheMissionResetsItsObjectivesAndRequiresARestart",
+    "ResettingACompleteMissionLeavesItsObjectivesComplete",
+    "APreviouslyCompletedMissionMarksEveryObjectiveComplete",
+    "ACompletedObjectiveAddsItsBonusSecondsToTheMissionTimerOnce",
+    "AScoredObjectiveAddsItsPointsWithOrWithoutTheComboMultiplier",
+    "DeclarationKeepsTheSerializedFieldsAndTheGateObjectivePrefix",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionBossTrackerTests." + name for name in (
+    "ReachingTheAuthoredNumberOfBossDefeatsCompletesTheMissionAndSoDoesEachLaterDefeat",
+    "ANonPositiveCountCompletesOnTheFirstDefeat",
+    "ResettingTheMissionRestartsTheDefeatCount",
+    "ABossHardFailureFailsTheMissionOnlyWhenTheFailureBehaviourShowsResults",
+    "TheTrackerJoinsTheBossCallbacksOnceAndLeavesThemWhenDestroyed",
+    "RemovingRingsDeactivatesTheRingCollectablesOnSetupAndOnEachReset",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionCollectableTrackerTests." + name for name in (
+    "TheTrackedAmountGrowsByTheChangesAndAnIgnoredLossStillMovesTheBaseline",
+    "ReachingTheTargetWithALargerGainClampsTheProgressToTheTarget",
+    "LossesLowerTheTotalWhenNotIgnoredAndNeverBelowZero",
+    "OnlyChangesFromTheAuthoredSourcesCountButEveryChangeMovesTheBaseline",
+    "ChangesToOtherCollectableTypesAreIgnored",
+    "SetupJoinsTheManagerAndRestartsTheProgressOnlyForAnIncompleteMission",
+    "TheAmountAlreadyCollectedIsTheBaseline",
+    "CompletionAndDestructionBothLeaveTheManager",
+    "IgnoringLossesIsTheDefault",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionReachGoalTrackerTests." + name for name in (
+    "ReachingTheGoalCompletesTheMission",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionInstancedOrbSpawningTrackerTests." + name for name in (
+    "PartialCompletionCountsWithoutAStartedMissionOrAStatusCallback",
+    "CompletingEveryObjectiveDetachesTheTrackerAndTriesToSpawnTheOrbAtTheLastObjective",
+    "AnAuthoredOrbLocationReplacesTheLastObjectivesPositionAsTheSpawnPoint",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionCollectableRewardTrackerTests." + name for name in (
+    "StartRegistersTheRewardsAsOneGroupOnceAndTakesOverTheirRegistration",
+    "StartDerivesTheStartDistanceFromTheUnionOfTheTriggerBounds",
+    "CollectingEveryRewardCompletesTheMission",
+    "DestroyingTheTrackerLeavesTheRewardsAndTheTriggers",
+    "EnteringATriggerTwiceTracksItOnceAndLeavingItResetsTheMeasurements",
+    "CompletingTheMissionStopsTrackingByEmptyingTheActiveTriggers",
+    "TheMeasurementsFollowTheDistanceToTheFirstRewardAndTheCameraFacing",
+    "WithoutACurrentCharacterTheMeasurementsAreLeftAlone",
+    "DeclarationKeepsTheAuthoredDefaults",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionInstancedProgressUiTests." + name for name in (
+    "TheParametersKeepEachArgumentInItsOwnProperty",
+    "ASlotIsActivatedAndDeactivatedThroughItsBinding",
+    "SettingTheSlotToItsCurrentStateWritesNothing",
+    "OrderedSlotsLightThePreviouslyCompletedAndTheNewlyCompletedOnlyWhenNotCountingUp",
+    "MissingIndexListsAreTreatedAsEmpty",
+    "TheProgressTicksUpOneStepPerIntervalLightingTheNewlyCompletedSlots",
+    "TheCompletionFlagComparesTheProgressWithTheTargetWhenTheCountEnds",
+    "ACountAlreadyAtItsTargetStillTicksOnce",
+    "ANewlyCompletedIndexBeyondTheSlotsIsSkipped",
+    "DisablingWithoutADefinitionDoesNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerPrefabPoolTests." + name for name in (
+    "TheLastQualityEntryOfTheActiveLevelSuppliesTheDistanceAndRefreshRate",
+    "ThePoolMayResizeOnlyWhenNeitherADistanceNorARefreshRateIsConfigured",
+    "AnObjectiveIsInRangeBelowTheConfiguredDistanceOrAlwaysWithoutOne",
+    "StartPoolsOnlyTheObjectivesOfTheConfiguredTypeAndRequestsTheRefresh",
+    "TheRefreshWaitsTheConfiguredIntervalWhenThereIsNoCurrentCharacter",
+    "ARefreshDespawnsIncompleteObjectivesOutOfRangeAndSkipsCompletedOnes",
+))
