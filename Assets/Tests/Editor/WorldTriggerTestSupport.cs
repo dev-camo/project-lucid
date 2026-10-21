@@ -134,8 +134,14 @@ namespace ProjectLucid.Tests
                 if (borrowed.Existed)
                 {
                     m_leases.Add(borrowed);
-                    ProcessManager.RegisterSystem(system, name);
-                    m_leases.Add(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnregisterSystem(name)));
+                    SystemRef reference = ProcessManager.RegisterSystem(system, name);
+                    // As RegistryRow.Dispose: release only a row that still holds this fixture's own system.
+                    m_leases.Add(new CharacterTriggerTestSupport.ReleaseAction(() =>
+                    {
+                        if (!ReferenceEquals(reference.GetSafe(), system))
+                            throw new InvalidOperationException("Fixture registry row has a foreign owner: " + name);
+                        ProcessManager.UnregisterSystem(name);
+                    }));
                     return system;
                 }
                 var row = new VerificationFixtureOwnership.RegistryRow(name);
