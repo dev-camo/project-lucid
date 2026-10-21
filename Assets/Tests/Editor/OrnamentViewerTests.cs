@@ -216,25 +216,34 @@ namespace ProjectLucid.Tests
 
         // ReleaseRenderTextures 0x5A0890: every camera with a target texture, active or not, has the texture released
         // and the target cleared; a camera without one is left alone. The method walks every loaded Camera, so the case
-        // runs only when no Editor-owned camera holds a target (Release cannot be undone on a texture the test does not own).
+        // detaches the targets of cameras it does not own first (Release cannot be undone on a texture the test does not
+        // own) and puts them back afterwards.
         [Test]
         public void ReleasingRenderTexturesClearsEveryCamerasTarget()
         {
             Owned.Run(owned =>
             {
-                Assume.That(Resources.FindObjectsOfTypeAll<Camera>().Where(camera => camera.targetTexture != null), Is.Empty,
-                    "a camera outside the fixture holds a render texture that the release would invalidate");
-                var texture = owned.Track(new RenderTexture(4, 4, 0));
-                texture.Create();
-                var withTarget = owned.Host("Lucid camera with a target", false).AddComponent<Camera>();
-                withTarget.targetTexture = texture;
-                var withoutTarget = owned.Host("Lucid camera without a target", true).AddComponent<Camera>();
+                var foreign = Resources.FindObjectsOfTypeAll<Camera>().Where(camera => camera.targetTexture != null)
+                    .Select(camera => (camera, camera.targetTexture)).ToArray();
+                try
+                {
+                    foreach (var (camera, _) in foreign) camera.targetTexture = null;
+                    var texture = owned.Track(new RenderTexture(4, 4, 0));
+                    texture.Create();
+                    var withTarget = owned.Host("Lucid camera with a target", false).AddComponent<Camera>();
+                    withTarget.targetTexture = texture;
+                    var withoutTarget = owned.Host("Lucid camera without a target", true).AddComponent<Camera>();
 
-                typeof(OrnamentViewer).GetMethod("ReleaseRenderTextures", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
+                    typeof(OrnamentViewer).GetMethod("ReleaseRenderTextures", BindingFlags.Static | BindingFlags.NonPublic).Invoke(null, null);
 
-                Assert.That(withTarget.targetTexture, Is.Null);
-                Assert.That(texture.IsCreated(), Is.False, "RenderTexture.Release was called");
-                Assert.That(withoutTarget.targetTexture, Is.Null);
+                    Assert.That(withTarget.targetTexture, Is.Null);
+                    Assert.That(texture.IsCreated(), Is.False, "RenderTexture.Release was called");
+                    Assert.That(withoutTarget.targetTexture, Is.Null);
+                }
+                finally
+                {
+                    foreach (var (camera, target) in foreign) if (camera != null) camera.targetTexture = target;
+                }
             });
         }
 
