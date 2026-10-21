@@ -42,12 +42,14 @@ namespace ProjectLucid.Tests
         {
             boss.Storage.SetValue(ActorFSMKeys.ActiveAnimationLookup, new Dictionary<string, ActorAnimationDefinition>());
             boss.Storage.SetValue(ActorFSMKeys.FullscreenEffectDictionary, new Dictionary<int, List<FullscreenShaderManager.ParametersHandle>>());
+            // Reflection: Actor.OnEnable (the only setter) needs a running FSM; this is the unresolved reference it leaves with no TimeManager row.
             Set(boss, "m_timeManagerRef", new SystemRef<TimeManager>(ProcessManager.GetDefaultName<TimeManager>(), null));
             return boss;
         }
 
         private static void WithBoss(Action<Owned, Boss> body) => Owned.Run(owned => body(owned, Prime(NewBoss(owned, Vector3.zero))));
 
+        // Reflection: Actor builds its abilities from the FSM's ability definitions (CreateAbility); the test supplies its own.
         private static void AddAbility(Boss boss, ActorAbilityType type, ActorAbility ability) =>
             Get<Dictionary<ActorAbilityType, ActorAbility>>(boss, "m_abilities")[type] = ability;
 
@@ -336,18 +338,32 @@ namespace ProjectLucid.Tests
 
         private static ProjectileType CooledType => ProjectileType.GuardianKillerProjectile;
 
-        private static GuardianProjectile NewProjectile(Owned owned, ProjectileManager manager, ProjectileType type, out int[] coolDowns)
+        // The rows GuardianProjectile.Fire reads (0x57BD00).
+        private static void RegisterGuardianRows(Owned owned)
         {
-            var projectile = owned.Host("Lucid cool-down projectile", false).AddComponent<GuardianProjectile>();
+            owned.LeaseRow<SaveManager>(); // BossManager's field initialiser caches a typed SaveManager reference.
+            owned.Register(owned.Host("Lucid cool-down boss manager", false).AddComponent<BossManager>());
+            owned.Register(owned.Host("Lucid cool-down guardian manager", false).AddComponent<GuardianManager>());
+        }
+
+        // The projectile is fired for real (state Fired, movement state from the boss storage), so that its cool-down is reachable.
+        private static GuardianProjectile NewProjectile(Owned owned, ProjectileManager manager, Boss boss, ProjectileType type, out int[] coolDowns,
+            GuardianProjectile.ProjectileMovementState movement = GuardianProjectile.ProjectileMovementState.FiredAsArc)
+        {
+            var projectile = EnemyAbilityTestSupport.AddTimeScaled<GuardianProjectile>(owned.Host("Lucid cool-down projectile", false));
             var definition = owned.Track(ScriptableObject.CreateInstance<ProjectileDefinition>());
+            // Reflection: Initialise needs the App's DataManager hazard table, and the type and definition are otherwise serialized.
             Set(definition, "m_projectileType", type);
             Set(projectile, "m_definition", definition);
-            Type stateType = typeof(Projectile).GetNestedType("ProjectileState", System.Reflection.BindingFlags.NonPublic);
-            Set(projectile, "m_state", Enum.ToObject(stateType, 1));
             var counter = new int[1];
             var cooling = new UnityEvent();
             cooling.AddListener(() => counter[0]++);
+            // Reflection: the cool-down event is a serialized field that the scene normally supplies.
             Set(projectile, "m_onCoolingDown", cooling);
+            projectile.SetBoss(boss);
+            boss.Storage.SetValue(BossFSMKeys.GuardianProjectileMovement, movement);
+            projectile.Fire();
+            // Reflection: the manager's own spawn path needs the pooled prefab set-up this test does not build.
             Get<List<Projectile>>(manager, "m_activeProjectiles").Add(projectile);
             coolDowns = counter;
             return projectile;
@@ -371,9 +387,10 @@ namespace ProjectLucid.Tests
 
             WithBoss((owned, boss) =>
             {
+                RegisterGuardianRows(owned);
                 ProjectileManager manager = owned.Register(owned.Host("Lucid cool-down projectile manager", false).AddComponent<ProjectileManager>());
-                NewProjectile(owned, manager, CooledType, out int[] cooled);
-                NewProjectile(owned, manager, ProjectileType.GuardianReturnableProjectile, out int[] other);
+                NewProjectile(owned, manager, boss, CooledType, out int[] cooled);
+                NewProjectile(owned, manager, boss, ProjectileType.GuardianReturnableProjectile, out int[] other);
 
                 IFSMState onEntry = NewState(nameof(BossState_CoolDownProjectilesOfType), CoolDownJson(true, false, false, CooledType));
                 Leave(onEntry, boss);
@@ -384,8 +401,9 @@ namespace ProjectLucid.Tests
 
             WithBoss((owned, boss) =>
             {
+                RegisterGuardianRows(owned);
                 ProjectileManager manager = owned.Register(owned.Host("Lucid cool-down projectile manager", false).AddComponent<ProjectileManager>());
-                NewProjectile(owned, manager, CooledType, out int[] cooled);
+                NewProjectile(owned, manager, boss, CooledType, out int[] cooled);
                 IFSMState onLeave = NewState(nameof(BossState_CoolDownProjectilesOfType), CoolDownJson(false, true, false, CooledType));
                 Enter(onLeave, boss);
                 Assert.That(cooled[0], Is.Zero, "the leave-only state does nothing on entry");
@@ -401,9 +419,9 @@ namespace ProjectLucid.Tests
             {
                 WithBoss((owned, boss) =>
                 {
+                    RegisterGuardianRows(owned);
                     ProjectileManager manager = owned.Register(owned.Host("Lucid cool-down projectile manager", false).AddComponent<ProjectileManager>());
-                    GuardianProjectile projectile = NewProjectile(owned, manager, CooledType, out int[] cooled);
-                    Set(projectile, "m_movementState", GuardianProjectile.ProjectileMovementState.Resting);
+                    NewProjectile(owned, manager, boss, CooledType, out int[] cooled, GuardianProjectile.ProjectileMovementState.Resting);
                     Enter(NewState(nameof(BossState_CoolDownProjectilesOfType), CoolDownJson(true, false, allowExceptions, CooledType)), boss);
                     Assert.That(cooled[0], Is.EqualTo(expected), "exceptions allowed " + allowExceptions);
                 });
@@ -422,6 +440,7 @@ namespace ProjectLucid.Tests
                 Boss boss = Prime(NewBoss(owned, new Vector3(0f, 2f, 0f)));
                 var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
                 definition.Traits = new BossTraits { TrackMask = 0 };
+                // Reflection: the boss definition is a serialized field that the scene supplies (no App-free setter).
                 Set(boss, "m_definition", definition);
                 IFSMState state = NewState(nameof(BossState_DecideMovement), "{\"BossMovementRange\":10}");
 
@@ -449,6 +468,7 @@ namespace ProjectLucid.Tests
                 Boss boss = Prime(NewBoss(owned, new Vector3(0f, 2f, 0f)));
                 var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
                 definition.Traits = new BossTraits();
+                // Reflection: the boss definition is a serialized field that the scene supplies (no App-free setter).
                 Set(boss, "m_definition", definition);
                 GameObject track = owned.Host("Lucid boss track", true);
                 track.transform.position = new Vector3(-10f, 2f, 0f);
