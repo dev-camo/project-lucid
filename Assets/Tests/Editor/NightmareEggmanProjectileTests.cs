@@ -180,8 +180,8 @@ namespace ProjectLucid.Tests
 
                 scene.Projectile.Fire();
 
-                Assert.That(Get<float>(scene.Projectile, "m_desiredMetersAheadOfPlayer"), Is.EqualTo(22f));
-                Assert.That(Get<float>(scene.Projectile, "m_timeToStayAheadOfPlayer"), Is.EqualTo(3f));
+                Assert.That(Get<float>(scene.Projectile, "m_desiredMetersAheadOfPlayer"), Is.EqualTo(22f).Within(1e-5f), "a draw from a collapsed range");
+                Assert.That(Get<float>(scene.Projectile, "m_timeToStayAheadOfPlayer"), Is.EqualTo(3f).Within(1e-5f), "a draw from a collapsed range");
                 Assert.That(Phase(scene.Projectile), Is.EqualTo(State.ProgressingAheadOfPlayer));
                 Assert.That(Get<ISpline>(scene.Projectile, "m_worldSpline"), Is.SameAs(scene.Inert));
                 var surfaces = Get<Dictionary<ISurface, ISurface[]>>(scene.Projectile, "m_trackableSurfaces");
