@@ -98,7 +98,6 @@ namespace ProjectLucid.Tests
                 Assert.That(markers.Select(marker => marker.Icon.Value), Is.All.SameAs(scene.Icon), "set up from the definition's settings");
                 // Reflection: the marker keeps its target in a private field and shows no other sign of which target it follows.
                 Assert.That(markers.Select(marker => Get<Transform>(marker, "m_target")).ToArray(), Is.EqualTo(new[] { first.transform, second.transform }));
-                Assert.That(markers.Select(marker => marker.RectTransform == null), Is.All.False, "the clones' Awake ran when they were activated");
             });
         }
 

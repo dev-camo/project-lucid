@@ -101,7 +101,8 @@ namespace ProjectLucid.Tests
             return target;
         }
 
-        // An active marker (its Awake has run) set up for a target standing at the given world position.
+        // A marker whose Awake has run, set up for a target standing at the given world position. The edit-mode test runner does
+        // not send Awake to a component without ExecuteAlways, so the fixture calls it as activation does in the game.
         public UIWidgetSDTWaypointMarker NewMarker(Vector3 targetPosition, bool active = true)
         {
             GameObject host = Owned.Track(new GameObject("Lucid waypoint marker", typeof(RectTransform)));
@@ -109,7 +110,7 @@ namespace ProjectLucid.Tests
             var marker = host.AddComponent<UIWidgetSDTWaypointMarker>();
             Set(marker, "m_screenSpacePositionUpdated", new UnityEvent<Vector3>());
             host.SetActive(active);
-            if (!active) Call(marker, "Awake");
+            Call(marker, "Awake");
             marker.Setup(new UIWidgetSDTWaypointMarkerParameters(NewTarget(targetPosition), Definition, ContainerType));
             return marker;
         }

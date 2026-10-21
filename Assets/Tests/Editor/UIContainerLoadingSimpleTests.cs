@@ -27,7 +27,11 @@ namespace ProjectLucid.Tests
 
         private static void Run(Action<Rig> body) => Owned.Run(owned =>
         {
-            var rig = new Rig { Exchange = owned.Register(new MessageExchange<string>()) };
+            // The exchange's constructor subscribes to the Shutdown action before the row is admitted.
+            owned.LeaseActions(SystemAction.Shutdown);
+            var exchange = new MessageExchange<string>();
+            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(exchange)));
+            var rig = new Rig { Exchange = owned.Register(exchange) };
             rig.Container = owned.Host("Lucid loading simple", false).AddComponent<UIContainerLoadingSimple>();
             var bar = owned.Host("Lucid loading bar", false).AddComponent<UIWidgetSDTLoadingBar>();
             rig.Fill = owned.Track(new GameObject("Lucid loading bar fill", typeof(RectTransform))).GetComponent<RectTransform>();

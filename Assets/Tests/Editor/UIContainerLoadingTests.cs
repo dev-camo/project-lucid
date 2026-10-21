@@ -41,7 +41,8 @@ namespace ProjectLucid.Tests
 
         private static void Run(Action<Rig> body) => OwnedStringTable.Run(TipTexts, () => Owned.Run(owned =>
         {
-            owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
+            owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialisers
+            owned.LeaseRow<SaveManager>();
             var rig = new Rig { Owned = owned };
             rig.Container = owned.Host("Lucid loading container", false).AddComponent<UIContainerLoading>();
             rig.DefaultImage = NewSprite(owned);

@@ -356,6 +356,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                Call(rig.Theatre, "Start"); // reads the UIManager that Action_PlayAll asks
                 rig.Containers.Open.Add(rig.Identifier);
 
                 rig.Theatre.Action_PlayAll();
@@ -376,6 +377,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
+                Call(rig.Theatre, "Start"); // reads the UIManager that Action_PlayAll asks
                 rig.Theatre.Action_PlayAll();
 
                 Assert.That(rig.App.Storage.HasValue(AppFSMKeys.CutsceneTheatre), Is.False);
