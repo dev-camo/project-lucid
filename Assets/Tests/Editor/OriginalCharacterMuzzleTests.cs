@@ -14,7 +14,7 @@ namespace ProjectLucid.Tests
     // its constructor around a transform, and the side muzzle is a component on an owned host
     // whose rows (CinemachineCameraManager, CutsceneManager) are leased for the case. The Editor
     // sends Reset on AddComponent but no Awake or OnEnable, so each message a case needs is
-    // invoked directly. Only the paths without a valid manager are run: OnCutsceneFinishing (0x76DAE0)
+    // invoked directly. Only the paths without a valid manager are run. Not run: OnCutsceneFinishing (0x76DAE0)
     // with a ready camera manager stores MainCamera.transform in m_mainCamera and returns at once
     // (0x76db58) without UpdateMuzzleSide, m_isActive or StopAllCoroutines; OnCameraManagerShutdown
     // (0x76D970) during a cutscene forwards to OnCutsceneStarted (0x76d9e2); OnCameraManagerStartup

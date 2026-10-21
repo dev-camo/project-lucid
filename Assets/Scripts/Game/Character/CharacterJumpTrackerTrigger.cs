@@ -5,7 +5,7 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime type 020001d1. Records where a jump starts and ends.
-    // The m_hasLoggedVelocity branch matches a log call compiled out of retail. Native code also
+    // The m_hasLoggedVelocity branch only sets the flag (0x6f2d89); native code has no log there. It also
     // initialises System.Math after the end position is stored: that is IL whose result the
     // native compiler discarded, leaving only the class initialisation, so nothing is restored for it.
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]

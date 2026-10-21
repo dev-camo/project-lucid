@@ -196,8 +196,9 @@ namespace ProjectLucid.Tests
         }
 
         // FixedUpdate 0x6F2D00 returns at once for a completed jump (+0x59) or a destroyed or absent
-        // character (op_Equality at 0x6f2d72). Past either guard the first step reads the character's
-        // velocity, which faults here because this Character has no body.
+        // character (op_Equality at 0x6f2d72). Past either guard the first step reads IsJumping (from 0x6f2e60),
+        // then the position, then the velocity (0x6f2f46), which faults here because this Character has no
+        // body.
         [Test]
         public void JumpTrackerFixedUpdateDoesNothingForACompletedJumpOrWithoutACharacter()
         {
