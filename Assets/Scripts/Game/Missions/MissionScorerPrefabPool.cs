@@ -64,7 +64,7 @@ namespace HardlightProject
             ProcessManager.GetSystemRef<CharacterManager>(null, true).InvokeOnValid(OnCharacterManagerValid);
         }
 
-        // 06002a3b (0x5D6B50): the last quality entry matching the active profile's level supplies the distance and
+        // 06002a3b (0x5D6B50): the first quality entry matching the active profile's level supplies the distance and
         // refresh rate. A pool with neither a distance nor a refresh rate is allowed to resize.
         private void SetRenderSettings()
         {
@@ -74,6 +74,7 @@ namespace HardlightProject
                 if (attribute.Level != quality.QualityLevel) continue;
                 m_renderDistanceMeters = quality.DistanceMeters;
                 m_renderRefreshRateSeconds = quality.RefreshRateSeconds;
+                break;
             }
             m_refreshWaitForSeconds = new WaitForSeconds(m_renderRefreshRateSeconds);
             m_distanceSqr = m_renderDistanceMeters * m_renderDistanceMeters;

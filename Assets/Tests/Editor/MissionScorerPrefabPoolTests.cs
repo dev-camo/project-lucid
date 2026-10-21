@@ -68,16 +68,17 @@ namespace ProjectLucid.Tests
             WithCharacterWorld((world, manager, character) => body(NewPool(world, manager, character, level, rows)));
         }
 
-        // 0x5D6C20..0x5D6C49 keeps looping after a match, so the last entry of the active level wins.
+        // 0x5D6C43 and 0x5D6C49 store the first match and fall through to Enumerator.Dispose at 0x5D6C51: the loop stops at
+        // the first entry of the active level; the later High row is the negative control.
         [Test]
-        public void TheLastQualityEntryOfTheActiveLevelSuppliesTheDistanceAndRefreshRate()
+        public void TheFirstQualityEntryOfTheActiveLevelSuppliesTheDistanceAndRefreshRate()
         {
             Run(rig =>
             {
-                Assert.That(Get<float>(rig.Pool, "m_renderDistanceMeters"), Is.EqualTo(30f));
-                Assert.That(Get<float>(rig.Pool, "m_renderRefreshRateSeconds"), Is.EqualTo(0.75f));
-                Assert.That(Get<float>(rig.Pool, "m_distanceSqr"), Is.EqualTo(900f));
-                Assert.That(OriginalInOutTestSupport.Seconds(Get<WaitForSeconds>(rig.Pool, "m_refreshWaitForSeconds")), Is.EqualTo(0.75f));
+                Assert.That(Get<float>(rig.Pool, "m_renderDistanceMeters"), Is.EqualTo(20f));
+                Assert.That(Get<float>(rig.Pool, "m_renderRefreshRateSeconds"), Is.EqualTo(0.25f));
+                Assert.That(Get<float>(rig.Pool, "m_distanceSqr"), Is.EqualTo(400f));
+                Assert.That(OriginalInOutTestSupport.Seconds(Get<WaitForSeconds>(rig.Pool, "m_refreshWaitForSeconds")), Is.EqualTo(0.25f));
                 Assert.That(Get<bool>(rig.Pool, "m_resizeWhenFull"), Is.False);
             }, PerformanceProfile.QualityLevel.High,
                 (PerformanceProfile.QualityLevel.Low, 5f, 0.5f), (PerformanceProfile.QualityLevel.High, 20f, 0.25f),

@@ -8265,7 +8265,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionInstancedProgressUiTests." + 
     "SetupCountsUpOnlyForAnAnimatedIncreaseThatDidNotStartAtTheTarget",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerPrefabPoolTests." + name for name in (
-    "TheLastQualityEntryOfTheActiveLevelSuppliesTheDistanceAndRefreshRate",
+    "TheFirstQualityEntryOfTheActiveLevelSuppliesTheDistanceAndRefreshRate",
     "ThePoolMayResizeOnlyWhenNeitherADistanceNorARefreshRateIsConfigured",
     "AnObjectiveIsInRangeBelowTheConfiguredDistanceOrAlwaysWithoutOne",
     "StartPoolsOnlyTheObjectivesOfTheConfiguredTypeAndRequestsTheRefresh",
