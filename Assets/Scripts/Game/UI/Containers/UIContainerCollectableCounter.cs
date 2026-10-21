@@ -64,7 +64,7 @@ namespace HardlightProject
         private void UpdateFromGameplay()
         {
             if (m_parameters.CollectableExists)
-                OnCollectableStateUpdate(m_parameters.State, default);
+                OnCollectableStateUpdate(m_parameters.State);
             else
                 HasValues.Value = false;
         }
@@ -104,7 +104,7 @@ namespace HardlightProject
 
         // 06003192: a mission start counts up to the collected amount; otherwise a running count
         // retargets and an idle one jumps. The change events carry the signed difference.
-        public virtual void OnCollectableStateUpdate(CollectableState collectableState, CollectableChangeMetadata metadata)
+        public virtual void OnCollectableStateUpdate(CollectableState collectableState, CollectableChangeMetadata metadata = default)
         {
             int previousCollected = CollectedAmount.Value;
             TotalAmount.Value = collectableState.Total;
