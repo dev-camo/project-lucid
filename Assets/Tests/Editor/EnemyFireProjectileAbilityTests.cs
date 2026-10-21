@@ -453,6 +453,42 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // ---- the turn state that consumes the published position ----
+
+        // End to end: the ability publishes the target position under "FireProjectileTargetPosition" (0x56ED80) and waits while the
+        // brain holds it (0x56F834). EnemyBrainState_TurnTowardsPosition configured with that key and RemoveWhenComplete turns the
+        // enemy on the spot (0x573C22 passes ignoreForwardMovement) and removes the position only once the enemy faces it
+        // (0x573C2C test al, then the flag at 0x573C34); only then does the ability's clock run. The target is on the +x axis
+        // of an enemy facing +z, so the first update turns right (impulse x = 1, no forward y) and keeps the position.
+        [Test]
+        public void TheTurnTowardsPositionStateConsumesThePositionTheAbilityPublished()
+        {
+            WithScene(scene =>
+            {
+                scene.AttachPoints(scene.Enemy, null, Vector3.zero);
+                var ability = Fire(scene);
+                var projectile = NewProjectile(scene);
+                Vector3 aim = new Vector3(10f, 0f, 0f);
+                scene.TriggerFireProjectile(ability, aim);
+                // Reflection: the warm-up slot is private and WarmupProjectile needs the registered ProjectileManager.
+                Set(ability, "m_projectileInWarmup", projectile);
+                AssertNear(scene.BrainStore(EnemyBrainFSMKeys.FireProjectileTargetPosition, Vector3.zero), aim, "published");
+
+                scene.ConsumeFireTargetPosition();
+                Assert.That(scene.BrainStore(EnemyBrainFSMKeys.MovementImpulse, new Vector2(9f, 9f)), Is.EqualTo(new Vector2(1f, 0f)), "turning right, not moving");
+                Assert.That(BrainHoldsTarget(scene), Is.True, "not facing the position yet");
+                ability.Update(0.25f);
+                Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(0f), "the ability waits for the position to be taken");
+
+                scene.Enemy.SetWorldRotation(Quaternion.LookRotation(Vector3.right));
+                scene.ConsumeFireTargetPosition();
+                Assert.That(scene.BrainStore(EnemyBrainFSMKeys.MovementImpulse, new Vector2(9f, 9f)), Is.EqualTo(Vector2.zero), "facing it");
+                Assert.That(BrainHoldsTarget(scene), Is.False, "removed once faced");
+                ability.Update(0.25f);
+                Assert.That(Get<float>(ability, "m_windUpElapsedTime"), Is.EqualTo(0.25f), "the wind-up clock runs once the position is gone");
+            });
+        }
+
         // ---- gizmos ----
 
         // 0x56FED0: the base answer (the ability is entered) is false for an ability that is not entered, and the

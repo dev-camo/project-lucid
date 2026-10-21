@@ -7129,6 +7129,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyFireProjectileAbilityTests." + 
     "FiringAndFinishingCanHappenInTheSameUpdate",
     "AProjectilePastTheWindUpTimeIsNeverFiredAndTheAbilityNeverFinishes",
     "ANaNClockWithNoProjectileOnlyAdvancesTheClock",
+    "TheTurnTowardsPositionStateConsumesThePositionTheAbilityPublished",
     "GizmosAreDrawnOnlyForAnEnteredTriggeredAbilityWithAShootNode",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyMovementStateTests." + name for name in (
