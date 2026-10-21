@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Hardlight.Enums;
 using HardlightProject;
@@ -18,7 +19,7 @@ namespace ProjectLucid.Tests
     {
         private static string InfoPath => Application.streamingAssetsPath + Path.DirectorySeparatorChar + "ApplicationInfo.json";
 
-        // The class is [Serializable] with two public fields; native ToJson (0x534FD0) writes them in
+        // The class is [Serializable] with two public fields; native ToJson (call at 0x535010) writes them in
         // declaration order.
         [Test]
         public void TheStampSerialisesItsCodeThenItsTime()
@@ -67,20 +68,24 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // OnApplicationInfoLoaded 0x606920: version = StringTable.GetString(prefix) + Application.version,
-        // the code is copied, and the time is DateTime.FromFileTimeUtc of the stored value. The prefix is
-        // Strings.NONE, which the table answers with the empty string whatever is loaded (0x1A355E0).
+        // OnApplicationInfoLoaded 0x606920: version = String.Concat(StringTable.GetString(prefix),
+        // Application.version) (0x6069B9), the code is copied, and the time is DateTime.FromFileTimeUtc of the
+        // stored value (0x606A11), so its kind is Utc. The prefix comes from an owned table.
         [Test]
         public void LoadedInformationFillsTheThreeBindables()
         {
             Owned.Run(owned =>
             {
-                var view = owned.Host("Lucid application info view", false).AddComponent<ApplicationInfoView>();
-                Set(view, "m_versionPrefix", Strings.NONE);
-                Call(view, "OnApplicationInfoLoaded", new ApplicationInfo { BuildCode = "abc123", BuildTime = 132223104000000000L });
-                Assert.That(view.BuildVersion.Value, Is.EqualTo(Application.version));
-                Assert.That(view.BuildCode.Value, Is.EqualTo("abc123"));
-                Assert.That(view.BuildTime.Value, Is.EqualTo(new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+                OwnedStringTable.Run(new Dictionary<Strings, string> { { Strings.MISSING, "v:" } }, () =>
+                {
+                    var view = owned.Host("Lucid application info view", false).AddComponent<ApplicationInfoView>();
+                    Set(view, "m_versionPrefix", Strings.MISSING);
+                    Call(view, "OnApplicationInfoLoaded", new ApplicationInfo { BuildCode = "abc123", BuildTime = 132223104000000000L });
+                    Assert.That(view.BuildVersion.Value, Is.EqualTo("v:" + Application.version));
+                    Assert.That(view.BuildCode.Value, Is.EqualTo("abc123"));
+                    Assert.That(view.BuildTime.Value, Is.EqualTo(new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+                    Assert.That(view.BuildTime.Value.Kind, Is.EqualTo(DateTimeKind.Utc));
+                });
             });
         }
     }

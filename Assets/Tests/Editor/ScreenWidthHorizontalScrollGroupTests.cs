@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
@@ -208,6 +209,62 @@ namespace ProjectLucid.Tests
                     Assert.That(scroll.Current, Is.Null);
                     AssertPosition(scene.GroupRect, 10f, 20f, "step " + step);
                 }
+            });
+        }
+
+        // The index is (offset + count + index) % count with idiv (0x6095B9), which keeps the dividend's
+        // sign: from index 0 of 3 children, ScrollToIndex(-5) gives (-5 + 3) % 3 = -2 (a positive modulo
+        // would give 1). The next scroll then starts at x = -(-2) * 640 and lands on (1 + 3 - 2) % 3 = 2.
+        [Test]
+        public void ALargeNegativeOffsetLeavesANegativeTargetIndex()
+        {
+            Owned.Run(owned =>
+            {
+                Scene scene = NewScene(owned, Vector2.zero, Vector2.zero, Vector2.zero);
+                scene.Host.SetActive(true);
+
+                scene.Group.Action_ScrollToIndex(-5);
+                Assert.That(Get<int>(scene.Group, "m_targetIndex"), Is.EqualTo(-2));
+
+                scene.Group.Action_ScrollToNext();
+                AssertPosition(scene.GroupRect, 1280f, 0f, "from index -2");
+                Assert.That(Get<int>(scene.Group, "m_targetIndex"), Is.EqualTo(2));
+            });
+        }
+
+        private static FieldInfo LerpValueField(IEnumerator scroll)
+        {
+            foreach (FieldInfo field in scroll.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+            {
+                if (field.Name.StartsWith("<scrollLerpValue>5__")) return field;
+            }
+            throw new MissingFieldException(scroll.GetType().FullName, "<scrollLerpValue>5__");
+        }
+
+        // The loop test at 0x6097A9 is ucomiss + jae on 1.0 >= value: 1.0 still loops, anything above 1 ends
+        // and NaN (unordered) ends too, so `< 1f` and `!(value > 1f)` both differ. The hoisted local is set
+        // through reflection because the value depends on frame time; with no scroll speed each step adds 0.
+        // 1.0 yields at the exact end of the lerp; above 1 writes the exact target (0x6097CD) and clears the
+        // routine handle (0x6097D2).
+        [TestCase(1f, true)]
+        [TestCase(1.0000001f, false)]
+        [TestCase(float.NaN, false)]
+        public void TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(float lerpValue, bool continues)
+        {
+            Owned.Run(owned =>
+            {
+                Scene scene = NewScene(owned, Vector2.zero, Vector2.zero);
+                scene.Host.SetActive(true);
+                scene.Group.Action_ScrollToNext();
+                Assert.That(Get<Coroutine>(scene.Group, "m_scrollRoutine"), Is.Not.Null);
+
+                var scroll = (IEnumerator)Call(scene.Group, "ScrollToTargetPosition", new Vector2(10f, 20f), new Vector2(110f, 220f));
+                Assert.That(scroll.MoveNext(), Is.True);
+                LerpValueField(scroll).SetValue(scroll, lerpValue); // no path reaches the local without frame time
+
+                Assert.That(scroll.MoveNext(), Is.EqualTo(continues));
+                AssertPosition(scene.GroupRect, 110f, 220f, "end of the lerp");
+                Assert.That(Get<Coroutine>(scene.Group, "m_scrollRoutine") == null, Is.EqualTo(!continues));
             });
         }
 

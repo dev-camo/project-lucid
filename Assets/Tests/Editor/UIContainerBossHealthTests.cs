@@ -134,7 +134,7 @@ namespace ProjectLucid.Tests
         }
 
         // OnBossHealthTotalUpdate 0x61AAA0 stores the total, shows pip i while i < total with a full fill
-        // (0x61AB02), makes the current target equal the total (0x61AB1D) and re-reads the manager's name.
+        // (constant 1.0 loaded at 0x61AAFE, set_fillAmount call at 0x61AB08), makes the current target equal the total (0x61AB1D) and re-reads the manager's name.
         [Test]
         public void ANewTotalShowsThatManyFullPips()
         {
@@ -153,24 +153,48 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // OnHealthChange 0x61A860 records the new target, restarts the lerp routine and picks the rising or
-        // falling lerp by comparing the old target with the new one (0x61A89F).
+        // OnHealthChange 0x61A860 records the new target, restarts the lerp routine and takes the down branch
+        // whenever old >= health (0x61A8A2 jge). The up branch passes (target, old) as LerpUIUp's arguments
+        // (0x61A8F8/0x61A8FC) and the down branch passes m_healthFills[target] (0x61A906). In Edit Mode
+        // StartCoroutine runs the first step at once, with fill = clamp01(deltaTime / 0.5) for a rise and
+        // 1 - that for a fall, so with half-filled pips and a short frame the touched fill shows the branch.
+        private static void HalfFill(Rig rig, int target)
+        {
+            foreach (Image fill in rig.Fills) fill.fillAmount = 0.5f;
+            Set(rig.Container, "m_currentHealthTarget", target);
+        }
+
         [Test]
         public void AHealthChangeRecordsTheTargetAndStartsALerp()
         {
             WithRig(4, (owned, rig) =>
             {
+                Assume.That(Time.deltaTime, Is.LessThan(0.25f), "the first lerp step needs a short frame");
                 ListABoss(owned, rig);
                 Call(rig.Container, "OnBossManagerValid", rig.Manager);
                 Assert.That(Get<Coroutine>(rig.Container, "m_lerpRoutine"), Is.Null);
 
-                rig.Manager.RestoreHealthToPool(3);
+                // A rise from 2 to 3 fills pips upward starting at fill 2.
+                HalfFill(rig, 2);
+                Call(rig.Container, "OnHealthChange", 3);
                 Assert.That(Get<int>(rig.Container, "m_currentHealthTarget"), Is.EqualTo(3));
                 Assert.That(Get<Coroutine>(rig.Container, "m_lerpRoutine"), Is.Not.Null, "a rise");
+                Assert.That(rig.Fills[2].fillAmount, Is.LessThan(0.5f), "the rising pip starts from empty");
+                Assert.That(rig.Fills[3].fillAmount, Is.EqualTo(0.5f));
+                Assert.That(rig.Fills[1].fillAmount, Is.EqualTo(0.5f));
 
-                rig.Manager.RestoreHealthToPool(1);
+                // An equal health is not a rise: it drains the pip at the target.
+                HalfFill(rig, 2);
+                Call(rig.Container, "OnHealthChange", 2);
+                Assert.That(rig.Fills[2].fillAmount, Is.GreaterThan(0.5f), "an equal health drains");
+
+                // A fall from 2 to 1 drains the pip at the new health.
+                HalfFill(rig, 2);
+                Call(rig.Container, "OnHealthChange", 1);
                 Assert.That(Get<int>(rig.Container, "m_currentHealthTarget"), Is.EqualTo(1));
                 Assert.That(Get<Coroutine>(rig.Container, "m_lerpRoutine"), Is.Not.Null, "a fall");
+                Assert.That(rig.Fills[1].fillAmount, Is.GreaterThan(0.5f));
+                Assert.That(rig.Fills[2].fillAmount, Is.EqualTo(0.5f));
             });
         }
 
@@ -230,7 +254,8 @@ namespace ProjectLucid.Tests
         }
 
         // OnDestroy 0x61AB90 returns for a container that never had a manager, and otherwise removes both
-        // of its subscriptions.
+        // of its subscriptions. The test is UnityEngine.Object.op_Equality (0x61AC1A), so a destroyed
+        // manager counts as missing and keeps its subscriptions.
         [Test]
         public void DestroyingUnsubscribesFromTheManager()
         {
@@ -245,6 +270,25 @@ namespace ProjectLucid.Tests
                 Call(rig.Container, "OnDestroy");
                 Assert.That(rig.Manager.OnBossHealthPoolChange, Is.Null);
                 Assert.That(rig.Manager.OnBossHealthTotalUpdate, Is.Null);
+            });
+        }
+
+        [Test]
+        public void DestroyingAfterTheManagerWasDestroyedKeepsItsSubscriptions()
+        {
+            WithRig(1, (owned, rig) =>
+            {
+                var second = owned.Host("Lucid boss health second manager", false).AddComponent<BossManager>();
+                Set(second, "m_sharedHealthTotal", 3);
+                Set(second, "m_sharedHealthCurrent", 2);
+                Set(second, "m_bossEncounterName", Strings.MISSING);
+                Call(rig.Container, "OnBossManagerValid", second);
+                UnityEngine.Object.DestroyImmediate(second.gameObject);
+
+                Call(rig.Container, "OnDestroy");
+
+                Assert.That(second.OnBossHealthPoolChange, Is.Not.Null);
+                Assert.That(second.OnBossHealthTotalUpdate, Is.Not.Null);
             });
         }
     }

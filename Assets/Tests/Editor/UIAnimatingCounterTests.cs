@@ -90,6 +90,9 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(counter, "m_animationTimeSeconds"), Is.EqualTo(4f));
                 counter.SetUp(0, 1, null, -1f);
                 Assert.That(Get<float>(counter, "m_animationTimeSeconds"), Is.EqualTo(-1f));
+                // 0x60A511 jne/jnp: an unordered compare falls through to the store.
+                counter.SetUp(0, 1, null, float.NaN);
+                Assert.That(float.IsNaN(Get<float>(counter, "m_animationTimeSeconds")), Is.True);
             });
         }
 
@@ -174,6 +177,52 @@ namespace ProjectLucid.Tests
                 Assert.That(log, Is.EqualTo(new[] { "start", "end" }));
                 Assert.That(counter.CurrentValue.Value, Is.EqualTo(12));
                 Assert.That(Get<float>(counter, "m_elapsedSeconds"), Is.EqualTo(-1f));
+            });
+        }
+
+        // The loop test at 0x60AA49 is ucomiss + jbe on time <= elapsed (exit): an elapsed time equal to the
+        // duration exits, so `>=` would yield again, and an unordered compare (NaN) exits too. Just below the
+        // duration the body runs and yields. The elapsed time is set because only the frame loop advances it.
+        [Test]
+        public void TheLoopRunsWhileTheElapsedTimeIsBelowTheDuration()
+        {
+            Owned.Run(owned =>
+            {
+                UIAnimatingCounter Started(List<string> log)
+                {
+                    UIAnimatingCounter counter = NewCounter(owned);
+                    Set(counter, "m_onStart", Event(log, "start"));
+                    Set(counter, "m_onEnd", Event(log, "end"));
+                    counter.SetUp(3, 12, null, 4f);
+                    return counter;
+                }
+
+                var log = new List<string>();
+                UIAnimatingCounter exact = Started(log);
+                var animation = (IEnumerator)Call(exact, "AnimateCoroutine");
+                Assert.That(animation.MoveNext(), Is.True);
+                Set(exact, "m_elapsedSeconds", 4f);
+                Assert.That(animation.MoveNext(), Is.False, "elapsed equals the duration");
+                Assert.That(log, Is.EqualTo(new[] { "start", "end" }));
+                Assert.That(exact.CurrentValue.Value, Is.EqualTo(12));
+                Assert.That(Get<float>(exact, "m_elapsedSeconds"), Is.EqualTo(4f));
+
+                var nanLog = new List<string>();
+                UIAnimatingCounter nan = Started(nanLog);
+                animation = (IEnumerator)Call(nan, "AnimateCoroutine");
+                Assert.That(animation.MoveNext(), Is.True);
+                Set(nan, "m_animationTimeSeconds", float.NaN);
+                Assert.That(animation.MoveNext(), Is.False, "an unordered compare ends the loop");
+                Assert.That(nanLog, Is.EqualTo(new[] { "start", "end" }));
+
+                var runLog = new List<string>();
+                UIAnimatingCounter below = Started(runLog);
+                animation = (IEnumerator)Call(below, "AnimateCoroutine");
+                Assert.That(animation.MoveNext(), Is.True);
+                Set(below, "m_elapsedSeconds", 3.99f);
+                Assert.That(animation.MoveNext(), Is.True, "the body runs and yields");
+                Assert.That(animation.Current, Is.Null);
+                Assert.That(runLog, Is.EqualTo(new[] { "start" }));
             });
         }
 

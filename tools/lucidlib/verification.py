@@ -8368,6 +8368,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnControllerConnectedButtonTests." +
     "EveryControllerTypeMapsToItsNativeInputType",
     "AConnectedControllerSetsTheInputTypeUnlessItIsASiriRemote",
     "ADisabledButtonDoesNothing",
+    "TheLastControllerThatIsNotASiriRemoteDecidesTheInputType",
+    "AnEmptyOrSiriRemoteOnlyProviderLeavesTheInputTypeAlone",
+    'AnEnabledButtonFiresOnlyTheHandlerOfItsTrigger(0,"held")',
+    'AnEnabledButtonFiresOnlyTheHandlerOfItsTrigger(1,"down")',
+    'AnEnabledButtonFiresOnlyTheHandlerOfItsTrigger(2,"up")',
+    "AnUnknownTriggerThrowsAndAMissingHandlerIsSkipped",
     "OnDestroyBeforeStartFaultsOnTheMissingControlMapping",
 ))
 
@@ -8385,6 +8391,10 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ScreenWidthHorizontalScrollGroupTest
     "ScrollingWrapsTheTargetIndexAroundTheChildren",
     "EachScrollStartsAtTheOldTargetsOffset",
     "ScrollingDoesNothingWithoutChildren",
+    "ALargeNegativeOffsetLeavesANegativeTargetIndex",
+    "TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(1.0f,True)",
+    "TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(1.0000001f,False)",
+    "TheLoopContinuesAtExactlyOneAndEndsAboveOneOrNaN(float.NaN,False)",
     "TheScrollHoldsTheStartWhileNoTimePasses",
     "TheScrollEndsOnTheExactTargetAndClearsTheRoutine",
 ))
@@ -8398,6 +8408,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIAnimatingCounterTests." + name for
     "RoundingTiesGoToTheEvenNeighbour",
     "ProgressIsClampedBetweenTheStartAndEndAmounts",
     "AnInactiveCounterAnimatesLaterFromStartToEnd",
+    "TheLoopRunsWhileTheElapsedTimeIsBelowTheDuration",
     "AnActiveCounterRunsTheStartOfItsAnimationAtOnce",
     "EnablingStartsTheDeferredAnimationOnly",
 ))
@@ -8414,4 +8425,5 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerBossHealthTests." + name 
     "LerpUpFaultsWhenThePipsRunPastTheFills",
     "LerpDownEmptiesTheGivenFillAndEnds",
     "DestroyingUnsubscribesFromTheManager",
+    "DestroyingAfterTheManagerWasDestroyedKeepsItsSubscriptions",
 ))
