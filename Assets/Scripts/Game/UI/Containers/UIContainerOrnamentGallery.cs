@@ -74,7 +74,7 @@ namespace HardlightProject
         }
 
         // 0x060033d6 (0x66D6F0): wide screens (above 1.75) offset the ornament; above 1.9 the
-        // notched-device row length applies. The native comparisons use the constants 1.9f/1.75f.
+        // notched-device row length applies.
         private void OnEnable()
         {
             m_timeManager = ProcessManager.GetSystem<TimeManager>(null, true);
@@ -90,9 +90,10 @@ namespace HardlightProject
             Title.Value = Strings.GLOSSARY_24;
         }
 
-        // 0x060033d7 (0x66E080): button input becomes an impulse on the ornament. A touch drag
-        // below the hold-to-spin threshold turns the ornament directly by the drag amount; once the
-        // finger lifts, automation resumes and the release impulse is applied.
+        // 0x060033d7 (0x66E080): button input becomes an impulse on the ornament. While a drag is
+        // active (DragAmount not NaN) and the rotator's impulse speed is below the hold-to-spin
+        // threshold, the ornament is turned directly by the drag. Otherwise automation resumes and
+        // any pending release impulse is applied.
         private void LateUpdate()
         {
             if (m_currentOrnament == null)
@@ -135,7 +136,7 @@ namespace HardlightProject
         }
 
         // 0x060033d9 (0x66E400): destroys the preview, releases every cached ornament handle and
-        // requests a save (the selection marks ornaments as seen).
+        // requests a save.
         private void OnDestroy()
         {
             if (m_currentOrnament != null)

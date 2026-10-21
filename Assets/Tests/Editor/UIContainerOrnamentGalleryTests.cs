@@ -332,9 +332,10 @@ namespace ProjectLucid.Tests
 
                 int perRow = Get<int>(rig.Gallery, "m_ornamentsPerRow");
                 float offset = Get<float>(rig.Gallery, "m_ornamentXOffset");
-                Assert.That(new[] { 5, 2 }, Does.Contain(perRow));
-                Assert.That(new[] { 0f, 0.35f }, Does.Contain(offset));
-                if (perRow == 5) Assert.That(offset, Is.EqualTo(0.35f), "above 1.9 is also above 1.75");
+                // Screen cannot be set in Edit Mode, so the branch follows whatever shape the Game view reports.
+                float aspect = (float)Screen.width / (float)Screen.height;
+                Assert.That(perRow, Is.EqualTo(aspect > 1.9f ? 5 : 2));
+                Assert.That(offset, Is.EqualTo(aspect > 1.75f ? 0.35f : 0f));
             });
         }
 

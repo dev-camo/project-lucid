@@ -29,7 +29,10 @@ namespace HardlightProject
                 m_entriesInThisRow.RemoveAt(m_entriesInThisRow.Count - 1);
             }
             for (int i = 0; i < m_entriesInThisRow.Count; i++)
-                m_entriesInThisRow[i].Setup(data.Toggles[i]);
+            {
+                UIWidgetOrnamentToggleParameters toggleData = data.Toggles[i];
+                m_entriesInThisRow[i].Setup(toggleData);
+            }
         }
 
         // 0x06003810 (0x69E6F0)

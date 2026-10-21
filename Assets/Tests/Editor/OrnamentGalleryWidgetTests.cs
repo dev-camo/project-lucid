@@ -718,6 +718,7 @@ namespace ProjectLucid.Tests
                 Assert.DoesNotThrow(() => Call(widget, "<Action_OnCharacterSelected>b__9_0"));
 
                 if (hasHighlight) Assert.That(highlight.transform.parent, Is.Null);
+                if (hasContainer) Assert.That(container.transform.childCount, Is.EqualTo(0), "nothing is reparented under the container");
             });
         }
     }
