@@ -50,6 +50,7 @@ ALLOWED = {
     "Assets/Editor/RecoveredProof/TimeSchedulerVerification.cs": (4, OWNED),
     "Assets/Editor/RecoveredProof/UIOriginalLeafVerification.cs": (1, OWNED),
     "Assets/Tests/CoroutineScrollShared/OriginalCoroutineEngineVerification.cs": (1, PROOF),
+    "Assets/Tests/Editor/AppRatingRequesterBossTests.cs": (2, OWNED),
     "Assets/Tests/Editor/CloudFacadeHandlerTests.cs": (1, OWNED),
     "Assets/Tests/Editor/FSMFixtureManagerRowOwnershipTests.cs": (4, OWNED),
     "Assets/Tests/Editor/FSMManagerVerificationOwnershipTests.cs": (52, OWNED),
