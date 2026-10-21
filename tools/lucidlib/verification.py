@@ -8800,3 +8800,38 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UserEditableUIFlipperTests." + name 
     "DelayedUpdateReversesTheLayoutAtTheEndOfTheFrame",
     "DelayedUpdateRePlacesTheActiveComponents",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrnamentComponentTests." + name for name in (
+    "EveryOrnamentResolvesTheCastShadowsPropertyIdWhenConstructed",
+    "TheAccessorsReturnTheSerializedFields",
+    "AwakeSwitchesTheThumbnailCameraObjectOff",
+    "EnableAndDisableDriveTheCastShadowsKeywordAndStoreOneInTheFloatBothTimes",
+    "EnableAndDisableWithoutARendererDoNothing",
+    "ValidationFillsAnAbsentCameraAndAddsARotator",
+    "ValidationReusesARotatorAlreadyOnTheObject",
+    "ValidationKeepsAssignedReferencesAndAddsNothingThen",
+    "AdvancedValidationRunsTheBaseThenFindsOrAddsTheAnimatorSampler",
+    "SimpleValidationRunsTheBaseThenFindsOrAddsTheAnimationSampler",
+    "DeclarationsKeepTheOriginalMembersFlagsAndOrder",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OrnamentViewerTests." + name for name in (
+    "TheCoroutineWaitsForTheRootThenInstantiatesTheOrnamentUnderIt",
+    "TheRotatorIsEnabledWithTheViewersYawSpeedAndAutomation",
+    "TheYawOffsetIsDroppedOnlyForAPingPongingRotator",
+    "ANullCallbackFaultsAfterTheOrnamentIsShown",
+    "TheCoroutineCannotBeReset",
+    "TheRootAnnouncesItselfToTheViewerUnderTheViewersMessage",
+    "ReleasingRenderTexturesClearsEveryCamerasTarget",
+    "DeclarationsKeepTheOriginalMembersFlagsAndGeneratedNames",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionSequencedInstancedTrackerTests." + name for name in (
+    "TheDefaultLimitActivatesOnlyTheFirstObjectiveOnStart",
+    "StartActivatesTheFirstLimitObjectivesInOrderAndTheRestWait",
+    "StartResetsEveryObjectiveWithoutReportingStatusBeforeActivating",
+    "AStatusChangeBeforeStartIsIgnoredEntirely",
+    "CompletingTheActiveObjectiveActivatesTheNextWaitingOne",
+    "EachCompletionFreesOneSlotForTheFirstWaitingObjective",
+    "AResetObjectiveWaitsAndIsActivatedAgainInOrder",
+    "APersistingTrackerHandlesReportsBeforeTheMissionStarts",
+    "InitialiseEmptiesTheSetsUnlessTheMissionIsComplete",
+    "DeclarationsKeepTheOriginalMembersFlagsAndAttributes",
+))
