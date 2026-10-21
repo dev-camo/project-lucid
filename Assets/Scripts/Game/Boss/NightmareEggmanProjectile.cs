@@ -175,10 +175,11 @@ namespace HardlightProject
             transform.rotation = target.Orientation;
         }
 
-        // 060022b4 (1.10.1 RVA 0x57E1B0): after the hold time the projectile charges the player.
+        // 060022b4 (1.10.1 RVA 0x57E1B0): after the hold time the projectile charges the player. The native jbe also
+        // holds on an unordered compare, so the charge starts only when the clock is ordered-greater than the hold time.
         private void CheckAheadOfPlayerTimer()
         {
-            if (m_timeInMotionPhase <= m_timeToStayAheadOfPlayer)
+            if (!(m_timeInMotionPhase > m_timeToStayAheadOfPlayer))
                 return;
             ChangeState(ProjectileMovementState.ChargingPlayer);
             m_onFiringAtPlayer.Invoke();

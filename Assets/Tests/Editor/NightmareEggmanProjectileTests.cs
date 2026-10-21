@@ -193,6 +193,40 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x57D3F0 stores the phase directly (it is not ChangeState, so the phase clock is kept), 0x57D410 tells every visual behaviour
+        // the moving-ahead phase, and 0x57D500/0x57D50C clear both surface collections while 0x57D5F7 only builds the tracker when there is
+        // none: firing a pooled projectile again reuses the tracker and leaves one surface registered.
+        [Test]
+        public void FireKeepsThePhaseClockTellsTheVisualsAndReusesTheTrackerOnRefire()
+        {
+            WithScene(scene =>
+            {
+                Set(scene.Projectile, "m_metersAheadOfPlayerMin", 22f);
+                Set(scene.Projectile, "m_metersAheadOfPlayerMax", 22f);
+                Set(scene.Projectile, "m_timeToStayAheadOfPlayerMin", 3f);
+                Set(scene.Projectile, "m_timeToStayAheadOfPlayerMax", 3f);
+                NightmareEggmanProjectileVisualBehaviour visual = NewVisual(scene.Owned);
+                object settings = NewSettings(State.ProgressingAheadOfPlayer);
+                SetSettings(visual, settings);
+                Set(scene.Projectile, "m_offsetVisualBehaviours", new[] { visual });
+                Set(scene.Projectile, "m_timeInMotionPhase", 5f);
+
+                scene.Projectile.Fire();
+
+                Assert.That(Get<float>(scene.Projectile, "m_timeInMotionPhase"), Is.EqualTo(5f), "Fire does not restart the phase clock");
+                Assert.That(Get<State>(visual, "m_currentMovementState"), Is.EqualTo(State.ProgressingAheadOfPlayer));
+                Assert.That(Get<object>(visual, "m_currentMovementSettings"), Is.SameAs(settings));
+                var tracker = Get<Tracker2D>(scene.Projectile, "m_tracker2D");
+
+                scene.Projectile.Fire();
+
+                Assert.That(Get<Tracker2D>(scene.Projectile, "m_tracker2D"), Is.SameAs(tracker), "the tracker is built only once");
+                Assert.That(Get<Dictionary<ISurface, ISurface[]>>(scene.Projectile, "m_trackableSurfaces").Count, Is.EqualTo(1));
+                Assert.That(Get<List<ISurface>>(scene.Projectile, "m_trackableSurfacesList").Count, Is.EqualTo(1));
+                Assert.That(scene.Fired[0], Is.EqualTo(2));
+            });
+        }
+
         // ---- DoMovement ----
 
         // 0x57D9E0: without a world spline the step is zero and nothing moves or counts time.
@@ -282,6 +316,25 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x57E1BA..0x57E1C9 (and the inlined copy at 0x57DC00): jbe is also taken on an unordered compare, so a NaN stay time never
+        // starts the charge and the projectile keeps holding. `clock <= stay` as the guard would charge.
+        [Test]
+        public void HoldingWithANaNStayTimeNeverStartsTheCharge()
+        {
+            WithScene(scene =>
+            {
+                StartPhase(scene, State.HoldingPosition, 22f);
+                Set(scene.Projectile, "m_timeToStayAheadOfPlayer", float.NaN); // Fire draws it from the authored range
+                scene.Projectile.transform.position = new Vector3(0f, 0f, 5f);
+
+                Move(scene, 1f);
+
+                Assert.That(Phase(scene.Projectile), Is.EqualTo(State.HoldingPosition));
+                Assert.That(Get<float>(scene.Projectile, "m_timeInMotionPhase"), Is.EqualTo(1f));
+                Assert.That(scene.FiringAtPlayer[0], Is.Zero);
+            });
+        }
+
         // 0x57DC68 (charging): the remaining distance ahead of the player shrinks by the curve at the phase clock times the return speed
         // (5) times the step, and the projectile sits at the player's spline distance plus what remains. Constant curve 1, step 2:
         // 14 - 10 = 4, the projectile is at 44. The charge ends when the remaining distance is not above the close-to-player range
@@ -311,6 +364,25 @@ namespace ProjectLucid.Tests
                     Assert.That(scene.FiringAtPlayer[0], Is.Zero, "no event is raised on reaching the player");
                 });
             }
+        }
+
+        // 0x57DA63 adds the step to the phase clock before 0x57E295 evaluates the curve at it. A linear curve from (0, 0) to (4, 1), a
+        // step of 2: the clock is 2, the scale 0.5 and 0.5 * 5 * 2 = 5 closes 14 to 9. Sampling before the increment (clock 0, scale 0)
+        // would leave 14.
+        [Test]
+        public void ChargingSamplesTheCurveAtTheClockAfterTheStep()
+        {
+            WithScene(scene =>
+            {
+                Set(scene.Projectile, "m_returnSplineDistancePerSecondCurve", AnimationCurve.Linear(0f, 0f, 4f, 1f));
+                StartPhase(scene, State.ChargingPlayer, 14f);
+
+                Move(scene, 2f);
+
+                Assert.That(Get<float>(scene.Projectile, "m_timeInMotionPhase"), Is.EqualTo(2f));
+                Assert.That(Get<float>(scene.Projectile, "m_desiredMetersAheadOfPlayer"), Is.EqualTo(9f).Within(1e-4f));
+                Assert.That(Phase(scene.Projectile), Is.EqualTo(State.ChargingPlayer));
+            });
         }
 
         // 0x57DCFE (reached): the closing continues at the plain return speed (the curve is not used: a zero curve changes nothing),
@@ -591,6 +663,27 @@ namespace ProjectLucid.Tests
                 visual.RegisterStateChange(State.ReachedPlayer);
                 Assert.That(GetField<Vector3>(carryCurved, "Offset"), Is.EqualTo(new Vector3(1f, 2f, 3f)), "the uncurved offset is carried");
                 Assert.That(Get<object>(visual, "m_currentMovementSettings"), Is.SameAs(carryCurved));
+            });
+        }
+
+        // 0x57D7D9/0x57D7B0: the settings are assigned only on a match, so a phase without settings keeps the previous ones while the
+        // new phase is still recorded and the clock restarts.
+        [Test]
+        public void RegisteringAPhaseWithoutSettingsKeepsThePreviousSettings()
+        {
+            Owned.Run(owned =>
+            {
+                NightmareEggmanProjectileVisualBehaviour visual = NewVisual(owned);
+                object hold = NewSettings(State.HoldingPosition);
+                SetSettings(visual, hold);
+                visual.RegisterStateChange(State.HoldingPosition);
+                Set(visual, "m_timeInMotionPhase", 5f);
+
+                visual.RegisterStateChange(State.ChargingPlayer);
+
+                Assert.That(Get<object>(visual, "m_currentMovementSettings"), Is.SameAs(hold));
+                Assert.That(Get<State>(visual, "m_currentMovementState"), Is.EqualTo(State.ChargingPlayer));
+                Assert.That(Get<float>(visual, "m_timeInMotionPhase"), Is.Zero);
             });
         }
 

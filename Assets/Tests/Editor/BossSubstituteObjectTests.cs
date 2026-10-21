@@ -155,6 +155,7 @@ namespace ProjectLucid.Tests
                 ("ground at the edge of the reach", -100f, float.NaN, -100f),
                 ("ground beyond the reach", -125f, float.NaN, 10f),
                 ("ceiling above only", float.NaN, 12f, 12f),
+                ("ground below and a ceiling above", 0f, 12f, 0f), // the down ray is tried first (0x7A5468), the up ray only if it misses (0x7A54B2)
                 ("nothing", float.NaN, float.NaN, 10f),
             })
             {
@@ -176,6 +177,8 @@ namespace ProjectLucid.Tests
                     Assert.That(boss.AnimationRoot.gameObject.activeSelf, Is.True, label + ": and its animation root");
                     AssertNear(boss.transform.position, new Vector3(3f, expectedHeight, 5f), label, 1e-3f);
                     Assert.That(boss.WorldVelocity, Is.EqualTo(Vector3.zero), label + ": the boss resumes at rest");
+                    // 0x7A54BB reads the boss's cached position (NewBoss made it (10, 0, 0)), not the placed transform
+                    Assert.That(boss.WorldPosition, Is.EqualTo(new Vector3(10f, 0f, 0f)), label + ": the movement resumes from the cached position");
                 });
             }
         }

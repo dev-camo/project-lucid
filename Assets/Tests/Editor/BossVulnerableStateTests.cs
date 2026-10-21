@@ -144,6 +144,24 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // 0x70D281/0x70D28A: ja is not taken on an unordered compare, so a NaN vulnerable time does not skip the forced-flag read: the
+        // boss stays vulnerable (the forced flag is false) and the read stores the flag's default. A rewrite as !(clock <= time) would
+        // end the vulnerability.
+        [Test]
+        public void VulnerableUpdateWithANaNTimeStaysVulnerableAndReadsTheForcedFlag()
+        {
+            WithBoss((owned, boss) =>
+            {
+                IFSMState state = NewState(nameof(BossState_Vulnerable), VulnerableJson(2f));
+                Set(state, "m_vulnerableTime", float.NaN); // JSON cannot carry NaN
+                Enter(state, boss);
+                UpdateState(state, boss, 1f);
+                Assert.That(Stored<bool>(boss, BossFSMKeys.CurrentlyVulnerable), Is.True);
+                Assert.That(Has(boss, BossFSMKeys.ForceNotVulnerable), Is.True, "the forced flag was read");
+                Assert.That(Stored<bool>(boss, BossFSMKeys.ForceNotVulnerable), Is.False);
+            });
+        }
+
         // 0x7053C0: leaving zeroes the clock and clears both the vulnerable flag and the flag that the boss hit the player.
         [Test]
         public void VulnerableLeaveResetsTheClockAndTheFlags()
@@ -203,6 +221,22 @@ namespace ProjectLucid.Tests
                 targets[LeftClaw].gameObject.SetActive(false);
                 UpdateState(state, boss, 0.5f);
                 Assert.That(targets[LeftClaw].gameObject.activeSelf, Is.False, "an already active target is not activated again");
+            }, LeftClaw);
+        }
+
+        // 0x70D954/0x70D957: ja is not taken on an unordered compare, so a NaN activation delay activates the target on the first update.
+        // A rewrite as `if (!(clock >= delay)) return` would never activate it.
+        [Test]
+        public void TargetUpdateWithANaNDelayActivatesTheTarget()
+        {
+            WithHomingBoss((owned, boss, targets) =>
+            {
+                IFSMState state = NewState(nameof(BossState_Vulnerable_Target), TargetJson(5f, LeftClaw, 1f));
+                Set(state, "m_targetActivateDelaySeconds", float.NaN); // JSON cannot carry NaN
+                Enter(state, boss);
+                UpdateState(state, boss, 0.1f);
+                Assert.That(targets[LeftClaw].gameObject.activeSelf, Is.True);
+                Assert.That(Stored<bool>(boss, BossFSMKeys.VulnerableTargetActive), Is.True);
             }, LeftClaw);
         }
 

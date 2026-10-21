@@ -6,8 +6,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime 02000445; bodies translated from the 1.10.1 x86-64 binary, 0x7A52B0..0x7A5810.
     // A cutscene stand-in for a boss: while it is enabled the real boss's visual proxy is hidden, and when it is disabled
-    // the boss is shown again; its transform is dropped onto the ground below it and its movement is resumed from its
-    // cached world position with zero velocity.
+    // the boss is shown again; its transform is moved to the track hit along the boss's down direction or, failing that,
+    // its up direction (keeping x and z), and its movement is resumed from its cached world position with zero velocity.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class SubstituteObjectBoss : SubstituteObject
@@ -38,8 +38,7 @@ namespace HardlightProject
             m_replacedBoss.MovementResume(m_replacedBoss.WorldPosition, Vector3.zero);
         }
 
-        // 06001943 (1.10.1 RVA 0x7A5530): looks for the ground below the boss's up direction first and, failing that,
-        // along it.
+        // 06001943 (1.10.1 RVA 0x7A5530): casts along -UpDirection first and, if nothing is hit, along UpDirection.
         private void PlaceOnTheGround(Boss boss, Vector3 worldPosition)
         {
             float distance = (worldPosition.y + RaycastStartHeightBoost) * RaycastDistanceMultiplier;
