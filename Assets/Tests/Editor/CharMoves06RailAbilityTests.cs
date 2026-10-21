@@ -289,12 +289,14 @@ namespace ProjectLucid.Tests
         }
 
         // 0x7527C5..0x7527CC: with no trigger ability in use (an empty list here) the update returns before the base
-        // update, the input read or the reset, so the input and the published target stay as they were.
+        // update, the input read or the reset, so the input and the published target stay as they were. The character
+        // is on a rail, so the later rail gate (0x752942) would not return.
         [Test]
         public void UpdateWithoutAnActiveTriggerAbilityChangesNothing()
         {
             WithRailSwitch((owned, character, ability, definition) =>
             {
+                character.Storage.SetValue(ActorFSMKeys.RailActive, true);
                 Call(ability, "SetFSMTarget", Target(HomingTargetType.Rail), 9f);
                 Set(ability, "m_inputMovement", 0.75f);
 

@@ -181,10 +181,11 @@ namespace HardlightProject
 			return true;
 		}
 
-		// 060015eb (1.10.1 RVA 0xE78020, shared generic). Without the four jump and boost abilities nothing is queued.
-		// While time remains and CanQueueActions(), the character's queued jump and boost are handed to the abilities
-		// on every call; once the time has run out they are handed over a last time, and when either is still queued
-		// the queue and the air buffers are reset.
+		// 060015eb (1.10.1 RVA 0xE78020, shared generic). With checkRemain a timer of exactly zero returns at once,
+		// and without the four jump and boost abilities nothing is queued. Otherwise, while CanQueueActions(), the
+		// character's queued jump and boost are handed to the abilities on every call; once the time has run out, and
+		// only when the character has an air ability (0xE78404), they are handed over a last time, and when either is
+		// still queued the queue and the air buffers are reset.
 		private void UpdateRemainTimer(Character character, AbilityType railAbility, bool checkRemain, float deltaTime)
 		{
 			float remain = character.Storage.GetValue(ActorFSMKeys.StateRemainTimer, 0f, true);
