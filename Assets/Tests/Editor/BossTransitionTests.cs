@@ -4,10 +4,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Text.RegularExpressions;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -55,6 +57,31 @@ namespace ProjectLucid.Tests
                 part.GetMethod("RegisterHit").Invoke(record, null);
             }
             ((IDictionary)Get<object>(boss, "m_attachPointDictionary")).Add(point, record);
+        }
+
+        private static readonly Regex ActorDefinitionSettingsFault =
+            new Regex("^NullReferenceException: Object reference not set to an instance of an object$");
+
+        // Boss.RegisterBoss (060009ec) is the callback Awake hands the BossManager reference; an inactive host runs no Awake,
+        // so it is invoked here as that reference would. Register (06000b73) reads the definition's health pool, and the
+        // first listed boss switches HUD focus through the App, which these cases do not have, so a second boss is already
+        // listed. CreateInstance sends Awake and OnEnable, which each reach ActorDefinition.UpdateCachedValues (0x7A8060)
+        // with no Settings: two faults.
+        private static void RegisterWithManager(Owned owned, Boss boss, BossManager manager, int healthPool)
+        {
+            for (int i = 0; i < 2; i++) LogAssert.Expect(LogType.Exception, ActorDefinitionSettingsFault);
+            var definition = owned.Track(ScriptableObject.CreateInstance<BossDefinition>());
+            definition.Traits = new BossTraits { HealthPool = healthPool };
+            Set(boss, "m_definition", definition); // Reflection: serialized field without a setter
+            manager.Bosses.Add(owned.Host("Lucid boss transition placeholder", false).AddComponent<Boss>());
+            Call(boss, "RegisterBoss", manager);
+        }
+
+        // RestoreAllBossHealth (060009ee) sets the current health to the definition's health pool.
+        private static void SetHealth(Boss boss, int health)
+        {
+            boss.Definition.Traits.HealthPool = health;
+            boss.RestoreAllBossHealth();
         }
 
         private static bool Has(Boss boss, GraphStorageKey key) => boss.Storage.GetCollection().ContainsKey(key);
@@ -276,7 +303,7 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<SaveManager>();
                 BossManager manager = owned.Host("Lucid boss transition manager", false).AddComponent<BossManager>();
                 Boss boss = owned.Host("Lucid boss transition boss", false).AddComponent<Boss>();
-                Set(boss, "m_bossManager", manager);
+                RegisterWithManager(owned, boss, manager, 1);
                 IFSMTransition transition = Build(nameof(BossTransition_ConsumeBossManagerFlag));
 
                 Assert.That(Update(transition, boss), Is.False, "no flag");
@@ -327,16 +354,18 @@ namespace ProjectLucid.Tests
             };
             WithBoss((owned, boss) =>
             {
+                owned.LeaseRow<SaveManager>();
+                RegisterWithManager(owned, boss, owned.Host("Lucid boss transition manager", false).AddComponent<BossManager>(), 1);
                 foreach ((int comparison, bool below, bool equal, bool above) in table)
                 {
                     IFSMTransition transition = Build(nameof(BossTransition_HealthCheck), "{\"Value\":5,\"Evaluation\":" + comparison + "}");
                     Assert.That(Get<int>(transition, "m_evalutionValue"), Is.EqualTo(5));
                     Assert.That((int)Get<FSMTransitionCheckInt.Comparison>(transition, "m_evalutionMethod"), Is.EqualTo(comparison));
-                    Set(boss, "m_currentHealth", 4);
+                    SetHealth(boss, 4);
                     Assert.That(Update(transition, boss), Is.EqualTo(below), "comparison " + comparison + ", health 4");
-                    Set(boss, "m_currentHealth", 5);
+                    SetHealth(boss, 5);
                     Assert.That(Update(transition, boss), Is.EqualTo(equal), "comparison " + comparison + ", health 5");
-                    Set(boss, "m_currentHealth", 6);
+                    SetHealth(boss, 6);
                     Assert.That(Update(transition, boss), Is.EqualTo(above), "comparison " + comparison + ", health 6");
                 }
             });

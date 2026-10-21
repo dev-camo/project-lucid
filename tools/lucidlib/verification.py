@@ -7040,6 +7040,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.AppRatingRequesterBossTests." + name
     "ConstructionCachesTheMissionManagerReferenceAndKeepsTheSevenDayCooldown",
     "ARecentRatingRequestKeepsTheBossRequesterFromFiring",
     "AnElapsedCooldownWithoutAMissionManagerStillRefusesTheBossRequest",
+    "ValidateFiresOnlyForAnElapsedCooldownAndACompletedMissionOfTheBossLevel",
     "ValidateAsksTheMissionManagerOnlyAfterTheBaseCheckAndAnExistingManager",
     "DeclarationShapeKeepsTheAssetMenuAndTheSealedRequesterSurface",
 ))
