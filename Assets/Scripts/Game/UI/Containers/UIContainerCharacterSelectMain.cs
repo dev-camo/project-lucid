@@ -41,7 +41,7 @@ namespace HardlightProject
             m_continueInputEvent.enabled = false;
             UIContainerUtilities.SetBackgroundGradientBinders(ZoneBackgroundStartColour, ZoneBackgroundEndColour);
             UpdateCharacters();
-            if (UIContainerUtilities.TryGetSelectedLevelAndZone(out GameplayLevelDefinition levelDefinition, out GameplayLevelCategory zone))
+            if (UIContainerUtilities.TryGetSelectedLevelAndZone(out _, out GameplayLevelCategory zone))
                 m_collectableRewardCounter.UpdateValues(zone);
             ControlMapping.OnUpdateLastInputType += OnInputTypeChanged;
             IsChallengeMode.Value = m_missionManagerRef.Get().ActiveMissionContext is MissionContextChallenge;
@@ -58,7 +58,7 @@ namespace HardlightProject
         // 0x06003179: a character counts when its current skin is not unlocked by default.
         private bool IsAnyNonDefaultCharacterSkinSelected()
         {
-            foreach (var (characterId, characterDefinition) in m_dataManagerRef.Get().Characters)
+            foreach (var (_, characterDefinition) in m_dataManagerRef.Get().Characters)
             {
                 CharacterSkinDefinition skin = characterDefinition.CurrentSkin;
                 if (skin == null)
@@ -161,7 +161,7 @@ namespace HardlightProject
         // 0x06003182
         private void UpdateRewardCounter()
         {
-            if (UIContainerUtilities.TryGetSelectedLevelAndZone(out GameplayLevelDefinition levelDefinition, out GameplayLevelCategory zone))
+            if (UIContainerUtilities.TryGetSelectedLevelAndZone(out _, out GameplayLevelCategory zone))
                 m_collectableRewardCounter.UpdateValues(zone);
         }
 
@@ -171,7 +171,7 @@ namespace HardlightProject
             if (inputType == InputType.Mouse || inputType == InputType.Keyboard || inputType == InputType.Touch)
                 return;
             bool noneSelected = true;
-            foreach (var (characterId, characterToggle) in m_characterIdToGameObject)
+            foreach (var (_, characterToggle) in m_characterIdToGameObject)
             {
                 if (characterToggle.IsSelected())
                 {

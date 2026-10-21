@@ -55,7 +55,7 @@ namespace HardlightProject
         // 0x06003171: true when any archetype's saved loadout holds at least one slot.
         private bool IsAnyPowerEquipped()
         {
-            foreach (var (characterArchetype, loadout) in m_saveManagerRef.Get().CurrentSave.DreamPowerLoadoutByArchetype)
+            foreach (var (_, loadout) in m_saveManagerRef.Get().CurrentSave.DreamPowerLoadoutByArchetype)
             {
                 if (loadout.SlotsByIndex.Count > 0)
                     return true;
