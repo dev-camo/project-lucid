@@ -100,8 +100,14 @@ namespace ProjectLucid.Tests
             public void Press(GameAction action) => SetState(action, true);
         }
 
-        // Keeps the targeting interval from firing, so only the refresh request that the ability itself makes is seen.
-        internal static void SuppressTargetingRefresh(object ability) => Set(ability, "m_nextTargetIntervalTime", 100f);
+        // Keeps the targeting interval from firing, so only the refresh request that the ability itself makes is seen:
+        // leaving the ability (0xE69260) sets the last update time to the current time plus the cooldown, which a long
+        // cooldown puts beyond every update the case runs. The character needs its homing pool, which the leave removes from.
+        internal static void SuppressTargetingRefresh(object ability, CharacterAbilityDefinition_Targeting definition)
+        {
+            definition.CooldownTimeSeconds = 100f;
+            Call(ability, "DoOnLeave");
+        }
 
         internal static bool RefreshRequested(object ability) => Get<bool>(ability, "m_targetRequiresRefresh");
 

@@ -24,10 +24,13 @@ namespace ProjectLucid.Tests
     // any test, because they need a started Character: the arithmetic of the three update bodies (the step clamp with
     // 0xE73BC8 jb / 0xE75AD1 jbe, the 180 degree turn for a zero rotational speed 0xE75BE3, the ground steering
     // conditions 0x779E98 ColliderRadiusSqr > sqrMagnitude / 0x779EA5 height > ColliderRadius), the air enter force trigger
-    // polarity (0xE739C4 xor r14b,1), the rail homing timeout (0xE7592C jae, equality cancels) and the enter and leave effects.
+    // polarity (0xE739C4 xor r14b,1), the rail homing timeout (0xE7592C jae, equality cancels), the rail homing update
+    // without an active target (0xE756B2 je 0xE757B7, which stores the cancelled flag) and the enter and leave effects.
+    // The rail homing update starts with the CharacterState_Ability update (call at 0xE75688), so the no target path
+    // needs the same started Character.
     public sealed class CharacterHomingAttackAirAndRailHomingStateTests
     {
-        private static string Name() => "Lucid-char-moves-08-" + Guid.NewGuid().ToString("N");
+        private static string Name() => "Lucid-homing-attack-state-" + Guid.NewGuid().ToString("N");
 
         private static IFSMState NewState(string node, string json) =>
             FSMClassFactory.ConstructState(new FiniteStateMachine(Name(), skipAddToManager: true), node, new FSMIdentifier(Name()), json);

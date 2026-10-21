@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -27,7 +28,12 @@ namespace ProjectLucid.Tests
         // CharacterAbility_TargetingHoming's field initialiser creates the camera manager row.
         private static void WithProximity<TAbility, TDefinition>(Action<Owned, CharacterGravityVectorProbe, TAbility, TDefinition> body)
             where TAbility : CharacterAbility, new()
-            where TDefinition : CharacterAbilityDefinition => WithAbility<TAbility, TDefinition>(owned => owned.LeaseRow<CinemachineCameraManager>(), body);
+            where TDefinition : CharacterAbilityDefinition => WithAbility<TAbility, TDefinition>(owned => owned.LeaseRow<CinemachineCameraManager>(), (owned, character, ability, definition) =>
+            {
+                // Reflection: Character builds its pool in its started setup, which reads the data manager.
+                SetProperty(character, "HomingPool", new CharacterHomingPool(character, new Dictionary<HomingTargetType, TargetingTypePriorityDefinition>()));
+                body(owned, character, ability, definition);
+            });
 
         private static void WithGround(Action<Owned, CharacterGravityVectorProbe, CharacterAbility_RailsProximityGround, CharacterAbilityDefinition_RailsProximityGround> body) =>
             WithProximity(body);
@@ -98,11 +104,18 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // Unit vectors at 61 and 59 degrees from the up vector: (sin, cos, 0).
+        private static readonly Vector3 SixtyOneDegreesFromUp = new Vector3(0.8746198f, 0.4848096f, 0f);
+        private static readonly Vector3 FiftyNineDegreesFromUp = new Vector3(0.8571673f, 0.5150381f, 0f);
+
         private static bool AirCanJoin(object ability, Vector3 position, SurfaceLocation location, bool railTrackerActive) =>
             (bool)Call(ability, "CanJoinSurface", position, location, railTrackerActive);
 
         // 0x7506AC..0x7506CF: without the rail tracker the surface joins when the cached cosine tolerance is at least the
         // dot of the normalised velocity with the surface normal (setae: equality joins, an unordered pair does not).
+        // The tolerance of 60 degrees caches a cosine of 0.5. The velocities are unit vectors, which SetWorldVelocity
+        // normalises as the character does: 61 degrees from the normal has a dot of cos 61 = 0.4848 (joins), 59 degrees
+        // a dot of cos 59 = 0.5150 (does not).
         [Test]
         public void WithoutTheRailTrackerTheToleranceCosineMustReachTheVelocityDot()
         {
@@ -113,19 +126,19 @@ namespace ProjectLucid.Tests
                 SurfaceLocation location = Surface(owned, Quaternion.identity, Vector3.zero);
                 foreach ((Vector3 velocity, bool expected) in new[]
                 {
-                    (new Vector3(0f, 0.4f, 0f), true), (new Vector3(0f, 0.6f, 0f), false), (new Vector3(0f, -1f, 0f), true), (new Vector3(1f, 0f, 0f), true),
+                    (SixtyOneDegreesFromUp, true), (FiftyNineDegreesFromUp, false), (new Vector3(0f, -1f, 0f), true), (new Vector3(1f, 0f, 0f), true),
                 })
                 {
-                    SetActorProperty(character, "WorldVelocityNormalised", velocity);
+                    character.SetWorldVelocity(velocity);
                     Assert.That(AirCanJoin(ability, Vector3.zero, location, false), Is.EqualTo(expected), "velocity " + velocity);
                 }
                 // The position of the character is not consulted without the tracker.
-                SetActorProperty(character, "WorldVelocityNormalised", new Vector3(0f, 0.6f, 0f));
+                character.SetWorldVelocity(FiftyNineDegreesFromUp);
                 Assert.That(AirCanJoin(ability, new Vector3(0f, -50f, 0f), location, false), Is.False);
 
                 definition.SurfaceNormalAngleTolerance = 0f;
                 definition.CalculateCachedValues();
-                SetActorProperty(character, "WorldVelocityNormalised", new Vector3(0f, 1f, 0f));
+                character.SetWorldVelocity(new Vector3(0f, 1f, 0f));
                 Assert.That(AirCanJoin(ability, Vector3.zero, location, false), Is.True, "a cosine of one meets a dot of exactly one");
             });
         }
@@ -139,9 +152,9 @@ namespace ProjectLucid.Tests
                 definition.SurfaceNormalAngleTolerance = 60f;
                 definition.CalculateCachedValues();
                 SurfaceLocation tilted = Surface(owned, Quaternion.AngleAxis(90f, Vector3.forward), Vector3.zero);
-                SetActorProperty(character, "WorldVelocityNormalised", new Vector3(-1f, 0f, 0f));
+                character.SetWorldVelocity(new Vector3(-1f, 0f, 0f));
                 Assert.That(AirCanJoin(ability, Vector3.zero, tilted, false), Is.False, "the rotated normal is -x, the dot is one");
-                SetActorProperty(character, "WorldVelocityNormalised", new Vector3(0f, 1f, 0f));
+                character.SetWorldVelocity(new Vector3(0f, 1f, 0f));
                 Assert.That(AirCanJoin(ability, Vector3.zero, tilted, false), Is.True, "the rotated normal is -x, the dot is zero");
                 Assert.That(AirCanJoin(ability, Vector3.zero, Surface(owned, Quaternion.identity, Vector3.zero), false), Is.False,
                     "the same velocity along an unrotated normal has a dot of one against the 0.5 tolerance");
@@ -168,7 +181,7 @@ namespace ProjectLucid.Tests
                     (Vector3.right, 0f, false), (Vector3.right, -1f, false), (Vector3.right, 1f, false),
                 })
                 {
-                    SetActorProperty(character, "WorldVelocityNormalised", velocity);
+                    character.SetWorldVelocity(velocity);
                     Assert.That(AirCanJoin(ability, new Vector3(0f, height, 0f), location, true), Is.EqualTo(expected), "velocity " + velocity + ", height " + height);
                 }
             });
@@ -183,7 +196,7 @@ namespace ProjectLucid.Tests
                 definition.RailTrackerAttachDistance = 2f;
                 definition.CalculateCachedValues();
                 SurfaceLocation location = Surface(owned, Quaternion.identity, new Vector3(7f, 10f, -3f));
-                SetActorProperty(character, "WorldVelocityNormalised", Vector3.up);
+                character.SetWorldVelocity(Vector3.up);
                 Assert.That(AirCanJoin(ability, new Vector3(100f, 9f, 100f), location, true), Is.True, "one below the location, inside the distance");
                 Assert.That(AirCanJoin(ability, new Vector3(7f, 7f, -3f), location, true), Is.False, "three below the location");
             });
@@ -195,7 +208,7 @@ namespace ProjectLucid.Tests
         {
             WithAir((owned, character, ability, definition) =>
             {
-                SetActorProperty(character, "WorldVelocityNormalised", Vector3.up);
+                character.SetWorldVelocity(Vector3.up);
                 Assert.That(AirCanJoin(ability, Vector3.zero, default(SurfaceLocation), false), Is.False);
                 Assert.That(AirCanJoin(ability, Vector3.zero, default(SurfaceLocation), true), Is.False);
             });
@@ -209,7 +222,7 @@ namespace ProjectLucid.Tests
         {
             WithGround((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 SetGroundHit(character, false);
                 ability.IsTriggered = true;
                 Update(ability);
@@ -224,18 +237,28 @@ namespace ProjectLucid.Tests
         {
             WithGround((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 SetGroundHit(character, false);
                 Update(ability);
                 Assert.That(RefreshRequested(ability), Is.True);
             });
             WithAir((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 SetGroundHit(character, true);
                 Update(ability);
                 Assert.That(RefreshRequested(ability), Is.True);
             });
+        }
+
+        // The local velocity is the world velocity rotated by the inverse world rotation (Actor 060002dc), which only
+        // SetWorldRotation refreshes. The fixture writes its identity rotation directly, so a different rotation is applied
+        // first and the identity after it; the world velocity is then the local velocity.
+        private static void SetLocalVelocity(Character character, Vector3 velocity)
+        {
+            character.SetWorldRotation(Quaternion.AngleAxis(90f, Vector3.up));
+            character.SetWorldRotation(Quaternion.identity);
+            character.SetWorldVelocity(velocity);
         }
 
         private static void StoreAutoAttachSurface(Owned owned, Character character) =>
@@ -254,11 +277,11 @@ namespace ProjectLucid.Tests
             {
                 WithGround((owned, character, ability, definition) =>
                 {
-                    SuppressTargetingRefresh(ability);
+                    SuppressTargetingRefresh(ability, definition);
                     SetGroundHit(character, true);
                     definition.HomingDistance = 0f;
                     character.Storage.SetValue(ActorFSMKeys.JumpOnRailTracker, tracker);
-                    SetActorProperty(character, "LocalVelocity", new Vector3(0f, vertical, 0f));
+                    SetLocalVelocity(character, new Vector3(0f, vertical, 0f));
                     StoreAutoAttachSurface(owned, character);
                     Update(ability);
                     Assert.That(RefreshRequested(ability), Is.EqualTo(reachesTheAutoAttachCheck), "tracker " + tracker + ", vertical " + vertical);
@@ -273,7 +296,7 @@ namespace ProjectLucid.Tests
         {
             WithGround((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 SetGroundHit(character, true);
                 definition.HomingDistance = 0f;
                 Update(ability);
@@ -284,10 +307,10 @@ namespace ProjectLucid.Tests
             });
             WithGround((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                // Not suppressed: the first update starts the targeting interval, which requests a refresh before the
+                // auto attach check (0xE69233 sets it once the current time reaches the last update plus the interval, 0xE69226).
                 SetGroundHit(character, true);
                 definition.HomingDistance = 0f;
-                Set(ability, "m_targetRequiresRefresh", true);
                 Update(ability);
                 Assert.That(RefreshRequested(ability), Is.True, "the pending request stays");
                 Assert.That(ability.IsTriggered, Is.False);
@@ -301,10 +324,9 @@ namespace ProjectLucid.Tests
         {
             WithGround((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                // Not suppressed: the first update requests the refresh that lets the update reach the proximity check.
                 SetGroundHit(character, true);
                 definition.HomingDistance = 3f;
-                Set(ability, "m_targetRequiresRefresh", true);
                 Set(character, "m_trackManagerRef", new SystemRef<TrackManager>("TrackManager", null));
                 Assert.That(character.TrackManager == null, Is.True);
                 Update(ability);

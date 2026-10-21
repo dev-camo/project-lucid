@@ -107,13 +107,12 @@ namespace ProjectLucid.Tests
         {
             WithTargeting((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
                 definition.HomingVelocity = 33f;
                 definition.HomingRotationalVelocity = 77f;
                 character.SetWorldVelocity(new Vector3(1f, 2f, 3f));
                 SetPending(character.HomingPool, ability, owned.Host("Lucid rail target"));
                 RailsBrain brain = Brain(character, GameAction.CharacterRailTarget);
-                Set(ability, "m_targetRequiresRefresh", true);
+                // The first update's targeting interval requests the refresh (0xE69233), so the lock has a request to clear.
                 Update(ability, brain);
                 ActiveHomingTarget active = character.HomingPool.ActiveTarget;
                 Assert.That(active, Is.Not.Null);
@@ -135,7 +134,7 @@ namespace ProjectLucid.Tests
             {
                 WithTargeting((owned, character, ability, definition) =>
                 {
-                    SuppressTargetingRefresh(ability);
+                    SuppressTargetingRefresh(ability, definition);
                     SetPending(character.HomingPool, ability, owned.Host("Lucid rail target"));
                     RailsBrain brain;
                     if (appliedOnly)
@@ -164,7 +163,7 @@ namespace ProjectLucid.Tests
         {
             WithTargeting((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 SetPending(character.HomingPool, ability, owned.Host("Lucid rail target"));
                 RailsBrain idle = Brain(character);
                 Update(ability, idle);
@@ -173,7 +172,7 @@ namespace ProjectLucid.Tests
             });
             WithTargeting((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 RailsBrain pressed = Brain(character, GameAction.CharacterRailTarget);
                 Update(ability, pressed);
                 Assert.That(character.HomingPool.ActiveTarget, Is.Null, "no pending target");
@@ -188,7 +187,7 @@ namespace ProjectLucid.Tests
         {
             WithTargeting((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 GameObject target = owned.Host("Lucid rail target");
                 Activate(character.HomingPool, ability, target);
                 ability.IsTriggered = true;
@@ -206,7 +205,7 @@ namespace ProjectLucid.Tests
         {
             WithTargeting((owned, character, ability, definition) =>
             {
-                SuppressTargetingRefresh(ability);
+                SuppressTargetingRefresh(ability, definition);
                 ability.IsTriggered = true;
                 Update(ability, Brain(character));
                 Assert.That(ability.IsTriggered, Is.False);
@@ -225,7 +224,7 @@ namespace ProjectLucid.Tests
             {
                 WithTargeting((owned, character, ability, definition) =>
                 {
-                    SuppressTargetingRefresh(ability);
+                    SuppressTargetingRefresh(ability, definition);
                     character.Storage.SetValue(ActorFSMKeys.JumpOnRailTracker, jump);
                     character.Storage.SetValue(ActorFSMKeys.RailSwitchTimeElapsed, switchTime);
                     SetPending(character.HomingPool, ability, owned.Host("Lucid rail target"));
