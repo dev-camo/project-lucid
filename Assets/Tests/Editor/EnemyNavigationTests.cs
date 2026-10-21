@@ -315,10 +315,10 @@ namespace ProjectLucid.Tests
                 (Vector3 actual, float x, float z) = FirstSpot(owned, new Vector3(2f, 1f, -3f), Quaternion.identity, 7);
                 AssertNear(actual, new Vector3(2f + x, 1f, -3f + z), "x then z");
                 // Engine behaviour, not the navigation's: UnityEngine.Random.Range(-1, 1) after InitState(7) yields these two
-                // draws. The spot is then the home plus (first, 0, second) by the mapping above.
-                Assert.That(x, Is.EqualTo(-0.0195802450f).Within(1e-6f), "engine first draw for seed 7");
-                Assert.That(z, Is.EqualTo(0.350559354f).Within(1e-6f), "engine second draw for seed 7");
-                AssertNear(actual, new Vector3(1.98041975f, 1f, -2.64944077f), "literal spot for seed 7");
+                // draws (observed natively). The spot is then the home plus (first, 0, second) by the mapping above.
+                Assert.That(x, Is.EqualTo(0.0195802450f).Within(1e-6f), "engine first draw for seed 7");
+                Assert.That(z, Is.EqualTo(-0.350559354f).Within(1e-6f), "engine second draw for seed 7");
+                AssertNear(actual, new Vector3(2.01958025f, 1f, -3.35055935f), "literal spot for seed 7");
             }));
         }
 
@@ -332,10 +332,10 @@ namespace ProjectLucid.Tests
             {
                 (Vector3 actual, float x, float z) = FirstSpot(owned, new Vector3(1f, 2f, 3f), Quaternion.Euler(90f, 0f, 0f), 11);
                 AssertNear(actual, new Vector3(1f + x, 2f - z, 3f), "turned onto the tilted plane");
-                // Engine behaviour: UnityEngine.Random.Range(-1, 1) after InitState(11) yields these two draws.
-                Assert.That(x, Is.EqualTo(-0.708843470f).Within(1e-6f), "engine first draw for seed 11");
-                Assert.That(z, Is.EqualTo(0.155140519f).Within(1e-6f), "engine second draw for seed 11");
-                AssertNear(actual, new Vector3(0.291156530f, 1.84485948f, 3f), "literal spot for seed 11");
+                // Engine behaviour: UnityEngine.Random.Range(-1, 1) after InitState(11) yields these two draws (observed natively).
+                Assert.That(x, Is.EqualTo(0.708843470f).Within(1e-6f), "engine first draw for seed 11");
+                Assert.That(z, Is.EqualTo(-0.155140519f).Within(1e-6f), "engine second draw for seed 11");
+                AssertNear(actual, new Vector3(1.70884347f, 2.15514052f, 3f), "literal spot for seed 11");
             }));
         }
 
