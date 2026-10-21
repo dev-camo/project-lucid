@@ -8334,3 +8334,84 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScorerPrefabPoolTests." + nam
     "ARefreshSpawnsAnInstanceForAnInRangeObjectiveAndBindsItsEvaluator",
     "ARefreshLeavesTheObjectiveInactiveWhenThePoolHasNoFreeInstance",
 ))
+
+# Restored HardlightProject.ApplicationInfo and ApplicationInfoView (Game.Runtime 020000ad, 0200082c).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ApplicationInfoTests." + name for name in (
+    "TheStampSerialisesItsCodeThenItsTime",
+    "TheDefaultStampIsNotAvailableAtTheCurrentFileTime",
+    "WithoutAFileTheDefaultReachesTheCallbackAtOnce",
+    "TheViewStartsWithPlaceholders",
+    "LoadedInformationFillsTheThreeBindables",
+))
+
+# Restored HardlightProject.ApplySafeArea (Game.Runtime 0200082e).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ApplySafeAreaTests." + name for name in (
+    "ItAppliesOnAwakeByDefault",
+    "ApplyOverwritesBothOffsetsFromTheSafeArea",
+    "AwakeAppliesOnlyWhenTheFlagIsSet",
+    "AHostWithoutARectTransformFaults",
+))
+
+# Restored HardlightProject.ButtonBinaryStateMessageListener (Game.Runtime 02000834).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ButtonBinaryStateMessageListenerTests." + name for name in (
+    "TheTextStartsEmpty",
+    "AwakeSubscribesTheStatusMessageForTheConfiguredButton",
+    "AwakeSubscribesTheTextMessage",
+    "NeitherHandlerCompletesTheMessage",
+    "UnsetEventsAreSkipped",
+    "OnDestroyUnsubscribesBothHandlers",
+))
+
+# Restored HardlightProject.OnControllerConnectedButton (Game.Runtime 020006b2).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnControllerConnectedButtonTests." + name for name in (
+    "ConstructionSuppliesTheControllerConnectedInputAsADownPress",
+    "EveryControllerTypeMapsToItsNativeInputType",
+    "AConnectedControllerSetsTheInputTypeUnlessItIsASiriRemote",
+    "ADisabledButtonDoesNothing",
+    "OnDestroyNeedsTheControlMappingStartTakes",
+))
+
+# Restored HardlightProject.OpenLocalisedURL (Game.Runtime 02000a15).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OpenLocalisedUrlTests." + name for name in (
+    "TheQrCodePublishesTheUrlStringAndItsEventOnce",
+))
+
+# Restored HardlightProject.ScreenWidthHorizontalScrollGroup (Game.Runtime 0200083d).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ScreenWidthHorizontalScrollGroupTests." + name for name in (
+    "ResetListsEveryChildInOrder",
+    "ResetFaultsOnAChildWithoutARectTransform",
+    "EnablingLaysTheChildrenOutOneCanvasWidthApart",
+    "RefreshFollowsTheCurrentCanvasWidth",
+    "ScrollingWrapsTheTargetIndexAroundTheChildren",
+    "EachScrollStartsAtTheOldTargetsOffset",
+    "ScrollingDoesNothingWithoutChildren",
+    "TheScrollHoldsTheStartWhileNoTimePasses",
+    "TheScrollEndsOnTheExactTargetAndClearsTheRoutine",
+))
+
+# Restored HardlightProject.UIAnimatingCounter (Game.Runtime 02000842).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIAnimatingCounterTests." + name for name in (
+    "ConstructionKeepsTwoSecondsAndEmptyBindings",
+    "SetUpShowsTheStartAmountAtOnce",
+    "OnlyANonZeroDurationReplacesTheAnimationTime",
+    "TheStringIsRewrittenOnlyWhenTheValueChangesOrIsEmpty",
+    "RoundingTiesGoToTheEvenNeighbour",
+    "ProgressIsClampedBetweenTheStartAndEndAmounts",
+    "AnInactiveCounterAnimatesLaterFromStartToEnd",
+    "AnActiveCounterRunsTheStartOfItsAnimationAtOnce",
+    "EnablingStartsTheDeferredAnimationOnly",
+))
+
+# Restored HardlightProject.UIContainerBossHealth (Game.Runtime 0200087b).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerBossHealthTests." + name for name in (
+    "ConstructionStartsHiddenWithoutAHealthTotal",
+    "SetupHidesThenShowsOnceTheManagerIsValid",
+    "AValidManagerSizesAndFillsThePips",
+    "WithoutABossTheContainerDeactivatesItself",
+    "ANewTotalShowsThatManyFullPips",
+    "AHealthChangeRecordsTheTargetAndStartsALerp",
+    "LerpUpFillsCurrentMinusOnePipsFromTheOldTarget",
+    "LerpUpFaultsWhenThePipsRunPastTheFills",
+    "LerpDownEmptiesTheGivenFillAndEnds",
+    "DestroyingUnsubscribesFromTheManager",
+))

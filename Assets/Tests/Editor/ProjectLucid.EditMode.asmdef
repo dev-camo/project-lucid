@@ -45,7 +45,8 @@
     "Unity.RenderPipelines.Core.Runtime",
     "Cinemachine",
     "ProjectLucid.Dreamteck.EngineVerification",
-    "Unity.Timeline"
+    "Unity.Timeline",
+    "HLAppleInput.Runtime"
   ],
   "includePlatforms": [
     "Editor"

@@ -1,0 +1,87 @@
+using System;
+using System.IO;
+using Hardlight.Enums;
+using HardlightProject;
+using NUnit.Framework;
+using UnityEngine;
+using static ProjectLucid.Tests.WorldTriggerTestSupport;
+
+namespace ProjectLucid.Tests
+{
+    // ApplicationInfo (Game.Runtime 020000ad, bodies 0x534F50..0x5352C0) and ApplicationInfoView
+    // (0200082c, 0x606880..0x606A40) against the 1.10.1 x86-64 bodies cited per case.
+    //
+    // Not covered: WriteToFile (it writes into the project's StreamingAssets folder), the file-present
+    // branch of LoadOrCreateDefault (it needs that file and a UnityWebRequest pump) and
+    // ApplicationInfoView.OnEnable (it starts a coroutine on the shared coroutine runner).
+    public sealed class ApplicationInfoTests
+    {
+        private static string InfoPath => Application.streamingAssetsPath + Path.DirectorySeparatorChar + "ApplicationInfo.json";
+
+        // The class is [Serializable] with two public fields; native ToJson (0x534FD0) writes them in
+        // declaration order.
+        [Test]
+        public void TheStampSerialisesItsCodeThenItsTime()
+        {
+            string json = JsonUtility.ToJson(new ApplicationInfo { BuildCode = "b-77", BuildTime = 132223104000000000L });
+            Assert.That(json, Is.EqualTo("{\"BuildCode\":\"b-77\",\"BuildTime\":132223104000000000}"));
+        }
+
+        // CreateDefault 0x535170 stores the "n/a" literal and DateTime.Now.ToFileTimeUtc() (0x5351D2..0x5351E1).
+        [Test]
+        public void TheDefaultStampIsNotAvailableAtTheCurrentFileTime()
+        {
+            long before = DateTime.Now.ToFileTimeUtc();
+            ApplicationInfo info = ApplicationInfo.CreateDefault();
+            long after = DateTime.Now.ToFileTimeUtc();
+            Assert.That(info.BuildCode, Is.EqualTo("n/a"));
+            Assert.That(info.BuildTime, Is.InRange(before, after));
+        }
+
+        // MoveNext 0x535480: without the file (File.Exists, 0x53554F) the default goes straight to the
+        // callback and the iterator finishes without yielding; a null callback is skipped (0x5355D5).
+        [Test]
+        public void WithoutAFileTheDefaultReachesTheCallbackAtOnce()
+        {
+            Assume.That(File.Exists(InfoPath), Is.False, "the project has a built ApplicationInfo.json");
+            ApplicationInfo delivered = null;
+            int calls = 0;
+            var iterator = ApplicationInfo.LoadOrCreateDefault(info => { delivered = info; calls++; });
+            Assert.That(iterator.MoveNext(), Is.False);
+            Assert.That(calls, Is.EqualTo(1));
+            Assert.That(delivered.BuildCode, Is.EqualTo("n/a"));
+
+            Assert.That(ApplicationInfo.LoadOrCreateDefault(null).MoveNext(), Is.False);
+        }
+
+        // Constructor 0x606A40 builds both text bindables with "..." and the time bindable empty.
+        [Test]
+        public void TheViewStartsWithPlaceholders()
+        {
+            Owned.Run(owned =>
+            {
+                var view = owned.Host("Lucid application info view", false).AddComponent<ApplicationInfoView>();
+                Assert.That(view.BuildVersion.Value, Is.EqualTo("..."));
+                Assert.That(view.BuildCode.Value, Is.EqualTo("..."));
+                Assert.That(view.BuildTime.Value, Is.EqualTo(default(DateTime)));
+            });
+        }
+
+        // OnApplicationInfoLoaded 0x606920: version = StringTable.GetString(prefix) + Application.version,
+        // the code is copied, and the time is DateTime.FromFileTimeUtc of the stored value. The prefix is
+        // Strings.NONE, which the table answers with the empty string whatever is loaded (0x1A355E0).
+        [Test]
+        public void LoadedInformationFillsTheThreeBindables()
+        {
+            Owned.Run(owned =>
+            {
+                var view = owned.Host("Lucid application info view", false).AddComponent<ApplicationInfoView>();
+                Set(view, "m_versionPrefix", Strings.NONE);
+                Call(view, "OnApplicationInfoLoaded", new ApplicationInfo { BuildCode = "abc123", BuildTime = 132223104000000000L });
+                Assert.That(view.BuildVersion.Value, Is.EqualTo(Application.version));
+                Assert.That(view.BuildCode.Value, Is.EqualTo("abc123"));
+                Assert.That(view.BuildTime.Value, Is.EqualTo(new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc)));
+            });
+        }
+    }
+}
