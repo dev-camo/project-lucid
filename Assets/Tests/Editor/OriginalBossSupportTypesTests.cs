@@ -3,11 +3,15 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
+using Cinemachine;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
+using UnityEditor.Animations;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.TestTools;
 using static ProjectLucid.Tests.WorldMemberAccess;
 using Owned = ProjectLucid.Tests.WorldTriggerTestSupport.Owned;
 
@@ -91,6 +95,8 @@ namespace ProjectLucid.Tests
             }));
             const BindingFlags field = BindingFlags.Instance | BindingFlags.NonPublic;
             Assert.That(AttributeRow(type.GetField("m_useAnimatedTargetIndicator", field)), Is.EqualTo("SerializeField()"));
+            Assert.That(AttributeRow(type.GetField("m_animatedTargetIndicator", field)),
+                Is.EqualTo("SerializeField() ShowIfAttribute(m_useAnimatedTargetIndicator,null)"));
             Assert.That(AttributeRow(type.GetField("m_characterTriggerTargetAbilities", field)), Is.EqualTo("SerializeField()"));
             Assert.That(AttributeRow(type.GetField("m_instantiated", field)), Is.Empty);
         }
@@ -308,6 +314,335 @@ namespace ProjectLucid.Tests
                         Assert.That(target.IsTargetable, Is.False, entry);
                     }
                 }
+            });
+        }
+
+        // ---- BossHomingTarget with an indicator, a character and a homing pool ----
+
+        // An IHomingAttack ability that only counts the hits it is told about.
+        private sealed class HomingHitAbility : IHomingAbility, IHomingAttack
+        {
+            public int Hits;
+            public void Reset() { }
+            public bool CanActivate => true;
+            public bool IsTriggered { get; set; }
+            public bool OverridesTargeting => false;
+            public bool ShouldProjectFromCamera() => false;
+            public float GetAdditionalSpeed(float time) => 0f;
+            public CharacterAbilityDefinition_Targeting TargetingDefinition => null;
+            public Vector3 TargetZoneSize => Vector3.one;
+            public Vector3 TargetZoneOffset => Vector3.zero;
+            public void AddTarget(HomingTarget target) { }
+            public void RemoveTarget(HomingTarget target) { }
+            public void OnHomingTargetHit(HomingTarget target) => Hits++;
+            public bool IsHomingTargetValid(HomingTarget target) => true;
+            public void OnTriggerEnter(Collider otherCollider) { }
+            public void OnTriggerExit(Collider otherCollider) { }
+        }
+
+        private sealed class BossTargetRig
+        {
+            public CharacterManager Manager;
+            public Character Character;
+            public Collider CollisionCollider;
+            public SphereCollider TriggerCollider;
+            public CharacterHomingPool Pool;
+            public BoxCollider TargetBox;
+            public BossHomingTarget Target;
+            public AnimatedTargetIndicator Prefab;
+            public AnimatedTargetIndicator Clone;
+            public HomingHitAbility Ability = new HomingHitAbility();
+            public int[] Hit;
+        }
+
+        // A hit starts the base OnComplete callback on the coroutine host, which OwnedCharacterManagers keeps inactive.
+        private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
+
+        private static int[] CountEvent(HomingTarget target, string field)
+        {
+            var count = new int[1];
+            if (Get(target, field) == null) Set(target, field, new UnityEvent());
+            ((UnityEvent)Get(target, field)).AddListener(() => count[0]++);
+            return count;
+        }
+
+        // The registered manager has the character as its current character; the target sits at the given position
+        // with a collider and an indicator prefab (an animator with one "Vision" bool and a raycast every second call).
+        // The target's Awake has not run yet.
+        private static void WithBossTarget(string prefix, Vector3 position, Action<Owned, OwnedTimeScaledObjects, BossTargetRig> body) =>
+            CharacterTriggerTestSupport.WithManager((owned, manager, character) =>
+            {
+                // HomingTarget reads the time row, the pool the message row, and the indicator and its camera manager
+                // the camera rows; the manager and the SaveManager are the registered ones.
+                owned.LeaseRow<TimeManager>();
+                owned.LeaseRow<MessageManager>();
+                owned.LeaseRow<CinemachineCameraManager>();
+                owned.LeaseRow<CameraStackManager>();
+                using (var time = new OwnedTimeScaledObjects(prefix))
+                {
+                    var rig = new BossTargetRig { Manager = manager, Character = character };
+                    rig.CollisionCollider = character.GetComponent<BoxCollider>();
+                    Set(character, "m_colliderCollision", rig.CollisionCollider);
+                    rig.TriggerCollider = character.gameObject.AddComponent<SphereCollider>();
+                    Set(character, "m_colliderTrigger", rig.TriggerCollider);
+                    CharacterTriggerTestSupport.SetCurrent(manager, character, true);
+                    rig.Pool = new CharacterHomingPool(character, new Dictionary<HomingTargetType, TargetingTypePriorityDefinition>());
+                    typeof(Character).GetProperty("HomingPool").GetSetMethod(true).Invoke(character, new object[] { rig.Pool });
+
+                    GameObject prefabHost = owned.Host("Lucid boss indicator prefab", false);
+                    Animator animator = prefabHost.AddComponent<Animator>();
+                    var controller = owned.Track(new AnimatorController());
+                    controller.AddLayer("Base");
+                    controller.AddParameter("Vision", AnimatorControllerParameterType.Bool);
+                    animator.runtimeAnimatorController = controller;
+                    rig.Prefab = prefabHost.AddComponent<AnimatedTargetIndicator>();
+                    Set(rig.Prefab, "m_targetAnimator", animator);
+                    var vision = new AnimationParameterWrapper();
+                    Set(vision, "m_parameterName", "Vision");
+                    Set(rig.Prefab, "m_visionBlockedParameter", vision);
+                    Set(rig.Prefab, "m_framesBetweenRaycast", 2);
+                    Set(rig.Prefab, "m_raycastLayerMask", (LayerMask)(-1));
+
+                    GameObject host = time.Objects.Create("Lucid boss homing target", position, Quaternion.identity);
+                    rig.TargetBox = host.AddComponent<BoxCollider>();
+                    rig.Target = host.AddComponent<BossHomingTarget>();
+                    Set(rig.Target, "m_animatedTargetIndicator", rig.Prefab);
+                    Set(rig.Target, "m_enabledByActivator", true);
+                    if (Get(rig.Target, "m_onAwake") == null) Set(rig.Target, "m_onAwake", new UnityEvent());
+                    rig.Hit = CountEvent(rig.Target, "m_onHit");
+                    Physics.SyncTransforms();
+                    body(owned, time, rig);
+                }
+            });
+
+        // Awake instantiates the indicator; the clone is owned from here on.
+        private static void Awaken(Owned owned, BossTargetRig rig)
+        {
+            Call(rig.Target, "Awake");
+            rig.Clone = rig.Target.AnimatedTargetIndicator;
+            owned.Track(rig.Clone.gameObject);
+        }
+
+        private static void TargetTheBossTarget(BossTargetRig rig) =>
+            rig.Pool.SetTargetImmediately(rig.Ability,
+                new CharacterTargetObjectData { Target = rig.Target.gameObject, WorldRotation = Quaternion.identity }, Vector3.zero, 5f);
+
+        // Enters the collider and checks whether the hit reached the authored event, the ability and the colliding flag,
+        // then leaves through the character's collision collider, which clears the flag.
+        private static void Enter(BossTargetRig rig, Collider collider, bool expectHit, string label)
+        {
+            int hits = rig.Hit[0];
+            int abilityHits = rig.Ability.Hits;
+            if (expectHit) LogAssert.Expect(LogType.Error, RefusedCoroutine);
+            Call(rig.Target, "OnTriggerEnter", collider);
+            Assert.That(rig.Hit[0] - hits, Is.EqualTo(expectHit ? 1 : 0), label + ": authored hit event");
+            Assert.That(rig.Ability.Hits - abilityHits, Is.EqualTo(expectHit ? 1 : 0), label + ": ability told");
+            Assert.That(Get(rig.Target, "m_characterColliding"), Is.EqualTo(expectHit), label + ": colliding flag");
+            Call(rig.Target, "OnTriggerExit", rig.CollisionCollider);
+            Assert.That(Get(rig.Target, "m_characterColliding"), Is.False, label + ": cleared by leaving");
+        }
+
+        // Awake 0x6E22F0 runs the HomingTarget Awake, then with the indicator on instantiates the prefab, sets it up with the
+        // target's position and the target object as its origin (the AnimatedTargetIndicatorParameters; the Nullable<Vector3>
+        // constructor call at 0x6e2315), marks it instantiated (+0xE8) and takes the CharacterManager (GetSystem, not a reference).
+        [Test]
+        public void BossHomingTargetAwakeWithAnIndicatorInstantiatesAndSetsItUp()
+        {
+            WithBossTarget("lucid-boss-homing-indicator", new Vector3(2f, 3f, 4f), (owned, time, rig) =>
+            {
+                int[] awakened = CountEvent(rig.Target, "m_onAwake");
+                Assert.That(Get(rig.Target, "m_instantiated"), Is.False);
+
+                Awaken(owned, rig);
+
+                Assert.That(awakened[0], Is.EqualTo(1), "the HomingTarget Awake ran");
+                Assert.That(rig.Clone == null, Is.False);
+                Assert.That(rig.Clone, Is.Not.SameAs(rig.Prefab), "an instance of the prefab, not the prefab");
+                Assert.That(Get(rig.Target, "m_instantiated"), Is.True);
+                Assert.That(rig.Clone.TargetWorldPosition, Is.EqualTo(new Vector3(2f, 3f, 4f)));
+                Assert.That(Get(rig.Clone, "m_originTarget"), Is.SameAs(rig.Target.gameObject));
+                Assert.That(Get(rig.Target, "m_characterManager"), Is.SameAs(rig.Manager));
+            });
+        }
+
+        // OnEnable 0x6E2D00 shows the instantiated indicator without testing it (the base OnEnable is skipped once for a
+        // target enabled by an activator); OnDisable 0x6E2C30 hides it, but tests the indicator for destruction first
+        // (op_Equality at 0x6e2c96), so a destroyed indicator is an error on enabling only.
+        [Test]
+        public void BossHomingTargetEnablesAndDisablesItsIndicatorAndOnlyDisablingToleratesItsLoss()
+        {
+            WithBossTarget("lucid-boss-homing-enable", Vector3.zero, (owned, time, rig) =>
+            {
+                Awaken(owned, rig);
+                Assert.That(rig.Clone.gameObject.activeSelf, Is.False, "instantiated from an inactive prefab");
+
+                Call(rig.Target, "OnEnable");
+                Assert.That(rig.Clone.gameObject.activeSelf, Is.True);
+                Call(rig.Target, "OnDisable");
+                Assert.That(rig.Clone.gameObject.activeSelf, Is.False);
+            });
+            WithBossTarget("lucid-boss-homing-lost", Vector3.zero, (owned, time, rig) =>
+            {
+                Awaken(owned, rig);
+                UnityEngine.Object.DestroyImmediate(rig.Clone.gameObject);
+
+                Assert.DoesNotThrow(() => Call(rig.Target, "OnDisable"));
+                Assert.Throws<MissingReferenceException>(() => Call(rig.Target, "OnEnable"));
+            });
+        }
+
+        // OnTriggerEnter 0x6E2560 with an ability group: after the current character, the group's enumerator is exhausted
+        // (0x6e26cc, return at 0x6e28aa) unless one ability is in use (IsAbilityInUse 0x6e26e6, then on to 0x6e2702); one
+        // is enough, whichever it is. m_characterColliding is set only by the inlined DoOnCharacterHit (0x6e2864).
+        [Test]
+        public void BossHomingTargetWithAnAbilityGroupNeedsOneOfItsAbilitiesInUse()
+        {
+            WithBossTarget("lucid-boss-homing-group", Vector3.zero, (owned, time, rig) =>
+            {
+                var group = owned.Track(ScriptableObject.CreateInstance<CharacterAbilityTypeGroup>());
+                foreach (ActorAbilityType type in new[] { ActorAbilityType.Boss_BodySlam, ActorAbilityType.Boss_ChargePlayer })
+                {
+                    var definition = new CharacterAbilityTypeGroup.AbilityTypeDefinition();
+                    Set(definition, "m_type", type);
+                    group.Abilities.Add(definition);
+                }
+                Set(rig.Target, "m_characterTriggerTargetAbilities", group);
+                Awaken(owned, rig);
+                TargetTheBossTarget(rig);
+                var storage = (FSMStorage)rig.Character.Storage;
+
+                void InUse(params ActorAbilityType[] types)
+                {
+                    var abilities = new Dictionary<ActorAbilityType, ActorAbilityInUseData>(HardlightProject.HardlightEnumComparers.ActorAbilityTypeComparer);
+                    foreach (ActorAbilityType type in types) abilities[type] = new ActorAbilityInUseData { InUse = true };
+                    storage.SetValue(ActorFSMKeys.AbilitiesInUse, abilities);
+                }
+
+                InUse();
+                Enter(rig, rig.CollisionCollider, false, "none in use");
+                InUse(ActorAbilityType.Boss_AttackMelee);
+                Enter(rig, rig.CollisionCollider, false, "an ability outside the group");
+                InUse(ActorAbilityType.Boss_BodySlam);
+                Enter(rig, rig.CollisionCollider, true, "the first of the group");
+                InUse(ActorAbilityType.Boss_ChargePlayer);
+                Enter(rig, rig.CollisionCollider, true, "the second of the group");
+                InUse(ActorAbilityType.Boss_BodySlam, ActorAbilityType.Boss_ChargePlayer);
+                Enter(rig, rig.CollisionCollider, true, "both");
+            });
+        }
+
+        // Without a group the gate is skipped (op_Inequality, je 0x6e2702). The character's collision collider or its trigger
+        // collider is enough (both are tested, 0x6e270e and 0x6e2722; jne at 0x6e272a, je at 0x6e272e), and the hit raises
+        // the colliding flag even when only the trigger collider entered. Another collider, or no valid current
+        // character, stops it.
+        [Test]
+        public void BossHomingTargetWithoutAnAbilityGroupHitsThroughEitherCharacterCollider()
+        {
+            WithBossTarget("lucid-boss-homing-colliders", Vector3.zero, (owned, time, rig) =>
+            {
+                Awaken(owned, rig);
+                TargetTheBossTarget(rig);
+                Collider stranger = owned.Host("Lucid boss stranger", false).AddComponent<BoxCollider>();
+
+                Enter(rig, stranger, false, "another collider");
+                Enter(rig, rig.TriggerCollider, true, "the trigger collider only");
+                Enter(rig, rig.CollisionCollider, true, "the collision collider");
+                CharacterTriggerTestSupport.SetCurrent(rig.Manager, rig.Character, false);
+                Enter(rig, rig.CollisionCollider, false, "no valid character");
+            });
+        }
+
+        // TryGetHomingAttackTarget (0x6e2754..0x6e27a7) needs an active pool target that is this very object; otherwise
+        // OnTriggerEnter returns at 0x6e28aa before any flag is raised, unlike the HomingTarget one, which stores the
+        // collision flag first.
+        [Test]
+        public void BossHomingTargetOnlyHitsWhileThePoolTargetsIt()
+        {
+            WithBossTarget("lucid-boss-homing-pool", Vector3.zero, (owned, time, rig) =>
+            {
+                Awaken(owned, rig);
+
+                Enter(rig, rig.CollisionCollider, false, "no active target");
+                rig.Pool.SetTargetImmediately(rig.Ability,
+                    new CharacterTargetObjectData { Target = owned.Host("Lucid boss other target", false), WorldRotation = Quaternion.identity },
+                    Vector3.zero, 5f);
+                Enter(rig, rig.CollisionCollider, false, "another object is targeted");
+                TargetTheBossTarget(rig);
+                Enter(rig, rig.CollisionCollider, true, "this object is targeted");
+            });
+        }
+
+        private static void SetTargetable(HomingTarget target, bool value) =>
+            typeof(HomingTarget).GetProperty("IsTargetable").GetSetMethod(true).Invoke(target, new object[] { value });
+
+        private static bool Hidden(BossTargetRig rig) => rig.Clone.GetComponent<Animator>().GetBool("Vision");
+
+        // RunUpdate 0x6E2A90 after the indicator exists: nothing at all while paused (0x6e2ae8); otherwise the indicator is
+        // moved to the target (the Nullable store at +0x74) and, when always targetable, the target is targetable and the
+        // visibility is not checked (return at 0x6e2b46). Otherwise CheckIfVisible decides: its empty answer, with no
+        // collider, leaves everything (0x6e2b85); a collider that is this target's makes it targetable and shows the
+        // indicator, any other makes it untargetable and hides the indicator (xor al,1 at 0x6e2bde); no hit at all makes it
+        // targetable and shows the indicator (0x6e2be5, 0x6e2bf3).
+        [Test]
+        public void BossHomingTargetUpdateDecidesTargetabilityFromTheRayToItsIndicator()
+        {
+            WithBossTarget("lucid-boss-homing-update-live", new Vector3(0f, 0f, 10f), (owned, time, rig) =>
+            {
+                // The camera manager looks along +z from the origin, as in the view target cases.
+                var cameraManager = owned.Host("Lucid boss camera manager", false).AddComponent<CinemachineCameraManager>();
+                GameObject cameraHost = owned.Host("Lucid boss camera", false);
+                cameraHost.AddComponent<Camera>();
+                Set(cameraManager, "m_cinemachineBrain", cameraHost.AddComponent<CinemachineBrain>());
+                Awaken(owned, rig);
+                Set(rig.Clone, "m_cameraManagerRef",
+                    new SystemRef<CinemachineCameraManager>(ProcessManager.GetDefaultName<CinemachineCameraManager>(), cameraManager));
+                Call(rig.Target, "OnEnable");
+                Animator animator = rig.Clone.GetComponent<Animator>();
+                animator.Rebind();
+                animator.Update(0f);
+                BoxCollider blocker = time.Objects.Create("Lucid boss blocker", new Vector3(0f, 0f, 5f), Quaternion.identity).AddComponent<BoxCollider>();
+                Physics.SyncTransforms();
+                var targetPosition = new Vector3(0f, 0f, 10f);
+
+                void Update(bool targetable, bool hidden)
+                {
+                    SetTargetable(rig.Target, targetable);
+                    rig.Clone.SetHiddenBehindObject(hidden);
+                    Call(rig.Target, "OnUpdate", 0.02f);
+                }
+
+                // Paused: nothing moves.
+                rig.Clone.SetTargetPosition(Vector3.one);
+                rig.Target.IsPaused = true;
+                Update(false, false);
+                Assert.That((rig.Target.IsTargetable, Hidden(rig), rig.Clone.TargetWorldPosition), Is.EqualTo((false, false, Vector3.one)), "paused");
+                rig.Target.IsPaused = false;
+
+                // Always targetable: no visibility check (the frame count stays), the hidden state is kept.
+                Set(rig.Target, "m_alwaysTargetableWhenActive", true);
+                Update(false, true);
+                Assert.That((rig.Target.IsTargetable, Hidden(rig), rig.Clone.TargetWorldPosition), Is.EqualTo((true, true, targetPosition)), "always targetable");
+                Assert.That(Get(rig.Clone, "m_raycastFrameCount"), Is.Zero);
+                Set(rig.Target, "m_alwaysTargetableWhenActive", false);
+
+                // Every second call casts the ray; the first answers visible with the empty hit and changes nothing.
+                Update(false, true);
+                Assert.That((rig.Target.IsTargetable, Hidden(rig)), Is.EqualTo((false, true)), "no ray yet");
+                Assert.That(Get(rig.Clone, "m_raycastFrameCount"), Is.EqualTo(1));
+                Update(true, false);
+                Assert.That((rig.Target.IsTargetable, Hidden(rig)), Is.EqualTo((false, true)), "another collider in the way");
+
+                blocker.enabled = false;
+                Physics.SyncTransforms();
+                Update(false, true);
+                Update(false, true);
+                Assert.That((rig.Target.IsTargetable, Hidden(rig)), Is.EqualTo((true, false)), "the target's own collider is hit first");
+
+                rig.TargetBox.enabled = false;
+                Physics.SyncTransforms();
+                Update(false, true);
+                Update(false, true);
+                Assert.That((rig.Target.IsTargetable, Hidden(rig)), Is.EqualTo((true, false)), "nothing in the way");
             });
         }
 
@@ -819,6 +1154,28 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // CalculateLaserPositions 0x70AE30 keeps looping after a match (the compare at 0x70af48 only tests the next
+        // index against the count and jumps back to 0x70af4e), so with a boss listed twice the later entry wins:
+        // here index 2 overwrites the pair index 0 made, and its successor wraps to the first entry.
+        [Test]
+        public void FourmenManagerLetsALaterListingOfTheSameBossOverwriteTheEarlierPair()
+        {
+            Owned.Run(owned =>
+            {
+                FourmenRig rig = NewFourmenRig(owned, 2);
+                Boss first = rig.Bosses[0];
+                Boss second = rig.Bosses[1];
+                GiveLaserEmitter(owned, first, LaserAttachPoint, new Vector3(1f, 2f, 3f));
+                GiveLaserEmitter(owned, second, LaserAttachPoint, new Vector3(4f, 5f, 6f));
+                rig.Manager.Bosses.Add(first);
+
+                Assert.That(rig.Fourmen.CalculateLaserPositions(first, LaserAttachPoint),
+                    Is.EqualTo(new[] { new Vector3(1f, 2f, 3f), new Vector3(1f, 2f, 3f) }), "[first, second, first]: the match at index 2 pairs first with first");
+                Assert.That(rig.Fourmen.CalculateLaserPositions(second, LaserAttachPoint),
+                    Is.EqualTo(new[] { new Vector3(4f, 5f, 6f), new Vector3(1f, 2f, 3f) }));
+            });
+        }
+
         // ---- FourmenVisuals ----
 
         private sealed class VisualsRig
@@ -1119,6 +1476,164 @@ namespace ProjectLucid.Tests
                     }
                 });
             }
+        }
+
+        // The renderer and the three face materials of a FourmenVisuals host.
+        private static MeshRenderer AttachFaces(Owned owned, VisualsRig rig, out Material neutral, out Material attacking, out Material dead)
+        {
+            var renderer = rig.Visuals.gameObject.AddComponent<MeshRenderer>();
+            neutral = NewMaterial(owned);
+            attacking = NewMaterial(owned);
+            dead = NewMaterial(owned);
+            Set(rig.Visuals, "m_materialRenderer", renderer);
+            Set(rig.Visuals, "m_neutralMaterial", neutral);
+            Set(rig.Visuals, "m_attackingMaterial", attacking);
+            Set(rig.Visuals, "m_deadMaterial", dead);
+            return renderer;
+        }
+
+        // The first flash step 0x57A780 adds one delta time to the timer and swaps once it exceeds the interval. The
+        // flashes pass attacking/neutral with 0.2 (0x3e4ccccd at 0x57a0ba), dead/neutral with 0.2 (0x57a26a) and
+        // neutral/dead with 0.5 (0x3f000000 at 0x57a33a). Starting a coroutine runs its first step, so one step of 0.1
+        // reaches none of them, 0.3 reaches the two 0.2 ones and 0.6 all three. The step follows from the manager's scale
+        // and whatever delta time the engine reports.
+        [Test]
+        public void FourmenVisualsFlashingFacesSwapAfterTheirOwnIntervalToTheirOwnSecondFace()
+        {
+            float delta = 0f;
+            Owned.Run(owned =>
+            {
+                using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-delta"))
+                    delta = NewVisualsRig(owned, time, 4f).Time.GetDeltaTime(TimeCategory.EnemyMovement);
+            });
+            if (delta <= 0f) Assert.Inconclusive("Edit Mode reports no EnemyMovement delta time.");
+
+            // Per step: the material after the first step of Targeting, Dying and Charging (0 neutral, 1 attacking, 2 dead).
+            foreach ((float step, int[] expected) in new[]
+            {
+                (0.1f, new[] { 1, 2, 0 }),
+                (0.3f, new[] { 0, 0, 0 }),
+                (0.6f, new[] { 0, 0, 2 })
+            })
+            {
+                string[] faces = { "SetFaceTargeting", "SetFaceDying", "SetFaceCharging" };
+                for (int face = 0; face < faces.Length; face++)
+                {
+                    int index = face;
+                    Owned.Run(owned =>
+                    {
+                        using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-intervals"))
+                        {
+                            VisualsRig rig = NewVisualsRig(owned, time, 4f, true, step / delta);
+                            MeshRenderer renderer = AttachFaces(owned, rig, out Material neutral, out Material attacking, out Material dead);
+                            Call(rig.Visuals, "Awake");
+                            float actual = rig.Time.GetDeltaTime(TimeCategory.EnemyMovement);
+                            if (Mathf.Abs(actual - step) > 1e-3f) Assert.Inconclusive("Edit Mode delta time is not steady: " + actual + " for a step of " + step);
+
+                            Call(rig.Visuals, faces[index]);
+
+                            Assert.That(renderer.sharedMaterial, Is.EqualTo(new[] { neutral, attacking, dead }[expected[index]]), faces[index] + " after a step of " + step);
+                            Call(rig.Visuals, "OnDisable");
+                        }
+                    });
+                }
+            }
+        }
+
+        // The swap test is strict (jbe at 0x57A866): a timer equal to the interval does not swap. With the manager at scale 0
+        // no time passes, so an interval of 0 keeps the first face step after step.
+        [Test]
+        public void FourmenVisualsFlashDoesNotSwapWhenTheTimerEqualsTheInterval()
+        {
+            Owned.Run(owned =>
+            {
+                using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-equal"))
+                {
+                    VisualsRig rig = NewVisualsRig(owned, time, 4f, false, 0f);
+                    MeshRenderer renderer = AttachFaces(owned, rig, out Material neutral, out Material attacking, out Material dead);
+                    Call(rig.Visuals, "Awake");
+
+                    var flash = (IEnumerator)Call(rig.Visuals, "FlashBetweenFaces", attacking, dead, 0f);
+                    for (int i = 0; i < 3; i++)
+                    {
+                        Assert.That(flash.MoveNext(), Is.True);
+                        Assert.That(renderer.sharedMaterial, Is.EqualTo(attacking), "step " + i);
+                    }
+                }
+            });
+        }
+
+        // SetDangerousParticlesActive 0x579E10 starts the wrapper's effect, or stops it with StopEmitting (esi = 1 at
+        // 0x579e24) and not StopEmittingAndClear: the main system keeps its particles, and only the systems listed as always
+        // cleared when stopped are emptied (the wrapper clears them unless the behaviour is StopEmittingAndClear). Start
+        // 0x579E00 tail-calls StartEffect, which activates the host and marks the effect started.
+        [Test]
+        public void FourmenVisualsDangerousParticlesStopEmittingWithoutClearingTheMainSystem()
+        {
+            Owned.Run(owned =>
+            {
+                // The wrapper's base type initialisers take the TimeManager and CinemachineCameraManager references.
+                owned.LeaseRow<TimeManager>();
+                owned.LeaseRow<CinemachineCameraManager>();
+                using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-particles"))
+                {
+                    GameObject host = time.Objects.Create("Lucid dangerous boss indicator");
+                    var wrapper = host.AddComponent<ParticleEffectWrapper>();
+                    ParticleSystem main = host.GetComponent<ParticleSystem>();
+                    ParticleSystem alwaysCleared = time.Objects.Create("Lucid always cleared particles").AddComponent<ParticleSystem>();
+                    Set(wrapper, "m_mainParticleSystem", main);
+                    Set(wrapper, "m_trailRenderers", new TrailRenderer[0]);
+                    Set(wrapper, "m_alwaysClearParticlesWhenStopped", new[] { alwaysCleared });
+                    var visuals = time.Objects.Create("Lucid dangerous boss visuals").AddComponent<FourmenVisuals>();
+                    Set(visuals, "m_dangerousBossIndicator", wrapper);
+
+                    main.Emit(3);
+                    alwaysCleared.Emit(3);
+                    if (main.particleCount != 3 || alwaysCleared.particleCount != 3) Assert.Inconclusive("Edit Mode does not keep emitted particles.");
+
+                    visuals.SetDangerousParticlesActive(false);
+                    Assert.That(wrapper.Status, Is.EqualTo(ParticleEffectWrapper.ParticleEffectWrapperStatus.Stopping));
+                    Assert.That(main.particleCount, Is.EqualTo(3), "StopEmitting leaves the live particles");
+                    Assert.That(alwaysCleared.particleCount, Is.Zero, "the always-cleared system is emptied");
+
+                    host.SetActive(false);
+                    visuals.SetDangerousParticlesActive(true);
+                    Assert.That(wrapper.Status, Is.EqualTo(ParticleEffectWrapper.ParticleEffectWrapperStatus.Started));
+                    Assert.That(host.activeSelf, Is.True);
+
+                    visuals.SetDangerousParticlesActive(false);
+                    host.SetActive(false);
+                    Call(visuals, "Start");
+                    Assert.That(wrapper.Status, Is.EqualTo(ParticleEffectWrapper.ParticleEffectWrapperStatus.Started));
+                    Assert.That(host.activeSelf, Is.True);
+                }
+            });
+        }
+
+        // The compiler-generated members keep the names the original metadata gives them (the ordinals follow the member
+        // order), with the iterators' hoisted fields in their original order and flags.
+        [Test]
+        public void CompilerGeneratedMembersKeepTheirOriginalNamesAndHoistedFieldOrder()
+        {
+            Type visuals = typeof(FourmenVisuals);
+            Type drill = visuals.GetNestedType("<DrillOverTime>d__22", BindingFlags.NonPublic);
+            Type flash = visuals.GetNestedType("<FlashBetweenFaces>d__31", BindingFlags.NonPublic);
+            Assert.That(drill, Is.Not.Null);
+            Assert.That(flash, Is.Not.Null);
+            Assert.That((int)drill.Attributes, Is.EqualTo(0x00100103));
+            Assert.That((int)flash.Attributes, Is.EqualTo(0x00100103));
+            Assert.That(Fields(drill), Is.EqualTo(new[]
+            {
+                "<>1__state:Int32:0001", "<>2__current:Object:0001", "<>4__this:FourmenVisuals:0006", "down:Boolean:0006",
+                "<timer>5__2:Single:0001", "<startY>5__3:Single:0001", "<targetY>5__4:Single:0001", "<bossTransform>5__5:Transform:0001"
+            }));
+            Assert.That(Fields(flash), Is.EqualTo(new[]
+            {
+                "<>1__state:Int32:0001", "<>2__current:Object:0001", "<>4__this:FourmenVisuals:0006", "firstFace:Material:0006",
+                "interval:Single:0006", "secondFace:Material:0006", "<timer>5__2:Single:0001", "<firstFaceActive>5__3:Boolean:0001"
+            }));
+            Assert.That(Methods(visuals).Where(name => name.StartsWith("<")), Is.EqualTo(new[] { "<Awake>b__19_0:0081" }));
+            Assert.That(Methods(typeof(BossManagerTrigger)).Where(name => name.StartsWith("<")), Is.EqualTo(new[] { "<Start>b__2_0:0081" }));
         }
     }
 }

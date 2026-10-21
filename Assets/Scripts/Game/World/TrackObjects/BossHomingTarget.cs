@@ -36,24 +36,14 @@ namespace HardlightProject
             m_characterManager = ProcessManager.GetSystem<CharacterManager>(null, true);
         }
 
-        // 06003ddd: with a trigger ability group, one of its abilities must be in use first.
-        // The ability loop is the base DoOnCharacterHit, inlined natively.
+        // 06003ddd: with a trigger ability group, one of its abilities must be in use first. AnyAbilityInUse (060038c6),
+        // TryGetHomingAttackTarget (06003e37) and DoOnCharacterHit (06003e34) are inlined natively; unlike the base,
+        // m_characterColliding is only raised by DoOnCharacterHit.
         protected override void OnTriggerEnter(Collider otherCollider)
         {
             if (!m_characterManager.TryGetCurrentCharacter(out Character character)) return;
-            if (m_characterTriggerTargetAbilities != null)
-            {
-                bool abilityInUse = false;
-                foreach (CharacterAbilityTypeGroup.AbilityTypeDefinition ability in m_characterTriggerTargetAbilities.Abilities)
-                {
-                    if (ActorAbilityUtilities.IsAbilityInUse(character, ability.Type, ability.GracePeriod))
-                    {
-                        abilityInUse = true;
-                        break;
-                    }
-                }
-                if (!abilityInUse) return;
-            }
+            if (m_characterTriggerTargetAbilities != null &&
+                !ActorAbilityUtilities.AnyAbilityInUse(character, m_characterTriggerTargetAbilities.Abilities)) return;
             bool collision = m_characterManager.IsCurrentCharacterColliderCollision(otherCollider);
             bool trigger = m_characterManager.IsCurrentCharacterColliderTrigger(otherCollider);
             if (!collision && !trigger) return;

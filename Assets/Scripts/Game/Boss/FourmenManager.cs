@@ -92,7 +92,7 @@ namespace HardlightProject
         public int GetIndexForBoss(Boss boss)
         {
             for (int i = 0; i < m_bossManager.Bosses.Count; i++)
-                {
+            {
                 if (m_bossManager.Bosses[i] != boss) continue;
                 return i;
             }
