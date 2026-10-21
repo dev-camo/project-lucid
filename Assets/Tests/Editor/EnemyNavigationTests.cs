@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using HardlightProject;
 using NUnit.Framework;
@@ -263,23 +261,19 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The destinations 0x578440 picks. Each attempt draws x then z from Random.Range(-radius, radius) and places the
-        // spot at (x, 0, z) turned by FromToRotation(down, -up) and offset by the home; the first of at most
-        // LoopLimit (20) spots that lies within the radius of home and at least the minimum distance from the position
-        // projected onto the plane through home wins, and when none does the twentieth stays. The spots are replayed
-        // from the same seeded generator. This replay restates the native loop (x then z drawn at 0x5786D7 and 0x5786F1,
-        // loop 0x5786AD..0x5787A2) over the generator state, so the tests that use it also pin a rejected first spot.
-        private static List<Vector3> Spots(int seed, Vector3 home, Quaternion rotation, float radius)
+        // 0x578440 draws x then z from Random.Range(-m_homeRadius, m_homeRadius) (calls at 0x5786D7 and 0x5786F1, the
+        // radius re-read from [rbx + 0x3C] before each), turns (x, 0, z) by FromToRotation(Vector3.down, -transform.up)
+        // (0x578503: the static down in xmm0:xmm1 as the from direction, the negated up as the to direction), adds the
+        // home, and tries at most LoopLimit (20) times (0x5786AD..0x5787A2), keeping the last spot when none qualifies.
+        // The tests take the raw engine stream from the same seed with the same Range bounds and write the expected
+        // spot as an explicit component mapping of those draws; none of the navigation's geometry is repeated here.
+        private static float[] Draws(int seed, float radius, int count)
         {
             Random.InitState(seed);
-            var spots = new List<Vector3>();
-            for (int attempt = 0; attempt < 20; attempt++)
-            {
-                float x = Random.Range(-radius, radius);
-                float z = Random.Range(-radius, radius);
-                spots.Add(rotation * new Vector3(x, 0f, z) + home);
-            }
-            return spots;
+            var draws = new float[count];
+            for (int i = 0; i < count; i++)
+                draws[i] = Random.Range(-radius, radius);
+            return draws;
         }
 
         private static Vector3 StartAndRead(EnemyNavigationHomeRadiusProbe navigation, int seed)
@@ -296,6 +290,75 @@ namespace ProjectLucid.Tests
             finally { Random.state = saved; }
         }
 
+        // SetUp caches the squared radius (0x5783F0) but each attempt draws with the live m_homeRadius, so a radius of 10 at
+        // SetUp followed by a radius of 1 accepts every spot (at most sqrt(2) from home) on the first attempt.
+        private static (Vector3 actual, float x, float z) FirstSpot(Owned owned, Vector3 home, Quaternion hostRotation, int seed)
+        {
+            var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, home, hostRotation);
+            Set(navigation, "m_homeRadius", 10f);
+            navigation.m_minNewDestinationDistance = 0f;
+            navigation.RunSetUp();
+            Set(navigation, "m_homeRadius", 1f);
+            float[] draws = Draws(seed, 1f, 2);
+            Assert.That(Mathf.Abs(draws[0]) > 1e-3f && Mathf.Abs(draws[1]) > 1e-3f && Mathf.Abs(Mathf.Abs(draws[0]) - Mathf.Abs(draws[1])) > 1e-3f,
+                Is.True, "seed " + seed + " draws two separable values");
+            return (StartAndRead(navigation, seed), draws[0], draws[1]);
+        }
+
+        // An upright host: -up is down, FromToRotation(down, down) is the identity, so (x, 0, z) lands at
+        // home + (x, 0, z) with x the first draw and z the second.
+        [Test]
+        public void StartingPlacesTheFirstSpotAtTheFirstDrawAlongXAndTheSecondAlongZ()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                (Vector3 actual, float x, float z) = FirstSpot(owned, new Vector3(2f, 1f, -3f), Quaternion.identity, 7);
+                AssertNear(actual, new Vector3(2f + x, 1f, -3f + z), "x then z");
+            }));
+        }
+
+        // A host turned 90 degrees about X: up is (0, 0, 1), so -up is (0, 0, -1). The shortest turn from (0, -1, 0) to
+        // (0, 0, -1) is +90 degrees about X (the cross product is +X), which takes y to z and z to -y:
+        // (x, 0, z) -> (x, -z, 0).
+        [Test]
+        public void StartingPlacesTheSpotsOnTheEnemysOwnPlane()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                (Vector3 actual, float x, float z) = FirstSpot(owned, new Vector3(1f, 2f, 3f), Quaternion.Euler(90f, 0f, 0f), 11);
+                AssertNear(actual, new Vector3(1f + x, 2f - z, 3f), "turned onto the tilted plane");
+            }));
+        }
+
+        // Negative control for the two literals above: the plausible variants put the spot elsewhere. Reversed operands,
+        // FromToRotation(-up, down) (the inverse turn), give (x, z, 0); drawing z first gives (z, 0, x) upright and
+        // (z, -x, 0) tilted; no turn at all gives (x, 0, z) on the tilted host.
+        [Test]
+        public void TheSpotSeparatesTheRotationOperandOrderAndTheDrawOrder()
+        {
+            WithRandomState(() => Owned.Run(owned =>
+            {
+                (Vector3 upright, float ux, float uz) = FirstSpot(owned, new Vector3(2f, 1f, -3f), Quaternion.identity, 7);
+                AssertFar(upright, new Vector3(2f + uz, 1f, -3f + ux), "upright, z drawn first");
+
+                var home = new Vector3(1f, 2f, 3f);
+                (Vector3 tilted, float x, float z) = FirstSpot(owned, home, Quaternion.Euler(90f, 0f, 0f), 11);
+                AssertNear(tilted, new Vector3(1f + x, 2f - z, 3f), "pinned tilted spot");
+                AssertFar(tilted, new Vector3(1f + x, 2f + z, 3f), "FromToRotation(-up, down)");
+                AssertFar(tilted, new Vector3(1f + z, 2f - x, 3f), "tilted, z drawn first");
+                AssertFar(tilted, new Vector3(1f + x, 2f, 3f + z), "no turn");
+            }));
+        }
+
+        // The squared distance from home of the upright spot of attempt n: its x draw squared plus its z draw squared.
+        private static float SquaredSpot(float[] draws, int n) => draws[2 * n] * draws[2 * n] + draws[2 * n + 1] * draws[2 * n + 1];
+
+        private static void AssertFar(Vector3 actual, Vector3 variant, string why) =>
+            Assert.That((actual - variant).magnitude, Is.GreaterThan(Tolerance), why + " would give " + variant + ", the same as " + actual);
+
+        // 0x57875D (ucomiss m_homeRadiusSqr, d; jb rejects) and 0x57878B (ucomiss d, minSq; setae accepts): attempt n uses
+        // draws 2n and 2n + 1, and the first spot with a squared distance from home in [36, 100] wins. The host stands
+        // upright at home, so the squared distance of attempt n is draws[2n]^2 + draws[2n + 1]^2.
         [Test]
         public void StartingPicksTheFirstSpotWithinTheRadiusAndFarEnoughFromTheEnemy()
         {
@@ -309,20 +372,20 @@ namespace ProjectLucid.Tests
                 int rejectedFirst = 0;
                 for (int seed = 1; seed <= 40; seed++)
                 {
-                    List<Vector3> spots = Spots(seed, home, Quaternion.identity, 10f);
-                    int first = spots.FindIndex(spot => (home - spot).sqrMagnitude <= 100f && (home - spot).sqrMagnitude >= 36f);
-                    Vector3 expected = first >= 0 ? spots[first] : spots[19];
-                    AssertNear(StartAndRead(navigation, seed), expected, "seed " + seed);
-                    if (first > 0) rejectedFirst++;
+                    float[] d = Draws(seed, 10f, 40);
+                    int n = 0;
+                    while (n < 19 && !(SquaredSpot(d, n) >= 36f && SquaredSpot(d, n) <= 100f)) n++;
+                    AssertNear(StartAndRead(navigation, seed), new Vector3(2f + d[2 * n], 1f, -3f + d[2 * n + 1]), "seed " + seed + ", attempt " + n);
+                    if (n > 0) rejectedFirst++;
                 }
                 Assert.That(rejectedFirst, Is.GreaterThan(0), "some seed rejects a spot and takes a later one");
             }));
         }
 
-        // 0x57875D (ucomiss m_homeRadiusSqr, d; jb rejects) and 0x57878B (ucomiss d, minSq; setae accepts): a spot exactly
-        // on the squared radius is inside and a spot exactly at the squared minimum distance is far enough, while an
-        // unordered radius or minimum accepts nothing and leaves the twentieth. Home and enemy are the origin and the
-        // replay turns the spots by the same FromToRotation, so its squared length is bit-identical to the one measured.
+        // The same comparisons at their boundaries: a spot exactly on the squared radius is inside and a spot exactly at
+        // the squared minimum distance is far enough, while an unordered radius or minimum accepts nothing and leaves the
+        // twentieth spot (draws 38 and 39). Home and enemy are the origin; the boundary is the squared length of the first
+        // spot as the navigation returned it when everything is accepted, so the comparison sees the same bits.
         [Test]
         public void StartingAcceptsASpotExactlyOnTheRadiusAndExactlyAtTheMinimumDistance()
         {
@@ -331,31 +394,37 @@ namespace ProjectLucid.Tests
                 var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero);
                 Set(navigation, "m_homeRadius", 10f);
                 navigation.RunSetUp();
-                Quaternion toPlane = Quaternion.FromToRotation(Vector3.down, -navigation.transform.up);
                 foreach (int seed in new[] { 1, 2, 3, 4, 5 })
                 {
-                    List<Vector3> spots = Spots(seed, Vector3.zero, toPlane, 10f);
-                    float exact = spots[0].sqrMagnitude;
-                    Assert.That(spots.Skip(1).All(spot => (spot - spots[0]).magnitude > Tolerance), Is.True, "seed " + seed + " has distinct spots");
+                    float[] d = Draws(seed, 10f, 40);
+                    var twentieth = new Vector3(d[38], 0f, d[39]);
+
+                    Set(navigation, "m_homeRadiusSqr", 1e6f);
+                    Set(navigation, "m_minNewDestinationDistanceSquared", 0f);
+                    Vector3 first = StartAndRead(navigation, seed);
+                    AssertNear(first, new Vector3(d[0], 0f, d[1]), "seed " + seed + " accepts the first spot");
+                    Assert.That((first - twentieth).magnitude, Is.GreaterThan(Tolerance), "seed " + seed + " has a distinct twentieth spot");
+                    float exact = first.sqrMagnitude;
 
                     Set(navigation, "m_homeRadiusSqr", exact);
-                    Set(navigation, "m_minNewDestinationDistanceSquared", 0f);
-                    AssertNear(StartAndRead(navigation, seed), spots[0], "seed " + seed + " exactly on the radius");
+                    AssertNear(StartAndRead(navigation, seed), first, "seed " + seed + " exactly on the radius");
 
                     Set(navigation, "m_homeRadiusSqr", 1e6f);
                     Set(navigation, "m_minNewDestinationDistanceSquared", exact);
-                    AssertNear(StartAndRead(navigation, seed), spots[0], "seed " + seed + " exactly at the minimum distance");
+                    AssertNear(StartAndRead(navigation, seed), first, "seed " + seed + " exactly at the minimum distance");
 
                     Set(navigation, "m_minNewDestinationDistanceSquared", float.NaN);
-                    AssertNear(StartAndRead(navigation, seed), spots[19], "seed " + seed + " with an unordered minimum");
+                    AssertNear(StartAndRead(navigation, seed), twentieth, "seed " + seed + " with an unordered minimum");
 
                     Set(navigation, "m_homeRadiusSqr", float.NaN);
                     Set(navigation, "m_minNewDestinationDistanceSquared", 0f);
-                    AssertNear(StartAndRead(navigation, seed), spots[19], "seed " + seed + " with an unordered radius");
+                    AssertNear(StartAndRead(navigation, seed), twentieth, "seed " + seed + " with an unordered radius");
                 }
             }));
         }
 
+        // A radius of 4 keeps every spot within sqrt(32) of home, short of the minimum distance of 100, so all twenty
+        // attempts fail and the last one, draws 38 and 39, stays.
         [Test]
         public void StartingKeepsTheTwentiethSpotWhenNoneQualifies()
         {
@@ -366,28 +435,9 @@ namespace ProjectLucid.Tests
                 navigation.m_minNewDestinationDistance = 100f;
                 navigation.RunSetUp();
                 foreach (int seed in new[] { 3, 17, 91 })
-                    AssertNear(StartAndRead(navigation, seed), Spots(seed, Vector3.zero, Quaternion.identity, 4f)[19], "seed " + seed);
-            }));
-        }
-
-        // A host turned about X has a different down: the spots are turned by FromToRotation(down, -transform.up), and the
-        // enemy position is projected onto the plane through home with that normal before the distance test.
-        [Test]
-        public void StartingPlacesTheSpotsOnTheEnemysOwnPlane()
-        {
-            WithRandomState(() => Owned.Run(owned =>
-            {
-                Quaternion tilt = Quaternion.Euler(90f, 0f, 0f);
-                var navigation = NewNavigation<EnemyNavigationHomeRadiusProbe>(owned, Vector3.zero, tilt);
-                Set(navigation, "m_homeRadius", 5f);
-                navigation.m_minNewDestinationDistance = 0f;
-                navigation.RunSetUp();
-                Quaternion toPlane = Quaternion.FromToRotation(Vector3.down, -(tilt * Vector3.up));
-                foreach (int seed in new[] { 5, 12, 33, 64 })
                 {
-                    List<Vector3> spots = Spots(seed, Vector3.zero, toPlane, 5f);
-                    int first = spots.FindIndex(spot => spot.sqrMagnitude <= 25f);
-                    AssertNear(StartAndRead(navigation, seed), first >= 0 ? spots[first] : spots[19], "seed " + seed);
+                    float[] d = Draws(seed, 4f, 40);
+                    AssertNear(StartAndRead(navigation, seed), new Vector3(d[38], 0f, d[39]), "seed " + seed);
                 }
             }));
         }
@@ -395,7 +445,7 @@ namespace ProjectLucid.Tests
         // The enemy position is projected onto the plane through home (Plane.ClosestPointOnPlane) before the distance
         // test. The host is lifted 50 units along its up axis, so unprojected every spot would be at least 50 away and
         // the first would always be taken; projected, the position is home itself and a first spot closer than the
-        // minimum distance of 3 is rejected.
+        // minimum distance of 3 is rejected in favour of the first in [9, 25].
         [Test]
         public void StartingMeasuresTheMinimumDistanceFromTheEnemyProjectedOntoThePlane()
         {
@@ -409,13 +459,14 @@ namespace ProjectLucid.Tests
                 int checkedSeeds = 0;
                 for (int seed = 1; seed <= 60; seed++)
                 {
-                    List<Vector3> spots = Spots(seed, Vector3.zero, Quaternion.identity, 5f);
-                    if (spots[0].sqrMagnitude >= 9f) continue;
+                    float[] d = Draws(seed, 5f, 40);
+                    if (SquaredSpot(d, 0) >= 9f) continue;
                     checkedSeeds++;
-                    int first = spots.FindIndex(spot => spot.sqrMagnitude <= 25f && spot.sqrMagnitude >= 9f);
+                    int n = 1;
+                    while (n < 19 && !(SquaredSpot(d, n) >= 9f && SquaredSpot(d, n) <= 25f)) n++;
                     Vector3 actual = StartAndRead(navigation, seed);
-                    AssertNear(actual, first >= 0 ? spots[first] : spots[19], "seed " + seed);
-                    Assert.That((actual - spots[0]).magnitude, Is.GreaterThan(Tolerance), "seed " + seed + " does not keep the near first spot");
+                    AssertNear(actual, new Vector3(d[2 * n], 0f, d[2 * n + 1]), "seed " + seed + ", attempt " + n);
+                    Assert.That((actual - new Vector3(d[0], 0f, d[1])).magnitude, Is.GreaterThan(Tolerance), "seed " + seed + " does not keep the near first spot");
                 }
                 Assert.That(checkedSeeds, Is.GreaterThan(0), "some seed starts with a spot nearer than the minimum distance");
             }));
