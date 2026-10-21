@@ -29,10 +29,12 @@ namespace ProjectLucid.Tests
             return host.AddComponent<T>();
         }
 
-        private static void WithInfluencer<T>(Action<Owned, Character, T> body) where T : CharacterDirectionInfluencer => Owned.Run(owned =>
+        private static void WithInfluencer<T>(Action<Owned, Character, T> body, bool timed = false) where T : CharacterDirectionInfluencer => Owned.Run(owned =>
         {
-            // The constructor takes a typed TimeManager reference, which creates this row.
-            owned.LeaseRow<TimeManager>();
+            // The constructor takes a typed TimeManager reference, which creates this row unless a real
+            // manager (Environment at twice the fixed step) is registered into it first.
+            if (timed) owned.Register(NewTimeManager(owned, TimeCategory.Environment, 2f));
+            else owned.LeaseRow<TimeManager>();
             owned.LeaseRow<GameplayIslandManager>();
             Character character = NewCharacter(owned, new FSMStorage(0));
             body(owned, character, Add<T>(owned, "Lucid direction influencer"));
@@ -346,14 +348,13 @@ namespace ProjectLucid.Tests
         private static void WithTimedInfluencer(Action<Owned, Character, CharacterDirectionInfluencer, float> body) =>
             WithInfluencer<CharacterDirectionInfluencer>((owned, character, influencer) =>
             {
-                PublishTimeManager(owned, Get<SystemRef<TimeManager>>(influencer, "m_timeManagerRef"),
-                    NewTimeManager(owned, TimeCategory.Environment, 2f));
+                Assert.That(Get<SystemRef<TimeManager>>(influencer, "m_timeManagerRef").IsValid(), Is.True, "the registered manager");
                 Set(influencer, "m_speed", 3f);
                 Set(influencer, "m_smoothDampTimeSeconds", 0.1f);
                 Set(influencer, "m_directionModiferType", DirectionModifierType.Override);
                 Set(influencer, "m_maxResultantVelocity", 10f);
                 body(owned, character, influencer, Time.fixedDeltaTime * 2f);
-            });
+            }, timed: true);
 
         // DoTriggerEnter 0x5C9F50: registers a new data entry for the character, computes the influence
         // (direction forward, target = direction * speed, SmoothDamp from rest towards it with the influencer's

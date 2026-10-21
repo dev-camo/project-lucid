@@ -105,7 +105,8 @@ namespace ProjectLucid.Tests
 
         // A TimeManager that is a real component on an inactive host (Awake never runs, so it registers
         // nothing) holding one category at the given scale, with the category lookup TimeExtensions reads
-        // leased for the case. The TimeManager row must already be leased by the caller. TimeManager.Reset
+        // leased for the case. The caller either leases the TimeManager row or registers the manager into
+        // its absent row (Owned.Register) before anything caches a typed reference. TimeManager.Reset
         // (1.10.1 0x1B168D0) reads m_timeCategoryConfiguration (+0xA8) without a null test, and AddComponent
         // sends the Editor Reset message while it is unassigned.
         internal static TimeManager NewTimeManager(Owned owned, TimeCategory category, float timeScale)
@@ -128,11 +129,5 @@ namespace ProjectLucid.Tests
                 .SetBaseValue((int)typeof(TimeManager).GetField("SettingId", statics).GetRawConstantValue(), setting);
             return manager;
         }
-
-        // Fills a component's own TimeManager reference through its InternalReplaceSystem, then revokes it
-        // and puts the startup observers back, which leaves the registry row alone as an unregistered
-        // system would.
-        internal static void PublishTimeManager(Owned owned, SystemRef<TimeManager> reference, TimeManager manager)
-            => owned.Lease(new SystemRefLease<TimeManager>(reference, manager));
     }
 }
