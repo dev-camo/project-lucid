@@ -61,18 +61,23 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x582974: a positive count reaches the manager's pool dictionary indexer for the configured type, which fails on a manager
-        // with no pools.
+        // 0x582974: a positive count reaches the manager's pool dictionary indexer with the configured type. The manager holds a pool
+        // only for another type, so the failure names the configured key, not the pooled one.
         [Test]
-        public void FireAcquiresTheConfiguredProjectileTypeFromTheManager()
+        public void FireLooksUpTheConfiguredProjectileTypeInTheManagerPools()
         {
             Owned.Run(owned =>
             {
                 owned.LeaseRow<TimeManager>();
                 SplineProjectileSpawner spawner = NewSpawner(owned);
-                Set(spawner, "m_projectileManager", owned.Host("Lucid spline manager", false).AddComponent<ProjectileManager>());
+                ProjectileManager manager = owned.Host("Lucid spline manager", false).AddComponent<ProjectileManager>();
+                // The pool factory is never run: acquiring the configured type fails before any pool is used.
+                Get<Dictionary<ProjectileType, UnityEngine.Pool.ObjectPool<Projectile>>>(manager, "m_projectilePools")
+                    [ProjectileType.GuardianKillerProjectile] = new UnityEngine.Pool.ObjectPool<Projectile>(() => null);
+                Set(spawner, "m_projectileManager", manager);
                 Set(spawner, "m_projectileConfigs", Configs((1, ProjectileType.BuzzBomberProjectile)));
-                Assert.Throws<KeyNotFoundException>(() => Call(spawner, "Fire"));
+                var thrown = Assert.Throws<KeyNotFoundException>(() => Call(spawner, "Fire"));
+                Assert.That(thrown.Message, Does.Contain(nameof(ProjectileType.BuzzBomberProjectile)));
                 Assert.That(Get<List<Projectile>>(spawner, "m_firedProjectiles"), Is.Empty);
             });
         }

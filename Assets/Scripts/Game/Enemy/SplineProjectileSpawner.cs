@@ -6,8 +6,8 @@ namespace HardlightProject
 {
     // Original Game.Runtime owner 02000677; methods 06002305..06002308, bodies from the 1.10.1
     // x86-64 binary at 0x582850..0x582E60.
-    [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+    [Il2CppSetOption(Option.NullChecks, false)]
     public class SplineProjectileSpawner : ProjectileSpawnerBase
     {
         [SerializeField]

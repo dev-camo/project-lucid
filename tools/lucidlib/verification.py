@@ -7456,7 +7456,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossVulnerableStateTests." + name fo
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.SplineProjectileSpawnerTests." + name for name in (
     "FireWithNoConfiguredProjectilesTouchesNothing",
-    "FireAcquiresTheConfiguredProjectileTypeFromTheManager",
+    "FireLooksUpTheConfiguredProjectileTypeInTheManagerPools",
     "TriggerExitSendsEveryFiredProjectileIntoCooldownWithoutExceptions",
     "ExpiredProjectileLeavesTheFiredListAndLosesTheSpawnerCallback",
 ))
