@@ -45,7 +45,9 @@ namespace HardlightProject
             float timeScale = Time.timeScale;
             for (int i = 0; i < m_debugSpeedSettings.Length; i++)
             {
-                if (timeScale > m_debugSpeedSettings[i] - 0.001f) return i;
+                // The native addss rounds the slack to single precision; the cast keeps the Editor's Mono from comparing
+                // in double.
+                if (timeScale > (float)(m_debugSpeedSettings[i] - 0.001f)) return i;
             }
             return m_debugSpeedSettings.Length - 1;
         }
