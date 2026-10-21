@@ -6756,7 +6756,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterHomingAttackAirAndRailHomin
 ))
 
 # Original transporter proximity ability, transporter states and trigger states (gr3-char-moves-09).
-EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharMoves09TransporterAndTriggerStateTests." + name for name in (
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterTransporterAndTriggerStateTests." + name for name in (
     "TriggerStatesReadTheirArgumentsFromJson",
     "TransporterStatesReadTheirAbilityTypeFromJson",
     "TriggerStatesKeepTheOriginalShape",

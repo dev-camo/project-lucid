@@ -28,11 +28,11 @@ namespace ProjectLucid.Tests
     // manager's transporter octrees (TryGetTransporterHit) and its distance gate, the TriggerRespawn enter, SetupRespawn,
     // RespawnCharacter and the TriggerRespawn iterator, the GamePlayControl and SetCameraProxySettings and StickyControls
     // trigger starts, and the construction of the two states that look their data up by name.
-    public sealed class CharMoves09TransporterAndTriggerStateTests
+    public sealed class CharacterTransporterAndTriggerStateTests
     {
         private const BindingFlags AnyStatic = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
-        private static string Name() => "Lucid-char-moves-09-" + Guid.NewGuid().ToString("N");
+        private static string Name() => "Lucid-transporter-trigger-" + Guid.NewGuid().ToString("N");
 
         private static IFSMState NewState(string node, string json) =>
             FSMClassFactory.ConstructState(new FiniteStateMachine(Name(), skipAddToManager: true), node, new FSMIdentifier(Name()), json);
@@ -349,7 +349,7 @@ namespace ProjectLucid.Tests
             WithTransporterAbility((owned, character, ability, definition) =>
             {
                 Set(character, "m_trackManagerRef", new SystemRef<TrackManager>("TrackManager", owned.Host("Lucid proximity tracks", false).AddComponent<TrackManager>()));
-                var surface = owned.Host("Lucid auto attach surface", false).AddComponent<CharMoves09SurfaceProbe>();
+                var surface = owned.Host("Lucid auto attach surface", false).AddComponent<FixedNearestSurfaceProbe>();
                 surface.NearestPosition = new Vector3(0f, 0f, 50f);
                 character.Storage.SetValue<ISurface>(ActorFSMKeys.TransporterAutoAttach, surface);
                 Assert.That(definition.HomingDistanceSqr, Is.EqualTo(0f));
@@ -369,7 +369,7 @@ namespace ProjectLucid.Tests
             WithTransporterAbility((owned, character, ability, definition) =>
             {
                 Set(character, "m_trackManagerRef", new SystemRef<TrackManager>("TrackManager", owned.Host("Lucid proximity tracks", false).AddComponent<TrackManager>()));
-                var surface = owned.Host("Lucid auto attach surface", false).AddComponent<CharMoves09SurfaceProbe>();
+                var surface = owned.Host("Lucid auto attach surface", false).AddComponent<FixedNearestSurfaceProbe>();
                 surface.ReturnsItself = false;
                 surface.NearestPosition = new Vector3(0f, 0f, 50f);
                 character.Storage.SetValue<ISurface>(ActorFSMKeys.TransporterAutoAttach, surface);

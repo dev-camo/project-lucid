@@ -6,7 +6,7 @@ namespace ProjectLucid.Tests.WorldSurfaceShared
 {
     // A surface component whose nearest location is a fixed one, for the transporter proximity auto-attach path, which
     // only needs the stored surface to be a Component and to answer FindNearestSurfaceLocationFromWorld.
-    public sealed class CharMoves09SurfaceProbe : MonoBehaviour, ISurface
+    public sealed class FixedNearestSurfaceProbe : MonoBehaviour, ISurface
     {
         public bool ReturnsItself = true;
         public Vector3 NearestPosition;
