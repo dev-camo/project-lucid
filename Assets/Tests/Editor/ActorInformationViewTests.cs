@@ -336,8 +336,7 @@ namespace ProjectLucid.Tests
                 TextMeshProUGUI label = labelHost.AddComponent<TextMeshProUGUI>();
                 Set(view, "m_nameText", label); // serialized
                 var ability = new AbilityInfoTextProbe { HasText = false };
-                Set(view, "m_boss", boss);
-                Set(view, "m_ability", ability);
+                view.Setup(new ViewBossAbilityInfoParameters(boss, ability));
                 view.transform.localPosition = new Vector3(5f, 5f, 5f);
                 Physics.SyncTransforms();
 
