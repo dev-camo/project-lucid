@@ -12,7 +12,7 @@ import struct
 
 from . import inputvariants
 
-FORMAT = 3
+FORMAT = 4
 
 FAT_MAGIC, FAT_MAGIC_64 = 0xCAFEBABE, 0xCAFEBABF  # stored big-endian
 MH_MAGIC_64 = 0xFEEDFACF                           # stored little-endian
@@ -56,20 +56,24 @@ def _raise(error):
 
 
 def build_manifest(app):
-    """Every regular file as (path, size, sha256, permission bits) and every symlink as a link, never followed."""
-    files, links = [], []
+    """Every regular file as (path, size, sha256, permission bits), every directory with its permission bits,
+    and every symlink as a link, never followed."""
+    files, links, directories = [], [], []
     for directory, dirnames, filenames in os.walk(app, followlinks=False, onerror=_raise):
         for name in dirnames + filenames:
             full = os.path.join(directory, name)
             relative = os.path.relpath(full, app).replace(os.sep, "/")
             if os.path.islink(full):
                 links.append({"path": relative, "target": os.readlink(full)})
+            elif os.path.isdir(full):
+                directories.append({"path": relative, "mode": os.stat(full).st_mode & 0o7777})
             elif os.path.isfile(full):
                 files.append({"path": relative, "size": os.path.getsize(full), "sha256": _file_sha256(full),
                               "mode": os.stat(full).st_mode & 0o7777})
     files.sort(key=lambda item: item["path"])
     links.sort(key=lambda item: item["path"])
-    return {"files": files, "symlinks": links}
+    directories.sort(key=lambda item: item["path"])
+    return {"files": files, "symlinks": links, "directories": directories}
 
 
 def _slice_ranges(data):
@@ -178,6 +182,8 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align, canonical):
                         "sectname": _cstr(sect), "segname": _cstr(seg), "addr": addr, "offset": sect_off,
                         "size": length, "zerofill": zerofill,
                         "sha256": None if zerofill else _sha256(view[sect_off:sect_off + length])})
+                if any(other["segname"] == segment["segname"] for other in record["segments"]):
+                    raise ValueError("Duplicate segment " + segment["segname"])
                 record["segments"].append(segment)
                 if segment["segname"] == "__LINKEDIT":
                     masked += [(body + 24, body + 32), (body + 40, body + 48)]  # vmsize, filesize
@@ -314,6 +320,15 @@ def _compare_manifest(a, b, out):
             # An exec bit changes behaviour; only the signature seal's own files may differ in mode.
             _diff(out, "manifest", "mode", path.startswith(CODE_SIGNATURE_DIRECTORY),
                   path=path, a=oct(left[path]["mode"]), b=oct(right[path]["mode"]))
+    dirs_a = {item["path"]: item["mode"] for item in a["directories"]}
+    dirs_b = {item["path"]: item["mode"] for item in b["directories"]}
+    for path in sorted(dirs_a.keys() | dirs_b.keys()):
+        if dirs_a.get(path) != dirs_b.get(path):
+            # A missing or untraversable directory changes what the app can reach; only the seal's own may differ.
+            packaging = (path + "/").startswith(CODE_SIGNATURE_DIRECTORY)
+            _diff(out, "manifest", "directory", packaging, path=path,
+                  a=None if dirs_a.get(path) is None else oct(dirs_a[path]),
+                  b=None if dirs_b.get(path) is None else oct(dirs_b[path]))
     links_a = {item["path"]: item["target"] for item in a["symlinks"]}
     links_b = {item["path"]: item["target"] for item in b["symlinks"]}
     for path in sorted(links_a.keys() | links_b.keys()):
@@ -375,7 +390,7 @@ def _compare_slice(label, a, b, out):
     for key in sorted(sections_a.keys() ^ sections_b.keys()):
         _diff(out, area, "section only on one side", False, segname=key[0], sectname=key[1])
     for key in sorted(sections_a.keys() & sections_b.keys()):
-        for field in ("offset", "size", "zerofill", "sha256"):
+        for field in ("addr", "offset", "size", "zerofill", "sha256"):
             if sections_a[key][field] != sections_b[key][field]:
                 _diff(out, area, "section " + field, False, segname=key[0], sectname=key[1],
                       a=sections_a[key][field], b=sections_b[key][field])
@@ -427,10 +442,14 @@ def compare_fingerprints(a, b):
         if report.get("format") != FORMAT:
             raise ValueError("Unsupported fingerprint format " + repr(report.get("format")))
     differences = []
-    _compare_manifest(a["manifest"], b["manifest"], differences)
-    _compare_assembly(a["game_assembly"], b["game_assembly"], differences)
-    _compare_metadata(a["metadata"], b["metadata"], differences)
-    if a["variant"] != b["variant"]:
+    try:
+        _compare_manifest(a["manifest"], b["manifest"], differences)
+        _compare_assembly(a["game_assembly"], b["game_assembly"], differences)
+        _compare_metadata(a["metadata"], b["metadata"], differences)
+        variants = (a["variant"], b["variant"])
+    except (KeyError, TypeError, AttributeError) as error:
+        raise ValueError("Malformed fingerprint report: " + repr(error)) from None
+    if variants[0] != variants[1]:
         # The variant name follows from the binary and metadata hashes, which are judged above.
         _diff(differences, "variant", "declared variant (follows from the file hashes)", True, a=a["variant"], b=b["variant"])
     other = [item for item in differences if not item["packaging"]]

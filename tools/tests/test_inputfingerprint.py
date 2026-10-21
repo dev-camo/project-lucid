@@ -501,8 +501,49 @@ class CompareTests(unittest.TestCase):
                                                        "--output", str(target)]))
                     self.assertEqual(before, report.read_bytes())
 
+    def test_directory_mode_and_presence_are_compared(self):
+        a = self.report()
+        self.counter += 1
+        root = Path(self.tmp.name) / str(self.counter)
+        root.mkdir()
+        app = make_app(root)
+        (app / "Contents" / "Resources").chmod(0o700)
+        (app / "Contents" / "Extra").mkdir()
+        try:
+            verdict = inputfingerprint.compare_fingerprints(a, inputfingerprint.fingerprint_input(app))
+        finally:
+            (app / "Contents" / "Resources").chmod(0o755)
+        dirs = sorted((d["path"], d["packaging"]) for d in verdict["differences"] if d["detail"] == "directory")
+        self.assertIn(("Contents/Extra", False), dirs)
+        self.assertIn(("Contents/Resources", False), dirs)
+        self.assertFalse(verdict["summary"]["packaging_only"])
+
+    def test_section_address_differences_name_the_section(self):
+        a, b = self.report(), self.report()
+        b["game_assembly"]["slices"][0]["segments"][0]["sections"][0]["addr"] += 0x10
+        verdict = inputfingerprint.compare_fingerprints(a, b)
+        addrs = [(d["sectname"], d["packaging"]) for d in verdict["differences"] if d["detail"] == "section addr"]
+        self.assertEqual([("__text", False)], addrs)
+
+    def test_malformed_reports_are_value_errors(self):
+        good = self.report()
+        for broken in ({"format": inputfingerprint.FORMAT},
+                       dict(good, manifest=None),
+                       dict(good, game_assembly={"fat": True})):
+            with self.subTest(keys=sorted(broken)):
+                with self.assertRaisesRegex(ValueError, "Malformed fingerprint report"):
+                    inputfingerprint.compare_fingerprints(broken, good)
+
+    def test_duplicate_segment_names_are_rejected(self):
+        path = Path(self.tmp.name) / "dup"
+        blob = bytearray(macho(X86_64, UUID_A, SIGNATURE_A))
+        struct.pack_into("<16s", blob, 32 + 152 + 8, name16("__TEXT"))  # rename __DATA
+        path.write_bytes(bytes(blob))
+        with self.assertRaisesRegex(ValueError, "Duplicate segment __TEXT"):
+            inputfingerprint.fingerprint_macho(path)
+
     def test_older_format_reports_are_rejected(self):
-        for number in (1, 2):
+        for number in (1, 2, 3):
             old = dict(self.report(), format=number)
             with self.assertRaisesRegex(ValueError, "Unsupported fingerprint format {}".format(number)):
                 inputfingerprint.compare_fingerprints(old, self.report())
