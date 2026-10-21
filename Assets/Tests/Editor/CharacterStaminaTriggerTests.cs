@@ -448,16 +448,19 @@ namespace ProjectLucid.Tests
                 var trigger = NewChaosTrigger(owned, true);
                 SetAbility(trigger, ability);
 
+                // A queued jump shows which impulses the activation ends.
+                var brain = new CharacterBrain_Replay();
+                Set(character, "m_brain", brain);
+                Call(brain, "SetState", GameAction.CharacterJump, true);
+                Assert.That(brain.ActionStateQueued.GetValue(GameAction.CharacterJump), Is.True);
+
                 Assert.That(Get<bool>(character, "m_retainImpulses"), Is.False);
                 trigger.Trigger();
-                // Activate tail-calls Character.EndImpulses (jmp 0x734b80 at 0x76f682), which consumes the retained flag,
-                // so it ends clear; the compiled body shows the retain is made before the activation.
+                // Activate tail-calls Character.EndImpulses (jmp 0x734b80 at 0x76f682). The retain made before it
+                // is consumed there instead of the brain's impulses ending: a retain after the activation would
+                // leave the flag set, and none would end the jump.
+                Assert.That(brain.ActionStateQueued.GetValue(GameAction.CharacterJump), Is.True, "the retained jump survives the activation");
                 Assert.That(Get<bool>(character, "m_retainImpulses"), Is.False, "the activation's EndImpulses consumed the retain");
-                List<MethodBase> calls = OriginalILCallSequence.Calls(typeof(CharacterChaosStaminaTrigger).GetMethod("Trigger"))
-                    .Select(call => call.Target).ToList();
-                int retain = calls.IndexOf(typeof(Character).GetMethod("RetainCurrentImpulses"));
-                Assert.That(retain, Is.GreaterThanOrEqualTo(0), "RetainCurrentImpulses on the current character");
-                Assert.That(calls.IndexOf(typeof(CharacterStamina).GetMethod("Activate")), Is.GreaterThan(retain), "then the activation");
                 Assert.That(chaos.Active, Is.True);
                 Assert.That(chaos.Stamina, Is.EqualTo(0.75f), "the definition's activation cost was spent");
                 Assert.That(Get<bool>(chaos, "m_overrideImpulse"), Is.True, "the impulse is overridden");
