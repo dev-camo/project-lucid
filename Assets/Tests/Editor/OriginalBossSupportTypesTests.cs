@@ -1316,6 +1316,8 @@ namespace ProjectLucid.Tests
                         Call(rig.Visuals, "Awake");
                         if (!down) rig.Boss.position = new Vector3(1f, 4f, 3f);
                         float delta = rig.Time.GetDeltaTime(TimeCategory.EnemyMovement);
+                        // A zero delta would leave the boss in place and pass both directions vacuously.
+                        Assert.That(delta, Is.GreaterThan(0f), "the engine reports an EnemyMovement delta time");
                         float fraction = delta / 4f;
                         float start = down ? 10f : 4f;
                         float target = down ? 4f : 10f;
@@ -1552,14 +1554,15 @@ namespace ProjectLucid.Tests
                     delta = NewVisualsRig(owned, time, 4f).Time.GetDeltaTime(TimeCategory.EnemyMovement);
             });
 
-            // The material after the first step of Targeting, Dying and Charging (0 neutral, 1 attacking, 2 dead): the first
-            // face until the timer exceeds the interval, then the second (attacking->neutral 0.2, dead->neutral 0.2,
-            // neutral->dead 0.5, with the strict test of 0x57A866). With an engine delta the scale makes the step 0.1, 0.3
-            // and 0.6; without one no time passes and every step keeps the first face.
-            int[] firstFaces = { 1, 2, 0 };
-            int[] secondFaces = { 0, 0, 2 };
-            float[] intervals = { 0.2f, 0.2f, 0.5f };
-            foreach (float step in new[] { 0.1f, 0.3f, 0.6f })
+            Assert.That(delta, Is.GreaterThan(0f), "the engine reports an EnemyMovement delta time to scale");
+
+            // Per step: the material after the first step of Targeting, Dying and Charging (0 neutral, 1 attacking, 2 dead).
+            foreach ((float step, int[] expected) in new[]
+            {
+                (0.1f, new[] { 1, 2, 0 }),
+                (0.3f, new[] { 0, 0, 0 }),
+                (0.6f, new[] { 0, 0, 2 })
+            })
             {
                 string[] faces = { "SetFaceTargeting", "SetFaceDying", "SetFaceCharging" };
                 for (int face = 0; face < faces.Length; face++)
@@ -1569,15 +1572,15 @@ namespace ProjectLucid.Tests
                     {
                         using (var time = new OwnedTimeScaledObjects("lucid-fourmen-visuals-intervals"))
                         {
-                            VisualsRig rig = NewVisualsRig(owned, time, 4f, true, delta > 0f ? step / delta : 1f);
+                            VisualsRig rig = NewVisualsRig(owned, time, 4f, true, step / delta);
                             MeshRenderer renderer = AttachFaces(owned, rig, out Material neutral, out Material attacking, out Material dead);
                             Call(rig.Visuals, "Awake");
                             float actual = rig.Time.GetDeltaTime(TimeCategory.EnemyMovement);
-                            int expected = actual > intervals[index] ? secondFaces[index] : firstFaces[index];
+                            Assert.That(actual, Is.EqualTo(step).Within(1e-3f), "the scaled step");
 
                             Call(rig.Visuals, faces[index]);
 
-                            Assert.That(renderer.sharedMaterial, Is.EqualTo(new[] { neutral, attacking, dead }[expected]), faces[index] + " after a step of " + step);
+                            Assert.That(renderer.sharedMaterial, Is.EqualTo(new[] { neutral, attacking, dead }[expected[index]]), faces[index] + " after a step of " + step);
                             Call(rig.Visuals, "OnDisable");
                         }
                     });
