@@ -8500,6 +8500,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCloseEventTests." + name 
     "IntroCloseFirstPublishesTheCloseEventThenClosesItsOwnContainer",
     "IntroCloseWithoutACloseEventStillClosesItsOwnContainer",
     "IntroLeavesItsBindablesAloneWhenTheLevelManagerHasNoCurrentLevel",
+    "IntroPublishesTheLevelNamesButNotAZoneIconThatWasNeverLoaded",
     "IntroStartQueuesItsCallbackUntilTheLevelManagerIsRegistered",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UISpawnerTests." + name for name in (
@@ -8547,6 +8548,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIReparentUtilityTests." + name for 
     "ZeroLevelsLeaveTheObjectUnderItsParent",
     "OneLevelMovesTheObjectUnderItsGrandparent",
     "TooManyLevelsStopAtTheRoot",
+    "TheClimbKeepsTheWorldPositionOfTheObject",
     "TheChildIndexPlacesTheObjectAmongItsNewSiblings",
     "NoStretchKeepsTheResetOffsets",
     "StretchWidthZeroesOnlyTheHorizontalOffsets",
@@ -8573,6 +8575,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetAddressableSpriteTests." + n
     "ConstructorBuildsTheBindableAndTakesTheRegistryManagerReference",
     "SettingAReferenceLoadsItsSpriteAndKeepsTheHandle",
     "ClearingTheReferenceKeepsTheLoadedSpriteAndANewReferenceReplacesIt",
+    "ANewReferenceReleasesThePreviousHandle",
+    "DestroyReleasesTheHandleOfTheLoadedSprite",
     "ANullReferenceNeedsNoAddressableManager",
     "TheLoadCallbackPublishesTheSprite",
     "DestroyDoesNothingWithoutAManagerOrAHandle",
@@ -8601,6 +8605,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetButtonImageTextureTests." + 
     "DeclarationsMatchTheOriginalMetadata",
     "SetupTakesTheAtlasedSpriteReference",
     "SetupWithTheWrongParametersOnlyLogs",
+    "TheStartCallbackLoadsThePreloadedSpriteAndKeepsTheHandle",
+    "StartWithoutAValidKeyNeverQueuesALoad",
     "ALoadedImageIsPublished",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetCategoryToggleTests." + name for name in (
@@ -8622,6 +8628,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetCharacterHeadsSpawnerTests."
     "ARequestForEveryCharacterShowsNoneWhenAsked",
     "ARequestForSomeCharactersShowsThemWhenNoneIfAllIsSet",
     "ARequestForEveryCharacterShowsAllWithoutTheFlag",
+    "MoreIdsThanCharactersShowNoneWhenNoneIfAllIsSet",
+    "AsManyIdsAsCharactersShowNoneEvenWhenMostAreUnknown",
     "AnEmptyRequestShowsNoneWithTheFlag",
     "AnEmptyRequestShowsNoneWithoutTheFlag",
     "UnknownIdsGetNoHead",
@@ -8640,6 +8648,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetCutsceneTests." + name for n
     "AnUnlockedNewEntryIsMarkedNewAndEnabled",
     "AnUnlockedOldEntryIsEnabledButNotNew",
     "AnUnlockedEntryWithAValidKeyAsksTheAddressableManagerForTheImage",
+    "AnUnlockedEntryWithAPreloadedImageShowsItAndKeepsTheHandle",
+    "ALockedEntryDoesNotShowOrKeepAPreloadedImage",
     "ALockedEntryNeverLoadsItsImage",
     "TheSmallMembersWriteTheirBindables",
 ))

@@ -40,7 +40,7 @@ namespace HardlightProject
             m_spawnedInstance.Setup(new UIWidgetImageArchetypeParameters(archetypeDefinition, characterDefinition));
         }
 
-        // 0x0600379c: the field initialiser precedes the MonoBehaviour constructor.
+        // 0x0600379c
         public UIWidgetArchetypeImageSpawner() { }
     }
 }

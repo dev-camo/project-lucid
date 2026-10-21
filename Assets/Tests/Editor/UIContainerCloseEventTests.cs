@@ -14,8 +14,8 @@ namespace ProjectLucid.Tests
     // UIContainerWithCloseEvent (Game.Runtime 0x02000951, x86-64 0x683D30..0x683DE0) and UIContainerActTransitionIntro
     // (0x02000877, 0x619570..0x6197C0) as real components on inactive owned hosts, over a real App and, for the intro, a real
     // UIManager with a scripted container manager.
-    // Not covered: OnLevelManager with a loaded level (title, subtitle and zone icon). That needs a LevelManager holding a
-    // current level, which only a loaded scene gives it; Edit Mode has no path to that state and it is not forced here.
+    // Not covered: the zone icon being published. It needs an AssetReference whose operation handle is valid (0x6196ED), which only an
+    // Addressables load of the icon gives; the negative branch (a valid key with no load) is covered.
     public sealed class UIContainerCloseEventTests
     {
         // dump.cs TypeDefIndex 2384 / 2166 and the DummyDll rows (fields 0x04002671, 0x040020e1..0x040020e3).
@@ -167,6 +167,40 @@ namespace ProjectLucid.Tests
                 Assert.That(levelManager.CurrentLevelValid, Is.False);
                 Assert.That(intro.LevelTitle.Value, Is.EqualTo(Strings.DECIMAL_SEPARATOR));
                 Assert.That(intro.LevelSubtitle.Value, Is.EqualTo(Strings.CULTURE_NUMBER_BILLIONS));
+                Assert.That(intro.ZoneIconAsset.Value, Is.Null);
+            });
+        }
+
+        // OnLevelManager 0x619650 with a current level: the title is the level's DisplayName (+0x20) and the subtitle its ActName (+0x24),
+        // and the zone icon is published only when IsValid() (0x6196ED) holds as well as RuntimeKeyIsValid (0x619708). The icon here has a
+        // valid GUID key but was never loaded, so IsValid() is false and the icon stays unset. The current level and the level
+        // configuration have no path in Edit Mode (they come from a loaded scene and Awake), so they are written directly.
+        [Test]
+        public void IntroPublishesTheLevelNamesButNotAZoneIconThatWasNeverLoaded()
+        {
+            Owned.Run(owned =>
+            {
+                LeaseLevelManagerRows(owned);
+                var intro = owned.Host("Lucid act intro", false).AddComponent<UIContainerActTransitionIntro>();
+                var levelManager = owned.Host("Lucid level manager", false).AddComponent<LevelManager>();
+                var definition = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+                Set(definition, "m_displayName", Strings.CULTURE_NUMBER_MILLIONS);
+                Set(definition, "m_actName", Strings.CULTURE_NUMBER_THOUSANDS);
+                var zone = owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { definition });
+                Set(zone, "m_iconAsset", new AssetReferenceAtlasedSprite(Guid.NewGuid().ToString("N")));
+                var levels = owned.Track(ScriptableObject.CreateInstance<GameLevels>());
+                Set(levels, "m_gameplayEntries", new List<GameplayLevelUIEntry> { zone });
+                Set(levelManager, "<GameLevels>k__BackingField", levels);
+                Set(levelManager, "<CurrentLevelValid>k__BackingField", true);
+                Set(levelManager, "m_currentLevel", new LevelManagerLevel(definition, definition));
+
+                Call(intro, "OnLevelManager", levelManager);
+
+                Assert.That(intro.LevelTitle.Value, Is.EqualTo(Strings.CULTURE_NUMBER_MILLIONS));
+                Assert.That(intro.LevelSubtitle.Value, Is.EqualTo(Strings.CULTURE_NUMBER_THOUSANDS));
+                Assert.That(zone.IconAsset.RuntimeKeyIsValid(), Is.True);
+                Assert.That(zone.IconAsset.IsValid(), Is.False);
                 Assert.That(intro.ZoneIconAsset.Value, Is.Null);
             });
         }

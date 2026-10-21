@@ -174,6 +174,21 @@ namespace ProjectLucid.Tests
             }, showNoneIfAll);
         }
 
+        // 0x69CCC0 (cmp r12d,eax; jg) continues only when characters > requested ids, so the comparison is on counts alone: four ids
+        // against three characters returns (rejecting an equality test) and three ids of which only Amy is known also returns
+        // (rejecting a "request contains every character" test, which would spawn Amy).
+        [TestCase(new[] { CharacterId.Amy, CharacterId.Cream, CharacterId.Sonic, CharacterId.Tails }, TestName = "MoreIdsThanCharactersShowNoneWhenNoneIfAllIsSet")]
+        [TestCase(new[] { CharacterId.Amy, CharacterId.Tails, CharacterId.Knuckles }, TestName = "AsManyIdsAsCharactersShowNoneEvenWhenMostAreUnknown")]
+        public void ShowNoneIfAllComparesTheNumberOfRequestedIds(CharacterId[] requested)
+        {
+            Run((owned, scene) =>
+            {
+                scene.Spawner.UpdateCharacterHeads(requested);
+
+                Assert.That(scene.Heads, Is.Empty);
+            }, showNoneIfAll: true);
+        }
+
         // 0x69CDF8..0x69CE17: an id the data manager does not know matches no character, so no head is spawned for it.
         [Test]
         public void UnknownIdsGetNoHead()

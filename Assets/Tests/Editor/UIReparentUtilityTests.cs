@@ -81,8 +81,8 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x60B7A0..0x60B8BD: the parent is remembered, the object is moved up the requested number of levels (re-parented without
-        // keeping its world position) and an out-of-range count stops at the hierarchy root (0x60B89A: a null grandparent ends the walk).
+        // 0x60B7A0..0x60B8BD: the parent is remembered, the object is moved up the requested number of levels (the climb's
+        // set_parent at 0x60B8B5 keeps the world position) and an out-of-range count stops at the hierarchy root (0x60B89A: a null grandparent ends the walk).
         [TestCase(0, "parent", TestName = "ZeroLevelsLeaveTheObjectUnderItsParent")]
         [TestCase(1, "root", TestName = "OneLevelMovesTheObjectUnderItsGrandparent")]
         [TestCase(5, "root", TestName = "TooManyLevelsStopAtTheRoot")]
@@ -97,6 +97,25 @@ namespace ProjectLucid.Tests
 
                 Assert.That(utility.transform.parent, Is.SameAs(expectedParent == "root" ? root : parent));
                 Assert.That(Get<Transform>(utility, "m_initialParent"), Is.SameAs(parent), "the parent before climbing");
+            });
+        }
+
+        // Only the first re-parent (SetParent(parent, false), 0x60B807) drops the world position; the climb (Transform::set_parent,
+        // 0x60B8B5) keeps it. The anchored position is reset to the parent's origin first, so after one level up the object still
+        // sits at the parent's offset (100, 0) from the root, where a SetParent(newParent, false) climb would leave it at (0, 0).
+        [Test]
+        public void TheClimbKeepsTheWorldPositionOfTheObject()
+        {
+            Owned.Run(owned =>
+            {
+                UIReparentUtility utility = NewChain(owned, out RectTransform root, out RectTransform parent);
+                parent.anchoredPosition = new Vector2(100f, 0f);
+                Set(utility, "m_levelsToMoveUp", 1);
+
+                utility.ApplyReparenting();
+
+                Assert.That(utility.transform.parent, Is.SameAs(root));
+                Assert.That(((RectTransform)utility.transform).anchoredPosition, Is.EqualTo(new Vector2(100f, 0f)));
             });
         }
 

@@ -3,6 +3,7 @@ using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -10,8 +11,10 @@ namespace ProjectLucid.Tests
 {
     // UIWidgetButtonImageTexture (Game.Runtime 0x020009a1, x86-64 0x69AEB0..0x69B250) as a real component on an inactive owned host.
     // Its static AddressableManager reference is built by the type initializer, which may run during a case, so the AddressableManager
-    // row is leased empty for every case. Start waits on that static reference and loads the sprite through the manager's Addressables
-    // calls; it is not covered here. HLOutput errors are read through OwnedCoreErrorLog. The loading sprite is serialized authored data.
+    // row is leased empty for every case. Start hands its load to that static reference only once the manager is registered; a case
+    // cannot register into a row the static reference would still follow after the case releases it, so the queued load is reached
+    // through its callback <Start>b__3_0 over a manager that answers from its preloaded asset table (PreloadedAddressableSprites), and
+    // Start itself is covered only for the key gate. A load that is not preloaded needs Addressables and is not covered. HLOutput errors are read through OwnedCoreErrorLog. The loading sprite is serialized authored data.
     public sealed class UIWidgetButtonImageTextureTests
     {
         private static UIWidgetButtonImageTexture NewWidget(Owned owned, out Sprite loadingImage)
@@ -78,6 +81,47 @@ namespace ProjectLucid.Tests
                     }));
                     Assert.That(Get<AssetReferenceAtlasedSprite>(widget, "m_atlasedSpriteToLoad"), Is.Null);
                 }
+            });
+        }
+
+        // <Start>b__3_0 (0x69B190, LoadAssetImmediate call at 0x69B220) loads the atlased sprite through the manager it is handed (LoadAssetImmediate answers from the
+        // preloaded table), OnImageLoaded publishes it and the returned handle is stored in m_assetLoadHandle for the base to release.
+        [Test]
+        public void TheStartCallbackLoadsThePreloadedSpriteAndKeepsTheHandle()
+        {
+            PreloadedAddressableSprites.Run((owned, sprites) =>
+            {
+                UIWidgetButtonImageTexture widget = NewWidget(owned, out Sprite loadingImage);
+                AssetReferenceT<Sprite> reference = sprites.Preload(owned, out Sprite sprite);
+                Set(widget, "m_atlasedSpriteToLoad", new AssetReferenceAtlasedSprite(reference.AssetGUID));
+                widget.Image.Value = loadingImage;
+
+                Call(widget, "<Start>b__3_0", sprites.Manager);
+
+                Assert.That(widget.Image.Value, Is.SameAs(sprite));
+                var handle = Get<AsyncOperationHandle<Sprite>>(widget, "m_assetLoadHandle");
+                Assert.That(handle.IsValid(), Is.True);
+                Assert.That(handle.Result, Is.SameAs(sprite));
+            }, registerManager: false);
+        }
+
+        // Start 0x69AF80 tests the reference's key (RuntimeKeyIsValid) before it touches the static manager reference: with an empty
+        // key no callback is queued on it (a missing gate would queue one on the empty row) and the loading image stays.
+        [Test]
+        public void StartWithoutAValidKeyNeverQueuesALoad()
+        {
+            Owned.Run(owned =>
+            {
+                UIWidgetButtonImageTexture widget = NewWidget(owned, out Sprite loadingImage);
+                Set(widget, "m_atlasedSpriteToLoad", new AssetReferenceAtlasedSprite(""));
+                widget.Image.Value = loadingImage;
+
+                Call(widget, "Start");
+
+                object staticReference = Field(typeof(UIWidgetButtonImageTexture), "s_addressableManagerRef").GetValue(null);
+                Assert.That(Get<object>(staticReference, "m_actionOnSystemValid"), Is.Null);
+                Assert.That(widget.Image.Value, Is.SameAs(loadingImage));
+                Assert.That(Get<AsyncOperationHandle<Sprite>>(widget, "m_assetLoadHandle").IsValid(), Is.False);
             });
         }
 

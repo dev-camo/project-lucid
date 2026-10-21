@@ -1,14 +1,10 @@
 using System;
-using System.Collections.Generic;
-using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
-using UnityEngine.ResourceManagement;
 using UnityEngine.ResourceManagement.AsyncOperations;
-using static ProjectLucid.Tests.CharacterTriggerTestSupport;
 using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
@@ -16,42 +12,11 @@ namespace ProjectLucid.Tests
 {
     // UIWidgetAddressableSprite (Game.Runtime 0x0200099a, x86-64 0x699730..0x699AA0) as a real component on an inactive owned host over a
     // real AddressableManager (registered into its absent row; Awake never runs). Sprites are loaded through the manager's preloaded
-    // asset table, the route LoadAssetImmediate takes before any Addressables call: each sprite is the result of a completed operation of an
-    // owned ResourceManager, entered in the manager's private lookup by its GUID (no public call fills it without an Addressables
-    // load) and in its retained-handle set, so releasing it never reaches Addressables. Not covered: a load that is not preloaded, and
-    // the Addressables release of a handle that is not retained.
+    // asset table, the route LoadAssetImmediate takes before any Addressables call (see PreloadedAddressableSprites). Not covered: a
+    // load that is not preloaded.
     public sealed class UIWidgetAddressableSpriteTests
     {
-        private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-
-        private sealed class Scene
-        {
-            public AddressableManager Manager;
-            public ResourceManager Resources;
-
-            // A sprite the manager reports as preloaded under a fresh GUID, and the reference that names it.
-            public AssetReferenceT<Sprite> Preload(Owned owned, out Sprite sprite)
-            {
-                sprite = NewSprite(owned);
-                string guid = Guid.NewGuid().ToString("N");
-                AsyncOperationHandle<Sprite> handle = Resources.CreateCompletedOperation(sprite, null);
-                owned.Lease(new ReleaseAction(() => { if (handle.IsValid()) Resources.Release(handle); }));
-                Get<Dictionary<string, AsyncOperationHandle>>(Manager, "m_preloadedAssetHandleLookup")[guid] = handle;
-                Get<HashSet<AsyncOperationHandle>>(Manager, "m_preloadHandles").Add(handle);
-                return new AssetReferenceT<Sprite>(guid);
-            }
-        }
-
-        private static void Run(Action<Owned, Scene> body) => Owned.Run(owned =>
-        {
-            var scene = new Scene();
-            scene.Manager = owned.Host("Lucid addressable manager", false).AddComponent<AddressableManager>();
-            owned.Register(scene.Manager);
-            scene.Resources = new ResourceManager();
-            typeof(ResourceManager).GetField("CallbackHooksEnabled", Instance).SetValue(scene.Resources, false);
-            owned.Lease(new ReleaseAction(() => scene.Resources.Dispose()));
-            body(owned, scene);
-        });
+        private static void Run(Action<Owned, PreloadedAddressableSprites> body) => PreloadedAddressableSprites.Run(body);
 
         private static UIWidgetAddressableSprite NewWidget(Owned owned) =>
             owned.Host("Lucid addressable sprite", false).AddComponent<UIWidgetAddressableSprite>();
@@ -130,6 +95,44 @@ namespace ProjectLucid.Tests
                 widget.SetSpriteReference(second);
                 Assert.That(widget.LoadedSprite.Value, Is.SameAs(secondSprite));
                 Assert.That(Get<AsyncOperationHandle>(widget, "m_spriteHandle").Result, Is.SameAs(secondSprite));
+            });
+        }
+
+        // RefreshBindings 0x6998D5..0x6998F9 releases the previous handle (TryUnloadAsset) before loading the new reference. The first
+        // sprite's handle is not in the manager's retained set, so the release reaches Addressables and invalidates it.
+        [Test]
+        public void ANewReferenceReleasesThePreviousHandle()
+        {
+            Run((owned, scene) =>
+            {
+                UIWidgetAddressableSprite widget = NewWidget(owned);
+                AssetReferenceT<Sprite> first = scene.Preload(owned, out _, retained: false);
+                AssetReferenceT<Sprite> second = scene.Preload(owned, out Sprite secondSprite);
+                widget.SetSpriteReference(first);
+                var firstHandle = Get<AsyncOperationHandle>(widget, "m_spriteHandle");
+                Assert.That(firstHandle.IsValid(), Is.True);
+
+                widget.SetSpriteReference(second);
+
+                Assert.That(firstHandle.IsValid(), Is.False, "the previous handle was released");
+                Assert.That(widget.LoadedSprite.Value, Is.SameAs(secondSprite));
+            });
+        }
+
+        // OnDestroy 0x69979C..0x6997BA releases the handle while the manager is registered.
+        [Test]
+        public void DestroyReleasesTheHandleOfTheLoadedSprite()
+        {
+            Run((owned, scene) =>
+            {
+                UIWidgetAddressableSprite widget = NewWidget(owned);
+                widget.SetSpriteReference(scene.Preload(owned, out _, retained: false));
+                var handle = Get<AsyncOperationHandle>(widget, "m_spriteHandle");
+                Assert.That(handle.IsValid(), Is.True);
+
+                Call(widget, "OnDestroy");
+
+                Assert.That(handle.IsValid(), Is.False);
             });
         }
 

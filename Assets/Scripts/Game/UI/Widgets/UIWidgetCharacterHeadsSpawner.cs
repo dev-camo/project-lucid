@@ -83,7 +83,7 @@ namespace HardlightProject
             m_characterHeadsInstances.Clear();
         }
 
-        // 0x060037ef: the list is allocated before the MonoBehaviour constructor runs.
+        // 0x060037ef
         public UIWidgetCharacterHeadsSpawner() { }
     }
 }

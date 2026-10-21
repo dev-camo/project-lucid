@@ -4,6 +4,7 @@ using HardlightProject;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.UI;
 using static ProjectLucid.Tests.ChallengeRewardTestSupport;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
@@ -12,7 +13,8 @@ namespace ProjectLucid.Tests
 {
     // UIWidgetCutscene (Game.Runtime 0x020009b0, x86-64 0x69D830..0x69DB60) as a real component on an inactive owned host with a real
     // UI Button (the serialized button and loading sprite are authored data). The image is loaded from an addressable texture
-    // reference: only an invalid key (no load) and the missing-manager fault are covered, as a real load needs Addressables.
+    // reference through the AddressableManager's preloaded asset table (PreloadedAddressableSprites), as are all loads here; a load
+    // that is not preloaded needs Addressables and is not covered.
     public sealed class UIWidgetCutsceneTests
     {
         private const string ValidKey = "0123456789abcdef0123456789abcdef";
@@ -85,6 +87,41 @@ namespace ProjectLucid.Tests
                 Assert.That(fault.Message, Is.EqualTo("System '" + ProcessManager.GetDefaultName<AddressableManager>() + "' is null"));
                 Assert.That(widget.IsNew.Value, Is.True);
                 Assert.That(button.interactable, Is.True);
+            });
+        }
+
+        // LoadAddressableImage 0x69D930..0x69DA3B: with a valid key the manager's LoadAsset (0x69DA20) answers from the preloaded table,
+        // OnImageLoaded publishes the sprite and the returned handle is stored in m_assetLoadHandle for the base to release.
+        [Test]
+        public void AnUnlockedEntryWithAPreloadedImageShowsItAndKeepsTheHandle()
+        {
+            PreloadedAddressableSprites.Run((owned, sprites) =>
+            {
+                UIWidgetCutscene widget = NewWidget(owned, out _, out _);
+                AssetReferenceT<Sprite> reference = sprites.Preload(owned, out Sprite sprite);
+
+                widget.Setup(new UIWidgetCutsceneParameters("Lucid cutscene", null, false, new AssetReferenceT<Texture>(reference.AssetGUID), false));
+
+                Assert.That(widget.Image.Value, Is.SameAs(sprite));
+                var handle = Get<AsyncOperationHandle<Sprite>>(widget, "m_assetLoadHandle");
+                Assert.That(handle.IsValid(), Is.True);
+                Assert.That(handle.Result, Is.SameAs(sprite));
+            });
+        }
+
+        // A locked entry returns before the key is read, so a preloaded image is neither shown nor kept.
+        [Test]
+        public void ALockedEntryDoesNotShowOrKeepAPreloadedImage()
+        {
+            PreloadedAddressableSprites.Run((owned, sprites) =>
+            {
+                UIWidgetCutscene widget = NewWidget(owned, out _, out Sprite loadingImage);
+                AssetReferenceT<Sprite> reference = sprites.Preload(owned, out _);
+
+                widget.Setup(new UIWidgetCutsceneParameters("Lucid cutscene", null, true, new AssetReferenceT<Texture>(reference.AssetGUID), false));
+
+                Assert.That(widget.Image.Value, Is.SameAs(loadingImage));
+                Assert.That(Get<AsyncOperationHandle<Sprite>>(widget, "m_assetLoadHandle").IsValid(), Is.False);
             });
         }
 
