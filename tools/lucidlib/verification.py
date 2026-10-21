@@ -9205,6 +9205,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerWaypointMarkersBaseTests.
     "AwakeSubscribesToTheManagerRefreshesAndTakesTheRectTransform",
     "EachTargetWithADefinitionGetsAnActiveMarkerSetUpForIt",
     "ATargetWithoutADefinitionGetsNoMarker",
+    "AnUndefinedTargetKeepsItsIndexSoEachRefreshAddsAnotherMarker",
     "RegisteringAndRemovingTargetsKeepsTheMarkersInStep",
     "DestroyingTheContainerStopsTheRefreshes",
 ))
@@ -9280,6 +9281,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ViewTargetIndicatorTests." + name fo
     "AnUntrackedTypeIsPinnedAtTheMessagePosition",
     "ATrackedTypeWithoutHomingMetadataFollowsTheObjectTransform",
     "ATrackedTypeWithHomingMetadataFollowsTheTargetsCollider",
+    "ATrackedMessageLeavesTheOtherFollowedReferenceInPlace",
+    "AnUntrackedMessageDropsTheFollowedTransform",
+    "AMatchingDetectionDropsTheFollowedTransform",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.XPCounterBufferedIncreaseTests." + name for name in (
     "DeclarationsMatchTheOriginalMetadata",

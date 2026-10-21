@@ -411,5 +411,79 @@ namespace ProjectLucid.Tests
                 AssertNear(rig.View.TargetWorldPosition, new Vector3(3f, 4f, 5f));
             });
         }
+
+        // Reflection: the base class keeps the followed collider and transform in private auto-properties; no public path reads them.
+        private static object FollowedCollider(Rig rig) => typeof(ViewTarget).GetField("<m_targetCollider>k__BackingField", Backing).GetValue(rig.View);
+
+        private static object FollowedTransform(Rig rig) => typeof(ViewTarget).GetField("<m_targetTransform>k__BackingField", Backing).GetValue(rig.View);
+
+        // UpdateFromTargetMessage 0x60EAD0: the tracked paths go straight to the virtual SetTargetCollider (0x60EC6B) or
+        // SetTargetTransform (0x60ED71) with no clear before them, so the other followed reference stays in place.
+        [Test]
+        public void ATrackedMessageLeavesTheOtherFollowedReferenceInPlace()
+        {
+            WithHomingTargets(rig =>
+            {
+                Allow(rig, HomingTargetType.Enemy);
+                Track(rig, HomingTargetType.Enemy);
+                GameObject host = rig.Owned.Host("Lucid homing target");
+                host.transform.position = new Vector3(3f, 4f, 5f);
+                var collider = host.AddComponent<BoxCollider>();
+                var homing = host.AddComponent<HomingTarget>();
+                Set(homing, "m_collider", collider); // Reflection: serialized reference
+                Physics.SyncTransforms();
+                Transform previousTransform = rig.Owned.Host("Lucid previous transform", false).transform;
+
+                rig.View.SetTargetTransform(previousTransform);
+                rig.View.UpdateFromTargetMessage(Message(true, HomingTargetType.Enemy, host, Vector3.zero, new HomingObjectMetaData { HomingTarget = homing }));
+                Assert.That(FollowedCollider(rig), Is.SameAs(collider), "the metadata path follows the homing collider");
+                Assert.That(FollowedTransform(rig), Is.SameAs(previousTransform), "no clear before 0x60EC6B");
+
+                var previousCollider = rig.Owned.Host("Lucid previous collider", false).AddComponent<BoxCollider>();
+                rig.View.ClearTarget();
+                rig.View.SetTargetCollider(previousCollider);
+                rig.View.UpdateFromTargetMessage(Message(true, HomingTargetType.Enemy, host, Vector3.zero));
+                Assert.That(FollowedCollider(rig), Is.SameAs(previousCollider), "no clear before 0x60ED71");
+                Assert.That(FollowedTransform(rig), Is.SameAs(host.transform), "the object transform is followed");
+            });
+        }
+
+        // The untracked path clears first (0x60ECD0..0x60ED05), so a previously followed transform is dropped.
+        [Test]
+        public void AnUntrackedMessageDropsTheFollowedTransform()
+        {
+            Run(rig =>
+            {
+                Allow(rig, HomingTargetType.Enemy);
+                GameObject target = rig.Owned.Host("Lucid homing object");
+                rig.View.SetTargetTransform(rig.Owned.Host("Lucid previous transform", false).transform);
+
+                rig.View.UpdateFromTargetMessage(Message(true, HomingTargetType.Enemy, target, new Vector3(1f, 2f, 3f)));
+
+                Assert.That(FollowedTransform(rig), Is.Null);
+                Assert.That(rig.View.TargetWorldPosition, Is.EqualTo(new Vector3(1f, 2f, 3f)));
+            });
+        }
+
+        // UpdateFromDetectorMessage clears first (0x60EA1A..0x60EA4F) even when the detection matches.
+        [Test]
+        public void AMatchingDetectionDropsTheFollowedTransform()
+        {
+            Run(rig =>
+            {
+                Allow(rig, HomingTargetType.Rail);
+                var surface = rig.Owned.Host("Lucid detected surface", false).AddComponent<FixedNearestSurfaceProbe>();
+                rig.View.SetTargetTransform(rig.Owned.Host("Lucid previous transform", false).transform);
+
+                rig.View.UpdateFromDetectorMessage(new SurfaceDetectorUpdateMessage
+                {
+                    Type = HomingTargetType.Rail,
+                    SurfaceLocation = new SurfaceLocation { m_surface = surface, m_worldPosition = new Vector3(1f, 2f, 3f) },
+                });
+
+                Assert.That(FollowedTransform(rig), Is.Null);
+                Assert.That(rig.View.TargetWorldPosition, Is.EqualTo(new Vector3(1f, 2f, 3f)));
+            });
+        }
     }
 }

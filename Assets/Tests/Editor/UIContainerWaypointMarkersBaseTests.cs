@@ -124,6 +124,30 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // The undefined target still uses up index 0, so the defined one at index 1 is past the marker list (jl at 0x6826FB not taken)
+        // on every refresh and takes a fresh clone (0x682735); the closing loop starts at the target count (0x682806) and closes none.
+        [Test]
+        public void AnUndefinedTargetKeepsItsIndexSoEachRefreshAddsAnotherMarker()
+        {
+            WaypointMarkerContainerScene.Run(WaypointContainerType.Compass, scene =>
+            {
+                var container = scene.NewContainer<UIContainerWaypointMarkersCompass>();
+                WaypointTarget unknown = scene.NewTarget(new Vector3(1f, 0f, 0f), WaypointType.Enemy);
+                WaypointTarget known = scene.NewTarget(new Vector3(2f, 0f, 0f));
+                scene.Manager.RegisterWaypoint(unknown);
+                scene.Manager.RegisterWaypoint(known);
+                Call(container, "Awake");
+                Assert.That(scene.Markers(container), Has.Count.EqualTo(1));
+
+                container.Refresh();
+
+                var markers = scene.Markers(container);
+                Assert.That(markers, Has.Count.EqualTo(2));
+                Assert.That(markers.Select(marker => marker.gameObject.activeSelf), Is.All.True);
+                Assert.That(markers.Select(marker => Get<Transform>(marker, "m_target")), Is.All.SameAs(known.transform), "reflection: the marker's private target");
+            });
+        }
+
         // The manager's WaypointsUpdated action calls Refresh: a target registered later gets its marker at once, and a removed
         // one leaves its marker closed (UIWidgetSDTWaypointMarker.Close 0x6A29E0) and inactive; the rest are set up again in order.
         [Test]

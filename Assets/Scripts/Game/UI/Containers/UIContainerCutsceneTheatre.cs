@@ -90,15 +90,15 @@ namespace HardlightProject
             IReadOnlyList<string> playedGuids = m_saveManager.CurrentSave.CutsceneIsNewGuids;
             for (int i = 0; i < m_cutsceneWidgets.Count; i++)
             {
-                if (i < cutsceneDefinitions.Count)
-                {
-                    UIWidgetCutscene widgetCutscene = m_cutsceneWidgets[i];
-                    CutsceneDefinition cutsceneDefinition = cutsceneDefinitions[i];
-                    string guid = cutsceneDefinition.GetGUID();
-                    bool locked = !m_seenCutsceneGUIDs.Contains(guid);
-                    bool isNew = !playedGuids.Contains(guid);
-                    widgetCutscene.Setup(new UIWidgetCutsceneParameters(cutsceneDefinition.name, () => PlayCutscene(widgetCutscene, cutsceneDefinition), locked, cutsceneDefinition.TheatreImage, isNew));
-                }
+                // The closure over the two locals below is allocated before this test in the original (0x62B356 against 0x62B3E9).
+                if (i >= cutsceneDefinitions.Count)
+                    continue;
+                UIWidgetCutscene widgetCutscene = m_cutsceneWidgets[i];
+                CutsceneDefinition cutsceneDefinition = cutsceneDefinitions[i];
+                string guid = cutsceneDefinition.GetGUID();
+                bool locked = !m_seenCutsceneGUIDs.Contains(guid);
+                bool isNew = !playedGuids.Contains(guid);
+                widgetCutscene.Setup(new UIWidgetCutsceneParameters(cutsceneDefinition.name, () => PlayCutscene(widgetCutscene, cutsceneDefinition), locked, cutsceneDefinition.TheatreImage, isNew));
             }
         }
 
