@@ -7940,3 +7940,97 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalTimelineHookTests." + name f
     "TheHooksRaiseTheirEventsOnlyWhenAssigned",
     "EndingOrSkippingTheVideoStopsItAndRaisesTheCompletedEvent",
 ))
+
+# Challenge rewards, meta-game unlocks, challenge binders, cross promotion launch, container and start-up, and the
+# progress and Game Center views.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ChallengeFeatureRewardTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "FeatureRewardAnswersFromItsAuthoredNameAndOwnGuid",
+    "FeatureRewardLoadsItsSpriteIntoTheSpriteCallbackAndUnloadsIt",
+    "FeatureRewardSaveCollectsTheRecordWithItsOwnTrackGuid",
+    "ChallengeModeRewardUnlocksTheChallengesFeatureOfItsCycle",
+    "DreamPowersRewardUnlocksTheDreamPowerStoreItAuthors",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ChallengeDefinitionRewardTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "ArchetypeRewardAnswersFromItsDefinition",
+    "ArchetypeRewardLoadsTheDefinitionTextureThroughTheTextureCallback",
+    "ArchetypeRewardGiveUnlocksOnlyThatArchetype",
+    "ArchetypeRewardSaveUnlocksAndCollectsByTheDefinitionGuid",
+    "ArchetypeRewardNameIsTheFirstCharacterOfThatArchetype",
+    "ArchetypeRewardUnlockIsTheArchetypeUnlockOfItsDefinition",
+    "BandRewardAnswersFromItsBand",
+    "BandRewardLoadsTheBandImageThroughTheSpriteCallback",
+    "BandRewardSaveCollectsTheRecordByTheBandGuid",
+    "BandRewardUnlockCarriesTheBandThresholdAndTrack",
+    "LevelRewardAnswersFromItsLevel",
+    "LevelRewardGiveAndSaveCollectTheRecordWithTheRewardOwnGuid",
+    "LevelRewardForwardsTheSpriteCallbackToTheLevelImageLoader",
+    "LevelRewardUnlockIsTheLevelUnlock",
+    "LevelRewardZoneNameIsTheTitleOfTheLevelZone",
+    "SkinRewardAnswersFromItsSkin",
+    "SkinRewardLoadsTheSkinThumbnailThroughTheSpriteCallback",
+    "SkinRewardSaveUnlocksCollectsAndThenReachesForTheChallengeManager",
+    "SkinRewardUnlockCarriesTheSkinThresholdAndTrack",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.MetaGameUnlockSkinAndStoreTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "SkinUnlockReportsItsSkinAndTheCharacterSkinKey",
+    "SkinUnlockLoadsAndReleasesTheSkinThumbnail",
+    "StoreUnlockReportsTheStoreAndAnswersTexturesWithNull",
+    "StoreUnlockSaveFlagsTheStoreAsNewEvenWhenItWasSeen",
+    "BandUnlockKeepsItsConstructorValuesAndAnswersTexturesWithNull",
+    "BandUnlockMapsTheBandTypeToItsProgressionKey",
+    "BandUnlockLoadsAndReleasesTheBandImageNotTheLockedBackground",
+    "ItemUnlockReportsTheDreamPowerWithoutAWidgetOrAudio",
+    "ItemUnlockLoadsTheIconSynchronouslyAndPassesTheTextureOrTheSprite",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ChallengeManagerBindersTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "ConstructorSetsTheLiteralFormatsAndFlags",
+    "FeatureStateDrivesTheUnlockedAndNewBindables",
+    "NewChallengeCountCountsTheChallengesWithoutAPositiveTimeOrScore",
+    "AlertBadgeShowsForANewFeatureOrUnacknowledgedBonusXp",
+    "AMissingOrDestroyedBadgeIsSkipped",
+    "EnableTakesTheManagerFromTheRegistryOnceAndSubscribesEachTime",
+    "DisableTouchesNothingWithoutAManagerAndFaultsWithoutAReference",
+    "UpdatePublishesNothingWithoutAReadyManager",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCrossPromoTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "ConstructorTakesTheRegistryReferencesAndAnEmptyHiddenList",
+    "SetupClosesTheOpenContainersItHidesAndShowsTheRequestedAd",
+    "SetupWithoutParametersSubscribesBeforeItFaults",
+    "ShowForwardsTheSystemTheMetadataAndTheAdIndexToTheView",
+    "CloseAnnouncesReopensTheHiddenContainersAndClosesItself",
+    "CloseDoesNothingWithoutACrossPromoSystem",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.CrossPromoLaunchButtonSdtTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "ConstructorStartsWithNoRequirementsAndTheRegistryUiManager",
+    "TheLaunchButtonShowsOnlyWhileEveryUnlockRequirementIsMet",
+    "ThePlaceholderReplacesTheIconWhileTheContentStaysActive",
+    "LaunchRequestsTheFirstAdForCachedDataAndTheCurrentAdOtherwise",
+    "RequestingTheFullScreenViewOpensTheCrossPromoContainerOnThatAd",
+    "CachedDataIsNotUsedWithLocalStorageAndAnEnabledSystem",
+    "CachedDataIsNotUsedWithLocalStorageAndADisabledSystem",
+    "CachedDataIsUsedWithoutLocalStorageForAnEnabledSystem",
+    "CachedDataIsNotUsedWithoutLocalStorageForADisabledSystem",
+    "EnableShowsThePlaceholderForCachedData",
+    "EnableLeavesTheBaseHiddenContentWithLocalStorage",
+    "EnableLeavesTheBaseHiddenContentForADisabledSystem",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.HLCrossPromoStartTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "TheCoroutineHandlerForwardsToTheHostStartCoroutine",
+    "StartWaitsForTheCoreAndTheLanguageThenRegistersACacheOnlySystem",
+    "StartRegistersADiskBackedSystemWhenLocalStorageIsAvailable",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ProgressAndGameCenterViewTests." + name for name in (
+    "DeclarationsMatchTheOriginalMetadata",
+    "AwakeTakesTheDataManagerReferenceFromTheRegistry",
+    "UpdatePublishesTheLoadProgressClampedToTheUnitRange",
+    "UpdatePublishesNothingWithoutADataManager",
+    "WithoutAGameCenterAwakePublishesFalseAndUpdateLeavesTheValue",
+    "WithAGameCenterTheViewPublishesItsLoginState",
+))

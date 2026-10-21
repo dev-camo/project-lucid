@@ -55,6 +55,7 @@ ALLOWED = {
     "Assets/Tests/Editor/FSMFixtureManagerRowOwnershipTests.cs": (4, OWNED),
     "Assets/Tests/Editor/FSMManagerVerificationOwnershipTests.cs": (52, OWNED),
     "Assets/Tests/Editor/HLOutputDiagnosticCapture.cs": (2, OWNED),
+    "Assets/Tests/Editor/CrossPromoGameTestSupport.cs": (3, OWNED),
     "Assets/Tests/Editor/OfflineAchievementLifecycleTests.cs": (10, OWNED),
     "Assets/Tests/Editor/OriginalAnimatorHelperTests.cs": (2, OWNED),
     "Assets/Tests/Editor/OriginalCatchConnectorTests.cs": (2, OWNED),
