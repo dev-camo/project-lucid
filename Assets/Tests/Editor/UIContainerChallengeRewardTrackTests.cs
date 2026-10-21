@@ -320,7 +320,7 @@ namespace ProjectLucid.Tests
 
         // GetSliderValue 0x610400: (index + 1) * space + segment * (spent - highestXP) / max(nextXP - highestXP, 1), with the segment
         // (index - index + 1) * space = 100 here. The reward thresholds are 20 and 60; the highest reward is the last one the track owns.
-        // 0x610518 subtracts the highest threshold from the next one and 0x61051E takes the maximum with 1.0 (0x29A6BE0): once both rewards are owned
+        // 0x610517 subtracts the highest threshold from the next one and 0x61051E takes the maximum with 1.0 (0x29A6BE0): once both rewards are owned
         // the difference is 0 and the maximum keeps the division finite, which a version without it would not.
         [TestCase(0, 0f, TestName = "NothingSpentSitsAtTheStart")]
         [TestCase(10, 50f, TestName = "HalfWayToTheFirstReward")]

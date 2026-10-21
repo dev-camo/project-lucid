@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Hardlight;
 using Hardlight.Enums;
@@ -92,16 +93,16 @@ namespace HardlightProject
             bool showShadowFtue = challengeManager.ShouldShowShadowFTUE();
             ShowShadowFTUE.Value = showShadowFtue;
             int count = showShadowFtue ? 1 : challengeStates.Count;
-            while (m_uiWidgetToggleChallenges.Count > count)
+            // The native loops read the list count once. Destroy(component) removes only the component, as in the original.
+            for (int i = m_uiWidgetToggleChallenges.Count - 1; i >= count; i--)
             {
-                int last = m_uiWidgetToggleChallenges.Count - 1;
-                UIWidgetSDTToggleChallenge surplus = m_uiWidgetToggleChallenges[last];
-                m_uiWidgetToggleChallenges.RemoveAt(last);
+                UIWidgetSDTToggleChallenge surplus = m_uiWidgetToggleChallenges[i];
+                m_uiWidgetToggleChallenges.RemoveAt(i);
                 surplus.SetSelected(false);
                 surplus.SetToggleGroup(null);
                 Destroy(surplus);
             }
-            while (m_uiWidgetToggleChallenges.Count < count)
+            for (int missing = count - m_uiWidgetToggleChallenges.Count; missing > 0; missing--)
             {
                 UIWidgetSDTToggleChallenge toggle = Instantiate(m_challengeTogglePrefab, m_challengeTogglesRoot.transform);
                 toggle.SetToggleGroup(m_challengeTogglesRoot);
@@ -138,10 +139,11 @@ namespace HardlightProject
                     UIWidgetSDTToggleChallenge toggle = m_uiWidgetToggleChallenges[i];
                     ChallengeState challengeState = challengeStates[i];
                     string label = (i + 1).ToString();
+                    Action<bool> callback = isSelected => ToggleChallenge(challengeState, isSelected);
                     bool complete = challengeState.BestTimeSeconds > 0f;
                     allChallengesComplete &= complete;
                     toggle.Setup(new UIWidgetSDTToggleChallenge.UIWidgetToggleChallengeParameters(!challengeState.Played, complete, label,
-                        isSelected => ToggleChallenge(challengeState, isSelected), false, false));
+                        callback, false, false));
                     toggle.SetSelected(false);
                 }
                 m_bonusToggle.Setup(new UIWidgetSDTToggleChallenge.UIWidgetToggleChallengeParameters(false, allChallengesComplete, null,

@@ -92,7 +92,6 @@ namespace HardlightProject
             for (int i = 0; i < rewardCount; i++)
             {
                 int rewardNumber = i + 1;
-                UIWidgetButtonChallengeReward challengeButton;
                 ChallengeReward reward = rewards[i];
                 UIChallengeTrackRewardStatus status = GetRewardStatus(reward, rewardNumber);
                 int rewardXP = reward.XPThreshold;
@@ -100,7 +99,7 @@ namespace HardlightProject
                 int nextRewardXP = nextReward.XPThreshold;
                 if (!m_rewardBySizePrefabs.TryGetValue(status.Reward.Size, out UIWidgetButtonChallengeReward rewardPrefab))
                     continue;
-                challengeButton = Instantiate(rewardPrefab, m_rewardsContentTransform);
+                UIWidgetButtonChallengeReward challengeButton = Instantiate(rewardPrefab, m_rewardsContentTransform);
                 if (!focusChosen && (status.IsReadyToCollect() || nextRewardXP == rewardXP))
                 {
                     focusReward = challengeButton;
@@ -131,8 +130,9 @@ namespace HardlightProject
             RefreshBinders();
         }
 
-        // 0x06003074 (0x610570): the buttons follow the slider and unlock animations; the add button is offered when the
-        // next reward is out of reach, "more XP needed" only when nothing else is on offer.
+        // 0x06003074 (0x610570): the buttons follow the slider and unlock animations; the add button is offered while the
+        // XP can be spent on the next reward and nothing is waiting to be collected or unlocking; "more XP needed" only
+        // when nothing else is on offer.
         private void RefreshBinders()
         {
             ChallengeRewardTrackState trackState = m_challengeManager.RewardTrackStates[m_rewardTrackDefinition.Type];
@@ -285,8 +285,7 @@ namespace HardlightProject
         }
 
         // 0x0600307d (0x610400): the slider rests at the last reward reached plus the share of the way to the next one that
-        // the spent XP covers. The track state's index is read twice, as in the original, and the float steps stay single
-        // precision.
+        // the spent XP covers. The track state's index is read again after GetNextOrLastReward, as in the original.
         private float GetSliderValue()
         {
             RewardTrackType trackType = m_rewardTrackDefinition.Type;
@@ -300,9 +299,10 @@ namespace HardlightProject
             int nextIndex = highestIndex + 1;
             float xpBetweenRewards = Mathf.Max((float)(trackState.GetNextOrLastReward().XPThreshold - highestXP), 1f);
             float xpTowardsNext = (float)(spentXP - highestXP);
-            int segmentWidth = (trackState.HighestAchievedRewardIndex - highestIndex + 1) * m_spaceBetweenRewards;
+            int start = nextIndex * m_spaceBetweenRewards;
+            int end = (trackState.HighestAchievedRewardIndex + 2) * m_spaceBetweenRewards;
             float share = xpTowardsNext / xpBetweenRewards;
-            return (float)(nextIndex * m_spaceBetweenRewards) + (float)segmentWidth * share;
+            return (float)start + (float)(end - start) * share;
         }
 
         // 0x0600307e (0x611080)

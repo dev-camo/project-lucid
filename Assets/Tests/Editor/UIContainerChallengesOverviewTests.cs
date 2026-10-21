@@ -353,7 +353,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Without any challenge the bonus is complete (the flag starts true, 0x61E526) and is selected.
+        // Without any challenge the bonus is complete (the flag starts true, 0x61E6F7 for the empty path) and is selected.
         [Test]
         public void WithoutChallengesTheBonusIsCompleteAndSelected()
         {
