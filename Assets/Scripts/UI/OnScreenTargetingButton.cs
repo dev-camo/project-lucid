@@ -25,10 +25,10 @@ namespace HardlightProject
             bool targetingActive = false;
             if (homingTargetUpdateData.IsValid)
             {
-                foreach (IHomingAbility ability in homingTargetUpdateData.TargetValue.Abilities)
+                foreach (IHomingAbility homingAbility in homingTargetUpdateData.TargetValue.Abilities)
                 {
-                    ActorAbilityType abilityType = ability.TargetingDefinition.AbilityType;
-                    targetingActive |= m_validAbilityTypeGroup.Abilities.Exists(definition => definition.Type == abilityType);
+                    ActorAbilityType abilityType = homingAbility.TargetingDefinition.AbilityType;
+                    targetingActive |= m_validAbilityTypeGroup.Abilities.Exists(ability => ability.Type == abilityType);
                 }
             }
             IsTargetingActive.Value = targetingActive;

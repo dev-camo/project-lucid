@@ -21,6 +21,8 @@ namespace HardlightProject
         [SerializeField] private bool m_restrictToSingleTouch;
         private readonly SystemRef<CharacterManager> m_characterManagerRef = ProcessManager.GetSystemRef<CharacterManager>();
 
+        // The auto-property is declared here so its backing field keeps its metadata position, between
+        // m_characterManagerRef and m_activeTouches.
         // 060036b8..060036be (1.10.1 RVA 0x692970, 0x690520, 0x690500, 0x692980, 0x68E230, 0x692990, 0x6929A0):
         // the pinch distances read 0 unless a pinch is in progress.
         protected bool IsPinching => m_isPinching;
@@ -188,7 +190,7 @@ namespace HardlightProject
                 m_characterManagerRef.TryGet(out CharacterManager characterManager) &&
                 characterManager.TryGetCurrentCharacter(out Character character))
             {
-                valid = !ActorAbilityUtilities.AnyAbilityInUse(character, ignoreAbilities, 0.2f);
+                valid = !ActorAbilityUtilities.AnyAbilityInUse(character, ignoreAbilities);
             }
             return valid;
         }
@@ -226,16 +228,9 @@ namespace HardlightProject
                     if (m_activeTouches.Count >= 2) pinchDistance = Mathf.Max(m_minimumPinchDistance, bounds.size.magnitude);
                     m_pinchDistance = pinchDistance;
                     Vector2 delta;
-                    if (m_changedTouches)
-                    {
-                        delta = Vector2.zero;
-                        m_initialPinchDistance = pinchDistance;
-                    }
-                    else
-                    {
-                        delta = center - m_touchPositionPrevious;
-                    }
+                    delta = m_changedTouches ? Vector2.zero : center - m_touchPositionPrevious;
                     m_touchPositionPrevious = center;
+                    if (m_changedTouches) m_initialPinchDistance = pinchDistance;
                     ProcessTouch(center, delta, pinchDistance, m_initialPinchDistance);
                 }
             }

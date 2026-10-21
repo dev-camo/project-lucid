@@ -90,11 +90,7 @@ namespace HardlightProject
         {
             if (!IsInteractable()) return;
             CoroutineUtils.StopUtilCoroutine(ref m_heldButtonCoroutine);
-            if (IsInteractable())
-            {
-                for (int i = 0; i < m_inputToSupply.Length; i++)
-                    OnButtonDown(m_inputToSupply[i], 1f, InputType);
-            }
+            OnButtonDown();
             if (!gameObject.activeInHierarchy)
             {
                 EndButtonHold();
@@ -150,11 +146,7 @@ namespace HardlightProject
         // 06003642 (RVA 0x68C010): releases the inputs, runs the pending callback once and stops the hold coroutine.
         private void EndButtonHold()
         {
-            if (IsInteractable())
-            {
-                for (int i = 0; i < m_inputToSupply.Length; i++)
-                    OnButtonUp(m_inputToSupply[i], 1f, InputType);
-            }
+            OnButtonUp();
             m_onButtonHeldCompleteCallback?.Invoke();
             m_onButtonHeldCompleteCallback = null;
             CoroutineUtils.StopUtilCoroutine(ref m_heldButtonCoroutine);

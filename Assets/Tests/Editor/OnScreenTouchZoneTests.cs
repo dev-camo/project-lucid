@@ -364,12 +364,11 @@ namespace ProjectLucid.Tests
                 var zone = services.Owned.Host("Lucid owned touch zone", false).AddComponent<OnScreenTouchZoneProbe>();
                 var listed = new List<ActorAbilityType> { ActorAbilityType.Character_AirStompAttack };
                 var other = new List<ActorAbilityType> { ActorAbilityType.Character_SpinDashCharge };
-                Func<ActorAbilityType, bool, float, Dictionary<ActorAbilityType, ActorAbilityInUseData>> storeUse = (ability, inUse, usedAt) =>
+                Action<ActorAbilityType, bool, float> storeUse = (ability, inUse, usedAt) =>
                 {
                     var use = new Dictionary<ActorAbilityType, ActorAbilityInUseData>(HardlightProject.HardlightEnumComparers.ActorAbilityTypeComparer);
                     use[ability] = new ActorAbilityInUseData { InUse = inUse, TimeLastUsedSeconds = usedAt };
                     services.Character.Storage.SetValue(ActorFSMKeys.AbilitiesInUse, use);
-                    return use;
                 };
 
                 Assert.That(zone.ValidFor(new List<ActorAbilityType>()), Is.True, "no abilities listed");

@@ -16,6 +16,7 @@ namespace HardlightProject
         [SerializeField] private OnScreenTouchZone[] m_controlZones;
         [SerializeField] private GameObject[] m_graphicsToToggle;
         [SerializeField] private List<UIInputType> m_uiInputTypesWhichToggleOn = new List<UIInputType>();
+        // No retail body reads this flag.
         [SerializeField] private bool m_mouseShowsInEditor = true;
         private const int MaxAssumedTouchCount = 5;
         private readonly List<Touch> m_currentTouches = new List<Touch>(MaxAssumedTouchCount);
@@ -61,7 +62,7 @@ namespace HardlightProject
             m_currentTouches.Clear();
             for (int i = 0; i < touchCount; i++) m_currentTouches.Add(touchSource.GetTouch(i));
 
-            // Touches a zone already follows are consumed here, newest first: updated, or ended with their phase.
+            // Touches a zone already follows are consumed here, from the last touch-source index down: updated, or ended with their phase.
             foreach (OnScreenTouchZone zone in m_controlZones)
             {
                 if (m_currentTouches.Count == 0 || !zone.IsActive())
@@ -89,7 +90,8 @@ namespace HardlightProject
                 if (!startsTracking) continue;
                 if (EventSystem.current.IsPointerOverGameObject(touch.fingerId)) continue;
 
-                // The lowest score wins; a score of 0 or less cannot be beaten.
+                // The lowest score wins; the search stops at the first valid zone that scores 0 or less (NaN does not stop it).
+                // A found flag rather than a null test: the original has no Unity object comparison here.
                 bool zoneFound = false;
                 OnScreenTouchZone bestZone = null;
                 float bestScore = float.MaxValue;
