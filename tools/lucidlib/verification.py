@@ -9037,3 +9037,80 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerControllerRequiredTests."
     "DeclarationsMatchTheOriginalMetadata",
     "WithoutAnAppTheContinueButtonIsLeftAlone",
 ))
+
+# Restored Game.Runtime on-screen touch controls: OnScreenButton, OnScreenControlGroupListenerButton,
+# OnScreenControlInputHandler, OnScreenControlZone, OnScreenJoystickDebug, OnScreenTargetingButton,
+# OnScreenTertiaryButton and OnScreenTouchZone.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTouchControlDeclarationTests." + name for name in (
+    "OnScreenButtonKeepsItsFieldsHandlersAndIteratorName",
+    "OnScreenControlGroupListenerButtonKeepsItsFieldAndClosureName",
+    "OnScreenTouchZoneKeepsItsFieldsAccessorsAndHooks",
+    "OnScreenControlZoneKeepsItsAxisFieldsAndHooks",
+    "OnScreenControlInputHandlerKeepsItsFieldsAndEmptyDebugMethods",
+    "OnScreenJoystickDebugKeepsItsConditionalMembers",
+    "OnScreenTargetingButtonKeepsItsBindableAndClosureName",
+    "OnScreenTertiaryButtonKeepsItsFieldsAndMethodOrder",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTouchZoneTests." + name for name in (
+    "ProcessTouchSuppliesTheInputThenAPinchOnlyForADistanceAboveZero",
+    "ReleasingSuppliesZeroMovement",
+    "ScoreIsTheWorstValueUnlessThePositionIsInsideTheTouchArea",
+    "ZoneIsActiveWhileItsObjectIsActiveInTheHierarchy",
+    "NewTouchesAreTrackedByFingerAndOnlyWhileTheZoneIsAtItsPeak",
+    "SingleTouchZonesTakeNewTouchesBelowTheirPeakToo",
+    "UpdatingATouchReplacesOnlyATrackedFingersPosition",
+    "ANewTouchNeedsAnActiveZoneAndMultiTouchOnceOneIsTracked",
+    "TurningMultiTouchOffDropsEveryTouchButTurningItOnKeepsThem",
+    "InitialiseAndShutdownClearTheTouchesAndShutdownReportsOnlyForAValidInputType",
+    "ASingleTouchSuppliesItsPositionAndMovementThenReleasesOnce",
+    "SeveralTouchesSupplyTheCentreOfTheirBoundsAndAPinchDistance",
+    "ATightPinchIsRaisedToTheMinimumDistance",
+    "ALostTouchHoldsTheLastPositionUntilEveryTouchIsGone",
+    "ATouchIsIgnoredWhileAListedAbilityIsInUseOnTheCurrentCharacter",
+    "TrackedTouchesSupplyNothingWhileAnIgnoredAbilityIsInUse",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlZoneTests." + name for name in (
+    "TheFourAxesDefaultToLeftRightUpAndDown",
+    "EachAxisHoldsTheInputOfItsSignWithTheValueOrItsMagnitude",
+    "ThePressInputIsPressedWithTheFirstTouchAndReleasedAfterTheLastMovement",
+    "InitialiseRegistersTheZoneAsAButtonProviderAndShutdownWithdrawsIt",
+    "TheModifiersOfTheSavedSensitivityShapeTheMovementAndResetOnRelease",
+    "ReleasingAZoneThatWasNeverTouchedResetsNothing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenUiButtonTests." + name for name in (
+    "ResetTakesTheUiButtonOnTheSameObject",
+    "AwakeHooksTheEventsOfTheTriggerAndDestroyingWithdrawsTheRegistration",
+    "ExitingTheButtonStartsTheExitInputUnlessItIsNoneOrTheButtonIsNotInteractable",
+    "DownAndUpSupplyEveryInputInOrderOnlyWhileTheButtonIsInteractable",
+    "BeginningAHoldOnAnInactiveButtonPressesAndReleasesAtOnce",
+    "DisablingAnIdleButtonCallsBackAtOnce",
+    "TheGraphicIsShownForTheListedInputTypesOnly",
+    "ADisabledHeldButtonCallsBackOnlyWhenItsHoldHasBeenReleased",
+    "ReleasingTheUiButtonEndsTheHoldOnTheNextPass",
+    "DestroyingAHeldButtonReleasesItsInputs",
+    "HidingTheListenerWaitsForAHeldButtonToBeReleased",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenControlInputHandlerTests." + name for name in (
+    "EnablingFollowsTheLastInputTypeAndDisablingShutsTheZonesDownWithIt",
+    "ZonesAreShutDownAsNotValidWhenTheLastInputTypeIsNotListed",
+    "UpdateDoesNothingWithoutAnInputMonitor",
+    "UpdateWaitsForATouchSourceThenClearsAndSuppliesTheActiveZones",
+    "TheConstructorSeedsTheTouchListAndTheMouseFlag",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenJoystickDebugTests." + name for name in (
+    "EnablingListensToTheCharacterInfoToggleAndDisablingStops",
+    "TheDeadZoneImagesAreEnabledOnlyForTouchInputWhileTheCharacterInfoIsShowing",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTargetingButtonTests." + name for name in (
+    "EnablingTurnsTargetingOff",
+    "TargetingIsActiveWhenAnyAbilityOfAValidTargetIsInTheValidGroup",
+    "EachButtonHasItsOwnTargetingBindable",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OnScreenTertiaryButtonTests." + name for name in (
+    "ACharacterWithOneAbilityShowsItsIconAndOneWithBothShowsTheIconOfTheGroup",
+    "TheIconsFollowTheAnnouncedGroupOnlyWhenItChanges",
+    "WithoutAnAnnouncementTheGroupIsNone",
+    "ANullCharacterLeavesTheIconsAsTheyWere",
+    "AwakeListensForCharacterChangesAndDestroyingStops",
+    "ValidatingChangesNothing",
+))
