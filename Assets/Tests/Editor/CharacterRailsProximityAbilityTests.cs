@@ -25,10 +25,15 @@ namespace ProjectLucid.Tests
     // reactivation delay (0xE682A5..0xE682BA, 0.1f at 0x29A6BFC).
     public sealed class CharacterRailsProximityAbilityTests
     {
-        // CharacterAbility_TargetingHoming's field initialiser creates the camera manager row.
+        // CharacterAbility_TargetingHoming's field initialiser creates the camera manager row, and CharacterHomingPool's the
+        // message manager row.
         private static void WithProximity<TAbility, TDefinition>(Action<Owned, CharacterGravityVectorProbe, TAbility, TDefinition> body)
             where TAbility : CharacterAbility, new()
-            where TDefinition : CharacterAbilityDefinition => WithAbility<TAbility, TDefinition>(owned => owned.LeaseRow<CinemachineCameraManager>(), (owned, character, ability, definition) =>
+            where TDefinition : CharacterAbilityDefinition => WithAbility<TAbility, TDefinition>(owned =>
+            {
+                owned.LeaseRow<CinemachineCameraManager>();
+                owned.LeaseRow<MessageManager>();
+            }, (owned, character, ability, definition) =>
             {
                 // Reflection: Character builds its pool in its started setup, which reads the data manager.
                 SetProperty(character, "HomingPool", new CharacterHomingPool(character, new Dictionary<HomingTargetType, TargetingTypePriorityDefinition>()));
