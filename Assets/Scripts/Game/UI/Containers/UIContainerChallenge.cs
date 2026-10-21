@@ -71,8 +71,6 @@ namespace HardlightProject
         // The rank is judged by the best score; a never-played challenge hides the rank.
         public void OnChallengeStateUpdate(ChallengeState challengeState)
         {
-            ChallengeRank rank = null;
-            CharacterArchetype archetype = CharacterArchetype.None;
             if (m_challengeState != challengeState)
                 return;
             ChallengeDefinition challengeDefinition = challengeState.ChallengeDefinition;
@@ -87,7 +85,7 @@ namespace HardlightProject
             FormattedXP.Value = GetFormattedXpString(challengeDefinition.XPReward);
             if (m_characterHeadsSpawner != null)
             {
-                if (TryGetArchetype(m_challengeState.ChallengeSeededData.CharacterList, out archetype))
+                if (TryGetArchetype(m_challengeState.ChallengeSeededData.CharacterList, out CharacterArchetype archetype))
                 {
                     m_characterHeadsSpawner.ClearAllCharacterHeads();
                     m_archetypeSpawner.Spawn(archetype);
@@ -104,7 +102,7 @@ namespace HardlightProject
             ChallengeRankDefinition rankDefinition = challengeDefinition.RankDefinition;
             if (rankDefinition == null)
                 return;
-            ShowRank.Value = rankDefinition.TryGetRankForScore(m_challengeState.BestScore, out rank);
+            ShowRank.Value = rankDefinition.TryGetRankForScore(m_challengeState.BestScore, out ChallengeRank rank);
             if (!ShowRank.Value)
                 return;
             SetIcon(RankBase, rank.GetBaseAddressable());

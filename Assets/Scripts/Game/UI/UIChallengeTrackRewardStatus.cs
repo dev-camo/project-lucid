@@ -16,7 +16,7 @@ namespace HardlightProject
         private readonly int m_rewardNumber;
         private readonly RewardTrackType m_rewardTrackType;
 
-        // 0x0600306c (0x60F860): unlocked and not yet collected.
+        // 0x0600306c (0x60F860)
         public bool IsReadyToCollect()
         {
             return Unlocked && !Collected;
@@ -32,14 +32,14 @@ namespace HardlightProject
             m_rewardTrackType = rewardTrackType;
         }
 
-        // 0x0600306e (0x60F8E0): the reward saves itself, then the entry is marked collected.
+        // 0x0600306e (0x60F8E0)
         public void Save()
         {
             Reward.Save();
             Collected = true;
         }
 
-        // 0x0600306f (0x60F910): a tail call into the reward's virtual analytics hook.
+        // 0x0600306f (0x60F910)
         public void FireAnalyticsEvents()
         {
             Reward.FireAnalyticsEvents(m_rewardTrackType, m_rewardNumber);

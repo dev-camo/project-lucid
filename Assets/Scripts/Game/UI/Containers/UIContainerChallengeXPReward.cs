@@ -83,7 +83,7 @@ namespace HardlightProject
             m_challengeReward.UnloadImage();
         }
 
-        // 0x06003154 (0x61FE40)
+        // 0x06003154 (0x61FE40); the native code inlines it at its call sites.
         private void SetupNoReward()
         {
             HasReward.Value = false;
@@ -147,13 +147,11 @@ namespace HardlightProject
                     StartCoroutine(ShowUnlockAnimation());
                     break;
                 case SaveDataChallengeRewardTrack.FeatureUnlockState.Locked:
-                    HasReward.Value = false;
-                    SetupSlider(0, 100);
+                    SetupNoReward();
                     break;
                 default:
                     HLOutput.LogError(string.Format("Reward track {0} is in unknown state: {1}", m_rewardTrackType.GetString(), trackState));
-                    HasReward.Value = false;
-                    SetupSlider(0, 100);
+                    SetupNoReward();
                     break;
             }
             RewardIsCollectable.Value = rewardIsCollectable;
@@ -163,7 +161,7 @@ namespace HardlightProject
         // UnlockMidAnimation is signalled, then marks the track as seen.
         private IEnumerator ShowUnlockAnimation()
         {
-            // The native body tests m_animation twice before playing; the second test cannot differ.
+            // The native body tests m_animation twice; the second test guards both the Play and the wait loop.
             if (m_animation != null)
             {
                 m_animation.Play(m_unlockAnimation.name);
@@ -178,12 +176,10 @@ namespace HardlightProject
         // whether that next reward can already be collected.
         private bool ShowProgressTowardsNextReward(ChallengeRewardTrackState trackState, ChallengeManager challengeManager)
         {
-            ChallengeReward nextCollectable = null;
-            ChallengeReward previousReward = null;
             UpdateBindableNumberString(SpentXP, SpentXPString, trackState.SpentXP);
             UpdateBindableNumberString(AvailableXP, AvailableXPString, challengeManager.GetCurrentXP());
             ChallengeReward nextReward;
-            if (trackState.TryGetNextCollectableReward(out nextCollectable))
+            if (trackState.TryGetNextCollectableReward(out ChallengeReward nextCollectable))
             {
                 RewardIsCollectable.Value = true;
                 nextReward = nextCollectable;
@@ -199,7 +195,7 @@ namespace HardlightProject
             {
                 int nextThreshold = nextReward.XPThreshold;
                 int previousThreshold = 0;
-                if (trackState.TryGetPreviousReward(nextReward, out previousReward))
+                if (trackState.TryGetPreviousReward(nextReward, out ChallengeReward previousReward))
                     previousThreshold = previousReward.XPThreshold;
                 int rewardXP = nextThreshold - previousThreshold;
                 UpdateBindableNumberString(TotalXP, TotalXPString, rewardXP);
@@ -208,8 +204,7 @@ namespace HardlightProject
                 SetupNextReward(nextReward);
                 return rewardXP <= progress;
             }
-            HasReward.Value = false;
-            SetupSlider(0, 100);
+            SetupNoReward();
             return false;
         }
 

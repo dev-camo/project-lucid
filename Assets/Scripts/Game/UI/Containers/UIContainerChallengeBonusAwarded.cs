@@ -9,8 +9,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 0x02000882; bodies translated from the 1.10.1 x86-64 binary.
-    // Announces the XP bonus granted for finishing the period's challenges. Closing the
-    // container acknowledges the bonus.
+    // Announces the XP bonus granted for finishing the period's challenges. The bonus is
+    // acknowledged when the container is destroyed, if it received the challenge manager.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public sealed class UIContainerChallengeBonusAwarded : UIContainer
@@ -38,7 +38,7 @@ namespace HardlightProject
             m_challengeManager = challengeManager;
             BonusXPAwarded.Value = challengeManager.PeriodBonusXP;
             TotalXPAfter.Value = challengeManager.GetCurrentXP();
-            TotalXPBefore.Value = TotalXPAfter - BonusXPAwarded;
+            TotalXPBefore.Value = TotalXPAfter.Value - BonusXPAwarded.Value;
             BonusXPString.Value = string.Format(StringTable.GetString(m_xpStringFormat), BonusXPAwarded.Value.ToString());
             XPRewardTitle.Value = m_titleChallengesComplete;
             RewardIcon.Value = m_iconChallenges;

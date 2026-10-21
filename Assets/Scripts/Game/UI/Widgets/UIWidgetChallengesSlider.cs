@@ -52,9 +52,8 @@ namespace HardlightProject
             while (target > m_slider.value)
             {
                 yield return null;
-                float t = Mathf.Clamp01((Time.time - startTime) / m_animationDuration);
-                float smoothed = 3f * t * t - 2f * t * t * t;
-                m_slider.value = m_slider.value * (1f - smoothed) + smoothed * target;
+                float t = (Time.time - startTime) / m_animationDuration;
+                m_slider.value = Mathf.SmoothStep(m_slider.value, target, t);
             }
             if (m_onCompleteCurrentAnimation != null)
                 m_onCompleteCurrentAnimation();
