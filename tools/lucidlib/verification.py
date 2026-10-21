@@ -7073,6 +7073,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyBrainStateTests." + name for na
     "SteeringChoosesTurnForwardAndTheResultFromDistanceAndAngle",
     "SteeringTreatsTheToleranceDistanceItselfAsReached",
     "SteeringTurnsBeyondTheFaceAngleAndMovesBelowTheForwardLimit",
+    "SteeringBoundariesSeparateTheNativePredicatesFromNeighbouringOnes",
     "SteeringIgnoresTheOffsetAlongTheUpDirection",
     "SteeringMeasuresFromTheEnemyPosition",
 ))

@@ -7,7 +7,7 @@ namespace ProjectLucid.Tests.CharCoreShared
     // Test-only EnemyNavigation: the start and interrupt calls are recorded in call order, the destination is
     // supplied, and IsInitialised can be set (its setter is protected in the original). SetUp, which the base runs
     // from OnValidate and Awake, is deliberately silent so the recorded calls are only the ones a case makes.
-    public sealed class Enemies01NavigationProbe : EnemyNavigation
+    public sealed class EnemyNavigationProbe : EnemyNavigation
     {
         public Vector3 Destination;
         public readonly List<string> Calls = new List<string>();

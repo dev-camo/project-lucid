@@ -14,8 +14,8 @@ namespace HardlightProject
         protected EnemyBrainState_Move(FiniteStateMachine fsm, FSMIdentifier stateId, BaseJSONCtorArgs ctorArgs) : base(fsm, stateId, ctorArgs) { }
 
         // 060021c2 (1.10.1 RVA 0x5721A0). Steers towards the destination in the plane
-        // of the enemy's up direction: x turns (+1 / -1 once the signed angle exceeds
-        // FaceAngleTolerance), y moves forward (1) only while the destination is
+        // of the enemy's up direction: x turns (+1 when the signed angle is positive,
+        // otherwise -1) once the absolute angle exceeds FaceAngleTolerance, y moves forward (1) only while the destination is
         // outside MoveWithinDistanceTolerance and the angle is under
         // MaxAngleForwardMovement. Returns whether the destination counts as reached:
         // within the distance tolerance, or, when forward movement is ignored, facing it.

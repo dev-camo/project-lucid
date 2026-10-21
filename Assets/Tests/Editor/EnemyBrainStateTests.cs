@@ -29,7 +29,7 @@ namespace ProjectLucid.Tests
             nameof(EnemyBrainState_TurnTowardsPosition), nameof(EnemyBrainState_WindUp_Attack),
         };
 
-        private static string Name() => "Lucid-enemies-01-" + Guid.NewGuid().ToString("N");
+        private static string Name() => "Lucid-enemy-brain-" + Guid.NewGuid().ToString("N");
 
         private static IFSMState NewState(string node, string json = "{}") =>
             FSMClassFactory.ConstructState(new FiniteStateMachine(Name(), skipAddToManager: true), node, new FSMIdentifier(Name()), json);
@@ -40,7 +40,8 @@ namespace ProjectLucid.Tests
             public EnemyBrain Brain;
             public Enemy Enemy;
             public FSMStorage Storage;
-            public Enemies01NavigationProbe Navigation;
+            public EnemyNavigationProbe Navigation;
+            public EnemyTraits Traits;
 
             public bool Has(GraphStorageKey key) => Storage.GetCollection().ContainsKey(key);
 
@@ -68,11 +69,12 @@ namespace ProjectLucid.Tests
             owned.LeaseRow<EnemyManager>();
             owned.LeaseRow<GameplayIslandManager>();
             var scene = new Scene { Owned = owned };
-            var definition = owned.Track(ScriptableObject.CreateInstance<Enemies01EnemyDefinitionProbe>());
+            var definition = owned.Track(ScriptableObject.CreateInstance<EnemyDefinitionProbe>());
             definition.Traits = new EnemyTraits { FaceAngleTolerance = 3f, MaxAngleForwardMovement = 45f, MoveWithinDistanceTolerance = 2f };
             definition.Traits.UpdateCachedValues();
+            scene.Traits = definition.Traits;
             GameObject host = owned.Host("Lucid enemy", false);
-            scene.Navigation = host.AddComponent<Enemies01NavigationProbe>();
+            scene.Navigation = host.AddComponent<EnemyNavigationProbe>();
             scene.Enemy = host.AddComponent<Enemy>();
             Set(scene.Enemy, "m_definition", definition);
             Set(scene.Enemy, "m_navigation", scene.Navigation);
@@ -517,6 +519,36 @@ namespace ProjectLucid.Tests
                     Steer(scene, new Vector3((float)(10.0 * Math.Sin(radians)), 0f, (float)(10.0 * Math.Cos(radians))));
                     Assert.That(scene.Brain.GetMovement(), Is.EqualTo(impulse), degrees + " degrees");
                 }
+            });
+        }
+
+        // Boundary and sign cases for the steering predicates (0x57231E..0x57235A, 0x5723DF..0x5723F2). Each separates a
+        // plausible rewrite from the native shape: turning needs "abs angle > tolerance" (not >=), forward movement
+        // needs "abs angle < limit" (not <=), the turn sign is "angle > 0 ? +1 : -1" (so 0 gives -1, unlike
+        // Mathf.Sign), and facing is "!(abs angle > tolerance)" (true for a NaN tolerance).
+        [Test]
+        public void SteeringBoundariesSeparateTheNativePredicatesFromNeighbouringOnes()
+        {
+            WithScene(scene =>
+            {
+                var side = new Vector3(10f, 0f, 0f);
+                float sideAngle = Vector3.SignedAngle(Vector3.forward, side, Vector3.up);
+
+                scene.Traits.FaceAngleTolerance = sideAngle;
+                scene.Traits.MaxAngleForwardMovement = sideAngle;
+                Steer(scene, side);
+                Assert.That(scene.Brain.GetMovement(), Is.EqualTo(Vector2.zero), "angle equal to both limits neither turns nor moves");
+                Assert.That(Steer(scene, side, true), Is.True, "angle equal to the tolerance still counts as facing");
+
+                scene.Traits.FaceAngleTolerance = -1f;
+                Steer(scene, new Vector3(0f, 0f, 10f));
+                Assert.That(scene.Brain.GetMovement().x, Is.EqualTo(-1f), "a zero angle beyond a negative tolerance turns -1");
+                Assert.That(Steer(scene, new Vector3(0f, 0f, 10f), true), Is.False);
+
+                scene.Traits.FaceAngleTolerance = float.NaN;
+                Steer(scene, side);
+                Assert.That(scene.Brain.GetMovement().x, Is.EqualTo(0f), "no turn against a NaN tolerance");
+                Assert.That(Steer(scene, side, true), Is.True, "a NaN tolerance counts as facing");
             });
         }
 
