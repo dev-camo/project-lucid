@@ -49,15 +49,14 @@ namespace HardlightProject
         }
 
         // 06003685 (RVA 0x691270): the touch movement is scaled by the sensitivity over the screen height for x and
-        // the screen width for y, and its squared length is added up until the touch is released.
+        // the screen width for y, and its squared length is added up (OnTouchRelease clears the sum while camera snap
+        // is enabled).
         protected override Vector2 OnInput(Vector2 touchPosition, Vector2 touchDelta)
         {
             m_controllerInput = touchDelta;
-            float xScale = m_xSensitivity / (float)Screen.height;
-            m_controllerInput.x = xScale * m_controllerInput.x;
-            float yScale = m_ySensitivity / (float)Screen.width;
-            m_controllerInput.y = yScale * m_controllerInput.y;
-            m_totalMovementAmountSqr = m_controllerInput.sqrMagnitude + m_totalMovementAmountSqr;
+            m_controllerInput.x *= m_xSensitivity / (float)Screen.height;
+            m_controllerInput.y *= m_ySensitivity / (float)Screen.width;
+            m_totalMovementAmountSqr += m_controllerInput.sqrMagnitude;
             return m_controllerInput;
         }
 
@@ -74,8 +73,9 @@ namespace HardlightProject
             m_debugTouchZoneView.SetActive(m_debugOverlayEnabled);
         }
 
-        // 06003688 (RVA 0x6913D0): a release that moved less than the cancel magnitude counts as a tap. The second
-        // tap supplies every configured input whose ignored abilities are not in use, as a one-frame press.
+        // 06003688 (RVA 0x6913D0): the sum of the squared scaled movements since the last release is compared with the squared cancel
+        // magnitude; a smaller sum counts as a tap. The second tap starts the down/held/up input sequence for each
+        // configured input whose ignored abilities are not in use.
         protected override void OnTouchRelease()
         {
             if (m_cameraSnapEnabled && PointerWasDown)
@@ -109,7 +109,7 @@ namespace HardlightProject
         {
             if (m_snapTapCount > 0)
             {
-                m_doubleTapTimerSeconds = Time.unscaledDeltaTime + m_doubleTapTimerSeconds;
+                m_doubleTapTimerSeconds += Time.unscaledDeltaTime;
                 if (m_doubleTapTimerSeconds >= m_cameraSnapDoubleTapTimeSeconds) ResetSnapValues();
             }
             else

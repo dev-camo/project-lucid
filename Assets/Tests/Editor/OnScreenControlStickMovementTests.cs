@@ -175,9 +175,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Initialise hands SetControllingCamera to the camera manager's secondary-movement event (+0x...: the lambda
-        // 0x6908A0 adds it) and OnDestroy 0x68F570 removes it again. A zone that is not restricted to a single touch
-        // starts as the camera control (0x68F16D: the opposite of the base IsSingleTouch).
+        // Initialise hands SetControllingCamera to the camera manager's secondary-movement event (the lambda
+        // 0x6908A0 adds it) and OnDestroy 0x68F570 removes it again. A zone that is not restricted to a single
+        // touch starts as the camera control (0x68F16D: the opposite of the base IsSingleTouch).
         [Test]
         public void TheStickFollowsTheSecondaryMovementOfTheCameraManagerUntilItIsDestroyed()
         {
@@ -510,6 +510,8 @@ namespace ProjectLucid.Tests
 
                 rig.Log.Calls.Clear();
                 rig.Move(1100f, 600f);
+                // Equal sizes would hide a swapped height/width pairing.
+                Assume.That(Screen.width, Is.Not.EqualTo(Screen.height));
                 float xScale = 75f / (float)Screen.height;
                 float yScale = 125f / (float)Screen.width;
                 float x = xScale * 40f;

@@ -52,7 +52,7 @@ namespace HardlightProject
             base.Initialise();
             m_saveManagerRef.InvokeOnValid(OnSaveDataLoaded);
             SetStickOrigin(m_originTransform.position);
-            if (!m_container.gameObject.activeSelf) m_container.gameObject.SetActive(true);
+            SetActive(true);
             m_rotatingOuter.localScale = m_baseScaleMultiplier;
             m_fullSolidOuter.localScale = m_baseScaleMultiplier;
             m_isControllingCamera = !base.IsSingleTouch();
@@ -123,10 +123,8 @@ namespace HardlightProject
             if (m_isControllingCamera)
             {
                 m_controllerInput = touchDelta;
-                float xScale = m_secondaryXSensitivity / (float)Screen.height;
-                m_controllerInput.x = xScale * m_controllerInput.x;
-                float yScale = m_secondaryYSensitivity / (float)Screen.width;
-                m_controllerInput.y = yScale * m_controllerInput.y;
+                m_controllerInput.x *= m_secondaryXSensitivity / (float)Screen.height;
+                m_controllerInput.y *= m_secondaryYSensitivity / (float)Screen.width;
                 inputType = InputType.Unsupported;
             }
             else
@@ -137,11 +135,12 @@ namespace HardlightProject
             return m_controllerInput;
         }
 
-        // 06003667 (RVA 0x68FD30): the stick top follows the movement; beyond the tolerance of the extremes the
-        // stick is in fine control, within it at full tilt, each change buzzing the matching haptic event.
+        // 06003667 (RVA 0x68FD30): the stick top follows the movement; below the tolerance nothing else changes;
+        // at or beyond 1 - tolerance the stick is at full tilt (buzzing on entry), otherwise fine control (buzzing only
+        // when leaving full tilt); the outer ring then turns to the heading.
         public void OnDrag(Vector3 currentMovement, float magnitude)
         {
-            m_stickTop.position = currentMovement.xy() + m_origin;
+            m_stickTop.position = m_origin + currentMovement.xy();
             if (m_magnitudeTolerance > magnitude) return;
             float fullTiltMagnitude = 1f - m_magnitudeTolerance;
             if (magnitude >= fullTiltMagnitude)

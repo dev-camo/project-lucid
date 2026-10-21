@@ -102,6 +102,8 @@ namespace ProjectLucid.Tests
                 ModernUITestSupport.Set(zone, "m_restrictToSingleTouch", true); // serialized in the original
                 var log = new ButtonCallbackLog();
                 log.Attach(zone);
+                // Equal sizes would hide a swapped height/width pairing.
+                Assume.That(Screen.width, Is.Not.EqualTo(Screen.height));
                 float xScale = 75f / (float)Screen.height;
                 float yScale = 125f / (float)Screen.width;
                 float x = xScale * 30f;

@@ -82,10 +82,9 @@ namespace HardlightProject
         // score is the squared distance from the touch to the component's centre.
         protected override float GetScoreForTouchPosition(Vector2 position)
         {
-            if (RectTransformUtility.RectangleContainsScreenPoint(m_editableComponentTransform, position, null)) return 0f;
+            if (RectTransformUtility.RectangleContainsScreenPoint(m_editableComponentTransform, position)) return 0f;
             if (PointerIsDown) return 0f;
-            Vector2 local = Vector2.zero;
-            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_editableComponentTransform, position, null, out local);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(m_editableComponentTransform, position, null, out Vector2 local);
             return (m_editableComponentTransform.rect.center - local).sqrMagnitude;
         }
 

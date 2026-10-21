@@ -4,8 +4,8 @@ using UnityEngine;
 namespace HardlightProject
 {
     // Original Game.Runtime 0200097e; bodies translated from the 1.10.1 x86-64 binary.
-    // A touch zone that reports how far a horizontal drag has moved as a fraction of the zone's width and
-    // keeps the last drag step as an impulse once the finger lifts.
+    // A touch zone that reports each horizontal drag step as a fraction of the zone's width and keeps the
+    // last step as an impulse once the finger lifts.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class OnScreenTouchZoneOrnament : OnScreenTouchZone
