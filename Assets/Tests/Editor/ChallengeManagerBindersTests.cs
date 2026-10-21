@@ -378,8 +378,8 @@ namespace ProjectLucid.Tests
         }
 
         // Update 0x5A9370 short formats: Days > 0 (signed jle at 0x5a9563) picks days/hours (0x5a9569..0x5a9599),
-        // else Hours > 0 hours/minutes (0x5a976c..0x5a9794), else minutes/seconds (0x5a9796..0x5a97b9). A negative
-        // remainder with zero days and hours falls to minutes/seconds, which a Days != 0 test would not.
+        // else Hours > 0 hours/minutes (0x5a976c..0x5a9794; jle at 0x5a976a), else minutes/seconds (0x5a9796..0x5a97b9).
+        // A negative day or hour count falls through to minutes/seconds, which a != 0 test would not.
         [Test]
         public void ShortFormatsPickTheLargestPositiveUnitPair()
         {
@@ -389,6 +389,8 @@ namespace ProjectLucid.Tests
                 Assert.That(UpdateText(binder, integration, new TimeSpan(0, 5, 6, 7), true), Is.EqualTo("H5M6"));
                 Assert.That(UpdateText(binder, integration, new TimeSpan(0, 0, 7, 8), true), Is.EqualTo("M7S8"));
                 Assert.That(UpdateText(binder, integration, new TimeSpan(0, 0, 0, -30), true), Is.EqualTo("M0S-30"));
+                Assert.That(UpdateText(binder, integration, new TimeSpan(-1, -2, -3, -4), true), Is.EqualTo("M-3S-4"), "Days is signed");
+                Assert.That(UpdateText(binder, integration, new TimeSpan(0, -2, -3, -4), true), Is.EqualTo("M-3S-4"), "Hours is signed");
             });
         }
 
