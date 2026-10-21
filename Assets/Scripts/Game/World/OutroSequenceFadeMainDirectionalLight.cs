@@ -30,7 +30,7 @@ namespace HardlightProject
         // switches itself off once the unclamped lerp time reaches one.
         private void Update()
         {
-            m_lerpTime += Time.deltaTime * lerpSpeedMultiplier;
+            m_lerpTime += lerpSpeedMultiplier * Time.deltaTime;
             m_directionalLight.intensity = Mathf.Lerp(m_defaultDirectionalLightIntensity, MinIntensity, m_lerpTime);
             if (m_lerpTime >= 1f)
                 enabled = false;

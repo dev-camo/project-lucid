@@ -23,9 +23,8 @@ namespace HardlightProject
             m_thisTrackHandle = trackName;
         }
 
-        // 0x0600189b (0x79E2F0). At runtime the track registers with the current comic
-        // cutscene. The editor-only else branch (EditModeCreateComicCutscene) is
-        // compiled out of the retail build.
+        // 0x0600189b (0x79E2F0). The track registers with the current comic cutscene
+        // only while playing.
         public override void OnGraphStart(Playable playable)
         {
             base.OnGraphStart(playable);
@@ -45,9 +44,10 @@ namespace HardlightProject
         // the loop; a zero weight despawns an active panel.
         public override void ProcessFrame(Playable playable, FrameData _, object playerData)
         {
-            // The retail build keeps this null test but drops the editor-only call it guarded.
             if (!Application.isPlaying && m_comicCutscene == null)
-                EditModeCreateComicCutscene();
+            {
+                // Retail keeps the test but nothing runs here; a [Conditional] call leaves no trace.
+            }
             for (int i = 0; i < m_inputCount; i++)
             {
                 float inputWeight = playable.GetInputWeight(i);
@@ -60,8 +60,13 @@ namespace HardlightProject
                     else if (inputWeight < 1f)
                         m_comicCutscene.DriveAnimation(m_thisTrackHandle, i, inputWeight);
                     else
-                        // The retail build also reads Application.isPlaying here, for an editor-only call it dropped.
+                    {
                         m_comicCutscene.SetPanelLooping(m_thisTrackHandle, i);
+                        if (!Application.isPlaying)
+                        {
+                            // Retail reads isPlaying here and acts on nothing; a [Conditional] call leaves no trace.
+                        }
+                    }
                 }
                 else if (m_comicCutscene.PanelIsActive(m_thisTrackHandle, i))
                     m_comicCutscene.DespawnPanel(m_thisTrackHandle, i);

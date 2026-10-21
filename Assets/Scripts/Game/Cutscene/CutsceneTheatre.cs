@@ -93,7 +93,7 @@ namespace HardlightProject
         // 0x0600192e (0x7A4A30)
         public void Play()
         {
-            if (m_cutsceneManagerRef.TryGet(out CutsceneManager cutsceneManager) && !(Cutscene == null))
+            if (m_cutsceneManagerRef.TryGet(out CutsceneManager cutsceneManager) && Cutscene != null)
             {
                 IsPlaying = true;
                 cutsceneManager.LoadCutscene(Cutscene, null, true);

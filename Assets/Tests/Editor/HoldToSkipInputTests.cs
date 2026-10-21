@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Hardlight;
 using Hardlight.Enums;
@@ -29,9 +31,12 @@ namespace ProjectLucid.Tests
     // Time.deltaTime cannot be controlled in Edit Mode, so the expectations that depend on it are the engine's own
     // delta times the System category scale of 2 (TimeManager.GetDeltaTime, 0x5f7860), and the cases that pin an exact
     // value use a hold requirement or modifier delay that makes the outcome independent of it. The ControlMapping
-    // subscriptions made by Start and removed by OnDestroy are not observed here.
+    // subscriptions made by Start and removed by OnDestroy are not observed here; a lease restores the tables.
     public sealed class HoldToSkipInputTests
     {
+        // Undefined, so no other component's subscription can share the key Start makes for m_gameInput.
+        private const GameInput OwnedInput = (GameInput)(int.MinValue + 0x5348);
+
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
 
         private sealed class Scene
@@ -52,6 +57,47 @@ namespace ProjectLucid.Tests
             public readonly List<bool> CursorReleases = new List<bool>();
         }
 
+        // Start subscribes on two inputs (m_gameInput and ReleaseCursor), and ControlMapping.Unsubscribe removes the
+        // listener but never the dictionary key. This lease records every ControlMapping table before the case, drops
+        // the keys the case added and fails if a pre-existing entry was replaced or its listeners changed. It does
+        // not depend on the component's own OnDestroy.
+        private sealed class ControlMappingLease : IDisposable
+        {
+            private readonly Dictionary<FieldInfo, Dictionary<object, (object Action, Delegate[] Listeners)>> m_tables =
+                new Dictionary<FieldInfo, Dictionary<object, (object Action, Delegate[] Listeners)>>();
+            private readonly HashSet<GameInput> m_exclusive;
+
+            public ControlMappingLease()
+            {
+                foreach (FieldInfo field in typeof(ControlMapping).GetFields(BindingFlags.Static | BindingFlags.NonPublic))
+                {
+                    if (!typeof(IDictionary).IsAssignableFrom(field.FieldType)) continue;
+                    var rows = new Dictionary<object, (object Action, Delegate[] Listeners)>();
+                    foreach (DictionaryEntry row in (IDictionary)field.GetValue(null)) rows.Add(row.Key, (row.Value, Listeners(row.Value)));
+                    m_tables.Add(field, rows);
+                }
+                m_exclusive = new HashSet<GameInput>(OwnedControlInputs.Exclusive());
+            }
+
+            private static Delegate[] Listeners(object action) =>
+                ((IEnumerable)action.GetType().GetMethod("GetInvocationList").Invoke(action, null)).Cast<Delegate>().ToArray();
+
+            public void Dispose()
+            {
+                var changed = new List<string>();
+                foreach (KeyValuePair<FieldInfo, Dictionary<object, (object Action, Delegate[] Listeners)>> table in m_tables)
+                {
+                    var live = (IDictionary)table.Key.GetValue(null);
+                    foreach (object key in live.Keys.Cast<object>().Where(key => !table.Value.ContainsKey(key)).ToArray()) live.Remove(key);
+                    bool same = live.Count == table.Value.Count && table.Value.All(row =>
+                        live.Contains(row.Key) && ReferenceEquals(live[row.Key], row.Value.Action) && Listeners(live[row.Key]).SequenceEqual(row.Value.Listeners));
+                    if (!same) changed.Add(table.Key.Name);
+                }
+                if (!OwnedControlInputs.Exclusive().SetEquals(m_exclusive)) changed.Add("s_exclusiveGameInputs");
+                if (changed.Count != 0) throw new InvalidOperationException("Shared ControlMapping state changed: " + string.Join(", ", changed));
+            }
+        }
+
         private static void SetSerialized(Object target, string field, Action<SerializedProperty> assign)
         {
             var serialized = new SerializedObject(target);
@@ -64,6 +110,7 @@ namespace ProjectLucid.Tests
         {
             // Taken first, so it is released last: its rows and coroutine host outlive the case's.
             owned.Lease(new OwnedCharacterManagers());
+            owned.Lease(new ControlMappingLease());
             // GetConfig finds the asset by the CRC of its type name in this registered system's stack.
             SystemConfiguration configuration = owned.Register(new SystemConfiguration());
             var scene = new Scene { Owned = owned };
@@ -90,14 +137,13 @@ namespace ProjectLucid.Tests
             SetSerialized(scene.Input, "m_progress", property => property.objectReferenceValue = scene.Progress);
             SetSerialized(scene.Input, "m_visualPrompt", property => property.objectReferenceValue = scene.Prompt);
             SetSerialized(scene.Input, "m_labelString", property => property.objectReferenceValue = scene.Label);
-            SetSerialized(scene.Input, "m_gameInput", property => property.intValue = (int)GameInput.UISubmit);
+            SetSerialized(scene.Input, "m_gameInput", property => property.intValue = (int)OwnedInput);
             SetSerialized(scene.Input, "m_requiredHoldTime", property => property.floatValue = required);
             SetSerialized(scene.Input, "m_maxTapDuration", property => property.floatValue = maxTap);
             SetSerialized(scene.Input, "m_promptFadeoutTime", property => property.floatValue = fadeOut);
             Get<UnityEvent>(scene.Input, "m_onFullSkipEvent").AddListener(() => scene.FullSkips++);
             Get<UnityEvent>(scene.Input, "m_onSkipOnceEvent").AddListener(() => scene.SingleSkips++);
-            // Start subscribes to ControlMapping, which this fixture does not own; OnDestroy removes those again even
-            // after a failed case.
+            // OnDestroy is the original's own teardown; the ControlMappingLease restores the shared tables.
             try { body(scene); }
             finally { Call(scene.Input, "OnDestroy"); }
         });
@@ -262,7 +308,7 @@ namespace ProjectLucid.Tests
                     Call(scene.Input, "Start");
                     End(scene);
                     Assert.That(scene.SingleSkips, Is.EqualTo(skips), "tap to skip " + tapToSkip + ", max tap " + maxTap);
-                    }, tapToSkip: tapToSkip, maxTap: maxTap);
+                }, tapToSkip: tapToSkip, maxTap: maxTap);
             }
         }
 
@@ -292,7 +338,7 @@ namespace ProjectLucid.Tests
             WithInput(scene =>
             {
                 Call(scene.Input, "Start");
-                scene.Modifier.Modify(1f, 0f, GameInput.UISubmit);
+                scene.Modifier.Modify(1f, 0f, OwnedInput);
                 var times = Get<IDictionary>(scene.Modifier, "m_cachedTimeByInput");
                 Assert.That(times.Count, Is.EqualTo(1));
                 End(scene);
@@ -322,7 +368,7 @@ namespace ProjectLucid.Tests
                     if (expected != 0f) ExpectRefusedCoroutine();
                     scene.Button.OnPointerUp(null);
                     Assert.That(steps.MoveNext(), Is.False);
-                    }, withModifier: withModifier, modifierDelay: delay, required: 100f);
+                }, withModifier: withModifier, modifierDelay: delay, required: 100f);
             }
         }
 

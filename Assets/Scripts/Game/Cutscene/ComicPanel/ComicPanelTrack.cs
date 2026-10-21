@@ -11,8 +11,8 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class ComicPanelTrack : TrackAsset
     {
-        // 0x0600189f (0x79EA50): the track's own description names its mixer, so every
-        // track keeps a distinct panel dictionary in the comic cutscene.
+        // 0x0600189f (0x79EA50): the track's ToString (its name and type) becomes the
+        // mixer's handle into the comic cutscene's panel dictionaries.
         public override Playable CreateTrackMixer(PlayableGraph graph, GameObject _, int inputCount)
         {
             ScriptPlayable<ComicPanelMixer> playable = ScriptPlayable<ComicPanelMixer>.Create(graph, inputCount);

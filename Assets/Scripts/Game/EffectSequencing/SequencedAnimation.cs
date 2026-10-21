@@ -46,9 +46,10 @@ namespace HardlightProject
             while (m_animTime < m_animLength)
             {
                 if (m_playOnCollector)
-                    m_animationRoot.SetPositionAndRotation(
-                        data.Target.position + data.Target.up * data.Offset.y,
-                        data.Target.rotation);
+                {
+                    Vector3 position = data.Target.position + data.Target.up * data.Offset.y;
+                    m_animationRoot.SetPositionAndRotation(position, data.Target.rotation);
+                }
                 m_animTime += m_timeManager.GetFixedDeltaTime(m_timeCategory) / m_lengthMultiplier;
                 animationState.time = m_animTime;
                 m_animation.Sample();

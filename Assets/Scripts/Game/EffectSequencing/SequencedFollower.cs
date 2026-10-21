@@ -11,13 +11,13 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class SequencedFollower : SequencedEffect
     {
-        [SerializeField, Tooltip("Local offset from the target transform.")]
+        [Tooltip("Local offset from the target transform."), SerializeField]
         private Vector3 m_offsetLocal = Vector3.zero;
-        [SerializeField, Tooltip("If static, offset is in global space else transform rotation is applied.")]
+        [Tooltip("If static, offset is in global space else transform rotation is applied."), SerializeField]
         private bool m_offsetStatic = true;
-        [SerializeField, Tooltip("Time it takes to move from the current location to the target.")]
+        [Tooltip("Time it takes to move from the current location to the target."), SerializeField]
         private float m_duration = 1f;
-        [SerializeField, Tooltip("Whether to also apply scaling.")]
+        [Tooltip("Whether to also apply scaling."), SerializeField]
         private bool m_scalingApplied;
         [SerializeField, ShowIf("m_scalingApplied", null), Tooltip("Target scaling to lerp to.")]
         private Vector3 m_scalingTarget = Vector3.one;
@@ -46,7 +46,8 @@ namespace HardlightProject
             Vector3 scalingEnd = m_scalingTarget;
             while (time > 0f)
             {
-                time = Mathf.Max(time - timeManager.GetFixedDeltaTime(m_timeCategory), 0f);
+                float deltaTime = timeManager.GetFixedDeltaTime(m_timeCategory);
+                time = Mathf.Max(time - deltaTime, 0f);
                 float t = 1f - time / m_duration;
                 if (!m_offsetStatic)
                     localOffsetEnd = data.Target.rotation * m_offsetLocal;
