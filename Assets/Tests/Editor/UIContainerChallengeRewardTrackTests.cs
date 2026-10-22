@@ -185,7 +185,7 @@ namespace ProjectLucid.Tests
         private static void Populate(Rig rig, bool focusChosen = true)
         {
             if (focusChosen) LogAssert.Expect(LogType.Error, RefusedCoroutine);
-            Call(rig.Container, "PopulateUI"); // Reflection: private UIContainerChallengeRewardTrack.PopulateUI
+            Call(rig.Container, "PopulateUI");
         }
 
         private static void PrepareStorage(out List<IMetaGameUnlock> unlocks, out List<ApplicationStateEvent> events)
@@ -314,8 +314,8 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 100, 100, firstCollected: true, secondCollected: false);
 
-                var first = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.First, 1); // Reflection: private UIContainerChallengeRewardTrack.GetRewardStatus
-                var second = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.Second, 2); // Reflection: private UIContainerChallengeRewardTrack.GetRewardStatus
+                var first = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.First, 1);
+                var second = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.Second, 2);
 
                 Assert.That(first.Collected, Is.True);
                 Assert.That(second.Collected, Is.False);
@@ -340,7 +340,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, spent, spent);
 
-                Assert.That((float)Call(rig.Container, "GetSliderValue"), Is.EqualTo(expected)); // Reflection: private UIContainerChallengeRewardTrack.GetSliderValue
+                Assert.That((float)Call(rig.Container, "GetSliderValue"), Is.EqualTo(expected));
             });
         }
 
@@ -353,7 +353,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 0, 0);
 
-                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
+                Call(rig.Container, "RefreshBinders");
 
                 Assert.That(rig.Container.XPIncrement.Value, Is.EqualTo("20"));
                 Assert.That(rig.Container.EnableButtons.Value, Is.True);
@@ -372,7 +372,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 0, 50);
 
-                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
+                Call(rig.Container, "RefreshBinders");
 
                 Assert.That(rig.Container.ShowAddButton.Value, Is.True);
                 Assert.That(rig.Container.ShowCollectButton.Value, Is.False);
@@ -391,7 +391,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 20, 20);
 
-                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
+                Call(rig.Container, "RefreshBinders");
 
                 Assert.That(rig.Container.XPIncrement.Value, Is.EqualTo("40"));
                 Assert.That(rig.Container.ShowCollectButton.Value, Is.True);
@@ -409,7 +409,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 60, 60, firstCollected: true, secondCollected: true);
 
-                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
+                Call(rig.Container, "RefreshBinders");
 
                 Assert.That(rig.Container.XPIncrement.Value, Is.EqualTo("0"));
                 Assert.That(rig.Container.ShowAllCollected.Value, Is.True);
@@ -638,7 +638,7 @@ namespace ProjectLucid.Tests
                 rig.Container.EnableButtons.Value = true;
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
-                Call(rig.Container, "OnRewardClick", rig.Buttons[0], true); // Reflection: private UIContainerChallengeRewardTrack.OnRewardClick
+                Call(rig.Container, "OnRewardClick", rig.Buttons[0], true);
 
                 Assert.That(rig.Container.EnableButtons.Value, Is.True, "untouched");
                 Assert.That(events, Is.EqualTo(new[] { rig.CollectEvent }), "AddUnique");
@@ -680,7 +680,7 @@ namespace ProjectLucid.Tests
                 rig.Container.EnableButtons.Value = true;
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
-                bool collected = (bool)Call(rig.Container, "TryCollectReward", true); // Reflection: private UIContainerChallengeRewardTrack.TryCollectReward
+                bool collected = (bool)Call(rig.Container, "TryCollectReward", true);
 
                 Assert.That(collected, Is.True);
                 Assert.That(rig.First.Calls, Does.Contain("Save"));
@@ -699,7 +699,7 @@ namespace ProjectLucid.Tests
                 Populate(rig);
                 PrepareStorage(out List<IMetaGameUnlock> unlocks, out List<ApplicationStateEvent> events);
 
-                Assert.That((bool)Call(rig.Container, "TryCollectReward", false), Is.False); // Reflection: private UIContainerChallengeRewardTrack.TryCollectReward
+                Assert.That((bool)Call(rig.Container, "TryCollectReward", false), Is.False);
                 rig.Container.Action_CollectReward();
 
                 Assert.That(rig.First.Calls, Does.Not.Contain("Save"));
@@ -762,7 +762,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(Get<Coroutine>(rig.Container, "m_unlockingCoroutine"), Is.Null);
             });

@@ -160,7 +160,7 @@ namespace ProjectLucid.Tests
         private static void Start(Rig rig)
         {
             LogAssert.Expect(LogType.Error, RefusedCoroutine);
-            Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+            Call(rig.Container, "Start");
         }
 
         private static void Update(Rig rig)
@@ -278,7 +278,7 @@ namespace ProjectLucid.Tests
                 Update(rig);
                 Assert.That(rig.Toggles.Count, Is.EqualTo(1), "an update through the manager reaches the container");
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
                 Assert.That(rig.Manager.OnChallengesUpdated, Is.Null);
             });
         }
@@ -382,7 +382,7 @@ namespace ProjectLucid.Tests
             {
                 ChallengeState state = NewState(rig, "lucid-overview-open", 0, 0f);
                 Start(rig);
-                Call(rig.Container, "ToggleChallenge", state, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", state, true);
                 Assert.That(rig.Selected, Is.SameAs(state));
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True);
 
@@ -452,14 +452,14 @@ namespace ProjectLucid.Tests
                 rig.Container.ValidChallengeSelected.Value = true;
                 rig.Info.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleBonus", true); // Reflection: private UIContainerChallengesOverview.ToggleBonus
+                Call(rig.Container, "ToggleBonus", true);
                 Assert.That(rig.Bonus.gameObject.activeSelf, Is.True);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.False);
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.False);
 
                 rig.Container.ValidChallengeSelected.Value = true;
                 rig.Info.gameObject.SetActive(true);
-                Call(rig.Container, "ToggleBonus", false); // Reflection: private UIContainerChallengesOverview.ToggleBonus
+                Call(rig.Container, "ToggleBonus", false);
                 Assert.That(rig.Bonus.gameObject.activeSelf, Is.False);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True, "untouched");
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.True, "untouched");
@@ -476,7 +476,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Bonus.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleChallenge", null, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", null, true);
 
                 Assert.That(rig.Selected, Is.Null);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True);
@@ -543,8 +543,8 @@ namespace ProjectLucid.Tests
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 ChallengeState stranger = NewState(rig, "lucid-overview-stranger", 0, 0f, false);
 
-                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.True); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
-                Assert.That(Call(rig.Container, "ValidateChallengeState", stranger), Is.False); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
+                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.True);
+                Assert.That(Call(rig.Container, "ValidateChallengeState", stranger), Is.False);
             }, true);
         }
 
@@ -557,8 +557,8 @@ namespace ProjectLucid.Tests
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 var shadow = new ChallengeState(0, rig.ShadowChallenge, 0, null, 0);
 
-                Assert.That(Call(rig.Container, "ValidateChallengeState", shadow), Is.True); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
-                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.False, "listed, but not the shadow FTUE challenge"); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
+                Assert.That(Call(rig.Container, "ValidateChallengeState", shadow), Is.True);
+                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.False, "listed, but not the shadow FTUE challenge");
             }, false);
         }
 
@@ -574,7 +574,7 @@ namespace ProjectLucid.Tests
                 ChallengeState second = NewState(rig, "lucid-overview-second", 0, 0f);
                 rig.Bonus.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleChallenge", first, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", first, true);
 
                 Assert.That(rig.Selected, Is.SameAs(first));
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True);
@@ -583,12 +583,12 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.LevelView.gameObject.activeSelf, Is.True, "UpdateLevelPreview shows the level view");
                 Assert.That(Get<GameplayLevelDefinition>(rig.LevelView, "m_levelDefinition"), Is.SameAs(rig.Level));
 
-                Call(rig.Container, "ToggleChallenge", second, false); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", second, false);
 
                 Assert.That(rig.Selected, Is.SameAs(first), "another challenge was deselected");
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.True);
 
-                Call(rig.Container, "ToggleChallenge", first, false); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", first, false);
 
                 Assert.That(rig.Selected, Is.Null);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.False);
@@ -607,10 +607,10 @@ namespace ProjectLucid.Tests
                 TakeManagerReference(rig);
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 ChallengeState stranger = NewState(rig, "lucid-overview-stranger", 0, 0f, false);
-                Call(rig.Container, "ToggleChallenge", listed, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", listed, true);
                 rig.LevelView.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleChallenge", stranger, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", stranger, true);
 
                 Assert.That(rig.Selected, Is.Null);
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.False);
@@ -623,7 +623,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void WithoutANavigationManagerNothingIsSelected()
         {
-            Run(rig => Assert.That(() => Call(rig.Container, "TryNavigateToWidget", rig.Owned.Host("Lucid overview toggle", false).AddComponent<UIWidgetSDTToggleChallenge>()), // Reflection: private UIContainerChallengesOverview.TryNavigateToWidget
+            Run(rig => Assert.That(() => Call(rig.Container, "TryNavigateToWidget", rig.Owned.Host("Lucid overview toggle", false).AddComponent<UIWidgetSDTToggleChallenge>()),
                 Throws.Nothing));
         }
 
@@ -673,7 +673,7 @@ namespace ProjectLucid.Tests
                 // Reflection: the level manager's Initialise callback assigns it, and Initialise never runs on the inactive host.
                 Set(ProcessManager.GetSystem<LevelManager>(), "m_app", ProcessManager.GetSystem<App>());
                 ChallengeState state = NewState(rig, "lucid-overview-launch", 0, 0f);
-                Call(rig.Container, "ToggleChallenge", state, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
+                Call(rig.Container, "ToggleChallenge", state, true);
 
                 rig.Container.Action_SetChallengeLaunchData();
 
