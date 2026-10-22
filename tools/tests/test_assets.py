@@ -5,8 +5,10 @@ import base64
 import contextlib
 import errno
 import io
+import os
 from pathlib import Path
 import shutil
+import stat
 import tempfile
 import unittest
 from unittest import mock
@@ -97,6 +99,53 @@ class AssetTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "settings differ"):
             assets.prepare_assets(self.repo, self.work)
         self.assertFalse((self.repo / "Assets").exists())
+
+    def test_prepare_copies_through_the_clone_helper_and_falls_back_to_copy2(self):
+        project = self.make_export()
+        (project / "Assets/Data").mkdir()
+        payload = b"clone me " * 100
+        source = project / "Assets/Data/blob.bin"
+        source.write_bytes(payload)
+        source.with_name("blob.bin.meta").write_text("fileFormatVersion: 2\nguid: " + "c" * 32 + "\n")
+        os.utime(source, (1_000_000_000, 1_000_000_000))
+        attempts = []
+        def refuse(source_path, output):
+            attempts.append(Path(source_path).name)
+            return False
+        with mock.patch.object(assets, "_clone_file", side_effect=refuse), \
+             mock.patch.object(assets.shutil, "copy2", wraps=shutil.copy2) as fallback:
+            assets.prepare_assets(self.repo, self.work)
+        prepared = self.repo / "Assets/Recovered/Data/blob.bin"
+        self.assertIn("blob.bin", attempts)
+        self.assertGreaterEqual(fallback.call_count, len(attempts))
+        self.assertEqual(payload, prepared.read_bytes())
+        self.assertEqual(1_000_000_000, int(prepared.stat().st_mtime))
+
+    def test_clone_failure_is_reported_not_raised(self):
+        source = self.root / "source.bin"
+        source.write_bytes(b"data")
+        with mock.patch.object(assets.sys, "platform", "darwin"), \
+             mock.patch.object(assets.ctypes, "CDLL", side_effect=OSError("no libc")):
+            self.assertFalse(assets._clone_file(source, self.root / "out.bin"))
+        self.assertFalse((self.root / "out.bin").exists())
+        with mock.patch.object(assets.sys, "platform", "linux"):
+            self.assertFalse(assets._clone_file(source, self.root / "out.bin"))
+
+    @unittest.skipUnless(sys.platform == "darwin", "clonefile(2) is macOS only")
+    def test_clone_file_produces_identical_independent_copy_on_darwin(self):
+        source = self.root / "source.bin"
+        source.write_bytes(bytes(range(256)) * 64)
+        source.chmod(0o640)
+        os.utime(source, (1_000_000_000, 1_000_000_000))
+        output = self.root / "cloned.bin"
+        if not assets._clone_file(source, output):
+            self.skipTest("this volume does not support clonefile")
+        self.assertEqual(source.read_bytes(), output.read_bytes())
+        self.assertEqual(source.stat().st_mtime, output.stat().st_mtime)
+        self.assertEqual(stat.S_IMODE(source.stat().st_mode), stat.S_IMODE(output.stat().st_mode))
+        self.assertNotEqual(source.stat().st_ino, output.stat().st_ino)
+        output.write_bytes(b"changed")
+        self.assertEqual(bytes(range(256)) * 64, source.read_bytes())
 
     def test_prepare_normalizes_copied_pcm_but_preserves_raw_export(self):
         project = self.make_export()

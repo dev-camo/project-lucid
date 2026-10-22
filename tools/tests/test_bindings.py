@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import uuid
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -375,6 +376,41 @@ class BindingTests(unittest.TestCase):
                 with patch("lucidlib.bindings.subprocess.run", return_value=type("Exit", (), {"returncode": 1})()):
                     self.assertEqual("failed", run_layout_inventory(root, work)["status"])
                 self.assertEqual(before, latest.read_bytes())
+
+    def test_editor_wrapper_prunes_older_stages_but_keeps_latest_and_current(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            work, pointer, inventory = self.wrapper_fixture(root)
+            runs = work / "reports/layout-runs"
+            def stages():
+                return {path.name for path in runs.iterdir()}
+            def editor(command, env, timeout):
+                Path(env["LUCID_LAYOUT_INVENTORY_PATH"]).write_text(json.dumps(inventory))
+                return type("Exit", (), {"returncode": 0})()
+            with patch("lucidlib.bootstrap.REPO_ROOT", root), patch("lucidlib.bootstrap.CACHE_ROOT", work), \
+                    patch("lucidlib.bindings.CACHE_ROOT", work), patch("lucidlib.verification.find_editor", return_value=root / "Unity"):
+                older = [runs / uuid.uuid4().hex for _ in range(3)]
+                for stage in older:
+                    stage.mkdir(parents=True)
+                    (stage / "editor.log").write_text("old log")
+                with patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                    first = run_layout_inventory(root, work)
+                first_stage = Path(first["inventory_path"]).parent
+                self.assertEqual({first_stage.name}, stages())
+                with patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                    second = run_layout_inventory(root, work)
+                second_stage = Path(second["inventory_path"]).parent
+                self.assertEqual({second_stage.name}, stages())
+                with patch("lucidlib.bindings.subprocess.run", return_value=type("Exit", (), {"returncode": 1})()):
+                    failed = run_layout_inventory(root, work)
+                failed_stage = Path(failed["log"]).parent
+                # The failed run keeps its own log; the successful result stays readable.
+                self.assertEqual({second_stage.name, failed_stage.name}, stages())
+                self.assertTrue((failed_stage / "report.json").is_file())
+                self.assertTrue(Path(json.loads((work / "reports/latest-layout-inventory.json").read_text())["inventory_path"]).is_file())
+                with patch("lucidlib.bindings.subprocess.run", return_value=type("Exit", (), {"returncode": 1})()):
+                    again = run_layout_inventory(root, work)
+                self.assertEqual({second_stage.name, Path(again["log"]).parent.name}, stages())
 
     def test_editor_wrapper_rejects_escaped_pointer_and_changed_source(self):
         with tempfile.TemporaryDirectory() as directory:

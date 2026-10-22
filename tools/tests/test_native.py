@@ -6,11 +6,13 @@ import json
 import os
 from pathlib import Path
 import shutil
+import re
 import tempfile
 import tarfile
 import threading
 import unittest
 from unittest import mock
+import uuid
 
 from tools.lucidlib import native, bootstrap as bootstrap_module
 from tools.lucidlib.bootstrap import CACHE_ROOT, ToolError, load_lock
@@ -306,6 +308,40 @@ class NativeHelpersTests(unittest.TestCase):
                 self.assertEqual('failed', result['status'])
                 run.assert_not_called()
                 self.assertFalse((self.work / 'native-recovery/latest-build.json').exists())
+
+    def test_successful_build_prunes_other_completed_builds_only(self):
+        builds = self.work / "native-recovery/builds"
+        builds.mkdir(parents=True)
+        old = builds / uuid.uuid4().hex
+        (old / "build").mkdir(parents=True)
+        (old / "build/old.dll").write_bytes(b"older completed build")
+        concurrent = builds / (".stage-" + uuid.uuid4().hex)
+        concurrent.mkdir()
+        unrelated = builds / "keep-me"
+        unrelated.mkdir()
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, "run_logged", side_effect=self.build_runner):
+            result = native.build_native_harness(self.work)
+        self.assertEqual("ready", result["status"])
+        latest = Path(result["output_dir"]).parents[3]
+        self.assertTrue(latest.is_dir())
+        self.assertFalse(old.exists())
+        self.assertTrue(concurrent.is_dir())
+        self.assertTrue(unrelated.is_dir())
+        self.assertEqual([latest.name], [path.name for path in builds.iterdir()
+                                         if re.fullmatch("[0-9a-f]{32}", path.name)])
+
+    def test_failed_build_keeps_every_completed_build(self):
+        builds = self.work / "native-recovery/builds"
+        old = builds / uuid.uuid4().hex
+        old.mkdir(parents=True)
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, "run_logged", return_value={"returncode": 1, "timed_out": False, "log": "failed.log"}):
+            result = native.build_native_harness(self.work)
+        self.assertEqual("failed", result["status"])
+        self.assertTrue(old.is_dir())
 
     def test_build_failure_does_not_promote_ready_receipt(self):
         patches = self.build_patches()
