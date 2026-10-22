@@ -1,5 +1,6 @@
 """Inert archive and byte fixtures; no supplied executable is ever launched."""
 
+import contextlib
 from contextlib import ExitStack
 import hashlib
 import io
@@ -11,6 +12,7 @@ import stat
 import tarfile
 import tempfile
 import threading
+import zipfile
 import unittest
 from unittest import mock
 
@@ -103,6 +105,114 @@ class ToolCacheTrustTests(unittest.TestCase):
                 bootstrap._INSTALL_SEALS.pop(destination, None)
                 shutil.rmtree(destination)
         self.spawn.assert_not_called()
+
+    @contextlib.contextmanager
+    def umask(self, value):
+        previous = os.umask(value)
+        try:
+            yield
+        finally:
+            os.umask(previous)
+
+    def mode_archive(self, name, kind):
+        """A tar or zip with an explicit 0750 directory, a read-only 0555 one holding a file, and an implicit parent."""
+        payload = io.BytesIO()
+        files = {"dotnet": b"inert host", "implicit/deep/file.dll": b"inert dependency", "ro/inner.dll": b"inert read-only child"}
+        if kind == "tar":
+            with tarfile.open(fileobj=payload, mode="w") as archive:
+                for directory, mode in (("explicit", 0o750), ("ro", 0o555)):
+                    info = tarfile.TarInfo(directory)
+                    info.type, info.mode = tarfile.DIRTYPE, mode
+                    archive.addfile(info)
+                for filename, data in files.items():
+                    info = tarfile.TarInfo(filename)
+                    info.size, info.mode = len(data), 0o644
+                    archive.addfile(info, io.BytesIO(data))
+        else:
+            with zipfile.ZipFile(payload, "w") as archive:
+                for directory, mode in (("explicit/", 0o750), ("ro/", 0o555)):
+                    info = zipfile.ZipInfo(directory)
+                    info.external_attr = (stat.S_IFDIR | mode) << 16
+                    archive.writestr(info, b"")
+                for filename, data in files.items():
+                    info = zipfile.ZipInfo(filename)
+                    info.external_attr = (stat.S_IFREG | 0o644) << 16
+                    archive.writestr(info, data)
+        data = payload.getvalue()
+        artifact = {"version": "fixture-pin", "filename": name + "." + kind, "url": "https://example.invalid/unused",
+                    "format": kind, "entrypoint": "dotnet", "sha256": hashlib.sha256(data).hexdigest()}
+        downloads = self.work / "downloads"
+        downloads.mkdir(exist_ok=True)
+        (downloads / artifact["filename"]).write_bytes(data)
+        self.lock["artifacts"][name] = artifact
+
+    def install_under(self, mask, name="dotnet"):
+        with self.umask(mask):
+            return bootstrap._install(name, self.lock, self.work)
+
+    def discard(self, destination):
+        bootstrap._INSTALL_SEALS.pop(destination, None)
+        (destination / "ro").chmod(0o755)
+        shutil.rmtree(destination)
+
+    @unittest.skipUnless(hasattr(os, "umask") and os.name == "posix", "POSIX umask semantics required")
+    def test_install_reuse_is_independent_of_the_umask_of_either_process(self):
+        for kind in ("tar", "zip"):
+            for first, second in ((0o022, 0o077), (0o077, 0o022)):
+                with self.subTest(kind=kind, first=oct(first), second=oct(second)):
+                    self.mode_archive("dotnet", kind)
+                    destination = self.install_under(first)
+                    seal = bootstrap.tree_seal(destination)
+                    self.assertEqual(0o750, seal["explicit"]["mode"])
+                    self.assertEqual(0o555, seal["ro"]["mode"])
+                    self.assertEqual(0o755, seal["implicit"]["mode"])
+                    self.assertEqual(0o755, seal["implicit/deep"]["mode"])
+                    self.assertEqual(0o755, seal["metadata"]["mode"])
+                    self.assertEqual(0o644, seal["lucid-install.json"]["mode"])
+                    bootstrap._INSTALL_SEALS.pop(destination)  # a later process starts without the seal
+                    self.assertEqual(destination, self.install_under(second))
+                    self.assertEqual(seal, bootstrap.tree_seal(destination))
+                    self.discard(destination)
+
+    @unittest.skipUnless(hasattr(os, "umask") and os.name == "posix", "POSIX umask semantics required")
+    def test_injected_license_and_dumper_configuration_modes_ignore_the_umask(self):
+        for name in ("assetripper", "dumper"):
+            files = {"dotnet": b"inert host"}
+            if name == "dumper":
+                files["config.json"] = b'{"RequireAnyKey": true}'
+            self.archive(name, files, "dotnet")
+            (self.work / "downloads" / "license.txt").write_bytes(b"inert licence")
+            self.lock["artifacts"][name + "-license"] = {
+                "version": "l", "filename": "license.txt", "url": "https://example.invalid/unused",
+                "sha256": hashlib.sha256(b"inert licence").hexdigest()}
+            with self.subTest(tool=name):
+                destination = self.install_under(0o077, name)
+                seal = bootstrap.tree_seal(destination)
+                self.assertEqual(0o644, seal["LICENSE.txt"]["mode"])
+                if name == "dumper":
+                    self.assertEqual(0o644, seal["config.json"]["mode"])
+                bootstrap._INSTALL_SEALS.pop(destination)
+                self.assertEqual(destination, self.install_under(0o022, name))
+
+    @unittest.skipUnless(hasattr(os, "umask") and os.name == "posix", "POSIX umask semantics required")
+    def test_umask_independent_install_still_rejects_every_mutation_under_both_masks(self):
+        mutations = {
+            "bytes": lambda root: (root / "implicit/deep/file.dll").write_bytes(b"substituted"),
+            "file mode": lambda root: (root / "dotnet").chmod(0o700),
+            "directory mode": lambda root: (root / "explicit").chmod(0o700),
+            "extra file": lambda root: (root / "extra.dll").write_bytes(b"extra"),
+            "symlink": lambda root: ((root / "implicit/deep/file.dll").unlink(), (root / "implicit/deep/file.dll").symlink_to(root / "dotnet")),
+        }
+        for mask in (0o022, 0o077):
+            for name, mutate in mutations.items():
+                with self.subTest(mask=oct(mask), mutation=name):
+                    self.mode_archive("dotnet", "tar")
+                    destination = self.install_under(mask)
+                    mutate(destination)
+                    bootstrap._INSTALL_SEALS.pop(destination)
+                    with self.assertRaises(bootstrap.ToolError):
+                        self.install_under(0o022 if mask == 0o077 else 0o077)
+                    self.discard(destination)
 
     def cpp2il_fixture(self):
         self.archive("dotnet", {"dotnet": b"verified SDK"}, "dotnet")

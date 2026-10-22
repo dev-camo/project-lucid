@@ -326,8 +326,41 @@ def _member_path(name: str, strip_components: int) -> Path | None:
     return Path(*parts) if parts else None
 
 
+IMPLICIT_DIRECTORY_MODE = 0o755
+INJECTED_FILE_MODE = 0o644
+
+
+def _make_directory(target: Path, destination: Path, modes: dict, mode: int | None) -> None:
+    """Create target and its missing parents; record the mode each is pinned to afterwards.
+
+    Directory modes are applied after extraction (see unpack_archive), so a read-only
+    pinned directory cannot block writing its children, and none depends on the umask.
+    """
+    for directory in (target, *target.parents):
+        if directory == destination:
+            break
+        modes.setdefault(directory, IMPLICIT_DIRECTORY_MODE)
+    target.mkdir(parents=True, exist_ok=True)
+    if mode is not None:
+        modes[target] = mode
+
+
+def _remove_unpacked_tree(directory: Path) -> None:
+    """Remove a staged tree whose pinned directory modes may forbid deleting their children."""
+    for current, names, _files in os.walk(directory):
+        for name in names:
+            child = Path(current, name)
+            if not child.is_symlink():
+                child.chmod(0o700)
+    shutil.rmtree(directory)
+
+
 def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
-    """Unpack regular files only into a fresh directory; reject links and traversal."""
+    """Unpack regular files only into a fresh directory; reject links and traversal.
+
+    Every file and directory mode is set explicitly, never inherited from the umask,
+    because tree_seal compares modes between installs made by different processes.
+    """
     destination = validate_work_dir(destination)
     if destination.exists():
         raise ToolError("Archive destination must be a fresh directory")
@@ -335,6 +368,7 @@ def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
     strip = artifact.get("strip_components", 0)
     limit = artifact.get("max_unpacked_bytes", 1000000000)
     total = 0
+    modes: dict[Path, int] = {}
     try:
         if artifact["format"] == "tar":
             with tarfile.open(archive, "r:*") as source:
@@ -346,12 +380,12 @@ def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
                         continue
                     target = destination / relative
                     if member.isdir():
-                        target.mkdir(parents=True, exist_ok=True)
+                        _make_directory(target, destination, modes, member.mode & 0o777)
                     else:
                         total += member.size
                         if total > limit:
                             raise ToolError("Archive exceeds the pinned unpacked size limit")
-                        target.parent.mkdir(parents=True, exist_ok=True)
+                        _make_directory(target.parent, destination, modes, None)
                         with source.extractfile(member) as input_stream, target.open("xb") as output:
                             shutil.copyfileobj(input_stream, output)
                         target.chmod(member.mode & 0o777)
@@ -366,19 +400,23 @@ def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
                         continue
                     target = destination / relative
                     if member.is_dir():
-                        target.mkdir(parents=True, exist_ok=True)
+                        _make_directory(target, destination, modes, (mode & 0o777) or IMPLICIT_DIRECTORY_MODE)
                     else:
                         total += member.file_size
                         if total > limit:
                             raise ToolError("Archive exceeds the pinned unpacked size limit")
-                        target.parent.mkdir(parents=True, exist_ok=True)
+                        _make_directory(target.parent, destination, modes, None)
                         with source.open(member) as input_stream, target.open("xb") as output:
                             shutil.copyfileobj(input_stream, output)
                         target.chmod((mode & 0o777) or 0o644)
         else:
             raise ToolError("Unsupported archive format")
+        # Deepest first, as tarfile.extractall does, so a restrictive parent mode
+        # never blocks changing its children.
+        for directory in sorted(modes, key=lambda path: len(path.parts), reverse=True):
+            directory.chmod(modes[directory])
     except Exception:
-        shutil.rmtree(destination)
+        _remove_unpacked_tree(destination)
         raise
 
 
@@ -572,16 +610,24 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
         if name in ("assetripper", "dumper"):
             license_file = download_artifact(lock["artifacts"][f"{name}-license"], work_dir)
             shutil.copyfile(license_file, stage / "LICENSE.txt")
+            (stage / "LICENSE.txt").chmod(INJECTED_FILE_MODE)
         if name == "dumper":
             configuration = json.loads((stage / "config.json").read_text(encoding="utf-8"))
             configuration["RequireAnyKey"] = False
+            pinned_mode = stat.S_IMODE((stage / "config.json").stat().st_mode)
             write_json(stage / "config.json", configuration)
+            (stage / "config.json").chmod(pinned_mode)  # write_json's replace is umask-dependent
         if name == "dotnet":
             # MSBuild initializes this empty SDK directory on first publish.
             # Reserve it before sealing; subsequent files/links/children still
             # change the exact verified closure and are rejected.
-            (stage / "metadata").mkdir(mode=0o755, exist_ok=True)
+            reserved = stage / "metadata"
+            existed = reserved.is_dir()
+            reserved.mkdir(exist_ok=True)
+            if not existed:
+                reserved.chmod(IMPLICIT_DIRECTORY_MODE)  # mkdir's mode argument is masked by the umask
         write_json(stage / "lucid-install.json", identity)
+        (stage / "lucid-install.json").chmod(INJECTED_FILE_MODE)
         expected = tree_seal(stage)
         if destination.exists():
             if tree_seal(destination) != expected:
@@ -591,7 +637,7 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
         _INSTALL_SEALS[destination] = (identity, expected)
     finally:
         if stage.exists():
-            shutil.rmtree(stage)
+            _remove_unpacked_tree(stage)
     return destination
 
 
