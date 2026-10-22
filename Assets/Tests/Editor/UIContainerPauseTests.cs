@@ -257,7 +257,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void ALevelInAZoneShowsTheZoneAccentTheActNumberAndNoBackground()
         {
-            RunUtilitiesTypeInitialiser();
+            CharacterSelectScene.InitialiseUtilities();
             RunMissions(rig =>
             {
                 StartMission(rig);
@@ -290,22 +290,12 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The utilities type keeps typed references in static fields built by its type initialiser; running it here,
-        // against rows released at once, keeps that from happening while the case has systems registered.
-        private static void RunUtilitiesTypeInitialiser() => Owned.Run(owned =>
-        {
-            owned.LeaseRow<App>();
-            owned.LeaseRow<LevelManager>();
-            owned.LeaseRow<MissionManager>();
-            RuntimeHelpers.RunClassConstructor(typeof(UIContainerUtilities).TypeHandle);
-        });
-
         // A zone that lists other levels but not the current one: the loop runs out (0x6707FF, xor r12d, r12d) and zero is
         // published, overwriting the earlier value.
         [Test]
         public void AZoneThatDoesNotListTheLevelPublishesActNumberZero()
         {
-            RunUtilitiesTypeInitialiser();
+            CharacterSelectScene.InitialiseUtilities();
             RunMissions(rig =>
             {
                 StartMission(rig);
@@ -335,7 +325,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void ALevelListedTwiceInAZoneTakesTheFirstPosition()
         {
-            RunUtilitiesTypeInitialiser();
+            CharacterSelectScene.InitialiseUtilities();
             RunMissions(rig =>
             {
                 StartMission(rig);
