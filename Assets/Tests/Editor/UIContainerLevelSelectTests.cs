@@ -18,6 +18,11 @@ namespace ProjectLucid.Tests
     // Action_Continue, which only calls Continue.
     public sealed class UIContainerLevelSelectTests
     {
+        // The utilities type builds its typed references when it is first used; that happens here, against rows released at once,
+        // and not inside a case that would leave them behind.
+        [SetUp]
+        public void InitialiseUtilities() => CharacterSelectScene.InitialiseUtilities();
+
         private static UIContainerLevelSelect NewContainer(Owned owned) => owned.Host("Lucid level select", false).AddComponent<UIContainerLevelSelect>();
 
         // dump.cs TypeDefIndex 2247 and the DummyDll rows (fields 0x04002317..0x04002326).
