@@ -9689,6 +9689,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSelectTests." + 
     "ChoosingTheCurrentCharacterOnlyPublishesTheContinueEventOnce",
     "SelectingADefinitionChoosesItsCharacter",
     "DestroyingTheScreenGivesGameplayControlBack",
+    "StartTakesGameplayControlShowsTheCharactersAndSelectsTheCurrentCharactersWidget",
+    "StartSelectsNoWidgetWhileNavigationIsInactive",
+    "StartSelectsNoWidgetWithoutACurrentCharacter",
 ))
 
 # Restored HardlightProject.UIContainerCharacterSelectMain.
@@ -9730,6 +9733,9 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCharacterSkinSelectionTes
     "ADifferentObjectWithTheShownSkinsGuidIsTheShownSkin",
     "UnloadAndDestroyReleaseTheShownThumbnail",
     "SetupTakesTheCharacterThenFaultsWithoutANavigationManagerBeforeMakingAToggle",
+    "SetupMakesOneSkinToggleForEachListedSkin",
+    "SetupSwitchesOnTheCurrentSkinsToggleSelectsItInTheNavigationAndShowsTheSkin",
+    "SetupDoesNotSelectTheCurrentSkinsWidgetWhileNavigationIsInactive",
     "TheParametersKeepTheirCharacterDefinition",
 ))
 

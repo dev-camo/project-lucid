@@ -9,9 +9,10 @@ using static ProjectLucid.Tests.WorldTriggerTestSupport;
 namespace ProjectLucid.Tests
 {
     // UIContainerCharacterSelect (Game.Runtime 0200088d, x86-64 0x620D10..0x621320) as a real component on an owned inactive host
-    // over the character select scene. Start is not run: it needs a live UINavigationManager, whose constructor reads the
-    // navigation configuration, so the references it takes from the registry are assigned directly. The swap to a character
-    // other than the current one (CharacterManager.SwapCharacter) is not covered. Start's navigation selection is not covered.
+    // over the character select scene. The cases other than Start assign the registry references Start would take directly. Start
+    // runs in its own cases over a real UINavigationManager (NavigationManagerTestSupport, active or inactive), whose probe
+    // bridge records the widget it selects. The swap to a character other than the current one (CharacterManager.SwapCharacter)
+    // is not covered.
     public sealed class UIContainerCharacterSelectTests
     {
         private static UIContainerCharacterSelect NewContainer(Scene scene, out UIModernEvent continueEvent)
@@ -29,6 +30,100 @@ namespace ProjectLucid.Tests
             GameObject entry = scene.Owned.Host("Lucid character " + id, active);
             Get<SerializableDictionary<CharacterId, GameObject>>(container, "m_characterIdToGameObject")[id] = entry;
             return entry;
+        }
+
+        private static UIContainerCharacterSelect NewBareContainer(Scene scene) =>
+            scene.Owned.Host("Lucid character select", false).AddComponent<UIContainerCharacterSelect>();
+
+        // A character entry with the navigation component the container's navigable widgets list holds.
+        private static UIWidgetNavigation EntryWidget(Scene scene, UIContainerCharacterSelect container, CharacterId id, out GameObject entry)
+        {
+            entry = Entry(scene, container, id, true);
+            return entry.AddComponent<UIWidgetNavigation>();
+        }
+
+        private static void ListWidgets(Scene scene, UIContainerCharacterSelect container, params UIWidgetNavigation[] widgets)
+        {
+            var navigation = scene.Owned.Host("Lucid character navigation", false).AddComponent<UIContainerNavigation>();
+            Set(navigation, "m_navigableWidgets", widgets); // Reflection: serialized list the editor assigns
+            Set(container, "m_uiContainerNavigation", navigation); // Reflection: serialized reference the editor assigns
+        }
+
+        // Start 0x620D10 takes the App (GetSystem 0x620DAD), the CharacterManager (0x620DD3) and the navigation manager (0x620DFC) from the
+        // registry, takes gameplay control away (SetHasGameplayControl(false) 0x620E0E), updates the characters (0x620E16) and, with
+        // navigation active (IsActive tested at 0x620E1F) and a current character (TryGetCurrentCharacter 0x620E33), selects the
+        // navigable widget on that character's entry (get_Item 0x620E58, the object compare at 0x620EBE, Select 0x620ED0).
+        [Test]
+        public void StartTakesGameplayControlShowsTheCharactersAndSelectsTheCurrentCharactersWidget()
+        {
+            Run(scene =>
+            {
+                NavigationManagerTestSupport.Navigation navigation = NavigationManagerTestSupport.Add(scene.Owned);
+                UIContainerCharacterSelect container = NewBareContainer(scene);
+                AddCharacter(scene, CharacterId.Sonic);
+                AddCharacter(scene, CharacterId.Tails);
+                MakeCurrent(scene, CharacterId.Sonic);
+                UIWidgetNavigation tailsWidget = EntryWidget(scene, container, CharacterId.Tails, out _);
+                UIWidgetNavigation sonicWidget = EntryWidget(scene, container, CharacterId.Sonic, out GameObject sonic);
+                GameObject amy = Entry(scene, container, CharacterId.Amy, true);
+                ListWidgets(scene, container, tailsWidget, sonicWidget);
+                scene.App.SetHasGameplayControl(true, true);
+
+                Call(container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+
+                Assert.That(scene.App.HasGameplayControl(), Is.False);
+                Assert.That(Get<App>(container, "m_app"), Is.SameAs(scene.App));
+                Assert.That(Get<CharacterManager>(container, "m_characterManager"), Is.SameAs(scene.Characters));
+                Assert.That(amy.activeSelf, Is.False, "the characters were updated");
+                Assert.That(navigation.Bridge.Selected, Is.EqualTo(new[] { sonic }));
+                Assert.That(sonicWidget.IsSelected, Is.True);
+                Assert.That(tailsWidget.IsSelected, Is.False);
+            });
+        }
+
+        // The navigation selection needs active navigation (0x620E1F); without it gameplay control is still taken and the
+        // characters still updated, and no widget is selected.
+        [Test]
+        public void StartSelectsNoWidgetWhileNavigationIsInactive()
+        {
+            Run(scene =>
+            {
+                NavigationManagerTestSupport.Navigation navigation = NavigationManagerTestSupport.Add(scene.Owned, false);
+                UIContainerCharacterSelect container = NewBareContainer(scene);
+                AddCharacter(scene, CharacterId.Sonic);
+                MakeCurrent(scene, CharacterId.Sonic);
+                UIWidgetNavigation sonicWidget = EntryWidget(scene, container, CharacterId.Sonic, out _);
+                GameObject amy = Entry(scene, container, CharacterId.Amy, true);
+                ListWidgets(scene, container, sonicWidget);
+                scene.App.SetHasGameplayControl(true, true);
+
+                Call(container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+
+                Assert.That(scene.App.HasGameplayControl(), Is.False);
+                Assert.That(amy.activeSelf, Is.False);
+                Assert.That(navigation.Bridge.Selected, Is.Empty);
+                Assert.That(sonicWidget.IsSelected, Is.False);
+            });
+        }
+
+        // With no current character (TryGetCurrentCharacter false at 0x620E3A) nothing is looked up or selected.
+        [Test]
+        public void StartSelectsNoWidgetWithoutACurrentCharacter()
+        {
+            Run(scene =>
+            {
+                NavigationManagerTestSupport.Navigation navigation = NavigationManagerTestSupport.Add(scene.Owned);
+                UIContainerCharacterSelect container = NewBareContainer(scene);
+                AddCharacter(scene, CharacterId.Sonic);
+                UIWidgetNavigation sonicWidget = EntryWidget(scene, container, CharacterId.Sonic, out _);
+                ListWidgets(scene, container, sonicWidget);
+                Assert.That(scene.Characters.TryGetCurrentCharacter(out _), Is.False);
+
+                Call(container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+
+                Assert.That(navigation.Bridge.Selected, Is.Empty);
+                Assert.That(sonicWidget.IsSelected, Is.False);
+            });
         }
 
         // UpdateCharacters 0x620EF0 fills the id list from the active mission (0x620FC4: with no mission, every listed
