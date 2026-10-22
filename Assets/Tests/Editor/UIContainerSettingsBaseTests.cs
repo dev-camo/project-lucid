@@ -32,7 +32,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The flag the shipped callers leave at its default (0x67999e tests it before RequestSaveSettings).
+        // Saving is skipped when the flag is false (SetSaveData 0x679940 tests it at 0x679999 before RequestSaveSettings at 0x6799A3);
+        // Action_SetGameSpeed passes false (0x679BE0 inlines the callback and the refresh at 0x679CC5 without a save), and the other
+        // callers leave the flag at its default, true.
         [Test]
         public void NotSavingStillRefreshesTheBinders()
         {
@@ -122,8 +124,8 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The fully shared body 0x9DBBC0 serves every other argument type, with the constrained Equals and ToString
-        // calls of the same shape (an int and a float here).
+        // The fully shared body 0x9DBBC0 serves every other argument type: it boxes both values and calls the static
+        // System.Object.Equals (0x9DBD1B), as the bool body does (0x9DBA08), then reports their ToString texts (an int and a float here).
         [Test]
         public void OtherValueTypesAreComparedAndReportedTheSameWay()
         {
