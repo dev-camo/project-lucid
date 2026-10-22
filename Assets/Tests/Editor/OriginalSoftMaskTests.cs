@@ -270,5 +270,69 @@ namespace ProjectLucid.Tests
             Assert.That(tmp.Replace(OwnedMaterial()) == null, Is.True, "Sprites/Default is not a TextMeshPro shader");
             Assert.That(MaterialReplacer.globalReplacers, Is.SameAs(MaterialReplacer.globalReplacers), "collected once and cached");
         }
+
+        // The four compiled shaders the shipped game carries in Assets/Resources of the 2026-10-05 reference export
+        // (softmask.asset, softmasketc1.asset, softmaskpremultipliedalpha.asset, softmasketc1premultipliedalpha.asset):
+        // m_Name and m_ParsedForm.m_PropInfo (name, type, default), read from those serialized Shader objects.
+        // Property type codes there: 0 Color, 2 Float, 4 Texture.
+        private static readonly string[] CommonTail =
+        {
+            "_Color:Color", "_SoftMask:Texture", "_StencilComp:Float", "_Stencil:Float", "_StencilOp:Float",
+            "_StencilWriteMask:Float", "_StencilReadMask:Float", "_ColorMask:Float", "_UseUIAlphaClip:Float",
+        };
+
+        private static string[] ShippedProperties(bool etc1)
+        {
+            var list = new List<string> { "_MainTex:Texture" };
+            if (etc1) list.Add("_AlphaTex:Texture");
+            list.AddRange(CommonTail);
+            return list.ToArray();
+        }
+
+        private static IEnumerable<TestCaseData> ShippedShaders()
+        {
+            yield return new TestCaseData("SoftMask", "Hidden/UI Default (Soft Masked)", false);
+            yield return new TestCaseData("SoftMaskETC1", "Hidden/UI Default ETC1 (Soft Masked)", true);
+            yield return new TestCaseData("SoftMaskPremultipliedAlpha", "Hidden/UI Default with Premultiplied Alpha (Soft Masked)", false);
+            yield return new TestCaseData("SoftMaskETC1PremultipliedAlpha", "Hidden/UI Default ETC1 with Premultiplied Alpha (Soft Masked)", true);
+        }
+
+        // SoftMask.cs loads these by Resources name (MaterialReplacerImpl.DefaultUIShaderReplacement and
+        // DefaultUIETC1ShaderReplacement); the shipped game has exactly these four.
+        [TestCaseSource(nameof(ShippedShaders))]
+        public void TheResourcesShadersMatchTheShippedCompiledShaders(string resourceName, string shaderName, bool etc1)
+        {
+            Shader shader = Resources.Load<Shader>(resourceName);
+            Assert.That(shader, Is.Not.Null, resourceName);
+            Assert.That(shader.name, Is.EqualTo(shaderName));
+            var actual = new List<string>();
+            for (int i = 0; i < shader.GetPropertyCount(); i++)
+                actual.Add(shader.GetPropertyName(i) + ":" + shader.GetPropertyType(i));
+            Assert.That(actual, Is.EqualTo(ShippedProperties(etc1)));
+            Assert.That(shader.GetPropertyFlags(shader.FindPropertyIndex("_SoftMask")) & UnityEngine.Rendering.ShaderPropertyFlags.PerRendererData,
+                Is.EqualTo(UnityEngine.Rendering.ShaderPropertyFlags.PerRendererData), "m_Flags 2 in the shipped asset");
+        }
+
+        // MaterialReplacerImpl.Replace: a material on the default canvas shader is replaced by a new material on
+        // the Resources shader (premultiplied-alpha names on Unity 2020.1+), and a material whose shader already
+        // has _SoftMask is only copied.
+        [Test]
+        public void TheDefaultUiMaterialIsReplacedByTheResourcesShader()
+        {
+            var replacer = (IMaterialReplacer)Activator.CreateInstance(Nested("MaterialReplacerImpl"));
+            Material original = new Material(Canvas.GetDefaultCanvasMaterial());
+            owned.Add(original);
+            Material replaced = replacer.Replace(original);
+            Assert.That(replaced != null, Is.True);
+            owned.Add(replaced);
+            Assert.That(replaced.shader, Is.SameAs(Resources.Load<Shader>("SoftMaskPremultipliedAlpha")));
+            Assert.That(replaced.shader.name, Is.EqualTo("Hidden/UI Default with Premultiplied Alpha (Soft Masked)"));
+            Assert.That(replaced.HasProperty("_SoftMask"), Is.True);
+
+            Material masked = replacer.Replace(replaced);
+            owned.Add(masked);
+            Assert.That(masked, Is.Not.SameAs(replaced));
+            Assert.That(masked.shader, Is.SameAs(replaced.shader));
+        }
     }
 }

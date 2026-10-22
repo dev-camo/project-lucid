@@ -6007,6 +6007,13 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSoftMaskTests." + name for n
     "ReplacerChainRunsInAscendingOrderAndSkipsNullAndDestroyedResults",
     "MaterialReplacementsShareOneReplacementPerOriginalUntilTheLastRelease",
     "TheTextMeshProReplacerIsGlobalOrderTenAndIgnoresOtherShaders",
+    "TheDefaultUiMaterialIsReplacedByTheResourcesShader",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSoftMaskTests.TheResourcesShadersMatchTheShippedCompiledShaders(" + a + ")" for a in (
+    '"SoftMask","Hidden/UI Default (Soft Masked)",False',
+    '"SoftMaskETC1","Hidden/UI Default ETC1 (Soft Masked)",True',
+    '"SoftMaskPremultipliedAlpha","Hidden/UI Default with Premultiplied Alpha (Soft Masked)",False',
+    '"SoftMaskETC1PremultipliedAlpha","Hidden/UI Default ETC1 with Premultiplied Alpha (Soft Masked)",True',
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMathTests." + name for name in (
     "TranscendentalWrappersReturnTheRuntimeMathValues",
