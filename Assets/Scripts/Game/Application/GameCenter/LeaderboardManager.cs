@@ -4,9 +4,7 @@ using Hardlight;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.SocialPlatforms;
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
 using UnityEngine.SocialPlatforms.GameCenter;
-#endif
 
 namespace HardlightProject
 {
@@ -26,27 +24,29 @@ namespace HardlightProject
 
         // 0x0600061a: publish first, initialize next, subscribe last. The
         // original action is Shutdown (two), distinct from AppShutdown (four).
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public LeaderboardManager()
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-045: the original registered itself and started the GameCenter leaderboard; we register through the local leaderboard registration
+            {
+                ProjectLucid.Offline.LocalLeaderboardRegistration.Initialise(this,
+                    InitGameCenterLeaderboard, Shutdown);
+                return;
+            }
             ProcessManager.RegisterSystem(this, null, false, false);
             InitGameCenterLeaderboard();
             ProcessManager.SubscribeToAction(this, SystemAction.Shutdown,
                 new Action<object>(Shutdown));
         }
-#else
-        public LeaderboardManager()
-        {
-            ProjectLucid.Offline.LocalLeaderboardRegistration.Initialise(this,
-                InitGameCenterLeaderboard, Shutdown);
-        }
-#endif
 
         // 0x0600061b: TryGet and startup subscription are separate original
         // operations. InvokeOnValid would change that ordering and race window.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void InitGameCenterLeaderboard()
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-046: the original created the GameCenter leaderboard once the local player was ready; we require the local personal records to be ready
+            {
+                ProjectLucid.Offline.LocalPersonalRecords.RequireReady();
+                return;
+            }
             SystemRef<GameCenterLocalPlayer> localPlayerRef =
                 ProcessManager.GetSystemRef<GameCenterLocalPlayer>(null, true);
             if (localPlayerRef.TryGet(out GameCenterLocalPlayer gameCenterLocalPlayer))
@@ -57,34 +57,35 @@ namespace HardlightProject
                 localPlayerRef.OnSystemStartup +=
                     new Action<GameCenterLocalPlayer>(InitGameCenterLeaderboard);
         }
-#else
-        private void InitGameCenterLeaderboard()
-        {
-            ProjectLucid.Offline.LocalPersonalRecords.RequireReady();
-        }
-#endif
 
         // 0x0600061c: original delayed-start callback selects the real default
         // factory route. It does not silently force the shipping stub.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void InitGameCenterLeaderboard(GameCenterLocalPlayer gameCenterLocalPlayer)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-047: the original created the GameCenter leaderboard for the started local player; we require the local personal records to be ready
+            {
+                ProjectLucid.Offline.LocalPersonalRecords.RequireReady();
+                return;
+            }
             ProcessManager.RegisterSystem(
                 new GameCenterLeaderboard(gameCenterLocalPlayer, null, false),
                 null, false, false);
         }
-#else
-        private void InitGameCenterLeaderboard(GameCenterLocalPlayer gameCenterLocalPlayer)
-        {
-            ProjectLucid.Offline.LocalPersonalRecords.RequireReady();
-        }
-#endif
 
         // 0x0600061d: only remove the pending callback while the local player
         // is invalid. The Core leaderboard itself is not unregistered here.
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void Shutdown(object objectContext)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-048: the original removed the pending startup callback and unregistered; we unsubscribe and unregister only this object's default-name registration
+            {
+                // Offline policy owns only this object's default-name registration.
+                // A separately named registration of the same object stays valid.
+                ProcessManager.UnsubscribeFromAllActions(this);
+                string name = ProcessManager.GetDefaultName<LeaderboardManager>();
+                if (ReferenceEquals(ProcessManager.GetSystemRef(name, false).GetSafe(), this))
+                    ProcessManager.UnregisterSystem(name);
+                return;
+            }
             SystemRef<GameCenterLocalPlayer> localPlayerRef =
                 ProcessManager.GetSystemRef<GameCenterLocalPlayer>(null, true);
             if (!localPlayerRef.IsValid())
@@ -92,24 +93,17 @@ namespace HardlightProject
                     new Action<GameCenterLocalPlayer>(InitGameCenterLeaderboard);
             ProcessManager.UnregisterSystem(this);
         }
-#else
-        private void Shutdown(object objectContext)
-        {
-            // Offline policy owns only this object's default-name registration.
-            // A separately named registration of the same object stays valid.
-            ProcessManager.UnsubscribeFromAllActions(this);
-            string name = ProcessManager.GetDefaultName<LeaderboardManager>();
-            if (ReferenceEquals(ProcessManager.GetSystemRef(name, false).GetSafe(), this))
-                ProcessManager.UnregisterSystem(name);
-        }
-#endif
 
         // 0x0600061e; genuine closure 0x020000b8/0x06000625..0x06000626.
         // Preserve the captured account and identifier, failure-only getters,
         // six-part concatenation, and the original error text and query order.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void ReportScore(long score, LeaderboardIdentifier leaderboardIdentifier)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-049: the original reported the score to Social; we record it as a local personal record
+            {
+                ProjectLucid.Offline.LocalPersonalRecords.Report(score, leaderboardIdentifier);
+                return;
+            }
             if (TryGetLoggedInGameCenter(out GameCenter gameCenter))
                 Social.ReportScore(score, leaderboardIdentifier.GetString(),
                     new Action<bool>(success =>
@@ -126,57 +120,44 @@ namespace HardlightProject
                             }), null);
                     }));
         }
-#else
-        public void ReportScore(long score, LeaderboardIdentifier leaderboardIdentifier)
-        {
-            ProjectLucid.Offline.LocalPersonalRecords.Report(score, leaderboardIdentifier);
-        }
-#endif
 
         // 0x0600061f: the original platform UI has no login preflight here.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void ShowLeaderboardUI(LeaderboardIdentifier leaderboardIdentifier, TimeScope timeScope)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-050: the original opened the GameCenter leaderboard UI; we raise the local records presentation
+            {
+                ProjectLucid.Offline.LocalProfilePresentation.ShowRecords(leaderboardIdentifier);
+                return;
+            }
             GameCenterPlatform.ShowLeaderboardUI(leaderboardIdentifier.GetString(), timeScope);
         }
-#else
-        public void ShowLeaderboardUI(LeaderboardIdentifier leaderboardIdentifier, TimeScope timeScope)
-        {
-            ProjectLucid.Offline.LocalProfilePresentation.ShowRecords(leaderboardIdentifier);
-        }
-#endif
 
         // 0x06000620: availability of the real Core service gates this call;
         // authenticated-account state is not independently checked.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void IssueChallenge(string leaderboardIdentifier, string message)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-051: the original asked the GameCenter leaderboard to issue a challenge; we report it as unavailable
+            {
+                IssueChallengeCompletedCallback(false, "Platform leaderboard challenges are unavailable offline.");
+                return;
+            }
             GameCenterLeaderboard leaderboard = m_gameCenterLeaderboardRef.GetSafe();
             if (leaderboard != null)
                 leaderboard.IssueChallenge(leaderboardIdentifier, message,
                     new UnityHLLeaderboardChallengeIssuedCallback(IssueChallengeCompletedCallback));
         }
-#else
-        public void IssueChallenge(string leaderboardIdentifier, string message)
-        {
-            IssueChallengeCompletedCallback(false, "Platform leaderboard challenges are unavailable offline.");
-        }
-#endif
 
         // 0x06000621: assign the out value before the distinct validity check.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private bool TryGetLoggedInGameCenter(out GameCenter gameCenter)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-052: the original required a logged-in GameCenter account; the local profile never is
+            {
+                gameCenter = m_gameCenterRef.GetSafe();
+                return false;
+            }
             gameCenter = m_gameCenterRef.GetSafe();
             return m_gameCenterRef.IsValid() && gameCenter.IsLoggedIn();
         }
-#else
-        private bool TryGetLoggedInGameCenter(out GameCenter gameCenter)
-        {
-            gameCenter = m_gameCenterRef.GetSafe();
-            return false;
-        }
-#endif
 
         // 0x06000622.
         public bool IsLoggedIn() => TryGetLoggedInGameCenter(out GameCenter gameCenter);

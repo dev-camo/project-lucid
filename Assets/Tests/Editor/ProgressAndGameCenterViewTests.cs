@@ -147,9 +147,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void WithAGameCenterTheViewPublishesItsLoginState()
         {
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
-            throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
-#endif
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
             Owned.Run(owned =>
             {
                 // GameCenter subscribes Initialise, AppShutdown and Update and constructs the GameCenterLocalPlayer, which

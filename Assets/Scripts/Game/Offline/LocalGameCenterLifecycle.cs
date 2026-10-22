@@ -39,6 +39,13 @@ namespace ProjectLucid.Offline
                 throw;
             }
         }
+        // The offline replacement for ApplicationStateLoadAssets' Social authentication: report a
+        // failed login through the same GameCenter.OnLoginComplete route. The lambda lives here, not
+        // in the hooked original, so the original lambdas keep their generated names.
+        internal static void ReportLogin(bool loginSuccess)
+        {
+            ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess));
+        }
         internal void Stop()
         {
             stopped = true;

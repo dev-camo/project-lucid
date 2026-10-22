@@ -66,84 +66,67 @@ namespace HardlightProject
 
         // 0x060005fc: only the achievements reference is nullable. A shutdown
         // exception stops unregistration; readiness and fields are not reset.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void OnShutdown(object context = null)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-018: the original shut down the achievements and unregistered; we also stop the local lifecycle and release the local providers
+            {
+                OfflineShutdown();
+                return;
+            }
             if (m_achievements != null) m_achievements.Shutdown();
             ProcessManager.UnregisterSystem(this);
         }
-#else
-        private void OnShutdown(object context = null)
-        {
-            m_offlineLifecycle.Stop();
-            var errors = new System.Collections.Generic.List<Exception>();
-            CleanupOfflineProviders(errors);
-            try { ProjectLucid.Offline.LocalPersonalRecords.Shutdown(); }
-            catch (Exception error) { errors.Add(error); }
-            SystemIsReady = false;
-            try
-            {
-                string name = ProcessManager.GetDefaultName<GameCenter>();
-                SystemRef reference = ProcessManager.GetSystemRef(name, false);
-                if (reference != null && ReferenceEquals(reference.GetSafe(), this))
-                    ProcessManager.UnregisterSystem(name);
-            }
-            catch (Exception error) { errors.Add(error); }
-            if (errors.Count != 0) throw new AggregateException("Owned local GameCenter shutdown failed.", errors);
-        }
-#endif
 
         // 0x060005fd: release native body directly enters NativeInitialise.
         private void OnInitialise(object context = null) => NativeInitialise();
 
         // 0x060005fe: retain native initialization before authentication.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void NativeInitialise()
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-019: the original initialised the native login and requested authentication; we report a failed login at once
+            {
+                OnLoginComplete(false);
+                return;
+            }
             HLLoginInitialise(ApplicationGameObjectName);
             NativeLoginRequest();
         }
-#else
-        private void NativeInitialise()
-        {
-            OnLoginComplete(false);
-        }
-#endif
 
         // 0x060005ff/0x06000600: debug switches do not replace the original
         // release's Social authentication or native underage queries.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        public bool IsLoggedIn() => Social.localUser.authenticated;
-#else
         public bool IsLoggedIn()
         {
-            return false;
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-020: the original read Social.localUser.authenticated; the local profile is never logged in
+                return false;
+            return Social.localUser.authenticated;
         }
-#endif
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        public bool IsUnderage() => HLIsUnderage();
-#else
         public bool IsUnderage()
         {
-            return false;
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-021: the original asked the native layer; the local profile is never underage
+                return false;
+            return HLIsUnderage();
         }
-#endif
 
         // 0x06000601: allocate the real callback after fetching localUser.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        private void NativeLoginRequest() => Social.localUser.Authenticate(new Action<bool>(OnLoginComplete));
-#else
         private void NativeLoginRequest()
         {
-            OnLoginComplete(false);
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-022: the original authenticated through Social; we report a failed login at once
+            {
+                OnLoginComplete(false);
+                return;
+            }
+            Social.localUser.Authenticate(new Action<bool>(OnLoginComplete));
         }
-#endif
 
         // 0x06000602: success is genuinely ignored. Preserve the query and
         // publication order, including initialization on authentication failure.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void OnLoginComplete(bool success)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-023: the original loaded the platform account and started the leaderboard and achievements; we start the local lifecycle
+            {
+                OfflineOnLoginComplete(success);
+                return;
+            }
             m_lastKnownAccountId = GetAccountId();
             m_lastKnownLoggedOut = !IsLoggedIn();
             m_lastKnownAccountNickname = GetAccountNickname();
@@ -153,75 +136,38 @@ namespace HardlightProject
             m_achievements.Initialise(app);
             SystemIsReady = true;
         }
-#else
-        public void OnLoginComplete(bool success)
-        {
-            if (SystemIsReady) return;
-            m_offlineLifecycle.Begin(() =>
-            {
-                m_lastKnownAccountId = ProjectLucid.Offline.LocalProfileIdentity.Identifier;
-                m_lastKnownLoggedOut = true;
-                m_lastKnownAccountNickname = ProjectLucid.Offline.LocalProfileIdentity.DisplayName;
-                App app = ProcessManager.GetSystem<App>(null, true);
-                m_offlineProviderLease = new ProjectLucid.Offline.LocalGameCenterProviderLease();
-                try
-                {
-                    m_offlineProviderLease.Start();
-                    m_achievements = new Achievements();
-                    m_achievements.Initialise(app);
-                    // Local account, record transport and achievement catalog are initialized.
-                    // Deferred original gameplay/save tracker binding is a separate lifecycle.
-                    SystemIsReady = true;
-                }
-                catch (Exception original)
-                {
-                    var errors = new System.Collections.Generic.List<Exception>();
-                    CleanupOfflineProviders(errors);
-                    SystemIsReady = false;
-                    if (errors.Count != 0)
-                    {
-                        errors.Insert(0, original);
-                        throw new AggregateException("Local GameCenter initialization and owned cleanup failed.", errors);
-                    }
-                    throw;
-                }
-            });
-        }
-#endif
 
         // 0x06000603..0x06000606: original native strings/UI paths.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        public string GetAccountId() => HLGetAccountId();
-#else
         public string GetAccountId()
         {
-            return ProjectLucid.Offline.LocalProfileIdentity.Identifier;
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-024: the original asked the native layer for the account id; we return the local profile id
+                return ProjectLucid.Offline.LocalProfileIdentity.Identifier;
+            return HLGetAccountId();
         }
-#endif
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        public string GetAccountNickname() => HLGetAccountNickname();
-#else
         public string GetAccountNickname()
         {
-            return ProjectLucid.Offline.LocalProfileIdentity.DisplayName;
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-025: the original asked the native layer for the nickname; we return the local profile name
+                return ProjectLucid.Offline.LocalProfileIdentity.DisplayName;
+            return HLGetAccountNickname();
         }
-#endif
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        public void ShowAchievementPage() => Social.ShowAchievementsUI();
-#else
         public void ShowAchievementPage()
         {
-            ProjectLucid.Offline.LocalProfilePresentation.ShowAchievements();
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-026: the original opened the GameCenter achievements UI; we raise the local achievements presentation
+            {
+                ProjectLucid.Offline.LocalProfilePresentation.ShowAchievements();
+                return;
+            }
+            Social.ShowAchievementsUI();
         }
-#endif
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        public void ShowLeaderboardPage() => Social.ShowLeaderboardUI();
-#else
         public void ShowLeaderboardPage()
         {
-            ProjectLucid.Offline.LocalProfilePresentation.ShowRecords(null);
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-027: the original opened the GameCenter leaderboard UI; we raise the local records presentation
+            {
+                ProjectLucid.Offline.LocalProfilePresentation.ShowRecords(null);
+                return;
+            }
+            Social.ShowLeaderboardUI();
         }
-#endif
 
         // 0x06000607: Conditional attribute belongs to the original method;
         // the callback can run synchronously for an already valid SaveManager.
@@ -310,23 +256,28 @@ namespace HardlightProject
         }
 
         // 0x06000611: original Update action polls the account every dispatch.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        private void OnUpdate(object context = null) => CheckForGameCenterAccountIDChange();
-#else
         private void OnUpdate(object context = null)
         {
-            m_achievements?.DrainOfflineSaveListenerRemoval();
-            m_offlineLifecycle.Poll();
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-028: the original polled the platform account; we drain the local save listener removal and poll the local lifecycle
+            {
+                m_achievements?.DrainOfflineSaveListenerRemoval();
+                m_offlineLifecycle.Poll();
+                return;
+            }
+            CheckForGameCenterAccountIDChange();
         }
-#endif
 
         // 0x06000612; ARM64 0x510740, x86_64 0x53a2e0. These three guards
         // really are required together: changed ID, a nonblank previous ID or
         // recorded logout, and changed nickname. A same-nickname account swap
         // is ignored. Keep the repeated ID query and stale nickname cache.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void CheckForGameCenterAccountIDChange()
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-029: the original compared the platform account id; we poll the local lifecycle
+            {
+                m_offlineLifecycle.Poll();
+                return;
+            }
             if (m_lastKnownAccountId == GetAccountId()) return;
             if (string.IsNullOrEmpty(m_lastKnownAccountId) && !m_lastKnownLoggedOut) return;
             if (GetAccountNickname() == m_lastKnownAccountNickname) return;
@@ -342,10 +293,62 @@ namespace HardlightProject
             AnalyticsConsentManager consentManager = ProcessManager.GetSystemSafe<AnalyticsConsentManager>(null, true);
             if (saveManager != null && consentManager != null) consentManager.LoadFromSaveData(saveManager);
         }
-#else
-        private void CheckForGameCenterAccountIDChange()
+
+        // Offline adapter members, declared after every original member so the compiler's member
+        // ordinals (and the original generated names, e.g. <WaitForSettingsToLoad>d__35) are unchanged.
+        // Offline adapter body of OnShutdown (hook H-018).
+        private void OfflineShutdown()
         {
-            m_offlineLifecycle.Poll();
+            m_offlineLifecycle.Stop();
+            var errors = new System.Collections.Generic.List<Exception>();
+            CleanupOfflineProviders(errors);
+            try { ProjectLucid.Offline.LocalPersonalRecords.Shutdown(); }
+            catch (Exception error) { errors.Add(error); }
+            SystemIsReady = false;
+            try
+            {
+                string name = ProcessManager.GetDefaultName<GameCenter>();
+                SystemRef reference = ProcessManager.GetSystemRef(name, false);
+                if (reference != null && ReferenceEquals(reference.GetSafe(), this))
+                    ProcessManager.UnregisterSystem(name);
+            }
+            catch (Exception error) { errors.Add(error); }
+            if (errors.Count != 0) throw new AggregateException("Owned local GameCenter shutdown failed.", errors);
+        }
+
+        // Offline adapter body of OnLoginComplete (hook H-023).
+        private void OfflineOnLoginComplete(bool success)
+        {
+            if (SystemIsReady) return;
+            m_offlineLifecycle.Begin(() =>
+            {
+                m_lastKnownAccountId = ProjectLucid.Offline.LocalProfileIdentity.Identifier;
+                m_lastKnownLoggedOut = true;
+                m_lastKnownAccountNickname = ProjectLucid.Offline.LocalProfileIdentity.DisplayName;
+                App app = ProcessManager.GetSystem<App>(null, true);
+                m_offlineProviderLease = new ProjectLucid.Offline.LocalGameCenterProviderLease();
+                try
+                {
+                    m_offlineProviderLease.Start();
+                    m_achievements = new Achievements();
+                    m_achievements.Initialise(app);
+                    // Local account, record transport and achievement catalog are initialized.
+                    // Deferred original gameplay/save tracker binding is a separate lifecycle.
+                    SystemIsReady = true;
+                }
+                catch (Exception original)
+                {
+                    var errors = new System.Collections.Generic.List<Exception>();
+                    CleanupOfflineProviders(errors);
+                    SystemIsReady = false;
+                    if (errors.Count != 0)
+                    {
+                        errors.Insert(0, original);
+                        throw new AggregateException("Local GameCenter initialization and owned cleanup failed.", errors);
+                    }
+                    throw;
+                }
+            });
         }
 
         private void CleanupOfflineProviders(System.Collections.Generic.List<Exception> errors)
@@ -364,6 +367,5 @@ namespace HardlightProject
         // generated member ordinals (<WaitForSettingsToLoad>d__35).
         private readonly ProjectLucid.Offline.LocalGameCenterLifecycle m_offlineLifecycle = new ProjectLucid.Offline.LocalGameCenterLifecycle();
         private ProjectLucid.Offline.LocalGameCenterProviderLease m_offlineProviderLease;
-#endif
     }
 }

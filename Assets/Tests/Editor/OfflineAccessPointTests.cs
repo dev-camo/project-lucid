@@ -6,10 +6,6 @@ using System.Reflection.Emit;
 using Hardlight;
 using NUnit.Framework;
 
-#if PROJECT_LUCID_ORIGINAL_GAME_CENTER_ACCESS_POINT
-#error Offline access-point fixtures require the default local plugin boundary.
-#endif
-
 namespace ProjectLucid.Tests
 {
     [TestFixture]

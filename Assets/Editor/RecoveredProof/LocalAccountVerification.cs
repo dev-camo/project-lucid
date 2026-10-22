@@ -48,7 +48,7 @@ namespace ProjectLucid.Tests
                     OpCode code = (OpCode)field.GetValue(null);
                     codes[unchecked((ushort)code.Value)] = code;
                 }
-            int index = 0, constructors = 0;
+            int index = 0, constructors = 0, allocations = 0, switchReads = 0;
             while (index < il.Length)
             {
                 ushort value = il[index++];
@@ -72,15 +72,31 @@ namespace ProjectLucid.Tests
                     case OperandType.InlineI8:
                     case OperandType.InlineR: size = 8; break;
                     case OperandType.InlineMethod:
-                        Assert.AreEqual(OpCodes.Newobj.Value, code.Value);
                         Assert.LessOrEqual(index + 4, il.Length);
-                        ConstructorInfo constructor = factory.Module.ResolveMethod(BitConverter.ToInt32(il, index)) as ConstructorInfo;
+                        MethodBase target = factory.Module.ResolveMethod(BitConverter.ToInt32(il, index));
+                        if (code.Value == OpCodes.Call.Value)
+                        {
+                            // The only call is the central switch read by the offline hook.
+                            Assert.AreEqual("get_Active", target.Name);
+                            Assert.AreEqual("ProjectLucid.Offline.OfflineAdapters", target.DeclaringType.FullName);
+                            Assert.AreEqual(0, constructors, "the hook is read before any construction");
+                            switchReads++;
+                            size = 4;
+                            break;
+                        }
+                        Assert.AreEqual(OpCodes.Newobj.Value, code.Value);
+                        ConstructorInfo constructor = target as ConstructorInfo;
                         Assert.IsNotNull(constructor);
-                        Assert.AreSame(owner, constructor.DeclaringType);
-                        ParameterInfo[] args = constructor.GetParameters();
-                        Assert.AreEqual(parameters.Length, args.Length);
-                        for (int n = 0; n < args.Length; n++) Assert.AreSame(parameters[n], args[n].ParameterType);
-                        constructors++;
+                        // The offline hook returns the local type first; the original platform
+                        // constructors that follow stay compiled but are unreachable while the switch is on.
+                        if (allocations++ == 0)
+                        {
+                            Assert.AreSame(owner, constructor.DeclaringType);
+                            ParameterInfo[] args = constructor.GetParameters();
+                            Assert.AreEqual(parameters.Length, args.Length);
+                            for (int n = 0; n < args.Length; n++) Assert.AreSame(parameters[n], args[n].ParameterType);
+                            constructors++;
+                        }
                         size = 4;
                         break;
                     default:
@@ -91,6 +107,7 @@ namespace ProjectLucid.Tests
             }
             Assert.AreEqual(il.Length, index);
             Assert.AreEqual(1, constructors);
+            Assert.AreEqual(1, switchReads, "exactly one offline hook read");
         }
 
         private sealed class Account : IDisposable
@@ -123,8 +140,8 @@ namespace ProjectLucid.Tests
             }
         }
 
-        // Project offline policy, not original provenance: without
-        // PROJECT_LUCID_ORIGINAL_GAMECENTER both factories ignore forceStub, so the
+        // Project offline policy, not original provenance: while OfflineAdapters.Active
+        // both factories ignore forceStub, so the
         // two iterations exercise the same LocalAccountPlayer. Identity constants
         // are the project's own LocalProfileIdentity values.
         public static void OfflinePolicyFactoriesIgnoreForceStubAndKeepIdentitySeparateFromAuthentication()

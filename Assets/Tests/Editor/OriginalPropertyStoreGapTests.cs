@@ -24,9 +24,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void StoreIsPublishedBeforeItsStorageConstructionFaults()
         {
-#if PROJECT_LUCID_ORIGINAL_PROPERTY_STORAGE
-            throw new InvalidOperationException("Owned offline case forbids original storage.");
-#endif
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
             FieldInfo singleton = typeof(HLPropertyStore).GetField("s_internalInstance", AnyStatic);
             object prior = singleton.GetValue(null);
             try

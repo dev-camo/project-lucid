@@ -34,9 +34,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void InitializersCreateGameCenterThenLeaderboardRowsBeforeTheManagerRow()
         {
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
-            throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
-#endif
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
             Assert.That(LocalPersonalRecords.IsReady, Is.False, "The offline body must stop at its readiness check.");
             string[] expected =
             {

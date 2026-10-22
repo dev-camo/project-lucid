@@ -3208,12 +3208,12 @@ EDITMODE_TESTS += (
 # LoadAssets offline entry: no platform Social authentication, same GameCenter callback.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineNotifiesGameCenterWithoutPlatformAuthentication",
-    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryInvokesTheCachedCallbackThenLoadsInTheOriginalOrder",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryReportsLoginThenLoadsInTheOriginalOrder",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsAuthoredBootAndFastLoadStatesEnterWithoutPlatformAuthentication",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryPropagatesAStoppedLocalLifecycleBeforeDefinitionLoading",
 )
 
-# LoadAssets original-define source branch: emission-only source self-check.
+# LoadAssets original Authenticate statement behind the offline hook: emission-only source self-check.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOriginalGameCenterSourceBranchIsUnchanged",
 )

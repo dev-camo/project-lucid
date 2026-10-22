@@ -27,16 +27,11 @@ namespace Hardlight.Utils
         // Original06001115 with original two captured callbacks06001119/111a.
         private void Initialise(object _)
         {
-#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
-            // Offline hook: the local adapter replaces the platform sync below. The original
-            // code stays compiled, so its two lambdas keep their original generated names
-            // (<Initialise>b__8_0 and b__8_1), but it is unreachable while the adapter is active.
-            if (ProjectLucid.Offline.LocalAchievementRuntime.AdapterActive)
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-002: the original loaded achievements from Social; we load them from the local save
             {
                 ProjectLucid.Offline.LocalAchievementRuntime.Initialise(this, m_achievements, RaiseOnPlatformSyncComplete);
                 return;
             }
-#endif
             if (Social.localUser.authenticated)
             {
                 Social.LoadAchievementDescriptions(retrievedDescriptions =>
@@ -83,10 +78,14 @@ namespace Hardlight.Utils
         }
 
         // Original06001116 deliberately reads the readonly-dictionary indexer twice.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void AddBehaviour(string achievementID, int target, ref Action evaluateOn,
             Func<int> trackerFunction, int prerequisiteTarget = 0)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-003: the original required an authenticated Social user; we bind to the local save
+            {
+                ProjectLucid.Offline.LocalAchievementRuntime.AddBehaviour(this, m_achievements, achievementID, target, ref evaluateOn, trackerFunction, prerequisiteTarget);
+                return;
+            }
             if (!Social.localUser.authenticated)
                 return;
             if (!Achievements.ContainsKey(achievementID))
@@ -97,47 +96,34 @@ namespace Hardlight.Utils
             if (!Achievements[achievementID].ReportedComplete)
                 Achievements[achievementID].AddBehaviour(target, ref evaluateOn, trackerFunction, prerequisiteTarget);
         }
-#else
-        public void AddBehaviour(string achievementID, int target, ref Action evaluateOn,
-            Func<int> trackerFunction, int prerequisiteTarget = 0)
-        {
-            ProjectLucid.Offline.LocalAchievementRuntime.AddBehaviour(this, m_achievements, achievementID, target, ref evaluateOn, trackerFunction, prerequisiteTarget);
-        }
-#endif
 
         // Original06001117 logs at error level before routing to the original GameCenter provider.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public void IssueChallenge(string achievementKey, string message,
             UnityHLAchievementChallengeIssuedCallback callback)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-004: the original routed to the GameCenter provider; we report the challenge as unavailable
+            {
+                callback?.Invoke(false, "Platform achievement challenges are unavailable offline.");
+                return;
+            }
             if (m_gameCenterLocalPlayerRef.TryGet(out var player))
             {
                 HLOutput.LogError("AchievementsManager IssueChallenge " + achievementKey + ".");
                 player.IssueAchievementChallenge(achievementKey, message, callback);
             }
         }
-#else
-        public void IssueChallenge(string achievementKey, string message,
-            UnityHLAchievementChallengeIssuedCallback callback)
-        {
-            callback?.Invoke(false, "Platform achievement challenges are unavailable offline.");
-        }
-#endif
 
         // Original06001118 clears only the achievement dictionary.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void Shutdown(object objectContext)
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-005: the original only cleared the dictionary; we also release the local adapter context
+            {
+                ProjectLucid.Offline.LocalAchievementRuntime.Shutdown(this, m_achievements);
+                return;
+            }
             m_achievements.Clear();
         }
-#else
-        private void Shutdown(object objectContext)
-        {
-            ProjectLucid.Offline.LocalAchievementRuntime.Shutdown(this, m_achievements);
-        }
-#endif
 
-#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
         // Offline adapter member, declared after every original member so the compiler's member
         // ordinals (and the original generated names) are unchanged. It raises the event for the
         // adapter's Initialise, as a method group instead of a lambda so the adapter adds no
@@ -146,6 +132,5 @@ namespace Hardlight.Utils
         {
             OnPlatformSyncComplete();
         }
-#endif
     }
 }

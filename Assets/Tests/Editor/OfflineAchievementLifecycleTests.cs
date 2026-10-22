@@ -277,9 +277,7 @@ namespace ProjectLucid.Tests.EditMode
         [Test]
         public void GenuineLeaderboardStartupFaultPreservesItsSameObjectAliasAndPrimaryError()
         {
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
-            throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
-#endif
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
             string aliasName = "LucidLeaderboardStartupAlias" + Guid.NewGuid().ToString("N");
             LifecycleRow[] rows = LeaderboardRows(aliasName, ProcessManager.GetDefaultName<GameCenter>(),
                 ProcessManager.GetDefaultName<GameCenterLeaderboard>());
@@ -330,9 +328,7 @@ namespace ProjectLucid.Tests.EditMode
         [Test]
         public void GenuineLeaderboardSubscribedShutdownPreservesItsSameObjectNamedAlias()
         {
-#if PROJECT_LUCID_ORIGINAL_PROPERTY_STORAGE || PROJECT_LUCID_ORIGINAL_GAMECENTER
-            throw new InvalidOperationException("Owned offline case forbids original storage/GameCenter.");
-#endif
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
             RequireEmptyOwnedRecords();
             string aliasName = "LucidLeaderboardShutdownAlias" + Guid.NewGuid().ToString("N");
             LifecycleRow[] rows = LeaderboardRows(aliasName, ProcessManager.GetDefaultName<GameCenter>(),
@@ -634,9 +630,7 @@ namespace ProjectLucid.Tests.EditMode
             internal HLPropertyStore Store { get; private set; }
             internal OwnedCoreWorld()
             {
-#if PROJECT_LUCID_ORIGINAL_PROPERTY_STORAGE || PROJECT_LUCID_ORIGINAL_GAMECENTER
-                throw new InvalidOperationException("Owned offline cases forbid original storage/GameCenter research routes.");
-#endif
+                Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline cases require the offline adapters.");
                 process = new OwnedProcessObservation();
                 RequireEmptyLocalContexts();
                 RequireNoPropertyHandlers();

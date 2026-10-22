@@ -10,9 +10,9 @@ namespace Hardlight
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class HLUnityCoreNativeBridge : IHLUnityCoreNativeBridge
     {
-        // Preserve original import signatures for research. Exact shipping
-        // import descriptors are unresolved; the portable build keeps their
-        // managed forwarding signatures and selects separate offline policies.
+        // Offline hook H-011: the original called five native imports, and their import descriptors are
+        // unknown; we call managed forwarders that always replace them. This is the only #if left
+        // (decision D2 exception): the original externs cannot be restored faithfully.
 #if PROJECT_LUCID_ORIGINAL_UNITY_CORE_NATIVE_BRIDGE
 #error Exact original native import descriptors are required before enabling this branch.
         [PreserveSig] private static extern void Unity_CoreInitialise(string gameObjectName);

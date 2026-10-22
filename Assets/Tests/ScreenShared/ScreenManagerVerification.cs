@@ -278,9 +278,7 @@ namespace ProjectLucid.Tests.ScreenShared
         public static void GenuinePlayLifecycleSavesOwnedPropertiesAndTearsDown()
         {
             Assert.That(Application.isPlaying, Is.True, "Real PlayMode host required");
-#if PROJECT_LUCID_ORIGINAL_PROPERTY_STORAGE
-            Assert.Fail("This controlled fixture requires the genuine reviewed default local storage selection.");
-#else
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "This controlled fixture requires the offline storage selection.");
             using (var lease = new WorldLease())
             {
                 string file = "lucid-owned-screen-" + Guid.NewGuid().ToString("N");
@@ -358,7 +356,6 @@ namespace ProjectLucid.Tests.ScreenShared
                 Assert.That(File.Exists(primary) || File.Exists(backup), Is.False);
                 lease.FinishOwnedTeardown();
             }
-#endif
             // Coroutines are genuinely started by Awake and stopped by OnDestroy,
             // but this synchronous case does not advance polling or assert timing.
         }

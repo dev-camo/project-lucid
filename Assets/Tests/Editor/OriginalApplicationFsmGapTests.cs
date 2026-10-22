@@ -242,8 +242,8 @@ namespace ProjectLucid.Tests
 
         // ApplicationStateLoadAssets.DoOnEnter 0x06000695, x86-64 0x648C00, reads
         // Social.localUser and passes it the cached <>c.<DoOnEnter>b__2_0 before any
-        // other call. Offline builds keep that statement under
-        // PROJECT_LUCID_ORIGINAL_GAMECENTER and run the same callback with false
+        // other call. Offline builds keep that statement behind the OfflineAdapters.Active
+        // hook (H-017) and report a failed login through the same GameCenter route
         // (#237), as GameCenter.NativeLoginRequest does. The owned Social.Active
         // throws when it is reached. The absent owned GameCenter row defers the
         // notification on its typed reference, and entry then faults at the App
@@ -275,19 +275,20 @@ namespace ProjectLucid.Tests
                 List<Action<GameCenter>> listeners = pending.GetInvocationList();
                 Assert.That(listeners.Count, Is.EqualTo(1), "exactly one notification");
                 object closure = listeners[0].Target;
-                Assert.That(closure.GetType().DeclaringType, Is.EqualTo(typeof(ApplicationStateLoadAssets)));
-                Assert.That(closure.GetType().Name, Is.EqualTo("<>c__DisplayClass2_0"), "the original callback's closure");
+                Assert.That(closure.GetType().DeclaringType, Is.Not.Null.And.Property("FullName").EqualTo("ProjectLucid.Offline.LocalGameCenterLifecycle"), "the adapter's login report, not the original callback");
                 Assert.That(closure.GetType().GetField("loginSuccess").GetValue(closure), Is.EqualTo(false));
                 Assert.That(user.Storage.GetCollection(), Is.Empty);
             }
         }
 
-        // After authentication the offline DoOnEnter keeps the native order. It
-        // invokes the cached original callback (<>9__2_0) with false, then calls
-        // GetAs<App>, DataManager.LoadDefinitionData, GetSystem<SaveManager>,
-        // InitialiseSaveData and RunCoroutine. It calls no Social member.
+        // The offline DoOnEnter reads the central switch, reports a failed login through
+        // LocalGameCenterLifecycle.ReportLogin(false) (H-017), and then, behind the
+        // untaken original branch, still holds the original Social.localUser.Authenticate
+        // statement with its cached <>9__2_0 callback. After the hook it runs the native
+        // order: GetAs<App>, DataManager.LoadDefinitionData, GetSystem<SaveManager>,
+        // InitialiseSaveData and RunCoroutine. The offline branch calls no Social member.
         [Test]
-        public void LoadAssetsOfflineEntryInvokesTheCachedCallbackThenLoadsInTheOriginalOrder()
+        public void LoadAssetsOfflineEntryReportsLoginThenLoadsInTheOriginalOrder()
         {
             MethodInfo enter = typeof(ApplicationStateLoadAssets).GetMethod("DoOnEnter", Instance | BindingFlags.DeclaredOnly);
             Assert.That(enter, Is.Not.Null);
@@ -295,7 +296,10 @@ namespace ProjectLucid.Tests
             List<Instruction> calls = body.Where(i => i.Code == OpCodes.Call || i.Code == OpCodes.Callvirt).ToList();
             string[] expected =
             {
-                typeof(Action<bool>).FullName + "::Invoke",
+                "ProjectLucid.Offline.OfflineAdapters::get_Active",
+                "ProjectLucid.Offline.LocalGameCenterLifecycle::ReportLogin",
+                typeof(Social).FullName + "::get_localUser",
+                typeof(ILocalUser).FullName + "::Authenticate",
                 typeof(IGraphUserExtensions).FullName + "::GetAs<" + typeof(App).FullName + ">",
                 typeof(App).FullName + "::get_DataManager",
                 typeof(DataManager).FullName + "::LoadDefinitionData",
@@ -307,48 +311,29 @@ namespace ProjectLucid.Tests
 
             Instruction cache = body.First(i => i.Code == OpCodes.Ldsfld);
             Assert.That(enter.Module.ResolveField(cache.Operand).Name, Is.EqualTo("<>9__2_0"), "the original cached delegate");
-            Assert.That(body[body.IndexOf(calls[0]) - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_0), "the callback reports a failed login");
+            Assert.That(body.IndexOf(cache), Is.GreaterThan(body.IndexOf(calls[1])), "the offline report precedes the original branch");
+            Assert.That(body[body.IndexOf(calls[1]) - 1].Code, Is.EqualTo(OpCodes.Ldc_I4_0), "the offline report is a failed login");
+            Assert.That(body.IndexOf(calls[0]), Is.LessThan(body.IndexOf(calls[1])), "the switch is read first");
         }
 
-        // Source-preservation self-check, not behaviour evidence: EditMode and CI
-        // compile only the offline branch. It pins the original-define statement
-        // that 0x648C00 translates: Social.get_localUser, then the lazily cached
-        // <>c.<>9__2_0 Action<bool>, then ILocalUser.Authenticate, before GetAs<App>.
-        // Whitespace and line wrapping inside the branch are ignored. A build with
-        // PROJECT_LUCID_ORIGINAL_GAMECENTER also checks that compiled order.
+        // Source-preservation self-check, not behaviour evidence. The original statement that
+        // 0x648C00 translates (Social.get_localUser, then the lazily cached <>c.<>9__2_0
+        // Action<bool>, then ILocalUser.Authenticate, before GetAs<App>) stays compiled in the
+        // else branch of the offline hook H-017. Whitespace and line wrapping are ignored. The
+        // compiled order of the original statement is pinned by the IL test above.
         [Test]
         public void LoadAssetsOriginalGameCenterSourceBranchIsUnchanged()
         {
             string path = Path.Combine(Application.dataPath, "Scripts", "Game", "Application", "FiniteStateMachine", "ApplicationStateLoadAssets.cs");
             string[] lines = File.ReadAllLines(path).Select(l => l.Trim()).ToArray();
-            int open = Array.IndexOf(lines, "#if PROJECT_LUCID_ORIGINAL_GAMECENTER");
-            Assert.That(open, Is.GreaterThanOrEqualTo(0));
-            Assert.That(Array.IndexOf(lines, "#if PROJECT_LUCID_ORIGINAL_GAMECENTER", open + 1), Is.EqualTo(-1), "one original branch");
-            int otherwise = Array.IndexOf(lines, "#else", open);
-            Assert.That(otherwise, Is.GreaterThan(open));
-            string branch = string.Concat(lines.Skip(open + 1).Take(otherwise - open - 1).Select(l => string.Concat(l.Where(c => !char.IsWhiteSpace(c)))));
-            Assert.That(branch, Is.EqualTo(
+            int hook = Array.IndexOf(lines, "if (ProjectLucid.Offline.OfflineAdapters.Active)");
+            Assert.That(hook, Is.GreaterThanOrEqualTo(0));
+            Assert.That(Array.IndexOf(lines, "if (ProjectLucid.Offline.OfflineAdapters.Active)", hook + 1), Is.EqualTo(-1), "one hook");
+            Assert.That(lines[hook + 1], Is.EqualTo("ProjectLucid.Offline.LocalGameCenterLifecycle.ReportLogin(false);"));
+            Assert.That(lines[hook + 2], Is.EqualTo("else"));
+            string original = string.Concat(lines[hook + 3].Where(c => !char.IsWhiteSpace(c)));
+            Assert.That(original, Is.EqualTo(
                 "Social.localUser.Authenticate(loginSuccess=>ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter=>gameCenter.OnLoginComplete(loginSuccess)));"));
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
-            MethodInfo enter = typeof(ApplicationStateLoadAssets).GetMethod("DoOnEnter", Instance | BindingFlags.DeclaredOnly);
-            List<Instruction> body = Read(enter);
-            List<Instruction> calls = body.Where(i => i.Code == OpCodes.Call || i.Code == OpCodes.Callvirt).ToList();
-            string[] expected =
-            {
-                typeof(Social).FullName + "::get_localUser",
-                typeof(ILocalUser).FullName + "::Authenticate",
-                typeof(IGraphUserExtensions).FullName + "::GetAs<" + typeof(App).FullName + ">",
-                typeof(App).FullName + "::get_DataManager",
-                typeof(DataManager).FullName + "::LoadDefinitionData",
-                typeof(ProcessManager).FullName + "::GetSystem<" + typeof(SaveManager).FullName + ">",
-                typeof(ApplicationStateLoadAssets).FullName + "::InitialiseSaveData",
-                typeof(Hardlight.Utils.CoroutineUtils).FullName + "::RunCoroutine",
-            };
-            Assert.That(calls.Select(c => Describe(enter, c)).ToArray(), Is.EqualTo(expected));
-            Instruction cache = body.First(i => i.Code == OpCodes.Ldsfld);
-            Assert.That(enter.Module.ResolveField(cache.Operand).Name, Is.EqualTo("<>9__2_0"));
-            Assert.That(body.IndexOf(cache), Is.GreaterThan(body.IndexOf(calls[0])).And.LessThan(body.IndexOf(calls[1])));
-#endif
         }
 
         // Prepared Application_BootFlow.json (FSMApplication_BootFlow, LoadAssets,
@@ -363,9 +348,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void LoadAssetsAuthoredBootAndFastLoadStatesEnterWithoutPlatformAuthentication()
         {
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
-            throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
-#endif
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
             var authored = new[]
             {
                 ("Application_BootFlow.json", "a45f7f51f44e1ce3d4dfe415bdf849856e30ec7c7442ac856493d544b7d92879", "FSMApplication_BootFlow", "LoadAssets"),
@@ -414,9 +397,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void LoadAssetsOfflineEntryPropagatesAStoppedLocalLifecycleBeforeDefinitionLoading()
         {
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
-            throw new InvalidOperationException("Owned offline case forbids original GameCenter.");
-#endif
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
             FieldInfo bound = typeof(ProjectLucid.Offline.LocalProfilePresentation).GetField("achievements", BindingFlags.Static | BindingFlags.NonPublic);
             Assert.That(bound, Is.Not.Null);
             Assert.That(bound.GetValue(null), Is.Null, "foreign bound local achievements stay untouched");

@@ -66,7 +66,9 @@ namespace Hardlight
             base.Awake();
             if (InputTypesThatEnforceSelectionControl != null && InputTypesThatEnforceSelectionControl.Length != 0)
                 ControlMapping.RegisterEventHandler(gameObject);
-#if PROJECT_LUCID_ORIGINAL_APPLE_INPUT
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-013: the original picked the active Apple or macOS controller provider; we select the portable provider
+                m_baseControllerProvider = ProjectLucid.Offline.PortableControllerSelection.Create(m_controllerConnectionPollingRateInSeconds);
+            else
             foreach (ScriptableControllerProvider provider in m_baseControllerProviders)
             {
                 if (provider.IsActiveProvider())
@@ -75,10 +77,6 @@ namespace Hardlight
                     break;
                 }
             }
-#else
-            // Separately authored portable selection; original providers remain preserved above.
-            m_baseControllerProvider = ProjectLucid.Offline.PortableControllerSelection.Create(m_controllerConnectionPollingRateInSeconds);
-#endif
             m_baseControllerProvider.Initialise();
             GlyphLookupSystem = new GlyphLookupSystem();
             for (int i = 0; i < m_inputMonitors.Length; ++i)

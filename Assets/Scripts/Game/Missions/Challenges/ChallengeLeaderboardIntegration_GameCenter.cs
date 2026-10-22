@@ -97,17 +97,14 @@ namespace HardlightProject
         }
 
         // Original06002577 delegates to the actual original service login query.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public override bool CanShowLeaderboard()
         {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-054: the original asked the leaderboard system whether the account is logged in; we report whether the local personal records are ready
+            {
+                return ProjectLucid.Offline.LocalPersonalRecords.IsReady;
+            }
             return m_leaderboardSystemRef.Get().IsLoggedIn();
         }
-#else
-        public override bool CanShowLeaderboard()
-        {
-            return ProjectLucid.Offline.LocalPersonalRecords.IsReady;
-        }
-#endif
 
         // Original06002578 preserves reference(null,true) initialization before base.
         public ChallengeLeaderboardIntegration_GameCenter()

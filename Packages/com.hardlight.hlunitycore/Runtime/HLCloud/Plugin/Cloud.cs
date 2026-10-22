@@ -15,18 +15,14 @@ namespace HLCloud.Plugin
 
         public static Cloud NativePluginInstance(ICloud cloudObject, bool useFindGameObject)
         {
-#if PROJECT_LUCID_ORIGINAL_APPLE_SERVICES
-            // Original C5369EA842965B759669FB711DF450C136176D37: retained for research.
-            // Its native import module remains unresolved; this opt-in path
-            // cannot supply Apple's service in the portable game.
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-009: the original created the iCloud plugin; we create the local file cloud
+                return ProjectLucid.Offline.OfflineProviders.CreateCloud(cloudObject, useFindGameObject);
+            // Original C5369EA842965B759669FB711DF450C136176D37. Its native import module
+            // remains unresolved, so it cannot supply Apple's service in the portable game.
             Cloud_MacOS plugin = new Cloud_MacOS();
             Cloud_MacOS.UseFindGameObject = useFindGameObject;
             plugin.cloudObject = cloudObject;
             return plugin;
-#else
-            // Intentional offline port selection at the shipped factory boundary.
-            return ProjectLucid.Offline.OfflineProviders.CreateCloud(cloudObject, useFindGameObject);
-#endif
         }
 
         public abstract void InitializeWithGameObjectName(string gameObjectName, bool useGamePlayerID);

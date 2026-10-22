@@ -11,15 +11,15 @@ namespace Hardlight.Analytics
 
         // 0x06000001: original interface slot 0, without an extra null guard.
         public static bool IsSupported => s_analytics.IsSupported;
-        // 0x06000002: the original provider remains in the explicit research branch.
-        // Intentional port selection: normal desktop builds use the offline adapter.
+        // 0x06000002
         static Analytics()
         {
-#if PROJECT_LUCID_ORIGINAL_ANALYTICS
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-012: the original created the networked AnalyticsSystem; we create the local adapter that discards events
+            {
+                s_analytics = new ProjectLucid.Offline.LocalAnalytics();
+                return;
+            }
             s_analytics = new AnalyticsSystem();
-#else
-            s_analytics = new ProjectLucid.Offline.LocalAnalytics();
-#endif
         }
         // 0x06000003
         public static void Initialise(IAnalyticsSettings analyticsSettings) => s_analytics.Initialise(analyticsSettings);

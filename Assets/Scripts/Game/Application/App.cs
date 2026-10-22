@@ -237,20 +237,26 @@ namespace HardlightProject
         // then activate session management. The platform services are retained.
         private void InitialiseAnalytics()
         {
-#if PROJECT_LUCID_ORIGINAL_GAME_TELEMETRY
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-014: the original registered the analytics session and consent managers; we run the offline telemetry startup
+            {
+                ProjectLucid.Offline.OfflineTelemetryStartup.Initialise();
+                return;
+            }
             RegisterAndInitialiseSystem<AnalyticsSessionManager>();
             RegisterAndInitialiseSystem<AnalyticsConsentManager>();
             HLAnalytics.Initialise(new AnalyticsSettings());
             ProcessManager.GetSystem<AnalyticsSessionManager>().ActivateAnalyticsSessionManagement();
-        #else
-            ProjectLucid.Offline.OfflineTelemetryStartup.Initialise();
-#endif
         }
 
         // Original 0x06000572. Preserve pause/session/badge/save call order.
         private void OnApplicationFocus(bool focused)
         {
-#if PROJECT_LUCID_ORIGINAL_GAME_TELEMETRY
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-015: the original paused analytics and cleared the notification badge; we notify the offline telemetry startup and keep the save-on-unfocus
+            {
+                ProjectLucid.Offline.OfflineTelemetryStartup.ApplicationFocus(focused);
+                if (!focused && m_saveManagerRef.TryGet(out SaveManager offlineSaveManager)) offlineSaveManager.OnApplicationFocus();
+                return;
+            }
             AnalyticsSessionManager sessionManager = ProcessManager.GetSystemSafe<AnalyticsSessionManager>();
             if (focused)
             {
@@ -264,22 +270,19 @@ namespace HardlightProject
                 HLAnalytics.ApplicationPause(true);
                 if (m_saveManagerRef.TryGet(out SaveManager saveManager)) saveManager.OnApplicationFocus();
             }
-        #else
-            ProjectLucid.Offline.OfflineTelemetryStartup.ApplicationFocus(focused);
-            if (!focused && m_saveManagerRef.TryGet(out SaveManager saveManager)) saveManager.OnApplicationFocus();
-#endif
         }
 
         // Original 0x06000573: session shutdown precedes consent shutdown.
         private void OnApplicationQuit()
         {
-#if PROJECT_LUCID_ORIGINAL_GAME_TELEMETRY
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-016: the original shut down the analytics managers; we shut down the offline telemetry startup
+            {
+                ProjectLucid.Offline.OfflineTelemetryStartup.Shutdown();
+                return;
+            }
             ShutdownAndUnregisterSystem<AnalyticsSessionManager>();
             ShutdownAndUnregisterSystem<AnalyticsConsentManager>();
             HLAnalytics.Shutdown();
-        #else
-            ProjectLucid.Offline.OfflineTelemetryStartup.Shutdown();
-#endif
         }
 
         // Original 0x06000574. Exclusive-character element zero precedes level

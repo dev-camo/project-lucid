@@ -11,21 +11,15 @@ namespace HardlightProject
         private readonly SystemRef<MissionManager> m_missionManagerRef = ProcessManager.GetSystemRef<MissionManager>();
         private readonly ITimeTrialLeaderboard m_timeTrialLeaderboard;
 
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         public TimeTrialLeaderboardManager()
         {
             this.SubscribeToAction(SystemAction.Initialise, SystemInitialise);
             this.SubscribeToAction(SystemAction.Shutdown, SystemShutdown);
-            m_timeTrialLeaderboard = new TimeTrialLeaderboardApple();
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-053: the original used the Apple time trial leaderboard; we use the local one (subscriptions stay as in the original)
+                m_timeTrialLeaderboard = new ProjectLucid.Offline.LocalTimeTrialLeaderboard();
+            else
+                m_timeTrialLeaderboard = new TimeTrialLeaderboardApple();
         }
-#else
-        public TimeTrialLeaderboardManager()
-        {
-            this.SubscribeToAction(SystemAction.Initialise, SystemInitialise);
-            this.SubscribeToAction(SystemAction.Shutdown, SystemShutdown);
-            m_timeTrialLeaderboard = new ProjectLucid.Offline.LocalTimeTrialLeaderboard();
-        }
-#endif
 
         private void SystemInitialise(object context = null)
         {

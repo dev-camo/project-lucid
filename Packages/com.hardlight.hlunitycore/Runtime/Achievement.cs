@@ -70,16 +70,11 @@ namespace Hardlight.Utils
             float completionProgress = Mathf.Clamp01(m_target == 0f ? 1f : m_progress / m_target);
             if (m_prerequisiteTarget != 0f && m_progress < m_prerequisiteTarget)
                 return;
-#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
-            // Offline hook: the local adapter replaces the platform report below. The original
-            // code stays compiled, so its callback closure keeps the original generated name
-            // (<>c__DisplayClass16_0), but it is unreachable while the adapter is active.
-            if (ProjectLucid.Offline.LocalAchievementRuntime.AdapterActive)
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-001: the original reported progress to Social; we record it in the local save
             {
                 m_reportedComplete = ProjectLucid.Offline.LocalAchievementRuntime.ReportCompletion(this, m_platformID, (int)completionProgress == 1);
                 return;
             }
-#endif
             if (Social.localUser.authenticated)
             {
                 m_currentlyReporting = true;

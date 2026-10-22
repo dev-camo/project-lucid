@@ -22,9 +22,6 @@ namespace ProjectLucid.Offline
         }
         private static readonly Dictionary<AchievementsManager, Context> Contexts = new Dictionary<AchievementsManager, Context>();
         private static readonly Dictionary<Achievement, Context> Owners = new Dictionary<Achievement, Context>();
-        // Always true in the offline build. The original platform code stays compiled behind it
-        // (so its generated lambda and closure names are the original's) but is never reached.
-        public static bool AdapterActive => true;
         public const string SaveIdentifier = "HL_Default_Save_ID";
         private const string KeyPrefix = "ProjectLucid.Local.default.Achievements.";
 

@@ -42,12 +42,12 @@ namespace Hardlight
         // Original 0x060004fc; dual CPU body evidence retained.
         static GameCenterAccessPoint()
         {
-#if PROJECT_LUCID_ORIGINAL_GAME_CENTER_ACCESS_POINT
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-006: the original selected the macOS GameCenter access point plugin; we select the local one
+            {
+                s_gameCenterAccessPointPlugin = new ProjectLucid.Offline.LocalAccessPointPlugin();
+                return;
+            }
             s_gameCenterAccessPointPlugin = new GameCenterAccessPointPluginMacOS();
-#else
-            // Owned offline selection; every original facade method remains intact.
-            s_gameCenterAccessPointPlugin = new ProjectLucid.Offline.LocalAccessPointPlugin();
-#endif
         }
 
         // Original 0x060004fd; dual CPU body evidence retained.

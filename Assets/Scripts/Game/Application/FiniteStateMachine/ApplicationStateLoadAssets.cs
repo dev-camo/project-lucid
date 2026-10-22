@@ -28,16 +28,14 @@ namespace HardlightProject
 		// 06000695 (1.10.1 RVA 0x648C00)
 		protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
 		{
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
+			// Offline hook H-017: the original called Social.localUser.Authenticate. We run no platform
+			// authentication and report a failed login synchronously, as GameCenter.NativeLoginRequest
+			// does. The platform decided when to call it, so an OnLoginComplete fault, such as a stopped
+			// local lifecycle, escapes this entry before definition loading.
+			if (ProjectLucid.Offline.OfflineAdapters.Active)
+				ProjectLucid.Offline.LocalGameCenterLifecycle.ReportLogin(false);
+			else
 			Social.localUser.Authenticate(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)));
-#else
-			// Offline adaptation: no platform Social authentication. The same cached
-			// callback reports a failed login, as GameCenter.NativeLoginRequest does.
-			// It runs synchronously, before LoadDefinitionData; the original platform
-			// decided when to call it. An OnLoginComplete fault, such as a stopped
-			// local lifecycle, therefore escapes this entry before definition loading.
-			new Action<bool>(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)))(false);
-#endif
 			user.GetAs<App>().DataManager.LoadDefinitionData();
 			CoroutineUtils.RunCoroutine(InitialiseSaveData(ProcessManager.GetSystem<SaveManager>(), user));
 		}

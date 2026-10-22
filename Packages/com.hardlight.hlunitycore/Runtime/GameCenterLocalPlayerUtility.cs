@@ -11,23 +11,19 @@ namespace Hardlight
         public static INativeGameCenterLocalPlayer CreateNativeGameCenterLocalPlayer(
             IGameCenterLocalPlayerListenerCallbackHandler gameCenterLocalPlayerListenerCallbackHandler, bool forceStub)
         {
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-007: the original chose the stub or the macOS local player; we always return the local account player
+                return new ProjectLucid.Offline.LocalAccountPlayer(gameCenterLocalPlayerListenerCallbackHandler);
             if (forceStub) return new GameCenterLocalPlayerStub(gameCenterLocalPlayerListenerCallbackHandler);
             return new GameCenterLocalPlayerMacOS();
-        #else
-            return new ProjectLucid.Offline.LocalAccountPlayer(gameCenterLocalPlayerListenerCallbackHandler);
-#endif
         }
 
         // Original 0x06000718; no extra platform switch or fallback is inserted.
         public static IGameCenterLocalPlayerListener CreateGameCenterLocalPlayerListener(bool forceStub)
         {
-#if PROJECT_LUCID_ORIGINAL_GAMECENTER
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-008: the original chose the stub or the macOS listener; we always return the local account listener
+                return new ProjectLucid.Offline.LocalAccountListener();
             if (forceStub) return new GameCenterLocalPlayerListenerStub();
             return new GameCenterLocalPlayerListenerMacOS();
-        #else
-            return new ProjectLucid.Offline.LocalAccountListener();
-#endif
         }
     }
 }

@@ -70,14 +70,12 @@ namespace Hardlight
             m_clientVersion = clientVersion;
             _ = Application.isPlaying;
             s_internalInstance = this;
-#if PROJECT_LUCID_ORIGINAL_PROPERTY_STORAGE
-            // Original storage selection, retained for research. Default port
-            // builds use the separate offline provider below.
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-010: the original created the encrypted file storage; we create the local save storage (after the same singleton publication)
+            {
+                m_propertyFileStorage = ProjectLucid.Offline.OfflineProviders.CreatePropertyStorage(key, outputFileName);
+                return;
+            }
             m_propertyFileStorage = new HLSaveMethodEncrypted(key, outputFileName);
-#else
-            // Intentional port adaptation; preserve the original publication order.
-            m_propertyFileStorage = ProjectLucid.Offline.OfflineProviders.CreatePropertyStorage(key, outputFileName);
-#endif
         }
 
         // 0x06000d04..0x06000d0e: direct original subscription wrappers.
