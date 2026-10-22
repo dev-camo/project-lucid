@@ -78,6 +78,16 @@ class OfflineHookRegistryTests(unittest.TestCase):
         self.assertEqual(duplicates, [], "two uses of the switch credit the same tag (a look-back mis-credit or a shared id)")
         self.assertEqual(sorted(set(found)), sorted(registry_rows()), "every registered hook has exactly one use of the switch")
 
+    def test_the_notification_bridge_is_the_original_managed_stub_without_native_imports(self):
+        # Original HLNotificationsNativeBridge (0x02000004) bodies are empty or constant; the
+        # notification path therefore needs no offline hook (see the H-069 note).
+        for path in (ROOT / "Packages/com.hardlight.hlnotifications/Runtime").glob("*.cs"):
+            text = path.read_text(encoding="utf-8")
+            self.assertNotIn("DllImport", text, path.name)
+            self.assertNotRegex(text, r"\bextern\s", path.name)
+        bridge = (ROOT / "Packages/com.hardlight.hlnotifications/Runtime/HLNotificationsNativeBridge.cs").read_text(encoding="utf-8")
+        self.assertIn("public bool IsPermissionGranted() => true;", bridge)
+
     def test_the_test_override_is_only_called_from_test_folders(self):
         switch_file = "Packages/com.hardlight.hlunitycore/Runtime/Offline/OfflineAdapters.cs"
         callers = []
