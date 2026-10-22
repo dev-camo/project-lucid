@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
                 Assert.That(bindables.Distinct().Count(), Is.EqualTo(3));
                 Assert.That(rig.Container.ScoreLabel.Value, Is.Null);
 
-                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(rig.Container, "Awake");
 
                 Assert.That(rig.Container.ScoreLabel.Value, Is.EqualTo("Challenge score"));
             });

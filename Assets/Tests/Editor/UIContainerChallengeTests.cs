@@ -369,7 +369,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_useXpPostfix", useXpPostfix); // Reflection: serialized options
                 Set(rig.Container, "m_useXpPostfixForRank", useRankPostfix);
 
-                Assert.That(Call(rig.Container, "GetFormattedXpString", 25, forRank), Is.EqualTo(expected)); // Reflection: private UIContainerChallenge.GetFormattedXpString
+                Assert.That(Call(rig.Container, "GetFormattedXpString", 25, forRank), Is.EqualTo(expected));
             });
         }
 
@@ -403,7 +403,7 @@ namespace ProjectLucid.Tests
             {
                 var arguments = new object[] { characters, CharacterArchetype.Climbing };
 
-                Assert.That(Call(rig.Container, "TryGetArchetype", arguments), Is.EqualTo(expected)); // Reflection: private UIContainerChallenge.TryGetArchetype
+                Assert.That(Call(rig.Container, "TryGetArchetype", arguments), Is.EqualTo(expected));
                 Assert.That(arguments[1], Is.EqualTo(archetype));
             }, spawners: true);
         }
@@ -414,7 +414,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
                 Assert.Throws<KeyNotFoundException>(() =>
-                    Call(rig.Container, "TryGetArchetype", new object[] { new[] { CharacterId.Tails }, CharacterArchetype.None })), spawners: true); // Reflection: private UIContainerChallenge.TryGetArchetype
+                    Call(rig.Container, "TryGetArchetype", new object[] { new[] { CharacterId.Tails }, CharacterArchetype.None })), spawners: true);
         }
 
         // 0x61B65E..0x61B6FF with a spawner assigned: characters of one archetype clear the heads and show that archetype's image; a mixed
@@ -541,7 +541,7 @@ namespace ProjectLucid.Tests
                 Assert.That(kept.Count, Is.EqualTo(3));
                 Assert.That(kept.Select(Count).ToArray(), Is.EqualTo(new[] { 1, 1, 1 }));
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(kept, Is.Empty);
                 Assert.That(state.OnUpdateScore, Is.Null);
@@ -562,7 +562,7 @@ namespace ProjectLucid.Tests
 
                 var kept = Get<List<ManagedAddressableAsset<Sprite>>>(rig.Container, "m_managedAddressableSprites");
                 Assert.That(kept.Count, Is.EqualTo(6));
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
                 Assert.That(kept, Is.Empty);
             });
         }
@@ -571,7 +571,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void DestroyingWithoutAChallengeDoesNothingElse()
         {
-            Run((owned, rig) => Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"))); // Reflection: Unity sends OnDestroy; Edit Mode does not
+            Run((owned, rig) => Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy")));
         }
     }
 }

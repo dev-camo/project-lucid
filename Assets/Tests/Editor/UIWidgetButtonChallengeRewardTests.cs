@@ -217,7 +217,7 @@ namespace ProjectLucid.Tests
                 Strings expected = isNext ? NextText : (unlocked && !collected ? ReadyText : Strings.NONE);
                 Assert.That(rig.Widget.Action.Value, Is.EqualTo(expected));
                 Assert.That(rig.Widget.HasAction.Value, Is.EqualTo(hasAction));
-                Assert.That(Call(rig.Widget, "GetAction"), Is.EqualTo(expected)); // Reflection: private UIWidgetButtonChallengeReward.GetAction
+                Assert.That(Call(rig.Widget, "GetAction"), Is.EqualTo(expected));
             });
         }
 
@@ -398,7 +398,7 @@ namespace ProjectLucid.Tests
                 rig.Widget.Setup(Parameters(rig, Status(rig, false, true)));
                 rig.Reward.Calls.Clear();
 
-                Call(rig.Widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Widget, "OnDestroy");
 
                 Assert.That(rig.Reward.Calls, Is.EqualTo(new[] { "UnloadImage" }));
             });

@@ -124,7 +124,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(rig.Container, "OnEnable");
 
                 Assert.That(Get<ChallengeManager>(rig.Container, "m_challengeManager"), Is.SameAs(rig.Manager));
                 Assert.That(rig.Container.BonusXPAwarded.Value, Is.EqualTo(40));
@@ -139,12 +139,12 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
                 Assert.That(rig.Manager.PeriodBonusXP, Is.EqualTo(40), "without a manager nothing is acknowledged");
                 Assert.That(rig.Save.BonusXPUnacknowledged, Is.EqualTo(49));
 
                 Call(rig.Container, "OnChallengeManagerValid", rig.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Manager.PeriodBonusXP, Is.Zero);
                 Assert.That(rig.Save.BonusXPUnacknowledged, Is.Zero);
