@@ -439,6 +439,17 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertIn("regular file", results[0]["error"])
         run.assert_not_called()
 
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs FIFOs")
+    def test_bad_build_lock_fails_before_the_sdk_bootstrap(self):
+        patches = self.build_patches()
+        build_lock = self.work / "native-recovery/.build.lock"
+        build_lock.parent.mkdir(parents=True)
+        os.mkfifo(build_lock)
+        with patches[0], patches[1], patches[2] as bootstrap_mock, patches[3], patches[4]:
+            result = native.build_native_harness(self.work)
+        self.assertEqual("failed", result["status"])
+        bootstrap_mock.assert_not_called()
+
     def test_windows_build_lock_is_released_when_the_build_fails(self):
         fake, host = self.windows_host()
         patches = self.build_patches()

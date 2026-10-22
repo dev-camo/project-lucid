@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import stat
 import struct
 import sys
 import tempfile
@@ -482,6 +483,22 @@ class CompareTests(unittest.TestCase):
         with mock.patch.object(inputfingerprint, "build_manifest", stale):
             with self.assertRaisesRegex(ValueError, "changed while fingerprinting"):
                 inputfingerprint.fingerprint_input(app)
+
+    @unittest.skipUnless(hasattr(os, "umask"), "needs POSIX modes")
+    def test_output_reports_are_owner_only_even_when_replacing_an_open_mode_file(self):
+        app = make_app(self.tmp.name)
+        fresh = Path(self.tmp.name) / "fresh.json"
+        existing = Path(self.tmp.name) / "existing.json"
+        existing.write_text("{}")
+        os.chmod(existing, 0o600)
+        old = os.umask(0o022)
+        try:
+            for target in (fresh, existing):
+                self.assertEqual(0, lucid.main(["fingerprint-input", str(app), "--output", str(target)]))
+        finally:
+            os.umask(old)
+        for target in (fresh, existing):
+            self.assertEqual(0o600, stat.S_IMODE(target.stat().st_mode), target.name)
 
     def test_cli_refuses_to_overwrite_an_input_report(self):
         app = make_app(self.tmp.name)

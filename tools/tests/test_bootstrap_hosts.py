@@ -2,6 +2,7 @@
 
 import errno
 import os
+import stat
 from pathlib import Path
 import shutil
 import subprocess
@@ -105,6 +106,18 @@ class HostLockTests(unittest.TestCase):
         text = (work / "reports" / "run.log").read_text()
         self.assertIn("fresh", text)
         self.assertNotIn("stale", text)
+
+    @unittest.skipUnless(hasattr(os, "fchmod"), "needs POSIX modes")
+    def test_run_logged_tightens_a_permissive_reused_log(self):
+        CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="test-hosts-", dir=CACHE_ROOT))
+        self.addCleanup(shutil.rmtree, work)
+        (work / "reports").mkdir()
+        log = work / "reports" / "run.log"
+        log.write_text("old")
+        os.chmod(log, 0o644)
+        bootstrap.run_logged([sys.executable, "-c", "pass"], work, "run.log")
+        self.assertEqual(0o600, stat.S_IMODE(log.stat().st_mode))
 
     def test_linux_selects_native_tools_and_retains_shared_source_pins(self):
         with self._on("Linux", "x86_64"):

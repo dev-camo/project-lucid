@@ -77,7 +77,9 @@ def emit_json(report, output):
         # Replace the directory entry, never the inode: a hardlink to an input file stays intact.
         temporary = output.with_name(f".{output.name}.{uuid.uuid4().hex}.tmp")
         try:
-            with temporary.open("x", encoding="utf-8") as stream:
+            # Reports inventory the user's bundle: always owner-only, whatever the umask or the old file.
+            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
                 stream.write(text + "\n")
             os.replace(temporary, output)
         finally:

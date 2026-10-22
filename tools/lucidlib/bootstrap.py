@@ -483,6 +483,8 @@ def _open_log(path: Path):
     except OSError as exc:
         raise ToolError(f"Could not open log {path}: {exc}") from exc
     try:
+        if hasattr(os, "fchmod"):  # a reused log keeps its old mode otherwise
+            os.fchmod(binary.fileno(), 0o600)
         binary.truncate(0)
         return io.TextIOWrapper(binary, encoding="utf-8")
     except BaseException:

@@ -114,14 +114,15 @@ def build_native_harness(work_dir: Path) -> dict:
         lock = load_lock()
         identity = _lock_identity(lock)
         report.update(identity)
-        installed = bootstrap(work_dir, ["dotnet"])
-        sdk = installed.get("tools", {}).get("dotnet", {})
-        if installed.get("status") != "ready" or sdk.get("status") != "ready":
-            raise ToolError(sdk.get("error", "Pinned SDK bootstrap failed"))
-        dotnet = executable(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet"))
+        # Validate and take the build lock first: a bad lock must fail before any SDK download.
         build_lock = managed_path(work_dir, "native-recovery", ".build.lock")
         build_lock.parent.mkdir(parents=True, exist_ok=True)
         with open_coordinator_lock(build_lock, "Native build lock") as build_stream, exclusive_lock(build_stream):
+            installed = bootstrap(work_dir, ["dotnet"])
+            sdk = installed.get("tools", {}).get("dotnet", {})
+            if installed.get("status") != "ready" or sdk.get("status") != "ready":
+                raise ToolError(sdk.get("error", "Pinned SDK bootstrap failed"))
+            dotnet = executable(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet"))
             artifact = host_lock(lock)["artifacts"]["cpp2il-source"]
             archive = download_artifact(artifact, work_dir)
             stage = managed_path(work_dir, "native-recovery", "builds", f".stage-{run_id}")
