@@ -1,6 +1,8 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
@@ -19,11 +21,13 @@ namespace ProjectLucid.Tests
     //    exist: a refused coroutine on the inactive host would be an unexpected error log and fail the test;
     //  - no folder is created, and an existing cache file is neither read nor changed (the system stays
     //    disabled with no ads although the file would enable it);
-    //  - the launch button content stays inactive after OnEnable, and no full screen view is requested.
+    //  - the launch button content stays inactive after OnEnable, and no full screen view is requested;
+    //  - stepping Update on the enabled button, the base one and an unlocked CrossPromoLaunchButtonSDT (no
+    //    unlock requirements), throws nothing and leaves the content inactive: the ad list is still the
+    //    initial Array.Empty, and hook H-065 returns before the original's read past its end (0x1A18395,
+    //    array bounds checks off in the shipped build).
     // All folders are unique owned ones under the persistent data path and are removed afterwards.
-    // Not covered in EditMode: the button's Update (the original reads the first element of its empty ad
-    // list there, with array bounds checks off in the shipped build, so it is not a stable thing to step),
-    // the real network request itself (the original path with the adapters off is
+    // Not covered in EditMode: the real network request itself (the original path with the adapters off is
     // covered by HLCrossPromoStartTests), and the launch button inside a running player loop.
     public sealed class OfflineCrossPromoHookTests
     {
@@ -86,6 +90,25 @@ namespace ProjectLucid.Tests
                     Assert.That(content.activeSelf, Is.False, "the launch button stays disabled after enabling");
                     Assert.That(icon.sprite, Is.Null);
                     Assert.That(fullScreenRequests, Is.EqualTo(0), "no ad UI is requested");
+                    StepUpdates(button, content, icon);
+
+                    // The game's subclass, unlocked: no unlock requirements, so its gate is open and Update
+                    // reaches TryShowCurrentAd with the empty ad list.
+                    owned.LeaseRow<UIManager>();
+                    GameObject sdtContent = owned.Host("Lucid SDT launch content", true);
+                    GameObject sdtPlaceholder = owned.Host("Lucid SDT launch placeholder", false);
+                    Image sdtIcon = owned.Host("Lucid SDT launch icon", true).AddComponent<Image>();
+                    var sdt = owned.Host("Lucid SDT launch button", false).AddComponent<CrossPromoLaunchButtonSDT>();
+                    Set(sdt, "m_content", sdtContent);
+                    Set(sdt, "m_placeholderContent", sdtPlaceholder);
+                    Set(sdt, "m_iconImage", sdtIcon);
+                    Assert.That(Get<RequirementGameplayLevelBase[]>(sdt, "m_unlockDefinitions"), Is.Empty);
+                    Assert.That(Call(sdt, "CanShowLaunchButton"), Is.True, "the button is unlocked");
+                    Call(sdt, "OnEnable");
+                    Assert.That(sdtContent.activeSelf, Is.False, "the disabled system shows no placeholder");
+                    StepUpdates(sdt, sdtContent, sdtIcon);
+                    Assert.That(sdtPlaceholder.activeSelf, Is.False);
+                    Assert.That(fullScreenRequests, Is.EqualTo(0), "no ad UI is requested");
 
                     Assert.That(Directory.Exists(incomingPath), Is.False, "no incoming folder");
                     Assert.That(Directory.Exists(destinationPath), Is.EqualTo(cacheOnDisk), "no destination folder is created");
@@ -108,6 +131,43 @@ namespace ProjectLucid.Tests
 
         [Test]
         public void ExistingCacheWithoutLocalStorageStaysDisabledWithoutRequests() => Run(false, true);
+
+        // The guard sits where the original reads the current ad: after the gate and the release of a previous
+        // icon, before the icon request, which with the impression event stays in the original body after it.
+        [Test]
+        public void TryShowCurrentAdGuardsTheAdReadAndKeepsTheOriginalBody()
+        {
+            MethodInfo method = typeof(CrossPromoLaunchButton).GetMethod("TryShowCurrentAd",
+                BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.DeclaredOnly);
+            string[] names = OriginalILCallSequence.Names(OriginalILCallSequence.Calls(method));
+            string[] expected =
+            {
+                "CrossPromoLaunchButton.CanShowLaunchButton", "Image.get_sprite", "CrossPromo.ReleaseIconTexture",
+                "OfflineAdapters.get_Active", "CrossPromo.RequestIconTexture", "GameObject.SetActive", "CrossPromo.RaiseImpressionEvent",
+            };
+            int at = -1;
+            foreach (string name in expected)
+            {
+                int next = Array.IndexOf(names, name, at + 1);
+                Assert.That(next, Is.GreaterThan(at), name + " follows the previous call in IL order: " + string.Join(", ", names));
+                at = next;
+            }
+            Assert.That(names.Count(name => name == "OfflineAdapters.get_Active"), Is.EqualTo(1));
+        }
+
+        // Update with the content hidden and the ad list non-null retries TryShowCurrentAd (0x1A18500); with the
+        // empty list the offline hook returns before the icon request, every frame.
+        private static void StepUpdates(CrossPromoLaunchButton button, GameObject content, Image icon)
+        {
+            Assert.That(Get<CrossPromoAd[]>(button, "m_ads"), Is.SameAs(Array.Empty<CrossPromoAd>()));
+            Assert.That(Get<CrossPromo>(button, "m_crossPromo"), Is.Not.Null, "Update passes its system check");
+            for (int frame = 0; frame < 3; frame++)
+            {
+                Assert.DoesNotThrow(() => Call(button, "Update"), "frame " + frame);
+                Assert.That(content.activeSelf, Is.False, "frame " + frame);
+                Assert.That(icon.sprite, Is.Null, "frame " + frame);
+            }
+        }
 
         private static void DeleteIfPresent(string path)
         {

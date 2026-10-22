@@ -1,4 +1,5 @@
 using System;
+using ProjectLucid.Offline;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,6 +9,7 @@ namespace Hardlight
 	// Original HLCrossPromo.Runtime 0200001f; bodies translated from the 1.10.1 x86-64 binary.
 	// Shows the current ad's icon, and each launch opens the full screen view on that ad
 	// before rotating to the next one.
+	// Hook H-065 (TryShowCurrentAd): see the comment there. The original code around it is unchanged.
 	[Il2CppSetOption(Option.NullChecks, false)]
 	[Il2CppSetOption(Option.ArrayBoundsChecks, false)]
 	public class CrossPromoLaunchButton : MonoBehaviour
@@ -120,6 +122,17 @@ namespace Hardlight
 			{
 				m_iconImage.sprite = null;
 				m_crossPromo.ReleaseIconTexture(previousIcon);
+			}
+			// Offline hook H-065: offline no metadata is ever parsed, so the ad list keeps its initial
+			// Array.Empty and Update retries this method every frame while the content is hidden. The
+			// original then reads m_ads[m_currentAd] past the end of the empty array (x86-64 0x1A18395..0x1A183AF:
+			// no length compare, ArrayBoundsChecks off) and hands that memory to the resource manager as the
+			// icon's texture description. The managed read throws instead, so offline we return here with
+			// no ad, which is where the offline resource manager's answer (no icon for any request) leads:
+			// the icon == null return below, content left hidden.
+			if (OfflineAdapters.Active && m_ads.Length == 0)
+			{
+				return;
 			}
 			Sprite icon = m_crossPromo.RequestIconTexture(m_ads[m_currentAd].IconTexture);
 			if (icon == null)
