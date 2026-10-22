@@ -132,19 +132,19 @@ namespace ProjectLucid.Tests
             // Reflection: serialized references and numbers of the authored container
             Set(rig.Container, "m_challengesSlider", rig.SliderWidget);
             Set(rig.Container, "m_scrollRectContentTransform", rig.Content);
-            Set(rig.Container, "m_rewardsContentTransform", rig.Rewards);
-            Set(rig.Container, "m_containerNavigation", owned.Host("Lucid reward track navigation", false).AddComponent<UIContainerNavigation>());
-            Set(rig.Container, "m_openCollectRewardEvent", rig.CollectEvent);
-            Set(rig.Container, "m_spaceBetweenRewards", 100);
-            Set(rig.Container, "m_sliderPadding", 5f);
+            Set(rig.Container, "m_rewardsContentTransform", rig.Rewards); // Reflection: serialized m_rewardsContentTransform the editor assigns
+            Set(rig.Container, "m_containerNavigation", owned.Host("Lucid reward track navigation", false).AddComponent<UIContainerNavigation>()); // Reflection: serialized m_containerNavigation the editor assigns
+            Set(rig.Container, "m_openCollectRewardEvent", rig.CollectEvent); // Reflection: serialized m_openCollectRewardEvent the editor assigns
+            Set(rig.Container, "m_spaceBetweenRewards", 100); // Reflection: serialized m_spaceBetweenRewards the editor assigns
+            Set(rig.Container, "m_sliderPadding", 5f); // Reflection: serialized m_sliderPadding the editor assigns
             Get<SerializableDictionary<UIWidgetButtonChallengeRewardSize, UIWidgetButtonChallengeReward>>(rig.Container, "m_rewardBySizePrefabs")
                 [UIWidgetButtonChallengeRewardSize.Medium] = NewButtonPrefab(owned, rig, "Lucid reward track medium button");
             // Reflection: the references Start assigns (see the type comment).
             Set(rig.Container, "m_app", ProcessManager.GetSystem<App>());
             Set(rig.Container, "m_dataManager", rig.Services.Data);
-            Set(rig.Container, "m_challengeManager", rig.Manager);
-            Set(rig.Container, "m_saveManager", rig.Services.Save);
-            Set(rig.Container, "m_rewardTrackDefinition", rig.Definition);
+            Set(rig.Container, "m_challengeManager", rig.Manager); // Reflection: Start takes this from the registry; Edit Mode does not send Start
+            Set(rig.Container, "m_saveManager", rig.Services.Save); // Reflection: Start takes this from the registry; Edit Mode does not send Start
+            Set(rig.Container, "m_rewardTrackDefinition", rig.Definition); // Reflection: Start takes this from the data manager; Edit Mode does not send Start
             body(rig);
         });
 
@@ -156,11 +156,11 @@ namespace ProjectLucid.Tests
             Set(transition, "m_animation", rig.Animation); // Reflection: serialized references
             Set(transition, "m_settings", new List<UITransitionAnimationSetting>());
             Set(widget, "m_transition", transition);
-            Set(widget, "m_collectedAnimationClip", rig.Collected);
-            Set(widget, "m_collectedAnimationClipWithMask", rig.WithMask);
-            Set(widget, "m_collectedAnimationClipPlayable", rig.Playable);
-            Set(widget, "m_readyToCollectAnimationClip", rig.Ready);
-            Set(widget, "m_hiddenAnimationClip", rig.Hidden);
+            Set(widget, "m_collectedAnimationClip", rig.Collected); // Reflection: serialized m_collectedAnimationClip the editor assigns
+            Set(widget, "m_collectedAnimationClipWithMask", rig.WithMask); // Reflection: serialized m_collectedAnimationClipWithMask the editor assigns
+            Set(widget, "m_collectedAnimationClipPlayable", rig.Playable); // Reflection: serialized m_collectedAnimationClipPlayable the editor assigns
+            Set(widget, "m_readyToCollectAnimationClip", rig.Ready); // Reflection: serialized m_readyToCollectAnimationClip the editor assigns
+            Set(widget, "m_hiddenAnimationClip", rig.Hidden); // Reflection: serialized m_hiddenAnimationClip the editor assigns
             return widget;
         }
 
@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
         private static void Populate(Rig rig, bool focusChosen = true)
         {
             if (focusChosen) LogAssert.Expect(LogType.Error, RefusedCoroutine);
-            Call(rig.Container, "PopulateUI");
+            Call(rig.Container, "PopulateUI"); // Reflection: private UIContainerChallengeRewardTrack.PopulateUI
         }
 
         private static void PrepareStorage(out List<IMetaGameUnlock> unlocks, out List<ApplicationStateEvent> events)
@@ -310,8 +310,8 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 100, 100, firstCollected: true, secondCollected: false);
 
-                var first = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.First, 1);
-                var second = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.Second, 2);
+                var first = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.First, 1); // Reflection: private UIContainerChallengeRewardTrack.GetRewardStatus
+                var second = (UIChallengeTrackRewardStatus)Call(rig.Container, "GetRewardStatus", rig.Second, 2); // Reflection: private UIContainerChallengeRewardTrack.GetRewardStatus
 
                 Assert.That(first.Collected, Is.True);
                 Assert.That(second.Collected, Is.False);
@@ -336,7 +336,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, spent, spent);
 
-                Assert.That((float)Call(rig.Container, "GetSliderValue"), Is.EqualTo(expected));
+                Assert.That((float)Call(rig.Container, "GetSliderValue"), Is.EqualTo(expected)); // Reflection: private UIContainerChallengeRewardTrack.GetSliderValue
             });
         }
 
@@ -349,7 +349,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 0, 0);
 
-                Call(rig.Container, "RefreshBinders");
+                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
 
                 Assert.That(rig.Container.XPIncrement.Value, Is.EqualTo("20"));
                 Assert.That(rig.Container.EnableButtons.Value, Is.True);
@@ -368,7 +368,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 0, 50);
 
-                Call(rig.Container, "RefreshBinders");
+                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
 
                 Assert.That(rig.Container.ShowAddButton.Value, Is.True);
                 Assert.That(rig.Container.ShowCollectButton.Value, Is.False);
@@ -387,7 +387,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 20, 20);
 
-                Call(rig.Container, "RefreshBinders");
+                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
 
                 Assert.That(rig.Container.XPIncrement.Value, Is.EqualTo("40"));
                 Assert.That(rig.Container.ShowCollectButton.Value, Is.True);
@@ -405,7 +405,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 60, 60, firstCollected: true, secondCollected: true);
 
-                Call(rig.Container, "RefreshBinders");
+                Call(rig.Container, "RefreshBinders"); // Reflection: private UIContainerChallengeRewardTrack.RefreshBinders
 
                 Assert.That(rig.Container.XPIncrement.Value, Is.EqualTo("0"));
                 Assert.That(rig.Container.ShowAllCollected.Value, Is.True);
@@ -511,7 +511,7 @@ namespace ProjectLucid.Tests
                 Set(closure, "<>4__this", rig.Container); // Reflection: the closure's captured state
                 Set(closure, "skipRefreshBinders", skipRefreshBinders);
 
-                Call(closure, "<OnRewardClick>b__0");
+                Call(closure, "<OnRewardClick>b__0"); // Reflection: compiler-generated lambda body, reachable only through reflection
 
                 Assert.That(Get<bool>(rig.Container, "m_isUnlocking"), Is.False);
                 Assert.That(rig.Container.EnableButtons.Value, Is.EqualTo(bindersRefreshed));
@@ -634,7 +634,7 @@ namespace ProjectLucid.Tests
                 rig.Container.EnableButtons.Value = true;
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
-                Call(rig.Container, "OnRewardClick", rig.Buttons[0], true);
+                Call(rig.Container, "OnRewardClick", rig.Buttons[0], true); // Reflection: private UIContainerChallengeRewardTrack.OnRewardClick
 
                 Assert.That(rig.Container.EnableButtons.Value, Is.True, "untouched");
                 Assert.That(events, Is.EqualTo(new[] { rig.CollectEvent }), "AddUnique");
@@ -676,7 +676,7 @@ namespace ProjectLucid.Tests
                 rig.Container.EnableButtons.Value = true;
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
-                bool collected = (bool)Call(rig.Container, "TryCollectReward", true);
+                bool collected = (bool)Call(rig.Container, "TryCollectReward", true); // Reflection: private UIContainerChallengeRewardTrack.TryCollectReward
 
                 Assert.That(collected, Is.True);
                 Assert.That(rig.First.Calls, Does.Contain("Save"));
@@ -695,7 +695,7 @@ namespace ProjectLucid.Tests
                 Populate(rig);
                 PrepareStorage(out List<IMetaGameUnlock> unlocks, out List<ApplicationStateEvent> events);
 
-                Assert.That((bool)Call(rig.Container, "TryCollectReward", false), Is.False);
+                Assert.That((bool)Call(rig.Container, "TryCollectReward", false), Is.False); // Reflection: private UIContainerChallengeRewardTrack.TryCollectReward
                 rig.Container.Action_CollectReward();
 
                 Assert.That(rig.First.Calls, Does.Not.Contain("Save"));
@@ -758,7 +758,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Get<Coroutine>(rig.Container, "m_unlockingCoroutine"), Is.Null);
             });

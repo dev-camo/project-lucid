@@ -95,22 +95,22 @@ namespace ProjectLucid.Tests
             // Reflection: serialized references and strings of the authored container
             Set(rig.Container, "m_containerNavigation", owned.Host("Lucid overview navigation", false).AddComponent<UIContainerNavigation>());
             Set(rig.Container, "m_challengeTogglesRoot", rig.Group);
-            Set(rig.Container, "m_challengeTogglePrefab", NewTogglePrefab(owned, prefabs, "Lucid overview toggle prefab"));
-            Set(rig.Container, "m_challengeToggleBonusPrefab", NewTogglePrefab(owned, prefabs, "Lucid overview bonus prefab"));
-            Set(rig.Container, "m_challengeInfoContainer", rig.Info);
-            Set(rig.Container, "m_challengeBonusInfoContainer", rig.Bonus);
-            Set(rig.Container, "m_levelDefinitionView", rig.LevelView);
-            Set(rig.Container, "m_refreshesInLabel", RefreshLabel);
-            Set(rig.Container, "m_bonusXpAvailableEvent", rig.BonusXpEvent);
-            Set(rig.Container, "m_showInfoEvent", rig.ShowInfoEvent);
-            Set(rig.Container, "m_testModeDisplay", owned.Host("Lucid overview test mode", false));
+            Set(rig.Container, "m_challengeTogglePrefab", NewTogglePrefab(owned, prefabs, "Lucid overview toggle prefab")); // Reflection: serialized m_challengeTogglePrefab the editor assigns
+            Set(rig.Container, "m_challengeToggleBonusPrefab", NewTogglePrefab(owned, prefabs, "Lucid overview bonus prefab")); // Reflection: serialized m_challengeToggleBonusPrefab the editor assigns
+            Set(rig.Container, "m_challengeInfoContainer", rig.Info); // Reflection: serialized m_challengeInfoContainer the editor assigns
+            Set(rig.Container, "m_challengeBonusInfoContainer", rig.Bonus); // Reflection: serialized m_challengeBonusInfoContainer the editor assigns
+            Set(rig.Container, "m_levelDefinitionView", rig.LevelView); // Reflection: serialized m_levelDefinitionView the editor assigns
+            Set(rig.Container, "m_refreshesInLabel", RefreshLabel); // Reflection: serialized m_refreshesInLabel the editor assigns
+            Set(rig.Container, "m_bonusXpAvailableEvent", rig.BonusXpEvent); // Reflection: serialized m_bonusXpAvailableEvent the editor assigns
+            Set(rig.Container, "m_showInfoEvent", rig.ShowInfoEvent); // Reflection: serialized m_showInfoEvent the editor assigns
+            Set(rig.Container, "m_testModeDisplay", owned.Host("Lucid overview test mode", false)); // Reflection: serialized m_testModeDisplay the editor assigns
             body(rig);
         }));
 
         private static UIModernEvent NewEvent(Owned owned, string guid)
         {
             var uiEvent = owned.Track(ScriptableObject.CreateInstance<UIModernEvent>());
-            Set(uiEvent, "m_guid", guid);
+            Set(uiEvent, "m_guid", guid); // Reflection: authored GUID of a serialized definition
             return uiEvent;
         }
 
@@ -134,7 +134,7 @@ namespace ProjectLucid.Tests
             Set(definition, "m_mission", rig.Mission); // Reflection: serialized references and lists
             Set(definition, "m_level", rig.Level);
             Set(definition, "m_characterSelection", new CharacterId[0]);
-            Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]);
+            Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]); // Reflection: serialized m_startPositions the editor assigns
             return definition;
         }
 
@@ -160,7 +160,7 @@ namespace ProjectLucid.Tests
         private static void Start(Rig rig)
         {
             LogAssert.Expect(LogType.Error, RefusedCoroutine);
-            Call(rig.Container, "Start");
+            Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
         }
 
         private static void Update(Rig rig)
@@ -278,7 +278,7 @@ namespace ProjectLucid.Tests
                 Update(rig);
                 Assert.That(rig.Toggles.Count, Is.EqualTo(1), "an update through the manager reaches the container");
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
                 Assert.That(rig.Manager.OnChallengesUpdated, Is.Null);
             });
         }
@@ -382,7 +382,7 @@ namespace ProjectLucid.Tests
             {
                 ChallengeState state = NewState(rig, "lucid-overview-open", 0, 0f);
                 Start(rig);
-                Call(rig.Container, "ToggleChallenge", state, true);
+                Call(rig.Container, "ToggleChallenge", state, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
                 Assert.That(rig.Selected, Is.SameAs(state));
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True);
 
@@ -452,14 +452,14 @@ namespace ProjectLucid.Tests
                 rig.Container.ValidChallengeSelected.Value = true;
                 rig.Info.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleBonus", true);
+                Call(rig.Container, "ToggleBonus", true); // Reflection: private UIContainerChallengesOverview.ToggleBonus
                 Assert.That(rig.Bonus.gameObject.activeSelf, Is.True);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.False);
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.False);
 
                 rig.Container.ValidChallengeSelected.Value = true;
                 rig.Info.gameObject.SetActive(true);
-                Call(rig.Container, "ToggleBonus", false);
+                Call(rig.Container, "ToggleBonus", false); // Reflection: private UIContainerChallengesOverview.ToggleBonus
                 Assert.That(rig.Bonus.gameObject.activeSelf, Is.False);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True, "untouched");
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.True, "untouched");
@@ -476,7 +476,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Bonus.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleChallenge", null, true);
+                Call(rig.Container, "ToggleChallenge", null, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
 
                 Assert.That(rig.Selected, Is.Null);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True);
@@ -543,8 +543,8 @@ namespace ProjectLucid.Tests
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 ChallengeState stranger = NewState(rig, "lucid-overview-stranger", 0, 0f, false);
 
-                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.True);
-                Assert.That(Call(rig.Container, "ValidateChallengeState", stranger), Is.False);
+                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.True); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
+                Assert.That(Call(rig.Container, "ValidateChallengeState", stranger), Is.False); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
             }, true);
         }
 
@@ -557,8 +557,8 @@ namespace ProjectLucid.Tests
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 var shadow = new ChallengeState(0, rig.ShadowChallenge, 0, null, 0);
 
-                Assert.That(Call(rig.Container, "ValidateChallengeState", shadow), Is.True);
-                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.False, "listed, but not the shadow FTUE challenge");
+                Assert.That(Call(rig.Container, "ValidateChallengeState", shadow), Is.True); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
+                Assert.That(Call(rig.Container, "ValidateChallengeState", listed), Is.False, "listed, but not the shadow FTUE challenge"); // Reflection: private UIContainerChallengesOverview.ValidateChallengeState
             }, false);
         }
 
@@ -574,7 +574,7 @@ namespace ProjectLucid.Tests
                 ChallengeState second = NewState(rig, "lucid-overview-second", 0, 0f);
                 rig.Bonus.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleChallenge", first, true);
+                Call(rig.Container, "ToggleChallenge", first, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
 
                 Assert.That(rig.Selected, Is.SameAs(first));
                 Assert.That(rig.Info.gameObject.activeSelf, Is.True);
@@ -583,12 +583,12 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.LevelView.gameObject.activeSelf, Is.True, "UpdateLevelPreview shows the level view");
                 Assert.That(Get<GameplayLevelDefinition>(rig.LevelView, "m_levelDefinition"), Is.SameAs(rig.Level));
 
-                Call(rig.Container, "ToggleChallenge", second, false);
+                Call(rig.Container, "ToggleChallenge", second, false); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
 
                 Assert.That(rig.Selected, Is.SameAs(first), "another challenge was deselected");
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.True);
 
-                Call(rig.Container, "ToggleChallenge", first, false);
+                Call(rig.Container, "ToggleChallenge", first, false); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
 
                 Assert.That(rig.Selected, Is.Null);
                 Assert.That(rig.Info.gameObject.activeSelf, Is.False);
@@ -607,10 +607,10 @@ namespace ProjectLucid.Tests
                 TakeManagerReference(rig);
                 ChallengeState listed = NewState(rig, "lucid-overview-listed", 0, 0f);
                 ChallengeState stranger = NewState(rig, "lucid-overview-stranger", 0, 0f, false);
-                Call(rig.Container, "ToggleChallenge", listed, true);
+                Call(rig.Container, "ToggleChallenge", listed, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
                 rig.LevelView.gameObject.SetActive(true);
 
-                Call(rig.Container, "ToggleChallenge", stranger, true);
+                Call(rig.Container, "ToggleChallenge", stranger, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
 
                 Assert.That(rig.Selected, Is.Null);
                 Assert.That(rig.Container.ValidChallengeSelected.Value, Is.False);
@@ -623,7 +623,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void WithoutANavigationManagerNothingIsSelected()
         {
-            Run(rig => Assert.That(() => Call(rig.Container, "TryNavigateToWidget", rig.Owned.Host("Lucid overview toggle", false).AddComponent<UIWidgetSDTToggleChallenge>()),
+            Run(rig => Assert.That(() => Call(rig.Container, "TryNavigateToWidget", rig.Owned.Host("Lucid overview toggle", false).AddComponent<UIWidgetSDTToggleChallenge>()), // Reflection: private UIContainerChallengesOverview.TryNavigateToWidget
                 Throws.Nothing));
         }
 
@@ -673,7 +673,7 @@ namespace ProjectLucid.Tests
                 // Reflection: the level manager's Initialise callback assigns it, and Initialise never runs on the inactive host.
                 Set(ProcessManager.GetSystem<LevelManager>(), "m_app", ProcessManager.GetSystem<App>());
                 ChallengeState state = NewState(rig, "lucid-overview-launch", 0, 0f);
-                Call(rig.Container, "ToggleChallenge", state, true);
+                Call(rig.Container, "ToggleChallenge", state, true); // Reflection: private UIContainerChallengesOverview.ToggleChallenge
 
                 rig.Container.Action_SetChallengeLaunchData();
 
