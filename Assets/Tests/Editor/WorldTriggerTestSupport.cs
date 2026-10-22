@@ -92,6 +92,7 @@ namespace ProjectLucid.Tests
         {
             private readonly List<Object> m_objects = new List<Object>();
             private readonly List<IDisposable> m_leases = new List<IDisposable>();
+            private readonly HashSet<string> m_leasedRows = new HashSet<string>(); // the rows this Owned took with LeaseRow
 
             private Owned() { }
 
@@ -120,8 +121,12 @@ namespace ProjectLucid.Tests
             internal void LeaseActions(params SystemAction[] actions) => m_leases.Add(new VerificationFixtureOwnership.ActionRows(actions));
 
             // A row that original construction or lookup creates; it must be released idle.
-            internal void LeaseRow<T>() where T : class, ISystem =>
-                m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(ProcessManager.GetDefaultName<T>()));
+            internal void LeaseRow<T>() where T : class, ISystem
+            {
+                string name = ProcessManager.GetDefaultName<T>();
+                m_leases.Add(new VerificationFixtureOwnership.LifecycleRow(name));
+                m_leasedRows.Add(name);
+            }
 
             // The row the fixture registers its own system into, before any component's field initialiser caches a
             // typed reference from it. An absent row becomes the fixture's. A row that exists must be idle, because
@@ -156,6 +161,8 @@ namespace ProjectLucid.Tests
             internal T RegisterIntoLeasedRow<T>(T system) where T : class, ISystem
             {
                 string name = ProcessManager.GetDefaultName<T>();
+                if (!m_leasedRows.Contains(name))
+                    throw new InvalidOperationException("Fixture registry row was not leased by this case with LeaseRow: " + name);
                 SystemRef reference = ProcessManager.RegisterSystem(system, name);
                 m_leases.Add(new CharacterTriggerTestSupport.ReleaseAction(() =>
                 {
