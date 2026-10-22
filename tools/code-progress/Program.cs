@@ -102,7 +102,7 @@ internal static class Program
         }
         string name = Name(type.DefaultFullName), assembly = type.DeclaringAssembly.DefaultName;
         if (Primitive.Contains(name) && assembly == "mscorlib") return "primitive:" + name;
-        return "[" + assembly + "]" + name;
+        return TypeIdentity.Qualified(assembly, name);
     }
     private static string PlayerType(TypeReference type, int depth = 0)
     {
@@ -113,12 +113,15 @@ internal static class Program
         if (type is ByReferenceType byref) return PlayerType(byref.ElementType, depth + 1) + "&";
         if (type is PointerType pointer) return PlayerType(pointer.ElementType, depth + 1) + "*";
         if (type is ArrayType array) return PlayerType(array.ElementType, depth + 1) + (array.IsVector ? "[]" : "[" + array.Rank + ":nonvector]");
+        // An `in` parameter's modreq(InAttribute) is dropped; the by-ref it wraps is kept.
+        if (type is RequiredModifierType required && TypeIdentity.IsInAttribute(required.ModifierType.FullName))
+            return PlayerType(required.ElementType, depth + 1);
         if (type is TypeSpecification) throw new InvalidDataException("Unsupported modifier/function pointer signature.");
         if (Primitive.Contains(type.FullName) && type.MetadataType != MetadataType.Class && type.MetadataType != MetadataType.ValueType)
             return "primitive:" + type.FullName;
         string assembly = type.Scope switch { AssemblyNameReference reference => reference.Name, ModuleDefinition module => module.Assembly.Name.Name,
             _ => throw new InvalidDataException("Unresolved signature module scope.") };
-        return "[" + assembly + "]" + Name(type.FullName);
+        return TypeIdentity.Qualified(assembly, Name(type.FullName));
     }
     private static object NativeSignature(MethodAnalysisContext method) => new {
         owner = Name(method.DeclaringType!.DefaultFullName), name = method.DefaultName, is_static = method.IsStatic,

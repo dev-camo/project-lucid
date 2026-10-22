@@ -423,6 +423,7 @@ def _build_reader(root, work, run, engine):
     project = playercode._regular(project_root / "CodeProgress.csproj", 65536)
     program = playercode._regular(project.with_name("Program.cs"), 1024 * 1024)
     documents = playercode._regular(project.with_name("SourceDocuments.cs"), 65536)
+    identity = playercode._regular(project.with_name("TypeIdentity.cs"), 65536)
     host = verified_tool_path(work, "dotnet")
     environment = dotnet_environment(work, host.parent)
     sdk = host_lock(load_lock())["artifacts"].get("dotnet", {})
@@ -441,7 +442,8 @@ def _build_reader(root, work, run, engine):
     if process.returncode or not reader.is_file(): raise ValueError("Code progress reader build failed")
     if playercode._file_record(host) != host_seal: raise ValueError("Code progress host changed during build")
     return {"host": host_seal, "path": str(reader), "sha256": sha256_file(reader),
-            "sources": [playercode._file_record(project), playercode._file_record(program), playercode._file_record(documents)],
+            "sources": [playercode._file_record(project), playercode._file_record(program), playercode._file_record(documents),
+                        playercode._file_record(identity)],
             "dependencies": built, "outputs": playerschema._tree_records(output, work)}
 
 
