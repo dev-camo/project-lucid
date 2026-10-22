@@ -17,18 +17,22 @@ namespace ProjectLucid.Tests
     // GameCenter never reports a logged-in player, so every player counts as underage and the page cannot reach them.
     public sealed class UIContainerAnalyticsConsentTests
     {
-        private static void Run(Action<Owned, App, AnalyticsConsentManager, UIContainerAnalyticsConsent> body) => Owned.Run(owned =>
+        private static void Run(Action<Owned, App, AnalyticsConsentManager, UIContainerAnalyticsConsent> body)
         {
-            owned.Lease(new OwnedCharacterManagers());
-            owned.LeaseActions(SystemAction.AppInitialise, SystemAction.AppShutdown);
-            owned.LeaseRow<GameCenter>(); // the reference the case hands the manager
-            AnalyticsConsentManager manager = null;
-            // The constructor subscribes now, before the row is admitted; released after the unregistration.
-            owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(manager)));
-            manager = owned.Register(new AnalyticsConsentManager());
-            var page = owned.Host("Lucid analytics consent", false).AddComponent<UIContainerAnalyticsConsent>();
-            body(owned, ProcessManager.GetSystem<App>(), manager, page);
-        });
+            SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
+            Owned.Run(owned =>
+            {
+                owned.Lease(new OwnedCharacterManagers());
+                owned.LeaseActions(SystemAction.AppInitialise, SystemAction.AppShutdown);
+                owned.LeaseRow<GameCenter>(); // the reference the case hands the manager
+                AnalyticsConsentManager manager = null;
+                // The constructor subscribes now, before the row is admitted; released after the unregistration.
+                owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(manager)));
+                manager = owned.Register(new AnalyticsConsentManager());
+                var page = owned.Host("Lucid analytics consent", false).AddComponent<UIContainerAnalyticsConsent>();
+                body(owned, ProcessManager.GetSystem<App>(), manager, page);
+            });
+        }
 
         // Start 0x6198B0 runs the gameplay control base first (it remembers the control state and applies the serialized
         // choice), then looks the manager up and publishes its consent state through the binder (0x619931 reads +0x30).

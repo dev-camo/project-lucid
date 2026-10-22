@@ -60,7 +60,9 @@ namespace ProjectLucid.Tests
 
         // The quality manager's "graphics switching" requirement is an authored level; the profile holds no attribute for it, so
         // the device can change graphics quality exactly when the required level is above Medium.
-        private static void RunMissions(bool currentLevelValid, PerformanceProfile.QualityLevel requiredLevel, Action<MissionRig> body) =>
+        private static void RunMissions(bool currentLevelValid, PerformanceProfile.QualityLevel requiredLevel, Action<MissionRig> body)
+        {
+            SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
             OriginalPersistentLevelObjectTests.WithMissions(currentLevelValid, (owned, missions) =>
             {
                 owned.LeaseRow<TimeTrialLeaderboardManager>(); // MissionDefinition's field initialiser
@@ -90,6 +92,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_missionRanksContainer", rig.Ranks); // Reflection: serialized m_missionRanksContainer the editor assigns
                 body(rig);
             });
+        }
 
         private static void RunMissions(Action<MissionRig> body) => RunMissions(true, PerformanceProfile.QualityLevel.High, body);
 
@@ -489,21 +492,25 @@ namespace ProjectLucid.Tests
             internal UIModernEvent ResumeEvent;
         }
 
-        private static void RunCharacters(Action<CharacterRig> body) => WithManager((owned, characters, character) =>
+        private static void RunCharacters(Action<CharacterRig> body)
         {
-            owned.LeaseRow<AudioManager>(); // LevelManager's field initialiser
-            var rig = new CharacterRig { Owned = owned, Characters = characters, Character = character, App = ProcessManager.GetSystem<App>() };
-            rig.App.Storage.SetValue(AppFSMKeys.UIModernEvents, new List<UIModernEvent>());
-            UIManager uiManager = NewUiManager(owned, out rig.Containers);
-            rig.Identifier = NewIdentifier(owned, "pause");
-            rig.Container = owned.Host("Lucid pause", false).AddComponent<UIContainerPause>();
-            rig.ResumeEvent = NewEvent(owned, "pause-resume");
-            // Serialized in the original, and the callback Start's InvokeOnValid runs.
-            Set(rig.Container, "m_resumeEvent", rig.ResumeEvent);
-            Set(rig.Container, "m_identifier", rig.Identifier); // Reflection: serialized m_identifier the editor assigns
-            Set(rig.Container, "m_uiManager", uiManager); // Reflection: Start's InvokeOnValid callback assigns it; the case skips Start
-            body(rig);
-        });
+            SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
+            WithManager((owned, characters, character) =>
+            {
+                owned.LeaseRow<AudioManager>(); // LevelManager's field initialiser
+                var rig = new CharacterRig { Owned = owned, Characters = characters, Character = character, App = ProcessManager.GetSystem<App>() };
+                rig.App.Storage.SetValue(AppFSMKeys.UIModernEvents, new List<UIModernEvent>());
+                UIManager uiManager = NewUiManager(owned, out rig.Containers);
+                rig.Identifier = NewIdentifier(owned, "pause");
+                rig.Container = owned.Host("Lucid pause", false).AddComponent<UIContainerPause>();
+                rig.ResumeEvent = NewEvent(owned, "pause-resume");
+                // Serialized in the original, and the callback Start's InvokeOnValid runs.
+                Set(rig.Container, "m_resumeEvent", rig.ResumeEvent);
+                Set(rig.Container, "m_identifier", rig.Identifier); // Reflection: serialized m_identifier the editor assigns
+                Set(rig.Container, "m_uiManager", uiManager); // Reflection: Start's InvokeOnValid callback assigns it; the case skips Start
+                body(rig);
+            });
+        }
 
         private static bool Waiting(object current) => ((WaitUntil)current).keepWaiting;
 
