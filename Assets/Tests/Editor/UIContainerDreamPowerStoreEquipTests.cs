@@ -35,7 +35,7 @@ namespace ProjectLucid.Tests
             public World World;
             public UIContainerDreamPowerStore Store;
             public UINavigationManager Navigation;
-            public DreamPowerStoreSelectionBridgeProbe Bridge;
+            public NavigationSelectionBridgeProbe Bridge;
             public ButtonSlot[] Slots;
             public UIWidgetNavigation[] SlotNavigation;
             public Animation Animation;
@@ -45,34 +45,13 @@ namespace ProjectLucid.Tests
             public readonly List<PowerWidget> Widgets = new List<PowerWidget>();
         }
 
-        // A navigation manager made as UINavigationManager's constructor expects: the navigation configuration in the system
-        // configuration and a UI runtime configuration holding the input bridge. Each registration, the shutdown subscription and the
-        // static input-type listener the constructor adds are released with the case.
+        // A real navigation manager over the probe bridge, built by the shared NavigationManagerTestSupport (active, with the
+        // bridge asking for no selection afterwards).
         private static void AddNavigation(Rig rig)
         {
-            Owned owned = rig.World.Scene.Owned;
-            FastAction<UIInputType> priorListeners = InputBridge.OnUpdateLastInputType;
-            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => InputBridge.OnUpdateLastInputType = priorListeners));
-            // The world already leases the Shutdown row (MissionTrackerTestSupport), before any manager subscribes. A second lease taken here
-            // would be released while the progression manager, subscribed before it, has already left the row when its registration ends.
-            var systemConfiguration = owned.Register(new SystemConfiguration());
-            var configuration = owned.Track(ScriptableObject.CreateInstance<UINavigationConfiguration>());
-            // The override SystemConfiguration.AddConfig makes, into this case's own configuration system.
-            systemConfiguration.StackableData.AddOverride(HLCRC32.GenerateInt(nameof(UINavigationConfiguration)), configuration);
-            rig.Bridge = owned.Track(ScriptableObject.CreateInstance<DreamPowerStoreSelectionBridgeProbe>());
-            rig.Bridge.RequiresSelection = true;
-            var runtimeConfiguration = owned.Host("Lucid dream power store ui configuration", false).AddComponent<UIRuntimeConfiguration>();
-            Set(runtimeConfiguration, "m_inputBridge", rig.Bridge); // Reflection: serialized reference the editor assigns
-            owned.Register(runtimeConfiguration);
-            rig.Navigation = new UINavigationManager();
-            owned.Register(rig.Navigation);
-            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() =>
-            {
-                ProcessManager.ProcessSystemAction(rig.Navigation, SystemAction.Shutdown);
-                ProcessManager.UnsubscribeFromAllActions(rig.Navigation);
-            }));
-            Assert.That(rig.Navigation.IsActive, Is.True, "the bridge asked for selection while the manager was constructed");
-            rig.Bridge.RequiresSelection = false;
+            NavigationManagerTestSupport.Navigation navigation = NavigationManagerTestSupport.Add(rig.World.Scene.Owned);
+            rig.Navigation = navigation.Manager;
+            rig.Bridge = navigation.Bridge;
         }
 
         // The store after its own OnEnable (so its slots are built), with three slot buttons that each hold a navigation component,
