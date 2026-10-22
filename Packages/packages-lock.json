@@ -128,6 +128,15 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.olegknyazev.softmask": {
+      "version": "file:com.olegknyazev.softmask",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {
+        "com.unity.ugui": "1.0.0",
+        "com.unity.modules.ui": "1.0.0"
+      }
+    },
     "com.projectlucid.applearcadesplash": {
       "version": "file:com.projectlucid.applearcadesplash",
       "depth": 0,

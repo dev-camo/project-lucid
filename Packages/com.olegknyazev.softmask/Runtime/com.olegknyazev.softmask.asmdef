@@ -1,0 +1,6 @@
+{
+	"name": "com.olegknyazev.softmask",
+	"references": [
+		"UnityEngine.UI"
+	]
+}
