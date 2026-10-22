@@ -87,9 +87,9 @@ namespace ProjectLucid.Tests
                 Set(container, "m_metaGameState", new MetaGameState(level, null)); // Reflection: assigned by Start
                 SaveDataLevelMission record = missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID());
 
-                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Locked));
+                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Locked)); // Reflection: private UIContainerMissionSelect.GetUIShowTypeForMission
                 record.Complete = true;
-                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Unlocked));
+                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Unlocked)); // Reflection: private UIContainerMissionSelect.GetUIShowTypeForMission
             });
         }
 
@@ -124,7 +124,7 @@ namespace ProjectLucid.Tests
             Set(rig.Container, "m_missionPrefab", widget); // Reflection: serialized references
             Set(rig.Container, "m_missionsRoot", rig.Group);
             Set(rig.Container, "m_ghostedMissionPrefab", owned.Host("Lucid ghosted mission", false));
-            Set(rig.Container, "m_collectableCounter", owned.Host("Lucid collectable counter", false).AddComponent<UIContainerOrbCollectableCounter>());
+            Set(rig.Container, "m_collectableCounter", owned.Host("Lucid collectable counter", false).AddComponent<UIContainerOrbCollectableCounter>()); // Reflection: serialized m_collectableCounter the editor assigns
             Set(rig.Container, "m_missionManager", missions.Manager); // Reflection: assigned by Start and OnMissionManagerValid
             Set(rig.Container, "m_saveManager", missions.Save);
             Set(rig.Container, "m_metaGameState", new MetaGameState(rig.Level, null)); // Reflection: assigned by Start
@@ -251,7 +251,7 @@ namespace ProjectLucid.Tests
                     // A mission whose unlock the player has seen plays no unlock animation (UIWidgetToggleMission.Setup 0x6A3CC0), which
                     // would queue a clip on the toggle's UITransitionAnimation that the prefab does not have in Edit Mode.
                     saveLevel.GetOrCreateMissionData(mission.GetGUID()).LevelSelectUnlockSeen = true;
-                    Call(rig.Missions.Manager, "CreateMissionState", mission, saveLevel);
+                    Call(rig.Missions.Manager, "CreateMissionState", mission, saveLevel); // Reflection: private CreateMissionState, which the original reaches from its own code
                 }
                 var unmet = Create<RequirementMissionGroupShadowFTUEAvailable>(owned);
                 var groups = new MissionGroup[]
@@ -263,7 +263,7 @@ namespace ProjectLucid.Tests
                     NewRequirementGroup(false, null, third),
                 };
 
-                Call(rig.Container, "PopulateUI", new List<MissionGroup>(groups));
+                Call(rig.Container, "PopulateUI", new List<MissionGroup>(groups)); // Reflection: private UIContainerMissionSelect.PopulateUI
 
                 var children = new List<string>();
                 foreach (Transform child in rig.Group.transform)
@@ -372,7 +372,7 @@ namespace ProjectLucid.Tests
                 container.ShowLeaderboards.Value = true;
                 container.LeaderboardIdentifier.AddListener(() => identifierWrites++);
 
-                Call(container, "SetupLeaderboards", mission);
+                Call(container, "SetupLeaderboards", mission); // Reflection: private UIContainerMissionSelect.SetupLeaderboards
 
                 Assert.That(container.ShowLeaderboards.Value, Is.False);
                 Assert.That(identifierWrites, Is.EqualTo(0));
@@ -390,8 +390,8 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<DataManager>(); // the widget's field initialiser
                 var widget = owned.Host("Lucid mission toggle", false).AddComponent<UIWidgetToggleMission>();
 
-                Assert.DoesNotThrow(() => Call(container, "TryNavigateToWidget", widget));
-                Assert.DoesNotThrow(() => Call(container, "OnContainerClosed", new object[] { null }));
+                Assert.DoesNotThrow(() => Call(container, "TryNavigateToWidget", widget)); // Reflection: private UIContainerMissionSelect.TryNavigateToWidget
+                Assert.DoesNotThrow(() => Call(container, "OnContainerClosed", new object[] { null })); // Reflection: private UIContainerMissionSelect.OnContainerClosed
                 Set(container, "m_activeWidget", widget); // Reflection: assigned by ToggleMission
                 Assert.DoesNotThrow(() => Call(container, "OnContainerClosed", new object[] { null }));
             });

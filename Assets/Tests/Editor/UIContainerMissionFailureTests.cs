@@ -61,7 +61,7 @@ namespace ProjectLucid.Tests
                 {
                     if (stored.HasValue) rig.App.Storage.SetValue(AppFSMKeys.FailureScreenStringOverride, stored.Value);
 
-                    Call(rig.Container, "OnEnable");
+                    Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                     Assert.That(rig.Container.FailureMessage.Value, Is.EqualTo(expected), "stored " + stored);
                 });

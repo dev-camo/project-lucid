@@ -76,7 +76,7 @@ namespace ProjectLucid.Tests
                 Set(container, "m_alwaysDisplay", true); // Reflection: serialized flags
                 Assert.That(container.AlwaysDisplay, Is.True);
                 Assert.That(container.OnlyShowWhenMissionIslandActive, Is.False);
-                Set(container, "m_onlyShowWhenMissionIslandActive", true);
+                Set(container, "m_onlyShowWhenMissionIslandActive", true); // Reflection: serialized m_onlyShowWhenMissionIslandActive the editor assigns
                 Assert.That(container.OnlyShowWhenMissionIslandActive, Is.True);
             });
         }
@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
                     Set(container, "m_alwaysDisplay", always);
                     Assert.That(group.alpha, Is.EqualTo(1f));
 
-                    Call(container, "OnEnable");
+                    Call(container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                     Assert.That(group.alpha, Is.EqualTo(always ? 1f : 0f), "always displayed: " + always);
                 });
@@ -155,14 +155,14 @@ namespace ProjectLucid.Tests
                 container.gameObject.SetActive(true);
                 group.alpha = 0.5f;
 
-                var hide = (IEnumerator)Call(container, "Hide");
+                var hide = (IEnumerator)Call(container, "Hide"); // Reflection: private UIContainerMissionProgress.Hide
                 Assert.That(hide.MoveNext(), Is.True, "waiting out the display time");
                 Assert.That(hide.Current, Is.Null);
                 Assert.That(hide.MoveNext(), Is.True, "still waiting: an hour has not passed");
                 Assert.That(group.alpha, Is.EqualTo(0.5f), "nothing is written while waiting");
 
-                Set(container, "m_displaySeconds", -1f);
-                var fade = (IEnumerator)Call(container, "Hide");
+                Set(container, "m_displaySeconds", -1f); // Reflection: serialized m_displaySeconds the editor assigns
+                var fade = (IEnumerator)Call(container, "Hide"); // Reflection: private UIContainerMissionProgress.Hide
                 Assert.That(fade.MoveNext(), Is.True, "the display time is already over");
                 Assert.That(fade.Current, Is.Null);
                 Assert.That(group.alpha, Is.EqualTo(1f), "the fade starts from full alpha");
@@ -190,7 +190,7 @@ namespace ProjectLucid.Tests
                 container.gameObject.SetActive(true);
                 group.alpha = 0.5f;
 
-                var hide = (IEnumerator)Call(container, "Hide");
+                var hide = (IEnumerator)Call(container, "Hide"); // Reflection: private UIContainerMissionProgress.Hide
 
                 Assert.That(hide.MoveNext(), Is.True);
                 Assert.That(group.alpha, Is.EqualTo(1f), "no wait: the fade has begun");
