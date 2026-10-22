@@ -44,7 +44,7 @@ namespace ProjectLucid.Tests
                 PerformanceFeature<UIContainerPauseBackground.QualityBackground> feature = quality?.Invoke(owned);
                 rig.Background = owned.Host("Lucid pause background", false).AddComponent<UIContainerPauseBackground>();
                 Set(rig.Background, "m_useRenderTexture", useRenderTexture); // serialized in the original
-                Set(rig.Background, "m_qualitySettings", feature ?? new PerformanceFeature<UIContainerPauseBackground.QualityBackground>());
+                Set(rig.Background, "m_qualitySettings", feature ?? new PerformanceFeature<UIContainerPauseBackground.QualityBackground>()); // Reflection: serialized m_qualitySettings the editor assigns
                 body(rig);
             });
 
@@ -62,7 +62,7 @@ namespace ProjectLucid.Tests
             {
                 Assert.That(rig.Background.enabled, Is.True);
 
-                Call(rig.Background, "OnEnable");
+                Call(rig.Background, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(rig.Background.enabled, Is.False);
                 Assert.That(Get<CinemachineCameraManager>(rig.Background, "m_cinemachineCameraManager") == null, Is.True);
@@ -78,7 +78,7 @@ namespace ProjectLucid.Tests
         {
             Run(true, rig =>
             {
-                Call(rig.Background, "OnEnable");
+                Call(rig.Background, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(rig.Background.enabled, Is.True);
                 Assert.That(Get<CinemachineCameraManager>(rig.Background, "m_cinemachineCameraManager"), Is.SameAs(rig.Cameras.Manager));
@@ -94,7 +94,7 @@ namespace ProjectLucid.Tests
         {
             Run(true, rig =>
             {
-                Call(rig.Background, "OnEnable");
+                Call(rig.Background, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(Get<CinemachineCameraManager>(rig.Background, "m_cinemachineCameraManager") == null, Is.True);
                 Assert.That(IsSubscribed(rig), Is.False);
@@ -115,10 +115,10 @@ namespace ProjectLucid.Tests
         {
             Run(true, rig =>
             {
-                Call(rig.Background, "OnEnable");
+                Call(rig.Background, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
                 Assert.That(IsSubscribed(rig), Is.True);
 
-                Call(rig.Background, "InitialiseFromCamera", rig.Cameras.Camera);
+                Call(rig.Background, "InitialiseFromCamera", rig.Cameras.Camera); // Reflection: private UIContainerPauseBackground.InitialiseFromCamera
 
                 Assert.That(Get<Vector2Int>(rig.Background, "m_screenSize"), Is.EqualTo(CameraSize));
                 Assert.That(Get<int>(rig.Background, "m_cachedCullingMask"), Is.EqualTo(CullingMask));
@@ -133,7 +133,7 @@ namespace ProjectLucid.Tests
             var feature = owned.Track(ScriptableObject.CreateInstance<ScalableFeature>());
             feature.ID = "lucid-pause-background-quality";
             var profile = owned.Track(ScriptableObject.CreateInstance<PerformanceProfile>());
-            Set(profile, "m_attributes", new List<PerformanceAttribute>
+            Set(profile, "m_attributes", new List<PerformanceAttribute> // Reflection: serialized m_attributes the editor assigns
             {
                 new PerformanceAttribute { Feature = feature, Level = PerformanceProfile.QualityLevel.High },
             }); // serialized in the original
@@ -153,6 +153,7 @@ namespace ProjectLucid.Tests
             })
             {
                 object row = Activator.CreateInstance(rowType);
+                // Reflection: the row is a private nested type of authored serialized data.
                 Field(rowType, "QualityLevel").SetValue(row, level);
                 Field(rowType, "QualitySetting").SetValue(row, new UIContainerPauseBackground.QualityBackground { ResolutionMax = limit });
                 rows.Add(row);
@@ -181,9 +182,9 @@ namespace ProjectLucid.Tests
             {
                 Run(true, rig =>
                 {
-                    Call(rig.Background, "OnEnable");
+                    Call(rig.Background, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
-                    Call(rig.Background, "InitialiseFromCamera", rig.Cameras.Camera);
+                    Call(rig.Background, "InitialiseFromCamera", rig.Cameras.Camera); // Reflection: private UIContainerPauseBackground.InitialiseFromCamera
 
                     Assert.That(Get<Vector2Int>(rig.Background, "m_screenSize"), Is.EqualTo(expected), "maximum " + max);
                 }, owned => Quality(owned, max));
@@ -197,9 +198,9 @@ namespace ProjectLucid.Tests
         {
             Run(true, rig =>
             {
-                Call(rig.Background, "OnEnable");
+                Call(rig.Background, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
-                Call(rig.Background, "RenderBackgroundImage");
+                Call(rig.Background, "RenderBackgroundImage"); // Reflection: private UIContainerPauseBackground.RenderBackgroundImage
 
                 Assert.That(Get<RenderTexture>(rig.Background, "m_renderTexture") == null, Is.True);
                 Assert.That(rig.Cameras.Camera.cullingMask, Is.EqualTo(CullingMask));
@@ -227,7 +228,7 @@ namespace ProjectLucid.Tests
                     // The render step reads the manager, which OnEnable takes only with the render texture on.
                     Set(rig.Background, "m_cinemachineCameraManager", rig.Cameras.Manager);
 
-                    Call(rig.Background, "Update");
+                    Call(rig.Background, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                     Assert.That(Get<bool>(rig.Background, "m_updateBackground"), Is.EqualTo(expectedFlag), "render texture " + useRenderTexture + ", flag " + flag);
                 });
@@ -241,16 +242,16 @@ namespace ProjectLucid.Tests
         {
             Run(false, rig =>
             {
-                Assert.DoesNotThrow(() => Call(rig.Background, "OnDisable"));
+                Assert.DoesNotThrow(() => Call(rig.Background, "OnDisable")); // Reflection: Unity sends OnDisable; Edit Mode does not
             });
 
             Run(true, rig =>
             {
-                Call(rig.Background, "OnEnable");
-                Call(rig.Background, "InitialiseFromCamera", rig.Cameras.Camera);
+                Call(rig.Background, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(rig.Background, "InitialiseFromCamera", rig.Cameras.Camera); // Reflection: private UIContainerPauseBackground.InitialiseFromCamera
                 rig.Cameras.Camera.cullingMask = 5;
 
-                Call(rig.Background, "OnDisable");
+                Call(rig.Background, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
 
                 Assert.That(rig.Cameras.Camera.cullingMask, Is.EqualTo(5), "not restored while the camera is not ready");
             });

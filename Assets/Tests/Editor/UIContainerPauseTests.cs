@@ -79,15 +79,15 @@ namespace ProjectLucid.Tests
                 Set(rig.Quality, "m_allowGraphicsQualitySwitching", new PerformanceAttribute { Feature = feature, Level = requiredLevel }); // serialized in the original
                 // Awake builds it from the configuration; this one lists no zone unless a case adds one.
                 rig.Levels = owned.Track(ScriptableObject.CreateInstance<GameLevels>());
-                typeof(LevelManager).GetProperty("GameLevels").SetValue(missions.Level, rig.Levels);
+                typeof(LevelManager).GetProperty("GameLevels").SetValue(missions.Level, rig.Levels); // Reflection: LevelManager.GameLevels has a private setter that its Awake calls
                 rig.Container = owned.Host("Lucid pause", false).AddComponent<UIContainerPause>();
                 rig.ResumeEvent = NewEvent(owned, "pause-resume");
                 rig.Results = NewResults(owned);
                 rig.Ranks = owned.Host("Lucid pause ranks", false).AddComponent<UIContainerMissionRanks>();
                 // Serialized in the original.
                 Set(rig.Container, "m_resumeEvent", rig.ResumeEvent);
-                Set(rig.Container, "m_resultsContainer", rig.Results);
-                Set(rig.Container, "m_missionRanksContainer", rig.Ranks);
+                Set(rig.Container, "m_resultsContainer", rig.Results); // Reflection: serialized m_resultsContainer the editor assigns
+                Set(rig.Container, "m_missionRanksContainer", rig.Ranks); // Reflection: serialized m_missionRanksContainer the editor assigns
                 body(rig);
             });
 
@@ -100,7 +100,7 @@ namespace ProjectLucid.Tests
         {
             var mission = Create<MissionDefinition>(rig.Owned);
             Set(mission, "m_guid", MissionGuid); // authored GUID of a serialized definition
-            Set(mission, "m_subMissions", new List<MissionDefinition>());
+            Set(mission, "m_subMissions", new List<MissionDefinition>()); // Reflection: serialized m_subMissions the editor assigns
             rig.Missions.Manager.SetActiveMissionContext(new MissionContextRegular(mission, rig.Missions.CurrentLevel.LevelDefinition, false));
             return mission;
         }
@@ -118,7 +118,7 @@ namespace ProjectLucid.Tests
                 JsonUtility.FromJsonOverwrite("{\"m_displayName\":" + (int)Strings.MISSING + ",\"m_actName\":" + (int)Strings.DECIMAL_SEPARATOR + "}",
                     rig.Missions.CurrentLevel.LevelDefinition);
 
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(Get<UIManager>(rig.Container, "m_uiManager"), Is.SameAs(rig.UiManager));
                 Assert.That(Get<LevelManager>(rig.Container, "m_levelManager"), Is.SameAs(rig.Missions.Level));
@@ -149,7 +149,7 @@ namespace ProjectLucid.Tests
                     // Reflection: the total of the long frames is accumulated by the manager's own update; nothing sets it.
                     Set(rig.Quality, "m_timeOverDesiredFrameTime", dipped ? 11f : 0f);
 
-                    Call(rig.Container, "OnQualityManagerValid", rig.Quality);
+                    Call(rig.Container, "OnQualityManagerValid", rig.Quality); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                     Assert.That(rig.Container.ShowFPSWarningMessage.Value, Is.EqualTo(dipped), "dipped " + dipped + " " + required);
                     Assert.That(rig.Container.ShowFullscreenBackground.Value, Is.EqualTo(fullscreen), "dipped " + dipped + " " + required);
@@ -163,7 +163,7 @@ namespace ProjectLucid.Tests
         {
             RunMissions(rig =>
             {
-                Call(rig.Container, "OnLevelManagerValid", rig.Missions.Level);
+                Call(rig.Container, "OnLevelManagerValid", rig.Missions.Level); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(Get<LevelManager>(rig.Container, "m_levelManager"), Is.SameAs(rig.Missions.Level));
                 Assert.That(Get<MissionManager>(rig.Container, "m_missionManager"), Is.SameAs(rig.Missions.Manager));
@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_levelManager", rig.Missions.Level); // Start's callback does this
                 rig.Container.LevelTitle.Value = Strings.MISSING;
 
-                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(Get<MissionManager>(rig.Container, "m_missionManager"), Is.SameAs(rig.Missions.Manager));
                 Assert.That(rig.Container.LevelTitle.Value, Is.EqualTo(Strings.MISSING), "not republished");
@@ -198,11 +198,11 @@ namespace ProjectLucid.Tests
             {
                 JsonUtility.FromJsonOverwrite("{\"m_displayName\":" + (int)Strings.MISSING + ",\"m_actName\":" + (int)Strings.DECIMAL_SEPARATOR + "}",
                     rig.Missions.CurrentLevel.LevelDefinition);
-                Set(rig.Container, "m_levelManager", rig.Missions.Level);
-                Set(rig.Container, "m_resultsContainer", null);
-                Set(rig.Container, "m_missionRanksContainer", null);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
+                Set(rig.Container, "m_resultsContainer", null); // Reflection: serialized m_resultsContainer the editor assigns
+                Set(rig.Container, "m_missionRanksContainer", null); // Reflection: serialized m_missionRanksContainer the editor assigns
 
-                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(rig.Container.LevelTitle.Value, Is.EqualTo(Strings.MISSING));
                 Assert.That(rig.Container.LevelSubtitle.Value, Is.EqualTo(Strings.DECIMAL_SEPARATOR));
@@ -227,12 +227,12 @@ namespace ProjectLucid.Tests
                     if (withSecondary)
                     {
                         rig.Secondary = NewResults(rig.Owned);
-                        Set(rig.Container, "m_resultsSecondaryContainer", rig.Secondary);
+                        Set(rig.Container, "m_resultsSecondaryContainer", rig.Secondary); // Reflection: serialized m_resultsSecondaryContainer the editor assigns
                     }
-                    Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                    Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
                     rig.Ranks.Show.Value = true;
 
-                    Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+                    Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                     var primary = Get<UIContainerMissionResultsParameters>(rig.Results, "m_parameters");
                     Assert.That(primary.MissionDefinition, Is.SameAs(mission));
@@ -265,7 +265,7 @@ namespace ProjectLucid.Tests
                 GameplayLevelDefinition after = NewLevel(rig.Owned, "lucid-pause-after");
                 var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
                 Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
-                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { before, level, after });
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { before, level, after }); // Reflection: serialized m_gameplayEntries the editor assigns
                 Sprite accent = NewSprite(rig.Owned);
                 Cache(zone.ZoneAccent, accent);
                 Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
@@ -273,11 +273,11 @@ namespace ProjectLucid.Tests
                 Cache(previous, NewSprite(rig.Owned));
                 previous.Load();
                 previous.Load();
-                Set(rig.Container, "m_levelManager", rig.Missions.Level);
-                Set(rig.Container, "m_zoneAccent", previous);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
+                Set(rig.Container, "m_zoneAccent", previous); // Reflection: private zone accent that OnMissionManagerValid loads and later unloads
                 Assert.That(Count(previous), Is.EqualTo(2));
 
-                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(Count(previous), Is.EqualTo(1), "released once");
                 Assert.That(Get<ManagedAddressableAsset<Sprite>>(rig.Container, "m_zoneAccent"), Is.SameAs(zone.ZoneAccent));
@@ -301,19 +301,19 @@ namespace ProjectLucid.Tests
                 WithoutLevelImage(level);
                 var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
                 Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
-                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { level });
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { level }); // Reflection: serialized m_gameplayEntries the editor assigns
                 Cache(zone.ZoneAccent, NewSprite(rig.Owned));
                 Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
                 // The zone lookup finds the level through the cached level table; its entry list is then replaced, so the loop runs out.
                 rig.Levels.CacheLevels();
-                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry>
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> // Reflection: serialized m_gameplayEntries the editor assigns
                 {
                     NewLevel(rig.Owned, "lucid-pause-other-a"), NewLevel(rig.Owned, "lucid-pause-other-b"),
                 }); // Reflection: authored list of a serialized definition
                 Set(rig.Container, "m_levelManager", rig.Missions.Level);
                 rig.Container.DreamNumber.Value = 5;
 
-                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(rig.Container.DreamNumber.Value, Is.Zero);
             });
@@ -331,15 +331,15 @@ namespace ProjectLucid.Tests
                 WithoutLevelImage(level);
                 var zone = rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
                 Set(zone, "m_guid", "lucid-pause-zone"); // authored GUID of a serialized definition
-                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry>
+                Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> // Reflection: serialized m_gameplayEntries the editor assigns
                 {
                     NewLevel(rig.Owned, "lucid-pause-before"), level, level,
                 });
                 Cache(zone.ZoneAccent, NewSprite(rig.Owned));
                 Get<List<GameplayLevelUIEntry>>(rig.Levels, "m_gameplayEntries").Add(zone);
-                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
 
-                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+                Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(rig.Container.DreamNumber.Value, Is.EqualTo(2));
             });
@@ -365,8 +365,8 @@ namespace ProjectLucid.Tests
         {
             RunMissions(rig =>
             {
-                Call(rig.Container, "Close");
-                Call(rig.Container, "Close");
+                Call(rig.Container, "Close"); // Reflection: private UIContainerPause.Close
+                Call(rig.Container, "Close"); // Reflection: private UIContainerPause.Close
 
                 Assert.That(Events(rig), Is.EqualTo(new[] { rig.ResumeEvent }));
             });
@@ -380,12 +380,12 @@ namespace ProjectLucid.Tests
         {
             RunMissions(rig =>
             {
-                Set(rig.Container, "m_missionManager", rig.Missions.Manager);
-                Assert.DoesNotThrow(() => Call(rig.Container, "FireMissionQuitAnalytics"));
+                Set(rig.Container, "m_missionManager", rig.Missions.Manager); // Reflection: OnMissionManagerValid assigns it from the registry; the case skips that callback
+                Assert.DoesNotThrow(() => Call(rig.Container, "FireMissionQuitAnalytics")); // Reflection: private UIContainerPause.FireMissionQuitAnalytics
 
                 StartMission(rig);
 
-                var fault = Assert.Throws<NullReferenceException>(() => Call(rig.Container, "FireMissionQuitAnalytics"));
+                var fault = Assert.Throws<NullReferenceException>(() => Call(rig.Container, "FireMissionQuitAnalytics")); // Reflection: private UIContainerPause.FireMissionQuitAnalytics
                 StringAssert.Contains("CharacterManager", fault.Message);
             });
         }
@@ -401,13 +401,13 @@ namespace ProjectLucid.Tests
                 var accent = new ManagedAddressableAsset<Sprite>(null);
                 Cache(accent, NewSprite(rig.Owned));
                 accent.Load();
-                Set(rig.Container, "m_zoneAccent", accent);
-                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                Set(rig.Container, "m_zoneAccent", accent); // Reflection: private zone accent that OnMissionManagerValid loads and later unloads
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
                 rig.App.Storage.SetValue<Action>(AppFSMKeys.OnPauseCloseEvent, () => { });
                 rig.App.SetHasGameplayControl(true, true);
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Count(accent), Is.Zero, "released");
                 Assert.That(rig.App.Storage.HasValue<Action>(AppFSMKeys.OnPauseCloseEvent), Is.False, "removed");
@@ -421,9 +421,9 @@ namespace ProjectLucid.Tests
         {
             RunMissions(rig =>
             {
-                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
 
-                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"));
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 LogAssert.NoUnexpectedReceived();
             });
@@ -447,7 +447,7 @@ namespace ProjectLucid.Tests
                     if (published)
                         rig.Container.ActBackground.Value = NewSprite(rig.Owned);
 
-                    Call(rig.Container, "OnDestroy");
+                    Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                     Assert.That(Count(levelImage), Is.EqualTo(published ? 0 : 1), "published " + published);
                 });
@@ -500,8 +500,8 @@ namespace ProjectLucid.Tests
             rig.ResumeEvent = NewEvent(owned, "pause-resume");
             // Serialized in the original, and the callback Start's InvokeOnValid runs.
             Set(rig.Container, "m_resumeEvent", rig.ResumeEvent);
-            Set(rig.Container, "m_identifier", rig.Identifier);
-            Set(rig.Container, "m_uiManager", uiManager);
+            Set(rig.Container, "m_identifier", rig.Identifier); // Reflection: serialized m_identifier the editor assigns
+            Set(rig.Container, "m_uiManager", uiManager); // Reflection: Start's InvokeOnValid callback assigns it; the case skips Start
             body(rig);
         });
 
@@ -515,7 +515,7 @@ namespace ProjectLucid.Tests
         {
             RunCharacters(rig =>
             {
-                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn");
+                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn"); // Reflection: private UIContainerPause.Respawn
 
                 Assert.That(respawn.MoveNext(), Is.True);
 
@@ -537,7 +537,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Containers.Open.Add(rig.Identifier);
                 SetCurrent(rig.Characters, rig.Character, true);
-                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn");
+                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn"); // Reflection: private UIContainerPause.Respawn
                 Assert.That(rig.Character.Storage.TryGetValue(ActorFSMKeys.IsOutOfBounds, out bool unsetBefore), Is.False, "unset before");
 
                 Assert.That(respawn.MoveNext(), Is.False);
@@ -557,7 +557,7 @@ namespace ProjectLucid.Tests
             RunCharacters(rig =>
             {
                 StartRestartableLevel(rig, out UIModernEvent restartEvent);
-                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart");
+                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart"); // Reflection: private UIContainerPause.Restart
                 try
                 {
                     Assert.That(restart.MoveNext(), Is.True);
@@ -590,7 +590,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Containers.Open.Add(rig.Identifier);
                 rig.Owned.Register(rig.Owned.Host("Lucid pause level manager", false).AddComponent<LevelManager>());
-                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart");
+                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart"); // Reflection: private UIContainerPause.Restart
 
                 Assert.That(restart.MoveNext(), Is.True);
 
@@ -609,7 +609,7 @@ namespace ProjectLucid.Tests
             // Reflection: LevelManager.Initialise builds these from a loaded level and the serialized event.
             Set(levelManager, "m_currentLevel", new LevelManagerLevel(definition, definition));
             Set(levelManager, "m_app", rig.App);
-            Set(levelManager, "m_restartUIEvent", restartEvent);
+            Set(levelManager, "m_restartUIEvent", restartEvent); // Reflection: serialized m_restartUIEvent the editor assigns
         }
     }
 }

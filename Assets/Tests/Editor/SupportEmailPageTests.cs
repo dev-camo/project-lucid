@@ -84,8 +84,8 @@ namespace ProjectLucid.Tests
                 UIModernEvent supportEvent = NewEvent(owned, "customer-support");
                 Set(widget, "m_openCustomerSupportEvent", supportEvent); // serialized in the original
 
-                Call(widget, "OpenEmailContainer");
-                Call(widget, "OpenEmailContainer");
+                Call(widget, "OpenEmailContainer"); // Reflection: private OpenEmailContainer, which the original reaches from its own code
+                Call(widget, "OpenEmailContainer"); // Reflection: private OpenEmailContainer, which the original reaches from its own code
 
                 Assert.That(app.GetUIModernEvents(), Is.EqualTo(new[] { supportEvent }));
             });
@@ -100,7 +100,7 @@ namespace ProjectLucid.Tests
             {
                 var container = owned.Host("Lucid email support", false).AddComponent<UIContainerEmailSupport>();
 
-                OwnedStringTable.Run(Table, () => Call(container, "OnEnable"));
+                OwnedStringTable.Run(Table, () => Call(container, "OnEnable")); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(container.BodyText.Value, Is.EqualTo(
                     "Please write to\n\nAddress: help+desk@lucid.test\nSubject: Need help & more \n\n" + ExpectedBody()));

@@ -27,6 +27,7 @@ namespace ProjectLucid.Tests
 
         private static Languages Other => Current == Languages.French ? Languages.German : Languages.French;
 
+        // Reflection: the pair is a private serialized nested type.
         private static object Pair(Languages language, Sprite sprite)
         {
             object pair = Activator.CreateInstance(PairType);

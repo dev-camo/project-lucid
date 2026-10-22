@@ -20,7 +20,7 @@ namespace ProjectLucid.Tests
                 var setting = Add<InvertCameraSetting>(page);
                 Assert.That(Get<SaveManager>(setting, "m_saveManager"), Is.Null);
 
-                Call(setting, "Awake");
+                Call(setting, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(Get<SaveManager>(setting, "m_saveManager"), Is.SameAs(page.Save));
             });
@@ -34,7 +34,7 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var setting = Add<InvertCameraSetting>(page);
-                Call(setting, "Awake");
+                Call(setting, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 Assert.That(page.Settings.CameraInvertedControls, Is.False);
                 Assert.That(SavedJson(page), Is.Null);
 
@@ -75,7 +75,7 @@ namespace ProjectLucid.Tests
                 // Reflection: the manager's settings have no setter; the state before the save flow has loaded them is the case.
                 Set(page.Save, "m_saveSettings", null);
                 var setting = Add<InvertCameraSetting>(page);
-                Call(setting, "Awake");
+                Call(setting, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 setting.Action_InvertCameraSetting();
 

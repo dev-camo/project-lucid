@@ -36,11 +36,11 @@ namespace ProjectLucid.Tests
             trigger.AddListener(() => credits.Triggered++);
             // Serialized in the original.
             Set(credits.Container, "m_creditsScrollParent", credits.Parent);
-            Set(credits.Container, "m_endYPoint", credits.End);
-            Set(credits.Container, "m_scrollToPoint", credits.ScrollTo);
-            Set(credits.Container, "m_scrollSpeed", scrollSpeed);
-            Set(credits.Container, "m_endWaitSeconds", endWaitSeconds);
-            Set(credits.Container, "m_onEndTrigger", trigger);
+            Set(credits.Container, "m_endYPoint", credits.End); // Reflection: serialized m_endYPoint the editor assigns
+            Set(credits.Container, "m_scrollToPoint", credits.ScrollTo); // Reflection: serialized m_scrollToPoint the editor assigns
+            Set(credits.Container, "m_scrollSpeed", scrollSpeed); // Reflection: serialized m_scrollSpeed the editor assigns
+            Set(credits.Container, "m_endWaitSeconds", endWaitSeconds); // Reflection: serialized m_endWaitSeconds the editor assigns
+            Set(credits.Container, "m_onEndTrigger", trigger); // Reflection: serialized m_onEndTrigger the editor assigns
             body(credits);
         });
 
@@ -64,7 +64,7 @@ namespace ProjectLucid.Tests
                 credits.ScrollTo.position = new Vector3(100f, 0f, 0f);
                 credits.End.position = new Vector3(0f, 10f, 0f);
                 credits.Parent.position = new Vector3(0f, 3f, 0f);
-                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start");
+                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 // Time.deltaTime is the editor's own and may be zero in a frame; the case holds for any value, but a zero frame
                 // cannot tell a missing Translate or a wrong speed factor apart (a precondition on it would depend on ambient editor state).
@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
                 {
                     credits.ScrollTo.position = scrollTo;
                     credits.End.position = new Vector3(0f, 10f, 0f);
-                    IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start");
+                    IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                     Assert.That(scroll.MoveNext(), Is.True);
 
@@ -122,7 +122,7 @@ namespace ProjectLucid.Tests
             {
                 credits.ScrollTo.position = new Vector3(0f, 0f, 0f);
                 credits.End.position = new Vector3(0f, 10f, 0f);
-                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start");
+                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(scroll.MoveNext(), Is.True);
                 Assert.That(scroll.Current, Is.Null);
@@ -151,7 +151,7 @@ namespace ProjectLucid.Tests
                 Set(credits.Container, "m_onEndTrigger", null);
                 credits.ScrollTo.position = new Vector3(0f, 10f, 0f);
                 credits.End.position = new Vector3(0f, 10f, 0f);
-                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start");
+                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(scroll.MoveNext(), Is.True);
                 Assert.DoesNotThrow(() => Assert.That(scroll.MoveNext(), Is.False));
@@ -164,8 +164,8 @@ namespace ProjectLucid.Tests
         {
             With(1f, 0f, credits =>
             {
-                Set(credits.Container, "m_endYPoint", null);
-                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start");
+                Set(credits.Container, "m_endYPoint", null); // Reflection: serialized m_endYPoint the editor assigns
+                IEnumerator scroll = (IEnumerator)Call(credits.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.Throws<NullReferenceException>(() => scroll.MoveNext());
             });
