@@ -281,7 +281,7 @@ namespace ProjectLucid.Tests
         {
             WithRespawn(respawn =>
             {
-                Assert.That(Call(respawn.Container, "CanSetupForMissionSelect"), Is.EqualTo(false)); // Reflection: private UIContainerDebug.CanSetupForMissionSelect
+                Assert.That(Call(respawn.Container, "CanSetupForMissionSelect"), Is.EqualTo(false));
             });
         }
 
@@ -535,7 +535,7 @@ namespace ProjectLucid.Tests
             {
                 ListMission(rig, true);
 
-                Assert.That(Call(rig.Container, "SetupForMission", new SaveDataLevelMission("lucid-unlisted-mission")), Is.EqualTo(false)); // Reflection: private UIContainerDebug.SetupForMission
+                Assert.That(Call(rig.Container, "SetupForMission", new SaveDataLevelMission("lucid-unlisted-mission")), Is.EqualTo(false));
                 Assert.That(rig.Buttons, Is.Empty);
             });
         }
@@ -554,7 +554,7 @@ namespace ProjectLucid.Tests
                 save.BestTimeSeconds = bestTime;
                 save.MarkComplete(1);
 
-                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(offered)); // Reflection: private UIContainerDebug.SetupForMission
+                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(offered));
                 Assert.That(rig.Buttons.Length, Is.EqualTo(offered ? 1 : 0));
             });
         }
@@ -568,7 +568,7 @@ namespace ProjectLucid.Tests
                 SaveDataLevelMission save = ListMission(rig, true);
                 save.BestTimeSeconds = 5f;
 
-                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(true)); // Reflection: private UIContainerDebug.SetupForMission
+                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(true));
 
                 UIWidgetButton button = rig.Buttons.Single();
                 Assert.That(button.gameObject.activeSelf, Is.True);
@@ -588,7 +588,7 @@ namespace ProjectLucid.Tests
             {
                 SaveDataLevelMission save = ListMission(rig, ranked);
                 save.BestTimeSeconds = 5f;
-                Call(rig.Container, "SetupForMission", save); // Reflection: private UIContainerDebug.SetupForMission
+                Call(rig.Container, "SetupForMission", save);
                 UIWidgetButton button = rig.Buttons.Single();
 
                 LogAssert.Expect(LogType.Error, RefusedDestroy);

@@ -32,7 +32,7 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var menu = owned.Host("Lucid profiler debug menu", false).AddComponent<HLProfilerDebugMenu>();
-                Assert.DoesNotThrow(() => Call(menu, "Awake")); // Reflection: Unity sends Awake; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(menu, "Awake"));
             });
         }
 
@@ -50,15 +50,15 @@ namespace ProjectLucid.Tests
                 console.OnProfilerBlockInputRequestEvent += blocks.Add;
                 Assert.That(console.enabled, Is.True);
 
-                Call(menu, "ToggleProfiler"); // Reflection: private HLProfilerDebugMenu.ToggleProfiler
+                Call(menu, "ToggleProfiler");
                 Assert.That(console.enabled, Is.False);
                 Assert.That(blocks, Is.EqualTo(new[] { false }));
 
-                Call(menu, "ToggleProfiler"); // Reflection: private HLProfilerDebugMenu.ToggleProfiler
+                Call(menu, "ToggleProfiler");
                 Assert.That(console.enabled, Is.True);
                 Assert.That(blocks, Is.EqualTo(new[] { false }), "opening raises no request");
 
-                Call(menu, "ToggleProfiler"); // Reflection: private HLProfilerDebugMenu.ToggleProfiler
+                Call(menu, "ToggleProfiler");
                 Assert.That(console.enabled, Is.False);
                 Assert.That(blocks, Is.EqualTo(new[] { false, false }));
             });
@@ -78,7 +78,7 @@ namespace ProjectLucid.Tests
                 Call(tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private OnLevelActivated, which the original reaches from its own code
                 tracker.enabled = false;
 
-                Call(menu, "ToggleIssueTracker"); // Reflection: private HLProfilerDebugMenu.ToggleIssueTracker
+                Call(menu, "ToggleIssueTracker");
 
                 Assert.That(tracker.IsVisible, Is.True);
                 Assert.That(tracker.enabled, Is.True);
@@ -89,7 +89,7 @@ namespace ProjectLucid.Tests
                 {
                     LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
-                    Call(menu, "ToggleIssueTracker"); // Reflection: private HLProfilerDebugMenu.ToggleIssueTracker
+                    Call(menu, "ToggleIssueTracker");
 
                     Assert.That(tracker.IsVisible, Is.False);
                     Assert.That(Get<bool>(tracker, "m_canOpen"), Is.True, "closing from the menu allows reopening");
