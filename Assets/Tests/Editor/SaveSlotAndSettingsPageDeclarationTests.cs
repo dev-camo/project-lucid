@@ -1,5 +1,6 @@
 using System.Reflection;
 using Hardlight;
+using Hardlight.Enums;
 using Hardlight.Utils;
 using HardlightProject;
 using JetBrains.Annotations;
@@ -271,10 +272,13 @@ namespace ProjectLucid.Tests
             Assert.That(AttributeTypes(Field(page, "m_qualityLevels_iOS_iPad")), Is.EqualTo(new[] { typeof(SerializeField), typeof(UsedImplicitlyAttribute) }));
             Assert.That(AttributeTypes(Field(page, "m_qualityLevels_tvOS")), Is.EqualTo(new[] { typeof(UsedImplicitlyAttribute), typeof(SerializeField) }));
             Assert.That(AttributeTypes(Field(page, "m_qualityLevels_macOS")), Is.EqualTo(new[] { typeof(SerializeField) }));
-            Assert.That(AttributeTypes(Field(page.GetNestedType("MSAASetting", NestedPrivate), "NameFormat")),
-                Is.EqualTo(new[] { typeof(HashEnumAttribute) }));
+            // DummyDll: MSAASetting.NameFormat is [HashEnum(typeof(Strings))] and QualityLevel.LocalisedName is [HashEnum(null)].
+            FieldInfo nameFormat = Field(page.GetNestedType("MSAASetting", NestedPrivate), "NameFormat");
+            Assert.That(AttributeTypes(nameFormat), Is.EqualTo(new[] { typeof(HashEnumAttribute) }));
+            Assert.That(nameFormat.GetCustomAttributesData()[0].ConstructorArguments[0].Value, Is.EqualTo(typeof(Strings)));
             FieldInfo levelName = Field(page.GetNestedType("QualityLevel", NestedPrivate), "LocalisedName");
             Assert.That(AttributeTypes(levelName), Is.EqualTo(new[] { typeof(HashEnumAttribute) }));
+            Assert.That(levelName.GetCustomAttributesData()[0].ConstructorArguments[0].Value, Is.Null);
         }
     }
 }

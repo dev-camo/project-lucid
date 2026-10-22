@@ -43,7 +43,7 @@ namespace ProjectLucid.Tests
             body(owned, rig);
         });
 
-        // 0x67DB9F: the credits are offered while the level select is open ...
+        // 0x67DB89: the credits are offered while the level select is open (the first IsOpen call) ...
         [Test]
         public void TheCreditsAreOfferedFromTheLevelSelect()
         {
