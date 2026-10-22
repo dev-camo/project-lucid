@@ -15,7 +15,7 @@ import subprocess
 from typing import Any, Dict, Tuple
 import uuid
 
-from .bootstrap import CACHE_ROOT, managed_path, validate_work_dir, write_json
+from .bootstrap import CACHE_ROOT, exclusive_lock, managed_path, open_coordinator_lock, validate_work_dir, write_json
 
 
 class LayoutError(ValueError):
@@ -618,8 +618,10 @@ def compare_layout_files(schema_path: Path, inventory_path: Path, output_path: P
 def _prune_layout_runs(work: Path, current: Path) -> None:
     """Drop stale layout-run stages, keeping the latest result's and this run's.
 
-    Only uuid-named directories directly under reports/layout-runs are removed;
-    anything unreadable or unexpected is left alone."""
+    Only completed (report.json present) uuid-named directories directly under
+    reports/layout-runs are removed; a stage another invocation is still writing,
+    and anything unreadable or unexpected, is left alone. Callers hold the
+    layout-runs lock, which also covers publishing the latest pointer."""
     runs = current.parent
     keep = {current.name}
     try:
@@ -628,7 +630,8 @@ def _prune_layout_runs(work: Path, current: Path) -> None:
     except (OSError, ValueError, KeyError, TypeError):
         pass
     for stage in runs.iterdir():
-        if stage.name not in keep and re.fullmatch("[0-9a-f]{32}", stage.name) and stage.is_dir() and not stage.is_symlink():
+        if stage.name not in keep and re.fullmatch("[0-9a-f]{32}", stage.name) and stage.is_dir() and not stage.is_symlink() \
+                and (stage / "report.json").is_file():
             shutil.rmtree(stage, ignore_errors=True)
 
 
@@ -692,9 +695,14 @@ def run_layout_inventory(repo_root: Path, work_dir: Path, schema_path=None) -> d
         result.update(status="compared", candidate_count=report["candidate_count"],
                       compatible_layout_count=report["compatible_layout_count"], blocked_count=report["blocked_count"],
                       source_fingerprint=report["source_fingerprint"], source_freshness_verified=True)
-        write_json(managed_path(work, "reports", "latest-layout-inventory.json"), result)
     except (LayoutError, subprocess.TimeoutExpired, OSError, ValueError) as error:
         result["errors"] = [str(error)]
-    write_json(managed_path(work, *stage.relative_to(work).parts, "report.json"), result)
-    _prune_layout_runs(work, stage)
+    # Finishing the stage, moving the latest pointer and pruning are one step:
+    # a concurrent invocation never prunes the stage the pointer is about to name.
+    with open_coordinator_lock(stage.parent / ".prune.lock", "Layout runs lock") as lock_stream, \
+            exclusive_lock(lock_stream):
+        write_json(managed_path(work, *stage.relative_to(work).parts, "report.json"), result)
+        if result["status"] == "compared":
+            write_json(managed_path(work, "reports", "latest-layout-inventory.json"), result)
+        _prune_layout_runs(work, stage)
     return result

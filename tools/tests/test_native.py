@@ -1,6 +1,7 @@
 """Atomic native evidence runs and conservative provenance/selection checks."""
 
 import hashlib
+from contextlib import ExitStack
 import io
 import json
 import os
@@ -331,6 +332,35 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertTrue(unrelated.is_dir())
         self.assertEqual([latest.name], [path.name for path in builds.iterdir()
                                          if re.fullmatch("[0-9a-f]{32}", path.name)])
+
+    def test_cache_hit_prunes_superseded_builds(self):
+        builds = self.work / "native-recovery/builds"
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, "run_logged", side_effect=self.build_runner) as run:
+            first = native.build_native_harness(self.work)
+            old = builds / uuid.uuid4().hex
+            old.mkdir()
+            reused = native.build_native_harness(self.work)
+        self.assertTrue(reused["reused"])
+        self.assertEqual(1, run.call_count)
+        self.assertFalse(old.exists())
+        self.assertTrue(Path(first["output_dir"]).is_dir())
+
+    def test_leased_build_survives_a_concurrent_build_until_released(self):
+        patches = self.build_patches()
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, "run_logged", side_effect=self.build_runner):
+            with ExitStack() as leases:
+                held = native.build_native_harness(self.work, leases)
+                self.project.write_text("updated harness project")
+                newer = native.build_native_harness(self.work)
+                self.assertNotEqual(held["fingerprint"], newer["fingerprint"])
+                self.assertTrue(Path(held["path"]).is_file())
+            self.assertEqual([], list((self.work / "native-recovery/builds").glob("*.lease")))
+            native.build_native_harness(self.work)
+        self.assertFalse(Path(held["path"]).exists())
+        self.assertTrue(Path(newer["path"]).is_file())
 
     def test_failed_build_keeps_every_completed_build(self):
         builds = self.work / "native-recovery/builds"

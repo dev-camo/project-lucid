@@ -7,6 +7,7 @@ content identities only. Generated declarations never supply a numerator.
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -411,35 +412,36 @@ def render_readme_section(report):
 
 def _build_reader(root, work, run, engine):
     project_root, work, run = reader_build_paths(root, work, run, "code-progress")
-    built = native.build_native_harness(work)
-    if built.get("status") != "ready":
-        category = built.get("failure_category", "pinned-dependency-setup-failure")
-        if category not in {"native-build-timeout", "native-build-process-failure",
-                            "dependency-integrity-failure", "pinned-dependency-setup-failure"}:
-            category = "pinned-dependency-setup-failure"
-        raise ValueError("Pinned native dependency build is unavailable [" + category + "]; inspect private native diagnostics")
-    dependency = Path(built["path"]).parent
-    playercode._regular(dependency / "Cpp2IL.Core.dll")
-    project = playercode._regular(project_root / "CodeProgress.csproj", 65536)
-    program = playercode._regular(project.with_name("Program.cs"), 1024 * 1024)
-    documents = playercode._regular(project.with_name("SourceDocuments.cs"), 65536)
-    identity = playercode._regular(project.with_name("TypeIdentity.cs"), 65536)
-    host = verified_tool_path(work, "dotnet")
-    environment = dotnet_environment(work, host.parent)
-    sdk = host_lock(load_lock())["artifacts"].get("dotnet", {})
-    if sdk.get("version") != native._SDK: raise ValueError("Code progress requires the pinned SDK")
-    host_seal = playercode._file_record(host)
-    version = subprocess.run([str(host), "--version"], capture_output=True, text=True, env=environment, timeout=30, cwd=work)
-    if version.returncode or version.stdout.strip() != sdk["version"]: raise ValueError("Code progress SDK version differs")
-    output = run / "reader"
-    command = [str(host), "build", str(project), "-c", "Release", "-o", str(output),
-               "-p:BaseIntermediateOutputPath=" + str(run / "obj") + os.sep,
-               "-p:NativeDependencyRoot=" + str(dependency),
-               "-p:UnityManagedRoot=" + str(Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent)]
-    with (run / "build.log").open("xb") as log:
-        process = subprocess.run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=300, cwd=work)
-    reader = output / "ProjectLucid.CodeProgress.dll"
-    if process.returncode or not reader.is_file(): raise ValueError("Code progress reader build failed")
+    with ExitStack() as leases:  # the dependency build stays unpruned until the reader is built
+        built = native.build_native_harness(work, leases)
+        if built.get("status") != "ready":
+            category = built.get("failure_category", "pinned-dependency-setup-failure")
+            if category not in {"native-build-timeout", "native-build-process-failure",
+                                "dependency-integrity-failure", "pinned-dependency-setup-failure"}:
+                category = "pinned-dependency-setup-failure"
+            raise ValueError("Pinned native dependency build is unavailable [" + category + "]; inspect private native diagnostics")
+        dependency = Path(built["path"]).parent
+        playercode._regular(dependency / "Cpp2IL.Core.dll")
+        project = playercode._regular(project_root / "CodeProgress.csproj", 65536)
+        program = playercode._regular(project.with_name("Program.cs"), 1024 * 1024)
+        documents = playercode._regular(project.with_name("SourceDocuments.cs"), 65536)
+        identity = playercode._regular(project.with_name("TypeIdentity.cs"), 65536)
+        host = verified_tool_path(work, "dotnet")
+        environment = dotnet_environment(work, host.parent)
+        sdk = host_lock(load_lock())["artifacts"].get("dotnet", {})
+        if sdk.get("version") != native._SDK: raise ValueError("Code progress requires the pinned SDK")
+        host_seal = playercode._file_record(host)
+        version = subprocess.run([str(host), "--version"], capture_output=True, text=True, env=environment, timeout=30, cwd=work)
+        if version.returncode or version.stdout.strip() != sdk["version"]: raise ValueError("Code progress SDK version differs")
+        output = run / "reader"
+        command = [str(host), "build", str(project), "-c", "Release", "-o", str(output),
+                   "-p:BaseIntermediateOutputPath=" + str(run / "obj") + os.sep,
+                   "-p:NativeDependencyRoot=" + str(dependency),
+                   "-p:UnityManagedRoot=" + str(Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent)]
+        with (run / "build.log").open("xb") as log:
+            process = subprocess.run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=300, cwd=work)
+        reader = output / "ProjectLucid.CodeProgress.dll"
+        if process.returncode or not reader.is_file(): raise ValueError("Code progress reader build failed")
     if playercode._file_record(host) != host_seal: raise ValueError("Code progress host changed during build")
     return {"host": host_seal, "path": str(reader), "sha256": sha256_file(reader),
             "sources": [playercode._file_record(project), playercode._file_record(program), playercode._file_record(documents),

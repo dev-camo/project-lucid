@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib.bindings import LayoutError, compare_layout_files, compare_layouts, run_layout_inventory, type_identity
+from lucidlib.bootstrap import try_lock
 from lucidlib.verification import artifact_fingerprint
 
 
@@ -383,7 +384,7 @@ class BindingTests(unittest.TestCase):
             work, pointer, inventory = self.wrapper_fixture(root)
             runs = work / "reports/layout-runs"
             def stages():
-                return {path.name for path in runs.iterdir()}
+                return {path.name for path in runs.iterdir() if path.name != ".prune.lock"}
             def editor(command, env, timeout):
                 Path(env["LUCID_LAYOUT_INVENTORY_PATH"]).write_text(json.dumps(inventory))
                 return type("Exit", (), {"returncode": 0})()
@@ -393,6 +394,7 @@ class BindingTests(unittest.TestCase):
                 for stage in older:
                     stage.mkdir(parents=True)
                     (stage / "editor.log").write_text("old log")
+                    (stage / "report.json").write_text("{}")
                 with patch("lucidlib.bindings.subprocess.run", side_effect=editor):
                     first = run_layout_inventory(root, work)
                 first_stage = Path(first["inventory_path"]).parent
@@ -411,6 +413,42 @@ class BindingTests(unittest.TestCase):
                 with patch("lucidlib.bindings.subprocess.run", return_value=type("Exit", (), {"returncode": 1})()):
                     again = run_layout_inventory(root, work)
                 self.assertEqual({second_stage.name, Path(again["log"]).parent.name}, stages())
+
+    def test_editor_wrapper_keeps_stage_still_being_written_by_another_invocation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            work, pointer, inventory = self.wrapper_fixture(root)
+            runs = work / "reports/layout-runs"
+            running = runs / uuid.uuid4().hex
+            running.mkdir(parents=True)
+            (running / "editor.log").write_text("Unity is still writing")
+            def editor(command, env, timeout):
+                Path(env["LUCID_LAYOUT_INVENTORY_PATH"]).write_text(json.dumps(inventory))
+                return type("Exit", (), {"returncode": 0})()
+            with patch("lucidlib.bootstrap.REPO_ROOT", root), patch("lucidlib.bootstrap.CACHE_ROOT", work), \
+                    patch("lucidlib.bindings.CACHE_ROOT", work), patch("lucidlib.verification.find_editor", return_value=root / "Unity"), \
+                    patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                run_layout_inventory(root, work)
+            self.assertTrue((running / "editor.log").is_file())
+
+    def test_editor_wrapper_publishes_latest_and_prunes_under_one_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            work, pointer, inventory = self.wrapper_fixture(root)
+            seen = []
+            def editor(command, env, timeout):
+                Path(env["LUCID_LAYOUT_INVENTORY_PATH"]).write_text(json.dumps(inventory))
+                return type("Exit", (), {"returncode": 0})()
+            def prune(work_dir, current):
+                with open(current.parent / ".prune.lock", "r+b") as stream:
+                    seen.append((try_lock(stream), (current / "report.json").is_file(),
+                                 (work / "reports/latest-layout-inventory.json").is_file()))
+            with patch("lucidlib.bootstrap.REPO_ROOT", root), patch("lucidlib.bootstrap.CACHE_ROOT", work), \
+                    patch("lucidlib.bindings.CACHE_ROOT", work), patch("lucidlib.verification.find_editor", return_value=root / "Unity"), \
+                    patch("lucidlib.bindings.subprocess.run", side_effect=editor), \
+                    patch("lucidlib.bindings._prune_layout_runs", side_effect=prune):
+                run_layout_inventory(root, work)
+            self.assertEqual([(False, True, True)], seen)
 
     def test_editor_wrapper_rejects_escaped_pointer_and_changed_source(self):
         with tempfile.TemporaryDirectory() as directory:

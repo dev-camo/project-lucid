@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 import hashlib
 import json
 from pathlib import Path
@@ -13,7 +14,8 @@ import xml.etree.ElementTree as ET
 from .bootstrap import (REPO_ROOT, ToolError, bootstrap, open_coordinator_lock, download_artifact,
                         dotnet_environment, exclusive_lock, executable, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json, tool_work_dir,
-                        seal_built_tool, verify_built_tool, retain_failure, unpack_archive, tree_seal)
+                        seal_built_tool, verify_built_tool, retain_failure, unpack_archive, tree_seal,
+                        try_lock, unlock)
 from .inspection import sha256_file
 from .metadata import parse_metadata
 from .recovery import _resolve_input, _thin_binary
@@ -102,18 +104,50 @@ def _cached_build(pointer: Path, work_dir: Path, fingerprint: str) -> dict | Non
         return None
 
 
+def _lease_build(leases: ExitStack, build: dict) -> None:
+    """Hold a lease on a ready build until `leases` closes.
+
+    Each consumer owns one lock file, "<run id>.<uuid>.lease", beside the build
+    directory; the pruner skips any build whose lease it cannot lock. Callers
+    hold the build lock, so a pruner cannot run between the build and its lease."""
+    directory = Path(build["output_dir"]).parents[3]
+    lease = directory.parent / f"{directory.name}.{uuid.uuid4().hex}.lease"
+    leases.callback(lease.unlink, missing_ok=True)  # runs last, after the stream closes
+    stream = leases.enter_context(open_coordinator_lock(lease, "Native build lease"))
+    leases.callback(unlock, stream)
+    if not try_lock(stream):
+        raise ToolError("Native build lease is already held")
+
+
+def _build_in_use(old: Path) -> bool:
+    """True when a consumer's lease on this build is still locked."""
+    for lease in old.parent.glob(old.name + ".*.lease"):
+        with open_coordinator_lock(lease, "Native build lease") as stream:
+            if not try_lock(stream):
+                return True
+            unlock(stream)
+    return False
+
+
 def _prune_old_builds(builds: Path, keep: Path) -> None:
-    """Remove completed builds other than the installed one.
+    """Remove completed builds other than the installed one and those in use.
 
     Only run-id named directories (32 hex digits) go; ".stage-*" directories may
     belong to a concurrent run and stay. Callers hold the build lock."""
     for old in builds.iterdir():
         if old != keep and re.fullmatch("[0-9a-f]{32}", old.name) and old.is_dir() and not old.is_symlink():
+            if _build_in_use(old):
+                continue
             shutil.rmtree(old, ignore_errors=True)
+            for lease in builds.glob(old.name + ".*.lease"):
+                lease.unlink(missing_ok=True)
 
 
-def build_native_harness(work_dir: Path) -> dict:
-    """Build/reuse the exact Core harness; all generated files stay in the cache."""
+def build_native_harness(work_dir: Path, leases: ExitStack | None = None) -> dict:
+    """Build/reuse the exact Core harness; all generated files stay in the cache.
+
+    A caller that goes on to use the build passes an ExitStack: the build is
+    leased until it closes, so a concurrent build cannot prune it meanwhile."""
     work_dir = tool_work_dir(work_dir)
     run_id = uuid.uuid4().hex
     report_path = managed_path(work_dir, "reports", f"native-build-{run_id}.json")
@@ -157,6 +191,9 @@ def build_native_harness(work_dir: Path) -> dict:
             pointer = managed_path(work_dir, "native-recovery", "latest-build.json")
             cached = _cached_build(pointer, work_dir, fingerprint)
             if cached:
+                if leases is not None:
+                    _lease_build(leases, cached)
+                _prune_old_builds(pointer.parent / "builds", Path(cached["output_dir"]).parents[3])
                 return cached
             process = run_logged([
                 str(dotnet), "build", str(_PROJECT), "-c", "Release", "-p:TargetFramework=net10.0",
@@ -187,6 +224,8 @@ def build_native_harness(work_dir: Path) -> dict:
                           file_hashes=hashes)
             write_json(report_path, report)
             write_json(pointer, report)
+            if leases is not None:
+                _lease_build(leases, report)
             _prune_old_builds(destination.parent, destination)
             return report
     except (ToolError, OSError, ValueError, KeyError, ET.ParseError) as error:
@@ -277,6 +316,12 @@ def _validate_evidence(evidence: dict, command: str, source: dict, assembly: str
 
 def _native_evidence(input_path: Path, work_dir: Path, command: str, assembly: str | None,
                      token: str | int | None) -> dict:
+    with ExitStack() as leases:  # the build stays unpruned while the harness runs
+        return _native_evidence_leased(input_path, work_dir, command, assembly, token, leases)
+
+
+def _native_evidence_leased(input_path: Path, work_dir: Path, command: str, assembly: str | None,
+                            token: str | int | None, leases: ExitStack) -> dict:
     work_dir = validate_work_dir(work_dir)
     app, binary, metadata_path, version = _resolve_input(input_path)
     if app == work_dir or work_dir in app.parents:
@@ -292,7 +337,7 @@ def _native_evidence(input_path: Path, work_dir: Path, command: str, assembly: s
               "metadata_sha256": metadata_hash, "binary_sha256": original_hash,
               "architecture": architecture["name"], "analysis_binary": str(thin),
               "analysis_binary_sha256": sha256_file(thin)}
-    build = build_native_harness(work_dir)
+    build = build_native_harness(work_dir, leases)
     run_id = command + "-" + uuid.uuid4().hex
     stage = managed_path(work_dir, "native-recovery", "runs", ".stage-" + run_id)
     destination = managed_path(work_dir, "native-recovery", "runs", run_id)
