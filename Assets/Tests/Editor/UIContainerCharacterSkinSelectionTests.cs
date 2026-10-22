@@ -198,16 +198,16 @@ namespace ProjectLucid.Tests
         {
             Run(true, true, (scene, rig) =>
             {
-                Assert.DoesNotThrow(() => Call(rig.Container, "UnloadRender"));
-                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"));
+                Assert.DoesNotThrow(() => Call(rig.Container, "UnloadRender")); // Reflection: private UIContainerCharacterSkinSelection.UnloadRender
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
                 ExpectSaveRequests(1);
                 rig.Container.SetCharacterSkin(rig.SkinA);
                 Assert.That(Get<int>(rig.SkinA.Thumbnail, "m_refCount"), Is.EqualTo(1));
 
-                Call(rig.Container, "UnloadRender");
+                Call(rig.Container, "UnloadRender"); // Reflection: private UIContainerCharacterSkinSelection.UnloadRender
                 Assert.That(Get<int>(rig.SkinA.Thumbnail, "m_refCount"), Is.Zero);
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
                 Assert.That(Get<int>(rig.SkinA.Thumbnail, "m_refCount"), Is.Zero, "released at zero stays at zero");
             });
         }
@@ -257,7 +257,7 @@ namespace ProjectLucid.Tests
             Set(transition, "m_animation", animation); // Reflection: serialized references the editor assigns
             Set(transition, "m_uiInteractable", prefabToggle);
             Set(transition, "m_settings", new List<UITransitionAnimationSetting>());
-            Set(prefab, "m_uiTransitionAnimation", transition);
+            Set(prefab, "m_uiTransitionAnimation", transition); // Reflection: serialized m_uiTransitionAnimation the editor assigns
             if (activePrefab) prefabHost.SetActive(true);
             Transform parent = owned.Host("Lucid skin toggle parent", true).transform;
             group = owned.Host("Lucid skin toggle group", true).AddComponent<UIToggleGroup>();

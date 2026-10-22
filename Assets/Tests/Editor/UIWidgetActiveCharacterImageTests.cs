@@ -58,7 +58,7 @@ namespace ProjectLucid.Tests
             {
                 MakeCurrent(scene, CharacterId.Sonic);
 
-                Call(rig.Widget, "OnEnable");
+                Call(rig.Widget, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(Listening(scene, rig.Widget), Is.True);
                 Assert.That(rig.Widget.CharacterSprite.Value, Is.SameAs(rig.SonicImage));
@@ -75,10 +75,10 @@ namespace ProjectLucid.Tests
             Run((scene, rig) =>
             {
                 MakeCurrent(scene, CharacterId.Sonic);
-                Call(rig.Widget, "OnEnable");
+                Call(rig.Widget, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 MakeCurrent(scene, CharacterId.Tails);
-                Call(rig.Widget, "OnCharacterChange", scene.Character);
+                Call(rig.Widget, "OnCharacterChange", scene.Character); // Reflection: private UIWidgetActiveCharacterImage.OnCharacterChange
 
                 Assert.That(rig.Widget.CharacterSprite.Value, Is.SameAs(rig.TailsImage));
                 Assert.That(Get<int>(rig.Sonic.Image, "m_refCount"), Is.Zero);
@@ -96,10 +96,10 @@ namespace ProjectLucid.Tests
             Run((scene, rig) =>
             {
                 MakeCurrent(scene, CharacterId.Sonic);
-                Call(rig.Widget, "OnEnable");
+                Call(rig.Widget, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 MakeCurrent(scene, CharacterId.Rouge);
-                Call(rig.Widget, "OnCharacterChange", scene.Character);
+                Call(rig.Widget, "OnCharacterChange", scene.Character); // Reflection: private UIWidgetActiveCharacterImage.OnCharacterChange
 
                 Assert.That(rig.Widget.CharacterSprite.Value, Is.SameAs(rig.SonicImage));
                 Assert.That(Get<CharacterDefinition>(rig.Widget, "m_characterDefinition") == null, Is.True);
@@ -114,10 +114,10 @@ namespace ProjectLucid.Tests
             Run((scene, rig) =>
             {
                 MakeCurrent(scene, CharacterId.Tails);
-                Call(rig.Widget, "OnEnable");
+                Call(rig.Widget, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
                 Assert.That(Listening(scene, rig.Widget), Is.True);
 
-                Call(rig.Widget, "OnDisable");
+                Call(rig.Widget, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
 
                 Assert.That(Listening(scene, rig.Widget), Is.False);
                 Assert.That(Get<int>(rig.Tails.Image, "m_refCount"), Is.Zero);
@@ -130,11 +130,11 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Assert.DoesNotThrow(() => Call(rig.Widget, "UnloadImage"), "no definition yet");
+                Assert.DoesNotThrow(() => Call(rig.Widget, "UnloadImage"), "no definition yet"); // Reflection: private UIWidgetActiveCharacterImage.UnloadImage
                 MakeCurrent(scene, CharacterId.Sonic);
-                Call(rig.Widget, "OnEnable");
+                Call(rig.Widget, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
-                Call(rig.Widget, "UnloadImage");
+                Call(rig.Widget, "UnloadImage"); // Reflection: private UIWidgetActiveCharacterImage.UnloadImage
 
                 Assert.That(Get<int>(rig.Sonic.Image, "m_refCount"), Is.Zero);
             });
@@ -146,7 +146,7 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Call(rig.Widget, "Start");
+                Call(rig.Widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.Widget.CharacterSprite.Value, Is.Null);
                 Assert.That(Listening(scene, rig.Widget), Is.False);

@@ -98,7 +98,7 @@ namespace ProjectLucid.Tests
         // CharacterValid and the current character have no public setter; the case sets them as the manager's own code does.
         internal static void MakeCurrent(Scene scene, CharacterId id)
         {
-            typeof(Character).GetProperty("IdType").GetSetMethod(true).Invoke(scene.Character, new object[] { id });
+            typeof(Character).GetProperty("IdType").GetSetMethod(true).Invoke(scene.Character, new object[] { id }); // Reflection: IdType has a private setter
             CharacterTriggerTestSupport.SetCurrent(scene.Characters, scene.Character, true);
         }
     }

@@ -302,7 +302,7 @@ namespace ProjectLucid.Tests
                 Assert.That(widget.Icon.Value, Is.SameAs(icon));
                 Assert.That(Get<int>(definition.IconAsset, "m_refCount"), Is.EqualTo(1));
 
-                Call(widget, "OnDestroy");
+                Call(widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Get<int>(definition.IconAsset, "m_refCount"), Is.Zero);
                 Assert.That(Get<Sprite>(definition.IconAsset, "m_loadedAsset"), Is.Null);
@@ -324,7 +324,7 @@ namespace ProjectLucid.Tests
                 Assert.That(widget.Empty.Value, Is.True);
                 Assert.That(widget.Name.Value, Is.EqualTo(Strings.CULTURE_NUMBER_MILLIONS));
                 Assert.That(widget.Icon.Value, Is.Null);
-                Assert.DoesNotThrow(() => Call(widget, "OnDestroy"));
+                Assert.DoesNotThrow(() => Call(widget, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
             });
         }
 
@@ -336,7 +336,7 @@ namespace ProjectLucid.Tests
             {
                 var widget = owned.Host("Lucid dream power description", false).AddComponent<UIWidgetDreamPowerDescription>();
 
-                Assert.DoesNotThrow(() => Call(widget, "OnDestroy"));
+                Assert.DoesNotThrow(() => Call(widget, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
             });
         }
     }
