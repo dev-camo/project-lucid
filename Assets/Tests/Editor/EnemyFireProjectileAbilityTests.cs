@@ -22,23 +22,8 @@ namespace ProjectLucid.Tests
     // slot being private). The target position is published and consumed through the real flow: a sensed target and an
     // update trigger the ability, EnemyBrainState_TurnTowardsPosition removes the published position. The gizmo drawing at the end
     // of OnDrawGizmosSelected (0x56FF3D), which the engine accepts only inside its gizmo callback.
-    public sealed class EnemyFireProjectileAbilityTests
+    public sealed class EnemyFireProjectileAbilityTests : RandomStateFixture
     {
-        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
-        private UnityEngine.Random.State _incomingRandomState;
-
-        [NUnit.Framework.SetUp]
-        public void SaveIncomingRandomState()
-        {
-            _incomingRandomState = UnityEngine.Random.state;
-        }
-
-        [NUnit.Framework.TearDown]
-        public void RestoreIncomingRandomState()
-        {
-            UnityEngine.Random.state = _incomingRandomState;
-        }
-
         private static EnemyAbility_FireProjectile Fire(Scene scene, string json = null) =>
             scene.Ability<EnemyAbility_FireProjectile, EnemyAbilityDefinition_FireProjectile>(definition =>
             {

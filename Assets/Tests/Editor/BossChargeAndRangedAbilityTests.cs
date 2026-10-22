@@ -13,7 +13,7 @@ namespace ProjectLucid.Tests
     // Expected values come from the x86-64 bodies cited per case; every ability is built by its real constructor and initialised
     // against a real Boss on an owned inactive host. Not covered: the line-of-sight wind-up (the cone test needs the physics scene) and
     // the debug helper of the ranged attack, which is compiled out of retail.
-    public sealed class BossChargeAndRangedAbilityTests
+    public sealed class BossChargeAndRangedAbilityTests : RandomStateFixture
     {
         // ---- BossAbility_BossFourmenChargeAttack ----
 

@@ -18,23 +18,8 @@ namespace ProjectLucid.Tests
     // case; the abilities are built by their real constructors against a real Boss whose projectile spawn point has real lane children.
     // Not covered, because they need the BossManager's projectile pools or a live Projectile: SpawnAProjectile (06000ade) and with it the
     // spawning of the group, the Projectile.Fire() call of the spawned projectiles, and the OneAtATime GetSpline error log.
-    public sealed class BossProjectileAbilityTests
+    public sealed class BossProjectileAbilityTests : RandomStateFixture
     {
-        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
-        private UnityEngine.Random.State _incomingRandomState;
-
-        [NUnit.Framework.SetUp]
-        public void SaveIncomingRandomState()
-        {
-            _incomingRandomState = UnityEngine.Random.state;
-        }
-
-        [NUnit.Framework.TearDown]
-        public void RestoreIncomingRandomState()
-        {
-            UnityEngine.Random.state = _incomingRandomState;
-        }
-
         private const ActorAttachPointType SpawnAttach = ActorAttachPointType.Boss_Crab_Body_VulnerablePoint;
 
         private sealed class ProjectileScene

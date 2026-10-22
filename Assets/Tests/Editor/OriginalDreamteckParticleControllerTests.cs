@@ -15,23 +15,8 @@ namespace ProjectLucid.Tests
     // in a real ParticleSystem of an owned game object: a test hands it particles with SetParticles (and the custom data stream the
     // controller needs, a zero w marking a particle as not yet born), runs the controller's LateRun and reads the particles back.
     // Expected values are hand arithmetic from the native bodies cited per test. TearDown destroys everything the test made.
-    public sealed class OriginalDreamteckParticleControllerTests
+    public sealed class OriginalDreamteckParticleControllerTests : RandomStateFixture
     {
-        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
-        private UnityEngine.Random.State _incomingRandomState;
-
-        [NUnit.Framework.SetUp]
-        public void SaveIncomingRandomState()
-        {
-            _incomingRandomState = UnityEngine.Random.state;
-        }
-
-        [NUnit.Framework.TearDown]
-        public void RestoreIncomingRandomState()
-        {
-            UnityEngine.Random.state = _incomingRandomState;
-        }
-
         private const float Tolerance = 1e-3f;
 
         private const int MaxParticles = 10;
