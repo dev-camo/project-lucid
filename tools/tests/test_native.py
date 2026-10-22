@@ -198,6 +198,13 @@ class NativeHelpersTests(unittest.TestCase):
                 self.assertIn("host-culture float default", report["error"])
                 self.assertFalse((self.work / "native-recovery/latest-schemas.json").exists())
 
+    def test_a_float_default_before_a_string_default_is_still_checked(self):
+        # Only what follows an unquoted string default is ambiguous.
+        report, _ = self.invoke(self.signature_runner(
+            "System.Void M(System.Single value = Infinity, System.String text = hello, System.Int32 n = 1)"))
+        self.assertEqual(report["status"], "failed")
+        self.assertIn("host-culture float default", report["error"])
+
     def test_reviewed_float_default_renderings_are_ready(self):
         # Renderings present in the reviewed schema content, plus a string
         # default whose text is not a number and must not be inspected.
@@ -209,6 +216,7 @@ class NativeHelpersTests(unittest.TestCase):
             "System.Void M(System.String text = Infinity, System.Int32 count = -1)",
             # String default text that reads like a float parameter is not a parameter.
             "System.Void M(System.String text = System.Single value = Infinity)",
+            "System.Void M(System.String text = hello, System.Single value = Infinity)",
         ]
         report, _ = self.invoke(self.signature_runner(*signatures))
         self.assertEqual(report["status"], "ready", report.get("error"))

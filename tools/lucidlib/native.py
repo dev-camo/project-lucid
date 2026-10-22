@@ -274,9 +274,11 @@ def _selection(metadata: dict, assembly: str | None, token: str | int | None) ->
 # Pinned Cpp2IL prints floating-point parameter defaults in method signatures
 # with the harness culture (#425). The harness fixes that culture; this rejects
 # any other rendering (for example "Infinity", a decimal comma or U+2212) so a
-# host-dependent schema never becomes ready evidence. Matches start at a parameter
-# boundary, so text inside an (unquoted) string default is not read as a parameter.
+# host-dependent schema never becomes ready evidence. String defaults are
+# printed unquoted, so after one the parameter boundaries are ambiguous; float
+# defaults past it are left unchecked rather than risk rejecting valid text.
 _FLOAT_DEFAULT = re.compile(r"(?:\(|, )System\.(?:Single|Double) [^\s,()]+ = (.*?)(?=, |\)$)")
+_STRING_DEFAULT = re.compile(r"(?:\(|, )System\.String [^\s,()]+ = ")
 _FLOAT_LITERAL = re.compile(r"-?(?:∞|NaN|[0-9]+(?:\.[0-9]+)?(?:E[+-][0-9]+)?)")
 
 
@@ -285,10 +287,14 @@ def _check_signature_culture(evidence: dict) -> None:
         for type_ in item.get("types", []):
             for method in type_.get("methods", []):
                 signature = method.get("signature") or ""
-                for value in _FLOAT_DEFAULT.findall(signature):
-                    if not _FLOAT_LITERAL.fullmatch(value):
+                string_default = _STRING_DEFAULT.search(signature)
+                checked_until = string_default.start() if string_default else len(signature)
+                for match in _FLOAT_DEFAULT.finditer(signature):
+                    if match.start() >= checked_until:
+                        break
+                    if not _FLOAT_LITERAL.fullmatch(match.group(1)):
                         raise ToolError("Native schema signature has a host-culture float default: "
-                                        f"{value!r} in {method.get('declaring_type')}.{method.get('name')}")
+                                        f"{match.group(1)!r} in {method.get('declaring_type')}.{method.get('name')}")
 
 
 def _validate_evidence(evidence: dict, command: str, source: dict, assembly: str | None,
