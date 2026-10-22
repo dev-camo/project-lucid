@@ -207,6 +207,8 @@ class NativeHelpersTests(unittest.TestCase):
             "System.Void M(System.Double a = 9.999999747378752E-05, System.Double b = 1.415)",
             "System.Void M(System.Single a = -0.02)",
             "System.Void M(System.String text = Infinity, System.Int32 count = -1)",
+            # String default text that reads like a float parameter is not a parameter.
+            "System.Void M(System.String text = System.Single value = Infinity)",
         ]
         report, _ = self.invoke(self.signature_runner(*signatures))
         self.assertEqual(report["status"], "ready", report.get("error"))

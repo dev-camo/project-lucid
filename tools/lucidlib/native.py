@@ -274,8 +274,9 @@ def _selection(metadata: dict, assembly: str | None, token: str | int | None) ->
 # Pinned Cpp2IL prints floating-point parameter defaults in method signatures
 # with the harness culture (#425). The harness fixes that culture; this rejects
 # any other rendering (for example "Infinity", a decimal comma or U+2212) so a
-# host-dependent schema never becomes ready evidence.
-_FLOAT_DEFAULT = re.compile(r"System\.(?:Single|Double) \S+ = (.*?)(?=, |\)$)")
+# host-dependent schema never becomes ready evidence. Matches start at a parameter
+# boundary, so text inside an (unquoted) string default is not read as a parameter.
+_FLOAT_DEFAULT = re.compile(r"(?:\(|, )System\.(?:Single|Double) [^\s,()]+ = (.*?)(?=, |\)$)")
 _FLOAT_LITERAL = re.compile(r"-?(?:∞|NaN|[0-9]+(?:\.[0-9]+)?(?:E[+-][0-9]+)?)")
 
 
