@@ -275,7 +275,9 @@ namespace ProjectLucid.Tests
                 List<Action<GameCenter>> listeners = pending.GetInvocationList();
                 Assert.That(listeners.Count, Is.EqualTo(1), "exactly one notification");
                 object closure = listeners[0].Target;
-                Assert.That(closure.GetType().DeclaringType, Is.Not.Null.And.Property("FullName").EqualTo("ProjectLucid.Offline.LocalGameCenterLifecycle"), "the adapter's login report, not the original callback");
+                Type closureOwner = closure.GetType().DeclaringType;
+                Assert.That(closureOwner, Is.Not.Null, "the notification closure is nested in the adapter");
+                Assert.That(closureOwner.FullName, Is.EqualTo("ProjectLucid.Offline.LocalGameCenterLifecycle"), "the adapter's login report, not the original callback");
                 Assert.That(closure.GetType().GetField("loginSuccess").GetValue(closure), Is.EqualTo(false));
                 Assert.That(user.Storage.GetCollection(), Is.Empty);
             }
