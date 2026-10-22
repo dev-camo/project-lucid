@@ -9,6 +9,7 @@ import re
 from pathlib import Path
 import subprocess
 import sys
+import urllib.error
 import tempfile
 import unittest
 from unittest import mock
@@ -16,6 +17,9 @@ from contextlib import ExitStack
 
 sys.path.insert(0, str(Path(__file__).parent))
 import main_progress as main
+
+
+SYMLINK = object()
 
 
 class API:
@@ -69,7 +73,12 @@ class API:
             return {'merge_base_commit': {'sha': self.merge_base}}
         if path.startswith(repo + '/contents/'):
             name, ref = path[len(repo + '/contents/'):].split('?ref=')
-            return {'type': 'file', 'encoding': 'base64', 'content': base64.b64encode(self.files[(ref, name)]).decode()}
+            if (ref, name) not in self.files:
+                raise urllib.error.HTTPError(path, 404, 'Not Found', {}, None)
+            content = self.files[(ref, name)]
+            if content is SYMLINK:
+                return {'type': 'symlink', 'target': 'elsewhere'}
+            return {'type': 'file', 'encoding': 'base64', 'content': base64.b64encode(content).decode()}
         if method == 'GET' and path == repo + '/pulls/7':
             return copy.deepcopy(self.pr)
         if method == 'POST' and path.startswith(repo + '/statuses/'):
@@ -444,13 +453,15 @@ class MainProgressTests(unittest.TestCase):
     def readme(self, before='intro\n', section=None, after='\noutro\n'):
         return (before + (self.SECTION if section is None else section) + after).encode()
 
-    def ownership(self, head_readme=None, head_snapshot=b'{"a": 1}\n', base_readme=None, request=None, pr_user=None):
+    def ownership(self, head_readme=None, head_snapshot=b'{"a": 1}\n', base_readme=None, request=None, pr_user=None,
+                  extra_files=None):
         """Run the guard with the PR's merge base holding the published outputs."""
         head = 'c' * 40
         self.api.files = {(self.api.merge_base, 'README.md'): base_readme or self.readme(),
                           (self.api.merge_base, 'docs/code-progress.json'): b'{"a": 1}\n',
                           (head, 'README.md'): head_readme or self.readme(),
-                          (head, 'docs/code-progress.json'): head_snapshot}
+                          (head, 'docs/code-progress.json'): head_snapshot,
+                          **(extra_files or {})}
         if pr_user:
             self.api.pr['user'] = {'login': pr_user}
         with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
@@ -490,24 +501,41 @@ class MainProgressTests(unittest.TestCase):
         # The merge base, not main, is the reference: main's newer publication differs from both
         # sides of the PR, and the PR did not touch the outputs.
         self.setUp()
-        self.api.files[(self.api.parent, 'docs/code-progress.json')] = b'{"newer": true}\n'
-        self.assertEqual('success', self.ownership())
+        newer = {(self.api.parent, 'docs/code-progress.json'): b'{"newer": true}\n'}
+        self.assertEqual('success', self.ownership(extra_files=newer))
         compare = [c['path'] for c in self.api.calls if '/compare/' in c['path']]
         self.assertEqual(1, len(compare))
         self.assertIn(self.api.parent + '...' + 'c' * 40, compare[0])
         self.assertFalse([c for c in self.api.calls if self.api.parent in c['path'] and '/contents/' in c['path']])
 
-    def test_ownership_exemption_is_exactly_the_publishers_branch_and_account(self):
+    def test_ownership_has_no_exemption_for_the_publisher_branch_or_account(self):
+        # A bot PR on the progress branch that changes owned outputs is checked like any other.
         bot_request = {**self.pr_request(), 'head_repository': main.REPOSITORY, 'head_ref': 'lucid/progress-checks-1'}
         self.api.pr['head'].update(ref='lucid/progress-checks-1', repo={'full_name': main.REPOSITORY})
-        self.assertEqual('success', self.ownership(head_snapshot=b'{"a": 2}\n', request=bot_request, pr_user=main.shared.BOT))
-        for name, request, user in (('wrong account', bot_request, 'someone'),
-                                    ('wrong branch', {**bot_request, 'head_ref': 'feature'}, main.shared.BOT),
-                                    ('fork', {**bot_request, 'head_repository': 'fork/repo'}, main.shared.BOT)):
+        self.assertEqual('failure', self.ownership(head_snapshot=b'{"a": 2}\n', request=bot_request, pr_user=main.shared.BOT))
+
+    def test_ownership_rejects_deleted_or_symlinked_outputs_without_crashing(self):
+        for name, key, value in (('snapshot deleted', 'docs/code-progress.json', None),
+                                 ('snapshot symlink', 'docs/code-progress.json', SYMLINK),
+                                 ('readme deleted', 'README.md', None),
+                                 ('readme symlink', 'README.md', SYMLINK)):
             with self.subTest(name):
                 self.setUp()
-                self.api.pr['head'].update(ref=request['head_ref'], repo={'full_name': request['head_repository']})
-                self.assertEqual('failure', self.ownership(head_snapshot=b'{"a": 2}\n', request=request, pr_user=user))
+                self.api.pr['user'] = {'login': 'someone'}
+                self.assertEqual('failure', self.ownership_missing(key, value))
+                self.assertTrue(self.ownership_body()['description'].startswith('Owned by main Actions'))
+
+    def ownership_missing(self, key, value):
+        head = 'c' * 40
+        self.api.files = {(self.api.merge_base, 'README.md'): self.readme(),
+                          (self.api.merge_base, 'docs/code-progress.json'): b'{"a": 1}\n',
+                          (head, 'README.md'): self.readme(), (head, 'docs/code-progress.json'): b'{"a": 1}\n'}
+        if value is None:
+            del self.api.files[(head, key)]
+        else:
+            self.api.files[(head, key)] = value
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
+            return main.pr_ownership(self.api, self.pr_request(), real_split)
 
     def test_ownership_reports_only_on_the_ownership_context_and_stale_pr_posts_nothing(self):
         self.ownership()
@@ -542,6 +570,19 @@ class MainProgressTests(unittest.TestCase):
                 self.publish()
         self.assertEqual([], self.mutations())
 
+    def test_publication_validates_the_composed_snapshot_bytes_again(self):
+        calls = []
+
+        def validate(report, source):
+            calls.append(report)
+            if len(calls) > 1:
+                raise ValueError('composed snapshot rejected')
+        with mock.patch.object(main.shared, 'reporting_tools', return_value=(validate, lambda report: self.SECTION + '\n', real_split)):
+            with self.assertRaisesRegex(ValueError, 'composed snapshot rejected'):
+                self.publish()
+        self.assertEqual(2, len(calls))
+        self.assertEqual([], self.mutations())
+
     def test_pr_compilation_workflow_reports_with_isolated_write_token(self):
         text = (Path(__file__).resolve().parents[2] / '.github/workflows/pr-compilation.yml').read_text()
         body = text.split('\njobs:\n', 1)[1]
@@ -561,6 +602,9 @@ class MainProgressTests(unittest.TestCase):
         self.assertEqual('[gate, start]', needs('compile'))
         self.assertEqual('[gate, compile]', needs('report'))
         self.assertEqual('gate', needs('start'))
+        self.assertEqual('gate', needs('ownership'))
+        for job in ('ownership', 'start'):
+            self.assertIn("if: needs.gate.outputs.compile == 'true'", jobs[job])
         self.assertIn('always()', jobs['report'])
         self.assertIn('needs.compile.result', jobs['report'])
         self.assertIn('needs.compile.outputs.outcome', jobs['report'])

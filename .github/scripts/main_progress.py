@@ -268,10 +268,19 @@ def pr_compile_steps(api, request, outputs):
 
 
 def read_blob(api, path, ref):
-    """Bytes of a tracked file at an exact commit, through the trusted API (never a PR checkout)."""
-    entry = api.request(f"/repos/{REPOSITORY}/contents/{path}?ref={ref}")
-    if entry.get('type') != 'file' or entry.get('encoding') != 'base64':
-        raise ValueError(path + ' must be a regular file at ' + ref)
+    """Bytes of a tracked file at an exact commit, through the trusted API (never a PR checkout).
+
+    None when the path is absent or is not a regular file there (deleted, renamed, a symlink
+    or a directory), so the caller can report that as a change instead of crashing.
+    """
+    try:
+        entry = api.request(f"/repos/{REPOSITORY}/contents/{path}?ref={ref}")
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
+    if not isinstance(entry, dict) or entry.get('type') != 'file' or entry.get('encoding') != 'base64':
+        return None
     return base64.b64decode(entry['content'])
 
 
@@ -299,14 +308,19 @@ def ownership_violations(api, request, split):
     if not isinstance(base, str) or not shared.SHA.fullmatch(base):
         raise ValueError('PR has no merge base with main')
     violations = []
-    if read_blob(api, GENERATED_PATHS[1], base) != read_blob(api, GENERATED_PATHS[1], head):
+    snapshots = [read_blob(api, GENERATED_PATHS[1], ref) for ref in (base, head)]
+    if snapshots[0] != snapshots[1]:
         violations.append(GENERATED_PATHS[1])
-    try:
-        changed = (readme_generated_section(read_blob(api, 'README.md', base).decode('utf-8'), split)
-                   != readme_generated_section(read_blob(api, 'README.md', head).decode('utf-8'), split))
-    except ValueError:
-        changed = True
-    if changed:
+    sections = []
+    for ref in (base, head):
+        text = read_blob(api, 'README.md', ref)
+        try:
+            sections.append(None if text is None else readme_generated_section(text.decode('utf-8'), split))
+        except (ValueError, UnicodeDecodeError):
+            sections.append(None)
+    # A README that is missing or has lost its marker pair at the head is a change to the
+    # owned region, even when the base was equally broken.
+    if sections[0] != sections[1] or sections[1] is None:
         violations.append('README.md generated section')
     return violations
 
@@ -316,17 +330,15 @@ def pr_ownership(api, request, split):
     if os.environ.get('GITHUB_EVENT_NAME') != 'workflow_run':
         raise ValueError('PR ownership check requires its admitted workflow event')
     shared.require_workflow_context(request)
-    pr = shared.require_current_pr(api, request)
-    # Same exact identity as pr_gate's exemption: the publisher's own branch and account.
-    if bot_progress_branch(request) and pr_by_bot(pr):
-        state, description = 'success', 'Generated-only PR from the progress publisher'
+    shared.require_current_pr(api, request)
+    # No exemption: every PR that reaches this job gets the same check. The publisher
+    # commits to main directly, so no bot PR needs one.
+    violations = ownership_violations(api, request, split)
+    if violations:
+        state = 'failure'
+        description = 'Owned by main Actions; remove changes to: ' + ', '.join(violations)
     else:
-        violations = ownership_violations(api, request, split)
-        if violations:
-            state = 'failure'
-            description = 'Owned by main Actions; remove changes to: ' + ', '.join(violations)
-        else:
-            state, description = 'success', 'No change to main-owned generated progress outputs'
+        state, description = 'success', 'No change to main-owned generated progress outputs'
     pr_status(api, request, state, description, PR_OWNERSHIP_CONTEXT)
     return state
 
@@ -405,7 +417,7 @@ def generated_payload(api, request, raw, producer, control, source):
     require_clean_checkout(source, request['head'])
     shared.driver.require_control_reporting_tools(source, control)
     report = verify_report(raw, producer, request, control, source)
-    _, render, split = shared.reporting_tools(control)
+    validate, render, split = shared.reporting_tools(control)
     original = (source / 'README.md').read_bytes()
     if len(original) > 1024 * 1024:
         raise ValueError('Invalid README')
@@ -421,10 +433,14 @@ def generated_payload(api, request, raw, producer, control, source):
     if (before, after) != (new_before, new_after):
         raise ValueError('Generated README changed human content')
     payload = (json.dumps(report, indent=2, sort_keys=True) + '\n').encode()
-    # Final check over the composed bytes, equivalent to check_progress: the snapshot is
-    # the validated report and the README section is exactly its rendering.
-    if json.loads(payload) != report or split(updated.decode('utf-8'))[1] + '\n' != render(report):
-        raise ValueError('Composed progress outputs differ from the validated report')
+    # Final check over the composed bytes as they will be committed: the snapshot is parsed
+    # afresh and passes the public-count validator, and the README section equals its
+    # rendering. check_progress also reads both files from disk; this checks the same
+    # relations on the bytes before they exist anywhere.
+    composed = json.loads(payload)
+    validate(composed, source)
+    if split(updated.decode('utf-8'))[1] + '\n' != render(composed):
+        raise ValueError('Composed README section differs from the rendering of the snapshot')
     return {'README.md': updated, 'docs/code-progress.json': payload}
 
 
