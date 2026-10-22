@@ -10695,7 +10695,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAppleArcadeSplashScreenTests
     "AspectTextJustBelow16IsFourByThree",
     "AspectTextOfASquareScreenIsFourByThree",
     "ProviderHelpersKeepTheirNativeResults",
-    "AMissingClipCompletesTheTaskWithNull",
+    "TheTaskCompletesWithWhateverTheResourcesRequestFound",
     "ActionOnVideoCompletedRestoresTheFrameRateThenRaisesTheEvent",
     "LoopPointReachedRestoresTheFrameRateThenRaisesTheEvent",
     "VideoCompletedRestoresTheFrameRateThenRaisesTheEvent",

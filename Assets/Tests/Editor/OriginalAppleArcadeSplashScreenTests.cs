@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Apple.Arcade.SplashScreen;
 using Apple.Arcade.SplashScreen.Interfaces;
 using NUnit.Framework;
+using NUnit.Framework.Constraints;
 using ProjectLucid.Offline;
 using UnityEngine;
 using UnityEngine.Events;
@@ -168,16 +169,21 @@ namespace ProjectLucid.Tests
 
         // GetSplashScreenVideo 0x06000003 (0x425580) asks Resources for "<aspect>/<aspect>_Landscape" and its
         // completion callback 0x0600000a (0x425b80) sets the task result from the request asset. This project
-        // ships no such clip, so the request ends empty and the task completes with null, not a fault.
+        // the request asset, whatever it found: the clip when the project ships one at that path, null when it
+        // does not (never a fault). The expectation is the same Resources lookup made directly, so the case
+        // holds with and without the recovered splash videos in the project.
         [UnityTest]
-        public IEnumerator AMissingClipCompletesTheTaskWithNull()
+        public IEnumerator TheTaskCompletesWithWhateverTheResourcesRequestFound()
         {
+            var lookup = new ResourcesSplashScreenVideoProvider();
+            string aspect = (string)Call(lookup, "GetAspectRatioRepresentation", Call(lookup, "GetScreenAspect"));
+            VideoClip expected = Resources.Load<VideoClip>(aspect + "/" + aspect + "_Landscape");
             Task<VideoClip> task = new ResourcesSplashScreenVideoProvider().GetSplashScreenVideo();
             var timer = Stopwatch.StartNew();
             while (!task.IsCompleted && timer.Elapsed.TotalSeconds < 10) yield return null;
             Assert.That(task.IsCompleted, Is.True, "the Resources request finished");
             Assert.That(task.IsFaulted, Is.False);
-            Assert.That(task.Result, Is.Null);
+            Assert.That(task.Result, expected == null ? (IResolveConstraint)Is.Null : Is.SameAs(expected));
         }
 
         // Action_OnVideoCompleted 0x0600000d (0x425d60), OnLoopPointReached 0x0600000e (0x425e40) and
