@@ -117,8 +117,9 @@ namespace Hardlight
             controlMap.Shutdown(m_swipe, m_touch, m_pointer);
         }
 
-        // Original 06000195 has the same stripped-interface final virtual
-        // emitted-slot frontier as SourceProvider. Its real body is one store.
+        // Original 06000195 is final virtual newslot (0x1e6); as for get_SourceProvider,
+        // InputMonitorMethodFlagsPostProcessor restores the flags after compilation.
+        // Its real body is one store.
         public void SetPaused(bool paused) => m_paused = paused;
 
         protected override void ShutdownGlyphMapSuppliers() // Original 06000196.
