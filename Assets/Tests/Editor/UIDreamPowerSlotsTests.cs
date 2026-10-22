@@ -220,7 +220,7 @@ namespace ProjectLucid.Tests
                 slots.Equip(1, world.Bought);
                 ExpectSaveRequests(1);
 
-                Call(slots, "Unequip", 1); // Reflection: private UIDreamPowerSlots.Unequip
+                Call(slots, "Unequip", 1);
 
                 Assert.That(world.Buttons[1].Widget.IsEquipped, Is.False);
                 Assert.That(world.Buttons[1].Widget.Icon.Value, Is.Null);

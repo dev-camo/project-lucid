@@ -69,7 +69,7 @@ namespace ProjectLucid.Tests
                 ListWidgets(scene, container, tailsWidget, sonicWidget);
                 scene.App.SetHasGameplayControl(true, true);
 
-                Call(container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(container, "Start");
 
                 Assert.That(scene.App.HasGameplayControl(), Is.False);
                 Assert.That(Get<App>(container, "m_app"), Is.SameAs(scene.App));
@@ -97,7 +97,7 @@ namespace ProjectLucid.Tests
                 ListWidgets(scene, container, sonicWidget);
                 scene.App.SetHasGameplayControl(true, true);
 
-                Call(container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(container, "Start");
 
                 Assert.That(scene.App.HasGameplayControl(), Is.False);
                 Assert.That(amy.activeSelf, Is.False);
@@ -119,7 +119,7 @@ namespace ProjectLucid.Tests
                 ListWidgets(scene, container, sonicWidget);
                 Assert.That(scene.Characters.TryGetCurrentCharacter(out _), Is.False);
 
-                Call(container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(container, "Start");
 
                 Assert.That(navigation.Bridge.Selected, Is.Empty);
                 Assert.That(sonicWidget.IsSelected, Is.False);
@@ -140,7 +140,7 @@ namespace ProjectLucid.Tests
                 GameObject tails = Entry(scene, container, CharacterId.Tails, false);
                 GameObject amy = Entry(scene, container, CharacterId.Amy, true);
 
-                Call(container, "UpdateCharacters"); // Reflection: private UIContainerCharacterSelect.UpdateCharacters
+                Call(container, "UpdateCharacters");
 
                 Assert.That(Get<List<CharacterId>>(container, "m_characterIds"), Is.EquivalentTo(new[] { CharacterId.Sonic, CharacterId.Tails }));
                 Assert.That(sonic.activeSelf, Is.True);
@@ -159,8 +159,8 @@ namespace ProjectLucid.Tests
                 UIContainerCharacterSelect container = NewContainer(scene, out UIModernEvent continueEvent);
                 MakeCurrent(scene, CharacterId.Sonic);
 
-                Call(container, "SetCharacter", CharacterId.Sonic); // Reflection: private UIContainerCharacterSelect.SetCharacter
-                Call(container, "SetCharacter", CharacterId.Sonic); // Reflection: private UIContainerCharacterSelect.SetCharacter
+                Call(container, "SetCharacter", CharacterId.Sonic);
+                Call(container, "SetCharacter", CharacterId.Sonic);
 
                 Assert.That(scene.App.GetUIModernEvents(), Is.EqualTo(new[] { continueEvent }));
                 Assert.That(scene.Characters.GetCurrentCharacterUnsafe(), Is.SameAs(scene.Character));
@@ -193,7 +193,7 @@ namespace ProjectLucid.Tests
                 scene.App.SetHasGameplayControl(false);
                 Assert.That(scene.App.HasGameplayControl(), Is.False);
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(scene.App.HasGameplayControl(), Is.True);
             });

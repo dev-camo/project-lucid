@@ -117,7 +117,7 @@ namespace ProjectLucid.Tests
                 foreach (var row in table)
                 {
                     SetSaved(rig, row.unlocked, row.seen, row.byDefault);
-                    Call(rig.Widget, "UpdateBinders"); // Reflection: private UIWidgetSDTSkinToggle.UpdateBinders
+                    Call(rig.Widget, "UpdateBinders");
                     string label = row.unlocked + "/" + row.seen + "/" + row.byDefault;
                     Assert.That(rig.Widget.IsLocked.Value, Is.EqualTo(row.locked), "locked " + label);
                     Assert.That(rig.Widget.IsNew.Value, Is.EqualTo(row.isNew), "new " + label);
@@ -135,16 +135,16 @@ namespace ProjectLucid.Tests
                 rig.Widget.Setup(rig.Parameters());
 
                 SetSaved(rig, false, false, false);
-                Call(rig.Widget, "UpdateBinders"); // Reflection: private UIWidgetSDTSkinToggle.UpdateBinders
+                Call(rig.Widget, "UpdateBinders");
                 Assert.That(rig.PlayingState(), Is.EqualTo("state Disabled"), "locked and not selected");
 
                 SetSaved(rig, true, true, false);
-                Call(rig.Widget, "UpdateBinders"); // Reflection: private UIWidgetSDTSkinToggle.UpdateBinders
+                Call(rig.Widget, "UpdateBinders");
                 Assert.That(rig.PlayingState(), Is.EqualTo("state Normal"), "unlocked and not selected");
 
                 rig.Toggle.IsOn = true;
                 SetSaved(rig, false, false, false);
-                Call(rig.Widget, "UpdateBinders"); // Reflection: private UIWidgetSDTSkinToggle.UpdateBinders
+                Call(rig.Widget, "UpdateBinders");
                 Assert.That(rig.PlayingState(), Is.EqualTo("state Selected"), "selected wins over locked");
             });
         }
@@ -164,13 +164,13 @@ namespace ProjectLucid.Tests
                 {
                     () => rig.Widget.Action_OnSkinSelected(),
                     () => rig.Widget.Action_OnSkinSelected(false), // the flag is ignored
-                    () => Call(rig.Widget, "SetCharacterSkin"), // Reflection: private UIWidgetSDTSkinToggle.SetCharacterSkin
+                    () => Call(rig.Widget, "SetCharacterSkin"),
                 };
 
                 for (int i = 0; i < entryPoints.Length; i++)
                 {
                     SetSaved(rig, false, false, false);
-                    Call(rig.Widget, "UpdateBinders"); // Reflection: private UIWidgetSDTSkinToggle.UpdateBinders
+                    Call(rig.Widget, "UpdateBinders");
                     Assert.That(rig.Widget.IsLocked.Value, Is.True, "locked before entry point " + i);
 
                     entryPoints[i]();
@@ -191,9 +191,9 @@ namespace ProjectLucid.Tests
             {
                 Assert.DoesNotThrow(() => rig.Widget.Action_OnSkinSelected());
                 Assert.DoesNotThrow(() => rig.Widget.Action_OnSkinSelected(true));
-                Assert.DoesNotThrow(() => Call(rig.Widget, "SetCharacterSkin")); // Reflection: private UIWidgetSDTSkinToggle.SetCharacterSkin
-                Assert.DoesNotThrow(() => Call(rig.Widget, "UpdateBinders")); // Reflection: private UIWidgetSDTSkinToggle.UpdateBinders
-                Assert.DoesNotThrow(() => Call(rig.Widget, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(rig.Widget, "SetCharacterSkin"));
+                Assert.DoesNotThrow(() => Call(rig.Widget, "UpdateBinders"));
+                Assert.DoesNotThrow(() => Call(rig.Widget, "OnDestroy"));
                 Assert.That(rig.Applied, Is.Empty);
             });
         }
@@ -206,7 +206,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Widget.Setup(rig.Parameters());
 
-                Call(rig.Widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Widget, "OnDestroy");
 
                 Assert.That(Get<int>(rig.Skin.Thumbnail, "m_refCount"), Is.Zero);
                 Assert.That(Get<Sprite>(rig.Skin.Thumbnail, "m_loadedAsset"), Is.Null);

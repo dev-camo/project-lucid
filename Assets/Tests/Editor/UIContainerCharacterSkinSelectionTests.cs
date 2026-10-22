@@ -198,16 +198,16 @@ namespace ProjectLucid.Tests
         {
             Run(true, true, (scene, rig) =>
             {
-                Assert.DoesNotThrow(() => Call(rig.Container, "UnloadRender")); // Reflection: private UIContainerCharacterSkinSelection.UnloadRender
-                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(rig.Container, "UnloadRender"));
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"));
                 ExpectSaveRequests(1);
                 rig.Container.SetCharacterSkin(rig.SkinA);
                 Assert.That(Get<int>(rig.SkinA.Thumbnail, "m_refCount"), Is.EqualTo(1));
 
-                Call(rig.Container, "UnloadRender"); // Reflection: private UIContainerCharacterSkinSelection.UnloadRender
+                Call(rig.Container, "UnloadRender");
                 Assert.That(Get<int>(rig.SkinA.Thumbnail, "m_refCount"), Is.Zero);
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
                 Assert.That(Get<int>(rig.SkinA.Thumbnail, "m_refCount"), Is.Zero, "released at zero stays at zero");
             });
         }

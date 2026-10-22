@@ -101,7 +101,7 @@ namespace ProjectLucid.Tests
                 Save(scene, CharacterArchetype.Climbing, 0, PowerGuid);
                 rig.OverlayButton.interactable = false;
 
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(rig.Container.Available.Value, Is.True);
                 Assert.That(rig.Container.ShowNewFlag.Value, Is.False);
@@ -132,7 +132,7 @@ namespace ProjectLucid.Tests
                 Save(scene, CharacterArchetype.None, 1, OtherGuid);
                 scene.Save.CurrentSave.DreamPowerStore.IsNewState = DreamPowerStoreIsNewState.IsNew;
 
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(rig.Container.ShowNewFlag.Value, Is.True);
                 Assert.That(rig.Container.ShowArchetype.Value, Is.False);
@@ -157,7 +157,7 @@ namespace ProjectLucid.Tests
                 rig.Container.PowersEnabled.Value = true;
                 rig.ControllerGroup.SetActive(true);
 
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(rig.Container.PowersEnabled.Value, Is.False);
                 Assert.That(rig.OverlayButton.interactable, Is.False);
@@ -176,7 +176,7 @@ namespace ProjectLucid.Tests
             {
                 ActivateMission(scene, CharacterArchetype.None, true);
                 Save(scene, CharacterArchetype.None, 0, PowerGuid);
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.Container.PowersEnabled.Value = false;
 
                 rig.Container.RefreshPowers(CharacterArchetype.Climbing);
@@ -198,8 +198,8 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.None, rig.Power), Is.EqualTo(true)); // Reflection: private UIContainerCharacterSelectEquipDreamPower.ArchetypeAllowsPower
-                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.Climbing, rig.Power), Is.EqualTo(false)); // Reflection: private UIContainerCharacterSelectEquipDreamPower.ArchetypeAllowsPower
+                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.None, rig.Power), Is.EqualTo(true));
+                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.Climbing, rig.Power), Is.EqualTo(false));
             });
         }
 
@@ -209,13 +209,13 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "no loadouts"); // Reflection: private UIContainerCharacterSelectEquipDreamPower.IsAnyPowerEquipped
+                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "no loadouts");
 
                 scene.Save.CurrentSave.GetOrCreateDreamPowerLoadout(CharacterArchetype.Dashing);
-                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "an empty loadout"); // Reflection: private UIContainerCharacterSelectEquipDreamPower.IsAnyPowerEquipped
+                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "an empty loadout");
 
                 Save(scene, CharacterArchetype.Flying, 2, PowerGuid);
-                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(true)); // Reflection: private UIContainerCharacterSelectEquipDreamPower.IsAnyPowerEquipped
+                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(true));
             });
         }
 
@@ -225,12 +225,12 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"), "nothing was retained"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"), "nothing was retained");
                 ActivateMission(scene, CharacterArchetype.Climbing, true);
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 Assert.That(Get<int>(rig.Archetype.SilhouetteImage, "m_refCount"), Is.EqualTo(1));
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(Get<int>(rig.Archetype.SilhouetteImage, "m_refCount"), Is.Zero);
             });
