@@ -121,8 +121,12 @@ namespace ProjectLucid.Tests
                     Get<SaveDataLevelMission>(state, "m_saveData").Complete = complete; // Reflection: the record SetUpData was given
                     if (timeTrial)
                     {
-                        Set(state.Definition, "m_timeLimitSeconds", 60); // Reflection: authored mission data
-                        Set(state.Definition, "m_isBeingOverridden", true); // Reflection: set by UpdateOverrides for a completed mission with overrides
+                        // A complete time trial is a completed mission whose authored overrides carry the time limit (0x6372D4 reads
+                        // IsTimeTrial): UpdateOverrides (0x06001e3a) with the completed record makes the overrides the data source.
+                        var overrides = world.Owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
+                        Set(overrides, "m_timeLimitSeconds", 60); // Reflection: authored mission data
+                        Set(state.Definition, "m_completedMissionOverrides", overrides); // Reflection: serialized reference
+                        state.Definition.UpdateOverrides(Get<SaveDataLevelMission>(state, "m_saveData")); // Reflection: the record SetUpData was given
                     }
                     var foreign = world.Owned.Host("Lucid foreign container", false).AddComponent<UIContainerChallengeResults>();
                     UIContainerIdentifier identifier = NewIdentifier(world.Owned, foreign);
@@ -280,8 +284,17 @@ namespace ProjectLucid.Tests
                 Set(mission, "m_subMissions", new List<MissionDefinition>()); // Reflection: authored (empty) list
                 GameplayLevelDefinition level = missions.CurrentLevel.LevelDefinition;
                 missions.Manager.SetActiveMissionContext(new MissionContextRegular(mission, level, false));
-                // Reflection: not serialized; UpdateOverrides sets it for a completed mission with overrides, and loading the mission has just run it.
-                if (overridden) Set(mission, "m_isBeingOverridden", true);
+                if (overridden)
+                {
+                    // The original sets m_isBeingOverridden only in UpdateOverrides (0x06001e3a) for a completed mission with
+                    // authored overrides, so the overrides carry the same data, the record is marked complete and UpdateOverrides runs.
+                    var overrides = ChallengeRewardTestSupport.Create<MissionDefinition>(owned, missionJson);
+                    Set(overrides, "m_subMissions", new List<MissionDefinition>()); // Reflection: authored (empty) list
+                    Set(mission, "m_completedMissionOverrides", overrides); // Reflection: serialized reference
+                    SaveDataLevelMission record = missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID());
+                    record.Complete = true;
+                    mission.UpdateOverrides(record);
+                }
                 body(owned.Host("Lucid level results", false).AddComponent<UIContainerLevelResults>(), missions, mission, level);
             });
 
