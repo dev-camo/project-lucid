@@ -193,11 +193,6 @@ namespace HardlightProject
             }
         }
 
-        // Game.Runtime.dll 0x06002b8e.
-        public SaveDataChallenges()
-        {
-        }
-
         // Game.Runtime.dll 0x06002b83.
         public override void Initialise()
         {

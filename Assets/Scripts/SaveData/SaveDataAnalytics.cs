@@ -26,11 +26,8 @@ namespace HardlightProject
         [SerializeField]
         private List<SaveDataAnalyticsConsentState> m_consentStatesList = new List<SaveDataAnalyticsConsentState>();
         private Dictionary<string, SaveDataAnalyticsConsentState> m_consentStates = new Dictionary<string, SaveDataAnalyticsConsentState>();
-        // Game.Runtime.dll 0x06002b36.
-        public SaveDataAnalytics()
-        {
-        // 0x06002b36 has no additional native work.
-        }
+
+        // 0x06002b36 is the implicit constructor (no native work beyond the field initialisers).
 
         // Game.Runtime.dll 0x06002b21.
         public IReadOnlyList<SaveDataAnalyticsConsentState> ConsentStates

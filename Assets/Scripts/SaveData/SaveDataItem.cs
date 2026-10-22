@@ -11,12 +11,9 @@ namespace HardlightProject
     {
         private bool m_dirty;
         private bool m_savingEnabled = true;
-        // Game.Runtime.dll 0x06002c3c.
-        protected SaveDataItem()
-        {
-            // Both original architectures set the field before Object..ctor;
-            // the field initializer above preserves that ordering.
-        }
+        // 0x06002c3c is the implicit protected constructor: both original architectures
+        // set the field before Object..ctor, which the field initializer above preserves.
+        // Left implicit because an explicit one would shift the generated lambda names.
 
         // Game.Runtime.dll 0x06002c33.
         public void MarkSaved()
