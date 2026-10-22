@@ -50,7 +50,7 @@ namespace ProjectLucid.Tests
         // behind in whichever case reports a setting change first. It runs here against an owned exchange and an idle
         // DataManager row that are released at once, the way the other fixtures run theirs; the reference to the released
         // DataManager row is not read by the setting-changed event.
-        private static void InitialiseAnalytics() => Owned.Run(owned =>
+        internal static void InitialiseAnalytics() => Owned.Run(owned =>
         {
             owned.LeaseActions(SystemAction.Shutdown);
             owned.LeaseRow<DataManager>();
