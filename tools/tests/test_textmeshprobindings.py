@@ -79,6 +79,12 @@ class TextMeshProDocumentTests(unittest.TestCase):
             "other owner's profile": style_sheet().replace(b"1" * 32, b"2" * 32),
             "multiline top-level scalar": sprite_asset().replace(b"  m_Version: 1.1.0\n", b"  m_Version: '1.1\n    .0'\n"),
             "nested line without a block": base.replace(b"  m_EditorClassIdentifier:\n", b"  m_EditorClassIdentifier: x\n    y: 1\n"),
+            "block under an empty header field": base.replace(
+                b"  m_EditorClassIdentifier:\n", b"  m_EditorClassIdentifier:\n    injected: 1\n"),
+            "list item under an empty header field": base.replace(
+                b"  m_EditorClassIdentifier:\n", b"  m_EditorClassIdentifier:\n  - 2\n"),
+            "script line nested under an empty header field": base.replace(
+                b"  m_EditorClassIdentifier:\n", b"  m_EditorClassIdentifier:\n    m_Script: {fileID: 0}\n"),
             "unindented payload line": base + b"m_Stray: 1\n",
             "tab-indented payload": base + b"\tm_Name: Tab\n",
             "selected GUID in payload": base + b"    m_OpeningTagArray: " + b"1" * 32 + b"\n",

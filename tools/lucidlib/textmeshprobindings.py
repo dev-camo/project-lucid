@@ -48,6 +48,7 @@ def _bindings(rows):
 
 def _document(body, row):
     fields, values = [], {}
+    profile = PROFILES[(row["assembly"], row["full_name"])]
     block_open = False
     for line in body.splitlines():
         match = FIELD.fullmatch(line)
@@ -57,14 +58,14 @@ def _document(body, row):
                 raise ValueError("Duplicate TextMeshPro field")
             fields.append(name)
             values[name] = value
-            # Only a field with no inline value opens a nested block; a
-            # continuation of a multiline top-level scalar is refused.
-            block_open = not value
+            # Only a profile field with no inline value opens a nested block;
+            # empty header fields and multiline top-level scalars never do.
+            block_open = not value and name in profile
         elif block_open and (line.startswith("    ") or line.startswith("  - ")):
             continue
         else:
             raise ValueError("Unsupported TextMeshPro document line")
-    if tuple(fields) != COMMON + PROFILES[(row["assembly"], row["full_name"])]:
+    if tuple(fields) != COMMON + profile:
         raise ValueError("Unsupported TextMeshPro field set or order")
     for name in COMMON:
         value = values[name]

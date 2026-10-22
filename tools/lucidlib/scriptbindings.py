@@ -224,8 +224,9 @@ DATA_DEFINITIONS_RULES = ({
 },)
 RULES += DATA_DEFINITIONS_RULES
 
-# s_boot's Bootstrapper state machine components and the FSM definition assets
-# they load. Pin each declaration with its serialized dependencies; GuiInitializer
+# s_boot's Bootstrapper state machine components (FiniteStateMachineBehaviour is
+# also rebound in the uicontainer_player_progression_stateful prefab) and the
+# FSM definition assets they load. Pin each declaration with its serialized dependencies; GuiInitializer
 # and VisualAssetManager stay unbound until the layout comparator can evaluate
 # their generic bases (MonoSingleton<T>, DefinitionDataType<TKey, TValue>).
 FSM_RUNTIME_SOURCES = {
@@ -246,11 +247,10 @@ FSM_RULES = tuple({
 } for name in ("FiniteStateMachineBehaviour", "FSMUserBehaviour", "FiniteStateMachineScriptableObject"))
 RULES += FSM_RULES
 
-# TextMeshPro Resources assets. The shipped Unity.TextMeshPro declarations equal
-# the 3.2.0-pre.4 package's apart from members the package compiles only under
-# UNITY_EDITOR (TMP_FontAsset.m_SourceFontFile_EditorRef and its editor delegates,
-# the package resource importer windows) and the compiler-generated names those
-# shift. Pin the registry identity, descriptor and each type's serialized closure.
+# TextMeshPro Resources assets. The manifest pins the registry package
+# 3.2.0-pre.4; the resolver's fresh layout comparison must show each bound
+# type's serialized layout equal to the shipped schema. Pin the registry
+# identity, descriptor and each type's serialized closure.
 # TMP_Settings stays unbound: its non-Serializable LineBreakingTable field is
 # outside what the layout comparator can evaluate.
 TMP_VERSION = "3.2.0-pre.4"
