@@ -42,7 +42,12 @@ namespace ProjectLucid.Tests.Editor
             "Game.Runtime::HardlightProject.CoreGameConfiguration",
             "HLLocalisation.Runtime::Hardlight.HLLocalisationConfigurationAsset",
             "Game.Runtime::HardlightProject.HashedGroupConfiguration",
-            "Game.Runtime::HardlightProject.DataDefinitions" };
+            "Game.Runtime::HardlightProject.DataDefinitions",
+            "HLUnityCore.Runtime::Hardlight.FiniteStateMachineBehaviour",
+            "HLUnityCore.Runtime::Hardlight.FSMUserBehaviour",
+            "HLUnityCore.Runtime::Hardlight.FiniteStateMachineScriptableObject",
+            "Unity.TextMeshPro::TMPro.TMP_StyleSheet",
+            "Unity.TextMeshPro::TMPro.TMP_SpriteAsset" };
 
         private sealed class Reference
         {
@@ -251,7 +256,7 @@ namespace ProjectLucid.Tests.Editor
                 Assert.That(prepared.input_fingerprint.sha256, Is.EqualTo(export.input_fingerprint.sha256));
                 Bindings proof = prepared.script_bindings;
                 Assert.That(proof, Is.Not.Null); Assert.That(proof.status, Is.EqualTo("verified_layout")); Assert.That(proof.references_modified, Is.True);
-                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(529));
+                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(656));
                 Assert.That(proof.source_fingerprint, Is.EqualTo(ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false)), "Preparation must belong to this complete current source.");
                 observed.SourceRoot = root; observed.SourceFingerprint = proof.source_fingerprint;
                 Assert.That(IsHash(proof.comparison_sha256), Is.True);
@@ -404,7 +409,7 @@ namespace ProjectLucid.Tests.Editor
 
         private static void AssertOwners(Bindings proof)
         {
-            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(12));
+            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(17));
             var actual = new HashSet<string>(StringComparer.Ordinal);
             foreach (Binding binding in proof.bindings)
             {

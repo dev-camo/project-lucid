@@ -372,8 +372,8 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(export.input_fingerprint.sha256, prepared.input_fingerprint.sha256, "Immutable supplied release identity.");
             ImportBindings proof = prepared.script_bindings;
             Assert.IsNotNull(proof); Assert.AreEqual("verified_layout", proof.status); Assert.IsTrue(proof.references_modified);
-            Assert.IsNotNull(proof.bindings); Assert.AreEqual(12, proof.bindings.Length);
-            Assert.IsNotNull(proof.assets); Assert.AreEqual(529, proof.assets.Length);
+            Assert.IsNotNull(proof.bindings); Assert.AreEqual(17, proof.bindings.Length);
+            Assert.IsNotNull(proof.assets); Assert.AreEqual(656, proof.assets.Length);
             var expectedOwners = new HashSet<string>(new[] {
                 "Game.Runtime::HardlightProject.LevelStartPositionDefinition",
                 "Game.Runtime::HardlightProject.LevelDefinition",
@@ -386,7 +386,12 @@ namespace ProjectLucid.Tests
                 "Game.Runtime::HardlightProject.CoreGameConfiguration",
                 "HLLocalisation.Runtime::Hardlight.HLLocalisationConfigurationAsset",
                 "Game.Runtime::HardlightProject.HashedGroupConfiguration",
-                "Game.Runtime::HardlightProject.DataDefinitions" }, StringComparer.Ordinal);
+                "Game.Runtime::HardlightProject.DataDefinitions",
+                "HLUnityCore.Runtime::Hardlight.FiniteStateMachineBehaviour",
+                "HLUnityCore.Runtime::Hardlight.FSMUserBehaviour",
+                "HLUnityCore.Runtime::Hardlight.FiniteStateMachineScriptableObject",
+                "Unity.TextMeshPro::TMPro.TMP_StyleSheet",
+                "Unity.TextMeshPro::TMPro.TMP_SpriteAsset" }, StringComparer.Ordinal);
             var actualOwners = new HashSet<string>(StringComparer.Ordinal);
             foreach (ImportBinding item in proof.bindings)
             {
