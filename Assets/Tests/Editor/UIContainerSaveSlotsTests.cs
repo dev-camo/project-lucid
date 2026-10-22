@@ -41,6 +41,9 @@ namespace ProjectLucid.Tests
                 OwnedStringTable.Run(new Dictionary<Strings, string> { { Strings.ACT_1, "Played {0}" } }, () =>
                 {
                     world.AddProgression();
+                    // OpenSave makes the progression listener recount the slot, and the recount adds the store's starting blue coins.
+                    var storeDefinition = owned.Track(ScriptableObject.CreateInstance<DreamPowerStoreDefinition>());
+                    Set(ProcessManager.GetSystem<DreamPowerStoreManager>(), "m_storeDefinition", storeDefinition); // Reflection: serialized m_storeDefinition the editor assigns
                     var slots = new Slots { World = world };
                     // The slots' progress is cached empty through the handler's own routine, then given orb totals.
                     var handler = Get<ProgressionCollectableHandler>(ProcessManager.GetSystem<ProgressionManager>(), "m_collectables");
