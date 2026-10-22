@@ -174,7 +174,8 @@ namespace HardlightProject
             m_containerNavigation.UpdateChildWidgets();
         }
 
-        // 060031fe (1.10.1 RVA 0x62C830): the three XP buttons run lambdas 33_0..33_2 (AddXP), the reset button ResetXP.
+        // 060031fe (1.10.1 RVA 0x62C830): the three XP buttons run lambdas 33_0..33_2 (0x62E1E0, 0x62E280, 0x62E320), which inline AddXP's
+        // label refresh (AddXP 0x62CC10 is the same body and never reads its argument); the reset button runs ResetXP.
         private void OnChallengeManagerValid(ChallengeManager challengeManager)
         {
             m_challengeManager = challengeManager;
@@ -183,8 +184,8 @@ namespace HardlightProject
             m_challengeCycleButtonNext.onClick.AddListener(ChallengeCycleAdvance);
             m_challengeCycleButtonPrevious.onClick.AddListener(ChallengeCycleRegress);
             OnUpdatedChallengeCycle();
-            // The AddXP amounts below are inferred from the field names: retail AddXP ignores its argument, so they
-            // are not recoverable from the binary.
+            // The lambdas inline AddXP's label refresh. The amounts below are inferred from the field names: retail AddXP
+            // ignores its argument and the lambdas carry none, so they are not recoverable from the binary.
             m_xpPlus1k.onClick.AddListener(() => AddXP(1000));
             m_xpPlus10k.onClick.AddListener(() => AddXP(10000));
             m_xpPlus100k.onClick.AddListener(() => AddXP(100000));
