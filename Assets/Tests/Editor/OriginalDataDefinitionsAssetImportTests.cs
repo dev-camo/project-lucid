@@ -47,7 +47,16 @@ namespace ProjectLucid.Tests.Editor
             "HLUnityCore.Runtime::Hardlight.FSMUserBehaviour",
             "HLUnityCore.Runtime::Hardlight.FiniteStateMachineScriptableObject",
             "Unity.TextMeshPro::TMPro.TMP_StyleSheet",
-            "Unity.TextMeshPro::TMPro.TMP_SpriteAsset" };
+            "Unity.TextMeshPro::TMPro.TMP_SpriteAsset",
+            "HLUnityUI.Runtime::Hardlight.GuiInitializer",
+            "Game.Runtime::HardlightProject.VisualAssetManager",
+            "HLUnityCore.Runtime::Hardlight.TimeCategoryConfiguration",
+            "HLUnityCore.Runtime::Hardlight.TimeCategoryObject",
+            "HLUnityCore.Runtime::Hardlight.HLUnityCoreConfigurationAsset",
+            "HLModernUI.Runtime::Hardlight.UINavigationConfiguration",
+            "Game.Runtime::Hardlight.Analytics.Analytics_SystemConfig",
+            "Unity.TextMeshPro::TMPro.TMP_Settings",
+            "Unity.TextMeshPro::TMPro.TMP_FontAsset" };
 
         private sealed class Reference
         {
@@ -256,7 +265,7 @@ namespace ProjectLucid.Tests.Editor
                 Assert.That(prepared.input_fingerprint.sha256, Is.EqualTo(export.input_fingerprint.sha256));
                 Bindings proof = prepared.script_bindings;
                 Assert.That(proof, Is.Not.Null); Assert.That(proof.status, Is.EqualTo("verified_layout")); Assert.That(proof.references_modified, Is.True);
-                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(656));
+                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(736));
                 Assert.That(proof.source_fingerprint, Is.EqualTo(ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false)), "Preparation must belong to this complete current source.");
                 observed.SourceRoot = root; observed.SourceFingerprint = proof.source_fingerprint;
                 Assert.That(IsHash(proof.comparison_sha256), Is.True);
@@ -409,7 +418,7 @@ namespace ProjectLucid.Tests.Editor
 
         private static void AssertOwners(Bindings proof)
         {
-            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(17));
+            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(26));
             var actual = new HashSet<string>(StringComparer.Ordinal);
             foreach (Binding binding in proof.bindings)
             {

@@ -372,8 +372,8 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(export.input_fingerprint.sha256, prepared.input_fingerprint.sha256, "Immutable supplied release identity.");
             ImportBindings proof = prepared.script_bindings;
             Assert.IsNotNull(proof); Assert.AreEqual("verified_layout", proof.status); Assert.IsTrue(proof.references_modified);
-            Assert.IsNotNull(proof.bindings); Assert.AreEqual(17, proof.bindings.Length);
-            Assert.IsNotNull(proof.assets); Assert.AreEqual(656, proof.assets.Length);
+            Assert.IsNotNull(proof.bindings); Assert.AreEqual(26, proof.bindings.Length);
+            Assert.IsNotNull(proof.assets); Assert.AreEqual(736, proof.assets.Length);
             var expectedOwners = new HashSet<string>(new[] {
                 "Game.Runtime::HardlightProject.LevelStartPositionDefinition",
                 "Game.Runtime::HardlightProject.LevelDefinition",
@@ -391,7 +391,16 @@ namespace ProjectLucid.Tests
                 "HLUnityCore.Runtime::Hardlight.FSMUserBehaviour",
                 "HLUnityCore.Runtime::Hardlight.FiniteStateMachineScriptableObject",
                 "Unity.TextMeshPro::TMPro.TMP_StyleSheet",
-                "Unity.TextMeshPro::TMPro.TMP_SpriteAsset" }, StringComparer.Ordinal);
+                "Unity.TextMeshPro::TMPro.TMP_SpriteAsset",
+                "HLUnityUI.Runtime::Hardlight.GuiInitializer",
+                "Game.Runtime::HardlightProject.VisualAssetManager",
+                "HLUnityCore.Runtime::Hardlight.TimeCategoryConfiguration",
+                "HLUnityCore.Runtime::Hardlight.TimeCategoryObject",
+                "HLUnityCore.Runtime::Hardlight.HLUnityCoreConfigurationAsset",
+                "HLModernUI.Runtime::Hardlight.UINavigationConfiguration",
+                "Game.Runtime::Hardlight.Analytics.Analytics_SystemConfig",
+                "Unity.TextMeshPro::TMPro.TMP_Settings",
+                "Unity.TextMeshPro::TMPro.TMP_FontAsset" }, StringComparer.Ordinal);
             var actualOwners = new HashSet<string>(StringComparer.Ordinal);
             foreach (ImportBinding item in proof.bindings)
             {
