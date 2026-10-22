@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import uuid
 import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -73,7 +74,14 @@ def parser():
 def emit_json(report, output):
     text = json.dumps(report, indent=2, sort_keys=True)
     if output:
-        output.write_text(text + "\n", encoding="utf-8")
+        # Replace the directory entry, never the inode: a hardlink to an input file stays intact.
+        temporary = output.with_name(f".{output.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with temporary.open("x", encoding="utf-8") as stream:
+                stream.write(text + "\n")
+            os.replace(temporary, output)
+        finally:
+            temporary.unlink(missing_ok=True)
     else:
         print(text)
 

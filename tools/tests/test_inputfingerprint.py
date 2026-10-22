@@ -556,6 +556,24 @@ class CompareTests(unittest.TestCase):
             self.assertNotEqual(0, lucid.main(["fingerprint-input", str(app), "--output", str(out)]))
         self.assertFalse(out.exists())
 
+    @unittest.skipUnless(hasattr(os, "link"), "needs hardlinks")
+    def test_cli_output_hardlinked_to_a_bundle_file_leaves_the_input_unchanged(self):
+        app = make_app(self.tmp.name)
+        victim = app / "Contents" / "victim.txt"
+        victim.write_bytes(b"original bytes")
+        alias = Path(self.tmp.name) / "alias.json"
+        os.link(victim, alias)
+        self.assertEqual(0, lucid.main(["fingerprint-input", str(app), "--output", str(alias)]))
+        self.assertEqual(b"original bytes", victim.read_bytes())
+        self.assertIn("format", json.loads(alias.read_text()))
+
+    def test_cli_output_overwrites_an_existing_report(self):
+        app = make_app(self.tmp.name)
+        out = Path(self.tmp.name) / "report.json"
+        out.write_text("stale")
+        self.assertEqual(0, lucid.main(["fingerprint-input", str(app), "--output", str(out)]))
+        self.assertIn("format", json.loads(out.read_text()))
+
     def test_cli_round_trip(self):
         app = make_app(self.tmp.name)
         out = Path(self.tmp.name) / "report.json"

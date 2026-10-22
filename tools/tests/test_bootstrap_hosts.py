@@ -1,8 +1,11 @@
 """Host selection for pinned recovery tools; no downloads are performed."""
 
 import errno
+import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -58,6 +61,50 @@ class HostLockTests(unittest.TestCase):
             with self.assertRaises(ToolError):
                 bootstrap.bootstrap(work, ["assetripper"])
         download.assert_not_called()
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs FIFOs")
+    def test_tool_lock_fifo_fails_promptly_without_downloading(self):
+        CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="test-hosts-", dir=CACHE_ROOT))
+        self.addCleanup(shutil.rmtree, work)
+        (work / "tools").mkdir()
+        os.mkfifo(work / "tools" / ".assetripper.lock")
+        script = ("import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]);"
+                  "from tools.lucidlib import bootstrap;"
+                  "bootstrap.bootstrap(Path(sys.argv[2]), ['assetripper'])")
+        root = Path(__file__).resolve().parents[2]
+        try:
+            result = subprocess.run([sys.executable, "-c", script, str(root), str(work)],
+                                    capture_output=True, timeout=30, stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            self.fail("bootstrap blocked on a FIFO lock")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(b"regular file", result.stderr)
+        self.assertFalse((work / "downloads").exists())
+
+    @unittest.skipUnless(hasattr(os, "link"), "needs hardlinks")
+    def test_run_logged_refuses_a_hardlinked_log(self):
+        CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="test-hosts-", dir=CACHE_ROOT))
+        self.addCleanup(shutil.rmtree, work)
+        (work / "reports").mkdir()
+        victim = work / "victim.txt"
+        victim.write_bytes(b"keep me")
+        os.link(victim, work / "reports" / "run.log")
+        with self.assertRaisesRegex(ToolError, "regular file"):
+            bootstrap.run_logged([sys.executable, "-c", "pass"], work, "run.log")
+        self.assertEqual(b"keep me", victim.read_bytes())
+
+    def test_run_logged_still_overwrites_a_regular_log(self):
+        CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        work = Path(tempfile.mkdtemp(prefix="test-hosts-", dir=CACHE_ROOT))
+        self.addCleanup(shutil.rmtree, work)
+        (work / "reports").mkdir()
+        (work / "reports" / "run.log").write_text("stale stale stale " * 20)
+        bootstrap.run_logged([sys.executable, "-c", "print('fresh')"], work, "run.log")
+        text = (work / "reports" / "run.log").read_text()
+        self.assertIn("fresh", text)
+        self.assertNotIn("stale", text)
 
     def test_linux_selects_native_tools_and_retains_shared_source_pins(self):
         with self._on("Linux", "x86_64"):

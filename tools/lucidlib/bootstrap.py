@@ -473,6 +473,21 @@ def _stop_tool(process: subprocess.Popen) -> None:
                                 "seconds after kill") from None
 
 
+def _open_log(path: Path):
+    """Open a log for truncating write; a hardlink or special file must not be truncated."""
+    flags = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+            raise ToolError(f"Log must be one regular file: {path}")
+        os.ftruncate(descriptor, 0)
+        return os.fdopen(descriptor, "w", encoding="utf-8")
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
 def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: int = 900,
                env: dict | None = None, cwd: Path | None = None) -> dict:
     """Bound a child process and its descendants; keep evidence in the cache."""
@@ -481,7 +496,7 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
     location = validate_work_dir(cwd or tool_work_dir(work_dir))
     location.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
-    with log.open("w", encoding="utf-8") as stream:
+    with _open_log(log) as stream:
         stream.write(json.dumps({"command": command, "cwd": str(location)}) + "\n")
         stream.flush()
         process = subprocess.Popen(command, cwd=location, env=env, stdin=subprocess.DEVNULL,
@@ -814,7 +829,7 @@ def bootstrap(work_dir: Path, selected=None) -> dict:
     result = {"status": "ready", "host": host, "tools": {}}
     for name in dict.fromkeys(selection):
         lock_path = managed_path(work_dir, "tools", f".{name}.lock")
-        with lock_path.open("a") as stream, exclusive_lock(stream):
+        with open_coordinator_lock(lock_path, "Bootstrap tool lock") as stream, exclusive_lock(stream):
             try:
                 if name == "cpp2il":
                     item = _ensure_cpp2il(lock, work_dir)
