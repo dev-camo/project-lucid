@@ -322,8 +322,12 @@ namespace ProjectLucid.Tests
             var replacer = (IMaterialReplacer)Activator.CreateInstance(Nested("MaterialReplacerImpl"));
             Material original = new Material(Canvas.GetDefaultCanvasMaterial());
             owned.Add(original);
+            // Each step of MaterialReplacerImpl.Replace is checked on its own so a failure names the step.
+            Assert.That(original.shader == Canvas.GetDefaultCanvasMaterial().shader, Is.True, "the copy keeps the default canvas shader");
+            Shader replacement = Resources.Load<Shader>("SoftMaskPremultipliedAlpha");
+            Assert.That(replacement != null, Is.True, "the Resources replacement shader loads");
             Material replaced = replacer.Replace(original);
-            Assert.That(replaced != null, Is.True);
+            Assert.That(replaced != null, Is.True, "Replace returns a material on the replacement shader");
             owned.Add(replaced);
             Assert.That(replaced.shader, Is.SameAs(Resources.Load<Shader>("SoftMaskPremultipliedAlpha")));
             Assert.That(replaced.shader.name, Is.EqualTo("Hidden/UI Default with Premultiplied Alpha (Soft Masked)"));
