@@ -1,8 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Hardlight;
 using Hardlight.Enums;
@@ -110,7 +108,7 @@ namespace ProjectLucid.Tests
         // ---- Start and the manager callbacks --------------------------------------------------------------------------
 
         // Start 0x6700F0 runs the gameplay control base, then asks for the UIManager, the LevelManager and the visual quality
-        // manager in that order (0x6701E0, 0x670237, 0x670293); each is registered, so each callback runs at once. The level
+        // manager in that order (0x6701E0, 0x670237, 0x67028E); each is registered, so each callback runs at once. The level
         // manager's callback asks for the MissionManager, whose callback publishes the level.
         [Test]
         public void StartTakesTheManagersAndPublishesTheLevelAndTheQualityFlags()
