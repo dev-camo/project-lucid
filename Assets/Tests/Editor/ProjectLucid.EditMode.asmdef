@@ -39,6 +39,7 @@
     "HLSplines.Runtime",
     "Dreamteck.Splines",
     "Dreamteck.Utilities",
+    "com.olegknyazev.softmask",
     "HLCrossPromo.Runtime",
     "HLAutoPlay.Runtime",
     "HLPhysics.Runtime",

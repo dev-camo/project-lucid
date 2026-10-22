@@ -5998,6 +5998,16 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.CharacterLedgeMountInHubAbilityTests
     "DeclarationShapeAbilitiesKeepTheirFieldsAndAccessors",
 ))
 
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalSoftMaskTests." + name for name in (
+    "MaskChannelPresetsAreTheNativeConstants",
+    "ImageTypesMapToBorderModesAndOnlyThreeAreSupported",
+    "MathrRemapsBetweenRectsInsideIsInclusiveAndBordersShrinkTheRect",
+    "ANewSoftMaskStartsWithTheNativeFieldDefaults",
+    "SpritePixelsPerUnitMultiplierIsClampedAtOneHundredth",
+    "ReplacerChainRunsInAscendingOrderAndSkipsNullAndDestroyedResults",
+    "MaterialReplacementsShareOneReplacementPerOriginalUntilTheLastRelease",
+    "TheTextMeshProReplacerIsGlobalOrderTenAndIgnoresOtherShaders",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDreamteckMathTests." + name for name in (
     "TranscendentalWrappersReturnTheRuntimeMathValues",
     "ClampFamilyKeepsTheNativeComparisonOrder",
