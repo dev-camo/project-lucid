@@ -469,6 +469,24 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
                     process.wait()
             returncode = process.returncode
             stream.write(f"\nRecovery wrapper stopped the process after {timeout} seconds.\n")
+        except BaseException as interruption:
+            # Ctrl-C or any other abort: callers remove working trees and release locks
+            # next, so the tool must have stopped first. The original exception propagates.
+            try:
+                if os.name == "posix":
+                    stop_process_group(process)
+                else:
+                    # Known gap (#235): Windows stops only the immediate process, not its tree.
+                    process.terminate()
+                    try:
+                        process.wait(timeout=TERM_GRACE_SECONDS)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+                stream.write("\nRecovery wrapper stopped the process after an interruption.\n")
+            except ToolError as stop_error:
+                raise stop_error from interruption
+            raise
     return {"command": command, "log": str(log), "returncode": returncode,
             "timed_out": timed_out, "elapsed_seconds": round(time.monotonic() - started, 3)}
 

@@ -280,6 +280,53 @@ class RecoverySafetyTests(unittest.TestCase):
                     pass
 
     @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_interrupt_stops_the_group_before_the_caller_cleans_up(self):
+        # Ctrl-C during the wait must stop the tool and its descendant before the
+        # caller's finally runs, then propagate as KeyboardInterrupt (#412).
+        pids = self.work / "pids"
+        cleanup = self.work / "cleanup.marker"
+        worker = self._worker("")
+        driver = (
+            "import signal, sys\n"
+            "from pathlib import Path\n"
+            "from tools.lucidlib.bootstrap import run_logged\n"
+            "signal.signal(signal.SIGINT, signal.default_int_handler)\n"
+            "work, leader, worker, pid_file, marker = sys.argv[1:6]\n"
+            "try:\n"
+            "    run_logged([sys.executable, '-c', leader, worker, pid_file], Path(work),\n"
+            "               'interrupt.log', timeout=60)\n"
+            "finally:\n"
+            "    Path(marker).write_text('cleaned')\n")
+        helper = subprocess.Popen([sys.executable, "-c", driver, str(self.work), self._LEADER,
+                                   worker, str(pids), str(cleanup)], cwd=REPO_ROOT,
+                                  stderr=subprocess.PIPE, text=True)
+        worker_pid = None
+        try:
+            deadline = time.monotonic() + 30
+            while not pids.exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertTrue(pids.exists(), "worker was not ready")
+            worker_pid = int(pids.read_text())
+            helper.send_signal(signal.SIGINT)
+            _, stderr = helper.communicate(timeout=30)
+            self.assertNotEqual(helper.returncode, 0)
+            self.assertIn("KeyboardInterrupt", stderr)
+            self.assertTrue(cleanup.exists(), "caller cleanup did not run")
+            self.assertTrue(self._process_stopped(worker_pid),
+                            "descendant survived the interruption")
+            self.assertIn("after an interruption",
+                          (self.work / "reports" / "interrupt.log").read_text())
+        finally:
+            if helper.poll() is None:
+                helper.kill()
+                helper.communicate()
+            if worker_pid is not None:
+                try:
+                    os.kill(worker_pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
     def test_timeout_raises_when_the_group_outlives_the_sigkill_bound(self):
         # A group that still reports live members after SIGKILL must not let callers
         # go on to remove its working trees.
