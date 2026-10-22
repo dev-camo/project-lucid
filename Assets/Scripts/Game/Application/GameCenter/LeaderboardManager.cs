@@ -4,7 +4,9 @@ using Hardlight;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.SocialPlatforms;
+#if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX // GameCenterPlatform exists only in Apple players; see docs/offline-hooks.md
 using UnityEngine.SocialPlatforms.GameCenter;
+#endif
 
 namespace HardlightProject
 {

@@ -4,7 +4,7 @@ Every point where the offline adapters (namespace `ProjectLucid.Offline`) divert
 
 `tools/tests/test_offline_hooks.py` checks that this table and the source agree. Add a row here for every new hook, and never reuse an ID.
 
-No `#if` is left for a hook. The original code compiles everywhere, including the seven unresolved native imports of H-011, H-058..H-061, H-062 and H-063, which are declared like Cloud_MacOS declares its imports (`[PreserveSig] static extern` with no recovered module, under `#pragma warning disable 0626`).
+No `#if` is left for a hook. One platform guard remains, and it is not a hook: `UnityEngine.SocialPlatforms.GameCenter` exists only in Apple players, so in `Achievements.cs` and `LeaderboardManager.cs` the `using` and the two `GameCenterPlatform` calls are inside `#if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX`. They compile as shipped on macOS and are left out of Windows and Linux players, where offline hooks H-030 and H-044 keep them unreachable anyway. The original code compiles everywhere, including the seven unresolved native imports of H-011, H-058..H-061, H-062 and H-063, which are declared like Cloud_MacOS declares its imports (`[PreserveSig] static extern` with no recovered module, under `#pragma warning disable 0626`).
 
 | ID | File | Member | Original and adapter |
 |---|---|---|---|

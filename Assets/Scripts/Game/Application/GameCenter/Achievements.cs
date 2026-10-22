@@ -8,7 +8,9 @@ using System.Diagnostics;
 using Hardlight;
 using Hardlight.Utils;
 using Unity.IL2CPP.CompilerServices;
+#if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX // GameCenterPlatform exists only in Apple players; see docs/offline-hooks.md
 using UnityEngine.SocialPlatforms.GameCenter;
+#endif
 
 namespace HardlightProject
 {
@@ -46,7 +48,9 @@ namespace HardlightProject
             }
             app.RegisterAndInitialiseSystem<AchievementsManager>();
             m_achievementsManager = ProcessManager.GetSystem<AchievementsManager>(null, true);
+#if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX // GameCenterPlatform exists only in Apple players; see docs/offline-hooks.md
             GameCenterPlatform.ShowDefaultAchievementCompletionBanner(true);
+#endif
             m_achievementsManager.OnPlatformSyncComplete += AddAllAchievements;
         }
 
@@ -387,7 +391,9 @@ namespace HardlightProject
             {
                 throw new InvalidOperationException("Offline achievement reset requires explicit local profile reset policy.");
             }
+#if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX // GameCenterPlatform exists only in Apple players; see docs/offline-hooks.md
             GameCenterPlatform.ResetAllAchievements(null);
+#endif
         }
 
         public Achievements()
