@@ -140,7 +140,7 @@ namespace ProjectLucid.Tests
                     UIContainerLevelSelectZone page = NewZonePage(owned, preselected < 0 ? null : widgets[preselected].Level, widgets);
                     string row = "preselected " + preselected + ", locked " + string.Join(",", locked);
 
-                    Call(page, "TrySelectBestLevel");
+                    Call(page, "TrySelectBestLevel"); // Reflection: private UIContainerLevelSelectZone.TrySelectBestLevel
 
                     Assert.That(Selected(widgets), Is.EqualTo(expected), row);
                 });

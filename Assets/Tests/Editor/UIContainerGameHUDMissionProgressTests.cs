@@ -60,7 +60,7 @@ namespace ProjectLucid.Tests
             Set(rig.Hud, "m_defaultMissionProgressParent", rig.DefaultParent); // Reflection: serialized references
             Set(rig.Hud, "m_persistentMissionProgressParent", rig.PersistentParent);
             Set(rig.Hud, "m_defaultActiveMissionProgressPrefab", rig.ActivePrefab);
-            Set(rig.Hud, "m_defaultPersistentMissionProgressPrefab", rig.PersistentPrefab);
+            Set(rig.Hud, "m_defaultPersistentMissionProgressPrefab", rig.PersistentPrefab); // Reflection: serialized m_defaultPersistentMissionProgressPrefab the editor assigns
             OwnedStringTable.Run(OwnedStrings, () => body(rig));
         });
 
@@ -120,7 +120,7 @@ namespace ProjectLucid.Tests
                 AddMission(rig, canComplete: false);
                 Get<Dictionary<string, MissionState>>(rig.World.Missions, "m_missionStates")["lucid-no-tracker"] = new MissionState();
 
-                Call(rig.Hud, "SetupActiveMissionsUI");
+                Call(rig.Hud, "SetupActiveMissionsUI"); // Reflection: private UIContainerGameHUDMissionProgress.SetupActiveMissionsUI
 
                 Dictionary<MissionDefinition, UIContainerMissionProgress> containers = Containers(rig);
                 Assert.That(containers.Count, Is.EqualTo(2));
@@ -151,7 +151,7 @@ namespace ProjectLucid.Tests
                 MissionState state = AddMission(rig);
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine); // Refresh starts the fade of a container that is not always displayed
-                Call(rig.Hud, "SetupActiveMissionsUI");
+                Call(rig.Hud, "SetupActiveMissionsUI"); // Reflection: private UIContainerGameHUDMissionProgress.SetupActiveMissionsUI
 
                 Assert.That(prefab.AlwaysDisplay, Is.False);
                 Assert.That(prefab.OnlyShowWhenMissionIslandActive, Is.False);
@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
                 Set(second.Tracker, "m_uiContainerIdentifierGroup", newGroup("Lucid group B"));
                 Set(other.Tracker, "m_uiContainerIdentifierGroup", newGroup("Lucid group C"));
 
-                Call(rig.Hud, "SetupActiveMissionsUI");
+                Call(rig.Hud, "SetupActiveMissionsUI"); // Reflection: private UIContainerGameHUDMissionProgress.SetupActiveMissionsUI
 
                 Assert.That(rig.DefaultParent.childCount, Is.EqualTo(2));
                 Transform groupOfFirst = Containers(rig)[first.Definition].transform.parent;
@@ -207,13 +207,13 @@ namespace ProjectLucid.Tests
                 var foreign = rig.Owned.Track(ScriptableObject.CreateInstance<UIContainerIdentifier>());
                 foreign.RegisterContainer(rig.Owned.Host("Lucid other container", false).AddComponent<UIContainerChallengeResults>());
 
-                Assert.That(Call(rig.Hud, "GetActiveContainerPrefab", new object[] { null }), Is.SameAs(rig.ActivePrefab));
-                Assert.That(Call(rig.Hud, "GetPersistentContainerPrefab", new object[] { null }), Is.SameAs(rig.PersistentPrefab));
-                Assert.That(Call(rig.Hud, "GetActiveContainerPrefab", own), Is.SameAs(custom));
-                Assert.That(Call(rig.Hud, "GetPersistentContainerPrefab", own), Is.SameAs(custom));
-                Assert.That(Call(rig.Hud, "GetContainerPrefab", own), Is.SameAs(custom));
-                Assert.That(Call(rig.Hud, "GetActiveContainerPrefab", foreign), Is.Null);
-                Assert.That(Call(rig.Hud, "GetPersistentContainerPrefab", foreign), Is.Null);
+                Assert.That(Call(rig.Hud, "GetActiveContainerPrefab", new object[] { null }), Is.SameAs(rig.ActivePrefab)); // Reflection: private UIContainerGameHUDMissionProgress.GetActiveContainerPrefab
+                Assert.That(Call(rig.Hud, "GetPersistentContainerPrefab", new object[] { null }), Is.SameAs(rig.PersistentPrefab)); // Reflection: private UIContainerGameHUDMissionProgress.GetPersistentContainerPrefab
+                Assert.That(Call(rig.Hud, "GetActiveContainerPrefab", own), Is.SameAs(custom)); // Reflection: private UIContainerGameHUDMissionProgress.GetActiveContainerPrefab
+                Assert.That(Call(rig.Hud, "GetPersistentContainerPrefab", own), Is.SameAs(custom)); // Reflection: private UIContainerGameHUDMissionProgress.GetPersistentContainerPrefab
+                Assert.That(Call(rig.Hud, "GetContainerPrefab", own), Is.SameAs(custom)); // Reflection: private UIContainerGameHUDMissionProgress.GetContainerPrefab
+                Assert.That(Call(rig.Hud, "GetActiveContainerPrefab", foreign), Is.Null); // Reflection: private UIContainerGameHUDMissionProgress.GetActiveContainerPrefab
+                Assert.That(Call(rig.Hud, "GetPersistentContainerPrefab", foreign), Is.Null); // Reflection: private UIContainerGameHUDMissionProgress.GetPersistentContainerPrefab
             });
         }
 
@@ -226,16 +226,16 @@ namespace ProjectLucid.Tests
             {
                 MissionState ordinary = AddMission(rig);
                 MissionState persistent = AddMission(rig, persistent: true);
-                Call(rig.Hud, "SetupActiveMissionsUI");
+                Call(rig.Hud, "SetupActiveMissionsUI"); // Reflection: private UIContainerGameHUDMissionProgress.SetupActiveMissionsUI
                 UIContainerMissionProgress ordinaryContainer = Containers(rig)[ordinary.Definition];
                 UIContainerMissionProgress persistentContainer = Containers(rig)[persistent.Definition];
                 ordinaryContainer.gameObject.SetActive(false); // changed by hand: an untied container must not be touched
 
-                Call(rig.Hud, "OnMissionIslandActive", persistent);
+                Call(rig.Hud, "OnMissionIslandActive", persistent); // Reflection: private UIContainerGameHUDMissionProgress.OnMissionIslandActive
                 Assert.That(persistentContainer.gameObject.activeSelf, Is.True);
                 Assert.That(ordinaryContainer.gameObject.activeSelf, Is.False, "not tied to its island");
 
-                Call(rig.Hud, "OnMissionIslandActive", ordinary);
+                Call(rig.Hud, "OnMissionIslandActive", ordinary); // Reflection: private UIContainerGameHUDMissionProgress.OnMissionIslandActive
                 Assert.That(persistentContainer.gameObject.activeSelf, Is.False);
                 Assert.That(ordinaryContainer.gameObject.activeSelf, Is.False);
             });
@@ -252,7 +252,7 @@ namespace ProjectLucid.Tests
                 AddMission(rig, persistent: true);
                 AddMission(rig, persistent: true);
 
-                Call(rig.Hud, "SetupMissionUI", rig.World.Missions);
+                Call(rig.Hud, "SetupMissionUI", rig.World.Missions); // Reflection: private UIContainerGameHUDMissionProgress.SetupMissionUI
 
                 Assert.That(Containers(rig).Count, Is.EqualTo(3));
                 Assert.That(Hooks(Get<Delegate>(rig.World.Missions, "OnMissionIslandActive"), rig.Hud), Is.EqualTo(1));
@@ -267,7 +267,7 @@ namespace ProjectLucid.Tests
             {
                 AddMission(rig);
 
-                Call(rig.Hud, "SetupMissionUI", rig.World.Missions);
+                Call(rig.Hud, "SetupMissionUI", rig.World.Missions); // Reflection: private UIContainerGameHUDMissionProgress.SetupMissionUI
 
                 Assert.That(Containers(rig).Count, Is.EqualTo(1));
                 Assert.That(Hooks(Get<Delegate>(rig.World.Missions, "OnMissionIslandActive"), rig.Hud), Is.EqualTo(0));
@@ -285,12 +285,12 @@ namespace ProjectLucid.Tests
                 MissionState first = AddMission(rig);
                 MissionState second = AddMission(rig);
                 MissionState other = AddMission(rig, type: MissionType.Jukebox);
-                Call(rig.Hud, "SetupActiveMissionsUI");
+                Call(rig.Hud, "SetupActiveMissionsUI"); // Reflection: private UIContainerGameHUDMissionProgress.SetupActiveMissionsUI
                 var trackers = new[] { first, second, other }.Select(state => (MissionInstancedTracker)state.Tracker).ToArray();
                 foreach (MissionInstancedTracker tracker in trackers) Set(tracker, "m_targetObjectivesToComplete", 7); // Reflection: progress the containers have not seen
                 Func<MissionState, int> shownTarget = state => Containers(rig)[state.Definition].ObjectivesTarget.Value;
 
-                Call(rig.Hud, "RefreshActiveMission", trackers[0]);
+                Call(rig.Hud, "RefreshActiveMission", trackers[0]); // Reflection: private UIContainerGameHUDMissionProgress.RefreshActiveMission
 
                 Assert.That(shownTarget(first), Is.EqualTo(7), "its own container");
                 Assert.That(shownTarget(second), Is.EqualTo(2), "an ungrouped tracker leaves the others alone");
@@ -300,7 +300,7 @@ namespace ProjectLucid.Tests
                 Set(trackers[0], "m_targetObjectivesToComplete", 9);
                 Set(trackers[1], "m_targetObjectivesToComplete", 9);
 
-                Call(rig.Hud, "RefreshActiveMission", trackers[1]);
+                Call(rig.Hud, "RefreshActiveMission", trackers[1]); // Reflection: private UIContainerGameHUDMissionProgress.RefreshActiveMission
 
                 Assert.That(shownTarget(first), Is.EqualTo(9), "the same type");
                 Assert.That(shownTarget(second), Is.EqualTo(9), "the same type");
@@ -317,10 +317,10 @@ namespace ProjectLucid.Tests
             {
                 MissionState ordinary = AddMission(rig);
                 MissionState persistent = AddMission(rig, persistent: true);
-                Call(rig.Hud, "SetupMissionUI", rig.World.Missions);
+                Call(rig.Hud, "SetupMissionUI", rig.World.Missions); // Reflection: private UIContainerGameHUDMissionProgress.SetupMissionUI
                 UIContainerMissionProgress container = Containers(rig)[ordinary.Definition];
 
-                Call(rig.Hud, "CloseMissionUI");
+                Call(rig.Hud, "CloseMissionUI"); // Reflection: private UIContainerGameHUDMissionProgress.CloseMissionUI
 
                 Assert.That(Containers(rig), Is.Empty);
                 Assert.That(Hooks(((MissionInstancedTracker)ordinary.Tracker).OnStatusChanged, rig.Hud), Is.EqualTo(0));
@@ -340,20 +340,20 @@ namespace ProjectLucid.Tests
             {
                 MissionState ordinary = AddMission(rig);
 
-                Call(rig.Hud, "Start");
+                Call(rig.Hud, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(Hooks(Get<Delegate>(rig.World.Missions, "OnMissionsReset"), rig.Hud), Is.EqualTo(1));
                 UIContainerMissionProgress first = Containers(rig)[ordinary.Definition];
 
-                Call(rig.Hud, "OnMissionsReset", false);
+                Call(rig.Hud, "OnMissionsReset", false); // Reflection: private UIContainerGameHUDMissionProgress.OnMissionsReset
                 Assert.That(Containers(rig)[ordinary.Definition], Is.SameAs(first), "nothing is rebuilt");
 
-                Call(rig.Hud, "OnMissionsReset", true);
+                Call(rig.Hud, "OnMissionsReset", true); // Reflection: private UIContainerGameHUDMissionProgress.OnMissionsReset
                 Assert.That(Containers(rig).Count, Is.EqualTo(1));
                 Assert.That(Containers(rig)[ordinary.Definition], Is.Not.SameAs(first), "a new container");
                 Assert.That(Hooks(((MissionInstancedTracker)ordinary.Tracker).OnStatusChanged, rig.Hud), Is.EqualTo(1), "unhooked then hooked again");
 
-                Call(rig.Hud, "OnDestroy");
+                Call(rig.Hud, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
                 Assert.That(Containers(rig), Is.Empty);
                 Assert.That(Hooks(Get<Delegate>(rig.World.Missions, "OnMissionsReset"), rig.Hud), Is.EqualTo(0));
             });

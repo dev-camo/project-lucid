@@ -50,6 +50,7 @@ namespace ProjectLucid.Tests
             Owned owned = world.Owned;
             LeaseRows(owned);
             // The zones' reward type comes from the level manager's (empty) game levels, which its Awake would fetch.
+            // Reflection: LevelManager.GameLevels has a private setter that its Awake calls.
             typeof(LevelManager).GetProperty("GameLevels").GetSetMethod(true).Invoke(world.Levels, new object[] { owned.Track(ScriptableObject.CreateInstance<GameLevels>()) });
             DataManager data = owned.Register(owned.Host("Lucid data manager", false).AddComponent<DataManager>()); // the widgets' and counter's field initialiser
             var rig = new Rig { Owned = owned, Zones = owned.Host("Lucid level select zones", false).AddComponent<UIContainerLevelSelectZones>() };
@@ -122,7 +123,7 @@ namespace ProjectLucid.Tests
         {
             Run(new[] { false, true, false }, 1, rig =>
             {
-                var zones = (IList)Call(rig.Zones, "GetZones");
+                var zones = (IList)Call(rig.Zones, "GetZones"); // Reflection: private UIContainerLevelSelectZones.GetZones
 
                 Assert.That(zones.Count, Is.EqualTo(3));
                 for (int i = 0; i < 3; i++)
@@ -132,7 +133,7 @@ namespace ProjectLucid.Tests
                     Assert.That(Prop<bool>(zones[i], "Locked"), Is.EqualTo(i == 1), "locked " + i);
                 }
 
-                Call(rig.Zones, "HideLockedZones", zones);
+                Call(rig.Zones, "HideLockedZones", zones); // Reflection: private UIContainerLevelSelectZones.HideLockedZones
 
                 Assert.That(rig.Pages.Select(page => page.Container.gameObject.activeSelf), Is.EqualTo(new[] { true, false, true }));
             });
@@ -167,12 +168,12 @@ namespace ProjectLucid.Tests
                 foreach (LevelWidget widget in rig.Pages.SelectMany(page => page.Widgets)) widget.Widget.Select(false);
                 GameplayLevelDefinition level = rig.Pages[1].Widgets[0].Level;
 
-                Call(rig.Zones, "SelectLevel", false, level);
+                Call(rig.Zones, "SelectLevel", false, level); // Reflection: private UIContainerLevelSelectZones.SelectLevel
 
                 Assert.That(rig.LevelsSelected, Is.Empty);
                 Assert.That(rig.Pages.SelectMany(page => page.Widgets).All(widget => widget.Toggle.IsOn), Is.True);
 
-                Call(rig.Zones, "SelectLevel", true, level);
+                Call(rig.Zones, "SelectLevel", true, level); // Reflection: private UIContainerLevelSelectZones.SelectLevel
 
                 Assert.That(rig.LevelsSelected, Is.EqualTo(new[] { level }));
                 Assert.That(rig.Pages.SelectMany(page => page.Widgets).Select(widget => widget.Toggle.IsOn), Is.EqualTo(new[] { false, false, true, false }));
@@ -219,15 +220,15 @@ namespace ProjectLucid.Tests
                 foreach (Page page in rig.Pages)
                     foreach (LevelWidget widget in page.Widgets) widget.Navigation.enabled = true;
 
-                Call(rig.Zones, "SelectZone", false, rig.Pages[1].Zone);
-                Call(rig.Zones, "SelectZone", true, rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>()));
+                Call(rig.Zones, "SelectZone", false, rig.Pages[1].Zone); // Reflection: private UIContainerLevelSelectZones.SelectZone
+                Call(rig.Zones, "SelectZone", true, rig.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>())); // Reflection: private UIContainerLevelSelectZones.SelectZone
 
                 Assert.That(rig.ZonesSelected, Is.Empty);
                 Assert.That(new[] { firstToggle, otherToggle, secondToggle }.Select(toggle => toggle.IsOn), Is.EqualTo(new[] { false, false, false }));
                 Assert.That(rig.Pages.All(page => page.Widgets.All(widget => widget.Navigation.enabled)), Is.True, "no page was touched");
                 Assert.That(Get<CollectableType>(rig.Counter, "m_rewardType"), Is.EqualTo(CollectableType.Orb), "the counter was not touched");
 
-                Call(rig.Zones, "SelectZone", true, rig.Pages[1].Zone);
+                Call(rig.Zones, "SelectZone", true, rig.Pages[1].Zone); // Reflection: private UIContainerLevelSelectZones.SelectZone
 
                 Assert.That(new[] { firstToggle, otherToggle, secondToggle }.Select(toggle => toggle.IsOn), Is.EqualTo(new[] { true, false, true }));
                 Assert.That(rig.ZonesSelected, Is.EqualTo(new[] { rig.Pages[1].Zone, rig.Pages[1].Zone }));
@@ -274,7 +275,7 @@ namespace ProjectLucid.Tests
                     Set(rig.Zones, "m_zoneToggleGroup", group); // Reflection: serialized reference
                     string row = count + " toggles, active " + active;
 
-                    Call(rig.Zones, "OnZoneToggleGroupChanged");
+                    Call(rig.Zones, "OnZoneToggleGroupChanged"); // Reflection: private UIContainerLevelSelectZones.OnZoneToggleGroupChanged
 
                     Assert.That(rig.Zones.CanSelectPrevious.Value, Is.EqualTo(previous), row);
                     Assert.That(rig.Zones.CanSelectNext.Value, Is.EqualTo(next), row);

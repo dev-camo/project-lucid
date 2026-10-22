@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
                 Set(container, "m_defaultActiveMissionIdentifier", fallback); // Reflection: serialized reference
 
                 Assert.That(Call(container, "GetActiveMissionIdentifier", NewTrackedState(world)), Is.SameAs(fallback));
-                Assert.That(Call(container, "GetActiveMissionIdentifier", NewTrackedState(world, resultsOverride: custom)), Is.SameAs(custom));
+                Assert.That(Call(container, "GetActiveMissionIdentifier", NewTrackedState(world, resultsOverride: custom)), Is.SameAs(custom)); // Reflection: private UIContainerLevelResults.GetActiveMissionIdentifier
             });
         }
 
@@ -133,7 +133,7 @@ namespace ProjectLucid.Tests
                     Set(container, "m_defaultActiveMissionIdentifier", identifier); // Reflection: serialized reference
                     string row = "complete " + complete + ", time trial " + timeTrial + ", challenge " + challenge;
 
-                    Call(container, "SetupActiveMissionUI", state, challenge);
+                    Call(container, "SetupActiveMissionUI", state, challenge); // Reflection: private UIContainerLevelResults.SetupActiveMissionUI
 
                     Assert.That(container.CanReplayMission.Value, Is.EqualTo(expected), row);
                     Assert.That(Get<int>(identifier, "m_refCount"), Is.EqualTo(1), row + ": registered, fetched and closed");
@@ -154,7 +154,7 @@ namespace ProjectLucid.Tests
                 Set(container, "m_defaultActiveMissionIdentifier", identifier); // Reflection: serialized references
                 Set(container, "m_activeMissionRoot", root);
 
-                Call(container, "SetupActiveMissionUI", NewTrackedState(world), false);
+                Call(container, "SetupActiveMissionUI", NewTrackedState(world), false); // Reflection: private UIContainerLevelResults.SetupActiveMissionUI
 
                 Assert.That(root.childCount, Is.EqualTo(1));
                 var copy = root.GetChild(0).GetComponent<UIContainerActiveMission>();
@@ -175,7 +175,7 @@ namespace ProjectLucid.Tests
                 container.LeaderboardIdentifier.Value = LeaderboardIdentifier.TailsChallenges_Daily;
                 MissionState state = NewTrackedState(world);
 
-                Call(container, "SetupLeaderboards", state.Definition);
+                Call(container, "SetupLeaderboards", state.Definition); // Reflection: private UIContainerLevelResults.SetupLeaderboards
 
                 Assert.That(container.ShowLeaderboards.Value, Is.False);
                 Assert.That(container.LeaderboardIdentifier.Value, Is.EqualTo(LeaderboardIdentifier.TailsChallenges_Daily), "left as it was");
@@ -194,7 +194,7 @@ namespace ProjectLucid.Tests
                 MissionState state = NewTrackedState(world);
                 Assert.That(world.Missions.ActiveMissionContext, Is.Null);
 
-                Call(container, "SetupChallenge", world.Missions, state.Tracker);
+                Call(container, "SetupChallenge", world.Missions, state.Tracker); // Reflection: private UIContainerLevelResults.SetupChallenge
 
                 Assert.That(container.IsChallenge.Value, Is.False);
                 Assert.That(container.ExtraSpaceAboveXPReward.Value, Is.False);
@@ -227,7 +227,7 @@ namespace ProjectLucid.Tests
                 Set(definition, "m_mission", mission.Definition); // Reflection: serialized references and arrays
                 Set(definition, "m_level", level);
                 Set(definition, "m_characterSelection", new CharacterId[0]);
-                Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]);
+                Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]); // Reflection: serialized m_startPositions the editor assigns
                 Set(definition, "m_timeRemainingScoreCurve", AnimationCurve.Linear(0f, 0.5f, 100f, 1000.5f)); // Reflection: authored curve
                 var prefab = owned.Host("Lucid challenge results prefab", false).AddComponent<UIContainerChallengeResults>();
                 Transform root = owned.Host("Lucid challenge results root", false).transform;
@@ -241,7 +241,7 @@ namespace ProjectLucid.Tests
                     context.RealTimeTaken = 99f;
                     world.Missions.SetActiveMissionContext(context);
 
-                    Call(container, "SetupChallenge", world.Missions, state.Tracker);
+                    Call(container, "SetupChallenge", world.Missions, state.Tracker); // Reflection: private UIContainerLevelResults.SetupChallenge
                 });
 
                 Assert.That(container.IsChallenge.Value, Is.True);
@@ -266,7 +266,7 @@ namespace ProjectLucid.Tests
                 container.TimeTrialUnlocked.Value = true;
                 container.TimeTrialMissionName.Value = "stale";
 
-                Call(container, "UpdateTimeTrialBindings", world.Missions, world.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>()));
+                Call(container, "UpdateTimeTrialBindings", world.Missions, world.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>())); // Reflection: private UIContainerLevelResults.UpdateTimeTrialBindings
 
                 Assert.That(container.TimeTrialUnlocked.Value, Is.False);
                 Assert.That(container.TimeTrialMissionName.Value, Is.EqualTo("stale"));
@@ -309,13 +309,13 @@ namespace ProjectLucid.Tests
                 container.TimeTrialMissionName.Value = "stale";
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
-                Call(container, "UpdateTimeTrialBindings", missions.Manager, level);
+                Call(container, "UpdateTimeTrialBindings", missions.Manager, level); // Reflection: private UIContainerLevelResults.UpdateTimeTrialBindings
 
                 Assert.That(container.TimeTrialUnlocked.Value, Is.True);
                 Assert.That(container.TimeTrialMissionName.Value, Is.EqualTo(string.Empty));
                 Assert.That(missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID()).TimeTrialUnlockSeen, Is.True);
 
-                Call(container, "UpdateTimeTrialBindings", missions.Manager, level);
+                Call(container, "UpdateTimeTrialBindings", missions.Manager, level); // Reflection: private UIContainerLevelResults.UpdateTimeTrialBindings
 
                 Assert.That(container.TimeTrialUnlocked.Value, Is.False, "cleared first, then the seen record ends the call");
             });
@@ -328,14 +328,14 @@ namespace ProjectLucid.Tests
         {
             WithRegularContext("{\"m_timeLimitSeconds\":60}", (container, missions, mission, level) =>
             {
-                Call(container, "UpdateTimeTrialBindings", missions.Manager, level);
+                Call(container, "UpdateTimeTrialBindings", missions.Manager, level); // Reflection: private UIContainerLevelResults.UpdateTimeTrialBindings
 
                 Assert.That(container.TimeTrialUnlocked.Value, Is.False);
                 Assert.That(missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID()).TimeTrialUnlockSeen, Is.False);
             });
             WithRegularContext("{\"m_isReachGoalTracker\":true}", (container, missions, mission, level) =>
             {
-                Call(container, "UpdateTimeTrialBindings", missions.Manager, level);
+                Call(container, "UpdateTimeTrialBindings", missions.Manager, level); // Reflection: private UIContainerLevelResults.UpdateTimeTrialBindings
 
                 Assert.That(container.TimeTrialUnlocked.Value, Is.False);
                 Assert.That(missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID()).TimeTrialUnlockSeen, Is.False);
@@ -355,7 +355,7 @@ namespace ProjectLucid.Tests
                     container.TimeTrialMissionName.Value = "stale";
 
                     LogAssert.Expect(LogType.Error, RefusedCoroutine); // the requested save starts its coroutine on the refusing host
-                    Call(container, "UpdateTimeTrialBindings", missions.Manager, level);
+                    Call(container, "UpdateTimeTrialBindings", missions.Manager, level); // Reflection: private UIContainerLevelResults.UpdateTimeTrialBindings
 
                     Assert.That(container.TimeTrialUnlocked.Value, Is.False, goalFlag);
                     Assert.That(container.TimeTrialMissionName.Value, Is.EqualTo("stale"), goalFlag);
@@ -381,7 +381,7 @@ namespace ProjectLucid.Tests
                 character.Storage.SetValue(ActorFSMKeys.IsCollectingOrb, true);
 
                 container.Action_Exit();
-                Set(container, "m_exitEvent", second);
+                Set(container, "m_exitEvent", second); // Reflection: serialized m_exitEvent the editor assigns
                 container.Action_Exit();
 
                 Assert.That(events, Is.EqualTo(new[] { first }));

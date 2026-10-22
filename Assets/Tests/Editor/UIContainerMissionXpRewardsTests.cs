@@ -113,7 +113,7 @@ namespace ProjectLucid.Tests
                 rig.World.Missions.SetActiveMissionContext(new RingXpContext { RingXPEarned = 15 });
                 rig.Save.SaveDataChallenges.TotalXPEarned = 1234;
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.EarnedXPFromRings.Value, Is.True);
                 Assert.That(rig.Container.RingsCollected.Value, Is.EqualTo("x7"));
@@ -139,7 +139,7 @@ namespace ProjectLucid.Tests
                     rig.World.Missions.SetActiveMissionContext(new RingXpContext { RingXPEarned = ringXp });
                     rig.Container.EarnedXPFromRings.Value = true;
 
-                    Call(rig.Container, "Refresh");
+                    Call(rig.Container, "Refresh"); // Reflection: private UIContainerMissionXpRewards.Refresh
 
                     Assert.That(rig.Container.EarnedXPFromRings.Value, Is.False, "ring XP " + ringXp);
                     Assert.That(rig.Container.RingXPEarned.Value, Is.EqualTo("+" + ringXp + "XP"), "the amount is shown whatever it is");
@@ -157,7 +157,7 @@ namespace ProjectLucid.Tests
                 rig.Container.RingsCollected.Value = "kept";
                 rig.Container.XPTotal.Value = "kept";
 
-                Call(rig.Container, "Refresh");
+                Call(rig.Container, "Refresh"); // Reflection: private UIContainerMissionXpRewards.Refresh
 
                 Assert.That(rig.Container.EarnedXPFromRings.Value, Is.False);
                 Assert.That(rig.Container.RingsCollected.Value, Is.EqualTo("kept"));
@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
                 rig.World.Missions.SetActiveMissionContext(new MissionContextRegular(mission.Definition, level, false));
                 rig.Container.EarnedXPFromMission.Value = true;
 
-                Call(rig.Container, "Refresh");
+                Call(rig.Container, "Refresh"); // Reflection: private UIContainerMissionXpRewards.Refresh
 
                 Assert.That(rig.Container.EarnedXPFromRings.Value, Is.False, "a regular context has earned no ring XP yet");
                 Assert.That(rig.Container.RingsCollected.Value, Is.EqualTo("x4"));

@@ -55,7 +55,7 @@ namespace ProjectLucid.Tests
                     Set(zone, "m_iconAsset", icon); // Reflection: serialized reference
                     UIContainerLevelSelect container = NewContainer(owned);
 
-                    Call(container, method, zone);
+                    Call(container, method, zone); // Reflection: OnZoneSelected and UpdateZoneState are private to UIContainerLevelSelect
 
                     Assert.That((int)container.SelectedZoneTitle.Value, Is.EqualTo(1234), method);
                     Assert.That((int)container.SelectedZoneSubtitle.Value, Is.EqualTo(5678), method);
@@ -120,7 +120,7 @@ namespace ProjectLucid.Tests
                 AddOrnament(rig, OrnamentCategory.Challenge, ids[next++], true, false, true);
                 AddOrnament(rig, OrnamentCategory.Challenge, ids[next++], false, false, true);
 
-                Call(rig.Container, "UpdateOrnamentBinders", rig.Manager);
+                Call(rig.Container, "UpdateOrnamentBinders", rig.Manager); // Reflection: private UIContainerLevelSelect.UpdateOrnamentBinders
 
                 Assert.That(rig.Container.CollectedOrnaments.Value, Is.EqualTo(6));
                 Assert.That(rig.Container.TotalOrnaments.Value, Is.EqualTo(11));
@@ -141,7 +141,7 @@ namespace ProjectLucid.Tests
                 rig.BadgeTarget.SetActive(true);
                 rig.BadgeText.text = "Lucid sentinel"; // a text that a write would replace
 
-                Call(rig.Container, "UpdateOrnamentBinders", rig.Manager);
+                Call(rig.Container, "UpdateOrnamentBinders", rig.Manager); // Reflection: private UIContainerLevelSelect.UpdateOrnamentBinders
 
                 Assert.That(rig.Container.HasNewOrnaments.Value, Is.False);
                 Assert.That(rig.BadgeTarget.activeSelf, Is.False);
@@ -158,7 +158,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_ornamentsAlertBadge", null); // Reflection: serialized reference
                 AddOrnament(rig, OrnamentCategory.Story, OrnamentIdentifier.OrnamentAmyAction, true, false, true);
 
-                Call(rig.Container, "UpdateOrnamentBinders", rig.Manager);
+                Call(rig.Container, "UpdateOrnamentBinders", rig.Manager); // Reflection: private UIContainerLevelSelect.UpdateOrnamentBinders
 
                 Assert.That(rig.Container.HasNewOrnaments.Value, Is.True);
             });
