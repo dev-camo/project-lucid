@@ -19,9 +19,11 @@ namespace ProjectLucid.Tests
     //    exist: a refused coroutine on the inactive host would be an unexpected error log and fail the test;
     //  - no folder is created, and an existing cache file is neither read nor changed (the system stays
     //    disabled with no ads although the file would enable it);
-    //  - the launch button content stays inactive, also after its Update, and no full screen view is requested.
+    //  - the launch button content stays inactive after OnEnable, and no full screen view is requested.
     // All folders are unique owned ones under the persistent data path and are removed afterwards.
-    // Not covered in EditMode: the real network request itself (the original path with the adapters off is
+    // Not covered in EditMode: the button's Update (the original reads the first element of its empty ad
+    // list there, with array bounds checks off in the shipped build, so it is not a stable thing to step),
+    // the real network request itself (the original path with the adapters off is
     // covered by HLCrossPromoStartTests), and the launch button inside a running player loop.
     public sealed class OfflineCrossPromoHookTests
     {
@@ -67,10 +69,12 @@ namespace ProjectLucid.Tests
                     var button = owned.Host("Lucid launch button", false).AddComponent<CrossPromoLaunchButton>();
                     Set(button, "m_content", content);
                     Set(button, "m_iconImage", icon);
-                    button.gameObject.SetActive(true);
+                    // EditMode does not send OnEnable, so the enable step is invoked directly, as
+                    // OriginalCrossPromoLaunchButtonTests does. It hides the content and, the system being ready,
+                    // takes the immediate Initialised callback with the disabled metadata.
+                    Assert.That(content.activeSelf, Is.True);
+                    Call(button, "OnEnable");
                     Assert.That(content.activeSelf, Is.False, "the launch button stays disabled after enabling");
-                    Call(button, "Update");
-                    Assert.That(content.activeSelf, Is.False, "and after its Update");
                     Assert.That(icon.sprite, Is.Null);
                     Assert.That(fullScreenRequests, Is.EqualTo(0), "no ad UI is requested");
 
