@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
         {
             RunMissions(false, PerformanceProfile.QualityLevel.High, rig =>
             {
-                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Start's callback does this
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
                 rig.Container.LevelTitle.Value = Strings.MISSING;
 
                 Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
@@ -312,8 +312,8 @@ namespace ProjectLucid.Tests
                 Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> // Reflection: serialized m_gameplayEntries the editor assigns
                 {
                     NewLevel(rig.Owned, "lucid-pause-other-a"), NewLevel(rig.Owned, "lucid-pause-other-b"),
-                }); // Reflection: authored list of a serialized definition
-                Set(rig.Container, "m_levelManager", rig.Missions.Level);
+                });
+                Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
                 rig.Container.DreamNumber.Value = 5;
 
                 Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
