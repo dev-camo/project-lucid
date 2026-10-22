@@ -22,7 +22,8 @@
     "UnityEngine.UI",
     "ProjectLucid.CoroutineScroll.EngineVerification",
     "HLNotifications.Runtime",
-    "HLCrashReport.Runtime"
+    "HLCrashReport.Runtime",
+    "ProjectLucid.SharedStateIsolation"
   ],
   "includePlatforms": [
     "Editor"

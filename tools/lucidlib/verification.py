@@ -8756,6 +8756,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.MissionScreenContainerTests." + name
     "ANegativeBestTimeIsNotANewBest",
     "IconsAreKeptAndReleasedWhenTheContainerIsDestroyed",
     "StartTakesTheMissionManagerAndFollowsTheStringTable",
+    "StartLeavesAForeignStringTableSubscriberSubscribedAndUncalled",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIWidgetCharacterHeadsSpawnerTests." + name for name in (
     "DeclarationsMatchTheOriginalMetadata",

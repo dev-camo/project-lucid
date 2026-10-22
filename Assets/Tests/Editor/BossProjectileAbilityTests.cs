@@ -99,11 +99,6 @@ namespace ProjectLucid.Tests
             return Decide(ability, index);
         }
 
-        private static ProjectileType ExpectedType(int index, int count, float draw)
-        {
-            return (index + 1f) / count > draw ? ProjectileType.GuardianReturnableProjectile : ProjectileType.GuardianKillerProjectile;
-        }
-
         // ---- the shared base ----
 
         // The base's own DefinitionBase auto-property is never assigned (06000ad2); the derived abilities override it.
@@ -560,7 +555,7 @@ namespace ProjectLucid.Tests
                 ability.Leave(); // leaving counts the group: 2
                 ProjectileType last = DecideSeeded(ability, 2, 17, out float draw);
                 Assert.That(draw, Is.LessThan(1f), "the seed draws below one, so the last of the group has the winning chance");
-                Assert.That(last, Is.EqualTo(ExpectedType(2, 3, draw)));
+                // The endpoint draw == 1 (a killer for the last of the group) cannot be forced through a seed, so it is not asserted.
                 Assert.That(last, Is.EqualTo(ProjectileType.GuardianReturnableProjectile), "the last of the group is chosen for a draw below one");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.True);
                 Assert.That(Decide(ability, 0), Is.EqualTo(ProjectileType.GuardianKillerProjectile), "once chosen the rest are killers");

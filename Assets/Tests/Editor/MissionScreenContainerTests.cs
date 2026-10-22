@@ -454,6 +454,8 @@ namespace ProjectLucid.Tests
                 FastAction incoming = StringTable.StringsTableHandlers;
                 int incomingCount = incoming == null ? 0 : incoming.GetInvocationList().Count();
                 System.Action refresh = container.Refresh;
+                int restoredCount = -1;
+                bool completed = false;
                 try
                 {
                     container.ShowMission.Value = true;
@@ -464,13 +466,52 @@ namespace ProjectLucid.Tests
                     Assert.That(container.ShowMission.Value, Is.True, "no active mission state: nothing was refreshed");
                     Assert.That(StringTable.StringsTableHandlers.GetInvocationList()
                         .Count(handler => ReferenceEquals(handler.Target, container) && handler.Method.Name == "Refresh"), Is.EqualTo(1));
+                    completed = true;
                 }
                 finally
                 {
                     StringTable.StringsTableHandlers -= refresh;
                     StringTable.StringsTableHandlers = incoming;
-                    Assert.That(StringTable.StringsTableHandlers == null ? 0 : StringTable.StringsTableHandlers.GetInvocationList().Count(),
-                        Is.EqualTo(incomingCount), "the case leaves the handler list as it found it");
+                    restoredCount = StringTable.StringsTableHandlers == null ? 0 : StringTable.StringsTableHandlers.GetInvocationList().Count();
+                }
+                // Asserted after the restore, and only for a completed body, so it cannot replace the body's own failure.
+                if (completed) Assert.That(restoredCount, Is.EqualTo(incomingCount), "the case leaves the handler list as it found it");
+            });
+        }
+
+        // A subscriber the case did not add is not the case's to touch: Start adds its own handler, the case takes away only that
+        // one and the sentinel is neither called nor dropped.
+        [Test]
+        public void StartLeavesAForeignStringTableSubscriberSubscribedAndUncalled()
+        {
+            RunActiveMission((owned, world, container) =>
+            {
+                FastAction incoming = StringTable.StringsTableHandlers;
+                int sentinelCalls = 0;
+                System.Action sentinel = () => sentinelCalls++;
+                System.Action refresh = container.Refresh;
+                bool completed = false;
+                bool sentinelSubscribed = false;
+                try
+                {
+                    StringTable.StringsTableHandlers = null;
+                    StringTable.StringsTableHandlers += sentinel;
+                    container.ShowMission.Value = true;
+
+                    Call(container, "Start");
+                    completed = true;
+                }
+                finally
+                {
+                    StringTable.StringsTableHandlers -= refresh;
+                    sentinelSubscribed = StringTable.StringsTableHandlers != null
+                        && StringTable.StringsTableHandlers.GetInvocationList().Contains(sentinel);
+                    StringTable.StringsTableHandlers = incoming;
+                }
+                if (completed)
+                {
+                    Assert.That(sentinelCalls, Is.EqualTo(0), "Start does not raise the string table handlers");
+                    Assert.That(sentinelSubscribed, Is.True, "removing the container's handler leaves the foreign subscriber");
                 }
             });
         }

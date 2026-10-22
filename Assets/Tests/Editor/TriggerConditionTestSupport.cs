@@ -53,12 +53,12 @@ namespace ProjectLucid.Tests
         // An invalid reference is not necessarily observer-free. Filling it runs its startup observers, emptying it runs its
         // shutdown observers and filling it consumes the deferred work waiting for a valid system, none of which belongs to a
         // fixture. Such a reference is refused before anything is touched.
-        internal static void RequireOwnableReference(SystemRef<CharacterManager> reference)
+        internal static void RequireOwnableReference<T>(SystemRef<T> reference) where T : class, ISystem
         {
-            if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty CharacterManager reference");
+            if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty " + typeof(T).Name + " reference");
             foreach (string field in new[] { "OnSystemStartup", "OnSystemShutdown", "m_actionOnSystemValid" })
-                if (typeof(SystemRef<CharacterManager>).GetField(field, Instance).GetValue(reference) != null)
-                    throw new InvalidOperationException("Fixture requires a CharacterManager reference without observers or deferred work: " + field);
+                if (typeof(SystemRef<T>).GetField(field, Instance).GetValue(reference) != null)
+                    throw new InvalidOperationException("Fixture requires a " + typeof(T).Name + " reference without observers or deferred work: " + field);
         }
 
         // Runs body with both condition types reading the scene's manager. The CharacterManager

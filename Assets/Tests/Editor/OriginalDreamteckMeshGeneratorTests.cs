@@ -343,6 +343,7 @@ namespace ProjectLucid.Tests
                 mesh = DreamteckGeneratorFixture.MeshOf(generator);
                 Assert.That(mesh == null, Is.False);
                 UnityEngine.Object.DestroyImmediate(generator);
+                Assert.That(mesh == null, Is.False, "destroying the component leaves its mesh");
                 probe.Dispose();
                 Assert.That(mesh == null, Is.True);
             }

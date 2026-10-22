@@ -22,7 +22,7 @@ namespace ProjectLucid.Tests
     // 0x0200040a). The hooks are called directly; Edit Mode sends no Awake or OnEnable.
     public sealed class OriginalTriggerEventComponentTests : OwnedGraphNamesFixture
     {
-        public OriginalTriggerEventComponentTests() : base("Lucid-transition-ability-") { }
+        public OriginalTriggerEventComponentTests() : base("Lucid-transition-ability-", "LucidAbilityTransition") { }
 
         private static readonly Type ParametersType = typeof(UnityEventTrigger).GetNestedType("UnityEventParameters", BindingFlags.NonPublic);
 

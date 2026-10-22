@@ -108,7 +108,7 @@ namespace ProjectLucid.Tests
     // The typed registry references that fixture owners read through private static readonly fields. A type
     // initialiser creates each once per process, and an earlier case's row release may leave it empty. An empty
     // one is filled through its own private InternalReplaceSystem; the returned action revokes it again and
-    // restores the observers it had, so nothing outlives the case. A reference already holding the system needs
+    // so nothing outlives the case. A reference carrying observers or deferred work is refused. A reference already holding the system needs
     // no restore (null); one holding another system is refused.
     internal static class StaticSystemReference
     {
@@ -124,17 +124,23 @@ namespace ProjectLucid.Tests
                     throw new InvalidOperationException("Fixture requires an empty reference: " + owner.Name + "." + field);
                 return null;
             }
+            // Admission precedes any change: a reference with startup or shutdown observers or deferred work would run or consume
+            // them when filled and emptied, so it is refused untouched.
+            TriggerConditionTestSupport.RequireOwnableReference(reference);
             // Reflection: the system reference exposes no public route that fills an empty reference without the App.
             MethodInfo replace = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalReplaceSystem", Instance);
             MethodInfo revoke = typeof(SystemRef<T>).GetMethod("Hardlight.ISystemRef.InternalRevokeSystem", Instance);
-            FieldInfo startup = typeof(SystemRef<T>).GetField("OnSystemStartup", Instance);
-            object priorObservers = startup.GetValue(reference);
-            replace.Invoke(reference, new object[] { system });
-            return () =>
+            try
             {
-                revoke.Invoke(reference, null);
-                startup.SetValue(reference, priorObservers);
-            };
+                replace.Invoke(reference, new object[] { system });
+            }
+            catch
+            {
+                // A partial fill must not leave the system injected.
+                if (reference.IsValid()) revoke.Invoke(reference, null);
+                throw;
+            }
+            return () => revoke.Invoke(reference, null);
         }
     }
 }

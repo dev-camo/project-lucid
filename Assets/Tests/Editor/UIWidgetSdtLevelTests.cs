@@ -358,21 +358,34 @@ namespace ProjectLucid.Tests
         {
             Run((owned, scene) =>
             {
-                FastAction saved = StringTable.StringsTableHandlers;
+                // The handler list is shared and changed in place: put back the incoming reference, taking away only the
+                // subscription Start adds, and compare the subscribers it held before and after.
+                FastAction incoming = StringTable.StringsTableHandlers;
+                List<System.Action> incomingHandlers = incoming == null ? new List<System.Action>() : incoming.GetInvocationList();
+                System.Action refresh = null;
+                bool completed = false;
+                List<System.Action> restoredHandlers = null;
                 try
                 {
                     Call(scene.Widget, "Start");
                     Assert.That(StringTable.StringsTableHandlers.GetInvocationList()
                         .Count(handler => ReferenceEquals(handler.Target, scene.Widget) && handler.Method.Name == "Refresh"), Is.EqualTo(1));
+                    // Refresh is private; the case takes away the very delegate Start added.
+                    refresh = StringTable.StringsTableHandlers.GetInvocationList()
+                        .Single(handler => ReferenceEquals(handler.Target, scene.Widget) && handler.Method.Name == "Refresh");
 
                     Call(scene.Widget, "OnDestroy");
                     Assert.That(StringTable.StringsTableHandlers == null || StringTable.StringsTableHandlers.GetInvocationList()
                         .All(handler => !ReferenceEquals(handler.Target, scene.Widget)), Is.True);
+                    completed = true;
                 }
                 finally
                 {
-                    StringTable.StringsTableHandlers = saved;
+                    if (refresh != null) StringTable.StringsTableHandlers -= refresh;
+                    StringTable.StringsTableHandlers = incoming;
+                    restoredHandlers = incoming == null ? new List<System.Action>() : incoming.GetInvocationList();
                 }
+                if (completed) Assert.That(restoredHandlers, Is.EqualTo(incomingHandlers), "the case leaves the subscribers as it found them");
             });
         }
 

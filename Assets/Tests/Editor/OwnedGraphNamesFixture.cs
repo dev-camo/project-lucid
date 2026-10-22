@@ -1,6 +1,6 @@
 using NUnit.Framework;
 
-namespace ProjectLucid
+namespace ProjectLucid.Tests
 {
     // Fixtures that build FiniteStateMachine, state, transition and key objects register a fresh GUID-suffixed name in the
     // process-wide GraphNameLookup table for every case. SharedStateSnapshot excludes that table, so nothing else releases the

@@ -1,6 +1,6 @@
 using NUnit.Framework;
 
-namespace ProjectLucid
+namespace ProjectLucid.Tests
 {
     // The global UnityEngine.Random state is borrowed by fixtures whose production code or arrangement draws from it (shuffles,
     // spreads, random delays). SharedStateSnapshot leaves Random.state out, so each such fixture puts back the incoming state

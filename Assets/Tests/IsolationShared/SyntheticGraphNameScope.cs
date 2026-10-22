@@ -7,10 +7,11 @@ using Hardlight;
 namespace ProjectLucid
 {
     // Verification helpers register unique synthetic FSM names in the process-wide GraphNameLookup table (field s_nameLookup,
-    // Private|Static|InitOnly, .cctor 0x060008af). Dispose removes only the entries that were absent when the scope opened and
+    // Private|Static|InitOnly). Dispose removes only the entries that were absent when the scope opened and
     // whose name starts with one of the scope's prefixes. Names other code registered earlier, and legitimate production keys
     // created lazily during the run (for example stateHistory), are left exactly as they are. SharedStateSnapshot excludes the
-    // table, so this scope is what keeps a proof from leaking names.
+    // table, so this scope is what keeps a proof or fixture from leaking names. It lives in the shared isolation assembly so the Edit Mode
+    // proofs, the Edit Mode fixtures and the Play Mode fixtures use one implementation.
     public sealed class SyntheticGraphNameScope : IDisposable
     {
         private readonly Dictionary<int, string> table = (Dictionary<int, string>)typeof(GraphNameLookup)
