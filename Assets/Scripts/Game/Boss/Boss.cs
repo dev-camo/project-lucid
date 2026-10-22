@@ -14,6 +14,60 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class Boss : Actor, IPlayerDamageable
     {
+        // Original Game.Runtime 020001d6, five complete methods and sixteen fields.
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
+        [Serializable]
+        private class BossBodyComponents
+        {
+            public ActorAttachPointType AttachPoint;
+            public BossAttackTypes AttackType;
+            public HomingTarget HomingTarget;
+            public int HitPoints = 1;
+            public BossHazard Hazard;
+            public Collider Collider;
+            public VariableLengthLasers LaserEmitters;
+            public Transform AttackCameraTargetSpawnPoint;
+            public Transform ProjectileSpawnPoint;
+            public EffectSequence WindUpEffects;
+            public EffectSequence AttackStrikeEffects;
+            public EffectSequence VulnerableEffects;
+            public EffectSequence RecoveryEffects;
+            public EffectSequence InjuredEffects;
+            private int m_currentHitPoints;
+            private bool m_destroyed;
+
+            public bool Destroyed => m_destroyed; // 06000a22
+            public void Initialise() // 06000a23
+            {
+                m_currentHitPoints = HitPoints;
+                m_destroyed = false;
+            }
+            public void RegisterHit() // 06000a24, exactly zero rather than <= zero
+            {
+                --m_currentHitPoints;
+                if (m_currentHitPoints == 0) m_destroyed = true;
+            }
+            public void RepairPart() // 06000a25, one increment and unconditional flag reset
+            {
+                ++m_currentHitPoints;
+                m_destroyed = false;
+            }
+            // 06000a26: implicit constructor writes HitPoints=1 before Object base.
+        }
+
+        // Original Game.Runtime 020001d7, two public fields and only Object constructor.
+        [Il2CppSetOption(Option.NullChecks, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Serializable]
+        private class BossGeneralEventTriggers
+        {
+            public EffectSequence Effects;
+            public BossEffectTriggerTypes Trigger;
+            // 06000a27 implicit Object constructor. Natural cached Action 06000a28-2a
+            // and two predicate display families 06000a2b-2e are emitted from the lambdas.
+        }
+
         [SerializeField] private BossDefinition m_definition;
         [SerializeField] private BossBodyComponents[] m_bossInteractionComponents;
         [SerializeField] private SmoothedTransformProxy m_smoothedTransformProxy;
@@ -479,59 +533,5 @@ namespace HardlightProject
 
         // 06000a1f: implicit constructor allocates both dictionaries, TargetedEffect,
         // then the ten RaycastHit slots before calling the genuine Actor constructor.
-
-        // Original Game.Runtime 020001d6, five complete methods and sixteen fields.
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        [Il2CppSetOption(Option.NullChecks, false)]
-        [Serializable]
-        private class BossBodyComponents
-        {
-            public ActorAttachPointType AttachPoint;
-            public BossAttackTypes AttackType;
-            public HomingTarget HomingTarget;
-            public int HitPoints = 1;
-            public BossHazard Hazard;
-            public Collider Collider;
-            public VariableLengthLasers LaserEmitters;
-            public Transform AttackCameraTargetSpawnPoint;
-            public Transform ProjectileSpawnPoint;
-            public EffectSequence WindUpEffects;
-            public EffectSequence AttackStrikeEffects;
-            public EffectSequence VulnerableEffects;
-            public EffectSequence RecoveryEffects;
-            public EffectSequence InjuredEffects;
-            private int m_currentHitPoints;
-            private bool m_destroyed;
-
-            public bool Destroyed => m_destroyed; // 06000a22
-            public void Initialise() // 06000a23
-            {
-                m_currentHitPoints = HitPoints;
-                m_destroyed = false;
-            }
-            public void RegisterHit() // 06000a24, exactly zero rather than <= zero
-            {
-                --m_currentHitPoints;
-                if (m_currentHitPoints == 0) m_destroyed = true;
-            }
-            public void RepairPart() // 06000a25, one increment and unconditional flag reset
-            {
-                ++m_currentHitPoints;
-                m_destroyed = false;
-            }
-            // 06000a26: implicit constructor writes HitPoints=1 before Object base.
-        }
-
-        // Original Game.Runtime 020001d7, two public fields and only Object constructor.
-        [Il2CppSetOption(Option.NullChecks, false)]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        [Serializable]
-        private class BossGeneralEventTriggers
-        {
-            public EffectSequence Effects;
-            public BossEffectTriggerTypes Trigger;
-            // 06000a27 implicit Object constructor. Natural cached Action 06000a28-2a
-            // and two predicate display families 06000a2b-2e are emitted from the lambdas.
-        }
     }
 }
