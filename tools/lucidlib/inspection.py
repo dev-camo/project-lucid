@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from .longpaths import check_long_paths_for_input, partial_extraction_hint
 from .macho import inspect_macho
 from .metadata import parse_metadata
 
@@ -182,6 +183,7 @@ def inspect_bundle(input_path: Path) -> dict:
     root = Path(input_path).absolute()
     if not root.is_dir():
         raise ValueError("Input directory does not exist: %s" % root)
+    check_long_paths_for_input(root)
     app = _locate_app(root)
     contents = app / "Contents"
     plist_path = contents / "Info.plist"
@@ -208,7 +210,8 @@ def inspect_bundle(input_path: Path) -> dict:
                 streaming / "aa" / "settings.json")
     for path in required:
         if not path.is_file():
-            raise ValueError("Required game bundle file is missing: %s" % path.relative_to(root))
+            raise ValueError("Required game bundle file is missing: %s\n%s"
+                             % (path.relative_to(root), partial_extraction_hint()))
     manifest = _manifest(root)
     metadata = parse_metadata(metadata_path)
     native = {"game_assembly": inspect_macho(game_assembly), "launcher": inspect_macho(launcher)}

@@ -12,6 +12,7 @@ from .verification import artifact_fingerprint, current_identity, find_editor, v
 from .bootstrap import managed_path, write_json
 from .scriptmetadata import validate_script_metadata
 from .macho import inspect_macho
+from .longpaths import ENABLE_HELP, long_paths_status
 
 UNITY_VERSION = "2022.3.54f1"
 # Public fields of LucidBuild.BuildRecord, as JsonUtility writes them.
@@ -39,8 +40,15 @@ def doctor(repo_root, work_dir):
             editors = data.get("data") or []
         except ValueError:
             errors.append("Unity CLI did not return an installed Editor inventory.")
+    long_paths = long_paths_status()
+    if long_paths == "disabled":
+        errors.append("Windows long paths are disabled, but the game bundle contains paths over 260 characters. "
+                      + ENABLE_HELP)
+    elif long_paths == "unreadable":
+        errors.append("Could not read the Windows long-path setting (LongPathsEnabled); if inspection reports "
+                      "missing or unreadable files, check it. " + ENABLE_HELP)
     return {"status": "complete", "python": sys.version.split()[0], "host": platform.system(),
-            "architecture": platform.machine(), "tools": tools, "editors": editors,
+            "architecture": platform.machine(), "tools": tools, "editors": editors, "long_paths": long_paths,
             "required_editor": UNITY_VERSION, "work_dir": str(work_dir), "errors": errors,
             "message": "Inspection uses Python only; extraction requires bootstrapped tools, and project work requires the matching Editor."}
 

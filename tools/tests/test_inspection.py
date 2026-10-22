@@ -8,9 +8,11 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from lucidlib import longpaths
 from lucidlib.inspection import inspect_bundle, inspect_catalog
 from lucidlib.macho import inspect_macho
 from lucidlib.metadata import parse_metadata
@@ -195,6 +197,47 @@ class InspectionTests(unittest.TestCase):
         (self.root / "Other.app").mkdir()
         with self.assertRaisesRegex(ValueError, "exactly one"):
             inspect_bundle(self.root)
+
+    def test_partial_extraction_hint_follows_the_original_error(self):
+        app = self.make_app()
+        (app / "Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat").unlink()
+        for windows in (False, True):
+            with patch.object(longpaths, "is_windows", return_value=windows):
+                with self.assertRaises(ValueError) as caught:
+                    inspect_bundle(self.root)
+            first, _, rest = str(caught.exception).partition("\n")
+            self.assertTrue(first.startswith("Required game bundle file is missing: "))
+            self.assertIn("global-metadata.dat", first)
+            self.assertIn("incomplete extraction", rest)
+            self.assertEqual("7-Zip" in rest, windows)
+            self.assertEqual("tar -xf" in rest, windows)
+
+    def test_no_partial_extraction_hint_for_other_errors(self):
+        self.make_app()
+        (self.root / "Other.app").mkdir()
+        with self.assertRaises(ValueError) as caught:
+            inspect_bundle(self.root)
+        self.assertNotIn("extraction", str(caught.exception))
+
+    def test_long_path_precheck_only_fails_on_windows_with_long_paths_disabled(self):
+        self.make_app()
+        cases = (("disabled", 300, True), ("disabled", 100, False), ("enabled", 300, False),
+                 ("unreadable", 300, False), ("not-applicable", 300, False))
+        for status, length, fails in cases:
+            with patch.object(longpaths, "long_paths_status", return_value=status), \
+                    patch.object(longpaths, "longest_path_length", return_value=length):
+                if fails:
+                    with self.assertRaisesRegex(ValueError, "Long paths are disabled.*300 characters"):
+                        inspect_bundle(self.root)
+                else:
+                    self.assertEqual(inspect_bundle(self.root)["identity"]["build"], "7")
+
+    def test_longest_path_length_counts_the_deepest_file(self):
+        deep = self.root / "a" / "b"
+        deep.mkdir(parents=True)
+        (deep / "file.bin").write_bytes(b"x")
+        with patch.object(longpaths, "is_windows", return_value=False):
+            self.assertEqual(longpaths.longest_path_length(self.root), len(str(deep / "file.bin")))
 
     def test_catalog_rejects_traversal_and_invalid_prefix(self):
         app = self.make_app()

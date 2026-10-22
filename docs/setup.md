@@ -10,6 +10,17 @@ Place a macOS `SonicDreamTeam.app` in `input/`. Run commands from the repository
 root. The supplied bundle remains unchanged. Inspection reads its metadata and
 hashes files; subsequent operations write only to generated directories.
 
+On Windows, some paths inside the bundle are close to 280 characters, longer than
+the classic 260-character limit. Extract the bundle into a short folder such as
+`C:\sdt` with a tool that supports long paths (7-Zip, or `tar -xf` in a terminal);
+Explorer's "Extract All" stops at the first path over the limit and leaves the
+rest of the bundle missing. Also enable Windows long paths (the registry value
+`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled` set to 1, or
+the Group Policy "Enable Win32 long paths") so the tools can read and copy those
+files. `doctor` reports the setting and prints the fix; it never changes the
+registry. `inspect` explains a partial extraction and refuses to run on Windows
+when long paths are disabled and the input has paths over the limit.
+
 The recovery tools inspect and slice universal Mach-O binaries directly in
 Python. `doctor` reports whether `lipo` is present, but recovery does not require
 installing it on Linux or Windows.
