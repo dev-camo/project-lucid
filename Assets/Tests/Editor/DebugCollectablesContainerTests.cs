@@ -178,7 +178,7 @@ namespace ProjectLucid.Tests
         {
             WithRig(false, rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(Get<CollectableManager>(rig.Container, "m_collectableManager"), Is.SameAs(rig.Manager));
                 // The rows follow EnumUtilities.GetValues (0x62F332), which is Enum.GetValues. The shipped corlib sorts the values as
@@ -202,7 +202,7 @@ namespace ProjectLucid.Tests
         {
             WithRig(false, rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 UIContainerDebugCollectableModifier orb = rig.Row("Orb");
 
                 orb.Action_OnIncrease();
@@ -241,7 +241,7 @@ namespace ProjectLucid.Tests
         {
             WithRig(true, rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 UIContainerDebugCollectableModifier orb = rig.Row("Orb");
 
                 orb.Action_OnIncrease();
@@ -258,7 +258,7 @@ namespace ProjectLucid.Tests
         {
             WithRig(false, rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 UIContainerDebugCollectableModifier orb = rig.Row("Orb");
 
                 Call(rig.Container, "OnChange", orb, CollectableType.Ring, true); // Reflection: private OnChange, which the original reaches from its own code
