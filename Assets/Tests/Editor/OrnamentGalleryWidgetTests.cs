@@ -396,7 +396,7 @@ namespace ProjectLucid.Tests
                 rig.Toggle.Setup(ToggleParameters(definition, Status(true, true, true)));
                 Assert.That(Count(definition.ThumbnailAsset), Is.EqualTo(1));
 
-                Call(rig.Toggle, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Toggle, "OnDestroy");
 
                 Assert.That(Count(definition.ThumbnailAsset), Is.EqualTo(0));
                 Assert.That(IsCached(definition.ThumbnailAsset), Is.False);
@@ -580,7 +580,7 @@ namespace ProjectLucid.Tests
                 var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
                 Set(widget, "m_characterDefinition", character); // Reflection: serialized m_characterDefinition the editor assigns
 
-                Call(widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(widget, "Start");
 
                 Assert.That(widget.CharacterRender.Value, Is.SameAs(render));
                 Assert.That(widget.CompanionRender.Value, Is.SameAs(companion));
@@ -602,7 +602,7 @@ namespace ProjectLucid.Tests
                 var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
                 Set(widget, "m_characterDefinition", character); // Reflection: serialized m_characterDefinition the editor assigns
 
-                Call(widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(widget, "Start");
 
                 Assert.That(widget.CharacterRender.Value, Is.SameAs(render));
                 Assert.That(widget.CompanionRender.Value, Is.Null);
@@ -622,11 +622,11 @@ namespace ProjectLucid.Tests
                 character.RenderCompanion = companionWrapper;
                 var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
                 Set(widget, "m_characterDefinition", character); // Reflection: serialized m_characterDefinition the editor assigns
-                Call(widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(widget, "Start");
                 Assert.That(Count(character.Render), Is.EqualTo(1));
                 Assert.That(Count(companionWrapper), Is.EqualTo(1));
 
-                Call(widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(widget, "OnDestroy");
 
                 Assert.That(Count(character.Render), Is.EqualTo(0));
                 Assert.That(Count(companionWrapper), Is.EqualTo(0));
