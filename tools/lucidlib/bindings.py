@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import shutil
 import struct
 import subprocess
 from typing import Any, Dict, Tuple
@@ -614,6 +615,23 @@ def compare_layout_files(schema_path: Path, inventory_path: Path, output_path: P
     return report
 
 
+def _prune_layout_runs(work: Path, current: Path) -> None:
+    """Drop stale layout-run stages, keeping the latest result's and this run's.
+
+    Only uuid-named directories directly under reports/layout-runs are removed;
+    anything unreadable or unexpected is left alone."""
+    runs = current.parent
+    keep = {current.name}
+    try:
+        latest = json.loads(managed_path(work, "reports", "latest-layout-inventory.json").read_bytes())
+        keep.add(Path(latest["inventory_path"]).parent.name)
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    for stage in runs.iterdir():
+        if stage.name not in keep and re.fullmatch("[0-9a-f]{32}", stage.name) and stage.is_dir() and not stage.is_symlink():
+            shutil.rmtree(stage, ignore_errors=True)
+
+
 def run_layout_inventory(repo_root: Path, work_dir: Path, schema_path=None) -> dict:
     """Run the matching Editor and compare fresh declarations without remapping.
 
@@ -678,4 +696,5 @@ def run_layout_inventory(repo_root: Path, work_dir: Path, schema_path=None) -> d
     except (LayoutError, subprocess.TimeoutExpired, OSError, ValueError) as error:
         result["errors"] = [str(error)]
     write_json(managed_path(work, *stage.relative_to(work).parts, "report.json"), result)
+    _prune_layout_runs(work, stage)
     return result

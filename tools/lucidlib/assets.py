@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 import base64
+import ctypes
+import ctypes.util
 import errno
+import functools
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -821,6 +824,31 @@ def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[tu
     return [(destination, prior.get(destination)) for destination in installed]
 
 
+def _clone_file(source: Path, output: Path) -> bool:
+    """Copy-on-write clone (macOS clonefile(2)); False when it is unavailable.
+
+    The clone keeps mode, times and xattrs like copy2 and shares blocks until
+    either file changes, so same-volume prepare costs no space or writes."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        return _libc().clonefile(os.fsencode(source), os.fsencode(output), 0) == 0
+    except (OSError, AttributeError):
+        return False
+
+
+@functools.lru_cache(maxsize=None)
+def _libc() -> ctypes.CDLL:
+    # Prepare clones tens of thousands of files; look libc up once.
+    return ctypes.CDLL(ctypes.util.find_library("c") or "libc.dylib", use_errno=True)
+
+
+def _copy_file(source: Path, output: Path) -> None:
+    """Clone when the volume allows it, otherwise copy exactly as before."""
+    if not _clone_file(source, output):
+        shutil.copy2(source, output)
+
+
 def _relocate_tree(source: Path, target: Path) -> bool:
     """Move a directory tree to an absent target.
 
@@ -995,7 +1023,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                             continue
                     output = _physical_path(stage / relative)
                     output.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(path, output)
+                    _copy_file(path, output)
                     row = mapped_assets.get("Assets/" + relative.as_posix()) if destination.name == "Recovered" else None
                     if row and bound_guids.intersection(row.get("script_references", [])):
                         meta_guids = GUID.findall(path.with_name(path.name + ".meta").read_text(encoding="utf-8"))

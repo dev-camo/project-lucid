@@ -102,6 +102,16 @@ def _cached_build(pointer: Path, work_dir: Path, fingerprint: str) -> dict | Non
         return None
 
 
+def _prune_old_builds(builds: Path, keep: Path) -> None:
+    """Remove completed builds other than the installed one.
+
+    Only run-id named directories (32 hex digits) go; ".stage-*" directories may
+    belong to a concurrent run and stay. Callers hold the build lock."""
+    for old in builds.iterdir():
+        if old != keep and re.fullmatch("[0-9a-f]{32}", old.name) and old.is_dir() and not old.is_symlink():
+            shutil.rmtree(old, ignore_errors=True)
+
+
 def build_native_harness(work_dir: Path) -> dict:
     """Build/reuse the exact Core harness; all generated files stay in the cache."""
     work_dir = tool_work_dir(work_dir)
@@ -177,6 +187,7 @@ def build_native_harness(work_dir: Path) -> dict:
                           file_hashes=hashes)
             write_json(report_path, report)
             write_json(pointer, report)
+            _prune_old_builds(destination.parent, destination)
             return report
     except (ToolError, OSError, ValueError, KeyError, ET.ParseError) as error:
         report["error"] = str(error)

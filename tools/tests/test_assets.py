@@ -125,7 +125,7 @@ class AssetTests(unittest.TestCase):
         source = self.root / "source.bin"
         source.write_bytes(b"data")
         with mock.patch.object(assets.sys, "platform", "darwin"), \
-             mock.patch.object(assets.ctypes, "CDLL", side_effect=OSError("no libc")):
+             mock.patch.object(assets, "_libc", side_effect=OSError("no libc")):
             self.assertFalse(assets._clone_file(source, self.root / "out.bin"))
         self.assertFalse((self.root / "out.bin").exists())
         with mock.patch.object(assets.sys, "platform", "linux"):
