@@ -236,8 +236,17 @@ namespace ProjectLucid
             {
                 MethodInfo[] imports = nativeType.GetMethods(BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly);
                 Check(imports.Length == (nativeType == typeof(HLUnityCoreNativeBridge) ? 5 : 2), "seven original import signatures represented explicitly");
-                Check(imports.All(method => (method.GetMethodImplementationFlags() & MethodImplAttributes.PreserveSig) != 0 && (method.Attributes & MethodAttributes.PinvokeImpl) == 0 && method.GetMethodBody() != null), "explicit adapter retains PreserveSig but deliberately removes original P/Invoke flag");
+                // The original imports' module was not recovered, so they are extern declarations with PreserveSig and no
+                // P/Invoke flag (as Cloud_MacOS declares its imports); offline hooks keep every call away from them.
+                Check(imports.All(method => (method.GetMethodImplementationFlags() & MethodImplAttributes.PreserveSig) != 0 && (method.Attributes & MethodAttributes.PinvokeImpl) == 0 && HasNoBody(method)), "original imports kept as extern declarations with PreserveSig and no P/Invoke flag");
             }
+        }
+
+        // An extern declaration has no IL; Mono reports that as a zero RVA rather than a null body.
+        private static bool HasNoBody(MethodInfo method)
+        {
+            try { return method.GetMethodBody() == null; }
+            catch (BadImageFormatException) { return true; }
         }
 
         private static void CheckOptions(Type type, params Option[] options)

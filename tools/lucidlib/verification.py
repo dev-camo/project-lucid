@@ -1505,6 +1505,8 @@ EDITMODE_TESTS += (
 
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.LocalePolicyTracksTwoOwnedCultureScopes",
+    "ProjectLucid.Tests.LocalCoreNativeBridgeTests.OfflineMacOSOutputPluginNeverCallsTheDevelopmentBuildImport",
+    "ProjectLucid.Tests.LocalCoreNativeBridgeTests.OfflineMacOSOutputPluginReportsTheNativeLogErrorTestAsUnsupported",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.CountryPolicyResolvesNeutralCulturesThroughTheirSpecificCulture",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.CountryPolicyTracksEachSpecificCultureAfterInvariant",
     "ProjectLucid.Tests.LocalCoreNativeBridgeTests.CountryPolicyReturnsEmptyForUnmappedNeutralCultures",

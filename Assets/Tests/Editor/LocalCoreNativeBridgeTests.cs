@@ -60,6 +60,23 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(0u, clientCode);
         }
 
+        // H-062: offline, the development flag never reaches the unrecovered SetDevelopmentBuild import, which
+        // would throw EntryPointNotFoundException if it were called.
+        [Test]
+        public void OfflineMacOSOutputPluginNeverCallsTheDevelopmentBuildImport()
+        {
+            var plugin = new HLOutputPluginMacOS();
+            Assert.DoesNotThrow(() => plugin.InternalSetDevelopmentBuild(true));
+            Assert.DoesNotThrow(() => plugin.InternalSetDevelopmentBuild(false));
+        }
+
+        // H-063: offline, the native log-error test reports that it is unavailable instead of reaching its import.
+        [Test]
+        public void OfflineMacOSOutputPluginReportsTheNativeLogErrorTestAsUnsupported()
+        {
+            Assert.Throws<NotSupportedException>(() => new HLOutputPluginMacOS().InternalTestNativeLogError());
+        }
+
         [Test]
         public void MissingOwnerFaultsBeforeTheOfflineInitialiseBoundary()
         {

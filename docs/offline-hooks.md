@@ -4,7 +4,7 @@ Every point where the offline adapters (namespace `ProjectLucid.Offline`) divert
 
 `tools/tests/test_offline_hooks.py` checks that this table and the source agree. Add a row here for every new hook, and never reuse an ID.
 
-No `#if` is left for a hook. The original code compiles everywhere, including the five unresolved native imports of H-011 and H-058..H-061, which are declared like Cloud_MacOS declares its imports (`[PreserveSig] static extern` with no recovered module, under `#pragma warning disable 0626`).
+No `#if` is left for a hook. The original code compiles everywhere, including the seven unresolved native imports of H-011, H-058..H-061, H-062 and H-063, which are declared like Cloud_MacOS declares its imports (`[PreserveSig] static extern` with no recovered module, under `#pragma warning disable 0626`).
 
 | ID | File | Member | Original and adapter |
 |---|---|---|---|
@@ -69,3 +69,5 @@ No `#if` is left for a hook. The original code compiles everywhere, including th
 | H-059 | `Packages/com.hardlight.hlunitycore/Runtime/Logging/HLUnityCoreNativeBridge.cs` | `GetDeviceLanguageCode` | The original returned the `Unity_GetLanguageCode` native import; we return the local forwarder |
 | H-060 | `Packages/com.hardlight.hlunitycore/Runtime/Logging/HLUnityCoreNativeBridge.cs` | `GetDeviceISO2CountryCode` | The original returned the `Unity_GetISO2CountryCode` native import; we return the local forwarder |
 | H-061 | `Packages/com.hardlight.hlunitycore/Runtime/Logging/HLUnityCoreNativeBridge.cs` | `GetClientCode` | The original parsed the `Unity_GetClientCode` native import text; we parse the local forwarder's text the same way (status one, zero on failure) |
+| H-062 | `Packages/com.hardlight.hlunitycore/Runtime/Logging/HLOutputPluginMacOS.cs` | `InternalSetDevelopmentBuild` | The original passed the flag to the `SetDevelopmentBuild` native import; offline there is no native logger, so we return |
+| H-063 | `Packages/com.hardlight.hlunitycore/Runtime/Logging/HLOutputPluginMacOS.cs` | `InternalTestNativeLogError` | The original called the `Unity_TestNativeLogError` native import; we throw NotSupportedException, as there is no native log-error test offline |
