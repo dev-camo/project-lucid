@@ -60,7 +60,7 @@ namespace ProjectLucid.Tests
                 Save(rig, CharacterArchetype.None, 0, rig.Powers[2].GetGUID());
                 Save(rig, CharacterArchetype.None, 2, "lucid-unknown-power");
 
-                Call(rig.List, "Start");
+                Call(rig.List, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(Get<DataManager>(rig.List, "m_dataManager"), Is.SameAs(rig.World.Scene.Data));
                 Assert.That(Get<SaveManager>(rig.List, "m_saveManager"), Is.SameAs(rig.World.Scene.Save));
@@ -85,7 +85,7 @@ namespace ProjectLucid.Tests
                 Save(rig, CharacterArchetype.None, 0, rig.Powers[0].GetGUID());
                 Save(rig, CharacterArchetype.Climbing, 1, rig.Powers[1].GetGUID());
 
-                Call(rig.List, "Start");
+                Call(rig.List, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.List.Visible.Value, Is.True);
                 Assert.That(rig.Widgets[0].Empty.Value, Is.True, "the climbing loadout has nothing in slot 0");
@@ -105,7 +105,7 @@ namespace ProjectLucid.Tests
                 Save(rig, CharacterArchetype.Climbing, 0, rig.Powers[0].GetGUID());
                 rig.List.Visible.Value = true;
 
-                Call(rig.List, "Start");
+                Call(rig.List, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.List.Visible.Value, Is.False);
                 Assert.That(rig.Widgets[0].Empty.Value, Is.False, "the widget was not set up");
@@ -125,14 +125,14 @@ namespace ProjectLucid.Tests
                 Save(rig, CharacterArchetype.None, 0, rig.Powers[0].GetGUID());
                 rig.List.Visible.Value = true;
 
-                Call(rig.List, "Start");
+                Call(rig.List, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.List.Visible.Value, Is.False);
                 Assert.That(rig.Widgets[0].Name.Value, Is.EqualTo(default(Strings)));
 
                 Buy(rig.World, rig.Powers[1]);
                 WriteStoreItems(rig.World);
-                Call(rig.List, "Start");
+                Call(rig.List, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.List.Visible.Value, Is.True, "a bought power opens the store");
                 Assert.That(rig.Widgets[0].Name.Value, Is.EqualTo(FirstName));
@@ -148,7 +148,7 @@ namespace ProjectLucid.Tests
                 rig.World.Scene.Save.CurrentSave.GetOrCreateDreamPowerLoadout(CharacterArchetype.None);
                 rig.List.Visible.Value = true;
 
-                Call(rig.List, "Start");
+                Call(rig.List, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.List.Visible.Value, Is.False);
                 Assert.That(rig.Widgets[0].Empty.Value, Is.False, "the widgets were not set up");

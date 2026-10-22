@@ -64,7 +64,7 @@ namespace ProjectLucid.Tests
                 Assert.That(parts.InfoUiButton.interactable, Is.True);
                 Assert.That(parts.InfoGlyph.activeSelf, Is.True);
 
-                Call(parts.Store, "OnEnable");
+                Call(parts.Store, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(parts.Store.Available.Value, Is.True, "the base OnEnable ran");
                 Assert.That(parts.Store.Title.Value, Is.EqualTo(Strings.MENU_DREAM_POWER_COLLECTIONS_TITLE));
@@ -83,7 +83,7 @@ namespace ProjectLucid.Tests
             {
                 Parts parts = WithInfoParts(world, false);
 
-                Assert.DoesNotThrow(() => Call(parts.Store, "OnEnable"));
+                Assert.DoesNotThrow(() => Call(parts.Store, "OnEnable")); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(parts.Store.Title.Value, Is.EqualTo(Strings.MENU_DREAM_POWER_COLLECTIONS_TITLE));
             }));
@@ -100,7 +100,7 @@ namespace ProjectLucid.Tests
                 ActivateMission(world.Scene, CharacterArchetype.Climbing, true);
                 ArchetypeImages images = AddArchetype(world, CharacterArchetype.Climbing);
 
-                Call(parts.Store, "OnEnable");
+                Call(parts.Store, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(parts.Store.HasArchetype.Value, Is.True);
                 Assert.That(parts.Store.CharacterArchetypeImage.Value, Is.SameAs(images.Ui));
@@ -120,13 +120,13 @@ namespace ProjectLucid.Tests
                 ArchetypeImages images = AddArchetype(world, CharacterArchetype.Climbing);
                 parts.Store.HasArchetype.Value = true;
 
-                Call(parts.Store, "UpdateTitle");
+                Call(parts.Store, "UpdateTitle"); // Reflection: private UIContainerCollectionsDreamPowerStore.UpdateTitle
                 Assert.That(parts.Store.HasArchetype.Value, Is.False);
                 Assert.That(parts.Store.CharacterArchetypeImage.Value, Is.Null);
 
                 ActivateMission(world.Scene, CharacterArchetype.Climbing, true);
-                Call(parts.Store, "SetCharacterArchetype");
-                Call(parts.Store, "UpdateTitle");
+                Call(parts.Store, "SetCharacterArchetype"); // Reflection: private SetCharacterArchetype, which the original reaches from its own code
+                Call(parts.Store, "UpdateTitle"); // Reflection: private UIContainerCollectionsDreamPowerStore.UpdateTitle
 
                 Assert.That(parts.Store.HasArchetype.Value, Is.True);
                 Assert.That(parts.Store.CharacterArchetypeImage.Value, Is.SameAs(images.Ui));
@@ -159,7 +159,7 @@ namespace ProjectLucid.Tests
                 void Choose(UIDreamPowerStoreItemState state)
                 {
                     LogAssert.Expect(LogType.Error, RefusedCoroutine);
-                    Call(store, "OnDreamPowerChanged", power, state);
+                    Call(store, "OnDreamPowerChanged", power, state); // Reflection: protected OnDreamPowerChanged of UIContainerCollectionsDreamPowerStore, not reachable from the test
                 }
 
                 Choose(UIDreamPowerStoreItemState.Bought); // an empty callback list does not fault
@@ -189,7 +189,7 @@ namespace ProjectLucid.Tests
                 store.OnSelectionChanged -= removable;
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
-                Call(store, "OnDreamPowerChanged", power, UIDreamPowerStoreItemState.Purchasable);
+                Call(store, "OnDreamPowerChanged", power, UIDreamPowerStoreItemState.Purchasable); // Reflection: protected OnDreamPowerChanged of UIContainerCollectionsDreamPowerStore, not reachable from the test
 
                 Assert.That(kept, Is.EqualTo(new[] { Strings.COMMON_MENU_UNLOCK }));
                 Assert.That(removed, Is.Empty);
