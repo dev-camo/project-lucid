@@ -55,7 +55,7 @@ namespace ProjectLucid.Tests
             rig.Track = Create<RewardTrackDefinition>(owned,
                 "{\"m_guid\":\"lucid-task-track\",\"m_type\":-1400767250,\"m_trackName\":" + (int)Strings.MENU_DREAM_POWER_COLLECTIONS_TITLE +
                 ",\"m_rewardGlowColour\":{\"r\":1,\"g\":0.5,\"b\":0.25,\"a\":1}}");
-            Call(rig.Track, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+            Call(rig.Track, "OnEnable");
             rig.TrackIcon = NewSprite(owned);
             Cache(rig.Track.IconAsset, rig.TrackIcon);
             world.Data.RewardTrackDefinitions[RewardTrackType.Outfits] = rig.Track;
@@ -71,7 +71,7 @@ namespace ProjectLucid.Tests
             Set(container, "m_missionSprite", rig.MissionSprite); // Reflection: serialized m_missionSprite the editor assigns
             Set(container, "m_achievementSprite", rig.AchievementSprite); // Reflection: serialized m_achievementSprite the editor assigns
             Set(container, "m_dreamPowerSprite", rig.DreamPowerSprite); // Reflection: serialized m_dreamPowerSprite the editor assigns
-            Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+            Call(container, "Awake");
             return container;
         }
 
@@ -142,7 +142,7 @@ namespace ProjectLucid.Tests
             {
                 SetUnlocks(rig.App); // an empty pending list: the App stores one, and an absent list would fault in TryGetCurrentUnlock's loop
                 var container = NewContainer<UIContainerProgressionTask>(rig.Owned);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.ShowNextButton.Value, Is.False);
                 Assert.That(container.RewardGlowColour.Value, Is.EqualTo(default(Color)));
             });
@@ -172,13 +172,13 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var coins = Create<CollectableDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-coins\"}");
-                Call(coins, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(coins, "OnEnable");
                 Sprite icon = NewSprite(rig.Owned);
                 Cache(coins.IconAsset, icon);
                 UIContainerProgressionTask container = Show(rig, new MetaGameUnlockBlueCoins(coins, 250, 40, RewardTrackType.Outfits));
                 Assert.That(container.UnlockSprite.Value, Is.SameAs(icon));
                 AssertChallengeDetails(rig, container, 40);
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
                 Assert.That(Count(coins.IconAsset), Is.EqualTo(0), "the unlock's assets are released");
             });
         }
@@ -190,7 +190,7 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var skin = Create<CharacterSkinDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-skin\"}");
-                Call(skin, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(skin, "OnEnable");
                 Sprite thumbnail = NewSprite(rig.Owned);
                 Cache(skin.Thumbnail, thumbnail);
                 UIContainerProgressionTask container = Show(rig, new MetaGameUnlockCharacterSkin(skin, 55, RewardTrackType.Outfits));
@@ -206,7 +206,7 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var band = Create<DreamPowerStoreBandDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-band\"}");
-                Call(band, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(band, "OnEnable");
                 Sprite image = NewSprite(rig.Owned);
                 Cache(band.ImageAsset, image);
                 UIContainerProgressionTask container = Show(rig, new MetaGameUnlockDreamPowerStoreBand(band, 70, RewardTrackType.Outfits));
@@ -223,7 +223,7 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var unlocked = Create<RewardTrackDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-unlocked-track\"}");
-                Call(unlocked, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(unlocked, "OnEnable");
                 Sprite icon = NewSprite(rig.Owned);
                 Cache(unlocked.IconAsset, icon);
                 UIContainerProgressionTask container = Show(rig, new MetaGameUnlockRewardTrack(unlocked, 90, RewardTrackType.Outfits));
@@ -241,7 +241,7 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var track = Create<MusicTrackDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-music\"}");
-                Call(track, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(track, "OnEnable");
                 Sprite sprite = NewSprite(rig.Owned);
                 Cache(track.ImageAsset, sprite);
                 UIContainerProgressionTask container = Show(rig, new MetaGameUnlockMusicTrack(track, 30, RewardTrackType.Outfits));
@@ -281,7 +281,7 @@ namespace ProjectLucid.Tests
             {
                 var power = Create<DreamPowerDefinition>(rig.Owned,
                     "{\"m_guid\":\"lucid-task-power\",\"m_name\":" + (int)Strings.ORNAMENT_CAT_ACHIEVER + ",\"m_description\":" + (int)Strings.MISSING + "}");
-                Call(power, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(power, "OnEnable");
                 Sprite icon = NewSprite(rig.Owned);
                 Cache(power.IconAsset, icon);
                 UIContainerProgressionTask container = Show(rig, new MetaGameUnlockDreamPowerStoreItem(power));
@@ -307,7 +307,7 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var ornament = Create<OrnamentDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-ornament-mission\"}");
-                Call(ornament, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(ornament, "OnEnable");
                 Texture picture = rig.Owned.Track(new Texture2D(2, 2));
                 Cache(ornament.ThumbnailAsset, picture);
                 GameplayLevelDefinition level = rig.World.NewLevel("lucid-task-level", false);
@@ -356,7 +356,7 @@ namespace ProjectLucid.Tests
                 WithTask(rig =>
                 {
                     var ornament = Create<OrnamentDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-ornament-achievement\"}");
-                    Call(ornament, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                    Call(ornament, "OnEnable");
                     Cache(ornament.ThumbnailAsset, rig.Owned.Track(new Texture2D(2, 2)));
                     rig.World.Data.AchievementDefinitions[identifier] =
                         Create<AchievementDefinition>(rig.Owned, "{\"m_title\":" + (int)Strings.ORNAMENT_CAT_STORY + ",\"m_description\":" + (int)Strings.MISSING + "}");
@@ -377,7 +377,7 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var ornament = Create<OrnamentDefinition>(rig.Owned, "{\"m_guid\":\"lucid-task-ornament-xp\"}");
-                Call(ornament, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(ornament, "OnEnable");
                 Cache(ornament.ThumbnailAsset, rig.Owned.Track(new Texture2D(2, 2)));
                 UIContainerProgressionTask container = Show(rig, new MetaGameUnlockOrnament(ornament, 120, RewardTrackType.Outfits));
                 AssertChallengeDetails(rig, container, 120);
@@ -402,8 +402,8 @@ namespace ProjectLucid.Tests
             {
                 SetUnlocks(rig.App); // an empty pending list, so Awake returns without an unlock
                 var container = NewContainer<UIContainerProgressionTask>(rig.Owned);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
-                Assert.Throws<NullReferenceException>(() => Call(container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "Awake");
+                Assert.Throws<NullReferenceException>(() => Call(container, "OnDestroy"));
             });
         }
 
@@ -414,7 +414,7 @@ namespace ProjectLucid.Tests
             WithTask(rig =>
             {
                 var container = NewContainer<UIContainerProgressionTask>(rig.Owned);
-                Assert.DoesNotThrow(() => Call(container, "OnRevealAnimationComplete")); // Reflection: private UIContainerProgressionTask.OnRevealAnimationComplete
+                Assert.DoesNotThrow(() => Call(container, "OnRevealAnimationComplete"));
                 Assert.That(rig.App.GetUIModernEvents(), Is.Empty);
             });
         }
@@ -428,8 +428,8 @@ namespace ProjectLucid.Tests
                 var container = NewContainer<UIContainerProgressionTask>(rig.Owned);
                 UIModernEvent reveal = NewEvent(rig.Owned);
                 Set(container, "m_onRevealComplete", reveal); // Reflection: serialized m_onRevealComplete the editor assigns
-                Call(container, "OnShownAnimationComplete"); // Reflection: private UIContainerProgressionTask.OnShownAnimationComplete
-                Call(container, "OnShownAnimationComplete"); // Reflection: private UIContainerProgressionTask.OnShownAnimationComplete
+                Call(container, "OnShownAnimationComplete");
+                Call(container, "OnShownAnimationComplete");
                 Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { reveal }));
             });
         }

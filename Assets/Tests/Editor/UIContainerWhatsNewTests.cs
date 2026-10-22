@@ -73,7 +73,7 @@ namespace ProjectLucid.Tests
         {
             WithRig(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 Assert.That(Get<App>(rig.Container, "m_app"), Is.SameAs(rig.App));
                 Assert.That(rig.Animation.IsPlaying(rig.Open.name), Is.True);
                 Assert.That(rig.Animation.IsPlaying(rig.Close.name), Is.False);
@@ -89,13 +89,13 @@ namespace ProjectLucid.Tests
             WithRig(rig =>
             {
                 Set(rig.Container, "m_openClip", null); // Reflection: serialized m_openClip the editor assigns
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 Assert.That(Get<App>(rig.Container, "m_app"), Is.SameAs(rig.App));
                 Assert.That(rig.Animation.isPlaying, Is.False, "no open clip");
 
                 Set(rig.Container, "m_openClip", rig.Open); // Reflection: serialized m_openClip the editor assigns
                 Set(rig.Container, "m_animation", null); // Reflection: serialized m_animation the editor assigns
-                Assert.DoesNotThrow(() => Call(rig.Container, "Start"), "no animation"); // Reflection: Unity sends Start; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(rig.Container, "Start"), "no animation");
                 Assert.That(rig.Animation.isPlaying, Is.False);
             });
         }
@@ -107,7 +107,7 @@ namespace ProjectLucid.Tests
         {
             WithRig(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.Container.Action_Close();
                 Assert.That(rig.Animation.IsPlaying(rig.Close.name), Is.True);
                 Assert.That(rig.App.GetUIModernEvents(), Is.Empty);
@@ -123,14 +123,14 @@ namespace ProjectLucid.Tests
             WithRig(rig =>
             {
                 Set(rig.Container, "m_openClip", null); // Reflection: serialized m_openClip the editor assigns
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.Container.Action_Close();
                 Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.CloseEvent }));
                 Assert.That(rig.Animation.IsPlaying(rig.Close.name), Is.False, "the close clip is not what the guard tests");
             });
             WithRig(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 Set(rig.Container, "m_animation", null); // Reflection: serialized m_animation the editor assigns
                 rig.Container.Action_Close();
                 Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.CloseEvent }));
@@ -144,17 +144,17 @@ namespace ProjectLucid.Tests
         {
             WithRig(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.Container.Action_AnimationCloseFinish();
                 Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.CloseEvent }));
                 rig.Container.Action_AnimationCloseFinish();
-                Call(rig.Container, "Close"); // Reflection: private UIContainerWhatsNew.Close
+                Call(rig.Container, "Close");
                 Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.CloseEvent }));
             });
             WithRig(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
-                Call(rig.Container, "Close"); // Reflection: private UIContainerWhatsNew.Close
+                Call(rig.Container, "Start");
+                Call(rig.Container, "Close");
                 Assert.That(rig.App.GetUIModernEvents(), Is.EqualTo(new[] { rig.CloseEvent }));
             });
         }

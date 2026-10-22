@@ -124,12 +124,12 @@ namespace ProjectLucid.Tests
             WithApp((owned, app) =>
             {
                 var definition = Create<CollectableDefinition>(owned, "{\"m_guid\":\"lucid-blue-coins\"}");
-                Call(definition, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(definition, "OnEnable");
                 foreach ((int amount, string text) in new[] { (250, "+250"), (0, "+0"), (1234567, "+1234567") })
                 {
                     SetUnlocks(app, new MetaGameUnlockBlueCoins(definition, amount, 40, RewardTrackType.Adventure));
                     var container = NewContainer<UIContainerProgressionBlueCoins>(owned);
-                    Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                    Call(container, "Awake");
                     Assert.That(container.BlueCoinsAmount.Value, Is.EqualTo(text));
                 }
             });
@@ -145,9 +145,9 @@ namespace ProjectLucid.Tests
                 var skin = Create<CharacterSkinDefinition>(owned, "{\"m_guid\":\"lucid-other-skin\"}");
                 SetUnlocks(app, new MetaGameUnlockCharacterSkin(skin, 1, RewardTrackType.Adventure));
                 var container = NewContainer<UIContainerProgressionBlueCoins>(owned);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.BlueCoinsAmount.Value, Is.Null);
-                Assert.DoesNotThrow(() => Call(container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(container, "OnDestroy"));
             });
         }
 
@@ -158,15 +158,15 @@ namespace ProjectLucid.Tests
             WithApp((owned, app) =>
             {
                 var definition = Create<CollectableDefinition>(owned, "{\"m_guid\":\"lucid-blue-coins-icon\"}");
-                Call(definition, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(definition, "OnEnable");
                 Cache(definition.IconAsset, NewSprite(owned));
                 var unlock = new MetaGameUnlockBlueCoins(definition, 5, 0, RewardTrackType.Adventure);
                 unlock.GetCustomSprite(sprite => { });
                 Assert.That(Count(definition.IconAsset), Is.EqualTo(1), "set-up: the icon is held once");
                 SetUnlocks(app, unlock);
                 var container = NewContainer<UIContainerProgressionBlueCoins>(owned);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "Awake");
+                Call(container, "OnDestroy");
                 Assert.That(Count(definition.IconAsset), Is.EqualTo(0));
                 Assert.That(IsCached(definition.IconAsset), Is.False);
             });
@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
             WithApp((owned, app) =>
             {
                 var skin = Create<CharacterSkinDefinition>(owned, "{\"m_guid\":\"lucid-skin\",\"m_name\":" + (int)Strings.MISSIONS + "}");
-                Call(skin, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(skin, "OnEnable");
                 Sprite thumbnail = Cached(owned, skin.Thumbnail);
                 var unlockText = Create<MetaGameUnlockDefinition>(owned,
                     "{\"m_title\":" + (int)Strings.MISSING + ",\"m_body\":" + (int)Strings.CHALLENGES_LABEL_XP + "}");
@@ -189,12 +189,12 @@ namespace ProjectLucid.Tests
                 SetUnlocks(app, new MetaGameUnlockCharacterSkin(skin, 10, RewardTrackType.Outfits));
                 var container = NewContainer<UIContainerProgressionCharacterSkin>(owned);
 
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.Name.Value, Is.EqualTo(Strings.MISSIONS), "the skin's name, not the unlock title");
                 Assert.That(container.Description.Value, Is.EqualTo(Strings.CHALLENGES_LABEL_XP), "the unlock body");
                 Assert.That(container.Icon.Value, Is.SameAs(thumbnail));
                 Assert.That(Count(skin.Thumbnail), Is.EqualTo(1));
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
                 Assert.That(Count(skin.Thumbnail), Is.EqualTo(0));
             });
         }
@@ -208,17 +208,17 @@ namespace ProjectLucid.Tests
             {
                 var power = Create<DreamPowerDefinition>(owned,
                     "{\"m_guid\":\"lucid-power\",\"m_name\":" + (int)Strings.MISSIONS + ",\"m_description\":" + (int)Strings.MISSING + "}");
-                Call(power, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(power, "OnEnable");
                 Sprite icon = Cached(owned, power.IconAsset);
                 SetUnlocks(app, new MetaGameUnlockDreamPowerStoreItem(power));
                 var container = NewContainer<UIContainerProgressionDreamPower>(owned);
 
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.Name.Value, Is.EqualTo(Strings.MISSIONS));
                 Assert.That(container.Description.Value, Is.EqualTo(Strings.MISSING));
                 Assert.That(container.Icon.Value, Is.SameAs(icon));
                 Assert.That(Count(power.IconAsset), Is.EqualTo(1));
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
                 Assert.That(Count(power.IconAsset), Is.EqualTo(0));
             });
         }
@@ -233,8 +233,8 @@ namespace ProjectLucid.Tests
             {
                 var band = Create<DreamPowerStoreBandDefinition>(owned, "{\"m_guid\":\"lucid-band\"}");
                 var first = Create<DreamPowerStoreBandDefinition>(owned, "{\"m_guid\":\"lucid-band-first\"}");
-                Call(band, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
-                Call(first, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(band, "OnEnable");
+                Call(first, "OnEnable");
                 Sprite bandImage = Cached(owned, band.ImageAsset);
                 Sprite firstImage = Cached(owned, first.ImageAsset);
 
@@ -254,7 +254,7 @@ namespace ProjectLucid.Tests
 
                 SetUnlocks(app, new MetaGameUnlockDreamPowerStoreBand(band, 100, RewardTrackType.Adventure));
                 var second = NewContainer<UIContainerProgressionDreamPowerStoreBand>(owned);
-                Call(second, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(second, "Awake");
                 Assert.That(second.Title.Value, Is.EqualTo(Strings.MENU_DREAM_POWER_COLLECTIONS_TITLE));
                 Assert.That(second.Body.Value, Is.EqualTo(Strings.CHALLENGES_LABEL_XP));
                 Assert.That(second.TierIndex.Value, Is.EqualTo("2"), "the band is the second element");
@@ -262,10 +262,10 @@ namespace ProjectLucid.Tests
 
                 SetUnlocks(app, new MetaGameUnlockDreamPowerStoreBand(first, 100, RewardTrackType.Adventure));
                 var firstContainer = NewContainer<UIContainerProgressionDreamPowerStoreBand>(owned);
-                Call(firstContainer, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(firstContainer, "Awake");
                 Assert.That(firstContainer.TierIndex.Value, Is.EqualTo("1"), "the first element is tier one");
                 Assert.That(firstContainer.Image.Value, Is.SameAs(firstImage));
-                Call(second, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(second, "OnDestroy");
                 Assert.That(Count(band.ImageAsset), Is.EqualTo(0));
             });
         }
@@ -279,14 +279,14 @@ namespace ProjectLucid.Tests
             WithApp((owned, app) =>
             {
                 var track = Create<MusicTrackDefinition>(owned, "{\"m_guid\":\"lucid-track\"}");
-                Call(track, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(track, "OnEnable");
                 Cache(track.ImageAssetTexture, owned.Track(new Texture2D(2, 2)));
                 var unlock = new MetaGameUnlockMusicTrack(track, 5, RewardTrackType.Adventure);
                 unlock.GetCustomTexture(texture => { });
                 Assert.That(Count(track.ImageAssetTexture), Is.EqualTo(1), "set-up: the image is held once");
                 var container = NewContainer<UIContainerProgressionMusicTrack>(owned);
                 Set(container, "m_unlock", unlock); // Reflection: private unlock the container keeps from its setup
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
                 Assert.That(Count(track.ImageAssetTexture), Is.EqualTo(0));
                 Assert.That(IsCached(track.ImageAssetTexture), Is.False);
             });
@@ -299,10 +299,10 @@ namespace ProjectLucid.Tests
             WithApp((owned, app) =>
             {
                 var container = NewContainer<UIContainerProgressionMusicTrack>(owned);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.TrackImage.Value == null, Is.True);
                 Assert.That(container.TrackNumber.Value, Is.Zero);
-                Assert.DoesNotThrow(() => Call(container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(container, "OnDestroy"));
             });
         }
 
@@ -357,7 +357,7 @@ namespace ProjectLucid.Tests
             {
                 var container = NewContainer<UIContainerProgressionOrnament>(owned);
                 Assert.That(container.ShowNextButton.Value, Is.False);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.ShowNextButton.Value, Is.True);
 
                 var other = NewContainer<UIContainerProgressionOrnament>(owned);
@@ -383,7 +383,7 @@ namespace ProjectLucid.Tests
                 Set(container, "m_unlock", unlock);
                 Set(container, "m_ornamentViewerInstance", viewer);
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
                 Assert.That(app.Storage.GetValue<System.Collections.Generic.List<IMetaGameUnlock>>(AppFSMKeys.MetaGameUnlocks, null, false),
                     Is.EqualTo(new IMetaGameUnlock[] { other }));
             });
@@ -404,13 +404,13 @@ namespace ProjectLucid.Tests
                     ",\"m_backgroundGradientStart\":{\"r\":0.25,\"g\":0.5,\"b\":0.75,\"a\":1}" +
                     ",\"m_backgroundGradientEnd\":{\"r\":1,\"g\":0.5,\"b\":0.25,\"a\":0.5}" +
                     ",\"m_shineColour\":{\"r\":0.5,\"g\":0.25,\"b\":0.125,\"a\":0.75}}");
-                Call(track, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(track, "OnEnable");
                 Sprite icon = Cached(owned, track.IconAsset);
                 Sprite thumbnail = Cached(owned, track.ThumbnailAsset);
                 SetUnlocks(app, new MetaGameUnlockRewardTrack(track, 10, RewardTrackType.Outfits));
                 var container = NewContainer<UIContainerProgressionRewardTrack>(owned);
 
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.Name.Value, Is.EqualTo(Strings.MISSIONS));
                 Assert.That(container.Description.Value, Is.EqualTo(Strings.CHALLENGES_LABEL_XP));
                 Assert.That(container.Overview.Value, Is.EqualTo(Strings.MISSING));
@@ -422,7 +422,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Count(track.IconAsset), Is.EqualTo(1));
                 Assert.That(Count(track.ThumbnailAsset), Is.EqualTo(1));
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
                 Assert.That(Count(track.IconAsset), Is.EqualTo(0), "released through the unlock");
                 Assert.That(Count(track.ThumbnailAsset), Is.EqualTo(0), "released by the container");
             });
@@ -436,10 +436,10 @@ namespace ProjectLucid.Tests
             WithApp((owned, app) =>
             {
                 var container = NewContainer<UIContainerProgressionRewardTrack>(owned);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 Assert.That(container.Icon.Value == null, Is.True);
                 Assert.That(container.Thumbnail.Value == null, Is.True);
-                Assert.DoesNotThrow(() => Call(container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(container, "OnDestroy"));
             });
         }
     }
