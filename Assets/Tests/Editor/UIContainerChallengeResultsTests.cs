@@ -74,7 +74,7 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Setup 0x61CF10: with no previous best (a previous best time of zero, 0x61D002 setbe) the run is a new time and score
+        // Setup 0x61CF10: with no previous best (a previous best time of zero, 0x61CFFE setbe) the run is a new time and score
         // record, the XP is shown, and with m_showBestInsteadOfPrevious (0x61D1D0) the previous bests repeat the new values.
         [Test]
         public void AFirstCompletionIsARecordThatAwardsXpAndRepeatsTheNewValuesAsThePreviousBest()
@@ -153,12 +153,12 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.ScoreString.Value, Is.EqualTo("-199"));
                 Assert.That(rig.Container.PreviousBestScoreString.Value, Is.EqualTo("601"));
                 Assert.That(rig.Container.IsNewRecord.Value, Is.True);
-                Assert.That(rig.Container.IsXPAwarded.Value, Is.False, "the XP follows the previous best alone (0x61D002), not the records");
+                Assert.That(rig.Container.IsXPAwarded.Value, Is.False, "the XP follows the previous best alone (0x61CFFE), not the records");
                 Assert.That(rig.Container.XPAwardedString.Value, Is.EqualTo(string.Empty));
             });
         }
 
-        // The XP and the first-completion branch depend on the previous best being positive (setbe at 0x61D002, which also holds
+        // The XP and the first-completion branch depend on the previous best being positive (setbe at 0x61CFFE, which also holds
         // for a negative time): a previous best of -1 awards the XP, has the previous best score zero (0x61D22D) and is a record.
         [Test]
         public void ANegativePreviousBestIsTreatedAsNoPreviousBest()
