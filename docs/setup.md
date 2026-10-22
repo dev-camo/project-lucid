@@ -28,7 +28,13 @@ whether the differences are packaging only; the result is evidence for review an
 qualifies nothing by itself.
 
 Preparation requires the matching Unity Editor to check restored script bindings.
-Install the Editor and recover the code schemas before running `prepare`.
+Install the Editor, then run `recover-code` and `native-schema` before `prepare`.
+They write different outputs. `recover-code` writes declarations and serialization schemas
+(`reports/code-recovery-schemas.json`). `native-schema` writes the original native serialization
+evidence (`native-recovery/latest-schemas.json`), which the script-binding layout proof in
+`prepare` reads; without it `prepare` fails before Unity starts. On first use `native-schema`
+bootstraps a pinned .NET SDK and builds its harness inside the cache. Neither step shows that
+the assets are complete or that the game is playable.
 
 Run `python3 tools/lucid.py --help` for commands and options. `--work-dir` is limited
 to generated subdirectories of `.cache/project-lucid/`. Reports and full tool logs

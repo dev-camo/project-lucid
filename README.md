@@ -16,6 +16,7 @@ python3 tools/lucid.py doctor
 python3 tools/lucid.py inspect --input input/SonicDreamTeam.app
 python3 tools/lucid.py bootstrap
 python3 tools/lucid.py recover-code --input input/SonicDreamTeam.app
+python3 tools/lucid.py native-schema --input input/SonicDreamTeam.app
 python3 tools/lucid.py extract-assets --input input/SonicDreamTeam.app
 python3 tools/lucid.py prepare
 ```
