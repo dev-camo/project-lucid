@@ -300,9 +300,13 @@ namespace ProjectLucid
                 Require(string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(text)), "text GUID is unassigned");
                 string guidText = "  m_Name: 'guid: " + text + "'\n  m_Text: \"guid: " + text + "\"\n" +
                     "  m_Long: 'first line\n    guid: " + text + " second line'\n  m_Data: {label: 'guid: " + text + "'}\n";
-                Require(Scan(scan, directory, "guid-text.prefab", gameObject(guidText + "  m_Self: {fileID: 1}\n"), out bad, out objects, out unresolved) == "complete" &&
-                    bad.Length == 0 && objects.Length == 0 && unresolved == 0, "quoted scalars containing GUID text are not references");
-                Require(Scan(scan, directory, "guid-text-then-pointer.prefab", gameObject(guidText + "  m_Ref: {fileID: 7, guid: " + text + ", type: 2}\n"),
+                Require(Scan(scan, directory, "guid-text.prefab", gameObject(guidText + "  m_Self: {fileID: 1} # guid: " + text + "\n"), out bad, out objects, out unresolved) == "complete" &&
+                    bad.Length == 0 && objects.Length == 0 && unresolved == 0, "quoted scalars and comments containing GUID text are not references");
+                // The pointer's GUID differs from the text's: missing GUIDs are keyed by GUID, so
+                // counting the text as well would make two.
+                string pointerGuid = Guid.NewGuid().ToString("N");
+                Require(string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(pointerGuid)), "pointer GUID is unassigned");
+                Require(Scan(scan, directory, "guid-text-then-pointer.prefab", gameObject(guidText + "  m_Ref: {fileID: 7, guid: " + pointerGuid + ", type: 2}\n"),
                     out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 && bad.Length == 0 && objects.Length == 0,
                     "a real unresolved pointer beside GUID text is still reported once");
             }
