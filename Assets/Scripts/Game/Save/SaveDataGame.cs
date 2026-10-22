@@ -249,11 +249,6 @@ namespace HardlightProject
             }
         }
 
-        // Game.Runtime.dll 0x06002c28.
-        public SaveDataGame()
-        {
-        }
-
         // Game.Runtime.dll 0x06002c05.
         public override void Initialise()
         {
@@ -568,8 +563,6 @@ namespace HardlightProject
             m_ornamentsByGuid.Remove(unlockedOrnamentGUID);
             MarkDirty();
         }
-        // 0x06002c25: returns serialized-list Count without recaching it.
-        public int CollectedOrnamentsCount() => m_ornaments.Count;
 
         // Game.Runtime.dll 0x06002c23.
         public void OnBeforeSerialize()
@@ -597,6 +590,9 @@ namespace HardlightProject
             ListToDictionary(m_characterSkins, m_characterSkinsByGUID, skin => skin.GUID);
             ListToDictionary(m_characterCustomisations, m_customisationsByCharacter, characterCustomisation => characterCustomisation.CharacterId);
         }
+
+        // 0x06002c25: returns serialized-list Count without recaching it.
+        public int CollectedOrnamentsCount() => m_ornaments.Count;
 
         // Game.Runtime.dll 0x06002c26.
         public void SetLastSavedTime(long timestampMs)
