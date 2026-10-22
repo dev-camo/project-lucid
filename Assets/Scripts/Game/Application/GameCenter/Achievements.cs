@@ -42,7 +42,6 @@ namespace HardlightProject
                 m_offlineManagerLease = ProjectLucid.Offline.LocalGameAchievements.Prepare(app, AddAllAchievements,
                     StopOfflineAchievementSubscriptions, IsOfflineSaveBindingOpen);
                 m_achievementsManager = m_offlineManagerLease.Manager;
-                ProjectLucid.Offline.LocalProfilePresentation.BindAchievements(m_achievementsManager);
                 m_offlineManagerLease.Start();
                 return;
             }
@@ -340,14 +339,10 @@ namespace HardlightProject
 
         public void Shutdown()
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-043: the original unregistered the AchievementsManager and removed its startup subscriptions; we dispose the manager lease and unbind the presentation
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-043: the original unregistered the AchievementsManager and removed its startup subscriptions; we dispose the manager lease
             {
-                try
-                {
-                    if (m_offlineManagerLease != null) m_offlineManagerLease.Dispose();
-                    else StopOfflineAchievementSubscriptions();
-                }
-                finally { ProjectLucid.Offline.LocalProfilePresentation.UnbindAchievements(); }
+                if (m_offlineManagerLease != null) m_offlineManagerLease.Dispose();
+                else StopOfflineAchievementSubscriptions();
                 return;
             }
             ProcessManager.GetSystem<App>(null, true).ShutdownAndUnregisterSystem<AchievementsManager>();

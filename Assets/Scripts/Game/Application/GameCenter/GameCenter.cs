@@ -152,18 +152,18 @@ namespace HardlightProject
         }
         public void ShowAchievementPage()
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-026: the original opened the GameCenter achievements UI; we raise the local achievements presentation
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-026: the original called Social.ShowAchievementsUI, which without a logged-in account only logs "Must authenticate first"; we take that path (the local profile is never logged in)
             {
-                ProjectLucid.Offline.LocalProfilePresentation.ShowAchievements();
+                UnityEngine.Debug.Log("Must authenticate first");
                 return;
             }
             Social.ShowAchievementsUI();
         }
         public void ShowLeaderboardPage()
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-027: the original opened the GameCenter leaderboard UI; we raise the local records presentation
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-027: the original called Social.ShowLeaderboardUI, which without a logged-in account only logs "Must authenticate first"; we take that path (the local profile is never logged in)
             {
-                ProjectLucid.Offline.LocalProfilePresentation.ShowRecords(null);
+                UnityEngine.Debug.Log("Must authenticate first");
                 return;
             }
             Social.ShowLeaderboardUI();

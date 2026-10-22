@@ -337,6 +337,56 @@ namespace ProjectLucid.Tests.EditMode
             VerificationFixtureOwnership.RunThenCleanUp(() => LeaderboardSubscribedShutdown(aliasName), Release(rows));
         }
 
+        // Issue 415: offline the genuine LeaderboardManager.ShowLeaderboardUI (hook H-050) shows
+        // nothing, logs no error, throws nothing and leaves the input layer's exclusive list alone.
+        // The original 0x0600061f went to the static GameCenterPlatform.ShowLeaderboardUI, which has
+        // no authentication check, so this no-op is a documented divergence. The original platform
+        // call is not run here: it would reach the native Game Center view.
+        [Test]
+        public void GenuineLeaderboardManagerShowUIDoesNothingOffline()
+        {
+            RunWithRegisteredLeaderboardManager("LucidLeaderboardShowAlias", false, manager =>
+            {
+                var exclusive = new HashSet<GameInput>(ProjectLucid.Tests.OwnedControlInputs.Exclusive());
+                manager.ShowLeaderboardUI(LeaderboardIdentifier.TailsChallenges_Daily, UnityEngine.SocialPlatforms.TimeScope.Today);
+                manager.ShowLeaderboardUI(LeaderboardIdentifier.TimeTrials_Z1A1M5, UnityEngine.SocialPlatforms.TimeScope.AllTime);
+                UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
+                Assert.That(ProjectLucid.Tests.OwnedControlInputs.Exclusive().SetEquals(exclusive), Is.True, "no input change");
+            });
+        }
+
+        // Issue 415, H-054 retired: the genuine ChallengeLeaderboardIntegration_GameCenter.CanShowLeaderboard
+        // (0x06002577) runs the original login query on the registered LeaderboardManager, false for the
+        // never-logged-in local profile (H-052), so the game itself disables the challenge leaderboard
+        // button. The integration's field initializer calls GetSystemRef<LeaderboardManager>(null, true),
+        // which caches a typed SystemRef<LeaderboardManager> under "HardlightProject.LeaderboardManager"
+        // in the manager row. This case declares exactly that entry: the leaderboard observation checks
+        // its type, its system and that it carries no callbacks, and it is prepared before the Core
+        // world's observation, so the integration reuses it and that observation sees no new entry.
+        [Test]
+        public void GenuineChallengeLeaderboardIsUnavailableOfflineThroughTheOriginalLoginQuery()
+        {
+            RunWithRegisteredLeaderboardManager("LucidChallengeBoardAlias", true, manager =>
+            {
+                var board = new ChallengeLeaderboardIntegration_GameCenter();
+                Assert.That(board.CanShowLeaderboard(), Is.False, "the original login query answers for the challenge leaderboard button");
+                Assert.That(manager.IsLoggedIn(), Is.False);
+            });
+        }
+
+        private static void RunWithRegisteredLeaderboardManager(string aliasPrefix, bool declareManagerTypedCache,
+            Action<LeaderboardManager> whileRegistered)
+        {
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
+            RequireEmptyOwnedRecords();
+            string aliasName = aliasPrefix + Guid.NewGuid().ToString("N");
+            LifecycleRow[] rows = LeaderboardRows(aliasName, ProcessManager.GetDefaultName<GameCenter>(),
+                ProcessManager.GetDefaultName<GameCenterLeaderboard>(), ProcessManager.GetDefaultName<SaveManager>(),
+                ProcessManager.GetDefaultName<TimeTrialLeaderboardManager>());
+            VerificationFixtureOwnership.RunThenCleanUp(
+                () => LeaderboardSubscribedShutdown(aliasName, whileRegistered, declareManagerTypedCache), Release(rows));
+        }
+
         // The leaderboard cases create the manager, alias and lookup rows below
         // through GetSystemRef (the manager's field initializers read GameCenter
         // and GameCenterLeaderboard). Each is admitted before the first lookup
@@ -357,9 +407,10 @@ namespace ProjectLucid.Tests.EditMode
 
         private static Action[] Release(LifecycleRow[] rows) => Array.ConvertAll(rows, row => (Action)row.Dispose);
 
-        private static void LeaderboardSubscribedShutdown(string aliasName)
+        private static void LeaderboardSubscribedShutdown(string aliasName, Action<LeaderboardManager> whileRegistered = null,
+            bool declareManagerTypedCache = false)
         {
-            var observation = new OwnedLeaderboardLookupObservation(aliasName);
+            var observation = new OwnedLeaderboardLookupObservation(aliasName, declareManagerTypedCache);
             // Normal lookup preparation is fully observed by the outer snapshot.
             // The existing Core world then preserves these exact rows and caches.
             SystemRef reference = ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<LeaderboardManager>(), true);
@@ -368,6 +419,11 @@ namespace ProjectLucid.Tests.EditMode
             ProcessManager.GetSystemRef<GameCenterLeaderboard>();
             ProcessManager.GetSystemRef<SaveManager>();
             ProcessManager.GetSystemRef<TimeTrialLeaderboardManager>();
+            // ProcessManager keys rows by system name and caches one typed SystemRef<T> per row under
+            // T.ToString(). A case that looks the manager up by its type (GetSystemRef<LeaderboardManager>)
+            // adds that typed entry to the manager row; it is prepared here, before the Core world's own
+            // observation, so that observation sees it as an existing entry it must leave unchanged.
+            if (declareManagerTypedCache) ProcessManager.GetSystemRef<LeaderboardManager>();
             try
             {
                 using (var world = new OwnedCoreWorld())
@@ -400,6 +456,7 @@ namespace ProjectLucid.Tests.EditMode
                         Assert.That(reference.GetSafe(), Is.SameAs(manager));
                         ProcessManager.RegisterSystem(manager, aliasName);
                         Assert.That(alias.GetSafe(), Is.SameAs(manager));
+                        whileRegistered?.Invoke(manager);
                         ProcessManager.ProcessSystemAction(manager, SystemAction.Shutdown);
                         Assert.That(reference.GetSafe(), Is.Null);
                         Assert.That(alias.GetSafe(), Is.SameAs(manager));
@@ -524,9 +581,12 @@ namespace ProjectLucid.Tests.EditMode
                         { Cached.Add(entry.Key, entry.Value); CachedStates.Add(entry.Key, new ReferenceState(entry.Value)); }
                     }
                 }
-                internal OwnedLeaderboardLookupObservation(string aliasName)
+                // A case that looks the manager up by its type declares that one typed cache entry on the
+                // manager row; it is then checked like every other allowed cache.
+                internal OwnedLeaderboardLookupObservation(string aliasName, bool declareManagerTypedCache = false)
                 {
                     aliasKey = aliasName;
+                    if (declareManagerTypedCache) allowedCaches.Add(managerKey, typeof(LeaderboardManager));
                     Assert.IsFalse((bool)ReadStatic("s_systemActionInProgress"));
                     foreach (object callback in pending) priorPending.Add(callback);
                     foreach (DictionaryEntry entry in systems) priorSystems.Add(entry.Key, new RegistryRow(entry.Value));

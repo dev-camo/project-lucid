@@ -34,7 +34,6 @@ namespace ProjectLucid.Offline
             catch
             {
                 LocalPersonalRecords.Shutdown();
-                LocalProfilePresentation.UnbindAchievements();
                 stopped = true;
                 throw;
             }
@@ -50,7 +49,6 @@ namespace ProjectLucid.Offline
         {
             stopped = true;
             complete = null;
-            LocalProfilePresentation.UnbindAchievements();
         }
     }
 }

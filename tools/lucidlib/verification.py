@@ -352,6 +352,8 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OwnedCompletionFaultPreservesTheSameManagerAliasAndThePrimaryError",
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineLeaderboardStartupFaultPreservesItsSameObjectAliasAndPrimaryError",
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineLeaderboardSubscribedShutdownPreservesItsSameObjectNamedAlias",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineLeaderboardManagerShowUIDoesNothingOffline",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineChallengeLeaderboardIsUnavailableOfflineThroughTheOriginalLoginQuery",
 )
 
 EDITMODE_TESTS += (
@@ -3213,6 +3215,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryReportsLoginThenLoadsInTheOriginalOrder",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsAuthoredBootAndFastLoadStatesEnterWithoutPlatformAuthentication",
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineEntryPropagatesAStoppedLocalLifecycleBeforeDefinitionLoading",
+    "ProjectLucid.Tests.OriginalApplicationFsmGapTests.GameCenterPageRequestsTakeTheOriginalNotLoggedInPathOffline",
 )
 
 # LoadAssets original Authenticate statement behind the offline hook: emission-only source self-check.

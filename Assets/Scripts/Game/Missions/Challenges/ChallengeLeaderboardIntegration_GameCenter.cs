@@ -99,10 +99,6 @@ namespace HardlightProject
         // Original06002577 delegates to the actual original service login query.
         public override bool CanShowLeaderboard()
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-054: the original asked the leaderboard system whether the account is logged in; we report whether the local personal records are ready
-            {
-                return ProjectLucid.Offline.LocalPersonalRecords.IsReady;
-            }
             return m_leaderboardSystemRef.Get().IsLoggedIn();
         }
 

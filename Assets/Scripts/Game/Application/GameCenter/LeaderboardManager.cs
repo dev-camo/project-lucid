@@ -126,11 +126,8 @@ namespace HardlightProject
         // 0x0600061f: the original platform UI has no login preflight here.
         public void ShowLeaderboardUI(LeaderboardIdentifier leaderboardIdentifier, TimeScope timeScope)
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-050: the original opened the GameCenter leaderboard UI; we raise the local records presentation
-            {
-                ProjectLucid.Offline.LocalProfilePresentation.ShowRecords(leaderboardIdentifier);
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-050: the original asked GameCenterPlatform to show this leaderboard, which has no authentication check; we do nothing (documented divergence)
                 return;
-            }
 #if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX // GameCenterPlatform exists only in Apple players; see docs/offline-hooks.md
             GameCenterPlatform.ShowLeaderboardUI(leaderboardIdentifier.GetString(), timeScope);
 #endif

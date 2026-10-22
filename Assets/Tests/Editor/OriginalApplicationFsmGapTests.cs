@@ -394,15 +394,11 @@ namespace ProjectLucid.Tests
         // failed provider callback also leaves, Begin throws and that fault escapes
         // DoOnEnter before the cast, so definitions and save initialisation do not
         // start. The fault propagates as other OnLoginComplete faults do; nothing
-        // catches it. Stop only clears LocalProfilePresentation's binding, which
-        // must already be unbound.
+        // catches it.
         [Test]
         public void LoadAssetsOfflineEntryPropagatesAStoppedLocalLifecycleBeforeDefinitionLoading()
         {
             Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
-            FieldInfo bound = typeof(ProjectLucid.Offline.LocalProfilePresentation).GetField("achievements", BindingFlags.Static | BindingFlags.NonPublic);
-            Assert.That(bound, Is.Not.Null);
-            Assert.That(bound.GetValue(null), Is.Null, "foreign bound local achievements stay untouched");
             Assert.That(ProcessManager.IsSystemNull<App>(), Is.True, "no foreign live App for the pending login to reach");
             // GameCenter (Initialise, AppShutdown, Update) and the GameCenterLocalPlayer
             // it constructs (AppInitialise, AppShutdown) subscribe to these actions,
@@ -450,6 +446,62 @@ namespace ProjectLucid.Tests
             () =>
             {
                 // Safety net if row disposal throws before unregistering either system.
+                if (localPlayer != null) ProcessManager.UnsubscribeFromAllActions(localPlayer);
+                if (gameCenter != null) ProcessManager.UnsubscribeFromAllActions(gameCenter);
+            },
+            actionRows.Dispose);
+        }
+
+        // Issue 415: ApplicationStateOpenGameCenterPage.DoOnEnter calls these two GameCenter methods.
+        // The original bodies call Social.ShowAchievementsUI / Social.ShowLeaderboardUI; on the shipped
+        // macOS player GameCenterPlatform's versions (0x06000066 / 0x06000067) run VerifyAuthentication
+        // (0x06000065), which logs "Must authenticate first" and shows nothing without a logged-in
+        // account. Offline (hooks H-026, H-027) the local profile is never logged in, so the hooks take
+        // that path: the same log, no platform call, no exception, no input change. Control: with the
+        // adapters overridden off, the retained original bodies reach the owned social platform.
+        [Test]
+        public void GameCenterPageRequestsTakeTheOriginalNotLoggedInPathOffline()
+        {
+            Assert.That(ProjectLucid.Offline.OfflineAdapters.Active, Is.True, "Owned offline case requires the offline adapters.");
+            var actionRows = new VerificationFixtureOwnership.ActionRows(
+                SystemAction.Initialise, SystemAction.AppInitialise, SystemAction.AppShutdown, SystemAction.Update);
+            GameCenter gameCenter = null;
+            GameCenterLocalPlayer localPlayer = null;
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
+            {
+                using (var owned = new OwnedServices())
+                using (var social = new OwnedSocialPlatform())
+                {
+                    owned.ReadOnlyRow<App>();
+                    owned.Row<GameCenter>();
+                    owned.Row<GameCenterLocalPlayer>();
+                    try
+                    {
+                        gameCenter = new GameCenter();
+                        var exclusive = new HashSet<GameInput>(OwnedControlInputs.Exclusive());
+                        UnityEngine.TestTools.LogAssert.Expect(LogType.Log, "Must authenticate first");
+                        gameCenter.ShowAchievementPage();
+                        UnityEngine.TestTools.LogAssert.Expect(LogType.Log, "Must authenticate first");
+                        gameCenter.ShowLeaderboardPage();
+                        UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
+                        Assert.That(OwnedControlInputs.Exclusive().SetEquals(exclusive), Is.True, "no input change");
+                        Assert.That((social.LocalUserReads, social.Authentications), Is.EqualTo((0, 0)), "no platform query");
+                        using (ProjectLucid.Offline.OfflineAdapters.Override(false))
+                        {
+                            Assert.Throws<SocialPlatformReached>(() => gameCenter.ShowAchievementPage(), "original achievements body");
+                            Assert.Throws<SocialPlatformReached>(() => gameCenter.ShowLeaderboardPage(), "original leaderboard body");
+                        }
+                    }
+                    finally
+                    {
+                        localPlayer = ProcessManager.GetSystemSafe<GameCenterLocalPlayer>(null, false);
+                        owned.AdoptCurrent<GameCenterLocalPlayer>();
+                        owned.AdoptCurrent<GameCenter>();
+                    }
+                }
+            },
+            () =>
+            {
                 if (localPlayer != null) ProcessManager.UnsubscribeFromAllActions(localPlayer);
                 if (gameCenter != null) ProcessManager.UnsubscribeFromAllActions(gameCenter);
             },
