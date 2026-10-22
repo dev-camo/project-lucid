@@ -16,8 +16,10 @@ namespace ProjectLucid.Tests
     // constructors. Not run here: DoOnEnter and DoOnLeave (the air ability base state they call first needs a started
     // character with an orientation, velocity storage and the save data settings) and DoUpdate with an ability
     // present (the ability's time scale update needs a live time manager and its activation the audio filter).
-    public sealed class CharacterAirChaosStateTests
+    public sealed class CharacterAirChaosStateTests : OwnedGraphNamesFixture
     {
+        public CharacterAirChaosStateTests() : base("Lucid-air-chaos-state-") { }
+
         private static readonly Type AimBase = typeof(CharacterState_AirChaos<CharacterAbility_AirChaosAim, CharacterAbilityDefinition_AirChaosAim>);
 
         private sealed class AimProbeState : CharacterState_AirChaosAim

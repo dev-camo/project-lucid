@@ -6,8 +6,10 @@ namespace ProjectLucid.Tests
 {
     // Game.Runtime core FSM transitions built through their genuine factories on
     // an owned machine (skipAddToManager); no registry row or service is touched.
-    public sealed class OriginalCoreFsmTransitionTests
+    public sealed class OriginalCoreFsmTransitionTests : OwnedGraphNamesFixture
     {
+        public OriginalCoreFsmTransitionTests() : base("Lucid-core-fsm-") { }
+
         private static readonly FSMUpdateContext s_context = new FSMUpdateContext(0.25f, FSMUpdateType.Manual);
 
         private static string Name() => "Lucid-core-fsm-" + Guid.NewGuid().ToString("N");

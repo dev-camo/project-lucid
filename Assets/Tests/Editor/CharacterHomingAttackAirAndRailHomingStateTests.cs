@@ -28,8 +28,10 @@ namespace ProjectLucid.Tests
     // without an active target (0xE756B2 je 0xE757B7, which stores the cancelled flag) and the enter and leave effects.
     // The rail homing update starts with the CharacterState_Ability update (call at 0xE75688), so the no target path
     // needs the same started Character.
-    public sealed class CharacterHomingAttackAirAndRailHomingStateTests
+    public sealed class CharacterHomingAttackAirAndRailHomingStateTests : OwnedGraphNamesFixture
     {
+        public CharacterHomingAttackAirAndRailHomingStateTests() : base("Lucid-homing-attack-state-") { }
+
         private static string Name() => "Lucid-homing-attack-state-" + Guid.NewGuid().ToString("N");
 
         private static IFSMState NewState(string node, string json) =>

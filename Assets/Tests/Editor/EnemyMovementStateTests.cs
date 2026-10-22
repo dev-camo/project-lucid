@@ -16,8 +16,10 @@ namespace ProjectLucid.Tests
     // nested BaseJSONCtorArgs 0200065a) and EnemyMovementTransition_AttackWindUpComplete (0200065b) against the 1.10.1
     // x86-64 bodies at 0x577B20..0x577F90. The state is built through its own ConstructInstance and updated against a
     // real Enemy that holds a recording ability in its ability table.
-    public sealed class EnemyMovementStateTests
+    public sealed class EnemyMovementStateTests : OwnedGraphNamesFixture
     {
+        public EnemyMovementStateTests() : base("Lucid-enemy-") { }
+
         private const ActorAbilityType AbilityType = ActorAbilityType.Enemy_GroundMovement;
 
         // Records the calls the state makes, in order, with their arguments.

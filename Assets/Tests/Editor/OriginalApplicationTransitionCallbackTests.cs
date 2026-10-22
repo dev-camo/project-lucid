@@ -20,8 +20,10 @@ namespace ProjectLucid.Tests
     // completion; StartUI 0x6549b1/0x6549d4 -> 0x654a0a: b__0 midpoint, null,
     // b__1 timeout) is not checked here. It needs an App and a registered
     // UIScreenTransitionManager, and no owned fixture for those exists yet.
-    public sealed class OriginalApplicationTransitionCallbackTests
+    public sealed class OriginalApplicationTransitionCallbackTests : OwnedGraphNamesFixture
     {
+        public OriginalApplicationTransitionCallbackTests() : base("Lucid-app-transition-") { }
+
         private const BindingFlags AnyInstance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private const string TimeoutError = "Failed to complete UI transition: attempting to continue|0";
 

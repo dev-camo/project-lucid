@@ -18,8 +18,10 @@ namespace ProjectLucid.Tests
     // Addresses are the original x86-64 bodies. Machines skip the FSMManager
     // (except the one case that owns a manager row), names are unique, and Random,
     // Unity objects, files and the HLOutput error route are owned and restored by each case.
-    public class OriginalStringTimeoutFSMTests
+    public class OriginalStringTimeoutFSMTests : OwnedGraphNamesFixture
     {
+        public OriginalStringTimeoutFSMTests() : base("Lucid-strtimeout-") { }
+
         private static string Name() => "Lucid-strtimeout-" + Guid.NewGuid().ToString("N");
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);
         private static FSMUser User() => new FSMUser(new FSMStorage(0));

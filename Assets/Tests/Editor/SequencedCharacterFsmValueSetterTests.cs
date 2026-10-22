@@ -38,7 +38,7 @@ namespace ProjectLucid.Tests
                 body(owned, scene);
                 return;
             }
-            if (reference.IsValid()) throw new InvalidOperationException("Fixture requires an empty CharacterManager reference");
+            TriggerConditionTestSupport.RequireOwnableReference(reference);
             object priorObservers = StartupObservers.GetValue(reference);
             try
             {

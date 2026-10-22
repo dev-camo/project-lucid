@@ -15,8 +15,10 @@ namespace ProjectLucid.Tests
     // unlock list lives in the real App's storage (the App registered by OwnedCharacterManagers), and the unlocks are
     // plain IMetaGameUnlock implementations defined here, as the interface is the only contract the code reads. The
     // animation wait is covered only for a missing animation; playing one needs a live Animation and TimeManager.
-    public sealed class ProgressionUnlockFsmTests
+    public sealed class ProgressionUnlockFsmTests : OwnedGraphNamesFixture
     {
+        public ProgressionUnlockFsmTests() : base("Lucid-unlock-node-") { }
+
 
         private class Unlock : IMetaGameUnlock
         {

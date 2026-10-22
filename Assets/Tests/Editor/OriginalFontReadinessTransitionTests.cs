@@ -8,8 +8,10 @@ using Unity.IL2CPP.CompilerServices;
 
 namespace ProjectLucid.Tests
 {
-    public sealed class OriginalFontReadinessTransitionTests
+    public sealed class OriginalFontReadinessTransitionTests : OwnedGraphNamesFixture
     {
+        public OriginalFontReadinessTransitionTests() : base("Lucid-font-readiness-") { }
+
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public |
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 

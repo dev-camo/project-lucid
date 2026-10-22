@@ -28,8 +28,10 @@ namespace ProjectLucid.Tests
     // Not covered: the publication of the effect message by Boss.TriggerEffects (it needs a registered MessageManager and a subscriber;
     // the state tests only lease the idle row it looks up), and the filter of the SetValue states' animation entries (the Actor
     // animation callbacks return early until the Actor is initialised).
-    public sealed class BossAttackFlowAndEffectStateTests
+    public sealed class BossAttackFlowAndEffectStateTests : OwnedGraphNamesFixture
     {
+        public BossAttackFlowAndEffectStateTests() : base("Lucid-boss-flow-state-") { }
+
         // Fixture value, not an original constant: any key works for a boss that owns its ability dictionary.
         private const ActorAbilityType StateAbility = (ActorAbilityType)0x4C554349;
 

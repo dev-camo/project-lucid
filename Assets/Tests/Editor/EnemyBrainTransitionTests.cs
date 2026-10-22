@@ -21,8 +21,10 @@ namespace ProjectLucid.Tests
     // holds no definition (Start reads it from the DataManager), so the traits-reading bodies run against a real
     // EnemyDefinition handed to the Enemy's definition field. An unstarted Enemy cannot be moved (its SetWorldPosition
     // needs the transform Start caches), so every enemy stands at the origin and the targets are test actors.
-    public sealed class EnemyBrainTransitionTests
+    public sealed class EnemyBrainTransitionTests : OwnedGraphNamesFixture
     {
+        public EnemyBrainTransitionTests() : base("Lucid-enemy-") { }
+
         private delegate IFSMTransition Factory(FiniteStateMachine fsm, FSMIdentifier id, string json);
 
         private static FSMIdentifier Id() => new FSMIdentifier(Name());

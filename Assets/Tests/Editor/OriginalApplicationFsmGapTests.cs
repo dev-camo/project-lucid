@@ -21,8 +21,10 @@ namespace ProjectLucid.Tests
     // registers into is acquired absent and removed; App, AudioManager and
     // UIRuntimeConfiguration are inactive components whose Awake never runs.
     // Completed handles come from an owned ResourceManager, not Addressables.
-    public sealed class OriginalApplicationFsmGapTests
+    public sealed class OriginalApplicationFsmGapTests : OwnedGraphNamesFixture
     {
+        public OriginalApplicationFsmGapTests() : base("Lucid-app-fsm-gap-") { }
+
         private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly FSMUpdateContext s_context = new FSMUpdateContext(0.25f, FSMUpdateType.Manual);
 

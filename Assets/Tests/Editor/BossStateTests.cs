@@ -23,8 +23,10 @@ namespace ProjectLucid.Tests
     // DataManager (DataManagerUtilities.TryGetAbilityDefinition, 06003952) and so needs a live App; its declaration is covered by the
     // declaration rows. The ability == null early returns of the ability states are unreachable: the base update and enter bodies
     // dereference the same lookup first (ActorState_Ability<T>.GetAnimationDefinition).
-    public sealed class BossStateTests
+    public sealed class BossStateTests : OwnedGraphNamesFixture
     {
+        public BossStateTests() : base("Lucid-boss-state-") { }
+
         // CreateInstance sends Awake and OnEnable, and both reach ActorDefinition.UpdateCachedValues (0x7A8060), which calls
         // Settings.UpdateCachedValues on the unassigned Settings with no null test: two faults each.
         private static readonly Regex ActorDefinitionSettingsFault =

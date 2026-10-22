@@ -197,6 +197,8 @@ namespace ProjectLucid.Tests
         internal static void WithScene(Action<Scene> body, Action<EnemyTraits> configure = null) => Owned.Run(owned =>
         {
             owned.Lease(new VerificationFixtureOwnership.ActionPoolLease());
+            // NewFsm and Name register GUID-suffixed names in GraphNameLookup.
+            owned.Lease(new SyntheticGraphNameScope("Lucid-enemy-"));
             owned.LeaseActions(SystemAction.Initialise, SystemAction.Shutdown);
             var manager = new EnemyManager();
             owned.Lease(new UnsubscribeLease(manager));

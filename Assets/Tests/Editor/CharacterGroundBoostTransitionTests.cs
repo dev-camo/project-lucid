@@ -17,8 +17,10 @@ namespace ProjectLucid.Tests
     // The ground boost ability, the movement climbing state and the ground and minimum jump time transitions.
     // Expected values come from the 1.10.1 x86-64 bodies cited per test; each transition is built from its JSON
     // through the node factory and updated against a real Character on an owned inactive host.
-    public sealed class CharacterGroundBoostTransitionTests
+    public sealed class CharacterGroundBoostTransitionTests : OwnedGraphNamesFixture
     {
+        public CharacterGroundBoostTransitionTests() : base("Lucid-ground-") { }
+
         private static string Name() => "Lucid-ground-" + Guid.NewGuid().ToString("N");
 
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);

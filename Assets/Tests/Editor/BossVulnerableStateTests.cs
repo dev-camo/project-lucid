@@ -19,8 +19,10 @@ namespace ProjectLucid.Tests
     // owned inactive hosts; Boss.SetActiveHomingTarget flips their game objects, which is what the cases read.
     // Not covered: the development-only calls that are compiled out of retail; the ability == null early exit of the wind-up state is
     // unreachable because the base update dereferences the same lookup first.
-    public sealed class BossVulnerableStateTests
+    public sealed class BossVulnerableStateTests : OwnedGraphNamesFixture
     {
+        public BossVulnerableStateTests() : base("Lucid-vulnerable-state-") { }
+
         private const ActorAttachPointType LeftClaw = ActorAttachPointType.Boss_Crab_LeftClaw_VulnerablePoint;
         private const ActorAttachPointType RightClaw = ActorAttachPointType.Boss_Crab_RightClaw_VulnerablePoint;
 

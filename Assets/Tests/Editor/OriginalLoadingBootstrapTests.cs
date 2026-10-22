@@ -13,8 +13,10 @@ namespace ProjectLucid.Tests
 {
     // Rebuilt managed boundaries and read-only metadata/IL only. Never construct
     // App or CharacterCustomisationManager, enter real systems, or claim native fault parity.
-    public sealed class OriginalLoadingBootstrapTests
+    public sealed class OriginalLoadingBootstrapTests : OwnedGraphNamesFixture
     {
+        public OriginalLoadingBootstrapTests() : base("Lucid-loading-") { }
+
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public |
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 

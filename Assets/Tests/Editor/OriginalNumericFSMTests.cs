@@ -12,8 +12,10 @@ namespace ProjectLucid.Tests
 {
     // Controlled rebuilt managed/Unity behavior. These cases do not run the
     // shipping native implementation, original services or the authored boot FSM.
-    public class OriginalNumericFSMTests
+    public class OriginalNumericFSMTests : OwnedGraphNamesFixture
     {
+        public OriginalNumericFSMTests() : base("Lucid-numeric-") { }
+
         private static string Name() => "Lucid-numeric-" + Guid.NewGuid().ToString("N");
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);
         private static FSMUser User() => new FSMUser(new FSMStorage(0));

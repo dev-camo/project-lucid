@@ -28,8 +28,10 @@ namespace ProjectLucid.Tests
     // manager's transporter octrees (TryGetTransporterHit) and its distance gate, the TriggerRespawn enter, SetupRespawn,
     // RespawnCharacter and the TriggerRespawn iterator, the GamePlayControl and SetCameraProxySettings and StickyControls
     // trigger starts, and the construction of the two states that look their data up by name.
-    public sealed class CharacterTransporterAndTriggerStateTests
+    public sealed class CharacterTransporterAndTriggerStateTests : OwnedGraphNamesFixture
     {
+        public CharacterTransporterAndTriggerStateTests() : base("Lucid-transporter-trigger-") { }
+
         private const BindingFlags AnyStatic = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
         private static string Name() => "Lucid-transporter-trigger-" + Guid.NewGuid().ToString("N");

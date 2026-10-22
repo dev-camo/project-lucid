@@ -22,8 +22,10 @@ namespace ProjectLucid.Tests
     // are not covered by any test: they read the tracker and track manager of the character, and no tracker setup
     // for this ability has been verified here (UpdateJumpRequirement: ucomiss 0.1 > sqr, jbe, at 0x7523ED). Of
     // DoOnUpdate only the trigger ability gate (0x7527C5..0x7527CC) is covered.
-    public sealed class CharacterRailAbilityTests
+    public sealed class CharacterRailAbilityTests : OwnedGraphNamesFixture
     {
+        public CharacterRailAbilityTests() : base("Lucid-rail-") { }
+
         private const float Tolerance = 1e-5f;
 
         private static string Name() => "Lucid-rail-" + Guid.NewGuid().ToString("N");

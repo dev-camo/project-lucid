@@ -20,8 +20,10 @@ namespace ProjectLucid.Tests
     // 0x6B99D0..0x6B9D17), TriggerCascade (0x02000a37, 0x6B82E0..0x6B8367), TriggerUITransition
     // (0x0200044d, 0x7A65D0..0x7A68F7) and Transition_Ability (0x02000409, 0x78EAC0..0x78EAF0 with
     // 0x0200040a). The hooks are called directly; Edit Mode sends no Awake or OnEnable.
-    public sealed class OriginalTriggerEventComponentTests
+    public sealed class OriginalTriggerEventComponentTests : OwnedGraphNamesFixture
     {
+        public OriginalTriggerEventComponentTests() : base("Lucid-transition-ability-") { }
+
         private static readonly Type ParametersType = typeof(UnityEventTrigger).GetNestedType("UnityEventParameters", BindingFlags.NonPublic);
 
         private static UnityEvent Logged(List<string> log, string label)

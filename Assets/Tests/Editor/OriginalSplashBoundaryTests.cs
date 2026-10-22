@@ -11,8 +11,10 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace ProjectLucid.Tests
 {
-    public sealed class OriginalSplashBoundaryTests
+    public sealed class OriginalSplashBoundaryTests : OwnedGraphNamesFixture
     {
+        public OriginalSplashBoundaryTests() : base("Lucid-splash-owned-") { }
+
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public |
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 

@@ -12,8 +12,10 @@ namespace ProjectLucid.Tests
 {
     // Live scheduling of a synthetic graph through the original component and
     // reflection factory. Authored scenes and full-game acceptance are separate.
-    public sealed class FSMComponentTests
+    public sealed class FSMComponentTests : OwnedGraphNamesPlayFixture
     {
+        public FSMComponentTests() : base("Lucid-live-", "Lucid-fsm-row-order-") { }
+
         [UnityTest]
         public IEnumerator OriginalFSMComponents_EmbeddedStartDispatchAndLifecycle() => EmbeddedStartDispatchAndLifecycle(null, null);
 

@@ -17,8 +17,10 @@ namespace ProjectLucid.Tests
     // FSMTransition.DoUpdate always returns false, so the base-exit branch cannot be reached here.
     // GetValue(key, default, true) stores the default on a miss, so a key that stays absent
     // after an update shows the body never read it.
-    public sealed class OriginalCharacterExitTransitionTests
+    public sealed class OriginalCharacterExitTransitionTests : OwnedGraphNamesFixture
     {
+        public OriginalCharacterExitTransitionTests() : base("Lucid-exit-") { }
+
         private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
         // 06001703 (0x78F430): a null cached ability exits (0x78F561 je to the epilogue with

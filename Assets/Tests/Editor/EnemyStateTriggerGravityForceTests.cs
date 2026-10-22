@@ -14,8 +14,10 @@ namespace ProjectLucid.Tests
     // The enemy gravity force trigger state. Expected values come from the 1.10.1 x86-64 bodies cited per test; the
     // state is built through its own ConstructInstance and entered with a real Enemy whose SimplifiedBody records the
     // request (the body keeps the flag only when its authored CanBeEnabled switch allows it).
-    public sealed class EnemyStateTriggerGravityForceTests
+    public sealed class EnemyStateTriggerGravityForceTests : OwnedGraphNamesFixture
     {
+        public EnemyStateTriggerGravityForceTests() : base("Lucid-enemy-") { }
+
         private static IFSMState Build(string json) =>
             EnemyState_TriggerGravityForce.ConstructInstance(NewFsm(), new FSMIdentifier(Name()), json);
 

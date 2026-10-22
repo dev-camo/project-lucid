@@ -401,6 +401,7 @@ namespace ProjectLucid.Tests
                     Animator animator = prefabHost.AddComponent<Animator>();
                     var controller = owned.Track(new AnimatorController());
                     controller.AddLayer("Base");
+                    owned.Track(controller.layers[0].stateMachine);
                     controller.AddParameter("Vision", AnimatorControllerParameterType.Bool);
                     animator.runtimeAnimatorController = controller;
                     rig.Prefab = prefabHost.AddComponent<AnimatedTargetIndicator>();

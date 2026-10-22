@@ -31,8 +31,10 @@ namespace ProjectLucid.Tests
     // override (it needs a FullscreenShaderManager with a shader material). The tests of the camera, character camera,
     // cutscene and screen controls trigger states, the crash report and load-time systems states and the post-level-load
     // reset state follow with the contributor's restorations of those types.
-    public sealed class GenericTriggerStateTests
+    public sealed class GenericTriggerStateTests : OwnedGraphNamesFixture
     {
+        public GenericTriggerStateTests() : base("Lucid-trigger-node-") { }
+
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
         private const int DefaultStart = 10, RailStart = 20;
 

@@ -10,8 +10,10 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace ProjectLucid.Tests
 {
-    public sealed class OriginalApplicationReadinessTests
+    public sealed class OriginalApplicationReadinessTests : OwnedGraphNamesFixture
     {
+        public OriginalApplicationReadinessTests() : base("Lucid-app-readiness-") { }
+
         private const BindingFlags Declared = BindingFlags.DeclaredOnly | BindingFlags.Public |
             BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
 

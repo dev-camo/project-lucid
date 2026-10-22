@@ -19,8 +19,10 @@ namespace ProjectLucid.Tests
     // x86-64 bodies cited per test. The enter, update and leave bodies run their bases first, and those reach the
     // camera, form, stamina and animation graphs of a started Character, so they are checked as call sequences read from
     // the compiled IL; the bodies that can run on their own (the jump impulse, the dash proxy and target helpers) run.
-    public sealed class CharacterJumpLedgeStateTests
+    public sealed class CharacterJumpLedgeStateTests : OwnedGraphNamesFixture
     {
+        public CharacterJumpLedgeStateTests() : base("Lucid-jump-", "Lucid-state-") { }
+
         private static FiniteStateMachine Machine() => new FiniteStateMachine("Lucid-jump-" + Guid.NewGuid().ToString("N"), skipAddToManager: true);
 
         private static IFSMState NewState(string node, string json) =>

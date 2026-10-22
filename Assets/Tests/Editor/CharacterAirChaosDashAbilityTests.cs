@@ -237,21 +237,29 @@ namespace ProjectLucid.Tests
         // ---- DoOnEnter (06001065, 0x741F90) ----
 
         // 0x742041..0x7420d9: the ability subscribes its position snap to the static trigger event, so raising the
-        // event levels the character. The static field is put back afterwards.
+        // ability's handler levels the character. Its subscription is removed afterwards; other subscribers are left alone.
         [Test]
         public void DoOnEnterSubscribesThePositionSnapToTheTriggerEvent()
         {
             WithDash((owned, character, ability, definition) =>
             {
                 FieldInfo snap = typeof(RigidbodyForceTrigger).GetField("OnCharacterPositionSnap", BindingFlags.Static | BindingFlags.Public);
-                Action prior = (Action)snap.GetValue(null);
-                owned.Lease(new ReleaseAction(() => snap.SetValue(null, prior)));
+                // Only the ability's own subscription is removed afterwards, and only it is raised below: any other
+                // subscriber of the static event is borrowed, and its callbacks have side effects the test cannot undo.
+                owned.Lease(new ReleaseAction(() =>
+                {
+                    var now = (Action)snap.GetValue(null);
+                    foreach (Delegate handler in now?.GetInvocationList() ?? new Delegate[0])
+                        if (ReferenceEquals(handler.Target, ability)) now -= (Action)handler;
+                    snap.SetValue(null, now);
+                }));
                 character.SetWorldRotation(Quaternion.LookRotation(new Vector3(1f, 1f, 0f).normalized, Vector3.up));
                 Call(ability, "DoOnEnter");
                 var current = (Action)snap.GetValue(null);
                 Assert.That(current, Is.Not.Null);
                 Assert.That(current.GetInvocationList(), Has.Exactly(1).Matches<Delegate>(d => ReferenceEquals(d.Target, ability) && d.Method.Name == "OnCharacterPositionSnap"));
-                current();
+                foreach (Delegate handler in current.GetInvocationList())
+                    if (ReferenceEquals(handler.Target, ability)) ((Action)handler)();
                 Assert.That(character.ForwardDirection, Is.EqualTo(new Vector3(1f, 0f, 0f)).Using(Vec));
             });
         }

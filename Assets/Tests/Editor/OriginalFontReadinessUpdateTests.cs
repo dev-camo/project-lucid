@@ -12,8 +12,10 @@ namespace ProjectLucid.Tests
     // ApplicationTransitionFontsReady.DoUpdate 0x0600084d, x86-64 0x663500, against
     // an owned inactive App in an owned registry row. App.Awake never runs, so the
     // only construction effects are its field initialisers' two reference rows.
-    public sealed class OriginalFontReadinessUpdateTests
+    public sealed class OriginalFontReadinessUpdateTests : OwnedGraphNamesFixture
     {
+        public OriginalFontReadinessUpdateTests() : base("Lucid-font-readiness-update-") { }
+
         // GetSystemRef<App> 0x663583; Storage.GetValue<bool>(FontsFallbackPreloadReady
         // static +0x350, false, true) 0x66365e; App re-read 0x663671; GetValue<bool>
         // (FontsChangeLanguageReady +0x360, false, true) 0x66371e; `and al, r14b`

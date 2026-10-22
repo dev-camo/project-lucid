@@ -23,8 +23,10 @@ namespace ProjectLucid.Tests
     // and the FSM node are built by their real constructors. The scene is far from the world origin so rays and
     // bounds only meet the fixture. Gravity points along -z, so the horizontal floors the fixtures build count as
     // climbable surfaces (their normal is perpendicular to gravity) and local z is the climb direction.
-    public sealed class CharacterClimbingStateTests
+    public sealed class CharacterClimbingStateTests : OwnedGraphNamesFixture
     {
+        public CharacterClimbingStateTests() : base("Lucid-climb-") { }
+
         private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Vector3 Origin = new Vector3(50f, 50f, 50f);
 
@@ -571,6 +573,7 @@ namespace ProjectLucid.Tests
                 var animator = scene.Objects.Create("animator").AddComponent<Animator>();
                 var controller = scene.Objects.Own(new AnimatorController());
                 controller.AddLayer("Base");
+                scene.Objects.Own(controller.layers[0].stateMachine);
                 controller.AddParameter("ClimbX", AnimatorControllerParameterType.Float);
                 controller.AddParameter("ClimbY", AnimatorControllerParameterType.Float);
                 animator.runtimeAnimatorController = controller;

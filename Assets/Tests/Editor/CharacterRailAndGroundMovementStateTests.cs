@@ -30,8 +30,10 @@ namespace ProjectLucid.Tests
     // (0xE767F6, jbe) and attach speed floor (0xE76972, maxss), the RailMovement update on-rail conjunction
     // (0xE76FE4..0xE77344), the RailMovement leave snap (0xE778B6, snap == distanceFromEnd means no snap) and the
     // RailSwitch state update (0x77EFC3, elapsed == duration resumes).
-    public sealed class CharacterRailAndGroundMovementStateTests
+    public sealed class CharacterRailAndGroundMovementStateTests : OwnedGraphNamesFixture
     {
+        public CharacterRailAndGroundMovementStateTests() : base("Lucid-char-moves-06-") { }
+
         private static readonly Type StandingType = typeof(CharacterState_RailMovement<CharacterAbility_MovementRailStanding, CharacterAbilityDefinition_MovementRailStanding>);
 
         private static string Name() => "Lucid-char-moves-06-" + Guid.NewGuid().ToString("N");

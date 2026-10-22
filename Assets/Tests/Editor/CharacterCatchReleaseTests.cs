@@ -33,8 +33,10 @@ namespace ProjectLucid.Tests
     // own, and the blocked exit. Still needs a started Character (PlayMode): the unblocked DoTriggerExit as a
     // whole, that is the two calls in order with the ControlsEnabled and Override modifier overrides and the
     // AirDecelerationDisabled store that follow them (0x744706..0x744889).
-    public sealed class CharacterCatchReleaseTests
+    public sealed class CharacterCatchReleaseTests : OwnedGraphNamesFixture
     {
+        public CharacterCatchReleaseTests() : base("Lucid-catch-") { }
+
         private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
         // Far from anything a scene may hold, so rays and bounds only meet the fixture.

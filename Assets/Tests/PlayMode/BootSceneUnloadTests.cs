@@ -9,8 +9,10 @@ using UnityEngine.TestTools;
 
 namespace ProjectLucid.Tests
 {
-    public class BootSceneUnloadTests
+    public class BootSceneUnloadTests : OwnedGraphNamesPlayFixture
     {
+        public BootSceneUnloadTests() : base("ProjectLucid-Unload-live-") { }
+
         private sealed class ThrowingUser : IGraphUser
         {
             public IGraphStorage Storage => throw new InvalidOperationException("original unload should not read user storage");

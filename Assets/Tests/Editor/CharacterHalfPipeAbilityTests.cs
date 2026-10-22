@@ -20,8 +20,10 @@ namespace ProjectLucid.Tests
     // The half pipe air and transfer abilities and the half pipe air state. Expected values come from the 1.10.1
     // x86-64 bodies cited per test. Bodies that need a started Character (the state updates and entries, whose
     // bases reach the camera, form and stamina graphs) are checked as call sequences read from the compiled IL.
-    public sealed class CharacterHalfPipeAbilityTests
+    public sealed class CharacterHalfPipeAbilityTests : OwnedGraphNamesFixture
     {
+        public CharacterHalfPipeAbilityTests() : base("Lucid-halfpipe-", "Lucid-state-") { }
+
         private static Motion MotionWith(float ascending, float descending) => new Motion
         {
             Gravity = new CharacterAbilityDefinition_HalfPipe.HalfPipeGravity

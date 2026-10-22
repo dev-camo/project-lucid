@@ -17,8 +17,11 @@ namespace ProjectLucid.Tests
     // CachedCharacterFSMValueBool (0x0200074d). An asset's OnEnable runs when it is created, so each
     // case creates its assets inside TriggerConditionTestSupport.Run, after the static CharacterManager
     // reference has been replaced; its subscriptions then land on the case's own reference and manager.
-    public sealed class OriginalCachedTriggerConditionTests
+    public sealed class OriginalCachedTriggerConditionTests : OwnedGraphNamesFixture
     {
+        // The synthetic LucidCachedFlag storage key registers its name in GraphNameLookup.
+        public OriginalCachedTriggerConditionTests() : base("LucidCachedFlag") { }
+
         private static void AssertType(Type type, int typeFlags, Type baseType, int[] options,
             (string name, int flags)[] fields, (string name, int flags)[] methods)
         {

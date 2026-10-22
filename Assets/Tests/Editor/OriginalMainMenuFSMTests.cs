@@ -14,8 +14,10 @@ namespace ProjectLucid.Tests
 {
     // Owned rebuilt-managed boundaries only. No SaveManager, App, AudioManager,
     // UIManager, camera or Addressables operation is constructed or invoked.
-    public class OriginalMainMenuFSMTests
+    public class OriginalMainMenuFSMTests : OwnedGraphNamesFixture
     {
+        public OriginalMainMenuFSMTests() : base("Lucid-mainmenu-") { }
+
         private static string Name() => "Lucid-mainmenu-" + Guid.NewGuid().ToString("N");
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);
         private static FSMUser User() => new FSMUser(new FSMStorage(0));

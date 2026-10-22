@@ -18,8 +18,10 @@ namespace ProjectLucid.Tests
     // built from its JSON through the node factory and updated against a real Boss on an owned inactive host. The boss
     // gets the FSM storage Actor.Awake would create (an inactive host runs no Awake); its attach points are the real
     // BossBodyComponents records, initialised and hit through their own methods.
-    public sealed class BossTransitionTests
+    public sealed class BossTransitionTests : OwnedGraphNamesFixture
     {
+        public BossTransitionTests() : base("Lucid-boss-transition-") { }
+
         // Fixture values, not original constants: any two distinct ability types work for a boss that owns its dictionary.
         private const ActorAbilityType ConfiguredAbility = (ActorAbilityType)0x4C554346;
         private const ActorAbilityType OtherAbility = (ActorAbilityType)0x4C554347;

@@ -29,8 +29,10 @@ namespace ProjectLucid.Tests
     // faces (sin a, 0, cos a); the literals below are those values.
     // Not covered: the Actor animation callbacks of the effect base (they return early until the Actor is initialised, which needs
     // a started Actor).
-    public sealed class BossMovementAndTurnStateTests
+    public sealed class BossMovementAndTurnStateTests : OwnedGraphNamesFixture
     {
+        public BossMovementAndTurnStateTests() : base("Lucid-boss-movement-state-") { }
+
         // Fixture values, not original constants: any key works for a boss that owns its ability dictionary.
         private const ActorAbilityType StateAbility = (ActorAbilityType)0x4C554348;
 
@@ -92,6 +94,7 @@ namespace ProjectLucid.Tests
             var animator = owned.Host("Lucid boss state animator", true).AddComponent<Animator>();
             var controller = owned.Track(new AnimatorController());
             controller.AddLayer("Base");
+            owned.Track(controller.layers[0].stateMachine);
             foreach (string name in bools) controller.AddParameter(name, AnimatorControllerParameterType.Bool);
             foreach (string name in floats) controller.AddParameter(name, AnimatorControllerParameterType.Float);
             animator.runtimeAnimatorController = controller;

@@ -19,8 +19,10 @@ namespace ProjectLucid.Tests
     // the user's FSM storage. Not covered: Play's start of a cutscene, the IsPlaying == true row of the transition, and the
     // load or unload of a loaded scene (all need the Addressables-backed cutscene and scene loading), and the Cleanup
     // state (it plays audio through a live AudioManager and toggles the GUICameraManager singleton's cameras).
-    public sealed class CutsceneTheatreFsmNodeTests
+    public sealed class CutsceneTheatreFsmNodeTests : OwnedGraphNamesFixture
     {
+        public CutsceneTheatreFsmNodeTests() : base("Lucid-theatre-node-") { }
+
         private static readonly FSMUpdateContext s_context = new FSMUpdateContext(0.25f, FSMUpdateType.Manual);
 
         private sealed class Scene

@@ -18,8 +18,10 @@ namespace ProjectLucid.Tests
     // with their shared base, ledge buffer end, and the lightspeed dash entry and exit. Expected values come from the
     // 1.10.1 x86-64 bodies cited per test; each transition is built from its JSON through the node factory and
     // updated against a real Character on an owned inactive host.
-    public sealed class CharacterJumpLedgeTransitionTests
+    public sealed class CharacterJumpLedgeTransitionTests : OwnedGraphNamesFixture
     {
+        public CharacterJumpLedgeTransitionTests() : base("Lucid-transition-") { }
+
         private static string Name() => "Lucid-transition-" + Guid.NewGuid().ToString("N");
 
         private static IFSMTransition Build(string node, string json) =>

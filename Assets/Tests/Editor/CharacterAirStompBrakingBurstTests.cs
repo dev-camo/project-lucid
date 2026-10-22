@@ -18,8 +18,10 @@ namespace ProjectLucid.Tests
     // fully started Character (ground contact, stamina, physics) cannot run here without
     // fakes, so those are checked as call sequences read from the compiled IL; each such test
     // says which native order or omission it witnesses.
-    public sealed class CharacterAirStompBrakingBurstTests
+    public sealed class CharacterAirStompBrakingBurstTests : OwnedGraphNamesFixture
     {
+        public CharacterAirStompBrakingBurstTests() : base("Lucid-burst-") { }
+
         private const BindingFlags Members = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
         private const BindingFlags Declared = Members | BindingFlags.DeclaredOnly;
 

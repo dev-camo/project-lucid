@@ -10,8 +10,10 @@ namespace ProjectLucid.Tests
 {
     // Discriminating companions to OriginalMainMenuFSMTests. Owned machines only;
     // no audio, UI, save or App boundary is constructed or entered.
-    public class OriginalMainMenuFSMWeakRemediationTests
+    public class OriginalMainMenuFSMWeakRemediationTests : OwnedGraphNamesFixture
     {
+        public OriginalMainMenuFSMWeakRemediationTests() : base("Lucid-mainmenu-") { }
+
         private static string Name() => "Lucid-mainmenu-" + Guid.NewGuid().ToString("N");
 
         // 0x060006fa at x86-64 0x64ef60 parses Clip (args+0x10) at 0x64efde before

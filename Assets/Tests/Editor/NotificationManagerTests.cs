@@ -21,8 +21,10 @@ namespace ProjectLucid.Tests
     // OnApplicationFocus), which goes through the HLNotifications singleton, the challenge-refresh timer and
     // AreChallengesUnlocked, which need a live ChallengeManager, and Grant/RetractPermission, which register with or cancel
     // through that singleton.
-    public sealed class NotificationManagerTests
+    public sealed class NotificationManagerTests : OwnedGraphNamesFixture
     {
+        public NotificationManagerTests() : base("Lucid-notification-node-") { }
+
         private static readonly FSMUpdateContext s_context = new FSMUpdateContext(0.25f, FSMUpdateType.Manual);
 
         private sealed class Scene

@@ -20,8 +20,10 @@ namespace ProjectLucid.Tests
     // Not covered: the same states driven by a started Enemy (Enemy.Initialise needs the data manager's definitions and
     // an FSM asset), and the Debug.DrawLine call at the end of SetMovementImpulseForDestination (0x572413), which has
     // no observable result.
-    public sealed class EnemyBrainStateTests
+    public sealed class EnemyBrainStateTests : OwnedGraphNamesFixture
     {
+        public EnemyBrainStateTests() : base("Lucid-enemy-brain-") { }
+
         private static readonly string[] ConcreteStates =
         {
             nameof(EnemyBrainState_Attack), nameof(EnemyBrainState_CueTargetSpottedReaction), nameof(EnemyBrainState_Idle),
