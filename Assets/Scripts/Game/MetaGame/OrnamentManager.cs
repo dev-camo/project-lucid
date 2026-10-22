@@ -14,6 +14,22 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class OrnamentManager : ISystem, ISaveGameListener
     {
+        // Declared first in the original: the generated name <>c__DisplayClass46_0 counts it.
+        // Original020006e0/0600252f..30: no extra Seen condition is introduced.
+        public readonly struct OrnamentStatus
+        {
+            public readonly bool Unlocked;
+            public readonly bool Seen;
+            public readonly bool Collected;
+            public OrnamentStatus(bool unlocked, bool seen, bool collected)
+            {
+                Unlocked = unlocked;
+                Seen = seen;
+                Collected = collected;
+            }
+            public bool IsAvailable() => Unlocked && Collected;
+        }
+
         private DataManager m_dataManager;
         private SaveManager m_saveManager;
         private AchievementsManager m_achievementsManager;
@@ -311,21 +327,6 @@ namespace HardlightProject
                 foreach (var (identifier, status) in collection)
                     if (status.IsAvailable() && !status.Seen) ++count;
             return count;
-        }
-
-        // Original020006e0/0600252f..30: no extra Seen condition is introduced.
-        public readonly struct OrnamentStatus
-        {
-            public readonly bool Unlocked;
-            public readonly bool Seen;
-            public readonly bool Collected;
-            public OrnamentStatus(bool unlocked, bool seen, bool collected)
-            {
-                Unlocked = unlocked;
-                Seen = seen;
-                Collected = collected;
-            }
-            public bool IsAvailable() => Unlocked && Collected;
         }
     }
 }
