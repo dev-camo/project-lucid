@@ -19,10 +19,10 @@ namespace HardlightProject
 		[Il2CppSetOption(Option.NullChecks, false)]
 		protected class JSONCtorArgs
 		{
-			public bool NoneInMotionCausesTransition;
+			public bool NoneInMotionCausesTransition = true;
 
 			public float AdditionalPauseSeconds;
-			// 06000c5a (1.10.1 RVA 0x70EEC0): implicit constructor.
+			// 06000c5a (1.10.1 RVA 0x70EEC0): the field initialiser stores 1 into NoneInMotionCausesTransition.
 		}
 
 		private readonly bool m_noneInMotionCausesTransition;

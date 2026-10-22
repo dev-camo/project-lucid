@@ -8,6 +8,8 @@ namespace Hardlight
 	{
 		public override void InternalSetDevelopmentBuild(bool isDevelopmentBuild)
 		{
+			// 06000a94 (1.10.1 RVA 0x1B03D80): the flag is ignored; the platform is reported as an error.
+			HLOutput.LogError(string.Format("Native logging is not supported in platform {0}.", UnityEngine.Application.platform));
 		}
 
 		public override void InternalTestNativeLogError()

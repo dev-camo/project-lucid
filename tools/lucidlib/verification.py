@@ -7263,6 +7263,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.BossMovementAndTurnStateTests." + na
     "ShootLasersLeaveSwitchesTheLasersOffEvenWhileTheFenceIsDisabled",
     "ShootLasersAimsAtTheNextBossAndShapesTheHazardFromTheFence",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFidelityGapTests." + name for name in (
+    "PlayIntroSequencesArgsDefaultTheControlsDelayToATenthOfASecond",
+    "BossesInMotionArgsDefaultToNoneInMotionCausingTheTransition",
+    "UnsupportedPluginReportsThePlatformWhateverTheDevelopmentFlag",
+    "ModuleInfoInterfaceMatchesTheShippedDeclaration",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.AnimatorSetBossStorageBoolTests." + name for name in (
     "EntryResolvesTheBossAndStoresTheEntryValueUnderTheNamedKey",
     "TheFirstEntryBuildsBothKeysAndLaterEntriesKeepThem",

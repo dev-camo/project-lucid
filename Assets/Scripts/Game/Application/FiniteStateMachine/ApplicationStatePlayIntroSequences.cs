@@ -27,7 +27,7 @@ namespace HardlightProject
 			[GraphUnityObject(typeof(UIContainerIdentifier))]
 			public List<string> DoNotCloseContainers;
 
-			public float ControlsDelayTime;
+			public float ControlsDelayTime = 0.1f;
 
 			// 06000707 (1.10.1 RVA 0x650C80)
 			public JSONCtorArgs()
