@@ -51,7 +51,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Containers.Open.Add(rig.LevelSelect);
 
-                Call(rig.Container, "OnEnable");
+                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(rig.Container.CanShowCreditsButton.Value, Is.True);
             });
@@ -65,7 +65,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Containers.Open.Add(rig.MainMenu);
 
-                Call(rig.Container, "OnEnable");
+                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(rig.Container.CanShowCreditsButton.Value, Is.True);
             });
@@ -79,7 +79,7 @@ namespace ProjectLucid.Tests
                 rig.Containers.Open.Add(rig.LevelSelect);
                 rig.Containers.Open.Add(rig.MainMenu);
 
-                Call(rig.Container, "OnEnable");
+                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(rig.Container.CanShowCreditsButton.Value, Is.True);
             });
@@ -94,7 +94,7 @@ namespace ProjectLucid.Tests
                 rig.Containers.Open.Add(rig.Other);
                 rig.Container.CanShowCreditsButton.Value = true;
 
-                Call(rig.Container, "OnEnable");
+                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(rig.Container.CanShowCreditsButton.Value, Is.False);
             });
@@ -110,7 +110,7 @@ namespace ProjectLucid.Tests
                 rig.Containers.Open.Add(rig.LevelSelect);
                 rig.Container.CanShowAnalyticsConsentButton.Value = true;
 
-                Call(rig.Container, "OnEnable");
+                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(rig.Container.CanShowAnalyticsConsentButton.Value, Is.False);
                 Assert.That(rig.Container.CanShowCreditsButton.Value, Is.True);

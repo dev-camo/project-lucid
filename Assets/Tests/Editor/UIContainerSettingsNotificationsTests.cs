@@ -18,6 +18,7 @@ namespace ProjectLucid.Tests
     // (its Awake would register a system row) and removed afterwards.
     public sealed class UIContainerSettingsNotificationsTests
     {
+        // Reflection: MonoSingleton<T>.Instance has a private setter that the component's Awake calls; its Awake would register a system row.
         private static readonly MethodInfo SetNotificationsInstance =
             typeof(MonoSingleton<HLNotifications>).GetProperty("Instance").GetSetMethod(true);
 
@@ -38,14 +39,15 @@ namespace ProjectLucid.Tests
             var rig = new Rig();
             SaveManager save = ProcessManager.GetSystem<SaveManager>();
             // The original assigns both while opening a save from the property store.
+            // Reflection: SaveManager.OnPropertyStoreLoad (0x06002d22) is private and needs a loaded property store; it assigns both.
             Set(save, "m_saveAnalytics", new SaveDataAnalytics());
             rig.Saved = new SaveDataNotifications();
             rig.Saved.Initialise();
             rig.Saved.NotificationsPermitted = permitted;
-            Set(save, "m_saveDataNotifications", rig.Saved);
+            Set(save, "m_saveDataNotifications", rig.Saved); // Reflection: SaveManager.OnPropertyStoreLoad (0x06002d22) assigns it; see the m_saveAnalytics write above
 
             var notifications = owned.Host("Lucid notifications singleton", false).AddComponent<HLNotifications>();
-            SetNotificationsInstance.Invoke(null, new object[] { notifications });
+            SetNotificationsInstance.Invoke(null, new object[] { notifications }); // Reflection: private singleton setter, see SetNotificationsInstance
             owned.Lease(new ReleaseAction(() => SetNotificationsInstance.Invoke(null, new object[] { null })));
 
             rig.Manager = owned.Host("Lucid notification manager", false).AddComponent<NotificationManager>();
@@ -69,7 +71,7 @@ namespace ProjectLucid.Tests
             {
                 Assert.That(rig.Toggle.isOn, Is.False);
 
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.Toggle.isOn, Is.True);
                 Assert.That(rig.Changes, Is.Empty);
@@ -83,7 +85,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Toggle.SetIsOnWithoutNotify(true);
 
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.Toggle.isOn, Is.False);
                 Assert.That(rig.Changes, Is.Empty);

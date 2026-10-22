@@ -27,7 +27,7 @@ namespace ProjectLucid.Tests
         internal static UIWidgetToggleSaveData NewSaveToggle(Owned owned, Strings playTimeString = PlayTimeString)
         {
             var widget = owned.Host("Lucid save data toggle", false).AddComponent<UIWidgetToggleSaveData>();
-            Call(widget, "Reset");
+            Call(widget, "Reset"); // Reflection: the editor's Reset is private and Edit Mode does not send it
             Set(widget, "m_playTimeStringId", playTimeString); // serialized in the original
             return widget;
         }

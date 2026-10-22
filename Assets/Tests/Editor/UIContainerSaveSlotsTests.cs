@@ -104,7 +104,7 @@ namespace ProjectLucid.Tests
             {
                 OpenSlot(slots, 1);
 
-                Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
+                Call(slots.Container, "OnSaveManagerValid", slots.World.Save); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(Get<int>(slots.Container, "m_selectedSlotIndex"), Is.EqualTo(1));
                 Assert.That(slots.Container.ShowLoading.Value, Is.False);
@@ -124,7 +124,7 @@ namespace ProjectLucid.Tests
                     "\"m_playerStats\":[{\"m_playerStatType\":0,\"m_playerStatCounter\":61000}]}";
                 OpenSlot(slots, 1);
 
-                Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
+                Call(slots.Container, "OnSaveManagerValid", slots.World.Save); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(slots.Toggles[0].SlotEmpty.Value, Is.False);
                 Assert.That(slots.Toggles[0].NumberOfOrnaments.Value, Is.EqualTo(3));
@@ -149,7 +149,7 @@ namespace ProjectLucid.Tests
             {
                 OpenSlot(slots, 2);
 
-                Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
+                Call(slots.Container, "OnSaveManagerValid", slots.World.Save); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(Array.ConvertAll(slots.Toggles, toggle => toggle.IsSelected()), Is.EqualTo(new[] { false, false, true }));
             });
@@ -163,7 +163,7 @@ namespace ProjectLucid.Tests
             {
                 Assert.That(slots.World.Save.CurrentSaveIndex, Is.EqualTo(-1), "the construction default; no save is open");
 
-                Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
+                Call(slots.Container, "OnSaveManagerValid", slots.World.Save); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(Array.ConvertAll(slots.Toggles, toggle => toggle.IsSelected()), Is.EqualTo(new[] { false, false, false }));
                 Assert.That(Get<int>(slots.Container, "m_selectedSlotIndex"), Is.EqualTo(-1));
@@ -179,7 +179,7 @@ namespace ProjectLucid.Tests
             Run((owned, slots) =>
             {
                 OpenSlot(slots, 2);
-                Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
+                Call(slots.Container, "OnSaveManagerValid", slots.World.Save); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 slots.Toggles[0].Action_OnValueChanged(true);
                 Assert.That(Get<int>(slots.Container, "m_selectedSlotIndex"), Is.EqualTo(0));
@@ -203,7 +203,7 @@ namespace ProjectLucid.Tests
                 OpenSlot(slots, 0);
                 slots.Container.ShowLoading.Value = true;
 
-                Call(slots.Container, "Awake");
+                Call(slots.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(slots.Container.ShowLoading.Value, Is.False);
                 Assert.That(slots.Toggles[0].SlotEmpty.Value, Is.False);
@@ -218,7 +218,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, slots) =>
             {
-                Call(slots.Container, "SetActiveSaveSlotIndex", 2);
+                Call(slots.Container, "SetActiveSaveSlotIndex", 2); // Reflection: private UIContainerSaveSlots.SetActiveSaveSlotIndex
 
                 Assert.That(Get<int>(slots.Container, "m_selectedSlotIndex"), Is.EqualTo(2));
             });
@@ -229,7 +229,7 @@ namespace ProjectLucid.Tests
         public void NavigatingWithoutANavigationManagerDoesNothing()
         {
             Run((owned, slots) =>
-                Assert.DoesNotThrow(() => Call(slots.Container, "TryNavigateToWidget", slots.Toggles[0])));
+                Assert.DoesNotThrow(() => Call(slots.Container, "TryNavigateToWidget", slots.Toggles[0]))); // Reflection: private UIContainerSaveSlots.TryNavigateToWidget
         }
 
         // Action_SelectSave 0x6791C0: ShowLoading is set (0x67921F), StartIsReady is written false (0x6792F3), the toggle's
@@ -248,7 +248,7 @@ namespace ProjectLucid.Tests
                 Set(slots.Container, "m_selectSaveUIEvent", selectSave); // serialized in the original
 
                 OpenSlot(slots, 0);
-                Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
+                Call(slots.Container, "OnSaveManagerValid", slots.World.Save); // Reflection: private callback that InvokeOnValid runs when the system registers
                 slots.Toggles[2].Action_OnValueChanged(true);
 
                 slots.Container.Action_SelectSave();

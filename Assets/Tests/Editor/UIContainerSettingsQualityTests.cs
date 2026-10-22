@@ -29,6 +29,7 @@ namespace ProjectLucid.Tests
     {
         private static readonly Type LevelType = typeof(UIContainerSettingsQuality).GetNestedType("QualityLevel", BindingFlags.NonPublic);
         private static readonly Type MsaaType = typeof(UIContainerSettingsQuality).GetNestedType("MSAASetting", BindingFlags.NonPublic);
+        // Reflection: MonoSingleton<T>.Instance has a private setter that the component's Awake calls; its Awake would register a system row.
         private static readonly MethodInfo SetGuiCameraInstance = typeof(MonoSingleton<GUICameraManager>).GetProperty("Instance").GetSetMethod(true);
 
         private static readonly Dictionary<Strings, string> Texts = new Dictionary<Strings, string>
@@ -58,7 +59,7 @@ namespace ProjectLucid.Tests
             PerformanceProfile profile = owned.Track(ScriptableObject.CreateInstance<PerformanceProfile>());
             Set(profile, "m_guid", guid); // serialized in the original, as are the attributes
             profile.name = name;
-            Set(profile, "m_attributes", new List<PerformanceAttribute>
+            Set(profile, "m_attributes", new List<PerformanceAttribute> // Reflection: serialized m_attributes the editor assigns
             {
                 new PerformanceAttribute { Feature = lockedFeature, Level = locked },
                 new PerformanceAttribute { Feature = freeFeature, Level = free },
@@ -72,8 +73,8 @@ namespace ProjectLucid.Tests
             for (int index = 0; index < levels.Length; index++)
             {
                 object level = Activator.CreateInstance(LevelType);
-                Set(level, "Profile", levels[index].profile);
-                Set(level, "LocalisedName", levels[index].name);
+                Set(level, "Profile", levels[index].profile); // Reflection: serialized Profile the editor assigns
+                Set(level, "LocalisedName", levels[index].name); // Reflection: serialized LocalisedName the editor assigns
                 array.SetValue(level, index);
             }
 
@@ -86,8 +87,8 @@ namespace ProjectLucid.Tests
             for (int index = 0; index < settings.Length; index++)
             {
                 object setting = Activator.CreateInstance(MsaaType);
-                Set(setting, "SampleCount", settings[index].samples);
-                Set(setting, "NameFormat", settings[index].format);
+                Set(setting, "SampleCount", settings[index].samples); // Reflection: serialized SampleCount the editor assigns
+                Set(setting, "NameFormat", settings[index].format); // Reflection: serialized NameFormat the editor assigns
                 array.SetValue(setting, index);
             }
 
@@ -138,10 +139,10 @@ namespace ProjectLucid.Tests
             // Serialized in the original: the device-locked features, the "graphics switching" requirement the profile setter
             // tests, and the render scale of each quality level (the high profile's low level gives 0.5).
             Set(rig.Quality, "m_deviceLockedFeatures", new[] { rig.Locked });
-            Set(rig.Quality, "m_allowGraphicsQualitySwitching",
+            Set(rig.Quality, "m_allowGraphicsQualitySwitching", // Reflection: serialized m_allowGraphicsQualitySwitching the editor assigns
                 new PerformanceAttribute { Feature = switching, Level = PerformanceProfile.QualityLevel.Low });
-            Set(rig.Quality, "m_renderScaleFeatureConfig", rig.RenderScale);
-            Set(rig.Quality, "m_defaultRenderScaleConfigurations", new[]
+            Set(rig.Quality, "m_renderScaleFeatureConfig", rig.RenderScale); // Reflection: serialized m_renderScaleFeatureConfig the editor assigns
+            Set(rig.Quality, "m_defaultRenderScaleConfigurations", new[] // Reflection: serialized m_defaultRenderScaleConfigurations the editor assigns
             {
                 NewRenderScale(PerformanceProfile.QualityLevel.Low, 0.5f),
                 NewRenderScale(PerformanceProfile.QualityLevel.Medium, 0.8f),
@@ -154,7 +155,7 @@ namespace ProjectLucid.Tests
             var gui = owned.Host("Lucid gui camera manager", false).AddComponent<GUICameraManager>();
             Set(gui, "m_menuCamera", rig.MenuCamera); // serialized in the original
             owned.Register(gui);
-            SetGuiCameraInstance.Invoke(null, new object[] { gui });
+            SetGuiCameraInstance.Invoke(null, new object[] { gui }); // Reflection: private singleton setter, see SetGuiCameraInstance
             owned.Lease(new ReleaseAction(() => SetGuiCameraInstance.Invoke(null, new object[] { null })));
 
             // The pipeline is put back before the owned asset is destroyed.
@@ -173,16 +174,16 @@ namespace ProjectLucid.Tests
             rig.Container = owned.Host("Lucid quality page", false).AddComponent<UIContainerSettingsQuality>();
             // Serialized in the original: three levels, four anti-aliasing settings and three sliders.
             Set(rig.Container, "m_qualityLevels_macOS", Levels((rig.Low, Strings.ACT_1), (rig.Medium, Strings.ACT_2), (rig.High, Strings.ACT_3)));
-            Set(rig.Container, "m_msaaSettings", Msaa((1, Strings.LANGUAGE_ENGLISH), (2, Strings.LANGUAGE_ENGLISH_UK),
+            Set(rig.Container, "m_msaaSettings", Msaa((1, Strings.LANGUAGE_ENGLISH), (2, Strings.LANGUAGE_ENGLISH_UK), // Reflection: serialized m_msaaSettings the editor assigns
                 (4, Strings.LANGUAGE_ENGLISH_AUS), (8, Strings.LANGUAGE_FRENCH)));
             rig.QualitySlider = NewSlider(owned, out UIWidgetSDTSlider qualityWidget, 2f, true);
             rig.ResolutionSlider = NewSlider(owned, out UIWidgetSDTSlider resolutionWidget, 1f, false);
             rig.MsaaSlider = NewSlider(owned, out UIWidgetSDTSlider msaaWidget, 3f, true);
-            Set(rig.Container, "m_qualitySlider", qualityWidget);
-            Set(rig.Container, "m_resolutionSlider", resolutionWidget);
-            Set(rig.Container, "m_msaaSlider", msaaWidget);
+            Set(rig.Container, "m_qualitySlider", qualityWidget); // Reflection: serialized m_qualitySlider the editor assigns
+            Set(rig.Container, "m_resolutionSlider", resolutionWidget); // Reflection: serialized m_resolutionSlider the editor assigns
+            Set(rig.Container, "m_msaaSlider", msaaWidget); // Reflection: serialized m_msaaSlider the editor assigns
 
-            if (awake) Call(rig.Container, "Awake");
+            if (awake) Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
             body(owned, rig);
         }));
 
@@ -190,11 +191,11 @@ namespace ProjectLucid.Tests
         {
             var configuration = new RenderScaleConfiguration();
             Set(configuration, "m_qualityLevel", level); // serialized in the original
-            Set(configuration, "m_renderScale", scale);
+            Set(configuration, "m_renderScale", scale); // Reflection: serialized m_renderScale the editor assigns
             return configuration;
         }
 
-        private static void SetMsaa(Rig rig, Array settings) => Set(rig.Container, "m_msaaSettings", settings);
+        private static void SetMsaa(Rig rig, Array settings) => Set(rig.Container, "m_msaaSettings", settings); // Reflection: serialized m_msaaSettings the editor assigns
 
         // Awake 0x67DDC0: the page opens on the active performance profile (the medium one, at index 1), the quality manager's
         // render scale and the pipeline's anti-aliasing, and shows them (SetQualityValue 0x67E3F0).
@@ -206,7 +207,7 @@ namespace ProjectLucid.Tests
                 rig.Performance.SetPerformanceProfile(rig.High);
                 rig.Pipeline.msaaSampleCount = 4;
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.QualitySetting.Value, Is.EqualTo(2));
                 Assert.That(rig.Container.QualitySettingName.Value, Is.EqualTo("High text"));
@@ -228,10 +229,10 @@ namespace ProjectLucid.Tests
             {
                 PerformanceProfile twin = NewProfile(owned, "lucid-low", "lucid-twin-profile", PerformanceProfile.QualityLevel.Low,
                     PerformanceProfile.QualityLevel.Low, rig.Locked, rig.Free);
-                Set(rig.Container, "m_qualityLevels_macOS", Levels((rig.Low, Strings.ACT_1), (rig.Medium, Strings.ACT_2), (twin, Strings.ACT_3)));
+                Set(rig.Container, "m_qualityLevels_macOS", Levels((rig.Low, Strings.ACT_1), (rig.Medium, Strings.ACT_2), (twin, Strings.ACT_3))); // Reflection: serialized m_qualityLevels_macOS the editor assigns
                 rig.Performance.SetPerformanceProfile(rig.Low);
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.QualitySetting.Value, Is.EqualTo(0), "not the later level of the same profile");
                 Assert.That(rig.Container.QualitySettingName.Value, Is.EqualTo("Low text"));
@@ -248,7 +249,7 @@ namespace ProjectLucid.Tests
                     PerformanceProfile.QualityLevel.High, rig.Locked, rig.Free);
                 rig.Performance.SetPerformanceProfile(other);
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.QualitySetting.Value, Is.EqualTo(1));
                 Assert.That(rig.Performance.ActiveProfile, Is.SameAs(rig.Medium), "the shown level's profile becomes the active one");
@@ -355,7 +356,7 @@ namespace ProjectLucid.Tests
             {
                 SetMsaa(rig, Msaa((2, Strings.ZONE_1), (2, Strings.ZONE_2), (4, Strings.LANGUAGE_ENGLISH_AUS)));
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.MsaaSettingString.Value, Is.EqualTo("first 2"));
                 Assert.That(rig.MsaaSlider.value, Is.EqualTo(0f));
@@ -371,8 +372,8 @@ namespace ProjectLucid.Tests
                 object setting = Msaa((8, Strings.LANGUAGE_ENGLISH)).GetValue(0);
                 object formatted = Msaa((8, Strings.LANGUAGE_ENGLISH_UK)).GetValue(0);
 
-                Assert.That(Call(setting, "GetLocalisedName"), Is.EqualTo("Off"));
-                Assert.That(Call(formatted, "GetLocalisedName"), Is.EqualTo("8x MSAA"));
+                Assert.That(Call(setting, "GetLocalisedName"), Is.EqualTo("Off")); // Reflection: MSAASetting is a private nested class of UIContainerSettingsQuality
+                Assert.That(Call(formatted, "GetLocalisedName"), Is.EqualTo("8x MSAA")); // Reflection: MSAASetting is a private nested class of UIContainerSettingsQuality
             });
         }
 
@@ -383,7 +384,7 @@ namespace ProjectLucid.Tests
         {
             Run(true, (owned, rig) =>
             {
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(rig.Page.Reported.Sent, Is.False);
                 Assert.That(rig.Page.Settings.PerformanceProfileName, Is.EqualTo("lucid-medium-profile"));
@@ -402,7 +403,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Container.Action_OnQualitySliderUpdated(2f);
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_quality", "1", "2")));
                 Assert.That(rig.Page.Settings.PerformanceProfileName, Is.EqualTo("lucid-high-profile"));
@@ -418,7 +419,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Container.Action_OnResolutionSliderUpdated(0.9f);
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_resolution_scale", "0.7", "0.9")));
                 Assert.That(rig.Quality.GameplayRenderScale, Is.EqualTo(0.9f));
@@ -435,7 +436,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Container.Action_OnMsaaSliderUpdated(2f);
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_anti_aliasing", "2", "4")));
                 Assert.That(rig.Pipeline.msaaSampleCount, Is.EqualTo(4));
@@ -453,7 +454,7 @@ namespace ProjectLucid.Tests
                 rig.Container.Action_OnResolutionSliderUpdated(0.9f);
                 rig.Container.Action_OnMsaaSliderUpdated(3f);
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_anti_aliasing", "2", "8")));
                 Assert.That(rig.Quality.GameplayRenderScale, Is.EqualTo(0.9f));
@@ -470,7 +471,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Performance.SetPerformanceProfile(rig.High);
 
-                Call(rig.Container, "RefreshBinders");
+                Call(rig.Container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsQuality, not reachable from the test
 
                 Assert.That(rig.Container.QualitySetting.Value, Is.EqualTo(2));
                 Assert.That(rig.Container.QualitySettingName.Value, Is.EqualTo("High text"));
@@ -486,7 +487,7 @@ namespace ProjectLucid.Tests
             Run(false, (owned, rig) =>
             {
                 rig.Performance.SetPerformanceProfile(rig.High);
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 rig.Container.Action_OnResolutionSliderUpdated(0.9f);
                 rig.Container.Action_OnMsaaSliderUpdated(0f);
                 rig.Pipeline.renderScale = 0.6f;
