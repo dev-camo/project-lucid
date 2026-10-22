@@ -50,10 +50,10 @@ namespace ProjectLucid.Tests
             GameObject overlayHost = owned.Host("Lucid equip overlay", false);
             rig.OverlayButton = overlayHost.AddComponent<Button>();
             rig.Overlay = overlayHost.AddComponent<UIWidgetButton>();
-            Set(rig.Overlay, "m_uiButton", rig.OverlayButton);
-            Set(rig.Container, "m_buttonOverlay", rig.Overlay);
+            Set(rig.Overlay, "m_uiButton", rig.OverlayButton); // Reflection: serialized m_uiButton the editor assigns
+            Set(rig.Container, "m_buttonOverlay", rig.Overlay); // Reflection: serialized m_buttonOverlay the editor assigns
             rig.ControllerGroup = owned.Host("Lucid equip controller group", false);
-            Set(rig.Container, "m_controllerGroup", rig.ControllerGroup.AddComponent<RectTransform>());
+            Set(rig.Container, "m_controllerGroup", rig.ControllerGroup.AddComponent<RectTransform>()); // Reflection: serialized m_controllerGroup the editor assigns
 
             rig.PowerIcon = NewSprite(owned);
             rig.OtherIcon = NewSprite(owned);
@@ -68,19 +68,19 @@ namespace ProjectLucid.Tests
             body(scene, rig);
         });
 
-        // The scene's active mission: a shipped regular context over a definition for the given archetype. The manager's setter
-        // is private, so the case calls it as the manager's own code does; it is cleared again before the scene is released.
+        // The scene's active mission: a shipped regular context over a definition for the given archetype, published through the
+        // manager's public SetActiveMissionContext (which loads the mission's state); it is cleared again before the scene is released.
         private static void ActivateMission(Scene scene, CharacterArchetype archetype, bool dreamPowersEnabled)
         {
             var mission = scene.Owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
             Set(mission, "m_guid", "lucid-equip-mission"); // Reflection: authored GUID of a serialized definition
             Set(mission, "m_characterArchetype", archetype); // Reflection: authored mission data
             Set(mission, "m_enableDreamPowers", dreamPowersEnabled); // Reflection: authored mission data
+            Set(mission, "m_subMissions", new System.Collections.Generic.List<MissionDefinition>()); // Reflection: authored (empty) list, which LoadMission reads
             var level = scene.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
             Set(level, "m_guid", "lucid-equip-level"); // Reflection: authored GUID of a serialized definition
-            var setter = typeof(MissionManager).GetProperty("ActiveMissionContext").GetSetMethod(true);
-            setter.Invoke(scene.Missions, new object[] { new MissionContextRegular(mission, level, false) });
-            scene.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => setter.Invoke(scene.Missions, new object[] { null })));
+            scene.Missions.SetActiveMissionContext(new MissionContextRegular(mission, level, false));
+            scene.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => scene.Missions.SetActiveMissionContext(null)));
         }
 
         private static void Save(Scene scene, CharacterArchetype archetype, int slot, string guid) =>
@@ -101,7 +101,7 @@ namespace ProjectLucid.Tests
                 Save(scene, CharacterArchetype.Climbing, 0, PowerGuid);
                 rig.OverlayButton.interactable = false;
 
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.Container.Available.Value, Is.True);
                 Assert.That(rig.Container.ShowNewFlag.Value, Is.False);
@@ -132,7 +132,7 @@ namespace ProjectLucid.Tests
                 Save(scene, CharacterArchetype.None, 1, OtherGuid);
                 scene.Save.CurrentSave.DreamPowerStore.IsNewState = DreamPowerStoreIsNewState.IsNew;
 
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.Container.ShowNewFlag.Value, Is.True);
                 Assert.That(rig.Container.ShowArchetype.Value, Is.False);
@@ -157,7 +157,7 @@ namespace ProjectLucid.Tests
                 rig.Container.PowersEnabled.Value = true;
                 rig.ControllerGroup.SetActive(true);
 
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.Container.PowersEnabled.Value, Is.False);
                 Assert.That(rig.OverlayButton.interactable, Is.False);
@@ -176,7 +176,7 @@ namespace ProjectLucid.Tests
             {
                 ActivateMission(scene, CharacterArchetype.None, true);
                 Save(scene, CharacterArchetype.None, 0, PowerGuid);
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 rig.Container.PowersEnabled.Value = false;
 
                 rig.Container.RefreshPowers(CharacterArchetype.Climbing);
@@ -198,8 +198,8 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.None, rig.Power), Is.EqualTo(true));
-                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.Climbing, rig.Power), Is.EqualTo(false));
+                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.None, rig.Power), Is.EqualTo(true)); // Reflection: private UIContainerCharacterSelectEquipDreamPower.ArchetypeAllowsPower
+                Assert.That(Call(rig.Container, "ArchetypeAllowsPower", CharacterArchetype.Climbing, rig.Power), Is.EqualTo(false)); // Reflection: private UIContainerCharacterSelectEquipDreamPower.ArchetypeAllowsPower
             });
         }
 
@@ -209,13 +209,13 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "no loadouts");
+                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "no loadouts"); // Reflection: private UIContainerCharacterSelectEquipDreamPower.IsAnyPowerEquipped
 
                 scene.Save.CurrentSave.GetOrCreateDreamPowerLoadout(CharacterArchetype.Dashing);
-                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "an empty loadout");
+                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(false), "an empty loadout"); // Reflection: private UIContainerCharacterSelectEquipDreamPower.IsAnyPowerEquipped
 
                 Save(scene, CharacterArchetype.Flying, 2, PowerGuid);
-                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(true));
+                Assert.That(Call(rig.Container, "IsAnyPowerEquipped"), Is.EqualTo(true)); // Reflection: private UIContainerCharacterSelectEquipDreamPower.IsAnyPowerEquipped
             });
         }
 
@@ -225,12 +225,12 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"), "nothing was retained");
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"), "nothing was retained"); // Reflection: Unity sends OnDestroy; Edit Mode does not
                 ActivateMission(scene, CharacterArchetype.Climbing, true);
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 Assert.That(Get<int>(rig.Archetype.SilhouetteImage, "m_refCount"), Is.EqualTo(1));
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Get<int>(rig.Archetype.SilhouetteImage, "m_refCount"), Is.Zero);
             });

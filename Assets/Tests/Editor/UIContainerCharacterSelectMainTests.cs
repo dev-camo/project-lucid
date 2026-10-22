@@ -59,8 +59,8 @@ namespace ProjectLucid.Tests
             Set(rig.Container, "m_charactersToggleGroup", rig.Group); // Reflection: serialized references the editor assigns
             Set(rig.Container, "m_continueButton", rig.Continue);
             Set(rig.Container, "m_continueInputEvent", rig.ContinueInput);
-            Set(rig.Container, "m_equipDreamPowerContainer", rig.Equip);
-            Set(rig.Container, "m_openSkinSelectionEvent", rig.OpenSkins);
+            Set(rig.Container, "m_equipDreamPowerContainer", rig.Equip); // Reflection: serialized m_equipDreamPowerContainer the editor assigns
+            Set(rig.Container, "m_openSkinSelectionEvent", rig.OpenSkins); // Reflection: serialized m_openSkinSelectionEvent the editor assigns
             var dictionary = Get<SerializableDictionary<CharacterId, UIWidgetToggle>>(rig.Container, "m_characterIdToGameObject");
             foreach (CharacterId id in toggles)
             {
@@ -101,7 +101,7 @@ namespace ProjectLucid.Tests
                 AddCharacter(scene, CharacterId.Sonic);
                 AddCharacter(scene, CharacterId.Tails);
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(Get<App>(rig.Container, "m_app"), Is.SameAs(scene.App));
                 Assert.That(rig.ContinueButton.interactable, Is.False);
@@ -128,7 +128,7 @@ namespace ProjectLucid.Tests
                 AddCharacter(scene, CharacterId.Tails);
                 Prefer(scene, CharacterId.Amy, CharacterId.Tails, CharacterId.Sonic);
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Tails }));
             }, CharacterId.Sonic, CharacterId.Tails);
@@ -145,9 +145,9 @@ namespace ProjectLucid.Tests
                 AddCharacter(scene, CharacterId.Tails);
                 Prefer(scene, CharacterId.Amy);
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
-                Assert.That(Call(rig.Container, "GetPreferredCharacter"), Is.EqualTo(CharacterId.None));
+                Assert.That(Call(rig.Container, "GetPreferredCharacter"), Is.EqualTo(CharacterId.None)); // Reflection: private UIContainerCharacterSelectMain.GetPreferredCharacter
                 Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Sonic }));
             }, CharacterId.Sonic, CharacterId.Tails);
         }
@@ -158,10 +158,10 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 Assert.That(Subscribed(rig.Container), Is.True);
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Subscribed(rig.Container), Is.False);
             });
@@ -179,10 +179,10 @@ namespace ProjectLucid.Tests
                 Assert.That(Preferences(scene), Is.EqualTo(new[] { CharacterId.Tails }), "no list stored yet");
 
                 Prefer(scene, CharacterId.Sonic, CharacterId.Tails, CharacterId.Amy);
-                Call(rig.Container, "SetPreferredCharacter", CharacterId.Tails);
+                Call(rig.Container, "SetPreferredCharacter", CharacterId.Tails); // Reflection: private UIContainerCharacterSelectMain.SetPreferredCharacter
                 Assert.That(Preferences(scene), Is.EqualTo(new[] { CharacterId.Tails, CharacterId.Sonic, CharacterId.Amy }), "moved, not duplicated");
 
-                Call(rig.Container, "SetPreferredCharacter", CharacterId.Knuckles);
+                Call(rig.Container, "SetPreferredCharacter", CharacterId.Knuckles); // Reflection: private UIContainerCharacterSelectMain.SetPreferredCharacter
                 Assert.That(Preferences(scene), Is.EqualTo(new[] { CharacterId.Knuckles, CharacterId.Tails, CharacterId.Sonic, CharacterId.Amy }));
             });
         }
@@ -218,13 +218,12 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The scene's active mission context. The manager's setter is private, so the case calls it as the manager's own code does;
-        // it is cleared again before the scene is released.
+        // The scene's active mission context, published through the manager's public SetActiveMissionContext (which loads the
+        // mission's state); it is cleared again before the scene is released.
         private static void ActivateContext(Scene scene, IMissionContext context)
         {
-            var setter = typeof(MissionManager).GetProperty("ActiveMissionContext").GetSetMethod(true);
-            setter.Invoke(scene.Missions, new object[] { context });
-            scene.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => setter.Invoke(scene.Missions, new object[] { null })));
+            scene.Missions.SetActiveMissionContext(context);
+            scene.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => scene.Missions.SetActiveMissionContext(null)));
         }
 
         private static MissionDefinition NewMission(Scene scene)
@@ -247,7 +246,7 @@ namespace ProjectLucid.Tests
                 Set(level, "m_guid", "lucid-select-main-level"); // Reflection: authored GUID of a serialized definition
                 ActivateContext(scene, new MissionContextRegular(NewMission(scene), level, false));
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.IsChallengeMode.Value, Is.False);
             });
@@ -259,15 +258,17 @@ namespace ProjectLucid.Tests
             Run((scene, rig) =>
             {
                 var definition = scene.Owned.Track(ScriptableObject.CreateInstance<ChallengeDefinition>());
-                Set(definition, "m_mission", NewMission(scene));
-                Set(definition, "m_level", scene.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>()));
+                Set(definition, "m_mission", NewMission(scene)); // Reflection: serialized m_mission the editor assigns
+                var challengeLevel = scene.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
+                Set(challengeLevel, "m_guid", "lucid-select-main-challenge-level"); // Reflection: authored GUID, which LoadMission keys the level's save data by
+                Set(definition, "m_level", challengeLevel);
                 Set(definition, "m_characterSelection", new CharacterId[0]);
-                Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]);
+                Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]); // Reflection: serialized m_startPositions the editor assigns
                 var state = new ChallengeState(0, definition, 0, null, 0);
                 OwnedStringTable.Run(new Dictionary<Hardlight.Enums.Strings, string> { { (Hardlight.Enums.Strings)0, "Lucid challenge" } },
                     () => ActivateContext(scene, new MissionContextChallenge(state, false)));
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.IsChallengeMode.Value, Is.True);
             });
@@ -306,9 +307,9 @@ namespace ProjectLucid.Tests
                 GameObject overlayHost = owned.Host("Lucid select main equip overlay", false);
                 var overlayButton = overlayHost.AddComponent<Button>();
                 var overlay = overlayHost.AddComponent<UIWidgetButton>();
-                Set(overlay, "m_uiButton", overlayButton);
-                Set(rig.Equip, "m_buttonOverlay", overlay);
-                Set(rig.Equip, "m_controllerGroup", owned.Host("Lucid select main equip group", false).AddComponent<RectTransform>());
+                Set(overlay, "m_uiButton", overlayButton); // Reflection: serialized m_uiButton the editor assigns
+                Set(rig.Equip, "m_buttonOverlay", overlay); // Reflection: serialized m_buttonOverlay the editor assigns
+                Set(rig.Equip, "m_controllerGroup", owned.Host("Lucid select main equip group", false).AddComponent<RectTransform>()); // Reflection: serialized m_controllerGroup the editor assigns
                 DreamPowerDefinition power = NewDefinition(owned, "lucid-select-main-power", Hardlight.Enums.Strings.MISSING, NewSprite(owned));
                 scene.Data.DreamPowerDefinitions["lucid-select-main-power"] = power;
                 scene.Save.CurrentSave.GetOrCreateDreamPowerLoadout(CharacterArchetype.None).Set(0, "lucid-select-main-power");
@@ -383,22 +384,22 @@ namespace ProjectLucid.Tests
             {
                 AddCharacter(scene, CharacterId.Sonic);
                 AddCharacter(scene, CharacterId.Tails);
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Sonic }));
                 rig.Toggles[CharacterId.Sonic].SetSelected(false);
 
                 foreach (InputType pointerOrKey in new[] { InputType.Mouse, InputType.Keyboard, InputType.Touch })
                 {
-                    Call(rig.Container, "OnInputTypeChanged", pointerOrKey);
+                    Call(rig.Container, "OnInputTypeChanged", pointerOrKey); // Reflection: private UIContainerCharacterSelectMain.OnInputTypeChanged
                     Assert.That(Selected(rig), Is.Empty, pointerOrKey.ToString());
                 }
 
-                Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController);
+                Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController); // Reflection: private UIContainerCharacterSelectMain.OnInputTypeChanged
                 Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Sonic }), "nothing was selected");
 
                 rig.Toggles[CharacterId.Sonic].SetSelected(false);
                 rig.Toggles[CharacterId.Tails].SetSelected(true);
-                Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController);
+                Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController); // Reflection: private UIContainerCharacterSelectMain.OnInputTypeChanged
                 Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Tails }), "a selection is kept");
             }, CharacterId.Sonic, CharacterId.Tails);
         }
@@ -411,12 +412,12 @@ namespace ProjectLucid.Tests
             {
                 AddCharacter(scene, CharacterId.Sonic);
                 AddCharacter(scene, CharacterId.Tails);
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 rig.Toggles[CharacterId.Sonic].SetSelected(false);
                 // Reflection: the list GetCharactersForActiveMission fills, written here with a different order than the toggles
                 Set(rig.Container, "m_characterIds", new List<CharacterId> { CharacterId.Tails, CharacterId.Sonic });
 
-                Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController);
+                Call(rig.Container, "OnInputTypeChanged", InputType.DefaultController); // Reflection: private UIContainerCharacterSelectMain.OnInputTypeChanged
 
                 Assert.That(Selected(rig), Is.EqualTo(new[] { CharacterId.Tails }));
             }, CharacterId.Sonic, CharacterId.Tails);
@@ -432,16 +433,16 @@ namespace ProjectLucid.Tests
                 CharacterDefinition none = AddCharacter(scene, CharacterId.Amy);
                 CharacterDefinition basic = AddCharacter(scene, CharacterId.Sonic);
                 CharacterDefinition styled = AddCharacter(scene, CharacterId.Tails);
-                Assert.That(Call(rig.Container, "IsAnyNonDefaultCharacterSkinSelected"), Is.EqualTo(false), "no skins at all");
+                Assert.That(Call(rig.Container, "IsAnyNonDefaultCharacterSkinSelected"), Is.EqualTo(false), "no skins at all"); // Reflection: private UIContainerCharacterSelectMain.IsAnyNonDefaultCharacterSkinSelected
 
                 // Wearing a skin saves the choice, and the save request is refused once by the fixture's coroutine host.
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
                 basic.SetCharacterSkin(NewSkin(scene, "lucid-basic-skin", true));
-                Assert.That(Call(rig.Container, "IsAnyNonDefaultCharacterSkinSelected"), Is.EqualTo(false), "only a default skin");
+                Assert.That(Call(rig.Container, "IsAnyNonDefaultCharacterSkinSelected"), Is.EqualTo(false), "only a default skin"); // Reflection: private UIContainerCharacterSelectMain.IsAnyNonDefaultCharacterSkinSelected
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
                 styled.SetCharacterSkin(NewSkin(scene, "lucid-styled-skin", false));
-                Assert.That(Call(rig.Container, "IsAnyNonDefaultCharacterSkinSelected"), Is.EqualTo(true), "one character wears a skin that is not a default");
+                Assert.That(Call(rig.Container, "IsAnyNonDefaultCharacterSkinSelected"), Is.EqualTo(true), "one character wears a skin that is not a default"); // Reflection: private UIContainerCharacterSelectMain.IsAnyNonDefaultCharacterSkinSelected
                 Assert.That(none.CurrentSkin == null, Is.True);
             });
         }
