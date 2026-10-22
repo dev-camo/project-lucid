@@ -115,7 +115,7 @@ namespace ProjectLucid.Tests
             Set(audio, "m_audioSourceHandler", sources);
             owned.Register(audio);
             HLAudioSfxComponent sfx = owned.Host("Lucid progression sfx", false).AddComponent<HLAudioSfxComponent>();
-            Set(sfx, "m_audioSourceIdentifier", HLAudioSourceIdentifier.Sfx);
+            Set(sfx, "m_audioSourceIdentifier", HLAudioSourceIdentifier.Sfx); // Reflection: serialized m_audioSourceIdentifier the editor assigns
 
             rig.Root = owned.Host("Lucid progression widget root", true).transform;
             rig.Exit = NewEvent(owned);
@@ -124,12 +124,12 @@ namespace ProjectLucid.Tests
             rig.Container = NewContainer<UIContainerPlayerProgression>(owned);
             // Serialized authored references.
             Set(rig.Container, "m_widgetRoot", rig.Root);
-            Set(rig.Container, "m_exitEvent", rig.Exit);
-            Set(rig.Container, "m_exitToMenuEvent", rig.ExitToMenu);
-            Set(rig.Container, "m_alternativeExitToMenuEvent", rig.AlternativeExitToMenu);
-            Set(rig.Container, "m_audioSfx", sfx);
-            Set(rig.Container, "m_firstLevel", world.NewLevel("lucid-progression-first-level", false));
-            Set(rig.Container, "m_maxOrnamentsToShow", maxOrnaments);
+            Set(rig.Container, "m_exitEvent", rig.Exit); // Reflection: serialized m_exitEvent the editor assigns
+            Set(rig.Container, "m_exitToMenuEvent", rig.ExitToMenu); // Reflection: serialized m_exitToMenuEvent the editor assigns
+            Set(rig.Container, "m_alternativeExitToMenuEvent", rig.AlternativeExitToMenu); // Reflection: serialized m_alternativeExitToMenuEvent the editor assigns
+            Set(rig.Container, "m_audioSfx", sfx); // Reflection: serialized m_audioSfx the editor assigns
+            Set(rig.Container, "m_firstLevel", world.NewLevel("lucid-progression-first-level", false)); // Reflection: serialized m_firstLevel the editor assigns
+            Set(rig.Container, "m_maxOrnamentsToShow", maxOrnaments); // Reflection: serialized m_maxOrnamentsToShow the editor assigns
             OwnedStringTable.Run(Texts, () => body(rig));
         });
 
@@ -145,8 +145,8 @@ namespace ProjectLucid.Tests
             animation.AddClip(outgoing, outgoing.name);
             // Serialized authored references.
             Set(widget, "m_animation", animation);
-            Set(widget, "m_animateInClip", incoming);
-            Set(widget, "m_animateOutClip", outgoing);
+            Set(widget, "m_animateInClip", incoming); // Reflection: serialized m_animateInClip the editor assigns
+            Set(widget, "m_animateOutClip", outgoing); // Reflection: serialized m_animateOutClip the editor assigns
             return widget;
         }
 
@@ -197,7 +197,7 @@ namespace ProjectLucid.Tests
                 MissionDefinition mission = rig.World.NewMission("lucid-progression-mission");
                 GameplayLevelDefinition level = rig.World.NewLevel("lucid-progression-level", false,
                     rig.World.NewGroup("lucid-progression-group", mission));
-                Set(rig.Container, "m_firstLevel", level);
+                Set(rig.Container, "m_firstLevel", level); // Reflection: serialized m_firstLevel the editor assigns
 
                 rig.World.SetComplete(level, mission, false);
                 rig.Container.Setup(Pending());
@@ -244,7 +244,7 @@ namespace ProjectLucid.Tests
             foreach (var row in table)
                 WithRig(rig =>
                 {
-                    Set(rig.Container, "m_maxOrnamentsToShow", row.max);
+                    Set(rig.Container, "m_maxOrnamentsToShow", row.max); // Reflection: serialized m_maxOrnamentsToShow the editor assigns
                     var ornaments = new IMetaGameUnlock[4];
                     for (int index = 0; index < ornaments.Length; ++index)
                         ornaments[index] = new Unlock("o" + (index + 1), PlayerProgressionTypes.Ornament, rig.Calls);
@@ -364,7 +364,7 @@ namespace ProjectLucid.Tests
                 rig.Container.Setup(Pending(unlock));
                 Texture marker = rig.Owned.Track(new Texture2D(2, 2));
                 LastClone(rig).MaskedTexture.Value = marker;
-                Call(rig.Container, "<PlayNextProgression>b__24_0", (Texture)null);
+                Call(rig.Container, "<PlayNextProgression>b__24_0", (Texture)null); // Reflection: compiler-generated lambda body, reachable only through reflection
                 Assert.That(LastClone(rig).MaskedTexture.Value, Is.SameAs(marker));
             });
         }
@@ -394,7 +394,7 @@ namespace ProjectLucid.Tests
                 Assert.That(shown, Is.Not.SameAs(first.Widget), "an instance of the widget, not the widget itself");
                 Assert.That(shown.MaskedTexture.Value, Is.SameAs(texture));
                 Assert.That(shown.gameObject.activeSelf, Is.False, "hidden until the next frame");
-                Call(rig.Container, "<PlayNextProgression>b__24_1");
+                Call(rig.Container, "<PlayNextProgression>b__24_1"); // Reflection: compiler-generated lambda body, reachable only through reflection
                 Assert.That(shown.gameObject.activeSelf, Is.True, "the deferred callback shows it");
                 Assert.That(rig.Container.Title.Value, Is.EqualTo("Title A"));
                 Assert.That(rig.Container.Body.Value, Is.EqualTo("Body A"));
@@ -470,9 +470,9 @@ namespace ProjectLucid.Tests
                         { UsesAlternativeExit = alternative };
                     LogAssert.Expect(LogType.Error, RefusedCoroutine);
                     rig.Container.Setup(Pending(first));
-                    Set(rig.Container, "m_currentWidget", null);
+                    Set(rig.Container, "m_currentWidget", null); // Reflection: private reference to the widget being shown, which the container clears itself after destroying it
 
-                    Call(rig.Container, "<Action_AnimateToMenu>b__27_0", (UIWidgetProgression)null);
+                    Call(rig.Container, "<Action_AnimateToMenu>b__27_0", (UIWidgetProgression)null); // Reflection: compiler-generated lambda body, reachable only through reflection
                     Assert.That(rig.Calls, Is.EqualTo(new[] { "a:GetWidget", "a:Texture" }), "alternative " + alternative);
                     Assert.That(rig.App.GetUIModernEvents(),
                         Is.EqualTo(new[] { alternative ? rig.AlternativeExitToMenu : rig.ExitToMenu }), "alternative " + alternative);
