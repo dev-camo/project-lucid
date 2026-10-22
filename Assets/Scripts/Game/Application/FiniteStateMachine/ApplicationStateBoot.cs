@@ -6,9 +6,11 @@
 // Base enter, display setup, store construction/registration/load and GameLevels caching precede scene loading.
 // The original dictionary read follows the load request; present-null storage retains its fault.
 // The scene name and user.Storage are read again at their later original use sites.
+// Hook H-064 (DoOnEnter): see the comment in DoOnEnter. The original code after it is unchanged.
 using System;
 using System.Collections.Generic;
 using Hardlight;
+using ProjectLucid.Offline;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
@@ -48,6 +50,14 @@ namespace HardlightProject
 
         protected override void DoOnEnter(IGraphUser user, FSMStateChangeAction action)
         {
+            // Offline hook H-064: on every desktop target (owner decision D7) the Apple Arcade splash
+            // is skipped even where the prepared s_apple scene has no bound splash player (so H-056
+            // cannot run): once the scene loaded below is in and the graph has left Boot, the adapter
+            // makes the splash player's own listener call, Action_Unload(true) on the scene's
+            // UnloadSceneAfterFirstBoot, and WaitForApple leaves through AppleUnloaded. Then the
+            // original body runs unchanged.
+            if (OfflineAdapters.Active && OfflineDesktopPlatform.IsCurrent)
+                OfflineAppleSplash.Arm(this, user, m_sceneName);
             base.DoOnEnter(user, action);
             if (Application.platform == RuntimePlatform.OSXPlayer)
             {

@@ -10670,13 +10670,17 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsQualityTests." + 
     "TheConstructorBuildsFourSeparateBinders",
 ))
 
-# Offline boot hooks (FairPlay check, cross promotion) and the restored Apple Arcade splash assembly.
+# Offline boot hooks (FairPlay check, cross promotion, the splash skip at Boot) and the restored Apple Arcade splash assembly.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineBootHookTests." + name for name in (
     "TheAdapterSwitchIsOnAndTheVerificationOverrideRestoresIt",
     "FairPlayCheckEntersThroughItsSuccessPathWithoutTheNativeLibrary",
     "FairPlayCheckKeepsTheOriginalRegistrationAfterTheGuard",
     "TheNoContentResourceManagerReportsAFailedDownloadAndNoContent",
     "CrossPromoStartKeepsTheOriginalBodyAfterTheGuard",
+    "BootArmsTheSplashSkipThenKeepsTheOriginalBody",
+    "TheSplashListenerIsTheUnloaderBesideTheVideoPlayer",
+    "TheSplashListenerCallWaitsUntilTheGraphHasLeftBoot",
+    "ArmWaitsForTheNamedSceneAndLeavesTheEventThere",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineCrossPromoHookTests." + name for name in (
     "ColdStartWithLocalStorageStaysDisabledWithoutRequests",
