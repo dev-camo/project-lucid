@@ -37,7 +37,7 @@ namespace HardlightProject
 		// 0600174f (1.10.1 RVA 0x791EA0)
 		protected override bool TargetIsValid(CharacterTargetObjectData targetObject)
 		{
-			return targetObject.Target != null && targetObject.Type == (HomingTargetType)unchecked((int)0x9036F9CA);
+			return targetObject.Target != null && targetObject.Type == HomingTargetType.Rail;
 		}
 	}
 }

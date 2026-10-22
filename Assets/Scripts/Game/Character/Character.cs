@@ -8,13 +8,11 @@ using UnityEngine;
 
 namespace HardlightProject
 {
-    // Original Game.Runtime type020002aa; all89 own fields, with native-derived bodies.
+    // Original Game.Runtime type 0x020002aa; all 89 own fields, with native-derived bodies.
     // Still incomplete: the compiler-generated auto-property accessors in
     // 0x06000eaf..0x06000eee, the OnEnterLevel lambda 0x06000fac, the ClampIfNeeded
     // local function 0x06000fad and the nested <>c and iterator classes are not yet
-    // verified against their original bodies; eleven methods, e.g. Initialise
-    // 0x06000ef2 and TryTakeDamage 0x06000f68, still differ from their original
-    // signatures; and the constant-returning GetTimeCategory 0x06000f57 is unverified.
+    // verified against their original bodies.
     [Il2CppSetOption(Option.NullChecks, false)]
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class Character : Actor, IGameplayModifiable, IDamageable
@@ -2137,13 +2135,13 @@ namespace HardlightProject
             m_swapGapParticle = System.Collections.Generic.CollectionExtensions.GetValueOrDefault(
                 overrides, characterId, defaultSpawner);
             m_swapGapParticle.Spawn();
-            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances(1699736586);
+            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances((int)ActorAbilityType.Character_ModifierSwitchAvailable);
             TriggerAnimationEnter(m_swapOutAnimationDefinition, effects);
         }
         // 06000f9d; ARM712a44. Clear the field only after both completion calls.
         public void StopSwapGapEffects()
         {
-            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances(1699736586);
+            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances((int)ActorAbilityType.Character_ModifierSwitchAvailable);
             TriggerAnimationLeave(m_swapOutAnimationDefinition, effects);
             m_swapGapParticle.StopAndClear();
             m_swapGapParticle = null;
@@ -2154,7 +2152,7 @@ namespace HardlightProject
         {
             Storage.SetValue(ActorFSMKeys.SwapInIsInProgress, true);
             m_switchCooldownTimer = Constants.QuickSwitchCooldownTime;
-            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances(1699736586);
+            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances((int)ActorAbilityType.Character_ModifierSwitchAvailable);
             TriggerAnimationEnter(m_swapInAnimationDefinition, effects);
             m_swapPrepareIsInProgress = true;
         }
@@ -2171,7 +2169,7 @@ namespace HardlightProject
         {
             Storage.RemoveValue<bool>(ActorFSMKeys.SwapInIsInProgress);
             m_customGravity.DisableMaintainLastGravity();
-            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances(1699736586);
+            List<FullscreenShaderManager.ParametersHandle> effects = GetFullscreenEffectHandleInstances((int)ActorAbilityType.Character_ModifierSwitchAvailable);
             TriggerAnimationLeave(m_swapInAnimationDefinition, effects);
             GameplayIslandManager island = m_gameplayIslandManagerRef.GetSafe();
             if (island != null) island.ForceActiveIsland(WorldPosition);

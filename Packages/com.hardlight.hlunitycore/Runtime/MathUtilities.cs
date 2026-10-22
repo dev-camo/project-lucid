@@ -5,7 +5,7 @@ namespace Hardlight
 {
     // Original HLUnityCore.Runtime 0x02000193: all five fields and twenty-four
     // methods. Native evidence preserves the original edge cases and evaluation
-    // order. The two previously recovered clamp methods are unchanged context.
+    // order.
     public static class MathUtilities
     {
         public const float ZeroTolerance = 0.0001f;

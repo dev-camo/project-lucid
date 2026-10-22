@@ -25,7 +25,7 @@ namespace HardlightProject
 		// 0600177b (1.10.1 RVA 0x7933F0)
 		protected override bool IsValidType(HomingTargetType type)
 		{
-			return type == (HomingTargetType)unchecked((int)0x9036F9CA);
+			return type == HomingTargetType.Rail;
 		}
 
 		// 0600177c (1.10.1 RVA 0x793400)

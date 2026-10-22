@@ -2,8 +2,7 @@ using System;
 using System.Text;
 using System.Threading;
 
-// Original HLUnityCore.Runtime type0x02000006, complete31 /3fields. The original
-// maintained cloud-key subset is reused byte-for-byte below;21 missing bodies added.
+// Original HLUnityCore.Runtime type 0x02000006, complete: 31 methods, 3 fields.
 public class OpString
 {
     private static OpString instance;

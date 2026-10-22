@@ -51,7 +51,7 @@ namespace HardlightProject
             }
             else if (handle == null)
             {
-                handle = character.AddModifierOverride(0x64bd855e, false);
+                handle = character.AddModifierOverride((int)GameplayModifierType.ApplyGravity, false);
                 character.Storage.SetValue(ActorFSMKeys.GravityDisabledModifierHandle, handle);
             }
         }
@@ -62,14 +62,14 @@ namespace HardlightProject
         protected void SetGravityMultiplier(Character character, float multiplier)
         {
             character.Storage.GetValue<StackableDataHandle>(ActorFSMKeys.GravityMultiplierModifierHandle, null, true);
-            StackableDataHandle handle = character.AddModifierOverride(unchecked((int)0xe2ed1fc7), multiplier);
+            StackableDataHandle handle = character.AddModifierOverride((int)GameplayModifierType.GravityMultiplier, multiplier);
             character.Storage.SetValue(ActorFSMKeys.GravityMultiplierModifierHandle, handle);
         }
 
         protected void AdjustGravityMultiplier(Character character, float multiplier)
         {
             StackableDataHandle handle = character.Storage.GetValue<StackableDataHandle>(ActorFSMKeys.GravityMultiplierModifierHandle, null, true);
-            character.AdjustModifierOverrides(handle, unchecked((int)0xe2ed1fc7), multiplier);
+            character.AdjustModifierOverrides(handle, (int)GameplayModifierType.GravityMultiplier, multiplier);
         }
 
         protected void ClearGravityMultiplier(Character character)

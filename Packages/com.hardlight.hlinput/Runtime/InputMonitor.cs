@@ -42,10 +42,10 @@ namespace Hardlight
         private Func<GameInput, Texture2D> m_getGlyphForGameInput;
 
         public int TouchCount => m_touch.TouchCount; // Original 0600018d.
-        // Original 0600018e retains a final virtual new-slot accessor in shipped
-        // metadata. The stripped empty IInputMonitor cannot reproduce that
-        // emitted slot through ordinary C# without inventing interface APIs.
-        // This source remains unaccepted; original emitted shape is unresolved.
+        // Original 0600018e is a final virtual new-slot accessor (0x9e6) in shipped
+        // metadata. The stripped empty IInputMonitor cannot produce that slot through
+        // ordinary C#, so Assets/Editor/CodeGen/InputMonitorMethodFlagsPostProcessor.cs
+        // restores the flags after compilation; no interface members are invented.
         public ISourceProvider SourceProvider => m_sourceProvider;
         protected override BaseSourceProvider BaseSourceProvider => m_sourceProvider; // Original 0600018f.
 

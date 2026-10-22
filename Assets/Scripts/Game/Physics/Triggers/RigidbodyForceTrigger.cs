@@ -224,22 +224,22 @@ namespace HardlightProject
             IGameplayModifiable modifiable = body.GetComponent<IGameplayModifiable>();
             if (modifiable == null) return;
             Vector3 velocityOverride = predictedVelocity * (m_resultantForceMultiplier / timeScale);
-            AddModifierOverride(modifiable, unchecked((int)0xc22df46d), false, m_controlLockTime);
+            AddModifierOverride(modifiable, (int)GameplayModifierType.ControlsEnabled, false, m_controlLockTime);
             // These two authentic modifier integers have no shipped GameplayModifierType member.
             AddModifierOverride(modifiable, unchecked((int)0xbbcf6556), velocityOverride, m_velocityOverrideTime);
             AddModifierOverride(modifiable, 0x078dc3b9, velocityOverride.magnitude, m_speedOverrideTime);
-            if (m_gripReset) AddModifierOverride(modifiable, 0x08f0c399, true, GetOverrideTime());
+            if (m_gripReset) AddModifierOverride(modifiable, (int)GameplayModifierType.GripReset, true, GetOverrideTime());
             if (!isCharacter) return;
             if (m_stickyControlsReset)
             {
                 if (character.Storage.GetValueOnly(ActorFSMKeys.TurnCameraActive, false))
                     character.Storage.GetValueOnly<CharacterStickyControls>(ActorFSMKeys.TurnCameraStickyControls, null)?.DeactivateStickyControls(character);
-                AddModifierOverride(modifiable, unchecked((int)0x8a23d40a), false, GetOverrideTime());
+                AddModifierOverride(modifiable, (int)GameplayModifierType.StickyControlsAvailable, false, GetOverrideTime());
             }
             if (m_targetingDisableTime > 0f)
             {
                 character.HomingPool.ClearTarget(true);
-                AddModifierOverride(modifiable, unchecked((int)0x9d7e35f5), false, m_targetingDisableTime);
+                AddModifierOverride(modifiable, (int)GameplayModifierType.TargetingAvailable, false, m_targetingDisableTime);
             }
         }
         // Original060029c9: notify even when snapping is disabled or movement will be blocked.

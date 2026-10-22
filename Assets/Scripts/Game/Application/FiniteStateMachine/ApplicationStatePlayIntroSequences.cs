@@ -125,7 +125,7 @@ namespace HardlightProject
 				}
 			}
 			currentCharacter.OnStart(Vector3.zero, false);
-			StackableDataHandle inputOverrideHandle = currentCharacter.AddModifierOverride<bool>(unchecked((int)0xc22df46d), false);
+			StackableDataHandle inputOverrideHandle = currentCharacter.AddModifierOverride<bool>((int)GameplayModifierType.ControlsEnabled, false);
 			currentCharacter.Storage.SetValue(ActorFSMKeys.InputOverrideModifierHandle, inputOverrideHandle);
 		}
 

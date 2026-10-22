@@ -27,7 +27,7 @@ namespace HardlightProject
 		{
 			base.DoOnEnter(user, action);
 			Character character = user.GetAs<Character>();
-			StackableDataHandle handle = character.AddModifierOverride<bool>(unchecked((int)0xC22DF46D), false);
+			StackableDataHandle handle = character.AddModifierOverride<bool>((int)GameplayModifierType.ControlsEnabled, false);
 			character.Storage.SetValue(ActorFSMKeys.InputOverrideModifierHandle, handle);
 		}
 

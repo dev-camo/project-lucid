@@ -10,8 +10,9 @@ namespace Hardlight
         private SourceController m_sourceController;
         private SourceMouse m_sourceMouse;
         private SourceTouchScreen m_sourceTouchScreen;
-        // Original06000288/289/28a/28c final virtual newslot bits remain a
-        // stripped-interface emitted-shape frontier, without invented interface APIs.
+        // Original 06000288/289/28a/28c are final virtual newslot (0x9e6); the stripped
+        // interfaces cannot produce that, so InputMonitorMethodFlagsPostProcessor
+        // restores the flags after compilation without invented interface APIs.
         public IInputKeySource KeySource => m_sourceController;
         public IInputAxisSource AxisSource => m_sourceController;
         public IInputPointerSource PointerSource => m_sourceMouse;

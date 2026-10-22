@@ -25,7 +25,7 @@ namespace HardlightProject
 		// 060017a3 (1.10.1 RVA 0x7949F0)
 		protected override bool IsValidType(HomingTargetType type)
 		{
-			return type == (HomingTargetType)unchecked((int)0xD2CA8FC3);
+			return type == HomingTargetType.Transporter;
 		}
 
 		// 060017a4 (1.10.1 RVA 0x794A00)
