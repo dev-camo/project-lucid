@@ -60,10 +60,10 @@ def macho(cputype, uuid, signature, text=TEXT, cryptid=None):
 HEADER_PADDING = b"\0" * 16
 
 
-def macho_mapped(cputype, uuid, signature, text=TEXT, padding=HEADER_PADDING):
+def macho_mapped(cputype, uuid, signature, text=TEXT, padding=HEADER_PADDING, cryptid=None):
     """A thin Mach-O 64 as the shipped GameAssembly lays it out: __TEXT starts at file offset 0, so it maps
     the header, the load commands (UUID, signature range, __LINKEDIT extent), padding and the code."""
-    commands_size = (72 + 80) + 72 + 24 + 16
+    commands_size = (72 + 80) + 72 + 24 + 16 + (24 if cryptid is not None else 0)
     text_off = 32 + commands_size + len(padding)
     link_off = text_off + len(text)
     commands = [
@@ -71,6 +71,8 @@ def macho_mapped(cputype, uuid, signature, text=TEXT, padding=HEADER_PADDING):
         segment("__LINKEDIT", 0x3000, link_off, len(SYMBOLS) + len(signature)),
         struct.pack("<II16s", 0x1B, 24, uuid),
         struct.pack("<IIII", 0x1D, 16, link_off + len(SYMBOLS), len(signature))]
+    if cryptid is not None:
+        commands.append(struct.pack("<IIIIII", 0x2C, 24, text_off, len(text), cryptid, 0))
     blob = b"".join(commands)
     assert len(blob) == commands_size
     return (struct.pack("<IiiIIIII", 0xFEEDFACF, cputype, 3, 6, len(commands), len(blob), 0, 0) +
@@ -114,7 +116,7 @@ def make_app(root, uuid=UUID_A, signature=SIGNATURE_A, text=TEXT, meta=None, res
     metadata_dir = app / "Contents" / "Resources" / "Data" / "il2cpp_data" / "Metadata"
     metadata_dir.mkdir(parents=True)
     x86 = build(X86_64, uuid, signature, text)
-    arm = build(ARM64, bytes(reversed(uuid)), signature, text, **({"cryptid": 0} if build is macho else {}))
+    arm = build(ARM64, bytes(reversed(uuid)), signature, text, cryptid=0)
     binary = fat((X86_64, x86), (ARM64, arm)) if fat_binary else x86
     (app / "Contents" / "Frameworks" / "GameAssembly.dylib").write_bytes(binary)
     (metadata_dir / "global-metadata.dat").write_bytes(meta or metadata())
@@ -280,12 +282,12 @@ class CompareTests(unittest.TestCase):
         b["game_assembly"]["slices"][0]["residual_sha256"] = "0" * 64
         self.assertFalse(inputfingerprint.compare_fingerprints(a, b)["summary"]["packaging_only"])
 
-    def binary_report(self, mutate):
+    def binary_report(self, mutate, **kwargs):
         """Report for an app whose GameAssembly bytes were edited in place by mutate(bytearray)."""
         self.counter += 1
         root = Path(self.tmp.name) / str(self.counter)
         root.mkdir()
-        app = make_app(root)
+        app = make_app(root, **kwargs)
         dylib = app / inputfingerprint.inputvariants.GAME_ASSEMBLY
         blob = bytearray(dylib.read_bytes())
         mutate(blob)
@@ -591,6 +593,26 @@ class CompareTests(unittest.TestCase):
         verdict = inputfingerprint.compare_fingerprints(self.mapped_report(), self.mapped_report(signature=SIGNATURE_B))
         self.assertTrue(verdict["summary"]["packaging_only"], verdict["differences"])
         self.assertNotEqual(len(SIGNATURE_A), len(SIGNATURE_B))
+        self.assertIn(("slice x86_64", "segment sha256 (follows from the masked load-command fields)"),
+                      [(d["area"], d["detail"]) for d in verdict["differences"]])
+
+    def test_fat_header_mapped_text_with_only_uuid_changed_is_packaging(self):
+        # The arm64 slice starts at a non-zero fat offset, so its __TEXT.fileoff of 0 is slice-relative.
+        verdict = inputfingerprint.compare_fingerprints(self.mapped_report(fat_binary=True),
+                                                        self.mapped_report(fat_binary=True, uuid=UUID_B))
+        self.assertTrue(verdict["summary"]["packaging_only"], verdict["differences"])
+        areas = [d["area"] for d in verdict["differences"]]
+        self.assertIn("slice x86_64", areas)
+        self.assertIn("slice arm64", areas)
+
+    def test_header_mapped_header_field_is_not_packaging(self):
+        # mach_header.flags (offset 24) is mapped by __TEXT but is not a masked field.
+        def set_flags(blob):
+            struct.pack_into("<I", blob, 24, 0x200085)
+        verdict = inputfingerprint.compare_fingerprints(
+            self.mapped_report(), self.mapped_report(mutate=set_flags))
+        self.assertFalse(verdict["summary"]["packaging_only"])
+        self.assertIn(("slice x86_64", "segment sha256"), self.real(verdict))
 
     def test_header_mapped_text_code_byte_is_not_packaging(self):
         verdict = inputfingerprint.compare_fingerprints(self.mapped_report(uuid=UUID_B), self.mapped_report(text=TEXT[:-1] + b"X"))
@@ -603,8 +625,11 @@ class CompareTests(unittest.TestCase):
         self.assertFalse(verdict["summary"]["packaging_only"])
         self.assertIn(("slice x86_64", "segment sha256"), self.real(verdict))
 
-    def mapped_report(self, padding=HEADER_PADDING, **kwargs):
-        return self.report(fat_binary=False, build=lambda *a, **k: macho_mapped(*a, padding=padding, **k), **kwargs)
+    def mapped_report(self, padding=HEADER_PADDING, fat_binary=False, mutate=None, **kwargs):
+        build = lambda *a, **k: macho_mapped(*a, padding=padding, **k)
+        if mutate is None:
+            return self.report(fat_binary=fat_binary, build=build, **kwargs)
+        return self.binary_report(mutate, fat_binary=fat_binary, build=build, **kwargs)
 
     def test_fifo_in_the_bundle_is_refused(self):
         if not hasattr(os, "mkfifo"):
@@ -617,7 +642,8 @@ class CompareTests(unittest.TestCase):
     def signature_range(self, dataoff, datasize):
         """Parse a header-mapped slice whose LC_CODE_SIGNATURE is rewritten to the given range."""
         blob = bytearray(macho_mapped(X86_64, UUID_A, SIGNATURE_A))
-        struct.pack_into("<II", blob, 32 + 152 + 72 + 24 + 8, dataoff, datasize)  # __TEXT, __LINKEDIT, UUID, then this
+        code_signature = blob.index(struct.pack("<II", 0x1D, 16), 32)  # the LC_CODE_SIGNATURE command
+        struct.pack_into("<II", blob, code_signature + 8, dataoff, datasize)
         path = Path(self.tmp.name) / "sig{}_{}".format(dataoff, datasize)
         path.write_bytes(bytes(blob))
         return inputfingerprint.fingerprint_macho(path), len(blob)
@@ -627,6 +653,8 @@ class CompareTests(unittest.TestCase):
         end = text_end + len(SYMBOLS) + len(SIGNATURE_A)
         report, _ = self.signature_range(end - 4, 4)  # ends exactly at the end of __LINKEDIT
         self.assertEqual({"dataoff": end - 4, "datasize": 4}, report["slices"][0]["code_signature"])
+        report, _ = self.signature_range(text_end, len(SYMBOLS))  # starts exactly at the start of __LINKEDIT
+        self.assertEqual({"dataoff": text_end, "datasize": len(SYMBOLS)}, report["slices"][0]["code_signature"])
         for dataoff, datasize, message in ((end, 8, "overruns the slice"), (end - 4, 8, "overruns the slice"),
                                            (text_end - 4, 8, "outside __LINKEDIT"),
                                            (text_end - 8, 4, "outside __LINKEDIT"), (0, 4, "outside __LINKEDIT")):
