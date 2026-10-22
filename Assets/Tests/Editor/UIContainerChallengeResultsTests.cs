@@ -232,7 +232,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Count(definitions[RankType.S].BaseAddressable), Is.EqualTo(0));
                 Assert.That(Get<List<ManagedAddressableAsset<Sprite>>>(rig.Container, "m_managedAddressableSprites"), Has.Count.EqualTo(3));
 
-                Call(rig.Container, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
+                Call(rig.Container, "OnDisable");
 
                 Assert.That(Count(definitions[RankType.A].BaseAddressable), Is.EqualTo(0));
                 Assert.That(Count(definitions[RankType.A].BackgroundAddressable), Is.EqualTo(0));
@@ -248,7 +248,7 @@ namespace ProjectLucid.Tests
             Run(rig =>
             {
                 var ranks = rig.Owned.Track(ScriptableObject.CreateInstance<ChallengeRankDefinition>());
-                Call(ranks, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(ranks, "OnEnable");
                 Set(rig.Challenge, "m_rankDefinition", ranks); // Reflection: serialized reference
                 rig.Container.ShowRanks.Value = true;
 

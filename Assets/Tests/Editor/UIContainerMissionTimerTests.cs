@@ -142,12 +142,12 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "TryInitialise"); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Call(rig.Container, "TryInitialise");
                 rig.BonusText.enabled = true;
                 Set(rig.Container, "m_bonusTimeDisplayTimeRemainingSeconds", 3f); // Reflection: counted down by Update, written by OnBonusTimeAdded
                 rig.EnableRoot.SetActive(true);
 
-                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(rig.Container, "OnEnable");
 
                 Assert.That(Get<bool>(rig.Container, "m_initialised"), Is.False);
                 Assert.That(rig.BonusText.enabled, Is.False);
@@ -162,14 +162,14 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "SetPauseState", new object[] { null, true }); // Reflection: private UIContainerMissionTimer.SetPauseState
+                Call(rig.Container, "SetPauseState", new object[] { null, true });
                 var root = rig.Owned.Host("Lucid pause root", true);
 
-                Call(rig.Container, "SetPauseState", root, false); // Reflection: private UIContainerMissionTimer.SetPauseState
+                Call(rig.Container, "SetPauseState", root, false);
                 Assert.That(root.activeSelf, Is.False);
-                Call(rig.Container, "SetPauseState", root, false); // Reflection: private UIContainerMissionTimer.SetPauseState
+                Call(rig.Container, "SetPauseState", root, false);
                 Assert.That(root.activeSelf, Is.False);
-                Call(rig.Container, "SetPauseState", root, true); // Reflection: private UIContainerMissionTimer.SetPauseState
+                Call(rig.Container, "SetPauseState", root, true);
                 Assert.That(root.activeSelf, Is.True);
             });
         }
@@ -203,7 +203,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Assert.That(Call(rig.Container, "TryInitialise"), Is.EqualTo(true)); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Assert.That(Call(rig.Container, "TryInitialise"), Is.EqualTo(true));
 
                 Assert.That(Hooks(rig.Timer.OnBonusTimeAdded, rig.Container), Is.EqualTo(1));
                 Assert.That(Get<MissionTimer>(rig.Container, "m_missionTimer"), Is.SameAs(rig.Timer));
@@ -217,14 +217,14 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.PauseGroupRoot.activeSelf, Is.False, "the timer cannot be paused");
                 Assert.That(Get<bool>(rig.Container, "m_initialised"), Is.True);
 
-                Assert.That(Call(rig.Container, "TryInitialise"), Is.EqualTo(true)); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Assert.That(Call(rig.Container, "TryInitialise"), Is.EqualTo(true));
                 Assert.That(Hooks(rig.Timer.OnBonusTimeAdded, rig.Container), Is.EqualTo(1), "initialised once");
             });
             Run(rig =>
             {
                 rig.PauseGroupRoot.SetActive(false);
 
-                Call(rig.Container, "TryInitialise"); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Call(rig.Container, "TryInitialise");
 
                 Assert.That(Get<bool>(rig.Container, "m_countsDown"), Is.False);
                 Assert.That(Get<bool>(rig.Container, "m_isTimeTrial"), Is.True);
@@ -239,7 +239,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Assert.That(Call(rig.Container, "TryInitialise"), Is.EqualTo(true)); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Assert.That(Call(rig.Container, "TryInitialise"), Is.EqualTo(true));
 
                 Assert.That(Get<bool>(rig.Container, "m_hasMissionTimer"), Is.False);
                 Assert.That(Get<MissionTimer>(rig.Container, "m_missionTimer"), Is.Null);
@@ -256,7 +256,7 @@ namespace ProjectLucid.Tests
             {
                 var container = world.Owned.Host("Lucid mission timer container", false).AddComponent<UIContainerMissionTimer>();
 
-                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false)); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false));
                 Assert.That(Get<bool>(container, "m_initialised"), Is.False);
                 Assert.That(Get<string>(container, "m_timeDisplayFormatString"), Is.Null);
             });
@@ -272,7 +272,7 @@ namespace ProjectLucid.Tests
             {
                 StartAndRun(rig, 12.25f);
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.text, Is.EqualTo("00|47|75"));
                 Assert.That(rig.TimerText.color, Is.EqualTo(Normal));
@@ -280,7 +280,7 @@ namespace ProjectLucid.Tests
 
                 Call(rig.Timer, "InternalUpdate", 40f); // 7.75 s remain, under the 10 s threshold
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.text, Is.EqualTo("00|07|75"));
                 Assert.That(rig.TimerText.color, Is.EqualTo(Alternate));
@@ -297,7 +297,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Timer, "m_timeLimit", 4000f); // Reflection: serialized option
                 StartAndRun(rig, 300f);
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.text, Is.EqualTo("61|40|00"));
             });
@@ -313,7 +313,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_lowTimeRemainingThresholdSeconds", 7.75f); // Reflection: serialized option
                 StartAndRun(rig, 52.25f); // exactly 7.75 s remain
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.color, Is.EqualTo(Normal));
             });
@@ -322,7 +322,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_lowTimeRemainingThresholdSeconds", 7.75f); // Reflection: serialized option
                 StartAndRun(rig, 52.25f);
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.color, Is.EqualTo(Normal), "counting up in a time trial");
             }, countsDown: false, timeTrial: true);
@@ -335,12 +335,12 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "TryInitialise"); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Call(rig.Container, "TryInitialise");
                 var animation = Get<Animation>(rig.Container, "m_bonusTimeAnimation");
                 animation.clip = rig.Owned.Track(new AnimationClip { legacy = true, name = "Lucid bonus" }); // a default clip for Play
                 rig.BonusText.enabled = false;
 
-                Call(rig.Container, "OnBonusTimeAdded", 3f); // Reflection: private UIContainerMissionTimer.OnBonusTimeAdded
+                Call(rig.Container, "OnBonusTimeAdded", 3f);
 
                 Assert.That(rig.BonusText.enabled, Is.True);
                 Assert.That(rig.BonusText.text, Is.EqualTo("+3s"));
@@ -357,7 +357,7 @@ namespace ProjectLucid.Tests
             {
                 StartAndRun(rig, 52.25f); // 7.75 s remain; 52.25 s elapsed
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.text, Is.EqualTo("00|52|25"));
                 Assert.That(rig.TimerText.color, Is.EqualTo(Normal), "not a time trial: no low-time colour");
@@ -366,7 +366,7 @@ namespace ProjectLucid.Tests
             {
                 StartAndRun(rig, 52.25f);
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.color, Is.EqualTo(Alternate), "a time trial goes low");
             }, countsDown: false, timeTrial: true);
@@ -382,7 +382,7 @@ namespace ProjectLucid.Tests
                 StartAndRun(rig, 12.25f);
                 rig.Timer.AddBonusTime(-100f); // -52.25 s remain
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.TimerText.color, Is.EqualTo(Alternate));
             }, countsDown: false);
@@ -397,12 +397,12 @@ namespace ProjectLucid.Tests
             {
                 rig.EnableRoot.SetActive(true);
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.EnableRoot.activeSelf, Is.False, "the timer has not been started");
 
                 rig.Timer.Action_StartTimer();
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.EnableRoot.activeSelf, Is.True, "running");
 
@@ -416,7 +416,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Timer, "m_alwaysVisible", true); // Reflection: serialized option
                 rig.EnableRoot.SetActive(true);
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.EnableRoot.activeSelf, Is.True, "an always visible timer stays shown while stopped");
             });
@@ -430,7 +430,7 @@ namespace ProjectLucid.Tests
             {
                 rig.EnableRoot.SetActive(true);
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.EnableRoot.activeSelf, Is.False);
             }, timed: false);
@@ -445,15 +445,15 @@ namespace ProjectLucid.Tests
             {
                 Func<bool[]> shown = () => new[] { rig.PauseEnabledRoot.activeSelf, rig.PauseDisabledRoot.activeSelf };
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
                 Assert.That(shown(), Is.EqualTo(new[] { true, false }), "enabled and not running");
 
                 rig.Timer.Action_StartTimer();
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
                 Assert.That(shown(), Is.EqualTo(new[] { false, true }), "enabled and running");
 
                 rig.Timer.enabled = false;
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
                 Assert.That(shown(), Is.EqualTo(new[] { false, false }), "disabled");
             }, canBePaused: true);
         }
@@ -472,14 +472,14 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_bonusTimeDisplayTimeRemainingSeconds", 1e9f); // Reflection: written by OnBonusTimeAdded
                 rig.BonusText.enabled = true;
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.BonusText.alpha, Is.EqualTo(0.25f));
                 Assert.That(rig.BonusText.enabled, Is.True);
 
                 Set(rig.Container, "m_bonusTimeDisplayTimeRemainingSeconds", 0f); // Reflection: private countdown of the bonus time display that Update decrements; zero ends the display
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.BonusText.enabled, Is.False);
             });
@@ -491,11 +491,11 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
-                Call(rig.Container, "TryInitialise"); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "TryInitialise");
                 Assert.That(Hooks(rig.Timer.OnBonusTimeAdded, rig.Container), Is.EqualTo(1));
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(Hooks(rig.Timer.OnBonusTimeAdded, rig.Container), Is.EqualTo(0));
             });
@@ -508,10 +508,10 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "TryInitialise"); // Reflection: private UIContainerMissionTimer.TryInitialise
-                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(rig.Container, "TryInitialise");
+                Call(rig.Container, "OnEnable");
 
-                Call(rig.Container, "TryInitialise"); // Reflection: private UIContainerMissionTimer.TryInitialise
+                Call(rig.Container, "TryInitialise");
 
                 Assert.That(Hooks(rig.Timer.OnBonusTimeAdded, rig.Container), Is.EqualTo(1));
             });
