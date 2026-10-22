@@ -1,4 +1,5 @@
 """Native driver boundaries; these fixtures do not compile or create receipts."""
+import json
 import shutil
 import sys
 import tempfile
@@ -269,6 +270,54 @@ class NativeCompilationTests(unittest.TestCase):
             receipt.assert_called_once()
             self.assertIsNone(bootstrap.DIAGNOSTICS_ROOT)
             self.assertTrue((base / 'private-native-diagnostics').is_dir())
+
+    def test_compile_only_failure_retains_bounded_compiler_errors_privately(self):
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+        from lucidlib import bootstrap, playercode, playerschema, verification
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory).resolve(); source = base / 'source'; control = base / 'control'
+            for root in (source, control):
+                (root / 'tools').mkdir(parents=True); (root / 'tools/helper.py').write_text('trusted=True\n')
+                (root / 'Assets/Editor').mkdir(parents=True)
+                for name in ('LucidPlayerCompilation.cs', 'LucidCleanPlayerCompilation.cs'):
+                    (root / 'Assets/Editor' / name).write_text('// trusted\n')
+            work = source / '.cache/project-lucid'
+            engine = [{'name': 'editor', 'sha256': 'c' * 64}]
+
+            def failing(*_):
+                run_dir = work / 'player-code/runs/n'
+                run_dir.mkdir(parents=True)
+                log = run_dir / 'editor.log'
+                noise = ''.join('noise line %d\n' % i for i in range(50000))
+                log.write_text(noise + 'Assets/A.cs(3,4): error CS0103: name missing SECRETPATH\n' + 'x' * 5000
+                               + ' error CS9999 long\n' + noise)
+                return {'status': 'failed', 'exit_code': 1, 'log': str(log), 'run': str(run_dir),
+                        'errors': ['Unity player script compilation did not complete']}
+            out, err = io.StringIO(), io.StringIO()
+            with mock.patch.object(bootstrap, 'host_name', return_value='linux-x86_64'), \
+                 mock.patch.object(verification, 'artifact_fingerprint', return_value='b' * 64), \
+                 mock.patch.object(verification, 'find_editor', return_value=Path('/inert/editor')), \
+                 mock.patch.object(playercode, '_engine_identity', return_value=engine), \
+                 mock.patch.object(playercode, 'run_player_code', side_effect=failing), \
+                 mock.patch.object(playerschema, '_player_evidence', side_effect=AssertionError('no receipt')), \
+                 mock.patch.object(native_compilation, 'git_head', side_effect=lambda root: 'a' * 40 if root == source else 'd' * 40), \
+                 mock.patch.object(native_compilation, 'isolated_editor', return_value=nullcontext()), \
+                 redirect_stdout(out), redirect_stderr(err):
+                with self.assertRaisesRegex(ValueError, 'player-code failed'):
+                    native_compilation.run(source, control, None, work, 'a' * 40, 'b' * 64,
+                                           'native@sha256:' + 'c' * 64, 'd' * 40, '123', compile_only=True)
+            retained = base / 'private-native-diagnostics'
+            lines = (retained / 'driver-player-code-0.log').read_text().splitlines()
+            self.assertEqual(2, len(lines))
+            self.assertIn('error CS0103', lines[0])
+            self.assertLessEqual(max(map(len, lines)), native_compilation.MAX_DIAGNOSTIC_LINE)
+            self.assertNotIn('noise line', (retained / 'driver-player-code-0.log').read_text())
+            report = json.loads((retained / 'driver-player-code.json').read_text())
+            self.assertEqual(2, report['compiler_error_line_count'])
+            self.assertEqual(['driver-player-code-0.log'], report['retained_log_files'])
+            self.assertEqual(0o600, (retained / 'driver-player-code-0.log').stat().st_mode & 0o777)
+            self.assertNotIn('SECRETPATH', out.getvalue() + err.getvalue())
 
     def test_native_identity_is_bound_to_actual_editor_bytes(self):
         engine = [{'name': 'editor', 'sha256': 'a' * 64}]

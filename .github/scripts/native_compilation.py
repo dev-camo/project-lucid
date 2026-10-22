@@ -133,6 +133,53 @@ def require_phase_success(name, result):
         raise ValueError(name + ' failed; private diagnostics retained')
 
 
+COMPILER_LINE = re.compile(r'error\s+CS\d+|\berror\b.*\.cs\(\d+', re.IGNORECASE)
+LOG_TAIL_BYTES = 8 * 1024 * 1024
+MAX_DIAGNOSTIC_LINES = 200
+MAX_DIAGNOSTIC_LINE = 400
+
+
+def compiler_error_excerpt(log):
+    """Bounded compiler error lines from a Unity editor log (tail only, long lines cut)."""
+    log = Path(log)
+    with log.open('rb') as stream:
+        stream.seek(0, os.SEEK_END)
+        stream.seek(max(0, stream.tell() - LOG_TAIL_BYTES))
+        text = stream.read().decode('utf-8', 'replace')
+    lines, seen = [], set()
+    for line in text.splitlines():
+        line = line.strip()
+        if COMPILER_LINE.search(line) and line not in seen:
+            seen.add(line)
+            lines.append(line[:MAX_DIAGNOSTIC_LINE])
+            if len(lines) >= MAX_DIAGNOSTIC_LINES:
+                break
+    return lines
+
+
+def retain_player_code_failure(bootstrap_module, work, result):
+    """Keep compiler diagnostics only in the runner's private diagnostics directory.
+
+    Retains the result JSON plus the compiler error lines of the player-code editor log.
+    Nothing is printed, so the public Actions log stays free of private paths and logs.
+    """
+    excerpt = work / 'player-code-compiler-errors.log'
+    lines = []
+    log = result.get('log')
+    if isinstance(log, str):
+        log = Path(log)
+        try:
+            if work in log.parents and log.is_file() and not log.is_symlink():
+                lines = compiler_error_excerpt(log)
+        except OSError:
+            lines = []
+    excerpt.write_text('\n'.join(lines) + ('\n' if lines else ''), encoding='utf-8')
+    report = {'phase': 'player-code', 'status': str(result.get('status')),
+              'exit_code': result.get('exit_code'), 'errors': [str(e)[:MAX_DIAGNOSTIC_LINE] for e in result.get('errors', [])[:10]],
+              'compiler_error_line_count': len(lines)}
+    bootstrap_module.retain_failure('driver-player-code.json', report, [excerpt])
+
+
 def require_approved_original(report, approved):
     for key in ('input_binary_sha256', 'input_metadata_sha256'):
         if report.get(key) != approved.get(key) or not re.fullmatch('[0-9a-f]{64}', approved.get(key, '')):
@@ -209,7 +256,11 @@ def run(source, control, input_path, work, expected_head, expected_source, image
         if compile_only:
             unchanged()
             result = compile_player()
-            require_phase_success('player-code', result)
+            try:
+                require_phase_success('player-code', result)
+            except ValueError:
+                retain_player_code_failure(bootstrap_module, work, result)
+                raise
             unchanged()
             receipt = _player_evidence(source, work, 'linux', expected_source,
                                        _engine_identity(find_editor()))
