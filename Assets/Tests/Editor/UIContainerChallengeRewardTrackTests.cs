@@ -93,6 +93,7 @@ namespace ProjectLucid.Tests
         // The services (and with them the reward base's references) come first; the manager is registered before the container is built.
         private static void Run(Action<Rig> body) => Owned.Run(owned =>
         {
+            owned.LeaseRow<UINavigationManager>(); // UIContainerNavigation's field initialiser creates the row
             var rig = new Rig { Owned = owned, Unlock = new StubUnlock() };
             rig.Services = owned.Lease(new OwnedChallengeRewardServices());
             OwnedChallengeServices.Register(owned);
