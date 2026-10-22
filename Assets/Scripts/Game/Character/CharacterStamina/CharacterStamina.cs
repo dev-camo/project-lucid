@@ -12,6 +12,60 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public abstract class CharacterStamina
     {
+        [Serializable]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
+        public class Definition
+        {
+            [Tooltip("Character collision radius for the duration of being active.")]
+            [Min(0f)]
+            public float ColliderRadius;
+            [Tooltip("Delay to depleting stamina, nb. this still triggers activation immediately.")]
+            [Min(0f)]
+            public float StaminaActivationDelay = 0.05f;
+            [Min(0f)]
+            [Tooltip("Stamina cost of activating.")]
+            public float StaminaActivationCost = 0.3f;
+            [Min(0f)]
+            [Tooltip("Maximum duration of being active.")]
+            public float StaminaActiveTime = 2.5f;
+            [Tooltip("Whether the stamina drains to empty on activation, nb. this prevents any further activations until recharged.")]
+            public bool StaminaDrainsToEmpty;
+            [Tooltip("Time after activation before starting recharge.")]
+            [Min(0f)]
+            public float StaminaRechargeDelay = 0.5f;
+            [Tooltip("Maximum duration of stamina recharge.")]
+            [Min(0f)]
+            public float StaminaRechargeTime = 0.5f;
+            [Min(0f)]
+            [Tooltip("The minimum stamina value allowed to activate after using all stamina.")]
+            public float StaminaActivationFromEmpty = 1f;
+            [Min(0f)]
+            [Tooltip("The maximum time to suspend activation before deactivating.")]
+            public float SuspendTime;
+            [Tooltip("Character must have control stick input for activation to trigger.")]
+            public bool RequiresControlStickInput;
+            [Tooltip("Character will orientate to input forward on activation.")]
+            public bool OrientateToInputForward = true;
+            [Min(0f)]
+            [Tooltip("The additional stamina awarded from an energy collectable.")]
+            public float StaminaFromCollectable = 0.05f;
+            [Tooltip("Any angle of impact of the character's velocity up to this value will deactivate.")]
+            public float ImpactDeactivationAngle = 45f;
+            [Tooltip("The cooldown time for an activation after an impact.")]
+            public float ImpactCooldownTime = 0.5f;
+            [Tooltip("Abilities that delay the activation if recently triggered.")]
+            public System.Collections.Generic.List<ActorAbilityType> BlockingAbilities = new System.Collections.Generic.List<ActorAbilityType>();
+            [Tooltip("Period of time abilities will delay activation.")]
+            public float BlockingPeriod = 0.5f;
+            [Tooltip("Ratio multiplier when switching characters.")]
+            public float SwitchRatio = 1f;
+            public float ImpactDeactivationCosAngle { get; private set; }
+            public void CalculateCachedValues() => ImpactDeactivationCosAngle =
+                UnityEngine.Mathf.Cos(ImpactDeactivationAngle * UnityEngine.Mathf.Deg2Rad);
+            public Definition() { }
+        }
+
         // Complete original own-field order, including generated backing fields.
         public bool IsTriggered { get; private set; }
         public bool ActivationQueued { get; set; }
@@ -325,59 +379,5 @@ namespace HardlightProject
         // 060014e0 / ARM74bb98. There is a trailing space and no newline.
         public void GetDebugExtraInfo(StringBuilder extraInfo) =>
             extraInfo.Append(string.Format("IsTriggered = {0}, Active = {1}, Stamina = {2} ", IsTriggered, Active, Stamina));
-
-        [Serializable]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        [Il2CppSetOption(Option.NullChecks, false)]
-        public class Definition
-        {
-            [Tooltip("Character collision radius for the duration of being active.")]
-            [Min(0f)]
-            public float ColliderRadius;
-            [Tooltip("Delay to depleting stamina, nb. this still triggers activation immediately.")]
-            [Min(0f)]
-            public float StaminaActivationDelay = 0.05f;
-            [Min(0f)]
-            [Tooltip("Stamina cost of activating.")]
-            public float StaminaActivationCost = 0.3f;
-            [Min(0f)]
-            [Tooltip("Maximum duration of being active.")]
-            public float StaminaActiveTime = 2.5f;
-            [Tooltip("Whether the stamina drains to empty on activation, nb. this prevents any further activations until recharged.")]
-            public bool StaminaDrainsToEmpty;
-            [Tooltip("Time after activation before starting recharge.")]
-            [Min(0f)]
-            public float StaminaRechargeDelay = 0.5f;
-            [Tooltip("Maximum duration of stamina recharge.")]
-            [Min(0f)]
-            public float StaminaRechargeTime = 0.5f;
-            [Min(0f)]
-            [Tooltip("The minimum stamina value allowed to activate after using all stamina.")]
-            public float StaminaActivationFromEmpty = 1f;
-            [Min(0f)]
-            [Tooltip("The maximum time to suspend activation before deactivating.")]
-            public float SuspendTime;
-            [Tooltip("Character must have control stick input for activation to trigger.")]
-            public bool RequiresControlStickInput;
-            [Tooltip("Character will orientate to input forward on activation.")]
-            public bool OrientateToInputForward = true;
-            [Min(0f)]
-            [Tooltip("The additional stamina awarded from an energy collectable.")]
-            public float StaminaFromCollectable = 0.05f;
-            [Tooltip("Any angle of impact of the character's velocity up to this value will deactivate.")]
-            public float ImpactDeactivationAngle = 45f;
-            [Tooltip("The cooldown time for an activation after an impact.")]
-            public float ImpactCooldownTime = 0.5f;
-            [Tooltip("Abilities that delay the activation if recently triggered.")]
-            public System.Collections.Generic.List<ActorAbilityType> BlockingAbilities = new System.Collections.Generic.List<ActorAbilityType>();
-            [Tooltip("Period of time abilities will delay activation.")]
-            public float BlockingPeriod = 0.5f;
-            [Tooltip("Ratio multiplier when switching characters.")]
-            public float SwitchRatio = 1f;
-            public float ImpactDeactivationCosAngle { get; private set; }
-            public void CalculateCachedValues() => ImpactDeactivationCosAngle =
-                UnityEngine.Mathf.Cos(ImpactDeactivationAngle * UnityEngine.Mathf.Deg2Rad);
-            public Definition() { }
-        }
     }
 }

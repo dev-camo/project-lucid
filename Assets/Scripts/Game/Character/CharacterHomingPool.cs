@@ -14,6 +14,31 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterHomingPool
     {
+        public struct PooledTarget // 02000330: complete two-field zero-method value type.
+        {
+            public List<IHomingAbility> Abilities;
+            public CharacterTargetObjectData Object;
+        }
+
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
+        private class PooledTargetGroup : IComparable<PooledTargetGroup> // 02000331
+        {
+            public int Priority { get; } // 0600140c
+            public List<PooledTarget> PooledTargets { get; } // 0600140d
+            public PooledTargetGroup(int priority) // 0600140e
+            {
+                Priority = priority;
+                PooledTargets = new List<PooledTarget>();
+            }
+            public int CompareTo(PooledTargetGroup other) // 0600140f
+            {
+                if (ReferenceEquals(this, other)) return 0;
+                if (ReferenceEquals(other, null)) return 1;
+                return Priority.CompareTo(other.Priority);
+            }
+        }
+
         public ActiveHomingTarget ActiveTarget { get; private set; }
         private PooledTarget m_pendingTarget;
         private List<PooledTargetGroup> m_targetGroupsByPriority = new List<PooledTargetGroup>();
@@ -315,31 +340,6 @@ namespace HardlightProject
             pooledTarget.Abilities.Clear();
             m_pooledTargets.Push(pooledTarget);
             return true;
-        }
-
-        public struct PooledTarget // 02000330: complete two-field zero-method value type.
-        {
-            public List<IHomingAbility> Abilities;
-            public CharacterTargetObjectData Object;
-        }
-
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        [Il2CppSetOption(Option.NullChecks, false)]
-        private class PooledTargetGroup : IComparable<PooledTargetGroup> // 02000331
-        {
-            public int Priority { get; } // 0600140c
-            public List<PooledTarget> PooledTargets { get; } // 0600140d
-            public PooledTargetGroup(int priority) // 0600140e
-            {
-                Priority = priority;
-                PooledTargets = new List<PooledTarget>();
-            }
-            public int CompareTo(PooledTargetGroup other) // 0600140f
-            {
-                if (ReferenceEquals(this, other)) return 0;
-                if (ReferenceEquals(other, null)) return 1;
-                return Priority.CompareTo(other.Priority);
-            }
         }
     }
 }

@@ -12,6 +12,9 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class CharacterAbility : ActorAbility
     {
+        public delegate void ModifierSpeedFunc(ref float acceleration, ref float speedMin,
+            ref float speedMax, ref float deceleration);
+
         protected Character m_character;
         public abstract CharacterAbilityDefinition CharacterAbilityDefinition { get; }
         public bool ValidateContactsActive { get; private set; }
@@ -334,7 +337,5 @@ namespace HardlightProject
         public void SetSwitchAvailableOverride(bool switchAvailableOverride) =>
             m_switchAvailableOverride = switchAvailableOverride;
         protected CharacterAbility() { }
-        public delegate void ModifierSpeedFunc(ref float acceleration, ref float speedMin,
-            ref float speedMax, ref float deceleration);
     }
 }

@@ -15,6 +15,17 @@ namespace HardlightProject
     [Il2CppSetOption(Option.NullChecks, false)]
     public class CharacterManager : ISystem
     {
+        // Original nested type02000337, full Handle+Definition fields and two methods.
+        private class CharacterLoadedCache
+        {
+            public AsyncOperationHandle<GameObject> Handle;
+            public CharacterDefinition Definition;
+            // 0600143f; ARM744e9c. Read the actual stored handle's Result each time.
+            public GameObject Proxy => Handle.Result;
+            // 06001440; ARM744ef0. Genuine base-only constructor.
+            public CharacterLoadedCache() { }
+        }
+
         public event Action OnCharacterPreClose; // 06001417/18; native CAS event accessors.
         public event Action OnCharacterRespawn; // 06001419/1a.
         public event Action OnCharacterTakeDamage; // 0600141b/1c.
@@ -409,16 +420,5 @@ namespace HardlightProject
         public void AddDebugOverride(AbilityDefinition abilityDefinition) { }
         [System.Diagnostics.Conditional("BUILD_DEVELOPMENT")]
         public void ClearDebugOverrides() { }
-
-        // Original nested type02000337, full Handle+Definition fields and two methods.
-        private class CharacterLoadedCache
-        {
-            public AsyncOperationHandle<GameObject> Handle;
-            public CharacterDefinition Definition;
-            // 0600143f; ARM744e9c. Read the actual stored handle's Result each time.
-            public GameObject Proxy => Handle.Result;
-            // 06001440; ARM744ef0. Genuine base-only constructor.
-            public CharacterLoadedCache() { }
-        }
     }
 }
