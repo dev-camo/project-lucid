@@ -181,9 +181,10 @@ def inspect_bundle(input_path: Path) -> dict:
     addressables.complete=False and the exact missing paths.
     """
     root = Path(input_path).absolute()
+    # Before any probe: a root already past MAX_PATH would otherwise read as missing.
+    check_long_paths_for_input(root)
     if not root.is_dir():
         raise ValueError("Input directory does not exist: %s" % root)
-    check_long_paths_for_input(root)
     app = _locate_app(root)
     contents = app / "Contents"
     plist_path = contents / "Info.plist"

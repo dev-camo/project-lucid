@@ -232,6 +232,17 @@ class InspectionTests(unittest.TestCase):
                 else:
                     self.assertEqual(inspect_bundle(self.root)["identity"]["build"], "7")
 
+    def test_long_path_precheck_runs_before_the_root_is_probed(self):
+        # A root already past MAX_PATH reads as absent to an ordinary probe; the long-path
+        # explanation must win over "does not exist".
+        missing = self.root / "not-extracted"
+        with patch.object(longpaths, "long_paths_status", return_value="disabled"), \
+                patch.object(longpaths, "longest_path_length", return_value=300):
+            with self.assertRaisesRegex(ValueError, "Long paths are disabled"):
+                inspect_bundle(missing)
+        with self.assertRaisesRegex(ValueError, "Input directory does not exist"):
+            inspect_bundle(missing)
+
     def test_longest_path_length_counts_the_deepest_file(self):
         deep = self.root / "a" / "b"
         deep.mkdir(parents=True)

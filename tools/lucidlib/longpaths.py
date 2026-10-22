@@ -28,19 +28,29 @@ def long_paths_status():
     try:
         import winreg
         with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, REGISTRY_KEY) as key:
-            value, _kind = winreg.QueryValueEx(key, REGISTRY_VALUE)
+            value, kind = winreg.QueryValueEx(key, REGISTRY_VALUE)
     except FileNotFoundError:
         return "disabled"  # The value is absent on systems that never set it.
     except (OSError, ImportError):
         return "unreadable"
-    return "enabled" if value == 1 else "disabled"
+    # Windows honours the setting only as a DWORD; a QWORD 1 still leaves long paths off.
+    return "enabled" if kind == winreg.REG_DWORD and value == 1 else "disabled"
+
+
+def extended_path(path):
+    """The extended-length form of an absolute Windows path, which is not limited to MAX_PATH."""
+    if path.startswith("\\\\?\\"):
+        return path
+    if path.startswith("\\\\"):  # \\server\share\... becomes \\?\UNC\server\share\...
+        return "\\\\?\\UNC\\" + path[2:]
+    return "\\\\?\\" + path
 
 
 def longest_path_length(root):
     """Length of the longest path under root, counting the root itself."""
     root = os.path.abspath(str(root))
     # The extended prefix lets the walk see paths beyond MAX_PATH on Windows.
-    walk_root = "\\\\?\\" + root if is_windows() and not root.startswith("\\\\") else root
+    walk_root = extended_path(root) if is_windows() else root
     offset = len(walk_root) - len(root)
     longest = len(root)
     for directory, _dirs, files in os.walk(walk_root):
