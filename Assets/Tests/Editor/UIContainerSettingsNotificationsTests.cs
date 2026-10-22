@@ -75,7 +75,7 @@ namespace ProjectLucid.Tests
             {
                 Assert.That(rig.Toggle.isOn, Is.False);
 
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(rig.Toggle.isOn, Is.True);
                 Assert.That(rig.Changes, Is.Empty);
@@ -89,7 +89,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Toggle.SetIsOnWithoutNotify(true);
 
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(rig.Toggle.isOn, Is.False);
                 Assert.That(rig.Changes, Is.Empty);

@@ -70,7 +70,7 @@ namespace ProjectLucid.Tests
             {
                 Language.OverrideLanguage(Languages.German);
 
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(Chosen(rig), Is.EqualTo(new[] { false, false, true }));
             });
@@ -81,7 +81,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(Chosen(rig), Is.EqualTo(new[] { true, false, false }));
             });
@@ -94,7 +94,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 rig.Buttons[1].Action_SetLanguage();
                 Assert.That(Chosen(rig), Is.EqualTo(new[] { false, true, false }));
@@ -124,11 +124,11 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.Buttons[1].Action_SetLanguage();
                 rig.App.Storage.SetValue(AppFSMKeys.FontsChangeLanguageReady, true);
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Language.CurrentLanguage, Is.EqualTo(Languages.French));
                 Assert.That(rig.App.Storage.GetValue<bool>(AppFSMKeys.FontsChangeLanguageReady), Is.False);
@@ -145,7 +145,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.App.Storage.SetValue(AppFSMKeys.FontsChangeLanguageReady, true);
                 Type cache = typeof(UIContainerSettingsLanguage).GetNestedType("<>c", BindingFlags.NonPublic);
                 FieldInfo lambda = cache.GetField("<>9__5_0", BindingFlags.Static | BindingFlags.Public);
@@ -156,7 +156,7 @@ namespace ProjectLucid.Tests
                 lambda.SetValue(null, null);
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Language.CurrentLanguage, Is.EqualTo(Languages.EnglishUS));
                 Assert.That(rig.App.Storage.GetValue<bool>(AppFSMKeys.FontsChangeLanguageReady), Is.False, "not ready until the next frame");
@@ -179,11 +179,11 @@ namespace ProjectLucid.Tests
                     announced.Add((language, rig.App.Storage.GetValue<bool>(AppFSMKeys.FontsChangeLanguageReady)));
                 Language.OnLanguageChanged += listener;
                 owned.Lease(new ReleaseAction(() => Language.OnLanguageChanged -= listener));
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.Buttons[1].Action_SetLanguage();
                 rig.App.Storage.SetValue(AppFSMKeys.FontsChangeLanguageReady, true);
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(announced, Is.EqualTo(new[] { (Languages.French, false) }));
             });

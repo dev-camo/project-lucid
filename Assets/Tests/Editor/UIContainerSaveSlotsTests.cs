@@ -206,7 +206,7 @@ namespace ProjectLucid.Tests
                 OpenSlot(slots, 0);
                 slots.Container.ShowLoading.Value = true;
 
-                Call(slots.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(slots.Container, "Awake");
 
                 Assert.That(slots.Container.ShowLoading.Value, Is.False);
                 Assert.That(slots.Toggles[0].SlotEmpty.Value, Is.False);
@@ -221,7 +221,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, slots) =>
             {
-                Call(slots.Container, "SetActiveSaveSlotIndex", 2); // Reflection: private UIContainerSaveSlots.SetActiveSaveSlotIndex
+                Call(slots.Container, "SetActiveSaveSlotIndex", 2);
 
                 Assert.That(Get<int>(slots.Container, "m_selectedSlotIndex"), Is.EqualTo(2));
             });
@@ -232,7 +232,7 @@ namespace ProjectLucid.Tests
         public void NavigatingWithoutANavigationManagerDoesNothing()
         {
             Run((owned, slots) =>
-                Assert.DoesNotThrow(() => Call(slots.Container, "TryNavigateToWidget", slots.Toggles[0]))); // Reflection: private UIContainerSaveSlots.TryNavigateToWidget
+                Assert.DoesNotThrow(() => Call(slots.Container, "TryNavigateToWidget", slots.Toggles[0])));
         }
 
         // Action_SelectSave 0x6791C0: ShowLoading is set (0x67921F), StartIsReady is written false (0x6792F3), the toggle's

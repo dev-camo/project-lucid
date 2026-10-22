@@ -183,7 +183,7 @@ namespace ProjectLucid.Tests
             Set(rig.Container, "m_resolutionSlider", resolutionWidget); // Reflection: serialized m_resolutionSlider the editor assigns
             Set(rig.Container, "m_msaaSlider", msaaWidget); // Reflection: serialized m_msaaSlider the editor assigns
 
-            if (awake) Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+            if (awake) Call(rig.Container, "Awake");
             body(owned, rig);
         }));
 
@@ -207,7 +207,7 @@ namespace ProjectLucid.Tests
                 rig.Performance.SetPerformanceProfile(rig.High);
                 rig.Pipeline.msaaSampleCount = 4;
 
-                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(rig.Container, "Awake");
 
                 Assert.That(rig.Container.QualitySetting.Value, Is.EqualTo(2));
                 Assert.That(rig.Container.QualitySettingName.Value, Is.EqualTo("High text"));
@@ -232,7 +232,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_qualityLevels_macOS", Levels((rig.Low, Strings.ACT_1), (rig.Medium, Strings.ACT_2), (twin, Strings.ACT_3))); // Reflection: serialized m_qualityLevels_macOS the editor assigns
                 rig.Performance.SetPerformanceProfile(rig.Low);
 
-                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(rig.Container, "Awake");
 
                 Assert.That(rig.Container.QualitySetting.Value, Is.EqualTo(0), "not the later level of the same profile");
                 Assert.That(rig.Container.QualitySettingName.Value, Is.EqualTo("Low text"));
@@ -249,7 +249,7 @@ namespace ProjectLucid.Tests
                     PerformanceProfile.QualityLevel.High, rig.Locked, rig.Free);
                 rig.Performance.SetPerformanceProfile(other);
 
-                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(rig.Container, "Awake");
 
                 Assert.That(rig.Container.QualitySetting.Value, Is.EqualTo(1));
                 Assert.That(rig.Performance.ActiveProfile, Is.SameAs(rig.Medium), "the shown level's profile becomes the active one");
@@ -356,7 +356,7 @@ namespace ProjectLucid.Tests
             {
                 SetMsaa(rig, Msaa((2, Strings.ZONE_1), (2, Strings.ZONE_2), (4, Strings.LANGUAGE_ENGLISH_AUS)));
 
-                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(rig.Container, "Awake");
 
                 Assert.That(rig.Container.MsaaSettingString.Value, Is.EqualTo("first 2"));
                 Assert.That(rig.MsaaSlider.value, Is.EqualTo(0f));
@@ -384,7 +384,7 @@ namespace ProjectLucid.Tests
         {
             Run(true, (owned, rig) =>
             {
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Page.Reported.Sent, Is.False);
                 Assert.That(rig.Page.Settings.PerformanceProfileName, Is.EqualTo("lucid-medium-profile"));
@@ -403,7 +403,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Container.Action_OnQualitySliderUpdated(2f);
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_quality", "1", "2")));
                 Assert.That(rig.Page.Settings.PerformanceProfileName, Is.EqualTo("lucid-high-profile"));
@@ -419,7 +419,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Container.Action_OnResolutionSliderUpdated(0.9f);
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_resolution_scale", "0.7", "0.9")));
                 Assert.That(rig.Quality.GameplayRenderScale, Is.EqualTo(0.9f));
@@ -436,7 +436,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Container.Action_OnMsaaSliderUpdated(2f);
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_anti_aliasing", "2", "4")));
                 Assert.That(rig.Pipeline.msaaSampleCount, Is.EqualTo(4));
@@ -454,7 +454,7 @@ namespace ProjectLucid.Tests
                 rig.Container.Action_OnResolutionSliderUpdated(0.9f);
                 rig.Container.Action_OnMsaaSliderUpdated(3f);
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(rig.Page.Reported.Last, Is.EqualTo(("graphics_anti_aliasing", "2", "8")));
                 Assert.That(rig.Quality.GameplayRenderScale, Is.EqualTo(0.9f));
@@ -487,7 +487,7 @@ namespace ProjectLucid.Tests
             Run(false, (owned, rig) =>
             {
                 rig.Performance.SetPerformanceProfile(rig.High);
-                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(rig.Container, "Awake");
                 rig.Container.Action_OnResolutionSliderUpdated(0.9f);
                 rig.Container.Action_OnMsaaSliderUpdated(0f);
                 rig.Pipeline.renderScale = 0.6f;
