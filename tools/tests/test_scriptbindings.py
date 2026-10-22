@@ -499,7 +499,7 @@ class BootScriptBindingTests(unittest.TestCase):
 
     def test_boot_scene_components_rebind_and_unbound_neighbours_stay_byte_identical(self):
         # The exported s_boot shape: two bound FSM components beside an unbound
-        # nested component (VisualAssetManager) that must stay untouched.
+        # nested component (a VisualAssetManager outside these bindings) that must stay untouched.
         bindings = [{**rule, "exported_guid": str(index + 1) * 32, "exported_file_id": 11500000,
                      "target_guid": str(index + 5) * 32, "target_file_id": 11500000}
                     for index, rule in enumerate(FSM_RULES)]
@@ -568,13 +568,13 @@ class TextMeshProScriptBindingTests(unittest.TestCase):
         path.write_text(json.dumps(comparison))
         return root, work, export, mapping, comparison, path, summary, package
 
-    def test_both_package_assets_bind_to_the_loaded_registry_scripts(self):
+    def test_all_four_package_assets_bind_to_the_loaded_registry_scripts(self):
         with tempfile.TemporaryDirectory() as directory:
             root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
             with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
                 result = resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
             package_rows = [row for row in result["bindings"] if row.get("package") == "com.unity.textmeshpro"]
-            self.assertEqual([("1" * 32, "6" * 32), ("2" * 32, "7" * 32)],
+            self.assertEqual([("1" * 32, "6" * 32), ("2" * 32, "7" * 32), ("3" * 32, "8" * 32), ("4" * 32, "9" * 32)],
                              [(row["exported_guid"], row["target_guid"]) for row in package_rows])
 
     def test_package_resolution_descriptor_source_and_meta_changes_are_rejected(self):

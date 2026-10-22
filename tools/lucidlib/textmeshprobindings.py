@@ -18,6 +18,24 @@ PROFILES = {
     ("Unity.TextMeshPro", "TMPro.TMP_SpriteAsset"): (
         "m_Version", "m_FaceInfo", "m_Material", "spriteSheet", "m_SpriteCharacterTable",
         "m_GlyphTable", "spriteInfoList", "fallbackSpriteAssets"),
+    # The shipped asset has no m_linebreakingRules: Unity skips that plain class.
+    ("Unity.TextMeshPro", "TMPro.TMP_Settings"): (
+        "m_TextWrappingMode", "m_enableKerning", "m_ActiveFontFeatures", "m_enableExtraPadding", "m_enableTintAllSprites",
+        "m_enableParseEscapeCharacters", "m_EnableRaycastTarget", "m_GetFontFeaturesAtRuntime", "m_missingGlyphCharacter",
+        "m_ClearDynamicDataOnBuild", "m_warningsDisabled", "m_defaultFontAsset", "m_defaultFontAssetPath", "m_defaultFontSize",
+        "m_defaultAutoSizeMinRatio", "m_defaultAutoSizeMaxRatio", "m_defaultTextMeshProTextContainerSize",
+        "m_defaultTextMeshProUITextContainerSize", "m_autoSizeTextContainer", "m_IsTextObjectScaleStatic", "m_fallbackFontAssets",
+        "m_matchMaterialPreset", "m_HideSubTextObjects", "m_defaultSpriteAsset", "m_defaultSpriteAssetPath", "m_enableEmojiSupport",
+        "m_MissingCharacterSpriteUnicode", "m_EmojiFallbackTextAssets", "m_defaultColorGradientPresetsPath", "m_defaultStyleSheet",
+        "m_StyleSheetsResourcePath", "m_leadingCharacters", "m_followingCharacters", "m_UseModernHangulLineBreakingRules"),
+    ("Unity.TextMeshPro", "TMPro.TMP_FontAsset"): (
+        "m_Version", "m_FaceInfo", "m_Material", "m_SourceFontFileGUID", "m_SourceFontFile", "m_SourceFontFilePath",
+        "m_AtlasPopulationMode", "InternalDynamicOS", "m_GlyphTable", "m_CharacterTable", "m_AtlasTextures", "m_AtlasTextureIndex",
+        "m_IsMultiAtlasTexturesEnabled", "m_GetFontFeatures", "m_ClearDynamicDataOnBuild", "m_AtlasWidth", "m_AtlasHeight",
+        "m_AtlasPadding", "m_AtlasRenderMode", "m_UsedGlyphRects", "m_FreeGlyphRects", "m_FontFeatureTable",
+        "m_ShouldReimportFontFeatures", "m_FallbackFontAssetTable", "m_CreationSettings", "m_FontWeightTable", "fontWeights",
+        "normalStyle", "normalSpacingOffset", "boldStyle", "boldSpacing", "italicStyle", "tabSize", "m_fontInfo",
+        "m_glyphInfoList", "m_KerningTable", "fallbackFontAssets", "atlas"),
 }
 PREFIXES = ("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n",
             "%YAML 1.1\r\n%TAG !u! tag:unity3d.com,2011:\r\n")

@@ -19,9 +19,9 @@ namespace ProjectLucid.Tests
     {
         private const Strings Greeting = Strings.CULTURE_NUMBER_BILLIONS;
 
-        // SetText reads the default style sheet from TMP_Settings.instance (TMP_Text.GetStyle). The Resources "TMP Settings" asset of
-        // the recovered project is not bound to this TextMesh Pro package's settings script, so no instance loads; an owned empty
-        // settings object stands in (a process-wide singleton swap that the lease reverses); a loaded instance is never replaced.
+        // SetText reads the default style sheet from TMP_Settings.instance (TMP_Text.GetStyle). A prepared project loads the bound
+        // Resources "TMP Settings" asset, which is used as is; without one (an unprepared project) an owned empty settings object
+        // stands in (a process-wide singleton swap that the lease reverses). A loaded instance is never replaced.
         private static void LeaseTextSettings(Owned owned)
         {
             FieldInfo instance = typeof(TMP_Settings).GetField("s_Instance", BindingFlags.Static | BindingFlags.NonPublic);

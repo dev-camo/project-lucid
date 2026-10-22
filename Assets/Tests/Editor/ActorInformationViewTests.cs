@@ -307,9 +307,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // SetText reads the default style sheet from TMP_Settings.instance (TMP_Text.GetStyle). The Resources "TMP Settings" asset of
-        // the recovered project is not bound to this TextMesh Pro package's settings script, so no instance loads; an owned empty
-        // settings object stands in for the case and the loaded one (none) is put back.
+        // SetText reads the default style sheet from TMP_Settings.instance (TMP_Text.GetStyle). An owned empty settings object stands
+        // in for the case, whether or not a prepared project has loaded the Resources "TMP Settings" asset, and the prior instance
+        // (the loaded one, or none) is put back.
         private static void LeaseTextSettings(Owned owned)
         {
             FieldInfo instance = typeof(TMP_Settings).GetField("s_Instance", BindingFlags.Static | BindingFlags.NonPublic);
