@@ -104,6 +104,15 @@ namespace ProjectLucid.Tests
             Assert.IsNotNull(enter);
             List<Instruction> body = Read(enter);
             List<Instruction> calls = body.Where(IsCall).ToList();
+            // Offline hook H-064 comes first; the original sequence follows it unchanged.
+            string[] hook =
+            {
+                "ProjectLucid.Offline.OfflineAdapters::get_Active",
+                "ProjectLucid.Offline.OfflineDesktopPlatform::get_IsCurrent",
+                "ProjectLucid.Offline.OfflineAppleSplash::Arm",
+            };
+            CollectionAssert.AreEqual(hook, calls.Take(hook.Length).Select(c => Describe(enter, c)).ToArray());
+            calls = calls.Skip(hook.Length).ToList();
             Type levels = typeof(Dictionary<string, AsyncOperationHandle>);
             string[] expected =
             {
