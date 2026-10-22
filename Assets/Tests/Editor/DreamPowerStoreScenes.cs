@@ -26,27 +26,31 @@ namespace ProjectLucid.Tests
             internal Dictionary<CollectableType, ProgressionCollectable> Totals;
         }
 
-        internal static void Run(Action<World> body) => CharacterSelectScene.Run(scene =>
+        internal static void Run(Action<World> body)
         {
-            Owned owned = scene.Owned;
-            OwnedChallengeServices.RegisterChallengeManager(owned); // The store's field initialiser caches this row, and the cached progress takes the manager
-            var world = new World { Scene = scene };
-            world.Store = owned.Register(owned.Host("Lucid dream power store manager", false).AddComponent<DreamPowerStoreManager>());
-            Set(world.Store, "m_saveManager", scene.Save); // Reflection: the reference the store's start-up chain takes from the SaveManager
-            Set(world.Store, "m_dataManager", scene.Data); // Reflection: the reference the store's start-up chain takes from the DataManager
-            Set(world.Store, "m_unlockRequirements", new RequirementGameplayLevelBase[0]); // Reflection: authored serialized field
-            Set(scene.Save, "m_saveSettings", new SaveDataSettings()); // Reflection: the settings the SaveManager holds after loading
+            SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
+            CharacterSelectScene.Run(scene =>
+            {
+                Owned owned = scene.Owned;
+                OwnedChallengeServices.RegisterChallengeManager(owned); // The store's field initialiser caches this row, and the cached progress takes the manager
+                var world = new World { Scene = scene };
+                world.Store = owned.Register(owned.Host("Lucid dream power store manager", false).AddComponent<DreamPowerStoreManager>());
+                Set(world.Store, "m_saveManager", scene.Save); // Reflection: the reference the store's start-up chain takes from the SaveManager
+                Set(world.Store, "m_dataManager", scene.Data); // Reflection: the reference the store's start-up chain takes from the DataManager
+                Set(world.Store, "m_unlockRequirements", new RequirementGameplayLevelBase[0]); // Reflection: authored serialized field
+                Set(scene.Save, "m_saveSettings", new SaveDataSettings()); // Reflection: the settings the SaveManager holds after loading
 
-            // The manager's constructor subscribes both actions; the scene leases those rows.
-            world.Progression = new ProgressionManager();
-            owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(world.Progression)));
-            Set(world.Progression, "m_saveManager", scene.Save); // Reflection: set by Initialise, which also caches every zone
-            var handler = new ProgressionCollectableHandler();
-            handler.CacheEmptyProgress(scene.Save.CurrentSaveIndex);
-            Set(world.Progression, "m_collectables", handler); // Reflection: set by Initialise
-            world.Totals = (Dictionary<CollectableType, ProgressionCollectable>)handler.ProgressPerSave[scene.Save.CurrentSaveIndex].Total;
-            body(world);
-        });
+                // The manager's constructor subscribes both actions; the scene leases those rows.
+                world.Progression = new ProgressionManager();
+                owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(world.Progression)));
+                Set(world.Progression, "m_saveManager", scene.Save); // Reflection: set by Initialise, which also caches every zone
+                var handler = new ProgressionCollectableHandler();
+                handler.CacheEmptyProgress(scene.Save.CurrentSaveIndex);
+                Set(world.Progression, "m_collectables", handler); // Reflection: set by Initialise
+                world.Totals = (Dictionary<CollectableType, ProgressionCollectable>)handler.ProgressPerSave[scene.Save.CurrentSaveIndex].Total;
+                body(world);
+            });
+        }
 
         // The scene's active mission: a shipped regular context over a definition for the given archetype, published through the
         // manager's public SetActiveMissionContext (which loads the mission's state); it is cleared again before the scene is released.
