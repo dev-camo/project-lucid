@@ -28,6 +28,8 @@ class API:
         self.identity = {'name': main.shared.BOT, 'email': '41898282+github-actions[bot]@users.noreply.github.com'}
         self.tree = None
         self.commit = None
+        self.merge_base = '9' * 40
+        self.files = {}
         self.pr = {'state': 'open', 'draft': False, 'head': {'sha': 'c' * 40, 'ref': 'feature', 'repo': {'full_name': 'fork/repo'}},
                    'base': {'repo': {'full_name': main.REPOSITORY}}}
 
@@ -63,6 +65,11 @@ class API:
                 raise ValueError('Atomic non-fast-forward rejection')
             self.head = self.generated
             return {'object': {'sha': self.generated}}
+        if path.startswith(repo + '/compare/'):
+            return {'merge_base_commit': {'sha': self.merge_base}}
+        if path.startswith(repo + '/contents/'):
+            name, ref = path[len(repo + '/contents/'):].split('?ref=')
+            return {'type': 'file', 'encoding': 'base64', 'content': base64.b64encode(self.files[(ref, name)]).decode()}
         if method == 'GET' and path == repo + '/pulls/7':
             return copy.deepcopy(self.pr)
         if method == 'POST' and path.startswith(repo + '/statuses/'):
@@ -98,7 +105,9 @@ class MainProgressTests(unittest.TestCase):
         self.stack.enter_context(mock.patch.object(main.shared, 'git_head', return_value=self.api.parent))
         self.reporting = self.stack.enter_context(mock.patch.object(main.shared, 'reporting_tools', return_value=(
             self.validate, lambda report: '<!-- LUCID_CODE_PROGRESS:START -->NEW<!-- LUCID_CODE_PROGRESS:END -->\n',
-            lambda text: (text.split('<!-- LUCID_CODE_PROGRESS:START -->')[0], '', text.split('<!-- LUCID_CODE_PROGRESS:END -->')[1]))))
+            lambda text: (text.split('<!-- LUCID_CODE_PROGRESS:START -->')[0],
+                          '<!-- LUCID_CODE_PROGRESS:START -->' + text.split('<!-- LUCID_CODE_PROGRESS:START -->')[1].split('<!-- LUCID_CODE_PROGRESS:END -->')[0] + '<!-- LUCID_CODE_PROGRESS:END -->',
+                          text.split('<!-- LUCID_CODE_PROGRESS:END -->')[1]))))
         self.control_check = self.stack.enter_context(mock.patch.object(main.shared.driver, 'require_control_reporting_tools'))
         self.clean = self.stack.enter_context(mock.patch.object(main, 'require_clean_checkout'))
         self.expected = self.stack.enter_context(mock.patch.object(main, 'expected_tree', return_value='f' * 40))
@@ -292,10 +301,10 @@ class MainProgressTests(unittest.TestCase):
             main.pr_status_final(self.api, request, result, outcome, substituted)
         return request
 
-    def only_status(self, head=None):
+    def only_status(self, head=None, context=None):
         (call,) = self.statuses()
         self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{head or 'c' * 40}", call['path'])
-        self.assertEqual(main.PR_COMPILATION_CONTEXT, call['body']['context'])
+        self.assertEqual(context or main.PR_COMPILATION_CONTEXT, call['body']['context'])
         return call['body']
 
     def test_pr_compilation_compiler_failure_is_visible_on_the_exact_head(self):
@@ -430,12 +439,115 @@ class MainProgressTests(unittest.TestCase):
                         main.pr_compile_job(self.api, self.pr_request())
                 self.assertEqual(f'outcome={expected}\nsubstituted=false\n', output.read_text())
 
+    SECTION = '<!-- LUCID_CODE_PROGRESS:START -->\ntable\n<!-- LUCID_CODE_PROGRESS:END -->'
+
+    def readme(self, before='intro\n', section=None, after='\noutro\n'):
+        return (before + (self.SECTION if section is None else section) + after).encode()
+
+    def ownership(self, head_readme=None, head_snapshot=b'{"a": 1}\n', base_readme=None, request=None, pr_user=None):
+        """Run the guard with the PR's merge base holding the published outputs."""
+        head = 'c' * 40
+        self.api.files = {(self.api.merge_base, 'README.md'): base_readme or self.readme(),
+                          (self.api.merge_base, 'docs/code-progress.json'): b'{"a": 1}\n',
+                          (head, 'README.md'): head_readme or self.readme(),
+                          (head, 'docs/code-progress.json'): head_snapshot}
+        if pr_user:
+            self.api.pr['user'] = {'login': pr_user}
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
+            return main.pr_ownership(self.api, request or self.pr_request(), real_split)
+
+    def ownership_body(self):
+        return self.only_status(context=main.PR_OWNERSHIP_CONTEXT)
+
+    def test_ownership_rejects_snapshot_only_edit(self):
+        self.assertEqual('failure', self.ownership(head_snapshot=b'{"a": 2}\n'))
+        body = self.ownership_body()
+        self.assertEqual(main.PR_OWNERSHIP_CONTEXT, body['context'])
+        self.assertIn('docs/code-progress.json', body['description'])
+
+    def test_ownership_rejects_section_only_edit(self):
+        self.assertEqual('failure', self.ownership(head_readme=self.readme(section=self.SECTION.replace('table', 'forged'))))
+        self.assertIn('README.md generated section', self.ownership_body()['description'])
+
+    def test_ownership_rejects_marker_changes_and_combined_edits(self):
+        start, end = main.README_START, main.README_END
+        for name, readme in (('removed', b'intro\ntable\n'),
+                             ('duplicated', self.readme(after='\n' + self.SECTION + '\n')),
+                             ('start only', self.readme(section=start + '\ntable\n')),
+                             ('reversed', self.readme(section=end + '\ntable\n' + start))):
+            with self.subTest(name):
+                self.setUp()
+                self.assertEqual('failure', self.ownership(head_readme=readme))
+        self.setUp()
+        self.assertEqual('failure', self.ownership(head_snapshot=b'{}\n', head_readme=self.readme(section=start + 'x' + end)))
+        self.assertIn('docs/code-progress.json, README.md', self.ownership_body()['description'])
+
+    def test_ownership_allows_prose_only_source_only_and_stale_branch(self):
+        # prose outside the markers; no output change at all (a source-only PR)
+        self.assertEqual('success', self.ownership(head_readme=self.readme(before='new intro\n', after='\nnew outro\n')))
+        self.setUp()
+        self.assertEqual('success', self.ownership())
+        # The merge base, not main, is the reference: main's newer publication differs from both
+        # sides of the PR, and the PR did not touch the outputs.
+        self.setUp()
+        self.api.files[(self.api.parent, 'docs/code-progress.json')] = b'{"newer": true}\n'
+        self.assertEqual('success', self.ownership())
+        compare = [c['path'] for c in self.api.calls if '/compare/' in c['path']]
+        self.assertEqual(1, len(compare))
+        self.assertIn(self.api.parent + '...' + 'c' * 40, compare[0])
+        self.assertFalse([c for c in self.api.calls if self.api.parent in c['path'] and '/contents/' in c['path']])
+
+    def test_ownership_exemption_is_exactly_the_publishers_branch_and_account(self):
+        bot_request = {**self.pr_request(), 'head_repository': main.REPOSITORY, 'head_ref': 'lucid/progress-checks-1'}
+        self.api.pr['head'].update(ref='lucid/progress-checks-1', repo={'full_name': main.REPOSITORY})
+        self.assertEqual('success', self.ownership(head_snapshot=b'{"a": 2}\n', request=bot_request, pr_user=main.shared.BOT))
+        for name, request, user in (('wrong account', bot_request, 'someone'),
+                                    ('wrong branch', {**bot_request, 'head_ref': 'feature'}, main.shared.BOT),
+                                    ('fork', {**bot_request, 'head_repository': 'fork/repo'}, main.shared.BOT)):
+            with self.subTest(name):
+                self.setUp()
+                self.api.pr['head'].update(ref=request['head_ref'], repo={'full_name': request['head_repository']})
+                self.assertEqual('failure', self.ownership(head_snapshot=b'{"a": 2}\n', request=request, pr_user=user))
+
+    def test_ownership_reports_only_on_the_ownership_context_and_stale_pr_posts_nothing(self):
+        self.ownership()
+        self.only_status(context=main.PR_OWNERSHIP_CONTEXT)
+        self.setUp()
+        self.api.pr.update(state='closed')
+        with self.assertRaises(ValueError):
+            self.ownership()
+        self.assertEqual([], self.statuses())
+
+    def test_ownership_guard_runs_from_trusted_control_not_the_pr_head(self):
+        root = Path(__file__).resolve().parents[2] / '.github/workflows'
+        pr = (root / 'pr-compilation.yml').read_text()
+        job = re.split(r'(?m)^  ownership:$', pr)[1].split('\n  start:', 1)[0]
+        self.assertIn('ref: ${{ github.sha }}', job)
+        self.assertIn('run: python3 control/.github/scripts/main_progress.py pr-ownership', job)
+        self.assertEqual(1, job.count('actions/checkout@'))
+        self.assertNotIn('head_sha', job)
+        self.assertNotIn('pull_request.head', job)
+        self.assertEqual('write', re.search(r'statuses: (\w+)', job).group(1))
+        # Negative control: the PR-controlled pull_request workflow must not be where the guard lives.
+        code_progress = (root / 'code-progress.yml').read_text()
+        self.assertIn('pull_request', code_progress)
+        self.assertNotIn('pr-ownership', code_progress)
+        self.assertNotIn(main.PR_OWNERSHIP_CONTEXT, code_progress)
+
+    def test_publication_rejects_composed_outputs_that_differ_from_the_validated_report(self):
+        base = real_split
+        with mock.patch.object(main.shared, 'reporting_tools', return_value=(
+                self.validate, lambda report: self.SECTION + '\n', lambda text: (base(text)[0], '<!-- x -->', base(text)[2]))):
+            with self.assertRaises(ValueError):
+                self.publish()
+        self.assertEqual([], self.mutations())
+
     def test_pr_compilation_workflow_reports_with_isolated_write_token(self):
         text = (Path(__file__).resolve().parents[2] / '.github/workflows/pr-compilation.yml').read_text()
         body = text.split('\njobs:\n', 1)[1]
         parts = re.split(r'(?m)^  ([a-z]+):$', body)
         jobs = dict(zip(parts[1::2], parts[2::2]))
-        self.assertEqual({'gate', 'start', 'compile', 'report'}, set(jobs))
+        self.assertEqual({'gate', 'ownership', 'start', 'compile', 'report'}, set(jobs))
 
         def permissions(job):
             block = re.search(r'(?m)^    permissions:\n((?:      .+\n)+)', jobs[job]).group(1)
@@ -444,7 +556,7 @@ class MainProgressTests(unittest.TestCase):
             return re.search(r'(?m)^    needs: (.+)$', jobs[job]).group(1)
         self.assertNotIn('statuses', permissions('compile'))
         self.assertNotIn('statuses', permissions('gate'))
-        for job in ('start', 'report'):
+        for job in ('ownership', 'start', 'report'):
             self.assertEqual({'contents': 'read', 'pull-requests': 'read', 'statuses': 'write'}, permissions(job))
         self.assertEqual('[gate, start]', needs('compile'))
         self.assertEqual('[gate, compile]', needs('report'))

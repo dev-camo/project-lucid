@@ -36,6 +36,29 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 control/.github/scripts/main_progress.py pr-gate
 
+  ownership:
+    name: Check generated progress ownership
+    needs: gate
+    if: needs.gate.outputs.compile == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
+    steps:
+      # Trusted main code only; the PR head is read through the API, never checked out.
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 control/.github/scripts/main_progress.py pr-ownership
+
   start:
     name: Report pending compilation
     needs: gate
