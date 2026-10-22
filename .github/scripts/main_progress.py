@@ -267,12 +267,32 @@ def pr_compile_steps(api, request, outputs):
         print('Exact-head PR compilation verified')
 
 
+def entry_mode(api, path, ref):
+    """The Git tree mode of path at an exact commit, or None when the path is absent.
+
+    The contents API follows a symlink to a tracked file and serves the target as an ordinary
+    file, so only the tree entry tells a regular file (100644) from a symlink (120000).
+    """
+    *folders, name = path.split('/')
+    tree = ref
+    for folder in folders:
+        found = [e for e in api.request(f"/repos/{REPOSITORY}/git/trees/{tree}")['tree']
+                 if e['path'] == folder and e['type'] == 'tree']
+        if not found:
+            return None
+        tree = found[0]['sha']
+    found = [e for e in api.request(f"/repos/{REPOSITORY}/git/trees/{tree}")['tree'] if e['path'] == name]
+    return found[0]['mode'] if found else None
+
+
 def read_blob(api, path, ref):
     """Bytes of a tracked file at an exact commit, through the trusted API (never a PR checkout).
 
     None when the path is absent or is not a regular file there (deleted, renamed, a symlink
     or a directory), so the caller can report that as a change instead of crashing.
     """
+    if entry_mode(api, path, ref) != '100644':
+        return None
     try:
         entry = api.request(f"/repos/{REPOSITORY}/contents/{path}?ref={ref}")
     except urllib.error.HTTPError as error:

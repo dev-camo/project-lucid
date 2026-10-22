@@ -77,8 +77,25 @@ class API:
                 raise urllib.error.HTTPError(path, 404, 'Not Found', {}, None)
             content = self.files[(ref, name)]
             if content is SYMLINK:
-                return {'type': 'symlink', 'target': 'elsewhere'}
+                # Like GitHub: a symlink to a tracked regular file is followed and served as that
+                # file, here one holding exactly the published bytes.
+                content = self.files[(self.merge_base, name)]
             return {'type': 'file', 'encoding': 'base64', 'content': base64.b64encode(content).decode()}
+        if path.startswith(repo + '/git/trees/'):
+            tree = path[len(repo + '/git/trees/'):]
+            ref, _, folder = tree.partition(':')
+            prefix = folder + '/' if folder else ''
+            entries, folders = [], set()
+            for (at, name), content in self.files.items():
+                if at != ref or not name.startswith(prefix):
+                    continue
+                rest = name[len(prefix):]
+                if '/' in rest:
+                    folders.add(rest.split('/')[0])
+                else:
+                    entries.append({'path': rest, 'type': 'blob', 'mode': '120000' if content is SYMLINK else '100644'})
+            entries += [{'path': f, 'type': 'tree', 'mode': '040000', 'sha': ref + ':' + prefix + f} for f in sorted(folders)]
+            return {'tree': entries, 'truncated': False}
         if method == 'GET' and path == repo + '/pulls/7':
             return copy.deepcopy(self.pr)
         if method == 'POST' and path.startswith(repo + '/statuses/'):
