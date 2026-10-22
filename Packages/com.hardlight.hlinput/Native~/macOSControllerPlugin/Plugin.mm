@@ -1,29 +1,30 @@
-// Original filename Plugin.mm is retained in both CPUs' STAB source groups.
-// Full original symbols/selectors and numeric/string maps support this reconstruction.
-// ARC compiler helpers, original typed-pointer spellings and source form are
-// inference limits. Never load/run this preserved service by default.
+// Reconstructed original plugin source, preserved for reference; not built or
+// loaded by the offline game. Plugin.mm is the original filename (kept in the
+// STAB source groups of both the x86_64 and arm64 slices). Symbols, selectors and
+// the key and axis tables follow the shipped binaries; ARC lifetimes, the
+// original typed-pointer spellings and the exact source form are inferred.
 #import "PreservedControllerManagerDeclarations.h"
 #include <string>
 
 char *MarshallString(const std::string &value);
 
-// Exact exported symbols and two32-byte zero-fill areas, each indexed in8-byte
-// steps. id is an explicit inferred dynamic-object source spelling; original
-// GCExtendedGamepad/Snapshot pointer declarations were not retained. Strong ARC
-// array lifetimes require future compiler qualification, not runtime simulation.
+// Two 32-byte zero-initialised global arrays (four slots), indexed in 8-byte
+// steps. The element type is spelled id because the original gamepad and
+// snapshot pointer declarations are not recoverable; the ARC lifetime of the
+// elements is inferred.
 id previousSnapshot[4] = {nil, nil, nil, nil};
 id currentSnapshot[4] = {nil, nil, nil, nil};
 
-// Exact local std::__1::string symbol controllerNames. The C++ compiler is
-// responsible for the observed __GLOBAL__sub_I_Plugin.mm initialization and
-// destructor registration; no invented authored initializer method is added.
+// The compiler generates the __GLOBAL__sub_I_Plugin.mm static initialiser and
+// destructor registration for this std::string; there is no hand-written
+// initialiser.
 static std::string controllerNames;
 
 @implementation ControllerManager
 
 + (ControllerManager *)Instance
 {
-    // Exact nested static symbol Instance::instance; no dispatch_once/lock.
+    // Lazy singleton (symbol Instance::instance) with no dispatch_once or lock.
     static ControllerManager *instance = nil;
     if (instance == nil)
         instance = [[ControllerManager alloc] init];
@@ -32,10 +33,10 @@ static std::string controllerNames;
 
 - (void)update
 {
-    // Original repeatedly queries the live list; it neither caches one list nor
-    // bounds it to the four physical slots nor clears removed/unsupported slots.
-    // Each actual query/site is preserved. Unsigned loop source type is inferred
-    // from64-bit increment/count and unsigned branch on both CPUs.
+    // The original queries the live controller list at every use: it does not
+    // cache the list, cap it at the four slots or clear slots of removed or
+    // unsupported controllers. The unsigned loop variable is inferred from the
+    // 64-bit increment and unsigned compare in both slices.
     for (NSUInteger index = 0; index < [[GCController controllers] count]; ++index)
     {
         if ([[GCController controllers] objectAtIndexedSubscript:index] != nil)
@@ -43,7 +44,8 @@ static std::string controllerNames;
             id profile = [[[GCController controllers] objectAtIndexedSubscript:index] extendedGamepad];
             if (profile != nil)
             {
-                // Genuine provider call runs AFTER the previous slot store.
+                // saveSnapshot runs after the previous-slot store, so the old
+                // current snapshot is kept as previous.
                 previousSnapshot[index] = currentSnapshot[index];
                 currentSnapshot[index] = [profile saveSnapshot];
             }
@@ -53,10 +55,10 @@ static std::string controllerNames;
 
 - (BOOL)getKeyDown:(int)key :(int)joystickIndex
 {
-    // Unchecked signed indexing is original; no repair or supplied provider.
+    // joystickIndex is used unchecked as a signed index, as in the original.
     if (currentSnapshot[joystickIndex] == nil) return NO;
-    // Both actual Instance/internal calls occur in this order before the result;
-    // do not replace with self or short-circuit the second provider call.
+    // Both getKeyInternal calls go through Instance, in this order, before the
+    // result is combined; do not use self or short-circuit the second call.
     BOOL previous = [[ControllerManager Instance] getKeyInternal:key :previousSnapshot[joystickIndex]];
     BOOL current = [[ControllerManager Instance] getKeyInternal:key :currentSnapshot[joystickIndex]];
     return !previous && current;
@@ -84,30 +86,30 @@ static std::string controllerNames;
 
 - (const char *)getControllerNames
 {
-    // Exact original reset precedes the initial controller-count call.
+    // The reset comes before the first controller-count call.
     controllerNames = "";
     if ([[GCController controllers] count] == 0) return nullptr;
 
     for (NSUInteger index = 0; index < [[GCController controllers] count]; ++index)
     {
-        // Original obtains separate live controller objects for these two names.
-        // No nil-name guard, escaping, profile filtering or trimming is present.
+        // The controller is fetched again for each of the two names. There is no
+        // nil check, escaping, filtering or trimming.
         controllerNames.append([[[[GCController controllers] objectAtIndexedSubscript:index] vendorName] UTF8String]);
         controllerNames.append([@" : " UTF8String]);
         controllerNames.append([[[[GCController controllers] objectAtIndexedSubscript:index] productCategory] UTF8String]);
         if (index < [[GCController controllers] count] - 1)
             controllerNames.append(",");
     }
-    // Initial zero returnsnull; later list changes can reach this withempty text.
-    // Provider mutations, nil messages, allocation ownership and faults unrun.
+    // Zero controllers returns null above; if the list shrinks to empty during
+    // the loop, this returns an empty string. The result is never freed here.
     return MarshallString(controllerNames);
 }
 
 - (BOOL)getKeyInternal:(int)key :(id)snapshot
 {
     if (snapshot == nil) return NO;
-    // All72 original signed table offsets decoded on both CPUs. These48 cases
-    // are the complete supported numeric set; no guessed KeyCode/API is added.
+    // All 72 signed jump-table offsets were decoded from both slices. These 48
+    // key codes are the complete supported set; every other key returns NO.
     switch (key)
     {
         case 354: case 374: case 394: case 414: return [[[snapshot dpad] up] isPressed];
@@ -129,8 +131,8 @@ static std::string controllerNames;
 - (float)getAxisInternal:(NSString *)axisName :(id)snapshot
 {
     if (snapshot == nil) return 0.0f;
-    // Original48 case-sensitive names, axis-first/joystick-digit order. The
-    // already supplied snapshot is used regardless of which digit matches.
+    // 48 case-sensitive names, matched axis by axis and joystick 1 to 4 in turn.
+    // The snapshot passed in is used whichever joystick digit matches.
     if ([axisName isEqualToString:@"Joystick 1 Axis 1"] ||
         [axisName isEqualToString:@"Joystick 2 Axis 1"] ||
         [axisName isEqualToString:@"Joystick 3 Axis 1"] ||

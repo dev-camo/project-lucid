@@ -1,6 +1,8 @@
-// Original filename pluginExtern.m is retained in both CPUs' STAB source groups.
-// These six complete wrapper schedules are inferred from the full native ranges;
-// compiler/ARC/source-form/Objective-C runtime fidelity is still unapproved.
+// Reconstructed original plugin source, preserved for reference; not built or
+// loaded by the offline game. pluginExtern.m is the original filename (kept in
+// the STAB source groups of both the x86_64 and arm64 slices).
+// The six exported wrappers are inferred from the full native code ranges; ARC
+// lifetimes and the exact source form are not proven.
 #import "PreservedControllerManagerDeclarations.h"
 
 void UpdatePlugin(void)
@@ -25,14 +27,14 @@ BOOL GetKeyUp(int key, int joystickIndex)
 
 float GetAxisValue(const char *axisName, int joystickIndex)
 {
-    // Original converts first, then obtains Instance; no C-pointer guard.
-    // Foundation invalid/null UTF8 input and ARC lifetime remain provider holds.
+    // The original converts the name first, then fetches Instance, with no
+    // guard on axisName (null or invalid UTF-8 is passed straight to Foundation).
     NSString *axis = [NSString stringWithUTF8String:axisName];
     return [[ControllerManager Instance] getAxis:axis :joystickIndex];
 }
 
 const char *GetControllerNamesNative(void)
 {
-    // The original names wrapper does not update snapshots before this call.
+    // Does not refresh the snapshots first, as in the original.
     return [[ControllerManager Instance] getControllerNames];
 }
