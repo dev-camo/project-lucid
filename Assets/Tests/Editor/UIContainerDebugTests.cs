@@ -187,7 +187,7 @@ namespace ProjectLucid.Tests
                 respawn.Invincibility.SetIsOnWithoutNotify(true);
                 Assert.That(respawn.Character.DebugInvulnerable(), Is.False);
 
-                Call(respawn.Container, "OnCharacterManagerValid", respawn.Manager);
+                Call(respawn.Container, "OnCharacterManagerValid", respawn.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(respawn.Invincibility.gameObject.activeSelf, Is.True);
                 Assert.That(respawn.Invincibility.isOn, Is.False);
@@ -203,7 +203,7 @@ namespace ProjectLucid.Tests
             {
                 SetCurrent(respawn.Manager, respawn.Character, false);
 
-                Call(respawn.Container, "OnCharacterManagerValid", respawn.Manager);
+                Call(respawn.Container, "OnCharacterManagerValid", respawn.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
                 Assert.That(respawn.Invincibility.gameObject.activeSelf, Is.False);
                 Assert.That(respawn.Button.gameObject.activeSelf, Is.False);
@@ -222,7 +222,7 @@ namespace ProjectLucid.Tests
             WithRespawn(respawn =>
             {
                 SetCurrent(respawn.Manager, respawn.Character, true);
-                Call(respawn.Container, "OnCharacterManagerValid", respawn.Manager);
+                Call(respawn.Container, "OnCharacterManagerValid", respawn.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
                 Character character = respawn.Character;
                 string[] expectedLabels = { "Respawn: Lucid respawn 1", "Respawn: Lucid respawn 2", "Respawn: Lucid respawn 0", "Respawn: Lucid respawn 1" };
                 int[] expectedPoints = { 0, 1, 2, 0 };
@@ -281,7 +281,7 @@ namespace ProjectLucid.Tests
         {
             WithRespawn(respawn =>
             {
-                Assert.That(Call(respawn.Container, "CanSetupForMissionSelect"), Is.EqualTo(false));
+                Assert.That(Call(respawn.Container, "CanSetupForMissionSelect"), Is.EqualTo(false)); // Reflection: private UIContainerDebug.CanSetupForMissionSelect
             });
         }
 
@@ -337,7 +337,7 @@ namespace ProjectLucid.Tests
                 body(rig);
             });
 
-        private static void Rebuild(MissionButtons rig) => Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager);
+        private static void Rebuild(MissionButtons rig) => Call(rig.Container, "OnMissionManagerValid", rig.Missions.Manager); // Reflection: private callback that InvokeOnValid runs when the system registers
 
         // OnMissionManagerValid 0x62BF10 offers one button for the active mission: "Complete: <name>" through the lambda, unless the
         // mission has at least two objectives still to do (Target >= 2 at 0x62c41d and Target - Progress >= 2 at 0x62c425), when
@@ -433,7 +433,8 @@ namespace ProjectLucid.Tests
                 return objective;
             }).ToArray();
             Set(tracker, "m_missionObjectives", new List<MissionObjective>(list)); // Reflection: authored list (the editor Reset finds none on inactive hosts)
-            // The state's tracker is installed by the addressable callback of SetUpTracker; the setter is private.
+            // Reflection: SetUpTracker installs the tracker from an addressable load callback, and there is no prefab to load here;
+            // the Tracker setter is private.
             typeof(MissionState).GetProperty("Tracker", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                 .GetSetMethod(true).Invoke(rig.State, new object[] { tracker });
             return tracker;
@@ -512,14 +513,15 @@ namespace ProjectLucid.Tests
             Set(group, "m_definitions", new List<MissionDefinition> { rig.Definition }); // Reflection: authored group contents
             Set(group, "m_requirements", new List<RequirementMissionGroupBase>());
             var missionList = owned.Track(ScriptableObject.CreateInstance<MissionList>());
-            Set(missionList, "m_groups", new List<MissionGroup> { group });
+            Set(missionList, "m_groups", new List<MissionGroup> { group }); // Reflection: serialized m_groups the editor assigns
             var level = owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
-            Set(level, "m_guid", "lucid-debug-container-level");
-            Set(level, "m_missionList", missionList);
+            Set(level, "m_guid", "lucid-debug-container-level"); // Reflection: authored GUID of a serialized definition
+            Set(level, "m_missionList", missionList); // Reflection: serialized m_missionList the editor assigns
             var zone = owned.Track(ScriptableObject.CreateInstance<GameplayLevelCategory>());
-            Set(zone, "m_guid", "lucid-debug-container-zone");
-            Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { level });
+            Set(zone, "m_guid", "lucid-debug-container-zone"); // Reflection: authored GUID of a serialized definition
+            Set(zone, "m_gameplayEntries", new List<GameplayLevelUIEntry> { level }); // Reflection: serialized m_gameplayEntries the editor assigns
             var levels = owned.Track(ScriptableObject.CreateInstance<GameLevels>());
+            // Reflection: the zone list of GameLevels is private authored data, and LevelManager.GameLevels has a private setter that its Awake calls.
             ((List<GameplayLevelUIEntry>)typeof(GameLevels).GetField("m_gameplayEntries", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(levels)).Add(zone);
             typeof(LevelManager).GetProperty("GameLevels").SetValue(rig.Missions.Level, levels); // the property is set by the LevelManager's Awake
             return rig.Missions.Save.CurrentSave.GetOrCreateLevelData("lucid-debug-container-level").GetOrCreateMissionData(MissionGuid);
@@ -533,7 +535,7 @@ namespace ProjectLucid.Tests
             {
                 ListMission(rig, true);
 
-                Assert.That(Call(rig.Container, "SetupForMission", new SaveDataLevelMission("lucid-unlisted-mission")), Is.EqualTo(false));
+                Assert.That(Call(rig.Container, "SetupForMission", new SaveDataLevelMission("lucid-unlisted-mission")), Is.EqualTo(false)); // Reflection: private UIContainerDebug.SetupForMission
                 Assert.That(rig.Buttons, Is.Empty);
             });
         }
@@ -552,7 +554,7 @@ namespace ProjectLucid.Tests
                 save.BestTimeSeconds = bestTime;
                 save.MarkComplete(1);
 
-                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(offered));
+                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(offered)); // Reflection: private UIContainerDebug.SetupForMission
                 Assert.That(rig.Buttons.Length, Is.EqualTo(offered ? 1 : 0));
             });
         }
@@ -566,7 +568,7 @@ namespace ProjectLucid.Tests
                 SaveDataLevelMission save = ListMission(rig, true);
                 save.BestTimeSeconds = 5f;
 
-                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(true));
+                Assert.That(Call(rig.Container, "SetupForMission", save), Is.EqualTo(true)); // Reflection: private UIContainerDebug.SetupForMission
 
                 UIWidgetButton button = rig.Buttons.Single();
                 Assert.That(button.gameObject.activeSelf, Is.True);
@@ -586,7 +588,7 @@ namespace ProjectLucid.Tests
             {
                 SaveDataLevelMission save = ListMission(rig, ranked);
                 save.BestTimeSeconds = 5f;
-                Call(rig.Container, "SetupForMission", save);
+                Call(rig.Container, "SetupForMission", save); // Reflection: private UIContainerDebug.SetupForMission
                 UIWidgetButton button = rig.Buttons.Single();
 
                 LogAssert.Expect(LogType.Error, RefusedDestroy);

@@ -102,6 +102,7 @@ namespace ProjectLucid.Tests
         private static readonly PerformanceProfile.QualityLevel Supported = PerformanceProfile.QualityLevel.Medium;
         private static readonly PerformanceProfile.QualityLevel Unsupported = PerformanceProfile.QualityLevel.High;
 
+        // Reflection: the profiler's statistics have private setters that its own update fills.
         private static void SetStatistic(HLProfilerDataManager profiler, string property, float value) =>
             typeof(HLProfilerDataManager).GetProperty(property, AnyMember).GetSetMethod(true).Invoke(profiler, new object[] { value });
 
@@ -134,6 +135,8 @@ namespace ProjectLucid.Tests
 
         internal static void WithRefusingCoroutineHost(Owned owned, Action body)
         {
+            // Reflection: the process coroutine host is the private static s_instance, which only an active CoroutineUtils.Awake sets;
+            // an inactive component takes its place for the body (its coroutine starts are refused) and the prior host returns in finally.
             FieldInfo host = typeof(CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
             object prior = host.GetValue(null);
             GameObject inactive = owned.Host("Lucid refusing coroutine host", false);
@@ -205,7 +208,7 @@ namespace ProjectLucid.Tests
         {
             WithTracker(rig =>
             {
-                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
                 rig.Tracker.enabled = false;
 
                 rig.Tracker.OpenTracker(false);
@@ -240,7 +243,7 @@ namespace ProjectLucid.Tests
                 WithRefusingCoroutineHost(rig.Owned, () =>
                 {
                     RuntimeIssueTracker tracker = rig.Tracker;
-                    Call(tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                    Call(tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
                     tracker.OpenTracker(false);
                     LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
@@ -252,7 +255,7 @@ namespace ProjectLucid.Tests
                     Assert.That(ControlTables.Subscriptions(GameInput.IssueTrackerClose, tracker), Is.Not.Empty, "still listening this frame");
                     Assert.That(ControlTables.Subscriptions(GameInput.IssueTrackerEnd, tracker), Is.Not.Empty);
 
-                    Call(tracker, "<SetVisible>b__26_0");
+                    Call(tracker, "<SetVisible>b__26_0"); // Reflection: compiler-generated lambda body, reachable only through reflection
 
                     Assert.That(ControlTables.Subscriptions(GameInput.IssueTrackerClose, tracker), Is.Empty);
                     Assert.That(ControlTables.Subscriptions(GameInput.IssueTrackerEnd, tracker), Is.Empty);
@@ -268,7 +271,7 @@ namespace ProjectLucid.Tests
         {
             WithTracker(rig =>
             {
-                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
 
                 rig.Tracker.CloseTracker(canReopen);
 
@@ -285,14 +288,14 @@ namespace ProjectLucid.Tests
             WithTracker(rig =>
             {
                 RuntimeIssueTracker tracker = rig.Tracker;
-                Call(tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                Call(tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
 
-                Call(tracker, "GameInputEndTrackerDown", 1f);
+                Call(tracker, "GameInputEndTrackerDown", 1f); // Reflection: private RuntimeIssueTracker.GameInputEndTrackerDown
                 Assert.That(Get<bool>(tracker, "m_canOpen"), Is.False);
                 Assert.That(Get<bool>(tracker, "m_canOpenWhenInvalid"), Is.False);
 
-                Call(tracker, "OnLevelActivated", (LevelManagerLevel)null);
-                Call(tracker, "GameInputCloseTrackerDown", 1f);
+                Call(tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
+                Call(tracker, "GameInputCloseTrackerDown", 1f); // Reflection: private RuntimeIssueTracker.GameInputCloseTrackerDown
                 Assert.That(Get<bool>(tracker, "m_canOpen"), Is.True);
                 Assert.That(Get<bool>(tracker, "m_canOpenWhenInvalid"), Is.False);
             });
@@ -306,11 +309,11 @@ namespace ProjectLucid.Tests
             {
                 RuntimeIssueTracker tracker = rig.Tracker;
 
-                Call(tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                Call(tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
                 Assert.That(Get<bool>(tracker, "m_canOpen"), Is.True);
                 Assert.That(Get<bool>(tracker, "m_canOpenWhenInvalid"), Is.True);
 
-                Call(tracker, "OnLevelExit");
+                Call(tracker, "OnLevelExit"); // Reflection: private RuntimeIssueTracker.OnLevelExit
                 Assert.That(Get<bool>(tracker, "m_canOpen"), Is.False);
                 Assert.That(Get<bool>(tracker, "m_canOpenWhenInvalid"), Is.True);
             });
@@ -327,14 +330,14 @@ namespace ProjectLucid.Tests
                 RuntimeIssueTracker tracker = rig.Tracker;
                 LevelManager levels = rig.World.Levels;
 
-                Call(tracker, "Start");
+                Call(tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(Get<HLProfilerDataManager>(tracker, "m_dataHandler"), Is.SameAs(rig.Profiler));
                 Assert.That(Targets(Get<Delegate>(rig.Performance, "OnProfileUpdated")), Is.EqualTo(new[] { "RuntimeIssueTracker.OnPerformanceProfileUpdated" }));
                 Assert.That(Targets(Get<Delegate>(levels, "m_actionOnLevelActivated")), Is.EqualTo(new[] { "RuntimeIssueTracker.OnLevelActivated" }));
                 Assert.That(Targets(levels.OnLevelExit), Is.EqualTo(new[] { "RuntimeIssueTracker.OnLevelExit" }));
 
-                Call(tracker, "OnDestroy");
+                Call(tracker, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Targets(Get<Delegate>(rig.Performance, "OnProfileUpdated")), Is.Empty);
                 Assert.That(Targets(Get<Delegate>(levels, "m_actionOnLevelActivated")), Is.Empty);
@@ -354,11 +357,11 @@ namespace ProjectLucid.Tests
         {
             WithTracker(rig =>
             {
-                Call(rig.Tracker, "Start");
+                Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 Object.DestroyImmediate(rig.Performance.gameObject);
                 Object.DestroyImmediate(rig.World.Levels.gameObject);
 
-                Assert.DoesNotThrow(() => Call(rig.Tracker, "OnDestroy"));
+                Assert.DoesNotThrow(() => Call(rig.Tracker, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
             });
         }
 
@@ -379,7 +382,7 @@ namespace ProjectLucid.Tests
                 rig.IssueProfile.m_attributes.AddRange(new[] { skipped, first, second });
                 rig.Tracker.enabled = false;
 
-                Call(rig.Tracker, "Start");
+                Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(Get<object>(rig.Tracker, "m_configurations"), Is.SameAs(first.Configurations), "the first supported attribute, not a later one");
                 Assert.That(Get<PerformanceProfile.QualityLevel>(rig.Tracker, "m_qualityLevel"), Is.EqualTo(PerformanceProfile.QualityLevel.Low));
@@ -408,13 +411,13 @@ namespace ProjectLucid.Tests
             {
                 RuntimeIssueConfiguration configuration = Configuration("Frame/AverageFPS", 30f, false);
                 rig.IssueProfile.m_attributes.Add(Attribute(rig.Owned, PerformanceProfile.QualityLevel.Low, Supported, configuration));
-                Call(rig.Tracker, "Start");
+                Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 Assert.That(rig.Tracker.enabled, Is.True);
                 object configurations = Get<object>(rig.Tracker, "m_configurations");
                 Assert.That(configurations, Is.Not.Null);
 
                 SetSerialized(rig.Config, "m_runtimeIssueProfile", property => property.objectReferenceValue = null);
-                Call(rig.Tracker, "OnPerformanceProfileUpdated", rig.Profile);
+                Call(rig.Tracker, "OnPerformanceProfileUpdated", rig.Profile); // Reflection: private RuntimeIssueTracker.OnPerformanceProfileUpdated
 
                 Assert.That(rig.Tracker.enabled, Is.False);
                 Assert.That(Get<object>(rig.Tracker, "m_configurations"), Is.SameAs(configurations));
@@ -428,18 +431,18 @@ namespace ProjectLucid.Tests
             WithTracker(rig =>
             {
                 rig.IssueProfile.m_attributes.Add(Attribute(rig.Owned, PerformanceProfile.QualityLevel.Low, Unsupported));
-                Call(rig.Tracker, "Start");
+                Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 Assert.That(Get<object>(rig.Tracker, "m_configurations"), Is.Null);
                 Assert.That(rig.Tracker.enabled, Is.False, "nothing was ever chosen");
 
                 RuntimeIssueAttribute supported = Attribute(rig.Owned, PerformanceProfile.QualityLevel.High, Supported, Configuration("Frame/AverageFPS", 1f, false));
                 rig.IssueProfile.m_attributes.Add(supported);
-                Call(rig.Tracker, "OnPerformanceProfileUpdated", rig.Profile);
+                Call(rig.Tracker, "OnPerformanceProfileUpdated", rig.Profile); // Reflection: private RuntimeIssueTracker.OnPerformanceProfileUpdated
                 Assert.That(Get<object>(rig.Tracker, "m_configurations"), Is.SameAs(supported.Configurations));
                 Assert.That(rig.Tracker.enabled, Is.True);
 
                 rig.IssueProfile.m_attributes.Remove(supported);
-                Call(rig.Tracker, "OnPerformanceProfileUpdated", rig.Profile);
+                Call(rig.Tracker, "OnPerformanceProfileUpdated", rig.Profile); // Reflection: private RuntimeIssueTracker.OnPerformanceProfileUpdated
                 Assert.That(Get<object>(rig.Tracker, "m_configurations"), Is.SameAs(supported.Configurations), "no later attribute matches, so the choice stays");
                 Assert.That(Get<PerformanceProfile.QualityLevel>(rig.Tracker, "m_qualityLevel"), Is.EqualTo(PerformanceProfile.QualityLevel.High));
                 Assert.That(rig.Tracker.enabled, Is.True);
@@ -470,7 +473,7 @@ namespace ProjectLucid.Tests
                     rig.IssueProfile.m_attributes.Add(Attribute(rig.Owned, PerformanceProfile.QualityLevel.Low, Supported,
                         unknownGroup, frame, unknownLayout, stat, unknownStat, layoutOnly, trailing));
 
-                    Call(rig.Tracker, "Start");
+                    Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                     IList rows = Rows(rig.Tracker);
                     Assert.That(rows.Cast<object>().Select(RowConfiguration).ToArray(), Is.EqualTo(new object[] { frame, stat, layoutOnly, trailing }));
@@ -479,7 +482,7 @@ namespace ProjectLucid.Tests
                     Assert.That(RowData(rows[2]), Is.SameAs(reference), "the layout name is looked up again as the stat name");
                     Assert.That(RowData(rows[3]), Is.SameAs(reference), "text after the last name is ignored");
 
-                    Call(rig.Tracker, "UpdateTrackers");
+                    Call(rig.Tracker, "UpdateTrackers"); // Reflection: private RuntimeIssueTracker.UpdateTrackers
                     Assert.That(rows.Count, Is.EqualTo(4), "the rows are rebuilt, not appended to");
                 }
                 finally
@@ -497,7 +500,7 @@ namespace ProjectLucid.Tests
         {
             WithTracker(rig =>
             {
-                Call(rig.Tracker, "Start");
+                Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 string[] names = { "AverageFPS", "AverageFrameDeltaTime", "MinFrameDeltaTime", "MaxFrameDeltaTime", "CurrentFrameDeltaTime", "CPUFrequency", "GPUFrequency" };
                 for (int i = 0; i < names.Length; i++) SetStatistic(rig.Profiler, names[i], i + 1);
 
@@ -514,7 +517,7 @@ namespace ProjectLucid.Tests
         {
             WithTracker(rig =>
             {
-                Call(rig.Tracker, "Start");
+                Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 SetStatistic(rig.Profiler, "AverageFPS", 60f);
 
                 Assert.That(FrameData(rig.Tracker, "Frame#AverageFPS", out float value), Is.True, "the separator is skipped without being checked");
@@ -593,7 +596,7 @@ namespace ProjectLucid.Tests
         {
             rig.IssueProfile.m_attributes.Add(Attribute(rig.Owned, PerformanceProfile.QualityLevel.Low, Supported,
                 Configuration("Frame/AverageFPS", 30f, false), Configuration("Frame/CurrentFrameDeltaTime", 0.05f, true)));
-            Call(rig.Tracker, "Start");
+            Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
             Assert.That(Rows(rig.Tracker).Count, Is.EqualTo(2));
             SetStatistic(rig.Profiler, "AverageFPS", fps);
             SetStatistic(rig.Profiler, "CurrentFrameDeltaTime", delta);
@@ -607,7 +610,7 @@ namespace ProjectLucid.Tests
             {
                 Assert.That(Get<bool>(rig.Tracker, "m_canOpenWhenInvalid"), Is.False);
 
-                Call(rig.Tracker, "FixedUpdate");
+                Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                 Assert.That(Get<bool>(rig.Tracker, "m_canOpenWhenInvalid"), Is.True);
                 Assert.That(rig.Tracker.IsVisible, Is.False);
@@ -619,7 +622,7 @@ namespace ProjectLucid.Tests
         {
             WithTwoFrameRows(30f, 0.05f, rig =>
             {
-                Call(rig.Tracker, "FixedUpdate");
+                Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                 Assert.That(Get<bool>(rig.Tracker, "m_canOpenWhenInvalid"), Is.True, "30 meets the minimum and 0.05 meets the maximum");
             });
@@ -630,10 +633,10 @@ namespace ProjectLucid.Tests
         {
             WithTwoFrameRows(10f, 0.01f, rig =>
             {
-                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
                 rig.Tracker.enabled = false;
 
-                Call(rig.Tracker, "FixedUpdate");
+                Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                 Assert.That(rig.Tracker.IsVisible, Is.True);
                 Assert.That(rig.Tracker.enabled, Is.True);
@@ -646,9 +649,9 @@ namespace ProjectLucid.Tests
         {
             WithTwoFrameRows(60f, 0.5f, rig =>
             {
-                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
 
-                Call(rig.Tracker, "FixedUpdate");
+                Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                 Assert.That(rig.Tracker.IsVisible, Is.True);
             });
@@ -660,11 +663,11 @@ namespace ProjectLucid.Tests
         {
             WithTwoFrameRows(10f, 0.01f, rig =>
             {
-                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null);
-                if (!canOpen) Call(rig.Tracker, "OnLevelExit");
-                if (!canOpenWhenInvalid) Call(rig.Tracker, "GameInputCloseTrackerDown", 1f);
+                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
+                if (!canOpen) Call(rig.Tracker, "OnLevelExit"); // Reflection: private RuntimeIssueTracker.OnLevelExit
+                if (!canOpenWhenInvalid) Call(rig.Tracker, "GameInputCloseTrackerDown", 1f); // Reflection: private RuntimeIssueTracker.GameInputCloseTrackerDown
 
-                Call(rig.Tracker, "FixedUpdate");
+                Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                 Assert.That(rig.Tracker.IsVisible, Is.False);
             });
@@ -678,10 +681,10 @@ namespace ProjectLucid.Tests
         {
             WithTwoFrameRows(fps, delta, rig =>
             {
-                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null);
+                Call(rig.Tracker, "OnLevelActivated", (LevelManagerLevel)null); // Reflection: private RuntimeIssueTracker.OnLevelActivated
                 Call(rig.Tracker, "GameInputCloseTrackerDown", 1f); // opens nothing; clears the open-when-invalid gate
 
-                Call(rig.Tracker, "FixedUpdate");
+                Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                 Assert.That(Get<bool>(rig.Tracker, "m_canOpenWhenInvalid"), Is.False);
                 Assert.That(rig.Tracker.IsVisible, Is.False);
@@ -701,10 +704,10 @@ namespace ProjectLucid.Tests
                 {
                     rig.IssueProfile.m_attributes.Add(Attribute(rig.Owned, PerformanceProfile.QualityLevel.Low, Supported,
                         Configuration("Lucid group/stat/stat", limit, isMaxThreshold)));
-                    Call(rig.Tracker, "Start");
+                    Call(rig.Tracker, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                     Assert.That(Rows(rig.Tracker).Count, Is.EqualTo(1));
 
-                    Call(rig.Tracker, "FixedUpdate");
+                    Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                     Assert.That(Get<bool>(rig.Tracker, "m_canOpenWhenInvalid"), Is.EqualTo(valid));
                 }
@@ -720,7 +723,7 @@ namespace ProjectLucid.Tests
         {
             WithTracker(rig =>
             {
-                Call(rig.Tracker, "FixedUpdate");
+                Call(rig.Tracker, "FixedUpdate"); // Reflection: Unity sends FixedUpdate; Edit Mode does not
 
                 Assert.That(Get<bool>(rig.Tracker, "m_canOpenWhenInvalid"), Is.True);
             });

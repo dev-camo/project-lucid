@@ -34,6 +34,7 @@ namespace ProjectLucid.Tests
         }
 
         // The shared TimeScaledComponent_SDT lookup is read by the editor Reset and OnValidate of a HomingTarget.
+        // Reflection: s_config_Internal is a private static; a case swaps in an owned lookup and restores the prior one in finally.
         private static readonly System.Reflection.FieldInfo TimeConfig =
             typeof(TimeScaledComponent_SDT).GetField("s_config_Internal", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
 
@@ -94,11 +95,11 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<SphereCollider>(display, "m_collider") == null, Is.True, "no collider yet");
 
                 var sphere = host.AddComponent<SphereCollider>();
-                Call(display, "Reset");
+                Call(display, "Reset"); // Reflection: the editor's Reset is private and Edit Mode does not send it
                 Assert.That(Get<SphereCollider>(display, "m_collider"), Is.SameAs(sphere));
 
                 Object.DestroyImmediate(sphere);
-                Call(display, "Reset");
+                Call(display, "Reset"); // Reflection: the editor's Reset is private and Edit Mode does not send it
                 Assert.That(Get<SphereCollider>(display, "m_collider") == null, Is.True, "Reset overwrites the field with the missing component");
             });
         }
@@ -110,7 +111,7 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var display = owned.Host("Lucid flight stamina gizmo", false).AddComponent<FlightStaminaGizmoDisplay>();
-                Assert.DoesNotThrow(() => Call(display, "OnDrawGizmos"));
+                Assert.DoesNotThrow(() => Call(display, "OnDrawGizmos")); // Reflection: Unity sends OnDrawGizmos; Edit Mode does not
             });
         }
 
@@ -128,7 +129,7 @@ namespace ProjectLucid.Tests
                 var console = owned.Host("Lucid project console", false).AddComponent<ProjectConsole>();
                 console.enabled = !deviceConsoleEnabled;
 
-                Call(console, "Start");
+                Call(console, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(console.enabled, Is.EqualTo(deviceConsoleEnabled));
             });
@@ -147,7 +148,7 @@ namespace ProjectLucid.Tests
                 console.OnConsoleOpen += () => opened++;
                 Assert.That(console.IsConsoleVisible, Is.False);
 
-                Call(console, "OpenConsoleFromDebugMenu");
+                Call(console, "OpenConsoleFromDebugMenu"); // Reflection: private OpenConsoleFromDebugMenu, which the original reaches from its own code
 
                 Assert.That(console.IsConsoleVisible, Is.True);
                 Assert.That(opened, Is.EqualTo(1));
@@ -190,7 +191,7 @@ namespace ProjectLucid.Tests
             LogAssert.ignoreFailingMessages = true;
             try
             {
-                Call(attack, "OnDrawGizmosSelected");
+                Call(attack, "OnDrawGizmosSelected"); // Reflection: Unity sends OnDrawGizmosSelected; Edit Mode does not
             }
             catch (Exception exception) when (exception.ToString().Contains("Gizmos"))
             {
@@ -294,7 +295,7 @@ namespace ProjectLucid.Tests
                 Set(performance, "m_performanceProfiles", new List<PerformanceProfile> { plain, custom }); // Reflection: serialized list
                 var menu = owned.Host("Lucid performance profile menu", false).AddComponent<DebugMenuPerformanceProfiles>();
 
-                Call(menu, "Start");
+                Call(menu, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 // Profiles compare equal by GUID and a fresh asset's is empty, so the entries are compared by identity.
                 Assert.That(performance.PerformanceProfiles.Count, Is.EqualTo(2));
