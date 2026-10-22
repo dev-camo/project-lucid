@@ -63,7 +63,7 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraSecondarySensitivity = CameraSensitivityType.VeryLow;
                 var container = NewControls(page);
 
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
 
                 Assert.That(Get<int>(container, "m_cachedControlStickSensitivity"), Is.EqualTo(2));
                 Assert.That(Get<int>(container, "m_cachedCameraSecondarySensitivity"), Is.EqualTo(0));
@@ -147,11 +147,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 container.ControlStickSensitivityIndex.Value = 2;
                 container.ControlStickSensitivityString.Value = Strings.NUMBER_SEPARATOR_SLASH;
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("control_stick_sensitivity", "DECIMAL_SEPARATOR", "NUMBER_SEPARATOR_SLASH")));
             });
@@ -163,11 +163,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 container.CameraSecondarySensitivityIndex.Value = 0;
                 container.CameraSecondarySensitivityString.Value = Strings.NUMBER_SEPARATOR;
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_secondary_sensitivity", "NUMBER_SEPARATOR_SLASH", "NUMBER_SEPARATOR")));
             });
@@ -181,11 +181,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 container.ControlStickSensitivityIndex.Value = 2;
                 container.ControlStickSensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("control_stick_sensitivity", "DECIMAL_SEPARATOR", "MISSING")));
 
@@ -193,7 +193,7 @@ namespace ProjectLucid.Tests
                 container.CameraSecondarySensitivityIndex.Value = 0;
                 container.CameraSecondarySensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_secondary_sensitivity", "NUMBER_SEPARATOR_SLASH", "MISSING")));
             });
@@ -206,13 +206,13 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 container.ControlStickSensitivityIndex.Value = 0;
                 container.ControlStickSensitivityString.Value = Strings.MISSING;
                 container.CameraSecondarySensitivityIndex.Value = 2;
                 container.CameraSecondarySensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_secondary_sensitivity", "NUMBER_SEPARATOR_SLASH", "MISSING")));
             });
@@ -224,9 +224,9 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(page.Reported.Sent, Is.False);
             });

@@ -26,7 +26,7 @@ namespace ProjectLucid.Tests
                 page.Settings.GameSpeed = 0.5f;
                 var container = Add<UIContainerSettingsAccessibility>(page);
 
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
 
                 Assert.That(container.GameSpeed.Value, Is.EqualTo(0.5f));
                 Assert.That(Get<float>(container, "m_cachedGameSpeed"), Is.EqualTo(0.5f));
@@ -119,10 +119,10 @@ namespace ProjectLucid.Tests
             WithTime(page => OwnedStringTable.Run(PercentFormat, () =>
             {
                 var container = Add<UIContainerSettingsAccessibility>(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 container.Action_SetGameSpeed(0.4f);
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 StringAssert.Contains("\"m_gameSpeed\":0.4", SavedJson(page));
                 Assert.That(page.Settings.HasChangesToSave(), Is.False);
@@ -138,10 +138,10 @@ namespace ProjectLucid.Tests
             WithTime(page => OwnedStringTable.Run(PercentFormat, () =>
             {
                 var container = Add<UIContainerSettingsAccessibility>(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 page.Settings.GameSpeed = 1f; // dirties the settings without changing the speed
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(SavedJson(page), Is.Null);
                 Assert.That(page.Settings.HasChangesToSave(), Is.True);
@@ -156,10 +156,10 @@ namespace ProjectLucid.Tests
             WithTime(page => OwnedStringTable.Run(PercentFormat, () =>
             {
                 var container = Add<UIContainerSettingsAccessibility>(page);
-                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(container, "Awake");
                 container.Action_SetGameSpeed(1f);
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(SavedJson(page), Is.Not.Null);
                 Assert.That(page.Reported.Sent, Is.False);

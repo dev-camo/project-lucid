@@ -73,7 +73,7 @@ namespace ProjectLucid.Tests
                 ProcessManager.GetSystem<App>().Storage.SetValue(AppFSMKeys.MetaGameActive, true);
                 SetCurrent(manager, character, true);
 
-                Call(background, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(background, "Awake");
 
                 Assert.That(image.material, Is.Not.SameAs(material));
                 Assert.That(image.color, Is.EqualTo(new Color(0.25f, 0.5f, 0.75f, 0.125f)));
@@ -88,7 +88,7 @@ namespace ProjectLucid.Tests
                 (UISettingsBackgroundImage background, Image image, Material material) = NewBackground(owned);
                 SetCurrent(manager, character, false);
 
-                Call(background, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(background, "Awake");
 
                 Assert.That(image.material, Is.Not.SameAs(material));
                 Assert.That(image.color, Is.EqualTo(new Color(0.25f, 0.5f, 0.75f, 0.125f)));
@@ -105,7 +105,7 @@ namespace ProjectLucid.Tests
                 (UISettingsBackgroundImage background, Image image, Material material) = NewBackground(owned);
                 SetCurrent(manager, character, true);
 
-                Call(background, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
+                Call(background, "Awake");
 
                 Assert.That(image.material, Is.SameAs(material));
                 Assert.That(image.color, Is.EqualTo(Color.white));
@@ -122,7 +122,7 @@ namespace ProjectLucid.Tests
                 Set(background, "m_backgroundImage", null); // Reflection: serialized m_backgroundImage the editor assigns
                 SetCurrent(manager, character, false);
 
-                Assert.DoesNotThrow(() => Call(background, "Awake")); // Reflection: Unity sends Awake; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(background, "Awake"));
             });
         }
     }
