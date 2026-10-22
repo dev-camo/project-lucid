@@ -45,7 +45,6 @@ namespace ProjectLucid.Editor
                 "Non-script object pointers are checked by GUID and local identifier only: their type field and the local identifiers of builtin resources are not checked.";
         }
 
-        private static readonly Regex GuidReference = new Regex(@"guid:\s*([0-9a-fA-F]{32})", RegexOptions.Compiled);
         private static readonly Regex ScriptReference = new Regex(@"^\s*m_Script:\s*\{fileID:\s*(-?\d+),\s*guid:\s*([0-9a-fA-F]{32}),\s*type:\s*(\d+)\}\s*$", RegexOptions.Compiled);
         // Unity's YAML PPtr: {fileID: N} names a document in the same file;
         // {fileID: N, guid: G, type: T} names a loaded object of another asset.
@@ -214,6 +213,9 @@ namespace ProjectLucid.Editor
                             // object to give one diagnostic per affected document.
                             if (error != null)
                                 badScripts.Add(relative + (NullScriptReference.IsMatch(line) && currentObject != null ? " " + currentObject : "") + ": " + error);
+                            // A missing MonoScript GUID is also listed in missing_guids.
+                            Match scriptPointer = ScriptReference.Match(line);
+                            if (scriptPointer.Success) RecordMissing(scriptPointer.Groups[2].Value.ToLowerInvariant(), relative);
                         }
                         // m_Script keeps its stricter MonoScript class check above.
                         else if (value >= 0 && line.IndexOf("fileID", value, StringComparison.Ordinal) >= 0)
@@ -221,7 +223,11 @@ namespace ProjectLucid.Editor
                             string example = Example(relative, currentObject, line);
                             foreach (string candidate in PointerCandidates(line.Substring(value)))
                             {
-                                if (!TryParsePointer(candidate, out string localID, out string guid, out string type))
+                                bool parsed = TryParsePointer(candidate, out string localID, out string guid, out string type);
+                                // Only a parsed pointer's GUID is a reference; GUID text in
+                                // a string scalar or comment is not.
+                                if (parsed && guid != null) RecordMissing(guid.ToLowerInvariant(), relative);
+                                if (!parsed)
                                     AddObject(relative + " " + candidate, "Unsupported or malformed object pointer", example);
                                 else if (!long.TryParse(localID, out long fileID))
                                     AddObject(relative + " " + candidate, "Local identifier is not a signed 64-bit value", example);
@@ -230,18 +236,6 @@ namespace ProjectLucid.Editor
                                     if (fileID != 0) locals.Add(new KeyValuePair<long, string>(fileID, example));
                                 }
                                 else CheckExternal(guid.ToLowerInvariant(), fileID, type, example);
-                            }
-                        }
-                        if (line.IndexOf("guid:", StringComparison.Ordinal) < 0) continue;
-                        foreach (Match match in GuidReference.Matches(line))
-                        {
-                            string guid = match.Groups[1].Value.ToLowerInvariant();
-                            if (IsBuiltinGuid(guid)) continue;
-                            if (String.IsNullOrEmpty(Resolve(guid)))
-                            {
-                                HashSet<string> examples;
-                                if (!Missing.TryGetValue(guid, out examples)) Missing.Add(guid, examples = new HashSet<string>());
-                                if (examples.Count < ExampleLimit) examples.Add(relative);
                             }
                         }
                     }
@@ -388,6 +382,14 @@ namespace ProjectLucid.Editor
                     resolved.Add(guid, destination);
                 }
                 return destination;
+            }
+
+            private void RecordMissing(string guid, string relative)
+            {
+                if (IsBuiltinGuid(guid) || !String.IsNullOrEmpty(Resolve(guid))) return;
+                HashSet<string> examples;
+                if (!Missing.TryGetValue(guid, out examples)) Missing.Add(guid, examples = new HashSet<string>());
+                if (examples.Count < ExampleLimit) examples.Add(relative);
             }
 
             // A missing GUID is reported once, in missing_guids. Builtin

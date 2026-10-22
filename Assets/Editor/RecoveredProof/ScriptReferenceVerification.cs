@@ -198,6 +198,11 @@ namespace ProjectLucid
                 Require(string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(missingGuid)), "fixture GUID is unassigned");
                 Require(Scan(scan, directory, "missing-guid.prefab", renderer(mainID, missingGuid), out bad, out objects, out unresolved) == "incomplete" &&
                     unresolved == 1 && objects.Length == 0 && bad.Length == 0, "a missing GUID counts once, in missing_guids only");
+                // A missing MonoScript GUID is listed in missing_guids and also fails its binding check.
+                Require(Scan(scan, directory, "missing-script.prefab",
+                    yaml("--- !u!114 &1\nMonoBehaviour:\n  m_Script: {fileID: 11500000, guid: " + missingGuid + ", type: 3}\n"), out bad, out objects, out unresolved) == "incomplete" &&
+                    unresolved == 2 && objects.Length == 0 && bad.Length == 1 && bad[0].Contains("MonoScript GUID is unresolved: " + missingGuid),
+                    "a missing MonoScript GUID counts in missing_guids and in invalid_script_bindings");
             }
             catch (Exception exception)
             {
@@ -222,7 +227,7 @@ namespace ProjectLucid
                     throw new AggregateException("Owned reference audit fixture cleanup failed",
                         primary == null ? cleanup : new[] { primary }.Concat(cleanup));
             }
-            Debug.Log("[Project Lucid] Recovered YAML object pointer checks passed: 19");
+            Debug.Log("[Project Lucid] Recovered YAML object pointer checks passed: 20");
         }
 
         // Local PPtr syntax on owned fixture text: spacing, nesting, repeated keys
@@ -289,9 +294,20 @@ namespace ProjectLucid
                     out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 &&
                     objects.SequenceEqual(new[] { "Assets/Recovered/quoted-beside-absent.prefab {fileID: 77}: Local identifier names no document in this file" }),
                     "an absent pointer beside quoted pointer text is reported");
+
+                // GUID text in string scalars is not a reference; only a PPtr names one.
+                string text = Guid.NewGuid().ToString("N");
+                Require(string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(text)), "text GUID is unassigned");
+                string guidText = "  m_Name: 'guid: " + text + "'\n  m_Text: \"guid: " + text + "\"\n" +
+                    "  m_Long: 'first line\n    guid: " + text + " second line'\n  m_Data: {label: 'guid: " + text + "'}\n";
+                Require(Scan(scan, directory, "guid-text.prefab", gameObject(guidText + "  m_Self: {fileID: 1}\n"), out bad, out objects, out unresolved) == "complete" &&
+                    bad.Length == 0 && objects.Length == 0 && unresolved == 0, "quoted scalars containing GUID text are not references");
+                Require(Scan(scan, directory, "guid-text-then-pointer.prefab", gameObject(guidText + "  m_Ref: {fileID: 7, guid: " + text + ", type: 2}\n"),
+                    out bad, out objects, out unresolved) == "incomplete" && unresolved == 1 && bad.Length == 0 && objects.Length == 0,
+                    "a real unresolved pointer beside GUID text is still reported once");
             }
             finally { Directory.Delete(directory, true); }
-            Debug.Log("[Project Lucid] Recovered YAML local pointer syntax checks passed: 16");
+            Debug.Log("[Project Lucid] Recovered YAML local pointer syntax checks passed: 18");
         }
 
         private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
