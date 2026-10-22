@@ -2340,6 +2340,32 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.PlayerPositionShaderGlobalIsTheWorldPosition",
     "ProjectLucid.Editor.OriginalAssemblyCSharpStudioBehaviourTests.DissolveRefetchesTheMainCameraAfterItsCameraWasDestroyed",
 )
+# Shipped Amplify Color types (Assembly-CSharp): declarations, hierarchy and behaviour from the shipped disassembly.
+EDITMODE_TESTS += (
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ShippedTypeListMatches",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.DeclarationsMatchTheShippedAssembly",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.BaseTypesAndSealingMatchTheShippedHierarchy",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ComponentAttributesMatchTheShippedMetadata",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.SerializedFieldAttributesAndConstantsMatchTheShippedMetadata",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.EnumValuesMatchTheShippedLiterals",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ConstructorDefaultsMatchTheShippedConstructor",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.NewSharedInstanceIdIsAFreshGuidString",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.EnteringAVolumeInsertsItFirstAndIgnoresRepeats",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.BlendToStartsAnAnimatedBlendTowardsTheTargetLut",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.LutDimensionsMustBeSquareStripsAndResetAnisotropy",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ShaderPassCombinesQualityColorSpaceHdrDitheringAndTonemapper(0,0,False,0,False,18)",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ShaderPassCombinesQualityColorSpaceHdrDitheringAndTonemapper(1,1,False,0,False,1)",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ShaderPassCombinesQualityColorSpaceHdrDitheringAndTonemapper(1,1,True,1,True,15)",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ShaderPassCombinesQualityColorSpaceHdrDitheringAndTonemapper(0,0,True,3,False,23)",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ShaderPassCombinesQualityColorSpaceHdrDitheringAndTonemapper(1,0,True,2,True,8)",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ShaderPassNeedsTheOwnerCamera",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.VersionInfoReportsOneEightTwo",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.FieldTypesAreRecognisedByFullName",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ContainerFindsVolumeEffectsByReferenceThenBySharedInstanceId",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.BlendingVolumeEffectsLerpsNumbersAndTakesTheSecondBoolean",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ComponentFlagsListPublicBlendableFieldsAndEffectsApplyThem",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.AcceptableComponentsDropUnityComponentsButKeepTheDerivedEffect",
+)
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.LiteralContentFormatsNestedParametersAndKeepsTextOnFormatErrors",
     "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.TableContentIsStoredAsItsCrcStringId",
