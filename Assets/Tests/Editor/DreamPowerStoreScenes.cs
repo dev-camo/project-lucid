@@ -48,19 +48,19 @@ namespace ProjectLucid.Tests
             body(world);
         });
 
-        // The scene's active mission: a shipped regular context over a definition for the given archetype. The manager's setter
-        // is private, so the case calls it as the manager's own code does; it is cleared again before the scene is released.
+        // The scene's active mission: a shipped regular context over a definition for the given archetype, published through the
+        // manager's public SetActiveMissionContext (which loads the mission's state); it is cleared again before the scene is released.
         internal static void ActivateMission(Scene scene, CharacterArchetype archetype, bool dreamPowersEnabled)
         {
             var mission = scene.Owned.Track(ScriptableObject.CreateInstance<MissionDefinition>());
             Set(mission, "m_guid", "lucid-store-mission"); // Reflection: authored GUID of a serialized definition
             Set(mission, "m_characterArchetype", archetype); // Reflection: authored mission data
             Set(mission, "m_enableDreamPowers", dreamPowersEnabled); // Reflection: authored mission data
+            Set(mission, "m_subMissions", new System.Collections.Generic.List<MissionDefinition>()); // Reflection: authored (empty) list, which LoadMission reads
             var level = scene.Owned.Track(ScriptableObject.CreateInstance<GameplayLevelDefinition>());
             Set(level, "m_guid", "lucid-store-level"); // Reflection: authored GUID of a serialized definition
-            var setter = typeof(MissionManager).GetProperty("ActiveMissionContext").GetSetMethod(true);
-            setter.Invoke(scene.Missions, new object[] { new MissionContextRegular(mission, level, false) });
-            scene.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => setter.Invoke(scene.Missions, new object[] { null })));
+            scene.Missions.SetActiveMissionContext(new MissionContextRegular(mission, level, false));
+            scene.Owned.Lease(new CharacterTriggerTestSupport.ReleaseAction(() => scene.Missions.SetActiveMissionContext(null)));
         }
 
         // A dream power with an authored purchase cost and band, listed in the scene's DataManager.
@@ -81,9 +81,9 @@ namespace ProjectLucid.Tests
             // Reflection: the references Awake takes from the process manager.
             Set(store, "m_dreamPowerStoreManager", world.Store);
             Set(store, "m_dataManager", world.Scene.Data);
-            Set(store, "m_missionManager", world.Scene.Missions);
-            Set(store, "m_saveManager", world.Scene.Save);
-            Set(store, "m_progressionManager", world.Progression);
+            Set(store, "m_missionManager", world.Scene.Missions); // Reflection: Awake takes these from the registry; Edit Mode does not send Awake
+            Set(store, "m_saveManager", world.Scene.Save); // Reflection: Awake takes these from the registry; Edit Mode does not send Awake
+            Set(store, "m_progressionManager", world.Progression); // Reflection: Awake takes these from the registry; Edit Mode does not send Awake
             return store;
         }
 
@@ -109,7 +109,7 @@ namespace ProjectLucid.Tests
         {
             Owned owned = world.Scene.Owned;
             var definition = ChallengeRewardTestSupport.Create<CharacterArchetypeDefinition>(owned);
-            Call(definition, "OnEnable");
+            Call(definition, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
             var images = new ArchetypeImages
             {
                 Alternate = ChallengeRewardTestSupport.NewSprite(owned),
@@ -156,7 +156,7 @@ namespace ProjectLucid.Tests
             {
                 definitions[i] = ChallengeRewardTestSupport.Create<DreamPowerStoreBandDefinition>(owned,
                     "{\"m_guid\":\"lucid-store-band-" + i + "\",\"m_type\":" + (int)bands[i].type + ",\"m_name\":" + (int)bands[i].name + "}");
-                Call(definitions[i], "OnEnable");
+                Call(definitions[i], "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
                 backgrounds[i] = ChallengeRewardTestSupport.NewSprite(owned);
                 ChallengeRewardTestSupport.Cache(definitions[i].SlotLockedBackground, backgrounds[i]);
                 world.Scene.Data.DreamPowerStoreBandDefinitions[bands[i].type] = definitions[i];
