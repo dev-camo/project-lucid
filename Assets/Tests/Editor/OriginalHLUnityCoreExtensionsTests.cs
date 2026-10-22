@@ -126,13 +126,14 @@ namespace ProjectLucid.Tests
             Assert.That(string.Empty.Format0PlaceholderTime(10, 59), Is.EqualTo("10:59"));
         }
 
-        // Get0PlaceholderFormat 0x1ab53a0 takes the absolute value as negl/cmovs
-        // (0x1ab5417/0x1ab541a) with no overflow path, so int.MinValue must not
-        // throw. Where log10 of the unchanged negative value is NaN the x86-64
-        // cvttsd2si gives int.MinValue, the digit-count subtraction wraps negative
-        // and no padding is added; OpString then appends only the sign. The ARM64
-        // NaN-to-int conversion differs and no arm64 slice is available, so the
-        // exact string is asserted on x86-64 only.
+        // Get0PlaceholderFormat takes the absolute value as negl/cmovs with no overflow path (x86-64
+        // 0x1ab5417/0x1ab541a, arm64 0x1ab86c4/0x1ab86c8 cmp/cneg mi), so int.MinValue must not throw.
+        // Log10 of the unchanged negative value is NaN and the NaN-to-int conversion differs per slice.
+        // x86-64: cvttsd2si gives int.MinValue, the digit-count subtraction wraps negative and no
+        // padding is added; OpString (0x1a996f0) then appends only the sign because its exponent is
+        // int.MinValue. arm64: fcvtms gives 0 (digit count 1, one '0' of padding), and OpString
+        // (0x1a9c394) appends '-' and then one digit with divisor 1, (char)(int.MinValue + '0') = '0'.
+        // The shared assertions hold on both; the exact strings are asserted per architecture.
         [Test]
         public void Format0PlaceholderTimeDoesNotThrowForIntMinValue()
         {
@@ -145,10 +146,24 @@ namespace ProjectLucid.Tests
             string secondsMin = null;
             Assert.DoesNotThrow(() => minutesMin = string.Empty.Format0PlaceholderTime(int.MinValue, 7));
             Assert.DoesNotThrow(() => secondsMin = string.Empty.Format0PlaceholderTime(7, int.MinValue));
-            if (System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64)
+            Assert.That(minutesMin, Does.StartWith("-").And.EndWith(":07"));
+            Assert.That(secondsMin, Does.StartWith("-07:"));
+
+            System.Runtime.InteropServices.Architecture architecture =
+                System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture;
+            if (architecture == System.Runtime.InteropServices.Architecture.X64)
             {
                 Assert.That(minutesMin, Is.EqualTo("--:07"));
                 Assert.That(secondsMin, Is.EqualTo("-07:-"));
+            }
+            else if (architecture == System.Runtime.InteropServices.Architecture.Arm64)
+            {
+                Assert.That(minutesMin, Is.EqualTo("-0-0:07"));
+                Assert.That(secondsMin, Is.EqualTo("-07:0-0"));
+            }
+            else
+            {
+                Assert.Inconclusive("No native slice was inspected for " + architecture);
             }
         }
 

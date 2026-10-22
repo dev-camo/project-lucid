@@ -266,8 +266,9 @@ namespace Hardlight
 					mainImage = texture;
 					return true;
 				}
-				// Native 0x1A11E29/0x1A11E2B: the integer height difference is negl/cmovs, so int.MinValue stays
-				// negative (Math.Abs(int) would throw on Mono). Computed once; the other operands are floats.
+				// Native 0x1A11E29/0x1A11E2B: the inlined Mathf.Abs(int) (init flag 0x319EAD6, set at 0x1A11D9E) is
+				// negl/cmovs, so int.MinValue stays negative where Mono's checked abs would throw. The native
+				// computes it inside the third disjunct; hoisting it here is only safe because it is pure.
 				int heightDifference = screenHeight - texture.Resolution.y;
 				int absoluteHeightDifference = unchecked(heightDifference < 0 ? -heightDifference : heightDifference);
 				if (bestRatio == 0f || Math.Abs(screenRatio - bestRatio) > Math.Abs(screenRatio - ratio) ||
