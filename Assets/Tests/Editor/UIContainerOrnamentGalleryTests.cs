@@ -106,14 +106,14 @@ namespace ProjectLucid.Tests
 
             // The scene's widgets.
             rig.Gallery = owned.Host("Lucid ornament gallery", false).AddComponent<UIContainerOrnamentGallery>();
-            Set(rig.Gallery, "m_containerNavigation", owned.Host("Lucid gallery navigation", false).AddComponent<UIContainerNavigation>());
+            Set(rig.Gallery, "m_containerNavigation", owned.Host("Lucid gallery navigation", false).AddComponent<UIContainerNavigation>()); // Reflection: serialized m_containerNavigation the editor assigns
             OrnamentToggleRig toggle = NewToggleRig(owned, null);
             UIWidgetOrnamentEntryRow row = owned.Host("Lucid gallery row prefab", false).AddComponent<UIWidgetOrnamentEntryRow>();
-            Set(row, "m_thumbnailPrefab", toggle.Toggle);
+            Set(row, "m_thumbnailPrefab", toggle.Toggle); // Reflection: serialized m_thumbnailPrefab the editor assigns
             rig.Composer = owned.Host("Lucid gallery composer", false).AddComponent<UIWidgetOrnamentEntryRowComposer>();
-            Set(rig.Composer, "m_rowPrefab", row);
-            Set(rig.Gallery, "m_ornamentEntryRowComposer", rig.Composer);
-            Set(rig.Gallery, "m_toggleGroup", owned.Host("Lucid gallery toggle group", false).AddComponent<UIToggleGroup>());
+            Set(rig.Composer, "m_rowPrefab", row); // Reflection: serialized m_rowPrefab the editor assigns
+            Set(rig.Gallery, "m_ornamentEntryRowComposer", rig.Composer); // Reflection: serialized m_ornamentEntryRowComposer the editor assigns
+            Set(rig.Gallery, "m_toggleGroup", owned.Host("Lucid gallery toggle group", false).AddComponent<UIToggleGroup>()); // Reflection: serialized m_toggleGroup the editor assigns
             rig.SelectedBackground = NewSprite(owned);
             rig.UnselectedBackground = NewSprite(owned);
             rig.StoryTab = NewTab(owned, rig, "m_storyTab");
@@ -124,27 +124,30 @@ namespace ProjectLucid.Tests
             GameObject buttonHost = owned.Host("Lucid gallery info button", false);
             rig.InfoButton = buttonHost.AddComponent<UIWidgetButtonImageCharacter>();
             rig.UiButton = buttonHost.AddComponent<Button>();
-            Set(rig.InfoButton, "m_uiButton", rig.UiButton);
-            Set(rig.Gallery, "m_infoPanel", rig.InfoPanel);
-            Set(rig.Gallery, "m_infoButton", rig.InfoButton);
-            Set(rig.Gallery, "m_infoGlyph", rig.InfoGlyph);
-            Set(rig.Gallery, "m_nameLocked", (Strings)NameLocked);
-            Set(rig.Gallery, "m_ornamentsPerRowNotchedDevice", 2);
-            Set(rig.Gallery, "m_ornamentsPerRowNoNotchDevice", 2);
+            Set(rig.InfoButton, "m_uiButton", rig.UiButton); // Reflection: serialized m_uiButton the editor assigns
+            Set(rig.Gallery, "m_infoPanel", rig.InfoPanel); // Reflection: serialized m_infoPanel the editor assigns
+            Set(rig.Gallery, "m_infoButton", rig.InfoButton); // Reflection: serialized m_infoButton the editor assigns
+            Set(rig.Gallery, "m_infoGlyph", rig.InfoGlyph); // Reflection: serialized m_infoGlyph the editor assigns
+            Set(rig.Gallery, "m_nameLocked", (Strings)NameLocked); // Reflection: serialized m_nameLocked the editor assigns
+            Set(rig.Gallery, "m_ornamentsPerRowNotchedDevice", 2); // Reflection: serialized m_ornamentsPerRowNotchedDevice the editor assigns
+            Set(rig.Gallery, "m_ornamentsPerRowNoNotchDevice", 2); // Reflection: serialized m_ornamentsPerRowNoNotchDevice the editor assigns
             var zoneHost = scope.Inactive("Lucid gallery touch zone");
             rig.Zone = zoneHost.AddComponent<OnScreenTouchZoneOrnamentProbe>();
             var area = scope.Inactive("Lucid gallery touch area", typeof(RectTransform)).GetComponent<RectTransform>();
             area.sizeDelta = new Vector2(160f, 40f);
             area.localScale = new Vector3(2f, 1f, 1f);
             area.position = new Vector3(500f, 20f, 0f);
-            Set(rig.Zone, "m_validTouchTransform", area);
-            Set(rig.Zone, "m_restrictToSingleTouch", true);
-            Set(rig.Gallery, "m_onScreenControlZone", rig.Zone);
+            Set(rig.Zone, "m_validTouchTransform", area); // Reflection: serialized m_validTouchTransform the editor assigns
+            Set(rig.Zone, "m_restrictToSingleTouch", true); // Reflection: serialized m_restrictToSingleTouch the editor assigns
+            Set(rig.Gallery, "m_onScreenControlZone", rig.Zone); // Reflection: serialized m_onScreenControlZone the editor assigns
 
             // Every ornament's prefab handle is already finished, so LoadNewOrnament finds it cached.
             var resources = new ResourceManager();
+            // Reflection: CallbackHooksEnabled is an internal field of the Addressables ResourceManager; switched off, a created
+            // operation completes at once instead of through the hooks its update loop pumps.
             typeof(ResourceManager).GetField("CallbackHooksEnabled", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic).SetValue(resources, false);
             GameObject prefab = owned.Host("Lucid gallery ornament prefab", false);
+            // Reflection: the gallery caches its prefab handles in a private dictionary, which the case fills with finished ones.
             var handles = Get<Dictionary<string, AsyncOperationHandle<GameObject>>>(rig.Gallery, "m_ornamentHandleByGuid");
             var created = new List<AsyncOperationHandle<GameObject>>();
             foreach (OrnamentDefinition definition in new[] { rig.S0, rig.S1, rig.S2, rig.C0, rig.A0 })
@@ -160,18 +163,18 @@ namespace ProjectLucid.Tests
                 resources.Dispose();
             }));
 
-            Call(rig.Gallery, "OnEnable");
+            Call(rig.Gallery, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
             body(owned, rig);
         })));
 
         private static UIWidgetCategoryToggle NewTab(Owned owned, Rig rig, string field)
         {
             var tab = owned.Host("Lucid gallery " + field, false).AddComponent<UIWidgetCategoryToggle>();
-            Set(tab, "m_selectedBackground", rig.SelectedBackground);
-            Set(tab, "m_unselectedBackground", rig.UnselectedBackground);
-            Set(tab, "m_selectedIcon", NewSprite(owned));
-            Set(tab, "m_unselectedIcon", NewSprite(owned));
-            Set(rig.Gallery, field, tab);
+            Set(tab, "m_selectedBackground", rig.SelectedBackground); // Reflection: serialized m_selectedBackground the editor assigns
+            Set(tab, "m_unselectedBackground", rig.UnselectedBackground); // Reflection: serialized m_unselectedBackground the editor assigns
+            Set(tab, "m_selectedIcon", NewSprite(owned)); // Reflection: serialized m_selectedIcon the editor assigns
+            Set(tab, "m_unselectedIcon", NewSprite(owned)); // Reflection: serialized m_unselectedIcon the editor assigns
+            Set(rig.Gallery, field, tab); // Reflection: serialized tab reference of the field the caller names
             return tab;
         }
 
@@ -204,12 +207,12 @@ namespace ProjectLucid.Tests
             rotator = prefab.AddComponent<OrnamentGalleryRotatorProbe>();
             rotator.enabled = false;
             Ornament ornament = prefab.AddComponent<Ornament>();
-            Set(ornament, "m_transformRotator", rotator);
-            Set(ornament, "m_yRotationOffset", yRotationOffset);
+            Set(ornament, "m_transformRotator", rotator); // Reflection: serialized m_transformRotator the editor assigns
+            Set(ornament, "m_yRotationOffset", yRotationOffset); // Reflection: serialized m_yRotationOffset the editor assigns
             if (pingPong)
             {
-                Set(rotator, "m_idleAutomation", true);
-                Set(rotator, "m_pingPongWhenIdle", true);
+                Set(rotator, "m_idleAutomation", true); // Reflection: serialized m_idleAutomation the editor assigns
+                Set(rotator, "m_pingPongWhenIdle", true); // Reflection: serialized m_pingPongWhenIdle the editor assigns
             }
             owned.Host("Lucid gallery ornament camera", true, prefab.transform).AddComponent<Camera>();
             return prefab;
@@ -219,7 +222,7 @@ namespace ProjectLucid.Tests
         // the scale-up coroutine, is refused on the inactive host.
         private static Ornament ShowOrnament(Owned owned, Rig rig, GameObject prefab)
         {
-            var iterator = (IEnumerator)Call(rig.Gallery, "InstantiateOrnament", prefab);
+            var iterator = (IEnumerator)Call(rig.Gallery, "InstantiateOrnament", prefab); // Reflection: private UIContainerOrnamentGallery.InstantiateOrnament
             LogAssert.Expect(LogType.Error, RefusedCoroutine);
             Assert.That(iterator.MoveNext(), Is.False);
             Ornament ornament = Get<Ornament>(rig.Gallery, "m_currentOrnament");
@@ -323,11 +326,11 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Gallery, "m_ornamentsPerRowNotchedDevice", 5);
-                Set(rig.Gallery, "m_ornamentsPerRowNoNotchDevice", 2);
-                Set(rig.Gallery, "m_widescreenOffset", 0.35f);
+                Set(rig.Gallery, "m_ornamentsPerRowNotchedDevice", 5); // Reflection: serialized m_ornamentsPerRowNotchedDevice the editor assigns
+                Set(rig.Gallery, "m_ornamentsPerRowNoNotchDevice", 2); // Reflection: serialized m_ornamentsPerRowNoNotchDevice the editor assigns
+                Set(rig.Gallery, "m_widescreenOffset", 0.35f); // Reflection: serialized m_widescreenOffset the editor assigns
                 LogAssert.Expect(LogType.Error, RefusedDestroy); // the second OnEnable clears the row the first one made
-                Call(rig.Gallery, "OnEnable");
+                Call(rig.Gallery, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 int perRow = Get<int>(rig.Gallery, "m_ornamentsPerRow");
                 float offset = Get<float>(rig.Gallery, "m_ornamentXOffset");
@@ -458,7 +461,7 @@ namespace ProjectLucid.Tests
             Run((owned, rig) =>
             {
                 rig.Story[rig.S1.OrnamentIdentifier] = Status(true, true, false);
-                Call(rig.Gallery, "SetupCollectionTab", rig.StoryTab, OrnamentCategory.Challenge, OrnamentCategory.Story);
+                Call(rig.Gallery, "SetupCollectionTab", rig.StoryTab, OrnamentCategory.Challenge, OrnamentCategory.Story); // Reflection: private UIContainerOrnamentGallery.SetupCollectionTab
 
                 Assert.That(rig.StoryTab.Collected.Value, Is.EqualTo(2), "S0 and S2 are available; S1 is unlocked but not collected");
                 Assert.That(rig.StoryTab.Total.Value, Is.EqualTo(3));
@@ -481,7 +484,7 @@ namespace ProjectLucid.Tests
                 int countChanges = 0;
                 rig.Gallery.OnNewOrnamentsCountChanged += () => countChanges++;
 
-                Call(rig.Gallery, "OrnamentSelectionChanged", rig.S2, available, isNew);
+                Call(rig.Gallery, "OrnamentSelectionChanged", rig.S2, available, isNew); // Reflection: private UIContainerOrnamentGallery.OrnamentSelectionChanged
 
                 Assert.That(Current(rig), Is.SameAs(rig.S2));
                 Assert.That(rig.Services.Save.CurrentSave.GetOrCreateOrnamentData(rig.S2.GetGUID()).UnlockSeen, Is.EqualTo(marks));
@@ -506,7 +509,7 @@ namespace ProjectLucid.Tests
                 if (reward != 0)
                     rig.Services.AddRecord("lucid-gallery-track", rig.S2.GetGUID()).Collected = reward == 2;
 
-                Call(rig.Gallery, "OrnamentSelectionChanged", rig.S2, true, true);
+                Call(rig.Gallery, "OrnamentSelectionChanged", rig.S2, true, true); // Reflection: private UIContainerOrnamentGallery.OrnamentSelectionChanged
 
                 OrnamentManager.OrnamentStatus status = rig.Story[rig.S2.OrnamentIdentifier];
                 Assert.That(status.Seen, Is.True);
@@ -527,7 +530,7 @@ namespace ProjectLucid.Tests
             {
                 OrnamentDefinition definition = new[] { rig.S0, rig.S1, rig.S2, rig.C0, rig.A0 }[index];
 
-                Call(rig.Gallery, "SetInfoPanelStatus", definition, unlocked);
+                Call(rig.Gallery, "SetInfoPanelStatus", definition, unlocked); // Reflection: private UIContainerOrnamentGallery.SetInfoPanelStatus
 
                 Assert.That(rig.Gallery.OrnamentName.Value, Is.EqualTo((Strings)name));
                 Assert.That(rig.Gallery.InfoText.Value, Is.EqualTo(text));
@@ -568,7 +571,7 @@ namespace ProjectLucid.Tests
                 rig.UiButton.interactable = true;
                 rig.InfoPanel.SetActive(false);
 
-                Call(rig.Gallery, "Start");
+                Call(rig.Gallery, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 rig.InfoButton.OnPointerUp(null);
 
                 Assert.That(rig.InfoPanel.activeSelf, Is.True);
@@ -585,7 +588,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Gallery, "m_yRotationSpeed", 30f);
+                Set(rig.Gallery, "m_yRotationSpeed", 30f); // Reflection: serialized m_yRotationSpeed the editor assigns
                 GameObject prefab = NewOrnamentPrefab(owned, 90f, pingPong, out OrnamentGalleryRotatorProbe prefabRotator);
                 float xOffset = Get<float>(rig.Gallery, "m_ornamentXOffset");
 
@@ -615,7 +618,7 @@ namespace ProjectLucid.Tests
                 GameObject prefab = NewOrnamentPrefab(owned, 0f, false, out _);
                 Ornament old = ShowOrnament(owned, rig, prefab);
 
-                var iterator = (IEnumerator)Call(rig.Gallery, "InstantiateOrnament", prefab);
+                var iterator = (IEnumerator)Call(rig.Gallery, "InstantiateOrnament", prefab); // Reflection: private UIContainerOrnamentGallery.InstantiateOrnament
                 Assert.That(iterator.MoveNext(), Is.True);
                 Assert.That(iterator.Current.GetType().Name, Is.EqualTo("<ScaleWithCurve>d__56"));
                 Assert.That(Get<Ornament>(rig.Gallery, "m_currentOrnament"), Is.SameAs(old), "still showing the old ornament");
@@ -641,7 +644,7 @@ namespace ProjectLucid.Tests
                 ornament.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
                 Assert.That(ornament.gameObject.activeSelf, Is.False);
 
-                var iterator = (IEnumerator)Call(rig.Gallery, "ScaleWithCurve", scaleUp);
+                var iterator = (IEnumerator)Call(rig.Gallery, "ScaleWithCurve", scaleUp); // Reflection: private UIContainerOrnamentGallery.ScaleWithCurve
 
                 Assert.That(iterator.MoveNext(), Is.False);
                 Assert.That(ornament.gameObject.activeSelf, Is.True);
@@ -657,12 +660,12 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Gallery, "m_scaleDurationSeconds", 1000f);
-                Set(rig.Gallery, "m_scaleCurve", AnimationCurve.Constant(0f, 1f, curveValue));
+                Set(rig.Gallery, "m_scaleDurationSeconds", 1000f); // Reflection: serialized m_scaleDurationSeconds the editor assigns
+                Set(rig.Gallery, "m_scaleCurve", AnimationCurve.Constant(0f, 1f, curveValue)); // Reflection: serialized m_scaleCurve the editor assigns
                 Ornament ornament = ShowOrnament(owned, rig, NewOrnamentPrefab(owned, 0f, false, out _));
                 ornament.transform.localScale = new Vector3(presentScale, presentScale, presentScale);
 
-                var iterator = (IEnumerator)Call(rig.Gallery, "ScaleWithCurve", scaleUp);
+                var iterator = (IEnumerator)Call(rig.Gallery, "ScaleWithCurve", scaleUp); // Reflection: private UIContainerOrnamentGallery.ScaleWithCurve
 
                 Assert.That(iterator.MoveNext(), Is.True);
                 Assert.That(iterator.Current, Is.Null);
@@ -677,12 +680,12 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Gallery, "m_scaleDurationSeconds", 1000f);
-                Set(rig.Gallery, "m_scaleCurve", AnimationCurve.Linear(0f, 0f, 1f, 0.5f));
+                Set(rig.Gallery, "m_scaleDurationSeconds", 1000f); // Reflection: serialized m_scaleDurationSeconds the editor assigns
+                Set(rig.Gallery, "m_scaleCurve", AnimationCurve.Linear(0f, 0f, 1f, 0.5f)); // Reflection: serialized m_scaleCurve the editor assigns
                 Ornament ornament = ShowOrnament(owned, rig, NewOrnamentPrefab(owned, 0f, false, out _));
                 ornament.transform.localScale = new Vector3(0.8f, 0.8f, 0.8f);
 
-                Assert.That(((IEnumerator)Call(rig.Gallery, "ScaleWithCurve", false)).MoveNext(), Is.True);
+                Assert.That(((IEnumerator)Call(rig.Gallery, "ScaleWithCurve", false)).MoveNext(), Is.True); // Reflection: private UIContainerOrnamentGallery.ScaleWithCurve
 
                 Assert.That(ornament.transform.localScale.x, Is.EqualTo(0.4f).Within(1e-6f));
                 Assert.That(ornament.transform.localScale.z, Is.EqualTo(0.4f).Within(1e-6f));
@@ -697,7 +700,7 @@ namespace ProjectLucid.Tests
             {
                 AsyncOperationHandle<GameObject> handle = Get<Dictionary<string, AsyncOperationHandle<GameObject>>>(rig.Gallery, "m_ornamentHandleByGuid")[rig.S0.GetGUID()];
 
-                var iterator = (IEnumerator)Call(rig.Gallery, "WaitForOrnamentHandleLoadOrnament", handle);
+                var iterator = (IEnumerator)Call(rig.Gallery, "WaitForOrnamentHandleLoadOrnament", handle); // Reflection: private UIContainerOrnamentGallery.WaitForOrnamentHandleLoadOrnament
 
                 Assert.That(iterator.MoveNext(), Is.True);
                 Assert.That(iterator.Current, Is.EqualTo(handle));
@@ -718,7 +721,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<float>(rig.Gallery, "m_rotationFromButtonInput"), Is.EqualTo(3.5f));
                 Assert.That(ornament.TransformRotator.CurrentImpulseSpeed, Is.EqualTo(0f));
 
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
 
                 Assert.That(ornament.TransformRotator.CurrentImpulseSpeed, Is.EqualTo(3.5f));
                 Assert.That(Get<float>(rig.Gallery, "m_rotationFromButtonInput"), Is.EqualTo(0f));
@@ -736,7 +739,7 @@ namespace ProjectLucid.Tests
                 Ornament ornament = ShowOrnament(owned, rig, NewOrnamentPrefab(owned, 0f, false, out _));
                 rig.Gallery.Action_RotateOrnament(-3.5f);
 
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
 
                 Assert.That(Get<float>(rig.Gallery, "m_rotationFromButtonInput"), Is.EqualTo(-3.5f));
                 Assert.That(ornament.TransformRotator.CurrentImpulseSpeed, Is.EqualTo(0f));
@@ -751,7 +754,7 @@ namespace ProjectLucid.Tests
             Run((owned, rig) =>
             {
                 rig.Gallery.Action_RotateOrnament(2f);
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
                 Assert.That(Get<float>(rig.Gallery, "m_rotationFromButtonInput"), Is.EqualTo(2f));
             });
         }
@@ -766,7 +769,7 @@ namespace ProjectLucid.Tests
                 Ornament ornament = ShowOrnament(owned, rig, NewOrnamentPrefab(owned, 0f, false, out _));
                 SmoothedTransformRotator rotator = ornament.TransformRotator;
 
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
                 Assert.That(Get<bool>(rotator, "m_idleAutomation"), Is.True, "automation resumes");
                 Assert.That(Get<bool>(rotator, "m_smoothingEnabled"), Is.False);
                 Assert.That(rotator.CurrentImpulseSpeed, Is.EqualTo(0f), "no impulse is applied for a zero release");
@@ -777,7 +780,7 @@ namespace ProjectLucid.Tests
                 rig.Zone.SupplyTouchData();
                 rig.Zone.StopTrackingTouch(TouchAt(100f, 20f));
                 rig.Zone.SupplyTouchData();
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
                 Assert.That(rotator.CurrentImpulseSpeed, Is.EqualTo(20f));
                 Assert.That(Get<object>(rotator, "m_rotationDirection").ToString(), Is.EqualTo("Reversed"));
 
@@ -787,7 +790,7 @@ namespace ProjectLucid.Tests
                 rig.Zone.SupplyTouchData();
                 rig.Zone.StopTrackingTouch(TouchAt(30f, 20f));
                 rig.Zone.SupplyTouchData();
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
                 Assert.That(rotator.CurrentImpulseSpeed, Is.EqualTo(70f));
                 Assert.That(Get<object>(rotator, "m_rotationDirection").ToString(), Is.EqualTo("Standard"));
             });
@@ -800,8 +803,8 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Gallery, "m_yRotationAtTouchExtent", 90f);
-                Set(rig.Gallery, "m_holdToSpinThreshold", 10f);
+                Set(rig.Gallery, "m_yRotationAtTouchExtent", 90f); // Reflection: serialized m_yRotationAtTouchExtent the editor assigns
+                Set(rig.Gallery, "m_holdToSpinThreshold", 10f); // Reflection: serialized m_holdToSpinThreshold the editor assigns
                 GameObject prefab = NewOrnamentPrefab(owned, 0f, false, out _);
                 Ornament ornament = ShowOrnament(owned, rig, prefab);
                 var rotator = (OrnamentGalleryRotatorProbe)ornament.TransformRotator;
@@ -810,7 +813,7 @@ namespace ProjectLucid.Tests
                 rig.Zone.SupplyTouchData();
                 Assert.That(rig.Zone.DragAmount, Is.EqualTo(0.25f));
 
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
 
                 Assert.That(Get<bool>(rotator, "m_idleAutomation"), Is.False);
                 Assert.That(Get<bool>(rotator, "m_smoothingEnabled"), Is.True);
@@ -829,15 +832,15 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Gallery, "m_holdToSpinThreshold", threshold);
+                Set(rig.Gallery, "m_holdToSpinThreshold", threshold); // Reflection: serialized m_holdToSpinThreshold the editor assigns
                 Ornament ornament = ShowOrnament(owned, rig, NewOrnamentPrefab(owned, 0f, false, out _));
                 var rotator = (OrnamentGalleryRotatorProbe)ornament.TransformRotator;
-                Call(rotator, "Awake");
+                Call(rotator, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 rotator.CurrentImpulseSpeed = impulse;
                 rig.Zone.StartTrackingTouch(TouchAt(80f, 20f));
                 rig.Zone.SupplyTouchData();
 
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
 
                 Assert.That(Get<bool>(rotator, "m_idleAutomation"), Is.EqualTo(spinning));
                 Assert.That(rotator.SetRotationCalls, Is.EqualTo(spinning ? 0 : 1));
@@ -853,17 +856,17 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Gallery, "m_yRotationAtTouchExtent", 90f);
-                Set(rig.Gallery, "m_holdToSpinThreshold", 10f);
+                Set(rig.Gallery, "m_yRotationAtTouchExtent", 90f); // Reflection: serialized m_yRotationAtTouchExtent the editor assigns
+                Set(rig.Gallery, "m_holdToSpinThreshold", 10f); // Reflection: serialized m_holdToSpinThreshold the editor assigns
                 GameObject prefab = NewOrnamentPrefab(owned, 0f, true, out OrnamentGalleryRotatorProbe prefabRotator);
-                Set(prefabRotator, "m_pingPongToDegrees", extent);
+                Set(prefabRotator, "m_pingPongToDegrees", extent); // Reflection: serialized m_pingPongToDegrees the editor assigns
                 Ornament ornament = ShowOrnament(owned, rig, prefab);
                 var rotator = (OrnamentGalleryRotatorProbe)ornament.TransformRotator;
-                Call(rotator, "Awake");
+                Call(rotator, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 rig.Zone.StartTrackingTouch(TouchAt(80f, 20f));
                 rig.Zone.SupplyTouchData();
 
-                Call(rig.Gallery, "LateUpdate");
+                Call(rig.Gallery, "LateUpdate"); // Reflection: Unity sends LateUpdate; Edit Mode does not
 
                 Assert.That(Get<bool>(rotator, "m_idleAutomation"), Is.False, "switched off by the drag");
                 Assert.That(Quaternion.Angle(ornament.transform.rotation, Quaternion.AngleAxis(-45f, Vector3.up)), Is.LessThan(0.01f));
@@ -885,7 +888,7 @@ namespace ProjectLucid.Tests
 
                 LogAssert.Expect(LogType.Error, RefusedDestroy);
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
-                Call(rig.Gallery, "OnDestroy");
+                Call(rig.Gallery, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Get<Ornament>(rig.Gallery, "m_currentOrnament"), Is.Null);
                 Assert.That(ornament != null, Is.True, "Edit Mode refused the destroy");

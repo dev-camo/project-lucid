@@ -118,16 +118,16 @@ namespace ProjectLucid.Tests
             var rig = new SeekerRig { Seeker = owned.Host("Lucid music seeker", false).AddComponent<UIWidgetMusicSeeker>() };
             var slider = owned.Host("Lucid music slider", false).AddComponent<Slider>();
             slider.SetValueWithoutNotify(0.25f);
-            Set(rig.Seeker, "m_slider", slider);
+            Set(rig.Seeker, "m_slider", slider); // Reflection: serialized m_slider the editor assigns
             var changed = new UnityEvent<float>();
             changed.AddListener(rig.Changed.Add);
             var down = new UnityEvent<float>();
             down.AddListener(rig.Down.Add);
             var up = new UnityEvent<float>();
             up.AddListener(rig.Up.Add);
-            Set(rig.Seeker, "m_onValueChanged", changed);
-            Set(rig.Seeker, "m_onInputDown", down);
-            Set(rig.Seeker, "m_onInputUp", up);
+            Set(rig.Seeker, "m_onValueChanged", changed); // Reflection: serialized m_onValueChanged the editor assigns
+            Set(rig.Seeker, "m_onInputDown", down); // Reflection: serialized m_onInputDown the editor assigns
+            Set(rig.Seeker, "m_onInputUp", up); // Reflection: serialized m_onInputUp the editor assigns
             body(rig);
         });
 
@@ -167,10 +167,10 @@ namespace ProjectLucid.Tests
         {
             WithSeeker(rig =>
             {
-                Set(rig.Seeker, "m_slider", null);
-                Set(rig.Seeker, "m_onValueChanged", null);
-                Set(rig.Seeker, "m_onInputDown", null);
-                Set(rig.Seeker, "m_onInputUp", null);
+                Set(rig.Seeker, "m_slider", null); // Reflection: serialized m_slider the editor assigns
+                Set(rig.Seeker, "m_onValueChanged", null); // Reflection: serialized m_onValueChanged the editor assigns
+                Set(rig.Seeker, "m_onInputDown", null); // Reflection: serialized m_onInputDown the editor assigns
+                Set(rig.Seeker, "m_onInputUp", null); // Reflection: serialized m_onInputUp the editor assigns
                 Assert.DoesNotThrow(() => rig.Seeker.Action_OnValueChanged(1f));
                 Assert.DoesNotThrow(() => rig.Seeker.OnPointerDown(null));
                 Assert.DoesNotThrow(() => rig.Seeker.OnPointerUp(null));
@@ -250,7 +250,7 @@ namespace ProjectLucid.Tests
             {
                 audio.RegisterAudioManager();
                 HLAudioSfxComponent sound = audio.Add<HLAudioSfxComponent>();
-                Set(sound, "m_audioSourceIdentifier", HLAudioSourceIdentifier.Sfx);
+                Set(sound, "m_audioSourceIdentifier", HLAudioSourceIdentifier.Sfx); // Reflection: serialized m_audioSourceIdentifier the editor assigns
                 Owned.Run(owned =>
                 {
                     OrnamentToggleRig rig = NewToggleRig(owned, sound);
@@ -289,7 +289,7 @@ namespace ProjectLucid.Tests
             {
                 audio.RegisterAudioManager();
                 HLAudioSfxComponent sound = audio.Add<HLAudioSfxComponent>();
-                Set(sound, "m_audioSourceIdentifier", HLAudioSourceIdentifier.Sfx);
+                Set(sound, "m_audioSourceIdentifier", HLAudioSourceIdentifier.Sfx); // Reflection: serialized m_audioSourceIdentifier the editor assigns
                 Owned.Run(owned =>
                 {
                     OrnamentToggleRig rig = NewToggleRig(owned, sound);
@@ -396,7 +396,7 @@ namespace ProjectLucid.Tests
                 rig.Toggle.Setup(ToggleParameters(definition, Status(true, true, true)));
                 Assert.That(Count(definition.ThumbnailAsset), Is.EqualTo(1));
 
-                Call(rig.Toggle, "OnDestroy");
+                Call(rig.Toggle, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Count(definition.ThumbnailAsset), Is.EqualTo(0));
                 Assert.That(IsCached(definition.ThumbnailAsset), Is.False);
@@ -424,7 +424,7 @@ namespace ProjectLucid.Tests
         private static UIWidgetOrnamentEntryRow NewRow(Owned owned, RowRig rig)
         {
             UIWidgetOrnamentEntryRow row = owned.Host("Lucid ornament row", false).AddComponent<UIWidgetOrnamentEntryRow>();
-            Set(row, "m_thumbnailPrefab", rig.Prefab.Toggle);
+            Set(row, "m_thumbnailPrefab", rig.Prefab.Toggle); // Reflection: serialized m_thumbnailPrefab the editor assigns
             return row;
         }
 
@@ -521,7 +521,7 @@ namespace ProjectLucid.Tests
             WithRows(3, (owned, rig) =>
             {
                 UIWidgetOrnamentEntryRowComposer composer = owned.Host("Lucid ornament composer", false).AddComponent<UIWidgetOrnamentEntryRowComposer>();
-                Set(composer, "m_rowPrefab", NewRow(owned, rig));
+                Set(composer, "m_rowPrefab", NewRow(owned, rig)); // Reflection: serialized m_rowPrefab the editor assigns
 
                 composer.Setup(new UIWidgetOrnamentEntryRowComposerParameters(new List<UIWidgetOrnamentEntryRowParameters>
                 {
@@ -545,7 +545,7 @@ namespace ProjectLucid.Tests
             WithRows(3, (owned, rig) =>
             {
                 UIWidgetOrnamentEntryRowComposer composer = owned.Host("Lucid ornament composer", false).AddComponent<UIWidgetOrnamentEntryRowComposer>();
-                Set(composer, "m_rowPrefab", NewRow(owned, rig));
+                Set(composer, "m_rowPrefab", NewRow(owned, rig)); // Reflection: serialized m_rowPrefab the editor assigns
                 composer.Setup(new UIWidgetOrnamentEntryRowComposerParameters(new List<UIWidgetOrnamentEntryRowParameters>
                 {
                     RowOf(rig, 0, 1), RowOf(rig, 2),
@@ -578,9 +578,9 @@ namespace ProjectLucid.Tests
                 Cache(companionWrapper, companion);
                 character.RenderCompanion = companionWrapper;
                 var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
-                Set(widget, "m_characterDefinition", character);
+                Set(widget, "m_characterDefinition", character); // Reflection: serialized m_characterDefinition the editor assigns
 
-                Call(widget, "Start");
+                Call(widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(widget.CharacterRender.Value, Is.SameAs(render));
                 Assert.That(widget.CompanionRender.Value, Is.SameAs(companion));
@@ -600,9 +600,9 @@ namespace ProjectLucid.Tests
                 var companionWrapper = new ManagedAddressableAsset<Sprite>(null);
                 character.RenderCompanion = companionWrapper;
                 var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
-                Set(widget, "m_characterDefinition", character);
+                Set(widget, "m_characterDefinition", character); // Reflection: serialized m_characterDefinition the editor assigns
 
-                Call(widget, "Start");
+                Call(widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(widget.CharacterRender.Value, Is.SameAs(render));
                 Assert.That(widget.CompanionRender.Value, Is.Null);
@@ -621,12 +621,12 @@ namespace ProjectLucid.Tests
                 Cache(companionWrapper, NewSprite(owned));
                 character.RenderCompanion = companionWrapper;
                 var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
-                Set(widget, "m_characterDefinition", character);
-                Call(widget, "Start");
+                Set(widget, "m_characterDefinition", character); // Reflection: serialized m_characterDefinition the editor assigns
+                Call(widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 Assert.That(Count(character.Render), Is.EqualTo(1));
                 Assert.That(Count(companionWrapper), Is.EqualTo(1));
 
-                Call(widget, "OnDestroy");
+                Call(widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(Count(character.Render), Is.EqualTo(0));
                 Assert.That(Count(companionWrapper), Is.EqualTo(0));
@@ -645,11 +645,11 @@ namespace ProjectLucid.Tests
                 {
                     CharacterDefinition character = NewCharacter(owned, out _);
                     var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
-                    Set(widget, "m_characterDefinition", character);
+                    Set(widget, "m_characterDefinition", character); // Reflection: serialized m_characterDefinition the editor assigns
                     var selected = new List<CharacterDefinition>();
                     var selectedEvent = new UnityEvent<CharacterDefinition>();
                     selectedEvent.AddListener(selected.Add);
-                    Set(widget, "m_onCharacterSelected", selectedEvent);
+                    Set(widget, "m_onCharacterSelected", selectedEvent); // Reflection: serialized m_onCharacterSelected the editor assigns
 
                     widget.Action_OnCharacterSelected(false);
                     Assert.That(selected, Is.Empty);
@@ -672,7 +672,7 @@ namespace ProjectLucid.Tests
                 Owned.Run(owned =>
                 {
                     var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
-                    Set(widget, "m_onCharacterSelected", null);
+                    Set(widget, "m_onCharacterSelected", null); // Reflection: serialized m_onCharacterSelected the editor assigns
 
                     LogAssert.Expect(LogType.Error, RefusedCoroutine);
                     Assert.DoesNotThrow(() => widget.Action_OnCharacterSelected(true));
@@ -692,10 +692,10 @@ namespace ProjectLucid.Tests
                 container.transform.position = new Vector3(10f, 0f, 0f);
                 GameObject highlight = owned.Host("Lucid highlight", false);
                 highlight.transform.position = new Vector3(5f, 0f, 0f);
-                Set(widget, "m_highlight", highlight);
-                Set(widget, "m_highlightContainer", container);
+                Set(widget, "m_highlight", highlight); // Reflection: serialized m_highlight the editor assigns
+                Set(widget, "m_highlightContainer", container); // Reflection: serialized m_highlightContainer the editor assigns
 
-                Call(widget, "<Action_OnCharacterSelected>b__9_0");
+                Call(widget, "<Action_OnCharacterSelected>b__9_0"); // Reflection: compiler-generated lambda body, reachable only through reflection
 
                 Assert.That(highlight.transform.parent, Is.SameAs(container.transform));
                 Assert.That(highlight.transform.position, Is.EqualTo(new Vector3(5f, 0f, 0f)));
@@ -712,10 +712,10 @@ namespace ProjectLucid.Tests
                 var widget = owned.Host("Lucid character select", false).AddComponent<UIWidgetSDTCharacterSelect>();
                 GameObject highlight = hasHighlight ? owned.Host("Lucid highlight", false) : null;
                 GameObject container = hasContainer ? owned.Host("Lucid highlight container", false) : null;
-                Set(widget, "m_highlight", highlight);
-                Set(widget, "m_highlightContainer", container);
+                Set(widget, "m_highlight", highlight); // Reflection: serialized m_highlight the editor assigns
+                Set(widget, "m_highlightContainer", container); // Reflection: serialized m_highlightContainer the editor assigns
 
-                Assert.DoesNotThrow(() => Call(widget, "<Action_OnCharacterSelected>b__9_0"));
+                Assert.DoesNotThrow(() => Call(widget, "<Action_OnCharacterSelected>b__9_0")); // Reflection: compiler-generated lambda body, reachable only through reflection
 
                 if (hasHighlight) Assert.That(highlight.transform.parent, Is.Null);
                 if (hasContainer) Assert.That(container.transform.childCount, Is.EqualTo(0), "nothing is reparented under the container");

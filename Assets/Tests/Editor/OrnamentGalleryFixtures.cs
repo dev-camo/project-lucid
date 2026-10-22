@@ -54,26 +54,26 @@ namespace ProjectLucid.Tests
             GameObject host = owned.Host("Lucid ornament toggle", false);
             rig.Toggle = host.AddComponent<UIWidgetOrnamentToggle>();
             rig.UiToggle = host.GetComponent<UIToggle>();
-            Set(rig.Toggle, "m_toggle", rig.UiToggle);
+            Set(rig.Toggle, "m_toggle", rig.UiToggle); // Reflection: serialized m_toggle the editor assigns
             rig.Element = host.AddComponent<UIToggleGroupElement>();
-            Set(rig.Element, "m_toggle", rig.UiToggle);
+            Set(rig.Element, "m_toggle", rig.UiToggle); // Reflection: serialized m_toggle the editor assigns
             rig.Background = owned.Host("background", false, host.transform).AddComponent<Image>();
             rig.Border = owned.Host("border", false, host.transform).AddComponent<Image>();
             rig.Outline = owned.Host("outline", false, host.transform).AddComponent<Image>();
             rig.Ornament = owned.Host("ornament", false, host.transform).AddComponent<RawImage>();
             rig.NewIcon = owned.Host("new unlock icon", true, host.transform);
-            Set(rig.Toggle, "m_backgroundImage", rig.Background);
-            Set(rig.Toggle, "m_backgroundSpriteLocked", rig.BackgroundLocked = NewSprite(owned));
-            Set(rig.Toggle, "m_backgroundSpriteUnlocked", rig.BackgroundUnlocked = NewSprite(owned));
-            Set(rig.Toggle, "m_ornamentImage", rig.Ornament);
-            Set(rig.Toggle, "m_ornamentImageLockedColour", LockedColour);
-            Set(rig.Toggle, "m_borderImage", rig.Border);
-            Set(rig.Toggle, "m_borderSpriteLocked", rig.BorderLocked = NewSprite(owned));
-            Set(rig.Toggle, "m_borderSpriteUnlocked", rig.BorderUnlocked = NewSprite(owned));
-            Set(rig.Toggle, "m_selectedOutline", rig.Outline);
-            Set(rig.Toggle, "m_groupElement", rig.Element);
-            Set(rig.Toggle, "m_newUnlockIcon", rig.NewIcon);
-            Set(rig.Toggle, "m_sfxComponent", sound);
+            Set(rig.Toggle, "m_backgroundImage", rig.Background); // Reflection: serialized m_backgroundImage the editor assigns
+            Set(rig.Toggle, "m_backgroundSpriteLocked", rig.BackgroundLocked = NewSprite(owned)); // Reflection: serialized m_backgroundSpriteLocked the editor assigns
+            Set(rig.Toggle, "m_backgroundSpriteUnlocked", rig.BackgroundUnlocked = NewSprite(owned)); // Reflection: serialized m_backgroundSpriteUnlocked the editor assigns
+            Set(rig.Toggle, "m_ornamentImage", rig.Ornament); // Reflection: serialized m_ornamentImage the editor assigns
+            Set(rig.Toggle, "m_ornamentImageLockedColour", LockedColour); // Reflection: serialized m_ornamentImageLockedColour the editor assigns
+            Set(rig.Toggle, "m_borderImage", rig.Border); // Reflection: serialized m_borderImage the editor assigns
+            Set(rig.Toggle, "m_borderSpriteLocked", rig.BorderLocked = NewSprite(owned)); // Reflection: serialized m_borderSpriteLocked the editor assigns
+            Set(rig.Toggle, "m_borderSpriteUnlocked", rig.BorderUnlocked = NewSprite(owned)); // Reflection: serialized m_borderSpriteUnlocked the editor assigns
+            Set(rig.Toggle, "m_selectedOutline", rig.Outline); // Reflection: serialized m_selectedOutline the editor assigns
+            Set(rig.Toggle, "m_groupElement", rig.Element); // Reflection: serialized m_groupElement the editor assigns
+            Set(rig.Toggle, "m_newUnlockIcon", rig.NewIcon); // Reflection: serialized m_newUnlockIcon the editor assigns
+            Set(rig.Toggle, "m_sfxComponent", sound); // Reflection: serialized m_sfxComponent the editor assigns
             return rig;
         }
     }
