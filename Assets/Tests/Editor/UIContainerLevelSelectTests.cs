@@ -18,11 +18,6 @@ namespace ProjectLucid.Tests
     // Action_Continue, which only calls Continue.
     public sealed class UIContainerLevelSelectTests
     {
-        // The utilities type builds its typed references when it is first used; that happens here, against rows released at once,
-        // and not inside a case that would leave them behind.
-        [SetUp]
-        public void InitialiseUtilities() => CharacterSelectScene.InitialiseUtilities();
-
         private static UIContainerLevelSelect NewContainer(Owned owned) => owned.Host("Lucid level select", false).AddComponent<UIContainerLevelSelect>();
 
         // dump.cs TypeDefIndex 2247 and the DummyDll rows (fields 0x04002317..0x04002326).
@@ -53,6 +48,7 @@ namespace ProjectLucid.Tests
             {
                 Owned.Run(owned =>
                 {
+                    owned.LeaseRow<LevelManager>(); // GameplayLevelCategory's field initialiser creates the row
                     var zone = Create<GameplayLevelCategory>(owned,
                         "{\"m_title\":1234,\"m_subtitle\":5678,\"m_backgroundStartColour\":{\"r\":0.25,\"g\":0.5,\"b\":0.75,\"a\":1},\"m_backgroundEndColour\":{\"r\":1,\"g\":0.5,\"b\":0.25,\"a\":0.5}}");
                     var icon = new UnityEngine.AddressableAssets.AssetReferenceAtlasedSprite("lucid-zone-icon");
