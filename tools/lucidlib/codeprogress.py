@@ -25,8 +25,8 @@ from .inspection import sha256_file
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 SCOPE_PATH = "tools/code-progress/scope.json"
-# Original assemblies measured: studio, Game.Runtime, shipped Dreamteck packages and the mixed Assembly-CSharp pair.
-SCOPE_NAME_PATTERN = r"Game\.Runtime|Dreamteck\.(?:Utilities|Splines)|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?"
+# Original assemblies measured: studio, Game.Runtime, shipped third-party packages and the mixed Assembly-CSharp pair.
+SCOPE_NAME_PATTERN = r"Game\.Runtime|Dreamteck\.(?:Utilities|Splines)|com\.olegknyazev\.softmask|HL[A-Za-z0-9]+(?:\.Runtime)?|Assembly-CSharp(?:-firstpass)?"
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 TOKEN = re.compile(r"0x06[0-9a-f]{6}\Z")
 BODY_STATUSES = {"implementation_candidate", "no_body", "compiler_generated_unresolved",
