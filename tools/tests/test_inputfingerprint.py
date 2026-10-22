@@ -100,8 +100,8 @@ def make_app(root, uuid=UUID_A, signature=SIGNATURE_A, text=TEXT, meta=None, res
     (app / "Contents" / "_CodeSignature" / "CodeResources").write_bytes(signature)
     (app / "Contents" / "Resources" / "a.txt").write_text(resource)
     for path in app.rglob("*"):
-        if path.is_file():
-            path.chmod(0o644)  # independent of the umask, since modes are part of the manifest
+        # independent of the umask, since modes are part of the manifest
+        path.chmod(0o644 if path.is_file() else 0o755)
     os.symlink("a.txt", app / "Contents" / "Resources" / "link")
     os.symlink("Resources", app / "Contents" / "dirlink")
     return app
@@ -507,6 +507,7 @@ class CompareTests(unittest.TestCase):
         root = Path(self.tmp.name) / str(self.counter)
         root.mkdir()
         app = make_app(root)
+        self.assertEqual(0o755, (app / "Contents" / "Resources").stat().st_mode & 0o777)
         (app / "Contents" / "Resources").chmod(0o700)
         (app / "Contents" / "Extra").mkdir()
         try:

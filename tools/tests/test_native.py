@@ -59,7 +59,7 @@ class NativeHelpersTests(unittest.TestCase):
                     data = path.read_bytes()
                     info = tarfile.TarInfo("Cpp2IL-fixture/" + path.relative_to(self.source).as_posix())
                     info.size = len(data)
-                    info.mode = path.stat().st_mode & 0o777
+                    info.mode = 0o644  # fixed, so the archive does not depend on the umask
                     archive.addfile(info, io.BytesIO(data))
         self.build = {"status": "ready", "path": str(self.work / "harness.dll"), "fingerprint": "fixture"}
 
@@ -257,6 +257,9 @@ class NativeHelpersTests(unittest.TestCase):
     def test_archive_input_content_mode_or_link_change_during_build_never_promotes_output(self):
         for mutation in ('content', 'mode', 'link'):
             patches = self.build_patches()
+            ran = []
+            # a promoted build from an earlier subcase would be reused and skip this mutation
+            self.assertFalse((self.work / 'native-recovery/latest-build.json').exists())
             def changed(command, work, log_name, **kwargs):
                 result = self.build_runner(command, work, log_name, **kwargs)
                 source = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('-p:Cpp2ILSource=')))
@@ -264,15 +267,19 @@ class NativeHelpersTests(unittest.TestCase):
                 if mutation == 'content':
                     entry.write_text('changed original project')
                 elif mutation == 'mode':
+                    before = entry.stat().st_mode & 0o777
                     entry.chmod(0o600)
+                    self.assertNotEqual(before, entry.stat().st_mode & 0o777)
                 else:
                     entry.unlink()
                     entry.symlink_to(self.project)
+                ran.append(mutation)
                 return result
             with patches[0], patches[1], patches[2], patches[3], patches[4], \
                  mock.patch.object(native, 'run_logged', side_effect=changed):
                 result = native.build_native_harness(self.work)
             with self.subTest(mutation=mutation):
+                self.assertEqual([mutation], ran)
                 self.assertEqual('failed', result['status'])
                 self.assertFalse((self.work / 'native-recovery/latest-build.json').exists())
                 self.assertEqual([], list((self.work / 'native-recovery/builds').glob('.stage-*')))
