@@ -46,7 +46,7 @@ namespace ProjectLucid.Tests
                 app.SetHasGameplayControl(true, true);
                 Set(page, "m_enableGameplayControl", false); // serialized in the original
 
-                Call(page, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(page, "Start");
 
                 Assert.That(page.ConsentState.Value, Is.EqualTo(AnalyticsConsentState.Rejected));
                 Assert.That(Get<bool>(page, "m_previousGameplayControl"), Is.True);

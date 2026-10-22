@@ -66,7 +66,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(Get<AudioManager>(rig.Container, "m_audioManager"), Is.SameAs(rig.Audio));
                 Assert.That(Get<SaveManager>(rig.Container, "m_saveManager"), Is.SameAs(rig.Page.Save));
@@ -82,9 +82,9 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
-                Assert.That(Call(rig.Container, "LoadSettingsSaveData"), Is.SameAs(rig.Page.Settings)); // Reflection: private UIContainerSoundLevels.LoadSettingsSaveData
+                Assert.That(Call(rig.Container, "LoadSettingsSaveData"), Is.SameAs(rig.Page.Settings));
             });
         }
 
@@ -104,7 +104,7 @@ namespace ProjectLucid.Tests
             {
                 Run(rig =>
                 {
-                    Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                    Call(rig.Container, "Start");
 
                     // No mixer exists on the unawakened AudioManager, so the toggle faults once its fields are stored.
                     Assert.Throws<NullReferenceException>(() => testCase.press(rig.Options));
@@ -122,7 +122,7 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 Assert.That(rig.Page.Settings.HasChangesToSave(), Is.False);
 
                 rig.Container.Action_ResetToDefaults();
@@ -148,7 +148,7 @@ namespace ProjectLucid.Tests
             Run(rig =>
             {
                 rig.Page.Settings.CameraInvertedControls = true;
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
                 rig.Options.MasterVolume.Value = 0.9f;
                 rig.Options.MusicVolume.Value = 0.8f;
                 rig.Options.SfxVolume.Value = 0.7f;

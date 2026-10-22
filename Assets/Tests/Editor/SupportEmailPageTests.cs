@@ -100,7 +100,7 @@ namespace ProjectLucid.Tests
             {
                 var container = owned.Host("Lucid email support", false).AddComponent<UIContainerEmailSupport>();
 
-                OwnedStringTable.Run(Table, () => Call(container, "OnEnable")); // Reflection: Unity sends OnEnable; Edit Mode does not
+                OwnedStringTable.Run(Table, () => Call(container, "OnEnable"));
 
                 Assert.That(container.BodyText.Value, Is.EqualTo(
                     "Please write to\n\nAddress: help+desk@lucid.test\nSubject: Need help & more \n\n" + ExpectedBody()));

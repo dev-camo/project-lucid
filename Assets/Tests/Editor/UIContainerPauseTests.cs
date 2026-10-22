@@ -121,7 +121,7 @@ namespace ProjectLucid.Tests
                 JsonUtility.FromJsonOverwrite("{\"m_displayName\":" + (int)Strings.MISSING + ",\"m_actName\":" + (int)Strings.DECIMAL_SEPARATOR + "}",
                     rig.Missions.CurrentLevel.LevelDefinition);
 
-                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Container, "Start");
 
                 Assert.That(Get<UIManager>(rig.Container, "m_uiManager"), Is.SameAs(rig.UiManager));
                 Assert.That(Get<LevelManager>(rig.Container, "m_levelManager"), Is.SameAs(rig.Missions.Level));
@@ -368,8 +368,8 @@ namespace ProjectLucid.Tests
         {
             RunMissions(rig =>
             {
-                Call(rig.Container, "Close"); // Reflection: private UIContainerPause.Close
-                Call(rig.Container, "Close"); // Reflection: private UIContainerPause.Close
+                Call(rig.Container, "Close");
+                Call(rig.Container, "Close");
 
                 Assert.That(Events(rig), Is.EqualTo(new[] { rig.ResumeEvent }));
             });
@@ -384,11 +384,11 @@ namespace ProjectLucid.Tests
             RunMissions(rig =>
             {
                 Set(rig.Container, "m_missionManager", rig.Missions.Manager); // Reflection: OnMissionManagerValid assigns it from the registry; the case skips that callback
-                Assert.DoesNotThrow(() => Call(rig.Container, "FireMissionQuitAnalytics")); // Reflection: private UIContainerPause.FireMissionQuitAnalytics
+                Assert.DoesNotThrow(() => Call(rig.Container, "FireMissionQuitAnalytics"));
 
                 StartMission(rig);
 
-                var fault = Assert.Throws<NullReferenceException>(() => Call(rig.Container, "FireMissionQuitAnalytics")); // Reflection: private UIContainerPause.FireMissionQuitAnalytics
+                var fault = Assert.Throws<NullReferenceException>(() => Call(rig.Container, "FireMissionQuitAnalytics"));
                 StringAssert.Contains("CharacterManager", fault.Message);
             });
         }
@@ -410,7 +410,7 @@ namespace ProjectLucid.Tests
                 rig.App.SetHasGameplayControl(true, true);
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 Assert.That(Count(accent), Is.Zero, "released");
                 Assert.That(rig.App.Storage.HasValue<Action>(AppFSMKeys.OnPauseCloseEvent), Is.False, "removed");
@@ -426,7 +426,7 @@ namespace ProjectLucid.Tests
             {
                 Set(rig.Container, "m_levelManager", rig.Missions.Level); // Reflection: OnLevelManagerValid assigns it from the registry; the case skips that callback
 
-                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy")); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"));
 
                 LogAssert.NoUnexpectedReceived();
             });
@@ -450,7 +450,7 @@ namespace ProjectLucid.Tests
                     if (published)
                         rig.Container.ActBackground.Value = NewSprite(rig.Owned);
 
-                    Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                    Call(rig.Container, "OnDestroy");
 
                     Assert.That(Count(levelImage), Is.EqualTo(published ? 0 : 1), "published " + published);
                 });
@@ -522,7 +522,7 @@ namespace ProjectLucid.Tests
         {
             RunCharacters(rig =>
             {
-                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn"); // Reflection: private UIContainerPause.Respawn
+                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn");
 
                 Assert.That(respawn.MoveNext(), Is.True);
 
@@ -544,7 +544,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Containers.Open.Add(rig.Identifier);
                 SetCurrent(rig.Characters, rig.Character, true);
-                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn"); // Reflection: private UIContainerPause.Respawn
+                IEnumerator respawn = (IEnumerator)Call(rig.Container, "Respawn");
                 Assert.That(rig.Character.Storage.TryGetValue(ActorFSMKeys.IsOutOfBounds, out bool unsetBefore), Is.False, "unset before");
 
                 Assert.That(respawn.MoveNext(), Is.False);
@@ -564,7 +564,7 @@ namespace ProjectLucid.Tests
             RunCharacters(rig =>
             {
                 StartRestartableLevel(rig, out UIModernEvent restartEvent);
-                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart"); // Reflection: private UIContainerPause.Restart
+                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart");
                 try
                 {
                     Assert.That(restart.MoveNext(), Is.True);
@@ -597,7 +597,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Containers.Open.Add(rig.Identifier);
                 rig.Owned.Register(rig.Owned.Host("Lucid pause level manager", false).AddComponent<LevelManager>());
-                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart"); // Reflection: private UIContainerPause.Restart
+                IEnumerator restart = (IEnumerator)Call(rig.Container, "Restart");
 
                 Assert.That(restart.MoveNext(), Is.True);
 
