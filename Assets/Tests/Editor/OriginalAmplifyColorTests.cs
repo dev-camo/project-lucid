@@ -27,6 +27,17 @@ namespace ProjectLucid.Editor
             created.Clear();
         }
 
+        // Upstream members inside #if UNITY_EDITOR: they exist where these tests run but were compiled out
+        // of the shipped player, so the shipped declaration table cannot list them.
+        private static readonly Dictionary<string, string[]> EditorOnly = new Dictionary<string, string[]>
+        {
+            { "AmplifyColorRenderMaskBase", new[] { "OnGUI" } },
+            { "AmplifyColorVolumeBase", new[] { "Window", "OnEnable", "OnDestroy" } },
+        };
+
+        private static bool Shipped(string type, MemberInfo member) =>
+            !EditorOnly.TryGetValue(type, out string[] names) || !names.Contains(member.Name);
+
         private static Type Global(string name) => Type.GetType(name + ", Assembly-CSharp", true);
 
         private static Type Namespaced(string name) => Type.GetType("AmplifyColor." + name + ", Assembly-CSharp", true);
@@ -95,11 +106,29 @@ namespace ProjectLucid.Editor
                 Type type = Type.GetType(shipped.Name + ", Assembly-CSharp", true);
                 Assert.That(Flags((int)type.Attributes), Is.EqualTo(Flags(shipped.Flags)), shipped.Name + " type flags");
                 Assert.That(type.BaseType.FullName, Is.EqualTo(shipped.Base), shipped.Name + " base type");
-                Assert.That(type.GetFields(Declared).OrderBy(field => field.MetadataToken).Select(field => field.Name + ":" + Flags((int)field.Attributes)),
+                Assert.That(type.GetFields(Declared).Where(field => Shipped(shipped.Name, field)).OrderBy(field => field.MetadataToken)
+                    .Select(field => field.Name + ":" + Flags((int)field.Attributes)),
                     Is.EqualTo(shipped.Fields), shipped.Name + " fields in metadata order");
-                IEnumerable<MethodBase> methods = type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared));
+                IEnumerable<MethodBase> methods = type.GetMethods(Declared).Cast<MethodBase>().Concat(type.GetConstructors(Declared))
+                    .Where(method => Shipped(shipped.Name, method));
                 Assert.That(methods.OrderBy(method => method.MetadataToken).Select(method => method.Name + ":" + Flags((int)method.Attributes)),
                     Is.EqualTo(shipped.Methods), shipped.Name + " methods in metadata order");
+            }
+        }
+
+        [Test]
+        public void EditorOnlyMembersExistHereAndAreAbsentFromTheShippedTable()
+        {
+            foreach (KeyValuePair<string, string[]> pair in EditorOnly)
+            {
+                ShippedType shipped = OriginalAmplifyColorShippedTypes.All.Single(type => type.Name == pair.Key);
+                Type type = Global(pair.Key);
+                foreach (string name in pair.Value)
+                {
+                    Assert.That(type.GetMember(name, Declared), Is.Not.Empty, pair.Key + "." + name + " is compiled in the Editor");
+                    Assert.That(shipped.Fields.Concat(shipped.Methods).Any(entry => entry.StartsWith(name + ":", StringComparison.Ordinal)), Is.False,
+                        pair.Key + "." + name + " is not in the shipped table");
+                }
             }
         }
 

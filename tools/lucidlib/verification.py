@@ -2344,6 +2344,7 @@ EDITMODE_TESTS += (
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalAmplifyColorTests.ShippedTypeListMatches",
     "ProjectLucid.Editor.OriginalAmplifyColorTests.DeclarationsMatchTheShippedAssembly",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.EditorOnlyMembersExistHereAndAreAbsentFromTheShippedTable",
     "ProjectLucid.Editor.OriginalAmplifyColorTests.BaseTypesAndSealingMatchTheShippedHierarchy",
     "ProjectLucid.Editor.OriginalAmplifyColorTests.ComponentAttributesMatchTheShippedMetadata",
     "ProjectLucid.Editor.OriginalAmplifyColorTests.SerializedFieldAttributesAndConstantsMatchTheShippedMetadata",
