@@ -10677,6 +10677,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineBootHookTests." + name for na
     "TheNoContentResourceManagerReportsAFailedDownloadAndNoContent",
     "CrossPromoStartKeepsTheOriginalBodyAfterTheGuard",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineCrossPromoHookTests." + name for name in (
+    "ColdStartWithLocalStorageStaysDisabledWithoutRequests",
+    "ColdStartWithoutLocalStorageStaysDisabledWithoutRequests",
+    "ExistingCacheWithLocalStorageStaysDisabledWithoutRequests",
+    "ExistingCacheWithoutLocalStorageStaysDisabledWithoutRequests",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAppleArcadeSplashScreenTests." + name for name in (
     "SplashScreenPlayerKeepsItsOriginalDeclarations",
     "TheVideoProviderAndItsInterfaceKeepTheirOriginalDeclarations",
