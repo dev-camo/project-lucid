@@ -22,6 +22,11 @@ class LayoutError(ValueError):
     """A report cannot establish an unambiguous layout."""
 
 
+_PRIMITIVES = frozenset((
+    "System.Boolean", "System.Byte", "System.SByte", "System.Char", "System.Int16", "System.UInt16",
+    "System.Int32", "System.UInt32", "System.Int64", "System.UInt64", "System.Single", "System.Double", "System.String"))
+
+
 def type_identity(record: dict) -> Tuple[Any, ...]:
     """Ignore metadata tokens/versions; preserve CLR assembly and type shape."""
     if not isinstance(record, dict) or not isinstance(record.get("assembly"), str):
@@ -182,6 +187,42 @@ def _candidate_fields(record: dict, *, require_string_evidence=False) -> list:
     return result
 
 
+def _generic_parameters(record: dict) -> Tuple[Any, ...]:
+    """Compare generic parameters by declaration, not by metadata tokens."""
+    parameters = record.get("generic_parameters")
+    if not isinstance(parameters, list):
+        raise LayoutError("Generic parameter inventory is missing")
+    result = []
+    for parameter in parameters:
+        if (not isinstance(parameter, dict) or parameter.get("constraints_complete") is not True or
+                not isinstance(parameter.get("constraints"), list)):
+            raise LayoutError("Generic parameter declaration is incomplete")
+        result.append((parameter.get("index"), parameter.get("name"), parameter.get("attributes"),
+                       tuple(type_identity(c) for c in parameter["constraints"])))
+    return tuple(result)
+
+
+def _substitute(reference: dict, arguments) -> dict:
+    """Close a declaration's type-parameter references with one instance's arguments.
+
+    Only class type parameters are replaced; a method parameter or an index outside
+    the instance's arity is an incomplete layout, never a guess.
+    """
+    if arguments is None or not isinstance(reference, dict):
+        return reference
+    kind = reference.get("kind")
+    if kind == "generic_parameter" and reference.get("parameter_owner") == "type":
+        index = reference.get("parameter_index")
+        if type(index) is not int or not 0 <= index < len(arguments):
+            raise LayoutError("Generic parameter lies outside its instance arguments")
+        return arguments[index]
+    if kind == "generic_instance" and isinstance(reference.get("arguments"), list):
+        return dict(reference, arguments=[_substitute(a, arguments) for a in reference["arguments"]])
+    if kind in ("array", "pointer", "by_reference"):
+        return dict(reference, element=_substitute(reference.get("element"), arguments))
+    return reference
+
+
 class _Comparison:
     def __init__(self, original: dict, loaded: dict):
         self.original = _index(original)
@@ -238,17 +279,17 @@ class _Comparison:
                 issue("unsupported_serialized_type", owner, detail)
             elif kind == "named":
                 dependency = left["assembly"], left["reflection_full_name"]
-                if dependency[0] == "mscorlib" and dependency[1] in {
-                    "System.Boolean", "System.Byte", "System.SByte", "System.Char", "System.Int16", "System.UInt16",
-                    "System.Int32", "System.UInt32", "System.Int64", "System.UInt64", "System.Single", "System.Double", "System.String"
-                }:
+                if dependency[0] == "mscorlib" and dependency[1] in _PRIMITIVES:
                     return
                 visit(dependency, as_field=True)
 
-        def visit(owner, as_field=False):
+        def visit(owner, as_field=False, arguments=None):
             # A pointer dependency and the owner's complete MonoScript layout
             # are separate obligations, even when both occur in one graph.
-            role = owner, as_field
+            # A generic definition reached as a closed base carries each side's
+            # instance arguments; every distinct closure is its own obligation.
+            closure = None if arguments is None else tuple(type_identity(a) for a in arguments[0])
+            role = owner, as_field, closure
             if role in checked or role in active:
                 return
             left, right = self.original.get(owner), self.loaded.get(owner)
@@ -257,8 +298,16 @@ class _Comparison:
                 return
             active.add(role)
             try:
+                largs, rargs = (None, None) if arguments is None else arguments
                 lfields = _candidate_fields(left, require_string_evidence=True)
                 rfields = _candidate_fields(right)
+                if arguments is not None and not (
+                        len(left.get("generic_parameters") or ()) == len(largs) == len(rargs) ==
+                        len(right.get("generic_parameters") or ()) > 0):
+                    issue("generic_base_arity_mismatch", owner)
+                    return
+                ltype = lambda f: _substitute(f["field_type"], largs)
+                rtype = lambda f: _substitute(f["field_type"], rargs)
                 # Unity2022 WillUnitySerialize excludes types assignable to
                 # System.Delegate, including public/SerializeReference fields.
                 # Keep coarse field-visibility evidence intact. Exclude only a
@@ -268,17 +317,32 @@ class _Comparison:
                 excluded_delegates = set()
                 for field in lfields:
                     other = rlookup.get(field["name"])
-                    if not other or not self._is_delegate(field["field_type"], self.original):
+                    if not other or not self._is_delegate(ltype(field), self.original):
                         continue
-                    if (type_identity(field["field_type"]) == type_identity(other["field_type"]) and
-                            self._is_delegate(other["field_type"], self.loaded) and
+                    if (type_identity(ltype(field)) == type_identity(rtype(other)) and
+                            self._is_delegate(rtype(other), self.loaded) and
                             field["attributes"] == other["attributes"] and
                             _attributes(field, require_string_evidence=True) == _attributes(other)):
+                        excluded_delegates.add(field["name"])
+                # Unity2022 also skips a field whose declared type is a plain
+                # class without [Serializable] (TMP_Settings.m_linebreakingRules
+                # is absent from the shipped asset). Exclude only an identical
+                # field whose type is proven such a class on BOTH graphs.
+                for field in lfields:
+                    other = rlookup.get(field["name"])
+                    if (other and not field["serialize_reference"] and not other["serialize_reference"] and
+                            field["attributes"] == other["attributes"] and
+                            _attributes(field, require_string_evidence=True) == _attributes(other) and
+                            self._unserialized_class(ltype(field), rtype(other))):
                         excluded_delegates.add(field["name"])
                 lfields = [f for f in lfields if f["name"] not in excluded_delegates]
                 rfields = [f for f in rfields if f["name"] not in excluded_delegates]
                 for label in ("is_value_type", "is_enum", "is_abstract", "declaring_type", "generic_parameters", "unity_component", "unity_scriptable_object"):
-                    if left.get(label) != right.get(label):
+                    if label == "generic_parameters" and arguments is not None:
+                        # Constraint records carry each build's own tokens.
+                        if _generic_parameters(left) != _generic_parameters(right):
+                            issue("type_shape_mismatch", owner, label)
+                    elif left.get(label) != right.get(label):
                         issue("type_shape_mismatch", owner, label)
                 # Serializable/interface/explicit-layout bits affect support and
                 # storage. Visibility and BeforeFieldInit do not define fields.
@@ -293,12 +357,17 @@ class _Comparison:
                 # an inherited component's payload as inline serialized data.
                 if as_field and not left.get("is_enum") and not left.get("is_value_type") and self._unity_object(owner):
                     return
-                lbase, rbase = left.get("base_type"), right.get("base_type")
+                lbase, rbase = _substitute(left.get("base_type"), largs), _substitute(right.get("base_type"), rargs)
                 if lbase is None or rbase is None:
                     if lbase != rbase:
                         issue("base_type_mismatch", owner)
                 elif type_identity(lbase) != type_identity(rbase):
                     issue("base_type_mismatch", owner)
+                elif lbase["kind"] == "generic_instance":
+                    # Unity2022 serializes a closed generic base's instance
+                    # fields in place, ahead of the derived type's own fields.
+                    visit((lbase["assembly"], lbase["definition"]),
+                          arguments=(tuple(lbase["arguments"]), tuple(rbase["arguments"])))
                 elif lbase["kind"] != "named":
                     issue("unsupported_generic_base", owner)
                 elif (lbase["assembly"], lbase["reflection_full_name"]) not in {
@@ -348,7 +417,7 @@ class _Comparison:
                         issue("field_flags_or_attributes_mismatch", owner, field["name"])
                     if field["serialize_reference"] or other["serialize_reference"]:
                         issue("managed_reference_subtypes_unverified", owner, field["name"])
-                    reference(field["field_type"], other["field_type"], owner, field["name"])
+                    reference(ltype(field), rtype(other), owner, field["name"])
             except (LayoutError, KeyError, TypeError, ValueError, OverflowError) as error:
                 issue("incomplete_or_invalid_layout", owner, str(error))
             finally:
@@ -453,6 +522,35 @@ class _Comparison:
         """
         return self.unity_versions == ("2022.3.54f1", "2022.3.54f1") and self._vector2_data_contract(key)
 
+    def _unserialized_class(self, left, right):
+        """Prove a field type is a plain class Unity2022 never serializes.
+
+        Both graphs must declare the same closed named reference class without
+        the Serializable bit, interface bit or generic parameters, outside the
+        Unity object ancestry. Structs, enums, primitives, containers and
+        anything unresolved keep their existing checks. Engine and runtime
+        library classes are never proven this way: the engine serializes some
+        of them natively without the bit (AnimationCurve, Gradient, GUIStyle).
+        """
+        if type_identity(left) != type_identity(right) or left["kind"] != "named":
+            return False
+        key = left["assembly"], left["reflection_full_name"]
+        if (key[0] in ("mscorlib", "netstandard", "UnityEngine") or key[0].startswith(("System", "UnityEngine.", "Mono.")) or
+                key[1].startswith(("System.", "UnityEngine.", "UnityEditor.", "Unity."))):
+            return False
+        for index in (self.original, self.loaded):
+            record = index.get(key)
+            # A direct System.Object base keeps any Unity object ancestry, real
+            # or lookalike, from being mistaken for skipped inline data.
+            if (record is None or record.get("schema_complete") is not True or record.get("is_value_type") is not False or
+                    record.get("is_enum") is not False or type(record.get("attributes")) is not int or
+                    record["attributes"] & 0x2020 or record.get("generic_parameters") != [] or
+                    record.get("unity_component") is not False or record.get("unity_scriptable_object") is not False or
+                    not isinstance(record.get("base_type"), dict) or
+                    type_identity(record["base_type"]) != ("named", "mscorlib", "System.Object")):
+                return False
+        return True
+
     def _unity_object(self, key):
         """Prove a closed PPtr ancestry on BOTH complete declaration graphs.
 
@@ -466,6 +564,9 @@ class _Comparison:
         if self._vector2_data_contract(key):
             return False
         seen = set()
+        # Only a declaration reached through a closed generic-instance base may
+        # be generic, and then with exactly that instance's arity on both graphs.
+        arity = 0
         while key not in {
             ("mscorlib", "System.Object"), ("mscorlib", "System.ValueType"), ("mscorlib", "System.Enum")
         }:
@@ -481,7 +582,7 @@ class _Comparison:
                 _candidate_fields(record, require_string_evidence=original)
                 if type(record.get("attributes")) is not int or not isinstance(record.get("generic_parameters"), list):
                     raise LayoutError("Incomplete Unity object ancestry type contract")
-                if record["generic_parameters"]:
+                if len(record["generic_parameters"]) != arity:
                     raise LayoutError("Open generic Unity object ancestry is unsupported")
                 for label in ("is_value_type", "is_enum", "is_abstract", "unity_component", "unity_scriptable_object"):
                     if type(record.get(label)) is not bool:
@@ -504,8 +605,17 @@ class _Comparison:
                 return False
             if type_identity(lbase) != type_identity(rbase):
                 raise LayoutError("Unity object ancestry base identity differs")
+            if lbase["kind"] == "generic_instance":
+                # The PPtr boundary needs only the ancestry, not the payload,
+                # so the definition's arguments are not substituted here.
+                next_key, arity = (lbase["assembly"], lbase["definition"]), len(lbase["arguments"])
+                if key == ("UnityEngine.CoreModule", "UnityEngine.Object"):
+                    raise LayoutError("Unity object root has an invalid base")
+                key = next_key
+                continue
             if lbase["kind"] != "named":
                 raise LayoutError("Unity object ancestry base is not a closed named type")
+            arity = 0
             next_key = lbase["assembly"], lbase["reflection_full_name"]
             if key == ("UnityEngine.CoreModule", "UnityEngine.Object"):
                 if next_key != ("mscorlib", "System.Object"):
