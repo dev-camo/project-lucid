@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.TestTools;
 
 namespace ProjectLucid.Editor
@@ -558,6 +559,153 @@ namespace ProjectLucid.Editor
             // The shipped predicate compares against typeof(AmplifyColorBase), so the derived effect itself is kept.
             Assert.That(listed, Is.EqualTo(new[] { (Component)effect, volume }));
             Assert.That(((Component[])effectType.GetMethod("ListAcceptableComponents").Invoke(null, new object[] { null })), Is.Empty);
+        }
+
+
+        // The nine Amplify Color shaders are found by name and carry the property list of the shipped compiled shaders
+        // (m_ParsedForm.m_PropInfo of the exported Resources/*.asset). Pass counts are deliberately not asserted for
+        // the eight image-effect shaders: the game renders with URP, which never calls OnRenderImage, and nothing in
+        // the shipped content uses the component, so the shipped compiled forms are the URP build's output (one empty
+        // sub-shader) and not different source. Hidden/RenderMask keeps its three sub-shaders.
+        private readonly struct ShippedProperty
+        {
+            public readonly string Name, Description;
+            public readonly ShaderPropertyType Type;
+            public readonly TextureDimension Dimension;
+            public readonly Vector4 Default;
+
+            public ShippedProperty(string name, string description, ShaderPropertyType type, TextureDimension dimension, Vector4 defaultValue)
+            {
+                Name = name; Description = description; Type = type; Dimension = dimension; Default = defaultValue;
+            }
+        }
+
+        private static ShippedProperty P(string name, string description, ShaderPropertyType type, TextureDimension dimension, Vector4 defaultValue)
+            => new ShippedProperty(name, description, type, dimension, defaultValue);
+
+        private static void AssertShippedProperties(string shaderName, int subShaderCount, params ShippedProperty[] expected)
+        {
+            AssertShippedProperties(shaderName, expected);
+            Shader shader = Shader.Find(shaderName);
+            Assert.That(shader.subshaderCount, Is.EqualTo(subShaderCount), shaderName);
+        }
+
+        private static void AssertShippedProperties(string shaderName, params ShippedProperty[] expected)
+        {
+            Shader shader = Shader.Find(shaderName);
+            Assert.That(shader, Is.Not.Null, "Shader.Find(\"" + shaderName + "\")");
+            Assert.That(shader.name, Is.EqualTo(shaderName));
+            Assert.That(shader.GetPropertyCount(), Is.EqualTo(expected.Length), shaderName);
+            for (int i = 0; i < expected.Length; i++)
+            {
+                ShippedProperty want = expected[i];
+                Assert.That(shader.GetPropertyName(i), Is.EqualTo(want.Name), shaderName + " #" + i);
+                Assert.That(shader.GetPropertyDescription(i), Is.EqualTo(want.Description), want.Name);
+                Assert.That(shader.GetPropertyType(i), Is.EqualTo(want.Type), want.Name);
+                if (want.Type == ShaderPropertyType.Texture)
+                    Assert.That(shader.GetPropertyTextureDimension(i), Is.EqualTo(want.Dimension), want.Name);
+                else if (want.Type == ShaderPropertyType.Float)
+                    Assert.That(shader.GetPropertyDefaultFloatValue(i), Is.EqualTo(want.Default.x), want.Name);
+                else
+                    Assert.That(shader.GetPropertyDefaultVectorValue(i), Is.EqualTo(want.Default), want.Name);
+            }
+        }
+
+        [Test]
+        public void BaseShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/base.asset.
+            AssertShippedProperties("Hidden/Amplify Color/Base",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbTex", "LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_LerpRgbTex", "LerpRGB (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)));
+        }
+
+        [Test]
+        public void BlendShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/blend.asset.
+            AssertShippedProperties("Hidden/Amplify Color/Blend",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbTex", "LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbBlendCacheTex", "RgbBlendCache (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)));
+        }
+
+        [Test]
+        public void BlendCacheShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/blendcache.asset.
+            AssertShippedProperties("Hidden/Amplify Color/BlendCache",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbTex", "LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_LerpRgbTex", "LerpRGB (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)));
+        }
+
+        [Test]
+        public void MaskShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/mask.asset.
+            AssertShippedProperties("Hidden/Amplify Color/Mask",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbTex", "LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_LerpRgbTex", "LerpRGB (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_MaskTex", "Mask (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbBlendCacheTex", "RgbBlendCache (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_StereoScale", "StereoScale", ShaderPropertyType.Vector, TextureDimension.None, new Vector4(1f, 1f, 0f, 0f)));
+        }
+
+        [Test]
+        public void MaskBlendShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/maskblend.asset.
+            AssertShippedProperties("Hidden/Amplify Color/MaskBlend",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbTex", "LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_LerpRgbTex", "LerpRGB (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_MaskTex", "Mask (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbBlendCacheTex", "RgbBlendCache (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)));
+        }
+
+        [Test]
+        public void DepthMaskShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/depthmask.asset.
+            AssertShippedProperties("Hidden/Amplify Color/DepthMask",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbTex", "LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_MaskTex", "Mask (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_DepthCurveLut", "Depth Curve LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_LerpRgbTex", "LerpRGB (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)));
+        }
+
+        [Test]
+        public void DepthMaskBlendShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/depthmaskblend.asset.
+            AssertShippedProperties("Hidden/Amplify Color/DepthMaskBlend",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbTex", "LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_MaskTex", "Mask (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)),
+                P("_RgbBlendCacheTex", "RgbBlendCache (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_DepthCurveLut", "Depth Curve LUT (RGB)", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)));
+        }
+
+        [Test]
+        public void ProcessOnlyShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/processonly.asset.
+            AssertShippedProperties("Hidden/Amplify Color/ProcessOnly",
+                P("_MainTex", "Base (RGB)", ShaderPropertyType.Texture, TextureDimension.Any, new Vector4(0f, 0f, 0f, 0f)));
+        }
+
+        [Test]
+        public void RenderMaskShaderIsFoundWithTheShippedProperties()
+        {
+            // Expected values: m_ParsedForm.m_PropInfo of ExportedProject/Assets/Resources/rendermask.asset.
+            AssertShippedProperties("Hidden/RenderMask", 3,
+                P("_MainTex", "", ShaderPropertyType.Texture, TextureDimension.Tex2D, new Vector4(0f, 0f, 0f, 0f)),
+                P("_Cutoff", "", ShaderPropertyType.Float, TextureDimension.None, new Vector4(0.5f, 0f, 0f, 0f)),
+                P("_COLORMASK_Color", "", ShaderPropertyType.Color, TextureDimension.None, new Vector4(1f, 1f, 1f, 1f)));
         }
     }
 }

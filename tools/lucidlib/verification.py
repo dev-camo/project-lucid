@@ -2366,6 +2366,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalAmplifyColorTests.BlendingVolumeEffectsLerpsNumbersAndTakesTheSecondBoolean",
     "ProjectLucid.Editor.OriginalAmplifyColorTests.ComponentFlagsListPublicBlendableFieldsAndEffectsApplyThem",
     "ProjectLucid.Editor.OriginalAmplifyColorTests.AcceptableComponentsDropUnityComponentsButKeepTheDerivedEffect",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.BaseShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.BlendShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.BlendCacheShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.MaskShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.MaskBlendShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.DepthMaskShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.DepthMaskBlendShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.ProcessOnlyShaderIsFoundWithTheShippedProperties",
+    "ProjectLucid.Editor.OriginalAmplifyColorTests.RenderMaskShaderIsFoundWithTheShippedProperties",
 )
 EDITMODE_TESTS += (
     "ProjectLucid.Editor.OriginalHLLocalisationRemainingTypesTests.LiteralContentFormatsNestedParametersAndKeepsTextOnFormatErrors",
