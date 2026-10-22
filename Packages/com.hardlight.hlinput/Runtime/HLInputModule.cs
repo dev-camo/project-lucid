@@ -69,14 +69,14 @@ namespace Hardlight
             if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-013: the original picked the active Apple or macOS controller provider; we select the portable provider
                 m_baseControllerProvider = ProjectLucid.Offline.PortableControllerSelection.Create(m_controllerConnectionPollingRateInSeconds);
             else
-            foreach (ScriptableControllerProvider provider in m_baseControllerProviders)
-            {
-                if (provider.IsActiveProvider())
+                foreach (ScriptableControllerProvider provider in m_baseControllerProviders)
                 {
-                    m_baseControllerProvider = provider.GetControllerNameProvider(m_controllerConnectionPollingRateInSeconds);
-                    break;
+                    if (provider.IsActiveProvider())
+                    {
+                        m_baseControllerProvider = provider.GetControllerNameProvider(m_controllerConnectionPollingRateInSeconds);
+                        break;
+                    }
                 }
-            }
             m_baseControllerProvider.Initialise();
             GlyphLookupSystem = new GlyphLookupSystem();
             for (int i = 0; i < m_inputMonitors.Length; ++i)

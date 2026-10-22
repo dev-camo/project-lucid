@@ -16,7 +16,8 @@ namespace ProjectLucid.Offline
         internal static CrossPromo Register()
         {
             CrossPromoConfigurationAsset asset = SystemConfiguration.GetConfig<CrossPromoConfigurationAsset>();
-            // The country and language only build the metadata URL, which is never requested.
+            // The country and language feed the metadata URL (never requested) and the press-to-play
+            // string lookup (never reached, nothing is parsed).
             CrossPromoConfig config = new CrossPromoConfig(asset, Application.version, string.Empty,
                 string.Empty, Application.persistentDataPath);
             CrossPromo crossPromo = new CrossPromo(config, new OfflineCrossPromoResourceManager(),

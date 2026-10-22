@@ -10,49 +10,63 @@ namespace Hardlight
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class HLUnityCoreNativeBridge : IHLUnityCoreNativeBridge
     {
-        // Offline hook H-011: the original called five native imports, and their import descriptors are
-        // unknown; we call managed forwarders that always replace them. This is the only #if left
-        // (decision D2 exception): the original externs cannot be restored faithfully.
-#if PROJECT_LUCID_ORIGINAL_UNITY_CORE_NATIVE_BRIDGE
-#error Exact original native import descriptors are required before enabling this branch.
+        // Original imports (PinvokeImpl, PreserveSig; the import module is not recovered, so no DllImport
+        // is invented). They are declared like Cloud_MacOS declares its unresolved imports; CS0626 is
+        // expected. The offline hooks below never reach them.
+#pragma warning disable 0626
         [PreserveSig] private static extern void Unity_CoreInitialise(string gameObjectName);
         [PreserveSig] private static extern string Unity_GetLocaleString();
         [PreserveSig] private static extern string Unity_GetLanguageCode();
         [PreserveSig] private static extern string Unity_GetISO2CountryCode();
         [PreserveSig] private static extern string Unity_GetClientCode();
-#else
-        [PreserveSig]
-        private static void Unity_CoreInitialise(string gameObjectName) => ProjectLucid.Offline.LocalCoreNativeCalls.Initialise(gameObjectName);
-
-        [PreserveSig]
-        private static string Unity_GetLocaleString() => ProjectLucid.Offline.LocalCoreNativeCalls.GetLocaleString();
-
-        [PreserveSig]
-        private static string Unity_GetLanguageCode() => ProjectLucid.Offline.LocalCoreNativeCalls.GetLanguageCode();
-
-        [PreserveSig]
-        private static string Unity_GetISO2CountryCode() => ProjectLucid.Offline.LocalCoreNativeCalls.GetISO2CountryCode();
-
-        [PreserveSig]
-        private static string Unity_GetClientCode() => ProjectLucid.Offline.LocalCoreNativeCalls.GetClientCode();
-#endif
+#pragma warning restore 0626
 
         // Original 0x06000918; ARM64 0x1af5b1c evaluates owner object/name before
         // crossing the adapted import boundary.
-        public void Initialise(HLUnityCore componentOwner) => Unity_CoreInitialise(componentOwner.gameObject.name);
+        public void Initialise(HLUnityCore componentOwner)
+        {
+            // Offline hook H-011: the original crossed the Unity_CoreInitialise import; we call the local forwarder (owner and name are still evaluated first)
+            if (ProjectLucid.Offline.OfflineAdapters.Active)
+            {
+                ProjectLucid.Offline.LocalCoreNativeCalls.Initialise(componentOwner.gameObject.name);
+                return;
+            }
+            Unity_CoreInitialise(componentOwner.gameObject.name);
+        }
 
         // Original 0x06000919..1d, ARM64 0x1af5b58..0x1af5c40.
         public string GetDeviceOS() => SystemInfo.operatingSystem;
         public string GetDeviceID() => string.Empty;
-        public string GetDeviceRawLocale() => Unity_GetLocaleString();
-        public string GetDeviceLanguageCode() => Unity_GetLanguageCode();
-        public string GetDeviceISO2CountryCode() => Unity_GetISO2CountryCode();
+        public string GetDeviceRawLocale()
+        {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) return ProjectLucid.Offline.LocalCoreNativeCalls.GetLocaleString(); // Offline hook H-058: the original returned the Unity_GetLocaleString import; we return the local forwarder
+            return Unity_GetLocaleString();
+        }
+
+        public string GetDeviceLanguageCode()
+        {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) return ProjectLucid.Offline.LocalCoreNativeCalls.GetLanguageCode(); // Offline hook H-059: the original returned the Unity_GetLanguageCode import; we return the local forwarder
+            return Unity_GetLanguageCode();
+        }
+
+        public string GetDeviceISO2CountryCode()
+        {
+            if (ProjectLucid.Offline.OfflineAdapters.Active) return ProjectLucid.Offline.LocalCoreNativeCalls.GetISO2CountryCode(); // Offline hook H-060: the original returned the Unity_GetISO2CountryCode import; we return the local forwarder
+            return Unity_GetISO2CountryCode();
+        }
 
         // 0x0600091e; ARM64 0x1af5c48. Return status is one regardless of
         // parse success; failure writes zero. Success preserves signed bits.
         public int GetClientCode(out uint clientCode)
         {
             int parsed;
+            // Offline hook H-061: the original parsed the Unity_GetClientCode import; we parse the local forwarder's text the same way
+            if (ProjectLucid.Offline.OfflineAdapters.Active)
+            {
+                bool localSuccess = int.TryParse(ProjectLucid.Offline.LocalCoreNativeCalls.GetClientCode(), out parsed);
+                clientCode = localSuccess ? unchecked((uint)parsed) : 0u;
+                return 1;
+            }
             bool success = int.TryParse(Unity_GetClientCode(), out parsed);
             clientCode = success ? unchecked((uint)parsed) : 0u;
             return 1;

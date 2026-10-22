@@ -8,10 +8,8 @@ REGISTRY = ROOT / "docs" / "offline-hooks.md"
 SWITCH = "OfflineAdapters.Active"
 TAG = re.compile(r"Offline hook (H-\d{3})\b")
 ROW = re.compile(r"^\| (H-\d{3}) \| `([^`]+)` \| `([^`]+)` \| (.+) \|$")
-# The only place where the original cannot compile, so a compile-time condition stays (decision D2).
-ALLOWED_DEFINES = {
-    "Packages/com.hardlight.hlunitycore/Runtime/Logging/HLUnityCoreNativeBridge.cs": "PROJECT_LUCID_ORIGINAL_UNITY_CORE_NATIVE_BRIDGE",
-}
+# Places where the original cannot compile, so a compile-time condition stays (decision D2). None today.
+ALLOWED_DEFINES = {}
 
 
 def runtime_sources():
@@ -73,10 +71,31 @@ class OfflineHookRegistryTests(unittest.TestCase):
                     self.assertIn(name, source)
                 self.assertGreater(len(text), 20, "the row says what the original did and what the adapter does")
 
-    def test_hook_ids_are_unique_and_registry_lists_the_switch_file(self):
-        rows = registry_rows()
-        ids = sorted(rows, key=lambda value: int(value[2:]))
-        self.assertEqual(ids, sorted(rows))
+    def test_every_use_of_the_switch_maps_to_a_distinct_tag(self):
+        _, uses = source_hooks()
+        found = [hook_id for _, _, hook_id in uses]
+        duplicates = sorted({hook_id for hook_id in found if found.count(hook_id) > 1})
+        self.assertEqual(duplicates, [], "two uses of the switch credit the same tag (a look-back mis-credit or a shared id)")
+        self.assertEqual(sorted(set(found)), sorted(registry_rows()), "every registered hook has exactly one use of the switch")
+
+    def test_the_test_override_is_only_called_from_test_folders(self):
+        switch_file = "Packages/com.hardlight.hlunitycore/Runtime/Offline/OfflineAdapters.cs"
+        callers = []
+        for top in ("Assets", "Packages"):
+            for path in sorted((ROOT / top).rglob("*.cs")):
+                rel = path.relative_to(ROOT).as_posix()
+                if rel != switch_file and "OfflineAdapters.Override(" in path.read_text(encoding="utf-8"):
+                    callers.append(rel)
+        self.assertTrue(callers, "the override is used by the tests")
+        for rel in callers:
+            with self.subTest(file=rel):
+                self.assertTrue(rel.startswith("Assets/Tests/") or "/Tests/" in rel, "OfflineAdapters.Override outside a Tests folder")
+
+    def test_hook_ids_are_unique_in_the_registry_and_numbered_with_three_digits(self):
+        ids = [line.split("|")[1].strip() for line in REGISTRY.read_text(encoding="utf-8").split("\n") if ROW.match(line)]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual(ids, sorted(ids, key=lambda value: int(value[2:])), "rows stay in id order")
+        self.assertTrue(all(re.fullmatch(r"H-\d{3}", value) for value in ids))
         self.assertTrue((ROOT / "Packages/com.hardlight.hlunitycore/Runtime/Offline/OfflineAdapters.cs").is_file())
         self.assertIn("OfflineAdapters.cs", REGISTRY.read_text(encoding="utf-8"))
 

@@ -29,14 +29,26 @@ namespace ProjectLucid.Tests
             Assert.IsTrue(typeof(IGameCenterLocalPlayerListenerCallbackHandler).IsAssignableFrom(listener));
             Assert.IsTrue(typeof(INativeGameCenterLocalPlayer).IsAssignableFrom(player));
             Assert.IsFalse(typeof(MonoBehaviour).IsAssignableFrom(listener));
-            RequireOnlyLocalConstructor("CreateGameCenterLocalPlayerListener", listener, Type.EmptyTypes);
-            RequireOnlyLocalConstructor("CreateNativeGameCenterLocalPlayer", player,
-                new[] { typeof(IGameCenterLocalPlayerListenerCallbackHandler) });
+            Type[] handler = { typeof(IGameCenterLocalPlayerListenerCallbackHandler) };
+            Assembly original = typeof(GameCenterLocalPlayerUtility).Assembly;
+            // The local type first (the offline hook), then the original stub and macOS types in source order.
+            RequireConstructorsInOrder("CreateGameCenterLocalPlayerListener", new[]
+            {
+                (listener, Type.EmptyTypes),
+                (original.GetType("Hardlight.GameCenterLocalPlayerListenerStub", true), Type.EmptyTypes),
+                (original.GetType("Hardlight.GameCenterLocalPlayerListenerMacOS", true), Type.EmptyTypes),
+            });
+            RequireConstructorsInOrder("CreateNativeGameCenterLocalPlayer", new[]
+            {
+                (player, handler),
+                (original.GetType("Hardlight.GameCenterLocalPlayerStub", true), handler),
+                (original.GetType("Hardlight.GameCenterLocalPlayerMacOS", true), Type.EmptyTypes),
+            });
         }
 
         // Inspect every operand before any factory invocation. This is a route-safety
         // preflight for the controlled source, not a complete emission/parity witness.
-        private static void RequireOnlyLocalConstructor(string name, Type owner, Type[] parameters)
+        private static void RequireConstructorsInOrder(string name, (Type Owner, Type[] Parameters)[] expected)
         {
             MethodInfo factory = typeof(GameCenterLocalPlayerUtility).GetMethod(name, BindingFlags.Public | BindingFlags.Static);
             Assert.IsNotNull(factory);
@@ -48,7 +60,7 @@ namespace ProjectLucid.Tests
                     OpCode code = (OpCode)field.GetValue(null);
                     codes[unchecked((ushort)code.Value)] = code;
                 }
-            int index = 0, constructors = 0, allocations = 0, switchReads = 0;
+            int index = 0, constructors = 0, switchReads = 0;
             while (index < il.Length)
             {
                 ushort value = il[index++];
@@ -89,14 +101,12 @@ namespace ProjectLucid.Tests
                         Assert.IsNotNull(constructor);
                         // The offline hook returns the local type first; the original platform
                         // constructors that follow stay compiled but are unreachable while the switch is on.
-                        if (allocations++ == 0)
-                        {
-                            Assert.AreSame(owner, constructor.DeclaringType);
-                            ParameterInfo[] args = constructor.GetParameters();
-                            Assert.AreEqual(parameters.Length, args.Length);
-                            for (int n = 0; n < args.Length; n++) Assert.AreSame(parameters[n], args[n].ParameterType);
-                            constructors++;
-                        }
+                        Assert.Less(constructors, expected.Length, "no constructor beyond the expected ones");
+                        Assert.AreSame(expected[constructors].Owner, constructor.DeclaringType);
+                        ParameterInfo[] args = constructor.GetParameters();
+                        Assert.AreEqual(expected[constructors].Parameters.Length, args.Length);
+                        for (int n = 0; n < args.Length; n++) Assert.AreSame(expected[constructors].Parameters[n], args[n].ParameterType);
+                        constructors++;
                         size = 4;
                         break;
                     default:
@@ -106,7 +116,7 @@ namespace ProjectLucid.Tests
                 index += size;
             }
             Assert.AreEqual(il.Length, index);
-            Assert.AreEqual(1, constructors);
+            Assert.AreEqual(expected.Length, constructors);
             Assert.AreEqual(1, switchReads, "exactly one offline hook read");
         }
 

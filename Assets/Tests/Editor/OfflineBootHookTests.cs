@@ -71,53 +71,6 @@ namespace ProjectLucid.Tests
             Assert.That(calls[0].Offset, Is.LessThan(calls[1].Offset));
         }
 
-        // HLCrossPromo.Start (0x0600186b) offline: no waits, no coroutine, no download manager and no
-        // folders. The CrossPromo system is registered over the no-content resource manager, so it takes
-        // CrossPromo's own "metadata is null or empty" path: ready, disabled, default metadata, and the
-        // Initialised subscriber of a ready system is called at once.
-        [Test]
-        public void CrossPromoStartRegistersAnEmptyReadySystemWithoutNetworkOrFolders()
-        {
-            string suffix = Guid.NewGuid().ToString("N");
-            string incoming = "lucid-test-incoming-" + suffix, destination = "lucid-test-destination-" + suffix;
-            Owned.Run(owned =>
-            {
-                owned.Lease(new OwnedCrossPromoConfiguration("{\"m_incomingFolder\":\"" + incoming + "\",\"m_destinationFolder\":\"" +
-                    destination + "\",\"m_canUseLocalStorage\":true,\"m_gameTitle\":\"lucid-title\"}"));
-                var row = owned.Lease(new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<CrossPromo>()));
-                row.Register(null);
-                VerificationFixtureOwnership.RunThenCleanUp(() =>
-                {
-                    var host = owned.Host("Lucid cross promo", false).AddComponent<HLCrossPromo>();
-                    Assert.That(ProcessManager.IsSystemNull<CrossPromo>(), Is.True);
-                    var iterator = (IEnumerator)Call(host, "Start");
-                    Assert.That(iterator.MoveNext(), Is.False, "no wait on the core or the language");
-                    row.AdoptCurrent();
-
-                    CrossPromo promo = ProcessManager.GetSystem<CrossPromo>();
-                    ICrossPromoResourceManager resources = Get<ICrossPromoResourceManager>(promo, "m_resourceManager");
-                    Assert.That(resources.GetType().FullName, Is.EqualTo("ProjectLucid.Offline.OfflineCrossPromoResourceManager"));
-                    Assert.That(Get<ICrossPromoDataParser>(promo, "m_parser"), Is.TypeOf<CrossPromoDataParser>());
-                    Assert.That(promo.IsReady(), Is.True);
-                    Assert.That(promo.IsEnabled, Is.False);
-                    Assert.That(Get<bool>(promo, "m_syncInProgress"), Is.False);
-
-                    int calls = 0;
-                    CrossPromoMetaData received = default;
-                    ((ICrossPromo)promo).Initialised += metaData => { calls++; received = metaData; };
-                    Assert.That(calls, Is.EqualTo(1), "a ready system calls a late subscriber at once");
-                    Assert.That(received.IsSystemEnabled, Is.False);
-                    Assert.That(received.Ads, Is.Null);
-
-                    Assert.That(Directory.Exists(Path.Combine(Application.persistentDataPath, incoming)), Is.False);
-                    Assert.That(Directory.Exists(Path.Combine(Application.persistentDataPath, destination)), Is.False);
-                    UnityEngine.TestTools.LogAssert.NoUnexpectedReceived();
-                },
-                () => DeleteIfPresent(Path.Combine(Application.persistentDataPath, incoming)),
-                () => DeleteIfPresent(Path.Combine(Application.persistentDataPath, destination)));
-            });
-        }
-
         // The no-content resource manager reports the metadata download as failed at once, holds no metadata
         // file, nothing pending and no texture, which is what the real manager reports for an unreachable
         // server with an empty cache (CrossPromoResourceManager 0x06000083, 0x06000084).

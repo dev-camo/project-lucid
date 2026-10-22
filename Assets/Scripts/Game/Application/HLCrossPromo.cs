@@ -17,11 +17,13 @@ namespace HardlightProject
         // building the configuration from the device country and language.
         private IEnumerator Start()
         {
-            // Offline hook H-057: the original builds the real download manager, which requests the
-            // promotion metadata from the server. Offline registers the same system over a
-            // resource manager that has no content, so CrossPromo takes its own "no metadata"
-            // path: ready, disabled, no ads, and no request, folder or coroutine. The device
-            // country and language waits only feed the metadata URL, so they are skipped too.
+            // Offline hook H-057: the original builds the real download manager (a metadata request to the
+            // server). Offline registers the same system over a resource manager with no content, so
+            // CrossPromo takes its own no-metadata path: ready, disabled, no ads, no request or coroutine.
+            // The original ignores the download result and reads any existing metadata cache
+            // (CrossPromo.OnMetaDataDownloadCompleted); the adapter ignores that cache. The country and
+            // language waits feed the metadata URL and CrossPromoDataParser.FindPressToPlayString (unused
+            // offline, nothing is parsed), so they are skipped.
             if (OfflineAdapters.Active)
             {
                 OfflineCrossPromo.Register();

@@ -2,8 +2,7 @@
   "name": "Apple.Arcade.SplashScreen",
   "rootNamespace": "Apple.Arcade.SplashScreen",
   "references": [
-    "HLUnityCore.Runtime",
-    "Game.Runtime"
+    "HLUnityCore.Runtime"
   ],
   "autoReferenced": true,
   "noEngineReferences": false

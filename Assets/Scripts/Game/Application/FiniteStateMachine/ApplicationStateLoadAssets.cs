@@ -35,7 +35,7 @@ namespace HardlightProject
 			if (ProjectLucid.Offline.OfflineAdapters.Active)
 				ProjectLucid.Offline.LocalGameCenterLifecycle.ReportLogin(false);
 			else
-			Social.localUser.Authenticate(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)));
+				Social.localUser.Authenticate(loginSuccess => ProcessManager.GetSystemRef<GameCenter>().InvokeOnValid(gameCenter => gameCenter.OnLoginComplete(loginSuccess)));
 			user.GetAs<App>().DataManager.LoadDefinitionData();
 			CoroutineUtils.RunCoroutine(InitialiseSaveData(ProcessManager.GetSystem<SaveManager>(), user));
 		}

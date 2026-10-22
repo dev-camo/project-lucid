@@ -10673,7 +10673,6 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineBootHookTests." + name for na
     "TheAdapterSwitchIsOnAndTheVerificationOverrideRestoresIt",
     "FairPlayCheckEntersThroughItsSuccessPathWithoutTheNativeLibrary",
     "FairPlayCheckKeepsTheOriginalRegistrationAfterTheGuard",
-    "CrossPromoStartRegistersAnEmptyReadySystemWithoutNetworkOrFolders",
     "TheNoContentResourceManagerReportsAFailedDownloadAndNoContent",
     "CrossPromoStartKeepsTheOriginalBodyAfterTheGuard",
 ))

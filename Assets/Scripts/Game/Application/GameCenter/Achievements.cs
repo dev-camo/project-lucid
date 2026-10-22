@@ -52,10 +52,8 @@ namespace HardlightProject
 
         private void AddAllAchievements()
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-031: the adapter can stop the subscriptions; the original had no stop state
-            {
-                if (m_offlineStopped) return;
-            }
+            if (ProjectLucid.Offline.OfflineAdapters.Active && m_offlineStopped) // Offline hook H-031: the adapter can stop the subscriptions; the original had no stop state
+                return;
             m_achievementsManager.OnPlatformSyncComplete -= AddAllAchievements;
             ProcessManager.GetSystemRef<CollectableManager>(null, true).InvokeOnValid(AddCollectableAchievements);
             ProcessManager.GetSystemRef<BossManager>(null, true).InvokeOnValid(AddBossAchievements);
@@ -108,10 +106,8 @@ namespace HardlightProject
 
         private void AddLevelAchievements(LevelManager levelManager)
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-034: the adapter can stop the subscriptions; the original had no stop state
-            {
-                if (m_offlineStopped) return;
-            }
+            if (ProjectLucid.Offline.OfflineAdapters.Active && m_offlineStopped) // Offline hook H-034: the adapter can stop the subscriptions; the original had no stop state
+                return;
             m_levelManager = levelManager;
             m_missionManagerRef.InvokeOnValid(AddMissionAchievements);
         }
@@ -246,10 +242,8 @@ namespace HardlightProject
 
         private void AddCharacterAchievements(CharacterManager characterManager)
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-037: the adapter can stop the subscriptions; the original had no stop state
-            {
-                if (m_offlineStopped) return;
-            }
+            if (ProjectLucid.Offline.OfflineAdapters.Active && m_offlineStopped) // Offline hook H-037: the adapter can stop the subscriptions; the original had no stop state
+                return;
             m_characterManager = characterManager;
             ProcessManager.GetSystemRef<SaveManager>(null, true).InvokeOnValid(SaveManagerValid);
         }
@@ -277,10 +271,8 @@ namespace HardlightProject
 
         private void AddSaveDataAchievements()
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-039: the adapter can stop the subscriptions; the original had no stop state
-            {
-                if (m_offlineStopped) return;
-            }
+            if (ProjectLucid.Offline.OfflineAdapters.Active && m_offlineStopped) // Offline hook H-039: the adapter can stop the subscriptions; the original had no stop state
+                return;
             m_saveManager.OnLoadCompleted -= AddSaveDataAchievements;
             int GetStatFromSave(SaveDataPlayerStat.Type statType) =>
                 unchecked((int)m_saveManager.CurrentSave.GetOrCreatePlayerStatData(statType).PlayerStatCounter);
@@ -394,7 +386,6 @@ namespace HardlightProject
             if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-044: the original reset the GameCenter achievements; offline there is no reset policy, so it throws
             {
                 throw new InvalidOperationException("Offline achievement reset requires explicit local profile reset policy.");
-                return;
             }
             GameCenterPlatform.ResetAllAchievements(null);
         }

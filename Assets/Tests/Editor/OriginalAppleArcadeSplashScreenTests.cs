@@ -136,7 +136,7 @@ namespace ProjectLucid.Tests
         }
 
         // GetAspectRatioRepresentation 0x06000006 (x86-64 0x425a60) converts the float to double and compares it
-        // with the doubles at 0x29a6bc0: 1.87, 1.77, 1.6, each as "greater or equal". The float constants 1.77f
+        // with the doubles at 0x29a6bc0: 1.87, 1.77, 1.6, each as "greater or equal". The float constant 1.77f
         // (1.7699999809) is below the double 1.77, while 1.87f (1.8700000048) and 1.6f (1.6000000238) are above
         // theirs: a float comparison, or a strict one, would move these.
         [TestCase(2.3f, "19.5x9", TestName = "AspectTextOfAWideScreenIsNineteenPointFiveByNine")]
@@ -169,7 +169,7 @@ namespace ProjectLucid.Tests
 
         // GetSplashScreenVideo 0x06000003 (0x425580) asks Resources for "<aspect>/<aspect>_Landscape" and its
         // completion callback 0x0600000a (0x425b80) sets the task result from the request asset. This project
-        // the request asset, whatever it found: the clip when the project ships one at that path, null when it
+        // completes with the request asset, whatever it found: the clip when the project ships one at that path, null when it
         // does not (never a fault). The expectation is the same Resources lookup made directly, so the case
         // holds with and without the recovered splash videos in the project.
         [UnityTest]

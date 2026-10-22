@@ -51,15 +51,24 @@ namespace ProjectLucid.Tests
                     }
 
                     var host = owned.Host("Lucid cross promo", false).AddComponent<HLCrossPromo>();
+                    Assert.That(ProcessManager.IsSystemNull<CrossPromo>(), Is.True);
                     var iterator = (IEnumerator)Call(host, "Start");
-                    Assert.That(iterator.MoveNext(), Is.False, "no wait and no coroutine");
+                    Assert.That(iterator.MoveNext(), Is.False, "no wait on the core or the language, and no coroutine");
                     row.AdoptCurrent();
 
                     CrossPromo promo = ProcessManager.GetSystem<CrossPromo>();
                     Assert.That(Get<ICrossPromoResourceManager>(promo, "m_resourceManager").GetType().FullName,
                         Is.EqualTo("ProjectLucid.Offline.OfflineCrossPromoResourceManager"), "the constructor's metadata request went to the offline manager");
+                    Assert.That(Get<ICrossPromoDataParser>(promo, "m_parser"), Is.TypeOf<CrossPromoDataParser>());
                     Assert.That(promo.IsReady(), Is.True);
                     Assert.That(promo.IsEnabled, Is.False, "the cache is not read");
+                    Assert.That(Get<bool>(promo, "m_syncInProgress"), Is.False);
+                    int initialisedCalls = 0;
+                    CrossPromoMetaData received = default;
+                    ((ICrossPromo)promo).Initialised += metaData => { initialisedCalls++; received = metaData; };
+                    Assert.That(initialisedCalls, Is.EqualTo(1), "a ready system calls a late subscriber at once");
+                    Assert.That(received.IsSystemEnabled, Is.False);
+                    Assert.That(received.Ads, Is.Null);
                     int fullScreenRequests = 0;
                     promo.FullScreenViewRequested += (metaData, index) => fullScreenRequests++;
 
