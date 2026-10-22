@@ -60,6 +60,8 @@ class API:
                 raise ValueError('Atomic non-fast-forward rejection')
             self.head = self.generated
             return {'object': {'sha': self.generated}}
+        if method == 'POST' and path.startswith(repo + '/statuses/'):
+            return {}
         raise AssertionError('Unexpected API operation: ' + method + ' ' + path)
 
 
@@ -271,6 +273,88 @@ class MainProgressTests(unittest.TestCase):
             gate.assert_not_called()
             gate.return_value = {'head': self.api.parent, 'head_repository': 'fork/repo', 'head_ref': 'feature'}
             self.assertEqual(gate.return_value, main.pr_gate(self.api, {'workflow_run': {'event': 'pull_request', 'conclusion': 'success'}}))
+
+
+    def pr_request(self):
+        return {'pr': 7, 'head': 'c' * 40, 'control_commit': self.api.parent,
+                'head_repository': 'fork/repo', 'head_ref': 'feature', 'upstream_run': 9}
+
+    def statuses(self):
+        return [call for call in self.api.calls if call['method'] == 'POST']
+
+    def report_pr(self, result, current=True):
+        request = self.pr_request()
+        side_effect = None if current else ValueError('Stale, draft, closed or foreign PR rejected')
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}), \
+                mock.patch.object(main.shared, 'require_current_pr', side_effect=side_effect):
+            main.pr_status_final(self.api, request, result)
+        return request
+
+    def test_pr_compilation_failure_is_visible_on_the_exact_head(self):
+        request = self.report_pr('failure')
+        (call,) = self.statuses()
+        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
+        self.assertEqual(('failure', main.PR_COMPILATION_CONTEXT), (call['body']['state'], call['body']['context']))
+        self.assertTrue(call['body']['target_url'].endswith('/actions/runs/456'))
+
+    def test_pr_compilation_success_only_for_a_completed_current_compile(self):
+        request = self.report_pr('success')
+        (call,) = self.statuses()
+        self.assertEqual('success', call['body']['state'])
+        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
+
+    def test_pr_compilation_skipped_cancelled_or_unknown_never_succeeds(self):
+        for result in ('skipped', 'cancelled', '', 'unexpected'):
+            with self.subTest(result=result):
+                self.api.calls.clear()
+                self.report_pr(result)
+                (call,) = self.statuses()
+                self.assertEqual('error', call['body']['state'])
+
+    def test_pr_compilation_advanced_head_or_closed_pr_gets_no_success(self):
+        request = self.report_pr('success', current=False)
+        (call,) = self.statuses()
+        self.assertEqual('error', call['body']['state'])
+        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
+        self.assertEqual([], [c for c in self.statuses() if c['body']['state'] == 'success'])
+
+    def test_pr_compilation_pending_status_targets_validated_head_only(self):
+        request = self.pr_request()
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}), \
+                mock.patch.object(main.shared, 'require_current_pr') as current:
+            main.pr_status_pending(self.api, request)
+        current.assert_called_once_with(self.api, request)
+        (call,) = self.statuses()
+        self.assertEqual('pending', call['body']['state'])
+        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
+
+    def test_pr_compilation_status_rejects_unvalidated_request_and_foreign_control(self):
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
+            with self.assertRaises(ValueError):
+                main.pr_status(self.api, {'head': 'c' * 40}, 'success', 'x')
+            request = {**self.pr_request(), 'control_commit': 'e' * 40}
+            with self.assertRaises(ValueError):
+                main.pr_status_final(self.api, request, 'success')
+        self.assertEqual([], self.statuses())
+
+    def test_pr_compilation_workflow_reports_with_isolated_write_token(self):
+        text = (Path(__file__).resolve().parents[2] / '.github/workflows/pr-compilation.yml').read_text()
+        jobs = {}
+        for chunk in text.split('\njobs:\n', 1)[1].split('\n  ')[0:0] or []:
+            pass
+        sections = text.split('\njobs:\n', 1)[1].split('\n\n  ')
+        for section in sections:
+            name = section.strip().split(':', 1)[0]
+            jobs[name] = section
+        self.assertEqual({'gate', 'start', 'compile', 'report'}, set(jobs))
+        self.assertNotIn('statuses: write', jobs['compile'])
+        self.assertNotIn('statuses: write', jobs['gate'])
+        self.assertIn('statuses: write', jobs['start'])
+        self.assertIn('statuses: write', jobs['report'])
+        self.assertIn('always()', jobs['report'])
+        self.assertIn('needs.compile.result', jobs['report'])
+        self.assertIn('runs-on: ubuntu-24.04', jobs['report'])
+        self.assertIn('self-hosted', jobs['compile'])
 
 
 

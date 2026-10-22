@@ -20,6 +20,15 @@ REPOSITORY = shared.REPOSITORY
 MAIN = 'main'
 REQUEST_FIELDS = {'head', 'control_commit'}
 GENERATED_PATHS = ('README.md', 'docs/code-progress.json')
+PR_COMPILATION_CONTEXT = 'Native compilation (PR head)'
+# needs.compile.result -> (state, description). Only a completed compile job may be
+# reported as success; skipped and cancelled jobs never are.
+PR_COMPILATION_RESULTS = {
+    'success': ('success', 'Exact-head PR compilation verified'),
+    'failure': ('failure', 'Native compilation of this head failed'),
+    'cancelled': ('error', 'Native compilation was cancelled before it finished'),
+    'skipped': ('error', 'Native compilation did not run'),
+}
 
 
 def require_main_context(request=None):
@@ -193,6 +202,42 @@ def pr_compile_job(api, request):
         print('Exact-head PR compilation verified')
 
 
+def pr_status(api, request, state, description):
+    """Publish the compilation status on the validated PR head and nowhere else.
+
+    The workflow runs on main's SHA, so its own checks never show on the PR commit.
+    Statuses are per-SHA: a head that advances starts with no result of its own.
+    The description and linked run say if trusted reporting code replaced the PR's.
+    """
+    shared.validate_request(request)
+    api.request(f"/repos/{REPOSITORY}/statuses/{request['head']}", 'POST', {
+        'state': state, 'context': PR_COMPILATION_CONTEXT, 'description': description[:140],
+        'target_url': f"https://github.com/{REPOSITORY}/actions/runs/{os.environ['GITHUB_RUN_ID']}"})
+
+
+def pr_status_pending(api, request):
+    if os.environ.get('GITHUB_EVENT_NAME') != 'workflow_run':
+        raise ValueError('PR compilation status requires its admitted workflow event')
+    shared.require_workflow_context(request)
+    shared.require_current_pr(api, request)
+    pr_status(api, request, 'pending', 'Native compilation of this head is queued or running')
+
+
+def pr_status_final(api, request, compile_result):
+    if os.environ.get('GITHUB_EVENT_NAME') != 'workflow_run':
+        raise ValueError('PR compilation status requires its admitted workflow event')
+    shared.require_workflow_context(request)
+    state, description = PR_COMPILATION_RESULTS.get(
+        compile_result, ('error', 'Native compilation ended without a recognised result'))
+    if state == 'success':
+        try:
+            shared.require_current_pr(api, request)
+        except ValueError:
+            # Head advanced, PR closed or control moved: never leave a success behind.
+            state, description = 'error', 'Superseded before reporting; this head was not accepted'
+    pr_status(api, request, state, description)
+
+
 def git(source, *arguments, data=None, index=None):
     # Neither the app token nor any workflow output channel reaches git.
     environment = {key: value for key, value in os.environ.items()
@@ -318,7 +363,7 @@ def publish(api, request, raw, producer, control, source):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=('gate', 'compile', 'seal', 'cleanup', 'publish', 'validate', 'pr-gate', 'pr-compile'))
+    parser.add_argument('mode', choices=('gate', 'compile', 'seal', 'cleanup', 'publish', 'validate', 'pr-gate', 'pr-compile', 'pr-status-pending', 'pr-status-final'))
     mode = parser.parse_args().mode
     if mode == 'cleanup':
         shared.cleanup_job()
@@ -335,6 +380,10 @@ def main():
         compile_job(api, request)
     elif mode == 'pr-compile':
         pr_compile_job(api, request)
+    elif mode == 'pr-status-pending':
+        pr_status_pending(api, request)
+    elif mode == 'pr-status-final':
+        pr_status_final(api, request, os.environ['COMPILE_RESULT'])
     elif mode == 'seal':
         seal_job(api, request, json.loads(os.environ['COMPILE_OUTPUTS']))
     else:

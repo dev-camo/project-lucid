@@ -36,9 +36,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 control/.github/scripts/main_progress.py pr-gate
 
+  start:
+    name: Report pending compilation
+    needs: gate
+    if: needs.gate.outputs.compile == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 control/.github/scripts/main_progress.py pr-status-pending
+
   compile:
     name: Native compilation and evidence
-    needs: gate
+    needs: [gate, start]
     if: needs.gate.outputs.compile == 'true'
     runs-on: [self-hosted, Linux, X64, lucid-native]
     timeout-minutes: 40
@@ -66,3 +88,26 @@ jobs:
         if: always()
         timeout-minutes: 3
         run: python3 controller/.github/scripts/main_progress.py cleanup
+
+  report:
+    name: Report PR compilation result
+    needs: [gate, compile]
+    if: always() && needs.gate.outputs.compile == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
+      COMPILE_RESULT: ${{ needs.compile.result }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 control/.github/scripts/main_progress.py pr-status-final
