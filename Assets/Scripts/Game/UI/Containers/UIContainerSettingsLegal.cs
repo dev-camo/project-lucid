@@ -20,8 +20,15 @@ namespace HardlightProject
         // 0x06003508 (0x67DAD0): the credits are offered from the level select or the main menu only.
         private void OnEnable()
         {
-            AnalyticsConsentManager consentManager = ProcessManager.GetSystem<AnalyticsConsentManager>();
-            CanShowAnalyticsConsentButton.Value = consentManager.CanShowConsentScreenButtonOnSettings();
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-067: the original resolved the consent manager and asked it; offline none is registered, so the consent button is hidden (the original statements stay in the else branch)
+            {
+                CanShowAnalyticsConsentButton.Value = ProjectLucid.Offline.OfflineAnalyticsConsumers.CanShowConsentScreenButtonOnSettings();
+            }
+            else
+            {
+                AnalyticsConsentManager consentManager = ProcessManager.GetSystem<AnalyticsConsentManager>();
+                CanShowAnalyticsConsentButton.Value = consentManager.CanShowConsentScreenButtonOnSettings();
+            }
             UIManager uiManager = ProcessManager.GetSystem<UIManager>();
             CanShowCreditsButton.Value = uiManager.IsOpen(m_levelSelectIdentifier) || uiManager.IsOpen(m_mainMenuIdentifier);
         }

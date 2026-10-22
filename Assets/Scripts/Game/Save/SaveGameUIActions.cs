@@ -33,8 +33,15 @@ namespace HardlightProject
             SaveManager saveManager = ProcessManager.GetSystem<SaveManager>(null, true);
             if (!saveManager.HasSaveDataAnalytics()) return;
             saveManager.DeleteSaveAnalytics();
-            ProcessManager.GetSystem<AnalyticsConsentManager>(null, true).LoadFromSaveData(saveManager);
-            ProcessManager.GetSystem<AnalyticsSessionManager>(null, true).LoadFromSaveData(saveManager);
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-068: the original required and reloaded both analytics managers; offline none is registered, so only registered ones reload (the original statements stay in the else branch)
+            {
+                ProjectLucid.Offline.OfflineAnalyticsConsumers.ReloadAnalyticsConsumers(saveManager);
+            }
+            else
+            {
+                ProcessManager.GetSystem<AnalyticsConsentManager>(null, true).LoadFromSaveData(saveManager);
+                ProcessManager.GetSystem<AnalyticsSessionManager>(null, true).LoadFromSaveData(saveManager);
+            }
         }
 
         // 0x06002d0c.

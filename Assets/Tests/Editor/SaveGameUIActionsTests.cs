@@ -75,11 +75,19 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // 0x5ed4c3..0x5ed59b: with an analytics save, DeleteSaveAnalytics nulls the raw text and replaces the object
-        // (SaveSynchronous then returns at once here, as the fixture's SaveManager never loaded), after which the
-        // consent manager and then the session manager reload from the fresh save.
+        // 0x5ed4e9..0x5ed53b: with an analytics save, the inlined DeleteSaveAnalytics nulls the raw text (0x5ed4f3) and
+        // replaces the object (new SaveDataAnalytics 0x5ed50f/0x5ed51c; SaveSynchronous(true) at 0x5ed53b returns at once
+        // here, as the fixture's SaveManager never loaded), after which the consent manager and then the session manager
+        // reload from the fresh save (0x5ed552..0x5ed59b). With both managers registered this runs the offline hook's
+        // honoured-service path.
         [Test]
-        public void ResettingAnalyticsReplacesTheAnalyticsSaveAndReloadsBothConsumers()
+        public void ResettingAnalyticsReplacesTheAnalyticsSaveAndReloadsBothConsumers() => ResetAnalyticsWithBothConsumers(adaptersActive: true);
+
+        // The same reset with the adapters off (hook H-068): the original statements require and reload both managers.
+        [Test]
+        public void WithTheAdaptersOffTheOriginalStatementsReloadBothConsumers() => ResetAnalyticsWithBothConsumers(adaptersActive: false);
+
+        private static void ResetAnalyticsWithBothConsumers(bool adaptersActive)
         {
             Owned.Run(owned =>
             {
@@ -112,7 +120,10 @@ namespace ProjectLucid.Tests
                 var actions = owned.Host("Lucid save actions", false).AddComponent<SaveGameUIActions>();
 
                 LogAssert.Expect(LogType.Error, RefusedCoroutine); // the consent manager reloads: GameCenter is still not ready
-                actions.Action_ResetAnalyticsData();
+                using (ProjectLucid.Offline.OfflineAdapters.Override(adaptersActive))
+                {
+                    actions.Action_ResetAnalyticsData();
+                }
 
                 Assert.That(save.HasSaveDataAnalytics(), Is.True);
                 Assert.That(save.GetSaveDataAnalytics(), Is.Not.Null.And.Not.SameAs(old), "a fresh analytics save");
@@ -120,6 +131,35 @@ namespace ProjectLucid.Tests
                 Assert.That(old.SessionNumber, Is.EqualTo(7), "the old object is untouched");
                 Assert.That(Get<string>(save, "m_rawSaveAnalytics"), Is.Null, "the raw text is dropped");
                 Assert.That(session.SessionNumber, Is.EqualTo(0), "the session manager reloaded from the fresh save");
+            });
+        }
+
+        // Default (offline) startup registers neither analytics consumer (App.InitialiseAnalytics): the analytics save is
+        // still replaced (0x5ed4e9..0x5ed53b) and the two reloads (0x5ed552..0x5ed59b) are skipped instead of diagnosing
+        // missing systems; with the adapters off (hook H-068) the original statements would diagnose them. The case above, with
+        // both managers registered, is the control that they are reloaded when present.
+        [Test]
+        public void ResettingAnalyticsWithoutTheAnalyticsConsumersStillReplacesTheAnalyticsSave()
+        {
+            Owned.Run(owned =>
+            {
+                owned.Lease(new OwnedCharacterManagers());
+                SaveManager save = ProcessManager.GetSystem<SaveManager>();
+                owned.LeaseRow<AnalyticsConsentManager>(); // restores exactly the row state found, idle or absent
+                owned.LeaseRow<AnalyticsSessionManager>();
+                bool consentRow = OfflineAnalyticsConsumersTestSupport.RequireNoManager<AnalyticsConsentManager>();
+                bool sessionRow = OfflineAnalyticsConsumersTestSupport.RequireNoManager<AnalyticsSessionManager>();
+                save.DeleteSaveAnalytics();
+                SaveDataAnalytics old = save.GetSaveDataAnalytics();
+                old.SessionNumber = 7;
+                var actions = owned.Host("Lucid save actions", false).AddComponent<SaveGameUIActions>();
+
+                Assert.DoesNotThrow(actions.Action_ResetAnalyticsData);
+
+                Assert.That(save.GetSaveDataAnalytics(), Is.Not.Null.And.Not.SameAs(old), "a fresh analytics save");
+                Assert.That(save.GetSaveDataAnalytics().SessionNumber, Is.EqualTo(0));
+                OfflineAnalyticsConsumersTestSupport.AssertUntouched<AnalyticsConsentManager>(consentRow, "no consent manager was registered or auto-created");
+                OfflineAnalyticsConsumersTestSupport.AssertUntouched<AnalyticsSessionManager>(sessionRow, "no session manager was registered or auto-created");
             });
         }
     }

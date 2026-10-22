@@ -7412,11 +7412,20 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.TimeTrialLeaderboardDevTests." + nam
     "ASubmittedTimeReplacesTheLabelOfItsLeaderboardAndShutdownClearsThem",
     "ShowingALeaderboardOnlyReadsTheDebugMenuReference",
 ))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineAnalyticsConsumersTests." + name for name in (
+    "TheDefaultOfflineStartupLeavesBothManagersUnregisteredAndTheConsumersFollowThePolicy",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ApplicationTransitionCanTriggerAnalyticsConsentScreenTests." + name for name in (
+    "WithoutAConsentManagerNoConsentScreenIsTriggeredDuringBoot",
+    "WithTheAdaptersOffTheOriginalBodyNeedsTheConsentManager",
+))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.SaveGameUIActionsTests." + name for name in (
     "DeletingAllSavesClosesTheOpenSaveReplacesEverySlotAndStartsReopening",
     "DeletingAllSavesWithoutAnOpenSaveDoesNotStartReopening",
     "ResettingAnalyticsWithoutAnAnalyticsSaveTouchesNothing",
     "ResettingAnalyticsReplacesTheAnalyticsSaveAndReloadsBothConsumers",
+    "WithTheAdaptersOffTheOriginalStatementsReloadBothConsumers",
+    "ResettingAnalyticsWithoutTheAnalyticsConsumersStillReplacesTheAnalyticsSave",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.EnemyAbilityDefinitionTests." + name for name in (
     "MovementDefinitionsStartAt120DegreesTurnSpeedAnd3ForwardSpeed",
@@ -8299,6 +8308,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ProgressionUnlockFsmTests." + name f
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.NotificationManagerTests." + name for name in (
     "ARequestNeedsAConfiguredTypeASecondSessionAndNoGrantedPermission",
+    "WithoutASessionManagerTheSavedSessionNumberStillGatesTheRequest",
+    "WithTheAdaptersOffTheOriginalSessionComparisonGatesTheRequest",
     "LoadingTheSaveRestoresWhichNotificationsWereAlreadyRequested",
     "PermissionIsFullyGrantedOnlyAfterTheUserAllowedNotifications",
     "RequestingANotificationRecordsItInTheManagerAndTheSave",
@@ -10653,6 +10664,8 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsLegalTests." + na
     "TheCreditsAreOfferedWhenBothAreOpen",
     "TheCreditsAreHiddenFromAnyOtherPage",
     "TheConsentButtonFollowsTheConsentManagerAndIsIndependentOfTheCredits",
+    "WithoutAConsentManagerTheConsentButtonIsHiddenAndTheCreditsAreUnchanged",
+    "WithTheAdaptersOffTheOriginalBodyConsultsTheRegisteredConsentManager",
     "TheConstructorBuildsTwoSeparateBinders",
 ))
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsNotificationsTests." + name for name in (

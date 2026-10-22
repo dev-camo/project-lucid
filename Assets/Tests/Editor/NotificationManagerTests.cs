@@ -46,7 +46,7 @@ namespace ProjectLucid.Tests
         // The manager has read the save data (OnSaveManagerValid, which Start passes to InvokeOnValid and which runs at
         // once for a live SaveManager); `before` runs first, to prepare the save data it reads.
         private static void WithManager(bool permitted, int sessionNumber, NotificationType[] configured,
-            Action<Scene> body, Action<Scene> before = null) => Owned.Run(owned =>
+            Action<Scene> body, Action<Scene> before = null, bool withSessions = true) => Owned.Run(owned =>
         {
             // Taken first, so it is released last: it owns the SaveManager, App and DataManager rows.
             owned.Lease(new OwnedCharacterManagers());
@@ -60,11 +60,14 @@ namespace ProjectLucid.Tests
             Set(scene.Save, "m_saveDataNotifications", scene.Saved);
 
             owned.LeaseActions(SystemAction.AppInitialise, SystemAction.Update, SystemAction.AppShutdown);
-            scene.Sessions = new AnalyticsSessionManager();
-            owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(scene.Sessions)));
-            owned.Register(scene.Sessions);
-            // The session number is read from the saved analytics data, as it is when the save manager becomes valid.
-            scene.Sessions.LoadFromSaveData(scene.Save);
+            if (withSessions)
+            {
+                scene.Sessions = new AnalyticsSessionManager();
+                owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(scene.Sessions)));
+                owned.Register(scene.Sessions);
+                // The session number is read from the saved analytics data, as it is when the save manager becomes valid.
+                scene.Sessions.LoadFromSaveData(scene.Save);
+            }
 
             scene.Manager = owned.Host("Lucid notification manager", false).AddComponent<NotificationManager>();
             // An empty authored list is an empty array, which a single resize of the unset (null) field does not create.
@@ -106,6 +109,44 @@ namespace ProjectLucid.Tests
                 Assert.That(scene.Manager.CanRequestNotification(NotificationType.ChallengeRefresh), Is.True, "a later session"));
             WithManager(true, 2, new[] { NotificationType.ChallengeRefresh }, scene =>
                 Assert.That(scene.Manager.CanRequestNotification(NotificationType.ChallengeRefresh), Is.False, "already allowed and granted"));
+        }
+
+        // Default (offline) startup registers no session manager (App.InitialiseAnalytics). Hook H-069 reads the same persisted
+        // session number the manager would have loaded from the analytics save and keeps the original comparison with two
+        // (0x5c7f27): the second-session requirement is unchanged. Every other gate is unchanged too.
+        [Test]
+        public void WithoutASessionManagerTheSavedSessionNumberStillGatesTheRequest()
+        {
+            foreach (var (saved, expected) in new[] { (0, false), (1, false), (2, true), (7, true) })
+            {
+                WithManager(permitted: false, sessionNumber: saved, new[] { NotificationType.ChallengeRefresh }, scene =>
+                {
+                    scene.Owned.LeaseRow<AnalyticsSessionManager>(); // restores exactly the row state found, idle or absent
+                    bool rowBefore = OfflineAnalyticsConsumersTestSupport.RequireNoManager<AnalyticsSessionManager>();
+                    Assert.That(scene.Manager.CanRequestNotification(NotificationType.ChallengeRefresh), Is.EqualTo(expected), "saved session " + saved);
+                    Assert.That(scene.Manager.CanRequestNotification(NotificationType.LapsedPlayer), Is.False, "not configured");
+                    OfflineAnalyticsConsumersTestSupport.AssertUntouched<AnalyticsSessionManager>(rowBefore, "no session manager was registered or auto-created");
+                }, withSessions: false);
+            }
+            WithManager(permitted: true, sessionNumber: 2, new[] { NotificationType.ChallengeRefresh }, scene =>
+                Assert.That(scene.Manager.CanRequestNotification(NotificationType.ChallengeRefresh), Is.False, "already allowed and granted"), withSessions: false);
+            WithManager(permitted: false, sessionNumber: 2, new[] { NotificationType.ChallengeRefresh }, scene =>
+                Assert.That(scene.Manager.CanRequestNotification(NotificationType.ChallengeRefresh), Is.False, "already requested"),
+                before: scene => scene.Saved.TryGetOrNew(NotificationType.ChallengeRefresh).RequestedPermission = true, withSessions: false);
+        }
+
+        // Hook H-069 with the adapters off: the original comparison, which needs the registered session manager and refuses
+        // until the session number reaches two (0x5c7f27).
+        [Test]
+        public void WithTheAdaptersOffTheOriginalSessionComparisonGatesTheRequest()
+        {
+            using (ProjectLucid.Offline.OfflineAdapters.Override(false))
+            {
+                WithManager(false, 1, new[] { NotificationType.ChallengeRefresh }, scene =>
+                    Assert.That(scene.Manager.CanRequestNotification(NotificationType.ChallengeRefresh), Is.False, "first session"));
+                WithManager(false, 2, new[] { NotificationType.ChallengeRefresh }, scene =>
+                    Assert.That(scene.Manager.CanRequestNotification(NotificationType.ChallengeRefresh), Is.True, "second session"));
+            }
         }
 
         // SyncSaveData 0x5C7A10 copies each saved item's RequestedPermission (+0x18) onto the configured notification of

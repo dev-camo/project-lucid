@@ -26,6 +26,10 @@ namespace HardlightProject
 		// 06000833 (1.10.1 RVA 0x662610)
 		protected override bool DoUpdate(IGraphUser user, FSMUpdateContext context)
 		{
+			if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-066: the original asked the consent manager; offline none is registered, so no consent screen is triggered
+			{
+				return ProjectLucid.Offline.OfflineAnalyticsConsumers.CanShowConsentScreenDuringBoot();
+			}
 			return m_consentManagerRef.Get().CanShowConsentScreenDuringBoot();
 		}
 	}

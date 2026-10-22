@@ -213,7 +213,14 @@ namespace HardlightProject
 					{
 						return false;
 					}
-					if (ProcessManager.GetSystem<AnalyticsSessionManager>().SessionNumber < SessionCountNotificationsValid)
+					if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-069: the original read the session number from the session manager, which offline is not registered; we read the same persisted value from the analytics save and keep the comparison (the original comparison stays in the else branch)
+					{
+						if (ProjectLucid.Offline.OfflineAnalyticsConsumers.SessionNumber(m_saveManager) < SessionCountNotificationsValid)
+						{
+							return false;
+						}
+					}
+					else if (ProcessManager.GetSystem<AnalyticsSessionManager>().SessionNumber < SessionCountNotificationsValid)
 					{
 						return false;
 					}

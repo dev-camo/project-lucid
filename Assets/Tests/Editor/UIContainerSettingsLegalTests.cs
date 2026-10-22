@@ -25,17 +25,20 @@ namespace ProjectLucid.Tests
             public UIContainerIdentifier Other;
         }
 
-        private static void Run(Action<Owned, Rig> body)
+        private static void Run(Action<Owned, Rig> body, bool withConsentManager = true)
         {
             SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
             Owned.Run(owned =>
             {
                 var rig = new Rig();
-                // The consent manager's constructor subscribes these actions before its row is admitted.
-                owned.LeaseActions(SystemAction.AppInitialise, SystemAction.AppShutdown);
-                var consent = new AnalyticsConsentManager();
-                owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(consent)));
-                owned.Register(consent);
+                if (withConsentManager)
+                {
+                    // The consent manager's constructor subscribes these actions before its row is admitted.
+                    owned.LeaseActions(SystemAction.AppInitialise, SystemAction.AppShutdown);
+                    var consent = new AnalyticsConsentManager();
+                    owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(consent)));
+                    owned.Register(consent);
+                }
                 NewUiManager(owned, out rig.Containers);
                 rig.LevelSelect = NewIdentifier(owned, "level-select");
                 rig.MainMenu = NewIdentifier(owned, "main-menu");
@@ -105,7 +108,9 @@ namespace ProjectLucid.Tests
         }
 
         // 0x67DB48: the consent button binder takes the consent manager's answer (CanShowConsentScreenButtonOnSettings
-        // 0x509090), which is false while the manager has not loaded; the credits binder is a separate one.
+        // 0x509090), which is false while the manager has not loaded; the credits binder is a separate one. With a registered
+        // manager this runs the offline hook's honoured-service path. A true answer is not covered (it needs a ready GameCenter
+        // account that is not underage), so this does not separate a consulted manager from a hard-coded false.
         [Test]
         public void TheConsentButtonFollowsTheConsentManagerAndIsIndependentOfTheCredits()
         {
@@ -119,6 +124,47 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.CanShowAnalyticsConsentButton.Value, Is.False);
                 Assert.That(rig.Container.CanShowCreditsButton.Value, Is.True);
             });
+        }
+
+        // Hook H-067 with the adapters off: the original statements consult the registered, not yet loaded consent manager.
+        [Test]
+        public void WithTheAdaptersOffTheOriginalBodyConsultsTheRegisteredConsentManager()
+        {
+            Run((owned, rig) =>
+            {
+                rig.Containers.Open.Add(rig.LevelSelect);
+                rig.Container.CanShowAnalyticsConsentButton.Value = true;
+
+                using (ProjectLucid.Offline.OfflineAdapters.Override(false))
+                {
+                    Call(rig.Container, "OnEnable");
+                }
+
+                Assert.That(rig.Container.CanShowAnalyticsConsentButton.Value, Is.False);
+                Assert.That(rig.Container.CanShowCreditsButton.Value, Is.True);
+            });
+        }
+
+        // Default (offline) startup registers no consent manager (App.InitialiseAnalytics): the page still opens, offers no
+        // consent button and leaves the credits computation unchanged. With the adapters off (hook H-067) the
+        // original GetSystem call would diagnose the missing system instead. The registered-manager case above cannot tell a
+        // consulted manager from a hard-coded false.
+        [Test]
+        public void WithoutAConsentManagerTheConsentButtonIsHiddenAndTheCreditsAreUnchanged()
+        {
+            Run((owned, rig) =>
+            {
+                owned.LeaseRow<AnalyticsConsentManager>(); // restores exactly the row state found, idle or absent
+                bool rowBefore = OfflineAnalyticsConsumersTestSupport.RequireNoManager<AnalyticsConsentManager>();
+                rig.Containers.Open.Add(rig.MainMenu);
+                rig.Container.CanShowAnalyticsConsentButton.Value = true;
+
+                Assert.DoesNotThrow(() => Call(rig.Container, "OnEnable"));
+
+                Assert.That(rig.Container.CanShowAnalyticsConsentButton.Value, Is.False);
+                Assert.That(rig.Container.CanShowCreditsButton.Value, Is.True);
+                OfflineAnalyticsConsumersTestSupport.AssertUntouched<AnalyticsConsentManager>(rowBefore, "no consent manager was registered or auto-created");
+            }, false);
         }
 
         // The constructor 0x67DBD0 builds the two binders in declaration order, each its own object.
