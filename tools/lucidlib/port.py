@@ -210,6 +210,8 @@ def _import_drift(report, before, after, mode, source):
 
 
 def _payload(stage, target):
+    if project.is_development_output(stage) or project.is_development_output(stage / OUTPUTS[target]):
+        raise ValueError("A development build is never accepted as a release")
     entry = _physical(stage / OUTPUTS[target])
     if target == "macos":
         if not entry.is_dir():

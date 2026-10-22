@@ -38,6 +38,12 @@ python3 tools/lucid.py build --target macos
 Use `windows` or `linux` for the other desktop targets. Builds are written to
 `Builds/`. Building is blocked while required game behavior remains unresolved.
 
+For development only, `python3 tools/lucid.py build --target macos --development`
+skips the audit and test gates and writes a labelled, non-release player to
+`Builds/Development/<target>/` with a `DEVELOPMENT-BUILD.txt` marker. It checks
+the input, prepared project and asset identity like a release build, and
+`port` and release validation never accept it. Never publish it.
+
 The intended game runs offline with local saves, achievements, and personal
 records. Original cloud saves and global rankings are not included.
 

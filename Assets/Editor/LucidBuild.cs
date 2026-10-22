@@ -40,15 +40,20 @@ namespace ProjectLucid.Editor
 
         // CLI and Editor entry points share the release guard. A compile-only
         // exported project must not accidentally ship as reconstructed gameplay.
+        // -lucidDevelopment (owner decision D1) selects a non-release development
+        // build: it needs a "development" stage receipt (which a release build
+        // rejects), builds with BuildOptions.Development, and skips only the
+        // audit and test gates that the Python side leaves out of that receipt.
         public static void Build()
         {
             var root = Directory.GetParent(Application.dataPath).FullName;
             if (Application.unityVersion != "2022.3.54f1")
                 throw new InvalidOperationException("Build with Unity 2022.3.54f1.");
             var arguments = Environment.GetCommandLineArgs();
+            var development = Array.IndexOf(arguments, "-lucidDevelopment") >= 0;
             string receipt = Argument(arguments, "-lucidValidation");
             var readiness = File.Exists(receipt) ? JsonUtility.FromJson<Readiness>(File.ReadAllText(receipt)) : null;
-            if (readiness == null || readiness.status != "complete" || readiness.stage != "release" ||
+            if (readiness == null || readiness.status != "complete" || readiness.stage != (development ? "development" : "release") ||
                 readiness.generated_by != "ProjectLucid.validate_project" ||
                 readiness.source_fingerprint != LucidArtifactIdentity.Fingerprint(root, false) ||
                 readiness.prepared_asset_fingerprint != LucidArtifactIdentity.Fingerprint(root, true))
@@ -71,7 +76,7 @@ namespace ProjectLucid.Editor
                 scenes = scenes,
                 locationPathName = output,
                 target = target,
-                options = BuildOptions.None
+                options = development ? BuildOptions.Development : BuildOptions.None
             });
             if (result.summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException("Build failed: " + result.summary.result);

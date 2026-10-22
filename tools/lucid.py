@@ -52,6 +52,9 @@ def parser():
             command.add_argument("--inventory", type=Path, required=True, help="current loaded Editor inventory against that schema")
         if name in ("build", "player-code", "player-schema", "runtime-contracts"):
             command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
+        if name == "build":
+            command.add_argument("--development", action="store_true",
+                                 help="NON-RELEASE development build under Builds/Development/<target>; skips only the audit and test gates")
         if name == "progress":
             command.add_argument("--target", choices=("macos", "windows", "linux"), default="macos")
             mode = command.add_mutually_exclusive_group()
@@ -202,7 +205,7 @@ def main(argv=None):
             report = run_port(ROOT, work_dir, args.input, args.target, args.output)
         elif args.command == "build":
             from lucidlib.project import build_project
-            report = build_project(ROOT, work_dir, args.target)
+            report = build_project(ROOT, work_dir, args.target, development=args.development)
         else:
             from lucidlib.project import doctor
             report = doctor(ROOT, work_dir)

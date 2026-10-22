@@ -7,6 +7,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+from . import verification
 from .verification import artifact_fingerprint, current_identity, find_editor, verified_receipt
 from .bootstrap import managed_path, write_json
 from .scriptmetadata import validate_script_metadata
@@ -18,6 +19,12 @@ BUILD_RECORD_FIELDS = ("target", "output", "architecture")
 # The original SonicDreamTeam.app executable, UnityPlayer.dylib and
 # GameAssembly.dylib are each universal x86_64 + arm64 Mach-O files.
 MAC_SLICES = ("arm64", "x86_64")
+# Development builds (owner decision D1, 2026-10-22) are never releases. They go
+# under Builds/Development/<target>/, carry this marker and a labelled name, and
+# neither `port` nor release validation accepts anything that carries the marker.
+DEVELOPMENT_MARKER = "DEVELOPMENT-BUILD.txt"
+DEVELOPMENT_OUTPUTS = {"macos": "ProjectLucid-DEVELOPMENT.app", "windows": "ProjectLucid-DEVELOPMENT.exe",
+                       "linux": "ProjectLucid-DEVELOPMENT.x86_64"}
 
 
 def doctor(repo_root, work_dir):
@@ -52,8 +59,8 @@ def _read_json(path, errors, description):
 def validate_project(repo_root, work_dir, stage="release"):
     repo_root = Path(repo_root)
     work_dir = Path(work_dir)
-    if stage not in ("extraction", "release"):
-        raise ValueError("Validation stage must be extraction or release")
+    if stage not in ("extraction", "release", "development"):
+        raise ValueError("Validation stage must be extraction, release or development")
     errors = []
     inspection = _read_json(work_dir / "reports" / "inspection.json", errors, "Input inspection")
     missing = inspection.get("addressables", {}).get("missing_bundles", [])
@@ -93,7 +100,9 @@ def validate_project(repo_root, work_dir, stage="release"):
             errors.append("Asset map and inspected catalog differ")
     identity = {}
     checks = {}
-    if stage == "release":
+    if stage in ("release", "development"):
+        # A development build keeps the input, asset-identity and prepare-state
+        # checks; only the audit and the EditMode/PlayMode gates are skipped.
         checks["script_metadata"] = validate_script_metadata(repo_root)
         errors.extend(checks["script_metadata"]["errors"])
         if not (repo_root / "Assets" / "Recovered").is_dir():
@@ -103,18 +112,21 @@ def validate_project(repo_root, work_dir, stage="release"):
             errors.append("Unity project version is absent or differs from the original")
         if not (repo_root / "Packages" / "packages-lock.json").is_file():
             errors.append("Unity dependencies have not been resolved and locked")
-        audit = _read_json(work_dir / "reports" / "unity-reference-audit.json", errors, "Unity reference audit")
-        if audit.get("status") != "complete" or audit.get("unresolved_references", 1) != 0:
-            errors.append("Required asset and script references remain unresolved")
+        audit = {}
+        if stage == "release":
+            audit = _read_json(work_dir / "reports" / "unity-reference-audit.json", errors, "Unity reference audit")
+            if audit.get("status") != "complete" or audit.get("unresolved_references", 1) != 0:
+                errors.append("Required asset and script references remain unresolved")
         try:
             identity = current_identity(repo_root)
-            if audit.get("unity_version") != UNITY_VERSION or any(audit.get(key) != value for key, value in identity.items()):
-                errors.append("Unity reference audit is stale for the current project")
-            for mode in ("editmode", "playmode"):
-                try:
-                    checks[mode] = verified_receipt(work_dir, mode, identity)
-                except (ValueError, OSError) as error:
-                    errors.append("Required " + mode + " verification unavailable: " + str(error))
+            if stage == "release":
+                if audit.get("unity_version") != UNITY_VERSION or any(audit.get(key) != value for key, value in identity.items()):
+                    errors.append("Unity reference audit is stale for the current project")
+                for mode in ("editmode", "playmode"):
+                    try:
+                        checks[mode] = verified_receipt(work_dir, mode, identity)
+                    except (ValueError, OSError) as error:
+                        errors.append("Required " + mode + " verification unavailable: " + str(error))
         except (ValueError, OSError) as error:
             errors.append("Project identity could not be verified: " + str(error))
     return {"schema_version": 1, "generated_by": "ProjectLucid.validate_project",
@@ -124,22 +136,82 @@ def validate_project(repo_root, work_dir, stage="release"):
             "message": "Extraction readiness and verified gameplay are separate results."}
 
 
-def build_project(repo_root, work_dir, target, *, destination=None):
+def is_development_output(path):
+    """True when path is, holds or sits inside a labelled development build."""
+    path = Path(path)
+    if path.name in DEVELOPMENT_OUTPUTS.values() or path.name == DEVELOPMENT_MARKER:
+        return True
+    try:
+        if path.is_dir() and any(True for _ in path.rglob(DEVELOPMENT_MARKER)):
+            return True
+    except OSError:
+        return True
+    return any((parent / DEVELOPMENT_MARKER).exists() or (parent.name == "Development" and parent.parent.name == "Builds")
+               for parent in path.parents)
+
+
+def _unmet_gates():
+    """What a release needs and a development build skips: the audit and the six PlayMode gates."""
+    return list(verification.PLAYMODE_TESTS[:6]) + ["unity-reference-audit (unresolved_references == 0)"]
+
+
+def _commit(repo_root):
+    def run(*args):
+        return subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, text=True, timeout=60).stdout.strip()
+    try:
+        commit = run("rev-parse", "HEAD") or "unknown"
+        return commit + (" (uncommitted changes present)" if run("status", "--porcelain") else "")
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def _development_marker(repo_root, target):
+    return "\n".join((
+        "DEVELOPMENT BUILD - NOT A RELEASE",
+        "",
+        "This player was produced by `tools/lucid.py build --development` (owner decision D1).",
+        "It is unvalidated, is not a faithful or complete game, must not be published or",
+        "distributed, and is never accepted by `lucid.py port` or release validation.",
+        "",
+        "target: " + target,
+        "commit: " + _commit(repo_root),
+        "unity build options: BuildOptions.Development",
+        "",
+        "Release gates not met (skipped for this build):",
+        *("  - " + gate for gate in _unmet_gates()),
+        "")) + "\n"
+
+
+def build_project(repo_root, work_dir, target, *, destination=None, development=False):
     if target not in ("macos", "windows", "linux"):
         raise ValueError("Build target must be macos, windows, or linux")
-    validation = validate_project(repo_root, work_dir)
+    if development and destination is not None:
+        raise ValueError("Development builds always use Builds/Development/<target>; port never builds them")
+    if destination is not None and is_development_output(destination):
+        raise ValueError("A development build is never accepted as a release output")
+    validation = validate_project(repo_root, work_dir, "development" if development else "release")
     if validation["status"] != "complete":
         return {"status": "blocked", "target": target, "errors": validation["errors"],
-                "message": "Release build blocked: required reconstruction is incomplete."}
+                "message": ("Development" if development else "Release") + " build blocked: required reconstruction is incomplete."}
     try:
         executable = find_editor()
     except ValueError as error:
         return {"status": "blocked", "errors": [str(error)]}
-    receipt = managed_path(work_dir, "reports", "release-validation.json")
+    receipt = managed_path(work_dir, "reports", "development-validation.json" if development else "release-validation.json")
     write_json(receipt, validation)
     outputs = {"macos": "macOS/ProjectLucid.app", "windows": "Windows/ProjectLucid.exe",
                "linux": "Linux/ProjectLucid.x86_64"}
-    if destination is None:
+    marker = None
+    if development:
+        development_root = Path(repo_root) / "Builds" / "Development" / target
+        if development_root.is_symlink() or development_root.parent.is_symlink() or development_root.parent.parent.is_symlink():
+            raise ValueError("Development build directory cannot be a symbolic link")
+        shutil.rmtree(development_root, ignore_errors=True)
+        development_root.mkdir(parents=True)
+        destination = development_root / DEVELOPMENT_OUTPUTS[target]
+        marker = development_root / DEVELOPMENT_MARKER
+        marker.write_text(_development_marker(repo_root, target), encoding="utf-8")
+    elif destination is None:
         destination = Path(repo_root) / "Builds" / outputs[target]
     else:
         from .port import _physical, _overlap, OUTPUTS
@@ -159,6 +231,8 @@ def build_project(repo_root, work_dir, target, *, destination=None):
                "-logFile", str(log), "-executeMethod", "ProjectLucid.Editor.LucidBuild.Build",
                "-lucidTarget", target, "-lucidOutput", str(destination), "-lucidValidation", str(receipt),
                "-lucidBuildRecord", str(record)]
+    if development:
+        command.append("-lucidDevelopment")
     process = subprocess.run(command, timeout=1800)
     errors = []
     if artifact_fingerprint(repo_root) != source:
@@ -180,7 +254,10 @@ def build_project(repo_root, work_dir, target, *, destination=None):
     return {"status": "complete" if success else "failed", "target": target,
             "output_dir": str(destination), "log": str(log), "exit_code": process.returncode,
             "architecture_setting": built.get("architecture"), "slices": slices,
-            "source_fingerprint": source, "errors": errors}
+            "source_fingerprint": source, "errors": errors,
+            **({"development": True, "marker": str(marker),
+                "message": "DEVELOPMENT BUILD, not a release: never publish it; port and release validation refuse it."}
+               if development else {})}
 
 
 def _macos_slices(app):
