@@ -81,11 +81,11 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Call(rig.Collections, "OnControllerPromptUpdated", Strings.COMMON_MENU_UNLOCK); // Reflection: private UIContainerCollections.OnControllerPromptUpdated
+                Call(rig.Collections, "OnControllerPromptUpdated", Strings.COMMON_MENU_UNLOCK);
                 Assert.That(rig.Collections.SelectButtonPrompt.Value, Is.EqualTo(Strings.COMMON_MENU_UNLOCK));
                 Assert.That(rig.Collections.SelectButtonShow.Value, Is.True);
 
-                Call(rig.Collections, "OnControllerPromptUpdated", Strings.NONE); // Reflection: private UIContainerCollections.OnControllerPromptUpdated
+                Call(rig.Collections, "OnControllerPromptUpdated", Strings.NONE);
                 Assert.That(rig.Collections.SelectButtonPrompt.Value, Is.EqualTo(Strings.NONE));
                 Assert.That(rig.Collections.SelectButtonShow.Value, Is.False);
             });
@@ -111,15 +111,15 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Assert.That(Step(rig, 1, () => Call(rig.Collections, "OnInputTabForwards", 0.49f)), Is.EqualTo(1), "forwards below a half"); // Reflection: private UIContainerCollections.OnInputTabForwards
-                Assert.That(Step(rig, 1, () => Call(rig.Collections, "OnInputTabForwards", 0.5f)), Is.EqualTo(2), "forwards from exactly a half"); // Reflection: private UIContainerCollections.OnInputTabForwards
-                Assert.That(Step(rig, 2, () => Call(rig.Collections, "OnInputTabForwards", 1f)), Is.EqualTo(0), "forwards cycles"); // Reflection: private UIContainerCollections.OnInputTabForwards
+                Assert.That(Step(rig, 1, () => Call(rig.Collections, "OnInputTabForwards", 0.49f)), Is.EqualTo(1), "forwards below a half");
+                Assert.That(Step(rig, 1, () => Call(rig.Collections, "OnInputTabForwards", 0.5f)), Is.EqualTo(2), "forwards from exactly a half");
+                Assert.That(Step(rig, 2, () => Call(rig.Collections, "OnInputTabForwards", 1f)), Is.EqualTo(0), "forwards cycles");
 
-                Assert.That(Step(rig, 0, () => Call(rig.Collections, "OnInputTabBackwards", 0.1f)), Is.EqualTo(0), "backwards below a half"); // Reflection: private UIContainerCollections.OnInputTabBackwards
-                Assert.That(Step(rig, 0, () => Call(rig.Collections, "OnInputTabBackwards", 0.5f)), Is.EqualTo(2), "backwards cycles"); // Reflection: private UIContainerCollections.OnInputTabBackwards
-                Assert.That(Step(rig, 2, () => Call(rig.Collections, "OnInputTabBackwards", 1f)), Is.EqualTo(1)); // Reflection: private UIContainerCollections.OnInputTabBackwards
+                Assert.That(Step(rig, 0, () => Call(rig.Collections, "OnInputTabBackwards", 0.1f)), Is.EqualTo(0), "backwards below a half");
+                Assert.That(Step(rig, 0, () => Call(rig.Collections, "OnInputTabBackwards", 0.5f)), Is.EqualTo(2), "backwards cycles");
+                Assert.That(Step(rig, 2, () => Call(rig.Collections, "OnInputTabBackwards", 1f)), Is.EqualTo(1));
 
-                Assert.That(Step(rig, 1, () => Call(rig.Collections, "OnInputTabForwards", float.NaN)), Is.EqualTo(2), "an unordered input is not below a half"); // Reflection: private UIContainerCollections.OnInputTabForwards
+                Assert.That(Step(rig, 1, () => Call(rig.Collections, "OnInputTabForwards", float.NaN)), Is.EqualTo(2), "an unordered input is not below a half");
             });
         }
 
@@ -131,11 +131,11 @@ namespace ProjectLucid.Tests
             Run(rig =>
             {
                 rig.Scene.App.Storage.SetValue(AppFSMKeys.CollectionsUnlockInProgress, true);
-                Call(rig.Collections, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Collections, "Update");
                 Assert.That(rig.Collections.NavigationEnabled.Value, Is.True);
 
                 rig.Scene.App.Storage.SetValue(AppFSMKeys.CollectionsUnlockInProgress, false);
-                Call(rig.Collections, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Collections, "Update");
                 Assert.That(rig.Collections.NavigationEnabled.Value, Is.False);
             });
         }
@@ -154,7 +154,7 @@ namespace ProjectLucid.Tests
                 rig.PlayingAnimation.Play(rig.PlayingClip.name);
                 Assert.That(rig.PlayingAnimation.IsPlaying(rig.PlayingClip.name), Is.True, "set-up: the animation plays");
 
-                Call(rig.Collections, "OnMusicToggle", isOn); // Reflection: private UIContainerCollections.OnMusicToggle
+                Call(rig.Collections, "OnMusicToggle", isOn);
 
                 Assert.That(rig.Store.Purchasable.Value, Is.False);
                 Assert.That(rig.PlayingAnimation.IsPlaying(rig.PlayingClip.name), Is.False);
@@ -176,7 +176,7 @@ namespace ProjectLucid.Tests
                 rig.Scene.App.Storage.SetValue(AppFSMKeys.CollectionsDreamPowerInfoReady, false);
                 rig.Scene.App.Storage.SetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Gallery);
 
-                Call(rig.Collections, "OnDreamPowerToggle", isOn); // Reflection: private UIContainerCollections.OnDreamPowerToggle
+                Call(rig.Collections, "OnDreamPowerToggle", isOn);
 
                 Assert.That(rig.Collections.CollectionsTab.Value, Is.EqualTo(current));
                 Assert.That(StoredFlag(rig, AppFSMKeys.CollectionsDreamPowerInfoReady), Is.False);
@@ -199,13 +199,13 @@ namespace ProjectLucid.Tests
                 Set(rig.Collections, "m_ornamentViewerLevelDefinition", level); // Reflection: serialized reference the editor assigns
                 rig.Store.Purchasable.Value = true;
 
-                Call(rig.Collections, "OnGalleryToggle", false); // Reflection: private UIContainerCollections.OnGalleryToggle
+                Call(rig.Collections, "OnGalleryToggle", false);
                 Assert.That(rig.Store.Purchasable.Value, Is.False);
                 Assert.That(rig.Collections.SelectButtonShow.Value, Is.False);
                 Assert.That(rig.Scene.App.Storage.GetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Gallery, false), Is.EqualTo(UICollectionsTab.Music));
 
                 rig.Store.Purchasable.Value = true;
-                Call(rig.Collections, "OnGalleryToggle", true); // Reflection: private UIContainerCollections.OnGalleryToggle
+                Call(rig.Collections, "OnGalleryToggle", true);
 
                 Assert.That(rig.Store.Purchasable.Value, Is.False);
                 Assert.That(rig.Collections.CollectionsTab.Value, Is.EqualTo(UICollectionsTab.Gallery));
@@ -223,7 +223,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Store.Purchasable.Value = true;
 
-                Call(rig.Collections, "OnDreamPowerStoreNavigatedAway"); // Reflection: private UIContainerCollections.OnDreamPowerStoreNavigatedAway
+                Call(rig.Collections, "OnDreamPowerStoreNavigatedAway");
 
                 Assert.That(rig.Store.Purchasable.Value, Is.False);
             });

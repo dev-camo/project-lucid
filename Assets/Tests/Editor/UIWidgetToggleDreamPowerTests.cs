@@ -238,13 +238,13 @@ namespace ProjectLucid.Tests
         {
             Run(rig =>
             {
-                Assert.DoesNotThrow(() => Call(rig.Widget, "OnDestroy"), "nothing was retained"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Assert.DoesNotThrow(() => Call(rig.Widget, "OnDestroy"), "nothing was retained");
 
                 rig.Widget.Setup(Parameters(rig, UIDreamPowerStoreItemState.Bought));
                 Assert.That(Count(rig.Power.IconAsset), Is.EqualTo(1));
                 Assert.That(Count(rig.Bands[1].SlotLockedBackground), Is.EqualTo(1));
 
-                Call(rig.Widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Widget, "OnDestroy");
 
                 Assert.That(Count(rig.Power.IconAsset), Is.Zero);
                 Assert.That(Count(rig.Bands[1].SlotLockedBackground), Is.Zero);

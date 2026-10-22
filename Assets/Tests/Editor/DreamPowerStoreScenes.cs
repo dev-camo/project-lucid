@@ -113,7 +113,7 @@ namespace ProjectLucid.Tests
         {
             Owned owned = world.Scene.Owned;
             var definition = ChallengeRewardTestSupport.Create<CharacterArchetypeDefinition>(owned);
-            Call(definition, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+            Call(definition, "OnEnable");
             var images = new ArchetypeImages
             {
                 Alternate = ChallengeRewardTestSupport.NewSprite(owned),
@@ -160,7 +160,7 @@ namespace ProjectLucid.Tests
             {
                 definitions[i] = ChallengeRewardTestSupport.Create<DreamPowerStoreBandDefinition>(owned,
                     "{\"m_guid\":\"lucid-store-band-" + i + "\",\"m_type\":" + (int)bands[i].type + ",\"m_name\":" + (int)bands[i].name + "}");
-                Call(definitions[i], "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(definitions[i], "OnEnable");
                 backgrounds[i] = ChallengeRewardTestSupport.NewSprite(owned);
                 ChallengeRewardTestSupport.Cache(definitions[i].SlotLockedBackground, backgrounds[i]);
                 world.Scene.Data.DreamPowerStoreBandDefinitions[bands[i].type] = definitions[i];

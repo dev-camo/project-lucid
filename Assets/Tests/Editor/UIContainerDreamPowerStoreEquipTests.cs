@@ -91,7 +91,7 @@ namespace ProjectLucid.Tests
                     // The list App.Awake creates, which Edit Mode never sends.
                     world.Scene.App.Storage.SetValue(AppFSMKeys.MetaGameUnlocks, new List<IMetaGameUnlock>());
 
-                    Call(rig.Store, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                    Call(rig.Store, "OnEnable");
 
                     body(rig);
                 }));
@@ -215,7 +215,7 @@ namespace ProjectLucid.Tests
                 foreach (ButtonSlot slot in rig.Slots)
                     slot.Widget.SetInteractable(false);
 
-                Call(rig.Store, "StartEquip"); // Reflection: private UIContainerDreamPowerStore.StartEquip
+                Call(rig.Store, "StartEquip");
 
                 Assert.That(rig.Store.Browsing.Value, Is.False);
                 Assert.That(rig.Animation.IsPlaying(rig.SlotClip.name), Is.True);
@@ -289,7 +289,7 @@ namespace ProjectLucid.Tests
                 // The counter reads the store's item list, which the save refills only when it serializes: the purchase is not in it yet.
                 Assert.That(rig.Store.BoughtAmount.Value, Is.Zero);
                 WriteStoreItems(rig.World);
-                Call(rig.Store, "UpdateCounter"); // Reflection: private UIContainerDreamPowerStore.UpdateCounter
+                Call(rig.Store, "UpdateCounter");
                 Assert.That(rig.Store.BoughtAmount.Value, Is.EqualTo(1));
                 Assert.That(rig.Cost.ShowCost.Value, Is.False);
                 Assert.That(rig.Store.ActionLabel.Value, Is.EqualTo(Equippable));

@@ -49,7 +49,7 @@ namespace ProjectLucid.Tests
                 scene.Save.CurrentSave.DreamPowerStore.IsNewState = DreamPowerStoreIsNewState.IsNew;
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
-                Call(rig.Info, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Info, "Start");
 
                 Assert.That(scene.Save.CurrentSave.DreamPowerStore.IsNewState, Is.EqualTo(DreamPowerStoreIsNewState.Seen));
                 Assert.That(Get<App>(rig.Info, "m_app"), Is.SameAs(scene.App));
@@ -67,7 +67,7 @@ namespace ProjectLucid.Tests
             {
                 scene.Save.CurrentSave.DreamPowerStore.IsNewState = state;
 
-                Call(rig.Info, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Info, "Start");
 
                 Assert.That(scene.Save.CurrentSave.DreamPowerStore.IsNewState, Is.EqualTo(state));
                 Assert.That(Get<App>(rig.Info, "m_app"), Is.SameAs(scene.App));
@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
         {
             Run((scene, rig) =>
             {
-                Call(rig.Info, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(rig.Info, "Start");
 
                 rig.Info.Action_AnimationCloseFinish();
                 rig.Info.Action_AnimationCloseFinish();

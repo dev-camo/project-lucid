@@ -75,7 +75,7 @@ namespace ProjectLucid.Tests
                     store.Browsing.Value = false;
                     store.ActionAvailable.Value = false;
 
-                    Call(store, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                    Call(store, "OnEnable");
 
                     var counter = Get<UIContainerCollectableCounter>(store, "m_collectableCounter");
                     Assert.That(counter.CollectedAmount.Value, Is.EqualTo(7));
@@ -105,10 +105,10 @@ namespace ProjectLucid.Tests
                 UIContainerDreamPowerStore store = NewStore(world);
 
                 SetBlueCoins(world, 12, 5);
-                Assert.That(Call(store, "GetBlueCoinsAvailable"), Is.EqualTo(7)); // Reflection: private UIContainerDreamPowerStore.GetBlueCoinsAvailable
+                Assert.That(Call(store, "GetBlueCoinsAvailable"), Is.EqualTo(7));
 
                 SetBlueCoins(world, 12, 20);
-                Assert.That(Call(store, "GetBlueCoinsAvailable"), Is.EqualTo(-8)); // Reflection: private UIContainerDreamPowerStore.GetBlueCoinsAvailable
+                Assert.That(Call(store, "GetBlueCoinsAvailable"), Is.EqualTo(-8));
             });
         }
 
@@ -126,7 +126,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<CharacterArchetype>(store, "m_characterArchetype"), Is.EqualTo(CharacterArchetype.None));
 
                 ActivateMission(world.Scene, CharacterArchetype.Climbing, true);
-                Call(store, "SetCharacterArchetype"); // Reflection: private UIContainerDreamPowerStore.SetCharacterArchetype
+                Call(store, "SetCharacterArchetype");
                 Assert.That(Get<CharacterArchetype>(store, "m_characterArchetype"), Is.EqualTo(CharacterArchetype.Climbing));
             });
         }
@@ -147,7 +147,7 @@ namespace ProjectLucid.Tests
                 save.GetRewardDataByTrackGUIDUnsafe("lucid-band-track-0").Collected = true;
                 save.CreateRewardTrackData(RewardTrackType.Adventure, "lucid-band-track-1", bands[1].GetGUID());
 
-                Call(store, "SetUnlockedBands"); // Reflection: private UIContainerDreamPowerStore.SetUnlockedBands
+                Call(store, "SetUnlockedBands");
 
                 Assert.That(Bands(store), Is.EquivalentTo(new[] { DreamPowerStoreBandType.None, DreamPowerStoreBandType.Band1 }));
             });
@@ -163,7 +163,7 @@ namespace ProjectLucid.Tests
                 UIContainerDreamPowerStore store = NewStore(world);
                 world.Scene.Save.GetSaveDataSettings().Debug.UnlockDreamPowers = true;
 
-                Call(store, "SetUnlockedBands"); // Reflection: private UIContainerDreamPowerStore.SetUnlockedBands
+                Call(store, "SetUnlockedBands");
 
                 Assert.That(Bands(store), Is.EquivalentTo(Enum.GetValues(typeof(DreamPowerStoreBandType)).Cast<DreamPowerStoreBandType>()));
                 Assert.That(Bands(store).Count, Is.EqualTo(5));
@@ -183,9 +183,9 @@ namespace ProjectLucid.Tests
                 UIContainerDreamPowerStore store = NewStore(world);
                 DreamPowerDefinition open = AddPower(world, "lucid-state-open", 5);
                 DreamPowerDefinition closedBand = AddPower(world, "lucid-state-closed", 5, DreamPowerStoreBandType.Band2);
-                Call(store, "SetUnlockedBands"); // Reflection: private UIContainerDreamPowerStore.SetUnlockedBands
+                Call(store, "SetUnlockedBands");
                 UIDreamPowerStoreItemState State(DreamPowerDefinition power, int coins) =>
-                    (UIDreamPowerStoreItemState)Call(store, "GetUIItemState", power, coins); // Reflection: private UIContainerDreamPowerStore.GetUIItemState
+                    (UIDreamPowerStoreItemState)Call(store, "GetUIItemState", power, coins);
 
                 Assert.That(State(closedBand, 99), Is.EqualTo(UIDreamPowerStoreItemState.LockedByProgression), "a closed band");
                 Buy(world, closedBand);
@@ -200,7 +200,7 @@ namespace ProjectLucid.Tests
 
                 // The climbing archetype lists no powers, so it cannot use any.
                 ActivateMission(world.Scene, CharacterArchetype.Climbing, true);
-                Call(store, "SetCharacterArchetype"); // Reflection: private UIContainerDreamPowerStore.SetCharacterArchetype
+                Call(store, "SetCharacterArchetype");
                 Assert.That(State(open, 0), Is.EqualTo(UIDreamPowerStoreItemState.LockedByArchetype), "bought, but of another archetype");
                 // The archetype check comes before the loadout lookup (0x6159C3..0x6159CA skips EquippedSlot): a power the climbing
                 // loadout holds is still locked by archetype.
@@ -223,10 +223,10 @@ namespace ProjectLucid.Tests
                 DreamPowerStoreChangeRecordingContainer store = NewStore<DreamPowerStoreChangeRecordingContainer>(world);
                 DreamPowerDefinition power = AddPower(world, "lucid-parameters-power", 5);
                 DreamPowerDefinition other = AddPower(world, "lucid-parameters-other", 7);
-                Call(store, "SetUnlockedBands"); // Reflection: private UIContainerDreamPowerStore.SetUnlockedBands
+                Call(store, "SetUnlockedBands");
                 store.Available.Value = true;
 
-                var parameters = (UIWidgetToggleDreamPowerSlotParameters)Call(store, "CreateWidgetParameters", power, 5); // Reflection: private UIContainerDreamPowerStore.CreateWidgetParameters
+                var parameters = (UIWidgetToggleDreamPowerSlotParameters)Call(store, "CreateWidgetParameters", power, 5);
                 Buy(world, power);
                 parameters.OnToggleChanged(other);
 
@@ -238,8 +238,8 @@ namespace ProjectLucid.Tests
                 Assert.That(store.Changes[0].itemState, Is.EqualTo(UIDreamPowerStoreItemState.Purchasable), "the state of creation");
 
                 store.Available.Value = false;
-                Assert.That(((UIWidgetToggleDreamPowerSlotParameters)Call(store, "CreateWidgetParameters", power, 5)).Available, Is.False); // Reflection: private UIContainerDreamPowerStore.CreateWidgetParameters
-                Assert.That(((UIWidgetToggleDreamPowerSlotParameters)Call(store, "CreateWidgetParameters", power, 5)).State, // Reflection: private UIContainerDreamPowerStore.CreateWidgetParameters
+                Assert.That(((UIWidgetToggleDreamPowerSlotParameters)Call(store, "CreateWidgetParameters", power, 5)).Available, Is.False);
+                Assert.That(((UIWidgetToggleDreamPowerSlotParameters)Call(store, "CreateWidgetParameters", power, 5)).State,
                     Is.EqualTo(UIDreamPowerStoreItemState.Bought));
             });
         }
@@ -260,7 +260,7 @@ namespace ProjectLucid.Tests
                     world.Scene.Save.CurrentSave.DreamPowerStore.GetOrCreateDreamPowerData(powers[1].GetGUID());
                     WriteStoreItems(world);
 
-                    Call(store, "UpdateCounter"); // Reflection: private UIContainerDreamPowerStore.UpdateCounter
+                    Call(store, "UpdateCounter");
 
                     Assert.That(store.CounterFormatString.Value, Is.EqualTo("{0} of {1}"));
                     Assert.That(store.TotalAmount.Value, Is.EqualTo(3));
@@ -295,7 +295,7 @@ namespace ProjectLucid.Tests
                     {
                         store.ActionAvailable.Value = !(row.always || (row.equippingNeeded && allowEquipping));
 
-                        Call(store, "UpdateAction", row.state); // Reflection: private UIContainerDreamPowerStore.UpdateAction
+                        Call(store, "UpdateAction", row.state);
 
                         string label = row.state + " with equipping " + allowEquipping;
                         Assert.That(store.ActionLabel.Value, Is.EqualTo(row.label), label);
@@ -317,22 +317,22 @@ namespace ProjectLucid.Tests
                 UIContainerDreamPowerStore store = NewStore(world);
                 store.DreamPowerLockedDescription.Value = Strings.MISSING;
 
-                Call(store, "UpdateLockedStatus", false, false, false, null); // Reflection: private UIContainerDreamPowerStore.UpdateLockedStatus
+                Call(store, "UpdateLockedStatus", false, false, false, null);
                 Assert.That(store.LockedDescription.Value, Is.False);
                 Assert.That(store.DreamPowerLockedDescription.Value, Is.EqualTo(Strings.MISSING), "no reason leaves the text");
 
-                Call(store, "UpdateLockedStatus", true, false, false, null); // Reflection: private UIContainerDreamPowerStore.UpdateLockedStatus
+                Call(store, "UpdateLockedStatus", true, false, false, null);
                 Assert.That(store.LockedDescription.Value, Is.True);
                 Assert.That(store.DreamPowerLockedDescription.Value, Is.EqualTo(ByArchetype));
 
-                Call(store, "UpdateLockedStatus", true, false, true, null); // Reflection: private UIContainerDreamPowerStore.UpdateLockedStatus
+                Call(store, "UpdateLockedStatus", true, false, true, null);
                 Assert.That(store.LockedDescription.Value, Is.True);
                 Assert.That(store.DreamPowerLockedDescription.Value, Is.EqualTo(Insufficient), "the price wins over the archetype");
 
-                Call(store, "UpdateLockedStatus", false, false, true, null); // Reflection: private UIContainerDreamPowerStore.UpdateLockedStatus
+                Call(store, "UpdateLockedStatus", false, false, true, null);
                 Assert.That(store.DreamPowerLockedDescription.Value, Is.EqualTo(Insufficient));
 
-                Call(store, "UpdateLockedStatus", false, false, false, null); // Reflection: private UIContainerDreamPowerStore.UpdateLockedStatus
+                Call(store, "UpdateLockedStatus", false, false, false, null);
                 Assert.That(store.LockedDescription.Value, Is.False, "the flag follows the reasons");
             });
         }
@@ -351,11 +351,11 @@ namespace ProjectLucid.Tests
                 DreamPowerDefinition power = NewDefinition(world.Scene.Owned, "lucid-slot-power", PowerName, NewSprite(world.Scene.Owned));
                 first.Widget.Equip(power);
 
-                Call(store, "SetSlotStatus", UIDreamPowerStoreItemState.Bought); // Reflection: private UIContainerDreamPowerStore.SetSlotStatus
+                Call(store, "SetSlotStatus", UIDreamPowerStoreItemState.Bought);
                 Assert.That(first.Widget.ValidForEquip.Value, Is.False, "already equipped");
                 Assert.That(second.Widget.ValidForEquip.Value, Is.True);
 
-                Call(store, "SetSlotStatus", UIDreamPowerStoreItemState.Purchasable); // Reflection: private UIContainerDreamPowerStore.SetSlotStatus
+                Call(store, "SetSlotStatus", UIDreamPowerStoreItemState.Purchasable);
                 Assert.That(first.Widget.ValidForEquip.Value, Is.False);
                 Assert.That(second.Widget.ValidForEquip.Value, Is.False);
             });
@@ -522,7 +522,7 @@ namespace ProjectLucid.Tests
                 Assert.That(store.ActionLabel.Value, Is.EqualTo(Equippable));
 
                 ActivateMission(world.Scene, CharacterArchetype.Climbing, true);
-                Call(store, "SetCharacterArchetype"); // Reflection: private UIContainerDreamPowerStore.SetCharacterArchetype
+                Call(store, "SetCharacterArchetype");
                 Choose(UIDreamPowerStoreItemState.Bought);
                 Assert.That(store.LockedDescription.Value, Is.True, "the climbing archetype cannot use the power");
                 Assert.That(store.DreamPowerLockedDescription.Value, Is.EqualTo(ByArchetype));
@@ -576,7 +576,7 @@ namespace ProjectLucid.Tests
                 foreach (CharacterArchetype archetype in new[] { CharacterArchetype.Climbing, CharacterArchetype.Flying, CharacterArchetype.Dashing })
                 {
                     var definition = Create<CharacterArchetypeDefinition>(owned);
-                    Call(definition, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                    Call(definition, "OnEnable");
                     alternate[archetype] = NewSprite(owned);
                     Cache(definition.AlternateImage, alternate[archetype]);
                     world.Scene.Data.CharacterArchetypes[archetype] = definition;
@@ -604,25 +604,25 @@ namespace ProjectLucid.Tests
                 // Reflection: serialized list of a private class, which the editor fills.
                 Set(store, "m_combinedArchetypeIcons", ConvertIcons(icons));
 
-                Call(store, "UpdateAvailableDescription", single); // Reflection: private UIContainerDreamPowerStore.UpdateAvailableDescription
+                Call(store, "UpdateAvailableDescription", single);
                 Assert.That(store.ShowDescriptionArchetype.Value, Is.True);
                 Assert.That(store.DescriptionArchetypeImage.Value, Is.SameAs(alternate[CharacterArchetype.Flying]));
                 var kept = Get<ManagedAddressableAsset<Sprite>>(store, "m_lastArchetypeIcon");
                 Assert.That(kept, Is.Not.Null);
                 Assert.That(Count(kept), Is.EqualTo(1));
 
-                Call(store, "UpdateAvailableDescription", pair); // Reflection: private UIContainerDreamPowerStore.UpdateAvailableDescription
+                Call(store, "UpdateAvailableDescription", pair);
                 Assert.That(Count(kept), Is.Zero, "the previous icon is released");
                 Assert.That(store.DescriptionArchetypeImage.Value, Is.SameAs(matchingSprite), "the first matching combined icon");
                 Assert.That(Get<ManagedAddressableAsset<Sprite>>(store, "m_lastArchetypeIcon"), Is.SameAs(Call(matching, "get_Icon"))); // Reflection: Icon getter of the private nested CombinedArchetypeIcon
                 Assert.That(Count((ManagedAddressableAsset<Sprite>)Call(duplicate, "get_Icon")), Is.Zero, "the loop stops at the first match"); // Reflection: Icon getter of the private nested CombinedArchetypeIcon
 
-                Call(store, "UpdateAvailableDescription", unmatched); // Reflection: private UIContainerDreamPowerStore.UpdateAvailableDescription
+                Call(store, "UpdateAvailableDescription", unmatched);
                 Assert.That(store.ShowDescriptionArchetype.Value, Is.True);
                 Assert.That(store.DescriptionArchetypeImage.Value, Is.SameAs(matchingSprite), "no combined icon matches, so the image stays");
                 Assert.That(Get<ManagedAddressableAsset<Sprite>>(store, "m_lastArchetypeIcon") == null, Is.True);
 
-                Call(store, "UpdateAvailableDescription", everyone); // Reflection: private UIContainerDreamPowerStore.UpdateAvailableDescription
+                Call(store, "UpdateAvailableDescription", everyone);
                 Assert.That(store.ShowDescriptionArchetype.Value, Is.False);
                 Assert.That(store.DescriptionArchetypeImage.Value, Is.Null);
             });
@@ -693,7 +693,7 @@ namespace ProjectLucid.Tests
         {
             WithGrid(rows, powers, (world, grid) =>
             {
-                Call(grid.Store, "SetupDreamPowers"); // Reflection: private UIContainerDreamPowerStore.SetupDreamPowers
+                Call(grid.Store, "SetupDreamPowers");
 
                 Assert.That(Layout(grid), Is.EqualTo(expectedLayout));
                 var table = Get<Dictionary<DreamPowerDefinition, UIWidgetToggleDreamPower>>(grid.Store, "m_widgetByDefinition");
@@ -712,7 +712,7 @@ namespace ProjectLucid.Tests
             {
                 Buy(world, grid.Powers[0]);
 
-                Call(grid.Store, "SetupDreamPowers"); // Reflection: private UIContainerDreamPowerStore.SetupDreamPowers
+                Call(grid.Store, "SetupDreamPowers");
 
                 var table = Get<Dictionary<DreamPowerDefinition, UIWidgetToggleDreamPower>>(grid.Store, "m_widgetByDefinition");
                 Assert.That(table[grid.Powers[0]].ShowCost.Value, Is.False, "bought");
@@ -730,12 +730,12 @@ namespace ProjectLucid.Tests
         {
             WithGrid(2, 3, (world, grid) =>
             {
-                Call(grid.Store, "SetupDreamPowers"); // Reflection: private UIContainerDreamPowerStore.SetupDreamPowers
+                Call(grid.Store, "SetupDreamPowers");
                 var first = Get<Dictionary<DreamPowerDefinition, UIWidgetToggleDreamPower>>(grid.Store, "m_widgetByDefinition").Values.ToArray();
                 for (int i = 0; i < 4; i++)
                     LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("^Destroy may not be called from edit mode"));
 
-                Call(grid.Store, "SetupDreamPowers"); // Reflection: private UIContainerDreamPowerStore.SetupDreamPowers
+                Call(grid.Store, "SetupDreamPowers");
 
                 var second = Get<Dictionary<DreamPowerDefinition, UIWidgetToggleDreamPower>>(grid.Store, "m_widgetByDefinition").Values.ToArray();
                 Assert.That(second.Length, Is.EqualTo(3));
