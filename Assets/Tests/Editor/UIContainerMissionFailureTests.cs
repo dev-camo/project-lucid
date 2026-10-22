@@ -128,6 +128,7 @@ namespace ProjectLucid.Tests
             {
                 rig.App.Storage.SetValue(AppFSMKeys.FailureScreenStringOverride, Stored);
                 rig.App.Storage.SetValue(AppFSMKeys.ShowFailureScreen, true);
+                rig.App.Storage.SetValue(AppFSMKeys.IsInPostGame, true); // as ApplicationStatePostGameplaySetup does, so the restart's false write is visible
                 // LevelManager.Initialise takes the App through its SystemRef, but also parents a DontDestroyOnLoad object that Edit
                 // Mode cannot own, so the App it would take is assigned directly.
                 Set(rig.Missions.Level, "m_app", rig.App); // Reflection: private field Initialise assigns
