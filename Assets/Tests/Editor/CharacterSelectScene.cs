@@ -31,7 +31,7 @@ namespace ProjectLucid.Tests
 
         // UIContainerUtilities builds its typed references from the rows it finds when it is first used, so its type initialiser
         // runs here against empty rows that are released at once, and not while a case has systems registered.
-        private static void InitialiseUtilities() => Owned.Run(owned =>
+        internal static void InitialiseUtilities() => Owned.Run(owned =>
         {
             owned.LeaseRow<App>();
             owned.LeaseRow<LevelManager>();
