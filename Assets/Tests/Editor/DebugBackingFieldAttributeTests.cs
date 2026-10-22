@@ -7,7 +7,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void DebugOnlyAllowanceForCompilerDebuggerBrowsableIsExactAndReleaseStaysStrict()
         {
-            Assert.That(DebugBackingFieldVerification.Run(), Is.EqualTo(20));
+            Assert.That(DebugBackingFieldVerification.Run(), Is.EqualTo(38));
         }
     }
 }

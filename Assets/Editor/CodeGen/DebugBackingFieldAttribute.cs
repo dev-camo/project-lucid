@@ -12,12 +12,15 @@ namespace ProjectLucid.CodeGen
     // [DebuggerBrowsable(DebuggerBrowsableState.Never)] to every auto-property
     // backing field. The shipped release metadata has no such attribute, so the
     // restoring post-processors must keep rejecting it everywhere except this one
-    // compiler-generated case. The allowance is exact: only a Debug compile
-    // (DebuggableAttribute with DisableOptimizations), only a field named
-    // <Name>k__BackingField (or the field of a field-like event) that also carries
-    // CompilerGeneratedAttribute, and only
-    // the one attribute with the exact constructor and Never blob. A release or
-    // Editor compile, or any other extra attribute, is returned unchanged.
+    // compiler-generated case. The allowance is exact: only a compile whose
+    // DebuggableAttribute carries the value Unity emits for Debug player compiles
+    // (263 = Default | IgnoreSymbolStoreSequencePoints | DisableOptimizations |
+    // EnableEditAndContinue, observed in the PDevDbg HLInput.Runtime.dll), only a
+    // field named <Name>k__BackingField (or the field of a field-like event of the
+    // same name and type) that also carries CompilerGeneratedAttribute, and only
+    // the one attribute with the exact constructor and Never blob. Optimised
+    // (release) compiles, which includes the Editor compile as configured here,
+    // and any other extra attribute, are returned unchanged.
     public static class DebugBackingFieldAttribute
     {
         private const string Debuggable = "System.Diagnostics.DebuggableAttribute";
@@ -25,7 +28,7 @@ namespace ProjectLucid.CodeGen
         private const string Browsable = "System.Diagnostics.DebuggerBrowsableAttribute";
         private const string BrowsableConstructor = "System.Void System.Diagnostics.DebuggerBrowsableAttribute::.ctor(System.Diagnostics.DebuggerBrowsableState)";
         private const string Generated = "System.Runtime.CompilerServices.CompilerGeneratedAttribute";
-        private const int DisableOptimizations = 256;
+        private const int DebugPlayerModes = 263;
         private static readonly byte[] NeverBlob = { 1, 0, 0, 0, 0, 0, 0, 0 };  // prolog, int32 Never, no named arguments
 
         public static bool IsDebugCompile(ModuleDefinition module)
@@ -39,7 +42,7 @@ namespace ProjectLucid.CodeGen
                     attribute.Constructor.Parameters[0].ParameterType.FullName != Modes) continue;
                 var blob = attribute.GetBlob();
                 // prolog, int32 DebuggingModes, no named arguments.
-                return blob.Length == 8 && (BitConverter.ToInt32(blob, 2) & DisableOptimizations) != 0;
+                return blob.Length == 8 && BitConverter.ToInt32(blob, 2) == DebugPlayerModes;
             }
             return false;
         }
@@ -48,18 +51,18 @@ namespace ProjectLucid.CodeGen
         public static IList<CustomAttribute> Original(FieldDefinition field)
         {
             IList<CustomAttribute> attributes = field.CustomAttributes;
-            if (!IsCompilerBackingField(field) || !IsDebugCompile(field.Module) || !attributes.Any(a => a.AttributeType.FullName == Generated))
+            if (!IsDebugCompile(field.Module) || !IsCompilerBackingField(field) || !attributes.Any(a => a.AttributeType.FullName == Generated))
                 return attributes;
             var found = attributes.Where(IsNever).ToArray();
             return found.Length == 1 ? attributes.Where(a => !ReferenceEquals(a, found[0])).ToList() : attributes;
         }
 
         // An auto-property's <Name>k__BackingField, or the field behind a field-like
-        // event (a field named after an event of the same type).
+        // event (a field named after an event of the same type and sharing its type).
         private static bool IsCompilerBackingField(FieldDefinition field)
         {
             if (field.Name.StartsWith("<", StringComparison.Ordinal) && field.Name.EndsWith(">k__BackingField", StringComparison.Ordinal)) return true;
-            return field.DeclaringType != null && field.DeclaringType.Events.Any(e => e.Name == field.Name);
+            return field.DeclaringType != null && field.DeclaringType.Events.Any(e => e.Name == field.Name && e.EventType.FullName == field.FieldType.FullName);
         }
 
         private static bool IsNever(CustomAttribute attribute)

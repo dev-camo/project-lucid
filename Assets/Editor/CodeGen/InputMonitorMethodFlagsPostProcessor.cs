@@ -487,6 +487,7 @@ namespace ProjectLucid.CodeGen
                     : method.Name == "get_ForcedBinding" ? "m_forcedBinding" : "m_fallbackInputType";
                 bool debugBody = DebugAccessorBody.IsReturnField(method, owner.Module);
                 Require((b.CodeSize == 7 && b.MaxStackSize == 8 && !b.InitLocals && b.Variables.Count == 0 && b.ExceptionHandlers.Count == 0 && ins.Count == 3 && ins[0].OpCode.Code == Code.Ldarg_0 && ins[1].OpCode.Code == Code.Ldfld && ins[2].OpCode.Code == Code.Ret && ins.Select(i => i.Offset).SequenceEqual(new[] { 0, 1, 6 })) || debugBody, "Changed additional getter physical body/header/locals/EH.");
+                if (debugBody) ExtraScope(b.Variables[0].VariableType, owner);
                 CheckSelfField(ins[debugBody ? 2 : 1].Operand as FieldReference, owner, owner.Fields.Single(f => f.Name == name)); return;
             }
             bool add = method.Name.StartsWith("add_", StringComparison.Ordinal); string eventName = method.Name.Substring(add ? 4 : 7);
