@@ -91,6 +91,23 @@ class DevelopmentBuildTests(unittest.TestCase):
             self.assertIn("commit: ", marker)
             for gate in verification.PLAYMODE_TESTS[:6]:
                 self.assertIn(gate, marker)
+            self.assertIn("EditMode verification receipt: no test result was checked", marker)
+            self.assertIn("PlayMode verification receipt: no test result was checked", marker)
+            self.assertNotIn("Release gates not met", marker)
+
+    def test_a_blocked_development_attempt_clears_the_previous_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            work, _ = self.ready(root)
+            folder = root / "Builds/Development/linux"
+            folder.mkdir(parents=True)
+            (folder / project.DEVELOPMENT_MARKER).write_text("older attempt")
+            (folder / "ProjectLucid-DEVELOPMENT.x86_64").mkdir()
+            shutil.rmtree(root / "Assets/Recovered")
+            result, run = self.build(root, work, development=True)
+            self.assertEqual("blocked", result["status"])
+            run.assert_not_called()
+            self.assertFalse(folder.exists())
 
     def test_release_build_still_refuses_while_the_gates_are_unwritten(self):
         with tempfile.TemporaryDirectory() as temporary:

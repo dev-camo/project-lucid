@@ -150,9 +150,15 @@ def is_development_output(path):
                for parent in path.parents)
 
 
-def _unmet_gates():
-    """What a release needs and a development build skips: the audit and the six PlayMode gates."""
-    return list(verification.PLAYMODE_TESTS[:6]) + ["unity-reference-audit (unresolved_references == 0)"]
+# What a release requires and a development build does not check at all.
+SKIPPED_RELEASE_CHECKS = ("EditMode verification receipt: no test result was checked",
+                          "PlayMode verification receipt: no test result was checked",
+                          "unity-reference-audit (unresolved_references == 0)")
+
+
+def _unwritten_gates():
+    """The six whole-game PlayMode gates, which do not exist yet."""
+    return list(verification.PLAYMODE_TESTS[:6])
 
 
 def _commit(repo_root):
@@ -177,8 +183,11 @@ def _development_marker(repo_root, target):
         "commit: " + _commit(repo_root),
         "unity build options: BuildOptions.Development",
         "",
-        "Release gates not met (skipped for this build):",
-        *("  - " + gate for gate in _unmet_gates()),
+        "Release checks skipped for this build:",
+        *("  - " + check for check in SKIPPED_RELEASE_CHECKS),
+        "",
+        "Whole-game gates not written yet:",
+        *("  - " + gate for gate in _unwritten_gates()),
         "")) + "\n"
 
 
@@ -189,6 +198,12 @@ def build_project(repo_root, work_dir, target, *, destination=None, development=
         raise ValueError("Development builds always use Builds/Development/<target>; port never builds them")
     if destination is not None and is_development_output(destination):
         raise ValueError("A development build is never accepted as a release output")
+    development_root = Path(repo_root) / "Builds" / "Development" / target
+    if development:
+        if development_root.is_symlink() or development_root.parent.is_symlink() or development_root.parent.parent.is_symlink():
+            raise ValueError("Development build directory cannot be a symbolic link")
+        # Clear the previous attempt first, so a blocked attempt never leaves an older player at the documented path.
+        shutil.rmtree(development_root, ignore_errors=True)
     validation = validate_project(repo_root, work_dir, "development" if development else "release")
     if validation["status"] != "complete":
         return {"status": "blocked", "target": target, "errors": validation["errors"],
@@ -203,10 +218,6 @@ def build_project(repo_root, work_dir, target, *, destination=None, development=
                "linux": "Linux/ProjectLucid.x86_64"}
     marker = None
     if development:
-        development_root = Path(repo_root) / "Builds" / "Development" / target
-        if development_root.is_symlink() or development_root.parent.is_symlink() or development_root.parent.parent.is_symlink():
-            raise ValueError("Development build directory cannot be a symbolic link")
-        shutil.rmtree(development_root, ignore_errors=True)
         development_root.mkdir(parents=True)
         destination = development_root / DEVELOPMENT_OUTPUTS[target]
         marker = development_root / DEVELOPMENT_MARKER
