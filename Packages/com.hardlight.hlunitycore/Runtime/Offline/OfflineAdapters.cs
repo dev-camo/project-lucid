@@ -1,3 +1,5 @@
+using System;
+
 namespace ProjectLucid.Offline
 {
     // The one switch for every offline hook (decision D2). A hook is the check
@@ -14,6 +16,31 @@ namespace ProjectLucid.Offline
     // dropping their lambdas and iterators.
     public static class OfflineAdapters
     {
-        public static bool Active => true;
+        private static bool? s_override;
+
+        public static bool Active => s_override ?? true;
+
+        // Test seam only: runs the retained original bodies of hooked members in tests. Never call it from product code.
+        public static IDisposable Override(bool active)
+        {
+            bool? previous = s_override;
+            s_override = active;
+            return new Restore(previous);
+        }
+
+        private sealed class Restore : IDisposable
+        {
+            private readonly bool? m_previous;
+            private bool m_disposed;
+
+            internal Restore(bool? previous) { m_previous = previous; }
+
+            public void Dispose()
+            {
+                if (m_disposed) return;
+                m_disposed = true;
+                s_override = m_previous;
+            }
+        }
     }
 }

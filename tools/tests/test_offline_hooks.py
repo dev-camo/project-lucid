@@ -89,9 +89,10 @@ class OfflineHookRegistryTests(unittest.TestCase):
         self.assertEqual({rel: sorted(defs) for rel, defs in found.items()},
                          {rel: [define] for rel, define in ALLOWED_DEFINES.items()})
 
-    def test_the_switch_is_a_non_const_property_returning_true(self):
+    def test_the_switch_is_a_non_const_property_true_unless_a_test_overrides_it(self):
         text = (ROOT / "Packages/com.hardlight.hlunitycore/Runtime/Offline/OfflineAdapters.cs").read_text(encoding="utf-8")
-        self.assertIn("public static bool Active => true;", text)
+        self.assertIn("public static bool Active => s_override ?? true;", text)
+        self.assertIn("private static bool? s_override;", text)
         self.assertNotIn("const", re.sub(r"//.*", "", text))
 
 

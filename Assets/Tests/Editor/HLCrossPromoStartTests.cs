@@ -7,6 +7,7 @@ using Hardlight;
 using Hardlight.Localisation;
 using HardlightProject;
 using NUnit.Framework;
+using ProjectLucid.Offline;
 using UnityEngine;
 using UnityEngine.TestTools;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
@@ -59,7 +60,7 @@ namespace ProjectLucid.Tests
             public int CalculateApplicationChecksum() => 0;
         }
 
-        // Runs body with the bridge installed and the prior one put back, and with the CrossPromo row acquired
+        // Runs body with the offline adapters off, the bridge installed and the prior one put back, and with the CrossPromo row acquired
         // empty, so the registration Start makes lands in an owned row.
         private static void Run(string configurationJson, Action<Owned, HLCrossPromo, CountryBridge, VerificationFixtureOwnership.RegistryRow> body) =>
             Owned.Run(owned =>
@@ -70,8 +71,13 @@ namespace ProjectLucid.Tests
                 var bridge = new CountryBridge("ZZ");
                 object prior = Bridge.GetValue(null);
                 Bridge.SetValue(null, bridge);
+                // These cases step the original body of Start, which the offline hook (H-057) otherwise skips.
                 VerificationFixtureOwnership.RunThenCleanUp(
-                    () => body(owned, owned.Host("Lucid cross promo", false).AddComponent<HLCrossPromo>(), bridge, row),
+                    () =>
+                    {
+                        using (OfflineAdapters.Override(false))
+                            body(owned, owned.Host("Lucid cross promo", false).AddComponent<HLCrossPromo>(), bridge, row);
+                    },
                     () => Bridge.SetValue(null, prior));
             });
 

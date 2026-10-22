@@ -35,6 +35,7 @@
     "Unity.RenderPipelines.Universal.Runtime",
     "HLBinders.Runtime",
     "FairPlay.Runtime",
+    "Apple.Arcade.SplashScreen",
     "HLSplines.Runtime",
     "Dreamteck.Splines",
     "Dreamteck.Utilities",

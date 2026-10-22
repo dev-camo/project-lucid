@@ -10667,3 +10667,35 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerSettingsQualityTests." + 
     "ResettingReturnsToTheDefaultProfileScaleAndAntiAliasing",
     "TheConstructorBuildsFourSeparateBinders",
 ))
+
+# Offline boot hooks (FairPlay check, cross promotion) and the restored Apple Arcade splash assembly.
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineBootHookTests." + name for name in (
+    "TheAdapterSwitchIsOnAndTheVerificationOverrideRestoresIt",
+    "FairPlayCheckEntersThroughItsSuccessPathWithoutTheNativeLibrary",
+    "FairPlayCheckKeepsTheOriginalRegistrationAfterTheGuard",
+    "CrossPromoStartRegistersAnEmptyReadySystemWithoutNetworkOrFolders",
+    "TheNoContentResourceManagerReportsAFailedDownloadAndNoContent",
+    "CrossPromoStartKeepsTheOriginalBodyAfterTheGuard",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAppleArcadeSplashScreenTests." + name for name in (
+    "SplashScreenPlayerKeepsItsOriginalDeclarations",
+    "TheVideoProviderAndItsInterfaceKeepTheirOriginalDeclarations",
+    "AspectTextOfAWideScreenIsNineteenPointFiveByNine",
+    "AspectTextAtTheFloatNearest187IsNineteenPointFiveByNine",
+    "AspectTextJustBelow187IsSixteenByNine",
+    "AspectTextOfSixteenByNineIsSixteenByNine",
+    "AspectTextAtTheFloatNearest177FallsBelowTheDoubleThreshold",
+    "AspectTextAtTheFloatNearest16IsSixteenByTen",
+    "AspectTextJustBelow16IsFourByThree",
+    "AspectTextOfASquareScreenIsFourByThree",
+    "ProviderHelpersKeepTheirNativeResults",
+    "AMissingClipCompletesTheTaskWithNull",
+    "ActionOnVideoCompletedRestoresTheFrameRateThenRaisesTheEvent",
+    "LoopPointReachedRestoresTheFrameRateThenRaisesTheEvent",
+    "VideoCompletedRestoresTheFrameRateThenRaisesTheEvent",
+    "ReadyHandlerFaultsOnANullSourceBeforeSwitchingFrameEventsOff",
+    "TheDefaultTargetFrameRateIsSixty",
+    "StartSkipsTheSplashThroughTheOriginalCompletionPathOnADesktopTarget",
+    "OnlyDesktopTargetsSkipTheSplash",
+    "StartKeepsTheOriginalBodyAfterTheGuard",
+))

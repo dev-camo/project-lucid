@@ -1,6 +1,7 @@
 using System.Collections;
 using Hardlight;
 using Hardlight.Localisation;
+using ProjectLucid.Offline;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
@@ -16,6 +17,16 @@ namespace HardlightProject
         // building the configuration from the device country and language.
         private IEnumerator Start()
         {
+            // Offline hook H-057: the original builds the real download manager, which requests the
+            // promotion metadata from the server. Offline registers the same system over a
+            // resource manager that has no content, so CrossPromo takes its own "no metadata"
+            // path: ready, disabled, no ads, and no request, folder or coroutine. The device
+            // country and language waits only feed the metadata URL, so they are skipped too.
+            if (OfflineAdapters.Active)
+            {
+                OfflineCrossPromo.Register();
+                yield break;
+            }
             CrossPromoConfigurationAsset configurationAsset = SystemConfiguration.GetConfig<CrossPromoConfigurationAsset>();
             yield return MonoSingleton<HLUnityCore>.WaitOnInstance();
             string country = HLUnityCore.GetDeviceISO2CountryCode();

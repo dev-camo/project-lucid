@@ -128,6 +128,12 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.projectlucid.applearcadesplash": {
+      "version": "file:com.projectlucid.applearcadesplash",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.projectlucid.fairplay": {
       "version": "file:com.projectlucid.fairplay",
       "depth": 0,
