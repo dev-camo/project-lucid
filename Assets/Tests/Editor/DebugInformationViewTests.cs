@@ -77,7 +77,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<Actor>(view, "m_actor"), Is.SameAs(enemy));
                 Assert.That(ControlTables.Subscriptions(GameInput.DebugNextInfo, view),
                     Is.EqualTo(ControlTables.Expected(InputTrigger.Down, "ViewActorInformation.OnDebugNextInfo")), "the base ran");
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
                 Assert.That(Get<Actor>(view, "m_actor"), Is.Null, "the base disable forgets the actor");
             });
         }
@@ -92,7 +92,7 @@ namespace ProjectLucid.Tests
                 Get<StringBuilder>(view, "m_stringInfo").Append("builder");
                 view.StateInfo.Value = "stale";
 
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                 Assert.That(view.StateInfo.Value, Is.EqualTo("stale"));
             });
@@ -114,15 +114,15 @@ namespace ProjectLucid.Tests
                 view.EntityActivationInfo.Value = "stale";
                 view.StateInfo.Value = "stale";
 
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
                 Assert.That(view.StateInfo.Value, Is.EqualTo("enemy state"));
                 builder.Append(" and more");
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                 Assert.That(view.StateInfo.Value, Is.EqualTo("enemy state and more"), "the builder is never cleared");
                 Assert.That(view.ActorInfo.Value, Is.EqualTo("stale"));
                 Assert.That(view.EntityActivationInfo.Value, Is.EqualTo("stale"));
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
             });
         }
 
@@ -140,7 +140,7 @@ namespace ProjectLucid.Tests
             Assert.That(typeof(ViewFrameInformation).BaseType, Is.EqualTo(typeof(MonoBehaviour)));
         }
 
-        private static float Average(ViewFrameInformation view, float sample) => (float)Call(view, "GetAverageFramerateMs", sample);
+        private static float Average(ViewFrameInformation view, float sample) => (float)Call(view, "GetAverageFramerateMs", sample); // Reflection: private GetAverageFramerateMs, which the original reaches from its own code
 
         // 0x564940: each call queues the sample and returns the sum of the queue over its count (float arithmetic).
         [Test]
@@ -191,7 +191,7 @@ namespace ProjectLucid.Tests
             {
                 ViewFrameInformation view = NewView<ViewFrameInformation>(owned);
 
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                 Assert.That(view.FramerateCPU.Value, Is.EqualTo("CPU: " + FrameTimingManager.GetCpuTimerFrequency().ToString() + "ms"));
                 Assert.That(view.FramerateGPU.Value, Is.EqualTo("GPU: " + FrameTimingManager.GetGpuTimerFrequency().ToString() + "ms"));
@@ -239,13 +239,13 @@ namespace ProjectLucid.Tests
             {
                 List<GameObject> panels = NewPanels(owned, view, 3);
 
-                Call(view, "OnEnable");
+                Call(view, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(ControlTables.Subscriptions(GameInput.DebugNextInfo, view),
                     Is.EqualTo(ControlTables.Expected(InputTrigger.Down, "ViewTrackInformation.OnDebugNextInfo")));
                 Assert.That(Visible(panels), Is.EqualTo(new[] { true, false, false }));
 
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
                 Assert.That(ControlTables.Subscriptions(GameInput.DebugNextInfo, view), Is.Empty);
             });
         }
@@ -257,12 +257,12 @@ namespace ProjectLucid.Tests
             WithTrackView((owned, view) =>
             {
                 List<GameObject> panels = NewPanels(owned, view, 3);
-                Call(view, "OnEnable");
+                Call(view, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 var seen = new List<bool[]>();
                 for (int i = 0; i < 4; i++)
                 {
-                    Call(view, "OnDebugNextInfo", 1f);
+                    Call(view, "OnDebugNextInfo", 1f); // Reflection: private OnDebugNextInfo, which the original reaches from its own code
                     seen.Add(Visible(panels));
                 }
 
@@ -270,7 +270,7 @@ namespace ProjectLucid.Tests
                 Assert.That(seen[1], Is.EqualTo(new[] { false, false, true }));
                 Assert.That(seen[2], Is.EqualTo(new[] { true, false, false }), "it wraps around");
                 Assert.That(seen[3], Is.EqualTo(new[] { false, true, false }));
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
             });
         }
 
@@ -283,7 +283,7 @@ namespace ProjectLucid.Tests
                 Get<StringBuilder>(view, "m_stringInfo").Append("builder");
                 view.InstancePrefabPoolsInfo.Value = "stale";
 
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                 Assert.That(view.InstancePrefabPoolsInfo.Value, Is.EqualTo("stale"));
                 Assert.That(Get<StringBuilder>(view, "m_stringInfo").ToString(), Is.EqualTo("builder"));
@@ -301,7 +301,7 @@ namespace ProjectLucid.Tests
                 Get<StringBuilder>(view, "m_stringInfo").Append("old text");
                 view.InstancePrefabPoolsInfo.Value = "stale";
 
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                 Assert.That(view.InstancePrefabPoolsInfo.Value, Is.Empty);
                 Assert.That(Get<StringBuilder>(view, "m_stringInfo").Length, Is.Zero);
@@ -322,7 +322,7 @@ namespace ProjectLucid.Tests
                 Get<StringBuilder>(view, "m_stringInfo").Append("old text");
                 view.InstancePrefabPoolsInfo.Value = "stale";
 
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                 Assert.That(manager.Calls, Is.EqualTo(1));
                 Assert.That(view.InstancePrefabPoolsInfo.Value, Is.EqualTo(TrackManagerPoolInfoProbe.Marker));
@@ -402,7 +402,7 @@ namespace ProjectLucid.Tests
         {
             WithCharacterView((owned, manager, character, view, toggles) =>
             {
-                Call(view, "OnEnable");
+                Call(view, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(ControlTables.Subscriptions(GameInput.DebugNextInfo, view),
                     Is.EqualTo(ControlTables.Expected(InputTrigger.Down, "ViewActorInformation.OnDebugNextInfo")), "the base ran");
@@ -411,7 +411,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<SystemRef<CharacterManager>>(view, "m_characterManagerRef").Get(), Is.SameAs(manager));
                 Assert.That(toggles, Is.EqualTo(new[] { true }));
                 Assert.That(Get<Actor>(view, "m_actor"), Is.Null);
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
             });
         }
 
@@ -423,11 +423,11 @@ namespace ProjectLucid.Tests
             {
                 SetCurrent(manager, character, true);
 
-                Call(view, "OnEnable");
+                Call(view, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(Get<Actor>(view, "m_actor"), Is.SameAs(character));
                 Assert.That(Get<Character>(view, "m_character"), Is.SameAs(character));
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
             });
         }
 
@@ -437,13 +437,13 @@ namespace ProjectLucid.Tests
         {
             WithCharacterView((owned, manager, character, view, toggles) =>
             {
-                Call(view, "OnEnable");
+                Call(view, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Get<Action<Character>>(manager, "m_onCharacterChange")(character);
 
                 Assert.That(Get<Actor>(view, "m_actor"), Is.SameAs(character));
                 Assert.That(Get<Character>(view, "m_character"), Is.SameAs(character));
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
             });
         }
 
@@ -455,10 +455,10 @@ namespace ProjectLucid.Tests
             WithCharacterView((owned, manager, character, view, toggles) =>
             {
                 SetCurrent(manager, character, true);
-                Call(view, "OnEnable");
+                Call(view, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
                 toggles.Clear();
 
-                Call(view, "OnDisable");
+                Call(view, "OnDisable"); // Reflection: Unity sends OnDisable; Edit Mode does not
 
                 Assert.That(Callbacks(manager), Is.Empty);
                 Assert.That(toggles, Is.EqualTo(new[] { false }));
@@ -478,7 +478,7 @@ namespace ProjectLucid.Tests
                 view.AbilityNameInfo.Value = "stale";
                 view.ActorInfo.Value = "stale";
 
-                Call(view, "Update");
+                Call(view, "Update"); // Reflection: Unity sends Update; Edit Mode does not
 
                 Assert.That(view.TransformInfo.Value, Is.EqualTo("stale"));
                 Assert.That(view.AbilityNameInfo.Value, Is.EqualTo("stale"));
@@ -503,6 +503,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void TheFrameCounterPublishesTheStaticFrameRateEachUpdate()
         {
+            // Reflection: s_framesPerSecond is a private static that the manager's own update fills; it is set here and restored in finally.
             FieldInfo frames = typeof(VisualQualityManager_SDT).GetField("s_framesPerSecond", BindingFlags.Static | BindingFlags.NonPublic);
             float prior = (float)frames.GetValue(null);
             try
@@ -511,10 +512,10 @@ namespace ProjectLucid.Tests
                 {
                     var counter = owned.Host("Lucid frame counter", false).AddComponent<UIContainerFPSDebug>();
                     frames.SetValue(null, 59.6f);
-                    Call(counter, "Update");
+                    Call(counter, "Update"); // Reflection: Unity sends Update; Edit Mode does not
                     Assert.That(counter.FPSCount.Value, Is.EqualTo("60"));
                     frames.SetValue(null, 144.4f);
-                    Call(counter, "Update");
+                    Call(counter, "Update"); // Reflection: Unity sends Update; Edit Mode does not
                     Assert.That(counter.FPSCount.Value, Is.EqualTo("144"));
                 });
             }

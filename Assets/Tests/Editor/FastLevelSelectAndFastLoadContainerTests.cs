@@ -143,7 +143,7 @@ namespace ProjectLucid.Tests
         {
             WithPicker((owned, picker) =>
             {
-                Call(picker.Container, "Start");
+                Call(picker.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level" }));
                 Assert.That(picker.Root.GetComponentsInChildren<UIWidgetButton>(true).Length, Is.EqualTo(2), "the buttons are under the list root");
@@ -158,11 +158,11 @@ namespace ProjectLucid.Tests
         {
             WithPicker((owned, picker) =>
             {
-                Call(picker.Container, "Start");
+                Call(picker.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level", "Other zone level" }));
                 ExpectRefusedDestroys(3);
 
-                Call(picker.Container, "OnUISelection", picker.Zone);
+                Call(picker.Container, "OnUISelection", picker.Zone); // Reflection: private OnUISelection, which the original reaches from its own code
 
                 Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level", "Other zone level", "Back" }));
             }, secondZone: true);
@@ -209,10 +209,10 @@ namespace ProjectLucid.Tests
         {
             WithPicker((owned, picker) =>
             {
-                Call(picker.Container, "Start");
+                Call(picker.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 ExpectRefusedDestroys(2);
 
-                Call(picker.Container, "OnUISelection", picker.Zone);
+                Call(picker.Container, "OnUISelection", picker.Zone); // Reflection: private OnUISelection, which the original reaches from its own code
 
                 Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level", "Back" }));
                 Assert.That(Stack(picker.Container).ToArray(), Is.EqualTo(new[] { picker.Zone, null }), "newest on top");
@@ -226,9 +226,9 @@ namespace ProjectLucid.Tests
         {
             WithPicker((owned, picker) =>
             {
-                Call(picker.Container, "Start");
+                Call(picker.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 ExpectRefusedDestroys(2);
-                Call(picker.Container, "OnUISelection", picker.Zone);
+                Call(picker.Container, "OnUISelection", picker.Zone); // Reflection: private OnUISelection, which the original reaches from its own code
                 UIWidgetButton back = Buttons(picker.Container).Last();
                 Assert.That(back.Label.Value, Is.EqualTo("Back"));
                 ExpectRefusedDestroys(3);
@@ -247,13 +247,13 @@ namespace ProjectLucid.Tests
         {
             WithPicker((owned, picker) =>
             {
-                Call(picker.Container, "OnBackButton");
+                Call(picker.Container, "OnBackButton"); // Reflection: private OnBackButton, which the original reaches from its own code
                 Assert.That(Buttons(picker.Container), Is.Empty);
                 Assert.That(Stack(picker.Container), Is.Empty);
 
-                Call(picker.Container, "Start");
+                Call(picker.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 ExpectRefusedDestroys(2);
-                Call(picker.Container, "OnBackButton");
+                Call(picker.Container, "OnBackButton"); // Reflection: private OnBackButton, which the original reaches from its own code
 
                 Assert.That(Labels(Buttons(picker.Container)), Is.EqualTo(new[] { "First level", "Third level" }));
                 Assert.That(Stack(picker.Container).ToArray(), Is.EqualTo(new GameplayLevelCategory[] { null }));
@@ -266,12 +266,12 @@ namespace ProjectLucid.Tests
         {
             WithPicker((owned, picker) =>
             {
-                Call(picker.Container, "Start");
+                Call(picker.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 UIWidgetButton[] before = Buttons(picker.Container).ToArray();
 
-                Call(picker.Container, "OnUISelection", (object)null);
-                Call(picker.Container, "OnUISelection", "not a level");
-                Call(picker.Container, "OnUISelection", 7);
+                Call(picker.Container, "OnUISelection", (object)null); // Reflection: private OnUISelection, which the original reaches from its own code
+                Call(picker.Container, "OnUISelection", "not a level"); // Reflection: private OnUISelection, which the original reaches from its own code
+                Call(picker.Container, "OnUISelection", 7); // Reflection: private OnUISelection, which the original reaches from its own code
 
                 Assert.That(Buttons(picker.Container).ToArray(), Is.EqualTo(before));
                 Assert.That(Stack(picker.Container).Count, Is.EqualTo(1));
@@ -323,7 +323,7 @@ namespace ProjectLucid.Tests
             Set(loader.Container, "m_rootTransform", loader.Root); // Reflection: serialized references
             Set(loader.Container, "m_buttonPrefab", owned.Host("Lucid fast load button", false).AddComponent<UIWidgetButton>());
             Set(loader.Container, "m_continueEvent", owned.Track(ScriptableObject.CreateInstance<ApplicationStateEvent>()));
-            Set(loader.Container, "m_zone5", loader.Zone5);
+            Set(loader.Container, "m_zone5", loader.Zone5); // Reflection: serialized m_zone5 the editor assigns
             body(owned, loader);
         });
 
@@ -346,7 +346,7 @@ namespace ProjectLucid.Tests
             {
                 ProcessManager.GetSystem<App>().Storage.SetValue(AppFSMKeys.LevelLoadParameters, new LevelManagerLoadLevelParameters(loader.Level));
 
-                Assert.That(Call(loader.Container, "FindLevelDefinition"), Is.SameAs(loader.Level));
+                Assert.That(Call(loader.Container, "FindLevelDefinition"), Is.SameAs(loader.Level)); // Reflection: private FindLevelDefinition, which the original reaches from its own code
             });
         }
 
@@ -359,7 +359,7 @@ namespace ProjectLucid.Tests
             {
                 ProcessManager.GetSystem<App>().Storage.SetValue(AppFSMKeys.LevelLoadParameters, new LevelManagerLoadLevelParameters(loader.Level));
 
-                Call(loader.Container, "Start");
+                Call(loader.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 UIWidgetButton[] buttons = loader.Root.GetComponentsInChildren<UIWidgetButton>(true);
                 Assert.That(Labels(buttons), Is.EqualTo(new[] { "Mission one", "Mission two" }));
@@ -381,8 +381,8 @@ namespace ProjectLucid.Tests
                 app.Storage.SetValue(AppFSMKeys.StateEvents, events);
                 app.Storage.SetValue(AppFSMKeys.LevelLoadParameters, new LevelManagerLoadLevelParameters(loader.Level));
 
-                Call(loader.Container, "Start");
-                Call(loader.Container, "Start");
+                Call(loader.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
+                Call(loader.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(loader.Root.GetComponentsInChildren<UIWidgetButton>(true), Is.Empty);
                 var state = app.Storage.GetValueOnly<MetaGameState>(AppFSMKeys.MetaGameState);
@@ -436,7 +436,7 @@ namespace ProjectLucid.Tests
                 app.Storage.SetValue(AppFSMKeys.StateEvents, new List<ApplicationStateEvent>());
                 app.Storage.SetValue(AppFSMKeys.IsFastLoading, true);
                 app.Storage.SetValue(AppFSMKeys.LevelLoadParameters, new LevelManagerLoadLevelParameters(loader.Level));
-                Call(loader.Container, "Start");
+                Call(loader.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
                 UIWidgetButton[] buttons = loader.Root.GetComponentsInChildren<UIWidgetButton>(true);
 
                 buttons[0].Action_OnButtonPress();
