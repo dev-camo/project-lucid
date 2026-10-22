@@ -131,7 +131,9 @@ namespace HardlightProject
                 ProjectLucid.Offline.LocalProfilePresentation.ShowRecords(leaderboardIdentifier);
                 return;
             }
+#if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX // GameCenterPlatform exists only in Apple players; see docs/offline-hooks.md
             GameCenterPlatform.ShowLeaderboardUI(leaderboardIdentifier.GetString(), timeScope);
+#endif
         }
 
         // 0x06000620: availability of the real Core service gates this call;
