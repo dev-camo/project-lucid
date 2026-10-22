@@ -159,7 +159,11 @@ def _project_lock(root):
     """A process-held project-wide lock; a leftover file is not a live owner."""
     path = _physical(root / ".cache/project-lucid/locks/port.lock")
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a+b") as stream:
+    try:
+        stream = bootstrap.open_coordinator_lock(path, "Port lock")
+    except bootstrap.ToolError as exc:
+        raise ValueError(str(exc)) from exc
+    with stream:
         if not bootstrap.try_lock(stream):
             raise ValueError("Another port attempt owns this project")
         try:

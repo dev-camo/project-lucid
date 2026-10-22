@@ -6,8 +6,8 @@ import json
 import os
 from pathlib import Path
 import sys
-import uuid
 import subprocess
+import uuid
 
 ROOT = Path(__file__).resolve().parent.parent
 

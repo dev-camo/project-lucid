@@ -3,6 +3,7 @@
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -415,6 +416,28 @@ class NativeHelpersTests(unittest.TestCase):
         self.assertEqual(str(self.work / "tools/dotnet/dotnet.exe"), run.call_args.args[0][0])
         self.assertEqual(hashlib.sha256(b"pinned windows dotnet fixture").hexdigest(),
                          results[0]["dotnet_host_sha256"])
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs FIFOs")
+    def test_build_lock_fifo_fails_promptly_without_building(self):
+        patches = self.build_patches()
+        build_lock = self.work / "native-recovery/.build.lock"
+        build_lock.parent.mkdir(parents=True)
+        os.mkfifo(build_lock)
+        results = []
+        with patches[0], patches[1], patches[2], patches[3], patches[4], \
+             mock.patch.object(native, "run_logged") as run:
+            worker = threading.Thread(target=lambda: results.append(native.build_native_harness(self.work)),
+                                      daemon=True)
+            worker.start()
+            worker.join(timeout=15)
+            blocked = worker.is_alive()
+            if blocked:  # release the blocked open so the thread can end
+                os.close(os.open(build_lock, os.O_RDWR | os.O_NONBLOCK))
+                worker.join(timeout=5)
+        self.assertFalse(blocked, "native build blocked on a FIFO lock")
+        self.assertEqual("failed", results[0]["status"])
+        self.assertIn("regular file", results[0]["error"])
+        run.assert_not_called()
 
     def test_windows_build_lock_is_released_when_the_build_fails(self):
         fake, host = self.windows_host()

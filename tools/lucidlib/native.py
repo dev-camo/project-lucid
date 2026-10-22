@@ -10,7 +10,7 @@ import shutil
 import uuid
 import xml.etree.ElementTree as ET
 
-from .bootstrap import (REPO_ROOT, ToolError, bootstrap, download_artifact,
+from .bootstrap import (REPO_ROOT, ToolError, bootstrap, open_coordinator_lock, download_artifact,
                         dotnet_environment, exclusive_lock, executable, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json, tool_work_dir,
                         seal_built_tool, verify_built_tool, retain_failure, unpack_archive, tree_seal)
@@ -121,7 +121,7 @@ def build_native_harness(work_dir: Path) -> dict:
         dotnet = executable(managed_path(tool_work_dir(work_dir), "tools", "dotnet", "dotnet"))
         build_lock = managed_path(work_dir, "native-recovery", ".build.lock")
         build_lock.parent.mkdir(parents=True, exist_ok=True)
-        with build_lock.open("a+b") as build_stream, exclusive_lock(build_stream):
+        with open_coordinator_lock(build_lock, "Native build lock") as build_stream, exclusive_lock(build_stream):
             artifact = host_lock(lock)["artifacts"]["cpp2il-source"]
             archive = download_artifact(artifact, work_dir)
             stage = managed_path(work_dir, "native-recovery", "builds", f".stage-{run_id}")

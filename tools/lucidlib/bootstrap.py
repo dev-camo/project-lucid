@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 import errno
 import hashlib
+import io
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -474,17 +475,18 @@ def _stop_tool(process: subprocess.Popen) -> None:
 
 
 def _open_log(path: Path):
-    """Open a log for truncating write; a hardlink or special file must not be truncated."""
-    flags = os.O_WRONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
-    descriptor = os.open(path, flags, 0o600)
+    """Open a log for truncating write; a link, hardlink or special file is refused untouched."""
     try:
-        info = os.fstat(descriptor)
-        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
-            raise ToolError(f"Log must be one regular file: {path}")
-        os.ftruncate(descriptor, 0)
-        return os.fdopen(descriptor, "w", encoding="utf-8")
+        binary = _open_lease(path, create=True, exclusive=False, label="Log")
+    except ToolError:
+        raise
+    except OSError as exc:
+        raise ToolError(f"Could not open log {path}: {exc}") from exc
+    try:
+        binary.truncate(0)
+        return io.TextIOWrapper(binary, encoding="utf-8")
     except BaseException:
-        os.close(descriptor)
+        binary.close()
         raise
 
 
@@ -635,7 +637,7 @@ def _open_lease(path: Path, *, create: bool, exclusive: bool = True, label: str 
     """
     if _is_link(path):
         raise ToolError(f"{label} must not be a link: {path}")
-    flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    flags = os.O_RDWR | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
     if create:
         flags |= os.O_CREAT | (os.O_EXCL if exclusive else 0)
     descriptor = os.open(path, flags, 0o600)

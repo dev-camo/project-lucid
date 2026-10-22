@@ -1,8 +1,10 @@
 """Synthetic workflow/filesystem controls; they do not prove a playable port."""
 import json
+import os
 from pathlib import Path
 import platform
 import plistlib
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -543,6 +545,23 @@ class PortTests(unittest.TestCase):
         self.assertNotEqual(0, result["exit_code"])
         self.assertEqual(1, self.stages.calls.count("playmode"))
         self.assertNotIn("build", self.stages.calls)
+
+    @unittest.skipUnless(hasattr(os, "mkfifo"), "needs FIFOs")
+    def test_project_lock_fifo_fails_promptly(self):
+        lock = self.root / ".cache/project-lucid/locks/port.lock"
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        os.mkfifo(lock)
+        script = ("import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]);"
+                  "from lucidlib import port; "
+                  "port._project_lock(Path(sys.argv[2])).__enter__()")
+        try:
+            result = subprocess.run([sys.executable, "-c", script, str(Path(port.__file__).parents[1]),
+                                     str(self.root)], capture_output=True, timeout=30,
+                                    stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            self.fail("port lock blocked on a FIFO")
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(b"regular file", result.stderr)
 
     def test_live_project_lock_prevents_another_attempt(self):
         with port._project_lock(self.root):
