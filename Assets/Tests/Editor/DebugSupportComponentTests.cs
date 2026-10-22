@@ -19,7 +19,11 @@ namespace ProjectLucid.Tests
     // Not covered: ConfluenceLinkButton.OpenLink (it opens the system browser), the drawing of FlightStaminaGizmoDisplay.OnDrawGizmos
     // and of DebugTargetingHomingAttack (the engine accepts Gizmos calls only inside its own gizmo callback), the rest of
     // DebugMenuPerformanceProfiles.AddDebugCustomPerformanceOptions after the profile exists (it reads the user's profile file) and
-    // UpdateCustomAttribute (it writes that file).
+    // UpdateCustomAttribute (it writes that file). Also not covered: the SetAttributes branch (0x55E776 tests the loaded profile's
+    // attribute count against zero, 0x55E787 gives it the serialized features): the file path is Application.persistentDataPath
+    // joined with the file name in a private static property, with no field to redirect, and a case may not create, move or delete
+    // the user's file, so whether the loaded profile has attributes is decided by that machine's file. The one case that loads the
+    // profile asserts only what holds either way, but it does read that file.
     public sealed class DebugSupportComponentTests
     {
         private static void SetSerialized(Object target, string field, Action<SerializedProperty> assign)
@@ -325,7 +329,8 @@ namespace ProjectLucid.Tests
         }
 
         // Without a custom profile the method loads or creates "UserPerformanceProfile" and appends it. It only reads the user's profile
-        // file; the profile it adds is destroyed here. The SetAttributes branch has its own case below.
+        // file (LoadOrCreate 0x06000d8e sets the name before it overwrites from an existing file, so the asserted name and type hold with or
+        // without one; a malformed user file would fail the case); the profile it adds is destroyed here.
         [Test]
         public void WithoutACustomProfileTheUserProfileIsAppended()
         {
@@ -350,43 +355,6 @@ namespace ProjectLucid.Tests
                 finally
                 {
                     foreach (PerformanceProfile profile in profiles.Skip(1)) Object.DestroyImmediate(profile);
-                }
-            });
-        }
-
-        // 0x55e776 tests the loaded profile's attribute count against zero and 0x55e787 gives it the serialized features, one attribute
-        // each at the Medium level (0) in array order. The user file cannot be redirected (the path is Application.persistentDataPath),
-        // and a case may not create, move or delete it, so the attributes are asserted only on a machine without that file; with one,
-        // the file decides the outcome and the branch stays unasserted.
-        [Test]
-        public void WithoutAUserProfileFileTheSerializedFeaturesBecomeMediumAttributesInOrder()
-        {
-            Owned.Run(owned =>
-            {
-                ScalablePerformance performance = owned.Register(owned.Host("Lucid scalable performance", false).AddComponent<ScalablePerformance>());
-                var profiles = new List<PerformanceProfile>();
-                Set(performance, "m_performanceProfiles", profiles); // Reflection: serialized list
-                var first = owned.Track(ScriptableObject.CreateInstance<ScalableFeature>());
-                first.ID = "Lucid feature A";
-                var second = owned.Track(ScriptableObject.CreateInstance<ScalableFeature>());
-                second.ID = "Lucid feature B";
-                var menu = owned.Host("Lucid performance profile menu", false).AddComponent<DebugMenuPerformanceProfiles>();
-                Set(menu, "m_scalableFeatures", new[] { first, second }); // Reflection: serialized array
-                bool userFileExists = File.Exists(Path.Combine(Application.persistentDataPath, "UserPerformanceProfile.json"));
-
-                try
-                {
-                    menu.AddDebugCustomPerformanceOptions(performance);
-
-                    Assert.That(profiles.Count, Is.EqualTo(1));
-                    if (userFileExists) return;
-                    var attributes = ((PerformanceProfileCustom)profiles[0]).Attributes;
-                    Assert.That(attributes.Select(attribute => attribute.Feature).ToArray(), Is.EqualTo(new[] { first, second }));
-                    Assert.That(attributes.Select(attribute => (int)attribute.Level).ToArray(), Is.EqualTo(new[] { 0, 0 }));
-                }
-                finally
-                {
-                    foreach (PerformanceProfile profile in profiles) Object.DestroyImmediate(profile);
                 }
             });
         }
