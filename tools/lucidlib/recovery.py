@@ -10,7 +10,7 @@ import plistlib
 import re
 import uuid
 
-from .bootstrap import (ToolError, bootstrap, dotnet_environment, exclusive_lock, executable, leased_build,
+from .bootstrap import (ToolError, NO_BUILD_SERVER_ARGS, bootstrap, dotnet_environment, exclusive_lock, executable, leased_build,
                         managed_path, open_coordinator_lock, run_logged, validate_work_dir, write_json,
                         tool_work_dir, verified_tool_path)
 from .inspection import sha256_file
@@ -175,7 +175,7 @@ def _managed_inspector(work_dir: Path, dotnet: Path, env: dict) -> tuple[Path, l
         project = stage / "RecoveryInspector.csproj"
         project.write_text(_INSPECTOR_PROJECT, encoding="utf-8")
         (stage / "Program.cs").write_text(_INSPECTOR_SOURCE, encoding="utf-8")
-        built = run_logged([str(dotnet), "build", str(project), "-c", "Release"],
+        built = run_logged([str(dotnet), "build", str(project), "-c", "Release", *NO_BUILD_SERVER_ARGS],
                            work_dir, "il-inspector-build.log", timeout=120, env=env, cwd=stage)
         if built["returncode"] or built["timed_out"] or not (stage / _INSPECTOR_ASSEMBLY).is_file():
             raise ToolError(f"Could not build the managed-output inspector: {built['log']}")

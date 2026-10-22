@@ -18,7 +18,7 @@ import subprocess
 import uuid
 
 from . import inputvariants, native, playercode, playerschema, recovery
-from .bootstrap import (dotnet_environment, host_lock, load_lock, managed_path,
+from .bootstrap import (NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path)
 from .inspection import sha256_file
@@ -437,7 +437,8 @@ def _build_reader(root, work, run, engine):
         command = [str(host), "build", str(project), "-c", "Release", "-o", str(output),
                    "-p:BaseIntermediateOutputPath=" + str(run / "obj") + os.sep,
                    "-p:NativeDependencyRoot=" + str(dependency),
-                   "-p:UnityManagedRoot=" + str(Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent)]
+                   "-p:UnityManagedRoot=" + str(Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent),
+                   *NO_BUILD_SERVER_ARGS]
         with (run / "build.log").open("xb") as log:
             process = subprocess.run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=300, cwd=work)
         reader = output / "ProjectLucid.CodeProgress.dll"

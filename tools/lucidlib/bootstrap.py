@@ -582,6 +582,13 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
             "timed_out": timed_out, "elapsed_seconds": round(time.monotonic() - started, 3)}
 
 
+# Tool-invoked `dotnet build`/`publish` must not leave MSBuild node-reuse, Roslyn
+# (VBCSCompiler) or Razor servers running from a temporary cache afterwards.
+# Output is unchanged. Every build call site appends these arguments.
+NO_BUILD_SERVER_ARGS = ["--disable-build-servers", "-nodeReuse:false", "-p:UseSharedCompilation=false",
+                        "-p:UseRazorBuildServer=false"]
+
+
 def dotnet_environment(work_dir: Path, dotnet_root: Path | None = None) -> dict:
     work_dir = tool_work_dir(work_dir)
     env = os.environ.copy()
@@ -599,7 +606,8 @@ def dotnet_environment(work_dir: Path, dotnet_root: Path | None = None) -> dict:
     if dotnet_root:
         env["DOTNET_ROOT"] = str(dotnet_root)
     env.update(DOTNET_SKIP_FIRST_TIME_EXPERIENCE="1", DOTNET_CLI_TELEMETRY_OPTOUT="1",
-               DOTNET_NOLOGO="1", DOTNET_MULTILEVEL_LOOKUP="0")
+               DOTNET_NOLOGO="1", DOTNET_MULTILEVEL_LOOKUP="0",
+               DOTNET_CLI_USE_MSBUILD_SERVER="0", MSBUILDDISABLENODEREUSE="1", UseSharedCompilation="false")
     return env
 
 
@@ -855,7 +863,7 @@ def _ensure_cpp2il(lock: dict, work_dir: Path) -> dict:
                 "-c", "Release", "-f", "net10.0", "-r", rid, "--self-contained", "true",
                 "-p:PublishSingleFile=true", "-p:PublishTrimmed=false", "-p:RestorePackagesWithLockFile=true",
                 "-p:SourceRevisionId=" + identity["commit"],
-                "-o", str(stage),
+                "-o", str(stage), *NO_BUILD_SERVER_ARGS,
             ], work_dir, "cpp2il-build.log", timeout=1200,
                 env=dotnet_environment(work_dir, dotnet_root), cwd=build_source)
             if process["returncode"] or process["timed_out"] or not executable(stage / "Cpp2IL").is_file():

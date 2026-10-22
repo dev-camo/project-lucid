@@ -12,7 +12,7 @@ import uuid
 import xml.etree.ElementTree as ET
 
 from .bootstrap import (REPO_ROOT, ToolError, bootstrap, open_coordinator_lock, download_artifact,
-                        dotnet_environment, exclusive_lock, executable, host_lock, load_lock, managed_path,
+                        NO_BUILD_SERVER_ARGS, dotnet_environment, exclusive_lock, executable, host_lock, load_lock, managed_path,
                         run_logged, validate_work_dir, write_json, tool_work_dir,
                         seal_built_tool, verify_built_tool, retain_failure, unpack_archive, tree_seal,
                         try_lock, unlock)
@@ -202,7 +202,7 @@ def build_native_harness(work_dir: Path, leases: ExitStack | None = None) -> dic
                 # SamboyDev feed; isolated HOME must not supply restore config.
                 "-p:RestoreAdditionalProjectSources=https://nuget.samboy.dev/v3/index.json",
                 "-p:Cpp2ILSource=" + str(build_source), "-p:Cpp2ILArchive=" + str(archive),
-                "-p:NativeRecoveryBuildRoot=" + str(stage / "build") + "/",
+                "-p:NativeRecoveryBuildRoot=" + str(stage / "build") + "/", *NO_BUILD_SERVER_ARGS,
             ], work_dir, f"native-build-{run_id}.log", timeout=600,
                 env=dotnet_environment(work_dir, dotnet.parent))
             report["process"] = process

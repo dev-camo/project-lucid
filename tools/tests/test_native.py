@@ -273,6 +273,9 @@ class NativeHelpersTests(unittest.TestCase):
             first = native.build_native_harness(self.work)
             self.assertEqual(first["status"], "ready")
             self.assertEqual(run.call_args.kwargs["timeout"], 600)
+            for flag in ("-nodeReuse:false", "-p:UseSharedCompilation=false"):
+                self.assertIn(flag, run.call_args.args[0])
+            self.assertEqual("1", run.call_args.kwargs["env"]["MSBUILDDISABLENODEREUSE"])
             reused = native.build_native_harness(self.work)
             self.assertTrue(reused["reused"])
             self.assertEqual(first["path"], reused["path"])

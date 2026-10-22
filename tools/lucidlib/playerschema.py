@@ -9,7 +9,7 @@ import subprocess
 import uuid
 
 from . import bindings, playercode
-from .bootstrap import (dotnet_environment, host_lock, load_lock, managed_path,
+from .bootstrap import (NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
@@ -173,7 +173,7 @@ def _build_reader(root, work, run, engine):
     log = managed_path(work, *run.relative_to(work).parts, "build.log")
     command = [str(host), "build", str(project), "--nologo", "-c", "Release",
                "-p:UnityManagedRoot=" + str(managed), "-p:BaseIntermediateOutputPath=" + str(intermediate) + os.sep,
-               "-p:OutputPath=" + str(output) + os.sep, "-p:GeneratePackageOnBuild=false"]
+               "-p:OutputPath=" + str(output) + os.sep, "-p:GeneratePackageOnBuild=false", *NO_BUILD_SERVER_ARGS]
     with log.open("xb") as stream:
         result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=env, cwd=work)
     if result.returncode: raise ValueError("Player metadata reader compilation failed; inspect its build log")
