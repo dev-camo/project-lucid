@@ -14,6 +14,27 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public sealed class UIContainerCollectionsMusic : UIContainer
     {
+        // Declared first in the original: the generated names (<>c__DisplayClass35_0, b__48_0) count it.
+        public readonly struct MusicTrackCache
+        {
+            public readonly int Number;
+            public readonly GameplayLevelDefinition LevelDefinition;
+            public readonly MusicTrackDefinition MusicTrackDefinition;
+            public readonly bool Unlocked;
+            public readonly bool IsNew;
+
+            // Game.Runtime060031c2; no validation or normalization.
+            public MusicTrackCache(int number, GameplayLevelDefinition levelDefinition,
+                MusicTrackDefinition musicTrackDefinition, bool unlocked, bool isNew)
+            {
+                Number = number;
+                LevelDefinition = levelDefinition;
+                MusicTrackDefinition = musicTrackDefinition;
+                Unlocked = unlocked;
+                IsNew = isNew;
+            }
+        }
+
         [SerializeField] private Animation m_animation;
         [SerializeField] private AnimationClip m_unlockAnimationClip;
         [SerializeField] private AnimationClip m_lockAnimationClip;
@@ -302,25 +323,5 @@ namespace HardlightProject
         // Game.Runtime060031c1: own field initializers run in declaration order
         // before the real UIContainer base. The active index remains zero.
         public UIContainerCollectionsMusic() { }
-
-        public readonly struct MusicTrackCache
-        {
-            public readonly int Number;
-            public readonly GameplayLevelDefinition LevelDefinition;
-            public readonly MusicTrackDefinition MusicTrackDefinition;
-            public readonly bool Unlocked;
-            public readonly bool IsNew;
-
-            // Game.Runtime060031c2; no validation or normalization.
-            public MusicTrackCache(int number, GameplayLevelDefinition levelDefinition,
-                MusicTrackDefinition musicTrackDefinition, bool unlocked, bool isNew)
-            {
-                Number = number;
-                LevelDefinition = levelDefinition;
-                MusicTrackDefinition = musicTrackDefinition;
-                Unlocked = unlocked;
-                IsNew = isNew;
-            }
-        }
     }
 }
