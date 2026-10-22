@@ -64,6 +64,9 @@ jobs:
     if: needs.gate.outputs.compile == 'true'
     runs-on: [self-hosted, Linux, X64, lucid-native]
     timeout-minutes: 40
+    outputs:
+      outcome: ${{ steps.compile.outputs.outcome }}
+      substituted: ${{ steps.compile.outputs.substituted }}
     permissions:
       contents: read
       pull-requests: read
@@ -81,7 +84,8 @@ jobs:
           persist-credentials: false
       - name: Use installed native toolchains
         run: echo '/opt/dotnet' >> "$GITHUB_PATH"
-      - env:
+      - id: compile
+        env:
           GH_TOKEN: ${{ github.token }}
         run: python3 controller/.github/scripts/main_progress.py pr-compile
       - name: Dispose this run's compilation checkouts
@@ -102,6 +106,8 @@ jobs:
     env:
       REQUEST_BASE64: ${{ needs.gate.outputs.request_base64 }}
       COMPILE_RESULT: ${{ needs.compile.result }}
+      COMPILE_OUTCOME: ${{ needs.compile.outputs.outcome }}
+      COMPILE_SUBSTITUTED: ${{ needs.compile.outputs.substituted }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:

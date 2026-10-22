@@ -22,12 +22,25 @@ REQUEST_FIELDS = {'head', 'control_commit'}
 GENERATED_PATHS = ('README.md', 'docs/code-progress.json')
 PR_COMPILATION_CONTEXT = 'Native compilation (PR head)'
 # needs.compile.result -> (state, description). Only a completed compile job may be
-# reported as success; skipped and cancelled jobs never are.
+# reported as success; skipped and cancelled jobs never are. A failed job is a compiler
+# failure only when pr_compile_job says so (see PR_COMPILE_OUTCOMES).
 PR_COMPILATION_RESULTS = {
     'success': ('success', 'Exact-head PR compilation verified'),
-    'failure': ('failure', 'Native compilation of this head failed'),
+    'failure': ('error', 'Native compilation job failed outside the compiler; see the linked run'),
     'cancelled': ('error', 'Native compilation was cancelled before it finished'),
     'skipped': ('error', 'Native compilation did not run'),
+}
+# The compile job's classification of its own failure, from a controller-written step
+# output (the compiler never receives GITHUB_OUTPUT). Anything else is "outside the compiler".
+PR_COMPILE_OUTCOMES = {
+    'compile_failed': ('failure', 'Native compilation of this head failed'),
+    'superseded_head': ('error', 'PR head advanced or PR closed during compilation; no result for this head'),
+    'superseded_control': ('error', 'Main advanced during compilation; push again to re-run for this head'),
+}
+PR_SUCCESS_SUBSTITUTED = 'Exact-head PR compilation verified; trusted reporting code replaced the PR\'s'
+PR_STALE_AT_REPORT = {
+    'head': 'Superseded before reporting: PR head advanced or PR closed; this head was not accepted',
+    'control': 'Compiled, but main advanced before reporting; push again to re-run for this head',
 }
 
 
@@ -162,18 +175,49 @@ def pr_gate(api, event):
     return request
 
 
+def pr_staleness(api, request):
+    """None when the PR head and control are current; else 'head' (head advanced, PR
+    closed or otherwise not this request's) or 'control' (head still current, main moved)."""
+    try:
+        shared.require_current_pr(api, request)
+        return None
+    except ValueError:
+        pass
+    try:
+        shared.require_pr_metadata(api.request(f"/repos/{REPOSITORY}/pulls/{request['pr']}"), request)
+    except ValueError:
+        return 'head'
+    return 'control'
+
+
 def pr_compile_job(api, request):
+    """Compile the PR head; the 'outcome' and 'substituted' step outputs let the report
+    job tell a compiler failure from stale state or a precondition failure."""
+    outputs = {'outcome': 'precondition', 'substituted': 'false'}
+    try:
+        pr_compile_steps(api, request, outputs)
+    finally:
+        shared.write_outputs(outputs)
+
+
+def pr_compile_steps(api, request, outputs):
+    def current():
+        stale = pr_staleness(api, request)
+        if stale:
+            outputs['outcome'] = 'superseded_' + stale
+            raise ValueError('PR head or control changed: ' + stale)
+
     if os.environ.get('GITHUB_EVENT_NAME') != 'workflow_run':
         raise ValueError('PR compilation requires its admitted workflow event')
     shared.require_workflow_context(request)
-    shared.require_current_pr(api, request)
+    current()
     run = shared.require_upstream_run(api, request)
     if run.get('conclusion') != 'success':
         raise ValueError('PR source checks must pass before compilation')
     root, control, source = prepare_job()
     shared.checkout(control, request['control_commit'])
     shared.checkout(source, request['head'])
-    shared.require_current_pr(api, request)
+    current()
     # PR reporting code never runs here: compile the PR's game code with the trusted
     # control's reporting code, and say exactly which paths were substituted.
     substituted = shared.driver.overlay_control_reporting_tools(source, control)
@@ -183,7 +227,12 @@ def pr_compile_job(api, request):
     fingerprint = artifact_fingerprint(source)
     command = compiler_command(control, source, request['head'], request['control_commit'], fingerprint, compile_only=True)
     with (root / 'private-driver-stderr.log').open('wb') as errors:
-        producer = json.loads(shared.run_compiler(command, source, errors, root / 'compiler-group.json'))
+        try:
+            output = shared.run_compiler(command, source, errors, root / 'compiler-group.json')
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            outputs['outcome'] = 'compile_failed'
+            raise
+        producer = json.loads(output)
     expected = {'head': request['head'], 'control_commit': request['control_commit'], 'image': shared.EDITOR,
                 'run_id': os.environ['GITHUB_RUN_ID'], 'source_fingerprint': fingerprint,
                 'compiler_receipt_sha256': producer.get('compiler_receipt_sha256')}
@@ -191,11 +240,13 @@ def pr_compile_job(api, request):
             or len(expected['compiler_receipt_sha256']) != 64
             or any(char not in '0123456789abcdef' for char in expected['compiler_receipt_sha256'])):
         raise ValueError('PR compilation receipt identity differs')
-    shared.require_current_pr(api, request)
+    current()
     shared.driver.require_control_reporting_tools(source, control)
     if shared.git_head(source) != request['head'] or artifact_fingerprint(source) != fingerprint:
         raise ValueError('PR source changed during compilation')
+    outputs['outcome'] = 'compiled'
     if substituted:
+        outputs['substituted'] = 'true'
         print('Exact-head PR game code compiled with trusted control reporting code; '
               'PR reporting changes need review and the post-merge main run: ' + ', '.join(substituted))
     else:
@@ -207,7 +258,10 @@ def pr_status(api, request, state, description):
 
     The workflow runs on main's SHA, so its own checks never show on the PR commit.
     Statuses are per-SHA: a head that advances starts with no result of its own.
-    The description and linked run say if trusted reporting code replaced the PR's.
+    The success description says if trusted reporting code replaced the PR's.
+    Recovery: a stuck pending (the report job failed; run attempts above 1 are rejected)
+    or an error for a superseded run is repaired by a new push or upstream run. A run the
+    gate declines posts nothing, because no validated request exists to name a head.
     """
     shared.validate_request(request)
     api.request(f"/repos/{REPOSITORY}/statuses/{request['head']}", 'POST', {
@@ -223,18 +277,21 @@ def pr_status_pending(api, request):
     pr_status(api, request, 'pending', 'Native compilation of this head is queued or running')
 
 
-def pr_status_final(api, request, compile_result):
+def pr_status_final(api, request, compile_result, outcome='', substituted=False):
     if os.environ.get('GITHUB_EVENT_NAME') != 'workflow_run':
         raise ValueError('PR compilation status requires its admitted workflow event')
     shared.require_workflow_context(request)
     state, description = PR_COMPILATION_RESULTS.get(
         compile_result, ('error', 'Native compilation ended without a recognised result'))
-    if state == 'success':
-        try:
-            shared.require_current_pr(api, request)
-        except ValueError:
+    if compile_result == 'failure':
+        state, description = PR_COMPILE_OUTCOMES.get(outcome, (state, description))
+    elif state == 'success':
+        if substituted:
+            description = PR_SUCCESS_SUBSTITUTED
+        stale = pr_staleness(api, request)
+        if stale:
             # Head advanced, PR closed or control moved: never leave a success behind.
-            state, description = 'error', 'Superseded before reporting; this head was not accepted'
+            state, description = 'error', PR_STALE_AT_REPORT[stale]
     pr_status(api, request, state, description)
 
 
@@ -383,7 +440,8 @@ def main():
     elif mode == 'pr-status-pending':
         pr_status_pending(api, request)
     elif mode == 'pr-status-final':
-        pr_status_final(api, request, os.environ['COMPILE_RESULT'])
+        pr_status_final(api, request, os.environ['COMPILE_RESULT'], os.environ.get('COMPILE_OUTCOME', ''),
+                        os.environ.get('COMPILE_SUBSTITUTED') == 'true')
     elif mode == 'seal':
         seal_job(api, request, json.loads(os.environ['COMPILE_OUTPUTS']))
     else:

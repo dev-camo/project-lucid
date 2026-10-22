@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -27,6 +28,8 @@ class API:
         self.identity = {'name': main.shared.BOT, 'email': '41898282+github-actions[bot]@users.noreply.github.com'}
         self.tree = None
         self.commit = None
+        self.pr = {'state': 'open', 'draft': False, 'head': {'sha': 'c' * 40, 'ref': 'feature', 'repo': {'full_name': 'fork/repo'}},
+                   'base': {'repo': {'full_name': main.REPOSITORY}}}
 
     def request(self, path, method='GET', body=None):
         call = {'path': path, 'method': method, 'body': copy.deepcopy(body)}
@@ -60,6 +63,8 @@ class API:
                 raise ValueError('Atomic non-fast-forward rejection')
             self.head = self.generated
             return {'object': {'sha': self.generated}}
+        if method == 'GET' and path == repo + '/pulls/7':
+            return copy.deepcopy(self.pr)
         if method == 'POST' and path.startswith(repo + '/statuses/'):
             return {}
         raise AssertionError('Unexpected API operation: ' + method + ' ' + path)
@@ -274,7 +279,6 @@ class MainProgressTests(unittest.TestCase):
             gate.return_value = {'head': self.api.parent, 'head_repository': 'fork/repo', 'head_ref': 'feature'}
             self.assertEqual(gate.return_value, main.pr_gate(self.api, {'workflow_run': {'event': 'pull_request', 'conclusion': 'success'}}))
 
-
     def pr_request(self):
         return {'pr': 7, 'head': 'c' * 40, 'control_commit': self.api.parent,
                 'head_repository': 'fork/repo', 'head_ref': 'feature', 'upstream_run': 9}
@@ -282,51 +286,98 @@ class MainProgressTests(unittest.TestCase):
     def statuses(self):
         return [call for call in self.api.calls if call['method'] == 'POST']
 
-    def report_pr(self, result, current=True):
+    def report_pr(self, result, outcome='', substituted=False):
         request = self.pr_request()
-        side_effect = None if current else ValueError('Stale, draft, closed or foreign PR rejected')
-        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}), \
-                mock.patch.object(main.shared, 'require_current_pr', side_effect=side_effect):
-            main.pr_status_final(self.api, request, result)
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
+            main.pr_status_final(self.api, request, result, outcome, substituted)
         return request
 
-    def test_pr_compilation_failure_is_visible_on_the_exact_head(self):
-        request = self.report_pr('failure')
+    def only_status(self, head=None):
         (call,) = self.statuses()
-        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
-        self.assertEqual(('failure', main.PR_COMPILATION_CONTEXT), (call['body']['state'], call['body']['context']))
-        self.assertTrue(call['body']['target_url'].endswith('/actions/runs/456'))
+        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{head or 'c' * 40}", call['path'])
+        self.assertEqual(main.PR_COMPILATION_CONTEXT, call['body']['context'])
+        return call['body']
+
+    def test_pr_compilation_compiler_failure_is_visible_on_the_exact_head(self):
+        request = self.report_pr('failure', 'compile_failed')
+        body = self.only_status(request['head'])
+        self.assertEqual(('failure', 'Native compilation of this head failed'), (body['state'], body['description']))
+        self.assertTrue(body['target_url'].endswith('/actions/runs/456'))
+
+    def test_pr_compilation_job_failure_outside_the_compiler_is_not_a_compiler_failure(self):
+        for outcome in ('', 'precondition', 'unknown', 'compiled'):
+            with self.subTest(outcome=outcome):
+                self.api.calls.clear()
+                self.report_pr('failure', outcome)
+                body = self.only_status()
+                self.assertEqual('error', body['state'])
+                self.assertNotIn('of this head failed', body['description'])
+
+    def test_pr_compilation_superseded_failure_names_what_moved(self):
+        self.report_pr('failure', 'superseded_head')
+        head = self.only_status()
+        self.api.calls.clear()
+        self.report_pr('failure', 'superseded_control')
+        control = self.only_status()
+        self.assertEqual(('error', 'error'), (head['state'], control['state']))
+        self.assertNotEqual(head['description'], control['description'])
+        self.assertIn('head advanced', head['description'])
+        self.assertIn('Main advanced', control['description'])
 
     def test_pr_compilation_success_only_for_a_completed_current_compile(self):
-        request = self.report_pr('success')
-        (call,) = self.statuses()
-        self.assertEqual('success', call['body']['state'])
-        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
+        self.report_pr('success')
+        body = self.only_status()
+        self.assertEqual(('success', 'Exact-head PR compilation verified'), (body['state'], body['description']))
+
+    def test_pr_compilation_success_says_when_trusted_reporting_code_replaced_the_prs(self):
+        self.report_pr('success', 'compiled', True)
+        self.assertEqual(main.PR_SUCCESS_SUBSTITUTED, self.only_status()['description'])
 
     def test_pr_compilation_skipped_cancelled_or_unknown_never_succeeds(self):
         for result in ('skipped', 'cancelled', '', 'unexpected'):
             with self.subTest(result=result):
                 self.api.calls.clear()
                 self.report_pr(result)
-                (call,) = self.statuses()
-                self.assertEqual('error', call['body']['state'])
+                self.assertEqual('error', self.only_status()['state'])
 
-    def test_pr_compilation_advanced_head_or_closed_pr_gets_no_success(self):
-        request = self.report_pr('success', current=False)
-        (call,) = self.statuses()
-        self.assertEqual('error', call['body']['state'])
-        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
-        self.assertEqual([], [c for c in self.statuses() if c['body']['state'] == 'success'])
+    def test_pr_compilation_advanced_head_gets_no_success_from_real_staleness_logic(self):
+        self.api.pr['head']['sha'] = 'd' * 40
+        request = self.report_pr('success')
+        body = self.only_status(request['head'])
+        self.assertEqual(('error', main.PR_STALE_AT_REPORT['head']), (body['state'], body['description']))
+
+    def test_pr_compilation_closed_pr_gets_no_success_from_real_staleness_logic(self):
+        self.api.pr['state'] = 'closed'
+        self.report_pr('success')
+        self.assertEqual(main.PR_STALE_AT_REPORT['head'], self.only_status()['description'])
+
+    def test_pr_compilation_moved_main_with_current_head_is_reported_as_control_moved(self):
+        self.api.head = 'e' * 40
+        self.report_pr('success')
+        body = self.only_status()
+        self.assertEqual(('error', main.PR_STALE_AT_REPORT['control']), (body['state'], body['description']))
+        self.assertEqual('control', main.pr_staleness(self.api, self.pr_request()))
+        self.api.head = self.api.parent
+        self.assertIsNone(main.pr_staleness(self.api, self.pr_request()))
 
     def test_pr_compilation_pending_status_targets_validated_head_only(self):
         request = self.pr_request()
-        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}), \
-                mock.patch.object(main.shared, 'require_current_pr') as current:
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
             main.pr_status_pending(self.api, request)
-        current.assert_called_once_with(self.api, request)
-        (call,) = self.statuses()
-        self.assertEqual('pending', call['body']['state'])
-        self.assertEqual(f"/repos/{main.REPOSITORY}/statuses/{request['head']}", call['path'])
+        body = self.only_status(request['head'])
+        self.assertEqual('pending', body['state'])
+
+    def test_pr_compilation_pending_status_is_not_posted_for_stale_or_closed_pr(self):
+        for name, change in (('closed', lambda: self.api.pr.update(state='closed')),
+                             ('advanced', lambda: self.api.pr['head'].update(sha='d' * 40)),
+                             ('main moved', lambda: setattr(self.api, 'head', 'e' * 40))):
+            with self.subTest(name):
+                self.setUp()
+                change()
+                with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
+                    with self.assertRaises(ValueError):
+                        main.pr_status_pending(self.api, self.pr_request())
+                self.assertEqual([], self.statuses())
 
     def test_pr_compilation_status_rejects_unvalidated_request_and_foreign_control(self):
         with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run'}):
@@ -337,25 +388,72 @@ class MainProgressTests(unittest.TestCase):
                 main.pr_status_final(self.api, request, 'success')
         self.assertEqual([], self.statuses())
 
+    def test_pr_compile_job_classifies_a_stale_control_as_superseded_not_a_compiler_failure(self):
+        self.api.head = 'e' * 40
+        output = self.base / 'output'
+        env = {'GITHUB_EVENT_NAME': 'workflow_run', 'GITHUB_OUTPUT': str(output)}
+        with mock.patch.dict(os.environ, env), \
+                mock.patch.object(main.shared, 'require_workflow_context'):
+            with self.assertRaises(ValueError):
+                main.pr_compile_job(self.api, self.pr_request())
+        self.assertEqual('outcome=superseded_control\nsubstituted=false\n', output.read_text())
+        self.api.head = self.api.parent
+        self.api.pr['head']['sha'] = 'd' * 40
+        output.unlink()
+        with mock.patch.dict(os.environ, env), mock.patch.object(main.shared, 'require_workflow_context'):
+            with self.assertRaises(ValueError):
+                main.pr_compile_job(self.api, self.pr_request())
+        self.assertEqual('outcome=superseded_head\nsubstituted=false\n', output.read_text())
+        self.assertEqual([], self.statuses())
+
+    def test_pr_compile_job_marks_only_a_failed_compiler_run_as_compile_failed(self):
+        output = self.base / 'output'
+        env = {'GITHUB_EVENT_NAME': 'workflow_run', 'GITHUB_OUTPUT': str(output), 'GITHUB_RUN_ID': '456'}
+        fake = {'conclusion': 'success'}
+        paths = (self.base / 'root', self.control, self.source)
+        (self.base / 'root').mkdir(exist_ok=True)
+        for failure, expected in ((subprocess.CalledProcessError(1, 'x'), 'compile_failed'),
+                                  (subprocess.TimeoutExpired('x', 1), 'compile_failed')):
+            with self.subTest(expected=expected):
+                output.unlink(missing_ok=True)
+                with mock.patch.dict(os.environ, env), \
+                        mock.patch.object(main.shared, 'require_workflow_context'), \
+                        mock.patch.object(main.shared, 'require_upstream_run', return_value=fake), \
+                        mock.patch.object(main, 'prepare_job', return_value=paths), \
+                        mock.patch.object(main.shared, 'checkout'), \
+                        mock.patch.object(main.shared, 'driver') as driver, \
+                        mock.patch.object(main, 'compiler_command', return_value=['x']), \
+                        mock.patch.object(main.shared, 'run_compiler', side_effect=failure), \
+                        mock.patch.dict(sys.modules, {'lucidlib.verification': mock.Mock(artifact_fingerprint=lambda _: 'f')}):
+                    driver.overlay_control_reporting_tools.return_value = []
+                    with self.assertRaises(type(failure)):
+                        main.pr_compile_job(self.api, self.pr_request())
+                self.assertEqual(f'outcome={expected}\nsubstituted=false\n', output.read_text())
+
     def test_pr_compilation_workflow_reports_with_isolated_write_token(self):
         text = (Path(__file__).resolve().parents[2] / '.github/workflows/pr-compilation.yml').read_text()
-        jobs = {}
-        for chunk in text.split('\njobs:\n', 1)[1].split('\n  ')[0:0] or []:
-            pass
-        sections = text.split('\njobs:\n', 1)[1].split('\n\n  ')
-        for section in sections:
-            name = section.strip().split(':', 1)[0]
-            jobs[name] = section
+        body = text.split('\njobs:\n', 1)[1]
+        parts = re.split(r'(?m)^  ([a-z]+):$', body)
+        jobs = dict(zip(parts[1::2], parts[2::2]))
         self.assertEqual({'gate', 'start', 'compile', 'report'}, set(jobs))
-        self.assertNotIn('statuses: write', jobs['compile'])
-        self.assertNotIn('statuses: write', jobs['gate'])
-        self.assertIn('statuses: write', jobs['start'])
-        self.assertIn('statuses: write', jobs['report'])
+
+        def permissions(job):
+            block = re.search(r'(?m)^    permissions:\n((?:      .+\n)+)', jobs[job]).group(1)
+            return dict(line.strip().split(': ') for line in block.splitlines())
+        def needs(job):
+            return re.search(r'(?m)^    needs: (.+)$', jobs[job]).group(1)
+        self.assertNotIn('statuses', permissions('compile'))
+        self.assertNotIn('statuses', permissions('gate'))
+        for job in ('start', 'report'):
+            self.assertEqual({'contents': 'read', 'pull-requests': 'read', 'statuses': 'write'}, permissions(job))
+        self.assertEqual('[gate, start]', needs('compile'))
+        self.assertEqual('[gate, compile]', needs('report'))
+        self.assertEqual('gate', needs('start'))
         self.assertIn('always()', jobs['report'])
         self.assertIn('needs.compile.result', jobs['report'])
+        self.assertIn('needs.compile.outputs.outcome', jobs['report'])
         self.assertIn('runs-on: ubuntu-24.04', jobs['report'])
         self.assertIn('self-hosted', jobs['compile'])
-
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
