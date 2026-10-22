@@ -30,8 +30,27 @@ internal static class Program
         "Raw ISIL is an initial instruction translation, may contain unsupported or inferred instructions, and does not establish recovered managed semantics."
     ];
 
+    // Pinned Cpp2IL formats default parameter values in method signatures with
+    // the current culture (Il2CppParameterReflectionData.ToString), so the host
+    // locale leaked into the evidence: en-US printed float.PositiveInfinity as
+    // "∞", an unset LANG on Linux gave "Infinity" (#425). The reviewed schema
+    // content holds the en-US rendering; this fixed culture reproduces it on
+    // every host without depending on ICU or the user's locale. Every other
+    // number in the signatures ('.', '-', "E+38", "NaN") is the same in the
+    // invariant culture and en-US.
+    private static CultureInfo EvidenceCulture()
+    {
+        var culture = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        culture.NumberFormat.PositiveInfinitySymbol = "∞";
+        culture.NumberFormat.NegativeInfinitySymbol = "-∞";
+        return CultureInfo.ReadOnly(culture);
+    }
+
     public static int Main(string[] arguments)
     {
+        var culture = EvidenceCulture();
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.DefaultThreadCurrentUICulture = culture;
+        CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = culture;
         try
         {
             var args = Parse(arguments);

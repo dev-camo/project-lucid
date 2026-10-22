@@ -174,6 +174,43 @@ class NativeHelpersTests(unittest.TestCase):
                 self.assertEqual(report["status"], "failed")
                 self.assertIn("differs", report["error"])
 
+    def signature_runner(self, *signatures):
+        def runner(command, *args, **kwargs):
+            output = Path(command[command.index("--output") + 1])
+            output.mkdir(parents=True)
+            value = self.evidence("schemas")
+            value["assemblies"][0]["types"][0]["methods"] = [
+                {"declaring_type": "UnityEngine.PhysicsScene", "name": "Raycast", "signature": signature}
+                for signature in signatures]
+            (output / "report.json").write_text(json.dumps(value))
+            return {"returncode": 0, "timed_out": False, "log": "culture.log"}
+        return runner
+
+    def test_host_culture_float_defaults_are_rejected(self):
+        # #425: an unset LANG on Linux printed float.PositiveInfinity as
+        # "Infinity" where the reviewed en-US rendering is "\u221e".
+        prefix = "System.Boolean Raycast(UnityEngine.Vector3 origin, System.Single maxDistance = "
+        for value in ("Infinity", "-Infinity", "1,5", "\u22121", "+\u221e"):
+            with self.subTest(value=value):
+                report, _ = self.invoke(self.signature_runner(
+                    prefix + value + ", System.Int32 layerMask = -5)"))
+                self.assertEqual(report["status"], "failed")
+                self.assertIn("host-culture float default", report["error"])
+                self.assertFalse((self.work / "native-recovery/latest-schemas.json").exists())
+
+    def test_reviewed_float_default_renderings_are_ready(self):
+        # Renderings present in the reviewed schema content, plus a string
+        # default whose text is not a number and must not be inspected.
+        signatures = [
+            "System.Boolean Raycast(System.Single maxDistance = \u221e, System.Int32 layerMask = -5)",
+            "System.Void M(System.Single a = NaN, System.Single b = -3.4028235E+38, System.Single c = 1E-45)",
+            "System.Void M(System.Double a = 9.999999747378752E-05, System.Double b = 1.415)",
+            "System.Void M(System.Single a = -0.02)",
+            "System.Void M(System.String text = Infinity, System.Int32 count = -1)",
+        ]
+        report, _ = self.invoke(self.signature_runner(*signatures))
+        self.assertEqual(report["status"], "ready", report.get("error"))
+
     def test_native_body_tampering_is_rejected(self):
         def runner(command, *args, **kwargs):
             process = self.runner(command, *args, **kwargs)

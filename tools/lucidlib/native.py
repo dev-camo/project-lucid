@@ -271,6 +271,25 @@ def _selection(metadata: dict, assembly: str | None, token: str | int | None) ->
     return assembly, token
 
 
+# Pinned Cpp2IL prints floating-point parameter defaults in method signatures
+# with the harness culture (#425). The harness fixes that culture; this rejects
+# any other rendering (for example "Infinity", a decimal comma or U+2212) so a
+# host-dependent schema never becomes ready evidence.
+_FLOAT_DEFAULT = re.compile(r"System\.(?:Single|Double) \S+ = (.*?)(?=, |\)$)")
+_FLOAT_LITERAL = re.compile(r"-?(?:∞|NaN|[0-9]+(?:\.[0-9]+)?(?:E[+-][0-9]+)?)")
+
+
+def _check_signature_culture(evidence: dict) -> None:
+    for item in evidence.get("assemblies", []):
+        for type_ in item.get("types", []):
+            for method in type_.get("methods", []):
+                signature = method.get("signature") or ""
+                for value in _FLOAT_DEFAULT.findall(signature):
+                    if not _FLOAT_LITERAL.fullmatch(value):
+                        raise ToolError("Native schema signature has a host-culture float default: "
+                                        f"{value!r} in {method.get('declaring_type')}.{method.get('name')}")
+
+
 def _validate_evidence(evidence: dict, command: str, source: dict, assembly: str | None,
                        token: str | None, directory: Path, work_dir: Path, expected_assemblies: set[str]) -> None:
     expected = {"schema_version": 1, "command": command, "cpp2il_pin": _PIN,
@@ -291,6 +310,7 @@ def _validate_evidence(evidence: dict, command: str, source: dict, assembly: str
             raise ToolError("Native schema assembly coverage differs from the selected original metadata")
         if evidence.get("errors") and evidence["status"] == "ready":
             raise ToolError("Native schema reported readiness despite decode failures")
+        _check_signature_culture(evidence)
         for item in evidence["assemblies"]:
             for type_ in item.get("types", []):
                 if evidence["status"] == "ready" and type_.get("schema_complete") is not True:
