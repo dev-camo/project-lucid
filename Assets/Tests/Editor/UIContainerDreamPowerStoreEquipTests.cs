@@ -148,13 +148,13 @@ namespace ProjectLucid.Tests
             rig.Widgets[power].Widget.Action_OnToggleIsOn(true);
         }
 
-        // Chooses the power, puts the store in slot selection and finishes the equip in the slot. The finish refreshes the powers,
-        // which selects the chosen power again through its widget: two more refused callbacks.
+        // Chooses the power, puts the store in slot selection and finishes the equip in the slot. The equip requests a save and the
+        // refresh after it selects the chosen power again through its widget: three more refused coroutines.
         private static void EquipInSlot(Rig rig, int power, int slot)
         {
             Choose(rig, power);
             rig.Store.Browsing.Value = false;
-            Refused(2);
+            Refused(3);
             rig.Store.Action_FinishEquip(slot);
         }
 
@@ -175,7 +175,7 @@ namespace ProjectLucid.Tests
                 rig.Store.Browsing.Value = false;
                 rig.Store.ActionAvailable.Value = false;
                 Assert.That(rig.Animation.IsPlaying(rig.BrowseClip.name), Is.False);
-                Refused(2);
+                Refused(3); // the save request and the two re-selections
 
                 rig.Store.Action_FinishEquip(2);
 
@@ -199,7 +199,7 @@ namespace ProjectLucid.Tests
                 EquipInSlot(rig, power, 1);
                 Assert.That(EquippedSlots(rig), Is.EqualTo(new[] { false, true, false }), "set up through the equip flow");
                 rig.Animation.Stop();
-                Refused(2);
+                Refused(3); // the save request and the two re-selections
 
                 rig.Store.Action_FinishEquip(1);
 
@@ -209,7 +209,7 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Animation.IsPlaying(rig.BrowseClip.name), Is.False);
                 Assert.That(rig.Animation.IsPlaying(rig.SlotClip.name), Is.False);
 
-                Refused(2);
+                Refused(3); // the save request and the two re-selections
                 rig.Store.Action_FinishEquip(2);
 
                 Assert.That(EquippedSlots(rig), Is.EqualTo(new[] { false, false, true }), "an empty slot takes the power");
@@ -257,7 +257,7 @@ namespace ProjectLucid.Tests
             {
                 int power = AddPower(rig, true);
                 EquipInSlot(rig, power, 1);
-                Refused(2);
+                Refused(3); // the save request and the two re-selections
 
                 rig.Store.Action_DoAction();
 
@@ -296,8 +296,8 @@ namespace ProjectLucid.Tests
                 Choose(rig, power);
                 Assert.That(rig.Store.Purchasable.Value, Is.True);
                 var save = rig.World.Scene.Save.CurrentSave;
-                // Purchase and the refresh after it each re-select the power, and so does the refresh of the action itself.
-                Refused(4);
+                // The purchase requests a save, and the refresh after it and the refresh of the action itself each re-select the power.
+                Refused(5);
 
                 rig.Store.Action_DoAction();
 
