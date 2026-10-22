@@ -69,9 +69,9 @@ namespace ProjectLucid.CodeGen
                 for (int i = 0; i < 2; ++i)
                 {
                     var field = type.Fields[i]; var property = type.Properties[i]; var getter = type.Methods[1 + i * 2]; var setter = type.Methods[2 + i * 2];
-                    Require(field.Name == "<" + properties[i] + ">k__BackingField" && (int)field.Attributes == 1 && !field.HasConstant && !field.HasMarshalInfo && !field.HasLayoutInfo && field.RVA == 0 && (field.InitialValue == null || field.InitialValue.Length == 0) && field.CustomAttributes.Count == 1,
+                    Require(field.Name == "<" + properties[i] + ">k__BackingField" && (int)field.Attributes == 1 && !field.HasConstant && !field.HasMarshalInfo && !field.HasLayoutInfo && field.RVA == 0 && (field.InitialValue == null || field.InitialValue.Length == 0) && DebugBackingFieldAttribute.Original(field).Count == 1,
                         "Changed ribbon backing field.");
-                    Type(field.FieldType, types[i]); Marker(field.CustomAttributes[0], Generated);
+                    Type(field.FieldType, types[i]); Marker(DebugBackingFieldAttribute.Original(field)[0], Generated);
                     Require(property.Name == properties[i] && property.Attributes == 0 && property.Parameters.Count == 0 && property.CustomAttributes.Count == 0 && property.OtherMethods.Count == 0 && property.GetMethod == getter && property.SetMethod == setter,
                         "Changed ribbon property linkage/order.");
                     Type(property.PropertyType, types[i]);

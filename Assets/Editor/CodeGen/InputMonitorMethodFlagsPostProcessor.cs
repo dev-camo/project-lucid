@@ -392,7 +392,7 @@ namespace ProjectLucid.CodeGen
         private static string AdditionalFieldKey(FieldDefinition f, TypeDefinition owner)
         {
             Require(!f.HasMarshalInfo, "Changed additional field marshal."); ExtraScope(f.FieldType, owner);
-            return f.Name + "|" + (int)f.Attributes + "|" + TypeKey(f.FieldType) + "|" + ConstantKey(f.HasConstant, f.Constant) + "|" + f.Offset + "|" + BitConverter.ToString(f.InitialValue).Replace("-", "") + "|" + AttributeKey(f.CustomAttributes, owner);
+            return f.Name + "|" + (int)f.Attributes + "|" + TypeKey(f.FieldType) + "|" + ConstantKey(f.HasConstant, f.Constant) + "|" + f.Offset + "|" + BitConverter.ToString(f.InitialValue).Replace("-", "") + "|" + AttributeKey(DebugBackingFieldAttribute.Original(f), owner);
         }
         private static string AdditionalMethodKey(MethodDefinition m, ushort flags, TypeDefinition owner)
         {
@@ -485,8 +485,9 @@ namespace ProjectLucid.CodeGen
                     : method.Name == "get_Priority" ? "<Priority>k__BackingField"
                     : method.Name == "get_AllowRemapping" ? "m_allowRemapping"
                     : method.Name == "get_ForcedBinding" ? "m_forcedBinding" : "m_fallbackInputType";
-                Require(b.CodeSize == 7 && b.MaxStackSize == 8 && !b.InitLocals && b.Variables.Count == 0 && b.ExceptionHandlers.Count == 0 && ins.Count == 3 && ins[0].OpCode.Code == Code.Ldarg_0 && ins[1].OpCode.Code == Code.Ldfld && ins[2].OpCode.Code == Code.Ret && ins.Select(i => i.Offset).SequenceEqual(new[] { 0, 1, 6 }), "Changed additional getter physical body/header/locals/EH.");
-                CheckSelfField(ins[1].Operand as FieldReference, owner, owner.Fields.Single(f => f.Name == name)); return;
+                bool debugBody = DebugAccessorBody.IsReturnField(method, owner.Module);
+                Require((b.CodeSize == 7 && b.MaxStackSize == 8 && !b.InitLocals && b.Variables.Count == 0 && b.ExceptionHandlers.Count == 0 && ins.Count == 3 && ins[0].OpCode.Code == Code.Ldarg_0 && ins[1].OpCode.Code == Code.Ldfld && ins[2].OpCode.Code == Code.Ret && ins.Select(i => i.Offset).SequenceEqual(new[] { 0, 1, 6 })) || debugBody, "Changed additional getter physical body/header/locals/EH.");
+                CheckSelfField(ins[debugBody ? 2 : 1].Operand as FieldReference, owner, owner.Fields.Single(f => f.Name == name)); return;
             }
             bool add = method.Name.StartsWith("add_", StringComparison.Ordinal); string eventName = method.Name.Substring(add ? 4 : 7);
             var e = owner.Events.Single(v => v.Name == eventName); var field = owner.Fields.Single(f => f.Name == eventName);
