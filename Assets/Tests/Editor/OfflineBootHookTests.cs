@@ -234,8 +234,9 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // Arm waits on the scene loaded event for the named scene only, and leaves the event at that scene. A scene
-        // with no splash VideoPlayer gets no call.
+        // Arm records the Boot state for the shared wait (H-056 reads it when the splash player is bound), waits on
+        // the scene loaded event for the named scene only, and leaves the event at that scene. A scene with no
+        // splash VideoPlayer gets no call and keeps the record, so a bound player in it would still wait on Boot.
         [Test]
         public void ArmWaitsForTheNamedSceneAndLeavesTheEventThere()
         {
@@ -246,9 +247,11 @@ namespace ProjectLucid.Tests
             FiniteStateMachine graph = Machine();
             var boot = (FSMState)FSMState.ConstructInstance(graph, Name(), string.Empty);
             var armed = new System.Collections.Generic.List<Delegate>();
+            Assert.That(OfflineSplashBootWait.IsArmed, Is.False, "no foreign Boot state is armed");
             VerificationFixtureOwnership.RunThenCleanUp(() =>
             {
                 OfflineAppleSplash.Arm(boot, User(), active.name);
+                Assert.That(OfflineSplashBootWait.IsArmed, Is.True, "Boot is recorded for the shared wait");
                 Delegate named = Added(loaded, before, armed);
                 Assert.That(named.Method.DeclaringType.FullName, Is.EqualTo("ProjectLucid.Offline.OfflineAppleSplash+PendingSplash"));
                 Assert.That(named.Method.Name, Is.EqualTo("OnSceneLoaded"));
@@ -262,9 +265,11 @@ namespace ProjectLucid.Tests
                 named.DynamicInvoke(active, LoadSceneMode.Additive);
                 Assert.That(Handlers(loaded), Has.No.Member(named), "the named scene ends the wait");
                 Assert.That(Handlers(loaded), Has.Member(other));
+                Assert.That(OfflineSplashBootWait.IsArmed, Is.True, "no listener call was made, so the record stays");
             },
             () =>
             {
+                OfflineSplashBootWait.Disarm();
                 foreach (Delegate handler in armed)
                     SceneManager.sceneLoaded -= (UnityEngine.Events.UnityAction<Scene, LoadSceneMode>)handler;
             });

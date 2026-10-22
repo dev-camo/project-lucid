@@ -3,7 +3,9 @@ using System.Collections;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Apple.Arcade.SplashScreen;
 using Apple.Arcade.SplashScreen.Interfaces;
@@ -14,6 +16,11 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.TestTools;
 using UnityEngine.Video;
+using FiniteStateMachine = Hardlight.FiniteStateMachine;
+using FSMState = Hardlight.FSMState;
+using FSMStorage = Hardlight.FSMStorage;
+using FSMUser = Hardlight.FSMUser;
+using IFSMState = Hardlight.IFSMState;
 using static ProjectLucid.Tests.WorldTriggerTestSupport;
 
 namespace ProjectLucid.Tests
@@ -231,13 +238,15 @@ namespace ProjectLucid.Tests
         }
 
         // Hook H-056. Start 0x0600000b (0x425c10) caches the frame rate, loads the video and plays it; the
-        // event fires only when the video ends. Offline on a desktop target Start caches the frame rate and
-        // runs OnVideoCompleted at once: the frame rate is restored to the cached value (not zeroed), the
-        // scene's persistent listener is raised exactly once, and no clip is loaded or played.
+        // event fires only when the video ends. Offline on a desktop target with no Boot state armed, Start
+        // caches the frame rate and runs OnVideoCompleted at once: the frame rate is restored to the cached
+        // value (not zeroed), the scene's persistent listener is raised exactly once, and no clip is loaded or
+        // played. The host is inactive, so a coroutine request would log a refusal and fail the case.
         [Test]
         public void StartSkipsTheSplashThroughTheOriginalCompletionPathOnADesktopTarget()
         {
             Assert.That(OfflineDesktopPlatform.IsCurrent, Is.True, "the verification editor is a desktop target");
+            Assert.That(OfflineSplashBootWait.IsArmed, Is.False, "no Boot state is armed");
             WithPlayer((player, video, fired) =>
             {
                 Application.targetFrameRate = 144;
@@ -280,7 +289,7 @@ namespace ProjectLucid.Tests
             string[] expected =
             {
                 "OfflineAdapters.get_Active", "OfflineDesktopPlatform.get_IsCurrent", "Application.get_targetFrameRate",
-                "SplashScreenPlayer.OnVideoCompleted",
+                "Action..ctor", "OfflineSplashBootWait.CompleteAfterBoot",
                 "Application.get_targetFrameRate", "ResourcesSplashScreenVideoProvider..ctor",
                 "ResourcesSplashScreenVideoProvider.GetSplashScreenVideo", "VideoPlayer.set_clip",
                 "Application.set_targetFrameRate", "VideoPlayer.add_loopPointReached", "VideoPlayer.set_sendFrameReadyEvents",
@@ -293,6 +302,107 @@ namespace ProjectLucid.Tests
                 Assert.That(next, Is.GreaterThan(at), name + " follows the previous call in IL order: " + string.Join(", ", names));
                 at = next;
             }
+            // The completion handed to the shared wait is the original OnVideoCompleted, not one of its two
+            // identical siblings, and it is only loaded as a pointer: the hook never calls it directly. The
+            // original's own loop-point and frame-ready subscriptions follow, in that order.
+            byte[] il = moveNext.GetMethodBody().GetILAsByteArray();
+            MethodBase[] loaded = OriginalILCallSequence.Instructions(moveNext)
+                .Where(instruction => instruction.Code == OpCodes.Ldftn || instruction.Code == OpCodes.Ldvirtftn)
+                .Select(instruction => moveNext.Module.ResolveMethod(BitConverter.ToInt32(il, instruction.Offset + 2)))
+                .ToArray();
+            Assert.That(loaded, Is.EqualTo(new MethodBase[]
+            {
+                typeof(SplashScreenPlayer).GetMethod("OnVideoCompleted", Any),
+                typeof(SplashScreenPlayer).GetMethod("OnLoopPointReached", Any),
+                typeof(SplashScreenPlayer).GetMethod("OnVideoPlayerReady", Any),
+            }));
+            Assert.That(names, Has.No.Member("SplashScreenPlayer.OnVideoCompleted"));
+        }
+
+        // Runs body with a test boot graph whose user is in its Boot state, armed as ApplicationStateBoot (H-064)
+        // arms it; the record is cleared afterwards.
+        private static void WithArmedBoot(Action<FiniteStateMachine, IFSMState, FSMUser> body)
+        {
+            Assert.That(OfflineSplashBootWait.IsArmed, Is.False, "no foreign Boot state is armed");
+            VerificationFixtureOwnership.RunThenCleanUp(() =>
+            {
+                var graph = new FiniteStateMachine("Lucid-splash-boot-" + Guid.NewGuid().ToString("N"), skipAddToManager: true);
+                IFSMState boot = FSMState.ConstructInstance(graph, "Boot-" + Guid.NewGuid().ToString("N"), string.Empty);
+                var user = new FSMUser(new FSMStorage(0));
+                graph.InitialiseUser(user, null, boot);
+                OfflineSplashBootWait.Arm(graph, boot, user);
+                body(graph, boot, user);
+            },
+            OfflineSplashBootWait.Disarm);
+        }
+
+        // H-056 with the player bound and the boot graph still in Boot: Start does not complete (no event, frame
+        // rate untouched, no clip) but hands the rest of the wait to a coroutine on the player, and consumes the
+        // armed record. On the inactive host the coroutine is refused with Unity's log, which is the witness
+        // that one was requested. A second player then finds no record and completes at once.
+        [Test]
+        public void ABoundPlayerDoesNotCompleteWhileTheBootGraphIsInBoot()
+        {
+            WithArmedBoot((graph, boot, user) => WithPlayer((player, video, fired) =>
+            {
+                Application.targetFrameRate = 144;
+                LogAssert.Expect(LogType.Error, new Regex("Coroutine couldn't be started"));
+                Call(player, "Start");
+                Assert.That(fired[0], Is.EqualTo(0), "no completion while the graph is in Boot");
+                Assert.That(Get<int>(player, "m_cachedTargetFrameRate"), Is.EqualTo(144));
+                Assert.That(Application.targetFrameRate, Is.EqualTo(144));
+                Assert.That(video.clip, Is.Null);
+                Assert.That(video.isPlaying, Is.False);
+                Assert.That(OfflineSplashBootWait.IsArmed, Is.False, "the record is consumed");
+                LogAssert.NoUnexpectedReceived();
+
+                Call(player, "Start");
+                Assert.That(fired[0], Is.EqualTo(1), "an unarmed Start does not wait on a stale graph");
+            }));
+        }
+
+        // H-056 when the graph has already left Boot by the time the player starts: the completion runs at once
+        // and no coroutine is requested (no refusal is logged on the inactive host).
+        [Test]
+        public void ABoundPlayerCompletesAtOnceWhenTheGraphHasLeftBoot()
+        {
+            WithArmedBoot((graph, boot, user) => WithPlayer((player, video, fired) =>
+            {
+                graph.InitialiseUser(user, null, FSMState.ConstructInstance(graph, "WaitForApple-" + Guid.NewGuid().ToString("N"), string.Empty));
+                Application.targetFrameRate = 144;
+                Call(player, "Start");
+                Assert.That(fired[0], Is.EqualTo(1));
+                Assert.That(Application.targetFrameRate, Is.EqualTo(144));
+                Assert.That(OfflineSplashBootWait.IsArmed, Is.False);
+                LogAssert.NoUnexpectedReceived();
+            }));
+        }
+
+        // The shared wait with the player's own completion: while the user is in Boot each frame yields and
+        // nothing fires; once the graph moves on, OnVideoCompleted restores the cached frame rate and raises the
+        // event exactly once, and the wait ends.
+        [Test]
+        public void TheBoundCompletionRunsOnceAfterTheGraphLeavesBoot()
+        {
+            WithArmedBoot((graph, boot, user) => WithPlayer((player, video, fired) =>
+            {
+                Set(player, "m_cachedTargetFrameRate", 77);
+                Application.targetFrameRate = 30;
+                var completion = (Action)Delegate.CreateDelegate(typeof(Action), player, typeof(SplashScreenPlayer).GetMethod("OnVideoCompleted", Any));
+                IEnumerator wait = OfflineSplashBootWait.WhileInBoot(graph, boot, user, completion);
+                for (int frame = 0; frame < 3; frame++)
+                {
+                    Assert.That(wait.MoveNext(), Is.True, "still in Boot, frame " + frame);
+                    Assert.That(fired[0], Is.EqualTo(0));
+                    Assert.That(Application.targetFrameRate, Is.EqualTo(30));
+                }
+                graph.InitialiseUser(user, null, FSMState.ConstructInstance(graph, "WaitForApple-" + Guid.NewGuid().ToString("N"), string.Empty));
+                Assert.That(wait.MoveNext(), Is.False);
+                Assert.That(fired[0], Is.EqualTo(1));
+                Assert.That(Application.targetFrameRate, Is.EqualTo(77));
+                Assert.That(wait.MoveNext(), Is.False);
+                Assert.That(fired[0], Is.EqualTo(1), "the wait completes once");
+            }));
         }
     }
 }

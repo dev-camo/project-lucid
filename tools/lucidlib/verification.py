@@ -10710,4 +10710,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalAppleArcadeSplashScreenTests
     "StartSkipsTheSplashThroughTheOriginalCompletionPathOnADesktopTarget",
     "OnlyDesktopTargetsSkipTheSplash",
     "StartKeepsTheOriginalBodyAfterTheGuard",
+    "ABoundPlayerDoesNotCompleteWhileTheBootGraphIsInBoot",
+    "ABoundPlayerCompletesAtOnceWhenTheGraphHasLeftBoot",
+    "TheBoundCompletionRunsOnceAfterTheGraphLeavesBoot",
 ))

@@ -24,9 +24,11 @@ namespace ProjectLucid.Offline
     // there. This adapter runs the same listener call once the graph has left Boot: when s_apple has
     // loaded and the boot graph's active state is no longer the Boot state, it calls Action_Unload(true)
     // on the listener component. Waiting for the graph to leave Boot matters because the default save
-    // is loaded synchronously by Boot, so Action_Unload(true) unloads at once; unloading before Boot has
-    // seen AppleLoaded would leave the graph in Boot. When the splash player is bound (a component of
-    // that type is in the scene), H-056 runs its own completion path and this adapter does nothing.
+    // is loaded synchronously by Boot, so Action_Unload(true) starts the unload at once; unloading
+    // before Boot has seen AppleLoaded would leave the graph in Boot. The wait is
+    // OfflineSplashBootWait (HLUnityCore.Runtime), shared with H-056: Arm records the Boot state there
+    // too, and when the splash player is bound (a component of that type is in the scene) H-056 runs
+    // its own completion path through that record once Boot is left, and this adapter does nothing.
     public static class OfflineAppleSplash
     {
         private const string SplashPlayerTypeName = "Apple.Arcade.SplashScreen.SplashScreenPlayer";
@@ -34,6 +36,7 @@ namespace ProjectLucid.Offline
         // Called from the Boot state before its original body loads the scene.
         public static void Arm(FSMState bootState, IGraphUser user, string sceneName)
         {
+            OfflineSplashBootWait.Arm(bootState.FSM, bootState, user);
             SceneManager.sceneLoaded += new PendingSplash(bootState, user, sceneName).OnSceneLoaded;
         }
 
@@ -64,9 +67,7 @@ namespace ProjectLucid.Offline
         public static IEnumerator CompleteAfterBoot(FiniteStateMachine fsm, IFSMState bootState, IGraphUser user,
             UnloadSceneAfterFirstBoot listener)
         {
-            while (ReferenceEquals(fsm.GetActiveState(user), bootState))
-                yield return null;
-            listener.Action_Unload(true);
+            return OfflineSplashBootWait.WhileInBoot(fsm, bootState, user, () => listener.Action_Unload(true));
         }
 
         private sealed class PendingSplash
@@ -88,6 +89,8 @@ namespace ProjectLucid.Offline
                 SceneManager.sceneLoaded -= OnSceneLoaded;
                 UnloadSceneAfterFirstBoot listener = FindSplashListener(scene.GetRootGameObjects());
                 if (listener == null) return;
+                // This adapter makes the call, so the bound-player record is not needed.
+                OfflineSplashBootWait.Disarm();
                 // The coroutine lives on the listener, so it ends with the scene.
                 listener.StartCoroutine(CompleteAfterBoot(m_bootState.FSM, m_bootState, m_user, listener));
             }

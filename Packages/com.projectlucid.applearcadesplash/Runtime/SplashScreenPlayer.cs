@@ -32,17 +32,17 @@ namespace Apple.Arcade.SplashScreen
 
         private async void Start()
         {
-            // Offline hook H-056: the original loaded the Apple Arcade splash video from Resources and
-            // played it, firing m_onPlayerLoopPointReached when the video ended. On every desktop target
-            // (owner decision D7) the splash is skipped instead: the same frame-rate restore and the same
-            // event of the original completion path run at once, so the scene's persistent listener
-            // (UnloadSceneAfterFirstBoot.Action_Unload) unloads s_apple and the boot graph leaves
-            // WaitForApple through its own AppleUnloaded transition. No video is loaded or played and no
-            // event is invented. Other targets keep the original behaviour.
+            // Offline hook H-056: the original loaded and played the Apple Arcade splash video and fired
+            // m_onPlayerLoopPointReached when it ended, seconds later. On every desktop target (decision D7)
+            // no video is loaded or played; the original completion (OnVideoCompleted: frame-rate restore,
+            // then the event) runs once the boot graph has left Boot (OfflineSplashBootWait, shared with
+            // H-064). Run at once, its listener Action_Unload(true) would start unloading s_apple before the
+            // graph saw it loaded, leaving the graph in Boot. No event is invented; other targets keep the
+            // original behaviour.
             if (OfflineAdapters.Active && OfflineDesktopPlatform.IsCurrent)
             {
                 m_cachedTargetFrameRate = Application.targetFrameRate;
-                OnVideoCompleted();
+                OfflineSplashBootWait.CompleteAfterBoot(this, OnVideoCompleted);
                 return;
             }
             m_cachedTargetFrameRate = Application.targetFrameRate;
