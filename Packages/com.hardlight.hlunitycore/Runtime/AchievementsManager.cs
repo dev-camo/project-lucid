@@ -25,9 +25,18 @@ namespace Hardlight.Utils
         }
 
         // Original06001115 with original two captured callbacks06001119/111a.
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
         private void Initialise(object _)
         {
+#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
+            // Offline hook: the local adapter replaces the platform sync below. The original
+            // code stays compiled, so its two lambdas keep their original generated names
+            // (<Initialise>b__8_0 and b__8_1), but it is unreachable while the adapter is active.
+            if (ProjectLucid.Offline.LocalAchievementRuntime.AdapterActive)
+            {
+                ProjectLucid.Offline.LocalAchievementRuntime.Initialise(this, m_achievements, RaiseOnPlatformSyncComplete);
+                return;
+            }
+#endif
             if (Social.localUser.authenticated)
             {
                 Social.LoadAchievementDescriptions(retrievedDescriptions =>
@@ -72,12 +81,6 @@ namespace Hardlight.Utils
                 OnPlatformSyncComplete();
             }
         }
-#else
-        private void Initialise(object _)
-        {
-            ProjectLucid.Offline.LocalAchievementRuntime.Initialise(this, m_achievements, () => OnPlatformSyncComplete());
-        }
-#endif
 
         // Original06001116 deliberately reads the readonly-dictionary indexer twice.
         #if PROJECT_LUCID_ORIGINAL_GAMECENTER
@@ -131,6 +134,17 @@ namespace Hardlight.Utils
         private void Shutdown(object objectContext)
         {
             ProjectLucid.Offline.LocalAchievementRuntime.Shutdown(this, m_achievements);
+        }
+#endif
+
+#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
+        // Offline adapter member, declared after every original member so the compiler's member
+        // ordinals (and the original generated names) are unchanged. It raises the event for the
+        // adapter's Initialise, as a method group instead of a lambda so the adapter adds no
+        // generated member to Initialise.
+        private void RaiseOnPlatformSyncComplete()
+        {
+            OnPlatformSyncComplete();
         }
 #endif
     }

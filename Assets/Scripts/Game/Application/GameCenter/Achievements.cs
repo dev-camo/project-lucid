@@ -30,15 +30,6 @@ namespace HardlightProject
         private CollectableManager m_collectableManager;
         private CharacterManager m_characterManager;
         private SaveManager m_saveManager;
-#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
-        private ProjectLucid.Offline.LocalAchievementSaveBinding m_offlineSaveBinding;
-        private bool m_offlineStopped;
-        private ProjectLucid.Offline.LocalAchievementManagerLease m_offlineManagerLease;
-        private BossManager m_offlineBossManager;
-        private MissionManager m_offlineMissionManager;
-        private ChallengeManager m_offlineChallengeManager;
-        private MissionManager m_offlineProgressionMissionManager;
-#endif
         private int[] m_bonusZone1ActsAchieveSRank = new int[] { 0, 1, 2, 3 };
 
         #if PROJECT_LUCID_ORIGINAL_GAMECENTER
@@ -56,7 +47,7 @@ namespace HardlightProject
             m_offlineSaveBinding = null;
             m_offlineStopped = false;
             m_offlineManagerLease = ProjectLucid.Offline.LocalGameAchievements.Prepare(app, AddAllAchievements,
-                StopOfflineAchievementSubscriptions, () => m_offlineSaveBinding != null && m_offlineSaveBinding.IsOpen);
+                StopOfflineAchievementSubscriptions, IsOfflineSaveBindingOpen);
             m_achievementsManager = m_offlineManagerLease.Manager;
             ProjectLucid.Offline.LocalProfilePresentation.BindAchievements(m_achievementsManager);
             m_offlineManagerLease.Start();
@@ -568,7 +559,56 @@ namespace HardlightProject
             finally { ProjectLucid.Offline.LocalProfilePresentation.UnbindAchievements(); }
         }
 #endif
+
+        [Conditional("BUILD_DEVELOPMENT")]
+        private void AddDebugButtons()
+        {
+            // The shipped retail body still enumerates and deconstructs each pair.
+            foreach (var (achievementID, achievement) in m_achievementsManager.Achievements)
+            {
+            }
+        }
+
+        [AOT.MonoPInvokeCallback(typeof(Action<bool, string>))]
+        public static void IssueChallengeCompletedCallback(bool success, string error)
+        {
+            if (!string.IsNullOrEmpty(error))
+            {
+                HLOutput.LogError("AchievementsManager IssueChallenge failed - could not issue challenge: " + error + ".", null);
+            }
+        }
+
+        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
+        private static void ResetAchievements()
+        {
+            GameCenterPlatform.ResetAllAchievements(null);
+        }
+#else
+        private static void ResetAchievements()
+        {
+            throw new InvalidOperationException("Offline achievement reset requires explicit local profile reset policy.");
+        }
+#endif
+
+        public Achievements()
+        {
+        }
+
+        // Offline adapter members sit after the original members so the compiler's member
+        // ordinals (and with them the generated lambda and closure names) stay the original's.
 #if !PROJECT_LUCID_ORIGINAL_GAMECENTER
+        private ProjectLucid.Offline.LocalAchievementSaveBinding m_offlineSaveBinding;
+        private bool m_offlineStopped;
+        private ProjectLucid.Offline.LocalAchievementManagerLease m_offlineManagerLease;
+        private BossManager m_offlineBossManager;
+        private MissionManager m_offlineMissionManager;
+        private ChallengeManager m_offlineChallengeManager;
+        private MissionManager m_offlineProgressionMissionManager;
+#endif
+#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
+        // Method group instead of a lambda, so Initialise gains no generated member the original lacks.
+        private bool IsOfflineSaveBindingOpen() => m_offlineSaveBinding != null && m_offlineSaveBinding.IsOpen;
+
         // Called by the normal Update/Shutdown boundary, outside save-listener dispatch.
         internal void DrainOfflineSaveListenerRemoval() => m_offlineSaveBinding?.DrainPendingRemoval();
 
@@ -604,39 +644,5 @@ namespace HardlightProject
             if (m_saveManager != null) m_saveManager.OnLoadCompleted -= AddSaveDataAchievements;
                 }
 #endif
-
-        [Conditional("BUILD_DEVELOPMENT")]
-        private void AddDebugButtons()
-        {
-            // The shipped retail body still enumerates and deconstructs each pair.
-            foreach (var (achievementID, achievement) in m_achievementsManager.Achievements)
-            {
-            }
-        }
-
-        [AOT.MonoPInvokeCallback(typeof(Action<bool, string>))]
-        public static void IssueChallengeCompletedCallback(bool success, string error)
-        {
-            if (!string.IsNullOrEmpty(error))
-            {
-                HLOutput.LogError("AchievementsManager IssueChallenge failed - could not issue challenge: " + error + ".", null);
-            }
-        }
-
-        #if PROJECT_LUCID_ORIGINAL_GAMECENTER
-        private static void ResetAchievements()
-        {
-            GameCenterPlatform.ResetAllAchievements(null);
-        }
-#else
-        private static void ResetAchievements()
-        {
-            throw new InvalidOperationException("Offline achievement reset requires explicit local profile reset policy.");
-        }
-#endif
-
-        public Achievements()
-        {
-        }
     }
 }
