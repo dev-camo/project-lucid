@@ -1726,7 +1726,8 @@ namespace HardlightProject
             Quaternion objectRotation = Quaternion.FromToRotation(Vector3.up, -GravityNormalised);
             IReadOnlyCollection<GravitySource> gravitySources = m_customGravity.GetSources();
             origin.y += extentX;
-            pool.TriggerCascade(CascadeObjectType.Ring, Mathf.Abs(amount), origin, WorldRotation,
+            // Native 0x734b26/0x734b28: negl/cmovs, so int.MinValue passes through unchanged (Mathf.Abs would throw on Mono).
+            pool.TriggerCascade(CascadeObjectType.Ring, unchecked(amount < 0 ? -amount : amount), origin, WorldRotation,
                 velocity, objectRotation, gravitySources);
             Audio.PlayOneShot(ActorAudioTypes.Ring_Drop);
         }

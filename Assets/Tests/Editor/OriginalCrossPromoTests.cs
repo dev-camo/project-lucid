@@ -370,6 +370,22 @@ namespace ProjectLucid.Tests
             Assert.That(ParseMain("[" + Image("only", width, height * 4) + "]").URL, Is.EqualTo("only"));
         }
 
+        // TryParseMainImage 0x1A11A90 takes |screenHeight - height| as negl/cmovs (0x1A11E29/0x1A11E2B),
+        // so a difference of int.MinValue stays negative instead of throwing (Math.Abs(int) throws on
+        // Mono). With height = screenHeight + int.MinValue the difference wraps to int.MinValue; the
+        // second identical image has an equal ratio and compares float |screenHeight - bestHeight|
+        // against the negative value, so it replaces the first.
+        [Test]
+        public void MainImageHeightDifferenceOfIntMinValueDoesNotThrow()
+        {
+            RequireScreen(out int width, out int height);
+            int wrappedWidth = width + int.MinValue;
+            int wrappedHeight = height + int.MinValue;
+            string images = "[" + Image("first", wrappedWidth, wrappedHeight) + "," +
+                Image("second", wrappedWidth, wrappedHeight) + "]";
+            Assert.That(ParseMain(images).URL, Is.EqualTo("second"));
+        }
+
         // DummyDll TypeDef 0x02000008: flags, attributes, the literal PlatformSuffix and the 14
         // MethodDef rows 0x0600003e..0x0600004b with their flags and parameter defaults.
         [Test]

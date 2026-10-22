@@ -616,13 +616,28 @@ namespace ProjectLucid.Tests
         }
 
         // MathAbs 0x1A02C30 inlines Mathf.Abs(int) (init flag Mathf_Abs_..._inline at 0x319EAD6;
-        // neg/cmovs). int.MinValue is left out: IL2CPP returns it unchanged, Editor Mono throws.
+        // neg/cmovs, 0x1A02C9D/0x1A02C9F). int.MinValue is covered separately below.
         // MathFloor 0x1A04200 inlines Mathf.FloorToInt (init flag Mathf_FloorToInt_..._inline at
         // 0x319EA98; roundss 0x9, cvttss2si), flooring rather than truncating. MathMax maxss
         // 0x1a04595 and MathMin minss 0x1a04d35 have Mathf.Max/Min semantics (the presumed
         // source; no inline marker proves the call): a > b ? a : b / a < b ? a : b, so a NaN
         // First yields Second and a NaN Second yields NaN (System.Math would return NaN both
         // ways). MathMaxInt calls System.Math.Max(int, int) (0x1a0497b).
+        [Test]
+        public void AbsPublishesIntMinValueUnchangedAndKeepsOrdinaryMagnitudes()
+        {
+            MathAbs abs = Node<MathAbs>();
+            Bind(abs.Input, "Int1");
+            int[] absIn = { 0, 7, -7, int.MaxValue, int.MinValue };
+            int[] absOut = { 0, 7, 7, int.MaxValue, int.MinValue };
+            for (int i = 0; i < absIn.Length; i++)
+            {
+                carrier.Int1 = carrier.Recording("Input", absIn[i]);
+                Assert.DoesNotThrow(abs.Refresh, "abs " + absIn[i]);
+                Assert.AreEqual(absOut[i], abs.Output.Value, "abs " + absIn[i]);
+            }
+        }
+
         [Test]
         public void AbsFloorMaxAndMinFollowTheirUnityAndSystemForms()
         {

@@ -260,12 +260,14 @@ namespace Hardlight
             return str + (OpString.i + minutesText + ':' + secondsText);
         }
 
-        // 0x06000319 (0x1ab53a0). IL2CPP lowers Math.Abs(int) to its unchecked
-        // intrinsic here, so int.MinValue does not throw on the shipped player.
+        // 0x06000319 (0x1ab53a0). The native absolute value is mov/negl/cmovs
+        // (0x1ab5417/0x1ab541a) with no overflow path, so int.MinValue stays
+        // int.MinValue. Math.Abs(int) would throw on Mono; the unchecked
+        // negate-if-negative form keeps the native result there too.
         private static string Get0PlaceholderFormat(int number, int digitCount)
         {
             string text = string.Empty;
-            int absoluteNumber = Math.Abs(number);
+            int absoluteNumber = unchecked(number < 0 ? -number : number);
             int numberDigitCount = number == 0 ? 1 : (int)Math.Floor(Math.Log10(absoluteNumber)) + 1;
             for (int i = 0; i < digitCount - numberDigitCount; i++)
             {

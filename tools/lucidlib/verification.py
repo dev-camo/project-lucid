@@ -1909,6 +1909,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalCrossPromoTests." + name for
     "AdsKeepListOrderAndDropMissingDisabledOrIncompleteEntries",
     "MainImageOfExactlyTheScreenSizeWins",
     "MainImagePrefersTheClosestRatioThenTheClosestHeight",
+    "MainImageHeightDifferenceOfIntMinValueDoesNotThrow",
     "ParserDeclarationsKeepOriginalFlagsOrderAndDefaults",
 ))
 
@@ -3553,6 +3554,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLUnityCoreExtensionsTests.ToSnakeSplitsCaseRunsDigitGroupsAndSeparatorsAsShipped",
     "ProjectLucid.Tests.OriginalHLUnityCoreExtensionsTests.AddSpacesSeparatesWordsAndCapitalRunsButNotAfterSpaces",
     "ProjectLucid.Tests.OriginalHLUnityCoreExtensionsTests.Format0PlaceholderTimePadsAbsolutePartsWithOneLeadingSign",
+    "ProjectLucid.Tests.OriginalHLUnityCoreExtensionsTests.Format0PlaceholderTimeDoesNotThrowForIntMinValue",
     "ProjectLucid.Tests.OriginalHLUnityCoreExtensionsTests.SmallStringHelpersKeepTheirNullAndBoundaryOrder",
     "ProjectLucid.Tests.OriginalHLUnityCoreExtensionsTests.ClassificationAndWhitespaceHelpersMatchTheNativeScans",
     "ProjectLucid.Tests.OriginalHLUnityCoreExtensionsTests.CharacterFiltersHonourTheirExceptionLists",
@@ -4814,6 +4816,7 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalLogicMathNodeTests." + name 
     "IntegerAndLongArithmeticWrapsAndKeepsOperandOrder",
     "FloatArithmeticKeepsOperandOrder",
     "DivideUsesFloatDivisionAndOnlyTheLongFormGuardsZero",
+    "AbsPublishesIntMinValueUnchangedAndKeepsOrdinaryMagnitudes",
     "AbsFloorMaxAndMinFollowTheirUnityAndSystemForms",
     "ListLengthCountsTheListAndKeepsThePreviousLengthWithoutOne",
     "ProgressWithAStartTimeClampsOnlyAtTheEnd",

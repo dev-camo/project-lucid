@@ -126,6 +126,32 @@ namespace ProjectLucid.Tests
             Assert.That(string.Empty.Format0PlaceholderTime(10, 59), Is.EqualTo("10:59"));
         }
 
+        // Get0PlaceholderFormat 0x1ab53a0 takes the absolute value as negl/cmovs
+        // (0x1ab5417/0x1ab541a) with no overflow path, so int.MinValue must not
+        // throw. Where log10 of the unchanged negative value is NaN the x86-64
+        // cvttsd2si gives int.MinValue, the digit-count subtraction wraps negative
+        // and no padding is added; OpString then appends only the sign. The ARM64
+        // NaN-to-int conversion differs and no arm64 slice is available, so the
+        // exact string is asserted on x86-64 only.
+        [Test]
+        public void Format0PlaceholderTimeDoesNotThrowForIntMinValue()
+        {
+            Assert.That(string.Empty.Format0PlaceholderTime(0, 7), Is.EqualTo("00:07"));
+            Assert.That(string.Empty.Format0PlaceholderTime(7, 7), Is.EqualTo("07:07"));
+            Assert.That(string.Empty.Format0PlaceholderTime(-7, 7), Is.EqualTo("-07:07"));
+            Assert.That(string.Empty.Format0PlaceholderTime(int.MaxValue, 7), Is.EqualTo("2147483647:07"));
+
+            string minutesMin = null;
+            string secondsMin = null;
+            Assert.DoesNotThrow(() => minutesMin = string.Empty.Format0PlaceholderTime(int.MinValue, 7));
+            Assert.DoesNotThrow(() => secondsMin = string.Empty.Format0PlaceholderTime(7, int.MinValue));
+            if (System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture == System.Runtime.InteropServices.Architecture.X64)
+            {
+                Assert.That(minutesMin, Is.EqualTo("--:07"));
+                Assert.That(secondsMin, Is.EqualTo("-07:-"));
+            }
+        }
+
         // Truncate 0x06000312, TrimEndString 0x06000321, TryGetCharacter 0x06000317,
         // IsIndexValid 0x06000322: TryGetCharacter tests a negative index before
         // touching the text, so only a non-negative index throws on null.

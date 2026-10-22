@@ -18,8 +18,10 @@ namespace Hardlight.UI.Binding.Nodes
 		// 0600011c (1.10.1 RVA 0x1A02C30)
 		public override void Refresh()
 		{
-			// Inlined Mathf.Abs(int): neg/cmovs with no overflow throw for int.MinValue under IL2CPP.
-			Output.Value = Mathf.Abs(Input.GetValue<int>());
+			// Native 0x1A02C9D/0x1A02C9F: negl/cmovs with no overflow path, so int.MinValue is published
+			// unchanged. Mathf.Abs(int) would throw on Mono; the unchecked form keeps the native result.
+			int value = Input.GetValue<int>();
+			Output.Value = unchecked(value < 0 ? -value : value);
 		}
 
 		// 0600011d (1.10.1 RVA 0x1A02D00)
