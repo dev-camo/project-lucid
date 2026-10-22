@@ -178,9 +178,12 @@ namespace ProjectLucid.Tests
                 Set(spawner, "m_prefabsToSpawn", new[] { first, second });
                 Set(spawner, "m_spawnPoint", point.transform);
 
+                // Clones are owned by identity: only objects absent from the baseline taken before the spawn are claimed.
+                var baseline = new HashSet<int>(Object.FindObjectsOfType<Transform>(true).Select(transform => transform.gameObject.GetInstanceID()));
                 spawner.Spawn();
                 GameObject[] Clones(string prefab) => Object.FindObjectsOfType<Transform>(true)
-                    .Where(transform => transform.name == prefab + "(Clone)").Select(transform => transform.gameObject).ToArray();
+                    .Where(transform => transform.name == prefab + "(Clone)" && !baseline.Contains(transform.gameObject.GetInstanceID()))
+                    .Select(transform => transform.gameObject).ToArray();
                 GameObject[] firstClones = Clones(first.name), secondClones = Clones(second.name);
                 clones.AddRange(firstClones);
                 clones.AddRange(secondClones);

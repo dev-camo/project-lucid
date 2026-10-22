@@ -19,6 +19,21 @@ namespace ProjectLucid.Tests
     // divide fault in the original (idiv at 0x636248) that this edit-mode host cannot reproduce faithfully.
     public sealed class UIContainerGameTipsTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private static readonly Strings[] ThreeTips = { (Strings)0x101, (Strings)0x102, (Strings)0x103 };
 
         // Literal string-table content, so a shown tip is checked against text and not against another lookup.

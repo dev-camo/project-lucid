@@ -19,6 +19,11 @@ namespace ProjectLucid
         public static int RunManaged() { Execute(); return checks; }
         private static void Execute()
         {
+            // The unique proof names are registered in GraphNameLookup; the scope removes exactly those on every exit.
+            using (new SyntheticGraphNameScope("ProjectLucid-Unload-state-proof-")) ExecuteChecks();
+        }
+        private static void ExecuteChecks()
+        {
             checks = 0;
             Type type = typeof(ApplicationStateUnloadBoot);
             Check(type.BaseType == typeof(FSMState) && type.IsPublic && !type.IsSealed, "original state base/visibility");

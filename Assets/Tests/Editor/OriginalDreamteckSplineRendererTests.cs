@@ -324,18 +324,19 @@ namespace ProjectLucid.Tests
             WithCurrentThenMain(
                 current =>
                 {
+                    // The fixture already tracks the Awake mesh; the first Start replaces it, so the replacement is tracked too.
                     DreamteckGeneratorFixture.Invoke(renderer, "Start");
+                    _fixture.Track(DreamteckGeneratorFixture.MeshOf(renderer));
                     Assert.That(DreamteckGeneratorFixture.Field<bool>(renderer, "_orthographic"), Is.False, "the perspective current camera");
                 },
                 main =>
                 {
                     TS_Mesh before = Ts(renderer);
-                    Mesh oldMesh = DreamteckGeneratorFixture.MeshOf(renderer);
                     DreamteckGeneratorFixture.Invoke(renderer, "Start");
-                    UnityEngine.Object.DestroyImmediate(oldMesh);
                     Assert.That(DreamteckGeneratorFixture.Field<bool>(renderer, "_orthographic"), Is.True, "the orthographic main camera");
                     Assert.That(Ts(renderer), Is.Not.SameAs(before));
                     Assert.That(DreamteckGeneratorFixture.MeshOf(renderer).name, Is.EqualTo("Mesh"));
+                    _fixture.Track(DreamteckGeneratorFixture.MeshOf(renderer));
                 });
         }
 

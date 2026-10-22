@@ -38,7 +38,7 @@ namespace ProjectLucid.Tests
             return owner.AddComponent<MeshGenerator>();
         }
 
-        // The ctor 0x49e3b0 field initialisers and the cctor 0x49e4c0 (__uvs starts at zero), read before any build. In play mode
+        // The ctor 0x49e3b0 field initialisers (the cctor 0x49e4c0 zero of __uvs is asserted by the EditMode TypeInitializerStartsTheUvScratchAtZero), read before any build. In play mode
         // Awake builds at once (buildOnAwake is on and Application.isPlaying is true: SplineUser.Awake ends in RebuildImmediate), so the pre-build values are
         // observed on an inactive object, which gets no Awake until it is activated; activating then builds and arms the
         // collider update. The EditMode test of the same name covers the editor branch (Reset and Awake build on AddComponent).
@@ -69,7 +69,7 @@ namespace ProjectLucid.Tests
             Assert.That(DreamteckGeneratorFixture.Field<float>(generator, "_lastUpdateTime"), Is.EqualTo(0f));
             Assert.That(DreamteckGeneratorFixture.TsMeshOf(generator), Is.Null, "no mesh before the first build");
             Assert.That(DreamteckGeneratorFixture.MeshOf(generator) == null, Is.True);
-            Assert.That(typeof(MeshGenerator).GetField("__uvs", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null), Is.EqualTo(Vector2.zero));
+            Assert.That(typeof(MeshGenerator).GetField("__uvs", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null), Is.EqualTo(_fixture.UvsBaseline));
             Assert.That(Invoke(generator, "get_meshName"), Is.EqualTo("Mesh"));
 
             owner.SetActive(true);

@@ -20,6 +20,21 @@ namespace ProjectLucid.Tests
     // spawning of the group, the Projectile.Fire() call of the spawned projectiles, and the OneAtATime GetSpline error log.
     public sealed class BossProjectileAbilityTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private const ActorAttachPointType SpawnAttach = ActorAttachPointType.Boss_Crab_Body_VulnerablePoint;
 
         private sealed class ProjectileScene
@@ -86,6 +101,22 @@ namespace ProjectLucid.Tests
             object[] arguments = { index, default(ProjectileType) };
             Call(ability, "DecideProjectileType", arguments);
             return (ProjectileType)arguments[1];
+        }
+
+        // Decide with a seeded draw. The native body 0x6fd96b-0x6fd992 draws Random.Range(0, 1) (both ends inclusive), computes
+        // (index + 1) / count and takes the returnable only when that is strictly greater than the draw (ucomiss, seta). The
+        // draw is read from the same seed first, so the expected type is the restated predicate, not a hope about the draw.
+        private static ProjectileType DecideSeeded(object ability, int index, int seed, out float draw)
+        {
+            UnityEngine.Random.InitState(seed);
+            draw = UnityEngine.Random.Range(0f, 1f);
+            UnityEngine.Random.InitState(seed);
+            return Decide(ability, index);
+        }
+
+        private static ProjectileType ExpectedType(int index, int count, float draw)
+        {
+            return (index + 1f) / count > draw ? ProjectileType.GuardianReturnableProjectile : ProjectileType.GuardianKillerProjectile;
         }
 
         // ---- the shared base ----
@@ -525,7 +556,8 @@ namespace ProjectLucid.Tests
         }
 
         // 06000b00: the returning projectile is chosen only in the groups that carry one and only while none was chosen; the last
-        // projectile of the group is always the returning one (its chance is one), the others are killers. The choice sticks.
+        // projectile of the group is the returning one whenever the draw is below its chance (n / n = 1; the comparison is strict
+        // and Random.Range(0, 1) is inclusive, so a draw of exactly 1 would give a killer), the others are killers. The choice sticks.
         [Test]
         public void OneAtATimeDecidesTheReturningProjectile()
         {
@@ -541,7 +573,10 @@ namespace ProjectLucid.Tests
 
                 ability.Enter();
                 ability.Leave(); // leaving counts the group: 2
-                Assert.That(Decide(ability, 2), Is.EqualTo(ProjectileType.GuardianReturnableProjectile), "the last of the group is always chosen");
+                ProjectileType last = DecideSeeded(ability, 2, 17, out float draw);
+                Assert.That(draw, Is.LessThan(1f), "the seed draws below one, so the last of the group has the winning chance");
+                Assert.That(last, Is.EqualTo(ExpectedType(2, 3, draw)));
+                Assert.That(last, Is.EqualTo(ProjectileType.GuardianReturnableProjectile), "the last of the group is chosen for a draw below one");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.True);
                 Assert.That(Decide(ability, 0), Is.EqualTo(ProjectileType.GuardianKillerProjectile), "once chosen the rest are killers");
                 Assert.That(Get<bool>(ability, "m_hasReturningProjectile"), Is.True);

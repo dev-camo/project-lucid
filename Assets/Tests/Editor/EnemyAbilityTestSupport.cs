@@ -103,6 +103,7 @@ namespace ProjectLucid.Tests
                 Animator = Owned.Host(Name(), true).AddComponent<Animator>();
                 var controller = Owned.Track(new AnimatorController());
                 controller.AddLayer("Base");
+                Owned.Track(controller.layers[0].stateMachine);
                 controller.AddParameter("Speed", AnimatorControllerParameterType.Float);
                 controller.AddParameter("Lateral", AnimatorControllerParameterType.Float);
                 controller.AddParameter("Turning", AnimatorControllerParameterType.Bool);

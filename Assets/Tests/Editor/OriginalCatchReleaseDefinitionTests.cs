@@ -188,9 +188,9 @@ namespace ProjectLucid.Tests
         {
             var events = new CatchReleaseDefinition_Catch.Events();
             var log = new List<string>();
-            events.m_onEnter.AddListener(value => log.Add("enter " + value));
-            events.m_onUpdateConstraints.AddListener(value => log.Add("constraints " + value));
-            events.m_onExit.AddListener(value => log.Add("exit " + value));
+            events.m_onEnter.AddListener(value => log.Add("enter " + value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            events.m_onUpdateConstraints.AddListener(value => log.Add("constraints " + value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            events.m_onExit.AddListener(value => log.Add("exit " + value.ToString(System.Globalization.CultureInfo.InvariantCulture)));
             events.m_onReset.AddListener(() => log.Add("reset"));
 
             events.OnEnter(3.5f);

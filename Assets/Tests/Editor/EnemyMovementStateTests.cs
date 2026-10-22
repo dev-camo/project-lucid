@@ -28,12 +28,12 @@ namespace ProjectLucid.Tests
 
             public override AbilityDefinition DefinitionBase => Definition;
 
-            public override void UpdateMovement(float deltaTime) => Calls.Add("UpdateMovement " + deltaTime);
+            public override void UpdateMovement(float deltaTime) => Calls.Add("UpdateMovement " + deltaTime.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
             public override void UpdateMovementAnimation(ActorAnimationDefinition animation) =>
                 Calls.Add("UpdateMovementAnimation " + (animation == null ? "null" : animation.name));
 
-            public override void UpdateVisualProxyMovement(float deltaTime) => Calls.Add("UpdateVisualProxyMovement " + deltaTime);
+            public override void UpdateVisualProxyMovement(float deltaTime) => Calls.Add("UpdateVisualProxyMovement " + deltaTime.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         private static string AbilityJson() => "{\"AbilityType\":" + (int)AbilityType + "}";

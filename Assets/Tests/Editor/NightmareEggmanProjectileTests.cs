@@ -24,6 +24,21 @@ namespace ProjectLucid.Tests
     // sampled curve of ReturnToPlayerSplinePosition other than constants.
     public sealed class NightmareEggmanProjectileTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private const float PlayerDistance = 40f;
         private const float PositionTolerance = 0.1f;
         // A sweep from a collider reports that collider too (the cast starts inside it), so the visual behaviour sits on the

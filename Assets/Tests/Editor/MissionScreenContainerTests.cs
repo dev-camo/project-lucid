@@ -449,7 +449,11 @@ namespace ProjectLucid.Tests
         {
             RunActiveMission((owned, world, container) =>
             {
-                FastAction saved = StringTable.StringsTableHandlers;
+                // The handler list is a shared mutable object (FastAction is changed in place): remember the incoming reference and
+                // its subscribers, take away only the exact subscription Start adds, and put a null incoming value back as null.
+                FastAction incoming = StringTable.StringsTableHandlers;
+                int incomingCount = incoming == null ? 0 : incoming.GetInvocationList().Count();
+                System.Action refresh = container.Refresh;
                 try
                 {
                     container.ShowMission.Value = true;
@@ -463,7 +467,10 @@ namespace ProjectLucid.Tests
                 }
                 finally
                 {
-                    StringTable.StringsTableHandlers = saved;
+                    StringTable.StringsTableHandlers -= refresh;
+                    StringTable.StringsTableHandlers = incoming;
+                    Assert.That(StringTable.StringsTableHandlers == null ? 0 : StringTable.StringsTableHandlers.GetInvocationList().Count(),
+                        Is.EqualTo(incomingCount), "the case leaves the handler list as it found it");
                 }
             });
         }

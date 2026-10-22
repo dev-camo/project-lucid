@@ -22,6 +22,21 @@ namespace ProjectLucid.Tests
     // and have no calls in the restored bodies, so they are covered by the declaration rows only.
     public sealed class BossMovementAbilityTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         // centre + (cos, sin) * distance on X and Z, at a fixed height: PointOnCircleWithFixedY (0x1AB8620).
         private static Vector3 Circle(Vector3 centre, double angle, double distance, float y) =>
             new Vector3((float)(centre.x + Math.Cos(angle) * distance), y, (float)(centre.z + Math.Sin(angle) * distance));

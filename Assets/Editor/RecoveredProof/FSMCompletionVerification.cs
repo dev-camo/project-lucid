@@ -27,7 +27,8 @@ namespace ProjectLucid
         public static void Run()
         {
             checks = 0;
-            VerifyCallbacks(); VerifyFactories(); VerifyMetadata();
+            // The unique proof names are registered in GraphNameLookup; the scope removes exactly those on every exit.
+            using (new SyntheticGraphNameScope("Lucid-completion-")) { VerifyCallbacks(); VerifyFactories(); VerifyMetadata(); }
             Debug.Log("Original FSM completion primitives source-based verification passed: " + checks + " checks. Authored startup remains unresolved.");
         }
         private static void VerifyCallbacks()

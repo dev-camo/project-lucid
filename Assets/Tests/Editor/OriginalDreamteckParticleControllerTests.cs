@@ -17,6 +17,21 @@ namespace ProjectLucid.Tests
     // Expected values are hand arithmetic from the native bodies cited per test. TearDown destroys everything the test made.
     public sealed class OriginalDreamteckParticleControllerTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private const float Tolerance = 1e-3f;
 
         private const int MaxParticles = 10;

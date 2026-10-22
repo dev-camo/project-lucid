@@ -17,34 +17,93 @@ namespace ProjectLucid.Tests
 
         private const BindingFlags AnyInstance = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
+        private static readonly FieldInfo UvsField = typeof(MeshGenerator).GetField("__uvs", BindingFlags.Static | BindingFlags.NonPublic);
+
         private readonly List<GameObject> _owned = new List<GameObject>();
+        private readonly List<Mesh> _meshes = new List<Mesh>();
+        private Vector2 _uvsBaseline;
+        private bool _uvsCaptured;
+
+        // The static MeshGenerator.__uvs scratch value as found when this test first acquired an object. A new component does not
+        // rerun the type initializer, so a test that reads the default asserts against this baseline and Dispose puts it back.
+        public Vector2 UvsBaseline
+        {
+            get
+            {
+                CaptureUvs();
+                return _uvsBaseline;
+            }
+        }
+
+        // Registers a mesh the fixture must destroy even when its component has already been destroyed or has replaced it.
+        public Mesh Track(Mesh mesh)
+        {
+            if (mesh != null && !_meshes.Contains(mesh))
+            {
+                _meshes.Add(mesh);
+            }
+
+            return mesh;
+        }
+
+        private void CaptureUvs()
+        {
+            if (!_uvsCaptured)
+            {
+                _uvsBaseline = (Vector2)UvsField.GetValue(null);
+                _uvsCaptured = true;
+            }
+        }
 
         public void Dispose()
         {
-            foreach (GameObject owned in _owned)
+            try
             {
-                if (owned == null)
+                foreach (Mesh tracked in _meshes)
                 {
-                    continue;
-                }
-
-                foreach (MeshGenerator generator in owned.GetComponents<MeshGenerator>())
-                {
-                    Mesh mesh = MeshOf(generator);
-                    if (mesh != null)
+                    if (tracked != null)
                     {
-                        Object.DestroyImmediate(mesh);
+                        Object.DestroyImmediate(tracked);
                     }
                 }
 
-                Object.DestroyImmediate(owned);
-            }
+                _meshes.Clear();
 
-            _owned.Clear();
+                foreach (GameObject owned in _owned)
+                {
+                    if (owned == null)
+                    {
+                        continue;
+                    }
+
+                    foreach (MeshGenerator generator in owned.GetComponents<MeshGenerator>())
+                    {
+                        Mesh mesh = MeshOf(generator);
+                        if (mesh != null)
+                        {
+                            Object.DestroyImmediate(mesh);
+                        }
+                    }
+
+                    Object.DestroyImmediate(owned);
+                }
+
+                _owned.Clear();
+            }
+            finally
+            {
+                // The shared scratch value is handed back even when a destroy above throws.
+                if (_uvsCaptured)
+                {
+                    UvsField.SetValue(null, _uvsBaseline);
+                    _uvsCaptured = false;
+                }
+            }
         }
 
         public GameObject NewObject(string name)
         {
+            CaptureUvs();
             GameObject owner = new GameObject(name);
             _owned.Add(owner);
             return owner;
@@ -73,7 +132,9 @@ namespace ProjectLucid.Tests
             owner.AddComponent<MeshFilter>();
             owner.AddComponent<MeshRenderer>();
 
-            return owner.AddComponent<T>();
+            T generator = owner.AddComponent<T>();
+            Track(MeshOf(generator));
+            return generator;
         }
 
         // A generator that follows the computer and has built once. Tangents are off: the native tangent scratch arrays are

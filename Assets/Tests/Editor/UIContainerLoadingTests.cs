@@ -20,6 +20,21 @@ namespace ProjectLucid.Tests
     // Not covered: the level image of a level with a valid key, which needs Addressables.
     public sealed class UIContainerLoadingTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private const string ValidKey = "0123456789abcdef0123456789abcdef";
 
         private static readonly Dictionary<Strings, string> TipTexts = new Dictionary<Strings, string>

@@ -33,6 +33,21 @@ namespace ProjectLucid.Tests
     [TestFixture]
     public sealed class OriginalAnimatorHelperTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private const BindingFlags Any = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private static readonly Regex RefusedDestroy = new Regex("^Destroy may not be called from edit mode");
         private static readonly Regex EditModeMaterialInstance = new Regex("^Instantiating material due to calling renderer\\.material during edit mode");
@@ -103,6 +118,7 @@ namespace ProjectLucid.Tests
             {
                 var controller = Add(new AnimatorController { name = "Lucid animator helper fixture", hideFlags = HideFlags.HideAndDontSave });
                 controller.AddLayer("Base");
+                Add(controller.layers[0].stateMachine);
                 build(controller);
                 Undo.ClearUndo(controller);
                 var animator = owner.GetComponent<Animator>();

@@ -446,6 +446,7 @@ namespace ProjectLucid.Tests
                 {
                     var controller = rig.Objects.Own(new AnimatorController());
                     controller.AddLayer("Base");
+                    rig.Objects.Own(controller.layers[0].stateMachine);
                     foreach ((string name, AnimatorControllerParameterType type) parameter in parameters)
                         controller.AddParameter(parameter.name, parameter.type);
                     Animator.runtimeAnimatorController = controller;

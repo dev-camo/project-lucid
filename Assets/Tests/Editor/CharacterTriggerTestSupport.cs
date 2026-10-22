@@ -77,6 +77,7 @@ namespace ProjectLucid.Tests
             var animator = owned.Host("Lucid trigger animator", true).AddComponent<Animator>();
             var controller = owned.Track(new AnimatorController());
             controller.AddLayer("Base");
+            owned.Track(controller.layers[0].stateMachine);
             foreach (string name in triggers) controller.AddParameter(name, AnimatorControllerParameterType.Trigger);
             foreach (string name in bools) controller.AddParameter(name, AnimatorControllerParameterType.Bool);
             animator.runtimeAnimatorController = controller;

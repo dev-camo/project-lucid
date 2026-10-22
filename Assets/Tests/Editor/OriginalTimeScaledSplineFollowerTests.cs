@@ -178,7 +178,11 @@ namespace ProjectLucid.Tests
                 scene.Spline.followSpeed = 4f;
                 Call(scene.Follower, "Initialise", scene.Manager);
                 Call(scene.Follower, "InternalUpdate", 0f);
-                scene.Spline.followSpeed = 8f + 1e-7f;
+                // 1e-6 is one ulp-scale step at 8 (ulp 9.5e-7): distinct from 8f, inside Approximately's 1e-6 relative tolerance.
+                float nearlyEight = 8f + 1e-6f;
+                Assert.That(nearlyEight, Is.Not.EqualTo(8f), "the operand must differ from the remembered speed, or an exact comparison would pass too");
+                Assert.That(Mathf.Approximately(nearlyEight, 8f), Is.True);
+                scene.Spline.followSpeed = nearlyEight;
                 Call(scene.Follower, "InternalUpdate", 0f);
                 Assert.That(FollowSpeed(scene), Is.EqualTo(4f));
                 Assert.That(scene.Spline.followSpeed, Is.EqualTo(8f));

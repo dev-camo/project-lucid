@@ -24,6 +24,21 @@ namespace ProjectLucid.Tests
     // of OnDrawGizmosSelected (0x56FF3D), which the engine accepts only inside its gizmo callback.
     public sealed class EnemyFireProjectileAbilityTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private static EnemyAbility_FireProjectile Fire(Scene scene, string json = null) =>
             scene.Ability<EnemyAbility_FireProjectile, EnemyAbilityDefinition_FireProjectile>(definition =>
             {

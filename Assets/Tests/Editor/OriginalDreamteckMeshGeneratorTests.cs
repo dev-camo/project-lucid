@@ -23,7 +23,7 @@ namespace ProjectLucid.Tests
             _fixture.Dispose();
         }
 
-        // The ctor 0x49e3b0 field initialisers and the cctor 0x49e4c0 (__uvs starts at zero). The editor compile of the original
+        // The ctor 0x49e3b0 field initialisers (the cctor's zero is asserted by TypeInitializerStartsTheUvScratchAtZero). The editor compile of the original
         // text runs Reset (which calls Awake) when the component is added, and SplineUser.Awake ends with RebuildImmediate while
         // not playing, so the first build has already happened here: the meshes exist and WriteMesh armed _updateCollider. This
         // test covers the editor branch only. The shipped player (no UNITY_EDITOR code) builds in Awake only when playing and
@@ -56,7 +56,7 @@ namespace ProjectLucid.Tests
             Assert.That(DreamteckGeneratorFixture.Field<float>(generator, "_lastUpdateTime"), Is.EqualTo(0f));
             Assert.That(DreamteckGeneratorFixture.TsMeshOf(generator), Is.Not.Null, "created by the editor Awake build");
             Assert.That(DreamteckGeneratorFixture.MeshOf(generator) == null, Is.False);
-            Assert.That(typeof(MeshGenerator).GetField("__uvs", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null), Is.EqualTo(Vector2.zero));
+            Assert.That(Uvs(), Is.EqualTo(_fixture.UvsBaseline), "the build of a generator without a spline writes no UVs; the baseline is the zero of the cctor unless a fixture-less caller left one");
             Assert.That(Invoke(generator, "get_meshName"), Is.EqualTo("Mesh"));
         }
 
@@ -287,6 +287,78 @@ namespace ProjectLucid.Tests
         private static Vector2 Uvs()
         {
             return (Vector2)typeof(MeshGenerator).GetField("__uvs", BindingFlags.Static | BindingFlags.NonPublic).GetValue(null);
+        }
+
+        // The cctor 0x49e4c0 stores Vector2.get_zero in __uvs (the only static MeshGenerator declares, so re-running it changes
+        // nothing else). The incoming value is put back afterwards.
+        [Test]
+        public void TypeInitializerStartsTheUvScratchAtZero()
+        {
+            Vector2 incoming = Uvs();
+            try
+            {
+                SetUvs(new Vector2(3f, -4f));
+                typeof(MeshGenerator).TypeInitializer.Invoke(null, null);
+                Assert.That(Uvs(), Is.EqualTo(Vector2.zero));
+            }
+            finally
+            {
+                SetUvs(incoming);
+            }
+        }
+
+        // The fixture hands the scratch back after a test that wrote it, so the defaults test cannot depend on the order. A nonzero
+        // incoming value is planted first so that a restore to zero or a no-op restore both fail.
+        [Test]
+        public void DisposeRestoresTheUvScratchValueFoundBeforeTheTest()
+        {
+            DreamteckGeneratorFixture probe = new DreamteckGeneratorFixture();
+            Vector2 original = Uvs();
+            Vector2 incoming = new Vector2(0.75f, -1.5f);
+            Vector2 written = new Vector2(-0.25f, 2.5f);
+            try
+            {
+                SetUvs(incoming);
+                probe.NewObject("probe");
+                SetUvs(written);
+                probe.Dispose();
+                Assert.That(Uvs(), Is.EqualTo(incoming));
+            }
+            finally
+            {
+                probe.Dispose();
+                SetUvs(original);
+            }
+        }
+
+        // The generator's mesh is reached through the fixture even when the component is destroyed before the teardown.
+        [Test]
+        public void DisposeDestroysTheMeshOfAnAlreadyDestroyedGenerator()
+        {
+            DreamteckGeneratorFixture probe = new DreamteckGeneratorFixture();
+            Mesh mesh = null;
+            try
+            {
+                MeshGenerator generator = probe.NewBare<MeshGenerator>();
+                mesh = DreamteckGeneratorFixture.MeshOf(generator);
+                Assert.That(mesh == null, Is.False);
+                UnityEngine.Object.DestroyImmediate(generator);
+                probe.Dispose();
+                Assert.That(mesh == null, Is.True);
+            }
+            finally
+            {
+                probe.Dispose();
+                if (mesh != null)
+                {
+                    UnityEngine.Object.DestroyImmediate(mesh);
+                }
+            }
+        }
+
+        private static void SetUvs(Vector2 value)
+        {
+            typeof(MeshGenerator).GetField("__uvs", BindingFlags.Static | BindingFlags.NonPublic).SetValue(null, value);
         }
 
         private MeshGenerator ClippedGenerator()

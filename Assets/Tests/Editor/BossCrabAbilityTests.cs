@@ -19,6 +19,21 @@ namespace ProjectLucid.Tests
     // attack's Attacking (0x6F8527) and the wave branch of the body slam's (0x6F7931).
     public sealed class BossCrabAbilityTests
     {
+        // Global UnityEngine.Random state is borrowed: whatever a test draws, the incoming state is put back.
+        private UnityEngine.Random.State _incomingRandomState;
+
+        [NUnit.Framework.SetUp]
+        public void SaveIncomingRandomState()
+        {
+            _incomingRandomState = UnityEngine.Random.state;
+        }
+
+        [NUnit.Framework.TearDown]
+        public void RestoreIncomingRandomState()
+        {
+            UnityEngine.Random.state = _incomingRandomState;
+        }
+
         private static readonly GraphStorageKey BodySlamCount = new GraphStorageKey("bodySlamCount", 0, 0);
         private static readonly GraphStorageKey ClawAttackCount = new GraphStorageKey("clawAttackCount", 0, 0);
 

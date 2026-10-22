@@ -67,6 +67,7 @@ namespace ProjectLucid.Tests
             var animator = owned.Host("Lucid boss animator", true).AddComponent<Animator>();
             var controller = owned.Track(new AnimatorController());
             controller.AddLayer("Base");
+            owned.Track(controller.layers[0].stateMachine);
             foreach (string name in bools) controller.AddParameter(name, AnimatorControllerParameterType.Bool);
             animator.runtimeAnimatorController = controller;
             animator.Rebind();
