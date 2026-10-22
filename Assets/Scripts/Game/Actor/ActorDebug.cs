@@ -13,6 +13,16 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public abstract class ActorDebug : MonoBehaviour
     {
+        [Il2CppSetOption(Option.NullChecks, false)]
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        private class StateChangeInfo // original02000053, no Serializable attribute
+        {
+            public string TransitionName;
+            public string StateName;
+            public string ClassName;
+            public float TimeActive;
+            public StateChangeInfo() { } // 060003ca: genuine base-only constructor
+        }
         public const float RenderVisibleLifetime = 5f;
         protected Actor m_actor;
         private readonly List<StateChangeInfo> m_stateHistory = new List<StateChangeInfo>();
@@ -243,15 +253,5 @@ namespace HardlightProject
 
         protected ActorDebug() { } // 060003c9: readonly list initializes before MonoBehaviour base
 
-        [Il2CppSetOption(Option.NullChecks, false)]
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        private class StateChangeInfo // original02000053, no Serializable attribute
-        {
-            public string TransitionName;
-            public string StateName;
-            public string ClassName;
-            public float TimeActive;
-            public StateChangeInfo() { } // 060003ca: genuine base-only constructor
-        }
     }
 }
