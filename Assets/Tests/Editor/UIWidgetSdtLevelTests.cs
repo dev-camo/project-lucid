@@ -361,7 +361,8 @@ namespace ProjectLucid.Tests
                 // The handler list is shared and changed in place: put back the incoming reference, taking away only the
                 // subscription Start adds, and compare the subscribers it held before and after.
                 FastAction incoming = StringTable.StringsTableHandlers;
-                List<System.Action> incomingHandlers = incoming == null ? new List<System.Action>() : incoming.GetInvocationList();
+                // GetInvocationList returns the live list, so keep a copy.
+                List<System.Action> incomingHandlers = incoming == null ? new List<System.Action>() : incoming.GetInvocationList().ToList();
                 System.Action refresh = null;
                 bool completed = false;
                 List<System.Action> restoredHandlers = null;
@@ -383,7 +384,7 @@ namespace ProjectLucid.Tests
                 {
                     if (refresh != null) StringTable.StringsTableHandlers -= refresh;
                     StringTable.StringsTableHandlers = incoming;
-                    restoredHandlers = incoming == null ? new List<System.Action>() : incoming.GetInvocationList();
+                    restoredHandlers = incoming == null ? new List<System.Action>() : incoming.GetInvocationList().ToList();
                 }
                 if (completed) Assert.That(restoredHandlers, Is.EqualTo(incomingHandlers), "the case leaves the subscribers as it found them");
             });
