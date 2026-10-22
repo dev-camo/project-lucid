@@ -137,7 +137,7 @@ namespace ProjectLucid.Tests
                 foreach (RankType type in RankTypes)
                     Assert.That(Count(rig.Definitions[type].BaseAddressable), Is.EqualTo(1), type + " base loaded once");
 
-                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "OnDestroy");
 
                 foreach (RankType type in RankTypes)
                 {
@@ -156,7 +156,7 @@ namespace ProjectLucid.Tests
             {
                 MissionRank rank = NewMissionRank(RankType.None, 10);
 
-                Call(rig.Container, "ShowRank", rank, RankType.None, "ignored"); // Reflection: private UIContainerMissionRanks.ShowRank
+                Call(rig.Container, "ShowRank", rank, RankType.None, "ignored");
 
                 Assert.That(RankTexts(rig.Container), Is.EqualTo(new string[5]));
                 foreach (Sprite[] icons in ShownIcons(rig.Container)) Assert.That(icons, Is.All.Null);

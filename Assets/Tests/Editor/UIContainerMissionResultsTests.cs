@@ -111,7 +111,7 @@ namespace ProjectLucid.Tests
                     if (ignoreReward) Get<List<CollectableType>>(container, "m_rewardsToIgnore").Add(CollectableType.Ring);
                     else Get<List<CollectableType>>(container, "m_rewardsToIgnore").Add(CollectableType.Moon);
 
-                    Assert.That(Call(container, "IsValidMission", mission), Is.EqualTo(expected), name); // Reflection: private UIContainerMissionResults.IsValidMission
+                    Assert.That(Call(container, "IsValidMission", mission), Is.EqualTo(expected), name);
                 });
             }
         }
@@ -131,10 +131,10 @@ namespace ProjectLucid.Tests
                     Set(mission, "m_resultsScreenIdentifier", NewIdentifier(owned, out _)); // Reflection: serialized identifiers
                 UIContainerMissionResults container = NewContainer(owned, out _);
 
-                Assert.That((List<MissionDefinition>)Call(container, "GetMissions", main), Is.EqualTo(new[] { first, second, main })); // Reflection: private UIContainerMissionResults.GetMissions
+                Assert.That((List<MissionDefinition>)Call(container, "GetMissions", main), Is.EqualTo(new[] { first, second, main }));
 
                 Set(main, "m_resultsScreenIdentifier", null); // Reflection: serialized m_resultsScreenIdentifier the editor assigns
-                Assert.That((List<MissionDefinition>)Call(container, "GetMissions", main), Is.EqualTo(new[] { first, second })); // Reflection: private UIContainerMissionResults.GetMissions
+                Assert.That((List<MissionDefinition>)Call(container, "GetMissions", main), Is.EqualTo(new[] { first, second }));
             });
         }
 
@@ -184,7 +184,7 @@ namespace ProjectLucid.Tests
                 Assert.That(mainParameters.CompletedObjectiveIndices, Is.Null, "nothing was ever marked on the record");
                 Assert.That(Get<int>(subIdentifier, "m_refCount"), Is.EqualTo(2), "registered, then taken for the container");
 
-                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(container, "OnDestroy");
 
                 Assert.That(Get<int>(subIdentifier, "m_refCount"), Is.EqualTo(1), "closed once");
                 Assert.That(Get<int>(mainIdentifier, "m_refCount"), Is.EqualTo(1));

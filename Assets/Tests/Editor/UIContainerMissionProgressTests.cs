@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
                     Set(container, "m_alwaysDisplay", always);
                     Assert.That(group.alpha, Is.EqualTo(1f));
 
-                    Call(container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                    Call(container, "OnEnable");
 
                     Assert.That(group.alpha, Is.EqualTo(always ? 1f : 0f), "always displayed: " + always);
                 });
@@ -155,14 +155,14 @@ namespace ProjectLucid.Tests
                 container.gameObject.SetActive(true);
                 group.alpha = 0.5f;
 
-                var hide = (IEnumerator)Call(container, "Hide"); // Reflection: private UIContainerMissionProgress.Hide
+                var hide = (IEnumerator)Call(container, "Hide");
                 Assert.That(hide.MoveNext(), Is.True, "waiting out the display time");
                 Assert.That(hide.Current, Is.Null);
                 Assert.That(hide.MoveNext(), Is.True, "still waiting: an hour has not passed");
                 Assert.That(group.alpha, Is.EqualTo(0.5f), "nothing is written while waiting");
 
                 Set(container, "m_displaySeconds", -1f); // Reflection: serialized m_displaySeconds the editor assigns
-                var fade = (IEnumerator)Call(container, "Hide"); // Reflection: private UIContainerMissionProgress.Hide
+                var fade = (IEnumerator)Call(container, "Hide");
                 Assert.That(fade.MoveNext(), Is.True, "the display time is already over");
                 Assert.That(fade.Current, Is.Null);
                 Assert.That(group.alpha, Is.EqualTo(1f), "the fade starts from full alpha");
@@ -190,7 +190,7 @@ namespace ProjectLucid.Tests
                 container.gameObject.SetActive(true);
                 group.alpha = 0.5f;
 
-                var hide = (IEnumerator)Call(container, "Hide"); // Reflection: private UIContainerMissionProgress.Hide
+                var hide = (IEnumerator)Call(container, "Hide");
 
                 Assert.That(hide.MoveNext(), Is.True);
                 Assert.That(group.alpha, Is.EqualTo(1f), "no wait: the fade has begun");

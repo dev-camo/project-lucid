@@ -87,9 +87,9 @@ namespace ProjectLucid.Tests
                 Set(container, "m_metaGameState", new MetaGameState(level, null)); // Reflection: assigned by Start
                 SaveDataLevelMission record = missions.Save.CurrentSave.GetOrCreateLevelData(level.GetGUID()).GetOrCreateMissionData(mission.GetGUID());
 
-                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Locked)); // Reflection: private UIContainerMissionSelect.GetUIShowTypeForMission
+                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Locked));
                 record.Complete = true;
-                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Unlocked)); // Reflection: private UIContainerMissionSelect.GetUIShowTypeForMission
+                Assert.That(Call(container, "GetUIShowTypeForMission", mission), Is.EqualTo(UIShowType.Unlocked));
             });
         }
 
@@ -263,7 +263,7 @@ namespace ProjectLucid.Tests
                     NewRequirementGroup(false, null, third),
                 };
 
-                Call(rig.Container, "PopulateUI", new List<MissionGroup>(groups)); // Reflection: private UIContainerMissionSelect.PopulateUI
+                Call(rig.Container, "PopulateUI", new List<MissionGroup>(groups));
 
                 var children = new List<string>();
                 foreach (Transform child in rig.Group.transform)
@@ -372,7 +372,7 @@ namespace ProjectLucid.Tests
                 container.ShowLeaderboards.Value = true;
                 container.LeaderboardIdentifier.AddListener(() => identifierWrites++);
 
-                Call(container, "SetupLeaderboards", mission); // Reflection: private UIContainerMissionSelect.SetupLeaderboards
+                Call(container, "SetupLeaderboards", mission);
 
                 Assert.That(container.ShowLeaderboards.Value, Is.False);
                 Assert.That(identifierWrites, Is.EqualTo(0));
@@ -390,8 +390,8 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<DataManager>(); // the widget's field initialiser
                 var widget = owned.Host("Lucid mission toggle", false).AddComponent<UIWidgetToggleMission>();
 
-                Assert.DoesNotThrow(() => Call(container, "TryNavigateToWidget", widget)); // Reflection: private UIContainerMissionSelect.TryNavigateToWidget
-                Assert.DoesNotThrow(() => Call(container, "OnContainerClosed", new object[] { null })); // Reflection: private UIContainerMissionSelect.OnContainerClosed
+                Assert.DoesNotThrow(() => Call(container, "TryNavigateToWidget", widget));
+                Assert.DoesNotThrow(() => Call(container, "OnContainerClosed", new object[] { null }));
                 Set(container, "m_activeWidget", widget); // Reflection: assigned by ToggleMission
                 Assert.DoesNotThrow(() => Call(container, "OnContainerClosed", new object[] { null }));
             });

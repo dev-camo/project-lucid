@@ -63,7 +63,7 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<bool>(container, "m_delayShowingPoints"), Is.False);
                 Assert.That(Root(container).activeSelf, Is.True);
 
-                Call(container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(container, "OnEnable");
 
                 Assert.That(Root(container).activeSelf, Is.False);
                 Assert.That(Get<bool>(container, "m_delayShowingPoints"), Is.True);
@@ -79,9 +79,9 @@ namespace ProjectLucid.Tests
             {
                 owned.LeaseRow<MissionManager>();
                 UIContainerMissionScorer container = NewContainer(owned);
-                Call(container, "ClearValues", true); // Reflection: private UIContainerMissionScorer.ClearValues
+                Call(container, "ClearValues", true);
                 Assert.That(Root(container).activeSelf, Is.True);
-                Call(container, "ClearValues", false); // Reflection: private UIContainerMissionScorer.ClearValues
+                Call(container, "ClearValues", false);
                 Assert.That(Root(container).activeSelf, Is.False);
             });
         }
@@ -113,11 +113,11 @@ namespace ProjectLucid.Tests
                     container.ShowPointsAdded.AddListener(() => notifications++);
                     container.PointsAddedFromStreak.AddListener(() => notifications++);
 
-                    Call(container, "ShowPoints"); // Reflection: private UIContainerMissionScorer.ShowPoints
+                    Call(container, "ShowPoints");
                     Assert.That(Get<bool>(container, "m_delayShowingPoints"), Is.False, row);
                     Assert.That(notifications, Is.EqualTo(0), "the first call is delayed: " + row);
 
-                    Call(container, "ShowPoints"); // Reflection: private UIContainerMissionScorer.ShowPoints
+                    Call(container, "ShowPoints");
                     Assert.That(container.ShowPointsAdded.Value, Is.EqualTo(combo), row);
                     Assert.That(container.PointsAddedFromStreak.Value, Is.EqualTo(streak), row);
                     Assert.That(notifications, Is.EqualTo(2), row);
@@ -138,8 +138,8 @@ namespace ProjectLucid.Tests
                 int notifications = 0;
                 container.PointsTotal.AddListener(() => notifications++);
 
-                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false)); // Reflection: private UIContainerMissionScorer.TryInitialise
-                Call(container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false));
+                Call(container, "Update");
 
                 Assert.That(Get<bool>(container, "m_initialised"), Is.False);
                 Assert.That(Root(container).activeSelf, Is.True, "the root is left alone");
@@ -154,7 +154,7 @@ namespace ProjectLucid.Tests
                 owned.LeaseRow<ChallengeManager>(); // MissionContextRegular's field initialiser
                 UIContainerMissionScorer container = NewContainer(owned, rootActive: true);
 
-                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false), "no active mission"); // Reflection: private UIContainerMissionScorer.TryInitialise
+                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false), "no active mission");
 
                 var mission = Create<MissionDefinition>(owned);
                 Set(mission, "m_guid", "lucid-scorer-mission"); // Reflection: authored GUID of a serialized definition
@@ -163,7 +163,7 @@ namespace ProjectLucid.Tests
                 Assert.That(missions.Manager.TryGetActiveMissionState(out MissionState state), Is.True);
                 Assert.That(state.SetUpComplete, Is.False, "the state has data but no tracker");
 
-                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false), "the tracker is not set up"); // Reflection: private UIContainerMissionScorer.TryInitialise
+                Assert.That(Call(container, "TryInitialise"), Is.EqualTo(false), "the tracker is not set up");
                 Assert.That(Get<bool>(container, "m_initialised"), Is.False);
                 Assert.That(Get<bool>(container, "m_hasMissionScorer"), Is.False);
                 Assert.That(Root(container).activeSelf, Is.True, "the root is left alone");

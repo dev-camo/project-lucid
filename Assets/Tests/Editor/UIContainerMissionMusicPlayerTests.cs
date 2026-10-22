@@ -57,7 +57,7 @@ namespace ProjectLucid.Tests
         private static void Enable(Rig rig)
         {
             LogAssert.Expect(LogType.Error, RefusedCoroutine);
-            Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+            Call(rig.Container, "OnEnable");
             LogAssert.NoUnexpectedReceived();
         }
 
@@ -88,7 +88,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Button.Lock();
 
-                Call(rig.Container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
+                Call(rig.Container, "OnEnable");
 
                 LogAssert.NoUnexpectedReceived();
                 Assert.That(rig.Button.LockValue.Value, Is.True);
@@ -149,7 +149,7 @@ namespace ProjectLucid.Tests
                 rig.Container.TrackCurrentTimeFormatted.Value = "stale";
                 rig.Container.TrackSliderValue.Value = 7f;
 
-                Call(rig.Container, "Update"); // Reflection: Unity sends Update; Edit Mode does not
+                Call(rig.Container, "Update");
 
                 Assert.That(rig.Container.TrackCurrentTimeFormatted.Value, Is.EqualTo("00:00"));
                 Assert.That(rig.Container.TrackSliderValue.Value, Is.EqualTo(0f));
@@ -167,7 +167,7 @@ namespace ProjectLucid.Tests
                     AudioClip clip = AudioClip.Create("lucid mission music " + seconds, seconds * 8000, 1, 8000, false);
                     rig.Services.Own(clip);
 
-                    Call(rig.Container, "SetupAudioBindings", new HLAudioClipHandler.LoadedAudioParameters { Clip = clip }); // Reflection: private UIContainerMissionMusicPlayer.SetupAudioBindings
+                    Call(rig.Container, "SetupAudioBindings", new HLAudioClipHandler.LoadedAudioParameters { Clip = clip });
 
                     Assert.That(rig.Container.TrackTotalTime.Value, Is.EqualTo((float)seconds), expected);
                     Assert.That(rig.Container.TrackTotalTimeFormatted.Value, Is.EqualTo(expected));
@@ -196,7 +196,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_playingAnimations", new Animation[0]); // Reflection: serialized array
                 Assert.That(rig.Container.TrackSliderInteractable.Value, Is.False);
 
-                Call(rig.Container, "Play"); // Reflection: private UIContainerMissionMusicPlayer.Play
+                Call(rig.Container, "Play");
 
                 Assert.That(rig.Source.clip, Is.SameAs(clip), "the audio manager was not asked to play the clip again");
                 Assert.That(rig.Services.Source(HLAudioSourceIdentifier.Background).CurrentAudio, Is.EqualTo((HLAudioClipIdentifier)0));
