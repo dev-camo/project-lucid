@@ -31,37 +31,41 @@ namespace ProjectLucid.Tests
             public List<bool> Changes = new List<bool>();
         }
 
-        private static void Run(bool permitted, Action<Owned, Rig> body) => Owned.Run(owned =>
+        private static void Run(bool permitted, Action<Owned, Rig> body)
         {
-            // Taken first, so it is released last: it owns the SaveManager, App and DataManager rows.
-            owned.Lease(new OwnedCharacterManagers());
-            if (HLNotifications.Instance != null) throw new InvalidOperationException("Fixture requires no live HLNotifications instance");
-            var rig = new Rig();
-            SaveManager save = ProcessManager.GetSystem<SaveManager>();
-            // The original assigns both while opening a save from the property store.
-            // Reflection: SaveManager.OnPropertyStoreLoad (0x06002d22) is private and needs a loaded property store; it assigns both.
-            Set(save, "m_saveAnalytics", new SaveDataAnalytics());
-            rig.Saved = new SaveDataNotifications();
-            rig.Saved.Initialise();
-            rig.Saved.NotificationsPermitted = permitted;
-            Set(save, "m_saveDataNotifications", rig.Saved); // Reflection: SaveManager.OnPropertyStoreLoad (0x06002d22) assigns it; see the m_saveAnalytics write above
+            SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
+            Owned.Run(owned =>
+            {
+                // Taken first, so it is released last: it owns the SaveManager, App and DataManager rows.
+                owned.Lease(new OwnedCharacterManagers());
+                if (HLNotifications.Instance != null) throw new InvalidOperationException("Fixture requires no live HLNotifications instance");
+                var rig = new Rig();
+                SaveManager save = ProcessManager.GetSystem<SaveManager>();
+                // The original assigns both while opening a save from the property store.
+                // Reflection: SaveManager.OnPropertyStoreLoad (0x06002d22) is private and needs a loaded property store; it assigns both.
+                Set(save, "m_saveAnalytics", new SaveDataAnalytics());
+                rig.Saved = new SaveDataNotifications();
+                rig.Saved.Initialise();
+                rig.Saved.NotificationsPermitted = permitted;
+                Set(save, "m_saveDataNotifications", rig.Saved); // Reflection: SaveManager.OnPropertyStoreLoad (0x06002d22) assigns it; see the m_saveAnalytics write above
 
-            var notifications = owned.Host("Lucid notifications singleton", false).AddComponent<HLNotifications>();
-            SetNotificationsInstance.Invoke(null, new object[] { notifications }); // Reflection: private singleton setter, see SetNotificationsInstance
-            owned.Lease(new ReleaseAction(() => SetNotificationsInstance.Invoke(null, new object[] { null })));
+                var notifications = owned.Host("Lucid notifications singleton", false).AddComponent<HLNotifications>();
+                SetNotificationsInstance.Invoke(null, new object[] { notifications }); // Reflection: private singleton setter, see SetNotificationsInstance
+                owned.Lease(new ReleaseAction(() => SetNotificationsInstance.Invoke(null, new object[] { null })));
 
-            rig.Manager = owned.Host("Lucid notification manager", false).AddComponent<NotificationManager>();
-            Type notification = typeof(NotificationManager).GetNestedType("SDTNotification", BindingFlags.NonPublic);
-            Set(rig.Manager, "m_notifications", Array.CreateInstance(notification, 0)); // serialized in the original
-            owned.Register(rig.Manager);
-            Call(rig.Manager, "OnSaveManagerValid", save); // the manager reads the saved answer
+                rig.Manager = owned.Host("Lucid notification manager", false).AddComponent<NotificationManager>();
+                Type notification = typeof(NotificationManager).GetNestedType("SDTNotification", BindingFlags.NonPublic);
+                Set(rig.Manager, "m_notifications", Array.CreateInstance(notification, 0)); // serialized in the original
+                owned.Register(rig.Manager);
+                Call(rig.Manager, "OnSaveManagerValid", save); // the manager reads the saved answer
 
-            rig.Container = owned.Host("Lucid notifications page", false).AddComponent<UIContainerSettingsNotifications>();
-            rig.Toggle = rig.Container.gameObject.AddComponent<Toggle>();
-            rig.Toggle.onValueChanged.AddListener(rig.Changes.Add);
-            Set(rig.Container, "m_notificationsPermission", rig.Toggle); // serialized in the original
-            body(owned, rig);
-        });
+                rig.Container = owned.Host("Lucid notifications page", false).AddComponent<UIContainerSettingsNotifications>();
+                rig.Toggle = rig.Container.gameObject.AddComponent<Toggle>();
+                rig.Toggle.onValueChanged.AddListener(rig.Changes.Add);
+                Set(rig.Container, "m_notificationsPermission", rig.Toggle); // serialized in the original
+                body(owned, rig);
+            });
+        }
 
         // Start 0x67DC80 shows the manager's NotificationPermissionFullyGranted (0x5C76E0) on the toggle without notifying.
         [Test]

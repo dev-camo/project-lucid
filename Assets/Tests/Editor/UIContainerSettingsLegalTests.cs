@@ -25,23 +25,27 @@ namespace ProjectLucid.Tests
             public UIContainerIdentifier Other;
         }
 
-        private static void Run(Action<Owned, Rig> body) => Owned.Run(owned =>
+        private static void Run(Action<Owned, Rig> body)
         {
-            var rig = new Rig();
-            // The consent manager's constructor subscribes these actions before its row is admitted.
-            owned.LeaseActions(SystemAction.AppInitialise, SystemAction.AppShutdown);
-            var consent = new AnalyticsConsentManager();
-            owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(consent)));
-            owned.Register(consent);
-            NewUiManager(owned, out rig.Containers);
-            rig.LevelSelect = NewIdentifier(owned, "level-select");
-            rig.MainMenu = NewIdentifier(owned, "main-menu");
-            rig.Other = NewIdentifier(owned, "other");
-            rig.Container = owned.Host("Lucid legal page", false).AddComponent<UIContainerSettingsLegal>();
-            Set(rig.Container, "m_levelSelectIdentifier", rig.LevelSelect); // serialized in the original
-            Set(rig.Container, "m_mainMenuIdentifier", rig.MainMenu); // serialized in the original
-            body(owned, rig);
-        });
+            SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
+            Owned.Run(owned =>
+            {
+                var rig = new Rig();
+                // The consent manager's constructor subscribes these actions before its row is admitted.
+                owned.LeaseActions(SystemAction.AppInitialise, SystemAction.AppShutdown);
+                var consent = new AnalyticsConsentManager();
+                owned.Lease(new ReleaseAction(() => ProcessManager.UnsubscribeFromAllActions(consent)));
+                owned.Register(consent);
+                NewUiManager(owned, out rig.Containers);
+                rig.LevelSelect = NewIdentifier(owned, "level-select");
+                rig.MainMenu = NewIdentifier(owned, "main-menu");
+                rig.Other = NewIdentifier(owned, "other");
+                rig.Container = owned.Host("Lucid legal page", false).AddComponent<UIContainerSettingsLegal>();
+                Set(rig.Container, "m_levelSelectIdentifier", rig.LevelSelect); // serialized in the original
+                Set(rig.Container, "m_mainMenuIdentifier", rig.MainMenu); // serialized in the original
+                body(owned, rig);
+            });
+        }
 
         // 0x67DB89: the credits are offered while the level select is open (the first IsOpen call) ...
         [Test]
