@@ -314,29 +314,24 @@ namespace ProjectLucid.Tests
         }
 
         // MaterialReplacerImpl.Replace: a material on the default canvas shader is replaced by a new material on
-        // the Resources shader (premultiplied-alpha names on Unity 2020.1+), and a material whose shader already
-        // has _SoftMask is only copied.
+        // the Resources shader (the premultiplied-alpha name on Unity 2020.1+). The "already supports soft mask"
+        // branch is not exercised: it asks Material.HasProperty, which needs a compiled shader, and the headless
+        // batch runs compile none, so the shader's own property table is checked instead.
         [Test]
         public void TheDefaultUiMaterialIsReplacedByTheResourcesShader()
         {
             var replacer = (IMaterialReplacer)Activator.CreateInstance(Nested("MaterialReplacerImpl"));
             Material original = new Material(Canvas.GetDefaultCanvasMaterial());
             owned.Add(original);
-            // Each step of MaterialReplacerImpl.Replace is checked on its own so a failure names the step.
             Assert.That(original.shader == Canvas.GetDefaultCanvasMaterial().shader, Is.True, "the copy keeps the default canvas shader");
             Shader replacement = Resources.Load<Shader>("SoftMaskPremultipliedAlpha");
             Assert.That(replacement != null, Is.True, "the Resources replacement shader loads");
             Material replaced = replacer.Replace(original);
             Assert.That(replaced != null, Is.True, "Replace returns a material on the replacement shader");
             owned.Add(replaced);
-            Assert.That(replaced.shader, Is.SameAs(Resources.Load<Shader>("SoftMaskPremultipliedAlpha")));
+            Assert.That(replaced.shader, Is.SameAs(replacement));
             Assert.That(replaced.shader.name, Is.EqualTo("Hidden/UI Default with Premultiplied Alpha (Soft Masked)"));
-            Assert.That(replaced.HasProperty("_SoftMask"), Is.True);
-
-            Material masked = replacer.Replace(replaced);
-            owned.Add(masked);
-            Assert.That(masked, Is.Not.SameAs(replaced));
-            Assert.That(masked.shader, Is.SameAs(replaced.shader));
+            Assert.That(replaced.shader.FindPropertyIndex("_SoftMask"), Is.GreaterThanOrEqualTo(0));
         }
     }
 }
