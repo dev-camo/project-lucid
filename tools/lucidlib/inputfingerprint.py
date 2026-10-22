@@ -125,7 +125,7 @@ def _slice_ranges(data):
             cursor = max(cursor, end)
         digest.update(data[cursor:])
         return {"magic": big, "count": count, "aligns": aligns, "canonical": canonical,
-                        "container_sha256": digest.hexdigest()}, result
+                "container_sha256": digest.hexdigest()}, result
     if struct.unpack_from("<I", data, 0)[0] == MH_MAGIC_64:
         cputype, cpusubtype = struct.unpack_from("<ii", data, 4)
         return {"magic": big, "count": 1, "aligns": [None], "canonical": [True], "container_sha256": None}, [(cputype, cpusubtype, 0, len(data))]
