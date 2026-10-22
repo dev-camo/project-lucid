@@ -13,6 +13,30 @@ namespace HardlightProject
     [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
     public class PromptManager : MonoBehaviour, ISystem, ISaveGameListener
     {
+        // Declared before the members it precedes in the original: the generated names (<>c__DisplayClass21_0, b__23_0) count it.
+        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
+        [Il2CppSetOption(Option.NullChecks, false)]
+        private class ActivePromptInfo
+        {
+            public UIContainerPrompt Container { get; }
+            public PromptTrigger Trigger { get; }
+            public Action<int> OnComplete { get; }
+            public PromptDefinition Definition { get; }
+            public PromptSlot Slot { get; }
+            public bool StopsTime { get; }
+
+            public ActivePromptInfo(UIContainerPrompt container, PromptTrigger trigger, Action<int> onComplete,
+                PromptDefinition definition, PromptSlot slot, bool stopsTime)
+            {
+                Container = container;
+                Trigger = trigger;
+                OnComplete = onComplete;
+                Definition = definition;
+                Slot = slot;
+                StopsTime = stopsTime;
+            }
+        }
+
         [SerializeField] private TimeSettings_SDT m_promptPauseTimeSetting;
         [SerializeField] private UIVisibilityGroupOverrider m_uiVisibilityGroupOverriderStandard;
         [SerializeField] private UIVisibilityGroupOverrider m_uiVisibilityGroupOverriderTimeStopped;
@@ -307,29 +331,6 @@ namespace HardlightProject
         public bool IsSlotTypeInUse(PromptSlotType promptSlotType)
         {
             return m_inUsePromptSlotTypes.Contains(promptSlotType);
-        }
-
-        [Il2CppSetOption(Option.ArrayBoundsChecks, false)]
-        [Il2CppSetOption(Option.NullChecks, false)]
-        private class ActivePromptInfo
-        {
-            public UIContainerPrompt Container { get; }
-            public PromptTrigger Trigger { get; }
-            public Action<int> OnComplete { get; }
-            public PromptDefinition Definition { get; }
-            public PromptSlot Slot { get; }
-            public bool StopsTime { get; }
-
-            public ActivePromptInfo(UIContainerPrompt container, PromptTrigger trigger, Action<int> onComplete,
-                PromptDefinition definition, PromptSlot slot, bool stopsTime)
-            {
-                Container = container;
-                Trigger = trigger;
-                OnComplete = onComplete;
-                Definition = definition;
-                Slot = slot;
-                StopsTime = stopsTime;
-            }
         }
     }
 }
