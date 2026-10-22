@@ -250,6 +250,30 @@ class InspectionTests(unittest.TestCase):
         with patch.object(longpaths, "is_windows", return_value=False):
             self.assertEqual(longpaths.longest_path_length(self.root), len(str(deep / "file.bin")))
 
+    def test_longest_path_length_counts_directory_entries(self):
+        # An empty directory (or a directory symlink) can be the longest entry; it is inventoried too.
+        long_dir = self.root / ("d" * 40)
+        long_dir.mkdir()
+        (self.root / "f.bin").write_bytes(b"x")
+        with patch.object(longpaths, "is_windows", return_value=False):
+            self.assertEqual(longpaths.longest_path_length(self.root), len(str(long_dir)))
+
+    def test_lengths_are_counted_in_utf16_code_units(self):
+        # Win32 counts a non-BMP character as two UTF-16 code units.
+        self.assertEqual(longpaths.windows_length("a\U0001F600b"), 4)
+        name = "\U0001F600" * 3 + ".bin"
+        (self.root / name).write_bytes(b"x")
+        with patch.object(longpaths, "is_windows", return_value=False):
+            self.assertEqual(longpaths.longest_path_length(self.root), len(str(self.root)) + 1 + 6 + 4)
+
+    def test_extended_roots_skip_the_precheck(self):
+        with patch.object(longpaths, "long_paths_status", return_value="disabled"), \
+                patch.object(longpaths, "longest_path_length", return_value=300):
+            longpaths.check_long_paths_for_input("\\\\?\\C:\\sdt")
+            longpaths.check_long_paths_for_input("\\\\?\\UNC\\server\\share\\sdt")
+            with self.assertRaisesRegex(ValueError, "Long paths are disabled"):
+                longpaths.check_long_paths_for_input("C:\\sdt")
+
     def test_catalog_rejects_traversal_and_invalid_prefix(self):
         app = self.make_app()
         aa = app / "Contents/Resources/Data/StreamingAssets/aa"

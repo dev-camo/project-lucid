@@ -46,23 +46,28 @@ def extended_path(path):
     return "\\\\?\\" + path
 
 
+def windows_length(path):
+    """Length as Windows counts it: UTF-16 code units, so a non-BMP character counts twice."""
+    return len(path.encode("utf-16-le")) // 2
+
+
 def longest_path_length(root):
-    """Length of the longest path under root, counting the root itself."""
+    """Length of the longest path under root, counting the root itself and directory entries."""
     root = os.path.abspath(str(root))
     # The extended prefix lets the walk see paths beyond MAX_PATH on Windows.
     walk_root = extended_path(root) if is_windows() else root
-    offset = len(walk_root) - len(root)
-    longest = len(root)
-    for directory, _dirs, files in os.walk(walk_root):
-        for name in files:
-            longest = max(longest, len(directory) - offset + 1 + len(name))
+    longest = windows_length(root)
+    for directory, dirs, files in os.walk(walk_root):
+        logical = root + directory[len(walk_root):]
+        for name in dirs + files:
+            longest = max(longest, windows_length(os.path.join(logical, name)))
     return longest
 
 
 def check_long_paths_for_input(root):
     """Raise ValueError before inspecting when Windows cannot open the input's paths."""
-    if long_paths_status() != "disabled":
-        return
+    if long_paths_status() != "disabled" or str(root).startswith("\\\\?\\"):
+        return  # An extended root (\\?\...) is not limited to MAX_PATH even with the setting off.
     longest = longest_path_length(root)
     if longest > MAX_PATH_CHARS:
         raise ValueError("Long paths are disabled in Windows and the input contains a path of %d characters "
