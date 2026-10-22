@@ -50,7 +50,7 @@ namespace HardlightProject
 			{
 				string lastLevelLoadedGUID = app.GetLastLevelLoadedGUID();
 				bool hasTrackManager = levelManager.ManagedSystems.HasSystemOfType<TrackManager>();
-				if (lastLevelLoadedGUID != level.LevelDefinition.GetGUID() || !hasTrackManager)
+				if (lastLevelLoadedGUID != level.SceneDefinition.GetGUID() || !hasTrackManager)
 				{
 					TrackManager trackManager = level.Data.TrackManager;
 					trackManager.SubscribeSystemActions();

@@ -62,7 +62,7 @@ namespace HardlightProject
 			LevelManagerLoadLevelParameters parameters = user.Storage.GetValue<LevelManagerLoadLevelParameters>(AppFSMKeys.LevelLoadParameters, null, true);
 			if (levelManager.TryGetCurrentLevel(out LevelManagerLevel currentLevel))
 			{
-				bool differentLevel = parameters == null || !(currentLevel.LevelDefinition == parameters.LevelDefinition);
+				bool differentLevel = parameters == null || !(currentLevel.SceneDefinition == parameters.LevelDefinition);
 				if (m_forceUnloadAny || differentLevel)
 				{
 					yield return levelManager.UnloadLevel();

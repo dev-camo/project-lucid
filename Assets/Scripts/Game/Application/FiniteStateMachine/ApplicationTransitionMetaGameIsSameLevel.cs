@@ -58,7 +58,7 @@ namespace HardlightProject
 			{
 				return !m_trueWhenSameLevel;
 			}
-			return m_trueWhenSameLevel ? currentLevel.LevelDefinition == levelDefinition : currentLevel.LevelDefinition != levelDefinition;
+			return m_trueWhenSameLevel ? currentLevel.SceneDefinition == levelDefinition : currentLevel.SceneDefinition != levelDefinition;
 		}
 	}
 }

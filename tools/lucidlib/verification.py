@@ -3156,6 +3156,19 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.UnloadScenePresentKeyUnloadsRemovesThenRepublishes",
 )
 
+# Application level nodes read the current level's SceneDefinition (+0x18), not LevelDefinition (+0x10).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.EnsureOneLevelKeepsALevelWhoseSceneDefinitionEqualsTheParameters",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.EnsureOneLevelUnloadsWhenTheParametersEqualOnlyTheLevelDefinition",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.EnsureOneLevelForceUnloadAnyAndNullParametersSelectTheUnload",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.LoadLevelProcessKeepsTheTrackManagerWhenTheLastLoadedGuidIsTheSceneGuid",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.LoadLevelProcessReplacesTheTrackManagerWhenTheLastLoadedGuidIsOnlyTheLevelGuid",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.LoadLevelProcessReplacesAMissingTrackManagerEvenForTheSceneGuid",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.IsSameLevelTreatsTheSceneDefinitionAsTheCurrentLevel",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.IsSameLevelTreatsAMatchingLevelDefinitionAsADifferentLevel",
+    "ProjectLucid.Tests.OriginalApplicationLevelSceneDefinitionTests.IsSameLevelWithoutACurrentLevelReturnsTheNegatedFlag",
+)
+
 # LoadAssets offline entry: no platform Social authentication, same GameCenter callback.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalApplicationFsmGapTests.LoadAssetsOfflineNotifiesGameCenterWithoutPlatformAuthentication",
