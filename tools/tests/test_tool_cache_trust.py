@@ -1,7 +1,6 @@
 """Inert archive and byte fixtures; no supplied executable is ever launched."""
 
-import contextlib
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import hashlib
 import io
 import json
@@ -12,8 +11,8 @@ import stat
 import tarfile
 import tempfile
 import threading
-import zipfile
 import unittest
+import zipfile
 from unittest import mock
 
 from tools.lucidlib import bootstrap, recovery, native, codeprogress, playerschema, runtimecontracts
@@ -88,6 +87,7 @@ class ToolCacheTrustTests(unittest.TestCase):
         self.spawn.assert_not_called()
 
     def test_modified_added_removed_and_symlinked_dependencies_reject_before_execution(self):
+        # Within one process the seal pop stands in for the second process of the issue.
         mutations = {
             "modified": lambda root: (root / "shared/runtime.dll").write_bytes(b"substituted DLL"),
             "added": lambda root: (root / "extra-plugin.dll").write_bytes(b"extra plugin"),
@@ -106,7 +106,7 @@ class ToolCacheTrustTests(unittest.TestCase):
                 shutil.rmtree(destination)
         self.spawn.assert_not_called()
 
-    @contextlib.contextmanager
+    @contextmanager
     def umask(self, value):
         previous = os.umask(value)
         try:
@@ -115,12 +115,12 @@ class ToolCacheTrustTests(unittest.TestCase):
             os.umask(previous)
 
     def mode_archive(self, name, kind):
-        """A tar or zip with an explicit 0750 directory, a read-only 0555 one holding a file, and an implicit parent."""
+        """A tar or zip with explicit 0750, read-only 0555 (holding a file) and group-writable 0775 directories, and an implicit parent."""
         payload = io.BytesIO()
         files = {"dotnet": b"inert host", "implicit/deep/file.dll": b"inert dependency", "ro/inner.dll": b"inert read-only child"}
         if kind == "tar":
             with tarfile.open(fileobj=payload, mode="w") as archive:
-                for directory, mode in (("explicit", 0o750), ("ro", 0o555)):
+                for directory, mode in (("explicit", 0o750), ("ro", 0o555), ("loose", 0o775)):
                     info = tarfile.TarInfo(directory)
                     info.type, info.mode = tarfile.DIRTYPE, mode
                     archive.addfile(info)
@@ -130,7 +130,7 @@ class ToolCacheTrustTests(unittest.TestCase):
                     archive.addfile(info, io.BytesIO(data))
         else:
             with zipfile.ZipFile(payload, "w") as archive:
-                for directory, mode in (("explicit/", 0o750), ("ro/", 0o555)):
+                for directory, mode in (("explicit/", 0o750), ("ro/", 0o555), ("loose/", 0o775)):
                     info = zipfile.ZipInfo(directory)
                     info.external_attr = (stat.S_IFDIR | mode) << 16
                     archive.writestr(info, b"")
@@ -152,8 +152,14 @@ class ToolCacheTrustTests(unittest.TestCase):
 
     def discard(self, destination):
         bootstrap._INSTALL_SEALS.pop(destination, None)
-        (destination / "ro").chmod(0o755)
-        shutil.rmtree(destination)
+        if destination.exists():
+            bootstrap._remove_unpacked_tree(destination)
+
+    def installed_under(self, mask, name="dotnet"):
+        """Install and register removal first, so every failure path still cleans up."""
+        destination = self.install_under(mask, name)
+        self.addCleanup(self.discard, destination)
+        return destination
 
     @unittest.skipUnless(hasattr(os, "umask") and os.name == "posix", "POSIX umask semantics required")
     def test_install_reuse_is_independent_of_the_umask_of_either_process(self):
@@ -161,10 +167,11 @@ class ToolCacheTrustTests(unittest.TestCase):
             for first, second in ((0o022, 0o077), (0o077, 0o022)):
                 with self.subTest(kind=kind, first=oct(first), second=oct(second)):
                     self.mode_archive("dotnet", kind)
-                    destination = self.install_under(first)
+                    destination = self.installed_under(first)
                     seal = bootstrap.tree_seal(destination)
                     self.assertEqual(0o750, seal["explicit"]["mode"])
                     self.assertEqual(0o555, seal["ro"]["mode"])
+                    self.assertEqual(0o755, seal["loose"]["mode"])  # group write from the archive is not kept
                     self.assertEqual(0o755, seal["implicit"]["mode"])
                     self.assertEqual(0o755, seal["implicit/deep"]["mode"])
                     self.assertEqual(0o755, seal["metadata"]["mode"])
@@ -172,7 +179,7 @@ class ToolCacheTrustTests(unittest.TestCase):
                     bootstrap._INSTALL_SEALS.pop(destination)  # a later process starts without the seal
                     self.assertEqual(destination, self.install_under(second))
                     self.assertEqual(seal, bootstrap.tree_seal(destination))
-                    self.discard(destination)
+                    self.discard(destination)  # next subtest starts from a fresh destination
 
     @unittest.skipUnless(hasattr(os, "umask") and os.name == "posix", "POSIX umask semantics required")
     def test_injected_license_and_dumper_configuration_modes_ignore_the_umask(self):
@@ -196,6 +203,7 @@ class ToolCacheTrustTests(unittest.TestCase):
 
     @unittest.skipUnless(hasattr(os, "umask") and os.name == "posix", "POSIX umask semantics required")
     def test_umask_independent_install_still_rejects_every_mutation_under_both_masks(self):
+        # Within one process the seal pop stands in for the second process of the issue.
         mutations = {
             "bytes": lambda root: (root / "implicit/deep/file.dll").write_bytes(b"substituted"),
             "file mode": lambda root: (root / "dotnet").chmod(0o700),
@@ -207,11 +215,15 @@ class ToolCacheTrustTests(unittest.TestCase):
             for name, mutate in mutations.items():
                 with self.subTest(mask=oct(mask), mutation=name):
                     self.mode_archive("dotnet", "tar")
-                    destination = self.install_under(mask)
+                    destination = self.installed_under(mask)
+                    other = 0o022 if mask == 0o077 else 0o077
+                    bootstrap._INSTALL_SEALS.pop(destination)
+                    self.assertEqual(destination, self.install_under(other))  # unmutated control reuses
                     mutate(destination)
                     bootstrap._INSTALL_SEALS.pop(destination)
-                    with self.assertRaises(bootstrap.ToolError):
-                        self.install_under(0o022 if mask == 0o077 else 0o077)
+                    expected = "link or special file" if name == "symlink" else "differs from the pinned archive"
+                    with self.assertRaisesRegex(bootstrap.ToolError, expected):
+                        self.install_under(other)
                     self.discard(destination)
 
     def cpp2il_fixture(self):
@@ -607,6 +619,7 @@ class ToolCacheTrustTests(unittest.TestCase):
 
     def test_modified_inspector_or_dependency_closure_is_never_executed(self):
         reader = "bin/Release/net10.0/RecoveryInspector.dll"
+        # Within one process the seal pop stands in for the second process of the issue.
         mutations = {
             "reader": lambda build, sdk: (build / reader).write_bytes(b"inert substituted reader"),
             "dependency": lambda build, sdk: (build / "bin/Release/net10.0/RecoveryInspector.deps.json").write_bytes(b"{}"),

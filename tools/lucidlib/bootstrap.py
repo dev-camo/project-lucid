@@ -330,6 +330,16 @@ IMPLICIT_DIRECTORY_MODE = 0o755
 INJECTED_FILE_MODE = 0o644
 
 
+def _archive_directory_mode(mode: int) -> int:
+    """Pinned directory mode from an archive entry, never group- or other-writable.
+
+    Upstream archives (the cpp2il-source tarball uses 0775) must not loosen the tool
+    tree's permissions; 0755 is also what the implicit parents get, so caches sealed
+    before explicit directory modes were pinned still match.
+    """
+    return mode & 0o755
+
+
 def _make_directory(target: Path, destination: Path, modes: dict, mode: int | None) -> None:
     """Create target and its missing parents; record the mode each is pinned to afterwards.
 
@@ -346,13 +356,18 @@ def _make_directory(target: Path, destination: Path, modes: dict, mode: int | No
 
 
 def _remove_unpacked_tree(directory: Path) -> None:
-    """Remove a staged tree whose pinned directory modes may forbid deleting their children."""
-    for current, names, _files in os.walk(directory):
-        for name in names:
-            child = Path(current, name)
-            if not child.is_symlink():
-                child.chmod(0o700)
-    shutil.rmtree(directory)
+    """Remove a staged tree whose pinned directory modes may forbid deleting their children.
+
+    Each directory is made owner-accessible before it is listed, so no pinned mode can
+    hide children from the walk; any failure propagates instead of being skipped.
+    """
+    if directory.is_symlink() or not directory.is_dir():
+        directory.unlink()
+        return
+    directory.chmod(0o700)
+    for child in directory.iterdir():
+        _remove_unpacked_tree(child)
+    directory.rmdir()
 
 
 def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
@@ -380,7 +395,7 @@ def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
                         continue
                     target = destination / relative
                     if member.isdir():
-                        _make_directory(target, destination, modes, member.mode & 0o777)
+                        _make_directory(target, destination, modes, _archive_directory_mode(member.mode))
                     else:
                         total += member.size
                         if total > limit:
@@ -400,7 +415,7 @@ def unpack_archive(archive: Path, destination: Path, artifact: dict) -> None:
                         continue
                     target = destination / relative
                     if member.is_dir():
-                        _make_directory(target, destination, modes, (mode & 0o777) or IMPLICIT_DIRECTORY_MODE)
+                        _make_directory(target, destination, modes, _archive_directory_mode(mode) or IMPLICIT_DIRECTORY_MODE)
                     else:
                         total += member.file_size
                         if total > limit:
@@ -616,7 +631,7 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
             configuration["RequireAnyKey"] = False
             pinned_mode = stat.S_IMODE((stage / "config.json").stat().st_mode)
             write_json(stage / "config.json", configuration)
-            (stage / "config.json").chmod(pinned_mode)  # write_json's replace is umask-dependent
+            (stage / "config.json").chmod(pinned_mode)  # write_json creates the file under the process umask; restore the pinned archive mode
         if name == "dotnet":
             # MSBuild initializes this empty SDK directory on first publish.
             # Reserve it before sealing; subsequent files/links/children still
@@ -631,7 +646,9 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
         expected = tree_seal(stage)
         if destination.exists():
             if tree_seal(destination) != expected:
-                raise ToolError(f"Cached {name} executable/dependency closure differs from the pinned archive")
+                raise ToolError(
+                    f"Cached {name} executable/dependency closure differs from the pinned archive; "
+                    f"if it was installed by an older version of this tool, delete {destination} to reinstall")
         else:
             stage.replace(destination)
         _INSTALL_SEALS[destination] = (identity, expected)
