@@ -30,7 +30,7 @@ PUBLIC_METADATA = "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49
 
 class VariantTableTests(unittest.TestCase):
     def test_binding_and_theme_evidence_name_only_the_local_variant(self):
-        self.assertEqual(12, len(RULES))
+        self.assertEqual(17, len(RULES))
         for rule in RULES:
             with self.subTest(rule=rule["full_name"]):
                 self.assertEqual((LOCAL[GAME_ASSEMBLY], LOCAL[METADATA]), (rule["binary_sha256"], rule["metadata_sha256"]))

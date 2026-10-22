@@ -224,6 +224,63 @@ DATA_DEFINITIONS_RULES = ({
 },)
 RULES += DATA_DEFINITIONS_RULES
 
+# s_boot's Bootstrapper state machine components and the FSM definition assets
+# they load. Pin each declaration with its serialized dependencies; GuiInitializer
+# and VisualAssetManager stay unbound until the layout comparator can evaluate
+# their generic bases (MonoSingleton<T>, DefinitionDataType<TKey, TValue>).
+FSM_RUNTIME_SOURCES = {
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/FiniteStateMachineBehaviour.cs": "1236d601117642b3d2560cd10a717a55440908230f7f37b5696bca602849eaf8",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/FSMUserBehaviour.cs": "3f8e6ed9a3fc04b24b2342d44dcac8f912b32af73b9f527978ed154d72c934f1",
+    "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/FiniteStateMachineScriptableObject.cs": "c511ac0007064d0317284efb0c8df9290fe3465a2481389057260430200857d7",
+    "Packages/com.hardlight.hlunitycore/Runtime/Il2CppSetOptionAttribute.cs": "138cbbdeccb4c6c6cdf5d08e248e06dc8419cff250de803582194df39893e945",
+    "Packages/com.hardlight.hlunitycore/Runtime/HLUnityCore.Runtime.asmdef": "b9f3210d5cca9f7b7cc5bc458defe0e14e8df1486a17b29e517332c476347973",
+}
+FSM_RULES = tuple({
+    "assembly": "HLUnityCore.Runtime",
+    "full_name": "Hardlight." + name,
+    "export_path": "Assets/Scripts/HLUnityCore.Runtime/Hardlight/" + name + ".cs",
+    "maintained_path": "Packages/com.hardlight.hlunitycore/Runtime/FiniteStateMachine/" + name + ".cs",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
+    "runtime_sources": FSM_RUNTIME_SOURCES,
+} for name in ("FiniteStateMachineBehaviour", "FSMUserBehaviour", "FiniteStateMachineScriptableObject"))
+RULES += FSM_RULES
+
+# TextMeshPro Resources assets. The shipped Unity.TextMeshPro declarations equal
+# the 3.2.0-pre.4 package's apart from members the package compiles only under
+# UNITY_EDITOR (TMP_FontAsset.m_SourceFontFile_EditorRef and its editor delegates,
+# the package resource importer windows) and the compiler-generated names those
+# shift. Pin the registry identity, descriptor and each type's serialized closure.
+# TMP_Settings stays unbound: its non-Serializable LineBreakingTable field is
+# outside what the layout comparator can evaluate.
+TMP_VERSION = "3.2.0-pre.4"
+TMP_LOCK = {"version": TMP_VERSION, "depth": 0, "source": "registry",
+            "dependencies": {"com.unity.ugui": "1.0.0"}, "url": "https://packages.unity.com"}
+TMP_PACKAGE_SHA256 = "6c735fb7670896a29f16cceb247f5c551d7c63a903fb52725a3961ea70273010"
+TMP_RUNTIME_SOURCES = {
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/Unity.TextMeshPro.asmdef": "3b8e1b7597ef124b1ab919f7483fd79ddf8b9a9a3ad0d89343f3b8e9a74379a6",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_Asset.cs": "e6cb2e6a443f546144bb133031e0a73e86a44e543438db26844be9bd30f1546a",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_StyleSheet.cs": "f4fa00a40d01561847c4e22d874f711130b25df4b8b4b67dbb99488b0ead8515",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_Style.cs": "c5c048cc47caa8c1bcf403e83fc2d2e725f2e9dfce1a8ec6528bb7c02865d07b",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_SpriteAsset.cs": "9f7db52d3910b77d38603a401869c72f89aab2d7a9f547ace4943001d616ee23",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_SpriteCharacter.cs": "2b431c801eeeb6b484ddfe8790acb688995f4dd08aea39b3c005b019dc538cbe",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_SpriteGlyph.cs": "6939dd28017047d8b4efed3e3577813b87add5d5e3dc645a01b7668e772caf0c",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_TextElement.cs": "493e18e7d05b988751a2e0a48d46d3eb18cdc95a240084bc818c52911bf4f04a",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_Sprite.cs": "1666269274289fe6f41ab37218318cf81fcbfd228df4daa413c4f2885512e614",
+    "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_TextElement_Legacy.cs": "53c9b2a15f289727029c10199a38dd0433415e699b2d45809f780efea61d9bb9",
+}
+TMP_PACKAGE_RULES = tuple({
+    "assembly": "Unity.TextMeshPro",
+    "full_name": "TMPro." + name,
+    "export_path": "Assets/Scripts/Unity.TextMeshPro/TMPro/" + name + ".cs",
+    "maintained_path": "Packages/com.unity.textmeshpro/Scripts/Runtime/" + name + ".cs",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
+    "package": "com.unity.textmeshpro",
+    "runtime_sources": TMP_RUNTIME_SOURCES,
+} for name in ("TMP_StyleSheet", "TMP_SpriteAsset"))
+RULES += TMP_PACKAGE_RULES
+
 GUID = re.compile(r"^guid:\s*([0-9a-f]{32})\s*$", re.MULTILINE)
 DOCUMENT = re.compile(r"^--- !u!(?P<class>\d+) &-?\d+\r?\n(?P<label>\w+):\r?\n(?P<fields>.*?)(?=^--- !u!|\Z)", re.MULTILINE | re.DOTALL)
 POINTER = re.compile(r"^(?P<prefix>  m_Script: *)\{(?P<body>[^}\r\n]*)\}(?P<trailer> *\r?$)", re.MULTILINE)
@@ -253,21 +310,33 @@ def _package_json(data):
     return value
 
 
+def _package_identity(name):
+    """Return (version, lock entry, descriptor SHA-256, builtin) of a reviewed package."""
+    if name == "com.unity.ugui":
+        return "1.0.0", UGUI_LOCK, UGUI_PACKAGE_SHA256, True
+    if name == "com.unity.textmeshpro":
+        return TMP_VERSION, TMP_LOCK, TMP_PACKAGE_SHA256, False
+    raise ValueError("Unsupported approved script package identity")
+
+
 def _script_file(root, relative, rule):
-    """Resolve only the reviewed builtin UI package; never arbitrary packages."""
+    """Resolve only the reviewed UI and TextMeshPro packages; never arbitrary packages."""
     if "package" not in rule:
         return _owned_file(root, relative)
-    if rule["package"] != "com.unity.ugui" or not relative.startswith("Packages/com.unity.ugui/"):
+    name = rule["package"]
+    version, lock_entry, descriptor_sha256, _ = _package_identity(name)
+    prefix = "Packages/" + name + "/"
+    if not relative.startswith(prefix):
         raise ValueError("Unsupported approved script package identity")
     manifest = _package_json(_owned_file(root, "Packages/manifest.json").read_bytes())
     lock = _package_json(_owned_file(root, "Packages/packages-lock.json").read_bytes())
-    if manifest.get("dependencies", {}).get("com.unity.ugui") != "1.0.0" or lock.get("dependencies", {}).get("com.unity.ugui") != UGUI_LOCK:
-        raise ValueError("Approved Unity UI package resolution changed")
-    package = root / "Library/PackageCache/com.unity.ugui@1.0.0"
+    if manifest.get("dependencies", {}).get(name) != version or lock.get("dependencies", {}).get(name) != lock_entry:
+        raise ValueError("Approved package resolution changed: " + name)
+    package = root / "Library/PackageCache" / (name + "@" + version)
     descriptor = _owned_file(package, "package.json").read_bytes()
-    if hashlib.sha256(descriptor).hexdigest() != UGUI_PACKAGE_SHA256:
-        raise ValueError("Approved Unity UI package descriptor changed")
-    suffix = relative[len("Packages/com.unity.ugui/"):]
+    if hashlib.sha256(descriptor).hexdigest() != descriptor_sha256:
+        raise ValueError("Approved package descriptor changed: " + name)
+    suffix = relative[len(prefix):]
     if not suffix or any(part in ("", ".", "..") for part in suffix.split("/")):
         raise ValueError("Unsupported approved script package path")
     return _owned_file(package, suffix)
@@ -356,12 +425,13 @@ def resolve_bindings(repo_root, work_dir, exported_project, asset_map, *, input_
         if len(scripts) != 1 or scripts[0].get("path") != rule["maintained_path"] or scripts[0].get("class_resolved") is not True:
             raise ValueError("Loaded maintained MonoScript identity is ambiguous")
         target = scripts[0]
-        if rule.get("package") == "com.unity.ugui":
-            expected_package = root / "Library/PackageCache/com.unity.ugui@1.0.0"
-            if (target.get("package_name") != "com.unity.ugui" or target.get("package_version") != "1.0.0" or
-                    target.get("package_builtin") is not True or target.get("package_resolved_path") != str(expected_package) or
+        if "package" in rule:
+            version, _, _, builtin = _package_identity(rule["package"])
+            expected_package = root / "Library/PackageCache" / (rule["package"] + "@" + version)
+            if (target.get("package_name") != rule["package"] or target.get("package_version") != version or
+                    target.get("package_builtin") is not builtin or target.get("package_resolved_path") != str(expected_package) or
                     target.get("source_path") != str(source)):
-                raise ValueError("Loaded Unity UI package differs from its approved physical source")
+                raise ValueError("Loaded package differs from its approved physical source: " + rule["package"])
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
         if target.get("source_sha256") != digest:
             raise ValueError("Maintained script changed after its Unity inventory")
@@ -507,21 +577,24 @@ def rewrite_script_pointers(content, bindings):
 
 
 def rewrite_prepared_script_pointers(content, bindings):
-    """Route only the qualified configuration script identities."""
+    """Route only the qualified configuration and TextMeshPro script identities."""
     from .configurationbindings import PROFILES, rewrite_configuration_pointers
+    from .textmeshprobindings import PROFILES as TMP_PROFILES, rewrite_textmeshpro_pointers
 
     if len({row["exported_guid"] for row in bindings}) != len(bindings):
         raise ValueError("Duplicate exported script binding")
-    configuration = [row for row in bindings
-                     if (row.get("assembly"), row.get("full_name")) in PROFILES]
-    scalar = [row for row in bindings
-              if (row.get("assembly"), row.get("full_name")) not in PROFILES]
-    # Select by script field lines first. The configuration helper's stricter
+    owner = lambda row: (row.get("assembly"), row.get("full_name"))
+    configuration = [row for row in bindings if owner(row) in PROFILES]
+    textmeshpro = [row for row in bindings if owner(row) in TMP_PROFILES]
+    scalar = [row for row in bindings if owner(row) not in PROFILES and owner(row) not in TMP_PROFILES]
+    # Select by script field lines first. The profile helpers' stricter
     # standalone/control guards must not apply to unrelated scalar documents.
     text = content.decode("utf-8")
     script_lines = re.findall(r"^[ \t]*m_Script:[^\r\n]*", text, re.MULTILINE)
-    if any(row["exported_guid"] in line.lower() for row in configuration for line in script_lines):
-        rewritten, changes = rewrite_configuration_pointers(content, configuration)
-        rewritten, scalar_changes = rewrite_script_pointers(rewritten, scalar)
-        return rewritten, changes + scalar_changes
-    return rewrite_script_pointers(content, scalar)
+    rewritten, changes = content, 0
+    for rows, rewrite in ((configuration, rewrite_configuration_pointers), (textmeshpro, rewrite_textmeshpro_pointers)):
+        if any(row["exported_guid"] in line.lower() for row in rows for line in script_lines):
+            rewritten, count = rewrite(rewritten, rows)
+            changes += count
+    rewritten, scalar_changes = rewrite_script_pointers(rewritten, scalar)
+    return rewritten, changes + scalar_changes

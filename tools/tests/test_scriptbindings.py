@@ -9,7 +9,8 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lucidlib.scriptbindings import RULES, PACKAGE_RULES, GUID, resolve_bindings, rewrite_script_pointers
+from lucidlib.scriptbindings import (RULES, PACKAGE_RULES, FSM_RULES, TMP_PACKAGE_RULES, TMP_LOCK, GUID,
+                                     resolve_bindings, rewrite_prepared_script_pointers, rewrite_script_pointers)
 from lucidlib.verification import artifact_fingerprint
 
 
@@ -473,6 +474,144 @@ class UguiScriptBindingTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "symlink"):
                     resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
             run.assert_not_called()
+
+
+class BootScriptBindingTests(unittest.TestCase):
+    """s_boot's state machine rules bind only the maintained files they pin."""
+
+    def test_state_machine_rules_pin_the_current_maintained_sources(self):
+        repo = Path(__file__).resolve().parents[2]
+        self.assertEqual(["Hardlight.FiniteStateMachineBehaviour", "Hardlight.FSMUserBehaviour",
+                          "Hardlight.FiniteStateMachineScriptableObject"], [rule["full_name"] for rule in FSM_RULES])
+        for rule in FSM_RULES:
+            with self.subTest(rule=rule["full_name"]):
+                self.assertIn(rule["maintained_path"], rule["runtime_sources"])
+                for relative, expected in rule["runtime_sources"].items():
+                    self.assertEqual(expected, hashlib.sha256((repo / relative).read_bytes()).hexdigest(), relative)
+
+    def scene_document(self, file_id, guid, own):
+        return ("--- !u!114 &" + str(file_id) + "\nMonoBehaviour:\n"
+                "  m_ObjectHideFlags: 0\n  m_CorrespondingSourceObject: {fileID: 0}\n"
+                "  m_PrefabInstance: {fileID: 0}\n  m_PrefabAsset: {fileID: 0}\n"
+                "  m_GameObject: {fileID: 1}\n  m_Enabled: 1\n  m_EditorHideFlags: 0\n"
+                "  m_Script: {fileID: 11500000, guid: " + guid + ", type: 3}\n"
+                "  m_Name:\n  m_EditorClassIdentifier:\n" + own)
+
+    def test_boot_scene_components_rebind_and_unbound_neighbours_stay_byte_identical(self):
+        # The exported s_boot shape: two bound FSM components beside an unbound
+        # nested component (VisualAssetManager) that must stay untouched.
+        bindings = [{**rule, "exported_guid": str(index + 1) * 32, "exported_file_id": 11500000,
+                     "target_guid": str(index + 5) * 32, "target_file_id": 11500000}
+                    for index, rule in enumerate(FSM_RULES)]
+        unbound = self.scene_document(11, "e" * 32, "  m_requirementForHDUI:\n    Level: -100\n"
+                                      "  m_atlasesWithVariants:\n  - UI_Atlas\n")
+        raw = ("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n" +
+               self.scene_document(9, "1" * 32, "  m_fsmAsset: {fileID: 11400000, guid: " + "a" * 32 + ", type: 2}\n"
+                                   "  m_overrideFSMName:\n  m_updateType: 0\n") +
+               self.scene_document(10, "2" * 32, "  m_finiteStateMachine: {fileID: 9}\n  m_initialiseUserOnEnable: 1\n"
+                                   "  m_initialiseUserOnEnableIfNoActiveState: 1\n  m_clearUserOnDisable: 1\n") + unbound).encode()
+        actual, count = rewrite_prepared_script_pointers(raw, bindings)
+        expected = raw.replace(b"guid: " + b"1" * 32, b"guid: " + b"5" * 32).replace(b"guid: " + b"2" * 32, b"guid: " + b"6" * 32)
+        self.assertEqual(2, count)
+        self.assertEqual(expected, actual)
+        self.assertIn(unbound.encode(), actual)
+
+    def test_a_nested_field_in_a_bound_scene_component_is_refused(self):
+        # The scalar rewriter admits no nested payload; a drifted bound
+        # component must abort rather than be rebound beside unknown data.
+        bindings = [{**FSM_RULES[0], "exported_guid": "1" * 32, "exported_file_id": 11500000,
+                     "target_guid": "5" * 32, "target_file_id": 11500000}]
+        raw = self.scene_document(9, "1" * 32, "  m_fsmAsset:\n    fileID: 0\n").encode()
+        with self.assertRaisesRegex(ValueError, "field shape"):
+            rewrite_prepared_script_pointers(raw, bindings)
+
+
+class TextMeshProScriptBindingTests(unittest.TestCase):
+    PREFIX = "Packages/com.unity.textmeshpro/"
+
+    def fixture(self, directory):
+        root, work, export, mapping, comparison, path, summary = ScriptBindingTests.fixture(self, directory)
+        package = root / "Library/PackageCache/com.unity.textmeshpro@3.2.0-pre.4"
+        (root / "Packages").mkdir(exist_ok=True)
+        (root / "Packages/manifest.json").write_text(json.dumps({"dependencies": {"com.unity.textmeshpro": "3.2.0-pre.4"}}))
+        (root / "Packages/packages-lock.json").write_text(json.dumps({"dependencies": {"com.unity.textmeshpro": TMP_LOCK}}))
+        hashes = {}
+        for relative in TMP_PACKAGE_RULES[0]["runtime_sources"]:
+            target = package / relative[len(self.PREFIX):]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            data = ("// Distinct resolver fixture " + relative + "\n").encode()
+            target.write_bytes(data)
+            hashes[relative] = hashlib.sha256(data).hexdigest()
+        descriptor = json.dumps({"name": "com.unity.textmeshpro", "version": "3.2.0-pre.4"}).encode()
+        (package / "package.json").write_bytes(descriptor)
+        for guard in (patch.dict("lucidlib.scriptbindings.TMP_RUNTIME_SOURCES", hashes, clear=True),
+                      patch("lucidlib.scriptbindings.TMP_PACKAGE_SHA256", hashlib.sha256(descriptor).hexdigest())):
+            guard.start()
+            self.addCleanup(guard.stop)
+        for index, rule in enumerate(TMP_PACKAGE_RULES):
+            guid = str(index + 1) * 32
+            original = export / rule["export_path"]
+            original.parent.mkdir(parents=True, exist_ok=True)
+            original.write_text("// Original export declaration fixture\n")
+            original.with_name(original.name + ".meta").write_text("fileFormatVersion: 2\nguid: " + guid + "\n")
+            mapping["assets"].append({"path": rule["export_path"], "guid": guid, "code_quarantined": True})
+            source = package / rule["maintained_path"][len(self.PREFIX):]
+            target_guid = str(index + 6) * 32
+            source.with_name(source.name + ".meta").write_text("fileFormatVersion: 2\nguid: " + target_guid + "\n")
+            comparison["candidates"].append({"assembly": rule["assembly"], "full_name": rule["full_name"],
+                "status": "compatible_layout", "issues": [], "original_token": "0x02000001",
+                "loaded_scripts": [{"path": rule["maintained_path"], "guid": target_guid, "file_id": 11500000,
+                    "class_resolved": True, "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                    "source_path": str(source), "package_name": "com.unity.textmeshpro", "package_version": "3.2.0-pre.4",
+                    "package_builtin": False, "package_resolved_path": str(package)}]})
+        comparison["source_fingerprint"] = summary["source_fingerprint"] = artifact_fingerprint(root)
+        path.write_text(json.dumps(comparison))
+        return root, work, export, mapping, comparison, path, summary, package
+
+    def test_both_package_assets_bind_to_the_loaded_registry_scripts(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            with patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                result = resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+            package_rows = [row for row in result["bindings"] if row.get("package") == "com.unity.textmeshpro"]
+            self.assertEqual([("1" * 32, "6" * 32), ("2" * 32, "7" * 32)],
+                             [(row["exported_guid"], row["target_guid"]) for row in package_rows])
+
+    def test_package_resolution_descriptor_source_and_meta_changes_are_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            files = [root / "Packages/manifest.json", root / "Packages/packages-lock.json", package / "package.json"]
+            files += [package / relative[len(self.PREFIX):] for relative in TMP_PACKAGE_RULES[0]["runtime_sources"]]
+            files += [package / (rule["maintained_path"][len(self.PREFIX):] + ".meta") for rule in TMP_PACKAGE_RULES]
+            for source in files:
+                original = source.read_bytes()
+                if source.name == "manifest.json":
+                    source.write_text(json.dumps({"dependencies": {"com.unity.textmeshpro": "3.0.9"}}))
+                elif source.name == "packages-lock.json":
+                    source.write_text(json.dumps({"dependencies": {"com.unity.textmeshpro": dict(TMP_LOCK, source="embedded")}}))
+                elif source.suffix == ".meta":
+                    source.write_text("guid: " + "f" * 32 + "\n")
+                else:
+                    source.write_bytes(original + b"\n// changed package input\n")
+                with self.subTest(path=source), patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                    with self.assertRaises(ValueError):
+                        resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
+                source.write_bytes(original)
+
+    def test_loaded_package_must_be_the_pinned_registry_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root, work, export, mapping, comparison, path, summary, package = self.fixture(directory)
+            original = copy.deepcopy(comparison)
+            mutations = {"source_path": str(root / "Packages/com.unity.textmeshpro/Scripts/Runtime/TMP_StyleSheet.cs"),
+                         "package_resolved_path": str(root / "Packages/com.unity.textmeshpro"),
+                         "package_name": "com.unity.ugui", "package_version": "3.0.9", "package_builtin": True}
+            for key, value in mutations.items():
+                altered = copy.deepcopy(original)
+                altered["candidates"][1]["loaded_scripts"][0][key] = value
+                path.write_text(json.dumps(altered))
+                with self.subTest(field=key), patch("lucidlib.scriptbindings.run_layout_inventory", return_value=summary):
+                    with self.assertRaisesRegex(ValueError, "physical source"):
+                        resolve_bindings(root, work, export, mapping, input_fingerprint=self.input_fingerprint)
 
 
 if __name__ == "__main__":

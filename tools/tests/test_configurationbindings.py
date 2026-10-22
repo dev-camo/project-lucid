@@ -105,6 +105,53 @@ class DataDefinitionsDocumentTests(unittest.TestCase):
         self.assertEqual(expected, rewrite_prepared_script_pointers(raw, [binding(0), definitions_binding()]))
 
 
+def fsm_binding():
+    return dict(assembly="HLUnityCore.Runtime", full_name="Hardlight.FiniteStateMachineScriptableObject",
+                exported_guid="9" * 32, target_guid="a" * 32,
+                exported_file_id=11500000, target_file_id=11500000)
+
+
+def fsm_document(referenced="  m_referencedScriptableObjects: []\n", name="FSMApplication_Splash",
+                 path="FSM/Application/Application_Splash.json", embedded=""):
+    own = ("  m_name: " + name + "\n  m_isOverwriteOk: 0\n  m_reuseExisting: 1\n  m_releaseOnDestroy: 1\n" +
+           referenced + "  m_relativePathToJSON: " + path + "\n  m_embeddedJSON:" + (" " + embedded if embedded else "") + "\n")
+    return document(0, own).replace(binding(0)["exported_guid"].encode(), b"9" * 32)
+
+
+class FiniteStateMachineAssetDocumentTests(unittest.TestCase):
+    """The 124 exported FSM definitions: 123 with no references, one with two."""
+
+    def assert_pointer_only(self, content):
+        row = fsm_binding()
+        result, count = rewrite_configuration_pointers(content, [row])
+        old = ("  m_Script: {fileID: 11500000, guid: " + row["exported_guid"] + ", type: 3}").encode()
+        new = ("  m_Script: {fileID: 11500000, guid: " + row["target_guid"] + ", type: 3}").encode()
+        self.assertEqual((content.replace(old, new), 1), (result, count))
+
+    def test_observed_definition_shapes_change_only_script(self):
+        self.assert_pointer_only(fsm_document())
+        self.assert_pointer_only(fsm_document("  m_referencedScriptableObjects:\n  - " + asset(1) + "\n  - " + asset(2) + "\n",
+                                              name="FSMApplication", path="FSM/Application/Application.json"))
+        self.assert_pointer_only(fsm_document().replace(b"\n", b"\r\n"))
+
+    def test_embedded_graphs_and_unobserved_shapes_are_rejected(self):
+        cases = {
+            "embedded JSON": fsm_document(embedded='"{}"'),
+            "block embedded JSON": fsm_document(embedded="|\n    {}"),
+            "Boolean range": fsm_document().replace(b"m_reuseExisting: 1", b"m_reuseExisting: 2"),
+            "quoted name": fsm_document(name="'FSM'"),
+            "empty name": fsm_document(name=""),
+            "quoted path": fsm_document(path="'FSM/a.json'"),
+            "scene pointer": fsm_document("  m_referencedScriptableObjects:\n  - {fileID: 1}\n"),
+            "nested reference": fsm_document("  m_referencedScriptableObjects:\n  - Name: x\n    Data: " + asset(1) + "\n"),
+            "extra field": fsm_document() + b"  m_extra: 0\n",
+            "missing field": fsm_document().replace(b"  m_isOverwriteOk: 0\n", b""),
+        }
+        for label, content in cases.items():
+            with self.subTest(case=label), self.assertRaises(ValueError):
+                rewrite_configuration_pointers(content, [fsm_binding()])
+
+
 class ConfigurationDocumentTests(unittest.TestCase):
     def assert_pointer_only(self, content, index):
         row = binding(index)

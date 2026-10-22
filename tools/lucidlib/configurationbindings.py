@@ -19,6 +19,9 @@ PROFILES = {
         "m_charactersOutputDirectory", "m_enableEditorDataGeneration", "m_enableLocalisedUIStringFunctionality"),
     ("Game.Runtime", "HardlightProject.HashedGroupConfiguration"): (),
     ("Game.Runtime", "HardlightProject.DataDefinitions"): ("DataDefinitionsArray",),
+    ("HLUnityCore.Runtime", "Hardlight.FiniteStateMachineScriptableObject"): (
+        "m_name", "m_isOverwriteOk", "m_reuseExisting", "m_releaseOnDestroy",
+        "m_referencedScriptableObjects", "m_relativePathToJSON", "m_embeddedJSON"),
 }
 COMMON = ("m_ObjectHideFlags", "m_CorrespondingSourceObject", "m_PrefabInstance",
           "m_PrefabAsset", "m_GameObject", "m_Enabled", "m_EditorHideFlags", "m_Script",
@@ -29,7 +32,8 @@ SCRIPT = re.compile(r"\{fileID: (-?[0-9]+), guid: ([0-9a-f]{32}), type: 3\}")
 ASSET = re.compile(r"\{fileID: 11400000, guid: ([0-9a-f]{32}), type: 2\}")
 GUID = re.compile(r"[0-9a-f]{32}")
 IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
-POINTER_LISTS = {"m_configurationAssets", "m_systemScenes", "m_uiScenes", "m_gameplayEntries", "DataDefinitionsArray"}
+POINTER_LISTS = {"m_configurationAssets", "m_systemScenes", "m_uiScenes", "m_gameplayEntries", "DataDefinitionsArray",
+                 "m_referencedScriptableObjects"}
 POINTER_FIELDS = {"ActiveConfig", "m_baseAsset", "m_runtimeIssueProfile", "m_hashedComponentGroupDefaults"}
 SCALAR_FIELDS = {
     ("Game.Runtime", "HardlightProject.CoreGameConfiguration"): {
@@ -42,6 +46,11 @@ SCALAR_FIELDS = {
         "m_localisedDefinitionsDirectory": "path", "m_nodeDataExportPath": "path",
         "m_charactersOutputDirectory": "path", "m_enableEditorDataGeneration": "bool",
         "m_enableLocalisedUIStringFunctionality": "bool"},
+    # All 124 exported FSM definitions load their graph from StreamingAssets;
+    # none embeds JSON, so a non-empty embedded graph is outside this profile.
+    ("HLUnityCore.Runtime", "Hardlight.FiniteStateMachineScriptableObject"): {
+        "m_name": "name", "m_isOverwriteOk": "bool", "m_reuseExisting": "bool", "m_releaseOnDestroy": "bool",
+        "m_relativePathToJSON": "path", "m_embeddedJSON": "empty"},
 }
 
 
@@ -78,7 +87,7 @@ def _asset(value):
 
 
 def _scalar(value, items, kind):
-    # Only the three original owners above admit these scalar fields. Keep the
+    # Only the original owners above admit these scalar fields. Keep the
     # text unchanged; validation never interprets a path or an enum as behavior.
     if items:
         raise ValueError("Unsupported configuration scalar sequence")
@@ -93,6 +102,12 @@ def _scalar(value, items, kind):
         # tags, comments, quoting and multiline forms outside the observed export.
         if re.fullmatch(r"[A-Za-z0-9_./-]+(?: [A-Za-z0-9_./-]+)*", value) is None:
             raise ValueError("Unsupported configuration plain path")
+    elif kind == "name":
+        if re.fullmatch(r"[A-Za-z_][A-Za-z_0-9 .-]*", value) is None:
+            raise ValueError("Unsupported configuration plain name")
+    elif kind == "empty":
+        if value:
+            raise ValueError("Unsupported non-empty configuration string")
     else:
         raise ValueError("Unsupported configuration scalar kind")
 
