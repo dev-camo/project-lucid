@@ -120,8 +120,9 @@ namespace ProjectLucid.Tests
         // ApplicationStateLoadLevelProcess.DoOnEnter 0x0600079f: the stored last-loaded GUID is compared
         // (String.op_Inequality 0x658821) with the GUID read through currentLevel+0x18 (0x658818), ORed with
         // !HasSystemOfType<TrackManager>. The replace branch reads level.Data (+0x20), null here, so reaching it
-        // faults with a NullReferenceException; the other branch goes on to SetLevelActiveForFSM, whose unloaded
-        // scene handle faults differently (or not at all).
+        // faults with a NullReferenceException raised outside SetLevelActiveForFSM; the other branch goes on to
+        // SetLevelActiveForFSM, where the default Addressables handle throws System.Exception (invalid operation handle).
+        // Each branch is told apart by where the exception was raised, and any other failure fails the test.
         private static bool LoadLevelProcessReplaces(Owned owned, string lastLoadedGuid, bool trackManagerPresent)
         {
             GameplayLevelDefinition a = Definition(owned, GuidA);
@@ -135,9 +136,15 @@ namespace ProjectLucid.Tests
             ApplicationStateEvent stateEvent = NewEvent(owned);
             IFSMState state = ApplicationStateLoadLevelProcess.ConstructInstance(Machine(), Name(), "{\"EventId\":\"" + stateEvent.name + "\"}");
             try { state.OnEnter(app, null); }
-            catch (NullReferenceException) { return true; }
-            catch (Exception) { return false; }
-            return false;
+            catch (Exception exception)
+            {
+                if (exception.StackTrace.Contains("SetLevelActiveForFSM"))
+                    return false;
+                if (exception is NullReferenceException)
+                    return true;
+                throw;
+            }
+            throw new AssertionException("OnEnter completed without reaching either faulting branch");
         }
 
         [Test]
