@@ -8,11 +8,12 @@ evidence for a human reviewer; it never qualifies an input variant by itself.
 import hashlib
 import mmap
 import os
+import stat
 import struct
 
 from . import inputvariants
 
-FORMAT = 4
+FORMAT = 5
 
 FAT_MAGIC, FAT_MAGIC_64 = 0xCAFEBABE, 0xCAFEBABF  # stored big-endian
 MH_MAGIC_64 = 0xFEEDFACF                           # stored little-endian
@@ -57,19 +58,23 @@ def _raise(error):
 
 def build_manifest(app):
     """Every regular file as (path, size, sha256, permission bits), every directory with its permission bits,
-    and every symlink as a link, never followed."""
+    and every symlink as a link, never followed. Any other entry type is refused."""
     files, links, directories = [], [], []
     for directory, dirnames, filenames in os.walk(app, followlinks=False, onerror=_raise):
         for name in dirnames + filenames:
             full = os.path.join(directory, name)
             relative = os.path.relpath(full, app).replace(os.sep, "/")
-            if os.path.islink(full):
+            info = os.lstat(full)
+            if stat.S_ISLNK(info.st_mode):
                 links.append({"path": relative, "target": os.readlink(full)})
-            elif os.path.isdir(full):
-                directories.append({"path": relative, "mode": os.stat(full).st_mode & 0o7777})
-            elif os.path.isfile(full):
-                files.append({"path": relative, "size": os.path.getsize(full), "sha256": _file_sha256(full),
-                              "mode": os.stat(full).st_mode & 0o7777})
+            elif stat.S_ISDIR(info.st_mode):
+                directories.append({"path": relative, "mode": info.st_mode & 0o7777})
+            elif stat.S_ISREG(info.st_mode):
+                files.append({"path": relative, "size": info.st_size, "sha256": _file_sha256(full),
+                              "mode": info.st_mode & 0o7777})
+            else:
+                # A FIFO, socket or device cannot be hashed safely (opening a FIFO blocks) and must not vanish.
+                raise ValueError("Unsupported bundle entry (not a file, directory or symlink): " + relative)
     files.sort(key=lambda item: item["path"])
     links.sort(key=lambda item: item["path"])
     directories.sort(key=lambda item: item["path"])
@@ -148,6 +153,7 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align, canonical):
         if 32 + sizeofcmds > size:
             raise ValueError("Load commands overrun the slice")
         masked = []  # byte ranges (relative to the slice) that legitimately change when a bundle is re-signed
+        fields = []  # the load-command field ranges among them; a segment that maps the header contains these
         position = 32
         for _ in range(ncmds):
             if position + 8 > 32 + sizeofcmds:
@@ -167,7 +173,7 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align, canonical):
             if cmd == LC_SEGMENT_64:
                 name, vmaddr, vmsize, fileoff, filesize, _, _, nsects, _ = struct.unpack_from("<16sQQQQiiII", view, body)
                 segment = {"segname": _cstr(name), "vmaddr": vmaddr, "vmsize": vmsize, "fileoff": fileoff,
-                           "filesize": filesize, "sha256": None, "sections": []}
+                           "filesize": filesize, "sha256": None, "normalized_sha256": None, "sections": []}
                 if filesize:
                     if fileoff + filesize > size:
                         raise ValueError("Segment {} overruns the slice".format(segment["segname"]))
@@ -186,26 +192,49 @@ def _parse_slice(data, cputype, cpusubtype, offset, size, align, canonical):
                     raise ValueError("Duplicate segment " + segment["segname"])
                 record["segments"].append(segment)
                 if segment["segname"] == "__LINKEDIT":
-                    masked += [(body + 24, body + 32), (body + 40, body + 48)]  # vmsize, filesize
+                    fields += [(body + 24, body + 32), (body + 40, body + 48)]  # vmsize, filesize
             elif cmd == LC_UUID:
                 record["uuid"] = bytes(view[body:body + 16]).hex()
-                masked.append((body, body + 16))
+                fields.append((body, body + 16))
             elif cmd == LC_CODE_SIGNATURE:
                 dataoff, datasize = struct.unpack_from("<II", view, body)
                 record["code_signature"] = {"dataoff": dataoff, "datasize": datasize}
-                masked.append((body, body + 8))
+                fields.append((body, body + 8))
             elif cmd == LC_ENCRYPTION_INFO_64:
                 cryptoff, cryptsize, cryptid = struct.unpack_from("<III", view, body)
                 record["encryption"] = {"cryptoff": cryptoff, "cryptsize": cryptsize, "cryptid": cryptid}
             position += cmdsize
+        masked += fields
+        signature = record["code_signature"]
+        linkedit = next((s for s in record["segments"] if s["segname"] == "__LINKEDIT"), None)
+        if signature:
+            # A signature outside __LINKEDIT would let a real change hide inside a masked or unhashed range.
+            if linkedit is None:
+                raise ValueError("LC_CODE_SIGNATURE without a __LINKEDIT segment")
+            sig_start, sig_end = signature["dataoff"], signature["dataoff"] + signature["datasize"]
+            if sig_end > size:
+                raise ValueError("LC_CODE_SIGNATURE range overruns the slice")
+            if sig_start < linkedit["fileoff"] or sig_end > linkedit["fileoff"] + linkedit["filesize"]:
+                raise ValueError("LC_CODE_SIGNATURE range lies outside __LINKEDIT")
+        for segment in record["segments"]:
+            if segment["filesize"]:
+                # The raw hash stays as evidence; this one leaves out the validated load-command fields that a
+                # header-mapped segment (__TEXT at file offset 0) contains and that re-signing legitimately changes.
+                start, end = segment["fileoff"], segment["fileoff"] + segment["filesize"]
+                digest, cursor = hashlib.sha256(), start
+                for lo, hi in sorted(fields):
+                    if hi > cursor and lo < end:
+                        digest.update(view[cursor:max(cursor, lo)])
+                        cursor = max(cursor, min(hi, end))
+                digest.update(view[cursor:end])
+                segment["normalized_sha256"] = digest.hexdigest()
         for segment in record["segments"]:
             if segment["segname"] == "__LINKEDIT":
                 start, end = segment["fileoff"], segment["fileoff"] + segment["filesize"]
                 if end > size:
                     raise ValueError("__LINKEDIT overruns the slice")
                 digest = hashlib.sha256()
-                signature = record["code_signature"]
-                if signature and start <= signature["dataoff"] and signature["dataoff"] + signature["datasize"] <= end:
+                if signature:
                     digest.update(view[start:signature["dataoff"]])
                     digest.update(view[signature["dataoff"] + signature["datasize"]:end])
                 else:
@@ -381,9 +410,13 @@ def _compare_slice(label, a, b, out):
             _diff(out, area, "segment " + key + (" (follows from the signature range)" if explained else ""),
                   explained, segname=name, a=left[key], b=right[key])
         if left["sha256"] != right["sha256"]:
-            # __LINKEDIT bytes may differ only inside the signature range, judged by the unsigned hash above.
-            explained = name == "__LINKEDIT" and unsigned_equal
-            _diff(out, area, "segment sha256" + (" (follows from the signature range)" if explained else ""),
+            # __LINKEDIT bytes may differ only inside the signature range, judged by the unsigned hash above;
+            # any other segment may differ only in the masked load-command fields it maps (header-mapped __TEXT).
+            explained = unsigned_equal if name == "__LINKEDIT" else (
+                left["normalized_sha256"] is not None and left["normalized_sha256"] == right["normalized_sha256"])
+            _diff(out, area, "segment sha256" + (
+                (" (follows from the signature range)" if name == "__LINKEDIT"
+                 else " (follows from the masked load-command fields)") if explained else ""),
                   explained, segname=name, a=left["sha256"], b=right["sha256"])
     sections_a = {(s["segname"], s["sectname"]): s for seg in a["segments"] for s in seg["sections"]}
     sections_b = {(s["segname"], s["sectname"]): s for seg in b["segments"] for s in seg["sections"]}
