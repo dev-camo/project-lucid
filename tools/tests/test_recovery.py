@@ -279,52 +279,102 @@ class RecoverySafetyTests(unittest.TestCase):
                 except ProcessLookupError:
                     pass
 
-    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
-    def test_interrupt_stops_the_group_before_the_caller_cleans_up(self):
-        # Ctrl-C during the wait must stop the tool and its descendant before the
-        # caller's finally runs, then propagate as KeyboardInterrupt (#412).
+    # Runs run_logged under a caller whose finally records, at cleanup time, the state of the
+    # leader (pid published as soon as it starts) and of the worker.
+    _INTERRUPT_DRIVER = (
+        "import json, signal, subprocess, sys\n"
+        "from pathlib import Path\n"
+        "from tools.lucidlib import bootstrap\n"
+        "signal.signal(signal.SIGINT, signal.default_int_handler)\n"
+        "work, leader, worker, pid_file, marker, leader_file = sys.argv[1:7]\n"
+        "real_popen = subprocess.Popen\n"
+        "class Spy(real_popen):\n"
+        "    def __init__(self, *args, **kwargs):\n"
+        "        super().__init__(*args, **kwargs)\n"
+        "        Path(leader_file).write_text(str(self.pid))\n"
+        "subprocess.Popen = Spy\n"
+        "def state(pid):\n"
+        "    return subprocess.run(['ps', '-o', 'stat=', '-p', str(pid)],\n"
+        "                          capture_output=True, text=True).stdout.strip()\n"
+        "try:\n"
+        "    bootstrap.run_logged([sys.executable, '-c', leader, worker, pid_file], Path(work),\n"
+        "                         'interrupt.log', timeout=60)\n"
+        "finally:\n"
+        "    Path(marker).write_text(json.dumps({\n"
+        "        'leader': state(Path(leader_file).read_text()),\n"
+        "        'worker': state(Path(pid_file).read_text())}))\n")
+
+    def _interrupt_group(self, worker, interrupts):
         pids = self.work / "pids"
-        cleanup = self.work / "cleanup.marker"
-        worker = self._worker("")
-        driver = (
-            "import signal, sys\n"
-            "from pathlib import Path\n"
-            "from tools.lucidlib.bootstrap import run_logged\n"
-            "signal.signal(signal.SIGINT, signal.default_int_handler)\n"
-            "work, leader, worker, pid_file, marker = sys.argv[1:6]\n"
-            "try:\n"
-            "    run_logged([sys.executable, '-c', leader, worker, pid_file], Path(work),\n"
-            "               'interrupt.log', timeout=60)\n"
-            "finally:\n"
-            "    Path(marker).write_text('cleaned')\n")
-        helper = subprocess.Popen([sys.executable, "-c", driver, str(self.work), self._LEADER,
-                                   worker, str(pids), str(cleanup)], cwd=REPO_ROOT,
-                                  stderr=subprocess.PIPE, text=True)
-        worker_pid = None
+        marker = self.work / "cleanup.marker"
+        leader_file = self.work / "leader.pid"
+        helper = subprocess.Popen(
+            [sys.executable, "-c", self._INTERRUPT_DRIVER, str(self.work), self._LEADER, worker,
+             str(pids), str(marker), str(leader_file)],
+            cwd=REPO_ROOT, stderr=subprocess.PIPE, text=True)
+        worker_pid = leader_pid = None
         try:
             deadline = time.monotonic() + 30
             while not pids.exists() and time.monotonic() < deadline:
                 time.sleep(0.05)
             self.assertTrue(pids.exists(), "worker was not ready")
             worker_pid = int(pids.read_text())
-            helper.send_signal(signal.SIGINT)
-            _, stderr = helper.communicate(timeout=30)
+            leader_pid = int(leader_file.read_text())
+            for index in range(interrupts):
+                if index:
+                    time.sleep(0.5)
+                helper.send_signal(signal.SIGINT)
+            _, stderr = helper.communicate(timeout=60)
             self.assertNotEqual(helper.returncode, 0)
             self.assertIn("KeyboardInterrupt", stderr)
-            self.assertTrue(cleanup.exists(), "caller cleanup did not run")
-            self.assertTrue(self._process_stopped(worker_pid),
-                            "descendant survived the interruption")
+            self.assertTrue(marker.exists(), "caller cleanup did not run")
+            at_cleanup = json.loads(marker.read_text())
+            for name, state in at_cleanup.items():
+                self.assertTrue(not state or state.startswith("Z"),
+                                f"{name} was still running when caller cleanup started ({state!r})")
+            self.assertTrue(self._process_stopped(leader_pid))
+            self.assertTrue(self._process_stopped(worker_pid))
             self.assertIn("after an interruption",
                           (self.work / "reports" / "interrupt.log").read_text())
         finally:
             if helper.poll() is None:
                 helper.kill()
                 helper.communicate()
+            if leader_pid is not None:
+                try:
+                    os.killpg(leader_pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
             if worker_pid is not None:
                 try:
                     os.kill(worker_pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_interrupt_stops_the_group_before_the_caller_cleans_up(self):
+        # Ctrl-C during the wait must stop the tool and its descendant before the
+        # caller's finally runs, then propagate as KeyboardInterrupt (#412).
+        self._interrupt_group(self._worker(""), 1)
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_repeated_interrupt_does_not_cut_the_group_stop_short(self):
+        # The worker ignores SIGTERM, so stopping takes the full SIGTERM grace. A second
+        # Ctrl-C during it must not abandon the group before SIGKILL.
+        self._interrupt_group(self._worker("signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"), 2)
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_interrupt_raises_tool_error_when_the_group_outlives_the_sigkill_bound(self):
+        # When the group cannot be stopped, callers must not see a plain interruption
+        # and go on to remove its working trees; the interruption stays as the cause.
+        with mock.patch("tools.lucidlib.bootstrap.group_has_live_members", return_value=True), \
+                mock.patch("tools.lucidlib.bootstrap.TERM_GRACE_SECONDS", 0.2), \
+                mock.patch("tools.lucidlib.bootstrap.KILL_WAIT_SECONDS", 0.2), \
+                mock.patch.object(subprocess.Popen, "wait", side_effect=KeyboardInterrupt):
+            with self.assertRaises(ToolError) as caught:
+                run_logged([sys.executable, "-c", "import time; time.sleep(60)"], self.work,
+                           "interrupt-bound.log", timeout=60)
+        self.assertIsInstance(caught.exception.__cause__, KeyboardInterrupt)
 
     @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
     def test_timeout_raises_when_the_group_outlives_the_sigkill_bound(self):

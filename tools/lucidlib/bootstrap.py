@@ -439,6 +439,40 @@ def stop_process_group(process: subprocess.Popen) -> None:
     process.wait()
 
 
+@contextmanager
+def _interrupts_deferred():
+    """Ignore SIGINT while a tool is being stopped, so a repeated Ctrl-C cannot cut the stop short."""
+    try:
+        previous = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except ValueError:  # not the main thread: signals cannot be changed here
+        yield
+        return
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGINT, previous)
+
+
+def _stop_tool(process: subprocess.Popen) -> None:
+    """Stop a run_logged child and return only once it has stopped."""
+    with _interrupts_deferred():
+        if os.name == "posix":
+            stop_process_group(process)
+            return
+        # Known gap (no tracking issue yet): Windows stops only the immediate process, not
+        # its tree. POSIX group ownership is #235.
+        process.terminate()
+        try:
+            process.wait(timeout=TERM_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            try:
+                process.wait(timeout=KILL_WAIT_SECONDS)
+            except subprocess.TimeoutExpired:
+                raise ToolError(f"Process {process.pid} was still running {KILL_WAIT_SECONDS} "
+                                "seconds after kill") from None
+
+
 def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: int = 900,
                env: dict | None = None, cwd: Path | None = None) -> dict:
     """Bound a child process and its descendants; keep evidence in the cache."""
@@ -457,32 +491,17 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
             returncode = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             timed_out = True
-            if os.name == "posix":
-                stop_process_group(process)
-            else:
-                # Known gap (#235): Windows stops only the immediate process, not its tree.
-                process.terminate()
-                try:
-                    process.wait(timeout=TERM_GRACE_SECONDS)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                    process.wait()
+            _stop_tool(process)
             returncode = process.returncode
             stream.write(f"\nRecovery wrapper stopped the process after {timeout} seconds.\n")
         except BaseException as interruption:
             # Ctrl-C or any other abort: callers remove working trees and release locks
-            # next, so the tool must have stopped first. The original exception propagates.
+            # next, so the tool must have stopped first. SIGINT is ignored while stopping,
+            # so a repeated Ctrl-C does not abandon the group. The original exception
+            # propagates, except that a ToolError replaces it (chained as its cause) when
+            # the tool cannot be stopped, so callers do not treat the tree as stopped.
             try:
-                if os.name == "posix":
-                    stop_process_group(process)
-                else:
-                    # Known gap (#235): Windows stops only the immediate process, not its tree.
-                    process.terminate()
-                    try:
-                        process.wait(timeout=TERM_GRACE_SECONDS)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait()
+                _stop_tool(process)
                 stream.write("\nRecovery wrapper stopped the process after an interruption.\n")
             except ToolError as stop_error:
                 raise stop_error from interruption
