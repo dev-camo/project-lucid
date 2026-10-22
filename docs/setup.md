@@ -118,10 +118,7 @@ Run `script-layouts --schema PATH` and use its `inventory_path` as
 `player-code` and `player-schema` for each desktop target, then `runtime-contracts`
 for `macos`, `windows`, and `linux`. `theme-evidence` accepts the same schema and
 inventory paths and rechecks all three targets. These checks use Unity 2022.3.54f1
-on macOS and store reports in the cache. Produce the `native-schema` input for
-these checks on macOS: a schema produced on Linux currently differs from the
-reviewed content and is rejected (see #425). These checks establish
-compatibility evidence;
+on macOS and store reports in the cache. They establish compatibility evidence;
 asset bindings still require separate import and roundtrip validation.
 
 The README's code progress is measured with `python3 tools/lucid.py progress`,
