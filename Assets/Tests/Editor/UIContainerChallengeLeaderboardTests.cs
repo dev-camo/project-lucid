@@ -52,8 +52,8 @@ namespace ProjectLucid.Tests
                 GameObject host = owned.Host("Lucid challenge leaderboard button", false);
                 rig.Button = host.AddComponent<Button>();
                 rig.Widget = host.AddComponent<UIWidgetButton>();
-                Set(rig.Widget, "m_uiButton", rig.Button);
-                Set(rig.Container, "m_button", rig.Widget);
+                Set(rig.Widget, "m_uiButton", rig.Button); // Reflection: serialized m_uiButton the editor assigns
+                Set(rig.Container, "m_button", rig.Widget); // Reflection: serialized m_button the editor assigns
             }
             body(owned, rig);
         }));
@@ -95,7 +95,7 @@ namespace ProjectLucid.Tests
                 Assert.That(bindables.Distinct().Count(), Is.EqualTo(3));
                 Assert.That(rig.Container.ScoreLabel.Value, Is.Null);
 
-                Call(rig.Container, "Awake");
+                Call(rig.Container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(rig.Container.ScoreLabel.Value, Is.EqualTo("Challenge score"));
             });

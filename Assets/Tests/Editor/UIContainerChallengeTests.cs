@@ -105,16 +105,16 @@ namespace ProjectLucid.Tests
 
             GameObject headPrefabHost = owned.Host("Lucid challenge head prefab", false);
             var headPrefab = headPrefabHost.AddComponent<UIWidgetButtonImageCharacter>();
-            Set(headPrefab, "m_swapIcon", owned.Host("Lucid challenge head swap icon", true, headPrefabHost.transform));
+            Set(headPrefab, "m_swapIcon", owned.Host("Lucid challenge head swap icon", true, headPrefabHost.transform)); // Reflection: serialized m_swapIcon the editor assigns
             rig.Heads = owned.Host("Lucid challenge heads spawner", false).AddComponent<UIWidgetCharacterHeadsSpawner>();
-            Set(rig.Heads, "m_spawnParent", owned.Host("Lucid challenge heads parent", false).transform);
-            Set(rig.Heads, "m_characterHeadPrefab", headPrefab);
+            Set(rig.Heads, "m_spawnParent", owned.Host("Lucid challenge heads parent", false).transform); // Reflection: serialized m_spawnParent the editor assigns
+            Set(rig.Heads, "m_characterHeadPrefab", headPrefab); // Reflection: serialized m_characterHeadPrefab the editor assigns
             rig.Heads.Awake();
 
             rig.ArchetypeParent = owned.Host("Lucid challenge archetype parent", false);
             rig.Archetypes = owned.Host("Lucid challenge archetype spawner", false).AddComponent<UIWidgetArchetypeImageSpawner>();
-            Set(rig.Archetypes, "m_spawnParent", rig.ArchetypeParent.transform);
-            Set(rig.Archetypes, "m_prefab", owned.Host("Lucid challenge archetype prefab", false).AddComponent<UIWidgetImageArchetype>());
+            Set(rig.Archetypes, "m_spawnParent", rig.ArchetypeParent.transform); // Reflection: serialized m_spawnParent the editor assigns
+            Set(rig.Archetypes, "m_prefab", owned.Host("Lucid challenge archetype prefab", false).AddComponent<UIWidgetImageArchetype>()); // Reflection: serialized m_prefab the editor assigns
 
             Set(rig.Container, "m_characterHeadsSpawner", rig.Heads); // Reflection: serialized references
             Set(rig.Container, "m_archetypeSpawner", rig.Archetypes);
@@ -130,7 +130,7 @@ namespace ProjectLucid.Tests
             Set(definition, "m_mission", mission); // Reflection: serialized references and lists
             Set(definition, "m_characterSelection", new CharacterId[0]);
             Set(definition, "m_startPositions", new LevelStartPositionDefinition[0]);
-            if (withRanks) Set(definition, "m_rankDefinition", rig.Ranks);
+            if (withRanks) Set(definition, "m_rankDefinition", rig.Ranks); // Reflection: serialized m_rankDefinition the editor assigns
             var state = new ChallengeState(0, definition, 0, null, 0);
             if (characters != null)
             {
@@ -369,7 +369,7 @@ namespace ProjectLucid.Tests
                 Set(rig.Container, "m_useXpPostfix", useXpPostfix); // Reflection: serialized options
                 Set(rig.Container, "m_useXpPostfixForRank", useRankPostfix);
 
-                Assert.That(Call(rig.Container, "GetFormattedXpString", 25, forRank), Is.EqualTo(expected));
+                Assert.That(Call(rig.Container, "GetFormattedXpString", 25, forRank), Is.EqualTo(expected)); // Reflection: private UIContainerChallenge.GetFormattedXpString
             });
         }
 
@@ -379,7 +379,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Container, "m_useXpPostfix", true);
+                Set(rig.Container, "m_useXpPostfix", true); // Reflection: serialized m_useXpPostfix the editor assigns
 
                 Show(rig, NewState(owned, rig, 1, 1f, xp: 75));
 
@@ -403,7 +403,7 @@ namespace ProjectLucid.Tests
             {
                 var arguments = new object[] { characters, CharacterArchetype.Climbing };
 
-                Assert.That(Call(rig.Container, "TryGetArchetype", arguments), Is.EqualTo(expected));
+                Assert.That(Call(rig.Container, "TryGetArchetype", arguments), Is.EqualTo(expected)); // Reflection: private UIContainerChallenge.TryGetArchetype
                 Assert.That(arguments[1], Is.EqualTo(archetype));
             }, spawners: true);
         }
@@ -414,7 +414,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
                 Assert.Throws<KeyNotFoundException>(() =>
-                    Call(rig.Container, "TryGetArchetype", new object[] { new[] { CharacterId.Tails }, CharacterArchetype.None })), spawners: true);
+                    Call(rig.Container, "TryGetArchetype", new object[] { new[] { CharacterId.Tails }, CharacterArchetype.None })), spawners: true); // Reflection: private UIContainerChallenge.TryGetArchetype
         }
 
         // 0x61B65E..0x61B6FF with a spawner assigned: characters of one archetype clear the heads and show that archetype's image; a mixed
@@ -465,7 +465,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Container, "m_characterHeadsSpawner", null);
+                Set(rig.Container, "m_characterHeadsSpawner", null); // Reflection: serialized m_characterHeadsSpawner the editor assigns
                 rig.ArchetypeParent.SetActive(true);
 
                 Show(rig, NewState(owned, rig, 1, 1f, characters: new[] { CharacterId.Amy, CharacterId.Sonic }));
@@ -507,7 +507,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Set(rig.Container, "m_useXpPostfixForRank", true);
+                Set(rig.Container, "m_useXpPostfixForRank", true); // Reflection: serialized m_useXpPostfixForRank the editor assigns
                 rig.Container.SRankAchieved.Value = !sRank;
 
                 Show(rig, NewState(owned, rig, score, 0f, withRanks: true));
@@ -541,7 +541,7 @@ namespace ProjectLucid.Tests
                 Assert.That(kept.Count, Is.EqualTo(3));
                 Assert.That(kept.Select(Count).ToArray(), Is.EqualTo(new[] { 1, 1, 1 }));
 
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(kept, Is.Empty);
                 Assert.That(state.OnUpdateScore, Is.Null);
@@ -562,7 +562,7 @@ namespace ProjectLucid.Tests
 
                 var kept = Get<List<ManagedAddressableAsset<Sprite>>>(rig.Container, "m_managedAddressableSprites");
                 Assert.That(kept.Count, Is.EqualTo(6));
-                Call(rig.Container, "OnDestroy");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
                 Assert.That(kept, Is.Empty);
             });
         }
@@ -571,7 +571,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void DestroyingWithoutAChallengeDoesNothingElse()
         {
-            Run((owned, rig) => Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy")));
+            Run((owned, rig) => Assert.DoesNotThrow(() => Call(rig.Container, "OnDestroy"))); // Reflection: Unity sends OnDestroy; Edit Mode does not
         }
     }
 }

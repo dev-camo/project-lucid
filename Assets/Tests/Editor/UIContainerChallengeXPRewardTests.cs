@@ -27,6 +27,8 @@ namespace ProjectLucid.Tests
     public sealed class UIContainerChallengeXPRewardTests
     {
         private static readonly Regex RefusedCoroutine = new Regex("Coroutine couldn't be started");
+        // Reflection: the process coroutine host is the private static s_instance, which only an active CoroutineUtils.Awake sets;
+        // a case swaps in an inactive component (its coroutine starts are refused) and restores the prior host with its release.
         private static readonly FieldInfo CoroutineHost =
             typeof(CoroutineUtils).GetField("s_instance", BindingFlags.Static | BindingFlags.NonPublic);
 
@@ -222,8 +224,8 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "SetTexture", rig.FirstTexture);
-                Call(rig.Container, "SetSprite", rig.FirstSprite);
+                Call(rig.Container, "SetTexture", rig.FirstTexture); // Reflection: private UIContainerChallengeXPReward.SetTexture
+                Call(rig.Container, "SetSprite", rig.FirstSprite); // Reflection: private UIContainerChallengeXPReward.SetSprite
 
                 Assert.That(rig.Container.RewardTexture.Value, Is.SameAs(rig.FirstTexture));
                 Assert.That(rig.Container.RewardSprite.Value, Is.SameAs(rig.FirstSprite));
@@ -246,7 +248,7 @@ namespace ProjectLucid.Tests
                 var floatBindable = new Hardlight.UI.Binding.Bindable<float>();
                 var stringBindable = new Hardlight.UI.Binding.Bindable<string>();
 
-                Call(rig.Container, "UpdateBindableNumberString", floatBindable, stringBindable, number);
+                Call(rig.Container, "UpdateBindableNumberString", floatBindable, stringBindable, number); // Reflection: private UIContainerChallengeXPReward.UpdateBindableNumberString
 
                 Assert.That(floatBindable.Value, Is.EqualTo(number));
                 Assert.That(stringBindable.Value, Is.EqualTo(text));
@@ -257,7 +259,7 @@ namespace ProjectLucid.Tests
         [Test]
         public void WithoutASliderTheSliderSetupDoesNothing()
         {
-            Run((owned, rig) => Assert.DoesNotThrow(() => Call(rig.Container, "SetupSlider", 3, 9)));
+            Run((owned, rig) => Assert.DoesNotThrow(() => Call(rig.Container, "SetupSlider", 3, 9))); // Reflection: private UIContainerChallengeXPReward.SetupSlider
         }
 
         // With a slider the mini widget is set up with the spent XP as value and the total as maximum, then its animation starts, and the
@@ -269,7 +271,7 @@ namespace ProjectLucid.Tests
             {
                 ExpectSliderCoroutines();
 
-                Call(rig.Container, "SetupSlider", 3, 9);
+                Call(rig.Container, "SetupSlider", 3, 9); // Reflection: private UIContainerChallengeXPReward.SetupSlider
 
                 Assert.That(rig.Slider.maxValue, Is.EqualTo(9f));
                 Assert.That(rig.Slider.value, Is.EqualTo(3f));
@@ -288,7 +290,7 @@ namespace ProjectLucid.Tests
                 rig.Container.HasReward.Value = true;
                 ExpectSliderCoroutines();
 
-                Call(rig.Container, "SetupNoReward");
+                Call(rig.Container, "SetupNoReward"); // Reflection: private UIContainerChallengeXPReward.SetupNoReward
 
                 Assert.That(rig.Container.HasReward.Value, Is.False);
                 Assert.That(rig.Slider.maxValue, Is.EqualTo(100f));
@@ -303,7 +305,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "SetupNextReward", rig.First);
+                Call(rig.Container, "SetupNextReward", rig.First); // Reflection: private UIContainerChallengeXPReward.SetupNextReward
 
                 Assert.That(rig.First.Calls, Is.EqualTo(new[] { "GetRewardName", "LoadImage" }), "nothing was cached, so nothing is unloaded");
                 Assert.That(Get<ChallengeReward>(rig.Container, "m_challengeReward"), Is.SameAs(rig.First));
@@ -312,7 +314,7 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Container.RewardTexture.Value, Is.SameAs(rig.FirstTexture), "the first callback fills the texture");
                 Assert.That(rig.Container.RewardSprite.Value, Is.SameAs(rig.FirstSprite), "the second callback fills the sprite");
 
-                Call(rig.Container, "SetupNextReward", rig.Second);
+                Call(rig.Container, "SetupNextReward", rig.Second); // Reflection: private UIContainerChallengeXPReward.SetupNextReward
 
                 Assert.That(rig.First.Calls, Is.EqualTo(new[] { "GetRewardName", "LoadImage", "UnloadImage" }));
                 Assert.That(rig.Second.Calls, Is.EqualTo(new[] { "GetRewardName", "LoadImage" }));
@@ -328,13 +330,13 @@ namespace ProjectLucid.Tests
         {
             Run((owned, rig) =>
             {
-                Call(rig.Container, "OnDestroy");
-                Call(rig.Container, "UnloadCachedChallengeReward");
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "UnloadCachedChallengeReward"); // Reflection: private UIContainerChallengeXPReward.UnloadCachedChallengeReward
                 Assert.That(rig.First.Calls, Is.Empty);
 
-                Call(rig.Container, "SetupNextReward", rig.First);
-                Call(rig.Container, "OnDestroy");
-                Call(rig.Container, "UnloadCachedChallengeReward");
+                Call(rig.Container, "SetupNextReward", rig.First); // Reflection: private UIContainerChallengeXPReward.SetupNextReward
+                Call(rig.Container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
+                Call(rig.Container, "UnloadCachedChallengeReward"); // Reflection: private UIContainerChallengeXPReward.UnloadCachedChallengeReward
 
                 Assert.That(rig.First.Calls, Is.EqualTo(new[] { "GetRewardName", "LoadImage", "UnloadImage", "UnloadImage" }));
             });
@@ -350,7 +352,7 @@ namespace ProjectLucid.Tests
                 rig.Container.HasReward.Value = true;
                 ExpectSliderCoroutines();
 
-                Call(rig.Container, "Start");
+                Call(rig.Container, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
                 Assert.That(rig.Container.HasReward.Value, Is.False);
                 Assert.That(rig.Slider.maxValue, Is.EqualTo(100f));
@@ -454,7 +456,7 @@ namespace ProjectLucid.Tests
                 Configure(rig, 30, 70, FeatureUnlockState.Seen);
                 ExpectSliderCoroutines();
 
-                bool collectable = (bool)Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager);
+                bool collectable = (bool)Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager); // Reflection: private UIContainerChallengeXPReward.ShowProgressTowardsNextReward
 
                 Assert.That(collectable, Is.True);
                 Assert.That(rig.Container.RewardIsCollectable.Value, Is.True);
@@ -484,7 +486,7 @@ namespace ProjectLucid.Tests
                 rig.Container.RewardIsCollectable.Value = true;
                 ExpectSliderCoroutines();
 
-                bool collectable = (bool)Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager);
+                bool collectable = (bool)Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager); // Reflection: private UIContainerChallengeXPReward.ShowProgressTowardsNextReward
 
                 Assert.That(collectable, Is.False);
                 Assert.That(rig.Container.RewardIsCollectable.Value, Is.True, "only the collectable branch writes the flag");
@@ -509,7 +511,7 @@ namespace ProjectLucid.Tests
                 Configure(rig, 30, 30 + available, FeatureUnlockState.Seen, firstCollected: true);
                 ExpectSliderCoroutines();
 
-                Assert.That(Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager), Is.EqualTo(reached));
+                Assert.That(Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager), Is.EqualTo(reached)); // Reflection: private UIContainerChallengeXPReward.ShowProgressTowardsNextReward
             }, slider: true);
         }
 
@@ -524,7 +526,7 @@ namespace ProjectLucid.Tests
                 rig.Container.HasReward.Value = true;
                 ExpectSliderCoroutines();
 
-                bool collectable = (bool)Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager);
+                bool collectable = (bool)Call(rig.Container, "ShowProgressTowardsNextReward", rig.State, rig.Manager); // Reflection: private UIContainerChallengeXPReward.ShowProgressTowardsNextReward
 
                 Assert.That(collectable, Is.False);
                 Assert.That(rig.Container.HasReward.Value, Is.False);
@@ -544,7 +546,7 @@ namespace ProjectLucid.Tests
             Run((owned, rig) =>
             {
                 rig.Container.SpentXP.Value = 5f;
-                var steps = (IEnumerator)Call(rig.Container, "AnimateLabel", 3);
+                var steps = (IEnumerator)Call(rig.Container, "AnimateLabel", 3); // Reflection: private UIContainerChallengeXPReward.AnimateLabel
 
                 Assert.That(steps.MoveNext(), Is.False);
                 Assert.That(rig.Container.SpentXP.Value, Is.EqualTo(5f));
@@ -590,7 +592,7 @@ namespace ProjectLucid.Tests
             Run((owned, rig) =>
             {
                 rig.Container.SpentXP.Value = 9f;
-                var steps = (IEnumerator)Call(rig.Container, "AnimateLabel", target);
+                var steps = (IEnumerator)Call(rig.Container, "AnimateLabel", target); // Reflection: private UIContainerChallengeXPReward.AnimateLabel
 
                 Assert.That(steps.MoveNext(), Is.False);
                 Assert.That(rig.Container.SpentXP.Value, Is.Zero);
@@ -609,7 +611,7 @@ namespace ProjectLucid.Tests
                 rig.Container.SpentXP.Value = 9f;
                 rig.Animation.Play();
                 Assert.That(rig.Animation.isPlaying, Is.True, "set-up: the animation runs");
-                var steps = (IEnumerator)Call(rig.Container, "AnimateLabel", 1);
+                var steps = (IEnumerator)Call(rig.Container, "AnimateLabel", 1); // Reflection: private UIContainerChallengeXPReward.AnimateLabel
 
                 Assert.That(steps.MoveNext(), Is.True);
                 Assert.That(steps.Current, Is.Null);
@@ -631,7 +633,7 @@ namespace ProjectLucid.Tests
             Run((owned, rig) =>
             {
                 Configure(rig, 0, 0, FeatureUnlockState.Unlocked);
-                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation");
+                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation"); // Reflection: private UIContainerChallengeXPReward.ShowUnlockAnimation
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
                 Assert.That(steps.MoveNext(), Is.False);
@@ -649,7 +651,7 @@ namespace ProjectLucid.Tests
             Run((owned, rig) =>
             {
                 Configure(rig, 0, 0, FeatureUnlockState.Unlocked);
-                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation");
+                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation"); // Reflection: private UIContainerChallengeXPReward.ShowUnlockAnimation
 
                 Assert.That(steps.MoveNext(), Is.True);
                 Assert.That(steps.Current, Is.Null);
@@ -672,7 +674,7 @@ namespace ProjectLucid.Tests
             Run((owned, rig) =>
             {
                 Configure(rig, 0, 0, FeatureUnlockState.Unlocked);
-                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation");
+                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation"); // Reflection: private UIContainerChallengeXPReward.ShowUnlockAnimation
                 Assert.That(steps.MoveNext(), Is.True);
 
                 rig.Animation.Stop();
@@ -691,7 +693,7 @@ namespace ProjectLucid.Tests
             {
                 Configure(rig, 0, 0, FeatureUnlockState.Unlocked);
                 rig.Container.UnlockMidAnimation();
-                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation");
+                var steps = (IEnumerator)Call(rig.Container, "ShowUnlockAnimation"); // Reflection: private UIContainerChallengeXPReward.ShowUnlockAnimation
                 LogAssert.Expect(LogType.Error, RefusedCoroutine);
 
                 Assert.That(steps.MoveNext(), Is.False);

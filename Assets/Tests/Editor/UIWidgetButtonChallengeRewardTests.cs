@@ -78,13 +78,13 @@ namespace ProjectLucid.Tests
             Set(rig.Transition, "m_animation", rig.Animation); // Reflection: serialized references
             Set(rig.Transition, "m_settings", new List<UITransitionAnimationSetting>());
             Set(rig.Widget, "m_transition", rig.Transition);
-            Set(rig.Widget, "m_nextRewardString", NextText);
-            Set(rig.Widget, "m_readyToCollectString", ReadyText);
-            Set(rig.Widget, "m_collectedAnimationClip", rig.Collected);
-            Set(rig.Widget, "m_collectedAnimationClipWithMask", rig.WithMask);
-            Set(rig.Widget, "m_collectedAnimationClipPlayable", rig.Playable);
-            Set(rig.Widget, "m_readyToCollectAnimationClip", rig.Ready);
-            Set(rig.Widget, "m_hiddenAnimationClip", rig.Hidden);
+            Set(rig.Widget, "m_nextRewardString", NextText); // Reflection: serialized m_nextRewardString the editor assigns
+            Set(rig.Widget, "m_readyToCollectString", ReadyText); // Reflection: serialized m_readyToCollectString the editor assigns
+            Set(rig.Widget, "m_collectedAnimationClip", rig.Collected); // Reflection: serialized m_collectedAnimationClip the editor assigns
+            Set(rig.Widget, "m_collectedAnimationClipWithMask", rig.WithMask); // Reflection: serialized m_collectedAnimationClipWithMask the editor assigns
+            Set(rig.Widget, "m_collectedAnimationClipPlayable", rig.Playable); // Reflection: serialized m_collectedAnimationClipPlayable the editor assigns
+            Set(rig.Widget, "m_readyToCollectAnimationClip", rig.Ready); // Reflection: serialized m_readyToCollectAnimationClip the editor assigns
+            Set(rig.Widget, "m_hiddenAnimationClip", rig.Hidden); // Reflection: serialized m_hiddenAnimationClip the editor assigns
             body(owned, rig);
         });
 
@@ -217,7 +217,7 @@ namespace ProjectLucid.Tests
                 Strings expected = isNext ? NextText : (unlocked && !collected ? ReadyText : Strings.NONE);
                 Assert.That(rig.Widget.Action.Value, Is.EqualTo(expected));
                 Assert.That(rig.Widget.HasAction.Value, Is.EqualTo(hasAction));
-                Assert.That(Call(rig.Widget, "GetAction"), Is.EqualTo(expected));
+                Assert.That(Call(rig.Widget, "GetAction"), Is.EqualTo(expected)); // Reflection: private UIWidgetButtonChallengeReward.GetAction
             });
         }
 
@@ -398,7 +398,7 @@ namespace ProjectLucid.Tests
                 rig.Widget.Setup(Parameters(rig, Status(rig, false, true)));
                 rig.Reward.Calls.Clear();
 
-                Call(rig.Widget, "OnDestroy");
+                Call(rig.Widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(rig.Reward.Calls, Is.EqualTo(new[] { "UnloadImage" }));
             });

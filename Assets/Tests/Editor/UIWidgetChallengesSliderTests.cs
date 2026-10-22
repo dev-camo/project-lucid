@@ -184,7 +184,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Slider.maxValue = 10f;
                 rig.Slider.value = 5f;
-                var steps = (IEnumerator)Call(rig.Widget, "AnimateSlider", 1f);
+                var steps = (IEnumerator)Call(rig.Widget, "AnimateSlider", 1f); // Reflection: private UIWidgetChallengesSlider.AnimateSlider
 
                 Assert.DoesNotThrow(() => steps.MoveNext());
             });
@@ -277,7 +277,7 @@ namespace ProjectLucid.Tests
             {
                 rig.Slider.maxValue = 10f;
                 rig.Slider.value = 5f;
-                var steps = (IEnumerator)Call(rig.Widget, "AnimateSlider", 8f);
+                var steps = (IEnumerator)Call(rig.Widget, "AnimateSlider", 8f); // Reflection: private UIWidgetChallengesSlider.AnimateSlider
                 Assert.That(steps.MoveNext(), Is.True);
                 Set(steps, "<startTime>5__2", Time.time - 0.125f); // Reflection: Time.time cannot advance inside the test
 
@@ -317,7 +317,7 @@ namespace ProjectLucid.Tests
             Run(rig =>
             {
                 rig.Mini.Setup(new UIWidgetChallengesSliderMiniParameters(6f, 9));
-                var steps = (IEnumerator)Call(rig.Mini, "Animate");
+                var steps = (IEnumerator)Call(rig.Mini, "Animate"); // Reflection: private Animate, which the original reaches from its own code
                 Assert.That(steps.MoveNext(), Is.True);
                 rig.Slider.value = 2f;
                 Set(steps, "<timeElapsed>5__2", 5f); // Reflection: elapsed time cannot advance inside the test
