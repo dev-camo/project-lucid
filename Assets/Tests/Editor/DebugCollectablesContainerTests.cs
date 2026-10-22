@@ -183,7 +183,8 @@ namespace ProjectLucid.Tests
                 Assert.That(Get<CollectableManager>(rig.Container, "m_collectableManager"), Is.SameAs(rig.Manager));
                 // The rows follow EnumUtilities.GetValues (0x62F332), which is Enum.GetValues. The shipped corlib sorts the values as
                 // ulong (Enum.GetCachedValuesAndNames: Array.Sort<ulong, object> with Comparer<ulong>.Default, 0x1dd22a2), as Mono
-                // does, so Orb (1797780346) comes before BlueCoin (-64614013, 0xFC261183 unsigned) in both runtimes.
+                // does. The enum's int value is sign-extended to ulong, so BlueCoin (-64614013) sorts as 0xFFFFFFFFFC261183, above
+                // Orb (1797780346), and Orb comes first in both runtimes.
                 Assert.That(rig.Rows.Select(row => row.Name.Value).ToArray(), Is.EqualTo(new[] { "Orb", "BlueCoin" }));
                 UIContainerDebugCollectableModifier orb = rig.Row("Orb");
                 Assert.That((orb.Collected.Value, orb.Total.Value), Is.EqualTo((3, 10)));
