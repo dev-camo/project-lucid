@@ -18,10 +18,6 @@ namespace HardlightProject
     public class GameCenter : ISystem
     {
         public bool SystemIsReady { get; private set; }
-#if !PROJECT_LUCID_ORIGINAL_GAMECENTER
-        private readonly ProjectLucid.Offline.LocalGameCenterLifecycle m_offlineLifecycle = new ProjectLucid.Offline.LocalGameCenterLifecycle();
-        private ProjectLucid.Offline.LocalGameCenterProviderLease m_offlineProviderLease;
-#endif
         private string m_lastKnownAccountId;
         private string m_lastKnownAccountNickname;
         private bool m_lastKnownLoggedOut;
@@ -363,6 +359,11 @@ namespace HardlightProject
             m_achievements = null;
             m_offlineProviderLease = null;
         }
+
+        // Offline adapter state, declared last so these fields do not shift the original's
+        // generated member ordinals (<WaitForSettingsToLoad>d__35).
+        private readonly ProjectLucid.Offline.LocalGameCenterLifecycle m_offlineLifecycle = new ProjectLucid.Offline.LocalGameCenterLifecycle();
+        private ProjectLucid.Offline.LocalGameCenterProviderLease m_offlineProviderLease;
 #endif
     }
 }
