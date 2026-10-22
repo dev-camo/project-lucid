@@ -91,62 +91,66 @@ namespace ProjectLucid.Tests
         }
 
         // The services (and with them the reward base's references) come first; the manager is registered before the container is built.
-        private static void Run(Action<Rig> body) => Owned.Run(owned =>
+        private static void Run(Action<Rig> body)
         {
-            owned.LeaseRow<UINavigationManager>(); // UIContainerNavigation's field initialiser creates the row
-            var rig = new Rig { Owned = owned, Unlock = new StubUnlock() };
-            rig.Services = owned.Lease(new OwnedChallengeRewardServices());
-            OwnedChallengeServices.Register(owned);
-            rig.Manager = ProcessManager.GetSystem<ChallengeManager>();
-            rig.Definition = Create<RewardTrackDefinition>(owned,
-                "{\"m_type\":" + (int)RewardTrackType.Adventure + ",\"m_rewardGlowColour\":{\"r\":0.25,\"g\":0.5,\"b\":0.75,\"a\":1}}");
-            rig.Services.Data.RewardTrackDefinitions[RewardTrackType.Adventure] = rig.Definition;
-            SaveDataGame save = rig.Services.Save.CurrentSave;
-            rig.Track = save.GetOrCreateRewardTrackData(RewardTrackType.Adventure);
-            rig.First = NewTrackReward(rig, FirstGuid, 20, Medium);
-            rig.Second = NewTrackReward(rig, SecondGuid, 60, Medium);
-            rig.State = new ChallengeRewardTrackState(rig.Definition);
-            // Reflection: the manager takes the open save's challenge data in OnSaveGameOpen and fills its states from its data manager in a
-            // callback; both need the App.
-            Set(rig.Manager, "m_saveDataChallenges", save.SaveDataChallenges);
-            Get<Dictionary<RewardTrackType, ChallengeRewardTrackState>>(rig.Manager, "m_rewardTrackStates")[RewardTrackType.Adventure] = rig.State;
-            rig.CollectEvent = owned.Track(ScriptableObject.CreateInstance<ApplicationStateEvent>());
+            SettingsPageTestSupport.InitialiseAnalytics(); // the collector's type initialiser runs over owned rows here, not in whichever case reports first
+            Owned.Run(owned =>
+            {
+                owned.LeaseRow<UINavigationManager>(); // UIContainerNavigation's field initialiser creates the row
+                var rig = new Rig { Owned = owned, Unlock = new StubUnlock() };
+                rig.Services = owned.Lease(new OwnedChallengeRewardServices());
+                OwnedChallengeServices.Register(owned);
+                rig.Manager = ProcessManager.GetSystem<ChallengeManager>();
+                rig.Definition = Create<RewardTrackDefinition>(owned,
+                    "{\"m_type\":" + (int)RewardTrackType.Adventure + ",\"m_rewardGlowColour\":{\"r\":0.25,\"g\":0.5,\"b\":0.75,\"a\":1}}");
+                rig.Services.Data.RewardTrackDefinitions[RewardTrackType.Adventure] = rig.Definition;
+                SaveDataGame save = rig.Services.Save.CurrentSave;
+                rig.Track = save.GetOrCreateRewardTrackData(RewardTrackType.Adventure);
+                rig.First = NewTrackReward(rig, FirstGuid, 20, Medium);
+                rig.Second = NewTrackReward(rig, SecondGuid, 60, Medium);
+                rig.State = new ChallengeRewardTrackState(rig.Definition);
+                // Reflection: the manager takes the open save's challenge data in OnSaveGameOpen and fills its states from its data manager in a
+                // callback; both need the App.
+                Set(rig.Manager, "m_saveDataChallenges", save.SaveDataChallenges);
+                Get<Dictionary<RewardTrackType, ChallengeRewardTrackState>>(rig.Manager, "m_rewardTrackStates")[RewardTrackType.Adventure] = rig.State;
+                rig.CollectEvent = owned.Track(ScriptableObject.CreateInstance<ApplicationStateEvent>());
 
-            rig.Slider = owned.Host("Lucid reward track slider", false).AddComponent<Slider>();
-            GameObject sliderHost = owned.Host("Lucid reward track slider widget", false);
-            sliderHost.AddComponent<RectTransform>();
-            rig.SliderWidget = sliderHost.AddComponent<UIWidgetChallengesSlider>();
-            Set(rig.SliderWidget, "m_slider", rig.Slider); // Reflection: serialized reference
-            rig.Content = owned.Host("Lucid reward track content", false).AddComponent<RectTransform>();
-            rig.Rewards = owned.Host("Lucid reward track rewards", false).AddComponent<RectTransform>();
-            rig.Animation = owned.Host("Lucid reward track animation", true).AddComponent<Animation>();
-            rig.Collected = NewClip(owned, "Lucid track reward collected");
-            rig.WithMask = NewClip(owned, "Lucid track reward collected with mask");
-            rig.Playable = NewClip(owned, "Lucid track reward collected playable");
-            rig.Ready = NewClip(owned, "Lucid track reward ready");
-            rig.Hidden = NewClip(owned, "Lucid track reward hidden");
-            foreach (AnimationClip clip in new[] { rig.Collected, rig.WithMask, rig.Playable, rig.Ready, rig.Hidden })
-                rig.Animation.AddClip(clip, clip.name);
+                rig.Slider = owned.Host("Lucid reward track slider", false).AddComponent<Slider>();
+                GameObject sliderHost = owned.Host("Lucid reward track slider widget", false);
+                sliderHost.AddComponent<RectTransform>();
+                rig.SliderWidget = sliderHost.AddComponent<UIWidgetChallengesSlider>();
+                Set(rig.SliderWidget, "m_slider", rig.Slider); // Reflection: serialized reference
+                rig.Content = owned.Host("Lucid reward track content", false).AddComponent<RectTransform>();
+                rig.Rewards = owned.Host("Lucid reward track rewards", false).AddComponent<RectTransform>();
+                rig.Animation = owned.Host("Lucid reward track animation", true).AddComponent<Animation>();
+                rig.Collected = NewClip(owned, "Lucid track reward collected");
+                rig.WithMask = NewClip(owned, "Lucid track reward collected with mask");
+                rig.Playable = NewClip(owned, "Lucid track reward collected playable");
+                rig.Ready = NewClip(owned, "Lucid track reward ready");
+                rig.Hidden = NewClip(owned, "Lucid track reward hidden");
+                foreach (AnimationClip clip in new[] { rig.Collected, rig.WithMask, rig.Playable, rig.Ready, rig.Hidden })
+                    rig.Animation.AddClip(clip, clip.name);
 
-            rig.Container = owned.Host("Lucid reward track container", false).AddComponent<UIContainerChallengeRewardTrack>();
-            // Reflection: serialized references and numbers of the authored container
-            Set(rig.Container, "m_challengesSlider", rig.SliderWidget);
-            Set(rig.Container, "m_scrollRectContentTransform", rig.Content);
-            Set(rig.Container, "m_rewardsContentTransform", rig.Rewards); // Reflection: serialized m_rewardsContentTransform the editor assigns
-            Set(rig.Container, "m_containerNavigation", owned.Host("Lucid reward track navigation", false).AddComponent<UIContainerNavigation>()); // Reflection: serialized m_containerNavigation the editor assigns
-            Set(rig.Container, "m_openCollectRewardEvent", rig.CollectEvent); // Reflection: serialized m_openCollectRewardEvent the editor assigns
-            Set(rig.Container, "m_spaceBetweenRewards", 100); // Reflection: serialized m_spaceBetweenRewards the editor assigns
-            Set(rig.Container, "m_sliderPadding", 5f); // Reflection: serialized m_sliderPadding the editor assigns
-            Get<SerializableDictionary<UIWidgetButtonChallengeRewardSize, UIWidgetButtonChallengeReward>>(rig.Container, "m_rewardBySizePrefabs")
-                [UIWidgetButtonChallengeRewardSize.Medium] = NewButtonPrefab(owned, rig, "Lucid reward track medium button");
-            // Reflection: the references Start assigns (see the type comment).
-            Set(rig.Container, "m_app", ProcessManager.GetSystem<App>());
-            Set(rig.Container, "m_dataManager", rig.Services.Data);
-            Set(rig.Container, "m_challengeManager", rig.Manager); // Reflection: Start takes this from the registry; Edit Mode does not send Start
-            Set(rig.Container, "m_saveManager", rig.Services.Save); // Reflection: Start takes this from the registry; Edit Mode does not send Start
-            Set(rig.Container, "m_rewardTrackDefinition", rig.Definition); // Reflection: Start takes this from the data manager; Edit Mode does not send Start
-            body(rig);
-        });
+                rig.Container = owned.Host("Lucid reward track container", false).AddComponent<UIContainerChallengeRewardTrack>();
+                // Reflection: serialized references and numbers of the authored container
+                Set(rig.Container, "m_challengesSlider", rig.SliderWidget);
+                Set(rig.Container, "m_scrollRectContentTransform", rig.Content);
+                Set(rig.Container, "m_rewardsContentTransform", rig.Rewards); // Reflection: serialized m_rewardsContentTransform the editor assigns
+                Set(rig.Container, "m_containerNavigation", owned.Host("Lucid reward track navigation", false).AddComponent<UIContainerNavigation>()); // Reflection: serialized m_containerNavigation the editor assigns
+                Set(rig.Container, "m_openCollectRewardEvent", rig.CollectEvent); // Reflection: serialized m_openCollectRewardEvent the editor assigns
+                Set(rig.Container, "m_spaceBetweenRewards", 100); // Reflection: serialized m_spaceBetweenRewards the editor assigns
+                Set(rig.Container, "m_sliderPadding", 5f); // Reflection: serialized m_sliderPadding the editor assigns
+                Get<SerializableDictionary<UIWidgetButtonChallengeRewardSize, UIWidgetButtonChallengeReward>>(rig.Container, "m_rewardBySizePrefabs")
+                    [UIWidgetButtonChallengeRewardSize.Medium] = NewButtonPrefab(owned, rig, "Lucid reward track medium button");
+                // Reflection: the references Start assigns (see the type comment).
+                Set(rig.Container, "m_app", ProcessManager.GetSystem<App>());
+                Set(rig.Container, "m_dataManager", rig.Services.Data);
+                Set(rig.Container, "m_challengeManager", rig.Manager); // Reflection: Start takes this from the registry; Edit Mode does not send Start
+                Set(rig.Container, "m_saveManager", rig.Services.Save); // Reflection: Start takes this from the registry; Edit Mode does not send Start
+                Set(rig.Container, "m_rewardTrackDefinition", rig.Definition); // Reflection: Start takes this from the data manager; Edit Mode does not send Start
+                body(rig);
+            });
+        }
 
         private static UIWidgetButtonChallengeReward NewButtonPrefab(Owned owned, Rig rig, string name)
         {
