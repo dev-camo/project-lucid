@@ -8,5 +8,5 @@ using System.Collections;
 public class AmplifyColorTriggerProxyBase : MonoBehaviour
 {
 	public Transform Reference;
-	public AmplifyColorEffect OwnerEffect;
+	public AmplifyColorBase OwnerEffect;
 }

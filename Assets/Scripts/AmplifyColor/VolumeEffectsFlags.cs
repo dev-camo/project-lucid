@@ -131,9 +131,9 @@ namespace AmplifyColor
 			}
 		}
 
-		public static void UpdateCamFlags( AmplifyColorEffect[] effects, AmplifyColorVolumeBase[] volumes )
+		public static void UpdateCamFlags( AmplifyColorBase[] effects, AmplifyColorVolumeBase[] volumes )
 		{
-			foreach ( AmplifyColorEffect effect in effects )
+			foreach ( AmplifyColorBase effect in effects )
 			{
 				effect.EffectFlags = new VolumeEffectFlags();
 				foreach ( AmplifyColorVolumeBase volume in volumes )
@@ -145,7 +145,7 @@ namespace AmplifyColor
 			}
 		}
 
-		public VolumeEffect GenerateEffectData( AmplifyColorEffect go )
+		public VolumeEffect GenerateEffectData( AmplifyColorBase go )
 		{
 			VolumeEffect result = new VolumeEffect( go );
 			foreach ( VolumeEffectComponentFlags compFlags in components )

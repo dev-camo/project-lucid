@@ -173,10 +173,10 @@ namespace AmplifyColor
 	[Serializable]
 	public class VolumeEffect
 	{
-		public AmplifyColorEffect gameObject;
+		public AmplifyColorBase gameObject;
 		public List<VolumeEffectComponent> components;
 
-		public VolumeEffect( AmplifyColorEffect effect )
+		public VolumeEffect( AmplifyColorBase effect )
 		{
 			gameObject = effect;
 			components = new List<VolumeEffectComponent>();
@@ -271,7 +271,7 @@ namespace AmplifyColor
 			}
 		}
 
-		public void SetValues( AmplifyColorEffect targetColor )
+		public void SetValues( AmplifyColorBase targetColor )
 		{
 			VolumeEffectFlags effectFlags = targetColor.EffectFlags;
 			GameObject go = targetColor.gameObject;
@@ -312,7 +312,7 @@ namespace AmplifyColor
 			}
 		}
 
-		public void BlendValues( AmplifyColorEffect targetColor, VolumeEffect other, float blendAmount )
+		public void BlendValues( AmplifyColorBase targetColor, VolumeEffect other, float blendAmount )
 		{
 			VolumeEffectFlags effectFlags = targetColor.EffectFlags;
 			GameObject go = targetColor.gameObject;
@@ -369,13 +369,13 @@ namespace AmplifyColor
 			return null;
 		}
 
-		public static Component[] ListAcceptableComponents( AmplifyColorEffect go )
+		public static Component[] ListAcceptableComponents( AmplifyColorBase go )
 		{
 			if ( go == null )
 				return new Component[ 0 ];
 
 			Component[] comps = go.GetComponents( typeof( Component ) );
-			return ( comps.Where( comp => comp != null && ( !( ( comp.GetType() + "" ).StartsWith( "UnityEngine." ) || comp.GetType() == typeof( AmplifyColorEffect ) ) ) ) ).ToArray();
+			return ( comps.Where( comp => comp != null && ( !( ( comp.GetType() + "" ).StartsWith( "UnityEngine." ) || comp.GetType() == typeof( AmplifyColorBase ) ) ) ) ).ToArray();
 		}
 
 		public string[] GetComponentNames()
@@ -394,7 +394,7 @@ namespace AmplifyColor
 			volumes = new List<VolumeEffect>();
 		}
 
-		public void AddColorEffect( AmplifyColorEffect colorEffect )
+		public void AddColorEffect( AmplifyColorBase colorEffect )
 		{
 			VolumeEffect volume;
 			if ( ( volume = FindVolumeEffect( colorEffect ) ) != null )
@@ -407,14 +407,14 @@ namespace AmplifyColor
 			}
 		}
 
-		public VolumeEffect AddJustColorEffect( AmplifyColorEffect colorEffect )
+		public VolumeEffect AddJustColorEffect( AmplifyColorBase colorEffect )
 		{
 			VolumeEffect created = new VolumeEffect( colorEffect );
 			volumes.Add( created );
 			return created;
 		}
 
-		public VolumeEffect FindVolumeEffect( AmplifyColorEffect colorEffect )
+		public VolumeEffect FindVolumeEffect( AmplifyColorBase colorEffect )
 		{
 			// find by reference first
 			for ( int i = 0; i < volumes.Count; i++ )
@@ -439,7 +439,7 @@ namespace AmplifyColor
 			volumes.Remove( volume );
 		}
 
-		public AmplifyColorEffect[] GetStoredEffects()
+		public AmplifyColorBase[] GetStoredEffects()
 		{
 			return ( from r in volumes select r.gameObject ).ToArray();
 		}
