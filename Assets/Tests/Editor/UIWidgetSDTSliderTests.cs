@@ -51,7 +51,7 @@ namespace ProjectLucid.Tests
 
         private static List<UIWidgetSliderPip> Pips(Rig rig) => Get<List<UIWidgetSliderPip>>(rig.Widget, "m_sliderPips");
 
-        private static IEnumerator Start(Rig rig) => (IEnumerator)Call(rig.Widget, "Start");
+        private static IEnumerator Start(Rig rig) => (IEnumerator)Call(rig.Widget, "Start"); // Reflection: Unity sends Start; Edit Mode does not
 
         private static void RunStart(Rig rig)
         {
@@ -195,7 +195,7 @@ namespace ProjectLucid.Tests
                 RunStart(rig);
                 rig.Slider.SetValueWithoutNotify(1f);
 
-                Call(rig.Widget, "OnSliderValueChanged", 99f);
+                Call(rig.Widget, "OnSliderValueChanged", 99f); // Reflection: private UIWidgetSDTSlider.OnSliderValueChanged
 
                 Assert.That(Pips(rig).Select(pip => pip.Colour.Value),
                     Is.EqualTo(new[] { FillColour, FillColour, EmptyColour, EmptyColour }));
@@ -249,7 +249,7 @@ namespace ProjectLucid.Tests
                 Rig rig = NewRig(owned, 2.5f, true);
                 RunStart(rig);
 
-                Call(rig.Widget, "OnDestroy");
+                Call(rig.Widget, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
                 rig.Slider.value = 2f;
 
                 Assert.That(Pips(rig).Select(pip => pip.Colour.Value),

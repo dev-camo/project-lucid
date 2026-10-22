@@ -41,7 +41,7 @@ namespace ProjectLucid.Tests
                 app.Storage.SetValue(AppFSMKeys.MetaGameActive, true);
                 Assert.That(debug.activeSelf, Is.True);
 
-                Call(container, "OnEnable");
+                Call(container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(container.IsInMetaGame.Value, Is.True);
                 Assert.That(container.IsInGameplay.Value, Is.False);
@@ -57,7 +57,7 @@ namespace ProjectLucid.Tests
             {
                 app.Storage.SetValue(AppFSMKeys.GameplayActive, true);
 
-                Call(container, "OnEnable");
+                Call(container, "OnEnable"); // Reflection: Unity sends OnEnable; Edit Mode does not
 
                 Assert.That(container.IsInMetaGame.Value, Is.False);
                 Assert.That(container.IsInGameplay.Value, Is.True);

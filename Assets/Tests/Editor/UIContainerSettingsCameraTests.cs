@@ -54,7 +54,7 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraSensitivity = CameraSensitivityType.High;
                 var container = NewCamera(page);
 
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(Get<int>(container, "m_cachedCameraDistance"), Is.EqualTo(2));
                 Assert.That(Get<int>(container, "m_cachedCameraSensitivity"), Is.EqualTo(2));
@@ -76,7 +76,7 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraSensitivity = CameraSensitivityType.High;
                 var container = NewCamera(page);
 
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsCamera, not reachable from the test
 
                 Assert.That(container.CameraRecenterHeading.Value, Is.EqualTo(CameraRecenterHeadingType.None));
                 Assert.That(container.CameraInvertedControls.Value, Is.True);
@@ -91,7 +91,7 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraSnapBehindCharacterButtonVisible = false;
                 page.Settings.CameraConfiguration = CameraConfigurationType.Near;
                 page.Settings.CameraSensitivity = CameraSensitivityType.Low;
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsCamera, not reachable from the test
 
                 Assert.That(container.CameraRecenterHeading.Value, Is.EqualTo(CameraRecenterHeadingType.Medium));
                 Assert.That(container.CameraInvertedControls.Value, Is.False);
@@ -113,12 +113,12 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraConfiguration = CameraConfigurationType.Default;
                 var container = NewCamera(page);
                 container.CameraDistanceString.Value = Strings.NUMBER_SEPARATOR_SLASH;
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsCamera, not reachable from the test
                 Assert.That(container.CameraConfigurationIndex.Value, Is.EqualTo(1));
                 Assert.That(container.CameraDistanceString.Value, Is.EqualTo(Strings.NUMBER_SEPARATOR_SLASH));
 
                 page.Settings.CameraConfiguration = CameraConfigurationType.None;
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsCamera, not reachable from the test
                 Assert.That(container.CameraConfigurationIndex.Value, Is.EqualTo(-1));
             });
         }
@@ -133,7 +133,7 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraSensitivity = CameraSensitivityType.VeryHigh;
                 var container = NewCamera(page);
 
-                Assert.Throws<ArgumentOutOfRangeException>(() => Call(container, "RefreshBinders"));
+                Assert.Throws<ArgumentOutOfRangeException>(() => Call(container, "RefreshBinders")); // Reflection: protected RefreshBinders of UIContainerSettingsCamera, not reachable from the test
                 Assert.That(container.CameraSensitivityIndex.Value, Is.EqualTo(-1));
             });
         }
@@ -146,10 +146,10 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewCamera(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.CameraConfigurationIndex.Value = 2;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_distance", "Default", "Far")));
             });
@@ -163,11 +163,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewCamera(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.CameraSensitivityIndex.Value = 2;
                 container.CameraSensitivityString.Value = Strings.NUMBER_SEPARATOR_SLASH;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_sensitivity", "DECIMAL_SEPARATOR", "NUMBER_SEPARATOR_SLASH")));
             });
@@ -181,11 +181,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewCamera(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.CameraSensitivityIndex.Value = 2;
                 container.CameraSensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_sensitivity", "DECIMAL_SEPARATOR", "MISSING")));
             });
@@ -199,12 +199,12 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewCamera(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.CameraConfigurationIndex.Value = 2;
                 container.CameraSensitivityIndex.Value = 0;
                 container.CameraSensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_sensitivity", "DECIMAL_SEPARATOR", "MISSING")));
             });
@@ -216,9 +216,9 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewCamera(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Sent, Is.False);
             });

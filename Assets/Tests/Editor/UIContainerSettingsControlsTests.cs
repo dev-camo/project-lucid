@@ -63,7 +63,7 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraSecondarySensitivity = CameraSensitivityType.VeryLow;
                 var container = NewControls(page);
 
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(Get<int>(container, "m_cachedControlStickSensitivity"), Is.EqualTo(2));
                 Assert.That(Get<int>(container, "m_cachedCameraSecondarySensitivity"), Is.EqualTo(0));
@@ -89,7 +89,7 @@ namespace ProjectLucid.Tests
                 container.CanAdjustControls.Value = true;
                 container.CanUseOnScreenControls.Value = true;
 
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsControls, not reachable from the test
 
                 Assert.That(container.FixedMovementStick.Value, Is.False);
                 Assert.That(container.DynamicMovementStick.Value, Is.True);
@@ -109,7 +109,7 @@ namespace ProjectLucid.Tests
                 page.Settings.AirStompAttackMapping = ButtonMappingType.Primary;
                 page.Settings.ControlStickSensitivity = InputModifierType.Low;
                 page.Settings.CameraSecondarySensitivity = CameraSensitivityType.VeryLow;
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsControls, not reachable from the test
 
                 Assert.That(container.FixedMovementStick.Value, Is.True);
                 Assert.That(container.DynamicMovementStick.Value, Is.False);
@@ -133,7 +133,7 @@ namespace ProjectLucid.Tests
                 page.Settings.CameraSecondarySensitivity = CameraSensitivityType.High;
                 var container = NewControls(page);
 
-                Assert.Throws<ArgumentOutOfRangeException>(() => Call(container, "RefreshBinders"));
+                Assert.Throws<ArgumentOutOfRangeException>(() => Call(container, "RefreshBinders")); // Reflection: protected RefreshBinders of UIContainerSettingsControls, not reachable from the test
                 Assert.That(container.CameraSecondarySensitivityIndex.Value, Is.EqualTo(-1));
                 Assert.That(container.ControlStickSensitivityIndex.Value, Is.EqualTo(1), "the stick binders were already done");
             });
@@ -147,11 +147,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.ControlStickSensitivityIndex.Value = 2;
                 container.ControlStickSensitivityString.Value = Strings.NUMBER_SEPARATOR_SLASH;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("control_stick_sensitivity", "DECIMAL_SEPARATOR", "NUMBER_SEPARATOR_SLASH")));
             });
@@ -163,11 +163,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.CameraSecondarySensitivityIndex.Value = 0;
                 container.CameraSecondarySensitivityString.Value = Strings.NUMBER_SEPARATOR;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_secondary_sensitivity", "NUMBER_SEPARATOR_SLASH", "NUMBER_SEPARATOR")));
             });
@@ -181,11 +181,11 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.ControlStickSensitivityIndex.Value = 2;
                 container.ControlStickSensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("control_stick_sensitivity", "DECIMAL_SEPARATOR", "MISSING")));
 
@@ -193,7 +193,7 @@ namespace ProjectLucid.Tests
                 container.CameraSecondarySensitivityIndex.Value = 0;
                 container.CameraSecondarySensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_secondary_sensitivity", "NUMBER_SEPARATOR_SLASH", "MISSING")));
             });
@@ -206,13 +206,13 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.ControlStickSensitivityIndex.Value = 0;
                 container.ControlStickSensitivityString.Value = Strings.MISSING;
                 container.CameraSecondarySensitivityIndex.Value = 2;
                 container.CameraSecondarySensitivityString.Value = Strings.MISSING;
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Last, Is.EqualTo(("camera_secondary_sensitivity", "NUMBER_SEPARATOR_SLASH", "MISSING")));
             });
@@ -224,9 +224,9 @@ namespace ProjectLucid.Tests
             With(page =>
             {
                 var container = NewControls(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(page.Reported.Sent, Is.False);
             });

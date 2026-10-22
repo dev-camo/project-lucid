@@ -16,7 +16,7 @@ namespace ProjectLucid.Tests
         private static UIModernEvent NewEvent(Owned owned, string guid)
         {
             var uiEvent = owned.Track(ScriptableObject.CreateInstance<UIModernEvent>());
-            Set(uiEvent, "m_guid", guid);
+            Set(uiEvent, "m_guid", guid); // Reflection: authored GUID of a serialized definition
             return uiEvent;
         }
 

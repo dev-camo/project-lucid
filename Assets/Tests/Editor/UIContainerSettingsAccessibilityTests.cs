@@ -26,7 +26,7 @@ namespace ProjectLucid.Tests
                 page.Settings.GameSpeed = 0.5f;
                 var container = Add<UIContainerSettingsAccessibility>(page);
 
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(container.GameSpeed.Value, Is.EqualTo(0.5f));
                 Assert.That(Get<float>(container, "m_cachedGameSpeed"), Is.EqualTo(0.5f));
@@ -51,7 +51,7 @@ namespace ProjectLucid.Tests
                 page.Settings.SkipFTUE = true;
                 var container = Add<UIContainerSettingsAccessibility>(page);
 
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsAccessibility, not reachable from the test
 
                 Assert.That(container.GameSpeed.Value, Is.EqualTo(0.57f));
                 Assert.That(container.GameSpeedMin.Value, Is.EqualTo(0.35f));
@@ -66,7 +66,7 @@ namespace ProjectLucid.Tests
                 page.Settings.GameSpeedToggleEnabled = false;
                 page.Settings.SubtitlesEnabled = true;
                 page.Settings.SkipFTUE = false;
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsAccessibility, not reachable from the test
 
                 Assert.That(container.GameSpeedPercentageString.Value, Is.EqualTo("29%"), "0.29f * 100f is 29.0f");
                 Assert.That(container.GameSpeedToggle.Value, Is.False);
@@ -85,7 +85,7 @@ namespace ProjectLucid.Tests
                 page.Settings.GameSpeed = 0.556f;
                 var container = Add<UIContainerSettingsAccessibility>(page);
 
-                Call(container, "RefreshBinders");
+                Call(container, "RefreshBinders"); // Reflection: protected RefreshBinders of UIContainerSettingsAccessibility, not reachable from the test
 
                 Assert.That(container.GameSpeedPercentageString.Value, Is.EqualTo("55%"));
             }));
@@ -119,10 +119,10 @@ namespace ProjectLucid.Tests
             WithTime(page => OwnedStringTable.Run(PercentFormat, () =>
             {
                 var container = Add<UIContainerSettingsAccessibility>(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.Action_SetGameSpeed(0.4f);
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 StringAssert.Contains("\"m_gameSpeed\":0.4", SavedJson(page));
                 Assert.That(page.Settings.HasChangesToSave(), Is.False);
@@ -138,10 +138,10 @@ namespace ProjectLucid.Tests
             WithTime(page => OwnedStringTable.Run(PercentFormat, () =>
             {
                 var container = Add<UIContainerSettingsAccessibility>(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 page.Settings.GameSpeed = 1f; // dirties the settings without changing the speed
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(SavedJson(page), Is.Null);
                 Assert.That(page.Settings.HasChangesToSave(), Is.True);
@@ -156,10 +156,10 @@ namespace ProjectLucid.Tests
             WithTime(page => OwnedStringTable.Run(PercentFormat, () =>
             {
                 var container = Add<UIContainerSettingsAccessibility>(page);
-                Call(container, "Awake");
+                Call(container, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
                 container.Action_SetGameSpeed(1f);
 
-                Call(container, "OnDestroy");
+                Call(container, "OnDestroy"); // Reflection: Unity sends OnDestroy; Edit Mode does not
 
                 Assert.That(SavedJson(page), Is.Not.Null);
                 Assert.That(page.Reported.Sent, Is.False);
@@ -181,7 +181,7 @@ namespace ProjectLucid.Tests
                 container.Action_SetGameSpeed(0.4f);
                 page.Settings.MarkSaved();
 
-                Call(container, "ResetToDefaults", page.Settings);
+                Call(container, "ResetToDefaults", page.Settings); // Reflection: protected ResetToDefaults of UIContainerSettingsAccessibility, not reachable from the test
 
                 Assert.That(page.Settings.GameSpeed, Is.EqualTo(1f));
                 Assert.That(page.Settings.FailState, Is.EqualTo(AccessibilityFailState.Default));

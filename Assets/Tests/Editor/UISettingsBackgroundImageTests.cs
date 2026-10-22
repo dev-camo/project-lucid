@@ -40,9 +40,9 @@ namespace ProjectLucid.Tests
             Owned.Run(owned =>
             {
                 var background = owned.Host("Lucid settings background", false).AddComponent<UISettingsBackgroundImage>();
-                Set(background, "m_backgroundImage", null);
+                Set(background, "m_backgroundImage", null); // Reflection: serialized m_backgroundImage the editor assigns
 
-                Call(background, "Reset");
+                Call(background, "Reset"); // Reflection: the editor's Reset is private and Edit Mode does not send it
 
                 Assert.That(Get<Image>(background, "m_backgroundImage"), Is.SameAs(background.GetComponent<Image>()));
                 Assert.That(Get<Image>(background, "m_backgroundImage"), Is.Not.Null);
@@ -73,7 +73,7 @@ namespace ProjectLucid.Tests
                 ProcessManager.GetSystem<App>().Storage.SetValue(AppFSMKeys.MetaGameActive, true);
                 SetCurrent(manager, character, true);
 
-                Call(background, "Awake");
+                Call(background, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(image.material, Is.Not.SameAs(material));
                 Assert.That(image.color, Is.EqualTo(new Color(0.25f, 0.5f, 0.75f, 0.125f)));
@@ -88,7 +88,7 @@ namespace ProjectLucid.Tests
                 (UISettingsBackgroundImage background, Image image, Material material) = NewBackground(owned);
                 SetCurrent(manager, character, false);
 
-                Call(background, "Awake");
+                Call(background, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(image.material, Is.Not.SameAs(material));
                 Assert.That(image.color, Is.EqualTo(new Color(0.25f, 0.5f, 0.75f, 0.125f)));
@@ -105,7 +105,7 @@ namespace ProjectLucid.Tests
                 (UISettingsBackgroundImage background, Image image, Material material) = NewBackground(owned);
                 SetCurrent(manager, character, true);
 
-                Call(background, "Awake");
+                Call(background, "Awake"); // Reflection: Unity sends Awake; Edit Mode does not
 
                 Assert.That(image.material, Is.SameAs(material));
                 Assert.That(image.color, Is.EqualTo(Color.white));
@@ -119,10 +119,10 @@ namespace ProjectLucid.Tests
             WithManager((owned, manager, character) =>
             {
                 var background = owned.Host("Lucid settings background", false).AddComponent<UISettingsBackgroundImage>();
-                Set(background, "m_backgroundImage", null);
+                Set(background, "m_backgroundImage", null); // Reflection: serialized m_backgroundImage the editor assigns
                 SetCurrent(manager, character, false);
 
-                Assert.DoesNotThrow(() => Call(background, "Awake"));
+                Assert.DoesNotThrow(() => Call(background, "Awake")); // Reflection: Unity sends Awake; Edit Mode does not
             });
         }
     }
