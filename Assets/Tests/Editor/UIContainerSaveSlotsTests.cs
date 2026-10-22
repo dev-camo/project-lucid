@@ -25,6 +25,7 @@ namespace ProjectLucid.Tests
 
         private sealed class Slots
         {
+            public HLPropertyStore Store;
             public LevelRequirementWorld World;
             public UIContainerSaveSlots Container;
             public UIWidgetToggleSaveData[] Toggles;
@@ -46,10 +47,19 @@ namespace ProjectLucid.Tests
                     for (int slot = 0; slot < OrbsPerSlot.Length; slot++)
                     {
                         handler.CacheEmptyProgress(slot);
-                        // Reflection: the totals of a cached save are private and only filled from authored mission collectables.
-                        Get<Dictionary<CollectableType, ProgressionCollectable>>(handler.ProgressPerSave[slot], "m_total")[CollectableType.Orb] =
-                            new ProgressionCollectable(CollectableType.Orb, OrbsPerSlot[slot], 10);
+                        SeedOrbs(handler, slot);
                     }
+
+                    // OpenSave (0x06002d2f) writes the old last slot to the property store (SetLastSaveIndex) and asks the cloud
+                    // to sync that key. The store constructor publishes itself as the singleton; released after the store's row
+                    // (taken later). The cloud is the unstarted facade, not synchronised, so the sync returns after its lookup.
+                    FieldInfo instance = typeof(HLPropertyStore).GetField("s_internalInstance", BindingFlags.Static | BindingFlags.NonPublic);
+                    if (instance.GetValue(null) != null) throw new InvalidOperationException("Fixture requires no property-store singleton");
+                    owned.Lease(new ReleaseAction(() => instance.SetValue(null, null)));
+                    slots.Store = owned.Register(new HLPropertyStore("fixture-only", 0, "save-slots-fixture")); // no file I/O
+                    var cloud = owned.Host("Lucid save slots cloud", false).AddComponent<HLCloud.Cloud>();
+                    // Reflection: the cloud's subscriber callback is private; only the process manager invokes it.
+                    Call(world.Save, "OnCloudValid", cloud);
 
                     // The container's field initialisers cache this reference from its row.
                     owned.LeaseRow<UINavigationManager>();
@@ -66,8 +76,22 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // The save flow sets the open slot (a private setter) while it opens a save.
-        private static void OpenSlot(Slots slots, int index) => Set(slots.World.Save, "<CurrentSaveIndex>k__BackingField", index);
+        // Reflection: the totals of a cached save are private and only filled from authored mission collectables.
+        private static void SeedOrbs(ProgressionCollectableHandler handler, int slot) =>
+            Get<Dictionary<CollectableType, ProgressionCollectable>>(handler.ProgressPerSave[slot], "m_total")[CollectableType.Orb] =
+                new ProgressionCollectable(CollectableType.Orb, OrbsPerSlot[slot], 10);
+
+        // Opens the slot through the public SaveManager.OpenSave (0x06002d2f, iterator 0x020007d8). The run reaches the end of
+        // the open (current save, slot index, last slot, listeners) in the first MoveNext; an empty slot then yields its
+        // SaveImmediate iterator, which is never started. The progression listener rebuilt that slot's cache from the opened
+        // save, so its orb total is given again. Before any open the index is the construction default, -1.
+        private static void OpenSlot(Slots slots, int index)
+        {
+            SaveManager save = slots.World.Save;
+            save.OpenSave(index).MoveNext();
+            Assert.That(save.CurrentSaveIndex, Is.EqualTo(index));
+            SeedOrbs(Get<ProgressionCollectableHandler>(ProcessManager.GetSystem<ProgressionManager>(), "m_collectables"), index);
+        }
 
         private static string[] Saves(Slots slots) => slots.World.Save.RawSaves;
 
@@ -137,7 +161,7 @@ namespace ProjectLucid.Tests
         {
             Run((owned, slots) =>
             {
-                OpenSlot(slots, -1);
+                Assert.That(slots.World.Save.CurrentSaveIndex, Is.EqualTo(-1), "the construction default; no save is open");
 
                 Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
 
@@ -217,14 +241,6 @@ namespace ProjectLucid.Tests
         {
             Run((owned, slots) =>
             {
-                FieldInfo instance = typeof(HLPropertyStore).GetField("s_internalInstance", BindingFlags.Static | BindingFlags.NonPublic);
-                if (instance.GetValue(null) != null) throw new InvalidOperationException("Fixture requires no property-store singleton");
-                // The store constructor publishes itself as the singleton; released after the store's row (taken later).
-                owned.Lease(new ReleaseAction(() => instance.SetValue(null, null)));
-                var store = owned.Register(new HLPropertyStore("fixture-only", 0, "save-slots-fixture")); // no file I/O
-                var cloud = owned.Host("Lucid save slots cloud", false).AddComponent<HLCloud.Cloud>();
-                Call(slots.World.Save, "OnCloudValid", cloud);
-
                 App app = ProcessManager.GetSystem<App>();
                 app.Storage.SetValue(AppFSMKeys.UIModernEvents, new List<UIModernEvent>());
                 app.Storage.SetValue(AppFSMKeys.StartIsReady, true);
@@ -232,7 +248,6 @@ namespace ProjectLucid.Tests
                 Set(slots.Container, "m_selectSaveUIEvent", selectSave); // serialized in the original
 
                 OpenSlot(slots, 0);
-                slots.World.Save.SetLastSaveIndex(0, false);
                 Call(slots.Container, "OnSaveManagerValid", slots.World.Save);
                 slots.Toggles[2].Action_OnValueChanged(true);
 
@@ -241,7 +256,7 @@ namespace ProjectLucid.Tests
                 Assert.That(slots.Container.ShowLoading.Value, Is.True);
                 Assert.That(app.Storage.GetValue<bool>(AppFSMKeys.StartIsReady), Is.False);
                 Assert.That(Get<int>(slots.World.Save, "m_lastSaveIndex"), Is.EqualTo(2), "the toggle's slot, not the open slot 0");
-                Assert.That(store.GetPropertyValue("GameSave_LastSaveIndex"), Is.EqualTo("0"), "the old index is written to the store");
+                Assert.That(slots.Store.GetPropertyValue("GameSave_LastSaveIndex"), Is.EqualTo("0"), "the old index is written to the store");
                 Assert.That(app.GetUIModernEvents(), Is.EqualTo(new[] { selectSave }));
             });
         }
