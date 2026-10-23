@@ -37,6 +37,13 @@ PROFILES = {
     ("Game.Runtime", "Hardlight.Analytics.Analytics_SystemConfig"): (
         "m_baseAsset", "m_overriddenFields", "m_gameID", "m_environment", "m_serverBaseURL", "m_maxQueueLength",
         "m_maxSendAttempts", "m_persistentEventIndex"),
+    # Boot-path data: TimeManager's category lookup and VisualAssetManager's
+    # device performance group with the per-platform assets it lists.
+    ("Game.Runtime", "HardlightProject.TimeCategoryLookup"): ("m_baseAsset", "m_overriddenFields", "Dictionary"),
+    ("Game.Runtime", "HardlightProject.DevicePerformanceGroup"): ("m_elements",),
+    ("Game.Runtime", "HardlightProject.DevicePerformance_iOS"): ("m_fallback", "m_devicePerformanceMatches"),
+    ("Game.Runtime", "HardlightProject.DevicePerformance_macOS"): ("m_fallback", "m_devicePerformanceMatches"),
+    ("Game.Runtime", "HardlightProject.DevicePerformance_tvOS"): ("m_fallback", "m_devicePerformanceMatches"),
 }
 COMMON = ("m_ObjectHideFlags", "m_CorrespondingSourceObject", "m_PrefabInstance",
           "m_PrefabAsset", "m_GameObject", "m_Enabled", "m_EditorHideFlags", "m_Script",
@@ -51,7 +58,7 @@ POINTER_LISTS = {"m_configurationAssets", "m_systemScenes", "m_uiScenes", "m_gam
                  "m_referencedScriptableObjects", "m_categoriesPrioritised"}
 POINTER_FIELDS = {"ActiveConfig", "m_baseAsset", "m_runtimeIssueProfile", "m_hashedComponentGroupDefaults",
                   "m_unityGlobalTime", "m_defaultHighlightPrefab", "m_gradleConfigurationAsset", "m_iOSConfigurationAsset",
-                  "m_macOSConfigurationAsset"}
+                  "m_macOSConfigurationAsset", "m_fallback"}
 # BaseAnalyticsSystemConfig names itself as its own base asset through a local
 # pointer; no other owner's base asset may be local.
 LOCAL_BASE_OWNERS = {("Game.Runtime", "Hardlight.Analytics.Analytics_SystemConfig")}
@@ -90,6 +97,21 @@ NESTED_FIELDS = {
         "m_lowMemoryConfiguration": (("m_enabled", "bool"), ("m_breadcrumbMessage", "name"),
                                      ("m_minimumLogIntervalSeconds", "float"), ("m_logBreadcrumbMessageAsWarning", "bool"),
                                      ("m_triggerResourcesUnloadAssets", "bool"))},
+}
+# A list of serializable records: (the wrapper member that holds the list, or
+# None for a list written directly under the field; each record's members in
+# order with their kinds). A SerializableDictionary stores only its backing
+# list m_values of key/value pairs; a duplicate key is refused.
+# Some iOS device match names are plain digits ("79").
+DEVICE_MATCHES = (None, (("name", "label"), ("m_profile", "asset"), ("m_deviceGeneration", "int32")))
+RECORD_FIELDS = {
+    ("Game.Runtime", "HardlightProject.TimeCategoryLookup"): {
+        "Dictionary": ("m_values", (("m_key", "int32"), ("m_value", "asset")))},
+    ("Game.Runtime", "HardlightProject.DevicePerformanceGroup"): {
+        "m_elements": (None, (("Name", "name"), ("Data", "asset")))},
+    ("Game.Runtime", "HardlightProject.DevicePerformance_iOS"): {"m_devicePerformanceMatches": DEVICE_MATCHES},
+    ("Game.Runtime", "HardlightProject.DevicePerformance_macOS"): {"m_devicePerformanceMatches": DEVICE_MATCHES},
+    ("Game.Runtime", "HardlightProject.DevicePerformance_tvOS"): {"m_devicePerformanceMatches": DEVICE_MATCHES},
 }
 
 
@@ -144,6 +166,9 @@ def _scalar(value, items, kind):
     elif kind == "name":
         if re.fullmatch(r"[A-Za-z_][A-Za-z_0-9 .-]*", value) is None:
             raise ValueError("Unsupported configuration plain name")
+    elif kind == "label":
+        if re.fullmatch(r"[A-Za-z_][A-Za-z_0-9 .-]*|[0-9]+", value) is None:
+            raise ValueError("Unsupported configuration plain label")
     elif kind == "empty":
         if value:
             raise ValueError("Unsupported non-empty configuration string")
@@ -163,11 +188,48 @@ def _scalar(value, items, kind):
         raise ValueError("Unsupported configuration scalar kind")
 
 
+def _records(value, block, wrapper, members):
+    """Validate one profiled record list exactly; raise on any other shape."""
+    indent = "  "
+    if wrapper is not None:
+        # The field opens a class whose only member is the list.
+        if value or not block:
+            raise ValueError("Unsupported configuration record wrapper")
+        opened = re.fullmatch(r"    " + wrapper + r":(?: (.*))?", block[0])
+        if opened is None:
+            raise ValueError("Unsupported configuration record wrapper")
+        value, block, indent = opened[1] or "", block[1:], "    "
+    if value == "[]" and not block:
+        return
+    if value or not block:
+        raise ValueError("Unsupported configuration record list shape")
+    if len(block) % len(members):
+        raise ValueError("Incomplete configuration record")
+    keys = set()
+    for start in range(0, len(block), len(members)):
+        for offset, (member, kind) in enumerate(members):
+            prefix = indent + ("- " if offset == 0 else "  ")
+            line = re.fullmatch(re.escape(prefix) + r"([A-Za-z_][A-Za-z_0-9]*): *(.*)", block[start + offset])
+            if line is None or line[1] != member:
+                raise ValueError("Unsupported configuration record member")
+            if kind == "asset":
+                _asset(line[2])
+            else:
+                _scalar(line[2], [], kind)
+            if wrapper is not None and offset == 0:
+                # Compare values, not spellings: "0" and "-0" are one Int32 key.
+                key = int(line[2]) if kind == "int32" else line[2]
+                if key in keys:
+                    raise ValueError("Duplicate configuration dictionary key")
+                keys.add(key)
+
+
 def _document(body, row):
     lines = body.splitlines()
     fields = []
     values = {}
     position = 0
+    records = RECORD_FIELDS.get((row["assembly"], row["full_name"]), {})
     while position < len(lines):
         match = FIELD.fullmatch(lines[position])
         if match is None or match[1] in values:
@@ -175,6 +237,14 @@ def _document(body, row):
         name, value = match.groups()
         fields.append(name)
         position += 1
+        if name in records:
+            block = []
+            while position < len(lines) and lines[position].startswith(("  - ", "    ")):
+                block.append(lines[position])
+                position += 1
+            _records(value, block, *records[name])
+            values[name] = (value, [], False)
+            continue
         items, nested = [], []
         while position < len(lines) and lines[position].startswith("  - "):
             items.append(lines[position][4:])
@@ -216,6 +286,8 @@ def _document(body, row):
         raise ValueError("Unsupported selected configuration script pointer")
     owner = row["assembly"], row["full_name"]
     for name in PROFILES[owner]:
+        if name in records:
+            continue
         value, items, nested = values[name]
         kind = SCALAR_FIELDS.get(owner, {}).get(name)
         if name in NESTED_FIELDS.get(owner, {}):

@@ -1,8 +1,8 @@
-"""Bounded scene component support; callers must qualify bindings first.
+"""Bounded scene and prefab component support; callers must qualify bindings first.
 
-A selected component document sits in a multi-document scene beside unrelated
-objects, and its payload has nested blocks (a serializable class, a string
-list). Only its m_Script line changes. Its top-level field names and order must
+A selected component document sits in a multi-document scene or prefab beside
+unrelated objects, and its payload has nested blocks (a serializable class, a
+string list, a UnityEvent). Only its m_Script line changes. Its top-level field names and order must
 equal the shape observed in this release, and every payload line must lie inside
 a block that one of those fields opens. Unselected documents are not read.
 """
@@ -15,11 +15,15 @@ from .configurationbindings import COMMON, GUID, SCRIPT
 PROFILES = {
     ("Game.Runtime", "HardlightProject.VisualAssetManager"): (
         "m_requirementForHDUI", "m_atlasesWithVariants", "m_devicePerformanceGroup", "m_sdAtlasSuffix"),
+    # The highlight component of the ten uihighlight_* prefabs.
+    ("HLModernUI.Runtime", "Hardlight.UIHighlight"): ("m_definition", "m_onShowHighlight"),
 }
 # The profile fields whose payload is a nested block: a serializable class
-# (PerformanceAttribute) and a string array. No other field may open a block.
+# (PerformanceAttribute), a string array and a UnityEvent's persistent calls.
+# No other field may open a block.
 NESTED = {
     ("Game.Runtime", "HardlightProject.VisualAssetManager"): ("m_requirementForHDUI", "m_atlasesWithVariants"),
+    ("HLModernUI.Runtime", "Hardlight.UIHighlight"): ("m_onShowHighlight",),
 }
 HEADER = re.compile(r"^--- !u!(\d+) &(-?\d+)(?: stripped)?\r?\n(\w+):\r?\n", re.MULTILINE)
 FIELD = re.compile(r"  ([A-Za-z_][A-Za-z_0-9]*):(?: (.*))?")
