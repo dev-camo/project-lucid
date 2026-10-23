@@ -1142,6 +1142,30 @@ namespace ProjectLucid.Tests
             ParticleTrailVerification.VerifyOrthographicDepthRows();
         }
 
+        [Test]
+        public void UiBlurCompilesEveryPassForDirect3D()
+        {
+            UiBlurVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void UiBlurGpuOutputMatchesDecodedSurfaceCases()
+        {
+            UiBlurVerification.Run();
+        }
+
+        [Test]
+        public void FullscreenEffectsCompilesEveryPassForDirect3D()
+        {
+            FullscreenEffectsVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void FullscreenEffectsGpuOutputMatchesDecodedSurfaceCases()
+        {
+            FullscreenEffectsVerification.Run();
+        }
+
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all
         // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)
