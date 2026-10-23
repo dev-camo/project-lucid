@@ -177,6 +177,10 @@ def program_entries(segments: list[bytes]) -> list[dict]:
             raise ValueError("Shader program entry overlaps the program table")
         entries.append({"blob_index": blob_index, "segment_index": segment,
                         "offset": offset, "length": size})
+    # Each entry is written as its own file, so repeated ranges could multiply the output
+    # far beyond the decoded budget. Shipped tables emit at most their decoded bytes.
+    if sum(entry["length"] for entry in entries) > sum(map(len, segments)):
+        raise ValueError("Shader program entries emit more bytes than their decoded segments")
     return entries
 
 

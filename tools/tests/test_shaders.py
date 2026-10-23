@@ -121,6 +121,15 @@ class ShaderEvidenceTests(unittest.TestCase):
             with self.subTest(table=table), self.assertRaises(ValueError):
                 program_entries([table])
 
+    def test_program_table_bounds_emitted_bytes_without_rejecting_shared_ranges(self):
+        program = bytes(64)
+        def table(count, size):
+            return struct.pack("<I", count) + struct.pack("<III", 0, size, 1) * count
+        # A shared range stays valid while the output fits the decoded bytes (#455).
+        self.assertEqual(2, len(program_entries([table(2, 16), program])))
+        with self.assertRaisesRegex(ValueError, "emit more bytes"):
+            program_entries([table(128, len(program)), program])
+
     def test_metal_parser_rejects_unrecognized_layout_and_opaque_code(self):
         self.assertIsNone(metal_program(struct.pack("<II", PROGRAM_VERSION, 3)))
         invalid = [struct.pack("<I", PROGRAM_VERSION + 1) + self.program[4:],
