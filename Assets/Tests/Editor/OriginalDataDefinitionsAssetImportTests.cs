@@ -355,7 +355,22 @@ namespace ProjectLucid.Tests.Editor
                     SerializedProperty slot = array.GetArrayElementAtIndex(i);
                     Assert.That(slot.propertyType, Is.EqualTo(SerializedPropertyType.ObjectReference));
                     Object actual = slot.objectReferenceValue; DefinitionDataType typed = loaded.DataDefinitionsArray[i];
-                    if (BoundGroups.ContainsKey(reference.Guid)) Assert.That(typed, Is.Not.Null, "A bound group loads as its typed definition: " + reference.Path);
+                    if (BoundGroups.ContainsKey(reference.Guid))
+                    {
+                        Assert.That(typed, Is.Not.Null, "A bound group loads as its typed definition: " + reference.Path);
+                        // Read the element list back through the closed generic layout: every
+                        // authored row survives, each with its pointed-to platform asset.
+                        int rawRows = Regex.Matches(Utf8.GetString(observed.Read(work, rawPath)), "^  - Name: ", RegexOptions.Multiline).Count;
+                        var group = new SerializedObject(typed); observed.Serialized.Add(group); group.Update();
+                        SerializedProperty elements = Require(group, "m_elements", SerializedPropertyType.Generic);
+                        Assert.That(rawRows, Is.EqualTo(3)); Assert.That(elements.isArray, Is.True); Assert.That(elements.arraySize, Is.EqualTo(rawRows));
+                        for (int element = 0; element < elements.arraySize; element++)
+                        {
+                            SerializedProperty elementData = elements.GetArrayElementAtIndex(element).FindPropertyRelative("Data");
+                            Assert.That(elementData, Is.Not.Null); Assert.That(elementData.propertyType, Is.EqualTo(SerializedPropertyType.ObjectReference));
+                            Assert.That(elementData.objectReferenceValue, Is.InstanceOf<DevicePerformance>(), "Bound group element " + element + " keeps its platform asset.");
+                        }
+                    }
                     if (typed != null)
                     {
                         Assert.That(actual, Is.EqualTo(typed)); AssertIdentity(typed, reference.Guid, 11400000);

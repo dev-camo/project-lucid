@@ -2141,6 +2141,12 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalDataDefinitionsAssetImportTests.ActualSuppliedDataDefinitionsPreservesScriptAndFiftySevenOrderedRawReferences',
 )
 
+# Prepared boot data read back through closed generic layouts (dictionary rows, highlight pointers).
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalBootDataPreparedAssetTests.PreparedTimeCategoryLookupReadsEveryAuthoredCategoryBack',
+    'ProjectLucid.Tests.Editor.OriginalBootDataPreparedAssetTests.PreparedHighlightPrefabsKeepTheirDefinitions',
+)
+
 # Owned closed storage and callbacks; supplied group payloads require separate qualification.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.ClosedStateMachinesGroupRetainsThreeArgumentElementAndOriginalConstraints',
