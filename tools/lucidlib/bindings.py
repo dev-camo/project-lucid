@@ -202,6 +202,29 @@ def _generic_parameters(record: dict) -> Tuple[Any, ...]:
     return tuple(result)
 
 
+# Unity 2022 serializes nested inline data at most ten levels deep. A closed
+# generic that keeps growing (Node<T> { Node<List<T>> next; }) never reaches a
+# checked closure, so deeper generic data is blocked instead of followed.
+_GENERIC_DATA_DEPTH = 10
+
+
+def _engine_module(assembly: str) -> bool:
+    """The Unity engine's own module assemblies, not packages such as UnityEngine.UI."""
+    return assembly == "UnityEngine" or (assembly.startswith("UnityEngine.") and assembly.endswith("Module"))
+
+
+def _generic_data_definition(reference: dict) -> bool:
+    """A closed generic type whose definition is ordinary script code.
+
+    Runtime-library generics carry [Serializable] (Dictionary, KeyValuePair,
+    Nullable) yet Unity 2022 never serializes them, and engine generics such
+    as UnityEvent<T> have engine-side rules; neither is admitted here.
+    """
+    assembly, definition = reference["assembly"], reference["definition"]
+    return not (assembly in ("mscorlib", "netstandard") or assembly.startswith(("System", "Mono.", "UnityEditor")) or
+                _engine_module(assembly) or definition.startswith(("System.", "UnityEngine.", "UnityEditor.")))
+
+
 def _substitute(reference: dict, arguments) -> dict:
     """Close a declaration's type-parameter references with one instance's arguments.
 
@@ -223,6 +246,23 @@ def _substitute(reference: dict, arguments) -> dict:
     if kind in ("array", "pointer", "by_reference"):
         return dict(reference, element=_substitute(reference.get("element"), arguments))
     return reference
+
+
+def _unshipped_constants(original, loaded):
+    """Our extra enum constants when the original's are an ordered subsequence; else None.
+
+    Every original (name, type, value) must appear on our side with the same
+    value and in the original's relative order; our side may only add. Names
+    are unique on each side (_candidate_fields), so a changed shipped constant
+    can only be skipped as an extra, and then the original is not exhausted.
+    """
+    position, extras = 0, []
+    for constant in loaded:
+        if position < len(original) and constant == original[position]:
+            position += 1
+        else:
+            extras.append(constant[0])
+    return extras if position == len(original) and extras else None
 
 
 class _Comparison:
@@ -250,11 +290,16 @@ class _Comparison:
             reference = record.get("base_type")
         return False
 
-    def layout(self, key: Tuple[str, str]) -> list:
+    def layout(self, key: Tuple[str, str], notes=None) -> list:
+        """Return the sorted blocking issues; append informational notes to ``notes``."""
         issues, active, checked = [], set(), set()
+        found = []
 
         def issue(reason, owner, detail=""):
             issues.append({"reason": reason, "type": list(owner), "detail": detail})
+
+        def note(reason, owner, detail=""):
+            found.append({"reason": reason, "type": list(owner), "detail": detail})
 
         def reference(left, right, owner, detail, container_depth=0):
             if type_identity(left) != type_identity(right):
@@ -268,9 +313,20 @@ class _Comparison:
                     issue("unsupported_serialized_array", owner, detail)
                 reference(left["element"], right["element"], owner, detail, container_depth + 1)
             elif kind == "generic_instance":
-                # Unity 2022 permits List<T>; arbitrary generic data requires
-                # additional serializer evidence and is deliberately blocked.
                 is_list = left["assembly"] == "mscorlib" and left["definition"] == "System.Collections.Generic.List`1"
+                if not is_list and _generic_data_definition(left):
+                    # Unity 2022 serializes a closed generic class or struct as
+                    # inline data: the definition's own fields, closed with the
+                    # instance's arguments. Its type identity, arguments included,
+                    # already matched above; an argument no field uses stores nothing.
+                    if sum(1 for _, as_data, closure in active if as_data and closure is not None) >= _GENERIC_DATA_DEPTH:
+                        issue("serialized_generic_depth_exceeded", owner, detail)
+                        return
+                    visit((left["assembly"], left["definition"]), as_field=True,
+                          arguments=(tuple(left["arguments"]), tuple(right["arguments"])))
+                    return
+                # Unity 2022 permits List<T>. Runtime-library and engine generics
+                # (Dictionary, HashSet, Nullable, UnityEvent<T>) stay blocked.
                 if not is_list or len(left["arguments"]) != 1:
                     issue("unsupported_serialized_generic", owner, detail)
                 if is_list and container_depth:
@@ -357,7 +413,8 @@ class _Comparison:
                 # PPtr storage ends at the reference boundary. Prove both
                 # complete, closed, scoped ancestry graphs before traversing
                 # an inherited component's payload as inline serialized data.
-                if as_field and not left.get("is_enum") and not left.get("is_value_type") and self._unity_object(owner):
+                arity = 0 if arguments is None else len(largs)
+                if as_field and not left.get("is_enum") and not left.get("is_value_type") and self._unity_object(owner, arity):
                     return
                 lbase, rbase = _substitute(left.get("base_type"), largs), _substitute(right.get("base_type"), rargs)
                 if lbase is None or rbase is None:
@@ -401,11 +458,21 @@ class _Comparison:
                                     raise LayoutError("Enum constant is not an exact integer")
                                 result.append((f["name"], type_identity(f.get("default_value_type")), value))
                             return result
-                        if constants(lconstants) != constants(rconstants):
-                            issue("enum_constants_mismatch", owner)
+                        lvalues, rvalues = constants(lconstants), constants(rconstants)
+                        if lvalues != rvalues:
+                            extras = _unshipped_constants(lvalues, rvalues) if _engine_module(owner[0]) else None
+                            if extras is None:
+                                issue("enum_constants_mismatch", owner)
+                            else:
+                                # The Editor's engine module can declare
+                                # constants the shipped player schema lacks
+                                # (RuntimePlatform's obsolete BB10Player = 22). Storage is the
+                                # underlying integer, so every shipped value
+                                # still reads back unchanged.
+                                note("enum_unshipped_constants", owner, repr(extras))
                     return
                 if (as_field and not (left.get("attributes", 0) & 0x2000) and
-                        not self._unity_2022_builtin_value(owner) and not self._unity_object(owner)):
+                        not self._unity_2022_builtin_value(owner) and not self._unity_object(owner, arity)):
                     issue("field_type_eligibility_unverified", owner, "not a serializable data type or Unity object")
                 if [f["name"] for f in lfields] != [f["name"] for f in rfields]:
                     issue("serialized_field_order_or_names_mismatch", owner,
@@ -428,7 +495,11 @@ class _Comparison:
 
         visit(key)
         # Sort/deduplicate diagnostics without changing field comparison order.
-        return sorted({json.dumps(item, sort_keys=True): item for item in issues}.values(), key=lambda item: json.dumps(item, sort_keys=True))
+        unique = lambda items: sorted({json.dumps(item, sort_keys=True): item for item in items}.values(),
+                                      key=lambda item: json.dumps(item, sort_keys=True))
+        if notes is not None:
+            notes.extend(unique(found))
+        return unique(issues)
 
     def _vector2_data_contract(self, key):
         """Prove the complete literal Vector2 declaration on both graphs.
@@ -553,7 +624,7 @@ class _Comparison:
                 return False
         return True
 
-    def _unity_object(self, key):
+    def _unity_object(self, key, arity=0):
         """Prove a closed PPtr ancestry on BOTH complete declaration graphs.
 
         Raw fields, CAD, constraints and physical tokens remain in each report.
@@ -566,9 +637,9 @@ class _Comparison:
         if self._vector2_data_contract(key):
             return False
         seen = set()
-        # Only a declaration reached through a closed generic-instance base may
-        # be generic, and then with exactly that instance's arity on both graphs.
-        arity = 0
+        # Only a declaration reached through a closed generic instance (a base,
+        # or a closed generic field type with ``arity`` arguments) may be
+        # generic, and then with exactly that instance's arity on both graphs.
         while key not in {
             ("mscorlib", "System.Object"), ("mscorlib", "System.ValueType"), ("mscorlib", "System.Enum")
         }:
@@ -659,14 +730,15 @@ def compare_layouts(schema_report: dict, reflection_inventory: dict, *, schema_s
         original = comparison.original.get(key)
         if original is None or not (original.get("unity_component") or original.get("unity_scriptable_object")):
             continue
-        issues = comparison.layout(key)
+        notes = []
+        issues = comparison.layout(key, notes)
         if any(not isinstance(s.get("source_sha256"), str) or re.fullmatch(r"[a-f0-9]{64}", s["source_sha256"]) is None for s in sources):
             issues.append({"reason": "script_source_fingerprint_missing", "type": list(key), "detail": "source file could not be fingerprinted"})
         if len(sources) != 1:
             issues.append({"reason": "ambiguous_monoscript_identity", "type": list(key), "detail": "multiple asset identities expose the exact same CLR type"})
         candidates.append({"assembly": key[0], "full_name": key[1], "original_token": original.get("token"),
                            "loaded_scripts": sources, "status": "compatible_layout" if not issues else "blocked",
-                           "issues": issues, "remap_eligible": False})
+                           "issues": issues, "notes": notes, "remap_eligible": False})
     compatible = sum(c["status"] == "compatible_layout" for c in candidates)
     return {"schema_version": 1, "command": "compare-monoscript-layouts", "status": "compared",
             "unity_version": schema_report["unity_version"], "original_schema_sha256": schema_sha256,
