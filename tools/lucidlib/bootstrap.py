@@ -513,7 +513,7 @@ def _stop_tool(process: subprocess.Popen) -> None:
         if os.name == "posix":
             stop_process_group(process)
             return
-        # Known gap (no tracking issue yet): Windows stops only the immediate process, not
+        # Known gap (#458): Windows stops only the immediate process, not
         # its tree. POSIX group ownership is #235.
         process.terminate()
         try:
