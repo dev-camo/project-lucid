@@ -162,7 +162,18 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "OriginalPipelineMarkerRetainsEngineFieldsAfterScriptBinding",
     "TimeConversionsRetainOriginalUnitsRoundingAndDateKinds",
     "SkyCubemapGpuOutputMatchesDecodedMetalCases",
-    "EggmanLogoGpuOutputMatchesDecodedColorBlendAndLayerCases"))
+    "EggmanLogoGpuOutputMatchesDecodedColorBlendAndLayerCases",
+    "RecoveredShaderRigRestoresStateAfterDisposeAndFailedConstruction",
+    "PfxAlphaBlendAddCompilesEveryPassForDirect3D",
+    "PfxAlphaBlendAddGpuOutputMatchesDecodedSurfaceCases",
+    "CharGhostedCompilesEveryPassForDirect3D",
+    "CharGhostedGpuOutputMatchesDecodedSurfaceCases",
+    "GameplayCollectableCompilesEveryPassForDirect3D",
+    "GameplayCollectableGpuOutputMatchesDecodedSurfaceCases",
+    "MatcapCompilesEveryPassForDirect3D",
+    "MatcapGpuOutputMatchesDecodedSurfaceCases",
+    "ParticleTrailCompilesEveryPassForDirect3D",
+    "ParticleTrailGpuOutputMatchesDecodedSurfaceCases"))
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 EDITMODE_TESTS += ("ProjectLucid.Tests.DebugBackingFieldAttributeTests.DebugOnlyAllowanceForCompilerDebuggerBrowsableIsExactAndReleaseStaysStrict",)
 
