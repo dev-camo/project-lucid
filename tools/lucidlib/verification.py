@@ -2623,6 +2623,15 @@ PLAYMODE_TESTS += (
     "ProjectLucid.Tests.AudioMixerLifecycleTests.OriginalGetMusicVolumeReturnsUnityGainWhenTheParameterIsMissing",
 )
 
+# Mixer fixture ownership when the test runner abandons an iterator (#489).
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.AudioMixerLifecycleTests.AbandonedPublicIteratorCleansUpThroughAttributedTearDown",
+    "ProjectLucid.Tests.AudioMixerLifecycleTests.CompletedBodyLeavesCleanupToAttributedTearDown",
+    "ProjectLucid.Tests.AudioMixerLifecycleTests.BodyFailureRetainsItsExceptionBeforeAttributedTearDown",
+    "ProjectLucid.Tests.AudioMixerLifecycleTests.OverlappingIteratorsCannotReplaceTheActiveFixture",
+    "ProjectLucid.Tests.AudioMixerLifecycleTests.TearDownReportsEveryCleanupFailureAfterTheBodyFailure",
+)
+
 # Coverage gaps: application enter order, localisation fallback/formatting,
 # splash selection, definition lookup and font-readiness storage reads.
 EDITMODE_TESTS += (

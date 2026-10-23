@@ -50,6 +50,8 @@ namespace ProjectLucid.Tests
             public HLAudioMixerDefinition Definition;
         }
 
+        private MixerFixture activeFixture;
+
         private static byte[] HashFile(string path)
         {
             using (var hash = SHA256.Create())
@@ -88,18 +90,26 @@ namespace ProjectLucid.Tests
             if (secondary.Count != 0) throw new AggregateException(secondary);
         }
 
-        private static IEnumerator Run(Func<MixerFixture, IEnumerator> exercise)
+        private IEnumerator Run(Func<MixerFixture, IEnumerator> exercise)
         {
-            var fixture = new MixerFixture();
-            var secondary = new List<Exception>();
+            Assert.That(activeFixture, Is.Null, "A mixer exercise cannot replace an active fixture.");
+            var fixture = activeFixture = new MixerFixture();
             ExceptionDispatchInfo primary = null;
-            try
-            {
-                IEnumerator body = Drive(exercise(fixture), failure => primary = failure);
-                while (body.MoveNext()) yield return body.Current;
-            }
-            finally { Cleanup(fixture, secondary); }
-            Rethrow(primary, secondary);
+            IEnumerator body = Drive(exercise(fixture), failure => primary = failure);
+            while (body.MoveNext()) yield return body.Current;
+            if (primary != null) primary.Throw();
+        }
+
+        // UTF 1.1.33 can abandon a nested iterator without disposing it after an
+        // unexpected log. NUnit teardown still runs and appends any cleanup failure.
+        [TearDown]
+        public void ReleaseOwnedMixer()
+        {
+            if (activeFixture == null) return;
+            var secondary = new List<Exception>();
+            try { Cleanup(activeFixture, secondary); }
+            finally { activeFixture = null; }
+            Rethrow(null, secondary);
         }
 
         private static void VerifyRawSupply(MixerFixture fixture)
@@ -260,6 +270,159 @@ namespace ProjectLucid.Tests
             // GetMusicVolume 0x06001a0c (x86-64 0x53e400) zeroes its local before
             // GetFloat and ignores the result, so exp10f(0f / 20f) returns one.
             Assert.That(definition.GetMusicVolume(), Is.EqualTo(1f));
+        }
+
+        private static MixerFixture ObserveFixture(AudioMixerLifecycleTests owner, IEnumerator iterator)
+        {
+            // Observe both coroutine-local and instance ownership in the negative control.
+            foreach (object holder in new object[] { owner, iterator })
+                foreach (FieldInfo field in holder.GetType().GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                    if (field.FieldType == typeof(MixerFixture) && field.GetValue(holder) is MixerFixture fixture)
+                        return fixture;
+            throw new AssertionException("The advanced mixer iterator must own a fixture.");
+        }
+
+        private static void InvokeAttributedTearDown(AudioMixerLifecycleTests owner)
+        {
+            foreach (MethodInfo method in typeof(AudioMixerLifecycleTests).GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+                if (method.IsDefined(typeof(TearDownAttribute), true))
+                    try { method.Invoke(owner, null); }
+                    catch (TargetInvocationException failure)
+                    { ExceptionDispatchInfo.Capture(failure.InnerException).Throw(); }
+        }
+
+        private static void AssertReleased(MixerFixture fixture)
+        {
+            string physicalFolder = Path.Combine(Path.GetDirectoryName(Application.dataPath), fixture.Folder);
+            Assert.That(fixture.Definition == null, Is.True, "Teardown must destroy the owned Definition.");
+            Assert.That(AssetDatabase.IsValidFolder(fixture.Folder), Is.False);
+            Assert.That(Directory.Exists(physicalFolder), Is.False);
+            foreach (string path in new[] { physicalFolder + ".meta", physicalFolder + "/Main.mixer", physicalFolder + "/Main.mixer.meta" })
+                Assert.That(File.Exists(path), Is.False, "Teardown left an owned fixture asset: " + path);
+            foreach (var pair in fixture.Originals)
+                CollectionAssert.AreEqual(pair.Value, HashFile(pair.Key), "Teardown changed an original mixer or meta: " + pair.Key);
+        }
+
+        private void CheckOwnership(IEnumerator iterator, Action<MixerFixture> check)
+        {
+            ExceptionDispatchInfo primary = null;
+            var secondary = new List<Exception>();
+            try
+            {
+                Assert.That(iterator.MoveNext(), Is.True);
+                MixerFixture fixture = ObserveFixture(this, iterator);
+                Assert.That(AssetDatabase.IsValidFolder(fixture.Folder), Is.True);
+                Assert.That(fixture.Definition == null, Is.False);
+                check(fixture);
+            }
+            catch (Exception failure) { primary = ExceptionDispatchInfo.Capture(failure); }
+            finally
+            {
+                // Measure abandonment before disposing the negative control's iterator.
+                try { ((IDisposable)iterator).Dispose(); }
+                catch (Exception failure) { secondary.Add(failure); }
+                try { InvokeAttributedTearDown(this); }
+                catch (Exception failure) { secondary.Add(failure); }
+            }
+            Rethrow(primary, secondary);
+        }
+
+        private IEnumerator ControlIterator(Exception failure = null)
+        {
+            return Run(fixture => ExerciseOwnershipControl(fixture, failure));
+        }
+
+        private static IEnumerator ExerciseOwnershipControl(MixerFixture fixture, Exception failure)
+        {
+            VerifyRawSupply(fixture);
+            Bind(fixture, CopyOwnedMixer(fixture));
+            yield return null;
+            if (failure != null) throw failure;
+        }
+
+        [Test]
+        public void AbandonedPublicIteratorCleansUpThroughAttributedTearDown()
+        {
+            IEnumerator iterator = OriginalGetMusicVolumeReturnsUnityGainWhenTheParameterIsMissing();
+            CheckOwnership(iterator, fixture =>
+            {
+                // UTF 1.1.33 abandons the nested iterator after an unexpected log.
+                // Do not resume or dispose it before checking the attributed lifecycle.
+                InvokeAttributedTearDown(this);
+                AssertReleased(fixture);
+                Assert.DoesNotThrow(() => InvokeAttributedTearDown(this));
+                AssertReleased(fixture);
+            });
+        }
+
+        [Test]
+        public void CompletedBodyLeavesCleanupToAttributedTearDown()
+        {
+            IEnumerator iterator = ControlIterator();
+            CheckOwnership(iterator, fixture =>
+            {
+                Assert.That(iterator.MoveNext(), Is.False);
+                Assert.That(AssetDatabase.IsValidFolder(fixture.Folder), Is.True,
+                    "Completing the body must leave cleanup with its NUnit owner.");
+                InvokeAttributedTearDown(this);
+                AssertReleased(fixture);
+            });
+        }
+
+        [Test]
+        public void BodyFailureRetainsItsExceptionBeforeAttributedTearDown()
+        {
+            var primary = new InvalidOperationException("mixer ownership body failure");
+            IEnumerator iterator = ControlIterator(primary);
+            CheckOwnership(iterator, fixture =>
+            {
+                Assert.That(Assert.Throws<InvalidOperationException>(() => iterator.MoveNext()), Is.SameAs(primary));
+                Assert.That(AssetDatabase.IsValidFolder(fixture.Folder), Is.True);
+                InvokeAttributedTearDown(this);
+                AssertReleased(fixture);
+            });
+        }
+
+        [Test]
+        public void OverlappingIteratorsCannotReplaceTheActiveFixture()
+        {
+            IEnumerator iterator = OriginalGetMusicVolumeReturnsUnityGainWhenTheParameterIsMissing();
+            CheckOwnership(iterator, fixture =>
+            {
+                IEnumerator overlap = OriginalMixerKeysNormalizeAndResetTheSuppliedMixerAcrossFrames();
+                try
+                {
+                    Assert.Throws<AssertionException>(() => overlap.MoveNext());
+                    Assert.That(ObserveFixture(this, iterator), Is.SameAs(fixture));
+                    Assert.That(AssetDatabase.IsValidFolder(fixture.Folder), Is.True);
+                }
+                finally { ((IDisposable)overlap).Dispose(); }
+                InvokeAttributedTearDown(this);
+                AssertReleased(fixture);
+            });
+        }
+
+        [Test]
+        public void TearDownReportsEveryCleanupFailureAfterTheBodyFailure()
+        {
+            var primary = new InvalidOperationException("mixer ownership primary failure");
+            IEnumerator iterator = ControlIterator(primary);
+            CheckOwnership(iterator, fixture =>
+            {
+                Assert.That(Assert.Throws<InvalidOperationException>(() => iterator.MoveNext()), Is.SameAs(primary));
+                string physicalFolder = Path.Combine(Path.GetDirectoryName(Application.dataPath), fixture.Folder);
+                string firstMissing = physicalFolder + "-missing-original-one";
+                string secondMissing = physicalFolder + "-missing-original-two";
+                fixture.Originals.Add(firstMissing, new byte[0]);
+                fixture.Originals.Add(secondMissing, new byte[0]);
+                var cleanup = Assert.Throws<AggregateException>(() => InvokeAttributedTearDown(this));
+                Assert.That(cleanup.InnerExceptions.Count, Is.EqualTo(2));
+                Assert.That(cleanup.InnerExceptions[0], Is.TypeOf<FileNotFoundException>());
+                Assert.That(cleanup.InnerExceptions[1], Is.TypeOf<FileNotFoundException>());
+                fixture.Originals.Remove(firstMissing);
+                fixture.Originals.Remove(secondMissing);
+                AssertReleased(fixture);
+            });
         }
     }
 }
