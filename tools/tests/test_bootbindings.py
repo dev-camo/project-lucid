@@ -180,6 +180,17 @@ class SceneComponentDocumentTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     rewrite_component_pointers(scene(visual), [VISUAL])
 
+    def test_only_the_nested_profile_fields_open_blocks(self):
+        # An empty scalar stays valid, but no payload may follow a field that is not nested.
+        empty_suffix = VISUAL_BODY.replace("  m_sdAtlasSuffix: _SD\n", "  m_sdAtlasSuffix:\n")
+        self.assertEqual(1, rewrite_component_pointers(scene(empty_suffix), [VISUAL])[1])
+        for visual in (empty_suffix + "    stray: 1\n", empty_suffix + "  - stray\n",
+                       VISUAL_BODY.replace("  m_devicePerformanceGroup: " + pointer(8) + "\n",
+                                           "  m_devicePerformanceGroup:\n    fileID: 0\n")):
+            with self.subTest(visual=visual):
+                with self.assertRaises(ValueError):
+                    rewrite_component_pointers(scene(visual), [VISUAL])
+
     def test_scene_envelope_and_common_header_are_bounded(self):
         with self.assertRaises(ValueError):
             rewrite_component_pointers(scene().replace(b"m_GameObject: {fileID: 2}", b"m_GameObject: {fileID: 0}"), [VISUAL])

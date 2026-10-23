@@ -16,6 +16,11 @@ PROFILES = {
     ("Game.Runtime", "HardlightProject.VisualAssetManager"): (
         "m_requirementForHDUI", "m_atlasesWithVariants", "m_devicePerformanceGroup", "m_sdAtlasSuffix"),
 }
+# The profile fields whose payload is a nested block: a serializable class
+# (PerformanceAttribute) and a string array. No other field may open a block.
+NESTED = {
+    ("Game.Runtime", "HardlightProject.VisualAssetManager"): ("m_requirementForHDUI", "m_atlasesWithVariants"),
+}
 HEADER = re.compile(r"^--- !u!(\d+) &(-?\d+)(?: stripped)?\r?\n(\w+):\r?\n", re.MULTILINE)
 FIELD = re.compile(r"  ([A-Za-z_][A-Za-z_0-9]*):(?: (.*))?")
 PREFIXES = ("%YAML 1.1\n%TAG !u! tag:unity3d.com,2011:\n",
@@ -56,8 +61,8 @@ def _document(body, row):
                 raise ValueError("Duplicate component field")
             fields.append(name)
             values[name] = value
-            # Only a profile field with no inline value opens a nested block.
-            block_open = not value and name in profile
+            # Only a nested profile field with no inline value opens a block.
+            block_open = not value and name in NESTED[(row["assembly"], row["full_name"])]
         elif block_open and (line.startswith("    ") or line.startswith("  - ")):
             continue
         else:

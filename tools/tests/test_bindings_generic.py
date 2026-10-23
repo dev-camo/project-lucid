@@ -1,7 +1,10 @@
 """Closed generic bases and Unity-skipped plain-class fields in pure declaration reports."""
 import copy
+from pathlib import Path
+import sys
 import unittest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib.bindings import compare_layouts
 import test_bindings as base_tests
 from test_bindings import attribute, field, named, record
@@ -246,6 +249,88 @@ class UnserializedClassFieldTests(unittest.TestCase):
             by_name(report, "Example.Widget")["fields"][1]["field_type"] = {
                 "kind": "array", "assembly": "Example", "element": named("Example", "Example.Table"), "rank": 1, "vector_array": True}
         self.assertIn("field_type_eligibility_unverified", reasons(candidate(original, loaded)))
+
+    def test_each_skip_guard_alone_keeps_the_field_compared(self):
+        # Each case breaks exactly one condition of the skip rule on both sides;
+        # the field is then compared as inline data and its eligibility blocks.
+        def plain_base(report):
+            table = by_name(report, "Example.Table")
+            table["base_type"] = named("Example", "Example.PlainBase")
+            report["assemblies"][0]["types"].append(
+                record("Example", "Example.PlainBase", [], named("mscorlib", "System.Object"), flags=0x100001))
+
+        def generic(report):
+            by_name(report, "Example.Table")["generic_parameters"] = [parameter(0, "T")]
+
+        def lookalike(report):
+            by_name(report, "Example.Table")["unity_scriptable_object"] = True
+
+        def incomplete(report):
+            by_name(report, "Example.Table")["schema_complete"] = False
+
+        for change in (plain_base, generic, lookalike, incomplete):
+            with self.subTest(change=change.__name__):
+                original, loaded = self.fixture()
+                for report in (original, loaded):
+                    change(report)
+                self.assertEqual("blocked", candidate(original, loaded)["status"])
+
+
+class GenericClosureIdentityTests(unittest.TestCase):
+    """One generic definition reached through two different closures in one graph.
+
+    Example.Widget : Example.Holder`1<Example.StructA> and has [SerializeField]
+    Example.Other m_other, where Example.Other : Example.Holder`1<Example.StructB>.
+    Holder`1 declares [SerializeField] T m_held.
+    """
+
+    def fixture(self):
+        original, loaded = base_tests.BindingTests().fixture()
+        value_type = named("mscorlib", "System.ValueType")
+        for report in (original, loaded):
+            widget = by_name(report, "Example.Widget")
+            widget["base_type"] = instance("Example", "Example.Holder`1", named("Example", "Example.StructA"))
+            widget["fields"] = [field("m_other", named("Example", "Example.Other"), flags=1, attributes=SERIALIZE)]
+            holder = record("Example", "Example.Holder`1", [field("m_held", type_parameter(0), flags=1, attributes=SERIALIZE)],
+                            named("mscorlib", "System.Object"), flags=0x102001)
+            holder["generic_parameters"] = [parameter(0, "T")]
+            other = record("Example", "Example.Other", [], instance("Example", "Example.Holder`1", named("Example", "Example.StructB")),
+                           flags=0x102001)
+            structs = []
+            for name in ("Example.StructA", "Example.StructB"):
+                item = record("Example", name, [field("value")], value_type, flags=0x102109)
+                item["is_value_type"] = True
+                structs.append(item)
+            report["assemblies"][0]["types"].extend([holder, other] + structs)
+        return original, loaded
+
+    def test_each_closure_of_a_generic_base_is_compared(self):
+        original, loaded = self.fixture()
+        self.assertEqual("compatible_layout", candidate(original, loaded)["status"])
+        # Only the second closure's argument differs; a visit keyed without
+        # the arguments would treat Holder`1 as already checked and miss it.
+        by_name(loaded, "Example.StructB")["fields"][0]["name"] = "renamed"
+        self.assertIn("serialized_field_order_or_names_mismatch", reasons(candidate(original, loaded)))
+
+
+class GenericArrayFieldTests(unittest.TestCase):
+    """Example.Widget : Example.Singleton`1<Example.Data> whose base declares [SerializeField] T[] m_items."""
+
+    def fixture(self):
+        array = {"kind": "array", "assembly": "Example", "element": type_parameter(0), "rank": 1, "vector_array": True}
+        original, loaded = GenericBaseComparisonTests().fixture([field("m_items", array, flags=1, attributes=SERIALIZE)])
+        for report in (original, loaded):
+            by_name(report, "Example.Widget")["base_type"]["arguments"] = [named("Example", "Example.Data")]
+            report["assemblies"][0]["types"].append(
+                record("Example", "Example.Data", [field("value")], named("mscorlib", "System.Object"), flags=0x102001))
+        return original, loaded
+
+    def test_array_elements_are_closed_with_the_instance_arguments(self):
+        original, loaded = self.fixture()
+        # Unsubstituted, the element would stay a generic parameter and block.
+        self.assertEqual("compatible_layout", candidate(original, loaded)["status"])
+        by_name(loaded, "Example.Data")["fields"][0]["field_type"] = named("mscorlib", "System.String")
+        self.assertIn("type_identity_mismatch", reasons(candidate(original, loaded)))
 
 
 if __name__ == "__main__":

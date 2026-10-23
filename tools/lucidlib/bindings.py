@@ -205,8 +205,10 @@ def _generic_parameters(record: dict) -> Tuple[Any, ...]:
 def _substitute(reference: dict, arguments) -> dict:
     """Close a declaration's type-parameter references with one instance's arguments.
 
-    Only class type parameters are replaced; a method parameter or an index outside
-    the instance's arity is an incomplete layout, never a guess.
+    Only class type parameters are replaced. A class parameter index outside the
+    instance's arity raises (an incomplete layout, never a guess); a method
+    parameter is returned unchanged, and the field comparison then blocks it as
+    an unsupported serialized type.
     """
     if arguments is None or not isinstance(reference, dict):
         return reference
@@ -314,7 +316,7 @@ class _Comparison:
                 # matching field proven delegate on BOTH complete type graphs;
                 # changed types/attributes/visibility still block compatibility.
                 rlookup = {f["name"]: f for f in rfields}
-                excluded_delegates = set()
+                excluded_fields = set()
                 for field in lfields:
                     other = rlookup.get(field["name"])
                     if not other or not self._is_delegate(ltype(field), self.original):
@@ -323,7 +325,7 @@ class _Comparison:
                             self._is_delegate(rtype(other), self.loaded) and
                             field["attributes"] == other["attributes"] and
                             _attributes(field, require_string_evidence=True) == _attributes(other)):
-                        excluded_delegates.add(field["name"])
+                        excluded_fields.add(field["name"])
                 # Unity2022 also skips a field whose declared type is a plain
                 # class without [Serializable] (TMP_Settings.m_linebreakingRules
                 # is absent from the shipped asset). Exclude only an identical
@@ -334,9 +336,9 @@ class _Comparison:
                             field["attributes"] == other["attributes"] and
                             _attributes(field, require_string_evidence=True) == _attributes(other) and
                             self._unserialized_class(ltype(field), rtype(other))):
-                        excluded_delegates.add(field["name"])
-                lfields = [f for f in lfields if f["name"] not in excluded_delegates]
-                rfields = [f for f in rfields if f["name"] not in excluded_delegates]
+                        excluded_fields.add(field["name"])
+                lfields = [f for f in lfields if f["name"] not in excluded_fields]
+                rfields = [f for f in rfields if f["name"] not in excluded_fields]
                 for label in ("is_value_type", "is_enum", "is_abstract", "declaring_type", "generic_parameters", "unity_component", "unity_scriptable_object"):
                     if label == "generic_parameters" and arguments is not None:
                         # Constraint records carry each build's own tokens.
