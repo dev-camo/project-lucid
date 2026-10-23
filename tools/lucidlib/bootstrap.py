@@ -652,13 +652,21 @@ def _install(name: str, lock: dict, work_dir: Path) -> Path:
         write_json(stage / "lucid-install.json", identity)
         (stage / "lucid-install.json").chmod(INJECTED_FILE_MODE)
         expected = tree_seal(stage)
-        if destination.exists():
-            if tree_seal(destination) != expected:
-                raise ToolError(
-                    f"Cached {name} executable/dependency closure differs from the pinned archive; "
-                    f"if it was installed by an older version of this tool, delete {destination} to reinstall")
-        else:
-            stage.replace(destination)
+        published = False
+        if not destination.exists():
+            try:
+                stage.replace(destination)
+                published = True
+            except OSError:
+                # Installers under different locks (dotnet is installed under both .dotnet.lock
+                # and .cpp2il.lock) can publish the same pinned tree first (#456). Theirs is
+                # accepted only if it seals identically below.
+                if not destination.is_dir():
+                    raise
+        if not published and tree_seal(destination) != expected:
+            raise ToolError(
+                f"Cached {name} executable/dependency closure differs from the pinned archive; "
+                f"if it was installed by an older version of this tool, delete {destination} to reinstall")
         _INSTALL_SEALS[destination] = (identity, expected)
     finally:
         if stage.exists():

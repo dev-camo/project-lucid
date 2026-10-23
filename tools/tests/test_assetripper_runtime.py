@@ -167,6 +167,26 @@ class AssetRipperRuntimeCopyTests(unittest.TestCase):
         if self.install.exists():
             assets.shutil.rmtree(self.install)
 
+    def test_concurrent_installer_publishing_first_is_accepted_only_when_identical(self):
+        replace = Path.replace
+
+        def publish_first(mutate):
+            def racing_replace(source, target):
+                # Another installer holding a different lock publishes the same tree first (#456).
+                if Path(target) == self.install and not self.install.exists():
+                    assets.shutil.copytree(source, self.install, symlinks=True)
+                    mutate(self.install)
+                return replace(source, target)
+            return mock.patch.object(Path, "replace", racing_replace)
+
+        with publish_first(lambda root: None):
+            self.assertEqual(self.install / ENTRYPOINT, bootstrap.verified_tool_path(self.work, "assetripper"))
+        self.discard_install()
+        with publish_first(lambda root: (root / "extra-plugin.dll").write_bytes(b"extra plugin")):
+            with self.assertRaisesRegex(bootstrap.ToolError, "differs from the pinned archive"):
+                bootstrap.verified_tool_path(self.work, "assetripper")
+        self.assertEqual([], [p for p in (self.work / "tools").iterdir() if p.name.startswith(".install-")])
+
     def test_poisoned_install_is_rejected_before_any_copy_or_launch(self):
         link = "link or special file"
         mutations = {
