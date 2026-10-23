@@ -801,27 +801,43 @@ def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[tu
     for destination, staged in replacements:
         _owned_directory(destination)
         _assert_no_symlinks(staged)
-    backups = []
-    installed = []
+    # Each swap is recorded before its renames, so an interruption between a rename
+    # and its bookkeeping (#460) still leaves rollback knowing what to reconcile.
+    plan = []
     try:
         for destination, staged in replacements:
+            backup = None
             if destination.exists():
                 backup = _physical_path(destination.with_name("." + destination.name + ".backup-" + uuid.uuid4().hex))
                 if backup.exists():
                     raise ValueError(f"Asset backup destination already exists: {backup}")
+            plan.append((destination, staged, backup))
+            if backup is not None:
                 destination.rename(backup)
-                backups.append((destination, backup))
             staged.rename(destination)
-            installed.append(destination)
-    except BaseException:
-        for destination in reversed(installed):
-            shutil.rmtree(destination)
-        for destination, backup in reversed(backups):
-            backup.rename(destination)
+    except BaseException as error:
+        _rollback_swaps(plan, error)
         raise
     # Preserve prior copies for manual recovery; never recursively erase assets.
-    prior = dict(backups)
-    return [(destination, prior.get(destination)) for destination in installed]
+    return [(destination, backup) for destination, _, backup in plan]
+
+
+def _rollback_swaps(plan: list[tuple[Path, Path, Path | None]], error: BaseException) -> None:
+    """Undo recorded swaps from the paths' actual state, newest first.
+
+    A staged tree that is gone was installed at its destination; a backup that
+    exists holds the prior tree. A swap that cannot be undone is noted on the
+    original exception with the path that still holds the prior tree."""
+    for destination, staged, backup in reversed(plan):
+        try:
+            if not staged.exists() and destination.exists():
+                shutil.rmtree(destination)
+            if backup is not None and backup.exists():
+                backup.rename(destination)
+        except Exception as failure:
+            note = f"Could not restore {destination} ({failure}); its prior tree remains at {backup}"
+            if hasattr(error, "add_note"):
+                error.add_note(note)
 
 
 def _clone_file(source: Path, output: Path) -> bool:

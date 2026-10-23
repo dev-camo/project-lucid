@@ -464,6 +464,83 @@ class AssetTests(unittest.TestCase):
         self.assertEqual((self.root / "first/value").read_text(), "old")
         self.assertEqual((self.root / "second/value").read_text(), "old")
 
+    def test_interruption_after_any_completed_swap_rename_restores_both_owned_directories(self):
+        # Two existing destinations make four renames; interrupt right after each one (#460).
+        for completed in range(1, 5):
+            with self.subTest(completed=completed):
+                root = self.root / ("interrupt-" + str(completed))
+                replacements = []
+                for name in ["Recovered", "StreamingAssets"]:
+                    old, new = root / name, root / ("staged-" + name)
+                    old.mkdir(parents=True)
+                    new.mkdir()
+                    assets._json_write(old / assets.MARKER, {"owner": assets.OWNER})
+                    (old / "value").write_text("old")
+                    (new / "value").write_text("new")
+                    replacements.append((old, new))
+                original, count = Path.rename, 0
+
+                def rename(path, destination):
+                    nonlocal count
+                    result = original(path, destination)
+                    count += 1
+                    if count == completed:
+                        raise KeyboardInterrupt("interrupted after rename " + str(completed))
+                    return result
+
+                with mock.patch.object(Path, "rename", rename), self.assertRaises(KeyboardInterrupt):
+                    assets._replace_owned_directories(replacements)
+                for name in ["Recovered", "StreamingAssets"]:
+                    self.assertEqual("old", (root / name / "value").read_text())
+                self.assertEqual([], [p.name for p in root.iterdir() if ".backup-" in p.name])
+
+    @unittest.skipUnless(hasattr(BaseException, "add_note"), "exception notes need Python 3.11+")
+    def test_failed_swap_restoration_keeps_the_original_error_and_names_the_retained_tree(self):
+        old, new = self.root / "Recovered", self.root / "staged"
+        old.mkdir()
+        new.mkdir()
+        assets._json_write(old / assets.MARKER, {"owner": assets.OWNER})
+        original = Path.rename
+
+        def rename(path, destination):
+            if path.name == "staged":
+                raise KeyboardInterrupt("interrupted swap")
+            if ".backup-" in path.name:
+                raise OSError("synthetic restore failure")
+            return original(path, destination)
+
+        with mock.patch.object(Path, "rename", rename), self.assertRaises(KeyboardInterrupt) as raised:
+            assets._replace_owned_directories([(old, new)])
+        [backup] = [p for p in self.root.iterdir() if ".backup-" in p.name]
+        self.assertEqual(["Could not restore {} (synthetic restore failure); its prior tree remains at {}".format(
+            old, backup)], raised.exception.__notes__)
+
+    def test_interrupted_reprepare_swap_keeps_prior_trees_and_receipt_in_agreement(self):
+        project = self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        receipt = self.work / "assets/latest-prepare.json"
+        prior_tree, prior_receipt = self.assets_snapshot(), receipt.read_bytes()
+        self.change_export_scene(project)
+        original = Path.rename
+        # Recovered and StreamingAssets both exist, so the swap makes four renames into Assets.
+        for completed in range(1, 5):
+            with self.subTest(completed=completed):
+                count = 0
+
+                def rename(path, destination):
+                    nonlocal count
+                    result = original(path, destination)
+                    if Path(destination).parent == self.repo / "Assets":
+                        count += 1
+                        if count == completed:
+                            raise KeyboardInterrupt("interrupted after swap rename " + str(completed))
+                    return result
+
+                with mock.patch.object(Path, "rename", rename), self.assertRaises(KeyboardInterrupt):
+                    assets.prepare_assets(self.repo, self.work)
+                self.assertEqual(prior_tree, self.assets_snapshot())
+                self.assertEqual(prior_receipt, receipt.read_bytes())
+
     def assets_snapshot(self):
         root = self.repo / "Assets"
         return {path.relative_to(root).as_posix(): path.read_bytes() if path.is_file() else None
