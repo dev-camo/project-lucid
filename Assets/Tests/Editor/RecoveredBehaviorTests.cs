@@ -1010,6 +1010,72 @@ namespace ProjectLucid.Tests
             EggmanLogoVerification.Run();
         }
 
+        [Test]
+        public void RecoveredShaderRigRestoresStateAfterDisposeAndFailedConstruction()
+        {
+            RecoveredShaderProof.VerifyRigRestoresState();
+        }
+
+        [Test]
+        public void PfxAlphaBlendAddCompilesEveryPassForDirect3D()
+        {
+            PfxAlphaBlendAddVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void PfxAlphaBlendAddGpuOutputMatchesDecodedSurfaceCases()
+        {
+            PfxAlphaBlendAddVerification.Run();
+        }
+
+        [Test]
+        public void CharGhostedCompilesEveryPassForDirect3D()
+        {
+            CharGhostedVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharGhostedGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharGhostedVerification.Run();
+        }
+
+        [Test]
+        public void GameplayCollectableCompilesEveryPassForDirect3D()
+        {
+            GameplayCollectableVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void GameplayCollectableGpuOutputMatchesDecodedSurfaceCases()
+        {
+            GameplayCollectableVerification.Run();
+        }
+
+        [Test]
+        public void MatcapCompilesEveryPassForDirect3D()
+        {
+            MatcapVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void MatcapGpuOutputMatchesDecodedSurfaceCases()
+        {
+            MatcapVerification.Run();
+        }
+
+        [Test]
+        public void ParticleTrailCompilesEveryPassForDirect3D()
+        {
+            ParticleTrailVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleTrailGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleTrailVerification.Run();
+        }
+
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all
         // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)
