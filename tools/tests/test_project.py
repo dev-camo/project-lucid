@@ -69,7 +69,7 @@ class ProjectTests(unittest.TestCase):
     def test_release_build_never_runs_editor_when_game_unresolved(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            with patch("lucidlib.project.subprocess.run") as run:
+            with patch("lucidlib.project.run_owned") as run:
                 result = build_project(root, root / "cache", "macos")
             self.assertEqual("blocked", result["status"])
             run.assert_not_called()
@@ -121,7 +121,7 @@ class ProjectTests(unittest.TestCase):
                     result = validate_project(root, work)
                     self.assertEqual("failed", result["status"])
                     self.assertTrue(any("playmode" in error and "incomplete" in error for error in result["errors"]))
-                    with patch("lucidlib.project.find_editor") as editor, patch("lucidlib.project.subprocess.run") as run:
+                    with patch("lucidlib.project.find_editor") as editor, patch("lucidlib.project.run_owned") as run:
                         built = build_project(root, work, "macos")
                     self.assertEqual("blocked", built["status"])
                     editor.assert_not_called()
@@ -159,8 +159,7 @@ class ProjectTests(unittest.TestCase):
             validation = validate_project(root, work)
             self.assertEqual("failed", validation["status"])
             self.assertTrue(any("script metadata" in error and "MonImporter" in error for error in validation["errors"]))
-            with patch.object(project, "find_editor", side_effect=AssertionError("Editor lookup forbidden")) as editor, patch.object(
-                    project.subprocess, "run", side_effect=AssertionError("process launch forbidden")) as run:
+            with patch.object(project, "find_editor", side_effect=AssertionError("Editor lookup forbidden")) as editor, patch.object(project, "run_owned", side_effect=AssertionError("process launch forbidden")) as run:
                 built = build_project(root, work, "macos")
             self.assertEqual("blocked", built["status"])
             editor.assert_not_called()

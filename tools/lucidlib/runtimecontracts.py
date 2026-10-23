@@ -9,7 +9,7 @@ import subprocess
 import uuid
 
 from . import bindings, playercode, playerschema, themebindings, themecontracts
-from .bootstrap import (NO_BUILD_SERVER_ARGS, dotnet_environment, executable, host_lock, load_lock, managed_path,
+from .bootstrap import (run_owned, NO_BUILD_SERVER_ARGS, dotnet_environment, executable, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
@@ -213,14 +213,14 @@ def _build_reader(root,work,run,engine):
         raise ValueError("Contract reader requires the pinned SDK")
     host=verified_tool_path(work,"dotnet");host_seal=playercode._file_record(host)
     env=dotnet_environment(work,host.parent)
-    version=subprocess.run([str(host),"--version"],capture_output=True,text=True,timeout=30,env=env,cwd=work)
+    version=run_owned([str(host),"--version"],capture_output=True,text=True,timeout=30,env=env,cwd=work)
     if version.returncode or version.stdout.strip()!=sdk["version"]:raise ValueError("Contract SDK version changed")
     output,intermediate=run/"reader",run/"obj";output.mkdir(exist_ok=False);intermediate.mkdir(exist_ok=False)
     managed=Path(next(r["path"] for r in engine if r["name"]=="cecil")).parent
     log=run/"build.log"
     command=[str(host),"build",str(project),"--nologo","-c","Release","-p:UnityManagedRoot="+str(managed),
              "-p:BaseIntermediateOutputPath="+str(intermediate)+os.sep,"-p:OutputPath="+str(output)+os.sep,"-p:GeneratePackageOnBuild=false",*NO_BUILD_SERVER_ARGS]
-    with log.open("xb") as stream:result=subprocess.run(command,stdout=stream,stderr=subprocess.STDOUT,timeout=180,env=env,cwd=work)
+    with log.open("xb") as stream:result=run_owned(command,stdout=stream,stderr=subprocess.STDOUT,timeout=180,env=env,cwd=work)
     if result.returncode:raise ValueError("Contract reader compilation failed; inspect its build log")
     binary=playercode._regular(output/"ProjectLucid.ThemeContracts.dll")
     for seal in [host_seal,*sources]:playerschema._same_file(seal["path"],seal)
@@ -231,7 +231,7 @@ def _build_reader(root,work,run,engine):
 def _attest_loaded(reader,manifest):
     """Read exact disk declarations again; caller JSON flags are insufficient."""
     path=Path(manifest["run"])/"manifest.json"
-    result=subprocess.run([reader["host"]["path"],reader["binary"]["path"],"--attest-loaded",str(path)],
+    result=run_owned([reader["host"]["path"],reader["binary"]["path"],"--attest-loaded",str(path)],
       capture_output=True,timeout=180,cwd=Path(reader["binary"]["path"]).parent,env=reader.get("env") or dotnet_environment(Path(manifest["work_root"]),Path(reader["host"]["path"]).parent))
     if result.returncode:
         raise ValueError("Loaded disk declaration attestation failed: "+result.stderr.decode("utf-8",errors="replace")[:2048])
@@ -476,7 +476,7 @@ def run_runtime_contracts(repo_root,work_dir,target,original_schema,loaded_inven
         if artifact_fingerprint(root)!=source:raise ValueError("Source changed before contract metadata reading")
         log=run/"reader.log"
         with log.open("xb") as stream:
-            result=subprocess.run([reader["host"]["path"],reader["binary"]["path"],str(context),str(pending)],
+            result=run_owned([reader["host"]["path"],reader["binary"]["path"],str(context),str(pending)],
                                   stdout=stream,stderr=subprocess.STDOUT,timeout=180,env=reader["env"],cwd=tool_work_dir(work))
         if result.returncode:raise ValueError("Contract metadata reader failed; inspect its log")
         pending_raw,report=_json(pending);contract_rows=_report_check(report,manifest,mraw,reader,layouts)

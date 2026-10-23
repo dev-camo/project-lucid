@@ -228,8 +228,7 @@ class VerificationTests(unittest.TestCase):
                             "Unity Editor version: " + verification.UNITY_VERSION)
                         return SimpleNamespace(returncode=0)
                     with patch("lucidlib.bootstrap.CACHE_ROOT", work), patch.object(
-                            verification, "find_editor", return_value=root / "inert-editor"), patch.object(
-                            verification.subprocess, "run", side_effect=supplied_xml) as process:
+                            verification, "find_editor", return_value=root / "inert-editor"), patch.object(verification, "run_owned", side_effect=supplied_xml) as process:
                         report = verification.run_tests(root, work, "playmode")
                     process.assert_called_once()
                     self.assertEqual("incomplete", report["status"])
@@ -282,8 +281,7 @@ class VerificationTests(unittest.TestCase):
 
                         with patch("lucidlib.bootstrap.CACHE_ROOT", work), patch.object(
                                 verification, "find_editor", return_value=root / "inert-editor"), patch.object(
-                                verification, "current_identity", return_value=identity), patch.object(
-                                verification.subprocess, "run", side_effect=supplied_xml) as process:
+                                verification, "current_identity", return_value=identity), patch.object(verification, "run_owned", side_effect=supplied_xml) as process:
                             report = verification.run_tests(root, work, "editmode")
                         process.assert_called_once()
                         self.assertEqual("incomplete", report["status"])
@@ -626,8 +624,7 @@ class IsolationVerdictTests(unittest.TestCase):
         identity = {"source_fingerprint": "synthetic-source", "prepared_asset_fingerprint": "synthetic-assets"}
         with patch("lucidlib.bootstrap.CACHE_ROOT", work), patch.object(
                 verification, "find_editor", return_value=root / "inert-editor"), patch.object(
-                verification, "current_identity", return_value=identity), patch.object(
-                verification.subprocess, "run", side_effect=supplied):
+                verification, "current_identity", return_value=identity), patch.object(verification, "run_owned", side_effect=supplied):
             return verification.run_tests(root, work, mode), seen, identity
 
     def test_run_tests_requires_this_runs_isolation_report_and_receipts_recheck_it(self):

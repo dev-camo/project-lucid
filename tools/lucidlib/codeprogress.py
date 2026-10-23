@@ -18,7 +18,7 @@ import subprocess
 import uuid
 
 from . import inputvariants, native, playercode, playerschema, recovery
-from .bootstrap import (NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
+from .bootstrap import (run_owned, NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path)
 from .inspection import sha256_file
@@ -431,7 +431,7 @@ def _build_reader(root, work, run, engine):
         sdk = host_lock(load_lock())["artifacts"].get("dotnet", {})
         if sdk.get("version") != native._SDK: raise ValueError("Code progress requires the pinned SDK")
         host_seal = playercode._file_record(host)
-        version = subprocess.run([str(host), "--version"], capture_output=True, text=True, env=environment, timeout=30, cwd=work)
+        version = run_owned([str(host), "--version"], capture_output=True, text=True, env=environment, timeout=30, cwd=work)
         if version.returncode or version.stdout.strip() != sdk["version"]: raise ValueError("Code progress SDK version differs")
         output = run / "reader"
         command = [str(host), "build", str(project), "-c", "Release", "-o", str(output),
@@ -440,7 +440,7 @@ def _build_reader(root, work, run, engine):
                    "-p:UnityManagedRoot=" + str(Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent),
                    *NO_BUILD_SERVER_ARGS]
         with (run / "build.log").open("xb") as log:
-            process = subprocess.run(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=300, cwd=work)
+            process = run_owned(command, env=environment, stdout=log, stderr=subprocess.STDOUT, timeout=300, cwd=work)
         reader = output / "ProjectLucid.CodeProgress.dll"
         if process.returncode or not reader.is_file(): raise ValueError("Code progress reader build failed")
     if playercode._file_record(host) != host_seal: raise ValueError("Code progress host changed during build")
@@ -537,7 +537,7 @@ def run_code_progress(repo_root, work_dir, input_path, target="macos"):
         for mode in ("native", "player"):
             pending = run / (mode + ".json")
             with (run / (mode + ".log")).open("xb") as log:
-                process = subprocess.run([reader["host"]["path"], reader["path"], mode, str(context_path), str(pending)],
+                process = run_owned([reader["host"]["path"], reader["path"], mode, str(context_path), str(pending)],
                                          env=dotnet_environment(work, Path(reader["host"]["path"]).parent), cwd=tool_work_dir(work), stdout=log, stderr=subprocess.STDOUT, timeout=300)
             if process.returncode or not pending.is_file(): raise ValueError("Code progress metadata reader failed")
             raw, report = _json(pending); _check_reader(report, context_raw, context, reader)

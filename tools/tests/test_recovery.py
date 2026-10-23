@@ -19,7 +19,7 @@ from unittest import mock
 import zipfile
 
 from tools.lucidlib.bootstrap import (CACHE_ROOT, REPO_ROOT, ToolError, bootstrap,
-                                   download_artifact, managed_path, run_logged,
+                                   download_artifact, managed_path, run_logged, run_owned,
                                    unpack_archive, validate_work_dir)
 from tools.lucidlib.recovery import _managed_files, classify_il, recover_code
 
@@ -170,6 +170,47 @@ class RecoverySafetyTests(unittest.TestCase):
         return ("import os, signal, sys, time\n" + on_sigterm +
                 "tmp = sys.argv[1] + '.tmp'\nopen(tmp, 'w').write(str(os.getpid()))\n"
                 "os.replace(tmp, sys.argv[1])\ntime.sleep(60)")
+
+    def _run_owned_leader(self, worker, *, leader=None, timeout=3):
+        pid_file = self.work / "owned-worker.pid"
+        command = [sys.executable, "-c", leader or self._LEADER, worker, str(pid_file)]
+        try:
+            return run_owned(command, timeout=timeout), pid_file
+        finally:
+            self.addCleanup(self._kill_recorded, pid_file)
+
+    @staticmethod
+    def _kill_recorded(pid_file):
+        if pid_file.exists():
+            try:
+                os.kill(int(pid_file.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_owned_run_timeout_stops_the_tree_before_raising_the_original_error(self):
+        # A SIGTERM-ignoring descendant must be stopped before the caller can release
+        # its lock (#461); the caller still sees the original TimeoutExpired.
+        worker = self._worker("signal.signal(signal.SIGTERM, signal.SIG_IGN)\n")
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self._run_owned_leader(worker)
+        pid_file = self.work / "owned-worker.pid"
+        self.assertTrue(pid_file.exists(), "worker was not ready before the timeout")
+        self.assertTrue(self._process_stopped(int(pid_file.read_text())),
+                        "descendant was still running when the timeout propagated")
+
+    @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
+    def test_owned_run_stops_a_descendant_that_outlives_a_successful_leader(self):
+        exits_when_ready = self._LEADER.replace("time.sleep(60)", "sys.exit(0)")
+        result, pid_file = self._run_owned_leader(self._worker(""), leader=exits_when_ready, timeout=30)
+        self.assertEqual(0, result.returncode)
+        self.assertTrue(self._process_stopped(int(pid_file.read_text())),
+                        "descendant was still running after the command returned")
+
+    def test_owned_run_returns_like_subprocess_run(self):
+        result = run_owned([sys.executable, "-c", "import sys; print('out'); sys.exit(3)"],
+                                     timeout=30, capture_output=True, text=True)
+        self.assertEqual((3, "out\n"), (result.returncode, result.stdout))
 
     @unittest.skipUnless(os.name == "posix", "process-group teardown is POSIX-only")
     def test_timeout_stops_descendant_that_outlives_the_leader(self):

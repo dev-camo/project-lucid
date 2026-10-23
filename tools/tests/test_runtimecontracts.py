@@ -131,7 +131,7 @@ class RuntimeContractPublicationTests(unittest.TestCase):
           mock.patch.object(rc,'_contract_modules',return_value=self.manifest['modules']),mock.patch.object(rc,'_build_reader',side_effect=self.build),
           mock.patch.object(rc,'_report_check',return_value=[{'name':n} for n in contracts.CONTRACTS]),
           mock.patch.object(rc.playerschema,'_same_file'),mock.patch.object(rc.playerschema,'_tree_records',return_value=[]),
-          mock.patch.object(rc.subprocess,'run',side_effect=self.process)]
+          mock.patch.object(rc,'run_owned',side_effect=self.process)]
         for patch in patches:patch.start();self.addCleanup(patch.stop)
         self.addCleanup(self.temp.cleanup)
     def fingerprint(self,root):
@@ -537,15 +537,15 @@ class RuntimeLoadedAttestationInvocationTests(unittest.TestCase):
     def test_failure_is_not_a_boolean_claim(self):
         reader={'host':{'path':'host'},'binary':{'path':'reader'},'env':{'guard':'fixture'}}
         manifest={'run':'/owned/run'}
-        with mock.patch.object(rc.subprocess,'run',return_value=subprocess.CompletedProcess([],1,b'',b'actual TypeDef token/name mismatch')):
+        with mock.patch.object(rc,'run_owned',return_value=subprocess.CompletedProcess([],1,b'',b'actual TypeDef token/name mismatch')):
             with self.assertRaisesRegex(ValueError,'TypeDef token/name mismatch'):rc._attest_loaded(reader,manifest)
     def test_nonobject_native_output_rejected(self):
         reader={'host':{'path':'host'},'binary':{'path':'reader'},'env':{'guard':'fixture'}}
-        with mock.patch.object(rc.subprocess,'run',return_value=subprocess.CompletedProcess([],0,b'[]',b'')):
+        with mock.patch.object(rc,'run_owned',return_value=subprocess.CompletedProcess([],0,b'[]',b'')):
             with self.assertRaises(ValueError):rc._attest_loaded(reader,{'run':'/owned/run'})
     def test_invocation_is_readonly_mode_with_owned_manifest(self):
         reader={'host':{'path':'host'},'binary':{'path':'reader'},'env':{'guard':'fixture'}}
-        with mock.patch.object(rc.subprocess,'run',return_value=subprocess.CompletedProcess([],0,b'{"fixture":"synthetic-only"}',b'')) as run:
+        with mock.patch.object(rc,'run_owned',return_value=subprocess.CompletedProcess([],0,b'{"fixture":"synthetic-only"}',b'')) as run:
             self.assertEqual(rc._attest_loaded(reader,{'run':'/owned/run'}),{'fixture':'synthetic-only'})
             self.assertEqual(run.call_args.args[0],['host','reader','--attest-loaded','/owned/run/manifest.json'])
 

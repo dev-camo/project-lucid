@@ -12,7 +12,7 @@ import struct
 import subprocess
 import uuid
 
-from .bootstrap import managed_path, validate_work_dir, write_json
+from .bootstrap import managed_path, run_owned, validate_work_dir, write_json
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
 
 TARGETS = {"macos": ("osxuniversal", "StandaloneOSX"),
@@ -466,7 +466,7 @@ def run_player_code(repo_root, work_dir, target):
         console.mkdir(parents=True, exist_ok=False)
         with (console / "editor-stdout.log").open("xb") as stdout, \
                 (console / "editor-stderr.log").open("xb") as stderr:
-            result = subprocess.run(command, timeout=1800, stdout=stdout, stderr=stderr)
+            result = run_owned(command, timeout=1800, stdout=stdout, stderr=stderr)
         if result.returncode or not pending.is_file():
             return {"status": "failed", "exit_code": result.returncode or 1, "log": str(log),
                     "errors": ["Unity player script compilation did not complete"], "run": str(run)}

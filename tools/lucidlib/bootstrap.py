@@ -527,6 +527,33 @@ def _stop_tool(process: subprocess.Popen) -> None:
                                 "seconds after kill") from None
 
 
+def run_owned(command: list[str], *, timeout: float, capture_output: bool = False,
+              text: bool = False, **options) -> subprocess.CompletedProcess:
+    """subprocess.run that owns the whole process tree (#461).
+
+    The command runs as its own session leader. A timeout or interruption stops the
+    group before the original error propagates, and descendants that outlive a
+    finished leader are stopped too, so callers never release a lock or remove a
+    tree while part of the command still runs. Windows stops only the immediate
+    process (#458)."""
+    if capture_output:
+        options["stdout"] = options["stderr"] = subprocess.PIPE
+    process = subprocess.Popen(command, start_new_session=True, text=text, **options)
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except BaseException as interruption:
+        try:
+            _stop_tool(process)
+        except ToolError as stop_error:
+            raise stop_error from interruption
+        raise
+    if os.name == "posix" and group_has_live_members(process.pid):
+        # The group outlives its reaped leader, so its id cannot be reused yet.
+        with _interrupts_deferred():
+            stop_process_group(process)
+    return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+
+
 def _open_log(path: Path):
     """Open a log for truncating write; a link, hardlink or special file is refused untouched."""
     try:

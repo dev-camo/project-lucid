@@ -274,7 +274,7 @@ class PlayerCodeTests(unittest.TestCase):
                                                                     "b" * 32, [], schema_version=value)
 
     def run_fake(self, change=None, target="macos"):
-        with patch.object(playercode.subprocess, "run", side_effect=lambda args, timeout, stdout, stderr: self.emit(args, target, change)) as invoke:
+        with patch.object(playercode, "run_owned", side_effect=lambda args, timeout, stdout, stderr: self.emit(args, target, change)) as invoke:
             result = playercode.run_player_code(self.root, self.work, target)
         return result, invoke
 
@@ -309,7 +309,7 @@ class PlayerCodeTests(unittest.TestCase):
             if child.returncode:
                 return subprocess.CompletedProcess(command, child.returncode)
             return self.emit(command)
-        with patch.object(playercode.subprocess, "run", side_effect=noisy):
+        with patch.object(playercode, "run_owned", side_effect=noisy):
             return playercode.run_player_code(self.root, self.work, "macos")
 
     def assert_console_retained(self, result):
@@ -480,13 +480,13 @@ class PlayerCodeTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(expected.encode()).hexdigest(), playercode._input_identity(records))
 
     def test_interrupted_compiler_retains_prior_receipt(self):
-        with patch.object(playercode.subprocess, "run", side_effect=subprocess.TimeoutExpired("Editor", 1800)):
+        with patch.object(playercode, "run_owned", side_effect=subprocess.TimeoutExpired("Editor", 1800)):
             with self.assertRaises(subprocess.TimeoutExpired): playercode.run_player_code(self.root, self.work, "macos")
         self.assertEqual(self.old, self.latest.read_bytes())
         self.assertFalse((self.work / "locks/player-code.lock").exists())
 
     def test_nonzero_editor_return_retains_prior_receipt(self):
-        with patch.object(playercode.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
+        with patch.object(playercode, "run_owned", return_value=subprocess.CompletedProcess([], 1)):
             result = playercode.run_player_code(self.root, self.work, "macos")
         self.assertEqual("failed", result["status"])
         self.assertEqual(self.old, self.latest.read_bytes())

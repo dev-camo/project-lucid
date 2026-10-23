@@ -733,7 +733,7 @@ class ToolCacheTrustTests(unittest.TestCase):
                 with self.subTest(reader=module.__name__), ExitStack() as patches:
                     patches.enter_context(mock.patch.object(module, "verified_tool_path", return_value=sdk))
                     patches.enter_context(mock.patch.object(module, "host_lock", return_value=pinned))
-                    patches.enter_context(mock.patch.object(module.subprocess, "run", side_effect=invoke))
+                    patches.enter_context(mock.patch.object(module, "run_owned", side_effect=invoke))
                     patches.enter_context(mock.patch.object(native, "build_native_harness", return_value={"status": "ready", "path": str(dependency / native._HARNESS)}))
                     patches.enter_context(mock.patch.object(playerschema.playercode, "_pe_identity", return_value={"mvid": "fixture-mvid"}))
                     reader = module._build_reader(self.work, self.work, run, engine)

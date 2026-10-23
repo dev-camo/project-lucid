@@ -9,7 +9,7 @@ import subprocess
 import uuid
 
 from . import bindings, playercode
-from .bootstrap import (NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
+from .bootstrap import (run_owned, NO_BUILD_SERVER_ARGS, dotnet_environment, host_lock, load_lock, managed_path,
                         validate_work_dir, write_json, reader_build_paths, tool_work_dir,
                         verified_tool_path)
 from .verification import UNITY_VERSION, artifact_fingerprint, find_editor
@@ -164,7 +164,7 @@ def _build_reader(root, work, run, engine):
     host = verified_tool_path(work, "dotnet")
     host_seal = playercode._file_record(host)
     env = dotnet_environment(work, host.parent)
-    version = subprocess.run([str(host), "--version"], capture_output=True, text=True, timeout=30, env=env, cwd=work)
+    version = run_owned([str(host), "--version"], capture_output=True, text=True, timeout=30, env=env, cwd=work)
     if version.returncode or version.stdout.strip() != sdk["version"]:
         raise ValueError("Installed metadata SDK version differs from tool lock")
     managed = Path(next(e["path"] for e in engine if e["name"] == "cecil")).parent
@@ -175,7 +175,7 @@ def _build_reader(root, work, run, engine):
                "-p:UnityManagedRoot=" + str(managed), "-p:BaseIntermediateOutputPath=" + str(intermediate) + os.sep,
                "-p:OutputPath=" + str(output) + os.sep, "-p:GeneratePackageOnBuild=false", *NO_BUILD_SERVER_ARGS]
     with log.open("xb") as stream:
-        result = subprocess.run(command, stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=env, cwd=work)
+        result = run_owned(command, stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=env, cwd=work)
     if result.returncode: raise ValueError("Player metadata reader compilation failed; inspect its build log")
     binary = playercode._regular(output / "ProjectLucid.PlayerSchema.dll")
     for entry in sources: _same_file(entry["path"], entry)
@@ -306,7 +306,7 @@ def run_player_schema(repo_root, work_dir, target, profile=PROFILE):
         if artifact_fingerprint(root) != source: raise ValueError("Source changed before player metadata analysis")
         log = managed_path(work, *run.relative_to(work).parts, "reader.log")
         with log.open("xb") as stream:
-            process = subprocess.run([reader["host"]["path"], reader["binary"]["path"], str(manifest_path), str(pending)],
+            process = run_owned([reader["host"]["path"], reader["binary"]["path"], str(manifest_path), str(pending)],
                                      stdout=stream, stderr=subprocess.STDOUT, timeout=180, env=reader["env"], cwd=tool_work_dir(work))
         if process.returncode: raise ValueError("Player metadata reader failed; inspect its run log")
         pending_raw, report = _read_json(pending)

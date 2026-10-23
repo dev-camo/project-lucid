@@ -367,14 +367,14 @@ class BindingTests(unittest.TestCase):
                     self.assertEqual(json.loads(pointer.read_text())["evidence_report"], env["LUCID_LAYOUT_SCHEMA_PATH"])
                     Path(env["LUCID_LAYOUT_INVENTORY_PATH"]).write_text(json.dumps(inventory))
                     return type("Exit", (), {"returncode": 0})()
-                with patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                with patch("lucidlib.bindings.run_owned", side_effect=editor):
                     report = run_layout_inventory(root, work)
                 self.assertEqual("compared", report["status"])
                 self.assertEqual(1, report["compatible_layout_count"])
                 self.assertFalse(report["references_modified"])
                 latest = work / "reports/latest-layout-inventory.json"
                 before = latest.read_bytes()
-                with patch("lucidlib.bindings.subprocess.run", return_value=type("Exit", (), {"returncode": 1})()):
+                with patch("lucidlib.bindings.run_owned", return_value=type("Exit", (), {"returncode": 1})()):
                     self.assertEqual("failed", run_layout_inventory(root, work)["status"])
                 self.assertEqual(before, latest.read_bytes())
 
@@ -395,22 +395,22 @@ class BindingTests(unittest.TestCase):
                     stage.mkdir(parents=True)
                     (stage / "editor.log").write_text("old log")
                     (stage / "report.json").write_text("{}")
-                with patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                with patch("lucidlib.bindings.run_owned", side_effect=editor):
                     first = run_layout_inventory(root, work)
                 first_stage = Path(first["inventory_path"]).parent
                 self.assertEqual({first_stage.name}, stages())
-                with patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                with patch("lucidlib.bindings.run_owned", side_effect=editor):
                     second = run_layout_inventory(root, work)
                 second_stage = Path(second["inventory_path"]).parent
                 self.assertEqual({second_stage.name}, stages())
-                with patch("lucidlib.bindings.subprocess.run", return_value=type("Exit", (), {"returncode": 1})()):
+                with patch("lucidlib.bindings.run_owned", return_value=type("Exit", (), {"returncode": 1})()):
                     failed = run_layout_inventory(root, work)
                 failed_stage = Path(failed["log"]).parent
                 # The failed run keeps its own log; the successful result stays readable.
                 self.assertEqual({second_stage.name, failed_stage.name}, stages())
                 self.assertTrue((failed_stage / "report.json").is_file())
                 self.assertTrue(Path(json.loads((work / "reports/latest-layout-inventory.json").read_text())["inventory_path"]).is_file())
-                with patch("lucidlib.bindings.subprocess.run", return_value=type("Exit", (), {"returncode": 1})()):
+                with patch("lucidlib.bindings.run_owned", return_value=type("Exit", (), {"returncode": 1})()):
                     again = run_layout_inventory(root, work)
                 self.assertEqual({second_stage.name, Path(again["log"]).parent.name}, stages())
 
@@ -427,7 +427,7 @@ class BindingTests(unittest.TestCase):
                 return type("Exit", (), {"returncode": 0})()
             with patch("lucidlib.bootstrap.REPO_ROOT", root), patch("lucidlib.bootstrap.CACHE_ROOT", work), \
                     patch("lucidlib.bindings.CACHE_ROOT", work), patch("lucidlib.verification.find_editor", return_value=root / "Unity"), \
-                    patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                    patch("lucidlib.bindings.run_owned", side_effect=editor):
                 run_layout_inventory(root, work)
             self.assertTrue((running / "editor.log").is_file())
 
@@ -445,7 +445,7 @@ class BindingTests(unittest.TestCase):
                                  (work / "reports/latest-layout-inventory.json").is_file()))
             with patch("lucidlib.bootstrap.REPO_ROOT", root), patch("lucidlib.bootstrap.CACHE_ROOT", work), \
                     patch("lucidlib.bindings.CACHE_ROOT", work), patch("lucidlib.verification.find_editor", return_value=root / "Unity"), \
-                    patch("lucidlib.bindings.subprocess.run", side_effect=editor), \
+                    patch("lucidlib.bindings.run_owned", side_effect=editor), \
                     patch("lucidlib.bindings._prune_layout_runs", side_effect=prune):
                 run_layout_inventory(root, work)
             self.assertEqual([(False, True, True)], seen)
@@ -459,7 +459,7 @@ class BindingTests(unittest.TestCase):
                 original_summary = json.loads(pointer.read_text())
                 summary = dict(original_summary, evidence_report=str(root / "input/schema.json"))
                 pointer.write_text(json.dumps(summary))
-                with patch("lucidlib.bindings.subprocess.run") as run:
+                with patch("lucidlib.bindings.run_owned") as run:
                     with self.assertRaises(LayoutError):
                         run_layout_inventory(root, work)
                     run.assert_not_called()
@@ -469,7 +469,7 @@ class BindingTests(unittest.TestCase):
                     (root / "tools").mkdir()
                     (root / "tools/changed.py").write_text("changed during inventory")
                     return type("Exit", (), {"returncode": 0})()
-                with patch("lucidlib.bindings.subprocess.run", side_effect=editor):
+                with patch("lucidlib.bindings.run_owned", side_effect=editor):
                     result = run_layout_inventory(root, work)
                 self.assertEqual("failed", result["status"])
                 self.assertIn("stale", result["errors"][0])

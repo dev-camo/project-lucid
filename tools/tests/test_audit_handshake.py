@@ -74,7 +74,7 @@ class AuditHandshakeTests(unittest.TestCase):
         return subprocess.CompletedProcess(command, self.editor_exit)
 
     def run_audit(self):
-        with mock.patch.object(verification.subprocess, "run", side_effect=self.fake_editor):
+        with mock.patch.object(verification, "run_owned", side_effect=self.fake_editor):
             return verification.run_audit(self.root, self.work)
 
     def assert_preserved(self):

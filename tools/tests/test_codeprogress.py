@@ -462,7 +462,7 @@ class DependencyFailureTests(unittest.TestCase):
              patch.object(codeprogress.native, "build_native_harness", return_value={
                  "status": "failed", "failure_category": "native-build-process-failure",
                  "error": "synthetic private credential", "private_diagnostic_report": "/private/report.json"}), \
-             patch.object(codeprogress.subprocess, "run") as run:
+             patch.object(codeprogress, "run_owned") as run:
             with self.assertRaises(ValueError) as error:
                 codeprogress._build_reader(Path("/source"), Path("/data"), Path("/run"), [])
         self.assertIn("native-build-process-failure", str(error.exception))
@@ -518,7 +518,7 @@ class WrapperPublicationTests(unittest.TestCase):
             "binary_sha256": codeprogress.sha256_file(self.binary), "metadata_sha256": codeprogress.sha256_file(self.metadata),
             "info_plist_sha256": None, "x86_64_slice_sha256": None, "qualified": frozenset((codeprogress.inputvariants.CODE_PROGRESS,))}}))
         self.stack.enter_context(patch.object(codeprogress.playercode, "_pe_identity", return_value={"mvid": self.mvid, "assembly_name": "Cpp2IL.Core"}))
-        self.stack.enter_context(patch.object(codeprogress.subprocess, "run", side_effect=self.reader_process))
+        self.stack.enter_context(patch.object(codeprogress, "run_owned", side_effect=self.reader_process))
 
     def tearDown(self):
         self.stack.close(); self.temporary.cleanup()
@@ -600,7 +600,7 @@ class WrapperPublicationTests(unittest.TestCase):
         self.metadata.write_bytes(b"undeclared original metadata")
         with patch.object(codeprogress.recovery, "_thin_binary", side_effect=AssertionError("must not thin")) as thin, \
              patch.object(codeprogress, "_build_reader", side_effect=AssertionError("must not build")) as build, \
-             patch.object(codeprogress.subprocess, "run", side_effect=AssertionError("must not run")) as run:
+             patch.object(codeprogress, "run_owned", side_effect=AssertionError("must not run")) as run:
             with self.assertRaisesRegex(ValueError, "variant is not declared"): self.invoke()
         thin.assert_not_called(); build.assert_not_called(); run.assert_not_called()
         self.assertFalse((self.work / "code-progress/runs").exists())

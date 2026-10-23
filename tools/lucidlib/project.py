@@ -9,7 +9,7 @@ import subprocess
 import sys
 from . import verification
 from .verification import artifact_fingerprint, current_identity, find_editor, verified_receipt
-from .bootstrap import managed_path, write_json
+from .bootstrap import managed_path, run_owned, write_json
 from .scriptmetadata import validate_script_metadata
 from .macho import inspect_macho
 from .longpaths import ENABLE_HELP, long_paths_status
@@ -33,7 +33,7 @@ def doctor(repo_root, work_dir):
     editors = []
     errors = []
     if tools["unity"]:
-        process = subprocess.run([tools["unity"], "editors", "--installed", "--format", "json"],
+        process = run_owned([tools["unity"], "editors", "--installed", "--format", "json"],
                                  capture_output=True, text=True, timeout=60)
         try:
             data = json.loads(process.stdout)
@@ -180,7 +180,7 @@ def _unwritten_gates():
 
 def _commit(repo_root):
     def run(*args):
-        return subprocess.run(["git", "-C", str(repo_root), *args], capture_output=True, text=True, timeout=60).stdout.strip()
+        return run_owned(["git", "-C", str(repo_root), *args], capture_output=True, text=True, timeout=60).stdout.strip()
     try:
         commit = run("rev-parse", "HEAD") or "unknown"
         return commit + (" (uncommitted changes present)" if run("status", "--porcelain") else "")
@@ -261,7 +261,7 @@ def build_project(repo_root, work_dir, target, *, destination=None, development=
                "-lucidBuildRecord", str(record)]
     if development:
         command.append("-lucidDevelopment")
-    process = subprocess.run(command, timeout=1800)
+    process = run_owned(command, timeout=1800)
     errors = []
     if artifact_fingerprint(repo_root) != source:
         errors.append("The build changed maintained source after release validation")

@@ -39,7 +39,7 @@ class DevelopmentBuildTests(unittest.TestCase):
             return SimpleNamespace(returncode=0)
         with patch.object(bootstrap, "REPO_ROOT", root), patch.object(bootstrap, "CACHE_ROOT", work), \
                 patch.object(project, "find_editor", return_value=root / "editor"), \
-                patch.object(project.subprocess, "run", side_effect=editor) as run:
+                patch.object(project, "run_owned", side_effect=editor) as run:
             result = project.build_project(root, work, target, **options)
         return result, run
 

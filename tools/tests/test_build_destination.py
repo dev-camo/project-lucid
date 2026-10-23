@@ -46,7 +46,7 @@ class BuildDestinationTests(unittest.TestCase):
             self.record(command, "linux", destination, "")
             destination.write_bytes(b"synthetic BuildPlayer result")
             return SimpleNamespace(returncode=0)
-        with patch.object(project.subprocess, "run", side_effect=build):
+        with patch.object(project, "run_owned", side_effect=build):
             result = project.build_project(self.root, self.work, "linux", destination=destination)
         self.assertEqual("complete", result["status"])
         self.assertEqual(str(destination), result["output_dir"])
@@ -78,7 +78,7 @@ class BuildDestinationTests(unittest.TestCase):
                 self.record(command, "macos", destination, architecture)
             self.player(destination, **player)
             return SimpleNamespace(returncode=0)
-        with patch.object(project.subprocess, "run", side_effect=build):
+        with patch.object(project, "run_owned", side_effect=build):
             return project.build_project(self.root, self.work, "macos", destination=destination)
 
     def test_build_record_matches_lucidbuild(self):
@@ -142,7 +142,7 @@ class BuildDestinationTests(unittest.TestCase):
         destination = self.stage / "ProjectLucid.x86_64"
         for path in (destination, self.stage / "previous-data.bin"):
             path.write_bytes(b"retain previous data")
-            with patch.object(project.subprocess, "run") as launch, self.assertRaises(ValueError):
+            with patch.object(project, "run_owned") as launch, self.assertRaises(ValueError):
                 project.build_project(self.root, self.work, "linux", destination=destination)
             launch.assert_not_called()
             self.assertEqual(b"retain previous data", path.read_bytes())
@@ -154,14 +154,14 @@ class BuildDestinationTests(unittest.TestCase):
         link = self.root / "linked-stage"
         link.symlink_to(self.stage, target_is_directory=True)
         for destination in protected + [self.stage / "wrong-name", link / "ProjectLucid.x86_64"]:
-            with self.subTest(destination=destination), patch.object(project.subprocess, "run") as launch, \
+            with self.subTest(destination=destination), patch.object(project, "run_owned") as launch, \
                     self.assertRaises(ValueError):
                 project.build_project(self.root, self.work, "linux", destination=destination)
             launch.assert_not_called()
 
     def test_custom_destination_does_not_bypass_the_full_release_guard(self):
         with patch.object(project, "validate_project", return_value={"status": "failed", "errors": ["missing full gameplay"]}), \
-                patch.object(project.subprocess, "run") as launch:
+                patch.object(project, "run_owned") as launch:
             result = project.build_project(self.root, self.work, "linux", destination=self.stage / "ProjectLucid.x86_64")
         self.assertEqual("blocked", result["status"])
         launch.assert_not_called()

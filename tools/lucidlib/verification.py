@@ -13,7 +13,7 @@ import subprocess
 import uuid
 import xml.etree.ElementTree as ET
 
-from .bootstrap import managed_path, write_json
+from .bootstrap import managed_path, run_owned, write_json
 
 UNITY_VERSION = "2022.3.54f1"
 EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
@@ -905,7 +905,7 @@ def run_tests(repo_root, work_dir, mode):
         write_json(fixture_path, fixture)
         environment["LUCID_FONT_REFERENCE_IMPORT_FIXTURE"] = str(fixture_path.resolve())
         environment["LUCID_FONT_REFERENCE_IMPORT_NONCE"] = fixture["nonce"]
-    result = subprocess.run(command, env=environment, timeout=1800)
+    result = run_owned(command, env=environment, timeout=1800)
     after = current_identity(repo_root)
     errors = []
     version_match = re.search(r"Unity Editor version:\s+(\S+)", log.read_text(errors="replace")) if log.is_file() else None
@@ -1113,7 +1113,7 @@ def run_audit(repo_root, work_dir):
             digest = hashlib.sha256(context_bytes).hexdigest()
             command.extend(["-lucidAuditIdentityContext", str(context), "-lucidAuditIdentityDigest", digest,
                             "-lucidAuditIdentityNonce", nonce])
-        result = subprocess.run(command, timeout=1800)
+        result = run_owned(command, timeout=1800)
         if result.returncode or not pending.is_file():
             return {"status": "failed", "exit_code": result.returncode, "log": str(log),
                     "errors": ["Unity reference audit did not complete"]}

@@ -15,7 +15,7 @@ import subprocess
 from typing import Any, Dict, Tuple
 import uuid
 
-from .bootstrap import CACHE_ROOT, exclusive_lock, managed_path, open_coordinator_lock, validate_work_dir, write_json
+from .bootstrap import CACHE_ROOT, exclusive_lock, managed_path, open_coordinator_lock, run_owned, validate_work_dir, write_json
 
 
 class LayoutError(ValueError):
@@ -869,7 +869,7 @@ def run_layout_inventory(repo_root: Path, work_dir: Path, schema_path=None) -> d
               "schema_path": str(schema_path), "original_schema_sha256": digest, "inventory_path": str(inventory),
               "comparison_path": str(comparison), "references_modified": False}
     try:
-        process = subprocess.run(command, env=environment, timeout=600)
+        process = run_owned(command, env=environment, timeout=600)
         result["exit_code"] = process.returncode
         if process.returncode or not inventory.is_file():
             raise LayoutError("Unity did not produce a complete loaded declaration inventory")

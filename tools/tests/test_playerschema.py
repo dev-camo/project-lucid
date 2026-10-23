@@ -21,7 +21,7 @@ class PlayerSchemaTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         self.root, self.work, self.editor = self.fixture.root, self.fixture.work, self.fixture.editor
-        with patch.object(playercode.subprocess, "run", side_effect=lambda command, **kwargs: self.fixture.emit(command)):
+        with patch.object(playercode, "run_owned", side_effect=lambda command, **kwargs: self.fixture.emit(command)):
             result = playercode.run_player_code(self.root, self.work, "macos")
         self.player_latest = Path(result["report_path"])
         receipt = json.loads(self.player_latest.read_bytes())
@@ -46,7 +46,7 @@ class PlayerSchemaTests(unittest.TestCase):
         self.schema_change = None
         self.patches = [patch.object(playerschema, "find_editor", return_value=self.editor),
                         patch.object(playerschema, "_build_reader", side_effect=self.build),
-                        patch.object(playerschema.subprocess, "run", side_effect=self.emit)]
+                        patch.object(playerschema, "run_owned", side_effect=self.emit)]
         for p in self.patches:
             p.start(); self.addCleanup(p.stop)
 
@@ -267,11 +267,11 @@ class PlayerSchemaTests(unittest.TestCase):
         self.rejects("approved")
 
     def test_child_failure_retains_latest(self):
-        with patch.object(playerschema.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
+        with patch.object(playerschema, "run_owned", return_value=subprocess.CompletedProcess([], 1)):
             self.rejects("reader failed")
 
     def test_child_interruption_retains_latest(self):
-        with patch.object(playerschema.subprocess, "run", side_effect=KeyboardInterrupt):
+        with patch.object(playerschema, "run_owned", side_effect=KeyboardInterrupt):
             with self.assertRaises(KeyboardInterrupt): self.run_schema()
         self.assertEqual(self.old, self.latest.read_bytes())
         self.assertFalse((self.work / "locks/player-schema.lock").exists())
