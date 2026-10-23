@@ -89,7 +89,7 @@ internal sealed class Request
     public void Check(string manifest, string output)
     {
         foreach (string p in new[] { project_root, work_root, run, manifest, output }) Program.PathCheck(p);
-        if (schema_version != 1 || command != "player-schema" || profile != "zone-theme-v1" || !new[] { "macos", "windows", "linux" }.Contains(target) ||
+        if (schema_version != 1 || command != "player-schema" || !Profiles.All.ContainsKey(profile) || !new[] { "macos", "windows", "linux" }.Contains(target) ||
             !Regex.IsMatch(nonce, "^[a-f0-9]{32}$") || !Regex.IsMatch(source_fingerprint, "^[a-f0-9]{64}$") || !Regex.IsMatch(player_receipt_sha256, "^[a-f0-9]{64}$") ||
             run != Path.Combine(work_root, "player-schema", "runs", nonce) || manifest != Path.Combine(run, "manifest.json") || output != Path.Combine(run, "pending.json"))
             throw new InvalidDataException("Incomplete or unowned metadata request");
@@ -132,17 +132,13 @@ internal sealed class SealedResolver : IAssemblyResolver
     public void Dispose() { foreach (var a in opened.Values) a.Dispose(); }
 }
 
-internal sealed class Inventory
+// Versioned exact profiles, never a namespace-wide permission. Each profile
+// names its roots (nested types use Cecil's '/' separator) and the complete
+// closure its roots may reach; any other dependency fails the inventory.
+internal sealed record Profile(string[] Roots, HashSet<string> Allowed, int Bound);
+internal static class Profiles
 {
-    private readonly SealedResolver resolver;
-    private readonly Request request;
-    private readonly MethodInfo serialize, builtin;
-    private readonly Dictionary<string, TypeDefinition> visited = new(StringComparer.Ordinal);
-    private readonly Queue<TypeDefinition> pending = new();
-    private readonly List<Dictionary<string, object?>> types = new();
-    private readonly List<object> edges = new();
-    // A versioned exact profile, never a namespace-wide permission.
-    private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> ZoneTheme = new(StringComparer.Ordinal)
     {
         "netstandard:System.ComponentModel.EditorBrowsableState",
         "netstandard:System.ComponentModel.EditorBrowsableAttribute",
@@ -171,9 +167,136 @@ internal sealed class Inventory
         "netstandard:System.Reflection.DefaultMemberAttribute", "netstandard:System.AttributeUsageAttribute", "netstandard:System.AttributeTargets", "netstandard:System.FlagsAttribute",
         "netstandard:System.Runtime.CompilerServices.CompilerGeneratedAttribute", "netstandard:System.Runtime.CompilerServices.IsReadOnlyAttribute"
     };
+    // The five URP 14.0.11 package types whose Editor declarations carry
+    // UNITY_EDITOR-only fields and attributes; their player compile is the
+    // layout the shipped build serialized against.
+    private static readonly HashSet<string> UniversalRenderer = new(StringComparer.Ordinal)
+    {
+        "Unity.RenderPipelines.Core.Runtime:UnityEngine.Rendering.ReloadAttribute",
+        "Unity.RenderPipelines.Core.Runtime:UnityEngine.Rendering.ReloadAttribute+Package",
+        "Unity.RenderPipelines.Core.Runtime:UnityEngine.Rendering.ReloadGroupAttribute",
+        "Unity.RenderPipelines.Core.Runtime:UnityEngine.Rendering.ShaderVariantLogLevel",
+        "Unity.RenderPipelines.Universal.Runtime:FullScreenPassRendererFeature",
+        "Unity.RenderPipelines.Universal.Runtime:FullScreenPassRendererFeature+InjectionPoint",
+        "Unity.RenderPipelines.Universal.Runtime:FullScreenPassRendererFeature+Version",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ColorGradingMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.CopyDepthMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DBufferSettings",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DecalNormalBlend",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DecalRendererFeature",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DecalScreenSpaceSettings",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DecalSettings",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DecalSurfaceData",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DecalTechniqueOption",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DepthPrimingMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DisallowMultipleRendererFeature",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.Downsampling",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.HDRColorBufferPrecision",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.IntermediateTextureMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.LODCrossFadeDitheringType",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.LightCookieFormat",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.LightCookieResolution",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.LightRenderingMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.MsaaQuality",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.PipelineDebugLevel",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.PostProcessData",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.PostProcessData+ShaderResources",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.PostProcessData+TextureResources",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.RendererType",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.RenderingMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ScriptableRenderPassInput",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ScriptableRendererData",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ScriptableRendererData+DebugShaderResources",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ScriptableRendererFeature",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ShEvalMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ShadowCascadesOption",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ShadowQuality",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.ShadowResolution",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.SoftShadowQuality",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.StencilStateData",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.StoreActionsOptimization",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset+TextureResources",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRendererData",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRendererData+ShaderResources",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UpscalingFilterSelection",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.VolumeFrameworkUpdateMode",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.XRSystemData",
+        "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.XRSystemData+ShaderResources",
+        "UnityEngine.CoreModule:Unity.IL2CPP.CompilerServices.Il2CppEagerStaticClassConstructionAttribute",
+        "UnityEngine.CoreModule:UnityEngine.ExcludeFromPresetAttribute",
+        "UnityEngine.CoreModule:UnityEngine.ExtensionOfNativeClassAttribute",
+        "UnityEngine.CoreModule:UnityEngine.HelpURLAttribute",
+        "UnityEngine.CoreModule:UnityEngine.HideInInspector",
+        "UnityEngine.CoreModule:UnityEngine.InspectorNameAttribute",
+        "UnityEngine.CoreModule:UnityEngine.LayerMask",
+        "UnityEngine.CoreModule:UnityEngine.Material",
+        "UnityEngine.CoreModule:UnityEngine.Object",
+        "UnityEngine.CoreModule:UnityEngine.PropertyAttribute",
+        "UnityEngine.CoreModule:UnityEngine.Rendering.CompareFunction",
+        "UnityEngine.CoreModule:UnityEngine.Rendering.RenderPipelineAsset",
+        "UnityEngine.CoreModule:UnityEngine.Rendering.RenderPipelineGlobalSettings",
+        "UnityEngine.CoreModule:UnityEngine.Rendering.StencilOp",
+        "UnityEngine.CoreModule:UnityEngine.ScriptableObject",
+        "UnityEngine.CoreModule:UnityEngine.SerializeField",
+        "UnityEngine.CoreModule:UnityEngine.Shader",
+        "UnityEngine.CoreModule:UnityEngine.Texture",
+        "UnityEngine.CoreModule:UnityEngine.Texture2D",
+        "UnityEngine.CoreModule:UnityEngine.TooltipAttribute",
+        "UnityEngine.CoreModule:UnityEngine.Vector2",
+        "UnityEngine.CoreModule:UnityEngine.Vector3",
+        "UnityEngine.SharedInternalsModule:UnityEngine.Bindings.NativeHeaderAttribute",
+        "UnityEngine.SharedInternalsModule:UnityEngine.Bindings.NativeNameAttribute",
+        "UnityEngine.SharedInternalsModule:UnityEngine.Bindings.NativeTypeAttribute",
+        "UnityEngine.SharedInternalsModule:UnityEngine.Bindings.VisibleToOtherModulesAttribute",
+        "UnityEngine.SharedInternalsModule:UnityEngine.NativeClassAttribute",
+        "UnityEngine.SharedInternalsModule:UnityEngine.Scripting.RequiredByNativeCodeAttribute",
+        "UnityEngine.SharedInternalsModule:UnityEngine.Scripting.UsedByNativeCodeAttribute",
+        "netstandard:System.Attribute",
+        "netstandard:System.AttributeTargets",
+        "netstandard:System.AttributeUsageAttribute",
+        "netstandard:System.Collections.Generic.List`1",
+        "netstandard:System.ComponentModel.EditorBrowsableAttribute",
+        "netstandard:System.ComponentModel.EditorBrowsableState",
+        "netstandard:System.Diagnostics.DebuggerBrowsableAttribute",
+        "netstandard:System.Diagnostics.DebuggerBrowsableState",
+        "netstandard:System.Enum",
+        "netstandard:System.FlagsAttribute",
+        "netstandard:System.Object",
+        "netstandard:System.ObsoleteAttribute",
+        "netstandard:System.Reflection.DefaultMemberAttribute",
+        "netstandard:System.Runtime.CompilerServices.CompilerGeneratedAttribute",
+        "netstandard:System.ValueType",
+    };
+    internal static readonly Dictionary<string, Profile> All = new(StringComparer.Ordinal)
+    {
+        ["zone-theme-v1"] = new Profile(new[] {
+            "Game.Runtime:HardlightProject.ZoneThemeOverride", "UnityEngine.CoreModule:UnityEngine.Color", "UnityEngine.CoreModule:UnityEngine.Sprite",
+            "Unity.Addressables:UnityEngine.AddressableAssets.AssetReferenceAtlasedSprite", "Unity.Addressables:UnityEngine.AddressableAssets.AssetReferenceT`1", "Unity.Addressables:UnityEngine.AddressableAssets.AssetReference",
+            "HLUnityCore.Runtime:Hardlight.ShowIfAttribute", "HLUnityCore.Runtime:Hardlight.InspectorConditionalField", "HLUnityCore.Runtime:Hardlight.InspectorConditionalAttribute/ComparisonType" }, ZoneTheme, 128),
+        ["urp-renderer-v1"] = new Profile(new[] {
+            "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset",
+            "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRendererData",
+            "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings",
+            "Unity.RenderPipelines.Universal.Runtime:FullScreenPassRendererFeature",
+            "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.DecalRendererFeature" }, UniversalRenderer, 128),
+    };
+}
+
+internal sealed class Inventory
+{
+    private readonly SealedResolver resolver;
+    private readonly Request request;
+    private readonly Profile profile;
+    private readonly MethodInfo serialize, builtin;
+    private readonly Dictionary<string, TypeDefinition> visited = new(StringComparer.Ordinal);
+    private readonly Queue<TypeDefinition> pending = new();
+    private readonly List<Dictionary<string, object?>> types = new();
+    private readonly List<object> edges = new();
     public Inventory(SealedResolver resolver, System.Reflection.Assembly logic, Request request)
     {
-        this.resolver = resolver; this.request = request;
+        this.resolver = resolver; this.request = request; profile = Profiles.All[request.profile];
         var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
         serialize = logic.GetType("Unity.SerializationLogic.UnitySerializationLogic", true)!.GetMethod("WillUnitySerialize", flags, null, new[] { typeof(FieldDefinition) }, null) ?? throw new InvalidDataException("Installed serializer API differs");
         builtin = logic.GetType("Unity.SerializationLogic.UnityEngineTypePredicates", true)!.GetMethod("ShouldHaveHadSerializableAttribute", flags, null, new[] { typeof(TypeReference) }, null) ?? throw new InvalidDataException("Installed builtin predicate API differs");
@@ -181,8 +304,8 @@ internal sealed class Inventory
     private static string Key(TypeDefinition t) => t.Module.Assembly.Name.Name + ":" + Program.Name(t);
     private void Add(TypeDefinition t, string reason)
     {
-        string key = Key(t); if (!Allowed.Contains(key)) throw new InvalidDataException("Unapproved profile dependency: " + key);
-        if (visited.TryAdd(key, t)) { if (visited.Count > 128) throw new InvalidDataException("Profile type count exceeds bound"); pending.Enqueue(t); }
+        string key = Key(t); if (!profile.Allowed.Contains(key)) throw new InvalidDataException("Unapproved profile dependency: " + key);
+        if (visited.TryAdd(key, t)) { if (visited.Count > profile.Bound) throw new InvalidDataException("Profile type count exceeds bound"); pending.Enqueue(t); }
         edges.Add(new { type = key, reason });
     }
     private TypeDefinition Resolve(TypeReference t) => t.Resolve() ?? throw new InvalidDataException("Unresolved metadata type: " + Program.Name(t));
@@ -199,10 +322,7 @@ internal sealed class Inventory
     }
     public Dictionary<string, object?> Generate()
     {
-        foreach (string key in new[] {
-            "Game.Runtime:HardlightProject.ZoneThemeOverride", "UnityEngine.CoreModule:UnityEngine.Color", "UnityEngine.CoreModule:UnityEngine.Sprite",
-            "Unity.Addressables:UnityEngine.AddressableAssets.AssetReferenceAtlasedSprite", "Unity.Addressables:UnityEngine.AddressableAssets.AssetReferenceT`1", "Unity.Addressables:UnityEngine.AddressableAssets.AssetReference",
-            "HLUnityCore.Runtime:Hardlight.ShowIfAttribute", "HLUnityCore.Runtime:Hardlight.InspectorConditionalField", "HLUnityCore.Runtime:Hardlight.InspectorConditionalAttribute/ComparisonType" })
+        foreach (string key in profile.Roots)
         {
             string[] parts = key.Split(':', 2); var module = resolver.Read(parts[0]).MainModule;
             Add(module.GetType(parts[1]) ?? throw new InvalidDataException("Required profile type is absent"), "profile-root");

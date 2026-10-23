@@ -72,6 +72,120 @@ ALLOWED = {
 }
 
 
+# The URP 14.0.11 renderer profile: the five package types whose Editor
+# declarations carry UNITY_EDITOR-only members (URPHelpURL is
+# [Conditional("UNITY_EDITOR")]; ShaderKeywordFilter and the prefilter fields
+# sit in #if UNITY_EDITOR). Their player compile is the shipped layout.
+URP_PROFILE = "urp-renderer-v1"
+URP_ROOTS = {
+    ("Unity.RenderPipelines.Universal.Runtime", "UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset"),
+    ("Unity.RenderPipelines.Universal.Runtime", "UnityEngine.Rendering.Universal.UniversalRendererData"),
+    ("Unity.RenderPipelines.Universal.Runtime", "UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings"),
+    ("Unity.RenderPipelines.Universal.Runtime", "FullScreenPassRendererFeature"),
+    ("Unity.RenderPipelines.Universal.Runtime", "UnityEngine.Rendering.Universal.DecalRendererFeature"),
+}
+# The complete closure the reader may reach from those roots, by exact name.
+URP_ALLOWED = {
+    ('Unity.RenderPipelines.Core.Runtime', 'UnityEngine.Rendering.ReloadAttribute'),
+    ('Unity.RenderPipelines.Core.Runtime', 'UnityEngine.Rendering.ReloadAttribute+Package'),
+    ('Unity.RenderPipelines.Core.Runtime', 'UnityEngine.Rendering.ReloadGroupAttribute'),
+    ('Unity.RenderPipelines.Core.Runtime', 'UnityEngine.Rendering.ShaderVariantLogLevel'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'FullScreenPassRendererFeature'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'FullScreenPassRendererFeature+InjectionPoint'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'FullScreenPassRendererFeature+Version'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ColorGradingMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.CopyDepthMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DBufferSettings'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DecalNormalBlend'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DecalRendererFeature'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DecalScreenSpaceSettings'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DecalSettings'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DecalSurfaceData'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DecalTechniqueOption'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DepthPrimingMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.DisallowMultipleRendererFeature'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.Downsampling'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.HDRColorBufferPrecision'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.IntermediateTextureMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.LODCrossFadeDitheringType'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.LightCookieFormat'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.LightCookieResolution'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.LightRenderingMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.MsaaQuality'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.PipelineDebugLevel'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.PostProcessData'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.PostProcessData+ShaderResources'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.PostProcessData+TextureResources'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.RendererType'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.RenderingMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ScriptableRenderPassInput'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ScriptableRendererData'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ScriptableRendererData+DebugShaderResources'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ScriptableRendererFeature'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ShEvalMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ShadowCascadesOption'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ShadowQuality'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.ShadowResolution'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.SoftShadowQuality'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.StencilStateData'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.StoreActionsOptimization'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset+TextureResources'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.UniversalRendererData'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.UniversalRendererData+ShaderResources'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.UpscalingFilterSelection'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.VolumeFrameworkUpdateMode'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.XRSystemData'),
+    ('Unity.RenderPipelines.Universal.Runtime', 'UnityEngine.Rendering.Universal.XRSystemData+ShaderResources'),
+    ('UnityEngine.CoreModule', 'Unity.IL2CPP.CompilerServices.Il2CppEagerStaticClassConstructionAttribute'),
+    ('UnityEngine.CoreModule', 'UnityEngine.ExcludeFromPresetAttribute'),
+    ('UnityEngine.CoreModule', 'UnityEngine.ExtensionOfNativeClassAttribute'),
+    ('UnityEngine.CoreModule', 'UnityEngine.HelpURLAttribute'),
+    ('UnityEngine.CoreModule', 'UnityEngine.HideInInspector'),
+    ('UnityEngine.CoreModule', 'UnityEngine.InspectorNameAttribute'),
+    ('UnityEngine.CoreModule', 'UnityEngine.LayerMask'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Material'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Object'),
+    ('UnityEngine.CoreModule', 'UnityEngine.PropertyAttribute'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Rendering.CompareFunction'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Rendering.RenderPipelineAsset'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Rendering.RenderPipelineGlobalSettings'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Rendering.StencilOp'),
+    ('UnityEngine.CoreModule', 'UnityEngine.ScriptableObject'),
+    ('UnityEngine.CoreModule', 'UnityEngine.SerializeField'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Shader'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Texture'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Texture2D'),
+    ('UnityEngine.CoreModule', 'UnityEngine.TooltipAttribute'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Vector2'),
+    ('UnityEngine.CoreModule', 'UnityEngine.Vector3'),
+    ('UnityEngine.SharedInternalsModule', 'UnityEngine.Bindings.NativeHeaderAttribute'),
+    ('UnityEngine.SharedInternalsModule', 'UnityEngine.Bindings.NativeNameAttribute'),
+    ('UnityEngine.SharedInternalsModule', 'UnityEngine.Bindings.NativeTypeAttribute'),
+    ('UnityEngine.SharedInternalsModule', 'UnityEngine.Bindings.VisibleToOtherModulesAttribute'),
+    ('UnityEngine.SharedInternalsModule', 'UnityEngine.NativeClassAttribute'),
+    ('UnityEngine.SharedInternalsModule', 'UnityEngine.Scripting.RequiredByNativeCodeAttribute'),
+    ('UnityEngine.SharedInternalsModule', 'UnityEngine.Scripting.UsedByNativeCodeAttribute'),
+    ('netstandard', 'System.Attribute'),
+    ('netstandard', 'System.AttributeTargets'),
+    ('netstandard', 'System.AttributeUsageAttribute'),
+    ('netstandard', 'System.Collections.Generic.List`1'),
+    ('netstandard', 'System.ComponentModel.EditorBrowsableAttribute'),
+    ('netstandard', 'System.ComponentModel.EditorBrowsableState'),
+    ('netstandard', 'System.Diagnostics.DebuggerBrowsableAttribute'),
+    ('netstandard', 'System.Diagnostics.DebuggerBrowsableState'),
+    ('netstandard', 'System.Enum'),
+    ('netstandard', 'System.FlagsAttribute'),
+    ('netstandard', 'System.Object'),
+    ('netstandard', 'System.ObsoleteAttribute'),
+    ('netstandard', 'System.Reflection.DefaultMemberAttribute'),
+    ('netstandard', 'System.Runtime.CompilerServices.CompilerGeneratedAttribute'),
+    ('netstandard', 'System.ValueType'),
+}
+PROFILES = {PROFILE: (ROOTS, ALLOWED), URP_PROFILE: (URP_ROOTS, URP_ALLOWED)}
+
+
 def _read_json(path, limit=MAX_SCHEMA):
     raw = playercode._regular(path, limit).read_bytes()
     value = playercode._strict_json(raw)
@@ -230,7 +344,8 @@ def _schema_check(report, manifest, manifest_raw, reader):
         if report.get(field) != {"path": actual_path, "sha256": seal["sha256"], "mvid": seal["mvid"]}:
             raise ValueError("Inventory used a different installed metadata reader or serializer")
     index = bindings._index(report)
-    if (not ROOTS <= index.keys() or set(index) != ALLOWED or not 1 <= len(index) <= 128 or
+    roots, allowed = PROFILES[manifest["profile"]]
+    if (not roots <= index.keys() or set(index) != allowed or not 1 <= len(index) <= 128 or
             type(report.get("type_count")) is not int or report["type_count"] != len(index) or
             report.get("assembly_count") != len(report["assemblies"])):
         raise ValueError("Player inventory differs from its exact bounded profile")
@@ -273,7 +388,7 @@ def _schema_check(report, manifest, manifest_raw, reader):
 
 def run_player_schema(repo_root, work_dir, target, profile=PROFILE):
     """Generate metadata only from a current sealed genuine player compilation."""
-    if target not in playercode.TARGETS or profile != PROFILE:
+    if target not in playercode.TARGETS or profile not in PROFILES:
         raise ValueError("Unsupported player metadata target or exact profile")
     root, work = Path(repo_root).resolve(strict=True), validate_work_dir(Path(work_dir))
     version = playercode._regular(root / "ProjectSettings/ProjectVersion.txt", 65536).read_text()
@@ -325,7 +440,11 @@ def run_player_schema(repo_root, work_dir, target, profile=PROFILE):
             if artifact_fingerprint(root) != source:
                 raise ValueError("Source changed during final installed engine identity check")
         _schema_check(report, manifest, manifest_raw, reader)
-        report.update(status="metadata-ready", identity_status="complete", generated_by="ProjectLucid.run_player_schema",
+        # The serialization comparison applies Unity 2022.3.54f1's builtin value
+        # rules only when both planes name that exact engine version.
+        if evidence["receipt"].get("unity_version") != UNITY_VERSION:
+            raise ValueError("Player compilation was made by a different Unity version")
+        report.update(status="metadata-ready", unity_version=UNITY_VERSION, identity_status="complete", generated_by="ProjectLucid.run_player_schema",
                       identity_verified_by="native-python-prepost-player-pe-cecil-metadata-v1", staged_report_path=str(pending),
                       staged_report_sha256=hashlib.sha256(pending_raw).hexdigest(), player_receipt_path=evidence["receipt_path"],
                       reader_build={k: v for k, v in reader.items() if k != "env"}, log=str(log))

@@ -314,9 +314,14 @@ def _unshipped_constants(original, loaded):
 
 
 class _Comparison:
-    def __init__(self, original: dict, loaded: dict):
+    def __init__(self, original: dict, loaded: dict, loaded_plane="editor"):
+        if loaded_plane not in ("editor", "player"):
+            raise LayoutError("Unsupported loaded declaration plane")
         self.original = _index(original)
         self.loaded = _index(loaded)
+        # The loaded side is the Editor's reflection inventory, or a genuine
+        # player compilation read by Cecil; only CAD order differs between them.
+        self.loaded_plane = loaded_plane
         self.unity_versions = original.get("unity_version"), loaded.get("unity_version")
 
     @staticmethod
@@ -610,7 +615,11 @@ class _Comparison:
                 ordered_named = tuple((group, value["name"], _attribute_value(value["value"], require_string_evidence=original))
                                       for group in ("fields", "properties") for value in attribute[group])
                 ordered_attributes.append(normalized[0][:3] + (ordered_named,))
-            if tuple(ordered_attributes) != expected_attributes:
+            # The player CoreModule read by Cecil lists the same four CADs in
+            # its own metadata order; each plane keeps its own exact order.
+            expected_order = expected_attributes if original or self.loaded_plane == "editor" else (
+                expected_attributes[2], expected_attributes[1], expected_attributes[0], expected_attributes[3])
+            if tuple(ordered_attributes) != expected_order:
                 raise LayoutError("Vector2 ordered type attributes differ")
             fields = record["fields"]
             if tuple(field["name"] for field in fields) != names or [field["name"] for field in candidates] != ["x", "y"]:

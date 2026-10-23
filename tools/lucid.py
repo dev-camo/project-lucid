@@ -53,6 +53,8 @@ def parser():
             command.add_argument("--inventory", type=Path, required=True, help="current loaded Editor inventory against that schema")
         if name in ("build", "player-code", "player-schema", "runtime-contracts"):
             command.add_argument("--target", choices=("macos", "windows", "linux"), required=True)
+        if name == "player-schema":
+            command.add_argument("--profile", choices=("zone-theme-v1", "urp-renderer-v1"), default="zone-theme-v1")
         if name == "build":
             command.add_argument("--development", action="store_true",
                                  help="NON-RELEASE development build under Builds/Development/<target>; skips only the audit and test gates")
@@ -173,7 +175,7 @@ def main(argv=None):
             report = run_player_code(ROOT, work_dir, args.target)
         elif args.command == "player-schema":
             from lucidlib.playerschema import run_player_schema
-            report = run_player_schema(ROOT, work_dir, args.target)
+            report = run_player_schema(ROOT, work_dir, args.target, args.profile)
         elif args.command == "runtime-contracts":
             from lucidlib.runtimecontracts import run_runtime_contracts
             report = run_runtime_contracts(ROOT, work_dir, args.target, args.schema, args.inventory)
