@@ -1178,6 +1178,18 @@ namespace ProjectLucid.Tests
             EnvStandardLitVerification.Run();
         }
 
+        [Test]
+        public void CharStandardCompilesEveryPassForDirect3D()
+        {
+            CharStandardVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void CharStandardGpuOutputMatchesDecodedSurfaceCases()
+        {
+            CharStandardVerification.Run();
+        }
+
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all
         // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)
