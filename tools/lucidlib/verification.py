@@ -181,7 +181,9 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "FullscreenEffectsCompilesEveryPassForDirect3D",
     "FullscreenEffectsGpuOutputMatchesDecodedSurfaceCases",
     "UiBlurCompilesEveryPassForDirect3D",
-    "UiBlurGpuOutputMatchesDecodedSurfaceCases"))
+    "UiBlurGpuOutputMatchesDecodedSurfaceCases",
+    "EnvStandardLitCompilesEveryPassForDirect3D",
+    "EnvStandardLitGpuOutputMatchesDecodedSurfaceCases"))
 # Particle depth and camera-fade portability across desktop graphics APIs (#448).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.RecoveredBehaviorTests.ParticleMainCompilesEveryPassForOpenGL",
