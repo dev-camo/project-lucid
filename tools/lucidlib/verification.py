@@ -2508,10 +2508,14 @@ EDITMODE_TESTS += (
     "ProjectLucid.Editor.ProcessAirControlDirectionFlowTests.AirUpdateForwardSpeedTurnsTheRefDirectionForFiniteSteering",
 )
 
+# SystemRef<T>.TryGet(out T) reports the untyped validity like 0x06000e20 (#465).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalSystemRefTryGetTests.TryGetReportsTheUntypedSystemAfterAnIncompatibleReplacement",
+)
+
 
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (
-    "ProjectLucid.Tests.OriginalSystemRefTryGetTests.TryGetReportsTheUntypedSystemAfterAnIncompatibleReplacement",
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("version")',
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("checksum")',
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("missing-payload")',
