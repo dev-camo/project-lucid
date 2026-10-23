@@ -5,6 +5,7 @@ import base64
 import contextlib
 import errno
 import io
+import inspect
 import os
 from pathlib import Path
 import shutil
@@ -460,7 +461,13 @@ class AssetTests(unittest.TestCase):
 
         with mock.patch.object(Path, "rename", rename):
             with self.assertRaisesRegex(OSError, "synthetic"):
-                assets._replace_owned_directories(replacements)
+                # Rollback moved to the single caller-owned scope, #479.
+                plan = []
+                try:
+                    assets._replace_owned_directories(replacements, plan)
+                except BaseException as error:
+                    assets._rollback_swaps(plan, error)
+                    raise
         self.assertEqual((self.root / "first/value").read_text(), "old")
         self.assertEqual((self.root / "second/value").read_text(), "old")
 
@@ -489,7 +496,13 @@ class AssetTests(unittest.TestCase):
                     return result
 
                 with mock.patch.object(Path, "rename", rename), self.assertRaises(KeyboardInterrupt):
-                    assets._replace_owned_directories(replacements)
+                    # Rollback moved to the single caller-owned scope, #479.
+                    plan = []
+                    try:
+                        assets._replace_owned_directories(replacements, plan)
+                    except BaseException as error:
+                        assets._rollback_swaps(plan, error)
+                        raise
                 for name in ["Recovered", "StreamingAssets"]:
                     self.assertEqual("old", (root / name / "value").read_text())
                 self.assertEqual([], [p.name for p in root.iterdir() if ".backup-" in p.name])
@@ -513,7 +526,13 @@ class AssetTests(unittest.TestCase):
         with mock.patch.object(Path, "rename", rename), \
                 mock.patch.object(assets.shutil, "rmtree", side_effect=OSError("synthetic removal failure")), \
                 mock.patch("sys.stderr", self.printed), self.assertRaises(KeyboardInterrupt) as raised:
-            assets._replace_owned_directories([(destination, staged)])
+            # Rollback moved to the single caller-owned scope, #479.
+            plan = []
+            try:
+                assets._replace_owned_directories([(destination, staged)], plan)
+            except BaseException as error:
+                assets._rollback_swaps(plan, error)
+                raise
         self.assertEqual(["Could not remove the newly installed tree at {}: synthetic removal failure".format(
             destination)], self.rollback_notes(raised.exception))
 
@@ -534,7 +553,13 @@ class AssetTests(unittest.TestCase):
         self.printed = io.StringIO()
         with mock.patch.object(Path, "rename", rename), mock.patch("sys.stderr", self.printed), \
                 self.assertRaises(KeyboardInterrupt) as raised:
-            assets._replace_owned_directories([(old, new)])
+            # Rollback moved to the single caller-owned scope, #479.
+            plan = []
+            try:
+                assets._replace_owned_directories([(old, new)], plan)
+            except BaseException as error:
+                assets._rollback_swaps(plan, error)
+                raise
         [backup] = [p for p in self.root.iterdir() if ".backup-" in p.name]
         self.assertEqual(["Could not restore {} (synthetic restore failure); its prior tree remains at {}".format(
             old, backup)], self.rollback_notes(raised.exception))
@@ -564,6 +589,91 @@ class AssetTests(unittest.TestCase):
                     assets.prepare_assets(self.repo, self.work)
                 self.assertEqual(prior_tree, self.assets_snapshot())
                 self.assertEqual(prior_receipt, receipt.read_bytes())
+
+    def test_interrupt_after_the_swap_returns_restores_prior_trees_and_receipt(self):
+        project = self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        receipt = self.work / "assets/latest-prepare.json"
+        prior_tree, prior_receipt = self.assets_snapshot(), receipt.read_bytes()
+        self.change_export_scene(project)
+        original = assets._replace_owned_directories
+
+        def replace_then_interrupt(*args, **kwargs):
+            original(*args, **kwargs)
+            raise KeyboardInterrupt("interrupted after both swaps")
+
+        with mock.patch.object(assets, "_replace_owned_directories", replace_then_interrupt), \
+                self.assertRaises(KeyboardInterrupt):
+            assets.prepare_assets(self.repo, self.work)
+        self.assertEqual(prior_tree, self.assets_snapshot())
+        self.assertEqual(prior_receipt, receipt.read_bytes())
+        self.assertEqual([], list((self.repo / "Assets").glob(".Recovered.backup-*")))
+        self.assertEqual([], list((self.repo / "Assets").glob(".StreamingAssets.backup-*")))
+
+    def test_interrupt_at_each_line_between_the_last_rename_and_publication_restores_prior_state(self):
+        # Discover executable handoff boundaries rather than pinning source line numbers (#479).
+        source, first_line = inspect.getsourcelines(assets.prepare_assets)
+        swap_line = first_line + next(i for i, line in enumerate(source)
+                                     if "_replace_owned_directories(replacements" in line)
+        publication_line = first_line + next(i + 1 for i, line in enumerate(source) if "if locations:" in line)
+        prepare_code, swap_code = assets.prepare_assets.__code__, assets._replace_owned_directories.__code__
+
+        def handoff_event(frame, event):
+            return ((frame.f_code is prepare_code and event == "line" and
+                     swap_line <= frame.f_lineno <= publication_line) or
+                    (frame.f_code is swap_code and event == "return"))
+
+        events = []
+
+        def discover(frame, event, arg):
+            if handoff_event(frame, event):
+                events.append((frame.f_code.co_name, event, frame.f_lineno))
+            return discover
+
+        self.make_export()
+        assets.prepare_assets(self.repo, self.work)
+        prior_trace = sys.gettrace()
+        try:
+            sys.settrace(discover)
+            assets.prepare_assets(self.repo, self.work)
+        finally:
+            sys.settrace(prior_trace)
+        self.assertGreaterEqual(len(events), 3)
+        self.assertTrue(any(event == "return" for _, event, _ in events))
+
+        for index, boundary in enumerate(events):
+            with self.subTest(index=index, boundary=boundary), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                with mock.patch.multiple(self, root=root, repo=root / "repo", work=root / "work"), \
+                        mock.patch.object(bootstrap, "CACHE_ROOT", root / "work"):
+                    self.repo.mkdir()
+                    self.work.mkdir()
+                    project = self.make_export()
+                    assets.prepare_assets(self.repo, self.work)
+                    receipt = self.work / "assets/latest-prepare.json"
+                    prior_tree, prior_receipt = self.assets_snapshot(), receipt.read_bytes()
+                    self.change_export_scene(project)
+                    seen = []
+
+                    def interrupt(frame, event, arg):
+                        if handoff_event(frame, event):
+                            seen.append((frame.f_code.co_name, event, frame.f_lineno))
+                            if len(seen) == index + 1:
+                                raise KeyboardInterrupt("interrupted at handoff event " + str(index))
+                        return interrupt
+
+                    prior_trace = sys.gettrace()
+                    try:
+                        sys.settrace(interrupt)
+                        with self.assertRaises(KeyboardInterrupt):
+                            assets.prepare_assets(self.repo, self.work)
+                    finally:
+                        sys.settrace(prior_trace)
+                    self.assertEqual(boundary, seen[-1])
+                    self.assertEqual(prior_tree, self.assets_snapshot())
+                    self.assertEqual(prior_receipt, receipt.read_bytes())
+                    self.assertEqual([], list((self.repo / "Assets").glob(".Recovered.backup-*")))
+                    self.assertEqual([], list((self.repo / "Assets").glob(".StreamingAssets.backup-*")))
 
     def assets_snapshot(self):
         root = self.repo / "Assets"

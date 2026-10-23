@@ -793,33 +793,24 @@ def _owned_directory(path: Path) -> None:
         raise ValueError(f"Refusing to replace unowned directory: {path}")
 
 
-def _replace_owned_directories(replacements: list[tuple[Path, Path]]) -> list[tuple[Path, Path | None]]:
-    """Swap same-filesystem prepared copies; roll back all targets on error.
-
-    Returns each installed destination with its prior copy (None when it had
-    none), so the caller can undo the swap if a later publication step fails."""
+def _replace_owned_directories(replacements: list[tuple[Path, Path]],
+                               plan: list[tuple[Path, Path, Path | None]]) -> None:
+    """Swap same-filesystem prepared copies; the caller owns the plan and rollback."""
     for destination, staged in replacements:
         _owned_directory(destination)
         _assert_no_symlinks(staged)
     # Each swap is recorded before its renames, so an interruption between a rename
     # and its bookkeeping (#460) still leaves rollback knowing what to reconcile.
-    plan = []
-    try:
-        for destination, staged in replacements:
-            backup = None
-            if destination.exists():
-                backup = _physical_path(destination.with_name("." + destination.name + ".backup-" + uuid.uuid4().hex))
-                if backup.exists():
-                    raise ValueError(f"Asset backup destination already exists: {backup}")
-            plan.append((destination, staged, backup))
-            if backup is not None:
-                destination.rename(backup)
-            staged.rename(destination)
-    except BaseException as error:
-        _rollback_swaps(plan, error)
-        raise
-    # Preserve prior copies for manual recovery; never recursively erase assets.
-    return [(destination, backup) for destination, _, backup in plan]
+    for destination, staged in replacements:
+        backup = None
+        if destination.exists():
+            backup = _physical_path(destination.with_name("." + destination.name + ".backup-" + uuid.uuid4().hex))
+            if backup.exists():
+                raise ValueError(f"Asset backup destination already exists: {backup}")
+        plan.append((destination, staged, backup))
+        if backup is not None:
+            destination.rename(backup)
+        staged.rename(destination)
 
 
 def _rollback_swaps(plan: list[tuple[Path, Path, Path | None]], error: BaseException) -> None:
@@ -1094,11 +1085,14 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
         # Keep the prior receipt's bytes, or its absence, for rollback.
         receipt = _cache_path(work, prepared)
         prior_receipt = receipt.read_bytes() if receipt.exists() else None
-        swapped = _replace_owned_directories(replacements)
+        plan: list[tuple[Path, Path, Path | None]] = []
+        locations = None
         # Retention and the receipt commit with the swap: on any failure the prior
         # trees go back in place, so they still match the prior receipt.
-        locations = {destination: backup for destination, backup in swapped if backup is not None}
         try:
+            _replace_owned_directories(replacements, plan)
+            swapped = [(destination, backup) for destination, _, backup in plan]
+            locations = {destination: backup for destination, backup in swapped if backup is not None}
             backups = []
             if locations:
                 backup_dir = _cache_path(work, backup_dir)
@@ -1128,8 +1122,11 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                                    "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",
                                    "Preparation preserves asset GUIDs and restores only approved, layout-verified script pointers; gameplay remains unresolved."]}
             _json_write(receipt, result)
-        except BaseException:
-            _restore_swapped_directories(swapped, locations, backup_dir)
+        except BaseException as error:
+            if locations is None:
+                _rollback_swaps(plan, error)
+            else:
+                _restore_swapped_directories(swapped, locations, backup_dir)
             # The receipt may already be published when a failure follows its
             # rename; with the prior trees back, put back their prior receipt.
             _restore_file(receipt, prior_receipt)
