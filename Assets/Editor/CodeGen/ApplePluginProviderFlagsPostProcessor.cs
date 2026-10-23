@@ -133,12 +133,15 @@ namespace ProjectLucid.CodeGen
                         Require(parameter.Name + "@" + parameter.ParameterType.FullName == key[3] && Scope(parameter.ParameterType) == InputAssembly && parameter.Attributes == 0 && !parameter.HasConstant && !parameter.HasMarshalInfo && parameter.CustomAttributes.Count == 0, "Changed provider parameter metadata.");
                 }
                 Require(targets.Count == 2 && targets[0].Name == "get_KeySource" && targets[1].Name == "get_AxisSource", "Expected exact two target methods.");
-                // Targets must still be the original plain field read (the bodies are never touched).
+                // Targets must still be the original plain field read (the bodies are never touched). A
+                // development player compiles them in Debug form, recognised only in a Debug compile.
                 foreach (var target in targets)
                 {
                     var instructions = target.Body.Instructions;
-                    Require(!target.Body.InitLocals && target.Body.Variables.Count == 0 && target.Body.ExceptionHandlers.Count == 0 && instructions.Count == 3
-                        && instructions[0].OpCode.Code == Code.Ldarg_0 && instructions[1].OpCode.Code == Code.Ldfld && ReferenceEquals(instructions[1].Operand, field) && instructions[2].OpCode.Code == Code.Ret, "Changed target getter body.");
+                    bool debugBody = DebugAccessorBody.IsReturnField(target, target.Module);
+                    Require(debugBody || (!target.Body.InitLocals && target.Body.Variables.Count == 0 && target.Body.ExceptionHandlers.Count == 0 && instructions.Count == 3
+                        && instructions[0].OpCode.Code == Code.Ldarg_0 && instructions[1].OpCode.Code == Code.Ldfld && instructions[2].OpCode.Code == Code.Ret), "Changed target getter body.");
+                    Require(ReferenceEquals(instructions[debugBody ? 2 : 1].Operand, field), "Target getter reads another field.");
                 }
 
                 var copy = (byte[])original.Clone(); var table = new MethodTable(copy);
