@@ -15,7 +15,8 @@ namespace ProjectLucid.Tests
     // afterwards. No Awake, native bridge or App boot runs.
     internal static class HLOutputDiagnosticCapture
     {
-        internal static List<string> CaptureErrors(Action action)
+        // onError runs synchronously as each diagnostic is sent, before the caller continues.
+        internal static List<string> CaptureErrors(Action action, Action<string> onError = null)
         {
             IDictionary rows = (IDictionary)typeof(ProcessManager)
                 .GetField("s_systemDictionary", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
@@ -31,7 +32,11 @@ namespace ProjectLucid.Tests
                 Assert.That(owner.activeInHierarchy, Is.False);
                 rows.Remove(name);
                 ProcessManager.RegisterSystem(core, name);
-                core.AddLogErrorHandler((message, code) => errors.Add(message + ":" + code));
+                core.AddLogErrorHandler((message, code) =>
+                {
+                    errors.Add(message + ":" + code);
+                    onError?.Invoke(message);
+                });
                 action();
                 ProcessManager.UnregisterSystem(name);
             }

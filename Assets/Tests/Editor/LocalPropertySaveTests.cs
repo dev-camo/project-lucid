@@ -52,6 +52,38 @@ namespace ProjectLucid.Tests
             });
         }
 
+        // HLSaveMethodEncrypted.SaveData makes up to five write attempts, logging each failure
+        // before the next (#462). A directory where the save file belongs blocks every write;
+        // removing it when the first failure is logged lets the next attempt succeed.
+        [TestCase(1, true)]
+        [TestCase(5, false)]
+        public void FailedWritesAreRetriedUpToFiveTimesLikeTheOriginal(int failures, bool saved)
+        {
+            WithOwnedDirectory(directory =>
+            {
+                var adapter = new LocalPropertySave("unused", "save-", directory);
+                string primary = Path.Combine(directory, "save-slot");
+                Directory.CreateDirectory(primary);
+                bool result = false;
+                var errors = HLOutputDiagnosticCapture.CaptureErrors(
+                    () => result = adapter.SaveData(HLPropertyStore.FileType.Primary, new StringBuilder("payload\n"), "slot"),
+                    message => { if (failures == 1) Directory.Delete(primary); });
+                Assert.That(result, Is.EqualTo(saved));
+                Assert.That(errors.Count, Is.EqualTo(failures));
+                Assert.That(errors, Has.All.StartsWith("Exception occurred during saving "));
+                if (saved)
+                {
+                    Assert.That(adapter.LastError, Is.Null);
+                    Assert.That(adapter.LoadData(HLPropertyStore.FileType.Primary, "slot"), Is.EqualTo("payload\n"));
+                }
+                else
+                {
+                    Assert.That(adapter.LastError, Is.Not.Null);
+                    Assert.That(Directory.Exists(primary), Is.True, "A failed save leaves what was at the path in place.");
+                }
+            });
+        }
+
         [TestCase("version")]
         [TestCase("checksum")]
         [TestCase("missing-payload")]

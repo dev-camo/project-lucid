@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using UnityEngine;
 using Hardlight;
 
@@ -79,24 +80,43 @@ namespace ProjectLucid.Offline
         {
             lock (gate)
             {
+                string json, path;
                 try
                 {
                     string payload = contentBuilder.ToString();
-                    string json = JsonUtility.ToJson(new Envelope { formatVersion = 1, payload = payload, sha256 = Hash(payload) });
-                    string path = GetFilePath(fileType, saveIdentifier);
-                    // Only a valid old primary may replace the last-good backup.
-                    string backup = null;
-                    if (fileType == HLPropertyStore.FileType.Primary && File.Exists(path))
-                    {
-                        string previous;
-                        backup = TryRead(path, out previous) ? GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier)
-                            : Path.Combine(directory, "." + Path.GetFileName(path) + ".corrupt-" + Guid.NewGuid().ToString("N"));
-                    }
-                    AtomicWrite(path, Utf8.GetBytes(json), backup);
-                    LastError = null;
-                    return true;
+                    json = JsonUtility.ToJson(new Envelope { formatVersion = 1, payload = payload, sha256 = Hash(payload) });
+                    path = GetFilePath(fileType, saveIdentifier);
                 }
                 catch (Exception error) when (IsStorageFailure(error)) { LastError = error.Message; return false; }
+                // As the original HLSaveMethodEncrypted.SaveData: up to five write attempts, each
+                // failure logged and followed by the same memory relief before the next (#462).
+                for (int attempt = 0; attempt < 5; attempt++)
+                {
+                    try
+                    {
+                        // Only a valid old primary may replace the last-good backup.
+                        string backup = null;
+                        if (fileType == HLPropertyStore.FileType.Primary && File.Exists(path))
+                        {
+                            string previous;
+                            backup = TryRead(path, out previous) ? GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier)
+                                : Path.Combine(directory, "." + Path.GetFileName(path) + ".corrupt-" + Guid.NewGuid().ToString("N"));
+                        }
+                        AtomicWrite(path, Utf8.GetBytes(json), backup);
+                        LastError = null;
+                        return true;
+                    }
+                    catch (Exception error) when (IsStorageFailure(error))
+                    {
+                        LastError = error.Message;
+                        HLOutput.LogError(string.Format("Exception occurred during saving {0}", error) + error.ToString());
+                        Resources.UnloadUnusedAssets();
+                        PlatformUtils.ClearCache();
+                        GC.Collect();
+                        Thread.Sleep(10);
+                    }
+                }
+                return false;
             }
         }
 

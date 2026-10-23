@@ -2522,6 +2522,8 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.LocalPropertySaveTests.TwoInvalidEnvelopesReportFinalErrorWithoutErasingEitherCopy("version")',
     'ProjectLucid.Tests.LocalPropertySaveTests.TwoInvalidEnvelopesReportFinalErrorWithoutErasingEitherCopy("checksum")',
     'ProjectLucid.Tests.LocalPropertySaveTests.TwoInvalidEnvelopesReportFinalErrorWithoutErasingEitherCopy("missing-payload")',
+    "ProjectLucid.Tests.LocalPropertySaveTests.FailedWritesAreRetriedUpToFiveTimesLikeTheOriginal(1,True)",
+    "ProjectLucid.Tests.LocalPropertySaveTests.FailedWritesAreRetriedUpToFiveTimesLikeTheOriginal(5,False)",
     "ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.SerializationFixtureLeavesAnUnrelatedDirtyAssetUnsaved(0)",
     "ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.SerializationFixtureLeavesAnUnrelatedDirtyAssetUnsaved(1)",
     "ProjectLucid.Tests.OriginalConfigurationAssetSerializationTests.SerializationFixtureLeavesAnUnrelatedDirtyAssetUnsaved(2)",
