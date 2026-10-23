@@ -15,6 +15,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.parse
 import urllib.request
@@ -230,17 +231,81 @@ def verify_report(raw, producer, request, run_id, control, source=None):
     return report
 
 
+CHECKOUT_TIMEOUT_SECONDS = 300
+CHECKOUT_DIAGNOSTIC_BYTES = 16 * 1024
+
+
+def checkout_run(command, *, cwd, check, stdout, stderr, timeout):
+    """Use the controller's owned process tree and cleanup marker for Git too."""
+    if stdout != subprocess.PIPE or stderr != subprocess.PIPE:
+        raise ValueError('Checkout output must be captured privately')
+
+    def stderr_tail(stream):
+        stream.seek(0, os.SEEK_END)
+        stream.seek(max(0, stream.tell() - CHECKOUT_DIAGNOSTIC_BYTES))
+        return stream.read()
+
+    with tempfile.TemporaryFile(dir=cwd.parent) as errors:
+        try:
+            output = run_compiler(command, cwd, errors, cwd.parent / 'compiler-group.json', timeout=timeout)
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+            try:
+                error.stderr = stderr_tail(errors)
+            except OSError as capture_error:
+                raise error from capture_error
+            if check or isinstance(error, subprocess.TimeoutExpired):
+                raise
+            return subprocess.CompletedProcess(command, error.returncode, error.output, error.stderr)
+        return subprocess.CompletedProcess(command, 0, output, stderr_tail(errors))
+
+
+def retain_checkout_failure(path, sha, phase, command, error, output=None):
+    """Keep Git failures outside disposable checkouts, without printing private output."""
+    def tail(value):
+        if isinstance(value, str):
+            value = value.encode('utf-8', 'replace')
+        return (value or b'')[-CHECKOUT_DIAGNOSTIC_BYTES:].decode('utf-8', 'replace')
+
+    record = {'checkout': path.name, 'requested_head': sha, 'phase': phase,
+              'command': command, 'error_type': type(error).__name__,
+              'returncode': getattr(error, 'returncode', None),
+              'timeout_seconds': getattr(error, 'timeout', None),
+              'error': str(error)[-CHECKOUT_DIAGNOSTIC_BYTES:],
+              'stdout_tail': tail(output if output is not None else getattr(error, 'output', None)),
+              'stderr_tail': tail(getattr(error, 'stderr', None))}
+    receipt = path.parent / ('private-checkout-' + path.name + '.json')
+    descriptor = os.open(receipt, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+        json.dump(record, stream, sort_keys=True)
+        stream.write('\n')
+
+
 def checkout(path, sha):
     if path.exists() or path.is_symlink():
         raise ValueError("Fresh checkout required")
     path.mkdir()
-    for command in (["git", "init", "-q"],
-                    ["git", "remote", "add", "origin", "https://github.com/" + REPOSITORY + ".git"],
-                    ["git", "-c", "protocol.file.allow=never", "fetch", "-q", "--depth=1", "origin", sha],
-                    ["git", "checkout", "-q", "--detach", "FETCH_HEAD"]):
-        subprocess.run(command, cwd=path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if git_head(path) != sha:
-        raise ValueError("Fetched checkout differs")
+    steps = (("init", ["git", "init", "-q"]),
+             ("remote", ["git", "remote", "add", "origin", "https://github.com/" + REPOSITORY + ".git"]),
+             ("fetch", ["git", "-c", "protocol.file.allow=never", "fetch", "-q", "--depth=1", "origin", sha]),
+             ("checkout", ["git", "checkout", "-q", "--detach", "FETCH_HEAD"]),
+             ("head", ["git", "rev-parse", "HEAD"]))
+    for phase, command in steps:
+        try:
+            result = checkout_run(command, cwd=path, check=True, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, timeout=CHECKOUT_TIMEOUT_SECONDS)
+        except Exception as error:
+            try:
+                retain_checkout_failure(path, sha, phase, command, error)
+            except OSError as retention_error:
+                raise error from retention_error
+            raise
+    if result.stdout.decode('utf-8', 'replace').strip() != sha:
+        error = ValueError("Fetched checkout differs")
+        try:
+            retain_checkout_failure(path, sha, "head", command, error, result.stdout)
+        except OSError as retention_error:
+            raise error from retention_error
+        raise error
 
 
 def job_root():
@@ -328,7 +393,7 @@ def run_compiler(command, source, errors, marker, timeout=38 * 60):
     if group_running(process.pid):
         stop_compiler_group(process, marker)
     if process.returncode:
-        raise subprocess.CalledProcessError(process.returncode, command)
+        raise subprocess.CalledProcessError(process.returncode, command, output=output)
     return output
 
 
