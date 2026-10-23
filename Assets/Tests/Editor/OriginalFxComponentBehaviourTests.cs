@@ -450,7 +450,7 @@ namespace ProjectLucid.Tests
                     Call(switcher, "OnDisable");
                     Assert.That((standard.activeSelf, veryLow.activeSelf), Is.EqualTo((false, false)));
 
-                    // The highest level (Ultra, 5, in ProjectSettings/QualitySettings.asset)
+                    // The highest level (Very High, 4, in ProjectSettings/QualitySettings.asset)
                     // also shows m_default, which a "== 1 selects m_default" reading fails.
                     int highest = QualitySettings.names.Length - 1;
                     QualitySettings.SetQualityLevel(highest, false);

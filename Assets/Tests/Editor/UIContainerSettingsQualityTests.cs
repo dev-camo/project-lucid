@@ -22,7 +22,7 @@ namespace ProjectLucid.Tests
     // UniversalRenderPipelineAsset installed as the quality level's pipeline (the previous one is put back afterwards).
     // Each profile holds a device-locked feature (levels -200, 0, 200 for low, medium, high) and a free one (-100, 0, 100); the
     // high profile alone holds the render scale feature (low).
-    // The fixture swaps the global QualitySettings.renderPipeline for the owned asset (the project's own is none) and puts it
+    // The fixture swaps the global QualitySettings.renderPipeline for the owned asset (the project's own is a shipped URP asset) and puts it
     // back; this needs a clean native run with ProjectSettings unchanged and no unexpected error logs.
     // Not covered: the platform lists other than macOS, which this build never reads (SetPlatformPerformanceProfiles 0x67DFD0).
     public sealed class UIContainerSettingsQualityTests
