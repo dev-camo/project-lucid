@@ -182,7 +182,7 @@ class PipelineSelectionTests(unittest.TestCase):
     def fixture(self, directory):
         root, export = Path(directory).resolve() / "project", Path(directory).resolve() / "export"
         (root / "ProjectSettings").mkdir(parents=True)
-        for relative in ("ProjectSettings/QualitySettings.asset", "ProjectSettings/GraphicsSettings.asset",
+        for relative in ("ProjectSettings/QualitySettings.asset", "ProjectSettings/GraphicsSettings.asset", "ProjectSettings/ProjectSettings.asset",
                          "Assets/UniversalRenderPipelineGlobalSettings.asset", "Assets/UniversalRenderPipelineGlobalSettings.asset.meta"):
             target = root / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -212,7 +212,7 @@ class PipelineSelectionTests(unittest.TestCase):
 
     def test_wrong_selection_missing_or_unbound_closure_and_changed_settings_fail(self):
         for change in ("level-order", "default", "missing-row", "moved-row", "unbound", "no-scripts", "settings-data",
-                       "settings-script", "settings-selected", "settings-meta", "no-settings-binding"):
+                       "settings-script", "settings-selected", "settings-meta", "no-settings-binding", "color-space"):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 root, export, mapping, bound = self.fixture(directory)
                 quality, graphics = root / "ProjectSettings/QualitySettings.asset", root / "ProjectSettings/GraphicsSettings.asset"
@@ -231,6 +231,9 @@ class PipelineSelectionTests(unittest.TestCase):
                 elif change == "settings-selected": graphics.write_text(graphics.read_text().replace("c47d17c57ee26482b9be927eac28d91e", "0c710afde549a354ca370f9cef075d2b"))
                 elif change == "settings-meta": (root / "Assets/UniversalRenderPipelineGlobalSettings.asset.meta").write_text("guid: " + "e" * 32 + "\n")
                 elif change == "no-settings-binding": bound.pop(0)
+                elif change == "color-space":
+                    player = root / "ProjectSettings/ProjectSettings.asset"
+                    player.write_text(player.read_text().replace("  m_ActiveColorSpace: 1\n", "  m_ActiveColorSpace: 0\n"))
                 with self.assertRaises(ValueError):
                     check_pipeline_selection(root, mapping, bound, export)
 

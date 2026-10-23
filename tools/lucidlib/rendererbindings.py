@@ -289,6 +289,7 @@ SHIPPED_SETTINGS = ("0c710afde549a354ca370f9cef075d2b", "Assets/MonoBehaviour/Un
 SETTINGS_OWNER = (URP, "UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings")
 SRP_SETTINGS = re.compile(r"^  m_SRPDefaultSettings:\r?\n    UnityEngine\.Rendering\.Universal\.UniversalRenderPipeline: "
                           r"\{fileID: 11400000, guid: ([0-9a-f]{32}), type: 2\}\r?\n(?!    )", re.MULTILINE)
+COLOR_SPACE = re.compile(r"^  m_ActiveColorSpace: ([0-9]+)\r?$", re.MULTILINE)
 LEVEL_PIPELINE = re.compile(r"^    customRenderPipeline: \{fileID: 11400000, guid: ([0-9a-f]{32}), type: 2\}\r?$", re.MULTILINE)
 DEFAULT_PIPELINE = re.compile(r"^  m_CustomRenderPipeline: \{fileID: 11400000, guid: ([0-9a-f]{32}), type: 2\}\r?$", re.MULTILINE)
 
@@ -334,6 +335,12 @@ def check_pipeline_selection(repo_root, asset_map, bindings, exported_project):
     from .scriptbindings import _owned_file
 
     root = Path(repo_root)
+    # The shipped project is Linear. URP's pipeline constructor sets
+    # GraphicsSettings.lightsUseLinearIntensity from the active color space, so
+    # a Gamma project rewrites the shipped m_LightsUseLinearIntensity: 1 on disk.
+    player = _owned_file(root, "ProjectSettings/ProjectSettings.asset").read_text(encoding="utf-8")
+    if COLOR_SPACE.findall(player) != ["1"]:
+        raise ValueError("ProjectSettings do not select the shipped Linear color space")
     settings = check_global_settings(repo_root, exported_project, bindings)
     quality = _owned_file(root, "ProjectSettings/QualitySettings.asset").read_text(encoding="utf-8")
     graphics = _owned_file(root, "ProjectSettings/GraphicsSettings.asset").read_text(encoding="utf-8")
