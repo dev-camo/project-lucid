@@ -346,10 +346,15 @@ namespace ProjectLucid.Tests
                     Assert.That(material.GetColor("_Color"), Is.EqualTo(stored.GetColor("_Color")));
                     stored.SetColor("_Color", new Color(0.25f, 0.5f, 0.76f, 1f));
                     Assert.That(material.GetColor("_Color"), Is.Not.EqualTo(stored.GetColor("_Color")), "control: another colour differs");
+                    // The vector setter writes the same colour-typed property, which
+                    // the engine also stores in the active color space.
+                    binder.SetVector(new Vector4(0.1f, 0.2f, 0.3f, 0.4f));
+                    stored.SetVector("_Color", new Vector4(0.1f, 0.2f, 0.3f, 0.4f));
+                    Assert.That(material.GetVector("_Color"), Is.EqualTo(stored.GetVector("_Color")));
+                    stored.SetVector("_Color", new Vector4(0.1f, 0.2f, 0.31f, 0.4f));
+                    Assert.That(material.GetVector("_Color"), Is.Not.EqualTo(stored.GetVector("_Color")), "control: another vector differs");
                 }
                 finally { Object.DestroyImmediate(stored); }
-                binder.SetVector(new Vector4(0.1f, 0.2f, 0.3f, 0.4f));
-                Assert.That(material.GetVector("_Color"), Is.EqualTo(new Vector4(0.1f, 0.2f, 0.3f, 0.4f)));
 
                 Set(binder, "m_propertyId", Shader.PropertyToID("_MainTex"));
                 Assert.That(material.GetTexture("_MainTex"), Is.Not.SameAs(texture));
