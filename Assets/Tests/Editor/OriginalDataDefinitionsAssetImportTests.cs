@@ -63,7 +63,16 @@ namespace ProjectLucid.Tests.Editor
             "Game.Runtime::HardlightProject.DevicePerformance_macOS",
             "Game.Runtime::HardlightProject.DevicePerformance_tvOS",
             "HLModernUI.Runtime::Hardlight.UIHighlightDefinition",
-            "HLModernUI.Runtime::Hardlight.UIHighlight" };
+            "HLModernUI.Runtime::Hardlight.UIHighlight",
+            "Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset",
+            "Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalRendererData",
+            "Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings",
+            "Unity.RenderPipelines.Universal.Runtime::FullScreenPassRendererFeature",
+            "Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.DecalRendererFeature",
+            "Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.PostProcessData",
+            "Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.XRSystemData",
+            "Game.Runtime::HardlightProject.UIBlurRenderFeature",
+            "HLUnityCore.Runtime::Hardlight.ScalableFeature" };
 
         private sealed class Reference
         {
@@ -276,7 +285,7 @@ namespace ProjectLucid.Tests.Editor
                 Assert.That(prepared.input_fingerprint.sha256, Is.EqualTo(export.input_fingerprint.sha256));
                 Bindings proof = prepared.script_bindings;
                 Assert.That(proof, Is.Not.Null); Assert.That(proof.status, Is.EqualTo("verified_layout")); Assert.That(proof.references_modified, Is.True);
-                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(765));
+                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(811));
                 Assert.That(proof.source_fingerprint, Is.EqualTo(ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false)), "Preparation must belong to this complete current source.");
                 observed.SourceRoot = root; observed.SourceFingerprint = proof.source_fingerprint;
                 Assert.That(IsHash(proof.comparison_sha256), Is.True);
@@ -464,7 +473,7 @@ namespace ProjectLucid.Tests.Editor
 
         private static void AssertOwners(Bindings proof)
         {
-            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(33));
+            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(42));
             var actual = new HashSet<string>(StringComparer.Ordinal);
             foreach (Binding binding in proof.bindings)
             {

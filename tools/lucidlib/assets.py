@@ -984,6 +984,29 @@ def _restore_swapped_directories(swapped: list[tuple[Path, Path | None]], locati
         backup_dir.rmdir()
 
 
+def _render_pipeline(repo: Path, project: Path, mapping: dict, bindings: list, input_fingerprint: dict) -> dict:
+    """Check the selected render pipeline and map its shader slots to package shaders.
+
+    For the release the binding rules were verified on, the committed
+    ProjectSettings' pipeline and its whole closure must be mapped and rebound
+    before anything is staged. Other inputs (and fixtures) have no pipeline rules.
+    """
+    from .rendererbindings import PROFILES, check_pipeline_selection, pass_material_shader_gaps, package_shader_map
+    from .scriptbindings import BINDING_INPUT
+    critical = (input_fingerprint or {}).get("critical_files", {})
+    release = (critical.get("Contents/Frameworks/GameAssembly.dylib") == BINDING_INPUT["binary_sha256"] and
+               critical.get("Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat") == BINDING_INPUT["metadata_sha256"])
+    result = {"status": "not_applicable", "shader_map": {}}
+    if release:
+        result.update(check_pipeline_selection(repo, mapping, bindings, project))
+    if any((row.get("assembly"), row.get("full_name")) in PROFILES for row in bindings):
+        shaders = package_shader_map(repo, project, mapping)
+        result.update(shader_map=shaders["map"], package_shader_count=shaders["package_shader_count"],
+                      mapped_exported_shaders=len(shaders["map"]),
+                      pass_material_shader_gaps=pass_material_shader_gaps(project, mapping, shaders["map"]))
+    return result
+
+
 def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     """Promote data and authored StreamingAssets while excluding generated code."""
     repo = _physical_path(repo_root).resolve(strict=True)
@@ -1011,6 +1034,8 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     script_bindings = resolve_bindings(repo, work, project, mapping, input_fingerprint=report["input_fingerprint"])
     bindings = script_bindings["bindings"]
     bound_guids = {row["exported_guid"] for row in bindings}
+    render_pipeline = _render_pipeline(repo, project, mapping, bindings, report["input_fingerprint"])
+    shader_map = render_pipeline.pop("shader_map")
     mapped_assets = {row["path"]: row for row in mapping["assets"]}
     quarantined_guids = {row["guid"] for row in mapping["assets"] if row["code_quarantined"]}
     shader_guids = {row["guid"] for row in mapping["assets"] if row.get("shader_quarantined")}
@@ -1050,12 +1075,16 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                         meta_guids = GUID.findall(path.with_name(path.name + ".meta").read_text(encoding="utf-8"))
                         if meta_guids != [row["guid"]]:
                             raise ValueError("Rebound asset metadata differs from its asset map: " + row["path"])
-                        rewritten, count = rewrite_prepared_script_pointers(output.read_bytes(), bindings)
+                        shader_log = []
+                        rewritten, count = rewrite_prepared_script_pointers(output.read_bytes(), bindings, shader_map, shader_log)
                         if not count:
                             raise ValueError("Mapped script reference is absent from exported asset: " + row["path"])
                         output.write_bytes(rewritten)
-                        rebound_assets.append({"path": row["path"], "guid": row["guid"], "pointers_rewritten": count,
-                                               "exported_sha256": sha256_file(path), "prepared_sha256": sha256_file(output)})
+                        rebound = {"path": row["path"], "guid": row["guid"], "pointers_rewritten": count,
+                                   "exported_sha256": sha256_file(path), "prepared_sha256": sha256_file(output)}
+                        if shader_log:
+                            rebound["shader_slots"] = shader_log
+                        rebound_assets.append(rebound)
                     copied += 1
             audio_reports[destination.name] = normalize_audio(stage)
             if destination.name == "StreamingAssets":
@@ -1091,6 +1120,9 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                       "streaming_bundle_normalization": bundle_report,
                       "backup_paths": [str(path) for path in backups], "quarantined_script_guids": dangling,
                       "script_bindings": {**script_bindings, "references_modified": bool(rebound_assets), "assets": rebound_assets},
+                      "render_pipeline": dict(render_pipeline, unresolved_shader_slots=sorted(
+                          {(entry["slot"], entry["exported_guid"]) for asset in rebound_assets
+                           for entry in asset.get("shader_slots", []) if entry["package_guid"] is None})),
                       "quarantined_shader_guids": sorted(shader_guids),
                       "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",
                                    "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",

@@ -151,7 +151,7 @@ class HighlightTests(unittest.TestCase):
 
 class BootDataRosterTests(unittest.TestCase):
     def test_roster_and_sources(self):
-        self.assertEqual(33, len(RULES))
+        self.assertEqual(42, len(RULES))
         self.assertEqual(["HardlightProject.TimeCategoryLookup", "HardlightProject.DevicePerformanceGroup",
                           "HardlightProject.DevicePerformance_iOS", "HardlightProject.DevicePerformance_macOS",
                           "HardlightProject.DevicePerformance_tvOS", "Hardlight.UIHighlightDefinition", "Hardlight.UIHighlight"],

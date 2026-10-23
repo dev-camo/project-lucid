@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import struct
+import sys
 from pathlib import Path
 import re
 
@@ -442,6 +443,102 @@ TMP_PACKAGE_RULES = tuple({
 } for name in ("TMP_StyleSheet", "TMP_SpriteAsset", "TMP_Settings", "TMP_FontAsset"))
 RULES += TMP_PACKAGE_RULES
 
+# The render pipeline the shipped QualitySettings and GraphicsSettings select.
+# URP 14.0.11 is a builtin package locked to the Editor; pin its lock entry,
+# descriptor and the serialized closure of each bound type, plus
+# Documentation.cs, whose [Conditional("UNITY_EDITOR")] URPHelpURL is one of
+# the Editor-only differences the player plane accounts for.
+URP_VERSION = "14.0.11"
+URP_LOCK = {"version": URP_VERSION, "depth": 0, "source": "builtin",
+            "dependencies": {"com.unity.mathematics": "1.2.1", "com.unity.burst": "1.8.9",
+                             "com.unity.render-pipelines.core": "14.0.11", "com.unity.shadergraph": "14.0.11",
+                             "com.unity.render-pipelines.universal-config": "14.0.9"}}
+URP_PACKAGE_SHA256 = "b3e4967f5cadc53cefd0cc3de1aa4aef1a7225be0b6996e98ca174a9f0197bb2"
+URP_RUNTIME_SOURCES = {
+    "Packages/com.unity.render-pipelines.universal/Runtime/Unity.RenderPipelines.Universal.Runtime.asmdef": "36c3b5793d189f6781073e279af8fdfdb8ce4bbaa33df3a94170a0bcbadca063",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Documentation.cs": "6b0c1733156454dc371d3e0f6489e78063155956d1a9a6986be38943b1631246",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Data/UniversalRenderPipelineAsset.cs": "53c371693601b65a3351e234870ecb025fdcb6633b3e356289da4a5ab97cb659",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Data/UniversalRenderPipelineAssetPrefiltering.cs": "4ceb2dda0fceaca914fad0dbcae34b391f050502ab80931a14e54a79cdf48575",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Deprecated.cs": "09c88fe7fde2ae534ff6e87b32a73a3ddb5d9c9cbc1d710b136276718baa6953",
+    "Packages/com.unity.render-pipelines.universal/Runtime/ScriptableRendererData.cs": "734945757162e043129506cb396cacba9b86a2a299a22bb19928b3638fdb74c1",
+    "Packages/com.unity.render-pipelines.universal/Runtime/ScriptableRendererFeature.cs": "ac767233a46bfff3550d630ea10da835209b6c0d240e242ca0d88e5ef55c24cb",
+    "Packages/com.unity.render-pipelines.universal/Runtime/UniversalRendererData.cs": "2117fed5c05af311aaa7198b249b3fb5bfbe732b7a44f1fe902283cfbf604800",
+    "Packages/com.unity.render-pipelines.universal/Runtime/UniversalRenderer.cs": "fdd7dfcd1b11b818af52518e210710b68b9b88b89c161ae79a6fd08e1316a4b6",
+    "Packages/com.unity.render-pipelines.universal/Runtime/IntermediateTextureMode.cs": "6004710b91d8618fb2651c10bbec6dd473d23a43a3e45c6590d2029dad352957",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Data/RenderStateData.cs": "af36c9c33b8cee09732e4e2010cdff9cfa34e54c10e8b91221c294e4f2402f2d",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Passes/ScriptableRenderPass.cs": "95229745e1be43c23a5137a0e27bb152f5f0ead9ef9f04d794cfc5afd2a7b175",
+    "Packages/com.unity.render-pipelines.universal/Runtime/RendererFeatures/FullScreenPassRendererFeature.cs": "6983fa8a5a3af3a4e2fbc3595cec8fe7460dc009c343d61e249dd196f3208c6a",
+    "Packages/com.unity.render-pipelines.universal/Runtime/RendererFeatures/FullScreenPassRendererFeature.migration.cs": "2f5758a7217e7ce5e0d30a4b76bee8b5cc5b441a18be5a9f21527f7d6d86618b",
+    "Packages/com.unity.render-pipelines.universal/Runtime/RendererFeatures/DecalRendererFeature.cs": "00c4a7ed10729d43ded2cedfe508731164f7f31dedbbc161d09311990efbc758",
+    "Packages/com.unity.render-pipelines.universal/Runtime/RendererFeatures/DisallowMultipleRendererFeature.cs": "28f887e438ce0057b07e7e041534408305639a185d254a999ae2a18c93cd4c66",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Data/PostProcessData.cs": "8c9e48d2170198bb6fb7b283a36f9f99c5fcff969bc5cc278ead48f76ab43ff0",
+    "Packages/com.unity.render-pipelines.universal/Runtime/Data/XRSystemData.cs": "55105c9db6925e635dd2053551702f684e77d5f42e5cb259ed1e2dd892d9071b",
+    "Packages/com.unity.render-pipelines.universal/Runtime/UniversalRenderPipelineGlobalSettings.cs": "9d02ae2f4a820a8c2f770fda78d6d0d448c78fc3ffec908e2930c3d1d3a7309b",
+    "Packages/com.unity.render-pipelines.universal/Runtime/UniversalRenderPipelineGlobalSettings.ShaderVariantSettings.cs": "015a54794fe6f599ae3e86e67855444f12bf8695b560a47dd49d7b50247ea046",
+}
+_URP_EXPORT = "Assets/Scripts/Unity.RenderPipelines.Universal.Runtime/"
+_URP_PACKAGE = "Packages/com.unity.render-pipelines.universal/Runtime/"
+# layout_plane "player": the Editor's declarations carry UNITY_EDITOR-only
+# members, so the verdict comes from the genuine player compilation (see
+# playerlayouts); the Editor candidate still supplies the loaded MonoScript.
+# FullScreenPassRendererFeature binds to the package script itself:
+# FullscreenShaderManager looks its feature up by exact type.
+URP_PACKAGE_RULES = tuple({
+    "assembly": "Unity.RenderPipelines.Universal.Runtime",
+    "full_name": full_name,
+    "export_path": _URP_EXPORT + export,
+    "maintained_path": _URP_PACKAGE + maintained,
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
+    "package": "com.unity.render-pipelines.universal",
+    "runtime_sources": URP_RUNTIME_SOURCES,
+    **({"layout_plane": "player"} if player else {}),
+} for full_name, export, maintained, player in (
+    ("UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset", "UnityEngine/Rendering/Universal/UniversalRenderPipelineAsset.cs",
+     "Data/UniversalRenderPipelineAsset.cs", True),
+    ("UnityEngine.Rendering.Universal.UniversalRendererData", "UnityEngine/Rendering/Universal/UniversalRendererData.cs",
+     "UniversalRendererData.cs", True),
+    ("UnityEngine.Rendering.Universal.UniversalRenderPipelineGlobalSettings",
+     "UnityEngine/Rendering/Universal/UniversalRenderPipelineGlobalSettings.cs", "UniversalRenderPipelineGlobalSettings.cs", True),
+    ("FullScreenPassRendererFeature", "FullScreenPassRendererFeature.cs", "RendererFeatures/FullScreenPassRendererFeature.cs", True),
+    ("UnityEngine.Rendering.Universal.DecalRendererFeature", "UnityEngine/Rendering/Universal/DecalRendererFeature.cs",
+     "RendererFeatures/DecalRendererFeature.cs", True),
+    ("UnityEngine.Rendering.Universal.PostProcessData", "UnityEngine/Rendering/Universal/PostProcessData.cs",
+     "Data/PostProcessData.cs", False),
+    ("UnityEngine.Rendering.Universal.XRSystemData", "UnityEngine/Rendering/Universal/XRSystemData.cs", "Data/XRSystemData.cs", False),
+))
+RULES += URP_PACKAGE_RULES
+
+# The game's renderer feature (renderer index 1, Renderer_UI) and the scalable
+# performance features that name the renderer-feature and render-scale tiers.
+RENDER_FEATURE_SOURCES = {
+    "Assets/Scripts/Game/RenderFeature/UIBlurRenderFeature.cs": "3a09c1198274bd025d26b531d8575e88c10b6536841fbc71d88a17dc07922f3d",
+    "Assets/Scripts/RecoveredProof/Game.Runtime.asmdef": "b234684d1289ae1bc0a8bfc843f941b8bcf5f578f614a6e01c15d1348e9271a0",
+    "Packages/com.hardlight.hlunitycore/Runtime/Il2CppSetOptionAttribute.cs": "138cbbdeccb4c6c6cdf5d08e248e06dc8419cff250de803582194df39893e945",
+}
+SCALABLE_FEATURE_SOURCES = {
+    "Packages/com.hardlight.hlunitycore/Runtime/Performance/ScalableFeature.cs": "d0635ab9900049fbbc0379c5cff8d4c9b456583e02cec80138de4eb7529ce34b",
+    "Packages/com.hardlight.hlunitycore/Runtime/HLUnityCore.Runtime.asmdef": "b9f3210d5cca9f7b7cc5bc458defe0e14e8df1486a17b29e517332c476347973",
+}
+RENDER_GAME_RULES = ({
+    "assembly": "Game.Runtime",
+    "full_name": "HardlightProject.UIBlurRenderFeature",
+    "export_path": "Assets/Scripts/Game.Runtime/HardlightProject/UIBlurRenderFeature.cs",
+    "maintained_path": "Assets/Scripts/Game/RenderFeature/UIBlurRenderFeature.cs",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
+    "runtime_sources": RENDER_FEATURE_SOURCES,
+}, {
+    "assembly": "HLUnityCore.Runtime",
+    "full_name": "Hardlight.ScalableFeature",
+    "export_path": "Assets/Scripts/HLUnityCore.Runtime/Hardlight/ScalableFeature.cs",
+    "maintained_path": "Packages/com.hardlight.hlunitycore/Runtime/Performance/ScalableFeature.cs",
+    "binary_sha256": BINDING_INPUT["binary_sha256"],
+    "metadata_sha256": BINDING_INPUT["metadata_sha256"],
+    "runtime_sources": SCALABLE_FEATURE_SOURCES,
+})
+RULES += RENDER_GAME_RULES
+
 GUID = re.compile(r"^guid:\s*([0-9a-f]{32})\s*$", re.MULTILINE)
 DOCUMENT = re.compile(r"^--- !u!(?P<class>\d+) &-?\d+\r?\n(?P<label>\w+):\r?\n(?P<fields>.*?)(?=^--- !u!|\Z)", re.MULTILINE | re.DOTALL)
 POINTER = re.compile(r"^(?P<prefix>  m_Script: *)\{(?P<body>[^}\r\n]*)\}(?P<trailer> *\r?$)", re.MULTILINE)
@@ -477,11 +574,13 @@ def _package_identity(name):
         return "1.0.0", UGUI_LOCK, UGUI_PACKAGE_SHA256, True
     if name == "com.unity.textmeshpro":
         return TMP_VERSION, TMP_LOCK, TMP_PACKAGE_SHA256, False
+    if name == "com.unity.render-pipelines.universal":
+        return URP_VERSION, URP_LOCK, URP_PACKAGE_SHA256, True
     raise ValueError("Unsupported approved script package identity")
 
 
 def _script_file(root, relative, rule):
-    """Resolve only the reviewed UI and TextMeshPro packages; never arbitrary packages."""
+    """Resolve only the reviewed UI, TextMeshPro and URP packages; never arbitrary packages."""
     if "package" not in rule:
         return _owned_file(root, relative)
     name = rule["package"]
@@ -501,6 +600,42 @@ def _script_file(root, relative, rule):
     if not suffix or any(part in ("", ".", "..") for part in suffix.split("/")):
         raise ValueError("Unsupported approved script package path")
     return _owned_file(package, suffix)
+
+
+def _host_player_target():
+    """The standalone player target this Editor host builds by default."""
+    return {"darwin": "macos", "win32": "windows"}.get(sys.platform, "linux")
+
+
+def _player_plane(root, work, current, schema, schema_digest, summary):
+    """Compile the current source as a player and compare its layouts with the original.
+
+    The player compile and its metadata inventory are fresh for exactly this
+    source; the Editor inventory is the one this resolution just made.
+    """
+    from . import playercode, playerlayouts, playerschema
+    target = _host_player_target()
+    playercode.run_player_code(root, work, target)
+    published = playerschema.run_player_schema(root, work, target, playerschema.URP_PROFILE)
+    report_path = Path(published["report_path"])
+    if work.resolve() not in report_path.resolve().parents or report_path.is_symlink():
+        raise ValueError("Player schema lies outside the generated work directory")
+    report_bytes = report_path.read_bytes()
+    report = json.loads(report_bytes)
+    if (report.get("status") != "metadata-ready" or report.get("identity_status") != "complete" or
+            report.get("profile") != playerschema.URP_PROFILE or report.get("target") != target or
+            report.get("source_fingerprint") != current or artifact_fingerprint(root) != current):
+        raise ValueError("Player schema is stale or incomplete for the maintained source")
+    inventory_path = Path(summary["inventory_path"])
+    if work.resolve() not in inventory_path.resolve().parents or inventory_path.is_symlink():
+        raise ValueError("Editor inventory lies outside the generated work directory")
+    inventory_bytes = inventory_path.read_bytes()
+    inventory = json.loads(inventory_bytes)
+    if inventory.get("source_fingerprint") != current or inventory.get("original_schema_sha256") != schema_digest:
+        raise ValueError("Editor inventory is stale for the player-plane comparison")
+    result = playerlayouts.compare_player_plane(schema, report, inventory, playerschema.URP_ROOTS)
+    return dict(result, report_path=str(report_path), report_sha256=hashlib.sha256(report_bytes).hexdigest(),
+                inventory_sha256=hashlib.sha256(inventory_bytes).hexdigest(), target=target)
 
 
 def resolve_bindings(repo_root, work_dir, exported_project, asset_map, *, input_fingerprint=None):
@@ -575,11 +710,23 @@ def resolve_bindings(repo_root, work_dir, exported_project, asset_map, *, input_
     current = artifact_fingerprint(root)
     if comparison.get("source_fingerprint") != current or summary.get("source_fingerprint") != current:
         raise ValueError("Script layout proof is stale for maintained source")
+    player = None
+    if any(rule.get("layout_plane") == "player" for rule, _, _, _ in selected):
+        player = _player_plane(root, work, current, schema, schema_digest, summary)
     bindings = []
     for rule, original, source, raw in selected:
         candidates = [c for c in comparison.get("candidates", [])
                       if c.get("assembly") == rule["assembly"] and c.get("full_name") == rule["full_name"]]
-        if len(candidates) != 1 or candidates[0].get("status") != "compatible_layout" or candidates[0].get("issues"):
+        if rule.get("layout_plane", "editor") not in ("editor", "player"):
+            raise ValueError("Unsupported script layout plane: " + rule["full_name"])
+        if rule.get("layout_plane") == "player":
+            # The Editor plane carries UNITY_EDITOR-only members by construction;
+            # it still identifies the loaded MonoScript, while the verdict is the
+            # player plane's (which includes the Editor guard).
+            verdict = player["verdicts"].get((rule["assembly"], rule["full_name"]))
+            if len(candidates) != 1 or verdict is None or verdict["status"] != "compatible_layout" or verdict["issues"]:
+                raise ValueError("Original script player layout is unresolved: " + rule["full_name"])
+        elif len(candidates) != 1 or candidates[0].get("status") != "compatible_layout" or candidates[0].get("issues"):
             raise ValueError("Original script layout is unresolved: " + rule["full_name"])
         candidate = candidates[0]
         scripts = candidate.get("loaded_scripts", [])
@@ -606,10 +753,16 @@ def resolve_bindings(repo_root, work_dir, exported_project, asset_map, *, input_
                          "target_guid": target["guid"], "target_file_id": target["file_id"],
                          "original_token": candidate["original_token"], "source_sha256": digest,
                          "exported_source_sha256": hashlib.sha256(raw.read_bytes()).hexdigest()})
-    return {"status": "verified_layout", "bindings": bindings, "references_modified": False,
-            "source_fingerprint": current, "comparison_path": str(comparison_path),
-            "comparison_sha256": hashlib.sha256(comparison_bytes).hexdigest(),
-            "original_schema_sha256": comparison.get("original_schema_sha256")}
+    result = {"status": "verified_layout", "bindings": bindings, "references_modified": False,
+              "source_fingerprint": current, "comparison_path": str(comparison_path),
+              "comparison_sha256": hashlib.sha256(comparison_bytes).hexdigest(),
+              "original_schema_sha256": comparison.get("original_schema_sha256")}
+    if player is not None:
+        result["player_plane"] = {
+            "target": player["target"], "report_path": player["report_path"], "report_sha256": player["report_sha256"],
+            "editor_inventory_sha256": player["inventory_sha256"], "editor_only": player["editor_only"],
+            "verdicts": {key[0] + ":" + key[1]: value["status"] for key, value in player["verdicts"].items()}}
+    return result
 
 
 
@@ -737,10 +890,16 @@ def rewrite_script_pointers(content, bindings):
     return rewritten.encode("utf-8"), changes
 
 
-def rewrite_prepared_script_pointers(content, bindings):
-    """Route only the qualified configuration, TextMeshPro and component script identities."""
+def rewrite_prepared_script_pointers(content, bindings, shaders=None, shader_log=None):
+    """Route only the qualified configuration, TextMeshPro, component and renderer script identities.
+
+    ``shaders`` maps exported compiled shader GUIDs to URP package shader GUIDs
+    for the render pipeline profiles' shader slots; ``shader_log`` collects
+    each slot they visit.
+    """
     from .componentbindings import PROFILES as COMPONENT_PROFILES, rewrite_component_pointers
     from .configurationbindings import PROFILES, rewrite_configuration_pointers
+    from .rendererbindings import PROFILES as RENDERER_PROFILES, rewrite_renderer_pointers
     from .textmeshprobindings import PROFILES as TMP_PROFILES, rewrite_textmeshpro_pointers
 
     if len({row["exported_guid"] for row in bindings}) != len(bindings):
@@ -749,15 +908,17 @@ def rewrite_prepared_script_pointers(content, bindings):
     configuration = [row for row in bindings if owner(row) in PROFILES]
     textmeshpro = [row for row in bindings if owner(row) in TMP_PROFILES]
     component = [row for row in bindings if owner(row) in COMPONENT_PROFILES]
+    renderer = [row for row in bindings if owner(row) in RENDERER_PROFILES]
     scalar = [row for row in bindings if owner(row) not in PROFILES and owner(row) not in TMP_PROFILES
-              and owner(row) not in COMPONENT_PROFILES]
+              and owner(row) not in COMPONENT_PROFILES and owner(row) not in RENDERER_PROFILES]
     # Select by script field lines first. The profile helpers' stricter
     # standalone/control guards must not apply to unrelated scalar documents.
     text = content.decode("utf-8")
     script_lines = re.findall(r"^[ \t]*m_Script:[^\r\n]*", text, re.MULTILINE)
     rewritten, changes = content, 0
+    renderer_rewrite = lambda data, rows: rewrite_renderer_pointers(data, rows, {} if shaders is None else shaders, shader_log)
     for rows, rewrite in ((configuration, rewrite_configuration_pointers), (textmeshpro, rewrite_textmeshpro_pointers),
-                          (component, rewrite_component_pointers)):
+                          (component, rewrite_component_pointers), (renderer, renderer_rewrite)):
         if any(row["exported_guid"] in line.lower() for row in rows for line in script_lines):
             rewritten, count = rewrite(rewritten, rows)
             changes += count

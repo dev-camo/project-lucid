@@ -2147,6 +2147,13 @@ EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalBootDataPreparedAssetTests.PreparedHighlightPrefabsKeepTheirDefinitions',
 )
 
+# The shipped quality levels select the prepared URP assets; FullscreenShaderManager's
+# exact-type renderer feature lookups find their features on renderers 0 and 1.
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.Editor.OriginalRenderPipelineSelectionTests.EveryShippedQualityLevelSelectsItsPreparedPipelineAsset',
+    'ProjectLucid.Tests.Editor.OriginalRenderPipelineSelectionTests.FullscreenShaderManagerLookupsFindTheirExactFeaturesAtEveryLevel',
+)
+
 # Owned closed storage and callbacks; supplied group payloads require separate qualification.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.Editor.OriginalStateMachinesGroupSerializationTests.ClosedStateMachinesGroupRetainsThreeArgumentElementAndOriginalConstraints',
