@@ -208,6 +208,54 @@ def _generic_parameters(record: dict) -> Tuple[Any, ...]:
 _GENERIC_DATA_DEPTH = 10
 
 
+def _builtin_struct_specs():
+    """The literal 2022.3.54f1 declarations of the engine structs URP serializes.
+
+    Recorded from the shipped IL2CPP schema and the installed CoreModule; each
+    side must match every row. LayerMask's only field is private and carries
+    NativeName("m_Bits"): the engine stores it natively as a BitField, so it has
+    no managed serialization candidate on either side.
+    """
+    single, vector3 = ("named", "mscorlib", "System.Single"), ("named", "UnityEngine.CoreModule", "UnityEngine.Vector3")
+    shared = "UnityEngine.SharedInternalsModule"
+    header = lambda path: (shared, "UnityEngine.Bindings.NativeHeaderAttribute", (("primitive", "IL2CPP_TYPE_STRING", path),), ())
+    required = (shared, "UnityEngine.Scripting.RequiredByNativeCodeAttribute", (),
+                (("properties", "GenerateProxy", ("primitive", "IL2CPP_TYPE_BOOLEAN", True)),
+                 ("properties", "Optional", ("primitive", "IL2CPP_TYPE_BOOLEAN", True))))
+    statics = ("zeroVector", "oneVector", "upVector", "downVector", "leftVector", "rightVector",
+               "forwardVector", "backVector", "positiveInfinityVector", "negativeInfinityVector")
+    vector3_spec = {
+        "attributes": tuple(sorted((
+            ("UnityEngine.CoreModule", "Unity.IL2CPP.CompilerServices.Il2CppEagerStaticClassConstructionAttribute", (), ()),
+            header("Runtime/Math/MathScripting.h"), header("Runtime/Math/Vector3.h"),
+            (shared, "UnityEngine.Bindings.NativeTypeAttribute", (),
+             (("properties", "Header", ("primitive", "IL2CPP_TYPE_STRING", "Runtime/Math/Vector3.h")),)),
+            (shared, "UnityEngine.NativeClassAttribute", (("primitive", "IL2CPP_TYPE_STRING", "Vector3f"),), ()),
+            required,
+            ("mscorlib", "System.Reflection.DefaultMemberAttribute", (("primitive", "IL2CPP_TYPE_STRING", "Item"),), ())), key=repr)),
+        "fields": (("kEpsilon", 32854, single, (), 1e-5), ("kEpsilonNormalSqrt", 32854, single, (), 1e-15),
+                   ("x", 6, single, (), None), ("y", 6, single, (), None), ("z", 6, single, (), None)) +
+                  tuple((name, 49, vector3, (), None) for name in statics),
+        "candidates": ("x", "y", "z"),
+    }
+    layer_mask_spec = {
+        "attributes": tuple(sorted((
+            header("Runtime/BaseClasses/BitField.h"), header("Runtime/BaseClasses/TagManager.h"),
+            (shared, "UnityEngine.NativeClassAttribute",
+             (("primitive", "IL2CPP_TYPE_STRING", "BitField"), ("primitive", "IL2CPP_TYPE_STRING", "struct BitField;")), ()),
+            required), key=repr)),
+        "fields": (("m_Mask", 1, ("named", "mscorlib", "System.Int32"),
+                    ((shared, "UnityEngine.Bindings.NativeNameAttribute", (("primitive", "IL2CPP_TYPE_STRING", "m_Bits"),), ()),),
+                    None),),
+        "candidates": (),
+    }
+    return {("UnityEngine.CoreModule", "UnityEngine.Vector3"): vector3_spec,
+            ("UnityEngine.CoreModule", "UnityEngine.LayerMask"): layer_mask_spec}
+
+
+_BUILTIN_STRUCTS = _builtin_struct_specs()
+
+
 def _engine_module(assembly: str) -> bool:
     """The Unity engine's own module assemblies, not packages such as UnityEngine.UI."""
     return assembly == "UnityEngine" or (assembly.startswith("UnityEngine.") and assembly.endswith("Module"))
@@ -410,6 +458,8 @@ class _Comparison:
                     issue("type_attributes_mismatch", owner)
                 if as_field and owner == ("UnityEngine.CoreModule", "UnityEngine.Vector2"):
                     self._vector2_data_contract(owner)
+                if as_field and owner in _BUILTIN_STRUCTS:
+                    self._builtin_struct_contract(owner)
                 # PPtr storage ends at the reference boundary. Prove both
                 # complete, closed, scoped ancestry graphs before traversing
                 # an inherited component's payload as inline serialized data.
@@ -585,15 +635,69 @@ class _Comparison:
                     raise LayoutError("Vector2 nonconstant has an unexpected default: " + field["name"])
         return True
 
-    def _unity_2022_builtin_value(self, key):
-        """Apply only Unity 2022.3.54f1's observed explicit Vector2 rule.
+    def _builtin_struct_contract(self, key):
+        """Prove one complete literal engine struct declaration on both graphs.
 
-        UnityEngineTypePredicates lists Vector2 under types that should have
-        had Serializable; UnitySerializationLogic separately uses that list
-        for inline value eligibility. Do not infer eligibility for other structs.
-        This predicate never alters fields, flags, references or input records.
+        The same obligation as the Vector2 contract, for the engine structs in
+        _BUILTIN_STRUCTS: exact name, flags, ValueType base, the complete CAD
+        set, every declared field in order with its flags, type, CAD and
+        constant, and the serialization candidates. Anything else is refused.
         """
-        return self.unity_versions == ("2022.3.54f1", "2022.3.54f1") and self._vector2_data_contract(key)
+        spec = _BUILTIN_STRUCTS.get(key)
+        if spec is None:
+            return False
+        left, right = self.original.get(key), self.loaded.get(key)
+        if left is None or right is None:
+            raise LayoutError("Missing dual builtin struct declaration: " + key[1])
+        names = tuple(field[0] for field in spec["fields"])
+        for record, original in ((left, True), (right, False)):
+            if (record.get("assembly"), record.get("full_name")) != key or (
+                    record.get("namespace"), record.get("name")) != tuple(key[1].rsplit(".", 1)):
+                raise LayoutError("Builtin struct declaration identity differs: " + key[1])
+            # 0x100109 is the shipped and installed flag value: no Serializable bit.
+            if type(record.get("attributes")) is not int or record["attributes"] != 0x100109:
+                raise LayoutError("Builtin struct declaration flags differ: " + key[1])
+            if (record.get("is_value_type") is not True or record.get("is_enum") is not False or
+                    record.get("is_abstract") is not False or "declaring_type" not in record or record["declaring_type"] is not None or
+                    record.get("unity_component") is not False or record.get("unity_scriptable_object") is not False or
+                    record.get("generic_parameters") != [] or "enum_underlying_type" not in record or record["enum_underlying_type"] is not None):
+                raise LayoutError("Builtin struct declaration shape differs: " + key[1])
+            if type_identity(record.get("base_type")) != ("named", "mscorlib", "System.ValueType"):
+                raise LayoutError("Builtin struct declaration has an invalid scoped ValueType base: " + key[1])
+            candidates = _candidate_fields(record, require_string_evidence=original)
+            if _attributes(record, require_string_evidence=original) != spec["attributes"]:
+                raise LayoutError("Builtin struct type attributes differ: " + key[1])
+            fields = record["fields"]
+            if tuple(field["name"] for field in fields) != names or tuple(field["name"] for field in candidates) != spec["candidates"]:
+                raise LayoutError("Builtin struct complete declared field order differs: " + key[1])
+            for field, (name, flags, identity, attributes, constant) in zip(fields, spec["fields"]):
+                if field["attributes"] != flags or type_identity(field["field_type"]) != identity:
+                    raise LayoutError("Builtin struct declared field flags/type differ: " + name)
+                if _attributes(field, require_string_evidence=original) != attributes or field["serialize_reference"] is not False:
+                    raise LayoutError("Builtin struct declared field attributes differ: " + name)
+                if field.get("has_default_value") is not (constant is not None) or field.get("default_value_complete") is not True:
+                    raise LayoutError("Builtin struct declared field default evidence is incomplete: " + name)
+                if constant is not None:
+                    if (type(field.get("default_value")) is not float or field["default_value"] != constant or
+                            type_identity(field.get("default_value_type")) != identity):
+                        raise LayoutError("Builtin struct constant differs: " + name)
+                elif ("default_value" not in field or "default_value_type" not in field or
+                      field["default_value"] is not None or field["default_value_type"] is not None):
+                    raise LayoutError("Builtin struct nonconstant has an unexpected default: " + name)
+        return True
+
+    def _unity_2022_builtin_value(self, key):
+        """Apply only Unity 2022.3.54f1's observed explicit builtin struct rules.
+
+        UnityEngineTypePredicates lists Vector2, Vector3 and LayerMask under
+        types that should have had Serializable; UnitySerializationLogic
+        separately uses that list for inline value eligibility (the installed
+        serializer reports WillUnitySerialize for URP's Vector3 and LayerMask
+        fields). Do not infer eligibility for other structs. This predicate
+        never alters fields, flags, references or input records.
+        """
+        return self.unity_versions == ("2022.3.54f1", "2022.3.54f1") and (
+            self._vector2_data_contract(key) or self._builtin_struct_contract(key))
 
     def _unserialized_class(self, left, right):
         """Prove a field type is a plain class Unity2022 never serializes.
@@ -634,7 +738,7 @@ class _Comparison:
         # A literal, complete Vector2 value declaration is outside PPtr.
         # This initial-key check does not run while proving Object ancestry;
         # a malformed reference class inheriting Vector2 remains rejected.
-        if self._vector2_data_contract(key):
+        if self._vector2_data_contract(key) or self._builtin_struct_contract(key):
             return False
         seen = set()
         # Only a declaration reached through a closed generic instance (a base,
