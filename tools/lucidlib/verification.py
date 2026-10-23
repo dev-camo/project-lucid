@@ -338,6 +338,7 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.InputCallbackRoutingTests.OriginalDeviceRoutingFrameConsumptionAndSubscriptionLifetimesRemainIntact",
     "ProjectLucid.Tests.EditMode.InputDisableScopeTests.OriginalDisableScopesCallbacksAndInterruptedShutdownRemainIntact",
     "ProjectLucid.Tests.EditMode.InputMetadataPreservationTests.OriginalInputSlotsAndStrictRefusalsMatchTheLoadedModule",
+    "ProjectLucid.Tests.EditMode.AppleInputMetadataPreservationTests.SourceApplePluginControllerProviderGettersKeepTheirOriginalSlotFlags",
     "ProjectLucid.Tests.EditMode.AppRatingBehaviorTests.UnsupportedProviderRemainsSelectedAndSilent",
     "ProjectLucid.Tests.EditMode.AppRatingNativeBindingTests.MacOSNativeBindingDeclarationRemainsPreserved",
 )

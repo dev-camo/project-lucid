@@ -22,6 +22,9 @@ namespace Hardlight
     {
         private SourceApplePluginController m_sourceApplePluginController;
 
+        // Original 0x0600003f and 0x06000040 are final virtual newslot (0x09e6, slots 7 and 8); the
+        // stripped interface cannot produce that, so ApplePluginProviderFlagsPostProcessor restores
+        // the flags after compilation without invented interface members.
         // Original 0x0600003f
         public IApplePluginControllerInputKeySource KeySource
         {
