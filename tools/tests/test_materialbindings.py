@@ -181,6 +181,46 @@ class OverrideIdentityTests(MaterialFixture):
         original.write_bytes(original.read_bytes() + '  userData: "Unicode 測試; {} [] # data" # comment\n'.encode())
         self.assertEqual(set(self.qualifier()), {SHADER_GUID})
 
+    def test_quoted_duplicate_metadata_identities_are_rejected(self):
+        maintained = self.repo / "Assets/Shaders/Recovered/Restored.shader.meta"
+        original = self.export / "Assets/Shader/Compiled.asset.meta"
+        cases = [(maintained, b'"guid": ' + OTHER_GUID.encode() + b"\n"),
+                 (maintained, b"'guid': " + OTHER_GUID.encode() + b"\n"),
+                 (maintained, b'"ShaderImporter": {}\n'),
+                 (original, b'"guid": ' + OTHER_GUID.encode() + b"\n"),
+                 (original, b'  "mainObjectFileID": 4800001\n'),
+                 (original, b"  'mainObjectFileID': 4800001\n")]
+        for path, duplicate in cases:
+            raw = path.read_bytes()
+            with self.subTest(path=path, duplicate=duplicate):
+                try:
+                    path.write_bytes(raw + duplicate)
+                    with self.assertRaises(ValueError):
+                        self.qualifier()
+                finally:
+                    path.write_bytes(raw)
+
+    def test_escaped_quoted_and_explicit_metadata_keys_are_unsupported(self):
+        maintained = self.repo / "Assets/Shaders/Recovered/Restored.shader.meta"
+        original = self.export / "Assets/Shader/Compiled.asset.meta"
+        cases = [(maintained, b'"\\u0067uid": ' + OTHER_GUID.encode() + b"\n"),
+                 (maintained, b'"Shader\\u0049mporter": {}\n'),
+                 (original, b'  "mainObjectFile\\u0049D": 4800001\n'),
+                 (original, b'"NativeFormatImporter": {}\n'),
+                 (maintained, b"? guid\n: " + OTHER_GUID.encode() + b"\n"),
+                 (maintained, b'? "ShaderImporter"\n: {}\n'),
+                 (original, b"  ? mainObjectFileID\n  : 4800001\n"),
+                 (original, b"?\n: " + OTHER_GUID.encode() + b"\n")]
+        for path, duplicate in cases:
+            raw = path.read_bytes()
+            with self.subTest(path=path, duplicate=duplicate):
+                try:
+                    path.write_bytes(raw + duplicate)
+                    with self.assertRaises(ValueError):
+                        self.qualifier()
+                finally:
+                    path.write_bytes(raw)
+
     def test_duplicate_maintained_guid_is_rejected_even_with_same_name(self):
         self.shader(SHADER_GUID, "Duplicate")
         self.mapping["assets"].pop()
@@ -429,6 +469,40 @@ class MaterialPreparationTests(MaterialFixture):
                 with self.assertRaises(ValueError): self.prepare()
                 self.assertEqual(receipt.read_bytes(), old_receipt)
                 self.assertEqual(self.snapshot(), prior)
+
+    def test_unsupported_material_metadata_keys_or_scalar_guid_preserve_prior_publication(self):
+        self.prepare()
+        receipt = self.work / "assets/latest-prepare.json"
+        old_receipt, prior = receipt.read_bytes(), self.snapshot()
+        meta = self.matpath.with_suffix(".mat.meta")
+        raw = meta.read_bytes()
+        guid_line = b"guid: " + MATERIAL_GUID.encode() + b"\n"
+        cases = [raw + b'"guid": ' + OTHER_GUID.encode() + b"\n",
+                 raw + b"'guid': " + OTHER_GUID.encode() + b"\n",
+                 raw + b'"\\u0067uid": ' + OTHER_GUID.encode() + b"\n",
+                 raw + b"? guid\n: " + OTHER_GUID.encode() + b"\n",
+                 raw.replace(guid_line, b'userData: "hello\n' + guid_line + b'world"\n'),
+                 raw.replace(guid_line, b"userData: {\n" + guid_line + b"}\n")]
+        for data in cases:
+            with self.subTest(metadata=data):
+                try:
+                    meta.write_bytes(data)
+                    with self.assertRaises(ValueError):
+                        self.prepare()
+                    self.assertEqual(receipt.read_bytes(), old_receipt)
+                    self.assertEqual(self.snapshot(), prior)
+                    self.assertEqual(meta.read_bytes(), data)
+                finally:
+                    meta.write_bytes(raw)
+
+    def test_quoted_material_metadata_values_and_comments_are_copied_byte_for_byte(self):
+        meta = self.matpath.with_suffix(".mat.meta")
+        raw = meta.read_bytes() + '  userData: "Unicode 測試; {} [] # guid:" # comment\n'.encode()
+        meta.write_bytes(raw)
+        self.prepare()
+        prepared = self.repo / "Assets/Recovered/Material/ordinary.mat.meta"
+        self.assertEqual(prepared.read_bytes(), raw)
+        self.assertEqual(meta.read_bytes(), raw)
 
     def test_receipt_publication_failure_rolls_back_normalized_tree_and_receipt(self):
         self.prepare()

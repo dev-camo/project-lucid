@@ -1031,7 +1031,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     bound_guids = {row["exported_guid"] for row in bindings}
     render_pipeline = _render_pipeline(repo, project, mapping, bindings, report["input_fingerprint"])
     shader_map = render_pipeline.pop("shader_map")
-    from .materialbindings import maintained_shader_overrides, rewrite_material_shader_pointer
+    from .materialbindings import checked_metadata_text, maintained_shader_overrides, rewrite_material_shader_pointer
     binding_release = _binding_release(report["input_fingerprint"])
     material_overrides = maintained_shader_overrides(repo, project, mapping) if binding_release else {}
     mapped_assets = {row["path"]: row for row in mapping["assets"]}
@@ -1091,7 +1091,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                     if row and path.suffix.lower() == ".mat" and material_overrides:
                         if material_path_counts[row["path"]] != 1 or material_guid_counts[row["guid"]] != 1:
                             raise ValueError("Ambiguous Material asset-map identity: " + row["path"])
-                        material_meta = path.with_name(path.name + ".meta").read_text(encoding="utf-8")
+                        material_meta = checked_metadata_text(path.with_name(path.name + ".meta").read_bytes())
                         meta_guids = GUID.findall(material_meta)
                         if meta_guids != [row["guid"]] or len(re.findall(r"^guid\b.*$", material_meta, re.MULTILINE)) != 1:
                             raise ValueError("Material metadata differs from its asset map: " + row["path"])

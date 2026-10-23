@@ -52,9 +52,19 @@ def _text(data):
     return lf
 
 
-def _metadata(path, importer, file_id=None):
-    text = _text(path.read_bytes())
+def checked_metadata_text(content):
+    """Admit plain block keys without decoding alternate YAML key spellings."""
+    text = _text(content)
     _simple_yaml_lines(text)
+    # Identity checks below read literal keys; quoted/explicit keys could hide
+    # duplicates, including escaped spellings of an otherwise ordinary key.
+    if re.search(r"^[ \t]*(?:[\"']|\?(?:[ \t]|$))", text, re.MULTILINE):
+        raise ValueError("Unsupported mapping key in material shader metadata")
+    return text
+
+
+def _metadata(path, importer, file_id=None):
+    text = checked_metadata_text(path.read_bytes())
     guids = _GUID.findall(text)
     if (len(guids) != 1 or len(re.findall(r"^guid\b.*$", text, re.MULTILINE)) != 1
             or guids[0] == "0" * 32 or _IMPORTER.findall(text) != [importer]
