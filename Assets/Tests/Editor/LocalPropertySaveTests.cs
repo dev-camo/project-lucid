@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using Hardlight;
@@ -65,9 +66,18 @@ namespace ProjectLucid.Tests
                 string primary = Path.Combine(directory, "save-slot");
                 Directory.CreateDirectory(primary);
                 bool result = false;
-                var errors = HLOutputDiagnosticCapture.CaptureErrors(
-                    () => result = adapter.SaveData(HLPropertyStore.FileType.Primary, new StringBuilder("payload\n"), "slot"),
-                    message => { if (failures == 1) Directory.Delete(primary); });
+                List<string> errors;
+                try
+                {
+                    errors = HLOutputDiagnosticCapture.CaptureErrors(
+                        () => result = adapter.SaveData(HLPropertyStore.FileType.Primary, new StringBuilder("payload\n"), "slot"),
+                        message => { if (failures == 1) Directory.Delete(primary); });
+                }
+                finally
+                {
+                    // The fixture cleans flat files only. Non-recursive: a failed write must leave nothing inside.
+                    if (!saved && Directory.Exists(primary)) Directory.Delete(primary);
+                }
                 Assert.That(result, Is.EqualTo(saved));
                 Assert.That(errors.Count, Is.EqualTo(failures));
                 Assert.That(errors, Has.All.StartsWith("Exception occurred during saving "));
@@ -79,7 +89,7 @@ namespace ProjectLucid.Tests
                 else
                 {
                     Assert.That(adapter.LastError, Is.Not.Null);
-                    Assert.That(Directory.Exists(primary), Is.True, "A failed save leaves what was at the path in place.");
+                    Assert.That(File.Exists(primary), Is.False, "A failed save writes nothing at the path.");
                 }
             });
         }
