@@ -101,14 +101,16 @@ namespace ProjectLucid
             Bindings proof = prepare.script_bindings;
             // The Game.Runtime part of the approved roster in tools/lucidlib/scriptbindings.py.
             Check(proof != null && proof.status == "verified_layout" && proof.references_modified && proof.bindings != null && proof.bindings.All(b => b != null) &&
-                  proof.bindings.Count(b => b.assembly == "Game.Runtime") == 8 &&
+                  proof.bindings.Count(b => b.assembly == "Game.Runtime") == 13 &&
                   proof.bindings.Where(b => b.assembly == "Game.Runtime").Select(b => b.full_name).OrderBy(name => name, StringComparer.Ordinal).SequenceEqual(
                       new[] { "Hardlight.Analytics.Analytics_SystemConfig", "HardlightProject.CoreGameConfiguration",
-                          "HardlightProject.DataDefinitions", "HardlightProject.GameLevels",
+                          "HardlightProject.DataDefinitions", "HardlightProject.DevicePerformanceGroup",
+                          "HardlightProject.DevicePerformance_iOS", "HardlightProject.DevicePerformance_macOS",
+                          "HardlightProject.DevicePerformance_tvOS", "HardlightProject.GameLevels",
                           "HardlightProject.HashedGroupConfiguration", "HardlightProject.LevelDefinition", "HardlightProject.LevelStartPositionDefinition",
-                          "HardlightProject.VisualAssetManager" },
+                          "HardlightProject.TimeCategoryLookup", "HardlightProject.VisualAssetManager" },
                       StringComparer.Ordinal),
-                  "exact eight approved maintained Game.Runtime bindings");
+                  "exact thirteen approved maintained Game.Runtime bindings");
             Check(proof.source_fingerprint == ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false), "fresh maintained source binding evidence");
             Check(Hash(File.ReadAllBytes(CheckedPath(cache, proof.comparison_path))) == proof.comparison_sha256, "unchanged exact layout proof");
             Binding[] selectedBindings = proof.bindings.Where(b => b != null && b.assembly == "Game.Runtime" &&

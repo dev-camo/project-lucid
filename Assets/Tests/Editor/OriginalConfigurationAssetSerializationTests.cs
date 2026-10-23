@@ -372,8 +372,8 @@ namespace ProjectLucid.Tests
             Assert.AreEqual(export.input_fingerprint.sha256, prepared.input_fingerprint.sha256, "Immutable supplied release identity.");
             ImportBindings proof = prepared.script_bindings;
             Assert.IsNotNull(proof); Assert.AreEqual("verified_layout", proof.status); Assert.IsTrue(proof.references_modified);
-            Assert.IsNotNull(proof.bindings); Assert.AreEqual(26, proof.bindings.Length);
-            Assert.IsNotNull(proof.assets); Assert.AreEqual(736, proof.assets.Length);
+            Assert.IsNotNull(proof.bindings); Assert.AreEqual(33, proof.bindings.Length);
+            Assert.IsNotNull(proof.assets); Assert.AreEqual(765, proof.assets.Length);
             var expectedOwners = new HashSet<string>(new[] {
                 "Game.Runtime::HardlightProject.LevelStartPositionDefinition",
                 "Game.Runtime::HardlightProject.LevelDefinition",
@@ -400,7 +400,14 @@ namespace ProjectLucid.Tests
                 "HLModernUI.Runtime::Hardlight.UINavigationConfiguration",
                 "Game.Runtime::Hardlight.Analytics.Analytics_SystemConfig",
                 "Unity.TextMeshPro::TMPro.TMP_Settings",
-                "Unity.TextMeshPro::TMPro.TMP_FontAsset" }, StringComparer.Ordinal);
+                "Unity.TextMeshPro::TMPro.TMP_FontAsset",
+                "Game.Runtime::HardlightProject.TimeCategoryLookup",
+                "Game.Runtime::HardlightProject.DevicePerformanceGroup",
+                "Game.Runtime::HardlightProject.DevicePerformance_iOS",
+                "Game.Runtime::HardlightProject.DevicePerformance_macOS",
+                "Game.Runtime::HardlightProject.DevicePerformance_tvOS",
+                "HLModernUI.Runtime::Hardlight.UIHighlightDefinition",
+                "HLModernUI.Runtime::Hardlight.UIHighlight" }, StringComparer.Ordinal);
             var actualOwners = new HashSet<string>(StringComparer.Ordinal);
             foreach (ImportBinding item in proof.bindings)
             {

@@ -56,13 +56,24 @@ namespace ProjectLucid.Tests.Editor
             "HLModernUI.Runtime::Hardlight.UINavigationConfiguration",
             "Game.Runtime::Hardlight.Analytics.Analytics_SystemConfig",
             "Unity.TextMeshPro::TMPro.TMP_Settings",
-            "Unity.TextMeshPro::TMPro.TMP_FontAsset" };
+            "Unity.TextMeshPro::TMPro.TMP_FontAsset",
+            "Game.Runtime::HardlightProject.TimeCategoryLookup",
+            "Game.Runtime::HardlightProject.DevicePerformanceGroup",
+            "Game.Runtime::HardlightProject.DevicePerformance_iOS",
+            "Game.Runtime::HardlightProject.DevicePerformance_macOS",
+            "Game.Runtime::HardlightProject.DevicePerformance_tvOS",
+            "HLModernUI.Runtime::Hardlight.UIHighlightDefinition",
+            "HLModernUI.Runtime::Hardlight.UIHighlight" };
 
         private sealed class Reference
         {
             public readonly string Path, Guid;
             public Reference(string path, string guid) { Path = path; Guid = guid; }
         }
+        // The referenced groups that a verified layout rule binds on its own; every
+        // other group keeps its exported script pointer and exact payload bytes.
+        private static readonly Dictionary<string, string> BoundGroups = new Dictionary<string, string>(StringComparer.Ordinal) {
+            { "a59b9efefda101c44821776559f3911f", "Game.Runtime::HardlightProject.DevicePerformanceGroup" } };
         // Immutable supplied root order; these pointers do not admit group layouts.
         private static readonly Reference[] References = {
             new Reference("Assets/Data/Definitions/Characters/CharacterDefinitions.asset", "7552f04205a70d447899f21c0aa941db"),
@@ -265,7 +276,7 @@ namespace ProjectLucid.Tests.Editor
                 Assert.That(prepared.input_fingerprint.sha256, Is.EqualTo(export.input_fingerprint.sha256));
                 Bindings proof = prepared.script_bindings;
                 Assert.That(proof, Is.Not.Null); Assert.That(proof.status, Is.EqualTo("verified_layout")); Assert.That(proof.references_modified, Is.True);
-                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(736));
+                AssertOwners(proof); Assert.That(proof.assets, Is.Not.Null); Assert.That(proof.assets.Length, Is.EqualTo(765));
                 Assert.That(proof.source_fingerprint, Is.EqualTo(ProjectLucid.Editor.LucidArtifactIdentity.Fingerprint(root, false)), "Preparation must belong to this complete current source.");
                 observed.SourceRoot = root; observed.SourceFingerprint = proof.source_fingerprint;
                 Assert.That(IsHash(proof.comparison_sha256), Is.True);
@@ -316,26 +327,46 @@ namespace ProjectLucid.Tests.Editor
                     Assert.That(row.script_references, Is.Not.Null); Assert.That(row.script_references.Length, Is.EqualTo(1));
                     string groupScriptGuid = row.script_references[0];
                     Assert.That(Regex.IsMatch(groupScriptGuid, "^[0-9a-f]{32}$"), Is.True);
-                    Assert.That(proof.bindings.Any(b => b.exported_guid == groupScriptGuid), Is.False, "No referenced group script is admitted by this root-only feature.");
-                    Assert.That(proof.assets.Any(a => a.guid == reference.Guid), Is.False, "The group remains outside the rewritten asset roster.");
+                    Binding[] groupBindings = proof.bindings.Where(b => b.exported_guid == groupScriptGuid).ToArray();
                     string groupPath = "Assets/Recovered/" + reference.Path.Substring("Assets/".Length);
                     string rawPath = Path.Combine(export.project_path, reference.Path), currentPath = Path.Combine(root, groupPath);
-                    CollectionAssert.AreEqual(observed.Read(work, rawPath), observed.Read(prepared.recovered_path, currentPath), "Unqualified referenced payload bytes stay exact: " + reference.Path);
+                    string expectedScriptGuid = groupScriptGuid;
+                    if (BoundGroups.TryGetValue(reference.Guid, out string groupOwner))
+                    {
+                        // Bound by its own verified rule, not by this root feature: only its m_Script line changes.
+                        Assert.That(groupBindings.Length, Is.EqualTo(1));
+                        Assert.That(groupBindings[0].assembly + "::" + groupBindings[0].full_name, Is.EqualTo(groupOwner));
+                        BoundAsset groupBound = proof.assets.Single(a => a.guid == reference.Guid);
+                        Assert.That(groupBound.path, Is.EqualTo(reference.Path)); Assert.That(groupBound.pointers_rewritten, Is.EqualTo(1));
+                        string groupText = Utf8.GetString(observed.Read(work, rawPath));
+                        string groupFrom = ScriptPointer(groupBindings[0].exported_file_id, groupScriptGuid);
+                        Assert.That(Regex.Matches(groupText, "^" + Regex.Escape(groupFrom) + "\\r?$", RegexOptions.Multiline).Count, Is.EqualTo(1));
+                        CollectionAssert.AreEqual(Utf8.GetBytes(groupText.Replace(groupFrom, ScriptPointer(groupBindings[0].target_file_id, groupBindings[0].target_guid))),
+                                                  observed.Read(prepared.recovered_path, currentPath), "Only the bound group's m_Script changes: " + reference.Path);
+                        expectedScriptGuid = groupBindings[0].target_guid;
+                    }
+                    else
+                    {
+                        Assert.That(groupBindings, Is.Empty, "No other referenced group script is admitted by this root-only feature.");
+                        Assert.That(proof.assets.Any(a => a.guid == reference.Guid), Is.False, "The group remains outside the rewritten asset roster.");
+                        CollectionAssert.AreEqual(observed.Read(work, rawPath), observed.Read(prepared.recovered_path, currentPath), "Unqualified referenced payload bytes stay exact: " + reference.Path);
+                    }
                     ObserveMeta(observed, work, prepared.recovered_path, rawPath, currentPath, reference.Guid);
                     SerializedProperty slot = array.GetArrayElementAtIndex(i);
                     Assert.That(slot.propertyType, Is.EqualTo(SerializedPropertyType.ObjectReference));
                     Object actual = slot.objectReferenceValue; DefinitionDataType typed = loaded.DataDefinitionsArray[i];
+                    if (BoundGroups.ContainsKey(reference.Guid)) Assert.That(typed, Is.Not.Null, "A bound group loads as its typed definition: " + reference.Path);
                     if (typed != null)
                     {
                         Assert.That(actual, Is.EqualTo(typed)); AssertIdentity(typed, reference.Guid, 11400000);
                         Assert.That(AssetDatabase.GetAssetPath(typed), Is.EqualTo(groupPath));
                         MonoScript actualScript = MonoScript.FromScriptableObject(typed);
                         Assert.That(actualScript, Is.Not.Null); Assert.That(actualScript.GetClass(), Is.EqualTo(typed.GetType()));
-                        AssertIdentity(actualScript, groupScriptGuid, 11500000);
+                        AssertIdentity(actualScript, expectedScriptGuid, 11500000);
                         string actualSource = AssetDatabase.GetAssetPath(actualScript);
                         Assert.That(actualSource.EndsWith(".cs", StringComparison.Ordinal), Is.True);
                         observed.Read(root, Path.Combine(root, actualSource));
-                        Assert.That(MetaGuid(observed.Read(root, Path.Combine(root, actualSource + ".meta"))), Is.EqualTo(groupScriptGuid));
+                        Assert.That(MetaGuid(observed.Read(root, Path.Combine(root, actualSource + ".meta"))), Is.EqualTo(expectedScriptGuid));
                         typedSlots++;
                     }
                     else
@@ -418,7 +449,7 @@ namespace ProjectLucid.Tests.Editor
 
         private static void AssertOwners(Bindings proof)
         {
-            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(26));
+            Assert.That(proof.bindings, Is.Not.Null); Assert.That(proof.bindings.Length, Is.EqualTo(33));
             var actual = new HashSet<string>(StringComparer.Ordinal);
             foreach (Binding binding in proof.bindings)
             {
