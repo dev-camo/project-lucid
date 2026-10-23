@@ -80,15 +80,16 @@ namespace ProjectLucid.Offline
         {
             lock (gate)
             {
-                string json, path;
+                string path;
+                byte[] bytes;
                 try
                 {
                     string payload = contentBuilder.ToString();
-                    json = JsonUtility.ToJson(new Envelope { formatVersion = 1, payload = payload, sha256 = Hash(payload) });
+                    bytes = Utf8.GetBytes(JsonUtility.ToJson(new Envelope { formatVersion = 1, payload = payload, sha256 = Hash(payload) }));
                     path = GetFilePath(fileType, saveIdentifier);
                 }
                 catch (Exception error) when (IsStorageFailure(error)) { LastError = error.Message; return false; }
-                // As the original HLSaveMethodEncrypted.SaveData: up to five write attempts, each
+                // As the original HLSaveMethodEncrypted.SaveData, which encrypts once before its loop: up to five write attempts, each
                 // failure logged and followed by the same memory relief before the next (#462).
                 for (int attempt = 0; attempt < 5; attempt++)
                 {
@@ -102,7 +103,7 @@ namespace ProjectLucid.Offline
                             backup = TryRead(path, out previous) ? GetFilePath(HLPropertyStore.FileType.Backup, saveIdentifier)
                                 : Path.Combine(directory, "." + Path.GetFileName(path) + ".corrupt-" + Guid.NewGuid().ToString("N"));
                         }
-                        AtomicWrite(path, Utf8.GetBytes(json), backup);
+                        AtomicWrite(path, bytes, backup);
                         LastError = null;
                         return true;
                     }

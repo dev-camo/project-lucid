@@ -66,30 +66,30 @@ namespace ProjectLucid.Tests
                 string primary = Path.Combine(directory, "save-slot");
                 Directory.CreateDirectory(primary);
                 bool result = false;
-                List<string> errors;
                 try
                 {
-                    errors = HLOutputDiagnosticCapture.CaptureErrors(
+                    List<string> errors = HLOutputDiagnosticCapture.CaptureErrors(
                         () => result = adapter.SaveData(HLPropertyStore.FileType.Primary, new StringBuilder("payload\n"), "slot"),
                         message => { if (failures == 1) Directory.Delete(primary); });
+                    Assert.That(result, Is.EqualTo(saved));
+                    Assert.That(errors.Count, Is.EqualTo(failures));
+                    Assert.That(errors, Has.All.StartsWith("Exception occurred during saving "));
+                    if (saved)
+                    {
+                        Assert.That(adapter.LastError, Is.Null);
+                        Assert.That(adapter.LoadData(HLPropertyStore.FileType.Primary, "slot"), Is.EqualTo("payload\n"));
+                    }
+                    else
+                    {
+                        Assert.That(adapter.LastError, Is.Not.Null);
+                        Assert.That(Directory.Exists(primary), Is.True, "A failed save leaves what was at the path in place.");
+                        Assert.That(Directory.GetFileSystemEntries(primary), Is.Empty, "A failed save writes nothing inside it.");
+                    }
                 }
                 finally
                 {
-                    // The fixture cleans flat files only. Non-recursive: a failed write must leave nothing inside.
+                    // The fixture cleans flat files only, so the blocking directory is removed here.
                     if (!saved && Directory.Exists(primary)) Directory.Delete(primary);
-                }
-                Assert.That(result, Is.EqualTo(saved));
-                Assert.That(errors.Count, Is.EqualTo(failures));
-                Assert.That(errors, Has.All.StartsWith("Exception occurred during saving "));
-                if (saved)
-                {
-                    Assert.That(adapter.LastError, Is.Null);
-                    Assert.That(adapter.LoadData(HLPropertyStore.FileType.Primary, "slot"), Is.EqualTo("payload\n"));
-                }
-                else
-                {
-                    Assert.That(adapter.LastError, Is.Not.Null);
-                    Assert.That(File.Exists(primary), Is.False, "A failed save writes nothing at the path.");
                 }
             });
         }
