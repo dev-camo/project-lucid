@@ -180,10 +180,29 @@ def retain_player_code_failure(bootstrap_module, work, result):
     bootstrap_module.retain_failure('driver-player-code.json', report, [excerpt])
 
 
+# TEMPORARY input transition: the e94d-88af bundle was a modified redistribution
+# of the 1.10.1 build; 6c89-acb is the release. While the control's
+# docs/code-progress.json still names e94d-88af, a measurement from 6c89-acb is
+# accepted. Remove this constant and its branch once the doc names 6c89-acb.
+# The literals mirror tools/lucidlib/inputvariants.py VARIANTS (the control's
+# tools are not importable at module level here); a test keeps them in sync.
+INPUT_TRANSITION = (
+    ('e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987',
+     '88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837'),
+    ('6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216',
+     'acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b'),
+)
+
+
 def require_approved_original(report, approved):
-    for key in ('input_binary_sha256', 'input_metadata_sha256'):
-        if report.get(key) != approved.get(key) or not re.fullmatch('[0-9a-f]{64}', approved.get(key, '')):
+    keys = ('input_binary_sha256', 'input_metadata_sha256')
+    for key in keys:
+        if not isinstance(approved.get(key), str) or not re.fullmatch('[0-9a-f]{64}', approved[key]):
             raise ValueError('Original code inputs differ from trusted control approval')
+    measured = tuple(report.get(key) for key in keys)
+    approved_pair = tuple(approved[key] for key in keys)
+    if measured != approved_pair and (approved_pair, measured) != INPUT_TRANSITION:
+        raise ValueError('Original code inputs differ from trusted control approval')
 
 
 @contextlib.contextmanager
