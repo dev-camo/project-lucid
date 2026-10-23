@@ -1091,8 +1091,15 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
         # trees go back in place, so they still match the prior receipt.
         try:
             _replace_owned_directories(replacements, plan)
-            swapped = [(destination, backup) for destination, _, backup in plan]
-            locations = {destination: backup for destination, backup in swapped if backup is not None}
+            # Avoid inlined-comprehension trace points that bypass recovery on older Python builds.
+            swapped = []
+            for destination, _, backup in plan:
+                swapped.append((destination, backup))
+            complete_locations = {}
+            for destination, backup in swapped:
+                if backup is not None:
+                    complete_locations[destination] = backup
+            locations = complete_locations
             backups = []
             if locations:
                 backup_dir = _cache_path(work, backup_dir)
