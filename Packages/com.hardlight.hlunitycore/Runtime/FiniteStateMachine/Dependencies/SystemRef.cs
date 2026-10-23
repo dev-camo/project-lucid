@@ -46,11 +46,13 @@ namespace Hardlight
         // 0x06000e1f; ARM64 shared 0x799374.
         public T2 GetSafe<T2>() where T2 : class, ISystem => m_system as T2;
 
-        // 0x06000e20; ARM64 shared 0xbf40d8.
+        // 0x06000e20; ARM64 shared 0xbf40d8. The typed field is copied out but the
+        // result is the untyped validity, so an incompatible replacement reports
+        // true with a null system (x86-64 0xc07280 compares +0x38, not +0x30).
         public bool TryGet(out T system)
         {
             system = GetSafe();
-            return system != null;
+            return m_isystem != null;
         }
 
         // 0x06000e21; ARM64 shared 0x79943c.

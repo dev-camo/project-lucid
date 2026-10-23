@@ -2511,6 +2511,7 @@ EDITMODE_TESTS += (
 
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalSystemRefTryGetTests.TryGetReportsTheUntypedSystemAfterAnIncompatibleReplacement",
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("version")',
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("checksum")',
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("missing-payload")',

@@ -85,9 +85,11 @@ namespace ProjectLucid
             Check(!owner.TryGet<Second>(out Second other) && other == null, "incompatible TryGet clears out result");
             Set(owner, "m_system", null);
             Check(owner.IsValid() && owner.Get() == null && owner.Get<First>() == null, "valid untyped reference with null typed reference is silent");
-            Check(!owner.TryGet(out found) && found == null && !owner.TryGet<First>(out found), "TryGet uses typed reference rather than untyped validity");
+            // 0x06000e20 (x86-64 0xc07280) returns [this+0x38] != null, the untyped system; only
+            // TryGet<T2> (0x06000e21) tests its typed result (#465).
+            Check(owner.TryGet(out found) && found == null && !owner.TryGet<First>(out found), "nongeneric TryGet reports untyped validity; the generic overload keeps its typed result");
             Set(owner, "m_system", a); Set(owner, "m_isystem", null);
-            Check(owner.IsNull() && ReferenceEquals(owner.GetSafe(), a) && owner.TryGet(out found), "safe getters permit deliberately inconsistent typed/untyped fixture");
+            Check(owner.IsNull() && ReferenceEquals(owner.GetSafe(), a) && !owner.TryGet(out found) && ReferenceEquals(found, a), "inconsistent fixture: TryGet copies the typed reference but reports the null untyped system");
             // No host is created on CLR runs; Unity's null/null comparison is managed.
             Check(Throws<NullReferenceException>(() => owner.Get(), "missing host checked get").Message == "System 'literal name' is null", "original nongeneric missing-host diagnostic message");
             Check(Throws<NullReferenceException>(() => owner.Get<First>(), "missing host generic checked get").Message == "System 'literal name' is null", "generic diagnosis follows untyped null even with a valid cast");
