@@ -482,15 +482,13 @@ class DirectProgressTests(unittest.TestCase):
         self.assertFalse(any(c["method"] != "GET" for c in self.http.calls))
 
     def test_original_input_and_reporting_tool_integrity_rejected(self):
-        # The 6c89/acb pair is the accepted input transition from the approved
-        # e94d/88af pair: it passes the approval check and is rejected later, by
-        # the compiler-output comparison. Rejection of other pairs is covered in
-        # test_native_compilation.
-        report = dict(self.http.report,
-                      input_binary_sha256="6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
-                      input_metadata_sha256="acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b")
-        with self.assertRaisesRegex(ValueError, "protected real compiler outputs"):
-            direct.verify_report(json.dumps(report).encode(), self.http.producer, self.http.request, "456", ROOT)
+        # The retired e94d/88af pair is no longer a declared variant. Rejection of
+        # pairs that differ from the approval is covered in test_native_compilation.
+        retired = dict(self.http.report,
+                       input_binary_sha256="e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987",
+                       input_metadata_sha256="88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837")
+        with self.assertRaisesRegex(ValueError, "variant is not declared"):
+            direct.verify_report(json.dumps(retired).encode(), self.http.producer, self.http.request, "456", ROOT)
         undeclared = dict(self.http.report, input_binary_sha256="a" * 64)
         with self.assertRaisesRegex(ValueError, "variant is not declared"):
             direct.verify_report(json.dumps(undeclared).encode(), self.http.producer, self.http.request, "456", ROOT)

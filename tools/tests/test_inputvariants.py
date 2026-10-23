@@ -23,7 +23,7 @@ LOCAL = {GAME_ASSEMBLY: "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6
          METADATA: "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b",
          INFO_PLIST: "497b0fdb7b50091f00fd36cf7bbfe667d22e081b30d853d71fed38670eb9c9ae"}
 LOCAL_SLICE = "797ef6ac359e8dbfc83d97a6148fe9aa7ac85113217e3013e00c3c5b30502c94"
-# The canonical public pair sealed in docs/code-progress.json by 1c24c1eb.
+# The retired e94d-88af pair: a modified redistribution of the 1.10.1 build, no longer declared.
 PUBLIC_BINARY = "e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987"
 PUBLIC_METADATA = "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837"
 
@@ -36,14 +36,15 @@ class VariantTableTests(unittest.TestCase):
                 self.assertEqual((LOCAL[GAME_ASSEMBLY], LOCAL[METADATA]), (rule["binary_sha256"], rule["metadata_sha256"]))
         self.assertEqual({"native_binary": LOCAL_SLICE, "metadata": LOCAL[METADATA]}, themebindings.ORIGINAL_INPUT_SHA256)
 
-    def test_public_variant_is_declared_for_progress_only(self):
-        self.assertEqual("e94d-88af", inputvariants.code_variant(PUBLIC_BINARY, PUBLIC_METADATA))
-        self.assertEqual("e94d-88af", inputvariants.require_code_variant(PUBLIC_BINARY, PUBLIC_METADATA, inputvariants.CODE_PROGRESS))
-        for purpose in (inputvariants.ASSET_PREPARATION, inputvariants.SCRIPT_BINDINGS, inputvariants.THEME_DIAGNOSTICS):
+    def test_retired_variant_is_undeclared(self):
+        self.assertNotIn("e94d-88af", inputvariants.VARIANTS)
+        self.assertIsNone(inputvariants.code_variant(PUBLIC_BINARY, PUBLIC_METADATA))
+        for purpose in (inputvariants.ASSET_PREPARATION, inputvariants.SCRIPT_BINDINGS,
+                        inputvariants.THEME_DIAGNOSTICS, inputvariants.CODE_PROGRESS):
             with self.subTest(purpose=purpose):
-                with self.assertRaisesRegex(ValueError, "e94d-88af is declared but not qualified for " + purpose):
+                with self.assertRaisesRegex(ValueError, "variant is not declared"):
                     inputvariants.require_code_variant(PUBLIC_BINARY, PUBLIC_METADATA, purpose)
-                with self.assertRaisesRegex(ValueError, "not qualified"):
+                with self.assertRaises(KeyError):
                     inputvariants.variant("e94d-88af", purpose)
 
     def test_admission_accepts_the_exact_local_bundle(self):
@@ -52,7 +53,7 @@ class VariantTableTests(unittest.TestCase):
     def test_admission_rejects_other_or_mixed_variants_with_supplied_and_supported_hashes(self):
         public = {GAME_ASSEMBLY: PUBLIC_BINARY, METADATA: PUBLIC_METADATA, INFO_PLIST: "1" * 64}
         cases = (
-            (public, "e94d-88af is declared but not qualified for asset_preparation"),
+            (public, "Unsupported original input variant"),
             (dict(LOCAL, **{METADATA: PUBLIC_METADATA}), "Unsupported original input variant"),
             (dict(LOCAL, **{GAME_ASSEMBLY: PUBLIC_BINARY}), "Unsupported original input variant"),
             (dict(LOCAL, **{INFO_PLIST: "2" * 64}), "Info.plist differs from declared variant 6c89-acb"),
@@ -124,7 +125,7 @@ class ExportAdmissionTests(unittest.TestCase):
             result["critical_files"].update({GAME_ASSEMBLY: PUBLIC_BINARY, METADATA: PUBLIC_METADATA})
             return result
         with mock.patch.object(assets, "fingerprint_manifest", side_effect=public):
-            self.assert_rejected_before_export("e94d-88af is declared but not qualified for asset_preparation")
+            self.assert_rejected_before_export("Unsupported original input variant")
 
 
 if __name__ == "__main__":

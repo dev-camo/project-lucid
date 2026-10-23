@@ -203,7 +203,7 @@ class ScriptBindingTests(unittest.TestCase):
                 source.write_bytes(original)
 
     def test_public_variant_cannot_use_the_local_variant_binding_profile(self):
-        # Same 1.10.1 / 1022527550 release strings; hashes from the 1c24c1eb progress seal.
+        # Negative control: the retired e94d/88af pair (same 1.10.1 / 1022527550 release strings).
         public = {"Contents/Frameworks/GameAssembly.dylib": "e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987",
                   "Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat": "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837"}
         with tempfile.TemporaryDirectory() as directory:

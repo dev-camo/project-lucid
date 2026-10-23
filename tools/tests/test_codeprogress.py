@@ -14,12 +14,13 @@ import subprocess
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lucidlib import bootstrap, codeprogress
 
-# The e94d/88af pair sealed in docs/code-progress.json by 1c24c1eb, and the
-# 6c89/acb pair measured from the private local input; typed from that evidence.
-PROGRESS_BINARY = "e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987"
-PROGRESS_METADATA = "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837"
-LOCAL_BINARY = "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216"
-LOCAL_METADATA = "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b"
+# The 6c89/acb pair sealed in docs/code-progress.json, typed from that evidence.
+# The e94d/88af pair is the retired bundle, a modified redistribution of the 1.10.1
+# build; it is kept here only as a negative control.
+PROGRESS_BINARY = "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216"
+PROGRESS_METADATA = "acb10c65e45486ff62a39fd677404857f99a3d2a98fdd36362d0bf19aac4b89b"
+RETIRED_BINARY = "e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987"
+RETIRED_METADATA = "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837"
 
 
 class CodeWorkTests(unittest.TestCase):
@@ -433,12 +434,11 @@ class PublicSnapshotTests(unittest.TestCase):
 
     def test_snapshot_names_only_a_declared_input_variant(self):
         report = self.report()
-        self.assertEqual("e94d-88af", codeprogress.inputvariants.code_variant(report["input_binary_sha256"], report["input_metadata_sha256"]))
-        local = codeprogress.public_counts(CodeWorkTests().measure(), source="a" * 64, input_binary=LOCAL_BINARY, input_metadata=LOCAL_METADATA,
-                                           scope_sha256="d" * 64, compiler_receipt_sha256="e" * 64)
-        self.assertEqual(local, codeprogress.validate_public_counts(local))
-        # Mixed halves of two declared variants and an unknown pair are not a variant.
-        for binary, metadata in ((PROGRESS_BINARY, LOCAL_METADATA), (LOCAL_BINARY, PROGRESS_METADATA), ("b" * 64, "c" * 64)):
+        self.assertEqual("6c89-acb", codeprogress.inputvariants.code_variant(report["input_binary_sha256"], report["input_metadata_sha256"]))
+        self.assertEqual(report, codeprogress.validate_public_counts(report))
+        # The retired pair, a mix of its halves with the declared pair, and an unknown pair are not a variant.
+        for binary, metadata in ((RETIRED_BINARY, RETIRED_METADATA), (PROGRESS_BINARY, RETIRED_METADATA),
+                                 (RETIRED_BINARY, PROGRESS_METADATA), ("b" * 64, "c" * 64)):
             with self.subTest(binary=binary[:4], metadata=metadata[:4]):
                 with self.assertRaisesRegex(ValueError, "variant is not declared"):
                     codeprogress.public_counts(CodeWorkTests().measure(), source="a" * 64, input_binary=binary, input_metadata=metadata,

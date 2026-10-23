@@ -18,8 +18,8 @@ CODE_PROGRESS = "code_progress"          # docs/code-progress.json measurement s
 
 # A None hash was never recorded for that variant; it is unknown, not wildcarded.
 VARIANTS = {
-    # The private local input and the 2026-10-05 reference export
-    # (20261005T062956Z-cef5ba97 input_fingerprint). Its thin x86_64 slice is the
+    # The canonical CI input: the 1.10.1 release build. It is also the 2026-10-05
+    # reference export (20261005T062956Z-cef5ba97 input_fingerprint). Its thin x86_64 slice is the
     # native recovery input that the Theme schema and dumper evidence were read from.
     "6c89-acb": {
         "binary_sha256": "6c89f9837ba64b8799c68ce1ac2bd7b48bf7e23a16bb26657a998c6fc3e34216",
@@ -27,16 +27,6 @@ VARIANTS = {
         "info_plist_sha256": "497b0fdb7b50091f00fd36cf7bbfe667d22e081b30d853d71fed38670eb9c9ae",
         "x86_64_slice_sha256": "797ef6ac359e8dbfc83d97a6148fe9aa7ac85113217e3013e00c3c5b30502c94",
         "qualified": frozenset((ASSET_PREPARATION, SCRIPT_BINDINGS, THEME_DIAGNOSTICS, CODE_PROGRESS)),
-    },
-    # The canonical public input named by the progress seal from 1c24c1eb. No
-    # native schema, Theme schema content or Unity layout proof exists for it, so
-    # it is qualified only for the progress measurement that was taken from it.
-    "e94d-88af": {
-        "binary_sha256": "e94d984c0bc726a3a66ed0b39785d5166f92aa4356b3dd742fce098d42521987",
-        "metadata_sha256": "88af04a6e548dae5e00c13dd52add4e48f9917a31db784d3b21274b137e49837",
-        "info_plist_sha256": None,
-        "x86_64_slice_sha256": None,
-        "qualified": frozenset((CODE_PROGRESS,)),
     },
 }
 

@@ -339,34 +339,13 @@ class NativeCompilationTests(unittest.TestCase):
         forged = dict(approved, input_binary_sha256='0' * 64)
         with self.assertRaises(ValueError):
             native_compilation.require_approved_original(forged, approved)
-
-    def test_input_transition_accepts_only_the_declared_pair(self):
-        from lucidlib.inputvariants import VARIANTS
-        old, new = VARIANTS['e94d-88af'], VARIANTS['6c89-acb']
-        self.assertEqual(native_compilation.INPUT_TRANSITION,
-                         ((old['binary_sha256'], old['metadata_sha256']),
-                          (new['binary_sha256'], new['metadata_sha256'])))
-
-        def pair(variant):
-            return {'input_binary_sha256': variant[0], 'input_metadata_sha256': variant[1]}
-        old_pair, new_pair = native_compilation.INPUT_TRANSITION
-        native_compilation.require_approved_original(pair(new_pair), pair(old_pair))
-        native_compilation.require_approved_original(pair(old_pair), pair(old_pair))
-        native_compilation.require_approved_original(pair(new_pair), pair(new_pair))
-        mixed_a = {'input_binary_sha256': new_pair[0], 'input_metadata_sha256': old_pair[1]}
-        mixed_b = {'input_binary_sha256': old_pair[0], 'input_metadata_sha256': new_pair[1]}
-        unrelated = pair(('c' * 64, 'd' * 64))
-        malformed = pair(('E' * 64, 'f' * 64))
-        for name, report, approved in (
-                ('reverse', pair(old_pair), pair(new_pair)),
-                ('mixed binary', mixed_a, pair(old_pair)),
-                ('mixed metadata', mixed_b, pair(old_pair)),
-                ('unrelated report', unrelated, pair(old_pair)),
-                ('unrelated approval', pair(new_pair), unrelated),
-                ('malformed approval', pair(new_pair), malformed),
-                ('missing report', {}, pair(old_pair))):
-            with self.subTest(name), self.assertRaises(ValueError):
-                native_compilation.require_approved_original(report, approved)
+        mixed = dict(approved, input_metadata_sha256='c' * 64)
+        with self.assertRaises(ValueError):
+            native_compilation.require_approved_original(mixed, approved)
+        with self.assertRaises(ValueError):
+            native_compilation.require_approved_original({}, approved)
+        with self.assertRaises(ValueError):
+            native_compilation.require_approved_original(dict(approved), dict(approved, input_binary_sha256='E' * 64))
 
 
 if __name__ == "__main__":
