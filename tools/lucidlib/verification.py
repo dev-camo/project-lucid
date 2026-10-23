@@ -166,6 +166,11 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 EDITMODE_TESTS += ("ProjectLucid.Tests.DebugBackingFieldAttributeTests.DebugOnlyAllowanceForCompilerDebuggerBrowsableIsExactAndReleaseStaysStrict",)
 
+# Diagnostic comparison of serialized and imported shader reference kinds.
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.ShaderMaterialReferenceKindDiagnostics.MeasureSerializedAndImportedShaderReferenceKinds",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsIndependentCbcZeroPaddingVectors",
     "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsUtf8ConstructorBoundaries",
