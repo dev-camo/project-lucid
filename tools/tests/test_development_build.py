@@ -20,7 +20,7 @@ class DevelopmentBuildTests(unittest.TestCase):
     def ready(self, root):
         """A prepared project with valid input and asset identity but no audit and no test receipts."""
         work, _, mapping = test_project.ProjectTests().fixture(root)
-        (root / "Assets/Recovered").mkdir(parents=True)
+        test_project.ProjectTests.prepared(root, work)
         (root / "ProjectSettings").mkdir()
         (root / "ProjectSettings/ProjectVersion.txt").write_text("m_EditorVersion: " + verification.UNITY_VERSION)
         (root / "Packages").mkdir()
@@ -58,6 +58,13 @@ class DevelopmentBuildTests(unittest.TestCase):
                                            "catalog_sha256": "a" * 64, **changes}))
         cases = {
             "prepare state": lambda root, work, mapping: shutil.rmtree(root / "Assets/Recovered"),
+            # The prepare receipt must name the recorded export, and the content must not be empty (#453).
+            "prepare receipt": lambda root, work, mapping: (work / "assets/latest-prepare.json").unlink(),
+            "stale prepare": lambda root, work, mapping: (work / "assets/latest-prepare.json").write_text(
+                json.dumps({"status": "prepared", "run_id": "earlier-run"})),
+            "unfinished prepare": lambda root, work, mapping: (work / "assets/latest-prepare.json").write_text(
+                json.dumps({"status": "preparing", "run_id": "fixture-run"})),
+            "empty content": lambda root, work, mapping: (root / "Assets/Recovered/content.asset").unlink(),
             "project version": lambda root, work, mapping: (root / "ProjectSettings/ProjectVersion.txt").write_text("m_EditorVersion: 1"),
             "dependency lock": lambda root, work, mapping: (root / "Packages/packages-lock.json").unlink(),
             "duplicate guids": lambda root, work, mapping: catalog(mapping, duplicate_guids={"x": 2}),

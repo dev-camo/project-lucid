@@ -30,10 +30,18 @@ class ProjectTests(unittest.TestCase):
         mapping.write_text(json.dumps({"assets": [{"guid": "b" * 32}], "duplicate_guids": {},
                                        "catalog_sha256": "a" * 64}))
         (work / "assets" / "latest-assets.json").write_text(json.dumps({
-            "status": "exported", "project_path": str(export), "asset_map_path": str(mapping),
+            "status": "exported", "run_id": "fixture-run", "project_path": str(export), "asset_map_path": str(mapping),
             "input_path": str(app), "input_fingerprint": fingerprint_manifest(_manifest(app)),
             "tool": _tool_lock(), "settings": EXPORT_SETTINGS}))
         return work, player, mapping
+
+    @staticmethod
+    def prepared(root, work):
+        """Prepared content with the receipt prepare writes for the fixture's export."""
+        (root / "Assets/Recovered").mkdir(parents=True)
+        (root / "Assets/Recovered/content.asset").write_bytes(b"prepared synthetic content")
+        (work / "assets" / "latest-prepare.json").write_text(json.dumps(
+            {"status": "prepared", "run_id": "fixture-run", "recovered_path": str(root / "Assets/Recovered")}))
 
     @staticmethod
     def isolation(work, mode, names):
@@ -79,7 +87,7 @@ class ProjectTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             work, _, _ = self.fixture(root)
-            (root / "Assets/Recovered").mkdir(parents=True)
+            self.prepared(root, work)
             (root / "ProjectSettings").mkdir()
             (root / "ProjectSettings/ProjectVersion.txt").write_text("m_EditorVersion: " + verification.UNITY_VERSION)
             (root / "Packages").mkdir()
@@ -127,7 +135,7 @@ class ProjectTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             work, _, _ = self.fixture(root)
-            (root / "Assets/Recovered").mkdir(parents=True)
+            self.prepared(root, work)
             (root / "Assets/Test.cs").write_text("// inert source; never compiled\n")
             (root / "Assets/Test.cs.meta").write_text(
                 "fileFormatVersion: 2\nguid: " + "1" * 32 + "\nMonImporter:\n  executionOrder: 0\n")

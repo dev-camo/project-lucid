@@ -113,8 +113,17 @@ def validate_project(repo_root, work_dir, stage="release"):
         # checks; only the audit and the EditMode/PlayMode gates are skipped.
         checks["script_metadata"] = validate_script_metadata(repo_root)
         errors.extend(checks["script_metadata"]["errors"])
-        if not (repo_root / "Assets" / "Recovered").is_dir():
+        recovered = repo_root / "Assets" / "Recovered"
+        if not recovered.is_dir():
             errors.append("Extracted content has not been prepared in the Unity project")
+        else:
+            # The prepare receipt ties the project's content to the recorded export (#453).
+            prepared = _read_json(work_dir / "assets" / "latest-prepare.json", errors, "Prepare receipt")
+            if prepared.get("status") != "prepared" or not prepared.get("run_id") \
+                    or prepared.get("run_id") != assets.get("run_id"):
+                errors.append("Prepared content does not come from the recorded asset export")
+            elif not any(path.name != ".lucid-owner.json" for path in recovered.iterdir()):
+                errors.append("Prepared content is empty")
         version_path = repo_root / "ProjectSettings" / "ProjectVersion.txt"
         if not version_path.exists() or "m_EditorVersion: " + UNITY_VERSION not in version_path.read_text():
             errors.append("Unity project version is absent or differs from the original")
