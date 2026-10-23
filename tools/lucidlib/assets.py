@@ -975,6 +975,14 @@ def _restore_swapped_directories(swapped: list[tuple[Path, Path | None]], locati
         backup_dir.rmdir()
 
 
+def _binding_release(input_fingerprint: dict) -> bool:
+    """Whether these critical code hashes match the qualified binding release."""
+    from .scriptbindings import BINDING_INPUT
+    critical = (input_fingerprint or {}).get("critical_files", {})
+    return (critical.get("Contents/Frameworks/GameAssembly.dylib") == BINDING_INPUT["binary_sha256"] and
+            critical.get("Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat") == BINDING_INPUT["metadata_sha256"])
+
+
 def _render_pipeline(repo: Path, project: Path, mapping: dict, bindings: list, input_fingerprint: dict) -> dict:
     """Check the selected render pipeline and map its shader slots to package shaders.
 
@@ -983,12 +991,8 @@ def _render_pipeline(repo: Path, project: Path, mapping: dict, bindings: list, i
     before anything is staged. Other inputs (and fixtures) have no pipeline rules.
     """
     from .rendererbindings import PROFILES, check_pipeline_selection, pass_material_shader_gaps, package_shader_map
-    from .scriptbindings import BINDING_INPUT
-    critical = (input_fingerprint or {}).get("critical_files", {})
-    release = (critical.get("Contents/Frameworks/GameAssembly.dylib") == BINDING_INPUT["binary_sha256"] and
-               critical.get("Contents/Resources/Data/il2cpp_data/Metadata/global-metadata.dat") == BINDING_INPUT["metadata_sha256"])
     result = {"status": "not_applicable", "shader_map": {}}
-    if release:
+    if _binding_release(input_fingerprint):
         result.update(check_pipeline_selection(repo, mapping, bindings, project))
     if any((row.get("assembly"), row.get("full_name")) in PROFILES for row in bindings):
         shaders = package_shader_map(repo, project, mapping)
@@ -1027,7 +1031,12 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     bound_guids = {row["exported_guid"] for row in bindings}
     render_pipeline = _render_pipeline(repo, project, mapping, bindings, report["input_fingerprint"])
     shader_map = render_pipeline.pop("shader_map")
+    from .materialbindings import maintained_shader_overrides, rewrite_material_shader_pointer
+    binding_release = _binding_release(report["input_fingerprint"])
+    material_overrides = maintained_shader_overrides(repo, project, mapping) if binding_release else {}
     mapped_assets = {row["path"]: row for row in mapping["assets"]}
+    material_path_counts = Counter(row["path"] for row in mapping["assets"])
+    material_guid_counts = Counter(row["guid"] for row in mapping["assets"])
     quarantined_guids = {row["guid"] for row in mapping["assets"] if row["code_quarantined"]}
     shader_guids = {row["guid"] for row in mapping["assets"] if row.get("shader_quarantined")}
     dangling = sorted({guid for row in mapping["assets"] if not row["code_quarantined"]
@@ -1040,6 +1049,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
     bundle_report = {}
     copied = skipped_code = skipped_shader = 0
     rebound_assets = []
+    material_assets = []
     try:
         for destination, source_dir in targets:
             stage = staging / destination.name
@@ -1076,6 +1086,20 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                         if shader_log:
                             rebound["shader_slots"] = shader_log
                         rebound_assets.append(rebound)
+                    # Ordinary Materials have no MonoScript; their ShaderImporter
+                    # kind normalization is independent of approved script bindings.
+                    if row and path.suffix.lower() == ".mat" and material_overrides:
+                        if material_path_counts[row["path"]] != 1 or material_guid_counts[row["guid"]] != 1:
+                            raise ValueError("Ambiguous Material asset-map identity: " + row["path"])
+                        material_meta = path.with_name(path.name + ".meta").read_text(encoding="utf-8")
+                        meta_guids = GUID.findall(material_meta)
+                        if meta_guids != [row["guid"]] or len(re.findall(r"^guid\b.*$", material_meta, re.MULTILINE)) != 1:
+                            raise ValueError("Material metadata differs from its asset map: " + row["path"])
+                        rewritten, change = rewrite_material_shader_pointer(output.read_bytes(), material_overrides)
+                        if change is not None:
+                            output.write_bytes(rewritten)
+                            material_assets.append({"path": row["path"], "guid": row["guid"], "shader": change,
+                                                    "exported_sha256": sha256_file(path), "prepared_sha256": sha256_file(output)})
                     copied += 1
             audio_reports[destination.name] = normalize_audio(stage)
             if destination.name == "StreamingAssets":
@@ -1119,6 +1143,8 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                       "copied_files": copied, "skipped_code_files": skipped_code, "skipped_shader_files": skipped_shader,
                       "input_fingerprint": report["input_fingerprint"], "tool": report["tool"], "audio_normalization": audio_reports,
                       "streaming_bundle_normalization": bundle_report,
+                      "material_shader_normalization": {"status": "complete" if binding_release else "not_applicable",
+                                                        "assets": material_assets},
                       "backup_paths": [str(path) for path in backups], "quarantined_script_guids": dangling,
                       "script_bindings": {**script_bindings, "references_modified": bool(rebound_assets), "assets": rebound_assets},
                       "render_pipeline": dict(render_pipeline, unresolved_shader_slots=sorted(
@@ -1127,7 +1153,7 @@ def prepare_assets(repo_root: Path, work_dir: Path) -> dict:
                       "quarantined_shader_guids": sorted(shader_guids),
                       "warnings": ["Missing game MonoScripts are expected until maintained implementations are restored.",
                                    "Compiled shaders remain in quarantine until their source or compatible replacement is restored.",
-                                   "Preparation preserves asset GUIDs and restores only approved, layout-verified script pointers; gameplay remains unresolved."]}
+                                   "Preparation preserves asset GUIDs and restores approved, layout-verified script pointers and qualified Material shader import kinds; gameplay remains unresolved."]}
             _json_write(receipt, result)
         except BaseException as error:
             if locations is None:

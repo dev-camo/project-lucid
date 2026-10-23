@@ -166,6 +166,12 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 EDITMODE_TESTS += ("ProjectLucid.Tests.DebugBackingFieldAttributeTests.DebugOnlyAllowanceForCompilerDebuggerBrowsableIsExactAndReleaseStaysStrict",)
 
+# Same-GUID maintained ShaderLab references in prepared original Materials (#492).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedSkyMaterialResolvesItsOriginalShader",
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedEggmanMaterialResolvesItsOriginalShader",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsIndependentCbcZeroPaddingVectors",
     "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsUtf8ConstructorBoundaries",
