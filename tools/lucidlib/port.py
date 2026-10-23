@@ -178,7 +178,7 @@ def _copy_reports(work, attempt, stage, report):
              if isinstance(report.get(k), str)]
     mode = stage.removesuffix("-rerun")
     if mode in ("editmode", "playmode"):
-        paths += [work / "reports" / (mode + suffix) for suffix in (".xml", ".log", "-verification.json")]
+        paths += [work / "reports" / (mode + suffix) for suffix in (".xml", ".log", "-verification.json", "-isolation.jsonl")]
     for index, path in enumerate(dict.fromkeys(paths)):
         path = _physical(path)
         if work not in path.parents:

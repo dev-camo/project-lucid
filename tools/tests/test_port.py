@@ -88,6 +88,7 @@ class SyntheticStages:
         xml.write_text("synthetic XML for " + mode)
         log.write_text("synthetic full test invocation " + mode)
         (reports / (mode + "-verification.json")).write_text(json.dumps({"mode": mode}))
+        (reports / (mode + "-isolation.jsonl")).write_text('{"attempt": "final"}\n')
         return self.result(mode, "complete", xml=str(xml), log=str(log))
 
     def audit(self, root, work):
@@ -444,6 +445,7 @@ class PortTests(unittest.TestCase):
                    "errors": ["Project content changed during testing; rerun with the imported project"],
                    **port.verification.current_identity(root)}
         (reports / (mode + "-verification.json")).write_text(json.dumps(receipt))
+        (reports / (mode + "-isolation.jsonl")).write_text('{"attempt": "first"}\n')
         return receipt
 
     def test_successful_import_drift_reruns_full_suite_and_uses_stable_prepared_identity(self):
@@ -468,6 +470,10 @@ class PortTests(unittest.TestCase):
             paths = list((Path(result["run_dir"]) / "evidence" / name).glob("*"))
             self.assertTrue(any(p.name.endswith("editmode.xml") for p in paths))
             self.assertTrue(any(p.name.endswith("editmode-verification.json") for p in paths))
+        # The rerun overwrites the shared isolation file, so each attempt keeps its own copy (#457).
+        for name, attempt in (("editmode", "first"), ("editmode-rerun", "final")):
+            kept = list((Path(result["run_dir"]) / "evidence" / name).glob("*-editmode-isolation.jsonl"))
+            self.assertEqual(['{"attempt": "%s"}\n' % attempt], [p.read_text() for p in kept])
 
     def test_contradictory_import_xml_does_not_trigger_retry_or_build(self):
         from xml.sax.saxutils import quoteattr
