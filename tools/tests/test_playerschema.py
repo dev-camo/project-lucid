@@ -21,7 +21,7 @@ class PlayerSchemaTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
         self.root, self.work, self.editor = self.fixture.root, self.fixture.work, self.fixture.editor
-        with patch.object(playercode, "run_owned", side_effect=lambda command, **kwargs: self.fixture.emit(command)):
+        with patch.object(playercode.subprocess, "run", side_effect=lambda command, **kwargs: self.fixture.emit(command)):
             result = playercode.run_player_code(self.root, self.work, "macos")
         self.player_latest = Path(result["report_path"])
         receipt = json.loads(self.player_latest.read_bytes())

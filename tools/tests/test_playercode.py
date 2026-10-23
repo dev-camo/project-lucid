@@ -274,7 +274,7 @@ class PlayerCodeTests(unittest.TestCase):
                                                                     "b" * 32, [], schema_version=value)
 
     def run_fake(self, change=None, target="macos"):
-        with patch.object(playercode, "run_owned", side_effect=lambda args, timeout, stdout, stderr: self.emit(args, target, change)) as invoke:
+        with patch.object(playercode.subprocess, "run", side_effect=lambda args, timeout, stdout, stderr: self.emit(args, target, change)) as invoke:
             result = playercode.run_player_code(self.root, self.work, target)
         return result, invoke
 
@@ -309,7 +309,7 @@ class PlayerCodeTests(unittest.TestCase):
             if child.returncode:
                 return subprocess.CompletedProcess(command, child.returncode)
             return self.emit(command)
-        with patch.object(playercode, "run_owned", side_effect=noisy):
+        with patch.object(playercode.subprocess, "run", side_effect=noisy):
             return playercode.run_player_code(self.root, self.work, "macos")
 
     def assert_console_retained(self, result):
@@ -321,6 +321,28 @@ class PlayerCodeTests(unittest.TestCase):
         self.assertFalse((run / "editor-stderr.log").exists())
         self.assertEqual(result, json.loads(json.dumps(result)))
         self.assertFalse((self.work / "locks/player-code.lock").exists())
+
+    def test_editor_launches_only_through_the_module_subprocess_facade(self):
+        # CI replaces playercode.subprocess with its Editor sandbox, which offers only run()
+        # and the exception types (.github/scripts/editor_sandbox.py EditorProcess). A launch
+        # that bypasses it runs the Editor unsandboxed and without its licensing pipe.
+        launches = []
+
+        def run(args, timeout, stdout, stderr):
+            launches.append(args)
+            return self.emit(args, "macos", None)
+
+        class Sandbox:
+            SubprocessError = subprocess.SubprocessError
+            TimeoutExpired = subprocess.TimeoutExpired
+            CalledProcessError = subprocess.CalledProcessError
+
+        Sandbox.run = staticmethod(run)
+        with patch.object(playercode, "subprocess", Sandbox), \
+                patch("subprocess.Popen", side_effect=AssertionError("the Editor bypassed the sandbox facade")):
+            result = playercode.run_player_code(self.root, self.work, "macos")
+        self.assertEqual("compiled", result["status"], result)
+        self.assertEqual(1, len(launches))
 
     def test_noisy_successful_editor_retains_console_in_owned_logs(self):
         result = self.run_noisy_editor(0)
@@ -480,13 +502,13 @@ class PlayerCodeTests(unittest.TestCase):
         self.assertEqual(hashlib.sha256(expected.encode()).hexdigest(), playercode._input_identity(records))
 
     def test_interrupted_compiler_retains_prior_receipt(self):
-        with patch.object(playercode, "run_owned", side_effect=subprocess.TimeoutExpired("Editor", 1800)):
+        with patch.object(playercode.subprocess, "run", side_effect=subprocess.TimeoutExpired("Editor", 1800)):
             with self.assertRaises(subprocess.TimeoutExpired): playercode.run_player_code(self.root, self.work, "macos")
         self.assertEqual(self.old, self.latest.read_bytes())
         self.assertFalse((self.work / "locks/player-code.lock").exists())
 
     def test_nonzero_editor_return_retains_prior_receipt(self):
-        with patch.object(playercode, "run_owned", return_value=subprocess.CompletedProcess([], 1)):
+        with patch.object(playercode.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)):
             result = playercode.run_player_code(self.root, self.work, "macos")
         self.assertEqual("failed", result["status"])
         self.assertEqual(self.old, self.latest.read_bytes())
