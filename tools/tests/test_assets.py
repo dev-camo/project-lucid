@@ -494,7 +494,29 @@ class AssetTests(unittest.TestCase):
                     self.assertEqual("old", (root / name / "value").read_text())
                 self.assertEqual([], [p.name for p in root.iterdir() if ".backup-" in p.name])
 
-    @unittest.skipUnless(hasattr(BaseException, "add_note"), "exception notes need Python 3.11+")
+    def rollback_notes(self, error):
+        """Notes the rollback attached, or printed where exception notes are unavailable."""
+        return list(getattr(error, "__notes__", [])) or self.printed.getvalue().splitlines()
+
+    def test_failed_first_install_removal_names_the_installed_tree_not_a_backup(self):
+        destination, staged = self.root / "Recovered", self.root / "staged"
+        staged.mkdir()
+        original = Path.rename
+
+        def rename(path, target):
+            result = original(path, target)
+            if path.name == "staged":
+                raise KeyboardInterrupt("interrupted after install")
+            return result
+
+        self.printed = io.StringIO()
+        with mock.patch.object(Path, "rename", rename), \
+                mock.patch.object(assets.shutil, "rmtree", side_effect=OSError("synthetic removal failure")), \
+                mock.patch("sys.stderr", self.printed), self.assertRaises(KeyboardInterrupt) as raised:
+            assets._replace_owned_directories([(destination, staged)])
+        self.assertEqual(["Could not remove the newly installed tree at {}: synthetic removal failure".format(
+            destination)], self.rollback_notes(raised.exception))
+
     def test_failed_swap_restoration_keeps_the_original_error_and_names_the_retained_tree(self):
         old, new = self.root / "Recovered", self.root / "staged"
         old.mkdir()
@@ -509,11 +531,13 @@ class AssetTests(unittest.TestCase):
                 raise OSError("synthetic restore failure")
             return original(path, destination)
 
-        with mock.patch.object(Path, "rename", rename), self.assertRaises(KeyboardInterrupt) as raised:
+        self.printed = io.StringIO()
+        with mock.patch.object(Path, "rename", rename), mock.patch("sys.stderr", self.printed), \
+                self.assertRaises(KeyboardInterrupt) as raised:
             assets._replace_owned_directories([(old, new)])
         [backup] = [p for p in self.root.iterdir() if ".backup-" in p.name]
         self.assertEqual(["Could not restore {} (synthetic restore failure); its prior tree remains at {}".format(
-            old, backup)], raised.exception.__notes__)
+            old, backup)], self.rollback_notes(raised.exception))
 
     def test_interrupted_reprepare_swap_keeps_prior_trees_and_receipt_in_agreement(self):
         project = self.make_export()

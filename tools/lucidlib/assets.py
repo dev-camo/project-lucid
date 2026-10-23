@@ -827,7 +827,7 @@ def _rollback_swaps(plan: list[tuple[Path, Path, Path | None]], error: BaseExcep
 
     A staged tree that is gone was installed at its destination; a backup that
     exists holds the prior tree. A swap that cannot be undone is noted on the
-    original exception with the path that still holds the prior tree."""
+    original exception (or printed before Python 3.11) with the affected paths."""
     for destination, staged, backup in reversed(plan):
         try:
             if not staged.exists() and destination.exists():
@@ -835,9 +835,14 @@ def _rollback_swaps(plan: list[tuple[Path, Path, Path | None]], error: BaseExcep
             if backup is not None and backup.exists():
                 backup.rename(destination)
         except Exception as failure:
-            note = f"Could not restore {destination} ({failure}); its prior tree remains at {backup}"
+            if backup is None:
+                note = f"Could not remove the newly installed tree at {destination}: {failure}"
+            else:
+                note = f"Could not restore {destination} ({failure}); its prior tree remains at {backup}"
             if hasattr(error, "add_note"):
                 error.add_note(note)
+            else:
+                print(note, file=sys.stderr)
 
 
 def _clone_file(source: Path, output: Path) -> bool:
