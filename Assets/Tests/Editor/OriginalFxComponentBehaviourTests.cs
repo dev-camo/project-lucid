@@ -213,7 +213,13 @@ namespace ProjectLucid.Tests
 
                 var applied = new MaterialPropertyBlock();
                 renderer.GetPropertyBlock(applied);
-                Assert.That(applied.GetColor("_Tint"), Is.EqualTo(new Color(0.25f, 0.5f, 0.75f, 1f)));
+                // In the shipped Linear color space a block stores colours converted to
+                // linear; compare with the engine's own round trip of the same colour.
+                var stored = new MaterialPropertyBlock();
+                stored.SetColor("_Tint", new Color(0.25f, 0.5f, 0.75f, 1f));
+                Assert.That(applied.GetColor("_Tint"), Is.EqualTo(stored.GetColor("_Tint")));
+                stored.SetColor("_Near", new Color(0.25f, 0.5f, 0.76f, 1f));
+                Assert.That(applied.GetColor("_Tint"), Is.Not.EqualTo(stored.GetColor("_Near")), "control: another colour differs");
                 Assert.That(applied.HasFloat("_Other"), Is.False, "the earlier block is not merged");
             }
         }

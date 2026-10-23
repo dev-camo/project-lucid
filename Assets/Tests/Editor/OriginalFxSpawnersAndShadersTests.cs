@@ -337,7 +337,17 @@ namespace ProjectLucid.Tests
                 Set(binder, "m_propertyId", Shader.PropertyToID("_Color"));
                 var colour = new Color(0.25f, 0.5f, 0.75f, 1f);
                 binder.SetColor(colour);
-                Assert.That(material.GetColor("_Color"), Is.EqualTo(colour));
+                // In the shipped Linear color space a material stores colours converted
+                // to linear; compare with the engine's own round trip of the same colour.
+                Material stored = NewUIMaterial();
+                try
+                {
+                    stored.SetColor("_Color", colour);
+                    Assert.That(material.GetColor("_Color"), Is.EqualTo(stored.GetColor("_Color")));
+                    stored.SetColor("_Color", new Color(0.25f, 0.5f, 0.76f, 1f));
+                    Assert.That(material.GetColor("_Color"), Is.Not.EqualTo(stored.GetColor("_Color")), "control: another colour differs");
+                }
+                finally { Object.DestroyImmediate(stored); }
                 binder.SetVector(new Vector4(0.1f, 0.2f, 0.3f, 0.4f));
                 Assert.That(material.GetVector("_Color"), Is.EqualTo(new Vector4(0.1f, 0.2f, 0.3f, 0.4f)));
 
@@ -403,6 +413,8 @@ namespace ProjectLucid.Tests
                 var manipulator = host.AddComponent<SceneMaterialManipulator>();
                 var before = new Color(0.1f, 0.2f, 0.3f, 0.4f);
                 material.SetColor("_Color", before);
+                // The colour as the material stores it (converted in Linear color space).
+                Color stored = material.GetColor("_Color");
                 var config = new SceneMaterialManipulator.MaterialColourConfig
                 {
                     Multiplier = new AnimationCurve(new Keyframe(0f, 2f)),
@@ -412,7 +424,7 @@ namespace ProjectLucid.Tests
                 };
                 var routine = (IEnumerator)Invoke(manipulator, "AnimateMaterial", config);
                 Assert.That(routine.MoveNext(), Is.False);
-                Assert.That(material.GetColor("_Color"), Is.EqualTo(before));
+                Assert.That(material.GetColor("_Color"), Is.EqualTo(stored));
             }
             finally
             {

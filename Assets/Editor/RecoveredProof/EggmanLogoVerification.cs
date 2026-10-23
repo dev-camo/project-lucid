@@ -99,7 +99,7 @@ namespace ProjectLucid
                         mask.Apply(false, false);
                         SetColours(material, a, b, c, 0.73f);
                         Draw(material, mesh, camera, target, layers, background, writeLayers, Matrix4x4.identity, true);
-                        AssertPixel(Read(target, sample), Composite(MetalReference(value, a, b, c, 0.73f), background),
+                        AssertPixel(Read(target, sample), Composite(MetalReference(value, ShaderColour(a), ShaderColour(b), ShaderColour(c), 0.73f), background),
                                     "mask=" + value + " renderingLayers=" + writeLayers);
                         if (writeLayers)
                             // Blob 5 writes layer alpha zero. The original non-separate
@@ -208,6 +208,17 @@ namespace ProjectLucid
                              source.g * source.a + background.g * (1 - source.a),
                              source.b * source.a + background.b * (1 - source.a),
                              source.a + background.a * (1 - source.a));
+        }
+
+        // The shipped project renders in Linear color space, where the engine
+        // hands the shader the _Colour_A/B/C colour properties converted from
+        // gamma to linear (rgb only; alpha and the cleared target stay as set).
+        // In Gamma the values arrive unchanged.
+        private static Vector4 ShaderColour(Vector4 colour)
+        {
+            if (QualitySettings.activeColorSpace != ColorSpace.Linear) return colour;
+            return new Vector4(Mathf.GammaToLinearSpace(colour.x), Mathf.GammaToLinearSpace(colour.y),
+                               Mathf.GammaToLinearSpace(colour.z), colour.w);
         }
 
         private static void SetColours(Material material, Vector4 a, Vector4 b, Vector4 c, float alpha)
