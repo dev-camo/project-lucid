@@ -1010,6 +1010,18 @@ namespace ProjectLucid.Tests
             EggmanLogoVerification.Run();
         }
 
+        [Test]
+        public void ParticleMainCompilesEveryPassForDirect3D()
+        {
+            ParticleMainVerification.CompileForWindows();
+        }
+
+        [Test]
+        public void ParticleMainGpuOutputMatchesDecodedSurfaceCases()
+        {
+            ParticleMainVerification.Run();
+        }
+
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all
         // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)
