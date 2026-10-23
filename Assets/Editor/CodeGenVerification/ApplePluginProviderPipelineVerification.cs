@@ -123,11 +123,15 @@ namespace ProjectLucid
             var drift = (byte[])original.Clone();
             using (var module = ModuleDefinition.ReadModule(new MemoryStream(original, false)))
             {
-                // Update is the sixth method row of the provider; its flag cell is found through the table walk
-                // by diffing against a copy where Cecil reports the same row, so shift the cell by one row stride.
-                var update = module.GetTypes().Single(t => t.FullName == "Hardlight.SourceApplePluginControllerProvider").Methods.Single(m => m.Name == "Update");
-                int stride = differences[2] - differences[0]; // consecutive MethodDef rows are one stride apart
-                int cell = differences[0] + (int)(update.MetadataToken.RID - module.GetTypes().Single(t => t.FullName == "Hardlight.SourceApplePluginControllerProvider").Methods.Single(m => m.Name == "get_KeySource").MetadataToken.RID) * stride;
+                // The two restored cells belong to consecutive MethodDef rows (get_KeySource, get_AxisSource),
+                // so their distance is the row stride. Update's cell lies (RID difference) strides from
+                // get_KeySource's; the flag read below confirms the cell before it is changed.
+                var provider = module.GetTypes().Single(t => t.FullName == "Hardlight.SourceApplePluginControllerProvider");
+                var update = provider.Methods.Single(m => m.Name == "Update");
+                var keySource = provider.Methods.Single(m => m.Name == "get_KeySource");
+                Require(provider.Methods.Single(m => m.Name == "get_AxisSource").MetadataToken.RID == keySource.MetadataToken.RID + 1, "Restored getters are consecutive rows.");
+                int stride = differences[2] - differences[0];
+                int cell = differences[0] + (int)(update.MetadataToken.RID - keySource.MetadataToken.RID) * stride;
                 Require((ushort)(original[cell] | original[cell + 1] << 8) == 0x00c6, "Located Update's flag cell.");
                 drift[cell] = 0xe6;
             }

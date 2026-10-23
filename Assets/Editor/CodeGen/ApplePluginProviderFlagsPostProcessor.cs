@@ -192,38 +192,66 @@ namespace ProjectLucid.CodeGen
                 Require(U16(0) == 0x5a4d, "Missing DOS header.");
                 int pe = checked((int)U32(0x3c));
                 Require(U32(pe) == 0x00004550, "Missing PE header.");
-                int sections = U16(pe + 6), optional = pe + 24, sectionTable = checked(optional + U16(pe + 20));
+                int sections = U16(pe + 6), optional = checked(pe + 24);
+                int optionalSize = U16(pe + 20), sectionTable = checked(optional + optionalSize);
+                Bounds(optional, optionalSize); Bounds(sectionTable, checked(sections * 40));
                 ushort magic = U16(optional);
                 Require(magic == 0x10b || magic == 0x20b, "Unsupported PE magic.");
-                int directories = optional + (magic == 0x10b ? 96 : 112);
-                Func<uint, int> rva = address => {
+                int directoryOffset = magic == 0x10b ? 96 : 112;
+                Require(optionalSize >= directoryOffset + 15 * 8 && U32(optional + directoryOffset - 4) >= 15, "Missing CLI directory.");
+                int directories = checked(optional + directoryOffset);
+                Require(U32(directories + 4 * 8) == 0 && U32(directories + 4 * 8 + 4) == 0 && U32(optional + 64) == 0, "Signed/checksummed image cannot be restored verbatim.");
+                Func<uint, uint, int> rva = (address, size) => {
+                    int result = -1;
                     for (int i = 0; i < sections; ++i) {
-                        int row = checked(sectionTable + i * 40); uint va = U32(row + 12), raw = U32(row + 16), ptr = U32(row + 20);
-                        if (address >= va && (ulong)address - va < raw) return checked((int)(ptr + address - va));
+                        int row = checked(sectionTable + i * 40);
+                        uint va = U32(row + 12), raw = U32(row + 16), ptr = U32(row + 20);
+                        if (address >= va && (ulong)address - va < raw && (ulong)address - va + size <= raw) {
+                            Require(result < 0, "Ambiguous file-backed RVA.");
+                            result = checked((int)((ulong)ptr + address - va)); Bounds(result, checked((int)size));
+                        }
                     }
-                    throw new InvalidDataException("RVA outside file-backed sections.");
+                    Require(result >= 0, "RVA outside file-backed sections."); return result;
                 };
-                int cli = rva(U32(directories + 14 * 8)); int metadata = rva(U32(cli + 8));
-                Require(U32(metadata) == 0x424a5342, "Missing CLR metadata.");
+                uint cliSize = U32(directories + 14 * 8 + 4);
+                Require(cliSize >= 72, "Truncated CLI header.");
+                int cli = rva(U32(directories + 14 * 8), cliSize);
+                Require(U32(cli) >= 72 && U32(cli) <= cliSize && (U32(cli + 16) & 8) == 0 && U32(cli + 32) == 0 && U32(cli + 36) == 0, "Unexpected strong-name header.");
+                uint metadataSize = U32(cli + 12);
+                int metadata = rva(U32(cli + 8), metadataSize), metadataEnd = checked(metadata + (int)metadataSize);
+                Require(metadataSize >= 20 && U32(metadata) == 0x424a5342, "Missing CLR metadata.");
                 int versionEnd = checked(metadata + 16 + (int)U32(metadata + 12));
-                int header = checked((versionEnd + 3) & ~3); int streams = U16(header + 2), cursor = header + 4, tables = -1;
+                int header = checked((versionEnd + 3) & ~3);
+                Require(header >= metadata + 16 && header + 4 <= metadataEnd, "Version outside metadata.");
+                int streams = U16(header + 2), cursor = header + 4, tables = -1, tablesEnd = -1;
+                var labels = new HashSet<string>(StringComparer.Ordinal);
                 for (int i = 0; i < streams; ++i) {
-                    uint offset = U32(cursor); int name = cursor + 8, end = name;
-                    while (Byte(end) != 0) ++end;
+                    Require(cursor >= metadata && (long)cursor + 8 <= metadataEnd, "Stream header outside metadata.");
+                    uint offset = U32(cursor), size = U32(cursor + 4);
+                    int name = cursor + 8, end = name;
+                    while (end < metadataEnd && Byte(end) != 0) ++end;
+                    Require(end < metadataEnd && end - name <= 32, "Invalid stream name.");
                     string label = System.Text.Encoding.ASCII.GetString(image, name, end - name);
-                    if (label == "#~" || label == "#-") { Require(tables < 0, "Duplicate table stream."); tables = checked(metadata + (int)offset); }
+                    Require(labels.Add(label) && (ulong)offset + size <= metadataSize, "Duplicate/out-of-range stream.");
+                    Require(label != "#-", "Unoptimized pointer-table metadata is unsupported.");
+                    if (label == "#~") { tables = checked(metadata + (int)offset); tablesEnd = checked(tables + (int)size); }
                     cursor = checked((end + 4) & ~3);
+                    Require(cursor <= metadataEnd, "Aligned stream header outside metadata.");
                 }
-                Require(tables >= 0, "Missing table stream.");
+                Require(tables >= cursor && (long)tables + 24 <= tablesEnd, "Missing/overlapping table stream.");
                 byte heaps = Byte(tables + 6); ulong valid = U64(tables + 8); cursor = tables + 24;
+                Require((heaps & ~7) == 0 && (valid & ((1UL << 3) | (1UL << 5) | (1UL << 7))) == 0, "Unexpected heap/pointer-table flags.");
                 var rows = new uint[64];
-                for (int i = 0; i < 64; ++i) if ((valid & (1UL << i)) != 0) { rows[i] = U32(cursor); cursor += 4; }
+                for (int i = 0; i < 64; ++i) if ((valid & (1UL << i)) != 0) {
+                    Require((long)cursor + 4 <= tablesEnd, "Row counts outside table stream."); rows[i] = U32(cursor); cursor = checked(cursor + 4);
+                }
                 Func<int, int> index = id => rows[id] >= 65536 ? 4 : 2;
                 Func<int, int[], int> coded = (bits, ids) => ids.Max(id => rows[id]) >= (1U << (16 - bits)) ? 4 : 2;
                 int str = (heaps & 1) == 0 ? 2 : 4, guid = (heaps & 2) == 0 ? 2 : 4, blob = (heaps & 4) == 0 ? 2 : 4;
                 int[] widths = { 2 + str + guid * 3, coded(2, new[] { 0, 26, 35, 1 }) + str * 2, 4 + str * 2 + coded(2, new[] { 2, 1, 27 }) + index(4) + index(6), index(4), 2 + str + blob, index(6) };
-                for (int i = 0; i < 6; ++i) cursor = checked(cursor + (int)rows[i] * widths[i]);
+                for (int i = 0; i < 6; ++i) cursor = checked(cursor + checked((int)rows[i] * widths[i]));
                 start = cursor; count = rows[6]; stride = 8 + str + blob + index(8);
+                Require(count > 0 && (long)start + (long)count * stride <= tablesEnd, "MethodDef rows outside table stream.");
                 Bounds(start, checked((int)count * stride));
             }
             internal int FlagsOffset(uint rid) { Require(rid > 0 && rid <= count, "MethodDef RID outside table."); return checked(start + ((int)rid - 1) * stride + 6); }
