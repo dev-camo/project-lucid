@@ -232,7 +232,7 @@ def package_shader_map(repo_root, exported_project, asset_map):
             continue
         names = SHADER_DECLARATION.findall(_owned_file(package, relative).read_text(encoding="utf-8-sig"))
         guids = META_GUID.findall(_owned_file(package, relative + ".meta").read_text(encoding="utf-8"))
-        if not names or len(guids) != 1:
+        if len(names) != 1 or len(guids) != 1:
             raise ValueError("Package shader identity is incomplete: " + relative)
         declared.setdefault(names[0], []).append(guids[0])
     mapping, unresolved = {}, []

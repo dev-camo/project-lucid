@@ -16,14 +16,13 @@ namespace ProjectLucid.Tests.Editor
     // no null check, takes renderer 0's FullScreenPassRendererFeature and its
     // passMaterial, and renderer 1's UIBlurRenderFeature, each by exact GetType()
     // equality (060035ce). URP 14.0.11's GetRenderer only warns and falls back to
-    // renderer 0 for a missing renderer, so renderer 1 is checked by identity.
+    // renderer 0 for a missing renderer, so renderer 1 is checked by identity. The
+    // negatives show the lookups are index-sensitive; a derived feature instance
+    // would need a mutated pipeline asset and is not exercised here.
     public sealed class OriginalRenderPipelineSelectionTests
     {
         private static readonly string[] LevelNames = { "Very Low", "Low", "Medium", "High", "Very High" };
         private static readonly string[] PipelineNames = { "URPAsset_VeryLow", "URPAsset_Low", "URPAsset_Med", "URPAsset_High", "URPAsset_VeryHigh" };
-
-        // A subclass is a different exact type: the original lookup never accepts it.
-        private sealed class DerivedFullScreenPass : FullScreenPassRendererFeature { }
 
         [Test]
         public void EveryShippedQualityLevelSelectsItsPreparedPipelineAsset()
@@ -82,9 +81,10 @@ namespace ProjectLucid.Tests.Editor
                     // Negative controls: the lookups are index-sensitive and exact.
                     Assert.That(FullscreenShaderManager.GetRendererFeature<UIBlurRenderFeature>(0), Is.Null);
                     Assert.That(FullscreenShaderManager.GetRendererFeature<FullScreenPassRendererFeature>(1), Is.Null);
-                    Assert.That(FullscreenShaderManager.GetRendererFeature<DerivedFullScreenPass>(0), Is.Null);
                 }
-                // URP's missing-renderer fallback only warns; no message may appear.
+                // URP's missing-renderer fallback only warns, which LogAssert does not
+                // catch; the renderer identity check above is what rules it out. This
+                // still refuses any error or exception the lookups log.
                 LogAssert.NoUnexpectedReceived();
             }
             finally

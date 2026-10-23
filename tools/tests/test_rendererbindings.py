@@ -164,7 +164,7 @@ class PackageShaderMapTests(unittest.TestCase):
                              [(u["guid"], u["package_candidates"]) for u in result["unresolved"]])
 
     def test_package_identity_and_exported_identity_are_checked(self):
-        for change in ("lock", "descriptor", "meta", "not-compiled", "package-meta"):
+        for change in ("lock", "descriptor", "meta", "not-compiled", "package-meta", "two-declarations"):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as directory:
                 root, export, mapping, package = self.fixture(directory)
                 if change == "lock":
@@ -174,6 +174,9 @@ class PackageShaderMapTests(unittest.TestCase):
                 elif change == "meta": (export / mapping["assets"][0]["path"]).with_suffix(".asset.meta").write_text("guid: " + "9" * 32 + "\n")
                 elif change == "not-compiled": (export / mapping["assets"][0]["path"]).write_text("%YAML 1.1\n")
                 elif change == "package-meta": (package / "Shaders/Utils/Blit.shader.meta").write_text("no guid\n")
+                elif change == "two-declarations":
+                    blit = package / "Shaders/Utils/Blit.shader"
+                    blit.write_text(blit.read_text() + 'Shader "Hidden/Other"\n{\n}\n')
                 with self.assertRaises(ValueError):
                     package_shader_map(root, export, mapping)
 

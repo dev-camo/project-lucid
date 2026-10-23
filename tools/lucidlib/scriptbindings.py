@@ -634,6 +634,7 @@ def _player_plane(root, work, current, schema, schema_digest, summary):
     if inventory.get("source_fingerprint") != current or inventory.get("original_schema_sha256") != schema_digest:
         raise ValueError("Editor inventory is stale for the player-plane comparison")
     result = playerlayouts.compare_player_plane(schema, report, inventory, playerschema.URP_ROOTS)
+    playerlayouts.require_editor_only(result["editor_only"])
     return dict(result, report_path=str(report_path), report_sha256=hashlib.sha256(report_bytes).hexdigest(),
                 inventory_sha256=hashlib.sha256(inventory_bytes).hexdigest(), target=target)
 

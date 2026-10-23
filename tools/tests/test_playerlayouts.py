@@ -152,6 +152,21 @@ class PlayerPlaneTests(unittest.TestCase):
         with self.assertRaises(bindings.LayoutError):
             playerlayouts.compare_player_plane(*player_fixture(), {(URP, "Example.Missing")})
 
+    def test_the_editor_only_delta_is_the_exact_reviewed_roster(self):
+        roster = copy.deepcopy(playerlayouts.URP_EDITOR_ONLY)
+        self.assertIs(roster, playerlayouts.require_editor_only(roster))
+        key = "Unity.RenderPipelines.Universal.Runtime:UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset"
+        self.assertIn("m_AnyShadowsSupported", roster[key]["fields"])
+        for change in ("added-field", "removed-field", "added-type", "added-attribute"):
+            with self.subTest(change=change):
+                altered = copy.deepcopy(roster)
+                if change == "added-field": altered[key]["fields"].append("m_NewEditorField")
+                elif change == "removed-field": altered[key]["fields"].remove("m_AnyShadowsSupported")
+                elif change == "added-type": altered["Example:Example.Type"] = {"fields": ["x"], "field_attributes": [], "type_attributes": []}
+                elif change == "added-attribute": altered[key]["type_attributes"].append("Example.EditorAttribute")
+                with self.assertRaises(bindings.LayoutError):
+                    playerlayouts.require_editor_only(altered)
+
     def test_vector2_keeps_one_exact_cad_order_per_plane(self):
         import test_bindings_vector2
         vector = test_bindings_vector2.vector2_record()
