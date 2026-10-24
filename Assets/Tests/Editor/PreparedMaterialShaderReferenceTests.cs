@@ -35,6 +35,36 @@ namespace ProjectLucid.Tests
                 "f21fe4aef0791351d6a53f6c6c33b436400fe3a42ec7dfd984ac7a6d7b1cd43e");
         }
 
+        [Test]
+        public void PreparedCharStandardAmyMaterialResolvesItsOriginalShader()
+        {
+            const string materialPath = "Assets/Recovered/Data/Art/Characters/Amy/amy_mat.mat";
+            Assert.That(Hash(materialPath + ".meta"), Is.EqualTo("80b2afcc33e31f41682878f3d36571f9d1a4478376bc05a0da95ef59d5401eac"));
+            Run(materialPath, "2c2852d28ebcb6a448343928f6d50f9d", "fb495c01c5fd7534590903b8e77f3281",
+                "HardLight/Character/HL_Char_Standard", "Assets/Shaders/Recovered/HL_Char_Standard.shader", "74e0619038884cad9e9240ec1f1aca3ae77bede3ef94f6125647f67598380f14");
+            const string erosion = "_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D";
+            const string erosionGuid = "e8129d5371ff1e04d8070064644689a1";
+            Shader shader = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Shaders/Recovered/HL_Char_Standard.shader");
+            int index = shader.FindPropertyIndex(erosion);
+            Assert.That(index, Is.GreaterThanOrEqualTo(0));
+            Assert.That((shader.GetPropertyFlags(index) & UnityEngine.Rendering.ShaderPropertyFlags.NonModifiableTextureData) != 0, Is.True);
+            string erosionPath = AssetDatabase.GUIDToAssetPath(erosionGuid);
+            Assert.That(erosionPath, Is.Not.Empty);
+            Texture texture = AssetDatabase.LoadAssetAtPath<Texture>(erosionPath);
+            Assert.That(texture, Is.Not.Null);
+            Assert.That(ObjectIdentifier.TryGetObjectIdentifier(texture, out ObjectIdentifier textureId), Is.True);
+            Assert.That(textureId.guid.ToString(), Is.EqualTo(erosionGuid));
+            Assert.That(textureId.localIdentifierInFile, Is.EqualTo(2800000));
+            Assert.That(textureId.fileType, Is.EqualTo(FileType.MetaAssetType));
+            Material fresh = null;
+            try
+            {
+                fresh = new Material(shader);
+                Assert.That(fresh.GetTexture(erosion), Is.SameAs(texture));
+            }
+            finally { if (fresh != null) UnityEngine.Object.DestroyImmediate(fresh); }
+        }
+
         private void Run(string materialPath, string materialGuid, string shaderGuid,
                          string shaderName, string shaderPath, string preparedSha256)
         {

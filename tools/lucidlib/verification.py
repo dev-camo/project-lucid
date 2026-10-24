@@ -2532,6 +2532,20 @@ EDITMODE_TESTS += (
 )
 
 
+
+# Character shader serialized contracts and genuine fixture-failure controls (#448).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardKeywordScopesAndPassMasksMatchOriginal",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardCompilesEveryPassForOpenGLCore",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardVertexStagesKeepDecodedOutputs",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardFragmentStagesKeepDecodedFloatOutputs",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardDebugInputsKeepDeclaredLightmapAndSHFields",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardAlphaModulateUsesPinnedPreparation",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardSetupFailureRestoresOwnedResources",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardBodyFailureRestoresOwnedResources",
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedCharStandardAmyMaterialResolvesItsOriginalShader",
+)
+
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.LocalPropertySaveTests.InvalidPrimaryRecoversBackupAndExplicitSavePreservesCorruption("version")',

@@ -20,16 +20,85 @@ namespace ProjectLucid
         private const string ErosionTextureGuid = "e8129d5371ff1e04d8070064644689a1";
         // The shipped shader asset GUID in the 2026-10-05 baseline export (dev-camo/project-lucid#448).
         private const string OriginalGuid = "fb495c01c5fd7534590903b8e77f3281";
+        private static Action<List<UnityEngine.Object>, string> resourceFaultProbe;
+
+        public static void VerifyResourceRestorationAfterFailure(string phase)
+        {
+            Require(resourceFaultProbe == null, "another resource fault control is active");
+            Require(phase == "setup" || phase == "body", "known resource fault phase");
+            string pipeline = Shader.globalRenderPipeline;
+            RenderTexture activeTarget = RenderTexture.active;
+            string[] vectorNames = { "_MainLightPosition", "_WorldSpaceCameraPos", "unity_OrthoParams", "unity_MetaVertexControl", "unity_MetaFragmentControl", "_GlobalMipBias" };
+            string[] floatNames = { "unity_OneOverOutputBoost", "unity_MaxOutputValue", "_AlphaToMaskAvailable" };
+            var vectors = new Dictionary<string, Vector4>();
+            var floats = new Dictionary<string, float>();
+            foreach (string name in vectorNames) vectors.Add(name, Shader.GetGlobalVector(name));
+            foreach (string name in floatNames) floats.Add(name, Shader.GetGlobalFloat(name));
+            UnityEngine.Object[] observed = null;
+            var expected = new InvalidOperationException("Owned character " + phase + " failure.");
+            Exception primary = null;
+            try
+            {
+                resourceFaultProbe = (objects, at) =>
+                {
+                    if (at != phase) return;
+                    observed = objects.ToArray();
+                    throw expected;
+                };
+                bool reached = false;
+                try { Run(); }
+                catch (Exception error)
+                {
+                    Require(ReferenceEquals(error, expected), "resource cleanup preserves the primary failure identity");
+                    reached = true;
+                }
+                Require(reached && observed != null && observed.Length > 0, "the genuine Run reaches the requested resource fault");
+                foreach (UnityEngine.Object item in observed) Require(item == null, "Run destroys every allocated owned object after " + phase);
+                Require(Shader.globalRenderPipeline == pipeline && RenderTexture.active == activeTarget, "pipeline and active target restored after " + phase);
+                foreach (var item in vectors) Require(Shader.GetGlobalVector(item.Key).Equals(item.Value), item.Key + " restored after " + phase);
+                foreach (var item in floats) Require(Shader.GetGlobalFloat(item.Key).Equals(item.Value), item.Key + " restored after " + phase);
+            }
+            catch (Exception error) { primary = error; throw; }
+            finally
+            {
+                resourceFaultProbe = null;
+                var failures = new List<Exception>();
+                void Attempt(Action action) { try { action(); } catch (Exception failure) { failures.Add(failure); } }
+                // A failing negative control must not leave the allocation it just detected behind.
+                if (observed != null)
+                    foreach (UnityEngine.Object item in observed)
+                        Attempt(() => { if (item != null) UnityEngine.Object.DestroyImmediate(item); });
+                foreach (var item in vectors) Attempt(() => Shader.SetGlobalVector(item.Key, item.Value));
+                foreach (var item in floats) Attempt(() => Shader.SetGlobalFloat(item.Key, item.Value));
+                Attempt(() => RenderTexture.active = activeTarget);
+                Attempt(() => Shader.globalRenderPipeline = pipeline);
+                if (failures.Count != 0)
+                {
+                    if (primary != null) failures.Insert(0, primary);
+                    throw new AggregateException("Character resource fault-control cleanup failed.", failures);
+                }
+            }
+        }
 
         public static void Run()
         {
             string previous = Shader.globalRenderPipeline;
+            Exception primary = null;
             try
             {
                 Shader.globalRenderPipeline = "UniversalPipeline";
                 RunUnderUniversalPipeline();
             }
-            finally { Shader.globalRenderPipeline = previous; }
+            catch (Exception error) { primary = error; throw; }
+            finally
+            {
+                try { Shader.globalRenderPipeline = previous; }
+                catch (Exception cleanup)
+                {
+                    if (primary != null) throw new AggregateException("Character pipeline restoration failed.", primary, cleanup);
+                    throw;
+                }
+            }
         }
 
         // Compiles every pass for Direct3D 11 with the keyword sets the shipped variants combine.
@@ -88,37 +157,14 @@ namespace ProjectLucid
             var owned = new List<UnityEngine.Object>();
             Texture2D Solid(Color color)
             {
-                var texture = new Texture2D(4, 1, TextureFormat.RGBAFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+                var texture = new Texture2D(4, 1, TextureFormat.RGBAFloat, false, true);
+                owned.Add(texture);
+                texture.filterMode = FilterMode.Point;
+                texture.wrapMode = TextureWrapMode.Repeat;
                 texture.SetPixels(new[] { color, color, color, color });
                 texture.Apply(false, false);
-                owned.Add(texture);
                 return texture;
             }
-
-            Material material = new Material(shader);
-            owned.Add(material);
-            Mesh mesh = new Mesh();
-            owned.Add(mesh);
-            mesh.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) };
-            mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
-            mesh.tangents = new[] { new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1) };
-            mesh.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) };
-            mesh.uv2 = mesh.uv;
-            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
-            mesh.RecalculateBounds();
-
-            var target = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-            var sample = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
-            var cameraObject = new GameObject("ShaderVerificationCamera");
-            owned.Add(target); owned.Add(sample); owned.Add(cameraObject);
-            Camera camera = cameraObject.AddComponent<Camera>();
-            camera.enabled = false;
-            camera.orthographic = true;
-            camera.orthographicSize = 1;
-            camera.aspect = 1;
-            camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 10;
-            camera.transform.position = new Vector3(0, 0, -2);
 
             string[] vectors = { "_MainLightPosition", "_WorldSpaceCameraPos", "unity_OrthoParams", "unity_MetaVertexControl", "unity_MetaFragmentControl", "_GlobalMipBias" };
             string[] floats = { "unity_OneOverOutputBoost", "unity_MaxOutputValue", "_AlphaToMaskAvailable" };
@@ -127,8 +173,38 @@ namespace ProjectLucid
             foreach (string name in vectors) prior[name] = Shader.GetGlobalVector(name);
             foreach (string name in floats) priorFloats[name] = Shader.GetGlobalFloat(name);
             RenderTexture previous = RenderTexture.active;
+            RenderTexture target = null;
+            Exception primary = null;
             try
             {
+                Material material = new Material(shader);
+                owned.Add(material);
+                resourceFaultProbe?.Invoke(owned, "setup");
+                Mesh mesh = new Mesh();
+                owned.Add(mesh);
+                mesh.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) };
+                mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+                mesh.tangents = new[] { new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1) };
+                mesh.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) };
+                mesh.uv2 = mesh.uv;
+                mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+                mesh.RecalculateBounds();
+
+                target = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                owned.Add(target);
+                var sample = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
+                owned.Add(sample);
+                var cameraObject = new GameObject("ShaderVerificationCamera");
+                owned.Add(cameraObject);
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.enabled = false;
+                camera.orthographic = true;
+                camera.orthographicSize = 1;
+                camera.aspect = 1;
+                camera.nearClipPlane = 0.1f;
+                camera.farClipPlane = 10;
+                camera.transform.position = new Vector3(0, 0, -2);
+
                 target.Create();
                 // A distant camera makes the view head-on everywhere; the main light points away from
                 // the quad, so the half-Lambert term is 0 unless a case turns it toward the normal.
@@ -152,6 +228,8 @@ namespace ProjectLucid
                 material.SetFloat("_Erosion_Progress", 0);
                 material.SetFloat("_SSS_Emissive_Intensity", 1);
                 material.SetFloat("_Matcap_Emissive_Intensity", 1);
+
+                resourceFaultProbe?.Invoke(owned, "body");
 
                 Expect(material, 0, mesh, camera, target, sample, new Color(0.2f, 0.4f, 0.6f), "head-on fresnel selects the emissive texture times colour", 1);
                 material.SetTexture("_ID_Mask", Solid(new Color(0, 0, 0.6f, 0)));
@@ -267,8 +345,10 @@ namespace ProjectLucid
                 // unbiased and level 4 at bias 1; applying the bias twice would read level 5.
                 Texture2D Levels(Color unbiased, Color once, Color twice)
                 {
-                    var levels = new Texture2D(256, 256, TextureFormat.RGBAFloat, true, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Repeat };
+                    var levels = new Texture2D(256, 256, TextureFormat.RGBAFloat, true, true);
                     owned.Add(levels);
+                    levels.filterMode = FilterMode.Bilinear;
+                    levels.wrapMode = TextureWrapMode.Repeat;
                     for (int mip = 0; mip < levels.mipmapCount; mip++)
                     {
                         int width = Math.Max(1, 256 >> mip);
@@ -302,8 +382,10 @@ namespace ProjectLucid
                 mesh.normals = new[] { new Vector3(-0.3f, -0.3f, -1), new Vector3(0.3f, -0.3f, -1), new Vector3(0.3f, 0.3f, -1), new Vector3(-0.3f, 0.3f, -1) };
                 material.SetTexture("_ID_Mask", Solid(new Color(0, 1, 0, 0)));
                 material.EnableKeyword("_USE_MATCAP");
-                var matcapLevels = new Texture2D(256, 256, TextureFormat.RGBAFloat, true, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Repeat };
+                var matcapLevels = new Texture2D(256, 256, TextureFormat.RGBAFloat, true, true);
                 owned.Add(matcapLevels);
+                matcapLevels.filterMode = FilterMode.Bilinear;
+                matcapLevels.wrapMode = TextureWrapMode.Repeat;
                 for (int mip = 0; mip < matcapLevels.mipmapCount; mip++)
                 {
                     int width = Math.Max(1, 256 >> mip);
@@ -388,8 +470,10 @@ namespace ProjectLucid
                 // Clipping: an opacity ramp gives alpha 0.49 here and 0.59 one pixel right (derivative width 0.1).
                 // Forward sharpens for alpha to coverage when it is available: (0.49 - 0.5 - 0.05) / 0.1 + 1 = 0.4
                 // survives. Meta 736 clips the bare 0.49.
-                var opacityRamp = new Texture2D(32, 1, TextureFormat.RGBAFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+                var opacityRamp = new Texture2D(32, 1, TextureFormat.RGBAFloat, false, true);
                 owned.Add(opacityRamp);
+                opacityRamp.filterMode = FilterMode.Point;
+                opacityRamp.wrapMode = TextureWrapMode.Clamp;
                 var ramp = new Color[32];
                 for (int i = 0; i < ramp.Length; i++) ramp[i] = new Color(0, 0, 0.49f + 0.1f * (i - 16), 0);
                 opacityRamp.SetPixels(ramp);
@@ -425,13 +509,25 @@ namespace ProjectLucid
                 Debug.Log("Project Lucid HL_Char_Standard GPU verification passed: 43 Metal-derived cases on " + SystemInfo.graphicsDeviceType +
                           ". Lit presentation QA remains unverified.");
             }
+            catch (Exception error) { primary = error; throw; }
             finally
             {
-                foreach (string name in vectors) Shader.SetGlobalVector(name, prior[name]);
-                foreach (string name in floats) Shader.SetGlobalFloat(name, priorFloats[name]);
-                RenderTexture.active = previous;
-                target.Release();
-                foreach (UnityEngine.Object item in owned) UnityEngine.Object.DestroyImmediate(item);
+                var failures = new List<Exception>();
+                void Attempt(Action action) { try { action(); } catch (Exception failure) { failures.Add(failure); } }
+                foreach (string name in vectors) Attempt(() => Shader.SetGlobalVector(name, prior[name]));
+                foreach (string name in floats) Attempt(() => Shader.SetGlobalFloat(name, priorFloats[name]));
+                Attempt(() => RenderTexture.active = previous);
+                Attempt(() => { if (target != null) target.Release(); });
+                for (int index = owned.Count - 1; index >= 0; index--)
+                {
+                    UnityEngine.Object item = owned[index];
+                    Attempt(() => { if (item != null) UnityEngine.Object.DestroyImmediate(item); });
+                }
+                if (failures.Count != 0)
+                {
+                    if (primary != null) failures.Insert(0, primary);
+                    throw new AggregateException("Character verification cleanup failed.", failures);
+                }
             }
         }
 
