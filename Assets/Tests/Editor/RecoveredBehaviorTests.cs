@@ -1017,6 +1017,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void ParticleMainCompilesEveryPassForOpenGL()
+        {
+            ParticleMainVerification.CompileForLinux();
+        }
+
+        [Test]
         public void ParticleMainGpuOutputMatchesDecodedSurfaceCases()
         {
             ParticleMainVerification.Run();

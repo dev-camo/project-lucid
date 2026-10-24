@@ -165,6 +165,15 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "EggmanLogoGpuOutputMatchesDecodedColorBlendAndLayerCases",
     "ParticleMainCompilesEveryPassForDirect3D",
     "ParticleMainGpuOutputMatchesDecodedSurfaceCases"))
+# Particle depth and camera-fade portability across desktop graphics APIs (#448).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.RecoveredBehaviorTests.ParticleMainCompilesEveryPassForOpenGL",
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedParticleMainMaterialResolvesItsOriginalShader",
+    "ProjectLucid.Tests.ParticleMainStageContractTests.ParticleMainVertexStagesKeepDecodedOutputs",
+    "ProjectLucid.Tests.ParticleMainStageContractTests.ParticleMainDepthFragmentKeepsFourFloatLanes",
+    "ProjectLucid.Tests.ParticleMainStageContractTests.ParticleMainRetainsDecodedFoveatedDynamicKeyword",
+    "ProjectLucid.Tests.ParticleMainStageContractTests.ParticleMainKeywordScopesAndPassMasksMatchOriginal",
+)
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 EDITMODE_TESTS += ("ProjectLucid.Tests.DebugBackingFieldAttributeTests.DebugOnlyAllowanceForCompilerDebuggerBrowsableIsExactAndReleaseStaysStrict",)
 
