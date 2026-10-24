@@ -172,6 +172,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedEggmanMaterialResolvesItsOriginalShader",
 )
 
+# Original FastAction null conversion and checked mutation order (#469).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFastActionNullListenerTests." + name for name in (
+    "NullListenerReturnsTheSameInstanceForTheSelfType",
+    "NullListenerOnASiblingSubclassReturnsNullWithoutThrowing",
+    "NullListenerOnNullReturnsNull",
+    "NonNullListenerOnASiblingStillThrowsAfterAdding",
+    "SubtractionKeepsItsOwnResults",
+))
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsIndependentCbcZeroPaddingVectors",
     "ProjectLucid.Tests.OriginalEncryptedSavePreservationTests.OriginalEncryptedSaveRetainsUtf8ConstructorBoundaries",

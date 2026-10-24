@@ -31,20 +31,21 @@ namespace Hardlight
             m_addedList = new List<TAction>();
         }
 
-        // 0x06000de6; arm64 0x13473ac.
+        // 0x06000de6; arm64 0x13473ac. Null listener uses IsInst (x64 0x134fd8a).
         public static TFastAction operator +(FastActionBase<TFastAction, TAction> fastAction, TAction listener)
         {
-            if (listener == null) return (TFastAction)fastAction;
+            if (listener == null) return fastAction as TFastAction;
             if (fastAction == null) fastAction = new TFastAction();
             fastAction.AddListener(listener);
             return (TFastAction)fastAction;
         }
 
-        // 0x06000de7; arm64 0x134755c. Added-during-invoke listeners also
-        // participate in uniqueness checks; pending removals do not.
+        // 0x06000de7; arm64 0x134755c. Null listener uses IsInst (x64 0x134fedb).
+        // Added-during-invoke listeners also participate in uniqueness checks;
+        // pending removals do not.
         public static TFastAction AddUnique(FastActionBase<TFastAction, TAction> fastAction, TAction listener)
         {
-            if (listener == null) return (TFastAction)fastAction;
+            if (listener == null) return fastAction as TFastAction;
             if (fastAction == null) fastAction = new TFastAction();
             fastAction.AddListenerUnique(listener);
             return (TFastAction)fastAction;
