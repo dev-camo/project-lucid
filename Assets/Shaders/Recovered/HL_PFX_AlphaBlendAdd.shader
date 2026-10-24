@@ -81,6 +81,16 @@ Shader "HardLight/Particle/HL_PFX_AlphaBlendAdd"
                 float distanceFade : TEXCOORD1;
             };
 
+            // Preserve the shipped Metal w-z curve across APIs with different clip-depth conventions.
+            float CameraFadeDistance(float4 positionCS)
+            {
+                #if UNITY_REVERSED_Z
+                return positionCS.w - positionCS.z;
+                #else
+                return (positionCS.z - UNITY_NEAR_CLIP_VALUE * positionCS.w) / (1.0 - UNITY_NEAR_CLIP_VALUE);
+                #endif
+            }
+
             Varyings Vert(Attributes input)
             {
                 Varyings output;
@@ -89,11 +99,11 @@ Shader "HardLight/Particle/HL_PFX_AlphaBlendAdd"
                 output.uv0 = input.uv0;
                 float2 range = _distance_fade_custom_particle_data_toggle == 1.0
                     ? input.uv0.zw : float2(_distance_fade_near, _distance_fade_far);
-                output.distanceFade = saturate(((output.positionCS.w - output.positionCS.z) - range.x) / (range.y - range.x));
+                output.distanceFade = saturate((CameraFadeDistance(output.positionCS) - range.x) / (range.y - range.x));
                 return output;
             }
 
-            half4 Frag(Varyings input) : SV_Target
+            float4 Frag(Varyings input) : SV_Target
             {
                 // UV0 is sampled directly; _MainTex_ST is declared but unused, as in the original.
                 // Core.hlsl supplies _GlobalMipBias.x through SAMPLE_TEXTURE2D, the single bias the original applies.

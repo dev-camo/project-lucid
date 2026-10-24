@@ -40,6 +40,7 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
         HLSLINCLUDE
         #pragma target 3.5
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
 
         // Shipped UnityPerMaterial member order, kept for SRP Batcher layout parity.
         CBUFFER_START(UnityPerMaterial)
@@ -84,6 +85,17 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile _ DIRLIGHTMAP_COMBINED
+            #pragma shader_feature _ _SAMPLE_GI
+            #pragma multi_compile_fog
+            #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            #pragma multi_compile_fragment _ DEBUG_DISPLAY
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
+            #pragma shader_feature_fragment _ _SURFACE_TYPE_TRANSPARENT
+            #pragma shader_feature_local_fragment _ _ALPHAPREMULTIPLY_ON
+            #pragma shader_feature_local_fragment _ _ALPHAMODULATE_ON
+            #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
             #pragma target 4.5 DOTS_INSTANCING_ON
@@ -120,7 +132,7 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
                 return output;
             }
 
-            void Frag(Varyings input, out half4 outColor : SV_Target0
+            void Frag(Varyings input, out float4 outColor : SV_Target0
                 #if defined(_WRITE_RENDERING_LAYERS)
                 , out float4 outRenderingLayers : SV_Target1
                 #endif
@@ -136,7 +148,7 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
                 float2 uv = float2(rim.y, -rim.x) * _Matcap_Border_Push_Amount + 0.5;
                 float3 matcap = SAMPLE_TEXTURE2D(_Matcap_Tex, sampler_Matcap_Tex, uv).rgb;
                 matcap = lerp(matcap, input.color.rgb * matcap, _USE_VERTEX_COLOUR_TINT);
-                outColor = half4(matcap * _Diff_Tint.rgb, 1.0);
+                outColor = float4(matcap * _Diff_Tint.rgb, 1.0);
                 #if defined(_WRITE_RENDERING_LAYERS)
                 outRenderingLayers = float4(EncodeMeshRenderingLayer(GetMeshRenderingLayer()), 0, 0, 0);
                 #endif
@@ -156,6 +168,7 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
             #pragma target 4.5 DOTS_INSTANCING_ON
@@ -163,15 +176,33 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
             struct Attributes
             {
                 float3 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float4 color : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
-
-            float4 Vert(Attributes input) : SV_POSITION
+            struct Varyings
             {
+                float4 positionCS : SV_POSITION;
+                float4 color : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                float3 normalWS : TEXCOORD2;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings output = (Varyings)0;
                 UNITY_SETUP_INSTANCE_ID(input);
-                return TransformObjectToHClip(SpinAboutY(input.positionOS));
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+                output.positionWS = TransformObjectToWorld(SpinAboutY(input.positionOS));
+                output.positionCS = TransformWorldToHClip(output.positionWS);
+                output.normalWS = TransformObjectToWorldNormal(SpinAboutY(input.normalOS));
+                output.color = input.color;
+                return output;
             }
-            half Frag(float4 positionCS : SV_POSITION) : SV_Target { return positionCS.z; }
+            float4 Frag(float4 positionCS : SV_POSITION) : SV_Target { return positionCS.zzzz; }
             ENDHLSL
         }
 
@@ -187,6 +218,7 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #pragma multi_compile_instancing
             #pragma multi_compile _ DOTS_INSTANCING_ON
             #pragma target 4.5 DOTS_INSTANCING_ON
@@ -200,14 +232,30 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
             {
                 float3 positionOS : POSITION;
                 float3 normalOS : NORMAL;
+                float4 color : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
-
-            float4 Vert(Attributes input) : SV_POSITION
+            struct Varyings
             {
+                float4 positionCS : SV_POSITION;
+                float4 color : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                float3 normalWS : TEXCOORD2;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings output = (Varyings)0;
                 UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
                 float3 positionWS = TransformObjectToWorld(SpinAboutY(input.positionOS));
                 float3 normalWS = TransformObjectToWorldNormal(SpinAboutY(input.normalOS));
+                output.positionWS = positionWS;
+                output.normalWS = normalWS;
+                output.color = input.color;
                 #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
                 float3 lightDirectionWS = normalize(_LightPosition - positionWS);
                 #else
@@ -219,9 +267,10 @@ Shader "HardLight/Gameplay/HL_Gameplay_Collectable"
                 #else
                 positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
                 #endif
-                return positionCS;
+                output.positionCS = positionCS;
+                return output;
             }
-            half4 Frag() : SV_Target { return 0; }
+            float4 Frag() : SV_Target { return 0; }
             ENDHLSL
         }
     }

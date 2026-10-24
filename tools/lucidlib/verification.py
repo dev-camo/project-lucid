@@ -175,6 +175,30 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "ParticleTrailCompilesEveryPassForDirect3D",
     "ParticleTrailGpuOutputMatchesDecodedSurfaceCases"))
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
+
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
+    "PfxAlphaBlendAddCompilesEveryPassForOpenGL",
+    "PfxAlphaBlendAddPerspectiveFadeRetainsOriginalClipCurve",
+    "ParticleTrailCompilesEveryPassForOpenGL",
+    "ParticleTrailOrthographicDepthRetainsBothRowsAndProjectionSigns",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.PreparedMaterialShaderReferenceTests." + name for name in (
+    "PreparedPfxAlphaBlendAddMaterialResolvesItsOriginalShader",
+    "PreparedGhostedMaterialResolvesItsOriginalShader",
+    "PreparedCollectableMaterialResolvesItsOriginalShader",
+    "PreparedMatcapMaterialResolvesItsOriginalShader",
+    "PreparedTrailMaterialResolvesItsOriginalShader",
+))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredShaderStageContractTests." + name for name in (
+    "CollectableRetainsDepthAndShadowVertexPayloads",
+    "MatcapRetainsBothUvStreamsAndShadowNormal",
+    "TrailRetainsEveryPassVertexPayload",
+    "GhostedVertexNormalizesBothProjectionViewVectors",
+    "CollectableDepthFragmentRetainsFourFloatChannels",
+    "MatcapDepthFragmentRetainsFourFloatChannels",
+    "TrailDepthFragmentRetainsFourFloatChannels",
+    "ShadersRetainOriginalKeywordScopesAndFloatOutputTypes",
+))
 EDITMODE_TESTS += ("ProjectLucid.Tests.DebugBackingFieldAttributeTests.DebugOnlyAllowanceForCompilerDebuggerBrowsableIsExactAndReleaseStaysStrict",)
 
 # Same-GUID maintained ShaderLab references in prepared original Materials (#492).

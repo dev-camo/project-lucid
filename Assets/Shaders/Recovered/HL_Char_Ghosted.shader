@@ -78,6 +78,7 @@ Shader "HardLight/Character/HL_Char_Ghosted"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_fog
 
             struct Varyings
             {
@@ -86,14 +87,14 @@ Shader "HardLight/Character/HL_Char_Ghosted"
             };
 
             // Blobs 1/3: the clamped vertex colour reaches the target, which ColorMask 0 then hides.
-            Varyings Vert(float4 positionOS : POSITION, float4 color : COLOR)
+            Varyings Vert(float3 positionOS : POSITION, float4 color : COLOR)
             {
                 Varyings output;
-                output.positionCS = TransformObjectToHClip(positionOS.xyz);
+                output.positionCS = TransformObjectToHClip(positionOS);
                 output.color = saturate(color);
                 return output;
             }
-            half4 Frag(Varyings input) : SV_Target { return input.color; }
+            float4 Frag(Varyings input) : SV_Target { return input.color; }
             ENDHLSL
         }
 
@@ -140,13 +141,13 @@ Shader "HardLight/Character/HL_Char_Ghosted"
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 output.positionCS = TransformWorldToHClip(positionWS);
                 output.uv = input.uv * _Diffuse_Texture_ST.xy + _Diffuse_Texture_ST.zw;
-                // Camera-to-surface for perspective, the view matrix's third row for orthographic.
-                output.viewDirWS = GetWorldSpaceNormalizeViewDir(positionWS);
+                // The shipped vertex normalizes both the perspective view delta and the orthographic view row.
+                output.viewDirWS = normalize(GetWorldSpaceViewDir(positionWS));
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 return output;
             }
 
-            half4 Frag(Varyings input) : SV_Target
+            float4 Frag(Varyings input) : SV_Target
             {
                 float rim = 1.0 - saturate(dot(normalize(input.normalWS), normalize(input.viewDirWS)));
                 float fresnel = saturate(pow(rim, _Fresnel_Amount) * _Fresnel_Intensity);
@@ -165,7 +166,7 @@ Shader "HardLight/Character/HL_Char_Ghosted"
                 float4 color = lerp(diffuse, dream * _Dream_Colour_Tint, dreamFresnel);
                 color = lerp(color, fresnel * _Fresnel_Colour, fresnel * _Fresnel_Colour.w);
                 color = lerp(color, _Fade_Colour, _Fade_To_Colour);
-                return half4(color.rgb, color.a * _Alpha);
+                return float4(color.rgb, color.a * _Alpha);
             }
             ENDHLSL
         }
