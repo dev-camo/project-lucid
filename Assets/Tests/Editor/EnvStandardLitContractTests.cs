@@ -635,6 +635,8 @@ namespace ProjectLucid.Tests
                 {
                     string program = parts[pass + 1]; int end = program.IndexOf("ENDHLSL", StringComparison.Ordinal);
                     Assert.That(end, Is.GreaterThan(0)); string body = program.Substring(0, end);
+                    // The first sampled draw must use a compiled probe variant.
+                    body = "\n#pragma editor_sync_compilation\n" + body;
                     body = ReplaceOnce(body, "#pragma vertex Vert", "#pragma vertex ProbeVert");
                     body = ReplaceOnce(body, "#pragma fragment Frag", "#pragma fragment ProbeFrag");
                     if (pass == 0)
