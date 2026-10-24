@@ -302,6 +302,8 @@ namespace ProjectLucid.Tests
                     material.SetVector("_LucidProbeTangent", new Vector4(1, 0, 0, 2));
                     Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "positive nonunit tangent.w selects positive sign");
                     material.SetVector("_LucidProbeTangent", new Vector4(1, 0, 0, 1));
+                    RecordScaleInputs(pass, Matrix4x4.identity, "identity");
+                    RecordScaleInputs(pass, Matrix4x4.Scale(new Vector3(-1, 1, 1)), "mirrored");
                     Expect(pass, 10, Matrix4x4.Scale(new Vector3(-1, 1, 1)), new Color(detail, detail, detail, 1), "negative object scale contributes exactly one sign");
                     view.SetRow(2, new Vector4(0, 1.2f, -1.6f, 0));
                     AdmitView(pass);
@@ -329,11 +331,15 @@ namespace ProjectLucid.Tests
             public void CheckDebugInputs()
             {
                 material.EnableKeyword("DEBUG_DISPLAY");
+                Expect(0, 31, Matrix4x4.identity, new Color(.125f, .25f, .5f, 1), "incoming SH and fragment DEBUG admission");
                 Expect(0, 21, Matrix4x4.identity, new Color(.125f, .25f, .5f, 1), "DEBUG_DISPLAY vertex SH");
                 material.EnableKeyword("LIGHTMAP_ON");
+                Expect(0, 32, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "incoming static UV and fragment DEBUG admission");
                 Expect(0, 22, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "DEBUG_DISPLAY static lightmap UV");
                 material.EnableKeyword("DYNAMICLIGHTMAP_ON");
+                Expect(0, 32, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "incoming static UV with dynamic lightmap and fragment DEBUG admission");
                 Expect(0, 22, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "static UV with dynamic lightmap");
+                Expect(0, 33, Matrix4x4.identity, new Color(.75f, .875f, 0, 1), "incoming dynamic UV and fragment DEBUG admission");
                 Expect(0, 23, Matrix4x4.identity, new Color(.75f, .875f, 0, 1), "DEBUG_DISPLAY dynamic lightmap UV");
             }
 
@@ -362,6 +368,48 @@ namespace ProjectLucid.Tests
                     Color actual = sample.GetPixel(0, 0);
                     for (int lane = 0; lane < 4; lane++)
                         Assert.That(actual[lane], Is.EqualTo(expected[lane]).Within(.01f), label + " pass " + pass + " lane " + lane);
+                }
+                finally { RenderTexture.active = before; }
+            }
+
+            // These are measured per-draw dependencies, not replacements for the original Fresnel oracle.
+            private void RecordScaleInputs(int pass, Matrix4x4 model, string label)
+            {
+                for (int field = 15; field <= 17; field++)
+                {
+                    Color actual = ReadScaleInput(pass, field, model);
+                    var format = System.Globalization.CultureInfo.InvariantCulture;
+                    Debug.Log("EnvStandardLit scale input " + label + " pass " + pass + " field " + field
+                        + " modelDet=" + model.determinant.ToString("R", format)
+                        + " rgba=(" + actual.r.ToString("R", format) + "," + actual.g.ToString("R", format)
+                        + "," + actual.b.ToString("R", format) + "," + actual.a.ToString("R", format) + ")");
+                }
+            }
+
+            private Color ReadScaleInput(int pass, int field, Matrix4x4 model)
+            {
+                RenderTexture before = RenderTexture.active;
+                try
+                {
+                    RenderTexture.active = target;
+                    GL.Clear(true, true, new Color(-10, -10, -10, -10));
+                    GL.PushMatrix();
+                    try
+                    {
+                        GL.LoadProjectionMatrix(Matrix4x4.identity);
+                        camera.worldToCameraMatrix = view;
+                        GL.modelview = camera.worldToCameraMatrix;
+                        Shader.SetGlobalMatrix("unity_MatrixV", view);
+                        Shader.SetGlobalVector("unity_OrthoParams", new Vector4(0, 0, 0, ortho));
+                        Shader.SetGlobalVector("_WorldSpaceCameraPos", cameraPosition);
+                        material.SetFloat("_LucidProbeField", field);
+                        Assert.That(material.SetPass(pass), Is.True, "probe pass " + pass);
+                        Graphics.DrawMeshNow(mesh, model);
+                    }
+                    finally { GL.PopMatrix(); }
+                    sample.ReadPixels(new Rect(4, 4, 1, 1), 0, 0); sample.Apply(false, false);
+                    Color actual = sample.GetPixel(0, 0);
+                    return actual;
                 }
                 finally { RenderTexture.active = before; }
             }
@@ -419,7 +467,7 @@ namespace ProjectLucid.Tests
                     wrapper.Append("                Varyings output = Vert(input);\n");
                     if (pass == 0) wrapper.Append(@"
                 // Fixture-only fragment inputs discriminate the pinned DEBUG_DISPLAY forwarding branches.
-                #if defined(DEBUG_DISPLAY)
+                // DEBUG_DISPLAY is fragment-only; publish its vertex inputs independently.
                 #if defined(LIGHTMAP_ON)
                 output.staticLightmapUV = float2(.25, .5);
                 #else
@@ -427,7 +475,6 @@ namespace ProjectLucid.Tests
                 #endif
                 #if defined(DYNAMICLIGHTMAP_ON)
                 output.dynamicLightmapUV = float2(.75, .875);
-                #endif
                 #endif
 ");
                     wrapper.Append(@"
@@ -443,12 +490,30 @@ namespace ProjectLucid.Tests
             {
                 if (_LucidProbeField == 7) return float4(input.uv, 0, 1);
                 if (_LucidProbeField == 13) return float4(UNITY_MATRIX_V[2].xyz, 1);
+                if (_LucidProbeField == 15) return float4(unity_WorldTransformParams.w, GetOddNegativeScale(), determinant((float3x3)GetObjectToWorldMatrix()), 1);
                 if (_LucidProbeField == 14) return float4(unity_OrthoParams.w, _WorldSpaceCameraPos.xyz);
 ");
+                    if (pass == 0 || pass == 3 || pass == 4) wrapper.Append("                if (_LucidProbeField == 16) return float4(input.normalWS, 1);\n                if (_LucidProbeField == 17) return input.tangentWS;\n");
                     if (pass != 1 && pass != 2) wrapper.Append("                if (_LucidProbeField == 0) return input.uv0;\n                if (_LucidProbeField == 4) return input.tangentWS;\n");
                     if (pass != 2) wrapper.Append("                if (_LucidProbeField == 3) return float4(input.normalWS, 1);\n");
                     if (pass == 0 || pass == 4) wrapper.Append("                if (_LucidProbeField == 1) return input.color;\n                if (_LucidProbeField == 2) return float4(input.positionWS, 1);\n");
                     if (pass == 0) wrapper.Append("                if (_LucidProbeField == 8) return input.fogFactorAndVertexLight;\n");
+                    if (pass == 0) wrapper.Append(@"
+                // Admit incoming varyings and fragment DEBUG selection before the production readbacks.
+                #if defined(DEBUG_DISPLAY)
+                const float debugSelected = 1;
+                #else
+                const float debugSelected = 0;
+                #endif
+                #if defined(LIGHTMAP_ON)
+                if (_LucidProbeField == 32) return float4(input.staticLightmapUV, 0, debugSelected);
+                #else
+                if (_LucidProbeField == 31) return float4(input.vertexSH, debugSelected);
+                #endif
+                #if defined(DYNAMICLIGHTMAP_ON)
+                if (_LucidProbeField == 33) return float4(input.dynamicLightmapUV, 0, debugSelected);
+                #endif
+");
                     if (pass == 4) wrapper.Append("                if (_LucidProbeField == 5) return input.uv1;\n                if (_LucidProbeField == 6) return input.uv2;\n");
                     if (pass == 0 || pass == 3) wrapper.Append(@"
                 float4 color;
