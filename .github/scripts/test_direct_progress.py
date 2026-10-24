@@ -41,12 +41,24 @@ class HTTPSFixture:
         self.native_jobs = [{"name": "Native compilation and evidence", "status": "completed",
                              "conclusion": "success"}]
         self.candidates = None
-        self.report = json.loads((ROOT / "docs/code-progress.json").read_bytes())
+        self.bind_report_to_source(ROOT)
+        self.default = self.head
+        self.reference = self.head
+        self.calls = []
+        self.on_call = None
+        self.bot = {"login": direct.BOT, "type": "Bot", "id": 41898282}
+        self.commit = {"author": {"login": direct.BOT}, "committer": {"login": direct.BOT},
+                       "parents": [{"sha": "a" * 40}],
+                       "files": [{"filename": "docs/code-progress.json", "status": "modified"}]}
+        self.dispatch_response = True
+
+    def bind_report_to_source(self, source):
+        self.report = json.loads((source / "docs/code-progress.json").read_bytes())
         # Deliberately mocked new receipt/source identity, never written to production files.
         self.report["compiler_receipt_sha256"] = "e" * 64
-        self.report["source_fingerprint"] = artifact_fingerprint(ROOT)
+        self.report["source_fingerprint"] = artifact_fingerprint(source)
         # The published snapshot is main-owned and may predate this head's scope; model the next publication's scope identity.
-        names, _, scope_sha256 = codeprogress._scope(ROOT)
+        names, _, scope_sha256 = codeprogress._scope(source)
         self.report["scope_sha256"] = scope_sha256
         rows = {row["assembly"]: row for row in self.report["assemblies"]}
         for name in names:
@@ -58,15 +70,6 @@ class HTTPSFixture:
                          "run_id": "456", "source_fingerprint": self.report["source_fingerprint"],
                          "report_sha256": hashlib.sha256(self.raw).hexdigest(),
                          "compiler_receipt_sha256": self.report["compiler_receipt_sha256"]}
-        self.default = self.head
-        self.reference = self.head
-        self.calls = []
-        self.on_call = None
-        self.bot = {"login": direct.BOT, "type": "Bot", "id": 41898282}
-        self.commit = {"author": {"login": direct.BOT}, "committer": {"login": direct.BOT},
-                       "parents": [{"sha": "a" * 40}],
-                       "files": [{"filename": "docs/code-progress.json", "status": "modified"}]}
-        self.dispatch_response = True
 
     def urlopen(self, request, timeout):
         url = urllib.parse.urlsplit(request.full_url)
@@ -600,6 +603,8 @@ class DirectProgressTests(unittest.TestCase):
             # These are fixture checkouts, not compiler results or production evidence.
             for name in ("source", "control"):
                 subprocess.run(["git", "clone", "-q", "--shared", str(ROOT), str(root / name)], check=True)
+            # Model the actual compiler checkout, whose contents can differ from a dirty parent.
+            self.http.bind_report_to_source(root / "source")
             (root / "request.json").write_text(json.dumps(self.http.request))
             (root / "code-progress.json").write_bytes(self.http.raw)
             with mock.patch.object(direct, "job_root", return_value=root), \
@@ -619,6 +624,54 @@ class DirectProgressTests(unittest.TestCase):
                 (root / "request.json").write_text(json.dumps(dict(self.http.request, head="a" * 40)))
                 with self.assertRaisesRegex(ValueError, "Local source/control/request"):
                     direct.seal_job(self.api, self.http.request, self.http.producer)
+
+    def test_seal_rejects_report_after_actual_source_changes_without_head_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            for name in ("source", "control"):
+                subprocess.run(["git", "clone", "-q", "--shared", str(ROOT), str(root / name)], check=True)
+            self.http.bind_report_to_source(root / "source")
+            (root / "source/Assets/seal-fixture-stale-source.txt").write_text("Changed after modeled compilation\n")
+            self.assertEqual(self.http.head, direct.git_head(root / "source"))
+            self.assertEqual(self.http.head, direct.git_head(root / "control"))
+            self.assertNotEqual(self.http.report["source_fingerprint"], artifact_fingerprint(root / "source"))
+            self.assertEqual(self.http.report["source_fingerprint"], self.http.producer["source_fingerprint"])
+            self.assertEqual(hashlib.sha256(self.http.raw).hexdigest(), self.http.producer["report_sha256"])
+            (root / "request.json").write_text(json.dumps(self.http.request))
+            (root / "code-progress.json").write_bytes(self.http.raw)
+            with mock.patch.object(direct, "job_root", return_value=root), \
+                 mock.patch.object(direct, "write_outputs") as outputs:
+                with self.assertRaisesRegex(ValueError, "Public code-work snapshot is stale for this source/scope"):
+                    direct.seal_job(self.api, self.http.request, self.http.producer)
+                outputs.assert_not_called()
+
+    def test_seal_fixture_uses_actual_checkout_when_parent_has_unrelated_dirty_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            parent = Path(directory).resolve() / "parent"
+            subprocess.run(["git", "clone", "-q", "--shared", str(ROOT), str(parent)], check=True)
+            clean_fingerprint = artifact_fingerprint(parent)
+            marker = parent / "Assets/seal-fixture-dirty-parent.txt"
+            marker.write_text("Unrelated uncommitted fixture source\n")
+            dirty_fingerprint = artifact_fingerprint(parent)
+            self.assertEqual(self.http.head, direct.git_head(parent))
+            self.assertNotEqual(clean_fingerprint, dirty_fingerprint)
+            # Re-run every original seal assertion with a dirty parent and committed fixture checkouts.
+            previous = Path.cwd()
+            try:
+                os.chdir(parent)
+                with mock.patch.object(sys.modules[__name__], "ROOT", parent):
+                    case = type(self)("test_seal_binds_report_to_actual_compiler_step_outputs_and_rejects_tampering")
+                    try:
+                        case.setUp()
+                        self.assertEqual(dirty_fingerprint, case.http.report["source_fingerprint"])
+                        case.test_seal_binds_report_to_actual_compiler_step_outputs_and_rejects_tampering()
+                    finally:
+                        case.doCleanups()
+            finally:
+                os.chdir(previous)
+            self.assertEqual(self.http.head, direct.git_head(parent))
+            self.assertEqual("Unrelated uncommitted fixture source\n", marker.read_text())
+            self.assertEqual(dirty_fingerprint, artifact_fingerprint(parent))
 
     def test_check_dispatch_ref_race_and_foreign_api_paths_fail_closed(self):
         self.http.reference = "a" * 40
