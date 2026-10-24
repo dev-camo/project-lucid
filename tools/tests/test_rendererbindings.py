@@ -182,6 +182,17 @@ class PackageShaderMapTests(unittest.TestCase):
 
 
 class PipelineSelectionTests(unittest.TestCase):
+    def test_always_included_ui_blur_uses_imported_shader_reference(self):
+        # The baseline GUID stays fixed; restored ShaderImporter source needs type 3 for build loading.
+        guid = "ae05e3fda4799aa49a92776741aa42c4"
+        source = REPO / "Assets/Shaders/Recovered/HL_UI_Blur_Render_Feature.shader"
+        self.assertIn('Shader "HardLight/RenderFeature/HL_UI_Blur_Render_Feature"', source.read_text())
+        self.assertIn("guid: " + guid, source.with_suffix(".shader.meta").read_text().splitlines())
+        graphics = (REPO / "ProjectSettings/GraphicsSettings.asset").read_text()
+        included = graphics.split("  m_AlwaysIncludedShaders:\n", 1)[1].split("\n  m_", 1)[0]
+        self.assertEqual(["  - " + shader(guid, kind=3)],
+                         [line for line in included.splitlines() if guid in line])
+
     def fixture(self, directory):
         root, export = Path(directory).resolve() / "project", Path(directory).resolve() / "export"
         (root / "ProjectSettings").mkdir(parents=True)
