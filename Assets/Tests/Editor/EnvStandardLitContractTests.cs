@@ -567,6 +567,8 @@ namespace ProjectLucid.Tests
                 Assert.That(ReferenceEquals(cameras[0], camera), Is.True);
                 Assert.That(camera.scene, Is.EqualTo(previewScene));
                 rendererInvocations++;
+                Assert.That(Shader.globalRenderPipeline, Is.EqualTo("UniversalPipeline"),
+                    "The owned pipeline must select the probe SubShader before its first draw.");
                 Assert.That(camera.TryGetCullingParameters(out ScriptableCullingParameters parameters), Is.True);
                 CullingResults culled = context.Cull(ref parameters);
                 using (var commands = new CommandBuffer { name = "EnvStandardLit owned renderer inputs" })
@@ -609,7 +611,12 @@ namespace ProjectLucid.Tests
             private sealed class ProbePipeline : RenderPipeline
             {
                 public readonly Fixture Owner;
-                public ProbePipeline(Fixture owner) { Owner = owner; }
+                public ProbePipeline(Fixture owner)
+                {
+                    Owner = owner;
+                    // URP disposal clears this tag before Unity constructs the replacement pipeline.
+                    Shader.globalRenderPipeline = "UniversalPipeline";
+                }
                 protected override void Render(ScriptableRenderContext context, Camera[] cameras)
                 {
                     try { Owner.RenderOwned(context, cameras); }
