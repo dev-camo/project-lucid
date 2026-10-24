@@ -52,10 +52,39 @@ def _text(data):
     return lf
 
 
+def _metadata_validation_text(text):
+    # ShaderImporter wraps long texture slots; admit only their exact PPtr pair
+    # in the validation view, leaving the returned metadata text untouched.
+    lines = text.splitlines(keepends=True)
+    checked = []
+    shader_importer = texture_list = False
+    index = 0
+    while index < len(lines):
+        line = lines[index]
+        body = line.rstrip("\n")
+        if body and not body.startswith((" ", "\t", "#")):
+            shader_importer = body == "ShaderImporter:"
+            texture_list = False
+        elif shader_importer:
+            if body in ("  defaultTextures:", "  nonModifiableTextures:"):
+                texture_list = True
+            elif not body.startswith("  - "):
+                texture_list = False
+        if (texture_list and index + 1 < len(lines)
+                and re.fullmatch(r"  - [A-Za-z_][A-Za-z_0-9]*: \{fileID: -?[0-9]+, guid: [0-9a-f]{32},\n", line)
+                and re.fullmatch(r"      type: [23]\}\n?", lines[index + 1])):
+            checked.append(line[:-1] + " " + lines[index + 1].lstrip(" "))
+            index += 2
+            continue
+        checked.append(line)
+        index += 1
+    return "".join(checked)
+
+
 def checked_metadata_text(content):
     """Admit plain block keys without decoding alternate YAML key spellings."""
     text = _text(content)
-    _simple_yaml_lines(text)
+    _simple_yaml_lines(_metadata_validation_text(text))
     # Identity checks below read literal keys; quoted/explicit keys could hide
     # duplicates, including escaped spellings of an otherwise ordinary key.
     if re.search(r"^[ \t]*(?:[\"']|\?(?:[ \t]|$))", text, re.MULTILINE):

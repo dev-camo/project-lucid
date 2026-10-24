@@ -66,6 +66,61 @@ class MaterialFixture(unittest.TestCase):
         return module.rewrite_material_shader_pointer(data, self.qualifier() if qualified is None else qualified)
 
 
+class WrappedShaderMetadataTests(MaterialFixture):
+    # The maintained Char shader metadata has this valid wrapped texture PPtr.
+    CHAR_METADATA = b'fileFormatVersion: 2\nguid: fb495c01c5fd7534590903b8e77f3281\nShaderImporter:\n  externalObjects: {}\n  defaultTextures: []\n  nonModifiableTextures:\n  - _SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D: {fileID: 2800000, guid: e8129d5371ff1e04d8070064644689a1,\n      type: 3}\n  userData:\n  assetBundleName:\n  assetBundleVariant:\n'
+
+    def checked(self, data):
+        return importlib.import_module("lucidlib.materialbindings").checked_metadata_text(data)
+
+    def test_exact_wrapped_char_metadata_is_returned_unchanged(self):
+        self.assertEqual(self.CHAR_METADATA.decode(), self.checked(self.CHAR_METADATA))
+
+    def test_wrapped_texture_lists_preserve_metadata_and_qualify(self):
+        meta = self.repo / "Assets/Shaders/Recovered/Restored.shader.meta"
+        for section in ["defaultTextures", "nonModifiableTextures"]:
+            for kind in [2, 3]:
+                with self.subTest(section=section, kind=kind):
+                    content = ("fileFormatVersion: 2\nguid: " + SHADER_GUID + "\nShaderImporter:\n"
+                               "  externalObjects: {}\n  " + section + ":\n"
+                               "  - _Texture: {fileID: 2800000, guid: " + OTHER_GUID + ",\n"
+                               "      type: " + str(kind) + "}\n"
+                               "  - _Other: {fileID: 2800000, guid: " + OTHER_GUID + ", type: 3}\n"
+                               "  userData: \"Unicode 測試; {} []\" # retained comment\n").encode()
+                    meta.write_bytes(content)
+                    self.assertEqual(content.decode(), self.checked(content))
+                    self.assertEqual(set(self.qualifier()), {SHADER_GUID})
+                    self.assertEqual(content, meta.read_bytes())
+
+    def test_wrapped_pointer_context_and_pair_shape_are_strict(self):
+        prefix = "fileFormatVersion: 2\nguid: " + SHADER_GUID + "\n"
+        pointer = ("  - _Texture: {fileID: 2800000, guid: " + OTHER_GUID + ",\n"
+                   "      type: 3}\n")
+        valid = "ShaderImporter:\n  nonModifiableTextures:\n" + pointer
+        cases = [
+            valid.replace("ShaderImporter:", "NativeFormatImporter:"),
+            valid.replace("  nonModifiableTextures:", "  externalObjects:"),
+            valid.replace("  nonModifiableTextures:", "nonModifiableTextures:"),
+            valid.replace("  - _Texture:", "    - _Texture:"),
+            valid.replace("      type:", "    type:"),
+            valid.replace("      type: 3}", "      type: 3, guid: " + OTHER_GUID + "}"),
+            valid.replace("      type: 3}", "      type: 3} # comment"),
+            valid.replace("_Texture:", "'_Texture':"),
+            valid.replace("_Texture:", "&anchor _Texture:"),
+            valid.replace("      type: 3}", "      type: 3"),
+            valid.replace("      type: 3}", "guid: " + OTHER_GUID + "\n      type: 3}"),
+            "ShaderImporter:\n  nonModifiableTextures:\n  userData:\n" + pointer,
+            "ShaderImporter:\n  nonModifiableTextures:\nOtherMetadata:\n" + pointer,
+            "ShaderImporter:\n  nonModifiableTextures:\n    - _Nested: []\n" + pointer,
+            'ShaderImporter:\n  userData: "hello\n  nonModifiableTextures:\n'
+            + pointer + '  world"\n',
+        ]
+        for content in cases:
+            with self.subTest(content=content):
+                with self.assertRaises(ValueError):
+                    self.checked((prefix + content).encode())
+
+
 class OverrideIdentityTests(MaterialFixture):
     def test_exact_original_and_maintained_identity_qualifies(self):
         qualified = self.qualifier()
