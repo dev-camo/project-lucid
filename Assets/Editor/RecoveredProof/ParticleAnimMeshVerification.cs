@@ -16,6 +16,7 @@ namespace ProjectLucid
         private const string ShaderPath = "Assets/Shaders/Recovered/HL_Particle_AnimMesh.shader";
         // The shipped shader asset GUID in the 2026-10-05 baseline export, referenced by all 81 shipped materials.
         private const string OriginalGuid = "a39de842318b98643a7250ed212218ce";
+        private static Action afterDepthOverride;
 
         public static void Run()
         {
@@ -30,6 +31,16 @@ namespace ProjectLucid
 
         // Compiles every pass for Direct3D 11 with the keyword sets the shipped variants combine.
         public static void CompileForWindows()
+        {
+            Compile(ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+        }
+
+        public static void CompileForLinux()
+        {
+            Compile(ShaderCompilerPlatform.OpenGLCore, BuildTarget.StandaloneLinux64);
+        }
+
+        private static void Compile(ShaderCompilerPlatform platform, BuildTarget target)
         {
             Shader shader = Load();
             ShaderData.Subshader subshader = ShaderUtil.GetShaderData(shader).GetSerializedSubshader(0);
@@ -51,17 +62,49 @@ namespace ProjectLucid
                     foreach (ShaderType stage in new[] { ShaderType.Vertex, ShaderType.Fragment })
                     {
                         ShaderData.VariantCompileInfo info = pass.CompileVariant(stage, keywords,
-                            ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+                            platform, target);
                         string errors = "";
                         foreach (ShaderMessage message in info.Messages)
                             if (message.severity == ShaderCompilerMessageSeverity.Error) errors += " " + message.message;
                         Require(info.Success && errors.Length == 0,
-                            "D3D compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
+                            platform + " compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
                         compiled++;
                     }
                 }
             }
-            Debug.Log("Project Lucid HL_Particle_AnimMesh compiled " + compiled + " Direct3D programs across " + subshader.PassCount + " passes.");
+            Debug.Log("Project Lucid HL_Particle_AnimMesh compiled " + compiled + " " + platform + " requests across " + subshader.PassCount + " passes.");
+        }
+
+        public static void VerifyDepthTextureRestorationAfterFailure()
+        {
+            Require(afterDepthOverride == null, "a depth-override failure control is already active");
+            Texture previous = Shader.GetGlobalTexture("_CameraDepthTexture");
+            Texture2D sentinel = null;
+            var expected = new InvalidOperationException("Owned failure immediately after the orthographic depth override.");
+            try
+            {
+                sentinel = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
+                sentinel.SetPixel(0, 0, new Color(.375f, 0, 0, 1));
+                sentinel.Apply(false, false);
+                Shader.SetGlobalTexture("_CameraDepthTexture", sentinel);
+                afterDepthOverride = () => { throw expected; };
+                bool reached = false;
+                try { Run(); }
+                catch (Exception failure)
+                {
+                    if (!ReferenceEquals(failure, expected)) throw;
+                    reached = true;
+                }
+                Require(reached, "the genuine Run must reach the injected depth-override failure");
+                Require(Shader.GetGlobalTexture("_CameraDepthTexture") == sentinel,
+                    "the failed Run must restore its distinct borrowed depth texture");
+            }
+            finally
+            {
+                afterDepthOverride = null;
+                Shader.SetGlobalTexture("_CameraDepthTexture", previous);
+                if (sentinel != null) UnityEngine.Object.DestroyImmediate(sentinel);
+            }
         }
 
         private static Shader Load()
@@ -85,9 +128,9 @@ namespace ProjectLucid
             Texture2D Texels(params Color[] colors)
             {
                 var texture = new Texture2D(colors.Length, 1, TextureFormat.RGBAFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
+                owned.Add(texture);
                 texture.SetPixels(colors);
                 texture.Apply(false, false);
-                owned.Add(texture);
                 return texture;
             }
             Color texel = new Color(0.6f, 0.2f, 0, 1);
@@ -131,6 +174,9 @@ namespace ProjectLucid
             foreach (string name in vectors) priorVectors[name] = Shader.GetGlobalVector(name);
             foreach (string name in floats) priorFloats[name] = Shader.GetGlobalFloat(name);
             RenderTexture previous = RenderTexture.active;
+            Texture priorDepth = Shader.GetGlobalTexture("_CameraDepthTexture");
+            Matrix4x4 priorView = Shader.GetGlobalMatrix("unity_MatrixV");
+            Matrix4x4 priorInverseVP = Shader.GetGlobalMatrix("unity_MatrixInvVP");
             try
             {
                 target.Create();
@@ -220,9 +266,8 @@ namespace ProjectLucid
                 material.SetFloat("_Add_VertexColor_Alpha_at_end", 0);
                 Stream(0, 1);
 
-                // Camera distance fade at the middle of a range centred on this quad's clip w - z.
-                Vector4 clip = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true) * camera.worldToCameraMatrix * new Vector4(0, 0, 0, 1);
-                float distance = clip.w - clip.z;
+                // Original reversed-Z ortho near.1/far10/eye2 gives w-z=19/99 on every backend.
+                float distance = 19f / 99f;
                 material.SetFloat("_Camera_Distance_Fade_Near", distance - 0.1f);
                 material.SetFloat("_Camera_Distance_Fade_Far", distance + 0.1f);
                 material.SetFloat("_Camera_Distance_Fade", 1);
@@ -286,29 +331,78 @@ namespace ProjectLucid
                 Require(Mathf.Abs(Mathf.Clamp01(Vector3.Dot(tilted, row)) - Mathf.Clamp01(Vector3.Dot(tilted, column))) > 0.1f,
                         "the orthographic case separates the view row from the column");
                 Shader.SetGlobalVector("unity_OrthoParams", new Vector4(1, 1, 0, 1));
-                // Raw depth 0 is the far plane, so the orthographic depth fade saturates to 1.
-                Texture priorDepth = Shader.GetGlobalTexture("_CameraDepthTexture");
-                Shader.SetGlobalTexture("_CameraDepthTexture", Texture2D.blackTexture);
+                PublishCameraMatrices(camera);
+                // Far depth is raw0 on reversed-Z APIs and raw1 on GL; this preserves the original facing oracle.
+                Shader.SetGlobalTexture("_CameraDepthTexture", SystemInfo.usesReversedZBuffer ? Texture2D.blackTexture : Texture2D.whiteTexture);
+                afterDepthOverride?.Invoke();
                 float facing = Mathf.Clamp01(Vector3.Dot(tilted, row));
                 Expect(material, mesh, camera, target, sample, 16, new Color(0.36f, 0, 0.24f) * facing, 0.6f * facing,
                        "orthographic fresnel against the camera's backward axis (" + facing + ")");
                 Shader.SetGlobalVector("unity_OrthoParams", Vector4.zero);
-                Shader.SetGlobalTexture("_CameraDepthTexture", priorDepth);
                 camera.transform.rotation = Quaternion.identity;
                 camera.transform.position = new Vector3(0, 0, -2);
                 mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
 
-                Debug.Log("Project Lucid HL_Particle_AnimMesh GPU verification passed: 23 Metal-derived cases on " + SystemInfo.graphicsDeviceType +
+                // Interior depth separates opposite screen rows and raw-depth-to-clip conversion.
+                var depths = new Texture2D(1, 32, TextureFormat.RFloat, false, true);
+                owned.Add(depths);
+                depths.filterMode = FilterMode.Point;
+                depths.wrapMode = TextureWrapMode.Clamp;
+                Matrix4x4 gpuProjection = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
+                for (int y = 0; y < 32; y++)
+                {
+                    float eyeDepth = y < 16 ? 2 : 4;
+                    Vector4 clip = gpuProjection * new Vector4(0, 0, -eyeDepth, 1);
+                    float rawDepth = clip.z / clip.w;
+                    if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.OpenGLCore) rawDepth = rawDepth * .5f + .5f;
+                    // Match logical screen rows through the API's texture UV origin.
+                    int textureRow = SystemInfo.graphicsUVStartsAtTop ? depths.height - 1 - y : y;
+                    depths.SetPixel(0, textureRow, new Color(rawDepth, 0, 0, 1));
+                }
+                depths.Apply(false, false);
+                Shader.SetGlobalTexture("_CameraDepthTexture", depths);
+                Shader.SetGlobalVector("unity_OrthoParams", new Vector4(1, 1, 0, 1));
+                PublishCameraMatrices(camera);
+                material.SetFloat("_DepthFade_Distance", 6);
+                Expect(material, mesh, camera, target, sample, 8, new Color(.06f, 0, .04f), .1f, "interior lower-row depth2 gives (2-1)/6");
+                Expect(material, mesh, camera, target, sample, 24, new Color(.18f, 0, .12f), .3f, "interior upper-row depth4 gives (4-1)/6");
+                material.SetFloat("_DepthFade_Distance", 1);
+
+                camera.orthographic = false;
+                camera.transform.position = new Vector3(0, 0, -9);
+                Shader.SetGlobalVector("unity_OrthoParams", Vector4.zero);
+                Shader.SetGlobalVector("_ZBufferParams", new Vector4(0, 0, 0, .05f));
+                PublishCameraMatrices(camera);
+                material.SetFloat("_Camera_Distance_Fade_Near", 8.9f);
+                material.SetFloat("_Camera_Distance_Fade_Far", 9.1f);
+                material.SetFloat("_Camera_Distance_Fade", 1);
+                // Original near.1/far10/eye9 has w-z=890/99: this fade is89/198, distinct from eye-distance .5.
+                float perspectiveFade = 89f / 198f;
+                Expect(material, mesh, camera, target, sample, 16, new Color(.36f, 0, .24f) * perspectiveFade, .6f * perspectiveFade,
+                    "perspective camera fade retains the original reversed clip quantity");
+
+                Debug.Log("Project Lucid HL_Particle_AnimMesh GPU verification passed: 25 Metal-derived cases on " + SystemInfo.graphicsDeviceType +
                           ". In-game presentation QA remains unverified.");
             }
             finally
             {
                 foreach (string name in vectors) Shader.SetGlobalVector(name, priorVectors[name]);
                 foreach (string name in floats) Shader.SetGlobalFloat(name, priorFloats[name]);
+                Shader.SetGlobalTexture("_CameraDepthTexture", priorDepth);
+                Shader.SetGlobalMatrix("unity_MatrixV", priorView);
+                Shader.SetGlobalMatrix("unity_MatrixInvVP", priorInverseVP);
                 RenderTexture.active = previous;
                 target.Release();
                 foreach (UnityEngine.Object item in owned) UnityEngine.Object.DestroyImmediate(item);
             }
+        }
+
+        private static void PublishCameraMatrices(Camera camera)
+        {
+            // URP declares these independently; GL's matrix stack does not guarantee inverse-VP publication.
+            Matrix4x4 view = camera.worldToCameraMatrix;
+            Shader.SetGlobalMatrix("unity_MatrixV", view);
+            Shader.SetGlobalMatrix("unity_MatrixInvVP", (GL.GetGPUProjectionMatrix(camera.projectionMatrix, true) * view).inverse);
         }
 
         private static void Expect(Material material, Mesh mesh, Camera camera, RenderTexture target, Texture2D sample,

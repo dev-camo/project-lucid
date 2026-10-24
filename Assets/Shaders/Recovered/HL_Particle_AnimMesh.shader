@@ -52,6 +52,7 @@ Shader "HardLight/Particle/HL_Particle_AnimMesh"
         HLSLINCLUDE
         #pragma target 3.5
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
 
         // Shipped UnityPerMaterial member order, kept for SRP Batcher layout parity.
         CBUFFER_START(UnityPerMaterial)
@@ -103,9 +104,17 @@ Shader "HardLight/Particle/HL_Particle_AnimMesh"
             #pragma target 4.5 DOTS_INSTANCING_ON
             // Declared as shipped; no shipped program mixes fog into the output.
             #pragma multi_compile_fog
+            #pragma multi_compile _ LIGHTMAP_ON
+            #pragma multi_compile _ DIRLIGHTMAP_COMBINED
+            #pragma shader_feature _ _SAMPLE_GI
+            #pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
+            #pragma multi_compile_fragment _ DEBUG_DISPLAY
+            #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS
-            #pragma shader_feature_local_fragment _ _SURFACE_TYPE_TRANSPARENT
+            #pragma shader_feature_fragment _ _SURFACE_TYPE_TRANSPARENT
             #pragma shader_feature_local_fragment _ _ALPHAPREMULTIPLY_ON
+            #pragma shader_feature_local_fragment _ _ALPHAMODULATE_ON
+            #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #pragma shader_feature_local _ _FRESNELENABLE
             #pragma shader_feature_local _ _GRADIENTMAPENABLE
             #pragma shader_feature_local _ _USE_UV_MASK
@@ -151,19 +160,33 @@ Shader "HardLight/Particle/HL_Particle_AnimMesh"
             {
                 float y = _ProjectionParams.x < 0.0 ? _ScaledScreenParams.y - positionCS.y : positionCS.y;
                 float2 screenUV = float2(positionCS.x, y) / _ScaledScreenParams.xy;
+                #if UNITY_UV_STARTS_AT_TOP
                 screenUV.y = 1.0 - screenUV.y;
+                #endif
                 float rawDepth = SampleSceneDepth(screenUV);
                 if (unity_OrthoParams.w == 1.0)
                 {
-                    float2 ndc = screenUV * 2.0 - 1.0;
-                    float4 positionWS = mul(UNITY_MATRIX_I_VP, float4(ndc.x, -ndc.y, rawDepth, 1.0));
-                    positionWS.xyz /= positionWS.w;
-                    return abs(mul(UNITY_MATRIX_V, float4(positionWS.xyz, 1.0)).z);
+                    // Metal stores reversed 0..1 depth; GL stores 0..1 but its inverse VP expects -1..1.
+                    #if !UNITY_REVERSED_Z
+                    rawDepth = lerp(UNITY_NEAR_CLIP_VALUE, 1.0, rawDepth);
+                    #endif
+                    float3 positionWS = ComputeWorldSpacePosition(screenUV, rawDepth, UNITY_MATRIX_I_VP);
+                    return abs(mul(UNITY_MATRIX_V, float4(positionWS, 1.0)).z);
                 }
                 return 1.0 / (_ZBufferParams.z * rawDepth + _ZBufferParams.w);
             }
 
-            void Frag(Varyings input, bool isFrontFace : SV_IsFrontFace, out half4 outColor : SV_Target0
+            float CameraFadeDistance(float4 clipPosition)
+            {
+                // Keep the shipped Metal w-z curve, including its orthographic normalization.
+                #if UNITY_REVERSED_Z
+                return clipPosition.w - clipPosition.z;
+                #else
+                return (clipPosition.z - UNITY_NEAR_CLIP_VALUE * clipPosition.w) / (1.0 - UNITY_NEAR_CLIP_VALUE);
+                #endif
+            }
+
+            void Frag(Varyings input, bool isFrontFace : SV_IsFrontFace, out float4 outColor : SV_Target0
                 #if defined(_WRITE_RENDERING_LAYERS)
                 , out float4 outRenderingLayers : SV_Target1
                 #endif
@@ -204,15 +227,15 @@ Shader "HardLight/Particle/HL_Particle_AnimMesh"
                 fade *= saturate((SceneEyeDepth(input.positionCS) - clipPosition.w) / _DepthFade_Distance * _DepthFade_Strenght);
 
                 float alpha = (mask * input.color.a * fade - input.uv0.z) / _Softness;
-                float distanceFade = saturate((clipPosition.w - clipPosition.z - _Camera_Distance_Fade_Near) /
+                float distanceFade = saturate((CameraFadeDistance(clipPosition) - _Camera_Distance_Fade_Near) /
                                               (_Camera_Distance_Fade_Far - _Camera_Distance_Fade_Near));
                 alpha = saturate(lerp(alpha, alpha * distanceFade, _Camera_Distance_Fade));
 
                 // Opaque programs write alpha 1 and skip the end-of-graph vertex alpha.
                 #if defined(_SURFACE_TYPE_TRANSPARENT)
-                outColor = half4(alpha * color, _Add_VertexColor_Alpha_at_end != 0.0 ? alpha * input.color.a : alpha);
+                outColor = float4(alpha * color, _Add_VertexColor_Alpha_at_end != 0.0 ? alpha * input.color.a : alpha);
                 #else
-                outColor = half4(alpha * color, 1.0);
+                outColor = float4(alpha * color, 1.0);
                 #endif
                 #if defined(_WRITE_RENDERING_LAYERS)
                 outRenderingLayers = float4(EncodeMeshRenderingLayer(GetMeshRenderingLayer()), 0, 0, 0);
@@ -233,12 +256,52 @@ Shader "HardLight/Particle/HL_Particle_AnimMesh"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 4.5 DOTS_INSTANCING_ON
+            #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #pragma shader_feature_local _ _FRESNELENABLE
             #pragma shader_feature_local _ _GRADIENTMAPENABLE
             #pragma shader_feature_local _ _USE_UV_MASK
 
-            float4 Vert(float3 positionOS : POSITION) : SV_POSITION { return TransformObjectToHClip(positionOS); }
-            half Frag(float4 positionCS : SV_POSITION) : SV_Target { return positionCS.z; }
+            struct Attributes
+            {
+                float3 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float4 uv0 : TEXCOORD0;
+                float4 color : COLOR;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float4 uv0 : TEXCOORD0;
+                float4 color : TEXCOORD1;
+                float3 positionWS : TEXCOORD2;
+                float3 normalWS : TEXCOORD3;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings output = (Varyings)0;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+                output.positionWS = TransformObjectToWorld(input.positionOS);
+                output.positionCS = TransformWorldToHClip(output.positionWS);
+                output.uv0 = input.uv0;
+                output.color = input.color;
+                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                return output;
+            }
+            float4 Frag(Varyings input) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+                return input.positionCS.zzzz;
+            }
             ENDHLSL
         }
 
@@ -254,7 +317,11 @@ Shader "HardLight/Particle/HL_Particle_AnimMesh"
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
+            #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 4.5 DOTS_INSTANCING_ON
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #pragma shader_feature_local _ _FRESNELENABLE
             #pragma shader_feature_local _ _GRADIENTMAPENABLE
             #pragma shader_feature_local _ _USE_UV_MASK
@@ -263,24 +330,54 @@ Shader "HardLight/Particle/HL_Particle_AnimMesh"
             float3 _LightDirection;
             float3 _LightPosition;
 
-            float4 Vert(float3 positionOS : POSITION, float3 normalOS : NORMAL) : SV_POSITION
+            struct Attributes
             {
-                float3 positionWS = TransformObjectToWorld(positionOS);
-                float3 normalWS = TransformObjectToWorldNormal(normalOS);
+                float3 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float4 uv0 : TEXCOORD0;
+                float4 color : COLOR;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float4 uv0 : TEXCOORD0;
+                float4 color : TEXCOORD1;
+                float3 positionWS : TEXCOORD2;
+                float3 normalWS : TEXCOORD3;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
+
+            Varyings Vert(Attributes input)
+            {
+                Varyings output = (Varyings)0;
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_TRANSFER_INSTANCE_ID(input, output);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+                output.positionWS = TransformObjectToWorld(input.positionOS);
+                output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.uv0 = input.uv0;
+                output.color = input.color;
                 #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
-                float3 lightDirectionWS = normalize(_LightPosition - positionWS);
+                float3 lightDirectionWS = normalize(_LightPosition - output.positionWS);
                 #else
                 float3 lightDirectionWS = _LightDirection;
                 #endif
-                float4 positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+                output.positionCS = TransformWorldToHClip(ApplyShadowBias(output.positionWS, output.normalWS, lightDirectionWS));
                 #if UNITY_REVERSED_Z
-                positionCS.z = min(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+                output.positionCS.z = min(output.positionCS.z, UNITY_NEAR_CLIP_VALUE);
                 #else
-                positionCS.z = max(positionCS.z, UNITY_NEAR_CLIP_VALUE);
+                output.positionCS.z = max(output.positionCS.z, UNITY_NEAR_CLIP_VALUE);
                 #endif
-                return positionCS;
+                return output;
             }
-            half4 Frag() : SV_Target { return 0; }
+            float4 Frag(Varyings input) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(input);
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
+                return 0;
+            }
             ENDHLSL
         }
     }

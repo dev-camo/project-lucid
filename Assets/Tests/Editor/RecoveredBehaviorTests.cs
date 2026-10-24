@@ -1022,6 +1022,18 @@ namespace ProjectLucid.Tests
             ParticleAnimMeshVerification.Run();
         }
 
+        [Test]
+        public void ParticleAnimMeshCompilesEveryPassForOpenGLCore()
+        {
+            ParticleAnimMeshVerification.CompileForLinux();
+        }
+
+        [Test]
+        public void ParticleAnimMeshRestoresDepthTextureWhenVerificationFails()
+        {
+            ParticleAnimMeshVerification.VerifyDepthTextureRestorationAfterFailure();
+        }
+
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all
         // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)
