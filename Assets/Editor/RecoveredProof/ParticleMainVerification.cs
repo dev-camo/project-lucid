@@ -31,6 +31,16 @@ namespace ProjectLucid
         // Compiles every pass for Direct3D 11 with the keyword sets the shipped variants combine.
         public static void CompileForWindows()
         {
+            CompileForPlatform(ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+        }
+
+        public static void CompileForLinux()
+        {
+            CompileForPlatform(ShaderCompilerPlatform.OpenGLCore, BuildTarget.StandaloneLinux64);
+        }
+
+        private static void CompileForPlatform(ShaderCompilerPlatform platform, BuildTarget target)
+        {
             Shader shader = Load();
             ShaderData.Subshader subshader = ShaderUtil.GetShaderData(shader).GetSerializedSubshader(0);
             var sets = new List<string[]>
@@ -51,17 +61,17 @@ namespace ProjectLucid
                     foreach (ShaderType stage in new[] { ShaderType.Vertex, ShaderType.Fragment })
                     {
                         ShaderData.VariantCompileInfo info = pass.CompileVariant(stage, keywords,
-                            ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+                            platform, target);
                         string errors = "";
                         foreach (ShaderMessage message in info.Messages)
                             if (message.severity == ShaderCompilerMessageSeverity.Error) errors += " " + message.message;
                         Require(info.Success && errors.Length == 0,
-                            "D3D compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
+                            platform + " compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
                         compiled++;
                     }
                 }
             }
-            Debug.Log("Project Lucid HL_Particle_Main compiled " + compiled + " Direct3D programs across " + subshader.PassCount + " passes.");
+            Debug.Log("Project Lucid HL_Particle_Main compiled " + compiled + " " + platform + " programs across " + subshader.PassCount + " passes.");
         }
 
         private static Shader Load()
@@ -124,6 +134,9 @@ namespace ProjectLucid
             var priorVectors = new Dictionary<string, Vector4>();
             foreach (string name in globals) priorVectors[name] = Shader.GetGlobalVector(name);
             float priorTime = Shader.GetGlobalFloat("_HLShaderTimeGame");
+            Texture priorDepth = Shader.GetGlobalTexture("_CameraDepthTexture");
+            Matrix4x4 priorView = Shader.GetGlobalMatrix("unity_MatrixV");
+            Matrix4x4 priorInverseViewProjection = Shader.GetGlobalMatrix("unity_MatrixInvVP");
             RenderTexture previous = RenderTexture.active;
             try
             {
@@ -193,9 +206,9 @@ namespace ProjectLucid
                 Expect(material, mesh, camera, target, sample, new Color(0.64f, 0.8f, 0.16f), "distance fade is off by default", 0.8f);
                 material.SetFloat("_Camera_Distance_Fade", 1);
                 Expect(material, mesh, camera, target, sample, Color.black, "distance fade nearer than its range removes the particle", 0f);
-                // A range centred on this quad's clip w - z halves the alpha.
-                Vector4 clip = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true) * camera.worldToCameraMatrix * new Vector4(0, 0, 0, 1);
-                float distance = clip.w - clip.z;
+                // The original reversed-Z orthographic w-z is (eye-near)/(far-near),
+                // independent of the backend running this proof; retain the same half-alpha oracle.
+                float distance = 19f / 99f;
                 material.SetFloat("_Camera_Distance_Fade_Near", distance - 0.1f);
                 material.SetFloat("_Camera_Distance_Fade_Far", distance + 0.1f);
                 Expect(material, mesh, camera, target, sample, new Color(0.32f, 0.4f, 0.08f), "distance fade at the middle of its range", 0.4f);
@@ -257,12 +270,57 @@ namespace ProjectLucid
                 material.SetFloat("_DepthFadeStrength", 1);
                 Expect(material, mesh, camera, target, sample, new Color(0.32f, 0.4f, 0.08f), "depth fade halves the alpha", 0.4f);
 
-                Debug.Log("Project Lucid HL_Particle_Main GPU verification passed: 20 Metal-derived cases on " + SystemInfo.graphicsDeviceType +
+                // In the original inverse-VP branch, scene eye depths 2 and 4 give fades 1/6 and 1/2
+                // against this orthographic particle's clip w=1. Opposite texture rows must stay distinct.
+                var depth = new Texture2D(1, 32, TextureFormat.RGBAFloat, false, true)
+                {
+                    filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
+                };
+                owned.Add(depth);
+                var depths = new Color[32];
+                for (int row = 0; row < depths.Length; row++)
+                {
+                    float raw = row < 16 ? 19f / 99f : 39f / 99f;
+                    if (SystemInfo.usesReversedZBuffer) raw = 1 - raw;
+                    depths[row] = new Color(raw, 0, 0, 0);
+                }
+                depth.SetPixels(depths);
+                depth.Apply(false, false);
+                // URP publishes these independently; immediate GL matrix setup does not promise the inverse.
+                Matrix4x4 view = camera.worldToCameraMatrix;
+                Shader.SetGlobalMatrix("unity_MatrixV", view);
+                Shader.SetGlobalMatrix("unity_MatrixInvVP",
+                    (GL.GetGPUProjectionMatrix(camera.projectionMatrix, true) * view).inverse);
+                Shader.SetGlobalTexture("_CameraDepthTexture", depth);
+                Shader.SetGlobalVector("unity_OrthoParams", new Vector4(1, 1, 0, 1));
+                Expect(material, mesh, camera, target, sample, new Color(0.64f, 0.8f, 0.16f) / 6,
+                       "orthographic lower row reconstructs scene eye depth 2", 0.8f / 6, 8);
+                Expect(material, mesh, camera, target, sample, new Color(0.32f, 0.4f, 0.08f),
+                       "orthographic upper row reconstructs scene eye depth 4", 0.4f, 24);
+                material.DisableKeyword("_DEPTHFADE");
+
+                // Near=.1, far=10, eye=9 gives original perspective clip z=1/99 and w=9.
+                // A fixed range [8.9,9.1] retains w-z; eye distance would give 1/2, over .04 too much alpha.
+                camera.orthographic = false;
+                camera.fieldOfView = 60;
+                camera.transform.position = new Vector3(0, 0, -9);
+                Shader.SetGlobalVector("unity_OrthoParams", Vector4.zero);
+                material.SetFloat("_Camera_Distance_Fade_Near", 8.9f);
+                material.SetFloat("_Camera_Distance_Fade_Far", 9.1f);
+                material.SetFloat("_Camera_Distance_Fade", 1);
+                float perspectiveFade = 89f / 198f;
+                Expect(material, mesh, camera, target, sample, new Color(0.64f, 0.8f, 0.16f) * perspectiveFade,
+                       "perspective distance fade preserves the original clip quantity", 0.8f * perspectiveFade);
+
+                Debug.Log("Project Lucid HL_Particle_Main GPU verification passed: 22 Metal-derived cases on " + SystemInfo.graphicsDeviceType +
                           ". In-game presentation QA remains unverified.");
             }
             finally
             {
                 Shader.SetGlobalFloat("_HLShaderTimeGame", priorTime);
+                Shader.SetGlobalTexture("_CameraDepthTexture", priorDepth);
+                Shader.SetGlobalMatrix("unity_MatrixV", priorView);
+                Shader.SetGlobalMatrix("unity_MatrixInvVP", priorInverseViewProjection);
                 foreach (string name in globals) Shader.SetGlobalVector(name, priorVectors[name]);
                 RenderTexture.active = previous;
                 target.Release();
@@ -271,7 +329,7 @@ namespace ProjectLucid
         }
 
         private static void Expect(Material material, Mesh mesh, Camera camera, RenderTexture target, Texture2D sample,
-                                   Color expected, string label, float expectedAlpha)
+                                   Color expected, string label, float expectedAlpha, int y = 16)
         {
             Graphics.SetRenderTarget(target);
             GL.Clear(true, true, new Color(0, 0, 0, 0));
@@ -284,7 +342,7 @@ namespace ProjectLucid
                 Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
             }
             finally { GL.PopMatrix(); }
-            sample.ReadPixels(new Rect(16, 16, 1, 1), 0, 0, false);
+            sample.ReadPixels(new Rect(16, y, 1, 1), 0, 0, false);
             sample.Apply(false);
             Color actual = sample.GetPixel(0, 0);
             Require(Mathf.Abs(actual.r - expected.r) < 0.01f && Mathf.Abs(actual.g - expected.g) < 0.01f &&

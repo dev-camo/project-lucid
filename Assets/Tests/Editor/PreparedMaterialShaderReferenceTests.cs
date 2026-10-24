@@ -35,6 +35,15 @@ namespace ProjectLucid.Tests
                 "f21fe4aef0791351d6a53f6c6c33b436400fe3a42ec7dfd984ac7a6d7b1cd43e");
         }
 
+        [Test]
+        public void PreparedParticleMainMaterialResolvesItsOriginalShader()
+        {
+            Run("Assets/Recovered/Data/Art/Shaders/Shaders/Particle/HL_Particle_Main.mat",
+                "71e63d9496dcf50458b398efbbe14295", "beb9536db5dec634f9859840dcb2976b",
+                "HardLight/Particle/HL_Particle_Main", "Assets/Shaders/Recovered/HL_Particle_Main.shader",
+                "8305a76f9676999aa2a5690e2fc655fd8e6e1390b9163ffeda0403465c8cd4ea");
+        }
+
         private void Run(string materialPath, string materialGuid, string shaderGuid,
                          string shaderName, string shaderPath, string preparedSha256)
         {
