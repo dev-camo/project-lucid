@@ -98,6 +98,24 @@ namespace ProjectLucid.Tests
                 "fcdc2c62c3865874e44a64d89112a6ef903e9db5b0bc0dd13cb012b8ab8dad6d");
         }
 
+        [Test]
+        public void PreparedBundledFullscreenMaterialResolvesItsOriginalShader()
+        {
+            Run("Assets/Recovered/Data/Art/Shaders/Shaders/RenderFeatures/HL_FullScreen_Effects.mat",
+                "3cbb9ea457f3d0c498554dcc72f71e05", "3518f69d26ca6d140b0b1b2d67fc8dea",
+                "Hidden/HardLight/RenderFeature/HL_FullScreen_Effects", "Assets/Shaders/Recovered/HL_FullScreen_Effects.shader",
+                "658ead139ca80c3ad117529d27c703cbc5beb1f792f354ee7808c6a38eed0446");
+        }
+
+        [Test]
+        public void PreparedResourcesFullscreenMaterialResolvesItsOriginalShader()
+        {
+            Run("Assets/Recovered/Material/render_feature_fullscreen_effects.mat",
+                "70979d8512f5a314f8c7c3a8189f36c0", "89aa1b470a96afe49a9b172ec8300d40",
+                "Hidden/HardLight/RenderFeature/HL_FullScreen_Effects", "Assets/Shaders/Recovered/HL_FullScreen_Effects_Resources.shader",
+                "ffbaf8a5f79f76e3ca5e08f851f2cddfd947038c9a5a325b8fbe659e801aaab6");
+        }
+
         private void Run(string materialPath, string materialGuid, string shaderGuid,
                          string shaderName, string shaderPath, string preparedSha256)
         {

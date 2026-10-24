@@ -27,6 +27,7 @@ Shader "Hidden/HardLight/RenderFeature/HL_FullScreen_Effects"
 
         HLSLINCLUDE
         #pragma target 3.5
+        #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
         #include "HL_FullScreen_Effects.hlsl"
         ENDHLSL
 

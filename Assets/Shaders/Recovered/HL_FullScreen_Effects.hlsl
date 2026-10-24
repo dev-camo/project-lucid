@@ -36,6 +36,7 @@ struct Varyings
 {
     float4 positionCS : SV_POSITION;
     float4 uv : TEXCOORD0;
+    float4 viewDirectionWS : TEXCOORD1;
 };
 
 // Both templates give the screen UV, flipped vertically unless _FlipY is set.
@@ -45,12 +46,16 @@ Varyings FullscreenVaryings(float2 positionNDC)
     output.positionCS = float4(positionNDC, 1.0, 1.0);
     float2 uv = positionNDC * 0.5 + 0.5;
     output.uv = float4(uv.x, _FlipY < 0.5 ? 1.0 - uv.y : uv.y, 1.0, 1.0);
+    // The shipped templates retain an unnormalized view direction from the unflipped clip position.
+    float4 positionWS = mul(UNITY_MATRIX_I_VP, float4(positionNDC, 1.0, 1.0));
+    float3 viewDirection = _WorldSpaceCameraPos - positionWS.xyz / positionWS.w;
+    output.viewDirectionWS = float4(unity_OrthoParams.w == 0.0 ? viewDirection : UNITY_MATRIX_V[2].xyz, 0.0);
     return output;
 }
 
 // The decoded fragment: edge distortion of the scene, the flow-mapped dream vignette,
 // polar speed lines, then the fade to colour.
-half4 FullscreenEffects(Varyings input) : SV_Target
+float4 FullscreenEffects(Varyings input) : SV_Target
 {
     float2 uv = input.uv.xy;
     float2 centred = uv - 0.5;
@@ -88,7 +93,7 @@ half4 FullscreenEffects(Varyings input) : SV_Target
     float3 colour = lerp(scene, vignette.rgb * _Vignette_Colour_Boost * _Vignette_Tint.rgb, edge);
 
     colour += _Speed_Lines_Colour_Tint.rgb * lines;
-    return half4(lerp(colour, _Fade_To_Color.rgb, _Fade_To_Colour_Amount), 1.0);
+    return float4(lerp(colour, _Fade_To_Color.rgb, _Fade_To_Colour_Amount), 1.0);
 }
 
 // The full-screen triangle from the vertex id.
