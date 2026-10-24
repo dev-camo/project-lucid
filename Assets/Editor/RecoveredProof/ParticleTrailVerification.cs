@@ -28,6 +28,11 @@ namespace ProjectLucid
 
         public static void VerifyOrthographicDepthRows()
         {
+            ParticleDepthReadout.WithCopy(ShaderPath, false, VerifyOrthographicDepthRows);
+        }
+
+        private static void VerifyOrthographicDepthRows(ParticleDepthReadout readout)
+        {
             Matrix4x4 view = Shader.GetGlobalMatrix("unity_MatrixV");
             Matrix4x4 inverseVP = Shader.GetGlobalMatrix("unity_MatrixInvVP");
             try
@@ -40,7 +45,11 @@ namespace ProjectLucid
                     var depth = rig.Own(new Texture2D(1, 32, TextureFormat.RFloat, false, true));
                     depth.filterMode = FilterMode.Point;
                     depth.wrapMode = TextureWrapMode.Clamp;
+                    var rgbaDepth = rig.Own(new Texture2D(1, 32, TextureFormat.RGBAFloat, false, true));
+                    rgbaDepth.filterMode = FilterMode.Point;
+                    rgbaDepth.wrapMode = TextureWrapMode.Clamp;
                     var pixels = new Color[32];
+                    float rawEye2 = 0, rawEye4 = 0;
                     for (int row = 0; row < pixels.Length; row++)
                     {
                         // Original orthographic raw depths for eye distances 2/4 at near .1, far 10.
@@ -49,9 +58,13 @@ namespace ProjectLucid
                         // Match logical screen rows through the shader's API-specific UV origin.
                         int textureRow = SystemInfo.graphicsUVStartsAtTop ? pixels.Length - 1 - row : row;
                         pixels[textureRow] = new Color(raw, 0, 0, 1);
+                        if (row == 0) rawEye2 = raw;
+                        if (row == 16) rawEye4 = raw;
                     }
                     depth.SetPixels(pixels);
                     depth.Apply(false, false);
+                    rgbaDepth.SetPixels(pixels);
+                    rgbaDepth.Apply(false, false);
                     Shader.SetGlobalTexture("_CameraDepthTexture", depth);
                     Matrix4x4 cameraView = rig.Camera.worldToCameraMatrix;
                     Shader.SetGlobalMatrix("unity_MatrixV", cameraView);
@@ -74,6 +87,14 @@ namespace ProjectLucid
                     foreach (int sign in new[] { 1, -1 })
                     {
                         Shader.SetGlobalVector("_ProjectionParams", new Vector4(sign, 0.1f, 10, 0.1f));
+                        if (sign == 1)
+                        {
+                            Debug.Log("Project Lucid Trail depth CPU camera: projection=" + rig.Camera.projectionMatrix.ToString("R") +
+                                " gpuProjection=" + GL.GetGPUProjectionMatrix(rig.Camera.projectionMatrix, true).ToString("R") +
+                                " view=" + rig.Camera.worldToCameraMatrix.ToString("R"));
+                            readout.Capture(material, depth, rgbaDepth, pixels, rawEye2, rawEye4,
+                                (probe, rowIndex) => rig.Draw(probe, y: rowIndex), "Trail actual RecoveredShaderRig.Draw");
+                        }
                         foreach (int row in new[] { 8, 24 })
                         {
                             float alpha = 0.7f * Edge(row);
