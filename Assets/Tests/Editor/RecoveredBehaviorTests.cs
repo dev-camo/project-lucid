@@ -1118,6 +1118,30 @@ namespace ProjectLucid.Tests
             ParticleTrailVerification.Run();
         }
 
+        [Test]
+        public void PfxAlphaBlendAddCompilesEveryPassForOpenGL()
+        {
+            PfxAlphaBlendAddVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void PfxAlphaBlendAddPerspectiveFadeRetainsOriginalClipCurve()
+        {
+            PfxAlphaBlendAddVerification.VerifyPerspectiveFade();
+        }
+
+        [Test]
+        public void ParticleTrailCompilesEveryPassForOpenGL()
+        {
+            ParticleTrailVerification.CompileForOpenGL();
+        }
+
+        [Test]
+        public void ParticleTrailOrthographicDepthRetainsBothRowsAndProjectionSigns()
+        {
+            ParticleTrailVerification.VerifyOrthographicDepthRows();
+        }
+
         // The shared tables the two enum-string verifiers write through the genuine
         // GetString miss path: three of the ActorDefinitionVerification tables (all
         // of them are checked by ActorVerifiersLeaveTheirCachedEnumTablesAsFound)

@@ -16,6 +16,37 @@ namespace ProjectLucid
 
         public static void CompileForWindows() => RecoveredShaderProof.CompileForWindows(Load(), new string[0]);
 
+        public static void CompileForOpenGL() => RecoveredShaderProof.CompileForOpenGL(Load(), new string[0]);
+
+        public static void VerifyPerspectiveFade()
+        {
+            using (var rig = new RecoveredShaderRig(Load()))
+            {
+                rig.Camera.orthographic = false;
+                rig.Camera.transform.position = new Vector3(0, 0, -9);
+                Material material = rig.Own(new Material(Load()));
+                material.SetFloat("_BlendSrc", 1);
+                material.SetFloat("_BlendDst", 0);
+                material.SetFloat("_alpha_blend_add_toggle", 1);
+                material.SetColor("_emissive_colour", Color.white);
+                material.SetTexture("_MainTex", rig.Texels(new Color(0.5f, 1, 0, 0.25f)));
+                material.SetFloat("_distance_fade_near", 8.9f);
+                material.SetFloat("_distance_fade_far", 9.1f);
+                // Original Metal: eye 9, near .1, far 10 gives clip z=1/99, w=9, hence fade=89/198.
+                const float fade = 89f / 198f;
+                rig.Expect(material, new Color(0.5f, 1, 0, 0.5f * fade), "perspective material range retains the original clip curve");
+                material.SetFloat("_distance_fade_toggle", 1);
+                rig.Expect(material, new Color(0.5f * fade, fade, 0, 0.5f * fade * fade), "perspective second RGBA fade");
+                material.SetFloat("_distance_fade_near", 100);
+                material.SetFloat("_distance_fade_far", 200);
+                material.SetFloat("_distance_fade_custom_particle_data_toggle", 1);
+                rig.SetUv0(new Vector4(0, 0, 8.9f, 9.1f));
+                rig.Expect(material, new Color(0.5f * fade, fade, 0, 0.5f * fade * fade), "perspective custom stream range");
+                material.SetFloat("_distance_fade_toggle", 0);
+                rig.Expect(material, new Color(0.5f, 1, 0, 0.5f * fade), "perspective custom range with second fade off");
+            }
+        }
+
         public static void Run()
         {
             Shader shader = Load();
@@ -49,8 +80,8 @@ namespace ProjectLucid
                 rig.Expect(material, new Color(0.1875f, 1.5f, 0.5f, 0.25f), "vertex colour applied twice, vertex alpha");
                 rig.SetColors(Color.white);
 
-                // A range centred on this quad's w - z gives fade 0.5.
-                float distance = rig.ClipDistance(Vector3.zero);
+                // Original Metal ortho w-z is 19/99 at eye 2, near .1, far 10, independent of the test backend.
+                const float distance = 19f / 99f;
                 material.SetFloat("_distance_fade_near", distance - 0.1f);
                 material.SetFloat("_distance_fade_far", distance + 0.1f);
                 rig.Expect(material, new Color(1f, 1.5f, 0.5f, 0.25f), "fade scales alpha even with the toggle off");

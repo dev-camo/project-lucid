@@ -20,6 +20,75 @@ namespace ProjectLucid
             new[] { "INSTANCING_ON", "_SURFACE_TYPE_TRANSPARENT", "_CASTING_PUNCTUAL_LIGHT_SHADOW" },
             new[] { "DOTS_INSTANCING_ON", "_GRADIENTMAPENABLE" });
 
+        public static void CompileForOpenGL() => RecoveredShaderProof.CompileForOpenGL(Load(),
+            new string[0],
+            new[] { "_SURFACE_TYPE_TRANSPARENT", "_GRADIENTMAPENABLE", "_WRITE_RENDERING_LAYERS" },
+            new[] { "INSTANCING_ON", "_SURFACE_TYPE_TRANSPARENT", "_CASTING_PUNCTUAL_LIGHT_SHADOW" },
+            new[] { "DOTS_INSTANCING_ON", "_GRADIENTMAPENABLE" });
+
+        public static void VerifyOrthographicDepthRows()
+        {
+            Matrix4x4 view = Shader.GetGlobalMatrix("unity_MatrixV");
+            Matrix4x4 inverseVP = Shader.GetGlobalMatrix("unity_MatrixInvVP");
+            try
+            {
+                using (var rig = new RecoveredShaderRig(Load()))
+                {
+                    rig.SaveTextures("_CameraDepthTexture");
+                    rig.SaveVectors("_ScaledScreenParams", "_ProjectionParams");
+                    Shader.SetGlobalVector("_ScaledScreenParams", new Vector4(32, 32, 1 + 1 / 32f, 1 + 1 / 32f));
+                    var depth = rig.Own(new Texture2D(1, 32, TextureFormat.RFloat, false, true));
+                    depth.filterMode = FilterMode.Point;
+                    depth.wrapMode = TextureWrapMode.Clamp;
+                    var pixels = new Color[32];
+                    for (int row = 0; row < pixels.Length; row++)
+                    {
+                        // Original orthographic raw depths for eye distances 2/4 at near .1, far 10.
+                        float raw = row < 16 ? 19f / 99f : 39f / 99f;
+                        if (SystemInfo.usesReversedZBuffer) raw = 1 - raw;
+                        pixels[row] = new Color(raw, 0, 0, 1);
+                    }
+                    depth.SetPixels(pixels);
+                    depth.Apply(false, false);
+                    Shader.SetGlobalTexture("_CameraDepthTexture", depth);
+                    Matrix4x4 cameraView = rig.Camera.worldToCameraMatrix;
+                    Shader.SetGlobalMatrix("unity_MatrixV", cameraView);
+                    Shader.SetGlobalMatrix("unity_MatrixInvVP",
+                        (GL.GetGPUProjectionMatrix(rig.Camera.projectionMatrix, true) * cameraView).inverse);
+
+                    Material material = rig.Own(new Material(Load()));
+                    material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                    material.SetFloat("_SrcBlend", 1);
+                    material.SetFloat("_DstBlend", 0);
+                    material.SetFloat("_Softness", 1);
+                    material.SetFloat("_DepthFade_Distance", 6);
+                    material.SetFloat("_DepthFade_Strenght", 1);
+                    material.SetVector("_Tiling_and_PannerSpeed", new Vector4(1, 1, 0, 0));
+                    material.SetVector("_Channel_Picker", new Vector4(1, 0, 0, 0));
+                    material.SetColor("_Primary_Color", Color.red);
+                    material.SetColor("_Secondary_Color", Color.blue);
+                    material.SetTexture("_Main_Texture", rig.Texels(new Color(0.2f, 0, 0, 1)));
+                    rig.SetColors(new Color(1, 1, 1, 0.75f));
+                    foreach (int sign in new[] { 1, -1 })
+                    {
+                        Shader.SetGlobalVector("_ProjectionParams", new Vector4(sign, 0.1f, 10, 0.1f));
+                        foreach (int row in new[] { 8, 24 })
+                        {
+                            float alpha = 0.7f * Edge(row);
+                            float fade = (row < 16) == (sign == 1) ? 1f / 6f : 0.5f;
+                            rig.Expect(material, Out(RedBlue(alpha), alpha * fade),
+                                "orthographic varying depth, projection sign " + sign + ", row " + row, y: row);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                Shader.SetGlobalMatrix("unity_MatrixV", view);
+                Shader.SetGlobalMatrix("unity_MatrixInvVP", inverseVP);
+            }
+        }
+
         // Edge fade saturate(uv.y (1 - uv.y) * 3.333) at a pixel row of the 32-pixel quad.
         private static float Edge(int row)
         {

@@ -24,6 +24,13 @@ namespace ProjectLucid
 
         // Compiles both stages of every pass for Direct3D 11 / StandaloneWindows64 under each keyword set.
         public static int CompileForWindows(Shader shader, params string[][] keywordSets)
+            => Compile(shader, ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64, keywordSets);
+
+        public static int CompileForOpenGL(Shader shader, params string[][] keywordSets)
+            => Compile(shader, ShaderCompilerPlatform.OpenGLCore, BuildTarget.StandaloneLinux64, keywordSets);
+
+        private static int Compile(Shader shader, ShaderCompilerPlatform platform, BuildTarget target,
+                                   params string[][] keywordSets)
         {
             ShaderData.Subshader subshader = ShaderUtil.GetShaderData(shader).GetSerializedSubshader(0);
             int compiled = 0;
@@ -35,17 +42,17 @@ namespace ProjectLucid
                     foreach (ShaderType stage in new[] { ShaderType.Vertex, ShaderType.Fragment })
                     {
                         ShaderData.VariantCompileInfo info = pass.CompileVariant(stage, keywords,
-                            ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+                            platform, target);
                         string errors = "";
                         foreach (ShaderMessage message in info.Messages)
                             if (message.severity == ShaderCompilerMessageSeverity.Error) errors += " " + message.message;
                         Require(shader.name, info.Success && errors.Length == 0,
-                            "D3D compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
+                            platform + " compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
                         compiled++;
                     }
                 }
             }
-            Debug.Log("Project Lucid " + shader.name + " compiled " + compiled + " Direct3D programs across " + subshader.PassCount + " passes.");
+            Debug.Log("Project Lucid " + shader.name + " compiled " + compiled + " " + platform + " programs across " + subshader.PassCount + " passes.");
             return compiled;
         }
 
