@@ -348,7 +348,12 @@ namespace ProjectLucid
                 catch (Exception failure)
                 {
                     if (first == null) first = ExceptionDispatchInfo.Capture(failure);
-                    else UnityEngine.Debug.LogWarning("Fixture cleanup failed after an earlier failure: " + failure);
+                    else
+                    {
+                        // A diagnostic that fails must not skip later steps or replace the first failure.
+                        try { UnityEngine.Debug.LogWarning("Fixture cleanup failed after an earlier failure: " + failure); }
+                        catch (Exception) { }
+                    }
                 }
             }
             first?.Throw();

@@ -839,5 +839,104 @@ namespace ProjectLucid.Tests
             CollectionAssert.AreEqual(new[] { "body", "first", "second", "last" }, trace);
             LogAssert.NoUnexpectedReceived();
         }
+
+        private sealed class ThrowingLogHandler : UnityEngine.ILogHandler
+        {
+            internal readonly InvalidOperationException Failure = new InvalidOperationException("logger");
+            internal int Calls { get; private set; }
+
+            public void LogFormat(UnityEngine.LogType logType, UnityEngine.Object context, string format, params object[] args)
+            {
+                Calls++;
+                throw Failure;
+            }
+
+            public void LogException(Exception exception, UnityEngine.Object context)
+            {
+                Calls++;
+                throw Failure;
+            }
+        }
+
+        [TestCase(0)]
+        [TestCase(1)]
+        public void RunThenCleanUpContinuesWhenTheWarningLoggerThrows(int failures)
+        {
+            UnityEngine.ILogger logger = UnityEngine.Debug.unityLogger;
+            UnityEngine.ILogHandler previousHandler = logger.logHandler;
+            bool previousEnabled = logger.logEnabled;
+            UnityEngine.LogType previousFilter = logger.filterLogType;
+            var handler = new ThrowingLogHandler();
+            var trace = new List<string>();
+            var body = new InvalidProgramException("body");
+            var first = new InvalidOperationException("cleanup1");
+            var second = new InvalidOperationException("cleanup2");
+            var cleanup = new List<Action>
+            {
+                () => { trace.Add("cleanup1"); throw first; },
+                () => { trace.Add("cleanup2"); if (failures == 1) throw second; },
+            };
+            if (failures == 1) cleanup.Add(() => trace.Add("cleanup3"));
+            Exception thrown = null;
+            try
+            {
+                logger.logHandler = handler;
+                logger.logEnabled = true;
+                logger.filterLogType = UnityEngine.LogType.Log;
+                try
+                {
+                    VerificationFixtureOwnership.RunThenCleanUp(
+                        () => { trace.Add("body"); if (failures == 0) throw body; }, cleanup.ToArray());
+                }
+                catch (Exception failure) { thrown = failure; }
+            }
+            finally
+            {
+                logger.logHandler = previousHandler;
+                logger.logEnabled = previousEnabled;
+                logger.filterLogType = previousFilter;
+            }
+            CollectionAssert.AreEqual(failures == 0
+                ? new[] { "body", "cleanup1", "cleanup2" }
+                : new[] { "body", "cleanup1", "cleanup2", "cleanup3" }, trace);
+            Assert.AreSame(failures == 0 ? (Exception)body : first, thrown);
+            Assert.AreEqual(1, handler.Calls, "The secondary warning reaches the throwing handler exactly once.");
+            Assert.AreSame(previousHandler, logger.logHandler);
+            Assert.AreEqual(previousEnabled, logger.logEnabled);
+            Assert.AreEqual(previousFilter, logger.filterLogType);
+            LogAssert.NoUnexpectedReceived();
+        }
+
+        private sealed class ThrowingFailureText : Exception
+        {
+            internal int Calls { get; private set; }
+
+            public override string ToString()
+            {
+                Calls++;
+                throw new InvalidOperationException("failure text");
+            }
+        }
+
+        [Test]
+        public void RunThenCleanUpContinuesWhenTheFailureTextThrows()
+        {
+            var trace = new List<string>();
+            var body = new InvalidProgramException("body");
+            var secondary = new ThrowingFailureText();
+            Exception thrown = null;
+            try
+            {
+                VerificationFixtureOwnership.RunThenCleanUp(
+                    () => { trace.Add("body"); throw body; },
+                    () => { trace.Add("cleanup1"); throw secondary; },
+                    () => trace.Add("cleanup2"));
+            }
+            catch (Exception failure) { thrown = failure; }
+            CollectionAssert.AreEqual(new[] { "body", "cleanup1", "cleanup2" }, trace);
+            Assert.AreSame(body, thrown);
+            Assert.AreEqual(1, secondary.Calls, "Building the secondary diagnostic calls the failing ToString exactly once.");
+            LogAssert.NoUnexpectedReceived();
+        }
     }
 }

@@ -4798,6 +4798,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.SharedStateSnapshotTests.ReplacedOpStringCacheIsReportedUntilRestored",
 )
 
+# Secondary fixture diagnostics cannot stop cleanup or replace its first failure (#470).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpContinuesWhenTheWarningLoggerThrows(0)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpContinuesWhenTheWarningLoggerThrows(1)",
+    "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpContinuesWhenTheFailureTextThrows",
+)
+
 # Original managed declaration contracts restored for issue #295.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalManagedDeclarationContractsTests." + name for name in (
     "NestedTypesKeepOriginalVisibilityAndSerializableFlags",
