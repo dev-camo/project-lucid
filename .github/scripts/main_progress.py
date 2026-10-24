@@ -514,7 +514,7 @@ def publish(api, request, raw, producer, control, source):
     tree_sha = api.request(f'/repos/{REPOSITORY}/git/trees', 'POST', {'base_tree': commit['tree']['sha'], 'tree': tree})['sha']
     if tree_sha != expected:
         raise ValueError('Generated tree differs from the two validated outputs')
-    created = api.request(f'/repos/{REPOSITORY}/git/commits', 'POST', {'message': 'Update verified main code progress',
+    created = api.request(f'/repos/{REPOSITORY}/git/commits', 'POST', {'message': 'Update verified main code progress\n\n[skip ci]',
                           'tree': tree_sha, 'parents': [request['head']], 'author': identity, 'committer': identity})['sha']
     if not isinstance(created, str) or not shared.SHA.fullmatch(created):
         raise ValueError('Generated commit identity differs')
@@ -532,7 +532,7 @@ def publish(api, request, raw, producer, control, source):
     branch, actual = shared.default_head(api)
     if branch != MAIN or actual != created:
         raise ValueError('Main publication superseded or unconfirmed; inspect without retrying')
-    print('Generated-only main fast-forward verified; ordinary push tests will run')
+    print('Generated-only main fast-forward verified; generated commit includes [skip ci]')
     return created
 
 

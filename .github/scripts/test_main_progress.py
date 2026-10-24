@@ -225,6 +225,24 @@ class MainProgressTests(unittest.TestCase):
             self.publish()
         self.assertFalse(self.mutations())
 
+    def test_generated_only_child_requests_skip_ci_with_the_verified_identity(self):
+        self.assertEqual(self.api.generated, self.publish())
+        (created,) = [call['body'] for call in self.api.calls
+                      if call['method'] == 'POST' and call['path'].endswith('/git/commits')]
+        self.assertEqual('Update verified main code progress\n\n[skip ci]', created['message'])
+        self.assertEqual('f' * 40, created['tree'])
+        self.assertEqual([self.api.parent], created['parents'])
+        self.assertEqual(self.api.identity, created['author'])
+        self.assertEqual(self.api.identity, created['committer'])
+        self.assertEqual(['README.md', 'docs/code-progress.json'], [entry['path'] for entry in self.api.tree['tree']])
+        self.assertFalse(any('/pulls' in call['path'] or '/actions/' in call['path'] for call in self.api.calls))
+
+    def test_publication_log_identifies_skip_ci_without_promising_push_tests(self):
+        with mock.patch('sys.stdout', new_callable=io.StringIO) as output:
+            self.publish()
+        self.assertIn('[skip ci]', output.getvalue())
+        self.assertNotIn('ordinary push tests will run', output.getvalue())
+
     def test_missing_duplicate_or_reversed_markers_rejected_before_writes(self):
         for content in ('human text', '<!-- LUCID_CODE_PROGRESS:START -->' * 2,
                         '<!-- LUCID_CODE_PROGRESS:END --><!-- LUCID_CODE_PROGRESS:START -->'):
