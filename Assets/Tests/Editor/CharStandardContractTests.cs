@@ -401,7 +401,7 @@ namespace ProjectLucid.Tests
 ");
                     if (pass == 0) wrapper.Append(@"
                 // Fixture-only inputs discriminate the actual pinned DEBUG forwarding assignments.
-                #if defined(DEBUG_DISPLAY)
+                // DEBUG_DISPLAY is fragment-only; initialize its vertex inputs independently.
                 #if defined(LIGHTMAP_ON)
                 output.staticLightmapUV = float2(.25, .5);
                 #else
@@ -409,7 +409,6 @@ namespace ProjectLucid.Tests
                 #endif
                 #if defined(DYNAMICLIGHTMAP_ON)
                 output.dynamicLightmapUV = float2(.75, .875);
-                #endif
                 #endif
 ");
                     wrapper.Append(@"

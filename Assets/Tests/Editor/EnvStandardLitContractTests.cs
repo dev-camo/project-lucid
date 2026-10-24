@@ -2,13 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.Rendering;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 namespace ProjectLucid.Tests
 {
@@ -144,6 +147,7 @@ namespace ProjectLucid.Tests
             private readonly Dictionary<string, string> originals = new Dictionary<string, string>();
             private readonly Dictionary<string, Vector4> vectors = new Dictionary<string, Vector4>();
             private readonly Dictionary<string, float> floats = new Dictionary<string, float>();
+            private readonly Dictionary<string, Matrix4x4> cameraMatrices = new Dictionary<string, Matrix4x4>();
             private string folder, source, previousPipeline;
             private RenderTexture previousTarget, target;
             private Matrix4x4 previousView, view = Matrix4x4.identity;
@@ -153,6 +157,12 @@ namespace ProjectLucid.Tests
             private Material material;
             private Mesh mesh;
             private Camera camera;
+            private Scene previewScene;
+            private bool ownsPreviewScene, renderingRequested;
+            private MeshRenderer renderer;
+            private ProbePipelineAsset rendererPipeline;
+            private int rendererPass, rendererInvocations;
+            private Exception rendererFailure;
             private bool borrowed;
 
             public void Create()
@@ -164,10 +174,15 @@ namespace ProjectLucid.Tests
                 previousTarget = RenderTexture.active;
                 previousView = Shader.GetGlobalMatrix("unity_MatrixV");
                 foreach (string name in new[] { "_GlobalMipBias", "_ShadowBias", "_LightDirection", "unity_OrthoParams",
-                    "_WorldSpaceCameraPos", "unity_MetaVertexControl", "unity_MetaFragmentControl" })
+                    "_WorldSpaceCameraPos", "unity_MetaVertexControl", "unity_MetaFragmentControl",
+                    "_ProjectionParams", "_ScreenParams", "_ZBufferParams" })
                     vectors.Add(name, Shader.GetGlobalVector(name));
                 foreach (string name in new[] { "_HLShaderTimeGame", "unity_OneOverOutputBoost", "unity_MaxOutputValue", "unity_UseLinearSpace" })
                     floats.Add(name, Shader.GetGlobalFloat(name));
+                foreach (string name in new[] { "glstate_matrix_projection", "unity_MatrixInvV", "unity_MatrixInvP",
+                    "unity_MatrixVP", "unity_MatrixInvVP", "unity_CameraProjection", "unity_CameraInvProjection",
+                    "unity_WorldToCamera", "unity_CameraToWorld" })
+                    cameraMatrices.Add(name, Shader.GetGlobalMatrix(name));
                 borrowed = true;
                 Shader.globalRenderPipeline = "UniversalPipeline";
 
@@ -321,10 +336,10 @@ namespace ProjectLucid.Tests
                 Expect(3, 11, Matrix4x4.identity, new Color(.6f/length, .6f/length, -.64f/length, 0), "DepthNormals zero handedness is negative", true);
             }
 
-            private void AdmitView(int pass, bool commandBuffer = false)
+            private void AdmitView(int pass, bool rendererSubmission = false)
             {
-                Expect(pass, 13, Matrix4x4.identity, new Color(view.m20, view.m21, view.m22, 1), "actual published view row admission", commandBuffer);
-                Expect(pass, 14, Matrix4x4.identity, new Color(ortho, cameraPosition.x, cameraPosition.y, cameraPosition.z), "actual ortho flag/camera admission", commandBuffer);
+                Expect(pass, 13, Matrix4x4.identity, new Color(view.m20, view.m21, view.m22, 1), "actual published view row admission", rendererSubmission);
+                Expect(pass, 14, Matrix4x4.identity, new Color(ortho, cameraPosition.x, cameraPosition.y, cameraPosition.z), "actual ortho flag/camera admission", rendererSubmission);
             }
 
             public void CheckDebugInputs()
@@ -342,7 +357,7 @@ namespace ProjectLucid.Tests
                 Expect(0, 23, Matrix4x4.identity, new Color(.75f, .875f, 0, 1), "DEBUG_DISPLAY dynamic lightmap UV");
             }
 
-            private void Expect(int pass, int field, Matrix4x4 model, Color expected, string label, bool commandBuffer = false)
+            private void Expect(int pass, int field, Matrix4x4 model, Color expected, string label, bool rendererSubmission = false)
             {
                 RenderTexture before = RenderTexture.active;
                 try
@@ -360,7 +375,7 @@ namespace ProjectLucid.Tests
                         Shader.SetGlobalVector("_WorldSpaceCameraPos", cameraPosition);
                         material.SetFloat("_LucidProbeField", field);
                         Assert.That(material.SetPass(pass), Is.True, "probe pass " + pass);
-                        SubmitMesh(pass, model, commandBuffer);
+                        SubmitMesh(pass, model, rendererSubmission);
                     }
                     finally { GL.PopMatrix(); }
                     sample.ReadPixels(new Rect(4, 4, 1, 1), 0, 0); sample.Apply(false, false);
@@ -375,7 +390,7 @@ namespace ProjectLucid.Tests
             {
                 int[] passes = { 0, 4 };
                 Matrix4x4[] models = { Matrix4x4.identity, Matrix4x4.Scale(new Vector3(-1, 1, 1)) };
-                var commandInputs = new Color[passes.Length, models.Length, 3];
+                var rendererInputs = new Color[passes.Length, models.Length, 3];
                 ortho = 1;
                 view.SetRow(2, new Vector4(0, .6f, -.8f, 0));
                 // Collect both submissions on both passes before an admission can hide a later readout.
@@ -383,17 +398,17 @@ namespace ProjectLucid.Tests
                 {
                     for (int submission = 0; submission < 2; submission++)
                     {
-                        bool commandBuffer = submission == 1;
+                        bool rendererSubmission = submission == 1;
                         for (int modelIndex = 0; modelIndex < models.Length; modelIndex++)
                         {
                             for (int field = 15; field <= 17; field++)
                             {
-                                Color actual = ReadScaleInput(passes[passIndex], field, models[modelIndex], commandBuffer);
-                                if (commandBuffer) commandInputs[passIndex, modelIndex, field - 15] = actual;
+                                Color actual = ReadScaleInput(passes[passIndex], field, models[modelIndex], rendererSubmission);
+                                if (rendererSubmission) rendererInputs[passIndex, modelIndex, field - 15] = actual;
                                 var format = System.Globalization.CultureInfo.InvariantCulture;
                                 Debug.Log("EnvStandardLit scale input " + (modelIndex == 0 ? "identity" : "mirrored")
                                     + " pass " + passes[passIndex] + " field " + field
-                                    + " submission=" + (commandBuffer ? "CommandBuffer" : "GL")
+                                    + " submission=" + (rendererSubmission ? "Renderer" : "GL")
                                     + " modelDet=" + models[modelIndex].determinant.ToString("R", format)
                                     + " rgba=(" + actual.r.ToString("R", format) + "," + actual.g.ToString("R", format)
                                     + "," + actual.b.ToString("R", format) + "," + actual.a.ToString("R", format) + ")");
@@ -406,9 +421,9 @@ namespace ProjectLucid.Tests
                     AdmitView(passes[passIndex], true);
                     for (int modelIndex = 0; modelIndex < models.Length; modelIndex++)
                     {
-                        string label = "CommandBuffer per-draw input pass " + passes[passIndex]
+                        string label = "Renderer per-draw input pass " + passes[passIndex]
                             + (modelIndex == 0 ? " identity" : " mirrored");
-                        Color sign = commandInputs[passIndex, modelIndex, 0];
+                        Color sign = rendererInputs[passIndex, modelIndex, 0];
                         Assert.That(float.IsNaN(sign.r) || float.IsInfinity(sign.r), Is.False, label + " finite built-in sign");
                         if (modelIndex == 0) Assert.That(sign.r, Is.GreaterThanOrEqualTo(0), label + " nonnegative built-in sign");
                         else Assert.That(sign.r, Is.LessThan(0), label + " negative built-in sign");
@@ -416,8 +431,8 @@ namespace ProjectLucid.Tests
                         Assert.That(sign.g, Is.EqualTo(direction).Within(.01f), label + " original odd-scale helper");
                         Assert.That(sign.b, Is.EqualTo(direction).Within(.01f), label + " actual object determinant");
                         Assert.That(sign.a, Is.EqualTo(1).Within(.01f), label + " sign readout marker");
-                        Color normal = commandInputs[passIndex, modelIndex, 1];
-                        Color tangent = commandInputs[passIndex, modelIndex, 2];
+                        Color normal = rendererInputs[passIndex, modelIndex, 1];
+                        Color tangent = rendererInputs[passIndex, modelIndex, 2];
                         Color expectedNormal = new Color(0, 0, -1, 1);
                         Color expectedTangent = new Color(direction, 0, 0, 1);
                         for (int lane = 0; lane < 4; lane++)
@@ -429,7 +444,7 @@ namespace ProjectLucid.Tests
                 }
             }
 
-            private Color ReadScaleInput(int pass, int field, Matrix4x4 model, bool commandBuffer = false)
+            private Color ReadScaleInput(int pass, int field, Matrix4x4 model, bool rendererSubmission = false)
             {
                 RenderTexture before = RenderTexture.active;
                 try
@@ -447,7 +462,7 @@ namespace ProjectLucid.Tests
                         Shader.SetGlobalVector("_WorldSpaceCameraPos", cameraPosition);
                         material.SetFloat("_LucidProbeField", field);
                         Assert.That(material.SetPass(pass), Is.True, "probe pass " + pass);
-                        SubmitMesh(pass, model, commandBuffer);
+                        SubmitMesh(pass, model, rendererSubmission);
                     }
                     finally { GL.PopMatrix(); }
                     sample.ReadPixels(new Rect(4, 4, 1, 1), 0, 0); sample.Apply(false, false);
@@ -457,20 +472,146 @@ namespace ProjectLucid.Tests
                 finally { RenderTexture.active = before; }
             }
 
-            private void SubmitMesh(int pass, Matrix4x4 model, bool commandBuffer)
+            private void SubmitMesh(int pass, Matrix4x4 model, bool rendererSubmission)
             {
-                if (!commandBuffer)
+                if (!rendererSubmission)
                 {
                     Graphics.DrawMeshNow(mesh, model);
                     return;
                 }
-                using (var commands = new CommandBuffer { name = "EnvStandardLit per-draw probe" })
+                EnsureRenderer();
+                // These cases use only identity or one negative X scale, supplied by a real Transform.
+                float scaleX = model.m00;
+                Assert.That(scaleX == 1 || scaleX == -1, Is.True);
+                Matrix4x4 expectedModel = Matrix4x4.Scale(new Vector3(scaleX, 1, 1));
+                for (int index = 0; index < 16; index++) Assert.That(model[index], Is.EqualTo(expectedModel[index]));
+                renderer.transform.localScale = new Vector3(scaleX, 1, 1);
+                Assert.That(renderer.localToWorldMatrix, Is.EqualTo(model));
+                rendererPass = pass;
+                rendererInvocations = 0;
+                rendererFailure = null;
+                RenderPipelineAsset graphics = GraphicsSettings.renderPipelineAsset;
+                RenderPipelineAsset quality = QualitySettings.renderPipeline;
+                SupportedRenderingFeatures features = SupportedRenderingFeatures.active;
+                bool allowScriptableRenderPipeline = Unsupported.useScriptableRenderPipeline;
+                string pipeline = Shader.globalRenderPipeline;
+                Exception primary = null;
+                try
+                {
+                    GraphicsSettings.renderPipelineAsset = rendererPipeline;
+                    QualitySettings.renderPipeline = rendererPipeline;
+                    Unsupported.useScriptableRenderPipeline = true;
+                    renderingRequested = true;
+                    camera.Render();
+                    if (rendererFailure != null) ExceptionDispatchInfo.Capture(rendererFailure).Throw();
+                    Assert.That(rendererInvocations, Is.EqualTo(1), "Camera.Render must invoke the owned renderer pipeline once.");
+                }
+                catch (Exception failure) { primary = failure; throw; }
+                finally
+                {
+                    renderingRequested = false;
+                    rendererFailure = null;
+                    var failures = new List<Exception>();
+                    void Restore(Action action) { try { action(); } catch (Exception failure) { failures.Add(failure); } }
+                    Restore(() => QualitySettings.renderPipeline = quality);
+                    Restore(() => GraphicsSettings.renderPipelineAsset = graphics);
+                    Restore(() => rendererPipeline.ReleaseOwnedPipeline());
+                    Restore(() => SupportedRenderingFeatures.active = features);
+                    Restore(() => Unsupported.useScriptableRenderPipeline = allowScriptableRenderPipeline);
+                    Restore(() => Shader.globalRenderPipeline = pipeline);
+                    Restore(() => RenderTexture.active = target);
+                    if (failures.Count != 0)
+                    {
+                        var restoration = new AggregateException("Owned renderer pipeline restoration failed.", failures);
+                        if (primary != null) primary.Data["OwnedRendererRestoration"] = restoration;
+                        else throw restoration;
+                    }
+                }
+            }
+
+            private void EnsureRenderer()
+            {
+                if (renderer != null) return;
+                previewScene = EditorSceneManager.NewPreviewScene();
+                Assert.That(previewScene.IsValid(), Is.True);
+                ownsPreviewScene = true;
+                // The preview scene owns its RenderSettings; neither the active scene nor its settings are changed.
+                SceneManager.MoveGameObjectToScene(camera.gameObject, previewScene);
+                camera.scene = previewScene;
+                camera.cameraType = CameraType.Preview;
+                camera.targetTexture = target;
+                camera.projectionMatrix = Matrix4x4.identity;
+                camera.useOcclusionCulling = false;
+                camera.cullingMask = 1 << 31;
+                GameObject item = Own(new GameObject("EnvStandardLitContractRenderer"));
+                SceneManager.MoveGameObjectToScene(item, previewScene);
+                item.layer = 31;
+                item.AddComponent<MeshFilter>().sharedMesh = mesh;
+                renderer = item.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                renderer.lightProbeUsage = LightProbeUsage.Off;
+                renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+                rendererPipeline = Own(ScriptableObject.CreateInstance<ProbePipelineAsset>());
+                rendererPipeline.Owner = this;
+            }
+
+            private void RenderOwned(ScriptableRenderContext context, Camera[] cameras)
+            {
+                // Unity supplies this real context from Camera.Render, not a manually constructed callback.
+                Assert.That(renderingRequested, Is.True);
+                Assert.That(cameras, Has.Length.EqualTo(1));
+                Assert.That(ReferenceEquals(cameras[0], camera), Is.True);
+                Assert.That(camera.scene, Is.EqualTo(previewScene));
+                rendererInvocations++;
+                Assert.That(camera.TryGetCullingParameters(out ScriptableCullingParameters parameters), Is.True);
+                CullingResults culled = context.Cull(ref parameters);
+                using (var commands = new CommandBuffer { name = "EnvStandardLit owned renderer inputs" })
                 {
                     commands.SetRenderTarget(target);
-                    commands.DrawMesh(mesh, model, material, 0, pass);
-                    Graphics.ExecuteCommandBuffer(commands);
+                    commands.ClearRenderTarget(true, true, new Color(-10, -10, -10, -10));
+                    // The fullscreen probe sets its own clip position; publish only its existing camera inputs.
+                    // Object matrices and odd-negative parity remain engine-owned Renderer data.
+                    commands.SetGlobalMatrix("unity_MatrixV", view);
+                    commands.SetGlobalVector("unity_OrthoParams", new Vector4(0, 0, 0, ortho));
+                    commands.SetGlobalVector("_WorldSpaceCameraPos", cameraPosition);
+                    context.ExecuteCommandBuffer(commands);
                 }
-                RenderTexture.active = target;
+                var drawing = new DrawingSettings(new ShaderTagId("UniversalForward"), new SortingSettings(camera))
+                {
+                    overrideMaterial = material,
+                    overrideMaterialPassIndex = rendererPass,
+                    enableDynamicBatching = false,
+                    enableInstancing = false,
+                };
+                var filtering = new FilteringSettings(RenderQueueRange.all, 1 << 31);
+                context.DrawRenderers(culled, ref drawing, ref filtering);
+                context.Submit();
+            }
+
+            private sealed class ProbePipelineAsset : RenderPipelineAsset
+            {
+                public Fixture Owner;
+                public override string renderPipelineShaderTag => "UniversalPipeline";
+                protected override RenderPipeline CreatePipeline() { return new ProbePipeline(Owner); }
+                public void ReleaseOwnedPipeline()
+                {
+                    if (RenderPipelineManager.currentPipeline is ProbePipeline pipeline && ReferenceEquals(pipeline.Owner, Owner))
+                        base.OnDisable();
+                }
+                protected override void OnDisable() { ReleaseOwnedPipeline(); }
+            }
+
+            private sealed class ProbePipeline : RenderPipeline
+            {
+                public readonly Fixture Owner;
+                public ProbePipeline(Fixture owner) { Owner = owner; }
+                protected override void Render(ScriptableRenderContext context, Camera[] cameras)
+                {
+                    try { Owner.RenderOwned(context, cameras); }
+                    catch (Exception failure) { if (Owner.rendererFailure == null) Owner.rendererFailure = failure; }
+                }
             }
 
             private static string ReplaceOnce(string source, string oldValue, string newValue)
@@ -603,15 +744,24 @@ namespace ProjectLucid.Tests
                 {
                     Attempt(() => RenderTexture.active = previousTarget);
                     Attempt(() => Shader.SetGlobalMatrix("unity_MatrixV", previousView));
+                    foreach (var item in cameraMatrices) Attempt(() => Shader.SetGlobalMatrix(item.Key, item.Value));
                     foreach (var item in vectors) Attempt(() => Shader.SetGlobalVector(item.Key, item.Value));
                     foreach (var item in floats) Attempt(() => Shader.SetGlobalFloat(item.Key, item.Value));
                     Attempt(() => Shader.globalRenderPipeline = previousPipeline);
                 }
+                if (rendererPipeline != null) Attempt(() => rendererPipeline.ReleaseOwnedPipeline());
                 for (int index = owned.Count - 1; index >= 0; index--)
                 {
                     UnityEngine.Object item = owned[index];
                     Attempt(() => { if (item != null) UnityEngine.Object.DestroyImmediate(item); });
                 }
+                if (ownsPreviewScene) Attempt(() =>
+                {
+                    if (previewScene.IsValid()) Assert.That(EditorSceneManager.ClosePreviewScene(previewScene), Is.True);
+                    ownsPreviewScene = false;
+                });
+                // Asset disposal may clean up its owned pipeline; restore the original tag afterward as well.
+                if (borrowed) Attempt(() => Shader.globalRenderPipeline = previousPipeline);
                 Attempt(() =>
                 {
                     if (folder != null && (Directory.Exists(folder) || File.Exists(folder + ".meta")))
