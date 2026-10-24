@@ -98,8 +98,9 @@ Shader "HardLight/Character/HL_Char_Standard"
         HLSLINCLUDE
         #pragma target 3.5
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+        #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
 
-        // The shipped UnityPerMaterial, every member in its decoded order (SRP Batcher layout parity).
+        // Preserve every shipped UnityPerMaterial declaration and its decoded order.
         CBUFFER_START(UnityPerMaterial)
             float4 _SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D_TexelSize;
             float _Documentation_Link;
@@ -261,8 +262,8 @@ Shader "HardLight/Character/HL_Char_Standard"
             float3 bitangentWS = bitangentSign * cross(rawNormalWS, rawTangentWS);
             float3 fresnelNormalWS = normalize(rawTangentWS * normalTS.x + bitangentWS * normalTS.y + rawNormalWS * normalTS.z);
 
-            // Emission: fresnel boost toward the emissive texture, the subsurface colour by the
-            // half-Lambert term, matcap emission where the boots mask is set, erosion edge glow, rim.
+            // Emission: fresnel boost toward the emissive texture, skin/opacity-weighted subsurface
+            // colour, matcap emission on boots, erosion edge glow and rim.
             float fresnel = saturate(1.0 - pow(1.0 - saturate(dot(fresnelNormalWS, normalize(viewDirWS))), _Fresnel_Amount) * _Fresnel_Intensity);
             float3 emission = lerp(fresnelTexture * _Fresnel_Boost_Colour.rgb, HL_SAMPLE(_Emissive_Texture, SamplerState_Linear_Repeat, uv).rgb * _Emissive_Colour.rgb, fresnel);
             #if defined(_USE_SUBSURFACE_SCATTERING)
@@ -351,8 +352,10 @@ Shader "HardLight/Character/HL_Char_Standard"
             #pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS
             #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
             #pragma multi_compile_fragment _ DEBUG_DISPLAY
-            #pragma shader_feature_local_fragment _ _SURFACE_TYPE_TRANSPARENT
+            #pragma shader_feature_fragment _ _SURFACE_TYPE_TRANSPARENT
             #pragma shader_feature_local_fragment _ _ALPHAPREMULTIPLY_ON
+            #pragma shader_feature_local_fragment _ _ALPHAMODULATE_ON
+            #pragma shader_feature_local_fragment _ _SPECULAR_SETUP
             #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #pragma shader_feature_local _ _RECEIVE_SHADOWS_OFF
             #pragma shader_feature_local _ _USE_MATCAP
@@ -366,7 +369,7 @@ Shader "HardLight/Character/HL_Char_Standard"
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
                 float4 tangentOS : TANGENT;
-                float2 uv0 : TEXCOORD0;
+                float4 uv0 : TEXCOORD0;
                 float2 staticLightmapUV : TEXCOORD1;
                 float2 dynamicLightmapUV : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -374,11 +377,11 @@ Shader "HardLight/Character/HL_Char_Standard"
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float2 uv : TEXCOORD0;
+                float4 uv : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
                 float3 normalWS : TEXCOORD2;
                 float4 tangentWS : TEXCOORD3;
-                half4 fogFactorAndVertexLight : TEXCOORD5;
+                float4 fogFactorAndVertexLight : TEXCOORD5;
                 #if defined(REQUIRES_VERTEX_SHADOW_COORD_INTERPOLATOR)
                 float4 shadowCoord : TEXCOORD6;
                 #endif
@@ -403,11 +406,11 @@ Shader "HardLight/Character/HL_Char_Standard"
                 output.normalWS = normalInput.normalWS;
                 output.tangentWS = float4(normalInput.tangentWS, input.tangentOS.w);
                 output.uv = input.uv0;
-                half fogFactor = 0;
+                float fogFactor = 0;
                 #if !defined(_FOG_FRAGMENT)
                 fogFactor = ComputeFogFactor(vertexInput.positionCS.z);
                 #endif
-                output.fogFactorAndVertexLight = half4(fogFactor, VertexLighting(vertexInput.positionWS, normalInput.normalWS));
+                output.fogFactorAndVertexLight = float4(fogFactor, VertexLighting(vertexInput.positionWS, normalInput.normalWS));
                 OUTPUT_LIGHTMAP_UV(input.staticLightmapUV, unity_LightmapST, output.staticLightmapUV);
                 #if defined(DYNAMICLIGHTMAP_ON)
                 output.dynamicLightmapUV = input.dynamicLightmapUV * unity_DynamicLightmapST.xy + unity_DynamicLightmapST.zw;
@@ -419,7 +422,7 @@ Shader "HardLight/Character/HL_Char_Standard"
                 return output;
             }
 
-            void Frag(Varyings input, bool isFrontFace : SV_IsFrontFace, out half4 outColor : SV_Target0
+            void Frag(Varyings input, bool isFrontFace : SV_IsFrontFace, out float4 outColor : SV_Target0
                 #if defined(_WRITE_RENDERING_LAYERS)
                 , out float4 outRenderingLayers : SV_Target1
                 #endif
@@ -428,7 +431,7 @@ Shader "HardLight/Character/HL_Char_Standard"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 float tangentSign = (input.tangentWS.w > 0.0 ? 1.0 : -1.0) * GetOddNegativeScale();
-                HLCharSurface s = EvaluateHLChar(input.uv, input.positionWS, input.normalWS, input.tangentWS.xyz, tangentSign, isFrontFace, _MainLightPosition.xyz);
+                HLCharSurface s = EvaluateHLChar(input.uv.xy, input.positionWS, input.normalWS, input.tangentWS.xyz, tangentSign, isFrontFace, _MainLightPosition.xyz);
                 HLCharForwardClip(s);
 
                 InputData inputData = (InputData)0;
@@ -451,7 +454,18 @@ Shader "HardLight/Character/HL_Char_Standard"
                 #endif
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(input.positionCS);
                 inputData.shadowMask = SAMPLE_SHADOWMASK(input.staticLightmapUV);
+                #if defined(DEBUG_DISPLAY)
+                #if defined(DYNAMICLIGHTMAP_ON)
+                inputData.dynamicLightmapUV = input.dynamicLightmapUV;
+                #endif
+                #if defined(LIGHTMAP_ON)
+                inputData.staticLightmapUV = input.staticLightmapUV;
+                #else
+                inputData.vertexSH = input.vertexSH;
+                #endif
+                #endif
 
+                // No surviving _SPECULAR_SETUP program supplies a numerical graph specular input.
                 SurfaceData surfaceData = (SurfaceData)0;
                 surfaceData.albedo = s.albedo;
                 surfaceData.metallic = s.metallic;
@@ -466,6 +480,8 @@ Shader "HardLight/Character/HL_Char_Standard"
                 #else
                 surfaceData.alpha = 1;
                 #endif
+                // Match the pinned generated pass preparation before decals and PBR.
+                surfaceData.albedo = AlphaModulate(surfaceData.albedo, surfaceData.alpha);
                 #if defined(_DBUFFER)
                 ApplyDecalToSurfaceData(input.positionCS, surfaceData, inputData);
                 #endif
@@ -498,6 +514,11 @@ Shader "HardLight/Character/HL_Char_Standard"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 4.5 DOTS_INSTANCING_ON
+            #pragma shader_feature_local _ _USE_BALLMODE
+            #pragma shader_feature_local _ _USE_SUBSURFACE_SCATTERING
+            #pragma shader_feature_local _ _USE_MATCAP
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
             #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -505,8 +526,8 @@ Shader "HardLight/Character/HL_Char_Standard"
             float3 _LightDirection;
             float3 _LightPosition;
 
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float2 uv0 : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
-            struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 uv0 : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct Varyings { float4 positionCS : SV_POSITION; float4 uv : TEXCOORD0; float3 normalWS : TEXCOORD1; UNITY_VERTEX_INPUT_INSTANCE_ID };
 
             Varyings Vert(Attributes input)
             {
@@ -515,6 +536,7 @@ Shader "HardLight/Character/HL_Char_Standard"
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
                 float3 positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.normalWS = normalWS;
                 #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
                 float3 lightDirectionWS = normalize(_LightPosition - positionWS);
                 #else
@@ -532,13 +554,13 @@ Shader "HardLight/Character/HL_Char_Standard"
             }
 
             // Shadow and depth passes clip on the same opacity: ID mask blue minus erosion, times colour alpha.
-            half4 Frag(Varyings input) : SV_Target
+            float4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 #if defined(_ALPHATEST_ON)
                 float erosion = saturate((_Erosion_Progress - 0.5) * 2.0 + HL_SAMPLE(_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D,
-                    sampler_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D, input.uv * _ErosionTiling).b);
-                clip(saturate(HL_SAMPLE(_ID_Mask, SamplerState_Linear_Repeat, input.uv).b - erosion) * _Diff_Colour.a - 0.5);
+                    sampler_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D, input.uv.xy * _ErosionTiling).b);
+                clip(saturate(HL_SAMPLE(_ID_Mask, SamplerState_Linear_Repeat, input.uv.xy).b - erosion) * _Diff_Colour.a - 0.5);
                 #endif
                 return 0;
             }
@@ -558,10 +580,15 @@ Shader "HardLight/Character/HL_Char_Standard"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 4.5 DOTS_INSTANCING_ON
+            #pragma shader_feature_local _ _USE_BALLMODE
+            #pragma shader_feature_local _ _USE_SUBSURFACE_SCATTERING
+            #pragma shader_feature_local _ _USE_MATCAP
             #pragma shader_feature_local_fragment _ _ALPHATEST_ON
 
-            struct Attributes { float4 positionOS : POSITION; float2 uv0 : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
-            struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID UNITY_VERTEX_OUTPUT_STEREO };
+            struct Attributes { float4 positionOS : POSITION; float4 uv0 : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct Varyings { float4 positionCS : SV_POSITION; float4 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID UNITY_VERTEX_OUTPUT_STEREO };
 
             Varyings Vert(Attributes input)
             {
@@ -574,16 +601,16 @@ Shader "HardLight/Character/HL_Char_Standard"
                 return output;
             }
 
-            half Frag(Varyings input) : SV_Target
+            float4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 #if defined(_ALPHATEST_ON)
                 float erosion = saturate((_Erosion_Progress - 0.5) * 2.0 + HL_SAMPLE(_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D,
-                    sampler_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D, input.uv * _ErosionTiling).b);
-                clip(saturate(HL_SAMPLE(_ID_Mask, SamplerState_Linear_Repeat, input.uv).b - erosion) * _Diff_Colour.a - 0.5);
+                    sampler_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D, input.uv.xy * _ErosionTiling).b);
+                clip(saturate(HL_SAMPLE(_ID_Mask, SamplerState_Linear_Repeat, input.uv.xy).b - erosion) * _Diff_Colour.a - 0.5);
                 #endif
-                return input.positionCS.z;
+                return input.positionCS.zzzz;
             }
             ENDHLSL
         }
@@ -600,15 +627,20 @@ Shader "HardLight/Character/HL_Char_Standard"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
+            #pragma target 4.5 DOTS_INSTANCING_ON
+            #pragma shader_feature_local _ _USE_BALLMODE
+            #pragma shader_feature_local _ _USE_SUBSURFACE_SCATTERING
+            #pragma shader_feature_local _ _USE_MATCAP
             #pragma multi_compile_fragment _ _WRITE_RENDERING_LAYERS
             #pragma shader_feature_local_fragment _ _ALPHATEST_ON
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
 
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 tangentOS : TANGENT; float2 uv0 : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 tangentOS : TANGENT; float4 uv0 : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float2 uv : TEXCOORD0;
+                float4 uv : TEXCOORD0;
                 float3 normalWS : TEXCOORD1;
                 float4 tangentWS : TEXCOORD2;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -629,7 +661,7 @@ Shader "HardLight/Character/HL_Char_Standard"
                 return output;
             }
 
-            void Frag(Varyings input, bool isFrontFace : SV_IsFrontFace, out half4 outNormalWS : SV_Target0
+            void Frag(Varyings input, bool isFrontFace : SV_IsFrontFace, out float4 outNormalWS : SV_Target0
                 #if defined(_WRITE_RENDERING_LAYERS)
                 , out float4 outRenderingLayers : SV_Target1
                 #endif
@@ -639,16 +671,16 @@ Shader "HardLight/Character/HL_Char_Standard"
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 #if defined(_ALPHATEST_ON)
                 float erosion = saturate((_Erosion_Progress - 0.5) * 2.0 + HL_SAMPLE(_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D,
-                    sampler_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D, input.uv * _ErosionTiling).b);
-                clip(saturate(HL_SAMPLE(_ID_Mask, SamplerState_Linear_Repeat, input.uv).b - erosion) * _Diff_Colour.a - 0.5);
+                    sampler_SampleTexture2D_d532aa29fc9a40a7bb50548e1579ecae_Texture_1_Texture2D, input.uv.xy * _ErosionTiling).b);
+                clip(saturate(HL_SAMPLE(_ID_Mask, SamplerState_Linear_Repeat, input.uv.xy).b - erosion) * _Diff_Colour.a - 0.5);
                 #endif
                 float tangentSign = (input.tangentWS.w > 0.0 ? 1.0 : -1.0) * GetOddNegativeScale();
-                float3 normalTS = UnpackNormal(HL_SAMPLE(_Norm_Texture, SamplerState_Linear_Repeat, input.uv));
+                float3 normalTS = UnpackNormal(HL_SAMPLE(_Norm_Texture, SamplerState_Linear_Repeat, input.uv.xy));
                 normalTS = _Update_backface_Normals != 0.0 ? (isFrontFace ? 1.0 : -1.0) * normalTS : normalTS;
                 // The raw interpolated basis, normalised once after the transform, as the original does.
                 float3 normalMapped = NormalizeNormalPerPixel(TransformTangentToWorld(normalTS,
                     half3x3(input.tangentWS.xyz, tangentSign * cross(input.normalWS, input.tangentWS.xyz), input.normalWS)));
-                outNormalWS = half4(normalMapped, 0.0);
+                outNormalWS = float4(normalMapped, 0.0);
                 #if defined(_WRITE_RENDERING_LAYERS)
                 outRenderingLayers = float4(EncodeMeshRenderingLayer(GetMeshRenderingLayer()), 0, 0, 0);
                 #endif
@@ -673,14 +705,16 @@ Shader "HardLight/Character/HL_Char_Standard"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MetaInput.hlsl"
 
-            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 tangentOS : TANGENT; float2 uv0 : TEXCOORD0; float2 uv1 : TEXCOORD1; float2 uv2 : TEXCOORD2; };
+            struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; float4 tangentOS : TANGENT; float4 uv0 : TEXCOORD0; float4 uv1 : TEXCOORD1; float4 uv2 : TEXCOORD2; };
             struct Varyings
             {
                 float4 positionCS : SV_POSITION;
-                float2 uv : TEXCOORD0;
+                float4 uv : TEXCOORD0;
                 float3 positionWS : TEXCOORD1;
                 float3 normalWS : TEXCOORD2;
                 float4 tangentWS : TEXCOORD3;
+                float4 uv1 : TEXCOORD6;
+                float4 uv2 : TEXCOORD7;
                 #if defined(EDITOR_VISUALIZATION)
                 float2 VizUV : TEXCOORD4;
                 float4 LightCoord : TEXCOORD5;
@@ -690,22 +724,24 @@ Shader "HardLight/Character/HL_Char_Standard"
             Varyings Vert(Attributes input)
             {
                 Varyings output = (Varyings)0;
-                output.positionCS = UnityMetaVertexPosition(input.positionOS.xyz, input.uv1, input.uv2);
+                output.positionCS = UnityMetaVertexPosition(input.positionOS.xyz, input.uv1.xy, input.uv2.xy);
                 output.uv = input.uv0;
+                output.uv1 = input.uv1;
+                output.uv2 = input.uv2;
                 output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
                 VertexNormalInputs normalInput = GetVertexNormalInputs(input.normalOS, input.tangentOS);
                 output.normalWS = normalInput.normalWS;
                 output.tangentWS = float4(normalInput.tangentWS, input.tangentOS.w);
                 #if defined(EDITOR_VISUALIZATION)
-                UnityEditorVizData(input.positionOS.xyz, input.uv0, input.uv1, input.uv2, output.VizUV, output.LightCoord);
+                UnityEditorVizData(input.positionOS.xyz, input.uv0.xy, input.uv1.xy, input.uv2.xy, output.VizUV, output.LightCoord);
                 #endif
                 return output;
             }
 
-            half4 Frag(Varyings input, bool isFrontFace : SV_IsFrontFace) : SV_Target
+            float4 Frag(Varyings input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             {
                 float tangentSign = (input.tangentWS.w > 0.0 ? 1.0 : -1.0) * GetOddNegativeScale();
-                HLCharSurface s = EvaluateHLChar(input.uv, input.positionWS, input.normalWS, input.tangentWS.xyz, tangentSign, isFrontFace, _MainLightPosition.xyz);
+                HLCharSurface s = EvaluateHLChar(input.uv.xy, input.positionWS, input.normalWS, input.tangentWS.xyz, tangentSign, isFrontFace, _MainLightPosition.xyz);
                 #if defined(_ALPHATEST_ON)
                 clip(s.alpha - 0.5);   // Meta 736: the bare alpha, without the Forward pass's sharpening
                 #endif

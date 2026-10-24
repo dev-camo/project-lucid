@@ -181,11 +181,7 @@ EDITMODE_TESTS = tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for n
     "FullscreenEffectsCompilesEveryPassForDirect3D",
     "FullscreenEffectsGpuOutputMatchesDecodedSurfaceCases",
     "UiBlurCompilesEveryPassForDirect3D",
-    "UiBlurGpuOutputMatchesDecodedSurfaceCases",
-    "EnvStandardLitCompilesEveryPassForDirect3D",
-    "EnvStandardLitGpuOutputMatchesDecodedSurfaceCases",
-    "CharStandardCompilesEveryPassForDirect3D",
-    "CharStandardGpuOutputMatchesDecodedSurfaceCases"))
+    "UiBlurGpuOutputMatchesDecodedSurfaceCases"))
 # Particle depth and camera-fade portability across desktop graphics APIs (#448).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.RecoveredBehaviorTests.ParticleMainCompilesEveryPassForOpenGL",
@@ -203,6 +199,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ParticleAnimMeshStageContractTests."
     "ParticleAnimMeshVertexStagesKeepDecodedOutputs",
     "ParticleAnimMeshFragmentStagesKeepDecodedFloatOutputs"))
 EDITMODE_TESTS += ("ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedParticleAnimMeshMaterialResolvesItsOriginalShader",)
+# Environment shader compilation and surface output (#448).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.RecoveredBehaviorTests.EnvStandardLitCompilesEveryPassForDirect3D",
+    "ProjectLucid.Tests.RecoveredBehaviorTests.EnvStandardLitGpuOutputMatchesDecodedSurfaceCases",
+)
 # Original environment shader stages, graph math, declarations and prepared binding (#448).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitKeywordScopesAndPassMasksMatchOriginal",
@@ -212,6 +213,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitFresnelUsesMappedNormalsAndGraphViewNormalization",
     "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitDebugInputsKeepDeclaredLightmapAndSHFields",
     "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedEnvStandardLitMaterialResolvesItsOriginalShader",
+)
+# Character shader compilation and surface output (#448).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.RecoveredBehaviorTests.CharStandardCompilesEveryPassForDirect3D",
+    "ProjectLucid.Tests.RecoveredBehaviorTests.CharStandardGpuOutputMatchesDecodedSurfaceCases",
 )
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 
@@ -2612,6 +2618,20 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalSystemRefTryGetTests.TryGetReportsTheUntypedSystemAfterAnIncompatibleReplacement",
 )
 
+
+
+# Character shader serialized contracts and genuine fixture-failure controls (#448).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardKeywordScopesAndPassMasksMatchOriginal",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardCompilesEveryPassForOpenGLCore",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardVertexStagesKeepDecodedOutputs",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardFragmentStagesKeepDecodedFloatOutputs",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardDebugInputsKeepDeclaredLightmapAndSHFields",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardAlphaModulateUsesPinnedPreparation",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardSetupFailureRestoresOwnedResources",
+    "ProjectLucid.Tests.CharStandardContractTests.CharStandardBodyFailureRestoresOwnedResources",
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedCharStandardAmyMaterialResolvesItsOriginalShader",
+)
 
 # Project tests that ran without being required, including parameterized cases by exact fullname.
 EDITMODE_TESTS += (
