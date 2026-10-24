@@ -176,6 +176,14 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.ParticleMainStageContractTests.ParticleMainRetainsDecodedFoveatedDynamicKeyword",
     "ProjectLucid.Tests.ParticleMainStageContractTests.ParticleMainKeywordScopesAndPassMasksMatchOriginal",
 )
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
+    "ParticleAnimMeshCompilesEveryPassForOpenGLCore",
+    "ParticleAnimMeshRestoresDepthTextureWhenVerificationFails"))
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.ParticleAnimMeshStageContractTests." + name for name in (
+    "ParticleAnimMeshKeywordScopesAndPassMasksMatchOriginal",
+    "ParticleAnimMeshVertexStagesKeepDecodedOutputs",
+    "ParticleAnimMeshFragmentStagesKeepDecodedFloatOutputs"))
+EDITMODE_TESTS += ("ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedParticleAnimMeshMaterialResolvesItsOriginalShader",)
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 EDITMODE_TESTS += ("ProjectLucid.Tests.DebugBackingFieldAttributeTests.DebugOnlyAllowanceForCompilerDebuggerBrowsableIsExactAndReleaseStaysStrict",)
 
