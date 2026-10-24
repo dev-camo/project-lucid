@@ -116,6 +116,15 @@ namespace ProjectLucid.Tests
                 "ffbaf8a5f79f76e3ca5e08f851f2cddfd947038c9a5a325b8fbe659e801aaab6");
         }
 
+        [Test]
+        public void PreparedEnvStandardLitMaterialResolvesItsOriginalShader()
+        {
+            Run("Assets/Recovered/Data/Art/Shaders/Shaders/Environment/HL_Env_Standard_Lit.mat",
+                "daf22ad9e69082d4f9ffee7ae13b84bb", "bf4c82e70ee177f45be870c94d234981",
+                "HardLight/Environment/HL_Env_Standard_Lit", "Assets/Shaders/Recovered/HL_Env_Standard_Lit.shader",
+                "a024098cc33ebc44146a6da0c7fe1afccb24342196a249b680d7a23199a93b33");
+        }
+
         private void Run(string materialPath, string materialGuid, string shaderGuid,
                          string shaderName, string shaderPath, string preparedSha256)
         {

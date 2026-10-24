@@ -201,6 +201,16 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ParticleAnimMeshStageContractTests."
     "ParticleAnimMeshVertexStagesKeepDecodedOutputs",
     "ParticleAnimMeshFragmentStagesKeepDecodedFloatOutputs"))
 EDITMODE_TESTS += ("ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedParticleAnimMeshMaterialResolvesItsOriginalShader",)
+# Original environment shader stages, graph math, declarations and prepared binding (#448).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitKeywordScopesAndPassMasksMatchOriginal",
+    "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitCompilesEveryPassForOpenGLCore",
+    "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitVertexStagesKeepDecodedOutputs",
+    "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitDepthFragmentKeepsFourFloatLanes",
+    "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitFresnelUsesMappedNormalsAndGraphViewNormalization",
+    "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitDebugInputsKeepDeclaredLightmapAndSHFields",
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedEnvStandardLitMaterialResolvesItsOriginalShader",
+)
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (

@@ -11,7 +11,7 @@ namespace ProjectLucid
     // The shipped bundles carry only Metal programs, so this proves the source compiles for
     // Direct3D and checks the graph's surface math on the GPU through the Forward pass's
     // emission (with a black albedo and full metal, so lighting contributes nothing) and the
-    // Meta pass's albedo output. The fresnel term needs scene lighting and is not exercised here.
+    // Meta pass's albedo output. Mapped-normal fresnel has separate contract checks.
     public static class EnvStandardLitVerification
     {
         private const string ShaderPath = "Assets/Shaders/Recovered/HL_Env_Standard_Lit.shader";
@@ -31,6 +31,16 @@ namespace ProjectLucid
 
         // Compiles every pass for Direct3D 11 with the keyword sets the shipped variants combine.
         public static void CompileForWindows()
+        {
+            Compile(ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64, "Direct3D");
+        }
+
+        public static void CompileForLinux()
+        {
+            Compile(ShaderCompilerPlatform.OpenGLCore, BuildTarget.StandaloneLinux64, "OpenGLCore");
+        }
+
+        private static void Compile(ShaderCompilerPlatform platform, BuildTarget target, string label)
         {
             Shader shader = Load();
             ShaderData data = ShaderUtil.GetShaderData(shader);
@@ -55,17 +65,17 @@ namespace ProjectLucid
                     foreach (ShaderType stage in new[] { ShaderType.Vertex, ShaderType.Fragment })
                     {
                         ShaderData.VariantCompileInfo info = pass.CompileVariant(stage, keywords,
-                            ShaderCompilerPlatform.D3D, BuildTarget.StandaloneWindows64);
+                            platform, target);
                         string errors = "";
                         foreach (ShaderMessage message in info.Messages)
                             if (message.severity == ShaderCompilerMessageSeverity.Error) errors += " " + message.message;
                         Require(info.Success && errors.Length == 0,
-                            "D3D compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
+                            label + " compile failed: pass " + pass.Name + " " + stage + " [" + string.Join(" ", keywords) + "]" + errors);
                         compiled++;
                     }
                 }
             }
-            Debug.Log("Project Lucid HL_Env_Standard_Lit compiled " + compiled + " Direct3D programs across " + subshader.PassCount + " passes.");
+            Debug.Log("Project Lucid HL_Env_Standard_Lit compiled " + compiled + " " + label + " programs across " + subshader.PassCount + " passes.");
         }
 
         private static Shader Load()
@@ -99,46 +109,6 @@ namespace ProjectLucid
             Require(shader.passCount == 5, "five shipped passes");
 
             var owned = new List<UnityEngine.Object>();
-            Texture2D Solid(Color color)
-            {
-                var texture = new Texture2D(4, 1, TextureFormat.RGBAFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
-                texture.SetPixels(new[] { color, color, color, color });
-                texture.Apply(false, false);
-                owned.Add(texture);
-                return texture;
-            }
-            // Texels 0..3 are red, red, green, green: a half-texture offset moves red to green.
-            var stripes = new Texture2D(4, 1, TextureFormat.RGBAFloat, false, true) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Repeat };
-            stripes.SetPixels(new[] { Color.red, Color.red, Color.green, Color.green });
-            stripes.Apply(false, false);
-            owned.Add(stripes);
-
-            Material material = new Material(shader);
-            owned.Add(material);
-            Mesh mesh = new Mesh();
-            owned.Add(mesh);
-            mesh.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) };
-            mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
-            mesh.tangents = new[] { new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1) };
-            mesh.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) };
-            mesh.uv2 = mesh.uv;
-            mesh.colors = new[] { Color.blue, Color.blue, Color.blue, Color.blue };
-            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
-            mesh.RecalculateBounds();
-
-            var target = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-            var sample = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
-            var cameraObject = new GameObject("ShaderVerificationCamera");
-            owned.Add(target); owned.Add(sample); owned.Add(cameraObject);
-            Camera camera = cameraObject.AddComponent<Camera>();
-            camera.enabled = false;
-            camera.orthographic = true;
-            camera.orthographicSize = 1;
-            camera.aspect = 1;
-            camera.nearClipPlane = 0.1f;
-            camera.farClipPlane = 10;
-            camera.transform.position = new Vector3(0, 0, -2);
-
             float priorTime = Shader.GetGlobalFloat("_HLShaderTimeGame");
             Vector4 priorMipBias = Shader.GetGlobalVector("_GlobalMipBias");
             Vector4 priorMetaVertex = Shader.GetGlobalVector("unity_MetaVertexControl");
@@ -147,8 +117,54 @@ namespace ProjectLucid
             float priorMaxOutput = Shader.GetGlobalFloat("unity_MaxOutputValue");
             float priorLinear = Shader.GetGlobalFloat("unity_UseLinearSpace");
             RenderTexture previous = RenderTexture.active;
+            RenderTexture target = null;
+            Exception primaryFailure = null;
             try
             {
+                Texture2D Solid(Color color)
+                {
+                    var texture = new Texture2D(4, 1, TextureFormat.RGBAFloat, false, true);
+                    owned.Add(texture);
+                    texture.filterMode = FilterMode.Point; texture.wrapMode = TextureWrapMode.Repeat;
+                    texture.SetPixels(new[] { color, color, color, color });
+                    texture.Apply(false, false);
+                    return texture;
+                }
+                // Texels 0..3 are red, red, green, green: a half-texture offset moves red to green.
+                var stripes = new Texture2D(4, 1, TextureFormat.RGBAFloat, false, true);
+                owned.Add(stripes);
+                stripes.filterMode = FilterMode.Point; stripes.wrapMode = TextureWrapMode.Repeat;
+                stripes.SetPixels(new[] { Color.red, Color.red, Color.green, Color.green });
+                stripes.Apply(false, false);
+
+                Material material = new Material(shader);
+                owned.Add(material);
+                Mesh mesh = new Mesh();
+                owned.Add(mesh);
+                mesh.vertices = new[] { new Vector3(-1, -1, 0), new Vector3(1, -1, 0), new Vector3(1, 1, 0), new Vector3(-1, 1, 0) };
+                mesh.normals = new[] { Vector3.back, Vector3.back, Vector3.back, Vector3.back };
+                mesh.tangents = new[] { new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1), new Vector4(1, 0, 0, 1) };
+                mesh.uv = new[] { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) };
+                mesh.uv2 = mesh.uv;
+                mesh.colors = new[] { Color.blue, Color.blue, Color.blue, Color.blue };
+                mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+                mesh.RecalculateBounds();
+
+                target = new RenderTexture(32, 32, 24, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
+                owned.Add(target);
+                var sample = new Texture2D(1, 1, TextureFormat.RGBAFloat, false, true);
+                owned.Add(sample);
+                var cameraObject = new GameObject("ShaderVerificationCamera");
+                owned.Add(cameraObject);
+                Camera camera = cameraObject.AddComponent<Camera>();
+                camera.enabled = false;
+                camera.orthographic = true;
+                camera.orthographicSize = 1;
+                camera.aspect = 1;
+                camera.nearClipPlane = 0.1f;
+                camera.farClipPlane = 10;
+                camera.transform.position = new Vector3(0, 0, -2);
+
                 target.Create();
                 // Forward: black albedo and full metal leave only the emission.
                 material.SetColor("_Diff_Tint", Color.black);
@@ -196,8 +212,9 @@ namespace ProjectLucid
                 // unbiased and level 4 at bias 1; applying the bias twice would read level 5.
                 Texture2D Levels(Color unbiased, Color once, Color twice)
                 {
-                    var levels = new Texture2D(256, 256, TextureFormat.RGBAFloat, true, true) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Repeat };
+                    var levels = new Texture2D(256, 256, TextureFormat.RGBAFloat, true, true);
                     owned.Add(levels);
+                    levels.filterMode = FilterMode.Bilinear; levels.wrapMode = TextureWrapMode.Repeat;
                     for (int mip = 0; mip < levels.mipmapCount; mip++)
                     {
                         int width = Math.Max(1, 256 >> mip);
@@ -268,18 +285,31 @@ namespace ProjectLucid
                 Debug.Log("Project Lucid HL_Env_Standard_Lit GPU verification passed: 23 Metal-derived cases on " + SystemInfo.graphicsDeviceType +
                           ". Fresnel and lit presentation QA remain unverified.");
             }
+            catch (Exception failure) { primaryFailure = failure; throw; }
             finally
             {
-                Shader.SetGlobalFloat("_HLShaderTimeGame", priorTime);
-                Shader.SetGlobalVector("_GlobalMipBias", priorMipBias);
-                Shader.SetGlobalVector("unity_MetaVertexControl", priorMetaVertex);
-                Shader.SetGlobalVector("unity_MetaFragmentControl", priorMetaFragment);
-                Shader.SetGlobalFloat("unity_OneOverOutputBoost", priorBoost);
-                Shader.SetGlobalFloat("unity_MaxOutputValue", priorMaxOutput);
-                Shader.SetGlobalFloat("unity_UseLinearSpace", priorLinear);
-                RenderTexture.active = previous;
-                target.Release();
-                foreach (UnityEngine.Object item in owned) UnityEngine.Object.DestroyImmediate(item);
+                var failures = new List<Exception>();
+                void Attempt(Action action) { try { action(); } catch (Exception failure) { failures.Add(failure); } }
+                Attempt(() => Shader.SetGlobalFloat("_HLShaderTimeGame", priorTime));
+                Attempt(() => Shader.SetGlobalVector("_GlobalMipBias", priorMipBias));
+                Attempt(() => Shader.SetGlobalVector("unity_MetaVertexControl", priorMetaVertex));
+                Attempt(() => Shader.SetGlobalVector("unity_MetaFragmentControl", priorMetaFragment));
+                Attempt(() => Shader.SetGlobalFloat("unity_OneOverOutputBoost", priorBoost));
+                Attempt(() => Shader.SetGlobalFloat("unity_MaxOutputValue", priorMaxOutput));
+                Attempt(() => Shader.SetGlobalFloat("unity_UseLinearSpace", priorLinear));
+                Attempt(() => RenderTexture.active = previous);
+                Attempt(() => { if (target != null) target.Release(); });
+                for (int index = owned.Count - 1; index >= 0; index--)
+                {
+                    UnityEngine.Object item = owned[index];
+                    Attempt(() => { if (item != null) UnityEngine.Object.DestroyImmediate(item); });
+                }
+                if (failures.Count != 0)
+                {
+                    // Keep the triggering assertion alongside any cleanup failures.
+                    if (primaryFailure != null) failures.Insert(0, primaryFailure);
+                    throw new AggregateException("Environment surface verification cleanup failed.", failures);
+                }
             }
         }
 
