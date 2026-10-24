@@ -494,6 +494,7 @@ namespace ProjectLucid.Tests
                 RenderPipelineAsset quality = QualitySettings.renderPipeline;
                 SupportedRenderingFeatures features = SupportedRenderingFeatures.active;
                 bool allowScriptableRenderPipeline = Unsupported.useScriptableRenderPipeline;
+                bool allowAsyncCompilation = ShaderUtil.allowAsyncCompilation;
                 string pipeline = Shader.globalRenderPipeline;
                 Exception primary = null;
                 try
@@ -518,6 +519,7 @@ namespace ProjectLucid.Tests
                     Restore(() => rendererPipeline.ReleaseOwnedPipeline());
                     Restore(() => SupportedRenderingFeatures.active = features);
                     Restore(() => Unsupported.useScriptableRenderPipeline = allowScriptableRenderPipeline);
+                    Restore(() => ShaderUtil.allowAsyncCompilation = allowAsyncCompilation);
                     Restore(() => Shader.globalRenderPipeline = pipeline);
                     Restore(() => RenderTexture.active = target);
                     if (failures.Count != 0)
@@ -565,8 +567,6 @@ namespace ProjectLucid.Tests
                 Assert.That(ReferenceEquals(cameras[0], camera), Is.True);
                 Assert.That(camera.scene, Is.EqualTo(previewScene));
                 rendererInvocations++;
-                Assert.That(camera.TryGetCullingParameters(out ScriptableCullingParameters parameters), Is.True);
-                CullingResults culled = context.Cull(ref parameters);
                 using (var commands = new CommandBuffer { name = "EnvStandardLit owned renderer inputs" })
                 {
                     commands.SetRenderTarget(target);
@@ -576,17 +576,13 @@ namespace ProjectLucid.Tests
                     commands.SetGlobalMatrix("unity_MatrixV", view);
                     commands.SetGlobalVector("unity_OrthoParams", new Vector4(0, 0, 0, ortho));
                     commands.SetGlobalVector("_WorldSpaceCameraPos", cameraPosition);
+                    // Select this Renderer directly: these graph/input probes do not consume scene lighting.
+                    // Keep first-use variant compilation synchronous for the sampled draw.
+                    ShaderUtil.SetAsyncCompilation(commands, false);
+                    commands.DrawRenderer(renderer, material, 0, rendererPass);
+                    ShaderUtil.RestoreAsyncCompilation(commands);
                     context.ExecuteCommandBuffer(commands);
                 }
-                var drawing = new DrawingSettings(new ShaderTagId("UniversalForward"), new SortingSettings(camera))
-                {
-                    overrideMaterial = material,
-                    overrideMaterialPassIndex = rendererPass,
-                    enableDynamicBatching = false,
-                    enableInstancing = false,
-                };
-                var filtering = new FilteringSettings(RenderQueueRange.all, 1 << 31);
-                context.DrawRenderers(culled, ref drawing, ref filtering);
                 context.Submit();
             }
 
