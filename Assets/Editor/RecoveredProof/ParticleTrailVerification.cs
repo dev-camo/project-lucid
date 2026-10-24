@@ -46,7 +46,9 @@ namespace ProjectLucid
                         // Original orthographic raw depths for eye distances 2/4 at near .1, far 10.
                         float raw = row < 16 ? 19f / 99f : 39f / 99f;
                         if (SystemInfo.usesReversedZBuffer) raw = 1 - raw;
-                        pixels[row] = new Color(raw, 0, 0, 1);
+                        // Match logical screen rows through the shader's API-specific UV origin.
+                        int textureRow = SystemInfo.graphicsUVStartsAtTop ? pixels.Length - 1 - row : row;
+                        pixels[textureRow] = new Color(raw, 0, 0, 1);
                     }
                     depth.SetPixels(pixels);
                     depth.Apply(false, false);
