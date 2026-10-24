@@ -288,56 +288,61 @@ namespace ProjectLucid.Tests
                 material.SetTexture("_Detail_Diffuse_Tex", Solid(Color.white));
                 material.EnableKeyword("_USE_FRESNEL");
                 float length = Mathf.Sqrt(1.1296f);
+                AdmitScaleInputs();
                 foreach (int pass in new[] { 0, 4 })
                 {
                     ortho = 1; view.SetRow(2, new Vector4(0, .6f, -.8f, 0));
-                    AdmitView(pass);
-                    Expect(pass, 10, Matrix4x4.identity, new Color(.36f, .36f, .36f, 1), "base mapped normal Fresnel");
+                    AdmitView(pass, true);
+                    Expect(pass, 10, Matrix4x4.identity, new Color(.36f, .36f, .36f, 1), "base mapped normal Fresnel", true);
                     material.EnableKeyword("_USE_DETAIL_MAPS");
                     float detail = 1 - .152f / length;
-                    Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "summed-xy/product-z detail normal Fresnel");
+                    Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "summed-xy/product-z detail normal Fresnel", true);
                     material.SetVector("_LucidProbeTangent", new Vector4(1, 0, 0, 0));
                     float zeroW = 1 - .872f / length;
-                    Expect(pass, 10, Matrix4x4.identity, new Color(zeroW, zeroW, zeroW, 1), "zero tangent.w selects negative handedness");
+                    Expect(pass, 10, Matrix4x4.identity, new Color(zeroW, zeroW, zeroW, 1), "zero tangent.w selects negative handedness", true);
                     material.SetVector("_LucidProbeTangent", new Vector4(1, 0, 0, 2));
-                    Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "positive nonunit tangent.w selects positive sign");
+                    Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "positive nonunit tangent.w selects positive sign", true);
                     material.SetVector("_LucidProbeTangent", new Vector4(1, 0, 0, 1));
-                    Expect(pass, 10, Matrix4x4.Scale(new Vector3(-1, 1, 1)), new Color(detail, detail, detail, 1), "negative object scale contributes exactly one sign");
+                    Expect(pass, 10, Matrix4x4.Scale(new Vector3(-1, 1, 1)), new Color(detail, detail, detail, 1), "negative object scale contributes exactly one sign", true);
                     view.SetRow(2, new Vector4(0, 1.2f, -1.6f, 0));
-                    AdmitView(pass);
-                    Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "graph Fresnel normalizes a nonunit orthographic view");
-                    if (pass == 0) Expect(pass, 12, Matrix4x4.identity, new Color(0, 1.2f, -1.6f, 1), "PBR retains its raw selected view");
+                    AdmitView(pass, true);
+                    Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "graph Fresnel normalizes a nonunit orthographic view", true);
+                    if (pass == 0) Expect(pass, 12, Matrix4x4.identity, new Color(0, 1.2f, -1.6f, 1), "PBR retains its raw selected view", true);
                     foreach (float flag in new[] { 0f, -2f })
                     {
-                        ortho = flag; AdmitView(pass);
-                        Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "original perspective/nonzero-orthographic branch");
+                        ortho = flag; AdmitView(pass, true);
+                        Expect(pass, 10, Matrix4x4.identity, new Color(detail, detail, detail, 1), "original perspective/nonzero-orthographic branch", true);
                     }
                     material.DisableKeyword("_USE_DETAIL_MAPS");
                 }
                 material.EnableKeyword("_USE_DETAIL_MAPS"); ortho = 1;
-                Expect(3, 11, Matrix4x4.identity, new Color(.6f/length, -.6f/length, -.64f/length, 0), "DepthNormals uses the original signed tangent frame");
+                Expect(3, 11, Matrix4x4.identity, new Color(.6f/length, -.6f/length, -.64f/length, 0), "DepthNormals uses the original signed tangent frame", true);
                 material.SetVector("_LucidProbeTangent", new Vector4(1, 0, 0, 0));
-                Expect(3, 11, Matrix4x4.identity, new Color(.6f/length, .6f/length, -.64f/length, 0), "DepthNormals zero handedness is negative");
+                Expect(3, 11, Matrix4x4.identity, new Color(.6f/length, .6f/length, -.64f/length, 0), "DepthNormals zero handedness is negative", true);
             }
 
-            private void AdmitView(int pass)
+            private void AdmitView(int pass, bool commandBuffer = false)
             {
-                Expect(pass, 13, Matrix4x4.identity, new Color(view.m20, view.m21, view.m22, 1), "actual published view row admission");
-                Expect(pass, 14, Matrix4x4.identity, new Color(ortho, cameraPosition.x, cameraPosition.y, cameraPosition.z), "actual ortho flag/camera admission");
+                Expect(pass, 13, Matrix4x4.identity, new Color(view.m20, view.m21, view.m22, 1), "actual published view row admission", commandBuffer);
+                Expect(pass, 14, Matrix4x4.identity, new Color(ortho, cameraPosition.x, cameraPosition.y, cameraPosition.z), "actual ortho flag/camera admission", commandBuffer);
             }
 
             public void CheckDebugInputs()
             {
                 material.EnableKeyword("DEBUG_DISPLAY");
+                Expect(0, 31, Matrix4x4.identity, new Color(.125f, .25f, .5f, 1), "incoming SH and fragment DEBUG admission");
                 Expect(0, 21, Matrix4x4.identity, new Color(.125f, .25f, .5f, 1), "DEBUG_DISPLAY vertex SH");
                 material.EnableKeyword("LIGHTMAP_ON");
+                Expect(0, 32, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "incoming static UV and fragment DEBUG admission");
                 Expect(0, 22, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "DEBUG_DISPLAY static lightmap UV");
                 material.EnableKeyword("DYNAMICLIGHTMAP_ON");
+                Expect(0, 32, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "incoming static UV with dynamic lightmap and fragment DEBUG admission");
                 Expect(0, 22, Matrix4x4.identity, new Color(.25f, .5f, 0, 1), "static UV with dynamic lightmap");
+                Expect(0, 33, Matrix4x4.identity, new Color(.75f, .875f, 0, 1), "incoming dynamic UV and fragment DEBUG admission");
                 Expect(0, 23, Matrix4x4.identity, new Color(.75f, .875f, 0, 1), "DEBUG_DISPLAY dynamic lightmap UV");
             }
 
-            private void Expect(int pass, int field, Matrix4x4 model, Color expected, string label)
+            private void Expect(int pass, int field, Matrix4x4 model, Color expected, string label, bool commandBuffer = false)
             {
                 RenderTexture before = RenderTexture.active;
                 try
@@ -355,7 +360,7 @@ namespace ProjectLucid.Tests
                         Shader.SetGlobalVector("_WorldSpaceCameraPos", cameraPosition);
                         material.SetFloat("_LucidProbeField", field);
                         Assert.That(material.SetPass(pass), Is.True, "probe pass " + pass);
-                        Graphics.DrawMeshNow(mesh, model);
+                        SubmitMesh(pass, model, commandBuffer);
                     }
                     finally { GL.PopMatrix(); }
                     sample.ReadPixels(new Rect(4, 4, 1, 1), 0, 0); sample.Apply(false, false);
@@ -364,6 +369,108 @@ namespace ProjectLucid.Tests
                         Assert.That(actual[lane], Is.EqualTo(expected[lane]).Within(.01f), label + " pass " + pass + " lane " + lane);
                 }
                 finally { RenderTexture.active = before; }
+            }
+
+            private void AdmitScaleInputs()
+            {
+                int[] passes = { 0, 4 };
+                Matrix4x4[] models = { Matrix4x4.identity, Matrix4x4.Scale(new Vector3(-1, 1, 1)) };
+                var commandInputs = new Color[passes.Length, models.Length, 3];
+                ortho = 1;
+                view.SetRow(2, new Vector4(0, .6f, -.8f, 0));
+                // Collect both submissions on both passes before an admission can hide a later readout.
+                for (int passIndex = 0; passIndex < passes.Length; passIndex++)
+                {
+                    for (int submission = 0; submission < 2; submission++)
+                    {
+                        bool commandBuffer = submission == 1;
+                        for (int modelIndex = 0; modelIndex < models.Length; modelIndex++)
+                        {
+                            for (int field = 15; field <= 17; field++)
+                            {
+                                Color actual = ReadScaleInput(passes[passIndex], field, models[modelIndex], commandBuffer);
+                                if (commandBuffer) commandInputs[passIndex, modelIndex, field - 15] = actual;
+                                var format = System.Globalization.CultureInfo.InvariantCulture;
+                                Debug.Log("EnvStandardLit scale input " + (modelIndex == 0 ? "identity" : "mirrored")
+                                    + " pass " + passes[passIndex] + " field " + field
+                                    + " submission=" + (commandBuffer ? "CommandBuffer" : "GL")
+                                    + " modelDet=" + models[modelIndex].determinant.ToString("R", format)
+                                    + " rgba=(" + actual.r.ToString("R", format) + "," + actual.g.ToString("R", format)
+                                    + "," + actual.b.ToString("R", format) + "," + actual.a.ToString("R", format) + ")");
+                            }
+                        }
+                    }
+                }
+                for (int passIndex = 0; passIndex < passes.Length; passIndex++)
+                {
+                    AdmitView(passes[passIndex], true);
+                    for (int modelIndex = 0; modelIndex < models.Length; modelIndex++)
+                    {
+                        string label = "CommandBuffer per-draw input pass " + passes[passIndex]
+                            + (modelIndex == 0 ? " identity" : " mirrored");
+                        Color sign = commandInputs[passIndex, modelIndex, 0];
+                        Assert.That(float.IsNaN(sign.r) || float.IsInfinity(sign.r), Is.False, label + " finite built-in sign");
+                        if (modelIndex == 0) Assert.That(sign.r, Is.GreaterThanOrEqualTo(0), label + " nonnegative built-in sign");
+                        else Assert.That(sign.r, Is.LessThan(0), label + " negative built-in sign");
+                        float direction = modelIndex == 0 ? 1 : -1;
+                        Assert.That(sign.g, Is.EqualTo(direction).Within(.01f), label + " original odd-scale helper");
+                        Assert.That(sign.b, Is.EqualTo(direction).Within(.01f), label + " actual object determinant");
+                        Assert.That(sign.a, Is.EqualTo(1).Within(.01f), label + " sign readout marker");
+                        Color normal = commandInputs[passIndex, modelIndex, 1];
+                        Color tangent = commandInputs[passIndex, modelIndex, 2];
+                        Color expectedNormal = new Color(0, 0, -1, 1);
+                        Color expectedTangent = new Color(direction, 0, 0, 1);
+                        for (int lane = 0; lane < 4; lane++)
+                        {
+                            Assert.That(normal[lane], Is.EqualTo(expectedNormal[lane]).Within(.01f), label + " normal lane " + lane);
+                            Assert.That(tangent[lane], Is.EqualTo(expectedTangent[lane]).Within(.01f), label + " tangent lane " + lane);
+                        }
+                    }
+                }
+            }
+
+            private Color ReadScaleInput(int pass, int field, Matrix4x4 model, bool commandBuffer = false)
+            {
+                RenderTexture before = RenderTexture.active;
+                try
+                {
+                    RenderTexture.active = target;
+                    GL.Clear(true, true, new Color(-10, -10, -10, -10));
+                    GL.PushMatrix();
+                    try
+                    {
+                        GL.LoadProjectionMatrix(Matrix4x4.identity);
+                        camera.worldToCameraMatrix = view;
+                        GL.modelview = camera.worldToCameraMatrix;
+                        Shader.SetGlobalMatrix("unity_MatrixV", view);
+                        Shader.SetGlobalVector("unity_OrthoParams", new Vector4(0, 0, 0, ortho));
+                        Shader.SetGlobalVector("_WorldSpaceCameraPos", cameraPosition);
+                        material.SetFloat("_LucidProbeField", field);
+                        Assert.That(material.SetPass(pass), Is.True, "probe pass " + pass);
+                        SubmitMesh(pass, model, commandBuffer);
+                    }
+                    finally { GL.PopMatrix(); }
+                    sample.ReadPixels(new Rect(4, 4, 1, 1), 0, 0); sample.Apply(false, false);
+                    Color actual = sample.GetPixel(0, 0);
+                    return actual;
+                }
+                finally { RenderTexture.active = before; }
+            }
+
+            private void SubmitMesh(int pass, Matrix4x4 model, bool commandBuffer)
+            {
+                if (!commandBuffer)
+                {
+                    Graphics.DrawMeshNow(mesh, model);
+                    return;
+                }
+                using (var commands = new CommandBuffer { name = "EnvStandardLit per-draw probe" })
+                {
+                    commands.SetRenderTarget(target);
+                    commands.DrawMesh(mesh, model, material, 0, pass);
+                    Graphics.ExecuteCommandBuffer(commands);
+                }
+                RenderTexture.active = target;
             }
 
             private static string ReplaceOnce(string source, string oldValue, string newValue)
@@ -419,7 +526,7 @@ namespace ProjectLucid.Tests
                     wrapper.Append("                Varyings output = Vert(input);\n");
                     if (pass == 0) wrapper.Append(@"
                 // Fixture-only fragment inputs discriminate the pinned DEBUG_DISPLAY forwarding branches.
-                #if defined(DEBUG_DISPLAY)
+                // DEBUG_DISPLAY is fragment-only; publish its vertex inputs independently.
                 #if defined(LIGHTMAP_ON)
                 output.staticLightmapUV = float2(.25, .5);
                 #else
@@ -427,7 +534,6 @@ namespace ProjectLucid.Tests
                 #endif
                 #if defined(DYNAMICLIGHTMAP_ON)
                 output.dynamicLightmapUV = float2(.75, .875);
-                #endif
                 #endif
 ");
                     wrapper.Append(@"
@@ -443,12 +549,30 @@ namespace ProjectLucid.Tests
             {
                 if (_LucidProbeField == 7) return float4(input.uv, 0, 1);
                 if (_LucidProbeField == 13) return float4(UNITY_MATRIX_V[2].xyz, 1);
+                if (_LucidProbeField == 15) return float4(unity_WorldTransformParams.w, GetOddNegativeScale(), determinant((float3x3)GetObjectToWorldMatrix()), 1);
                 if (_LucidProbeField == 14) return float4(unity_OrthoParams.w, _WorldSpaceCameraPos.xyz);
 ");
+                    if (pass == 0 || pass == 3 || pass == 4) wrapper.Append("                if (_LucidProbeField == 16) return float4(input.normalWS, 1);\n                if (_LucidProbeField == 17) return input.tangentWS;\n");
                     if (pass != 1 && pass != 2) wrapper.Append("                if (_LucidProbeField == 0) return input.uv0;\n                if (_LucidProbeField == 4) return input.tangentWS;\n");
                     if (pass != 2) wrapper.Append("                if (_LucidProbeField == 3) return float4(input.normalWS, 1);\n");
                     if (pass == 0 || pass == 4) wrapper.Append("                if (_LucidProbeField == 1) return input.color;\n                if (_LucidProbeField == 2) return float4(input.positionWS, 1);\n");
                     if (pass == 0) wrapper.Append("                if (_LucidProbeField == 8) return input.fogFactorAndVertexLight;\n");
+                    if (pass == 0) wrapper.Append(@"
+                // Admit incoming varyings and fragment DEBUG selection before the production readbacks.
+                #if defined(DEBUG_DISPLAY)
+                const float debugSelected = 1;
+                #else
+                const float debugSelected = 0;
+                #endif
+                #if defined(LIGHTMAP_ON)
+                if (_LucidProbeField == 32) return float4(input.staticLightmapUV, 0, debugSelected);
+                #else
+                if (_LucidProbeField == 31) return float4(input.vertexSH, debugSelected);
+                #endif
+                #if defined(DYNAMICLIGHTMAP_ON)
+                if (_LucidProbeField == 33) return float4(input.dynamicLightmapUV, 0, debugSelected);
+                #endif
+");
                     if (pass == 4) wrapper.Append("                if (_LucidProbeField == 5) return input.uv1;\n                if (_LucidProbeField == 6) return input.uv2;\n");
                     if (pass == 0 || pass == 3) wrapper.Append(@"
                 float4 color;

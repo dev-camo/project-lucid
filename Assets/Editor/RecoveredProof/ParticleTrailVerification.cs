@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace ProjectLucid
@@ -73,15 +74,18 @@ namespace ProjectLucid
                     rig.SetColors(new Color(1, 1, 1, 0.75f));
                     foreach (int sign in new[] { 1, -1 })
                     {
-                        Shader.SetGlobalVector("_ProjectionParams", new Vector4(sign, 0.1f, 10, 0.1f));
+                        Vector4 intended = new Vector4(sign, 0.1f, 10, 0.1f);
                         foreach (int row in new[] { 8, 24 })
                         {
                             float alpha = 0.7f * Edge(row);
                             float fade = (row < 16) == (sign == 1) ? 1f / 6f : 0.5f;
                             rig.Expect(material, Out(RedBlue(alpha), alpha * fade),
-                                "orthographic varying depth, projection sign " + sign + ", row " + row, y: row);
+                                "orthographic varying depth, projection sign " + sign + ", row " + row, y: row, projectionParams: intended);
                         }
                     }
+                    float controlAlpha = 0.7f * Edge(8);
+                    VerifyProjectionRestoration(rig, material, new Vector4(1, 0.1f, 10, 0.1f),
+                        Out(RedBlue(controlAlpha), controlAlpha * (1f / 6f)));
                 }
             }
             finally
@@ -89,6 +93,43 @@ namespace ProjectLucid
                 Shader.SetGlobalMatrix("unity_MatrixV", view);
                 Shader.SetGlobalMatrix("unity_MatrixInvVP", inverseVP);
             }
+        }
+
+        private static void VerifyProjectionRestoration(RecoveredShaderRig rig, Material material, Vector4 intended, Color expected)
+        {
+            RecoveredShaderProof.Require(ShaderName, rig.BeforeReadback == null, "no owned readback fault is already active");
+            Vector4 previous = Shader.GetGlobalVector("_ProjectionParams");
+            Vector4 sentinel = new Vector4(7, 11, 13, 17);
+            var expectedFault = new InvalidOperationException("Owned projection failure after drawing, before readback.");
+            int calls = 0;
+            Exception primary = null;
+            try
+            {
+                Shader.SetGlobalVector("_ProjectionParams", sentinel);
+                {
+                    Exception faultFailure = null;
+                    rig.BeforeReadback = () =>
+                    {
+                        calls++;
+                        Shader.SetGlobalVector("_ProjectionParams", new Vector4(19, 23, 29, 31));
+                        throw expectedFault;
+                    };
+                    try { rig.Expect(material, expected, "owned projection restoration fault", y: 8, projectionParams: intended); }
+                    catch (Exception error) { faultFailure = error; }
+                    finally { rig.BeforeReadback = null; }
+                    if (faultFailure != null && !ReferenceEquals(faultFailure, expectedFault))
+                        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(faultFailure).Throw();
+                    RecoveredShaderProof.Require(ShaderName, ReferenceEquals(faultFailure, expectedFault), "the actual Expect must retain the exact owned fault");
+                    RecoveredShaderProof.Require(ShaderName, calls == 1, "the owned readback fault must run exactly once");
+                    RecoveredShaderProof.Require(ShaderName, Shader.GetGlobalVector("_ProjectionParams").Equals(sentinel), "failed Expect restores every projection lane");
+                }
+                // The admitted synthetic fault is consumed; an ordinary retry owns any later failure.
+                rig.Expect(material, expected, "ordinary projection restoration retry", y: 8, projectionParams: intended);
+                RecoveredShaderProof.Require(ShaderName, calls == 1, "the ordinary retry must not retain the readback fault");
+                RecoveredShaderProof.Require(ShaderName, Shader.GetGlobalVector("_ProjectionParams").Equals(sentinel), "ordinary Expect restores every projection lane");
+            }
+            catch (Exception error) { primary = error; throw; }
+            finally { RecoveredShaderProof.RestoreProjection(previous, primary); }
         }
 
         // Edge fade saturate(uv.y (1 - uv.y) * 3.333) at a pixel row of the 32-pixel quad.

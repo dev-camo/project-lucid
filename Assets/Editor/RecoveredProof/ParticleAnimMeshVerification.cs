@@ -364,8 +364,10 @@ namespace ProjectLucid
                 Shader.SetGlobalVector("unity_OrthoParams", new Vector4(1, 1, 0, 1));
                 PublishCameraMatrices(camera);
                 material.SetFloat("_DepthFade_Distance", 6);
-                Expect(material, mesh, camera, target, sample, 8, new Color(.06f, 0, .04f), .1f, "interior lower-row depth2 gives (2-1)/6");
-                Expect(material, mesh, camera, target, sample, 24, new Color(.18f, 0, .12f), .3f, "interior upper-row depth4 gives (4-1)/6");
+                Vector4 interiorProjection = new Vector4(1, 0.1f, 10, 0.1f);
+                Expect(material, mesh, camera, target, sample, 8, new Color(.06f, 0, .04f), .1f, "interior lower-row depth2 gives (2-1)/6", projectionParams: interiorProjection);
+                Expect(material, mesh, camera, target, sample, 24, new Color(.18f, 0, .12f), .3f, "interior upper-row depth4 gives (4-1)/6", projectionParams: interiorProjection);
+                VerifyProjectionRestoration(material, mesh, camera, target, sample, interiorProjection);
                 material.SetFloat("_DepthFade_Distance", 1);
 
                 camera.orthographic = false;
@@ -406,25 +408,79 @@ namespace ProjectLucid
         }
 
         private static void Expect(Material material, Mesh mesh, Camera camera, RenderTexture target, Texture2D sample,
-                                   int y, Color expected, float expectedAlpha, string label)
+                                   int y, Color expected, float expectedAlpha, string label, Vector4? projectionParams = null,
+                                   Action beforeReadback = null)
         {
-            Graphics.SetRenderTarget(target);
-            GL.Clear(true, true, new Color(0, 0, 0, 0));
-            GL.PushMatrix();
+            Require(projectionParams.HasValue || beforeReadback == null, "an owned readback fault requires a projection override");
+            Vector4? previousProjection = projectionParams.HasValue ? Shader.GetGlobalVector("_ProjectionParams") : (Vector4?)null;
+            Exception primary = null;
+            Color actual;
             try
             {
-                GL.LoadProjectionMatrix(camera.projectionMatrix);
-                GL.modelview = camera.worldToCameraMatrix;
-                Require(material.SetPass(0), "pass did not bind: " + label);
-                Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
+                Graphics.SetRenderTarget(target);
+                GL.Clear(true, true, new Color(0, 0, 0, 0));
+                GL.PushMatrix();
+                try
+                {
+                    GL.LoadProjectionMatrix(camera.projectionMatrix);
+                    GL.modelview = camera.worldToCameraMatrix;
+                    // The measured immediate path publishes the complete input after GL setup.
+                    if (projectionParams.HasValue) Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                    Require(material.SetPass(0), "pass did not bind: " + label);
+                    Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
+                }
+                finally { GL.PopMatrix(); }
+                beforeReadback?.Invoke();
+                sample.ReadPixels(new Rect(16, y, 1, 1), 0, 0, false);
+                sample.Apply(false);
+                actual = sample.GetPixel(0, 0);
             }
-            finally { GL.PopMatrix(); }
-            sample.ReadPixels(new Rect(16, y, 1, 1), 0, 0, false);
-            sample.Apply(false);
-            Color actual = sample.GetPixel(0, 0);
+            catch (Exception error) { primary = error; throw; }
+            finally { RecoveredShaderProof.RestoreProjection(previousProjection, primary); }
             Require(Mathf.Abs(actual.r - expected.r) < 0.01f && Mathf.Abs(actual.g - expected.g) < 0.01f &&
                     Mathf.Abs(actual.b - expected.b) < 0.01f && Mathf.Abs(actual.a - expectedAlpha) < 0.01f,
                     label + ": expected=" + expected + " alpha " + expectedAlpha + " actual=" + actual);
+        }
+
+        private static void VerifyProjectionRestoration(Material material, Mesh mesh, Camera camera, RenderTexture target,
+                                                        Texture2D sample, Vector4 intended)
+        {
+            Vector4 previous = Shader.GetGlobalVector("_ProjectionParams");
+            Vector4 sentinel = new Vector4(7, 11, 13, 17);
+            var expectedFault = new InvalidOperationException("Owned projection failure after drawing, before readback.");
+            int calls = 0;
+            Exception primary = null;
+            try
+            {
+                Shader.SetGlobalVector("_ProjectionParams", sentinel);
+                {
+                    Exception faultFailure = null;
+                    Action fault = () =>
+                    {
+                        calls++;
+                        Shader.SetGlobalVector("_ProjectionParams", new Vector4(19, 23, 29, 31));
+                        throw expectedFault;
+                    };
+                    try
+                    {
+                        Expect(material, mesh, camera, target, sample, 8, new Color(.06f, 0, .04f), .1f,
+                            "owned projection restoration fault", projectionParams: intended, beforeReadback: fault);
+                    }
+                    catch (Exception error) { faultFailure = error; }
+                    if (faultFailure != null && !ReferenceEquals(faultFailure, expectedFault))
+                        System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(faultFailure).Throw();
+                    Require(ReferenceEquals(faultFailure, expectedFault), "the actual Expect must retain the exact owned fault");
+                    Require(calls == 1, "the owned readback fault must run exactly once");
+                    Require(Shader.GetGlobalVector("_ProjectionParams").Equals(sentinel), "failed Expect restores every projection lane");
+                }
+                // The admitted synthetic fault is consumed; an ordinary retry owns any later failure.
+                Expect(material, mesh, camera, target, sample, 8, new Color(.06f, 0, .04f), .1f,
+                    "ordinary projection restoration retry", projectionParams: intended);
+                Require(calls == 1, "the ordinary retry must not retain the readback fault");
+                Require(Shader.GetGlobalVector("_ProjectionParams").Equals(sentinel), "ordinary Expect restores every projection lane");
+            }
+            catch (Exception error) { primary = error; throw; }
+            finally { RecoveredShaderProof.RestoreProjection(previous, primary); }
         }
 
         private static void Require(bool condition, string message)

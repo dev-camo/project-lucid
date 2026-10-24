@@ -61,6 +61,17 @@ namespace ProjectLucid
             if (!condition) throw new InvalidOperationException(shaderName + " verification failed: " + message);
         }
 
+        internal static void RestoreProjection(Vector4? previous, Exception primary)
+        {
+            if (!previous.HasValue) return;
+            try { Shader.SetGlobalVector("_ProjectionParams", previous.Value); }
+            catch (Exception restoration)
+            {
+                if (primary != null) throw new AggregateException("Projection restoration failed.", primary, restoration);
+                throw;
+            }
+        }
+
         // The rig restores the pipeline tag, the active target and the globals it saved, and destroys its
         // objects, both when disposed and when its constructor fails after changing them.
         public static void VerifyRigRestoresState()
@@ -129,6 +140,8 @@ namespace ProjectLucid
         // Test hook: invoked once construction has changed global state and allocated its resources, so a
         // proof can check that a failing constructor still restores and frees everything.
         internal static Action ConstructionProbe;
+        // Owned by one restoration control, and cleared before its ordinary retry.
+        internal Action BeforeReadback;
 
         public RecoveredShaderRig(Shader shader)
         {
@@ -304,48 +317,66 @@ namespace ProjectLucid
         // Per-draw values that DrawMeshNow cannot carry, such as SH coefficients, go through a command
         // buffer draw with a property block instead.
         public Color Draw(Material material, int pass = 0, Mesh mesh = null, Matrix4x4? model = null, int x = 16, int y = 16,
-                          MaterialPropertyBlock properties = null)
+                          MaterialPropertyBlock properties = null, Vector4? projectionParams = null)
         {
-            Graphics.SetRenderTarget(target);
-            GL.Clear(true, true, new Color(0, 0, 0, 0));
-            Shader.SetGlobalVector("_WorldSpaceCameraPos", Camera.transform.position);
-            if (WriteOrthoParams)
-                Shader.SetGlobalVector("unity_OrthoParams", new Vector4(Camera.orthographicSize, Camera.orthographicSize, 0,
-                    Camera.orthographic ? 1 : 0));
-            if (properties != null)
+            RecoveredShaderProof.Require(shaderName, projectionParams.HasValue || BeforeReadback == null,
+                "an owned readback fault requires a projection override");
+            Vector4? previousProjection = null;
+            if (projectionParams.HasValue)
             {
-                using (var commands = new CommandBuffer { name = "ShaderVerification" })
-                {
-                    commands.SetRenderTarget(target);
-                    commands.ClearRenderTarget(true, true, new Color(0, 0, 0, 0));
-                    commands.SetViewProjectionMatrices(Camera.worldToCameraMatrix, Camera.projectionMatrix);
-                    commands.DrawMesh(mesh ?? Quad, model ?? Matrix4x4.identity, material, 0, pass, properties);
-                    Graphics.ExecuteCommandBuffer(commands);
-                }
-                RenderTexture.active = target;
+                RecoveredShaderProof.Require(shaderName, properties == null, "projection override requires the immediate draw path");
+                SaveVectors("_ProjectionParams");
+                previousProjection = Shader.GetGlobalVector("_ProjectionParams");
             }
-            else
+            Exception primary = null;
+            try
             {
-                GL.PushMatrix();
-                try
+                Graphics.SetRenderTarget(target);
+                GL.Clear(true, true, new Color(0, 0, 0, 0));
+                Shader.SetGlobalVector("_WorldSpaceCameraPos", Camera.transform.position);
+                if (WriteOrthoParams)
+                    Shader.SetGlobalVector("unity_OrthoParams", new Vector4(Camera.orthographicSize, Camera.orthographicSize, 0,
+                        Camera.orthographic ? 1 : 0));
+                if (properties != null)
                 {
-                    GL.LoadProjectionMatrix(Camera.projectionMatrix);
-                    GL.modelview = Camera.worldToCameraMatrix;
-                    RecoveredShaderProof.Require(shaderName, material.SetPass(pass), "pass " + pass + " did not bind");
-                    Graphics.DrawMeshNow(mesh ?? Quad, model ?? Matrix4x4.identity);
+                    using (var commands = new CommandBuffer { name = "ShaderVerification" })
+                    {
+                        commands.SetRenderTarget(target);
+                        commands.ClearRenderTarget(true, true, new Color(0, 0, 0, 0));
+                        commands.SetViewProjectionMatrices(Camera.worldToCameraMatrix, Camera.projectionMatrix);
+                        commands.DrawMesh(mesh ?? Quad, model ?? Matrix4x4.identity, material, 0, pass, properties);
+                        Graphics.ExecuteCommandBuffer(commands);
+                    }
+                    RenderTexture.active = target;
                 }
-                finally { GL.PopMatrix(); }
+                else
+                {
+                    GL.PushMatrix();
+                    try
+                    {
+                        GL.LoadProjectionMatrix(Camera.projectionMatrix);
+                        GL.modelview = Camera.worldToCameraMatrix;
+                        // The measured immediate path publishes the complete input after GL setup.
+                        if (projectionParams.HasValue) Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                        RecoveredShaderProof.Require(shaderName, material.SetPass(pass), "pass " + pass + " did not bind");
+                        Graphics.DrawMeshNow(mesh ?? Quad, model ?? Matrix4x4.identity);
+                    }
+                    finally { GL.PopMatrix(); }
+                }
+                BeforeReadback?.Invoke();
+                sample.ReadPixels(new Rect(x, y, 1, 1), 0, 0, false);
+                sample.Apply(false);
+                return sample.GetPixel(0, 0);
             }
-            sample.ReadPixels(new Rect(x, y, 1, 1), 0, 0, false);
-            sample.Apply(false);
-            return sample.GetPixel(0, 0);
+            catch (Exception error) { primary = error; throw; }
+            finally { RecoveredShaderProof.RestoreProjection(previousProjection, primary); }
         }
 
         public void Expect(Material material, Color expected, string label, int pass = 0, Mesh mesh = null,
                            Matrix4x4? model = null, int x = 16, int y = 16, float tolerance = 0.01f,
-                           MaterialPropertyBlock properties = null)
+                           MaterialPropertyBlock properties = null, Vector4? projectionParams = null)
         {
-            Color actual = Draw(material, pass, mesh, model, x, y, properties);
+            Color actual = Draw(material, pass, mesh, model, x, y, properties, projectionParams);
             RecoveredShaderProof.Require(shaderName,
                 Mathf.Abs(actual.r - expected.r) < tolerance && Mathf.Abs(actual.g - expected.g) < tolerance &&
                 Mathf.Abs(actual.b - expected.b) < tolerance && Mathf.Abs(actual.a - expected.a) < tolerance,
