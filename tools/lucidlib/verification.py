@@ -174,7 +174,16 @@ EDITMODE_TESTS += ("ProjectLucid.Tests.DebugBackingFieldAttributeTests.DebugOnly
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedSkyMaterialResolvesItsOriginalShader",
     "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedEggmanMaterialResolvesItsOriginalShader",
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedBundledFullscreenMaterialResolvesItsOriginalShader",
+    "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedResourcesFullscreenMaterialResolvesItsOriginalShader",
 )
+
+# Shipped fullscreen vertex payload, keyword masks and fragment types (#448).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.FullscreenShaderStageContractTests." + name for name in (
+    "FullscreenVertexEntriesKeepDecodedViewDirections",
+    "FullscreenAndBlurKeepDecodedKeywordMasksAndScopes",
+    "FullscreenAndBlurKeepFloat4FragmentContracts",
+))
 
 # Original FastAction null conversion and checked mutation order (#469).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalFastActionNullListenerTests." + name for name in (

@@ -50,7 +50,7 @@ Shader "HardLight/RenderFeature/HL_UI_Blur_Render_Feature"
 
             // The centre and the four diagonal taps at _offset texels, averaged. Core.hlsl's
             // SAMPLE_TEXTURE2D adds the single _GlobalMipBias.x the original applies.
-            half4 Frag(Varyings input) : SV_Target
+            float4 Frag(Varyings input) : SV_Target
             {
                 float2 step = _offset * _BlitTexture_TexelSize;
                 float4 sum = SAMPLE_TEXTURE2D(_BlitTexture, sampler_BlitTexture, input.uv + step);
