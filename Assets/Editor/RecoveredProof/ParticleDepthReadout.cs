@@ -71,7 +71,9 @@ namespace ProjectLucid
         }
 
         public void Capture(Material production, Texture2D originalDepth, Texture2D rgbaDepth, Color[] uploaded,
-                            float rawEye2, float rawEye4, Func<Material, int, Color> draw, string context)
+                            float rawEye2, float rawEye4,
+                            Func<Material, int, Vector4, ProjectionPublication, Action, Color> draw, string context,
+                            Vector4 projectionParams, ProjectionPublication publication, bool rgbaFirst, bool negativeFirst)
         {
             Require(shader.isSupported && shader.passCount == 3, "owned shader support in the original draw pipeline");
             Texture previousDepth = Shader.GetGlobalTexture("_CameraDepthTexture");
@@ -88,35 +90,41 @@ namespace ProjectLucid
                 " zBuffer=" + Vector(Shader.GetGlobalVector("_ZBufferParams")) +
                 " view=" + Shader.GetGlobalMatrix("unity_MatrixV").ToString("R") +
                 " inverseVP=" + Shader.GetGlobalMatrix("unity_MatrixInvVP").ToString("R"));
+            Debug.Log("Project Lucid particle publication inputs: context=" + context + " requestedBase=" + Vector(projectionParams) +
+                " point=" + publication + " rgbaFirst=" + rgbaFirst + " negativeFirst=" + negativeFirst);
+            var admissionFailures = new List<string>();
             Exception primary = null;
             try
             {
-                foreach (Texture2D depth in new[] { originalDepth, rgbaDepth })
+                foreach (Texture2D depth in rgbaFirst ? new[] { rgbaDepth, originalDepth } : new[] { originalDepth, rgbaDepth })
                 {
                     Shader.SetGlobalTexture("_CameraDepthTexture", depth);
-                    foreach (int sign in new[] { 1, -1 })
+                    foreach (int sign in negativeFirst ? new[] { -1, 1 } : new[] { 1, -1 })
                     {
-                        Shader.SetGlobalVector("_ProjectionParams", new Vector4(sign, previousProjection.y, previousProjection.z, previousProjection.w));
+                        Vector4 intended = new Vector4(sign, projectionParams.y, projectionParams.z, projectionParams.w);
                         foreach (int row in new[] { 8, 24 })
                         {
                             string arm = context + " " + depth.format + "/" + depth.graphicsFormat + " sign=" + sign + " row=" + row;
                             Debug.Log("Project Lucid particle depth arm begin: " + arm);
-                            Color before = draw(production, row);
+                            Color before = draw(production, row, intended, publication, null);
                             copy.SetFloat("_LucidDepthReadout", 0);
-                            Color ordinaryCopy = draw(copy, row);
+                            Color ordinaryCopy = draw(copy, row, intended, publication, null);
                             Debug.Log("Project Lucid particle depth ordinary admission: " + arm + " production=" + Vector(before) + " copy=" + Vector(ordinaryCopy));
                             for (int lane = 0; lane < 4; lane++)
                                 Require(Mathf.Abs(before[lane] - ordinaryCopy[lane]) < .01f, "ordinary copied Frag differs: " + arm + " lane " + lane);
                             copy.SetFloat("_LucidDepthReadout", 1);
-                            Color coordinates = draw(copy, row);
+                            Color coordinates = draw(copy, row, intended, publication, null);
                             copy.SetFloat("_LucidDepthReadout", 2);
-                            Color sample = draw(copy, row);
+                            Color sample = draw(copy, row, intended, publication, null);
                             copy.SetFloat("_LucidDepthReadout", 3);
-                            Color auxiliary = draw(copy, row);
+                            Color auxiliary = draw(copy, row, intended, publication, null);
                             Debug.Log("Project Lucid particle depth readout: " + arm +
                                 " coordinates[SVy/height,actualProjectionSign,actualOrthoFlag,repeatedSourceSampleV]=" + Vector(coordinates) +
                                 " depth[rawAtRepeatedSourceUV,actualSceneEyeDepth,directRawV.25,directRawV.75]=" + Vector(sample) +
                                 " auxiliary[actualClipW,ZBuffer.z,ZBuffer.w,ScaledScreenHeight]=" + Vector(auxiliary));
+                            if (coordinates.g != intended.x || coordinates.b != 1)
+                                admissionFailures.Add(arm + " point=" + publication + " requested=" + Vector(intended) +
+                                    " actualProjectionSign=" + Number(coordinates.g) + " actualOrtho=" + Number(coordinates.b));
                             // Only inspect GPU matrices if raw/branch inputs do not explain the actual helper result.
                             float explainedEye;
                             if (coordinates.b != 1) explainedEye = 1f / (auxiliary.g * sample.r + auxiliary.b);
@@ -130,12 +138,15 @@ namespace ProjectLucid
                                 {
                                     copy.SetFloat("_LucidDepthReadout", matrixRow + 4);
                                     Debug.Log("Project Lucid particle depth GPU matrix: " + arm + " " +
-                                        (matrixRow < 4 ? "V" : "InvVP") + " row=" + (matrixRow % 4) + " value=" + Vector(draw(copy, row)));
+                                        (matrixRow < 4 ? "V" : "InvVP") + " row=" + (matrixRow % 4) + " value=" + Vector(draw(copy, row, intended, publication, null)));
                                 }
                             }
                         }
                     }
                 }
+                // Run after the measured arms, so the control cannot warm their first draw.
+                VerifyProjectionRestoration(draw, production, projectionParams, publication, context);
+                Require(admissionFailures.Count == 0, "GPU input admission failed: " + string.Join("; ", admissionFailures));
             }
             catch (Exception error) { primary = error; throw; }
             finally
@@ -147,6 +158,45 @@ namespace ProjectLucid
             }
             Debug.Log("Project Lucid particle depth diagnostic restored the original binding/sign before the unchanged assertion. " +
                 "Extra draws and the prior import can warm state; this measurement is not final qualification or a correction.");
+        }
+
+        private static void VerifyProjectionRestoration(
+            Func<Material, int, Vector4, ProjectionPublication, Action, Color> draw, Material production,
+            Vector4 intended, ProjectionPublication publication, string context)
+        {
+            Vector4 previous = Shader.GetGlobalVector("_ProjectionParams");
+            Vector4 sentinel = new Vector4(7, 11, 13, 17);
+            var expected = new InvalidOperationException("Owned particle failure after drawing, before readback.");
+            int calls = 0;
+            Action fault = () => { calls++; throw expected; };
+            Exception drawFailure = null;
+            Exception primary = null;
+            try
+            {
+                Shader.SetGlobalVector("_ProjectionParams", sentinel);
+                try { draw(production, 8, intended, publication, fault); }
+                catch (Exception error) { drawFailure = error; }
+                Require(ReferenceEquals(drawFailure, expected), "the actual draw must retain the exact owned primary: " + context);
+                Require(calls == 1, "the owned readback fault must run exactly once: " + context);
+                Require(Shader.GetGlobalVector("_ProjectionParams").Equals(sentinel), "the failed draw restores every projection lane: " + context);
+                // The ordinary retry also admits that the per-instance fault probe was cleared.
+                draw(production, 8, intended, publication, null);
+                Require(calls == 1, "the ordinary retry must not retain the readback fault: " + context);
+                Require(Shader.GetGlobalVector("_ProjectionParams").Equals(sentinel), "the ordinary retry restores every projection lane: " + context);
+                Debug.Log("Project Lucid particle projection failure control passed: " + context + " point=" + publication +
+                    " callbackCalls=" + calls + " exactPrimary=True restored=" + Vector(sentinel));
+            }
+            catch (Exception error)
+            {
+                primary = drawFailure == null || ReferenceEquals(error, drawFailure) ? error :
+                    new AggregateException("Particle projection failure control failed.", drawFailure, error);
+                throw primary;
+            }
+            finally
+            {
+                fault = null;
+                RecoveredShaderProof.RestoreProjection(previous, primary ?? drawFailure);
+            }
         }
 
         private static string DiagnosticSource(string source, bool frontFace)

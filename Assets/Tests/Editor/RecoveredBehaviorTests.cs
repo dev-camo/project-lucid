@@ -1053,6 +1053,12 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void ParticleAnimMeshProjectionPublicationUsesExplicitInputsAcrossFreshOrders()
+        {
+            ParticleAnimMeshVerification.VerifyProjectionPublicationOrders();
+        }
+
+        [Test]
         public void RecoveredShaderRigRestoresStateAfterDisposeAndFailedConstruction()
         {
             RecoveredShaderProof.VerifyRigRestoresState();
@@ -1140,6 +1146,12 @@ namespace ProjectLucid.Tests
         public void ParticleTrailOrthographicDepthRetainsBothRowsAndProjectionSigns()
         {
             ParticleTrailVerification.VerifyOrthographicDepthRows();
+        }
+
+        [Test]
+        public void ParticleTrailProjectionPublicationUsesExplicitInputsAcrossFreshOrders()
+        {
+            ParticleTrailVerification.VerifyProjectionPublicationOrders();
         }
 
         [Test]

@@ -7,6 +7,9 @@ using UnityEngine.Rendering;
 
 namespace ProjectLucid
 {
+    // Temporary publication positions for the owned particle-depth measurement.
+    internal enum ProjectionPublication { BeforeTarget, AfterGL, AfterSetPass }
+
     // Shared harness for the recovered-shader proofs. The shipped bundles carry only Metal programs, so
     // each proof loads its maintained shader by the original asset GUID, compiles every pass for
     // Direct3D 11, and renders a quad into a linear float target to compare pixels with the decoded math.
@@ -59,6 +62,24 @@ namespace ProjectLucid
         public static void Require(string shaderName, bool condition, string message)
         {
             if (!condition) throw new InvalidOperationException(shaderName + " verification failed: " + message);
+        }
+
+        internal static void RestoreProjection(Vector4? previous, Exception primary)
+        {
+            if (!previous.HasValue) return;
+            try { Shader.SetGlobalVector("_ProjectionParams", previous.Value); }
+            catch (Exception restoration)
+            {
+                if (primary != null) throw new AggregateException("Projection restoration failed.", primary, restoration);
+                throw;
+            }
+        }
+
+        internal static void ValidatePublication(ProjectionPublication publication)
+        {
+            if (publication != ProjectionPublication.BeforeTarget && publication != ProjectionPublication.AfterGL &&
+                publication != ProjectionPublication.AfterSetPass)
+                throw new ArgumentOutOfRangeException(nameof(publication));
         }
 
         // The rig restores the pipeline tag, the active target and the globals it saved, and destroys its
@@ -129,6 +150,8 @@ namespace ProjectLucid
         // Test hook: invoked once construction has changed global state and allocated its resources, so a
         // proof can check that a failing constructor still restores and frees everything.
         internal static Action ConstructionProbe;
+        // Owned by a single diagnostic call; never used to select rendering inputs.
+        internal Action BeforeReadback;
 
         public RecoveredShaderRig(Shader shader)
         {
@@ -304,48 +327,71 @@ namespace ProjectLucid
         // Per-draw values that DrawMeshNow cannot carry, such as SH coefficients, go through a command
         // buffer draw with a property block instead.
         public Color Draw(Material material, int pass = 0, Mesh mesh = null, Matrix4x4? model = null, int x = 16, int y = 16,
-                          MaterialPropertyBlock properties = null)
+                          MaterialPropertyBlock properties = null, Vector4? projectionParams = null,
+                          ProjectionPublication publication = ProjectionPublication.AfterGL)
         {
-            Graphics.SetRenderTarget(target);
-            GL.Clear(true, true, new Color(0, 0, 0, 0));
-            Shader.SetGlobalVector("_WorldSpaceCameraPos", Camera.transform.position);
-            if (WriteOrthoParams)
-                Shader.SetGlobalVector("unity_OrthoParams", new Vector4(Camera.orthographicSize, Camera.orthographicSize, 0,
-                    Camera.orthographic ? 1 : 0));
-            if (properties != null)
+            Vector4? previousProjection = null;
+            if (projectionParams.HasValue)
             {
-                using (var commands = new CommandBuffer { name = "ShaderVerification" })
-                {
-                    commands.SetRenderTarget(target);
-                    commands.ClearRenderTarget(true, true, new Color(0, 0, 0, 0));
-                    commands.SetViewProjectionMatrices(Camera.worldToCameraMatrix, Camera.projectionMatrix);
-                    commands.DrawMesh(mesh ?? Quad, model ?? Matrix4x4.identity, material, 0, pass, properties);
-                    Graphics.ExecuteCommandBuffer(commands);
-                }
-                RenderTexture.active = target;
+                RecoveredShaderProof.Require(shaderName, properties == null, "projection override requires the immediate draw path");
+                RecoveredShaderProof.ValidatePublication(publication);
+                SaveVectors("_ProjectionParams");
+                previousProjection = Shader.GetGlobalVector("_ProjectionParams");
             }
-            else
+            Exception primary = null;
+            try
             {
-                GL.PushMatrix();
-                try
+                if (projectionParams.HasValue && publication == ProjectionPublication.BeforeTarget)
+                    Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                Graphics.SetRenderTarget(target);
+                GL.Clear(true, true, new Color(0, 0, 0, 0));
+                Shader.SetGlobalVector("_WorldSpaceCameraPos", Camera.transform.position);
+                if (WriteOrthoParams)
+                    Shader.SetGlobalVector("unity_OrthoParams", new Vector4(Camera.orthographicSize, Camera.orthographicSize, 0,
+                        Camera.orthographic ? 1 : 0));
+                if (properties != null)
                 {
-                    GL.LoadProjectionMatrix(Camera.projectionMatrix);
-                    GL.modelview = Camera.worldToCameraMatrix;
-                    RecoveredShaderProof.Require(shaderName, material.SetPass(pass), "pass " + pass + " did not bind");
-                    Graphics.DrawMeshNow(mesh ?? Quad, model ?? Matrix4x4.identity);
+                    using (var commands = new CommandBuffer { name = "ShaderVerification" })
+                    {
+                        commands.SetRenderTarget(target);
+                        commands.ClearRenderTarget(true, true, new Color(0, 0, 0, 0));
+                        commands.SetViewProjectionMatrices(Camera.worldToCameraMatrix, Camera.projectionMatrix);
+                        commands.DrawMesh(mesh ?? Quad, model ?? Matrix4x4.identity, material, 0, pass, properties);
+                        Graphics.ExecuteCommandBuffer(commands);
+                    }
+                    RenderTexture.active = target;
                 }
-                finally { GL.PopMatrix(); }
+                else
+                {
+                    GL.PushMatrix();
+                    try
+                    {
+                        GL.LoadProjectionMatrix(Camera.projectionMatrix);
+                        GL.modelview = Camera.worldToCameraMatrix;
+                        if (projectionParams.HasValue && publication == ProjectionPublication.AfterGL)
+                            Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                        RecoveredShaderProof.Require(shaderName, material.SetPass(pass), "pass " + pass + " did not bind");
+                        if (projectionParams.HasValue && publication == ProjectionPublication.AfterSetPass)
+                            Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                        Graphics.DrawMeshNow(mesh ?? Quad, model ?? Matrix4x4.identity);
+                    }
+                    finally { GL.PopMatrix(); }
+                }
+                BeforeReadback?.Invoke();
+                sample.ReadPixels(new Rect(x, y, 1, 1), 0, 0, false);
+                sample.Apply(false);
+                return sample.GetPixel(0, 0);
             }
-            sample.ReadPixels(new Rect(x, y, 1, 1), 0, 0, false);
-            sample.Apply(false);
-            return sample.GetPixel(0, 0);
+            catch (Exception error) { primary = error; throw; }
+            finally { RecoveredShaderProof.RestoreProjection(previousProjection, primary); }
         }
 
         public void Expect(Material material, Color expected, string label, int pass = 0, Mesh mesh = null,
                            Matrix4x4? model = null, int x = 16, int y = 16, float tolerance = 0.01f,
-                           MaterialPropertyBlock properties = null)
+                           MaterialPropertyBlock properties = null, Vector4? projectionParams = null,
+                           ProjectionPublication publication = ProjectionPublication.AfterGL)
         {
-            Color actual = Draw(material, pass, mesh, model, x, y, properties);
+            Color actual = Draw(material, pass, mesh, model, x, y, properties, projectionParams, publication);
             RecoveredShaderProof.Require(shaderName,
                 Mathf.Abs(actual.r - expected.r) < tolerance && Mathf.Abs(actual.g - expected.g) < tolerance &&
                 Mathf.Abs(actual.b - expected.b) < tolerance && Mathf.Abs(actual.a - expected.a) < tolerance,

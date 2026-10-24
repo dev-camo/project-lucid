@@ -200,6 +200,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.ParticleAnimMeshStageContractTests."
     "ParticleAnimMeshFragmentStagesKeepDecodedFloatOutputs"))
 EDITMODE_TESTS += ("ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedParticleAnimMeshMaterialResolvesItsOriginalShader",)
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
+# Particle depth publication, draw order and owned restoration measurements (#448).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.RecoveredBehaviorTests.ParticleAnimMeshProjectionPublicationUsesExplicitInputsAcrossFreshOrders",
+    "ProjectLucid.Tests.RecoveredBehaviorTests.ParticleTrailProjectionPublicationUsesExplicitInputsAcrossFreshOrders",
+)
 
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
     "PfxAlphaBlendAddCompilesEveryPassForOpenGL",

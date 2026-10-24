@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ProjectLucid
@@ -32,6 +34,34 @@ namespace ProjectLucid
         }
 
         private static void VerifyOrthographicDepthRows(ParticleDepthReadout readout)
+            => VerifyOrthographicDepthRows(readout, ProjectionPublication.AfterGL, false, false);
+
+        public static void VerifyProjectionPublicationOrders()
+        {
+            var failures = new List<Exception>();
+            foreach (ProjectionPublication publication in new[] { ProjectionPublication.BeforeTarget, ProjectionPublication.AfterGL, ProjectionPublication.AfterSetPass })
+                foreach (bool rgbaFirst in new[] { false, true })
+                    foreach (bool negativeFirst in new[] { false, true })
+                    {
+                        string cell = "Trail " + publication + " rgbaFirst=" + rgbaFirst + " negativeFirst=" + negativeFirst;
+                        Debug.Log("Project Lucid particle publication cell begin: " + cell);
+                        try
+                        {
+                            ParticleDepthReadout.WithCopy(ShaderPath, false,
+                                readout => VerifyOrthographicDepthRows(readout, publication, rgbaFirst, negativeFirst));
+                            Debug.Log("Project Lucid particle publication cell complete: " + cell);
+                        }
+                        catch (Exception error)
+                        {
+                            Debug.Log("Project Lucid particle publication cell failed: " + cell + " " + error);
+                            failures.Add(new InvalidOperationException(cell, error));
+                        }
+                    }
+            if (failures.Count != 0) throw new AggregateException("Trail publication measurements failed.", failures);
+        }
+
+        private static void VerifyOrthographicDepthRows(ParticleDepthReadout readout, ProjectionPublication publication,
+                                                       bool rgbaFirst, bool negativeFirst)
         {
             Matrix4x4 view = Shader.GetGlobalMatrix("unity_MatrixV");
             Matrix4x4 inverseVP = Shader.GetGlobalMatrix("unity_MatrixInvVP");
@@ -84,8 +114,18 @@ namespace ProjectLucid
                     material.SetColor("_Secondary_Color", Color.blue);
                     material.SetTexture("_Main_Texture", rig.Texels(new Color(0.2f, 0, 0, 1)));
                     rig.SetColors(new Color(1, 1, 1, 0.75f));
+                    Color Draw(Material probe, int rowIndex, Vector4 intended, ProjectionPublication point, Action fault)
+                    {
+                        RecoveredShaderProof.Require(ShaderName, rig.BeforeReadback == null, "no owned readback fault is already active");
+                        if (fault == null)
+                            return rig.Draw(probe, y: rowIndex, projectionParams: intended, publication: point);
+                        rig.BeforeReadback = fault;
+                        try { return rig.Draw(probe, y: rowIndex, projectionParams: intended, publication: point); }
+                        finally { rig.BeforeReadback = null; }
+                    }
                     foreach (int sign in new[] { 1, -1 })
                     {
+                        Vector4 intended = new Vector4(sign, 0.1f, 10, 0.1f);
                         Shader.SetGlobalVector("_ProjectionParams", new Vector4(sign, 0.1f, 10, 0.1f));
                         if (sign == 1)
                         {
@@ -93,14 +133,14 @@ namespace ProjectLucid
                                 " gpuProjection=" + GL.GetGPUProjectionMatrix(rig.Camera.projectionMatrix, true).ToString("R") +
                                 " view=" + rig.Camera.worldToCameraMatrix.ToString("R"));
                             readout.Capture(material, depth, rgbaDepth, pixels, rawEye2, rawEye4,
-                                (probe, rowIndex) => rig.Draw(probe, y: rowIndex), "Trail actual RecoveredShaderRig.Draw");
+                                Draw, "Trail actual RecoveredShaderRig.Draw", intended, publication, rgbaFirst, negativeFirst);
                         }
                         foreach (int row in new[] { 8, 24 })
                         {
                             float alpha = 0.7f * Edge(row);
                             float fade = (row < 16) == (sign == 1) ? 1f / 6f : 0.5f;
                             rig.Expect(material, Out(RedBlue(alpha), alpha * fade),
-                                "orthographic varying depth, projection sign " + sign + ", row " + row, y: row);
+                                "orthographic varying depth, projection sign " + sign + ", row " + row, y: row, projectionParams: intended);
                         }
                     }
                 }

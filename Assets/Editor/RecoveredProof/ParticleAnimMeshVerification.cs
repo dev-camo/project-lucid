@@ -24,14 +24,42 @@ namespace ProjectLucid
         }
 
         private static void RunWithReadout(ParticleDepthReadout readout)
+            => RunWithReadout(readout, ProjectionPublication.AfterGL, false, false);
+
+        private static void RunWithReadout(ParticleDepthReadout readout, ProjectionPublication publication,
+                                           bool rgbaFirst, bool negativeFirst)
         {
             string previous = Shader.globalRenderPipeline;
             try
             {
                 Shader.globalRenderPipeline = "UniversalPipeline";
-                RunUnderUniversalPipeline(readout);
+                RunUnderUniversalPipeline(readout, publication, rgbaFirst, negativeFirst);
             }
             finally { Shader.globalRenderPipeline = previous; }
+        }
+
+        public static void VerifyProjectionPublicationOrders()
+        {
+            var failures = new List<Exception>();
+            foreach (ProjectionPublication publication in new[] { ProjectionPublication.BeforeTarget, ProjectionPublication.AfterGL, ProjectionPublication.AfterSetPass })
+                foreach (bool rgbaFirst in new[] { false, true })
+                    foreach (bool negativeFirst in new[] { false, true })
+                    {
+                        string cell = "AnimMesh " + publication + " rgbaFirst=" + rgbaFirst + " negativeFirst=" + negativeFirst;
+                        Debug.Log("Project Lucid particle publication cell begin: " + cell);
+                        try
+                        {
+                            ParticleDepthReadout.WithCopy(ShaderPath, true,
+                                readout => RunWithReadout(readout, publication, rgbaFirst, negativeFirst));
+                            Debug.Log("Project Lucid particle publication cell complete: " + cell);
+                        }
+                        catch (Exception error)
+                        {
+                            Debug.Log("Project Lucid particle publication cell failed: " + cell + " " + error);
+                            failures.Add(new InvalidOperationException(cell, error));
+                        }
+                    }
+            if (failures.Count != 0) throw new AggregateException("AnimMesh publication measurements failed.", failures);
         }
 
         // Compiles every pass for Direct3D 11 with the keyword sets the shipped variants combine.
@@ -122,7 +150,8 @@ namespace ProjectLucid
             return shader;
         }
 
-        private static void RunUnderUniversalPipeline(ParticleDepthReadout readout)
+        private static void RunUnderUniversalPipeline(ParticleDepthReadout readout, ProjectionPublication publication,
+                                                      bool rgbaFirst, bool negativeFirst)
         {
             Shader shader = Load();
             Require(SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null, "GPU verification requires graphics; omit -nographics");
@@ -380,12 +409,14 @@ namespace ProjectLucid
                 Shader.SetGlobalVector("unity_OrthoParams", new Vector4(1, 1, 0, 1));
                 PublishCameraMatrices(camera);
                 material.SetFloat("_DepthFade_Distance", 6);
+                Vector4 interiorProjection = new Vector4(1, 0.1f, 10, 0.1f);
                 Debug.Log("Project Lucid AnimMesh depth CPU camera: projection=" + camera.projectionMatrix.ToString("R") +
                     " gpuProjection=" + gpuProjection.ToString("R") + " view=" + camera.worldToCameraMatrix.ToString("R"));
                 readout.Capture(material, depths, rgbaDepths, uploaded, rawEye2, rawEye4,
-                    (probe, rowIndex) => DiagnosticDraw(probe, mesh, camera, target, sample, rowIndex), "AnimMesh actual Expect GL prefix");
-                Expect(material, mesh, camera, target, sample, 8, new Color(.06f, 0, .04f), .1f, "interior lower-row depth2 gives (2-1)/6");
-                Expect(material, mesh, camera, target, sample, 24, new Color(.18f, 0, .12f), .3f, "interior upper-row depth4 gives (4-1)/6");
+                    (probe, rowIndex, intended, point, fault) => DiagnosticDraw(probe, mesh, camera, target, sample, rowIndex, intended, point, fault),
+                    "AnimMesh actual Expect GL prefix", interiorProjection, publication, rgbaFirst, negativeFirst);
+                Expect(material, mesh, camera, target, sample, 8, new Color(.06f, 0, .04f), .1f, "interior lower-row depth2 gives (2-1)/6", projectionParams: interiorProjection);
+                Expect(material, mesh, camera, target, sample, 24, new Color(.18f, 0, .12f), .3f, "interior upper-row depth4 gives (4-1)/6", projectionParams: interiorProjection);
                 material.SetFloat("_DepthFade_Distance", 1);
 
                 camera.orthographic = false;
@@ -426,46 +457,88 @@ namespace ProjectLucid
         }
 
         private static void Expect(Material material, Mesh mesh, Camera camera, RenderTexture target, Texture2D sample,
-                                   int y, Color expected, float expectedAlpha, string label)
+                                   int y, Color expected, float expectedAlpha, string label, Vector4? projectionParams = null,
+                                   ProjectionPublication publication = ProjectionPublication.AfterGL, Action beforeReadback = null)
         {
-            Graphics.SetRenderTarget(target);
-            GL.Clear(true, true, new Color(0, 0, 0, 0));
-            GL.PushMatrix();
+            Vector4? previousProjection = null;
+            if (projectionParams.HasValue)
+            {
+                RecoveredShaderProof.ValidatePublication(publication);
+                previousProjection = Shader.GetGlobalVector("_ProjectionParams");
+            }
+            Exception primary = null;
+            Color actual;
             try
             {
-                GL.LoadProjectionMatrix(camera.projectionMatrix);
-                GL.modelview = camera.worldToCameraMatrix;
-                Require(material.SetPass(0), "pass did not bind: " + label);
-                Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
+                if (projectionParams.HasValue && publication == ProjectionPublication.BeforeTarget)
+                    Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                Graphics.SetRenderTarget(target);
+                GL.Clear(true, true, new Color(0, 0, 0, 0));
+                GL.PushMatrix();
+                try
+                {
+                    GL.LoadProjectionMatrix(camera.projectionMatrix);
+                    GL.modelview = camera.worldToCameraMatrix;
+                    if (projectionParams.HasValue && publication == ProjectionPublication.AfterGL)
+                        Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                    Require(material.SetPass(0), "pass did not bind: " + label);
+                    if (projectionParams.HasValue && publication == ProjectionPublication.AfterSetPass)
+                        Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                    Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
+                }
+                finally { GL.PopMatrix(); }
+                beforeReadback?.Invoke();
+                sample.ReadPixels(new Rect(16, y, 1, 1), 0, 0, false);
+                sample.Apply(false);
+                actual = sample.GetPixel(0, 0);
             }
-            finally { GL.PopMatrix(); }
-            sample.ReadPixels(new Rect(16, y, 1, 1), 0, 0, false);
-            sample.Apply(false);
-            Color actual = sample.GetPixel(0, 0);
+            catch (Exception error) { primary = error; throw; }
+            finally { RecoveredShaderProof.RestoreProjection(previousProjection, primary); }
             Require(Mathf.Abs(actual.r - expected.r) < 0.01f && Mathf.Abs(actual.g - expected.g) < 0.01f &&
                     Mathf.Abs(actual.b - expected.b) < 0.01f && Mathf.Abs(actual.a - expectedAlpha) < 0.01f,
                     label + ": expected=" + expected + " alpha " + expectedAlpha + " actual=" + actual);
         }
 
-        // Exact draw/readback prefix of Expect, without changing its original assertion or helper body.
-        private static Color DiagnosticDraw(Material material, Mesh mesh, Camera camera, RenderTexture target, Texture2D sample, int y)
+        // Same draw/readback path as Expect; its original numeric assertion remains unchanged.
+        private static Color DiagnosticDraw(Material material, Mesh mesh, Camera camera, RenderTexture target, Texture2D sample, int y,
+                                            Vector4? projectionParams = null, ProjectionPublication publication = ProjectionPublication.AfterGL,
+                                            Action beforeReadback = null)
         {
             const string label = "temporary depth readout";
-            Graphics.SetRenderTarget(target);
-            GL.Clear(true, true, new Color(0, 0, 0, 0));
-            GL.PushMatrix();
+            Vector4? previousProjection = null;
+            if (projectionParams.HasValue)
+            {
+                RecoveredShaderProof.ValidatePublication(publication);
+                previousProjection = Shader.GetGlobalVector("_ProjectionParams");
+            }
+            Exception primary = null;
             try
             {
-                GL.LoadProjectionMatrix(camera.projectionMatrix);
-                GL.modelview = camera.worldToCameraMatrix;
-                Require(material.SetPass(0), "pass did not bind: " + label);
-                Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
+                if (projectionParams.HasValue && publication == ProjectionPublication.BeforeTarget)
+                    Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                Graphics.SetRenderTarget(target);
+                GL.Clear(true, true, new Color(0, 0, 0, 0));
+                GL.PushMatrix();
+                try
+                {
+                    GL.LoadProjectionMatrix(camera.projectionMatrix);
+                    GL.modelview = camera.worldToCameraMatrix;
+                    if (projectionParams.HasValue && publication == ProjectionPublication.AfterGL)
+                        Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                    Require(material.SetPass(0), "pass did not bind: " + label);
+                    if (projectionParams.HasValue && publication == ProjectionPublication.AfterSetPass)
+                        Shader.SetGlobalVector("_ProjectionParams", projectionParams.Value);
+                    Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
+                }
+                finally { GL.PopMatrix(); }
+                beforeReadback?.Invoke();
+                sample.ReadPixels(new Rect(16, y, 1, 1), 0, 0, false);
+                sample.Apply(false);
+                Color actual = sample.GetPixel(0, 0);
+                return actual;
             }
-            finally { GL.PopMatrix(); }
-            sample.ReadPixels(new Rect(16, y, 1, 1), 0, 0, false);
-            sample.Apply(false);
-            Color actual = sample.GetPixel(0, 0);
-            return actual;
+            catch (Exception error) { primary = error; throw; }
+            finally { RecoveredShaderProof.RestoreProjection(previousProjection, primary); }
         }
 
         private static void Require(bool condition, string message)
