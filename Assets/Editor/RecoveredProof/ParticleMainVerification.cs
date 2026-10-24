@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Security.Cryptography;
-using System.Text;
 using UnityEditor;
 using UnityEditor.Rendering;
 using UnityEngine;
@@ -141,36 +138,8 @@ namespace ProjectLucid
             Matrix4x4 priorView = Shader.GetGlobalMatrix("unity_MatrixV");
             Matrix4x4 priorInverseViewProjection = Shader.GetGlobalMatrix("unity_MatrixInvVP");
             RenderTexture previous = RenderTexture.active;
-            string probeFolder = null, shaderHash = null, metaHash = null;
-            Material depthReadout = null;
             try
             {
-                // Import the owned diagnostic before publishing the draw's globals and depth texture.
-                shaderHash = Hash(ShaderPath);
-                metaHash = Hash(ShaderPath + ".meta");
-                string candidate = "Assets/ParticleMainDepthReadout_" + Guid.NewGuid().ToString("N");
-                Require(!Directory.Exists(candidate) && !File.Exists(candidate) && !File.Exists(candidate + ".meta")
-                    && !Directory.Exists(candidate + ".meta"), "depth readout path already exists");
-                probeFolder = candidate;
-                Require(!string.IsNullOrEmpty(AssetDatabase.CreateFolder("Assets", Path.GetFileName(probeFolder))), "depth readout folder");
-                string probeGuid = Guid.NewGuid().ToString("N");
-                Require(string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(probeGuid)), "depth readout GUID already exists");
-                string probeName = "Hidden/ProjectLucid/ParticleMainDepthReadout/" + probeGuid;
-                string probePath = probeFolder + "/Probe.shader";
-                File.WriteAllText(probePath, DepthReadoutSource(File.ReadAllText(ShaderPath), probeName), new UTF8Encoding(false));
-                File.WriteAllText(probePath + ".meta", "fileFormatVersion: 2\nguid: " + probeGuid + "\nShaderImporter:\n  externalObjects: {}\n  defaultTextures: []\n  nonModifiableTextures: []\n  userData:\n  assetBundleName:\n  assetBundleVariant:\n", new UTF8Encoding(false));
-                AssetDatabase.ImportAsset(probePath, ImportAssetOptions.ForceSynchronousImport | ImportAssetOptions.ForceUpdate);
-                Shader probeShader = AssetDatabase.LoadAssetAtPath<Shader>(probePath);
-                Require(probeShader != null && probeShader.name == probeName && AssetDatabase.GetAssetPath(probeShader) == probePath
-                    && AssetDatabase.AssetPathToGUID(probePath) == probeGuid, "depth readout shader identity");
-                depthReadout = new Material(probeShader);
-                owned.Add(depthReadout);
-                depthReadout.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                depthReadout.EnableKeyword("_DEPTHFADE");
-                Require(depthReadout.SetPass(0), "depth readout preflight pass");
-                foreach (ShaderMessage message in ShaderUtil.GetShaderMessages(probeShader))
-                    Require(message.severity != ShaderCompilerMessageSeverity.Error, message.message);
-
                 target.Create();
                 Shader.SetGlobalVector("_GlobalMipBias", Vector4.zero);
                 material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
@@ -303,17 +272,18 @@ namespace ProjectLucid
 
                 // In the original inverse-VP branch, scene eye depths 2 and 4 give fades 1/6 and 1/2
                 // against this orthographic particle's clip w=1. Opposite texture rows must stay distinct.
-                var depth = new Texture2D(1, 32, TextureFormat.RGBAFloat, false, true)
-                {
-                    filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp,
-                };
+                var depth = new Texture2D(1, 32, TextureFormat.RGBAFloat, false, true);
                 owned.Add(depth);
+                depth.filterMode = FilterMode.Point;
+                depth.wrapMode = TextureWrapMode.Clamp;
                 var depths = new Color[32];
                 for (int row = 0; row < depths.Length; row++)
                 {
                     float raw = row < 16 ? 19f / 99f : 39f / 99f;
                     if (SystemInfo.usesReversedZBuffer) raw = 1 - raw;
-                    depths[row] = new Color(raw, 0, 0, 0);
+                    // Match logical screen rows through the shader's API-specific UV origin.
+                    int textureRow = SystemInfo.graphicsUVStartsAtTop ? depths.Length - 1 - row : row;
+                    depths[textureRow] = new Color(raw, 0, 0, 0);
                 }
                 depth.SetPixels(depths);
                 depth.Apply(false, false);
@@ -324,15 +294,6 @@ namespace ProjectLucid
                     (GL.GetGPUProjectionMatrix(camera.projectionMatrix, true) * view).inverse);
                 Shader.SetGlobalTexture("_CameraDepthTexture", depth);
                 Shader.SetGlobalVector("unity_OrthoParams", new Vector4(1, 1, 0, 1));
-                depthReadout.CopyPropertiesFromMaterial(material);
-                depthReadout.shaderKeywords = material.shaderKeywords;
-                foreach (int row in new[] { 8, 24 })
-                {
-                    Color coordinates = ReadDepthReadout(depthReadout, mesh, camera, target, sample, row, 0);
-                    Color depthsRead = ReadDepthReadout(depthReadout, mesh, camera, target, sample, row, 1);
-                    Debug.Log("Project Lucid depth readout row " + row + ": [SVy/height, projectionSign, orthoFlag, sampleV]="
-                        + coordinates.ToString("R") + "; [sampledRaw, actualSceneEyeDepth, directRawV.25, directRawV.75]=" + depthsRead.ToString("R"));
-                }
                 Expect(material, mesh, camera, target, sample, new Color(0.64f, 0.8f, 0.16f) / 6,
                        "orthographic lower row reconstructs scene eye depth 2", 0.8f / 6, 8);
                 Expect(material, mesh, camera, target, sample, new Color(0.32f, 0.4f, 0.08f),
@@ -357,93 +318,15 @@ namespace ProjectLucid
             }
             finally
             {
-                try
-                {
-                    Shader.SetGlobalFloat("_HLShaderTimeGame", priorTime);
-                    Shader.SetGlobalTexture("_CameraDepthTexture", priorDepth);
-                    Shader.SetGlobalMatrix("unity_MatrixV", priorView);
-                    Shader.SetGlobalMatrix("unity_MatrixInvVP", priorInverseViewProjection);
-                    foreach (string name in globals) Shader.SetGlobalVector(name, priorVectors[name]);
-                    RenderTexture.active = previous;
-                    target.Release();
-                    foreach (UnityEngine.Object item in owned) UnityEngine.Object.DestroyImmediate(item);
-                }
-                finally
-                {
-                    try
-                    {
-                        if (probeFolder != null && (Directory.Exists(probeFolder) || File.Exists(probeFolder + ".meta")))
-                            Require(AssetDatabase.DeleteAsset(probeFolder), "depth readout folder cleanup");
-                        Require(probeFolder == null || (!Directory.Exists(probeFolder) && !File.Exists(probeFolder + ".meta")),
-                            "depth readout folder remains");
-                    }
-                    finally
-                    {
-                        bool sourceUnchanged = shaderHash == null || Hash(ShaderPath) == shaderHash;
-                        bool metaUnchanged = metaHash == null || Hash(ShaderPath + ".meta") == metaHash;
-                        Require(sourceUnchanged && metaUnchanged, "depth readout changed maintained shader or metadata");
-                    }
-                }
+                Shader.SetGlobalFloat("_HLShaderTimeGame", priorTime);
+                Shader.SetGlobalTexture("_CameraDepthTexture", priorDepth);
+                Shader.SetGlobalMatrix("unity_MatrixV", priorView);
+                Shader.SetGlobalMatrix("unity_MatrixInvVP", priorInverseViewProjection);
+                foreach (string name in globals) Shader.SetGlobalVector(name, priorVectors[name]);
+                RenderTexture.active = previous;
+                target.Release();
+                foreach (UnityEngine.Object item in owned) UnityEngine.Object.DestroyImmediate(item);
             }
-        }
-
-        private static string DepthReadoutSource(string original, string name)
-        {
-            const string declaration = "Shader \"HardLight/Particle/HL_Particle_Main\"";
-            Require(original.IndexOf(declaration, StringComparison.Ordinal) == original.LastIndexOf(declaration, StringComparison.Ordinal)
-                && original.Contains(declaration), "depth readout source declaration");
-            string source = original.Replace(declaration, "Shader \"" + name + "\"")
-                .Replace("    Properties\n    {", "    Properties\n    {\n        [HideInInspector]_LucidDepthReadoutMode (\"Readout mode\", Float) = 0");
-            int start = source.IndexOf("HLSLPROGRAM", StringComparison.Ordinal);
-            int end = source.IndexOf("ENDHLSL", start, StringComparison.Ordinal);
-            Require(start >= 0 && end > start, "depth readout forward program");
-            string program = source.Substring(start, end - start);
-            Require(program.Contains("#pragma fragment Frag"), "depth readout forward fragment");
-            program = program.Replace("#pragma fragment Frag", "#pragma fragment LucidDepthReadoutFrag");
-            return source.Substring(0, start) + program + @"
-            float _LucidDepthReadoutMode;
-            float4 LucidDepthReadoutFrag(Varyings input) : SV_Target0
-            {
-                UNITY_SETUP_INSTANCE_ID(input);
-                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-                float y = _ProjectionParams.x < 0.0 ? _ScaledScreenParams.y - input.positionCS.y : input.positionCS.y;
-                float2 uv = float2(input.positionCS.x, y) / _ScaledScreenParams.xy;
-                #if UNITY_UV_STARTS_AT_TOP
-                uv.y = 1.0 - uv.y;
-                #endif
-                if (_LucidDepthReadoutMode == 0)
-                    return float4(input.positionCS.y / _ScaledScreenParams.y, _ProjectionParams.x, unity_OrthoParams.w, uv.y);
-                return float4(SampleSceneDepth(uv), SceneEyeDepth(input.positionCS),
-                    SampleSceneDepth(float2(.5, .25)), SampleSceneDepth(float2(.5, .75)));
-            }
-" + source.Substring(end);
-        }
-
-        private static Color ReadDepthReadout(Material material, Mesh mesh, Camera camera, RenderTexture target,
-                                             Texture2D sample, int row, int mode)
-        {
-            material.SetFloat("_LucidDepthReadoutMode", mode);
-            Graphics.SetRenderTarget(target);
-            GL.Clear(true, true, new Color(0, 0, 0, 0));
-            GL.PushMatrix();
-            try
-            {
-                GL.LoadProjectionMatrix(camera.projectionMatrix);
-                GL.modelview = camera.worldToCameraMatrix;
-                Require(material.SetPass(0), "depth readout pass");
-                Graphics.DrawMeshNow(mesh, Matrix4x4.identity);
-            }
-            finally { GL.PopMatrix(); }
-            sample.ReadPixels(new Rect(16, row, 1, 1), 0, 0, false);
-            sample.Apply(false);
-            return sample.GetPixel(0, 0);
-        }
-
-        private static string Hash(string path)
-        {
-            using (var algorithm = SHA256.Create())
-            using (var stream = File.OpenRead(path))
-                return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
         }
 
         private static void Expect(Material material, Mesh mesh, Camera camera, RenderTexture target, Texture2D sample,
