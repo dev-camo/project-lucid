@@ -4951,6 +4951,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.FSMStorageHistoryClearTests." + name
     "ClearStateHistoryDrainsWithAPositiveMaximum",
 ))
 
+# Original category lookup precedes the destination field read (#519).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.TimeSettingsConversionOrderTests.CategoryGetterRunsBeforeTheDestinationFieldIsRead",
+)
+
 # Remaining fixture/helper graph-name ownership, including failure exits (#517).
 EDITMODE_TESTS += (
     'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("FairPlay",False)',
