@@ -155,7 +155,7 @@ namespace ProjectLucid.Tests
         {
             private readonly List<GameObject> objects = new List<GameObject>();
             private readonly List<LifecycleSystemRowLease> rows = new List<LifecycleSystemRowLease>();
-            private SystemConfiguration configuration;
+            private LoggingHostTests.OwnedConfiguration configuration;
             private CrossPromoConfigurationAsset asset;
             public readonly GameObject Menu, MoreGames, InitiallyInactiveButton, UnrelatedButton, NestedButton, InactiveOther;
             public readonly CrossPromoLaunchButtonSDT Launcher;
@@ -170,15 +170,15 @@ namespace ProjectLucid.Tests
                     Assert.That(Map(name).Keys.Cast<object>().Any(Owns), Is.False, "fixture input already owned: " + name);
                 try
                 {
-                    Lease<SystemConfiguration>();
                     PromoReference = Lease<CrossPromo>();
                     Lease<UIManager>();
                     Lease<AudioManager>();
-                    configuration = new SystemConfiguration();
-                    ProcessManager.RegisterSystem(configuration);
+                    // PlayMode's logging bootstrap owns a live configuration row; borrow it through
+                    // the existing asset-override lease, never replace its system or cached references.
+                    configuration = new LoggingHostTests.OwnedConfiguration();
                     asset = ScriptableObject.CreateInstance<CrossPromoConfigurationAsset>();
                     JsonUtility.FromJsonOverwrite("{\"m_canUseLocalStorage\":false}", asset);
-                    SystemConfiguration.AddConfig<SystemConfigurationAsset>(asset);
+                    configuration.Add(asset);
                     Menu = Host("Lucid owned menu", null, false);
                     Menu.AddComponent<UIContainerSimple>();
                     GameObject launcherHost = Host("[Default] HLCrossPromo_LaunchButton", Menu, false);
@@ -305,7 +305,10 @@ namespace ProjectLucid.Tests
                     cleanup.RunCleanup("destroy-owned-object", () => { if (host != null) Object.DestroyImmediate(host); });
                 }
                 cleanup.RunCleanup("unregister-cross-promo", () => { if (Promo != null) ProcessManager.UnregisterSystem(Promo); });
-                cleanup.RunCleanup("unregister-configuration", () => { if (configuration != null) ProcessManager.UnregisterSystem(configuration); });
+                cleanup.RunCleanup("release-owned-configuration-override", () =>
+                {
+                    if (configuration != null) Assert.That(configuration.Release(), Is.Empty);
+                });
                 cleanup.RunCleanup("destroy-configuration", () => { if (asset != null) Object.DestroyImmediate(asset); });
                 cleanup.RunCleanup("release-empty-owned-input-keys", () =>
                 {
