@@ -605,6 +605,11 @@ def run_logged(command: list[str], work_dir: Path, log_name: str, *, timeout: in
             except ToolError as stop_error:
                 raise stop_error from interruption
             raise
+        else:
+            if os.name == "posix" and group_has_live_members(process.pid):
+                # Live descendants retain the group id after its leader is reaped.
+                with _interrupts_deferred():
+                    stop_process_group(process)
     return {"command": command, "log": str(log), "returncode": returncode,
             "timed_out": timed_out, "elapsed_seconds": round(time.monotonic() - started, 3)}
 
