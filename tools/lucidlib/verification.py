@@ -214,6 +214,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EnvStandardLitContractTests.EnvStandardLitDebugInputsKeepDeclaredLightmapAndSHFields",
     "ProjectLucid.Tests.PreparedMaterialShaderReferenceTests.PreparedEnvStandardLitMaterialResolvesItsOriginalShader",
 )
+
+# Original forward alpha and actual MSAA coverage (#523).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EnvStandardLitAlphaTests.ConstantAlphaTestOutputMatchesOriginalWithAndWithoutCoverageAvailability",
+    "ProjectLucid.Tests.EnvStandardLitAlphaTests.InteriorAlphaGradientKeepsOriginalSharpeningAndRejection",
+    "ProjectLucid.Tests.EnvStandardLitAlphaTests.EnabledMsaaCoverageUsesOriginalCutoffZeroAlpha",
+)
 # Character shader compilation and surface output (#448).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.RecoveredBehaviorTests.CharStandardCompilesEveryPassForDirect3D",
