@@ -3424,6 +3424,14 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalEntityActivationRegistrationGapTests.ActivateIndexesTheSourceRowWhileDeactivateProbesItAndNeitherRollsBack",
 )
 
+# Original preloaded out-handle initialization before lookup/conversion faults (#515).
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.AddressableManagerOutHandleTests.LookupInitializesOutputBeforeFallibleWork("null")',
+    'ProjectLucid.Tests.AddressableManagerOutHandleTests.LookupInitializesOutputBeforeFallibleWork("invalid")',
+    'ProjectLucid.Tests.AddressableManagerOutHandleTests.LookupInitializesOutputBeforeFallibleWork("missing")',
+    'ProjectLucid.Tests.AddressableManagerOutHandleTests.LookupInitializesOutputBeforeFallibleWork("cached")',
+)
+
 # ManagedAddressableAsset cached-load counting and unload clamping.
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalManagedAddressableAssetGapTests.CachedLoadsStillCountAndUnloadClampsBeforeClearingTheAsset",
