@@ -259,12 +259,13 @@ namespace HardlightProject
 
         public bool TryGetPreloadedAsset<T>(string id, out AsyncOperationHandle<T> asyncOperationHandle) where T : UnityEngine.Object
         {
+            // Original 0x060004db @ 0x7C8580 clears the output before lookup or conversion can throw.
+            asyncOperationHandle = default;
             if (m_preloadedAssetHandleLookup.TryGetValue(id, out var handle))
             {
                 asyncOperationHandle = handle.Convert<T>();
                 return true;
             }
-            asyncOperationHandle = default;
             return false;
         }
 
