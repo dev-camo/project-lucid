@@ -83,6 +83,7 @@ namespace ProjectLucid.Tests
             FieldInfo highlightField = typeof(HLSelectable).GetField("m_onShouldHighlightChanged", Static);
             var sceneRows = (Dictionary<string, List<HLSelectable>>)typeof(ActiveSelectables).GetField("s_selectables", Static).GetValue(null);
             var owned = new List<UObject>();
+            EventSystem system = null;
             GameObject selectableHost = null;
             string sceneName = null;
             bool hadSceneRow = false;
@@ -98,9 +99,11 @@ namespace ProjectLucid.Tests
                     owned.Add(host);
                     return host;
                 }
-                var system = Host("Lucid owned clear-state EventSystem").AddComponent<EventSystem>();
-                system.gameObject.SetActive(true);
+                system = Host("Lucid owned clear-state EventSystem").AddComponent<EventSystem>();
+                // EditMode does not register EventSystem automatically; use its real lifecycle, as the other selection fixtures do.
+                typeof(EventSystem).GetMethod("OnEnable", Instance).Invoke(system, null);
                 EventSystem.current = system;
+                Assert.That(EventSystem.current, Is.SameAs(system));
                 // Inactive module data uses the original selection APIs without starting its unrelated input providers.
                 var module = Host("Lucid owned clear-state input module").AddComponent<HLInputModule>();
                 var bridge = ScriptableObject.CreateInstance<ForwardingBridge>();
@@ -150,6 +153,7 @@ namespace ProjectLucid.Tests
                 }
             },
             () => runtimeRow?.Dispose(),
+            () => { if (system != null) typeof(EventSystem).GetMethod("OnDisable", Instance).Invoke(system, null); },
             () =>
             {
                 var cleanup = new List<Action>();
@@ -162,9 +166,13 @@ namespace ProjectLucid.Tests
             },
             () =>
             {
-                EventSystem.current = priorSystem;
-                if (priorSystem != null && priorSystem.currentSelectedGameObject != priorSelection)
-                    priorSystem.SetSelectedGameObject(priorSelection);
+                if (priorSystem != null)
+                {
+                    EventSystem.current = priorSystem;
+                    if (priorSystem.currentSelectedGameObject != priorSelection)
+                        priorSystem.SetSelectedGameObject(priorSelection);
+                }
+                Assert.That(EventSystem.current, Is.SameAs(priorSystem));
             });
         }
     }
