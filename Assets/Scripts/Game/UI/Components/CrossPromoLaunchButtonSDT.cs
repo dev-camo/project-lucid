@@ -1,5 +1,6 @@
 using System;
 using Hardlight;
+using ProjectLucid.Offline;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 
@@ -21,6 +22,14 @@ namespace HardlightProject
         // 0x06003787: when the cached data is to be used, show the placeholder in place of the icon.
         protected override void OnEnable()
         {
+            // Offline hook H-077: D14 hides the shipped launch owner and its authored menu buttons.
+            // Original 0x06003787 @0x698E00 runs base enable first; retain its acquisition/disable cleanup.
+            if (OfflineAdapters.Active)
+            {
+                base.OnEnable();
+                OfflineCrossPromoEntryPoint.HideLauncher(this);
+                return;
+            }
             base.OnEnable();
             if (ShouldUseCachedData())
                 SetPlaceHolderContentActive(true);

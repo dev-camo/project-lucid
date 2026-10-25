@@ -10916,6 +10916,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineBootHookTests." + name for na
     "TheSplashListenerCallWaitsUntilTheGraphHasLeftBoot",
     "ArmWaitsForTheNamedSceneAndLeavesTheEventThere",
 ))
+# D14: actual enable/disable and authored reactivation of shipped cross-promo entry shapes (#502).
+PLAYMODE_TESTS += (
+    "ProjectLucid.Tests.OfflineCrossPromoEntryPointTests.ShippedEntryShapesStayHiddenAcrossAuthoredReactivationAndRestoreWithAdapterOff",
+    "ProjectLucid.Tests.OfflineCrossPromoEntryPointTests.HiddenLauncherReleasesDeferredStartupAndIndependentPromptBeforeTheSystemExists",
+)
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OfflineCrossPromoHookTests." + name for name in (
     "ColdStartWithLocalStorageStaysDisabledWithoutRequests",
     "ColdStartWithoutLocalStorageStaysDisabledWithoutRequests",

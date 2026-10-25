@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Hardlight;
 using Hardlight.Utils;
+using ProjectLucid.Offline;
 using Unity.IL2CPP.CompilerServices;
 using UnityEngine;
 using UnityEngine.Events;
@@ -35,6 +36,10 @@ namespace HardlightProject
         // 060023a5 (1.10.1 RVA 0x589690): the callback is the virtual OnInput.
         private void OnEnable()
         {
+            // Offline hook H-078: D14 hides the independently authored cross-promo controller prompt
+            // before original 0x060023a5 @0x589690 subscribes its virtual input callback.
+            if (OfflineAdapters.Active && OfflineCrossPromoEntryPoint.HideInputEntryPoint(gameObject, m_event))
+                return;
             ControlMapping.Subscribe(m_input, OnInput, InputTrigger.Down, -1);
         }
 

@@ -83,6 +83,8 @@ ALLOWED = {
     "Assets/Tests/PlayMode/FSMComponentTests.cs": (3, OWNED),
     "Assets/Tests/PlayMode/LevelManagerSystemsLifecycleTests.cs": (2, PROOF),
     "Assets/Tests/PlayMode/LoggingHostTests.cs": (5, OWNED),
+    # CrossPromo and SystemConfiguration are admitted/captured before startup and released after owned UI teardown.
+    "Assets/Tests/PlayMode/OfflineCrossPromoEntryPointTests.cs": (4, OWNED),
     "Assets/Tests/PlayMode/OriginalHLPhysicsLifecycleTests.cs": (1, OWNED),
     "Assets/Tests/PlayMode/OriginalHLSimpleScrollPlayTests.cs": (4, OWNED),
     "Assets/Tests/PlayMode/OriginalHLUIEffectManagerGapTests.cs": (1, UNLEASED),

@@ -4,6 +4,7 @@ using System.Reflection;
 using Hardlight;
 using HardlightProject;
 using NUnit.Framework;
+using ProjectLucid.Offline;
 using ProjectLucid.Tests.CrossPromoUIShared;
 using UnityEngine;
 using UnityEngine.UI;
@@ -43,9 +44,13 @@ namespace ProjectLucid.Tests
         // The configuration is leased first, so it is released last.
         private static void Run(bool canUseLocalStorage, bool promoEnabled, Action<Owned, Scene> body) => Owned.Run(owned =>
         {
-            owned.Lease(new OwnedCrossPromoConfiguration("{\"m_canUseLocalStorage\":" + (canUseLocalStorage ? "true" : "false") + "}"));
-            var scene = new Scene { Game = new CrossPromoGameScene(owned, promoEnabled, "a", "b") };
-            body(owned, scene);
+            // Original 0x06003787 @0x698E00 shows cached content; D14 hiding is tested separately with the adapter on.
+            using (OfflineAdapters.Override(false))
+            {
+                owned.Lease(new OwnedCrossPromoConfiguration("{\"m_canUseLocalStorage\":" + (canUseLocalStorage ? "true" : "false") + "}"));
+                var scene = new Scene { Game = new CrossPromoGameScene(owned, promoEnabled, "a", "b") };
+                body(owned, scene);
+            }
         });
 
         // dump.cs TypeDefIndex 2455 and the DummyDll rows (fields 0x04002825..0x04002829).
