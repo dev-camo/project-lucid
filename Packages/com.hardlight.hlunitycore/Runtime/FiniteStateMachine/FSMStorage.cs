@@ -50,7 +50,6 @@ namespace Hardlight
         // 0x060004be; arm64 0x1ad1490.
         public void ClearStateHistory()
         {
-            if (StateHistoryMaxCount < 1) return;
             Dictionary<int, Queue<FSMStateChangeAction>> history = MyStateHistory;
             if (history == null) return;
             foreach (KeyValuePair<int, Queue<FSMStateChangeAction>> entry in history)

@@ -4901,6 +4901,15 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.SharedStateSnapshotTests.ReplacedOpStringCacheIsReportedUntilRestored",
 )
 
+# Existing FSM history drains even after its stored maximum is disabled (#475).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.FSMStorageHistoryClearTests." + name for name in (
+    "ClearStateHistoryDrainsAfterTheMaximumIsZeroed",
+    "ClearStateHistoryDrainsAfterTheMaximumIsNegative",
+    "ClearStateHistoryDrainsAfterTheMaximumIsRemoved",
+    "ClearDrainsBeforeDiscardingEntriesAfterTheMaximumIsZeroed",
+    "ClearStateHistoryDrainsWithAPositiveMaximum",
+))
+
 # Secondary fixture diagnostics cannot stop cleanup or replace its first failure (#470).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpContinuesWhenTheWarningLoggerThrows(0)",
