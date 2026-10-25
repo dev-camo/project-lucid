@@ -141,8 +141,14 @@ def precheck_resources(source, control, identity, *, registry):
                             and all(isinstance(value, str) and re.fullmatch(r'CS[0-9]{4}', value) for value in diagnostics)
                             and seed.is_dir() and not seed.is_symlink()):
                         answer = dict(syntax_error=status == 'syntax_error', package_seed=seed)
-        except (subprocess.SubprocessError, OSError, ValueError):
+        except (subprocess.SubprocessError, OSError, ValueError) as error:
             answer = None
+            try:
+                with (state / 'private-precheck.log').open('ab') as errors:
+                    errors.write((json.dumps({'stage': 'optional-child', 'error_type': type(error).__name__,
+                                             'message': str(error)[:2048]}, sort_keys=True) + '\n').encode('utf-8'))
+            except OSError:
+                pass  # Private diagnostics cannot replace the normal compiler's outcome.
         # Never catch custody failures as ordinary optional unavailability.
         stopped_precheck(state)
         retain_diagnostics(source, state, output)
@@ -175,12 +181,13 @@ def child_resources(control, state, registries):
         if tree_identity(cache) != before or tree_identity(seed) != before:
             raise ValueError('Public package cache changed while copied')
     tools, packages = installed_tool_closure(), tree_identity(seed)
-    value = {'package_seed': str(seed), 'package_identity': identity_digest(packages),
-             'tool_identity': identity_digest(tools), 'registries': registries}
+    value = {'package_seed': str(seed), 'package_identity': identity_digest(packages), 'registries': registries}
     (state / 'tool-closure.json').write_text(json.dumps(tools, sort_keys=True))
     with sandbox.licensing_broker(state, registries=registries) as (pipe, sockets):
         value.update(pipe=pipe, sockets=[str(path) for path in sockets])
         yield value
+    # One enclosing tool inventory pair covers capture/parser use and broker
+    # teardown while avoiding repeated full scans within the optional budget.
     # The producer emits its receipt only after this context has verified all inputs.
     if tree_identity(seed) != packages or installed_tool_closure() != tools:
         raise ValueError('Witness package or tool closure changed during use')
@@ -330,8 +337,6 @@ def produce_precheck(source, control, state, identity, resources):
     changed = witness.admit_source_changes(source, control, possible)
     if not changed:
         return {'status': 'unavailable'}
-    if identity_digest(installed_tool_closure()) != resources['tool_identity']:
-        raise ValueError('Installed compiler closure changed before capture')
     project, plan = capture_plan(control, state, inventory, resources)
     if witness.admit_source_changes(source, control, plan['candidate_sources']) != changed:
         raise ValueError('Admitted source changed during capture')
@@ -343,8 +348,7 @@ def produce_precheck(source, control, state, identity, resources):
     unchanged()
     if witness._tracked_inventory(control) != inventory:
         raise ValueError('Control inputs changed during witness')
-    if (identity_digest(installed_tool_closure()) != resources['tool_identity']
-            or identity_digest(tree_identity(Path(resources['package_seed']))) != resources['package_identity']
+    if (identity_digest(tree_identity(Path(resources['package_seed']))) != resources['package_identity']
             or tree_identity(project / 'Library/PackageCache') != plan['resolved_packages']):
         raise ValueError('Compiler/package closure changed during witness')
     return dict(identity, status='syntax_error' if diagnostics else 'ready',

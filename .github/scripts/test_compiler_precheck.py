@@ -1,6 +1,7 @@
 """Optional witness budget and ownership, independent of normal compilation."""
 import inspect
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -197,6 +198,101 @@ class OptionalPrecheckTests(unittest.TestCase):
         self.assertEqual('verify-resources-and-custody', diagnostic['stage'])
         self.assertEqual('ValueError', diagnostic['error_type'])
         self.assertEqual('Witness package or tool closure changed during use', diagnostic['message'])
+
+    def test_real_producer_tool_measurements_enclose_use_and_broker_teardown(self):
+        paths = mock.patch.object(sys, 'path', [str(Path(__file__).resolve().parents[2] / 'tools'), *sys.path])
+        paths.start()
+        self.addCleanup(paths.stop)
+        from lucidlib import verification
+
+        for mutation in (None, 'capture', 'broker teardown'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory(dir=self.root) as directory:
+                state = Path(directory)
+                tool = state / 'installed-tool'
+                tool.write_bytes(b'original tool bytes')
+                relative = 'Assets/A.cs'
+                project = state / 'project'
+                original = project / relative
+                original.parent.mkdir(parents=True)
+                original.write_text('class A {}')
+                (project / 'Library/PackageCache').mkdir(parents=True)
+                inventory = {relative: ('100644', hashlib.sha256(original.read_bytes()).hexdigest())}
+                events = []
+
+                class Output(io.StringIO):
+                    def write(self, value):
+                        if value.startswith('{'):
+                            events.append('publish')
+                        return super().write(value)
+
+                output, errors = Output(), io.StringIO()
+
+                def measure():
+                    events.append('measure tools')
+                    return precheck.tree_identity(tool)
+
+                @contextlib.contextmanager
+                def broker(*args, **kwargs):
+                    events.append('broker enter')
+                    try:
+                        yield 'owned', []
+                    finally:
+                        events.append('broker exit')
+                        if mutation == 'broker teardown':
+                            tool.write_bytes(b'changed tool bytes')
+
+                def capture(*args):
+                    events.append('capture')
+                    if mutation == 'capture':
+                        tool.write_bytes(b'changed tool bytes')
+                    return project, {'candidate_sources': [relative],
+                                     'resolved_packages': precheck.tree_identity(project / 'Library/PackageCache')}
+
+                def parse(*args):
+                    events.append('parse')
+                    return ['CS1525']
+
+                arguments = ['compiler_precheck.py', '--source', str(self.source), '--control', str(self.control),
+                             '--state', str(state), '--job-marker', str(self.root / 'job.json'), '--job-root', '100']
+                for name, value in self.identity.items():
+                    arguments += ['--' + name.replace('_', '-'), value]
+                with mock.patch.object(sys, 'argv', arguments), \
+                        mock.patch.object(precheck.Path, 'home', return_value=self.root), \
+                        mock.patch.object(precheck.witness, '_tracked_inventory', return_value=inventory), \
+                        mock.patch.object(precheck.witness, 'admit_source_changes', return_value=(relative,)), \
+                        mock.patch.object(precheck.shared, 'git_head', side_effect=lambda path: self.identity['head' if path == self.source else 'control_commit']), \
+                        mock.patch.object(precheck.shared.driver, 'require_control_reporting_tools'), \
+                        mock.patch.object(verification, 'artifact_fingerprint', return_value=self.identity['source_fingerprint']), \
+                        mock.patch.object(precheck, 'installed_tool_closure', side_effect=measure), \
+                        mock.patch.object(precheck.sandbox, 'licensing_broker', side_effect=broker), \
+                        mock.patch.object(precheck, 'capture_plan', side_effect=capture), \
+                        mock.patch.object(precheck, 'parse_sources', side_effect=parse), \
+                        contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+                    precheck.main()
+                self.assertLess(events.index('broker exit'), events.index('publish'))
+                # Even mutation cases complete parsing; the enclosing postcheck
+                # suppresses that positive only after the broker has stopped.
+                self.assertEqual(['measure tools', 'broker enter', 'capture', 'parse',
+                                  'broker exit', 'measure tools', 'publish'], events)
+                if mutation:
+                    self.assertEqual({'status': 'unavailable'}, json.loads(output.getvalue()))
+                    diagnostic = json.loads(errors.getvalue())
+                    self.assertEqual('ValueError', diagnostic['error_type'])
+                    self.assertIn('closure changed', diagnostic['message'])
+                else:
+                    self.assertEqual(dict(self.identity, status='syntax_error', diagnostics=['CS1525'],
+                                          package_identity=precheck.identity_digest(precheck.tree_identity(state / 'package-seed'))),
+                                     json.loads(output.getvalue()))
+                    self.assertEqual('', errors.getvalue())
+
+    def test_parent_timeout_diagnostic_is_bounded_private_and_neutral(self):
+        failure = subprocess.TimeoutExpired(['inert-' + 'x' * 4096], precheck.PRECHECK_SECONDS)
+        self.assertIsNone(self.run_case(error=failure))
+        retained = (self.root / 'private-syntax-precheck.log').read_text()
+        diagnostic = json.loads(retained.split('private-precheck.log\n', 1)[1].strip())
+        self.assertEqual('optional-child', diagnostic['stage'])
+        self.assertEqual('TimeoutExpired', diagnostic['error_type'])
+        self.assertEqual(2048, len(diagnostic['message']))
 
 
 class InputClosureTests(unittest.TestCase):
