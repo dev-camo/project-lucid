@@ -382,9 +382,11 @@ namespace HardlightProject
 
         private static void ResetAchievements()
         {
-            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-044: the original reset the GameCenter achievements; offline there is no reset policy, so it throws
+            // Original 0x060005b6 at x86-64 0x5383c0 resets GameCenter below.
+            if (ProjectLucid.Offline.OfflineAdapters.Active) // Offline hook H-044: D6 resets the local achievement profile
             {
-                throw new InvalidOperationException("Offline achievement reset requires explicit local profile reset policy.");
+                ProjectLucid.Offline.LocalAchievementRuntime.ResetAchievements();
+                return;
             }
 #if UNITY_IOS || UNITY_TVOS || UNITY_STANDALONE_OSX // GameCenterPlatform exists only in Apple players; see docs/offline-hooks.md
             GameCenterPlatform.ResetAllAchievements(null);

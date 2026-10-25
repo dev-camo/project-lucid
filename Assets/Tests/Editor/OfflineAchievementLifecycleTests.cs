@@ -100,6 +100,176 @@ namespace ProjectLucid.Tests.EditMode
             }
         }
 
+        // D6 deliberately resets the local profile. Original ResetAchievements
+        // 060005b6 @5383C0 only calls GameCenterPlatform.ResetAllAchievements(null).
+        [Test]
+        public void OfflineResetClearsAllAchievementProgressAndPersistsWithoutChangingOtherProperties()
+        {
+            using (var world = new OwnedCoreWorld())
+            {
+                string[] ids = { Identifier, AchievementIdentifier.Beach_Combing.GetString(), AchievementIdentifier.Day_Dreamer2.GetString() };
+                int[] values = { 2, 1, 0 };
+                int trackerCalls = 0;
+                Action evaluate = null;
+                LocalAchievementManagerLease lease = null;
+                lease = world.Own(LocalAchievementManagerLease.Create(world.Store, ids, () => true, () =>
+                {
+                    for (int i = 0; i < ids.Length; ++i)
+                    {
+                        int index = i;
+                        lease.Manager.AddBehaviour(ids[i], 2, ref evaluate, () => { ++trackerCalls; return values[index]; });
+                    }
+                }, () => LocalAchievementRuntime.DetachEvaluators(lease.Manager, ref evaluate)));
+                lease.Start();
+                evaluate();
+                Assert.That(trackerCalls, Is.EqualTo(3));
+                Assert.That(lease.Manager.Achievements[ids[0]].ReportedComplete, Is.True);
+                Assert.That(AchievementProgress(lease.Manager.Achievements[ids[1]]), Is.EqualTo(1f));
+                Assert.That(world.Store.TrySetPropertyValueOnSave(LocalAchievementRuntime.SaveIdentifier, "unrelated-owned-setting", "retain"), Is.True);
+                var entries = lease.Manager.Achievements;
+                var originalEntries = Array.ConvertAll(ids, id => entries[id]);
+                Action originalEvaluators = evaluate;
+
+                ResetLocalAchievements();
+                ResetLocalAchievements(); // Repeating a reset must not rebuild entries or evaluators.
+                Assert.That(lease.IsReady, Is.True);
+                Assert.That(lease.Manager.Achievements, Is.SameAs(entries));
+                Assert.That(evaluate, Is.SameAs(originalEvaluators));
+                Assert.That(trackerCalls, Is.EqualTo(3), "Reset must not evaluate gameplay trackers or re-earn progress.");
+                for (int i = 0; i < ids.Length; ++i)
+                {
+                    Assert.That(entries[ids[i]], Is.SameAs(originalEntries[i]));
+                    Assert.That(entries[ids[i]].ReportedComplete, Is.False);
+                    Assert.That(AchievementProgress(entries[ids[i]]), Is.Zero);
+                    Assert.That(world.Store.GetPropertyValueFromSave(LocalAchievementRuntime.SaveIdentifier,
+                        "ProjectLucid.Local.default.Achievements." + ids[i]), Is.EqualTo("0"));
+                }
+                Assert.That(world.Store.GetPropertyValue("unrelated-owned-setting"), Is.EqualTo("retain"));
+                lease.Dispose();
+                Assert.That(evaluate, Is.Null);
+                world.Reload();
+                var restarted = world.Own(LocalAchievementManagerLease.Create(world.Store, ids, () => false, () => { }, () => { }));
+                restarted.Start();
+                foreach (string id in ids)
+                {
+                    Assert.That(restarted.Manager.Achievements[id].ReportedComplete, Is.False);
+                    Assert.That(AchievementProgress(restarted.Manager.Achievements[id]), Is.Zero);
+                    Assert.That(world.Store.GetPropertyValueFromSave(LocalAchievementRuntime.SaveIdentifier,
+                        "ProjectLucid.Local.default.Achievements." + id), Is.EqualTo("0"));
+                }
+                Assert.That(world.Store.GetPropertyValue("unrelated-owned-setting"), Is.EqualTo("retain"));
+            }
+        }
+
+        [Test]
+        public void OfflineResetAllowsHydratedCompletedAchievementsToEarnAgainThroughTheirOwnedEvaluator()
+        {
+            using (var world = new OwnedCoreWorld())
+            {
+                Action firstEvaluate = null;
+                LocalAchievementManagerLease first = null;
+                first = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier }, () => true,
+                    () => first.Manager.AddBehaviour(Identifier, 2, ref firstEvaluate, () => 2),
+                    () => LocalAchievementRuntime.DetachEvaluators(first.Manager, ref firstEvaluate)));
+                first.Start();
+                firstEvaluate();
+                Assert.That(first.Manager.Achievements[Identifier].ReportedComplete, Is.True);
+                first.Dispose();
+                Assert.That(firstEvaluate, Is.Null);
+                world.Reload();
+
+                int trackerCalls = 0;
+                Action evaluate = null;
+                LocalAchievementManagerLease hydrated = null;
+                hydrated = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier }, () => true,
+                    () => hydrated.Manager.AddBehaviour(Identifier, 2, ref evaluate, () => { ++trackerCalls; return 2; }),
+                    () => LocalAchievementRuntime.DetachEvaluators(hydrated.Manager, ref evaluate)));
+                hydrated.Start();
+                Achievement achievement = hydrated.Manager.Achievements[Identifier];
+                Assert.That(achievement.ReportedComplete, Is.True);
+                Assert.That(evaluate, Is.Not.Null, "D6 keeps the real evaluator available for a later reset.");
+                Action originalEvaluator = evaluate;
+                evaluate();
+                Assert.That(trackerCalls, Is.Zero, "The original completed guard still prevents tracking before reset.");
+                ResetLocalAchievements();
+                Assert.That(achievement.ReportedComplete, Is.False);
+                Assert.That(AchievementProgress(achievement), Is.Zero);
+                Assert.That(evaluate, Is.SameAs(originalEvaluator));
+                Assert.That(world.Store.GetPropertyValue(CompletionKey), Is.EqualTo("0"));
+                evaluate();
+                Assert.That(trackerCalls, Is.EqualTo(1));
+                Assert.That(achievement.ReportedComplete, Is.True);
+                Assert.That(world.Store.GetPropertyValue(CompletionKey), Is.EqualTo("1"));
+                hydrated.Dispose();
+                Assert.That(evaluate, Is.Null);
+                world.Reload();
+                Assert.That(world.Store.GetPropertyValue(CompletionKey), Is.EqualTo("1"));
+            }
+        }
+
+        [Test]
+        public void OfflineResetReportsPrimaryWriteFailureWithoutPublishingClearedEntriesAndCanRetry()
+        {
+            using (var world = new OwnedCoreWorld())
+            {
+                string secondId = AchievementIdentifier.Beach_Combing.GetString();
+                string secondKey = "ProjectLucid.Local.default.Achievements." + secondId;
+                Action evaluate = null;
+                LocalAchievementManagerLease lease = null;
+                lease = world.Own(LocalAchievementManagerLease.Create(world.Store, new[] { Identifier, secondId }, () => true,
+                    () => lease.Manager.AddBehaviour(Identifier, 2, ref evaluate, () => 2),
+                    () => LocalAchievementRuntime.DetachEvaluators(lease.Manager, ref evaluate)));
+                lease.Start();
+                evaluate();
+                Achievement achievement = lease.Manager.Achievements[Identifier];
+                HLPropertyList properties = world.Store.GetPropertyListFromSave(LocalAchievementRuntime.SaveIdentifier);
+                HLPropertyList.Property completed = properties.GetProperty(CompletionKey);
+                string priorName = completed.m_name;
+                byte[] primary = File.ReadAllBytes(world.PrimaryPath);
+                string backup = world.PrimaryPath + "-backup";
+                File.Delete(backup);
+                Directory.CreateDirectory(backup); // Blocks replacement of this owned primary before any write commits.
+                try
+                {
+                    List<string> errors;
+                    using (var log = new OwnedCoreErrorLog())
+                    {
+                        InvalidOperationException failure = Assert.Throws<InvalidOperationException>(ResetLocalAchievements);
+                        Assert.That(failure.Message, Is.EqualTo("Local achievement reset could not be saved."));
+                        errors = log.Errors;
+                    }
+                    Assert.That(errors.Count, Is.EqualTo(6));
+                    for (int i = 0; i < 5; ++i) Assert.That(errors[i], Does.StartWith("Exception occurred during saving "));
+                    Assert.That(errors[5], Is.EqualTo("Unable to save HLPropertyStore data of save identifier 'HL_Default_Save_ID'.:0"));
+                    Assert.That(achievement.ReportedComplete, Is.True);
+                    Assert.That(AchievementProgress(achievement), Is.EqualTo(2f));
+                    Assert.That(properties.GetProperty(CompletionKey), Is.SameAs(completed));
+                    Assert.That(completed.m_name, Is.EqualTo(priorName));
+                    Assert.That(completed.m_value, Is.EqualTo("1"));
+                    Assert.That(properties.GetProperty(secondKey), Is.Null, "Failed staging must remove only its newly added key.");
+                    Assert.That(File.ReadAllBytes(world.PrimaryPath), Is.EqualTo(primary));
+                }
+                finally { Directory.Delete(backup); }
+                ResetLocalAchievements();
+                Assert.That(achievement.ReportedComplete, Is.False);
+                Assert.That(AchievementProgress(achievement), Is.Zero);
+                lease.Dispose();
+                world.Reload();
+                Assert.That(world.Store.GetPropertyValue(CompletionKey), Is.EqualTo("0"));
+                Assert.That(world.Store.GetPropertyValue(secondKey), Is.EqualTo("0"));
+            }
+        }
+
+        private static void ResetLocalAchievements()
+        {
+            var reset = (Action)Delegate.CreateDelegate(typeof(Action), typeof(Achievements).GetMethod(
+                "ResetAchievements", BindingFlags.Static | BindingFlags.NonPublic));
+            reset();
+        }
+
+        private static float AchievementProgress(Achievement achievement) =>
+            (float)typeof(Achievement).GetField("m_progress", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(achievement);
+
         [Test]
         public void MalformedOwnedCompletionValueFailsBeforePublishingEntriesOrReadiness()
         {
@@ -687,6 +857,7 @@ namespace ProjectLucid.Tests.EditMode
             // admitted rows keep their dictionary and exact subscriber pairs.
             private readonly VerificationFixtureOwnership.ActionRows actionRows = new VerificationFixtureOwnership.ActionRows(
                 SystemAction.AppInitialise, SystemAction.Initialise, SystemAction.Shutdown);
+            internal string PrimaryPath => Path.Combine(Application.persistentDataPath, filePrefix + LocalAchievementRuntime.SaveIdentifier);
             internal HLPropertyStore Store { get; private set; }
             internal OwnedCoreWorld()
             {

@@ -462,6 +462,13 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.GenuineChallengeLeaderboardIsUnavailableOfflineThroughTheOriginalLoginQuery",
 )
 
+# Persistent offline achievement reset and retained evaluators (#501).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OfflineResetClearsAllAchievementProgressAndPersistsWithoutChangingOtherProperties",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OfflineResetAllowsHydratedCompletedAchievementsToEarnAgainThroughTheirOwnedEvaluator",
+    "ProjectLucid.Tests.EditMode.OfflineAchievementLifecycleTests.OfflineResetReportsPrimaryWriteFailureWithoutPublishingClearedEntriesAndCanRetry",
+)
+
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalMainMenuFSMTests.SaveLoadFactoryIgnoresJsonAndRegistersAnOwnedOrdinaryState",
     "ProjectLucid.Tests.OriginalMainMenuFSMTests.SaveLoadNullUserFaultsBeforeTheSaveAndCoroutineBoundary",

@@ -77,15 +77,13 @@ namespace ProjectLucid.Offline
             if (!achievements.TryGetValue(id, out Achievement achievement)) throw new KeyNotFoundException(id);
             Context context = Contexts[manager];
             Func<int> guardedTracker = tracker == null ? null : (Func<int>)(() => context.Ready && context.TrackingAllowed() ? tracker() : 0);
-            if (!achievement.ReportedComplete)
-            {
-                // The genuine AddBehaviour body appends exactly its Evaluate delegate.
-                int priorCount = evaluateOn?.GetInvocationList().Length ?? 0;
-                achievement.AddBehaviour(target, ref evaluateOn, guardedTracker, prerequisiteTarget);
-                Delegate[] after = evaluateOn.GetInvocationList();
-                if (after.Length != priorCount + 1) throw new InvalidOperationException("Unexpected genuine achievement subscription shape.");
-                context.Evaluators.Add((Action)after[priorCount]);
-            }
+            // D6 needs bindings after reset, including completions loaded from disk.
+            // Original Evaluate (0x06001109) does no work while ReportedComplete is true.
+            int priorCount = evaluateOn?.GetInvocationList().Length ?? 0;
+            achievement.AddBehaviour(target, ref evaluateOn, guardedTracker, prerequisiteTarget);
+            Delegate[] after = evaluateOn.GetInvocationList();
+            if (after.Length != priorCount + 1) throw new InvalidOperationException("Unexpected genuine achievement subscription shape.");
+            context.Evaluators.Add((Action)after[priorCount]);
         }
 
         public static void DetachEvaluators(AchievementsManager manager, ref Action evaluateOn)
@@ -101,6 +99,51 @@ namespace ProjectLucid.Offline
             if (!context.TrackingAllowed() || !complete) return false;
             if (!context.Store.CanSave) return false;
             return context.Store.TrySetPropertyValueOnSave(SaveIdentifier, KeyPrefix + id, "1");
+        }
+
+        public static void ResetAchievements()
+        {
+            var manager = ProcessManager.GetSystemRef(ProcessManager.GetDefaultName<AchievementsManager>(), false).GetSafe() as AchievementsManager;
+            if (!IsReady(manager)) throw new InvalidOperationException("Local achievement definitions are not ready.");
+            Context context = Contexts[manager];
+            if (!context.Store.IsLoaded || !context.Store.CanSave || context.Store.GetSaveIdentifier() != SaveIdentifier)
+                throw new InvalidOperationException("Local profile requires the loaded, idle default property store.");
+
+            HLPropertyList properties = context.Store.GetPropertyListFromSave(SaveIdentifier);
+            var previous = new HLPropertyList.Property[context.Identifiers.Length];
+            var names = new string[previous.Length];
+            var values = new string[previous.Length];
+            for (int i = 0; i < previous.Length; ++i)
+            {
+                previous[i] = properties.GetProperty(KeyPrefix + context.Identifiers[i]);
+                names[i] = previous[i]?.m_name;
+                values[i] = previous[i]?.m_value;
+            }
+            try
+            {
+                // Stage all completion keys for one write through the same path as progress.
+                foreach (string id in context.Identifiers) properties.AddProperty(KeyPrefix + id, "0");
+                if (!context.Store.TrySetPropertyValueOnSave(SaveIdentifier, KeyPrefix + context.Identifiers[0], "0"))
+                    throw new InvalidOperationException("Local achievement reset could not be saved.");
+            }
+            catch
+            {
+                // Restore our cached rows, not the file: the existing writer can fail
+                // its backup after the primary has already been replaced.
+                for (int i = 0; i < previous.Length; ++i)
+                {
+                    if (previous[i] == null) properties.RemoveProperty(KeyPrefix + context.Identifiers[i]);
+                    else
+                    {
+                        previous[i].m_name = names[i];
+                        previous[i].m_value = values[i];
+                    }
+                }
+                throw;
+            }
+            // D6 resets both fields through the original two-store body
+            // (SyncPlatformValues, 0x06001104, x86-64 0x1b2ed90).
+            foreach (Achievement achievement in context.Entries.Values) achievement.SyncPlatformValues(0f, false);
         }
 
         // Abort uses the actual dictionary supplied by the genuine manager's
