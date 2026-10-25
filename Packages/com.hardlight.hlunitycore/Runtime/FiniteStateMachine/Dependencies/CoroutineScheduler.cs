@@ -114,11 +114,13 @@ namespace Hardlight.Utils
 			m_first = coroutine;
 		}
 
-		// 0x0600116e; 0x1B31480. A non-head node with no links is left in
+		// 0x0600116e; 0x1B31480. Null returns before any field access.
+		// A non-head node with no links is left in
 		// place; one with a next link but no previous link faults before its
 		// links are cleared. Otherwise the removed node's links are cleared.
 		private void RemoveCoroutine(CoroutineNode coroutine)
 		{
+			if (coroutine == null) return;
 			if (m_first == coroutine)
 			{
 				m_first = coroutine.m_listNext;

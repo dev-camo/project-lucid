@@ -3854,6 +3854,12 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalDispatchUtilitiesTests." + n
     "CompilerGeneratedNamesMatchTheOriginalMemberOrdinals",
 ))
 
+# Original null scheduler removal preserves all state (#514).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CoroutineSchedulerNullRemovalTests.NullRemovalPreservesSchedulerAndEveryNode(False)",
+    "ProjectLucid.Tests.CoroutineSchedulerNullRemovalTests.NullRemovalPreservesSchedulerAndEveryNode(True)",
+)
+
 # HLUnityCore payload, key/value, serialised type reference and debug utility types.
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalKeyValueParserTests." + name for name in (
     "DefaultParserSplitsLinesAtTheFirstEqualsAndTrimsKeysAndValues",
