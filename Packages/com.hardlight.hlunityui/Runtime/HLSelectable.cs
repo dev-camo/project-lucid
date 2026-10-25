@@ -332,11 +332,12 @@ namespace Hardlight
             Disabled = 3
         }
 
+        // 0x060006cb (0x1b72370) clears the pointer flags, then tail-calls slot 44 Deselect.
         protected virtual void InstantClearState()
         {
             IsPointerInside = false;
             IsPointerDown = false;
-            InternalEvaluateAndTransitionToSelectionState(false);
+            Deselect();
         }
 
         protected virtual void DoStateTransition(SelectionState state, bool instant)

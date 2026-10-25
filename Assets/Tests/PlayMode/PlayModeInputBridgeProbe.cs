@@ -18,6 +18,8 @@ namespace ProjectLucid.Tests
         public bool ModuleExists;
         public GameObject SelectedObject;
         public Action BeforeLastInputType;
+        public HLInputBridge DeselectionBridge;
+        public readonly List<GameObject> DeselectionRequests = new List<GameObject>();
         public readonly List<string> Calls = new List<string>();
 
         public override void SetInputModule(BaseInputModule inputModule) => Calls.Add("SetInputModule");
@@ -59,7 +61,12 @@ namespace ProjectLucid.Tests
             Calls.Add("SetSelectedGameObjectWithMemory " + (selectableGameObject == null ? "null" : selectableGameObject.name));
 
         public override void SetHardwareCursorVisibility(bool visibility) => throw Unexpected();
-        public override void DeselectObjectIfCurrentlySelected(GameObject gameObject) => throw Unexpected();
+        public override void DeselectObjectIfCurrentlySelected(GameObject gameObject)
+        {
+            if (DeselectionBridge == null) throw Unexpected();
+            DeselectionRequests.Add(gameObject);
+            DeselectionBridge.DeselectObjectIfCurrentlySelected(gameObject);
+        }
         public override void RegisterInputListener(InputSupplier inputSupplier, Action<Vector2> callback, int joystickIndex = -1) => throw Unexpected();
         public override void UnregisterInputListener(InputSupplier inputSupplier, Action<Vector2> callback, int joystickIndex = -1) => throw Unexpected();
         public override void RegisterInputListener(InputSupplier inputSupplier, Action<List<Vector2>> callback, int joystickIndex = -1) => throw Unexpected();

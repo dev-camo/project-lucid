@@ -4371,6 +4371,13 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLTappableTests." + name for
 ))
 
 
+# Original virtual clear-state dispatch and real input-bridge deselection (#482).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSelectableClearStateTests." + name for name in (
+    "InstantClearStateClearsBothPointerFlagsThenDeselects",
+    "DisablingASelectedControlWithAnActiveCompanionHandlerClearsSelectionThroughTheBridge",
+    "DisablingTheSoleSelectedHandlerRequestsDeselectionButRetainsTheModuleGuard",
+))
+
 # Compiler-generated HLSelectable iterator and HLSelectableInputListener closure (HLUnityUI.Runtime).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.OriginalHLSelectableGeneratedMembersTests." + name for name in (
     "WaitForRootObjectsStateMachineKeepsTheShippingName",

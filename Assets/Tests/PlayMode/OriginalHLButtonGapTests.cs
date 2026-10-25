@@ -79,6 +79,7 @@ namespace ProjectLucid.Tests
                 // Normal: no read of the null event.
                 Assert.That(State(button), Is.EqualTo(0));
                 button.gameObject.SetActive(false);
+                Assert.That(fixture.Probe.DeselectionRequests, Is.EqualTo(new[] { button.gameObject }));
                 button.gameObject.SetActive(true);
 
                 // Pointer-inside unpressed is the original Highlighted state.
@@ -87,6 +88,7 @@ namespace ProjectLucid.Tests
                 LogAssert.Expect(LogType.Exception, new Regex("NullReferenceException"));
                 button.gameObject.SetActive(false);
                 Assert.That(ActiveSelectables.GetSelectables().Contains(button), Is.False, "base OnDisable completed before the fault");
+                Assert.That(fixture.Probe.DeselectionRequests, Is.EqualTo(new[] { button.gameObject, button.gameObject }));
 
                 var observed = new List<string>();
                 button.OnDisabledSelected = new UnityEvent();
@@ -96,6 +98,7 @@ namespace ProjectLucid.Tests
                 button.OnPointerEnter(data);
                 button.gameObject.SetActive(false);
                 Assert.That(observed, Is.EqualTo(new[] { "listed=False state=1" }));
+                Assert.That(fixture.Probe.DeselectionRequests, Is.EqualTo(new[] { button.gameObject, button.gameObject, button.gameObject }));
                 LogAssert.NoUnexpectedReceived();
             }
         }
@@ -208,6 +211,12 @@ namespace ProjectLucid.Tests
 
                     Probe = ScriptableObject.CreateInstance<PlayModeInputBridgeProbe>();
                     allocations.Add(Probe);
+                    // Native InstantClearState (0x1b72370) tail-calls Deselect; this fixture owns its real forwarding bridge.
+                    var deselectionBridge = ScriptableObject.CreateInstance<HLInputBridge>();
+                    allocations.Add(deselectionBridge);
+                    var module = Owner("Lucid owned button deselection module", false).AddComponent<HLInputModule>();
+                    deselectionBridge.SetInputModule(module);
+                    Probe.DeselectionBridge = deselectionBridge;
                     GameObject configurationOwner = Owner("Lucid owned UI runtime configuration", false);
                     Set(configurationOwner.AddComponent<UIRuntimeConfiguration>(), "m_inputBridge", Probe);
                     configurationOwner.SetActive(true);
