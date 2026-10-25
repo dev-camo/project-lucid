@@ -20,7 +20,11 @@ namespace HardlightProject
         {
             if (m_overridesDictionary.Count > 0) return;
             foreach (KeyValuePair<TimeCategory, float> entry in m_overrides)
-                m_overridesDictionary[lookup[entry.Key]] = entry.Value;
+            {
+                // Original 06002e70 @ 5FBF40 resolves the category before reading the destination field.
+                TimeCategoryObject category = lookup[entry.Key];
+                m_overridesDictionary[category] = entry.Value;
+            }
         }
         // 06002e71 / 5d5d90: own enum dictionary allocation precedes the genuine base constructor.
         public TimeSettings_SDT() { }
