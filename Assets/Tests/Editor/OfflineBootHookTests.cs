@@ -25,8 +25,10 @@ namespace ProjectLucid.Tests
     // and its "Coroutine couldn't be started" refusal (a download on an inactive host) would
     // surface here. The retained original bodies are run, with the adapters off, by the existing
     // cases for HLCrossPromo.Start; the FairPlay original is never invoked.
-    public sealed class OfflineBootHookTests
+    public sealed class OfflineBootHookTests : OwnedGraphNamesFixture
     {
+        public OfflineBootHookTests() : base("Lucid-offline-boot-") { }
+
         private static string Name() => "Lucid-offline-boot-" + Guid.NewGuid().ToString("N");
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);
         private static FSMUser User() => new FSMUser(new FSMStorage(0));

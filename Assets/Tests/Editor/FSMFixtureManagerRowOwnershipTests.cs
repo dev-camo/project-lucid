@@ -11,8 +11,11 @@ namespace ProjectLucid.Editor
     // FSMManager.GetManager (0x060003eb) registers a new default manager whenever the default
     // row is null. The FSM fixtures that reach it must own that row only when it was absent,
     // borrow a live manager in place and set a borrowed empty row aside without firing it.
-    public sealed class FSMFixtureManagerRowOwnershipTests
+    public sealed class FSMFixtureManagerRowOwnershipTests : ProjectLucid.Tests.OwnedGraphNamesFixture
     {
+        public FSMFixtureManagerRowOwnershipTests()
+            : base("Lucid-row-scope-", "Lucid-cleanup-shape-", "Lucid-borrowed-manager-") { }
+
         private static readonly string ManagerName = ProcessManager.GetDefaultName<FSMManager>();
 
         private static readonly KeyValuePair<string, Action>[] Fixtures =

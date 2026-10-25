@@ -37,19 +37,23 @@ namespace ProjectLucid
         public static int RunManaged() { Execute(); return checks; }
         private static void Execute()
         {
-            checks = 0;
-            object[] previous = StoreStatics.Select(name => Static(name).GetValue(null)).ToArray();
-            var registration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<HLPropertyStore>(), previous);
-            try
+            // Original name registration (060008ad / 1AEDB80) outlives FSM cleanup. Own only this run's new synthetic names.
+            using (new SyntheticGraphNameScope("ProjectLucid-Boot-state-proof-"))
             {
-                VerifyKeysAndFactories();
-                VerificationFixtureOwnership.FaultPoint(NamesRegisteredSite);
-                VerifyCleanup(registration); VerifyCurrentStorageAndSingleton(registration); VerifyShutdown(registration);
-            }
-            finally
-            {
-                try { registration.Dispose(); }
-                finally { for (int i = 0; i < StoreStatics.Length; i++) Static(StoreStatics[i]).SetValue(null, previous[i]); }
+                checks = 0;
+                object[] previous = StoreStatics.Select(name => Static(name).GetValue(null)).ToArray();
+                var registration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<HLPropertyStore>(), previous);
+                try
+                {
+                    VerifyKeysAndFactories();
+                    VerificationFixtureOwnership.FaultPoint(NamesRegisteredSite);
+                    VerifyCleanup(registration); VerifyCurrentStorageAndSingleton(registration); VerifyShutdown(registration);
+                }
+                finally
+                {
+                    try { registration.Dispose(); }
+                    finally { for (int i = 0; i < StoreStatics.Length; i++) Static(StoreStatics[i]).SetValue(null, previous[i]); }
+                }
             }
         }
         private static IFSMState Cleanup() => ApplicationStateBootCleanup.ConstructInstance(Machine(), Name(), "invalid unused json");

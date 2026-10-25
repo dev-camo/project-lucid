@@ -22,33 +22,37 @@ namespace ProjectLucid
 
         public static void Run()
         {
-            s_ownedRows.Clear();
-            IDictionary rows = RegistryRows();
-            List<DictionaryEntry> original = Entries(rows);
-            object[] layout = CaptureLayout(rows);
-            // The verifiers add the further rows they create to s_ownedRows.
-            try
+            // Original name registration (060008ad / 1AEDB80) outlives FSM cleanup. Own only this run's new synthetic names.
+            using (new SyntheticGraphNameScope("Lucid-verification-manager-", "Lucid-verification-invalid-read"))
             {
-                WithDefaultManagerRow(() =>
+                s_ownedRows.Clear();
+                IDictionary rows = RegistryRows();
+                List<DictionaryEntry> original = Entries(rows);
+                object[] layout = CaptureLayout(rows);
+                // The verifiers add the further rows they create to s_ownedRows.
+                try
                 {
-                    VerifyFastActions();
-                    VerifySystemReferences();
-                    VerifyManagers();
-                    VerificationFixtureOwnership.FaultPoint(ManagerNamesRegisteredSite);
-                    VerifyDiagnostics();
-                    VerificationFixtureOwnership.FaultPoint(DiagnosticNamesRegisteredSite);
-                }, null, s_ownedRows);
-            }
-            finally { s_ownedRows.Clear(); }
-            // The downstream verifiers clear and re-add the registry, so restore its layout again after them.
-            try
-            {
-                ProcessUnregistrationVerification.Run();
-                ProcessActionVerification.Run();
-            }
-            finally
-            {
-                if (HoldsExactly(rows, original)) RestoreLayout(rows, layout);
+                    WithDefaultManagerRow(() =>
+                    {
+                        VerifyFastActions();
+                        VerifySystemReferences();
+                        VerifyManagers();
+                        VerificationFixtureOwnership.FaultPoint(ManagerNamesRegisteredSite);
+                        VerifyDiagnostics();
+                        VerificationFixtureOwnership.FaultPoint(DiagnosticNamesRegisteredSite);
+                    }, null, s_ownedRows);
+                }
+                finally { s_ownedRows.Clear(); }
+                // The downstream verifiers clear and re-add the registry, so restore its layout again after them.
+                try
+                {
+                    ProcessUnregistrationVerification.Run();
+                    ProcessActionVerification.Run();
+                }
+                finally
+                {
+                    if (HoldsExactly(rows, original)) RestoreLayout(rows, layout);
+                }
             }
         }
 
