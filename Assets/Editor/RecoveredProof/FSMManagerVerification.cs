@@ -17,6 +17,8 @@ namespace ProjectLucid
         // Registry rows this run created. The original UnregisterSystem keeps rows, typed
         // caches and observers, so the fixture also drops exactly these rows afterwards.
         private static readonly List<string> s_ownedRows = new List<string>();
+        internal const string ManagerNamesRegisteredSite = "FSMManagerVerification.ManagerNamesRegistered";
+        internal const string DiagnosticNamesRegisteredSite = "FSMManagerVerification.DiagnosticNamesRegistered";
 
         public static void Run()
         {
@@ -32,7 +34,9 @@ namespace ProjectLucid
                     VerifyFastActions();
                     VerifySystemReferences();
                     VerifyManagers();
+                    VerificationFixtureOwnership.FaultPoint(ManagerNamesRegisteredSite);
                     VerifyDiagnostics();
+                    VerificationFixtureOwnership.FaultPoint(DiagnosticNamesRegisteredSite);
                 }, null, s_ownedRows);
             }
             finally { s_ownedRows.Clear(); }

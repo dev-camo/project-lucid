@@ -4951,6 +4951,30 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.FSMStorageHistoryClearTests." + name
     "ClearStateHistoryDrainsWithAPositiveMaximum",
 ))
 
+# Remaining fixture/helper graph-name ownership, including failure exits (#517).
+EDITMODE_TESTS += (
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("FairPlay",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("FairPlay",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("Splash",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("Splash",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("Arm",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("Arm",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("RowFailure",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("RowFailure",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("RowCleanup",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("RowCleanup",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("RowBorrowed",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.FixtureLifecycleReleasesNamesAfterEachInvocation("RowBorrowed",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.PublicHelperReleasesNamesAfterEachInvocation("Manager",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.PublicHelperReleasesNamesAfterEachInvocation("Manager",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.PublicHelperReleasesNamesAfterEachInvocation("Boot",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.PublicHelperReleasesNamesAfterEachInvocation("Boot",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.PublicHelperReleasesNamesAfterEachInvocation("BootManaged",False)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.PublicHelperReleasesNamesAfterEachInvocation("BootManaged",True)',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.ManagerDiagnosticsPreconditionFailureReleasesNames',
+    'ProjectLucid.Tests.RemainingGraphNameOwnershipTests.ManagerProofPreservesThePreexistingFixedDiagnosticKey',
+)
+
 # Synthetic graph names stay owned across successful and failed fixtures (#476).
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.SyntheticGraphNameOwnershipTests." + name for name in (
     "StorageConditionProofLeavesNoConditionNamesAcrossRepeatedRuns",

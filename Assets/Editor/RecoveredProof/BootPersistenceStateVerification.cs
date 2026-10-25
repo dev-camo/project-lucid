@@ -13,6 +13,7 @@ namespace ProjectLucid
     public static class BootPersistenceStateVerification
     {
         private static int checks;
+        internal const string NamesRegisteredSite = "BootPersistenceStateVerification.NamesRegistered";
         private static readonly string[] StoreStatics = { "s_internalInstance", "SaveHandlers", "ModifySaveHandlers", "ResolveConflictHandlers", "SaveSuccessHandlers", "AfterConflictsResolvedHandlers", "LoadHandlers" };
         private static void Check(bool value, string message) { checks++; if (!value) throw new InvalidOperationException(message); }
         private static void Throws<T>(Action callback, string message) where T : Exception
@@ -39,7 +40,12 @@ namespace ProjectLucid
             checks = 0;
             object[] previous = StoreStatics.Select(name => Static(name).GetValue(null)).ToArray();
             var registration = new VerificationFixtureOwnership.RegistryRow(ProcessManager.GetDefaultName<HLPropertyStore>(), previous);
-            try { VerifyKeysAndFactories(); VerifyCleanup(registration); VerifyCurrentStorageAndSingleton(registration); VerifyShutdown(registration); }
+            try
+            {
+                VerifyKeysAndFactories();
+                VerificationFixtureOwnership.FaultPoint(NamesRegisteredSite);
+                VerifyCleanup(registration); VerifyCurrentStorageAndSingleton(registration); VerifyShutdown(registration);
+            }
             finally
             {
                 try { registration.Dispose(); }
