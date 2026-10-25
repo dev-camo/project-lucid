@@ -13,13 +13,19 @@ namespace ProjectLucid
     // Passing does not establish the authored application graph or game startup.
     public static class FSMStorageConditionVerification
     {
+        internal const string StorageNamesRegisteredSite = "FSMStorageConditionVerification.VerifyStorage";
         private static int checks;
         private static string Name() => "Lucid-condition-" + Guid.NewGuid().ToString("N");
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);
         public static void Run()
         {
             checks = 0;
-            VerifyStorage(); VerifyBooleanCheck(); VerifyExistsAndSet(); VerifyTimeout(); VerifyMetadata(); VerifyJSON();
+            using (new SyntheticGraphNameScope("Lucid-condition-"))
+            {
+                VerifyStorage();
+                VerificationFixtureOwnership.FaultPoint(StorageNamesRegisteredSite);
+                VerifyBooleanCheck(); VerifyExistsAndSet(); VerifyTimeout(); VerifyMetadata(); VerifyJSON();
+            }
             Debug.Log("Original FSM storage/Boolean/timeout source-based verification passed: " + checks + " checks. Authored startup remains unresolved.");
         }
         private sealed class RecordingStorage : IGraphStorage

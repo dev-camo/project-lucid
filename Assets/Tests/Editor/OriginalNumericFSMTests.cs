@@ -14,7 +14,10 @@ namespace ProjectLucid.Tests
     // shipping native implementation, original services or the authored boot FSM.
     public class OriginalNumericFSMTests : OwnedGraphNamesFixture
     {
-        public OriginalNumericFSMTests() : base("Lucid-numeric-") { }
+        // Shortcut identifiers prepend their original role to the owned variable name.
+        public OriginalNumericFSMTests() : base("Lucid-numeric-", "DiceRoll_null_null_Lucid-numeric-",
+            "CheckFloatInRange_null_null_Lucid-numeric-", "CheckInt_null_null_Lucid-numeric-",
+            "CheckFloat_null_null_Lucid-numeric-") { }
 
         private static string Name() => "Lucid-numeric-" + Guid.NewGuid().ToString("N");
         private static FiniteStateMachine Machine() => new FiniteStateMachine(Name(), skipAddToManager: true);

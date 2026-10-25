@@ -4910,6 +4910,14 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.FSMStorageHistoryClearTests." + name
     "ClearStateHistoryDrainsWithAPositiveMaximum",
 ))
 
+# Synthetic graph names stay owned across successful and failed fixtures (#476).
+EDITMODE_TESTS += tuple("ProjectLucid.Tests.SyntheticGraphNameOwnershipTests." + name for name in (
+    "StorageConditionProofLeavesNoConditionNamesAcrossRepeatedRuns",
+    "StorageConditionProofFailureLeavesNoConditionNames",
+    "NumericShortcutConstructorsReleaseTheirDerivedNames",
+    "NumericShortcutConstructorFailureReleasesTheirDerivedNames",
+))
+
 # Secondary fixture diagnostics cannot stop cleanup or replace its first failure (#470).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpContinuesWhenTheWarningLoggerThrows(0)",
