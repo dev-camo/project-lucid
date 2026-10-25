@@ -39,7 +39,7 @@ def cached_license_files():
 
 
 @contextlib.contextmanager
-def licensing_broker(root):
+def licensing_broker(root, *, registries=()):
     # Normal installed licensing client, with no activation/login credentials or
     # flags. Its process, account files and private diagnostics stay on the host.
     # A unique pipe avoids depending on or disturbing another Editor's client.
@@ -54,9 +54,14 @@ def licensing_broker(root):
         # trusted host process sees them; they are never mounted for the Editor.
         command.extend(['--license', *files])
     with (root / 'private-licensing-client.log').open('xb') as log:
-        process = subprocess.Popen(command,
-                                   stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                   env=environment, close_fds=True, start_new_session=True)
+        options = dict(stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+                       env=environment, close_fds=True)
+        if registries:
+            import process_registry
+            process = process_registry.spawn_registered(
+                command, [*registries, (root / 'broker-group.json', None)], **options)
+        else:
+            process = subprocess.Popen(command, start_new_session=True, **options)
         try:
             deadline = time.monotonic() + 15
             while not sockets:
@@ -68,31 +73,35 @@ def licensing_broker(root):
                     time.sleep(0.1)
             yield pipe, sockets
         finally:
-            # Stop only this task's group, including licensing-client children.
-            try:
-                os.killpg(process.pid, signal.SIGTERM)
-                process.wait(timeout=5)
-            except ProcessLookupError:
-                pass
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait(timeout=5)
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            if registries:
+                import direct_progress
+                direct_progress.stop_compiler_group(process, root / 'broker-group.json')
+            else:
+                # Stop only this task's group, including licensing-client children.
+                try:
+                    os.killpg(process.pid, signal.SIGTERM)
+                    process.wait(timeout=5)
+                except ProcessLookupError:
+                    pass
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait(timeout=5)
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
             for path in (Path('/tmp') / (pipe + '.sock'), Path('/tmp') / (pipe + '-notifications.sock')):
                 if path.exists() and stat.S_ISSOCK(path.lstat().st_mode):
                     path.unlink()
 
 
-def prepare_home(source):
+def prepare_home(source, *, package_seed=None):
     home = source / '.cache/project-lucid/editor-home'
     if home.exists() or home.is_symlink():
         raise ValueError('Fresh sandbox Editor home required')
     # Only public package cache data is copied, never runner/account/license
     # configuration. UPM gets a writable private cache without network access.
-    cache = Path.home() / '.config/unity3d/cache'
+    cache = Path.home() / '.config/unity3d/cache' if package_seed is None else Path(package_seed)
     if cache.exists():
         if any(path.is_symlink() for path in (cache, *cache.parents)) or any(
                 path.is_symlink() for path in cache.rglob('*')):
@@ -167,9 +176,9 @@ class EditorProcess:
                               stdin=subprocess.DEVNULL, close_fds=True, env={}, **kwargs)
 
 @contextlib.contextmanager
-def isolated_editor(playercode, source):
+def isolated_editor(playercode, source, *, package_seed=None):
     with licensing_broker(source.parent) as (pipe, sockets):
-        home = prepare_home(source)
+        home = prepare_home(source, package_seed=package_seed)
         original = playercode.subprocess
         # Replace this module's facade, not subprocess.run globally: trusted
         # bootstrap, receipt verification and progress generation stay on host.

@@ -1,10 +1,11 @@
-"""Main publication and PR validation boundaries; all API/process results are inert."""
+"""Main publication and PR validation boundaries, including real early driver exits."""
 import base64
 import copy
 import hashlib
 import io
 import json
 import os
+import platform
 import re
 from pathlib import Path
 import subprocess
@@ -13,7 +14,7 @@ import urllib.error
 import tempfile
 import unittest
 from unittest import mock
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 
 sys.path.insert(0, str(Path(__file__).parent))
 import main_progress as main
@@ -354,10 +355,12 @@ class MainProgressTests(unittest.TestCase):
     def test_pr_compilation_compiler_failure_is_visible_on_the_exact_head(self):
         request = self.report_pr('failure', 'compile_failed')
         body = self.only_status(request['head'])
-        self.assertEqual(('failure', 'Native compilation of this head failed'), (body['state'], body['description']))
+        # The trusted witness establishes syntax failure, not an observed Editor phase.
+        self.assertEqual(('failure', 'Independent compiler parser confirmed a syntax error in this head'),
+                         (body['state'], body['description']))
         self.assertTrue(body['target_url'].endswith('/actions/runs/456'))
 
-    def test_pr_compilation_job_failure_outside_the_compiler_is_not_a_compiler_failure(self):
+    def test_pr_compilation_unclassified_job_failure_does_not_attribute_a_cause(self):
         for outcome in ('', 'precondition', 'unknown', 'compiled'):
             with self.subTest(outcome=outcome):
                 self.api.calls.clear()
@@ -365,6 +368,8 @@ class MainProgressTests(unittest.TestCase):
                 body = self.only_status()
                 self.assertEqual('error', body['state'])
                 self.assertNotIn('of this head failed', body['description'])
+                self.assertEqual('Native compilation could not be verified; see the linked run',
+                                 body['description'])
 
     def test_pr_compilation_superseded_failure_names_what_moved(self):
         self.report_pr('failure', 'superseded_head')
@@ -459,15 +464,16 @@ class MainProgressTests(unittest.TestCase):
         self.assertEqual('outcome=superseded_head\nsubstituted=false\n', output.read_text())
         self.assertEqual([], self.statuses())
 
-    def test_pr_compile_job_marks_only_a_failed_compiler_run_as_compile_failed(self):
+    def test_pr_compile_job_does_not_attribute_unclassified_exit_or_timeout_to_source(self):
         output = self.base / 'output'
         env = {'GITHUB_EVENT_NAME': 'workflow_run', 'GITHUB_OUTPUT': str(output), 'GITHUB_RUN_ID': '456'}
         fake = {'conclusion': 'success'}
         paths = (self.base / 'root', self.control, self.source)
         (self.base / 'root').mkdir(exist_ok=True)
-        for failure, expected in ((subprocess.CalledProcessError(1, 'x'), 'compile_failed'),
-                                  (subprocess.TimeoutExpired('x', 1), 'compile_failed')):
-            with self.subTest(expected=expected):
+        # #512: the real driver can fail before any compiler; exit/timeout is not a source-error witness.
+        for failure in (subprocess.CalledProcessError(1, 'x'), subprocess.TimeoutExpired('x', 1)):
+            expected = 'precondition'
+            with self.subTest(failure=type(failure).__name__):
                 output.unlink(missing_ok=True)
                 with mock.patch.dict(os.environ, env), \
                         mock.patch.object(main.shared, 'require_workflow_context'), \
@@ -479,9 +485,143 @@ class MainProgressTests(unittest.TestCase):
                         mock.patch.object(main.shared, 'run_compiler', side_effect=failure), \
                         mock.patch.dict(sys.modules, {'lucidlib.verification': mock.Mock(artifact_fingerprint=lambda _: 'f')}):
                     driver.overlay_control_reporting_tools.return_value = []
-                    with self.assertRaises(type(failure)):
+                    with self.assertRaises(type(failure)) as caught:
                         main.pr_compile_job(self.api, self.pr_request())
+                    self.assertIs(failure, caught.exception)
                 self.assertEqual(f'outcome={expected}\nsubstituted=false\n', output.read_text())
+
+    def test_real_early_driver_exit_remains_error_through_launcher_controller_and_reporter(self):
+        repo = Path(__file__).resolve().parents[2]
+        head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=repo, text=True).strip()
+        self.api.parent = self.api.head = head
+        root = self.base / 'real-driver'
+        root.mkdir()
+        output = root / 'output'
+        env = {'GITHUB_EVENT_NAME': 'workflow_run', 'GITHUB_OUTPUT': str(output),
+               'GITHUB_SHA': head, 'LUCID_UNITY_EDITOR': str(root / 'absent-editor')}
+        with mock.patch.dict(os.environ, env), \
+                mock.patch.object(main.shared, 'require_workflow_context'), \
+                mock.patch.object(main.shared, 'require_upstream_run', return_value={'conclusion': 'success'}), \
+                mock.patch.object(main, 'prepare_job', return_value=(root, repo, repo)), \
+                mock.patch.object(main.shared, 'checkout'), \
+                mock.patch.object(main.shared.driver, 'overlay_control_reporting_tools', return_value=[]), \
+                mock.patch.dict(sys.modules, {'lucidlib.verification': mock.Mock(artifact_fingerprint=lambda _: 'f' * 64)}):
+            # Actual compiler_command -> run_compiler -> native_compilation.py; no fake process result.
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                main.pr_compile_job(self.api, self.pr_request())
+        self.assertEqual(1, caught.exception.returncode)
+        self.assertEqual(b'', caught.exception.output)
+        diagnostic = (root / 'private-driver-stderr.log').read_text().strip()
+        linux_host = sys.platform == 'linux' and platform.machine().lower() in ('x86_64', 'amd64')
+        self.assertEqual('LUCID_UNITY_EDITOR does not identify an Editor executable' if linux_host
+                         else 'Driver requires Linux x86_64', diagnostic)
+        main.shared.require_stopped_marker(root / 'compiler-group.json')
+        self.assertEqual('outcome=precondition\nsubstituted=false\n', output.read_text())
+        with mock.patch.dict(os.environ, {'GITHUB_SHA': head}):
+            self.report_pr('failure', 'precondition')
+        body = self.only_status()
+        self.assertEqual(('error', 'Native compilation could not be verified; see the linked run'),
+                         (body['state'], body['description']))
+        self.assertTrue(body['target_url'].endswith('/actions/runs/456'))
+
+    @contextmanager
+    def pr_compile_boundary(self, substituted=()):
+        """Inert driver boundary; controller receipt validation and outputs remain real."""
+        root = self.base / 'controller'
+        root.mkdir(exist_ok=True)
+        output = root / 'output'
+        output.unlink(missing_ok=True)
+        with mock.patch.dict(os.environ, {'GITHUB_EVENT_NAME': 'workflow_run', 'GITHUB_OUTPUT': str(output)}), \
+                mock.patch.object(main.shared, 'require_workflow_context'), \
+                mock.patch.object(main.shared, 'require_upstream_run', return_value={'conclusion': 'success'}), \
+                mock.patch.object(main, 'prepare_job', return_value=(root, self.control, self.source)), \
+                mock.patch.object(main.shared, 'checkout'), \
+                mock.patch.object(main.shared.driver, 'overlay_control_reporting_tools', return_value=list(substituted)), \
+                mock.patch.object(main.shared, 'git_head', side_effect=lambda path: self.pr_request()['head']
+                                  if path == self.source else self.api.parent), \
+                mock.patch.object(main.shared, 'run_compiler') as driver, \
+                mock.patch.dict(sys.modules, {'lucidlib.verification': mock.Mock(artifact_fingerprint=lambda _: 'f' * 64)}):
+            yield output, driver
+
+    def pr_compiler_receipt(self):
+        request = self.pr_request()
+        return {'head': request['head'], 'control_commit': request['control_commit'],
+                'image': main.shared.EDITOR, 'run_id': '456', 'source_fingerprint': 'f' * 64,
+                'compiler_receipt_sha256': '2' * 64}
+
+    def test_pr_compile_controller_preserves_receipt_success_and_reporting_substitution(self):
+        for substituted in ((), ('tools/reporter.py',)):
+            with self.subTest(substituted=substituted), self.pr_compile_boundary(substituted) as (output, driver):
+                driver.return_value = json.dumps(self.pr_compiler_receipt()).encode()
+                main.pr_compile_job(self.api, self.pr_request())
+                self.assertEqual('outcome=compiled\nsubstituted=' + ('true' if substituted else 'false') + '\n',
+                                 output.read_text())
+                driver.assert_called_once()
+
+    def test_pr_compile_controller_rejects_each_receipt_identity_and_missing_receipt(self):
+        receipt = self.pr_compiler_receipt()
+        malformed = [dict(receipt, **{key: 'changed'}) for key in receipt]
+        malformed.extend(({}, dict(receipt, compiler_receipt_sha256=None),
+                          dict(receipt, compiler_receipt_sha256='g' * 64),
+                          dict(receipt, phase='compiler', status='source_error')))
+        for value in malformed:
+            with self.subTest(value=value), self.pr_compile_boundary() as (output, driver):
+                driver.return_value = json.dumps(value).encode()
+                with self.assertRaisesRegex(ValueError, 'receipt identity differs'):
+                    main.pr_compile_job(self.api, self.pr_request())
+                self.assertEqual('outcome=precondition\nsubstituted=false\n', output.read_text())
+
+    def test_pr_compile_controller_does_not_classify_forged_diagnostics_or_phase_output(self):
+        for payload in (b'error CS1002: source error', b'compile_failed',
+                        b'{"phase":"compiler","status":"source_error"}', b'{malformed'):
+            with self.subTest(payload=payload), self.pr_compile_boundary() as (output, driver):
+                failure = subprocess.CalledProcessError(1, ['inert-driver'], output=payload)
+                driver.side_effect = failure
+                with self.assertRaises(subprocess.CalledProcessError) as caught:
+                    main.pr_compile_job(self.api, self.pr_request())
+                self.assertIs(failure, caught.exception)
+                self.assertEqual('outcome=precondition\nsubstituted=false\n', output.read_text())
+
+    def test_pr_compile_controller_rejects_exit_zero_malformed_or_nonobject_receipt(self):
+        for payload in (b'{malformed', b'null', b'[]', b'"source_error"'):
+            with self.subTest(payload=payload), self.pr_compile_boundary() as (output, driver):
+                driver.return_value = payload
+                with self.assertRaises(ValueError):
+                    main.pr_compile_job(self.api, self.pr_request())
+                self.assertEqual('outcome=precondition\nsubstituted=false\n', output.read_text())
+
+    def test_only_reserved_trusted_driver_exit_reports_independent_syntax_failure(self):
+        with self.pr_compile_boundary() as (output, driver):
+            failure = subprocess.CalledProcessError(main.shared.driver.TRUSTED_SYNTAX_EXIT, ['trusted-driver'])
+            driver.side_effect = failure
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                main.pr_compile_job(self.api, self.pr_request())
+            self.assertIs(failure, caught.exception)
+            self.assertEqual('outcome=compile_failed\nsubstituted=false\n', output.read_text())
+            self.assertEqual(50 * 60, driver.call_args.kwargs['timeout'])
+        self.assertEqual(('failure', 'Independent compiler parser confirmed a syntax error in this head'),
+                         main.PR_COMPILE_OUTCOMES['compile_failed'])
+
+    def test_reserved_driver_result_still_rechecks_current_source_identity(self):
+        with self.pr_compile_boundary() as (output, driver), \
+                mock.patch.object(main.shared, 'git_head', return_value='0' * 40):
+            driver.side_effect = subprocess.CalledProcessError(main.shared.driver.TRUSTED_SYNTAX_EXIT, ['trusted-driver'])
+            with self.assertRaisesRegex(ValueError, 'PR source changed'):
+                main.pr_compile_job(self.api, self.pr_request())
+            self.assertEqual('outcome=precondition\nsubstituted=false\n', output.read_text())
+
+    def test_actual_driver_usage_exit_cannot_collide_with_reserved_syntax_outcome(self):
+        command = [sys.executable, str(Path(main.__file__).with_name('native_compilation.py')), '--invalid-option']
+        actual = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
+        self.assertEqual(2, actual.returncode)
+        self.assertNotEqual(main.shared.driver.TRUSTED_SYNTAX_EXIT, actual.returncode)
+        with self.pr_compile_boundary() as (output, driver):
+            failure = subprocess.CalledProcessError(actual.returncode, command, output=actual.stdout, stderr=actual.stderr)
+            driver.side_effect = failure
+            with self.assertRaises(subprocess.CalledProcessError) as caught:
+                main.pr_compile_job(self.api, self.pr_request())
+            self.assertIs(failure, caught.exception)
+            self.assertEqual('outcome=precondition\nsubstituted=false\n', output.read_text())
 
     SECTION = '<!-- LUCID_CODE_PROGRESS:START -->\ntable\n<!-- LUCID_CODE_PROGRESS:END -->'
 

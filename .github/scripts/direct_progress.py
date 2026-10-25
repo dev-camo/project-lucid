@@ -22,6 +22,7 @@ import urllib.request
 import urllib.error
 
 import native_compilation as driver
+import process_registry
 
 REPOSITORY = "dev-camo/project-lucid"
 EDITOR = "native@sha256:88c95da13fdd8f9b17229b860f5ac72c7706586eb18b7fee581d206b45148dcc"
@@ -358,33 +359,54 @@ def freeze_compiler_groups(root):
 
 def stop_compiler_group(process, marker):
     groups = freeze_compiler_groups(process.pid)
-    marker.write_text(json.dumps({"group": process.pid, "groups": groups}) + "\n")
-    for group in groups:
-        signal_group(group, signal.SIGTERM)
-        signal_group(group, signal.SIGCONT)
     try:
-        process.communicate(timeout=15)
-    except subprocess.TimeoutExpired:
-        pass
-    for group in groups:
-        signal_group(group, signal.SIGKILL)
-    process.communicate(timeout=10)
-    deadline = time.monotonic() + 10
-    while any(group_running(group) for group in groups):
-        if time.monotonic() >= deadline:
-            raise ValueError("Compiler group did not stop; preserve checkout and refuse next compilation")
-        time.sleep(0.05)
+        for group in groups:
+            signal_group(group, signal.SIGTERM)
+            signal_group(group, signal.SIGCONT)
+        try:
+            process.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            pass
+        for group in groups:
+            signal_group(group, signal.SIGKILL)
+        process.communicate(timeout=10)
+        deadline = time.monotonic() + 10
+        while any(group_running(group) for group in groups):
+            if time.monotonic() >= deadline:
+                raise ValueError("Compiler group did not stop; preserve checkout and refuse next compilation")
+            time.sleep(0.05)
+    except BaseException as failure:
+        # Retain discovered groups even on failed teardown. Lock acquisition is
+        # bounded because a surviving descendant may still hold the registry.
+        try:
+            process_registry.merge_registry(marker, process.pid, groups, create=True)
+        except (OSError, ValueError) as registry_error:
+            raise failure from registry_error
+        raise
+    # A frozen descendant may hold the registry lock. Stop our verified tree
+    # first, then merge its observations without overwriting registered groups.
+    process_registry.merge_registry(marker, process.pid, groups, create=True)
+    # Registered survivors are refusal evidence, never extra numeric signal targets.
+    require_stopped_marker(marker)
 
 
-def run_compiler(command, source, errors, marker, timeout=38 * 60):
+def run_compiler(command, source, errors, marker, timeout=38 * 60, *, registry=None):
     # Job/API/output credentials belong to the controller, never Unity or child
     # processes. Contributor admission remains GitHub's repository policy.
     environment = {key: value for key, value in os.environ.items()
                    if key in {"PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "DISPLAY",
                               "LUCID_UNITY_EDITOR", "DOTNET_ROOT", "LD_LIBRARY_PATH"}}
-    process = subprocess.Popen(command, cwd=source, env=environment,
-                               stdout=subprocess.PIPE, stderr=errors, start_new_session=True)
-    marker.write_text(json.dumps({"group": process.pid}) + "\n")
+    process_registry.clear_stopped_registry(marker, require_stopped_marker)
+    options = dict(cwd=source, env=environment, stdout=subprocess.PIPE, stderr=errors)
+    if registry is None:
+        process = subprocess.Popen(command, start_new_session=True, **options)
+        try:
+            process_registry.merge_registry(marker, process.pid, [process.pid], create=True)
+        except BaseException:
+            stop_compiler_group(process, marker)
+            raise
+    else:
+        process = process_registry.spawn_registered(command, [registry, (marker, None)], **options)
     try:
         output, _ = process.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -392,6 +414,7 @@ def run_compiler(command, source, errors, marker, timeout=38 * 60):
         raise
     if group_running(process.pid):
         stop_compiler_group(process, marker)
+    require_stopped_marker(marker)
     if process.returncode:
         raise subprocess.CalledProcessError(process.returncode, command, output=output)
     return output

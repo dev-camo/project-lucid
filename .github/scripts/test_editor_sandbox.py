@@ -17,6 +17,25 @@ import editor_sandbox as sandbox
 
 
 class EditorSandboxTests(unittest.TestCase):
+    def test_optional_broker_registers_parent_and_local_custody_before_use(self):
+        import direct_progress
+        import process_registry
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            owners = [(root / 'job.json', 101), (root / 'optional.json', 102)]
+            process = mock.Mock(pid=103)
+            process.poll.return_value = None
+            with mock.patch.object(process_registry, 'spawn_registered', return_value=process) as spawn, \
+                    mock.patch.object(direct_progress, 'stop_compiler_group') as stop, \
+                    mock.patch.object(sandbox.subprocess, 'Popen', side_effect=AssertionError('ungated broker')), \
+                    mock.patch.object(sandbox, 'cached_license_files', return_value=[]), \
+                    mock.patch.object(sandbox, 'licensing_sockets', return_value=[]):
+                # A socket record is sufficient here; no licensing code executes.
+                with mock.patch.object(sandbox, 'licensing_sockets', return_value=[Path('/fixture/socket')]):
+                    with sandbox.licensing_broker(root, registries=owners):
+                        self.assertEqual(owners + [(root / 'broker-group.json', None)], spawn.call_args.args[1])
+                stop.assert_called_once_with(process, root / 'broker-group.json')
+
     def test_only_editor_subprocess_facade_is_replaced_and_restored(self):
         module = SimpleNamespace(subprocess=subprocess)
         with mock.patch.object(sandbox, 'licensing_broker', return_value=contextlib.nullcontext(('fixture', []))), \
@@ -134,6 +153,28 @@ class EditorSandboxTests(unittest.TestCase):
             with mock.patch.object(sandbox.Path, 'home', return_value=root / 'host-home'):
                 with self.assertRaisesRegex(ValueError, 'Symlinked'):
                     sandbox.prepare_home(root / 'source')
+
+    def test_explicit_owned_package_seed_is_used_for_both_fresh_homes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            seed = root / 'owned-package-seed'
+            seed.mkdir()
+            (seed / 'package').write_bytes(b'exact admitted public package bytes')
+            host = root / 'host-home/.config/unity3d/cache'
+            host.mkdir(parents=True)
+            (host / 'package').write_bytes(b'later different host bytes')
+            with mock.patch.object(sandbox.Path, 'home', return_value=root / 'host-home'):
+                first = sandbox.prepare_home(root / 'control', package_seed=seed)
+                second = sandbox.prepare_home(root / 'source', package_seed=seed)
+            for home in (first, second):
+                self.assertEqual(b'exact admitted public package bytes',
+                                 (home / '.config/unity3d/cache/package').read_bytes())
+            (first / '.config/unity3d/cache/package').write_bytes(b'owned UPM mutation')
+            self.assertEqual(b'exact admitted public package bytes', (seed / 'package').read_bytes())
+            self.assertEqual(b'exact admitted public package bytes',
+                             (second / '.config/unity3d/cache/package').read_bytes())
+            with self.assertRaisesRegex(ValueError, 'Fresh sandbox'):
+                sandbox.prepare_home(root / 'source', package_seed=seed)
 
     @unittest.skipUnless(sys.platform == 'linux', 'requires the Linux namespace boundary')
     def test_real_sandbox_cannot_overwrite_controller_or_seal_channels_or_read_host_processes(self):

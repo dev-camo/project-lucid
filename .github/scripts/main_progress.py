@@ -32,14 +32,14 @@ PROGRESS_BRANCH_PREFIX = 'lucid/progress-checks-'
 # failure only when pr_compile_job says so (see PR_COMPILE_OUTCOMES).
 PR_COMPILATION_RESULTS = {
     'success': ('success', 'Exact-head PR compilation verified'),
-    'failure': ('error', 'Native compilation job failed outside the compiler; see the linked run'),
+    'failure': ('error', 'Native compilation could not be verified; see the linked run'),
     'cancelled': ('error', 'Native compilation was cancelled before it finished'),
     'skipped': ('error', 'Native compilation did not run'),
 }
 # The compile job's classification of its own failure, from a controller-written step
-# output (the compiler never receives GITHUB_OUTPUT). Anything else is "outside the compiler".
+# output (the compiler never receives GITHUB_OUTPUT). Unclassified failures have no attributed cause.
 PR_COMPILE_OUTCOMES = {
-    'compile_failed': ('failure', 'Native compilation of this head failed'),
+    'compile_failed': ('failure', 'Independent compiler parser confirmed a syntax error in this head'),
     'superseded_head': ('error', 'PR head advanced or PR closed during compilation; no result for this head'),
     'superseded_control': ('error', 'Main advanced during compilation; push again to re-run for this head'),
 }
@@ -241,12 +241,22 @@ def pr_compile_steps(api, request, outputs):
     fingerprint = artifact_fingerprint(source)
     command = compiler_command(control, source, request['head'], request['control_commit'], fingerprint, compile_only=True)
     with (root / 'private-driver-stderr.log').open('wb') as errors:
+        # Driver exits and timeouts also cover setup and rejected receipts, not only source errors.
+        import compiler_precheck
         try:
-            output = shared.run_compiler(command, source, errors, root / 'compiler-group.json')
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-            outputs['outcome'] = 'compile_failed'
+            output = shared.run_compiler(command, source, errors, root / 'compiler-group.json',
+                                         timeout=38 * 60 + compiler_precheck.PR_ADDITIONAL_SECONDS)
+        except subprocess.CalledProcessError as failure:
+            if failure.returncode == shared.driver.TRUSTED_SYNTAX_EXIT:
+                current()
+                shared.driver.require_control_reporting_tools(source, control)
+                if shared.git_head(source) != request['head'] or artifact_fingerprint(source) != fingerprint:
+                    raise ValueError('PR source changed during compilation')
+                outputs['outcome'] = 'compile_failed'
             raise
         producer = json.loads(output)
+    if not isinstance(producer, dict):
+        raise ValueError('PR compilation receipt must be an object')
     expected = {'head': request['head'], 'control_commit': request['control_commit'], 'image': shared.EDITOR,
                 'run_id': os.environ['GITHUB_RUN_ID'], 'source_fingerprint': fingerprint,
                 'compiler_receipt_sha256': producer.get('compiler_receipt_sha256')}

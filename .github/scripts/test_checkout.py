@@ -153,7 +153,8 @@ class CheckoutTests(unittest.TestCase):
         # The only remote substitution is an inert local repository; no network or game code runs.
         repository = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); remote = root / "remote"
+            # Custody paths are canonical, including macOS's temporary-directory alias.
+            root = Path(directory).resolve(); remote = root / "remote"
             subprocess.run(["git", "clone", "-q", "--no-checkout", "--shared", str(repository), str(remote)], check=True)
             head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=remote, text=True).strip()
             missing = subprocess.check_output(["git", "hash-object", "--stdin"], input=b"checkout missing commit fixture").decode().strip()
@@ -219,7 +220,7 @@ class CheckoutTests(unittest.TestCase):
 
     def test_timeout_stops_a_real_parent_and_term_ignoring_helper_before_cleanup(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); source = root / "source"; source.mkdir()
+            root = Path(directory).resolve(); source = root / "source"; source.mkdir()
             pid_file = root / "helper.pid"
             child = ("import os,signal,sys,time; from pathlib import Path; "
                      "signal.signal(signal.SIGTERM,signal.SIG_IGN); "

@@ -19,6 +19,14 @@ import sys
 from editor_sandbox import isolated_editor
 
 
+TRUSTED_SYNTAX_EXIT = 86
+
+
+class ConfirmedSyntaxError(ValueError):
+    """Only the independent syntax witness may produce this driver outcome."""
+
+
+
 def git_head(root):
     return subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
 
@@ -253,23 +261,37 @@ def run(source, control, input_path, work, expected_head, expected_source, image
         require_control_reporting_tools(source, control)
 
     unchanged()
-    def compile_player():
-        with isolated_editor(playercode, source):
+    def compile_player(package_seed=None):
+        options = {} if package_seed is None else {'package_seed': package_seed}
+        with isolated_editor(playercode, source, **options):
             return playercode.run_player_code(source, work, 'linux')
 
     with project_cache_scope(bootstrap_module, source, work), source_working_directory(source):
         if compile_only:
+            import compiler_precheck
+            identity = {'head': expected_head, 'control_commit': control_commit,
+                        'source_fingerprint': expected_source}
+            positive = False
+            with compiler_precheck.precheck_resources(
+                    source, control, identity,
+                    registry=(source.parent / 'compiler-group.json', os.getpgrp())) as witness:
+                unchanged()
+                positive = witness is not None and witness['syntax_error']
+                if not positive:
+                    result = compile_player(None if witness is None else witness['package_seed'])
+                    try:
+                        require_phase_success('player-code', result)
+                    except ValueError:
+                        retain_player_code_failure(bootstrap_module, work, result)
+                        raise
+                    unchanged()
+                    receipt = _player_evidence(source, work, 'linux', expected_source,
+                                               _engine_identity(find_editor()))
+                    unchanged()
+            # Resource verification and stopped-process proof precede positive transport.
             unchanged()
-            result = compile_player()
-            try:
-                require_phase_success('player-code', result)
-            except ValueError:
-                retain_player_code_failure(bootstrap_module, work, result)
-                raise
-            unchanged()
-            receipt = _player_evidence(source, work, 'linux', expected_source,
-                                       _engine_identity(find_editor()))
-            unchanged()
+            if positive:
+                raise ConfirmedSyntaxError('Independent compiler parser confirmed a syntax error in this head')
             return {'head': expected_head, 'image': image, 'control_commit': control_commit,
                     'run_id': str(run_id), 'source_fingerprint': expected_source,
                     'compiler_receipt_sha256': receipt['receipt_sha256']}
@@ -331,6 +353,9 @@ def main():
 if __name__ == '__main__':
     try:
         main()
+    except ConfirmedSyntaxError as error:
+        print(str(error), file=sys.stderr)
+        sys.exit(TRUSTED_SYNTAX_EXIT)
     except (ValueError, OSError, subprocess.SubprocessError) as error:
         print(str(error), file=sys.stderr)
         sys.exit(1)

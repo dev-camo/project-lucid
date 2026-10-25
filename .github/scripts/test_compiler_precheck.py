@@ -1,0 +1,237 @@
+"""Optional witness budget and ownership, independent of normal compilation."""
+import inspect
+import contextlib
+import io
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from unittest import mock
+
+import compiler_precheck as precheck
+import process_registry
+
+
+class OptionalPrecheckTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.source, self.control = self.root / 'source', self.root / 'control'
+        self.source.mkdir()
+        self.control.mkdir()
+        self.identity = {'head': '1' * 40, 'control_commit': '2' * 40,
+                         'source_fingerprint': '3' * 64}
+
+    def receipt(self, positive=True):
+        return dict(self.identity, status='syntax_error' if positive else 'ready',
+                    diagnostics=['CS1525'] if positive else [], package_identity='4' * 64)
+
+    def run_case(self, result=None, error=None, caller_failure=None):
+        states, calls = [], []
+        def execute(command, source, errors, marker, timeout, *, registry):
+            self.assertEqual(self.source, source)
+            self.assertEqual(precheck.PRECHECK_SECONDS, timeout)
+            self.assertEqual((self.root / 'job.json', 100), registry)
+            state = Path(command[command.index('--state') + 1])
+            states.append(state)
+            (state / 'package-seed').mkdir()
+            (state / 'package-seed/inert').write_text('complete seed fixture')
+            if error is not None:
+                raise error
+            return json.dumps(result).encode()
+        with mock.patch.object(precheck.shared, 'run_compiler', side_effect=execute) as run, \
+                mock.patch.object(precheck.shared, 'require_stopped_marker') as stopped:
+            try:
+                with precheck.precheck_resources(self.source, self.control, self.identity,
+                                                registry=(self.root / 'job.json', 100)) as answer:
+                    calls.append('normal compilation')
+                    self.assertTrue(states[0].exists())
+                    if answer is not None:
+                        self.assertEqual(states[0] / 'package-seed', answer['package_seed'])
+                        self.assertTrue(answer['package_seed'].exists())
+                    if caller_failure is not None:
+                        raise caller_failure
+            except BaseException as caught:
+                if caller_failure is None:
+                    raise
+                self.assertIs(caller_failure, caught)
+            else:
+                self.assertIsNone(caller_failure)
+        self.assertEqual(['normal compilation'], calls)
+        self.assertEqual(1, run.call_count)
+        self.assertGreaterEqual(stopped.call_count, 2)
+        self.assertEqual([], list(self.root.glob('syntax-precheck-*')))
+        return answer
+
+    def test_only_exact_trusted_positive_receipt_is_positive(self):
+        good = self.receipt()
+        self.assertTrue(self.run_case(good)['syntax_error'])
+        self.assertFalse(self.run_case(self.receipt(False))['syntax_error'])
+        for result in (None, [], {}, dict(good, status='other'), dict(good, head='5' * 40),
+                       dict(good, diagnostics=[]), dict(good, diagnostics=['forged text']),
+                       dict(good, package_identity='wrong'), dict(good, extra='unexpected')):
+            with self.subTest(result=result):
+                self.assertIsNone(self.run_case(result))
+
+    def test_optional_exit_and_timeout_release_scratch_without_changing_normal_budget(self):
+        for error in (subprocess.CalledProcessError(70, ['inert']),
+                      subprocess.TimeoutExpired(['inert'], precheck.PRECHECK_SECONDS)):
+            with self.subTest(error=type(error).__name__):
+                self.assertIsNone(self.run_case(error=error))
+        self.assertEqual(38 * 60, inspect.signature(precheck.shared.run_compiler).parameters['timeout'].default)
+
+    def test_failed_process_custody_prevents_cleanup_and_normal_fallback(self):
+        failure = ValueError('owned group still active')
+        with mock.patch.object(precheck.shared, 'run_compiler', return_value=b'{}'), \
+                mock.patch.object(precheck.shared, 'require_stopped_marker', side_effect=failure):
+            with self.assertRaises(ValueError) as caught:
+                with precheck.precheck_resources(self.source, self.control, self.identity,
+                                                registry=(self.root / 'job.json', 100)):
+                    self.fail('Surviving registered groups cannot fall back')
+        self.assertIs(failure, caught.exception)
+        self.assertEqual(1, len(list(self.root.glob('syntax-precheck-*'))))
+
+    def test_nested_capture_custody_is_checked_before_optional_fallback(self):
+        failure = ValueError('nested capture group still active')
+        def execute(command, source, errors, marker, timeout, *, registry):
+            (marker.parent / 'capture-group.json').write_text('{"group":123}')
+            return b'{}'
+        def stopped(marker):
+            if marker.name == 'capture-group.json':
+                raise failure
+        with mock.patch.object(precheck.shared, 'run_compiler', side_effect=execute), \
+                mock.patch.object(precheck.shared, 'require_stopped_marker', side_effect=stopped):
+            with self.assertRaises(ValueError) as caught:
+                with precheck.precheck_resources(self.source, self.control, self.identity,
+                                                registry=(self.root / 'job.json', 100)):
+                    self.fail('Nested capture must stop first')
+        self.assertIs(failure, caught.exception)
+        self.assertEqual(1, len(list(self.root.glob('syntax-precheck-*'))))
+
+    def test_no_change_and_unavailable_preparation_preserve_exact_caller_failure(self):
+        # Preparation is now wholly watchdog-owned; retain the exact caller
+        # exception and single execution for unavailable and ready outcomes.
+        for result in ({'status': 'unavailable'}, self.receipt(False)):
+            for failure in (ValueError('normal receipt failure'), OSError('normal IO failure'),
+                            subprocess.CalledProcessError(1, ['normal compiler'])):
+                with self.subTest(result=result['status'], failure=type(failure).__name__):
+                    self.run_case(result, caller_failure=failure)
+
+    def test_parent_does_not_copy_or_hash_optional_inputs_outside_child_budget(self):
+        with mock.patch.object(precheck, 'tree_identity', side_effect=AssertionError('unbounded parent hash')), \
+                mock.patch.object(precheck.shutil, 'copytree', side_effect=AssertionError('unbounded parent copy')), \
+                mock.patch.object(precheck, 'installed_tool_closure', side_effect=AssertionError('unbounded parent tools')):
+            self.assertTrue(self.run_case(self.receipt())['syntax_error'])
+
+    def test_optional_scratch_setup_failure_preserves_normal_caller_exception(self):
+        failure = ValueError('normal failure')
+        with mock.patch.object(precheck.tempfile, 'mkdtemp', side_effect=OSError('optional setup unavailable')):
+            with self.assertRaises(ValueError) as caught:
+                with precheck.precheck_resources(self.source, self.control, self.identity,
+                                                registry=(self.root / 'job.json', 100)) as result:
+                    self.assertIsNone(result)
+                    raise failure
+        self.assertIs(failure, caught.exception)
+
+    def test_cleanup_has_its_own_bound_and_failure_cannot_replace_normal_result(self):
+        with mock.patch.object(precheck.subprocess, 'run', side_effect=subprocess.TimeoutExpired(['cleanup'], 60)) as cleanup:
+            # A failed optional deletion retains evidence; no caller outcome is rewritten.
+            with mock.patch.object(precheck.shared, 'run_compiler', return_value=b'{}'), \
+                    mock.patch.object(precheck.shared, 'require_stopped_marker'):
+                with precheck.precheck_resources(self.source, self.control, self.identity,
+                                                registry=(self.root / 'job.json', 100)) as result:
+                    self.assertIsNone(result)
+            self.assertEqual(60, cleanup.call_args.kwargs['timeout'])
+            self.assertEqual(1, len(list(self.root.glob('syntax-precheck-*'))))
+
+    def test_actual_slow_preparation_is_stopped_before_normal_fallback(self):
+        script = self.control / '.github/scripts/compiler_precheck.py'
+        script.parent.mkdir(parents=True)
+        script.write_text('import sys,time\nfrom pathlib import Path\n'
+                          'state=Path(sys.argv[sys.argv.index("--state")+1])\n'
+                          '(state/"package-seed").mkdir()\n'
+                          '(state/"preparation-started").write_text("ready")\n'
+                          'time.sleep(30)\n')
+        marker = self.root / 'job.json'
+        process_registry.merge_registry(marker, os.getpgrp(), [], create=True)
+        started = time.monotonic()
+        with mock.patch.object(precheck, 'PRECHECK_SECONDS', .3):
+            with precheck.precheck_resources(self.source, self.control, self.identity,
+                                            registry=(marker, os.getpgrp())) as result:
+                self.assertIsNone(result)
+                state, = self.root.glob('syntax-precheck-*')
+                self.assertEqual('ready', (state / 'preparation-started').read_text())
+                # Normal work starts only after the registered optional process stopped.
+                for group in json.loads(marker.read_bytes())['groups']:
+                    if group != os.getpgrp():
+                        self.assertFalse(precheck.shared.group_running(group))
+        self.assertLess(time.monotonic() - started, 10)
+        self.assertEqual([], list(self.root.glob('syntax-precheck-*')))
+
+    def test_child_closure_change_suppresses_a_completed_positive_result(self):
+        state = self.root / 'child'
+        state.mkdir()
+        output = io.StringIO()
+        errors = io.StringIO()
+        arguments = ['compiler_precheck.py', '--source', str(self.source), '--control', str(self.control),
+                     '--state', str(state), '--job-marker', str(self.root / 'job.json'), '--job-root', '100']
+        for name, value in self.identity.items():
+            arguments += ['--' + name.replace('_', '-'), value]
+        with mock.patch.object(sys, 'argv', arguments), \
+                mock.patch.object(precheck.Path, 'home', return_value=self.root), \
+                mock.patch.object(precheck.witness, '_tracked_inventory', return_value={}), \
+                mock.patch.object(precheck.witness, 'admit_source_changes', return_value=('Assets/A.cs',)), \
+                mock.patch.object(precheck, 'installed_tool_closure', side_effect=[{'tool': 'before'}, {'tool': 'changed'}]), \
+                mock.patch.object(precheck.sandbox, 'licensing_broker', return_value=contextlib.nullcontext(('owned', []))), \
+                mock.patch.object(precheck, 'produce_precheck', return_value=self.receipt()) as produce, \
+                contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            precheck.main()
+        produce.assert_called_once()
+        self.assertEqual({'status': 'unavailable'}, json.loads(output.getvalue()))
+        diagnostic = json.loads(errors.getvalue())
+        self.assertEqual('verify-resources-and-custody', diagnostic['stage'])
+        self.assertEqual('ValueError', diagnostic['error_type'])
+        self.assertEqual('Witness package or tool closure changed during use', diagnostic['message'])
+
+
+class InputClosureTests(unittest.TestCase):
+    def test_closure_detects_bytes_roster_and_executable_mode_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            path = root / 'tool'
+            path.write_bytes(b'original')
+            original = precheck.tree_identity(root)
+            path.write_bytes(b'modified')
+            self.assertNotEqual(original, precheck.tree_identity(root))
+            path.write_bytes(b'original')
+            path.chmod(0o755)
+            self.assertNotEqual(original, precheck.tree_identity(root))
+            path.chmod(0o644)
+            (root / 'extra').write_bytes(b'new dependency')
+            self.assertNotEqual(original, precheck.tree_identity(root))
+
+    def test_package_seed_rejects_links_and_tool_links_must_stay_in_the_measured_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve() / 'tree'
+            root.mkdir()
+            (root / 'actual').write_bytes(b'owned tool')
+            (root / 'alias').symlink_to('actual')
+            with self.assertRaises(ValueError):
+                precheck.tree_identity(root)
+            result = precheck.tree_identity(root, allow_internal_links=True)
+            self.assertIn('actual', result)
+            self.assertIn('alias', result)
+            (root / 'alias').unlink()
+            (root.parent / 'outside').write_bytes(b'foreign input')
+            (root / 'alias').symlink_to('../outside')
+            with self.assertRaises(ValueError):
+                precheck.tree_identity(root, allow_internal_links=True)
+
+
+if __name__ == '__main__':
+    unittest.main()

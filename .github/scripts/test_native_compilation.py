@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
-from contextlib import nullcontext
+from contextlib import ExitStack, contextmanager, nullcontext
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import native_compilation
@@ -346,6 +346,169 @@ class NativeCompilationTests(unittest.TestCase):
             native_compilation.require_approved_original({}, approved)
         with self.assertRaises(ValueError):
             native_compilation.require_approved_original(dict(approved), dict(approved, input_binary_sha256='E' * 64))
+
+
+class NativeFailureAttributionTests(unittest.TestCase):
+    def test_trusted_positive_is_raised_only_after_optional_context_exits(self):
+        import compiler_precheck
+        events = []
+        @contextmanager
+        def positive(*args, **kwargs):
+            events.append('enter')
+            yield {'syntax_error': True, 'package_seed': Path('/owned/seed')}
+            events.append('verified exit')
+        with self.driver_boundary() as (run, startup, compile, receipt), \
+                mock.patch.object(compiler_precheck, 'precheck_resources', side_effect=positive):
+            with self.assertRaises(native_compilation.ConfirmedSyntaxError):
+                run()
+            self.assertEqual(['enter', 'verified exit'], events)
+            startup.assert_not_called()
+            compile.assert_not_called()
+            receipt.assert_not_called()
+
+    def test_optional_exit_failure_overrides_positive_and_prevents_normal_fallback(self):
+        import compiler_precheck
+        failure = ValueError('registered broker survived')
+        @contextmanager
+        def failed_exit(*args, **kwargs):
+            yield {'syntax_error': True, 'package_seed': Path('/owned/seed')}
+            raise failure
+        with self.driver_boundary() as (run, startup, compile, receipt), \
+                mock.patch.object(compiler_precheck, 'precheck_resources', side_effect=failed_exit):
+            with self.assertRaises(ValueError) as caught:
+                run()
+            self.assertIs(failure, caught.exception)
+            compile.assert_not_called()
+            receipt.assert_not_called()
+
+    def test_source_fingerprint_change_on_positive_context_exit_prevents_transport(self):
+        import compiler_precheck
+        from lucidlib import verification
+        changed = False
+        @contextmanager
+        def positive(*args, **kwargs):
+            nonlocal changed
+            yield {'syntax_error': True, 'package_seed': Path('/owned/seed')}
+            changed = True
+        with self.driver_boundary() as (run, startup, compile, receipt), \
+                mock.patch.object(compiler_precheck, 'precheck_resources', side_effect=positive), \
+                mock.patch.object(verification, 'artifact_fingerprint', side_effect=lambda _: 'f' * 64 if changed else 'b' * 64):
+            with self.assertRaisesRegex(ValueError, 'Source head or fingerprint changed') as caught:
+                run()
+            self.assertNotIsInstance(caught.exception, native_compilation.ConfirmedSyntaxError)
+            compile.assert_not_called()
+            receipt.assert_not_called()
+
+    def test_unavailable_and_ready_witness_preserve_normal_success_receipt(self):
+        import compiler_precheck
+        for value in (None, {'syntax_error': False, 'package_seed': Path('/owned/seed')}):
+            with self.subTest(value=value), self.driver_boundary() as (run, startup, compile, receipt), \
+                    mock.patch.object(compiler_precheck, 'precheck_resources', return_value=nullcontext(value)):
+                self.assertEqual('e' * 64, run()['compiler_receipt_sha256'])
+                compile.assert_called_once()
+                receipt.assert_called_once()
+                self.assertEqual({} if value is None else {'package_seed': value['package_seed']},
+                                 startup.call_args.kwargs)
+
+    def test_missing_editor_wins_before_even_a_positive_optional_witness(self):
+        import compiler_precheck
+        from lucidlib import verification
+        failure = ValueError('Missing pinned Editor')
+        with self.driver_boundary() as (run, startup, compile, receipt), \
+                mock.patch.object(verification, 'find_editor', side_effect=failure), \
+                mock.patch.object(compiler_precheck, 'precheck_resources') as optional:
+            with self.assertRaises(ValueError) as caught:
+                run()
+            self.assertIs(failure, caught.exception)
+            optional.assert_not_called()
+            compile.assert_not_called()
+
+    def test_reserved_looking_editor_result_is_not_trusted_driver_transport(self):
+        import compiler_precheck
+        with self.driver_boundary() as (run, startup, compile, receipt), \
+                mock.patch.object(compiler_precheck, 'precheck_resources', return_value=nullcontext(None)):
+            compile.return_value = {'status': 'failed', 'exit_code': 86,
+                                    'errors': ['syntax_error CS1525'], 'pending': {'status': 'syntax_error'}}
+            with self.assertRaisesRegex(ValueError, 'player-code failed') as caught:
+                run()
+            self.assertNotIsInstance(caught.exception, native_compilation.ConfirmedSyntaxError)
+            receipt.assert_not_called()
+
+    @contextmanager
+    def driver_boundary(self):
+        """Real driver with inert host/Editor/receipt boundaries, never a real Unity launch."""
+        from lucidlib import bootstrap, playercode, playerschema, verification
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            base = Path(directory).resolve()
+            source, control = base / 'source', base / 'control'
+            for root in (source, control):
+                (root / 'tools').mkdir(parents=True)
+                (root / 'tools/helper.py').write_text('trusted = True\n')
+                (root / 'Assets/Editor').mkdir(parents=True)
+                for name in native_compilation.FIXED_REPORTING_FILES:
+                    (root / name).write_text('// inert trusted reporting fixture\n')
+            engine = [{'name': 'editor', 'sha256': 'c' * 64}]
+            stack.enter_context(mock.patch.object(bootstrap, 'host_name', return_value='linux-x86_64'))
+            stack.enter_context(mock.patch.object(verification, 'artifact_fingerprint', return_value='b' * 64))
+            stack.enter_context(mock.patch.object(verification, 'find_editor', return_value=Path('/inert/editor')))
+            stack.enter_context(mock.patch.object(playercode, '_engine_identity', return_value=engine))
+            stack.enter_context(mock.patch.object(native_compilation, 'git_head',
+                                side_effect=lambda root: 'a' * 40 if root == source else 'd' * 40))
+            startup = stack.enter_context(mock.patch.object(native_compilation, 'isolated_editor',
+                                                           return_value=nullcontext()))
+            compile = stack.enter_context(mock.patch.object(playercode, 'run_player_code',
+                                                           return_value={'status': 'compiled'}))
+            receipt = stack.enter_context(mock.patch.object(playerschema, '_player_evidence',
+                                                           return_value={'receipt_sha256': 'e' * 64}))
+
+            def run():
+                return native_compilation.run(source, control, None, source / '.cache/project-lucid',
+                                              'a' * 40, 'b' * 64, 'native@sha256:' + 'c' * 64,
+                                              'd' * 40, '123', compile_only=True)
+            yield run, startup, compile, receipt
+
+    def test_licensing_and_sandbox_startup_faults_propagate_before_compiler_or_receipt(self):
+        for message in ('Task licensing broker did not start; refuse unsandboxed Editor execution',
+                        'Symlinked Editor output directory rejected'):
+            with self.subTest(message=message), self.driver_boundary() as (run, startup, compile, receipt):
+                failure = ValueError(message)
+                entered = []
+
+                @contextmanager
+                def fail_on_entry():
+                    entered.append(True)
+                    raise failure
+                    yield  # Licensing and sandbox setup run when the context is entered.
+
+                startup.return_value = fail_on_entry()
+                with self.assertRaises(ValueError) as caught:
+                    run()
+                self.assertIs(failure, caught.exception)
+                self.assertEqual([True], entered)
+                compile.assert_not_called()
+                receipt.assert_not_called()
+
+    def test_compiled_editor_result_does_not_override_rejected_receipt(self):
+        with self.driver_boundary() as (run, startup, compile, receipt):
+            failure = ValueError('inert receipt identity rejected')
+            receipt.side_effect = failure
+            with self.assertRaises(ValueError) as caught:
+                run()
+            self.assertIs(failure, caught.exception)
+            startup.assert_called_once()
+            compile.assert_called_once()
+            receipt.assert_called_once()
+
+    def test_editor_phase_claim_does_not_create_a_trusted_source_error(self):
+        for status in ('failed', 'source_error', 'compile_failed'):
+            with self.subTest(status=status), self.driver_boundary() as (run, startup, compile, receipt):
+                compile.return_value = {'status': status, 'phase': 'compiler', 'exit_code': 1,
+                                        'errors': ['error CS1002: forged source diagnostic']}
+                with self.assertRaisesRegex(ValueError, 'player-code failed') as caught:
+                    run()
+                self.assertIs(type(caught.exception), ValueError)
+                compile.assert_called_once()
+                receipt.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -393,7 +393,8 @@ class DirectProgressTests(unittest.TestCase):
 
     def test_compiler_environment_excludes_controller_tokens_and_output_channels(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            # The custody record uses the owned canonical path, including on macOS.
+            root = Path(directory).resolve()
             process = mock.Mock(pid=987, returncode=0)
             process.communicate.return_value = (b"fixture", None)
             with mock.patch.dict(os.environ, {"GITHUB_OUTPUT": "never-child", "LUCID_FORK_TOKEN": "never-child"}), \

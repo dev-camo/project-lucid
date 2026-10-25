@@ -86,7 +86,7 @@ jobs:
     needs: [gate, start]
     if: needs.gate.outputs.compile == 'true'
     runs-on: [self-hosted, Linux, X64, lucid-native]
-    timeout-minutes: 40
+    timeout-minutes: 52
     outputs:
       outcome: ${{ steps.compile.outputs.outcome }}
       substituted: ${{ steps.compile.outputs.substituted }}
