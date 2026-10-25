@@ -113,7 +113,8 @@ namespace HardlightProject
             if (inputDebounce != null)
             {
                 inputDebounce.Update(inputAmount, deltaTime);
-                if (!inputDebounce.ThresholdExceeded || inputDebounce.TimeExceededContinuous)
+                // 0x06000cd2 tests DirectionMaintained at 0x713046 before strict timer expiry.
+                if (!inputDebounce.DirectionMaintained || inputDebounce.TimeExceededContinuous)
                     inputDebounce = null;
                 else
                     inputAmount = 0f;

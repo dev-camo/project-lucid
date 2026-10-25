@@ -4923,6 +4923,11 @@ EDITMODE_TESTS += (
     "ProjectLucid.Tests.OriginalHLUnityCoreMiscTests.ConvertValueLogsAndRethrowsANullUnboxFault",
 )
 
+# Original camera direction changes release secondary debounce on both axes (#480).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.CameraInputDisablerTests.OriginalDirectionReleaseOfTheSecondaryDebounce",
+)
+
 # Secondary fixture diagnostics cannot stop cleanup or replace its first failure (#470).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpContinuesWhenTheWarningLoggerThrows(0)",

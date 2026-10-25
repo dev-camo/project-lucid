@@ -11,6 +11,7 @@ namespace ProjectLucid.Tests
         [Test] public void CurrentDeclarationsAndBodiesMatchSnapshot() => CameraInputDisablerVerification.VerifyCurrentDeclarationsAndBodies();
         [Test] public void OriginalAxesThresholdsAndSnapArguments() { Assert.AreEqual(15, CameraInputDisablerVerification.VerifyCameraAxesAndSnapCallbacks()); LogAssert.NoUnexpectedReceived(); }
         [Test] public void OriginalCaptureAndRealDebounceRetainFaultOrder() { Assert.AreEqual(10, CameraInputDisablerVerification.VerifyOriginalDeferredDebounceBodyAndFaultOrder()); LogAssert.NoUnexpectedReceived(); }
+        [Test] public void OriginalDirectionReleaseOfTheSecondaryDebounce() { Assert.AreEqual(5, CameraInputDisablerVerification.VerifyOriginalDirectionReleaseOfTheSecondaryDebounce()); LogAssert.NoUnexpectedReceived(); }
         [Test] public void OriginalCameraSubscriptionsRetainForeignCallbacks() { Assert.AreEqual(35, CameraInputDisablerVerification.VerifyOriginalCameraRegistrationAndShutdown()); LogAssert.NoUnexpectedReceived(); }
         [Test] public void OriginalDisablerGuardAndInactiveEnableCallbacks() { Assert.AreEqual(8, CameraInputDisablerVerification.VerifyDisablerGuardsAndOriginalEnableCallbacks()); LogAssert.NoUnexpectedReceived(); }
         [Test] public void OriginalDisablerCapturedArrayAndPartialFault() { Assert.AreEqual(3, CameraInputDisablerVerification.VerifyDisablerCapturedArrayAndPartialAddFault()); LogAssert.NoUnexpectedReceived(); }

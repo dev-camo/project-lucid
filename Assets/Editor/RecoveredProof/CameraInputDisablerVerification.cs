@@ -92,6 +92,92 @@ namespace ProjectLucid.Verification
             }, () => Dispose(faultingCustody), () => Dispose(custody)); return checks;
         }
 
+        // CameraInputBrain 0x06000cd2 tests DirectionMaintained (+0x24 at 0x713046);
+        // InputDebounce 0x060001fe resets direction on reversal or a prior neutral sample.
+        public static int VerifyOriginalDirectionReleaseOfTheSecondaryDebounce()
+        {
+            Prepare();
+            var brain = new CameraInputBrain();
+            SubscriptionCustody custody = null;
+            int checks = 0;
+            Finish(() =>
+            {
+                custody = new SubscriptionCustody(brain);
+                Action capture = DeferredOriginalCapture(brain, new Vector2(0.2f, 0.3f), new Vector2(0.5f, 0.75f));
+                Action<Vector2> movement = Camera<Vector2>(brain, "RegisterCompositeMovement");
+                Action<Vector2> seed = input =>
+                {
+                    brain.GetAndClearMovement();
+                    capture();
+                    movement(input);
+                    brain.Update(10f);
+                    Require(!Requested(brain) && Horizontal(brain) != null && Vertical(brain) != null,
+                        "initialization seeds both debounces without advancing their timers");
+                    Axes(brain, input.x, input.y);
+                };
+                var held = new Vector2(0.8f, 0.8f);
+
+                seed(held);
+                movement(new Vector2(-0.8f, -0.8f));
+                brain.Update(0.125f);
+                Require(Horizontal(brain) == null && Vertical(brain) == null, "reversal releases both debounces");
+                Axes(brain, -0.8f, -0.8f);
+                checks++;
+
+                seed(Vector2.zero);
+                movement(held);
+                brain.Update(0.125f);
+                Require(Horizontal(brain) == null && Vertical(brain) == null, "motion after a neutral seed releases both debounces");
+                Axes(brain, 0.8f, 0.8f);
+                checks++;
+
+                seed(held);
+                InputDebounce horizontal = Horizontal(brain), vertical = Vertical(brain);
+                movement(held);
+                brain.Update(0.125f);
+                Require(ReferenceEquals(horizontal, Horizontal(brain)) && ReferenceEquals(vertical, Vertical(brain)),
+                    "same-direction input retains both debounces");
+                Axes(brain, 0f, 0f);
+                checks++;
+
+                seed(held);
+                horizontal = Horizontal(brain);
+                vertical = Vertical(brain);
+                // Binary-exact increments distinguish strict continuous expiry from the equality pulse.
+                for (int frame = 0; frame < 4; frame++)
+                {
+                    movement(held);
+                    brain.Update(0.125f);
+                    Require(ReferenceEquals(horizontal, Horizontal(brain)) && ReferenceEquals(vertical, Vertical(brain)),
+                        "both debounces remain through horizontal timer equality");
+                    Axes(brain, 0f, 0f);
+                }
+                Require(horizontal.TimeExceeded && !horizontal.TimeExceededContinuous, "horizontal equality is not continuous expiry");
+                movement(held);
+                brain.Update(0.125f);
+                Require(Horizontal(brain) == null && ReferenceEquals(vertical, Vertical(brain)), "horizontal releases on the fifth increment");
+                Axes(brain, 0.8f, 0f);
+                movement(held);
+                brain.Update(0.125f);
+                Require(Horizontal(brain) == null && ReferenceEquals(vertical, Vertical(brain))
+                    && vertical.TimeExceeded && !vertical.TimeExceededContinuous, "vertical equality on the sixth increment still suppresses");
+                Axes(brain, 0.8f, 0f);
+                movement(held);
+                brain.Update(0.125f);
+                Require(Horizontal(brain) == null && Vertical(brain) == null, "vertical releases on the seventh increment");
+                Axes(brain, 0.8f, 0.8f);
+                checks++;
+
+                seed(held);
+                movement(new Vector2(0.1f, 0.1f));
+                brain.Update(0.125f);
+                Require(Horizontal(brain) == null && Vertical(brain) == null, "below-threshold input releases both debounces");
+                Axes(brain, 0.1f, 0.1f);
+                checks++;
+            }, () => Dispose(custody));
+            return checks;
+        }
+
         static readonly string[] ScalarMaps = { "s_onButtonsHeld", "s_onButtonsDown", "s_onButtonsUp", "s_onAxis", "s_onAxisStart", "s_onAxisEnd", "s_onSwipe", "s_onScrollWheel" };
         static readonly string[] VectorMaps = { "s_onPointer", "s_onTap", "s_onTouch", "s_onTouchRelease", "s_onMultiTouchRelease", "s_onVectorisedGameInput" };
         static IDictionary InputDictionary(string name)
