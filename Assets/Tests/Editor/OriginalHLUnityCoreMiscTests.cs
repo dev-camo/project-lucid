@@ -237,6 +237,60 @@ namespace ProjectLucid.Tests
             }
         }
 
+        // ConvertValue 0x060008cb: Boolean handler 0x94e6c5 catches System.Exception,
+        // logs the key and exception message at 0x94e80f, then rethrows at 0x94e817.
+        [Test]
+        public void ConvertValueLogsAndRethrowsANullUnboxFault()
+        {
+            using (new SyntheticGraphNameScope("Lucid-convert-"))
+            {
+                var key = new GraphStorageKey("Lucid-convert-" + Guid.NewGuid().ToString("N"));
+                string keyText = key.ToString();
+                using (var capture = new OwnedHLOutputErrorCapture())
+                {
+                    var storage = new FSMStorage(0);
+                    storage.SetValue<object>(key, null);
+                    TestDelegate[] reads =
+                    {
+                        () => storage.GetValue<int>(key),
+                        () => storage.TryGetValue<int>(key, out _),
+                        () => storage.HasValue<bool>(key),
+                    };
+                    foreach (TestDelegate read in reads)
+                    {
+                        int before = capture.Errors.Count;
+                        var caught = Assert.Throws<NullReferenceException>(read);
+                        Assert.That(capture.Errors.Count, Is.EqualTo(before + 1));
+                        Assert.That(capture.Errors.Last(), Is.EqualTo("Failed to retrieve value with name '"
+                            + keyText + "' due to exception '" + caught.Message + "'|0"));
+                        Assert.That(storage.GetCollection().ContainsKey(key), Is.True);
+                        Assert.That(storage.GetCollection()[key], Is.Null);
+                    }
+
+                    storage.SetValue<object>(key, "x");
+                    int errors = capture.Errors.Count;
+                    var invalidCast = Assert.Throws<InvalidCastException>(() => storage.GetValue<int>(key));
+                    Assert.That(capture.Errors.Count, Is.EqualTo(errors + 1));
+                    Assert.That(capture.Errors.Last(), Is.EqualTo("Failed to retrieve value with name '"
+                        + keyText + "' due to exception '" + invalidCast.Message + "'|0"));
+                    Assert.That(storage.GetCollection()[key], Is.EqualTo("x"));
+
+                    storage.SetValue<object>(key, null);
+                    errors = capture.Errors.Count;
+                    Assert.That(storage.GetValue<string>(key), Is.Null);
+                    Assert.That(storage.GetValue<int?>(key), Is.Null);
+                    Assert.That(storage.GetCollection().ContainsKey(key), Is.True);
+                    Assert.That(storage.GetCollection()[key], Is.Null);
+                    Assert.That(capture.Errors.Count, Is.EqualTo(errors));
+                    storage.RemoveValue<object>(key);
+                    storage.SetValue<int>(key, 5);
+                    Assert.That(storage.GetCollection()[key], Is.InstanceOf<IGraphStorage.Var<int>>());
+                    Assert.That(storage.GetValue<int>(key), Is.EqualTo(5));
+                    Assert.That(capture.Errors.Count, Is.EqualTo(errors));
+                }
+            }
+        }
+
         // PerformanceProfileCustom.UpdateAttribute 0x06000d8c (x86-64 0x1b10a20):
         // FindIndex over Enum.GetValues + 1, reset to 0 at Length (cmove at
         // 0x1b10b77). GetValues orders by unsigned value (Medium, High,

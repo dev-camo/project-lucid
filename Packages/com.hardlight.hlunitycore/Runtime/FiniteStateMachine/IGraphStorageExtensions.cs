@@ -94,9 +94,9 @@ namespace Hardlight
                 if (value is IGraphStorage.Var<T> wrapped) return wrapped.Value;
                 return (T)value;
             }
-            catch (InvalidCastException exception)
+            catch (Exception exception)
             {
-                // Native logs the original key and exception message, then rethrows.
+                // System.Exception handler (0x060008cb, x86-64 Boolean 0x94e6c5) logs before rethrowing.
                 HLOutput.LogError("Failed to retrieve value with name '" + storageKey.ToString() + "' due to exception '" + exception.Message + "'");
                 throw;
             }

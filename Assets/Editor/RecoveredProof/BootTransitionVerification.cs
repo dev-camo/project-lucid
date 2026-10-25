@@ -147,8 +147,7 @@ namespace ProjectLucid.Verification
                     ExpectExactly<NullReferenceException>(() => transition.Update(null, new FSMUpdateContext(float.NaN)));
                     SameStorage(owned.Storage, before);
                 }
-                // Real reference-type SetValue stores null directly. Boolean unboxing faults with managed NRE;
-                // the genuine conversion catches only InvalidCastException, so this path dispatches no HLOutput log.
+                // ConvertValue<bool> catches System.Exception (0x94e6c5) and logs before rethrowing; this proof checks NRE/storage invariance, while EditMode tests assert the diagnostic.
                 owned.Storage.SetValue<string>(AppFSMKeys.GameSaveLoaded, null);
                 Require(owned.Storage.GetCollection().Count == 1 && owned.Storage.GetCollection().ContainsKey(AppFSMKeys.GameSaveLoaded) && owned.Storage.GetCollection()[AppFSMKeys.GameSaveLoaded] == null, "genuine typed raw-null slot");
                 foreach (IFSMTransition transition in new[] { normal, inverse })

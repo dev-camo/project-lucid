@@ -4918,6 +4918,11 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.SyntheticGraphNameOwnershipTests." +
     "NumericShortcutConstructorFailureReleasesTheirDerivedNames",
 ))
 
+# Original conversion diagnostics precede null-unbox rethrows (#477).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.OriginalHLUnityCoreMiscTests.ConvertValueLogsAndRethrowsANullUnboxFault",
+)
+
 # Secondary fixture diagnostics cannot stop cleanup or replace its first failure (#470).
 EDITMODE_TESTS += (
     "ProjectLucid.Tests.VerificationFixtureOwnershipTests.RunThenCleanUpContinuesWhenTheWarningLoggerThrows(0)",
