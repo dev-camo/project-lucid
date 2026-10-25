@@ -120,11 +120,35 @@ namespace ProjectLucid.ToolTests
             Require(LucidArtifactIdentity.Fingerprint(root, true) == UnicodePrepared, "BMP/supplementary prepared vector", ref checks);
         }
 
+        private static void SeparatorVectors(string root, bool prepared, string scope,
+            string nested, string literal, string together, ref int checks)
+        {
+            // Fixed SHA256 rows: relative path + NUL + SHA256("payload") + LF.
+            // A backslash is a filename character on POSIX, a separator on Windows.
+            Write(root, scope + "/literal/name.asset", "payload");
+            Require(LucidArtifactIdentity.Fingerprint(root, prepared) == nested, "Nested path vector", ref checks);
+            File.Delete(Path.Combine(root, scope + "/literal/name.asset"));
+            Write(root, scope + "/literal\\name.asset", "payload");
+            Require(LucidArtifactIdentity.Fingerprint(root, prepared) ==
+                (Path.DirectorySeparatorChar == '/' ? literal : nested), "Host separator vector", ref checks);
+            if (Path.DirectorySeparatorChar == '/')
+            {
+                Write(root, scope + "/literal/name.asset", "payload");
+                Require(LucidArtifactIdentity.Fingerprint(root, prepared) == together, "Distinct POSIX paths coexist", ref checks);
+            }
+        }
+
         private static int Main(string[] args)
         {
+            if (args.Length == 3 && args[0] == "--fingerprint" &&
+                (args[2] == "source" || args[2] == "prepared"))
+            {
+                Console.WriteLine(LucidArtifactIdentity.Fingerprint(args[1], args[2] == "prepared"));
+                return 0;
+            }
             if (args.Length != 0)
             {
-                Console.Error.WriteLine("Artifact identity vectors take no arguments.");
+                Console.Error.WriteLine("Use no arguments for vectors, or --fingerprint <root> <source|prepared>.");
                 return 2;
             }
             string root = Path.Combine(Path.GetTempPath(), "ProjectLucid artifact identity with spaces", Guid.NewGuid().ToString("N"));
@@ -137,6 +161,14 @@ namespace ProjectLucid.ToolTests
                 Vectors(root, ref checks);
                 SourceDocumentVectors(root, ref checks);
                 UnicodeVectors(Path.Combine(root, "unicode"), ref checks);
+                SeparatorVectors(Path.Combine(root, "separators-false"), false, "Assets/Scripts",
+                    "25c60721cacf2e91396e62b5fb27f2b9ba7555cfe3057efebbb6d8b883e04385",
+                    "3a632fd7752dbac934e3ff2b3a1d127f05f884b08b2bf599c8ed3a7a778863a9",
+                    "d7cc3ab2b63753726490df5bba7a5bb319867ae384c1f69958299798e9f2c25c", ref checks);
+                SeparatorVectors(Path.Combine(root, "separators-true"), true, "Assets/Recovered",
+                    "acc6343bf6cc30e1844ed8440fb6323e97de7c981f2ccc2f3491baaa95ac25a4",
+                    "ca2bfe19ae0c37c5b66d71aa0ab32d9f29189c96bd58c22efa0c4e1c39ab0f65",
+                    "0d4a433ccac0e2270cc780adb4ac7a8958d379c457171c65f9728fb71c4f7648", ref checks);
             }
             catch (Exception error) { failure = error; }
             try { if (Directory.Exists(root)) Directory.Delete(root, true); }

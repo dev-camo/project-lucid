@@ -1,5 +1,6 @@
 """Exact shared path/content vectors for the Python and C# identity implementations."""
 from pathlib import Path
+import os
 import tempfile
 import sys
 import unittest
@@ -82,3 +83,32 @@ class ArtifactIdentityVectorTests(unittest.TestCase):
                     self.assertNotEqual(prepared, artifact_fingerprint(root, True))
                     write(relative + ".meta", prepared_rows[relative + ".meta"])
             self.assertEqual(prepared, artifact_fingerprint(root, True))
+
+    def test_shared_fingerprint_preserves_host_filename_characters(self):
+        # Fixed independent SHA256 rows: UTF8(path + NUL + SHA256(b"payload") + LF).
+        vectors = (
+            (False, "Assets/Scripts",
+             "25c60721cacf2e91396e62b5fb27f2b9ba7555cfe3057efebbb6d8b883e04385",
+             "3a632fd7752dbac934e3ff2b3a1d127f05f884b08b2bf599c8ed3a7a778863a9",
+             "d7cc3ab2b63753726490df5bba7a5bb319867ae384c1f69958299798e9f2c25c"),
+            (True, "Assets/Recovered",
+             "acc6343bf6cc30e1844ed8440fb6323e97de7c981f2ccc2f3491baaa95ac25a4",
+             "ca2bfe19ae0c37c5b66d71aa0ab32d9f29189c96bd58c22efa0c4e1c39ab0f65",
+             "0d4a433ccac0e2270cc780adb4ac7a8958d379c457171c65f9728fb71c4f7648"),
+        )
+        for prepared, scope, nested, literal, together in vectors:
+            with self.subTest(prepared=prepared), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                parent = root / scope
+                (parent / "literal").mkdir(parents=True)
+                nested_path = parent / "literal/name.asset"
+                literal_path = parent / "literal\\name.asset"
+                nested_path.write_bytes(b"payload")
+                self.assertEqual(nested, artifact_fingerprint(root, prepared))
+                nested_path.unlink()
+                literal_path.write_bytes(b"payload")
+                self.assertEqual(literal if os.sep == "/" else nested, artifact_fingerprint(root, prepared))
+                if os.sep == "/":
+                    self.assertNotEqual(literal, nested)
+                    nested_path.write_bytes(b"payload")
+                    self.assertEqual(together, artifact_fingerprint(root, prepared))

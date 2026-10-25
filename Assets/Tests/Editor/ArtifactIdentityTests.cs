@@ -16,6 +16,42 @@ namespace ProjectLucid.Tests
         }
 
         [Test]
+        public void SharedFingerprintPreservesHostFilenameCharacters()
+        {
+            string root = Path.Combine(Path.GetTempPath(), "ProjectLucid identity separators", Guid.NewGuid().ToString("N"));
+            try
+            {
+                CheckSeparators(Path.Combine(root, "false"), false, "Assets/Scripts",
+                    "25c60721cacf2e91396e62b5fb27f2b9ba7555cfe3057efebbb6d8b883e04385",
+                    "3a632fd7752dbac934e3ff2b3a1d127f05f884b08b2bf599c8ed3a7a778863a9",
+                    "d7cc3ab2b63753726490df5bba7a5bb319867ae384c1f69958299798e9f2c25c");
+                CheckSeparators(Path.Combine(root, "true"), true, "Assets/Recovered",
+                    "acc6343bf6cc30e1844ed8440fb6323e97de7c981f2ccc2f3491baaa95ac25a4",
+                    "ca2bfe19ae0c37c5b66d71aa0ab32d9f29189c96bd58c22efa0c4e1c39ab0f65",
+                    "0d4a433ccac0e2270cc780adb4ac7a8958d379c457171c65f9728fb71c4f7648");
+            }
+            finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+        }
+
+        private static void CheckSeparators(string root, bool prepared, string scope,
+            string nested, string literal, string together)
+        {
+            // Independent fixed rows use UTF8(path + NUL + SHA256("payload") + LF).
+            Write(root, scope + "/literal/name.asset", "payload");
+            Assert.That(LucidArtifactIdentity.Fingerprint(root, prepared), Is.EqualTo(nested));
+            File.Delete(Path.Combine(root, scope + "/literal/name.asset"));
+            Write(root, scope + "/literal\\name.asset", "payload");
+            Assert.That(LucidArtifactIdentity.Fingerprint(root, prepared),
+                Is.EqualTo(Path.DirectorySeparatorChar == '/' ? literal : nested));
+            if (Path.DirectorySeparatorChar == '/')
+            {
+                Assert.That(literal, Is.Not.EqualTo(nested));
+                Write(root, scope + "/literal/name.asset", "payload");
+                Assert.That(LucidArtifactIdentity.Fingerprint(root, prepared), Is.EqualTo(together));
+            }
+        }
+
+        [Test]
         public void SharedFingerprintIncludesAllPreparedAssetDirectories()
         {
             // This known vector is also checked by the Python verification tests.

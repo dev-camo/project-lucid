@@ -60,7 +60,9 @@ namespace ProjectLucid.Editor
             }
         }
 
-        private static string Relative(string root, string path) => path.Substring(root.Length + 1).Replace('\\', '/');
+        // Preserve literal backslashes in POSIX filenames, as Python's Path.as_posix does.
+        private static string Relative(string root, string path) =>
+            path.Substring(root.Length + 1).Replace(Path.DirectorySeparatorChar, '/');
         private static string Hex(byte[] bytes) => BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant();
         private static void RejectSymlink(string path)
         {

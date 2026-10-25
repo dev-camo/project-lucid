@@ -68,6 +68,8 @@ jobs:
       - name: Run maintained C# content identity vectors
         working-directory: tools/tests/ArtifactIdentity
         run: dotnet run --project ArtifactIdentity.csproj --configuration Release
+      - name: Compare maintained C# and Python identity and fallback receipts
+        run: python3 tools/tests/ArtifactIdentity/interop.py tools/tests/ArtifactIdentity/bin/Release/net10.0/ProjectLucid.ArtifactIdentityTests.dll
       - name: Run code progress reader rule checks
         working-directory: tools/tests/CodeProgress
         run: dotnet run --project CodeProgress.Tests.csproj --configuration Release

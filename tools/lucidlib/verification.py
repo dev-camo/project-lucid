@@ -221,6 +221,11 @@ EDITMODE_TESTS += (
 )
 EDITMODE_TESTS += ("ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintIncludesAllPreparedAssetDirectories",)
 
+# Preserve literal host filename characters in content identity (#509).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.ArtifactIdentityTests.SharedFingerprintPreservesHostFilenameCharacters",
+)
+
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.RecoveredBehaviorTests." + name for name in (
     "PfxAlphaBlendAddCompilesEveryPassForOpenGL",
     "PfxAlphaBlendAddPerspectiveFadeRetainsOriginalClipCurve",
@@ -1095,7 +1100,8 @@ def _audit_wrapper_paths_supported(root):
 
     Conservative policy: paths with a backslash or a character above U+FFFF use
     direct Editor hashing, whose result must still equal the wrapper's native
-    content fingerprint.
+    content fingerprint. Literal POSIX filename characters are preserved;
+    only host directory separators become forward slashes.
     """
     for base in ("Assets/Recovered", "Assets/StreamingAssets"):
         for parent, directories, names in os.walk(Path(root) / base):

@@ -280,6 +280,8 @@ class AuditHandshakeTests(unittest.TestCase):
         self.assertEqual(self.commands, [])
 
     def test_non_bmp_and_literal_backslash_paths_use_direct_hash_fallback(self):
+        # This fixture proves routing/publication; ArtifactIdentity/interop.py
+        # repeats these assertions with maintained C# hashes in the report.
         # Python code-point order and UTF-16 ordinal order differ for non-BMP
         # names. artifact_fingerprint already sorts by UTF-16 and matches the shared
         # identity vectors, but paths with a backslash or a character above U+FFFF
@@ -289,11 +291,18 @@ class AuditHandshakeTests(unittest.TestCase):
         for name in ("extra\U00010000.asset", "literal\\name.asset"):
             with self.subTest(name=name):
                 path = self.asset.parent / name
+                path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"extra")
                 self.assertEqual(self.run_audit()["status"], "complete")
-                self.assertNotIn("-lucidAuditIdentityContext", self.commands[-1])
+                # On Windows the backslash creates a nested path, not a literal filename.
+                direct = name != "literal\\name.asset" or os.sep == "/"
+                if direct:
+                    self.assertNotIn("-lucidAuditIdentityContext", self.commands[-1])
+                else:
+                    self.assertIn("-lucidAuditIdentityContext", self.commands[-1])
                 receipt = json.loads(self.latest.read_text())
-                self.assertEqual(receipt["identity_mode"], "editor-content-sha256-v1")
+                self.assertEqual(receipt["identity_mode"],
+                                 "editor-content-sha256-v1" if direct else "wrapper-prepost-v1")
                 self.latest.write_bytes(self.previous)
                 path.unlink()
 
