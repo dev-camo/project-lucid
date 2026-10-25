@@ -31,11 +31,29 @@ namespace ProjectLucid.Tests
             "s_onAxisStart", "s_onAxisEnd", "s_onSwipe", "s_onScrollWheel",
         };
 
+        private Scene m_scene;
+        private IDisposable m_adapterScope;
+
+        [SetUp]
+        public void OwnAdapterSwitch() => m_adapterScope = OfflineAdapters.Override(true);
+
+        [TearDown]
+        public void ReleaseOwnedFixture()
+        {
+            // Unity's unexpected-log path can abandon an iterator at a yield without disposing it.
+            try { m_scene?.Dispose(); }
+            finally
+            {
+                m_scene = null;
+                m_adapterScope?.Dispose();
+                m_adapterScope = null;
+            }
+        }
+
         [UnityTest]
         public IEnumerator ShippedEntryShapesStayHiddenAcrossAuthoredReactivationAndRestoreWithAdapterOff()
         {
-            using (OfflineAdapters.Override(true))
-            using (var owned = new Scene(liveContentCallback: false))
+            using (var owned = m_scene = new Scene(liveContentCallback: false))
             {
                 owned.StartOfflineSystem();
                 owned.Menu.SetActive(true);
@@ -81,8 +99,7 @@ namespace ProjectLucid.Tests
         [UnityTest]
         public IEnumerator HiddenLauncherReleasesDeferredStartupAndIndependentPromptBeforeTheSystemExists()
         {
-            using (OfflineAdapters.Override(true))
-            using (var owned = new Scene())
+            using (var owned = m_scene = new Scene())
             {
                 Assert.That(owned.PromoReference.IsNull(), Is.True);
                 // The independent controller owner can enable before the launcher's parent menu.
@@ -163,6 +180,7 @@ namespace ProjectLucid.Tests
             public readonly SystemRef<CrossPromo> PromoReference;
             public CrossPromo Promo { get; private set; }
             private GameObject content;
+            private bool disposed;
 
             public Scene(bool liveContentCallback = true)
             {
@@ -297,6 +315,8 @@ namespace ProjectLucid.Tests
 
             public void Dispose()
             {
+                if (disposed) return;
+                disposed = true;
                 if (rows.Count == 0) return;
                 LifecycleSystemRowLease cleanup = rows[0];
                 for (int i = 0; i < objects.Count; ++i)
