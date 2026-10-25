@@ -112,16 +112,18 @@ namespace HardlightProject
             m_app.Storage.SetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Gallery);
         }
 
-        // 0x060031a3 (0x625FB0): turning the tab off, or reselecting it while it is current, only stops
-        // the track animations of the music player.
+        // 0x060031a3 (0x625FB0): turning the tab off stops the music player's track animations;
+        // reselecting the current tab returns (cmp 1 at 0x62602E).
         private void OnMusicToggle(bool isOn)
         {
             m_dreamPowerCollections.OnNavigatedAway();
-            if (!isOn || CollectionsTab.Value == UICollectionsTab.Music)
+            if (!isOn)
             {
                 m_musicCollectionsContainer.MusicPlayer.ResetPlayingAnimations();
                 return;
             }
+            if (CollectionsTab.Value == UICollectionsTab.Music)
+                return;
             AnalyticsEventCollector.ButtonPressedEvent(m_musicOpenAnalyticsEvent);
             CollectionsTab.Value = UICollectionsTab.Music;
             SelectButtonPrompt.Value = Strings.COMMON_MENU_SELECT;

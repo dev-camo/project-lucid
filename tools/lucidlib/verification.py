@@ -10674,13 +10674,17 @@ EDITMODE_TESTS += tuple("ProjectLucid.Tests.UIContainerCollectionsTests." + name
     "TheTabInputsMoveTheTabGroupFromAHalfUpwards",
     "NavigationFollowsTheStoredUnlockInProgressFlag",
     "TurningTheMusicTabOffOnlyStopsThePlayingAnimations",
-    "ReselectingTheCurrentMusicTabOnlyStopsThePlayingAnimations",
+    "ReselectingTheCurrentMusicTabKeepsThePlayingAnimations",
     "TurningTheStoreTabOffChangesNothing",
     "ReselectingTheCurrentStoreTabChangesNothing",
     "TheGalleryToggleShowsTheSelectButtonAndStoresTheTab",
     "TheStoreNavigatingAwayClearsThePurchasableFlag",
     "TheStoreTabIsSetUpWithoutABadge",
 ))
+# Selected music-tab submission and actual deselection through the real toggle group (#481).
+EDITMODE_TESTS += (
+    "ProjectLucid.Tests.UIContainerCollectionsTests.SubmittingTheSelectedMusicToggleKeepsThePlayingAnimations",
+)
 EDITMODE_TESTS += tuple("ProjectLucid.Tests.DreamPowerStoreDeclarationTests." + name for name in (
     "TheUIContainerCollectionsDeclarationMatchesTheOriginalMetadata",
     "TheUIContainerCollectionsDreamPowerStoreDeclarationMatchesTheOriginalMetadata",

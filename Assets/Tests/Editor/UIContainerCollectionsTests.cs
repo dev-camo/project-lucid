@@ -140,11 +140,8 @@ namespace ProjectLucid.Tests
             });
         }
 
-        // OnMusicToggle 0x625FB0 clears the store's Purchasable flag first (0x626000). Turning the tab off, or switching it on while it
-        // is already the current tab (cmp 1 at 0x62602E), only resets the playing animations of the music player (0x6260 .. 0x62604E):
-        // the tab, the select button and the stored tab are left alone.
+        // OnMusicToggle 0x625FB0 clears Purchasable first; only turning the tab off reaches the reset at 0x62604E.
         [TestCase(false, UICollectionsTab.DreamPower, TestName = "TurningTheMusicTabOffOnlyStopsThePlayingAnimations")]
-        [TestCase(true, UICollectionsTab.Music, TestName = "ReselectingTheCurrentMusicTabOnlyStopsThePlayingAnimations")]
         public void TheMusicToggleThatChangesNothingStopsThePlayingAnimations(bool isOn, UICollectionsTab current)
         {
             Run(rig =>
@@ -161,6 +158,93 @@ namespace ProjectLucid.Tests
                 Assert.That(rig.Collections.CollectionsTab.Value, Is.EqualTo(current));
                 Assert.That(rig.Collections.SelectButtonShow.Value, Is.False);
                 Assert.That(rig.Collections.SelectButtonPrompt.Value, Is.EqualTo(default(Strings)));
+            });
+        }
+
+        // Native returns at 0x626033 before the reset for a reselect (Game.Runtime 0x060031a3).
+        [Test]
+        public void ReselectingTheCurrentMusicTabKeepsThePlayingAnimations()
+        {
+            Run(rig =>
+            {
+                rig.Collections.CollectionsTab.Value = UICollectionsTab.Music;
+                rig.Scene.App.Storage.SetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Gallery);
+                rig.Store.Purchasable.Value = true;
+                rig.PlayingAnimation.Play(rig.PlayingClip.name);
+                Assert.That(rig.PlayingAnimation.IsPlaying(rig.PlayingClip.name), Is.True, "set-up: the animation plays");
+
+                Call(rig.Collections, "OnMusicToggle", true);
+
+                Assert.That(rig.Store.Purchasable.Value, Is.False);
+                Assert.That(rig.PlayingAnimation.IsPlaying(rig.PlayingClip.name), Is.True);
+                Assert.That(rig.Collections.CollectionsTab.Value, Is.EqualTo(UICollectionsTab.Music));
+                Assert.That(rig.Collections.SelectButtonShow.Value, Is.False);
+                Assert.That(rig.Collections.SelectButtonPrompt.Value, Is.EqualTo(default(Strings)));
+                Assert.That(rig.Scene.App.Storage.GetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Music, false), Is.EqualTo(UICollectionsTab.Gallery));
+            });
+        }
+
+        // UIToggle.OnSubmit (HLModernUI.Runtime 0x06000082) still reports true when the active group cannot switch off.
+        [Test]
+        public void SubmittingTheSelectedMusicToggleKeepsThePlayingAnimations()
+        {
+            Run(rig =>
+            {
+                Owned owned = rig.Scene.Owned;
+                UIToggle toggle = rig.TabToggles[(int)UICollectionsTab.Music];
+                UIToggleGroupElement element = rig.TabElements[(int)UICollectionsTab.Music];
+                Set(toggle, "m_groupElement", element); // Reflection: authored serialized reference
+                element.Group = rig.Tabs;
+                var widget = toggle.gameObject.AddComponent<UIWidgetToggleCollections>();
+                Set(widget, "m_toggle", toggle); // Reflection: serialized reference the editor Reset fills
+                Set(widget, "m_target", toggle.gameObject.AddComponent<UnityEngine.UI.Image>()); // Reflection: authored serialized reference
+                GameObject badgeHost = owned.Track(new GameObject("Lucid collections submit badge", typeof(RectTransform)));
+                badgeHost.SetActive(false);
+                var badge = badgeHost.AddComponent<UIWidgetSDTAlertBadge>();
+                Set(badge, "m_text", badgeHost.AddComponent<RTLTextMeshPro>()); // Reflection: authored serialized reference
+                Set(badge, "m_enableObjectWhileActive", badgeHost); // Reflection: authored serialized reference
+                Set(widget, "m_alertBadge", badge); // Reflection: authored serialized reference
+                widget.Setup(new UIWidgetToggleCollectionsParameters(value => Call(rig.Collections, "OnMusicToggle", value)));
+                toggle.OnValueChanged.AddListener(widget.Action_OnValueChanged);
+                var reported = new List<bool>();
+                toggle.OnValueChanged.AddListener(reported.Add);
+
+                rig.Tabs.gameObject.SetActive(true);
+                toggle.gameObject.SetActive(true);
+                rig.Tabs.AllowSwitchOff = false;
+                rig.Collections.CollectionsTab.Value = UICollectionsTab.Music;
+                rig.Scene.App.Storage.SetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Gallery);
+                widget.SetSelectedWithoutNotify(true);
+                Assert.That(rig.Tabs.isActiveAndEnabled, Is.True);
+                Assert.That(toggle.IsActive() && toggle.IsInteractable() && toggle.IsOn, Is.True);
+                Assert.That(reported, Is.Empty, "selection without notification");
+                rig.Store.Purchasable.Value = true;
+                rig.PlayingAnimation.Play(rig.PlayingClip.name);
+                Assert.That(rig.PlayingAnimation.IsPlaying(rig.PlayingClip.name), Is.True, "set-up: the animation plays");
+
+                toggle.OnSubmit(null); // The original submit handler does not read event data.
+
+                Assert.That(reported, Is.EqualTo(new[] { true }));
+                Assert.That(toggle.IsOn, Is.True);
+                Assert.That(rig.Store.Purchasable.Value, Is.False);
+                Assert.That(rig.PlayingAnimation.IsPlaying(rig.PlayingClip.name), Is.True);
+                Assert.That(rig.Collections.CollectionsTab.Value, Is.EqualTo(UICollectionsTab.Music));
+                Assert.That(rig.Collections.SelectButtonShow.Value, Is.False);
+                Assert.That(rig.Collections.SelectButtonPrompt.Value, Is.EqualTo(default(Strings)));
+                Assert.That(rig.Scene.App.Storage.GetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Music, false), Is.EqualTo(UICollectionsTab.Gallery));
+
+                rig.Tabs.AllowSwitchOff = true;
+                rig.Store.Purchasable.Value = true;
+                toggle.OnSubmit(null);
+
+                Assert.That(reported, Is.EqualTo(new[] { true, false }));
+                Assert.That(toggle.IsOn, Is.False);
+                Assert.That(rig.Store.Purchasable.Value, Is.False);
+                Assert.That(rig.PlayingAnimation.IsPlaying(rig.PlayingClip.name), Is.False);
+                Assert.That(rig.Collections.CollectionsTab.Value, Is.EqualTo(UICollectionsTab.Music));
+                Assert.That(rig.Collections.SelectButtonShow.Value, Is.False);
+                Assert.That(rig.Collections.SelectButtonPrompt.Value, Is.EqualTo(default(Strings)));
+                Assert.That(rig.Scene.App.Storage.GetValue(AppFSMKeys.CollectionsTabLastOpened, UICollectionsTab.Music, false), Is.EqualTo(UICollectionsTab.Gallery));
             });
         }
 
